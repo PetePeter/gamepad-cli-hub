@@ -1,403 +1,426 @@
 /**
- * Windows window management module.
- * Uses PowerShell scripts (via temp files) to find, focus, and cycle between terminal windows.
+ * Windows Window Management Module
+ *
+ * Provides window enumeration and focus management using PowerShell
+ * with Windows COM APIs (WScript.Shell and UI Automation).
  */
 
-import { execSync } from 'node:child_process';
-import { platform } from 'node:os';
-import { writeFileSync, unlinkSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { spawn } from 'child_process';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { writeFileSync, unlinkSync, existsSync } from 'fs';
+import { promisify } from 'util';
+import { exec as execCallback } from 'child_process';
 
-// Check if we're on Windows
-const IS_WINDOWS = platform() === 'win32';
-
-// Window handle type (HWND on Windows is a pointer, represented as number)
-export type WindowHandle = number;
-
-// Terminal window information
-export interface TerminalWindow {
-  handle: WindowHandle;
-  title: string;
-  processId: number;
-  processName: string;
-}
-
-// Focus direction
-export type FocusDirection = 'next' | 'previous';
+const exec = promisify(execCallback);
 
 /**
- * Window Manager class for Windows platform.
- * Provides functionality to find, focus, and cycle between terminal windows.
+ * Window information structure
  */
-export class WindowManager {
-  private cachedTerminals: TerminalWindow[] = [];
-  private currentFocusIndex: number = -1;
-  private lastUpdateTime: number = 0;
-  private readonly CACHE_DURATION_MS = 1000; // Cache for 1 second
-  private tempDir: string | null = null;
+export interface WindowInfo {
+  hwnd: string;           // Window handle (as hex string)
+  title: string;          // Window title
+  className: string;      // Window class name
+  processId: number;      // Process ID
+  processName: string;    // Process executable name
+  isVisible: boolean;     // Whether window is visible
+}
+
+/**
+ * Process information structure
+ */
+export interface ProcessInfo {
+  pid: number;
+  name: string;
+  mainWindowTitle: string;
+}
+
+/**
+ * Result from window enumeration
+ */
+export interface WindowEnumerationResult {
+  windows: WindowInfo[];
+  count: number;
+}
+
+/**
+ * PowerShell script for window enumeration and management
+ */
+const WINDOW_PS1 = `
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName System.Windows.Forms
+
+# Win32 API functions
+$script:signature = @'
+[DllImport("user32.dll", CharSet = CharSet.Auto)]
+public static extern IntPtr GetForegroundWindow();
+
+[DllImport("user32.dll", CharSet = CharSet.Auto)]
+public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+[DllImport("user32.dll", CharSet = CharSet.Auto)]
+public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+[DllImport("user32.dll", CharSet = CharSet.Auto)]
+public static extern bool IsWindowVisible(IntPtr hWnd);
+
+[DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+public static extern int GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
+
+[DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+
+[DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
+[DllImport("user32.dll")]
+public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+'@
+
+Add-Type -MemberDefinition $script:signature -Name Win32 -Namespace NativeMethods
+
+# Window enumeration callback
+$script:windows = @{}
+
+$callback = {
+    param($hWnd, $lParam)
+
+    try {
+        # Check if window is visible
+        $isVisible = [NativeMethods.Win32]::IsWindowVisible($hWnd)
+
+        # Get process ID
+        $processId = 0
+        [NativeMethods.Win32]::GetWindowThreadProcessId($hWnd, [ref]$processId) | Out-Null
+
+        # Get window title
+        $title = New-Object System.Text.StringBuilder(256)
+        [NativeMethods.Win32]::GetWindowText($hWnd, $title, $title.Capacity) | Out-Null
+        $windowTitle = $title.ToString()
+
+        # Get class name
+        $className = New-Object System.Text.StringBuilder(256)
+        [NativeMethods.Win32]::GetClassName($hWnd, $className, $className.Capacity) | Out-Null
+        $windowClassName = $className.ToString()
+
+        # Get process name
+        $processName = ""
+        if ($processId -gt 0) {
+            try {
+                $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+                if ($process) {
+                    $processName = $process.ProcessName
+                }
+            } catch {
+                # Process might not be accessible
+            }
+        }
+
+        # Only include visible windows with titles
+        if ($isVisible -and $windowTitle.Length -gt 0) {
+            $windowInfo = @{
+                hwnd = $hWnd.ToString()
+                title = $windowTitle
+                className = $windowClassName
+                processId = $processId
+                processName = $processName
+                isVisible = $isVisible
+            }
+            $script:windows[$hWnd.ToString()] = $windowInfo
+        }
+    } catch {
+        # Skip windows that cause errors
+    }
+
+    return $true
+}
+
+# Get current operation mode from environment
+$mode = $env:WINDOW_OP_MODE
+
+if ($mode -eq "enumerate") {
+    # Enumerate all windows
+    [NativeMethods.Win32]::EnumWindows($callback, [IntPtr]::Zero) | Out-Null
+    $script:windows.Values | ConvertTo-Json -Compress
+
+} elseif ($mode -eq "focus") {
+    # Focus a specific window
+    $targetHwnd = [IntPtr]::Parse($env:TARGET_HWND)
+    $success = [NativeMethods.Win32]::SetForegroundWindow($targetHwnd)
+    @{ success = $success } | ConvertTo-Json -Compress
+
+} elseif ($mode -eq "getactive") {
+    # Get active window
+    $activeHwnd = [NativeMethods.Win32]::GetForegroundWindow()
+
+    $processId = 0
+    [NativeMethods.Win32]::GetWindowThreadProcessId($activeHwnd, [ref]$processId) | Out-Null
+
+    $title = New-Object System.Text.StringBuilder(256)
+    [NativeMethods.Win32]::GetWindowText($activeHwnd, $title, $title.Capacity) | Out-Null
+
+    $processName = ""
+    if ($processId -gt 0) {
+        try {
+            $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
+            if ($process) {
+                $processName = $process.ProcessName
+            }
+        } catch {
+            # Process might not be accessible
+        }
+    }
+
+    @{
+        hwnd = $activeHwnd.ToString()
+        title = $title.ToString()
+        processId = $processId
+        processName = $processName
+    } | ConvertTo-Json -Compress
+
+} elseif ($mode -eq "findbytitle") {
+    # Find windows by title pattern
+    $pattern = $env:TITLE_PATTERN
+    [NativeMethods.Win32]::EnumWindows($callback, [IntPtr]::Zero) | Out-Null
+
+    $matching = $script:windows.Values | Where-Object { $_.title -match $pattern }
+    $matching | ConvertTo-Json -Compress
+
+} elseif ($mode -eq "findbyprocess") {
+    # Find windows by process name
+    $processName = $env:PROCESS_NAME
+    [NativeMethods.Win32]::EnumWindows($callback, [IntPtr]::Zero) | Out-Null
+
+    $matching = $script:windows.Values | Where-Object { $_.processName -eq $processName }
+    $matching | ConvertTo-Json -Compress
+}
+`;
+
+/**
+ * Windows Window Manager
+ *
+ * Provides methods for enumerating, finding, and manipulating windows.
+ */
+export class WindowsWindowManager {
+  private scriptPath: string | null = null;
 
   constructor() {
-    // Create a temp directory for our scripts
-    if (IS_WINDOWS) {
-      try {
-        this.tempDir = mkdtempSync(join(tmpdir(), 'gamepad-hub-'));
-      } catch (e) {
-        console.error('Failed to create temp directory:', e);
-      }
+    this.ensureScriptExists();
+  }
+
+  /**
+   * Ensure the PowerShell script file exists
+   */
+  private ensureScriptExists(): void {
+    if (this.scriptPath && existsSync(this.scriptPath)) {
+      return;
+    }
+
+    this.scriptPath = join(tmpdir(), `gamepad-windows-${Date.now()}.ps1`);
+    writeFileSync(this.scriptPath, WINDOW_PS1, 'utf-8');
+  }
+
+  /**
+   * Execute PowerShell command for window operations
+   */
+  private async executeWindowScript(
+    mode: string,
+    env?: Record<string, string>
+  ): Promise<string> {
+    this.ensureScriptExists();
+
+    const powershellArgs = [
+      '-NoProfile',
+      '-ExecutionPolicy', 'Bypass',
+      '-File', this.scriptPath!
+    ];
+
+    const spawnOptions = {
+      env: {
+        ...process.env,
+        WINDOW_OP_MODE: mode,
+        ...env
+      },
+      timeout: 10000
+    };
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn('powershell', powershellArgs, spawnOptions);
+      let stdout = '';
+      let stderr = '';
+
+      proc.stdout?.on('data', (data: Buffer) => {
+        stdout += data.toString();
+      });
+
+      proc.stderr?.on('data', (data: Buffer) => {
+        stderr += data.toString();
+      });
+
+      proc.on('close', (code: number) => {
+        if (code === 0 && stdout) {
+          resolve(stdout.trim().split('\n').pop() || '');
+        } else {
+          reject(new Error(`PowerShell failed: ${stderr || 'unknown error'}`));
+        }
+      });
+
+      proc.on('error', (err: Error) => {
+        reject(err);
+      });
+    });
+  }
+
+  /**
+   * Enumerate all visible windows
+   */
+  async enumerateWindows(): Promise<WindowEnumerationResult> {
+    try {
+      const output = await this.executeWindowScript('enumerate');
+      const windows: WindowInfo[] = JSON.parse(output || '[]');
+
+      return {
+        windows,
+        count: windows.length
+      };
+    } catch (error) {
+      console.error('Failed to enumerate windows:', error);
+      return { windows: [], count: 0 };
     }
   }
 
   /**
-   * Find all terminal windows currently open.
+   * Find windows by title pattern (regex)
    */
-  findTerminalWindows(): TerminalWindow[] {
-    const now = Date.now();
-    if (now - this.lastUpdateTime < this.CACHE_DURATION_MS && this.cachedTerminals.length > 0) {
-      return this.cachedTerminals;
-    }
-
-    if (!IS_WINDOWS) {
-      this.cachedTerminals = [];
-      return this.cachedTerminals;
-    }
-
+  async findWindowsByTitle(pattern: string): Promise<WindowInfo[]> {
     try {
-      const windows = this.getWindowProcesses();
-      this.cachedTerminals = windows.filter((win) => this.isTerminalWindow(win));
-      this.lastUpdateTime = now;
-      return this.cachedTerminals;
+      const output = await this.executeWindowScript('findbytitle', {
+        TITLE_PATTERN: pattern
+      });
+      const windows: WindowInfo[] = JSON.parse(output || '[]');
+      return windows;
     } catch (error) {
-      console.error('Error finding terminal windows:', error);
+      console.error(`Failed to find windows by title pattern "${pattern}":`, error);
       return [];
     }
   }
 
   /**
-   * Bring a window to the foreground by PID.
+   * Find windows by process name
    */
-  focusWindowByPid(processId: number): boolean {
-    if (!IS_WINDOWS) {
-      return false;
-    }
-
+  async findWindowsByProcessName(processName: string): Promise<WindowInfo[]> {
     try {
-      return this.runFocusScript(processId);
+      const output = await this.executeWindowScript('findbyprocess', {
+        PROCESS_NAME: processName
+      });
+      const windows: WindowInfo[] = JSON.parse(output || '[]');
+      return windows;
     } catch (error) {
-      console.error('Error focusing window:', error);
+      console.error(`Failed to find windows by process "${processName}":`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Focus (bring to front) a window by handle
+   */
+  async focusWindow(hwnd: string): Promise<boolean> {
+    try {
+      const output = await this.executeWindowScript('focus', {
+        TARGET_HWND: hwnd
+      });
+      const result = JSON.parse(output);
+      return result.success === true;
+    } catch (error) {
+      console.error(`Failed to focus window ${hwnd}:`, error);
       return false;
     }
   }
 
   /**
-   * Bring a window to the foreground by handle.
+   * Get the currently active/focused window
    */
-  focusWindow(windowHandle: WindowHandle): boolean {
-    if (!IS_WINDOWS) {
-      return false;
-    }
-
+  async getActiveWindow(): Promise<WindowInfo | null> {
     try {
-      const window = this.getWindowProcesses().find((w) => w.handle === windowHandle);
-      if (window) {
-        return this.focusWindowByPid(window.processId);
-      }
-      return false;
-    } catch (error) {
-      console.error('Error focusing window:', error);
-      return false;
-    }
-  }
+      const output = await this.executeWindowScript('getactive');
+      const data = JSON.parse(output);
 
-  /**
-   * Get the currently focused/active window.
-   */
-  getActiveWindow(): TerminalWindow | null {
-    if (!IS_WINDOWS) {
+      return {
+        hwnd: data.hwnd,
+        title: data.title,
+        className: '',
+        processId: data.processId,
+        processName: data.processName,
+        isVisible: true
+      };
+    } catch (error) {
+      console.error('Failed to get active window:', error);
       return null;
     }
-
-    try {
-      return this.getForegroundWindowProcess();
-    } catch (error) {
-      console.error('Error getting active window:', error);
-      return null;
-    }
   }
 
   /**
-   * Cycle focus to the next or previous terminal window.
+   * Get all running processes
    */
-  cycleFocus(direction: FocusDirection = 'next'): boolean {
-    const terminals = this.findTerminalWindows();
-    if (terminals.length === 0) {
-      return false;
-    }
-
-    const activeWindow = this.getActiveWindow();
-    if (!activeWindow) {
-      return this.focusWindowByPid(terminals[0].processId);
-    }
-
-    let currentIndex = terminals.findIndex((t) => t.processId === activeWindow.processId);
-    if (currentIndex === -1) {
-      currentIndex = -1;
-    }
-
-    let nextIndex: number;
-    if (direction === 'next') {
-      nextIndex = (currentIndex + 1) % terminals.length;
-    } else {
-      nextIndex = currentIndex <= 0 ? terminals.length - 1 : currentIndex - 1;
-    }
-
-    this.currentFocusIndex = nextIndex;
-    return this.focusWindowByPid(terminals[nextIndex].processId);
-  }
-
-  /**
-   * Get all visible windows (for debugging).
-   */
-  getAllWindows(): TerminalWindow[] {
-    if (!IS_WINDOWS) {
-      return [];
-    }
-
+  async getProcesses(): Promise<ProcessInfo[]> {
     try {
-      return this.getWindowProcesses();
+      const { stdout } = await exec('powershell -Command "Get-Process | Select-Object Id,ProcessName,MainWindowTitle | ConvertTo-Json"');
+      const processes: any[] = JSON.parse(stdout);
+
+      return processes
+        .filter(p => p.MainWindowTitle && p.MainWindowTitle.length > 0)
+        .map(p => ({
+          pid: p.Id,
+          name: p.ProcessName,
+          mainWindowTitle: p.MainWindowTitle
+        }));
     } catch (error) {
-      console.error('Error enumerating windows:', error);
+      console.error('Failed to get processes:', error);
       return [];
     }
   }
 
   /**
-   * Clean up temp files on exit.
+   * Find terminal windows (common terminal emulators)
+   */
+  async findTerminalWindows(): Promise<WindowInfo[]> {
+    const terminalProcessNames = [
+      'WindowsTerminal',
+      'code',      // VSCode terminal
+      'wt',        // Windows Terminal
+      'cmd',
+      'powershell',
+      'pwsh',
+      'conhost',
+      'node'       // Node.js processes might be terminals
+    ];
+
+    const results: WindowInfo[] = [];
+
+    for (const name of terminalProcessNames) {
+      const windows = await this.findWindowsByProcessName(name);
+      results.push(...windows);
+    }
+
+    return results;
+  }
+
+  /**
+   * Clean up temporary script file
    */
   cleanup(): void {
-    if (this.tempDir && existsSync(this.tempDir)) {
+    if (this.scriptPath && existsSync(this.scriptPath)) {
       try {
-        rmSync(this.tempDir, { recursive: true, force: true } as any);
+        unlinkSync(this.scriptPath);
       } catch {
         // Ignore cleanup errors
       }
+      this.scriptPath = null;
     }
-  }
-
-  // ========== Private methods ==========
-
-  /**
-   * Get all processes that have windows using temp file script.
-   */
-  private getWindowProcesses(): TerminalWindow[] {
-    const scriptPath = this.createTempScript('get-windows.ps1', GetWindowsScript);
-    try {
-      const output = execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`, {
-        encoding: 'utf-8',
-        timeout: 5000,
-      });
-
-      if (!output || output.trim() === '') {
-        return [];
-      }
-
-      const windows = JSON.parse(output);
-      if (!Array.isArray(windows)) {
-        return [];
-      }
-
-      return windows
-        .filter((w) => w.MainWindowTitle && w.MainWindowTitle.trim() !== '')
-        .map((w) => ({
-          handle: Number(w.MainWindowHandle || 0),
-          title: w.MainWindowTitle,
-          processId: Number(w.Id),
-          processName: (w.ProcessName || '').toLowerCase(),
-        }));
-    } catch (error) {
-      console.error('Error in getWindowProcesses:', error);
-      return [];
-    } finally {
-      this.deleteTempScript(scriptPath);
-    }
-  }
-
-  /**
-   * Get the foreground window process using temp file script.
-   */
-  private getForegroundWindowProcess(): TerminalWindow | null {
-    const scriptPath = this.createTempScript('get-foreground.ps1', GetForegroundWindowScript);
-    try {
-      const output = execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`, {
-        encoding: 'utf-8',
-        timeout: 5000,
-      });
-
-      if (!output || output.trim() === '') {
-        return null;
-      }
-
-      const result = JSON.parse(output);
-      if (!result || !result.Id) {
-        return null;
-      }
-
-      return {
-        handle: Number(result.MainWindowHandle || 0),
-        title: result.MainWindowTitle || '',
-        processId: Number(result.Id),
-        processName: (result.ProcessName || '').toLowerCase(),
-      };
-    } catch (error) {
-      console.error('Error in getForegroundWindowProcess:', error);
-      return null;
-    } finally {
-      this.deleteTempScript(scriptPath);
-    }
-  }
-
-  /**
-   * Run the focus window script.
-   */
-  private runFocusScript(processId: number): boolean {
-    const scriptContent = FocusWindowScript.replace('{PROCESS_ID}', processId.toString());
-    const scriptPath = this.createTempScript(`focus-${processId}.ps1`, scriptContent);
-    try {
-      const output = execSync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`, {
-        encoding: 'utf-8',
-        timeout: 5000,
-      });
-      return output.includes('OK');
-    } catch (error) {
-      console.error('Error in runFocusScript:', error);
-      return false;
-    } finally {
-      this.deleteTempScript(scriptPath);
-    }
-  }
-
-  /**
-   * Create a temp script file.
-   */
-  private createTempScript(name: string, content: string): string {
-    if (!this.tempDir) {
-      throw new Error('Temp directory not available');
-    }
-    const path = join(this.tempDir, name);
-    writeFileSync(path, content, 'utf-8');
-    return path;
-  }
-
-  /**
-   * Delete a temp script file.
-   */
-  private deleteTempScript(path: string): void {
-    try {
-      if (existsSync(path)) {
-        unlinkSync(path);
-      }
-    } catch {
-      // Ignore
-    }
-  }
-
-  /**
-   * Check if a window is a terminal window.
-   */
-  private isTerminalWindow(window: TerminalWindow): boolean {
-    const terminalProcesses = [
-      'windowsterminal',
-      'windows.terminal.powershell',
-      'pwsh',
-      'powershell',
-      'cmd',
-      'wt',
-      'conhost',
-      'alacritty',
-      'wezterm-gui',
-      'kitty',
-      'tabby',
-    ];
-
-    const lowerProcess = window.processName.toLowerCase();
-    const lowerTitle = window.title.toLowerCase();
-
-    if (terminalProcesses.some((t) => lowerProcess.includes(t))) {
-      return true;
-    }
-
-    const terminalTitleIndicators = [
-      'powershell',
-      'cmd.exe',
-      'administrator:',
-      'windows terminal',
-      'ubuntu',
-      'wsl',
-      'debian',
-      'bash',
-      'zsh',
-      'nu',
-      'fish',
-      'git bash',
-    ];
-
-    return terminalTitleIndicators.some((indicator) => lowerTitle.includes(indicator));
   }
 }
 
-// ========== PowerShell Script Templates ==========
-
-/** Script to get all visible windows */
-const GetWindowsScript = `
-Get-Process | Where-Object { $_.MainWindowTitle -ne '' } | Select-Object Id, ProcessName, MainWindowTitle, MainWindowHandle | ConvertTo-Json
-`.trim();
-
-/** Script to get the foreground window */
-const GetForegroundWindowScript = `
-Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public class Win32 {
-    [DllImport("user32.dll")]
-    public static extern IntPtr GetForegroundWindow();
-    [DllImport("user32.dll")]
-    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-}
-"@
-$hWnd = [Win32]::GetForegroundWindow()
-$processId = 0
-[Win32]::GetWindowThreadProcessId($hWnd, [ref]$processId) | Out-Null
-Get-Process -Id $processId -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, MainWindowTitle, MainWindowHandle | ConvertTo-Json
-`.trim();
-
-/** Script template to focus a window by process ID */
-const FocusWindowScript = `
-$processId = {PROCESS_ID}
-$process = Get-Process -Id $processId -ErrorAction SilentlyContinue
-if (-not $process) {
-    Write-Output 'NOT_FOUND'
-    exit
-}
-if (-not $process.MainWindowHandle) {
-    Write-Output 'NO_WINDOW'
-    exit
-}
-Add-Type -Name User32 -Namespace Win32 -MemberDefinition @"
-[DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
-[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
-"@
-$hwnd = $process.MainWindowHandle
-[Win32.User32]::ShowWindowAsync($hwnd, 9) | Out-Null
-[Win32.User32]::SetForegroundWindow($hwnd) | Out-Null
-Write-Output 'OK'
-`.trim();
-
-// Singleton instance
-export const windowManager = new WindowManager();
-
-// Cleanup on exit
-process.on('exit', () => windowManager.cleanup());
-process.on('SIGINT', () => {
-  windowManager.cleanup();
-  process.exit(0);
-});
+// Export singleton instance
+export const windowManager = new WindowsWindowManager();

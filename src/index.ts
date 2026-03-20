@@ -15,7 +15,8 @@ import { SessionManager } from './session/manager';
 import { processSpawner } from './session/spawner';
 import { windowManager } from './output/windows';
 import { keyboard } from './output/keyboard';
-import type { Binding, KeyboardBinding, VoiceBinding, SessionSwitchBinding, SpawnBinding, ListSessionsBinding } from './config/loader';
+import { createTranscriber, type OpenWhisperTranscriber } from './voice/openwhisper';
+import type { Binding, KeyboardBinding, VoiceBinding, OpenWhisperBinding, SessionSwitchBinding, SpawnBinding, ListSessionsBinding } from './config/loader';
 
 // ============================================================================
 // Application State
@@ -25,6 +26,7 @@ class GamepadCliHub {
   private sessionManager = new SessionManager();
   private isRunning = false;
   private activeCliType: string | null = null;
+  private openwhisper: OpenWhisperTranscriber | null = null;
 
   // Per-CLI button mappings (A/B/X/Y) for the active session
   private readonly PER_CLI_BUTTONS = ['A', 'B', 'X', 'Y'] as const;
@@ -44,6 +46,9 @@ class GamepadCliHub {
 
       // Load configuration
       this.loadConfiguration();
+
+      // Initialize OpenWhisper if configured
+      this.initializeOpenWhisper();
 
       // Setup signal handlers for graceful shutdown
       this.setupSignalHandlers();
@@ -79,6 +84,30 @@ class GamepadCliHub {
       console.log('Configuration loaded successfully');
     } catch (error) {
       throw new Error(`Failed to load configuration: ${error}`);
+    }
+  }
+
+  private initializeOpenWhisper(): void {
+    try {
+      const openwhisperConfig = configLoader.getOpenWhisperConfig();
+      if (openwhisperConfig) {
+        this.openwhisper = createTranscriber(openwhisperConfig);
+        const status = this.openwhisper.getStatus();
+        if (status.ready) {
+          console.log('OpenWhisper transcription enabled');
+        } else {
+          console.warn('OpenWhisper configured but not ready:');
+          if (!status.whisperExists) {
+            console.warn(`  - whisper.exe not found at: ${status.whisperPath}`);
+          }
+          if (!status.modelExists) {
+            console.warn(`  - Model file not found at: ${status.modelPath}`);
+          }
+          this.openwhisper = null;
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to initialize OpenWhisper: ${error}`);
     }
   }
 
@@ -199,6 +228,10 @@ class GamepadCliHub {
           this.handleVoiceAction(binding as VoiceBinding);
           break;
 
+        case 'openwhisper':
+          this.handleOpenWhisperAction(binding as OpenWhisperBinding);
+          break;
+
         case 'session-switch':
           this.handleSessionSwitchAction(binding as SessionSwitchBinding);
           break;
@@ -229,6 +262,43 @@ class GamepadCliHub {
     const duration = binding.holdDuration || 500;
     console.log(`Voice input: holding space for ${duration}ms`);
     keyboard.longPress('space', duration);
+  }
+
+  private async handleOpenWhisperAction(binding: OpenWhisperBinding): Promise<void> {
+    if (!this.openwhisper) {
+      console.warn('OpenWhisper not available - falling back to standard voice input');
+      const duration = 500;
+      keyboard.longPress('space', duration);
+      return;
+    }
+
+    const duration = binding.recordingDuration || 5000;
+    console.log(`Recording audio for ${duration}ms...`);
+
+    // Record and transcribe
+    const result = await this.openwhisper.recordAndTranscribe(duration);
+
+    if (result.success && result.text) {
+      console.log(`Transcription: "${result.text}"`);
+
+      // Type the transcribed text into the active session
+      const activeSession = this.sessionManager.getActiveSession();
+      if (activeSession) {
+        // Focus the session first
+        windowManager.focusWindow(activeSession.windowHandle);
+
+        // Small delay to ensure window is focused
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Type the transcribed text
+        keyboard.typeString(result.text);
+        console.log('Transcribed text sent to active session');
+      } else {
+        console.warn('No active session to send text to');
+      }
+    } else {
+      console.error(`Transcription failed: ${result.error || 'Unknown error'}`);
+    }
   }
 
   private handleSessionSwitchAction(binding: SessionSwitchBinding): void {

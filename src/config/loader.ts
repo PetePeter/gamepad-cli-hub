@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as YAML from 'yaml';
 
 // Action types for button bindings
-export type ActionType = 'keyboard' | 'voice' | 'session-switch' | 'spawn' | 'list-sessions';
+export type ActionType = 'keyboard' | 'voice' | 'openwhisper' | 'session-switch' | 'spawn' | 'list-sessions';
 
 // Base binding interface
 export interface BaseBinding {
@@ -16,10 +16,16 @@ export interface KeyboardBinding extends BaseBinding {
   keys: string[];
 }
 
-// Voice action - long-press spacebar for voice input
+// Voice action - long-press spacebar for voice input (Claude Code built-in)
 export interface VoiceBinding extends BaseBinding {
   action: 'voice';
   holdDuration?: number; // milliseconds
+}
+
+// OpenWhisper action - local transcription using whisper.cpp
+export interface OpenWhisperBinding extends BaseBinding {
+  action: 'openwhisper';
+  recordingDuration?: number; // milliseconds, default 5000
 }
 
 // Session switch action - switch between sessions
@@ -40,7 +46,7 @@ export interface ListSessionsBinding extends BaseBinding {
 }
 
 // Union type for all binding types
-export type Binding = KeyboardBinding | VoiceBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding;
+export type Binding = KeyboardBinding | VoiceBinding | OpenWhisperBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding;
 
 // Spawn configuration for a CLI
 export interface SpawnConfig {
@@ -65,12 +71,21 @@ export interface GlobalBindings {
   [button: string]: Binding;
 }
 
+// OpenWhisper configuration
+export interface OpenWhisperConfig {
+  whisperPath: string;
+  model: string;
+  language: string;
+  tempDir?: string;
+}
+
 // Root configuration structure
 export interface Config {
   cliTypes: {
     [key: string]: CliTypeConfig;
   };
   global: GlobalBindings;
+  openwhisper?: OpenWhisperConfig;
 }
 
 // Default config path
@@ -218,6 +233,18 @@ export class ConfigLoader {
     }
 
     return this.config;
+  }
+
+  /**
+   * Get OpenWhisper configuration if available.
+   * @returns OpenWhisper configuration or null
+   */
+  getOpenWhisperConfig(): OpenWhisperConfig | null {
+    if (!this.config) {
+      throw new Error('Configuration not loaded. Call load() first.');
+    }
+
+    return this.config.openwhisper ?? null;
   }
 }
 

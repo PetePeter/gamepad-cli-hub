@@ -1,6 +1,14 @@
 # Gamepad CLI Hub - Button Bindings Configuration
 # Each CLI type has its own button mappings
 
+# OpenWhisper configuration for local transcription
+# Provides offline speech-to-text using whisper.cpp CLI
+openwhisper:
+  whisperPath: "whisper.exe"  # Path to whisper.cpp CLI
+  model: "models/ggml-base.en.bin"  # Path to model file
+  language: "en"  # Language code or "auto" for auto-detect
+  # tempDir: "/tmp/gamepad-voice"  # Optional: custom temp directory
+
 cliTypes:
   claude-code:
     name: "Claude Code"
@@ -14,8 +22,10 @@ cliTypes:
         action: "keyboard"
         keys: ["Clear"]  # Send Clear/screen reset
       B:
-        action: "voice"  # Special: long-press spacebar
-        holdDuration: 500  # ms
+        # Use "voice" for Claude Code's built-in voice (long-press spacebar)
+        # Use "openwhisper" for local transcription with OpenWhisper
+        action: "openwhisper"
+        recordingDuration: 5000  # ms - max recording length
       X:
         action: "keyboard"
         keys: ["/", "h", "e", "l", "p", "Enter"]

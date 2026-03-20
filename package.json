@@ -5,7 +5,9 @@
   "description": "Xbox controller to multi-CLI session manager",
   "scripts": {
     "start": "tsx src/index.ts",
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest",
+    "test:ui": "vitest --ui"
   },
   "keywords": [
     "gamepad",
@@ -19,10 +21,15 @@
     "@jitsi/robotjs": "^0.6.21",
     "@types/yaml": "^1.9.6",
     "systeminformation": "^5.31.5",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0",
     "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
-    "tsx": "^4.21.0"
+    "@types/winston": "^2.4.4",
+    "@vitest/ui": "^4.1.0",
+    "tsx": "^4.21.0",
+    "vitest": "^4.1.0"
   }
 }
