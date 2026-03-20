@@ -7,7 +7,22 @@
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts"
   },
-  "keywords": ["gamepad", "cli", "controller", "terminal"],
+  "keywords": [
+    "gamepad",
+    "cli",
+    "controller",
+    "terminal"
+  ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@jitsi/robotjs": "^0.6.21",
+    "@types/yaml": "^1.9.6",
+    "systeminformation": "^5.31.5",
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0"
+  }
 }
