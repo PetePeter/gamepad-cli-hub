@@ -1,0 +1,13 @@
+{
+  "name": "gamepad-cli-hub",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Xbox controller to multi-CLI session manager",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts"
+  },
+  "keywords": ["gamepad", "cli", "controller", "terminal"],
+  "author": "",
+  "license": "MIT"
+}
