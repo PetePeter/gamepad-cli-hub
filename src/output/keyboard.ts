@@ -100,7 +100,8 @@ export class KeyboardSimulator {
      */
     constructor(keyDelay: number = DEFAULT_KEY_DELAY) {
         this.keyDelay = keyDelay;
-        robot.setKeyboardDelay(this.keyDelay);
+        // Note: @jitsi/robotjs doesn't support setKeyboardDelay
+        // Delay is managed internally for manual use if needed
     }
 
     /**
@@ -240,7 +241,7 @@ export class KeyboardSimulator {
      */
     setKeyDelay(delay: number): void {
         this.keyDelay = delay;
-        robot.setKeyboardDelay(delay);
+        // Note: @jitsi/robotjs doesn't support setKeyboardDelay
     }
 
     /**

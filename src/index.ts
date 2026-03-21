@@ -116,7 +116,7 @@ class GamepadCliHub {
   // ============================================================================
 
   private async initializeExistingSessions(): Promise<void> {
-    const terminals = windowManager.findTerminalWindows();
+    const terminals = await windowManager.findTerminalWindows();
     console.log(`Found ${terminals.length} existing terminal window(s)`);
 
     for (const terminal of terminals) {
@@ -130,7 +130,7 @@ class GamepadCliHub {
           id: sessionId,
           name,
           cliType,
-          windowHandle: Number(terminal.handle),
+          windowHandle: terminal.hwnd,
           processId: terminal.processId,
         });
 
@@ -285,7 +285,7 @@ class GamepadCliHub {
       const activeSession = this.sessionManager.getActiveSession();
       if (activeSession) {
         // Focus the session first
-        windowManager.focusWindow(activeSession.windowHandle);
+        await windowManager.focusWindow(activeSession.windowHandle);
 
         // Small delay to ensure window is focused
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -335,14 +335,14 @@ class GamepadCliHub {
   // Session Management
   // ============================================================================
 
-  private focusActiveSession(): void {
+  private async focusActiveSession(): Promise<void> {
     const activeSession = this.sessionManager.getActiveSession();
     if (!activeSession) {
       console.log('No active session to focus');
       return;
     }
 
-    const success = windowManager.focusWindow(activeSession.windowHandle);
+    const success = await windowManager.focusWindow(activeSession.windowHandle);
     if (success) {
       this.activeCliType = activeSession.cliType;
       console.log(`Focused session: ${activeSession.name} (${activeSession.cliType})`);

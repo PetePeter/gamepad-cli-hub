@@ -140,7 +140,8 @@ def main():
 
     try:
         app_process = subprocess.Popen(
-            ["npm", "start"],
+            "npm start",
+            shell=True,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
         )
         _register_proc('app', app_process)

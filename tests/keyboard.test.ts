@@ -5,12 +5,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { KeyboardSimulator } from '../src/output/keyboard.js';
 
-// Mock robotjs - need to use importOriginal to preserve namespace exports
+// Mock robotjs - match actual API only, no fake methods
 vi.mock('@jitsi/robotjs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@jitsi/robotjs')>();
   return {
     ...actual,
-    setKeyboardDelay: vi.fn(() => ({})),
     keyTap: vi.fn(() => true),
     keyToggle: vi.fn(() => ({})),
     typeString: vi.fn(),

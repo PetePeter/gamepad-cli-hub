@@ -4,17 +4,15 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Mock robotjs before importing the module
+// Mock robotjs before importing the module - match actual API only
 vi.mock('@jitsi/robotjs', () => ({
   keyTap: vi.fn(),
   keyToggle: vi.fn(),
   typeString: vi.fn(),
-  setKeyboardDelay: vi.fn(),
   default: {
     keyTap: vi.fn(),
     keyToggle: vi.fn(),
     typeString: vi.fn(),
-    setKeyboardDelay: vi.fn(),
   },
 }));
 
@@ -126,8 +124,7 @@ describe('KeyboardSimulator - Happy Path', () => {
 
       keyboard.setKeyDelay(50);
       expect(keyboard.getKeyDelay()).toBe(50);
-
-      expect(robot.setKeyboardDelay).toHaveBeenLastCalledWith(50);
+      // Note: @jitsi/robotjs doesn't support setKeyboardDelay, delay is internal only
     });
   });
 
@@ -136,14 +133,13 @@ describe('KeyboardSimulator - Happy Path', () => {
       const defaultKeyboard = new KeyboardSimulator();
 
       expect(defaultKeyboard.getKeyDelay()).toBe(10);
-      expect(robot.setKeyboardDelay).toHaveBeenCalledWith(10);
+      // Note: @jitsi/robotjs doesn't support setKeyboardDelay, delay is internal only
     });
 
     it('uses custom delay when specified', () => {
       const customKeyboard = new KeyboardSimulator(100);
 
       expect(customKeyboard.getKeyDelay()).toBe(100);
-      expect(robot.setKeyboardDelay).toHaveBeenCalledWith(100);
     });
   });
 });

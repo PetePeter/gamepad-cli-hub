@@ -1,0 +1,278 @@
+/**
+ * IPC Handlers
+ *
+ * Handles all IPC communication between main and renderer processes.
+ */
+
+import { ipcMain, app, BrowserWindow } from 'electron';
+import { gamepadInput } from '../../input/gamepad.js';
+import { SessionManager } from '../../session/manager.js';
+import { configLoader } from '../../config/loader.js';
+import { windowManager } from '../../output/windows.js';
+import { keyboard } from '../../output/keyboard.js';
+import { processSpawner } from '../../session/spawner.js';
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+function detectCliTypeFromTitle(title: string): string {
+  const lowerTitle = title.toLowerCase();
+
+  if (lowerTitle.includes('claude') || lowerTitle.includes('cc')) {
+    return 'claude-code';
+  }
+  if (lowerTitle.includes('copilot') || lowerTitle.includes('gh copilot')) {
+    return 'copilot-cli';
+  }
+
+  return 'generic-terminal';
+}
+
+// ============================================================================
+// Session Management (shared state)
+// ============================================================================
+
+const sessionManager = new SessionManager();
+
+// ============================================================================
+// Gamepad Events
+// ============================================================================
+
+function setupGamepadHandlers(): void {
+  // Forward gamepad events to renderer
+  gamepadInput.on('button-press', (event) => {
+    const mainWindow = BrowserWindow.getAllWindows()[0];
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('gamepad:event', {
+        button: event.button,
+        gamepadIndex: event.gamepadIndex,
+        timestamp: event.timestamp,
+      });
+    }
+  });
+
+  // Forward connection events to renderer
+  gamepadInput.on('connection-change', (event) => {
+    const mainWindow = BrowserWindow.getAllWindows()[0];
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('gamepad:connection', {
+        connected: event.connected,
+        count: event.count,
+        timestamp: event.timestamp,
+      });
+    }
+  });
+
+  // Get connected gamepad count
+  ipcMain.handle('gamepad:getCount', () => {
+    return gamepadInput.getConnectedGamepadCount();
+  });
+}
+
+// ============================================================================
+// Session Handlers
+// ============================================================================
+
+function setupSessionHandlers(): void {
+  // Refresh sessions from existing terminal windows
+  ipcMain.handle('session:refresh', async () => {
+    try {
+      const terminals = await windowManager.findTerminalWindows();
+      let addedCount = 0;
+
+      for (const terminal of terminals) {
+        const sessionId = `session-${terminal.processId}`;
+        if (!sessionManager.getSession(sessionId)) {
+          // Detect CLI type from window title
+          const cliType = detectCliTypeFromTitle(terminal.title);
+          const name = `${cliType} (${terminal.processId})`;
+
+          sessionManager.addSession({
+            id: sessionId,
+            name,
+            cliType,
+            processId: terminal.processId,
+            windowHandle: terminal.hwnd,
+          });
+          addedCount++;
+        }
+      }
+
+      return { success: true, count: addedCount, total: sessionManager.getSessionCount() };
+    } catch (error) {
+      console.error('Failed to refresh sessions:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('session:getAll', () => {
+    return sessionManager.getAllSessions();
+  });
+
+  ipcMain.handle('session:get', (_event, id: string) => {
+    return sessionManager.getSession(id);
+  });
+
+  ipcMain.handle('session:setActive', (_event, id: string) => {
+    sessionManager.setActiveSession(id);
+    return sessionManager.getActiveSession();
+  });
+
+  ipcMain.handle('session:getActive', () => {
+    return sessionManager.getActiveSession();
+  });
+
+  ipcMain.handle('session:add', (_event, session: { id: string; name: string; cliType: string; processId: number }) => {
+    sessionManager.addSession({
+      id: session.id,
+      name: session.name,
+      cliType: session.cliType,
+      processId: session.processId,
+      windowHandle: '', // Will be set when window is found
+    });
+    return { success: true };
+  });
+
+  ipcMain.handle('session:remove', (_event, id: string) => {
+    sessionManager.removeSession(id);
+    return { success: true };
+  });
+
+  ipcMain.handle('session:next', () => {
+    sessionManager.nextSession();
+    return sessionManager.getActiveSession();
+  });
+
+  ipcMain.handle('session:previous', () => {
+    sessionManager.previousSession();
+    return sessionManager.getActiveSession();
+  });
+}
+
+// ============================================================================
+// Configuration Handlers
+// ============================================================================
+
+function setupConfigHandlers(): void {
+  ipcMain.handle('config:getAll', () => {
+    configLoader.load();
+    return {
+      cliTypes: configLoader.getCliTypes(),
+      globalBindings: configLoader.getGlobalBindings(),
+      openwhisper: configLoader.getOpenWhisperConfig(),
+    };
+  });
+
+  ipcMain.handle('config:getGlobalBindings', () => {
+    return configLoader.getGlobalBindings();
+  });
+
+  ipcMain.handle('config:getBindings', (_event, cliType: string) => {
+    return configLoader.getBindings(cliType);
+  });
+
+  ipcMain.handle('config:getCliTypes', () => {
+    return configLoader.getCliTypes();
+  });
+
+  ipcMain.handle('config:setBinding', (_event, button: string, cliType: string | null, binding: any) => {
+    // This would modify the config - for now, just acknowledge
+    console.log(`[IPC] Set binding: ${button} for ${cliType || 'global'}`, binding);
+    return { success: true };
+  });
+
+  ipcMain.handle('config:save', () => {
+    // Save config to file
+    console.log('[IPC] Save config');
+    return { success: true };
+  });
+}
+
+// ============================================================================
+// Window Handlers
+// ============================================================================
+
+function setupWindowHandlers(): void {
+  ipcMain.handle('window:focus', async (_event, hwnd: string) => {
+    return await windowManager.focusWindow(hwnd);
+  });
+
+  ipcMain.handle('window:findTerminals', async () => {
+    return await windowManager.findTerminalWindows();
+  });
+}
+
+// ============================================================================
+// Process Spawning Handlers
+// ============================================================================
+
+function setupSpawnHandlers(): void {
+  ipcMain.handle('spawn:cli', (_event, cliType: string) => {
+    const result = processSpawner.spawn(cliType);
+    if (result) {
+      // Add to session manager
+      sessionManager.addSession({
+        id: `session-${result.pid}`,
+        name: cliType,
+        cliType,
+        processId: result.pid,
+        windowHandle: '',
+      });
+      return { success: true, pid: result.pid };
+    }
+    return { success: false, error: 'Failed to spawn' };
+  });
+}
+
+// ============================================================================
+// Keyboard Handlers
+// ============================================================================
+
+function setupKeyboardHandlers(): void {
+  ipcMain.handle('keyboard:sendKeys', (_event, keys: string[]) => {
+    keyboard.sendKeys(keys);
+    return { success: true };
+  });
+
+  ipcMain.handle('keyboard:typeString', (_event, text: string) => {
+    keyboard.typeString(text);
+    return { success: true };
+  });
+
+  ipcMain.handle('keyboard:longPress', (_event, key: string, duration: number) => {
+    keyboard.longPress(key, duration);
+    return { success: true };
+  });
+}
+
+// ============================================================================
+// App Handlers
+// ============================================================================
+
+function setupAppHandlers(): void {
+  ipcMain.handle('app:getVersion', () => {
+    return app.getVersion();
+  });
+}
+
+// ============================================================================
+// Registration
+// ============================================================================
+
+/**
+ * Register all IPC handlers
+ */
+export function registerIPCHandlers(): void {
+  console.log('[IPC] Registering handlers');
+
+  setupGamepadHandlers();
+  setupSessionHandlers();
+  setupConfigHandlers();
+  setupWindowHandlers();
+  setupSpawnHandlers();
+  setupKeyboardHandlers();
+  setupAppHandlers();
+
+  console.log('[IPC] All handlers registered');
+}

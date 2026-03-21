@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>Gamepad CLI Hub</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Status Bar -->
+    <header class="status-bar">
+      <div class="status-bar__left">
+        <h1 class="app-title">Gamepad CLI Hub</h1>
+        <button class="btn btn--secondary btn--sm" id="detectGamepadBtn" title="Press a button on your controller, then click here">🎮 Detect</button>
+        <span class="gamepad-status" id="gamepadStatus">
+          <span class="gamepad-icon"></span>
+          <span id="gamepadCount">0</span> Connected
+        </span>
+      </div>
+      <div class="status-bar__right">
+        <button class="icon-button" id="settingsBtn" data-nav="settings" aria-label="Settings">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Screens Container -->
+      <div class="screens">
+        <!-- Session Manager Screen -->
+        <section id="screen-sessions" class="screen screen--active">
+          <div class="screen-header">
+            <h2>Sessions</h2>
+            <button class="btn btn--primary" id="spawnBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Spawn New
+            </button>
+          </div>
+
+          <div class="session-list" id="sessionList" role="listbox" tabindex="0" aria-label="Sessions">
+            <!-- Sessions will be rendered here -->
+            <div class="empty-state" id="emptyState">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+              <p>No sessions active</p>
+              <p class="hint">Press D-pad to navigate, A to select</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Settings Screen -->
+        <section id="screen-settings" class="screen">
+          <div class="screen-header">
+            <h2>Controller Settings</h2>
+            <button class="btn btn--secondary" id="settingsBackBtn">Back</button>
+          </div>
+
+          <div class="settings-content">
+            <div class="controller-preview">
+              <!-- Xbox Controller SVG will go here -->
+              <p style="text-align: center; color: var(--text-dim);">Controller binding editor coming soon</p>
+            </div>
+
+            <div class="bindings-list">
+              <h3>Current Bindings</h3>
+              <div id="bindingsList" class="bindings-grid">
+                <!-- Bindings will be rendered here -->
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Status Screen -->
+        <section id="screen-status" class="screen">
+          <div class="screen-header">
+            <h2>System Status</h2>
+          </div>
+
+          <div class="status-content">
+            <div class="status-card">
+              <h3>Gamepad</h3>
+              <p>Connected: <strong id="statusGamepadConnected">No</strong></p>
+              <p>Last Button: <strong id="statusLastButton">-</strong></p>
+            </div>
+
+            <div class="status-card">
+              <h3>Sessions</h3>
+              <p>Active: <strong id="statusActiveSessions">0</strong></p>
+              <p>Total: <strong id="statusTotalSessions">0</strong></p>
+            </div>
+
+            <div class="status-card">
+              <h3>Recent Events</h3>
+              <div id="eventLog" class="event-log">
+                <!-- Events will be logged here -->
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Debug Log Panel (toggleable) -->
+    <div class="debug-log" id="debugLog">
+      <div class="debug-log__header">
+        <span>Debug Log</span>
+        <button class="debug-log__close" id="closeDebugLog">×</button>
+      </div>
+      <div class="debug-log__content" id="debugLogContent">
+        <div class="debug-log__line">[App] Initializing...</div>
+      </div>
+    </div>
+
+    <!-- Navigation Hints Footer -->
+    <footer class="nav-hints">
+      <div class="nav-hints__row">
+        <span class="nav-hint">
+          <kbd>↑</kbd><kbd>↓</kbd> Navigate
+        </span>
+        <span class="nav-hint">
+          <kbd>A</kbd> Select
+        </span>
+        <span class="nav-hint">
+          <kbd>B</kbd> Back
+        </span>
+        <span class="nav-hint">
+          <kbd>X</kbd> Settings
+        </span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="main.js" type="module"></script>
+</body>
+</html>

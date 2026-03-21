@@ -8,8 +8,8 @@ export interface SessionInfo {
   name: string;
   /** Type of CLI (e.g., 'claude-code', 'copilot-cli') */
   cliType: string;
-  /** OS window handle */
-  windowHandle: number;
+  /** OS window handle (hex string) */
+  windowHandle: string;
   /** Process ID */
   processId: number;
 }

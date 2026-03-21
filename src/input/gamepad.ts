@@ -36,7 +36,15 @@ export type ButtonEvent = ButtonPressEvent;
 
 export type EventCallback = (event: ButtonPressEvent) => void;
 
-type EventType = 'button-press';
+export type ConnectionEvent = {
+  connected: boolean;
+  count: number;
+  timestamp: number;
+};
+
+export type ConnectionCallback = (event: ConnectionEvent) => void;
+
+type EventType = 'button-press' | 'connection-change';
 
 /**
  * XInput state structure returned from PowerShell
@@ -69,11 +77,22 @@ interface XInputState {
 
 /**
  * PowerShell script to query XInput state using Windows.Gaming.Input
+ * Silently fails if API is unavailable
  */
 const XINPUT_PS1 = `
-Add-Type -AssemblyName Windows.Gaming.Input
+$ErrorActionPreference = 'SilentlyContinue'
+$assemblyLoaded = $false
+try {
+    Add-Type -AssemblyName Windows.Gaming.Input -ErrorAction Stop
+    $assemblyLoaded = $true
+} catch {
+    # Windows.Gaming.Input not available - will return disconnected state
+}
 
 function Get-GamepadState {
+    if (-not $assemblyLoaded) {
+        return @{ connected = $false }
+    }
     $gamepad = [Windows.Gaming.Input.Gamepad]::Gamepads | Select-Object -First 1
     if (-not $gamepad) {
         return @{ connected = $false }
@@ -131,6 +150,8 @@ export class GamepadInput {
   private pollProcess: ReturnType<typeof spawn> | null = null;
   private pollFrequencyMs: number;
   private scriptPath: string | null = null;
+  private connectedCount: number = 0;
+  private wasConnected: boolean = false;
 
   constructor(debounceMs: number = 200) {
     this.debounceMs = debounceMs;
@@ -141,18 +162,22 @@ export class GamepadInput {
     this.debounceMs = ms;
   }
 
-  on(event: EventType, callback: EventCallback): void {
+  on(event: EventType, callback: EventCallback | ConnectionCallback): void {
     if (!this.eventCallbacks.has(event)) {
       this.eventCallbacks.set(event, new Set());
     }
-    this.eventCallbacks.get(event)!.add(callback);
+    this.eventCallbacks.get(event)!.add(callback as any);
   }
 
-  off(event: EventType, callback: EventCallback): void {
+  off(event: EventType, callback: EventCallback | ConnectionCallback): void {
     const callbacks = this.eventCallbacks.get(event);
     if (callbacks) {
-      callbacks.delete(callback);
+      callbacks.delete(callback as any);
     }
+  }
+
+  onConnectionChange(callback: ConnectionCallback): void {
+    this.on('connection-change', callback);
   }
 
   onButton(button: string, callback: EventCallback): void {
@@ -236,6 +261,15 @@ export class GamepadInput {
   }
 
   private processState(state: XInputState): void {
+    // Track connection state changes
+    const nowConnected = state.connected;
+    if (nowConnected !== this.wasConnected) {
+      this.wasConnected = nowConnected;
+      this.connectedCount = nowConnected ? 1 : 0;
+      console.log(`[Gamepad] ${nowConnected ? 'Connected' : 'Disconnected'}`);
+      this.emitConnectionEvent(nowConnected);
+    }
+
     if (!state.connected) {
       return;
     }
@@ -319,13 +353,34 @@ export class GamepadInput {
     }
   }
 
+  private emitConnectionEvent(connected: boolean): void {
+    const callbacks = this.eventCallbacks.get('connection-change');
+    if (!callbacks || callbacks.size === 0) {
+      return;
+    }
+
+    const event: ConnectionEvent = {
+      connected,
+      count: connected ? 1 : 0,
+      timestamp: Date.now(),
+    };
+
+    for (const callback of Array.from(callbacks)) {
+      try {
+        callback(event);
+      } catch (error) {
+        console.error('Error in connection-change callback:', error);
+      }
+    }
+  }
+
   isButtonPressed(button: ButtonName, gamepadIndex: number = 0): boolean {
     const stateKey = `${gamepadIndex}-${button}`;
     return this.buttonState.get(stateKey) ?? false;
   }
 
   getConnectedGamepadCount(): number {
-    return this.buttonState.size > 0 ? 1 : 0;
+    return this.connectedCount;
   }
 }
 

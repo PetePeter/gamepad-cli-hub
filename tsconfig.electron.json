@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022"],
+    "outDir": "dist-electron",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "types": ["node"]
+  },
+  "include": ["src/electron/**/*", "src/input/**/*", "src/session/**/*", "src/config/**/*", "src/output/**/*", "src/types/**/*"],
+  "exclude": ["node_modules", "dist", "dist-electron", "**/*.test.ts"]
+}
