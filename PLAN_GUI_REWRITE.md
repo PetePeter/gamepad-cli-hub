@@ -50,6 +50,7 @@ graph TB
 | [+] Spawn New    | X: Settings    |
 +------------------+----------------+
 ```
+> ⚠️ STALE: Spawn is now per-CLI-type buttons (Claude Code / Copilot CLI / Terminal), not a single "[+] Spawn New".
 
 ### 2. Real-time Status (Overlay/Sidebar)
 - Connected gamepads count
@@ -61,6 +62,8 @@ graph TB
 - Visual Xbox controller SVG
 - Click button to assign action
 - Save/Load config
+
+> ⚠️ STALE: Implemented as tabbed interface (Global + per-CLI-type tabs) with read-only binding cards in a grid layout. No SVG controller or interactive editor.
 
 ## Gamepad Navigation Scheme
 
@@ -114,9 +117,9 @@ graph TB
    - Transcription display
 
 6. **Screen: Controller Settings**
-   - Xbox controller SVG
-   - Binding editor
-   - Config save/load
+   - ~~Xbox controller SVG~~ → Tabbed binding cards
+   - ~~Binding editor~~ → Read-only binding display from YAML config
+   - ~~Config save/load~~ → Config loaded from YAML at startup
 
 7. **Polish**
    - Animations/transitions

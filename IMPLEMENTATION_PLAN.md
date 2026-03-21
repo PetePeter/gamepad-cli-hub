@@ -82,6 +82,8 @@ src/
     └── navigation/
 ```
 
+> ⚠️ STALE: Actual renderer is `renderer/main.ts` (monolithic), `renderer/gamepad.ts`, and `renderer/styles/main.css`. No `screens/` or `navigation/` subdirectories.
+
 ## Order of Attack
 
 1. **Write tests** for GamepadManager (session 1)

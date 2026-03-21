@@ -2,16 +2,16 @@
 
 :root {
   /* Colors */
-  --bg-primary: #1a1a2e;
-  --bg-secondary: #16213e;
-  --bg-tertiary: #0f3460;
-  --accent: #e94560;
-  --accent-hover: #ff6b6b;
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-tertiary: #1a1a1a;
+  --accent: #ff6600;
+  --accent-hover: #ff8833;
   --text-primary: #eee;
-  --text-secondary: #aaa;
-  --text-dim: #666;
-  --border: #2a2a4a;
-  --focus: rgba(233, 69, 96, 0.3);
+  --text-secondary: #999;
+  --text-dim: #555;
+  --border: #222222;
+  --focus: rgba(255, 102, 0, 0.3);
 
   /* Spacing */
   --spacing-xs: 4px;
@@ -486,19 +486,19 @@ kbd {
 }
 
 .debug-log__line--error {
-  color: #ff6b6b;
+  color: #ff4444;
 }
 
 .debug-log__line--warn {
-  color: #ffd93d;
+  color: #ffaa00;
 }
 
 .debug-log__line--info {
-  color: #6bcfff;
+  color: #ff9944;
 }
 
 .debug-log__line--success {
-  color: #51cf66;
+  color: #44cc44;
 }
 
 ::-webkit-scrollbar-track {
@@ -520,6 +520,17 @@ kbd {
   position: relative;
 }
 
+/* Spawn Buttons */
+.spawn-buttons {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.spawn-buttons .btn {
+  white-space: nowrap;
+}
+
 .focusable:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -528,4 +539,87 @@ kbd {
 .focusable.gamepad-focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--focus);
+}
+
+/* Settings Tabs */
+.settings-tabs {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  border-bottom: 2px solid var(--border);
+  padding-bottom: var(--spacing-sm);
+}
+
+.settings-tab {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: var(--font-size-md);
+  transition: background 0.15s, color 0.15s;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.settings-tab:hover,
+.settings-tab:focus {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.settings-tab--active {
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+  margin-bottom: -2px;
+}
+
+/* Bindings Display */
+.bindings-display {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.binding-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  transition: border-color 0.15s;
+}
+
+.binding-card:hover {
+  border-color: var(--accent);
+}
+
+.binding-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.binding-card__button {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--accent);
+  font-family: monospace;
+}
+
+.binding-card__action-badge {
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.binding-card__details {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-family: monospace;
 }

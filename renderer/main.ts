@@ -79,6 +79,9 @@ const state = {
   eventLog: [] as Array<{ time: string; event: string }>,
   cliTypes: [] as string[],
   availableSpawnTypes: [] as string[],
+  globalBindings: null as Record<string, any> | null,
+  cliBindingsCache: {} as Record<string, Record<string, any>>,
+  settingsTab: 'global' as string,
 };
 
 // ============================================================================
@@ -97,6 +100,10 @@ function showScreen(screenName: string): void {
     targetScreen.classList.add('screen--active');
     state.currentScreen = screenName;
     logEvent(`Screen: ${screenName}`);
+
+    if (screenName === 'settings') {
+      loadSettingsScreen();
+    }
   }
 }
 
@@ -203,6 +210,114 @@ async function focusSession(sessionId: string): Promise<void> {
 }
 
 // ============================================================================
+// Config Binding Dispatch
+// ============================================================================
+
+async function initConfigCache(): Promise<void> {
+  try {
+    if (!window.gamepadCli) return;
+
+    state.globalBindings = await window.gamepadCli.configGetGlobalBindings();
+    console.log('[Renderer] Cached global bindings:', Object.keys(state.globalBindings || {}));
+
+    for (const cliType of state.cliTypes) {
+      const bindings = await window.gamepadCli.configGetBindings(cliType);
+      if (bindings) {
+        state.cliBindingsCache[cliType] = bindings;
+      }
+    }
+    console.log('[Renderer] Cached CLI bindings for:', Object.keys(state.cliBindingsCache));
+  } catch (error) {
+    console.error('[Renderer] Failed to init config cache:', error);
+  }
+}
+
+/**
+ * Process a button press against config bindings.
+ * Global bindings always fire. Per-CLI bindings fire when an active session exists.
+ */
+function processConfigBinding(button: string): void {
+  if (!window.gamepadCli) return;
+
+  const globalBinding = state.globalBindings?.[button];
+  if (globalBinding) {
+    executeGlobalBinding(button, globalBinding);
+  }
+
+  if (!state.activeSessionId) return;
+  const activeSession = state.sessions.find(s => s.id === state.activeSessionId);
+  if (!activeSession) return;
+
+  const cliBindings = state.cliBindingsCache[activeSession.cliType];
+  const cliBinding = cliBindings?.[button];
+  if (cliBinding) {
+    executeCliBinding(button, cliBinding);
+  }
+}
+
+async function executeGlobalBinding(button: string, binding: any): Promise<void> {
+  try {
+    switch (binding.action) {
+      case 'session-switch': {
+        const direction = binding.direction === 'next' ? 'next' : 'previous';
+        if (direction === 'next') {
+          await window.gamepadCli.sessionNext();
+        } else {
+          await window.gamepadCli.sessionPrevious();
+        }
+        logEvent(`Session: ${direction}`);
+        await loadSessions();
+        break;
+      }
+      case 'spawn': {
+        await spawnNewSession(binding.cliType);
+        break;
+      }
+      case 'list-sessions': {
+        showScreen('sessions');
+        logEvent('Action: list-sessions');
+        break;
+      }
+      default:
+        console.warn(`[Renderer] Unknown global action: ${binding.action}`);
+    }
+  } catch (error) {
+    console.error(`[Renderer] Global binding failed for ${button}:`, error);
+  }
+}
+
+async function executeCliBinding(button: string, binding: any): Promise<void> {
+  try {
+    switch (binding.action) {
+      case 'keyboard': {
+        if (!binding.keys || !Array.isArray(binding.keys)) {
+          console.warn(`[Renderer] Keyboard binding for ${button} missing keys`);
+          break;
+        }
+        await window.gamepadCli.keyboardSendKeys(binding.keys);
+        logEvent(`Keys: ${binding.keys.join('+')}`);
+        break;
+      }
+      case 'voice': {
+        const duration = binding.holdDuration || 3000;
+        await window.gamepadCli.keyboardLongPress('space', duration);
+        logEvent(`Voice: hold space ${duration}ms`);
+        break;
+      }
+      case 'openwhisper': {
+        logEvent('OpenWhisper: not yet implemented');
+        console.warn('[Renderer] OpenWhisper action not yet implemented');
+        break;
+      }
+      default:
+        console.warn(`[Renderer] Unknown CLI action: ${binding.action}`);
+    }
+  } catch (error) {
+    console.error(`[Renderer] CLI binding failed for ${button}:`, error);
+  }
+}
+
+// ============================================================================
 // Gamepad Navigation
 // ============================================================================
 
@@ -291,53 +406,96 @@ function handleGamepadEvent(event: ButtonEvent): void {
   // Update status
   document.getElementById('statusLastButton')!.textContent = event.button;
 
-  // Handle button presses based on current screen
+  // UI navigation consumes the event first; config bindings only fire for unconsumed buttons
+  let consumed = false;
   switch (state.currentScreen) {
     case 'sessions':
-      handleSessionsScreenButton(event.button);
+      consumed = handleSessionsScreenButton(event.button);
       break;
     case 'settings':
-      handleSettingsScreenButton(event.button);
+      consumed = handleSettingsScreenButton(event.button);
       break;
     case 'status':
-      handleStatusScreenButton(event.button);
+      consumed = handleStatusScreenButton(event.button);
       break;
+  }
+
+  if (!consumed) {
+    processConfigBinding(event.button);
   }
 }
 
-function handleSessionsScreenButton(button: string): void {
+function handleSessionsScreenButton(button: string): boolean {
   switch (button) {
     case 'Up':
       navigateFocus(-1);
-      break;
+      return true;
     case 'Down':
       navigateFocus(1);
-      break;
+      return true;
     case 'A':
       activateFocusedItem();
-      break;
+      return true;
     case 'X':
       showScreen('settings');
-      break;
+      return true;
     case 'Y':
       showScreen('status');
-      break;
+      return true;
+    default:
+      return false;
   }
 }
 
-function handleSettingsScreenButton(button: string): void {
+function handleSettingsScreenButton(button: string): boolean {
   switch (button) {
     case 'B':
       showScreen('sessions');
-      break;
+      return true;
+    case 'Left':
+      navigateSettingsTab(-1);
+      return true;
+    case 'Right':
+      navigateSettingsTab(1);
+      return true;
+    case 'Up':
+      navigateFocus(-1);
+      return true;
+    case 'Down':
+      navigateFocus(1);
+      return true;
+    case 'A':
+      activateSettingsFocused();
+      return true;
+    default:
+      return false;
   }
 }
 
-function handleStatusScreenButton(button: string): void {
+function navigateSettingsTab(direction: number): void {
+  const allTabs = ['global', ...state.cliTypes];
+  const currentIndex = allTabs.indexOf(state.settingsTab);
+  let nextIndex = currentIndex + direction;
+  if (nextIndex < 0) nextIndex = allTabs.length - 1;
+  if (nextIndex >= allTabs.length) nextIndex = 0;
+  state.settingsTab = allTabs[nextIndex];
+  loadSettingsScreen();
+}
+
+function activateSettingsFocused(): void {
+  const active = document.activeElement as HTMLElement;
+  if (active?.classList.contains('settings-tab')) {
+    active.click();
+  }
+}
+
+function handleStatusScreenButton(button: string): boolean {
   switch (button) {
     case 'B':
       showScreen('sessions');
-      break;
+      return true;
+    default:
+      return false;
   }
 }
 
@@ -409,8 +567,7 @@ function setupUIHandlers(): void {
     showScreen('sessions');
   });
 
-  // Spawn button
-  document.getElementById('spawnBtn')?.addEventListener('click', spawnNewSession);
+  // Spawn buttons are rendered dynamically by renderSpawnButtons()
 
   // Detect gamepad button (requires user gesture)
   document.getElementById('detectGamepadBtn')?.addEventListener('click', () => {
@@ -449,23 +606,30 @@ function setupUIHandlers(): void {
   });
 }
 
-async function spawnNewSession(): Promise<void> {
-  // Spawn the first available CLI type
-  const cliType = state.availableSpawnTypes[0] || 'generic-terminal';
+async function spawnNewSession(cliType?: string): Promise<void> {
+  const resolvedType = cliType || state.availableSpawnTypes[0] || 'generic-terminal';
 
   try {
-    logEvent(`Spawning ${cliType}...`);
-    const result = await window.gamepadCli.spawnCli(cliType);
+    logEvent(`Spawning ${resolvedType}...`);
+    if (!window.gamepadCli) {
+      logEvent('Spawn failed: gamepadCli not available');
+      return;
+    }
+    const result = await window.gamepadCli.spawnCli(resolvedType);
     if (result.success) {
       logEvent(`Spawned: PID ${result.pid}`);
 
       // Refresh sessions to pick up the new window
       setTimeout(async () => {
-        const refreshResult = await window.gamepadCli.sessionRefresh();
-        if (refreshResult.success) {
-          await loadSessions();
+        try {
+          const refreshResult = await window.gamepadCli?.sessionRefresh();
+          if (refreshResult?.success) {
+            await loadSessions();
+          }
+        } catch (error) {
+          console.error('Failed to refresh after spawn:', error);
         }
-      }, 500); // Wait a bit for the window to open
+      }, 500);
     } else {
       logEvent(`Spawn failed: ${result.error || 'Unknown error'}`);
     }
@@ -473,6 +637,35 @@ async function spawnNewSession(): Promise<void> {
     console.error('Failed to spawn session:', error);
     logEvent('Spawn failed');
   }
+}
+
+function getCliDisplayName(cliType: string): string {
+  const names: Record<string, string> = {
+    'claude-code': 'Claude',
+    'copilot-cli': 'Copilot',
+    'generic-terminal': 'Terminal',
+  };
+  return names[cliType] || cliType;
+}
+
+function renderSpawnButtons(): void {
+  const container = document.getElementById('spawnButtons');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  const types = state.availableSpawnTypes.length > 0
+    ? state.availableSpawnTypes
+    : ['generic-terminal'];
+
+  types.forEach(cliType => {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn--primary btn--sm focusable';
+    btn.tabIndex = 0;
+    btn.textContent = `${getCliIcon(cliType)} ${getCliDisplayName(cliType)}`;
+    btn.addEventListener('click', () => spawnNewSession(cliType));
+    container.appendChild(btn);
+  });
 }
 
 // ============================================================================
@@ -504,8 +697,11 @@ async function init(): Promise<void> {
     console.error('Failed to load CLI types:', error);
   }
 
-  // Load bindings for settings display
-  await loadBindings();
+  // Render spawn buttons based on loaded CLI types
+  renderSpawnButtons();
+
+  // Cache config bindings for fast gamepad dispatch
+  await initConfigCache();
 
   // Refresh sessions from existing terminals
   try {
@@ -535,33 +731,107 @@ async function init(): Promise<void> {
   console.log('[Renderer] Ready');
 }
 
-async function loadBindings(): Promise<void> {
+async function loadSettingsScreen(): Promise<void> {
   try {
-    if (!window.gamepadCli) {
-      console.warn('[Renderer] gamepadCli not available — cannot load bindings');
-      return;
+    const cliTypes = state.cliTypes.length > 0
+      ? state.cliTypes
+      : (window.gamepadCli ? await window.gamepadCli.configGetCliTypes() : []);
+
+    renderSettingsTabs(cliTypes);
+
+    if (state.settingsTab === 'global') {
+      const bindings = state.globalBindings
+        || (window.gamepadCli ? await window.gamepadCli.configGetGlobalBindings() : {});
+      renderBindingsDisplay(bindings || {}, 'Global Bindings');
+    } else {
+      const bindings = state.cliBindingsCache[state.settingsTab]
+        || (window.gamepadCli ? await window.gamepadCli.configGetBindings(state.settingsTab) : null);
+      renderBindingsDisplay(bindings || {}, `${getCliDisplayName(state.settingsTab)} Bindings`);
     }
-    const globalBindings = await window.gamepadCli.configGetGlobalBindings();
-    renderBindings(globalBindings, 'Global');
   } catch (error) {
-    console.error('Failed to load bindings:', error);
+    console.error('Failed to load settings screen:', error);
   }
 }
 
-function renderBindings(bindings: Record<string, any>, typeName: string): void {
-  const bindingsList = document.getElementById('bindingsList');
-  if (!bindingsList) return;
+function renderSettingsTabs(cliTypes: string[]): void {
+  const container = document.getElementById('settingsTabs');
+  if (!container) return;
 
-  bindingsList.innerHTML = '';
+  container.innerHTML = '';
 
-  for (const [button, binding] of Object.entries(bindings)) {
-    const item = document.createElement('div');
-    item.className = 'binding-item';
-    item.innerHTML = `
-      <span class="binding-button">${button}</span>
-      <span class="binding-action">${binding.action || 'unknown'}</span>
+  const allTabs = [
+    { key: 'global', label: 'Global' },
+    ...cliTypes.map(ct => ({ key: ct, label: getCliDisplayName(ct) })),
+  ];
+
+  allTabs.forEach(tab => {
+    const btn = document.createElement('button');
+    btn.className = 'settings-tab focusable';
+    if (tab.key === state.settingsTab) {
+      btn.classList.add('settings-tab--active');
+    }
+    btn.tabIndex = 0;
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', (tab.key === state.settingsTab).toString());
+    btn.textContent = tab.label;
+    btn.addEventListener('click', () => {
+      state.settingsTab = tab.key;
+      loadSettingsScreen();
+    });
+    container.appendChild(btn);
+  });
+}
+
+function renderBindingsDisplay(bindings: Record<string, any>, label: string): void {
+  const container = document.getElementById('bindingsDisplay');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  const entries = Object.entries(bindings);
+  if (entries.length === 0) {
+    container.innerHTML = '<p style="color: var(--text-dim);">No bindings configured</p>';
+    return;
+  }
+
+  entries.forEach(([button, binding]) => {
+    const card = document.createElement('div');
+    card.className = 'binding-card';
+
+    const actionType = binding.action || 'unknown';
+    const details = formatBindingDetails(binding);
+
+    card.innerHTML = `
+      <div class="binding-card__header">
+        <span class="binding-card__button">${button}</span>
+        <span class="binding-card__action-badge">${actionType}</span>
+      </div>
+      <div class="binding-card__details">${details}</div>
     `;
-    bindingsList.appendChild(item);
+    container.appendChild(card);
+  });
+}
+
+function formatBindingDetails(binding: any): string {
+  switch (binding.action) {
+    case 'keyboard':
+      return binding.keys ? binding.keys.join(' → ') : '—';
+    case 'spawn':
+      return binding.cliType ? `spawn: ${binding.cliType}` : '—';
+    case 'session-switch':
+      return binding.direction ? `direction: ${binding.direction}` : '—';
+    case 'openwhisper':
+      return binding.recordingDuration
+        ? `openwhisper ${binding.recordingDuration}ms`
+        : 'openwhisper';
+    case 'voice':
+      return binding.holdDuration
+        ? `voice hold ${binding.holdDuration}ms`
+        : 'voice';
+    case 'list-sessions':
+      return 'show sessions list';
+    default:
+      return JSON.stringify(binding);
   }
 }
 

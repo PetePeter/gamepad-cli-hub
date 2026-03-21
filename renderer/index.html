@@ -37,13 +37,9 @@
         <section id="screen-sessions" class="screen screen--active">
           <div class="screen-header">
             <h2>Sessions</h2>
-            <button class="btn btn--primary" id="spawnBtn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              Spawn New
-            </button>
+            <div class="spawn-buttons" id="spawnButtons">
+              <!-- Spawn buttons rendered by JS based on config -->
+            </div>
           </div>
 
           <div class="session-list" id="sessionList" role="listbox" tabindex="0" aria-label="Sessions">
@@ -66,18 +62,12 @@
             <h2>Controller Settings</h2>
             <button class="btn btn--secondary" id="settingsBackBtn">Back</button>
           </div>
-
           <div class="settings-content">
-            <div class="controller-preview">
-              <!-- Xbox Controller SVG will go here -->
-              <p style="text-align: center; color: var(--text-dim);">Controller binding editor coming soon</p>
+            <div class="settings-tabs" id="settingsTabs" role="tablist">
+              <!-- tabs rendered by JS -->
             </div>
-
-            <div class="bindings-list">
-              <h3>Current Bindings</h3>
-              <div id="bindingsList" class="bindings-grid">
-                <!-- Bindings will be rendered here -->
-              </div>
+            <div class="bindings-display" id="bindingsDisplay">
+              <!-- bindings rendered by JS -->
             </div>
           </div>
         </section>

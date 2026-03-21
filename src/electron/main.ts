@@ -28,7 +28,7 @@ function createWindow(): void {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#0a0a0a',
     show: false, // Don't show until ready-to-show
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
