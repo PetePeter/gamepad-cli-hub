@@ -13,7 +13,7 @@ export interface SpawnedProcess {
 class ProcessSpawner {
   private processes: Map<number, SpawnedProcess> = new Map();
 
-  spawn(cliType: string): SpawnedProcess | null {
+  spawn(cliType: string, workingDir?: string): SpawnedProcess | null {
     const spawnConfig = configLoader.getSpawnConfig(cliType);
     if (!spawnConfig) {
       console.error(`No spawn config found for CLI type: ${cliType}`);
@@ -25,6 +25,7 @@ class ProcessSpawner {
       detached: true,
       stdio: 'ignore',
       shell: false,
+      cwd: workingDir || undefined,
     });
 
     const processInfo: SpawnedProcess = {

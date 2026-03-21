@@ -187,6 +187,10 @@ function setupConfigHandlers(): void {
     console.log('[IPC] Save config');
     return { success: true };
   });
+
+  ipcMain.handle('config:getWorkingDirs', () => {
+    return configLoader.getWorkingDirectories();
+  });
 }
 
 // ============================================================================
@@ -208,8 +212,8 @@ function setupWindowHandlers(): void {
 // ============================================================================
 
 function setupSpawnHandlers(): void {
-  ipcMain.handle('spawn:cli', (_event, cliType: string) => {
-    const result = processSpawner.spawn(cliType);
+  ipcMain.handle('spawn:cli', (_event, cliType: string, workingDir?: string) => {
+    const result = processSpawner.spawn(cliType, workingDir);
     if (result) {
       // Add to session manager
       sessionManager.addSession({

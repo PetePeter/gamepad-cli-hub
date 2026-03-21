@@ -1,6 +1,14 @@
 # Gamepad CLI Hub - Button Bindings Configuration
 # Each CLI type has its own button mappings
 
+workingDirectories:
+  - name: "Projects"
+    path: "X:\\coding"
+  - name: "Gamepad Hub"
+    path: "X:\\coding\\gamepad-cli-hub"
+  - name: "Home"
+    path: "C:\\Users\\oscar"
+
 # OpenWhisper configuration for local transcription
 # Provides offline speech-to-text using whisper.cpp CLI
 openwhisper:

@@ -623,3 +623,86 @@ kbd {
   color: var(--text-secondary);
   font-family: monospace;
 }
+
+/* Directory Picker Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-overlay.modal--visible {
+  display: flex;
+}
+
+.modal {
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.dir-picker-list {
+  overflow-y: auto;
+  padding: var(--spacing-sm);
+}
+
+.dir-picker-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+  border: 1px solid transparent;
+}
+
+.dir-picker-item:hover,
+.dir-picker-item:focus {
+  background: var(--bg-tertiary);
+}
+
+.dir-picker-item--selected {
+  background: var(--bg-tertiary);
+  border-color: var(--accent);
+}
+
+.dir-picker-item__name {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.dir-picker-item__path {
+  font-size: var(--font-size-sm);
+  color: var(--text-dim);
+  font-family: monospace;
+}

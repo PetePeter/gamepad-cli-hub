@@ -16,6 +16,7 @@ export interface CliTypeConfig {
 export interface Config {
   cliTypes: Record<string, CliTypeConfig>;
   global: Record<string, unknown>;
+  workingDirectories?: Array<{ name: string; path: string }>;
 }
 
 class ConfigLoader {
@@ -50,6 +51,11 @@ class ConfigLoader {
   reload(): Config {
     this.config = null;
     return this.load();
+  }
+
+  getWorkingDirectories(): Array<{ name: string; path: string }> {
+    const config = this.load();
+    return config.workingDirectories || [];
   }
 }
 

@@ -148,7 +148,12 @@ const gamepadCliAPI = {
   /**
    * Spawn a new CLI instance
    */
-  spawnCli: (cliType: string) => ipcRenderer.invoke('spawn:cli', cliType),
+  spawnCli: (cliType: string, workingDir?: string) => ipcRenderer.invoke('spawn:cli', cliType, workingDir),
+
+  /**
+   * Get working directory presets from config
+   */
+  configGetWorkingDirs: () => ipcRenderer.invoke('config:getWorkingDirs'),
 
   // ========================================================================
   // Keyboard

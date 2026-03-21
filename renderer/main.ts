@@ -82,6 +82,10 @@ const state = {
   globalBindings: null as Record<string, any> | null,
   cliBindingsCache: {} as Record<string, Record<string, any>>,
   settingsTab: 'global' as string,
+  dirPickerVisible: false,
+  dirPickerItems: [] as Array<{ name: string; path: string }>,
+  dirPickerSelectedIndex: 0,
+  dirPickerCliType: '' as string,
 };
 
 // ============================================================================
@@ -406,6 +410,12 @@ function handleGamepadEvent(event: ButtonEvent): void {
   // Update status
   document.getElementById('statusLastButton')!.textContent = event.button;
 
+  // Directory picker modal intercepts all input when visible
+  if (state.dirPickerVisible) {
+    handleDirPickerButton(event.button);
+    return;
+  }
+
   // UI navigation consumes the event first; config bindings only fire for unconsumed buttons
   let consumed = false;
   switch (state.currentScreen) {
@@ -594,6 +604,12 @@ function setupUIHandlers(): void {
     }
   });
 
+  // Directory picker cancel button
+  document.getElementById('dirPickerCancelBtn')?.addEventListener('click', () => {
+    hideDirPicker();
+    logEvent('Spawn cancelled');
+  });
+
   // Keyboard shortcut to toggle debug log (Ctrl+L)
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.key === 'l') {
@@ -610,12 +626,31 @@ async function spawnNewSession(cliType?: string): Promise<void> {
   const resolvedType = cliType || state.availableSpawnTypes[0] || 'generic-terminal';
 
   try {
-    logEvent(`Spawning ${resolvedType}...`);
     if (!window.gamepadCli) {
       logEvent('Spawn failed: gamepadCli not available');
       return;
     }
-    const result = await window.gamepadCli.spawnCli(resolvedType);
+    const dirs = await window.gamepadCli.configGetWorkingDirs();
+    if (dirs && dirs.length > 0) {
+      showDirPicker(resolvedType, dirs);
+      return;
+    }
+    // No presets configured — spawn without cwd
+    await doSpawn(resolvedType);
+  } catch (error) {
+    console.error('Spawn error:', error);
+    logEvent(`Spawn error: ${error}`);
+  }
+}
+
+async function doSpawn(cliType: string, workingDir?: string): Promise<void> {
+  try {
+    logEvent(`Spawning ${cliType}${workingDir ? ` in ${workingDir}` : ''}...`);
+    if (!window.gamepadCli) {
+      logEvent('Spawn failed: gamepadCli not available');
+      return;
+    }
+    const result = await window.gamepadCli.spawnCli(cliType, workingDir);
     if (result.success) {
       logEvent(`Spawned: PID ${result.pid}`);
 
@@ -636,6 +671,86 @@ async function spawnNewSession(cliType?: string): Promise<void> {
   } catch (error) {
     console.error('Failed to spawn session:', error);
     logEvent('Spawn failed');
+  }
+}
+
+function showDirPicker(cliType: string, dirs: Array<{ name: string; path: string }>): void {
+  state.dirPickerVisible = true;
+  state.dirPickerItems = dirs;
+  state.dirPickerSelectedIndex = 0;
+  state.dirPickerCliType = cliType;
+
+  const modal = document.getElementById('dirPickerModal');
+  if (!modal) return;
+
+  const title = modal.querySelector('.modal-title');
+  if (title) title.textContent = `Select directory for ${getCliDisplayName(cliType)}`;
+
+  renderDirPickerList();
+  modal.classList.add('modal--visible');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function renderDirPickerList(): void {
+  const list = document.getElementById('dirPickerList');
+  if (!list) return;
+
+  list.innerHTML = '';
+
+  state.dirPickerItems.forEach((dir, index) => {
+    const item = document.createElement('div');
+    item.className = 'dir-picker-item focusable';
+    if (index === state.dirPickerSelectedIndex) {
+      item.classList.add('dir-picker-item--selected');
+    }
+    item.tabIndex = 0;
+    item.innerHTML = `
+      <span class="dir-picker-item__name">${dir.name}</span>
+      <span class="dir-picker-item__path">${dir.path}</span>
+    `;
+    item.addEventListener('click', () => selectDirAndSpawn(index));
+    list.appendChild(item);
+  });
+
+  // Focus the selected item
+  const selectedItem = list.children[state.dirPickerSelectedIndex] as HTMLElement;
+  selectedItem?.focus();
+}
+
+function hideDirPicker(): void {
+  state.dirPickerVisible = false;
+  const modal = document.getElementById('dirPickerModal');
+  if (modal) {
+    modal.classList.remove('modal--visible');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+}
+
+async function selectDirAndSpawn(index: number): Promise<void> {
+  const dir = state.dirPickerItems[index];
+  if (!dir) return;
+
+  hideDirPicker();
+  await doSpawn(state.dirPickerCliType, dir.path);
+}
+
+function handleDirPickerButton(button: string): void {
+  switch (button) {
+    case 'Up':
+      state.dirPickerSelectedIndex = Math.max(0, state.dirPickerSelectedIndex - 1);
+      renderDirPickerList();
+      break;
+    case 'Down':
+      state.dirPickerSelectedIndex = Math.min(state.dirPickerItems.length - 1, state.dirPickerSelectedIndex + 1);
+      renderDirPickerList();
+      break;
+    case 'A':
+      selectDirAndSpawn(state.dirPickerSelectedIndex);
+      break;
+    case 'B':
+      hideDirPicker();
+      logEvent('Spawn cancelled');
+      break;
   }
 }
 

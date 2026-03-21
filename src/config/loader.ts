@@ -79,6 +79,12 @@ export interface OpenWhisperConfig {
   tempDir?: string;
 }
 
+// Working directory preset
+export interface WorkingDirectory {
+  name: string;
+  path: string;
+}
+
 // Root configuration structure
 export interface Config {
   cliTypes: {
@@ -86,6 +92,7 @@ export interface Config {
   };
   global: GlobalBindings;
   openwhisper?: OpenWhisperConfig;
+  workingDirectories?: WorkingDirectory[];
 }
 
 // Default config path
@@ -245,6 +252,18 @@ export class ConfigLoader {
     }
 
     return this.config.openwhisper ?? null;
+  }
+
+  /**
+   * Get working directory presets for the directory picker.
+   * @returns Array of working directory presets, empty if none configured
+   */
+  getWorkingDirectories(): WorkingDirectory[] {
+    if (!this.config) {
+      throw new Error('Configuration not loaded. Call load() first.');
+    }
+
+    return this.config.workingDirectories || [];
   }
 }
 

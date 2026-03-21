@@ -100,6 +100,19 @@
           </div>
         </section>
       </div>
+
+      <!-- Directory Picker Modal -->
+      <div class="modal-overlay" id="dirPickerModal" aria-hidden="true" role="dialog" aria-label="Select working directory">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title">Select Directory</h3>
+            <button class="btn btn--secondary btn--sm" id="dirPickerCancelBtn">Cancel (B)</button>
+          </div>
+          <div class="dir-picker-list" id="dirPickerList" role="listbox">
+            <!-- Directory items rendered by JS -->
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- Debug Log Panel (toggleable) -->
