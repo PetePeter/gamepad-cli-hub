@@ -143,9 +143,41 @@ while ($true) {
             Write-Output '{"event":"button","button":"RightTrigger","index":0}'
         }
 
+        # Left stick → D-pad emulation (deadzone threshold ~8000 of 32767)
+        $lx = $state.Gamepad.sThumbLX
+        $ly = $state.Gamepad.sThumbLY
+        $dz = 8000
+
+        $stickLeft = $lx -lt -$dz
+        $stickRight = $lx -gt $dz
+        $stickUp = $ly -gt $dz
+        $stickDown = $ly -lt -$dz
+
+        $prevStickLeft = ($prevButtons -band 0x40000) -ne 0
+        $prevStickRight = ($prevButtons -band 0x80000) -ne 0
+        $prevStickUp = ($prevButtons -band 0x100000) -ne 0
+        $prevStickDown = ($prevButtons -band 0x200000) -ne 0
+
+        if ($stickUp -and -not $prevStickUp) {
+            Write-Output '{"event":"button","button":"Up","index":0}'
+        }
+        if ($stickDown -and -not $prevStickDown) {
+            Write-Output '{"event":"button","button":"Down","index":0}'
+        }
+        if ($stickLeft -and -not $prevStickLeft) {
+            Write-Output '{"event":"button","button":"Left","index":0}'
+        }
+        if ($stickRight -and -not $prevStickRight) {
+            Write-Output '{"event":"button","button":"Right","index":0}'
+        }
+
         $prevButtons = $buttons
         if ($ltPressed) { $prevButtons = $prevButtons -bor 0x10000 }
         if ($rtPressed) { $prevButtons = $prevButtons -bor 0x20000 }
+        if ($stickLeft) { $prevButtons = $prevButtons -bor 0x40000 }
+        if ($stickRight) { $prevButtons = $prevButtons -bor 0x80000 }
+        if ($stickUp) { $prevButtons = $prevButtons -bor 0x100000 }
+        if ($stickDown) { $prevButtons = $prevButtons -bor 0x200000 }
     } else {
         if ($connected) {
             $connected = $false
@@ -175,7 +207,7 @@ export class GamepadInput {
   private connectedCount: number = 0;
   private wasConnected: boolean = false;
 
-  constructor(debounceMs: number = 200) {
+  constructor(debounceMs: number = 350) {
     this.debounceMs = debounceMs;
     this.pollFrequencyMs = 16;
   }

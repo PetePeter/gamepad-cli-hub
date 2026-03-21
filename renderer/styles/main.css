@@ -597,6 +597,7 @@ kbd {
 }
 
 .binding-card {
+  position: relative;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -982,4 +983,43 @@ kbd {
   font-family: monospace;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+.binding-card__delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 12px;
+  line-height: 24px;
+  text-align: center;
+  border-radius: 4px;
+  opacity: 0.6;
+  z-index: 1;
+}
+
+.binding-card__delete:hover,
+.binding-card__delete:focus {
+  opacity: 1;
+}
+
+.binding-add-row {
+  margin-top: 12px;
+  text-align: center;
+}
+
+.binding-picker {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--surface-hover);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.binding-picker__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }

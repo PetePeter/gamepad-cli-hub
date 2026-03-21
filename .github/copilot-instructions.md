@@ -11,6 +11,7 @@ The controller acts as a universal remote: switch between terminal windows, spaw
 | Input | Action |
 |-------|--------|
 | D-Pad Up/Down | Switch between active CLI sessions |
+| Left Stick | D-pad replacement (same actions as D-pad) |
 | Left Trigger | Spawn new Claude Code instance |
 | Right Bumper | Spawn new Copilot CLI instance |
 | A | Clear screen |

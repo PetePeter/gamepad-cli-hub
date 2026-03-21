@@ -18,7 +18,7 @@ class BrowserGamepadPoller {
   private pollMs = 16; // ~60fps
   private buttonStates: Map<number, boolean[]> = new Map();
   private lastPressTime: Map<string, number> = new Map();
-  private debounceMs = 200;
+  private debounceMs = 350;
   private callbacks: Set<ButtonCallback> = new Set();
   private connectedCount = 0;
   private eventsSetup = false;
@@ -180,6 +180,34 @@ class BrowserGamepadPoller {
 
     // Check D-pad (varies by controller - try axes first, then buttons)
     this.checkDpad(gamepad, index, prevState);
+
+    // Left stick → D-pad emulation
+    this.checkLeftStickAsDpad(gamepad, index, prevState);
+  }
+
+  private checkLeftStickAsDpad(gamepad: Gamepad, index: number, prevState: boolean[]): void {
+    // Left stick axes: 0 = X (left/right), 1 = Y (up/down)
+    const threshold = 0.5;
+    const stickX = gamepad.axes[0] ?? 0;
+    const stickY = gamepad.axes[1] ?? 0;
+
+    // State indices 16-19 for stick directions
+    const stickMap: Array<{ active: boolean; name: string; stateIdx: number }> = [
+      { active: stickY < -threshold, name: 'Up', stateIdx: 16 },
+      { active: stickY > threshold, name: 'Down', stateIdx: 17 },
+      { active: stickX < -threshold, name: 'Left', stateIdx: 18 },
+      { active: stickX > threshold, name: 'Right', stateIdx: 19 },
+    ];
+
+    for (const { active, name, stateIdx } of stickMap) {
+      const prev = prevState[stateIdx] ?? false;
+      if (active !== prev) {
+        prevState[stateIdx] = active;
+        if (active) {
+          this.handleButtonPress(name, index);
+        }
+      }
+    }
   }
 
   private checkDpad(gamepad: Gamepad, index: number, prevState: boolean[]): void {

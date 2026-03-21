@@ -207,6 +207,15 @@ function setupConfigHandlers(): void {
     }
   });
 
+  ipcMain.handle('config:removeBinding', (_event, button: string, cliType: string | null) => {
+    try {
+      configLoader.removeBinding(button, cliType);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle('config:reload', () => {
     try {
       configLoader.load();

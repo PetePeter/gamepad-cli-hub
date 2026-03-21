@@ -19,6 +19,7 @@ Control multiple CLI sessions (Claude Code, Copilot CLI, etc.) with an Xbox cont
 | Input | Action |
 |-------|--------|
 | D-Pad Up/Down | Switch between active CLI sessions |
+| Left Stick | D-pad replacement (same actions as D-pad) |
 | Left Trigger | Spawn new Claude Code instance |
 | Right Bumper | Spawn new Copilot CLI instance |
 | A | Clear screen |

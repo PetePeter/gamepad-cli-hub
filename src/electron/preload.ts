@@ -122,6 +122,9 @@ const gamepadCliAPI = {
   configSetBinding: (button: string, cliType: string | null, binding: any) =>
     ipcRenderer.invoke('config:setBinding', button, cliType, binding),
 
+  configRemoveBinding: (button: string, cliType: string | null) =>
+    ipcRenderer.invoke('config:removeBinding', button, cliType),
+
   /**
    * Reload configuration from file
    */

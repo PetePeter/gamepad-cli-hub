@@ -967,7 +967,6 @@ function renderBindingsDisplay(bindings: Record<string, any>, label: string): vo
   const entries = Object.entries(bindings);
   if (entries.length === 0) {
     container.innerHTML = '<p style="color: var(--text-dim);">No bindings configured</p>';
-    return;
   }
 
   entries.forEach(([button, binding]) => {
@@ -986,14 +985,111 @@ function renderBindingsDisplay(bindings: Record<string, any>, label: string): vo
       <div class="binding-card__details">${details}</div>
     `;
 
+    // Click card to edit
     card.style.cursor = 'pointer';
-    card.addEventListener('click', () => {
+    card.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.binding-card__delete')) return;
       const cliType = state.settingsTab === 'global' ? null : state.settingsTab;
       openBindingEditor(button, cliType, { ...binding });
     });
 
+    // Delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'binding-card__delete btn btn--danger btn--sm focusable';
+    deleteBtn.tabIndex = 0;
+    deleteBtn.textContent = '✕';
+    deleteBtn.title = `Remove ${button} binding`;
+    let confirmPending = false;
+    deleteBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirmPending) {
+        deleteBtn.textContent = '?';
+        deleteBtn.title = 'Click again to confirm deletion';
+        confirmPending = true;
+        setTimeout(() => { if (confirmPending) { deleteBtn.textContent = '✕'; deleteBtn.title = `Remove ${button} binding`; confirmPending = false; } }, 3000);
+        return;
+      }
+      confirmPending = false;
+      try {
+        const cliType = state.settingsTab === 'global' ? null : state.settingsTab;
+        const result = await window.gamepadCli.configRemoveBinding(button, cliType);
+        if (result.success) {
+          logEvent(`Removed binding: ${button}`);
+          if (cliType === null && state.globalBindings) {
+            delete state.globalBindings[button];
+          } else if (cliType && state.cliBindingsCache[cliType]) {
+            delete state.cliBindingsCache[cliType][button];
+          }
+          loadSettingsScreen();
+        }
+      } catch (error) {
+        console.error('Remove binding failed:', error);
+      }
+    });
+    card.querySelector('.binding-card__header')?.appendChild(deleteBtn);
+
     container.appendChild(card);
   });
+
+  // "Add Binding" button
+  const mappedButtons = Object.keys(bindings);
+  const unmappedButtons = ALL_BUTTONS.filter(b => !mappedButtons.includes(b));
+
+  if (unmappedButtons.length > 0) {
+    const addRow = document.createElement('div');
+    addRow.className = 'binding-add-row';
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn btn--primary focusable';
+    addBtn.tabIndex = 0;
+    addBtn.textContent = '+ Add Binding';
+    addBtn.addEventListener('click', () => {
+      showAddBindingPicker(unmappedButtons);
+    });
+
+    addRow.appendChild(addBtn);
+    container.appendChild(addRow);
+  }
+}
+
+function showAddBindingPicker(unmappedButtons: string[]): void {
+  const container = document.getElementById('bindingsDisplay');
+  if (!container) return;
+
+  // Remove any existing picker
+  const existing = container.querySelector('.binding-picker');
+  if (existing) { existing.remove(); return; }
+
+  const picker = document.createElement('div');
+  picker.className = 'binding-picker';
+
+  const title = document.createElement('p');
+  title.style.color = 'var(--text-secondary)';
+  title.style.marginBottom = '8px';
+  title.textContent = 'Select a button to bind:';
+  picker.appendChild(title);
+
+  const grid = document.createElement('div');
+  grid.className = 'binding-picker__grid';
+
+  unmappedButtons.forEach(button => {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn--secondary btn--sm focusable';
+    btn.tabIndex = 0;
+    btn.textContent = button;
+    btn.addEventListener('click', () => {
+      const cliType = state.settingsTab === 'global' ? null : state.settingsTab;
+      openBindingEditor(button, cliType, { action: 'keyboard', keys: [] });
+    });
+    grid.appendChild(btn);
+  });
+
+  picker.appendChild(grid);
+  container.appendChild(picker);
+
+  // Focus first button in picker
+  const firstBtn = grid.querySelector('.focusable') as HTMLElement;
+  if (firstBtn) firstBtn.focus();
 }
 
 function formatBindingDetails(binding: any): string {
@@ -1187,12 +1283,23 @@ async function renderProfilesPanel(): Promise<void> {
     deleteBtn.textContent = 'Delete';
     deleteBtn.disabled = name === 'default';
     if (name !== 'default') {
+      let confirmPending = false;
       deleteBtn.addEventListener('click', async () => {
-        if (!confirm(`Delete profile "${name}"?`)) return;
-        const result = await window.gamepadCli.profileDelete(name);
-        if (result.success) {
-          logEvent(`Deleted profile: ${name}`);
-          loadSettingsScreen();
+        if (!confirmPending) {
+          deleteBtn.textContent = 'Confirm?';
+          confirmPending = true;
+          setTimeout(() => { if (confirmPending) { deleteBtn.textContent = 'Delete'; confirmPending = false; } }, 3000);
+          return;
+        }
+        confirmPending = false;
+        try {
+          const result = await window.gamepadCli.profileDelete(name);
+          if (result.success) {
+            logEvent(`Deleted profile: ${name}`);
+            loadSettingsScreen();
+          }
+        } catch (error) {
+          console.error('Delete profile failed:', error);
         }
       });
     }
@@ -1322,16 +1429,33 @@ function createCliTypeItem(key: string, value: any): HTMLElement {
   deleteBtn.className = 'btn btn--danger btn--sm focusable';
   deleteBtn.tabIndex = 0;
   deleteBtn.textContent = 'Delete';
+  let deleteConfirmPending = false;
   deleteBtn.addEventListener('click', async () => {
-    if (!confirm(`Delete CLI type "${key}"?`)) return;
-    const result = await window.gamepadCli.toolsRemoveCliType(key);
-    if (result.success) {
-      logEvent(`Deleted CLI type: ${key}`);
-      // Refresh cliTypes in state
-      state.cliTypes = await window.gamepadCli.configGetCliTypes();
-      state.availableSpawnTypes = state.cliTypes;
-      renderSpawnButtons();
-      loadSettingsScreen();
+    if (!deleteConfirmPending) {
+      deleteBtn.textContent = 'Confirm?';
+      deleteConfirmPending = true;
+      setTimeout(() => {
+        if (deleteConfirmPending) {
+          deleteBtn.textContent = 'Delete';
+          deleteConfirmPending = false;
+        }
+      }, 3000);
+      return;
+    }
+    deleteConfirmPending = false;
+    try {
+      const result = await window.gamepadCli.toolsRemoveCliType(key);
+      if (result.success) {
+        logEvent(`Deleted CLI type: ${key}`);
+        state.cliTypes = await window.gamepadCli.configGetCliTypes();
+        state.availableSpawnTypes = state.cliTypes;
+        renderSpawnButtons();
+        loadSettingsScreen();
+      } else {
+        logEvent(`Failed to delete: ${result.error || 'unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Delete CLI type failed:', error);
     }
   });
   actions.appendChild(deleteBtn);
@@ -1517,12 +1641,23 @@ function createDirectoryItem(dir: { name: string; path: string }, index: number)
   deleteBtn.className = 'btn btn--danger btn--sm focusable';
   deleteBtn.tabIndex = 0;
   deleteBtn.textContent = 'Delete';
+  let dirConfirmPending = false;
   deleteBtn.addEventListener('click', async () => {
-    if (!confirm(`Delete directory "${dir.name}"?`)) return;
-    const result = await window.gamepadCli.configRemoveWorkingDir(index);
-    if (result.success) {
-      logEvent(`Deleted directory: ${dir.name}`);
-      loadSettingsScreen();
+    if (!dirConfirmPending) {
+      deleteBtn.textContent = 'Confirm?';
+      dirConfirmPending = true;
+      setTimeout(() => { if (dirConfirmPending) { deleteBtn.textContent = 'Delete'; dirConfirmPending = false; } }, 3000);
+      return;
+    }
+    dirConfirmPending = false;
+    try {
+      const result = await window.gamepadCli.configRemoveWorkingDir(index);
+      if (result.success) {
+        logEvent(`Deleted directory: ${dir.name}`);
+        loadSettingsScreen();
+      }
+    } catch (error) {
+      console.error('Delete directory failed:', error);
     }
   });
   actions.appendChild(deleteBtn);
@@ -1609,6 +1744,8 @@ function showEditDirectoryPrompt(dir: { name: string; path: string }, index: num
 // ============================================================================
 
 const ACTION_TYPES = ['keyboard', 'voice', 'openwhisper', 'session-switch', 'spawn', 'list-sessions', 'profile-switch'] as const;
+
+const ALL_BUTTONS = ['A', 'B', 'X', 'Y', 'Up', 'Down', 'Left', 'Right', 'LeftBumper', 'RightBumper', 'LeftTrigger', 'RightTrigger', 'LeftStick', 'RightStick', 'Start', 'Back', 'Guide'] as const;
 
 function openBindingEditor(button: string, cliType: string | null, binding: any): void {
   state.editingBinding = { button, cliType, binding: { ...binding } };

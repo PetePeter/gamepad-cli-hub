@@ -279,6 +279,18 @@ export class ConfigLoader {
     this.saveActiveProfile();
   }
 
+  removeBinding(button: string, cliType: string | null): void {
+    this.ensureLoaded();
+    if (cliType === null) {
+      delete this.activeProfile!.global[button];
+    } else {
+      if (this.activeProfile!.cliTypes[cliType]) {
+        delete this.activeProfile!.cliTypes[cliType][button];
+      }
+    }
+    this.saveActiveProfile();
+  }
+
   // ---------- Profile CRUD ---------------------------------------------
 
   getActiveProfile(): string {
