@@ -1,58 +1,74 @@
 /**
- * Config loader unit tests
+ * Config loader unit tests — split config system
+ *
+ * Tests cover: loading from 4 files, existing getters, setBinding,
+ * profile CRUD, working directory CRUD, and tools CRUD.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConfigLoader } from '../src/config/loader.js';
-
-// Mock fs module
-vi.mock('fs', () => ({
-  default: {
-    existsSync: vi.fn(() => false),
-    readFileSync: vi.fn(() => ''),
-    writeFileSync: vi.fn(),
-  },
-  existsSync: vi.fn(() => false),
-  readFileSync: vi.fn(() => ''),
-  writeFileSync: vi.fn(),
-}));
-
-// Mock YAML module - need to use importActual to preserve named exports
-vi.mock('yaml', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('yaml')>();
-  return {
-    ...actual,
-    parse: vi.fn(() => ({})),
-    stringify: vi.fn(() => 'yaml output'),
-  };
-});
-
 import * as fs from 'fs';
+import * as path from 'path';
 import * as YAML from 'yaml';
 
-const MOCK_CONFIG = {
+// ---------------------------------------------------------------------------
+// File-system helpers: use a real temp dir with real YAML files
+// ---------------------------------------------------------------------------
+
+const TEST_DIR = path.join(process.cwd(), '.test-config-' + Date.now());
+
+function writeYaml(relativePath: string, data: unknown): void {
+  const fullPath = path.join(TEST_DIR, relativePath);
+  fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+  fs.writeFileSync(fullPath, YAML.stringify(data), 'utf8');
+}
+
+function readYaml<T>(relativePath: string): T {
+  const fullPath = path.join(TEST_DIR, relativePath);
+  return YAML.parse(fs.readFileSync(fullPath, 'utf8')) as T;
+}
+
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
+const DIRECTORIES = {
+  workingDirectories: [
+    { name: 'Projects', path: 'X:\\coding' },
+    { name: 'Home', path: 'C:\\Users\\oscar' },
+  ],
+};
+
+const TOOLS = {
+  openwhisper: {
+    whisperPath: 'whisper.exe',
+    model: 'models/ggml-base.en.bin',
+    language: 'en',
+  },
   cliTypes: {
     'claude-code': {
       name: 'Claude Code',
-      spawn: {
-        command: 'wt',
-        args: ['-w', '0', 'cc'],
-      },
-      bindings: {
-        A: { action: 'keyboard', keys: ['Clear'] },
-        B: { action: 'voice', holdDuration: 500 },
-      },
+      spawn: { command: 'wt', args: ['-w', '0', 'cc'] },
     },
     'copilot-cli': {
       name: 'GitHub Copilot CLI',
-      spawn: {
-        command: 'wt',
-        args: ['-w', '0', 'gh', 'copilot'],
-      },
-      bindings: {
-        A: { action: 'keyboard', keys: ['Clear'] },
-        Y: { action: 'keyboard', keys: ['Ctrl', 'c'] },
-      },
+      spawn: { command: 'wt', args: ['-w', '0', 'gh', 'copilot'] },
+    },
+  },
+};
+
+const SETTINGS = { activeProfile: 'default' };
+
+const DEFAULT_PROFILE = {
+  name: 'Default',
+  cliTypes: {
+    'claude-code': {
+      A: { action: 'keyboard', keys: ['Clear'] },
+      B: { action: 'voice', holdDuration: 500 },
+    },
+    'copilot-cli': {
+      A: { action: 'keyboard', keys: ['Clear'] },
+      Y: { action: 'keyboard', keys: ['Ctrl', 'c'] },
     },
   },
   global: {
@@ -61,56 +77,74 @@ const MOCK_CONFIG = {
   },
 };
 
+function setupTestFiles(): void {
+  writeYaml('directories.yaml', DIRECTORIES);
+  writeYaml('tools.yaml', TOOLS);
+  writeYaml('settings.yaml', SETTINGS);
+  writeYaml('profiles/default.yaml', DEFAULT_PROFILE);
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
 describe('ConfigLoader', () => {
   let loader: ConfigLoader;
-  const testConfigPath = '/test/config/bindings.yaml';
 
   beforeEach(() => {
-    loader = new ConfigLoader(testConfigPath);
-    vi.clearAllMocks();
+    fs.mkdirSync(TEST_DIR, { recursive: true });
+    setupTestFiles();
+    loader = new ConfigLoader(TEST_DIR);
   });
+
+  afterEach(() => {
+    fs.rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  // =========================================================================
+  // Loading
+  // =========================================================================
 
   describe('load', () => {
-    it('loads and parses YAML configuration file', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('yaml content');
-      vi.mocked(YAML.parse).mockReturnValue(MOCK_CONFIG);
-
-      loader.load();
-
-      expect(fs.existsSync).toHaveBeenCalledWith(testConfigPath);
-      expect(fs.readFileSync).toHaveBeenCalledWith(testConfigPath, 'utf8');
-      expect(YAML.parse).toHaveBeenCalledWith('yaml content');
+    it('loads all four config files without error', () => {
+      expect(() => loader.load()).not.toThrow();
     });
 
-    it('throws error when config file does not exist', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false);
+    it('throws when directories.yaml is missing', () => {
+      fs.unlinkSync(path.join(TEST_DIR, 'directories.yaml'));
+      expect(() => loader.load()).toThrow('Configuration file not found');
+    });
 
-      expect(() => loader.load()).toThrow(`Configuration file not found: ${testConfigPath}`);
+    it('throws when tools.yaml is missing', () => {
+      fs.unlinkSync(path.join(TEST_DIR, 'tools.yaml'));
+      expect(() => loader.load()).toThrow('Configuration file not found');
+    });
+
+    it('throws when settings.yaml is missing', () => {
+      fs.unlinkSync(path.join(TEST_DIR, 'settings.yaml'));
+      expect(() => loader.load()).toThrow('Configuration file not found');
+    });
+
+    it('throws when active profile file is missing', () => {
+      fs.unlinkSync(path.join(TEST_DIR, 'profiles', 'default.yaml'));
+      expect(() => loader.load()).toThrow('Configuration file not found');
     });
   });
 
+  // =========================================================================
+  // Existing getters (backward compatibility)
+  // =========================================================================
+
   describe('getBindings', () => {
-    it('returns bindings for a valid CLI type', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('yaml content');
-      vi.mocked(YAML.parse).mockReturnValue(MOCK_CONFIG);
-
+    it('returns bindings for a valid CLI type from the active profile', () => {
       loader.load();
-
       const bindings = loader.getBindings('claude-code');
-      expect(bindings).toEqual(MOCK_CONFIG.cliTypes['claude-code'].bindings);
+      expect(bindings).toEqual(DEFAULT_PROFILE.cliTypes['claude-code']);
     });
 
     it('returns null for non-existent CLI type', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('yaml content');
-      vi.mocked(YAML.parse).mockReturnValue(MOCK_CONFIG);
-
       loader.load();
-
-      const bindings = loader.getBindings('non-existent');
-      expect(bindings).toBeNull();
+      expect(loader.getBindings('non-existent')).toBeNull();
     });
 
     it('throws error when called before load', () => {
@@ -118,44 +152,10 @@ describe('ConfigLoader', () => {
     });
   });
 
-  describe('getSpawnConfig', () => {
-    it('returns spawn config for a valid CLI type', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('yaml content');
-      vi.mocked(YAML.parse).mockReturnValue(MOCK_CONFIG);
-
-      loader.load();
-
-      const spawnConfig = loader.getSpawnConfig('claude-code');
-      expect(spawnConfig).toEqual(MOCK_CONFIG.cliTypes['claude-code'].spawn);
-    });
-
-    it('returns null for non-existent CLI type', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('yaml content');
-      vi.mocked(YAML.parse).mockReturnValue(MOCK_CONFIG);
-
-      loader.load();
-
-      const spawnConfig = loader.getSpawnConfig('non-existent');
-      expect(spawnConfig).toBeNull();
-    });
-
-    it('throws error when called before load', () => {
-      expect(() => loader.getSpawnConfig('claude-code')).toThrow('Configuration not loaded');
-    });
-  });
-
   describe('getGlobalBindings', () => {
-    it('returns global bindings after load', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('yaml content');
-      vi.mocked(YAML.parse).mockReturnValue(MOCK_CONFIG);
-
+    it('returns global bindings from active profile', () => {
       loader.load();
-
-      const globalBindings = loader.getGlobalBindings();
-      expect(globalBindings).toEqual(MOCK_CONFIG.global);
+      expect(loader.getGlobalBindings()).toEqual(DEFAULT_PROFILE.global);
     });
 
     it('throws error when called before load', () => {
@@ -163,123 +163,300 @@ describe('ConfigLoader', () => {
     });
   });
 
-  describe('getCliTypeName', () => {
-    it('returns display name for valid CLI type', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('yaml content');
-      vi.mocked(YAML.parse).mockReturnValue(MOCK_CONFIG);
-
+  describe('getSpawnConfig', () => {
+    it('returns spawn config from tools.yaml', () => {
       loader.load();
-
-      const name = loader.getCliTypeName('claude-code');
-      expect(name).toBe('Claude Code');
+      expect(loader.getSpawnConfig('claude-code')).toEqual(TOOLS.cliTypes['claude-code'].spawn);
     });
 
     it('returns null for non-existent CLI type', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('yaml content');
-      vi.mocked(YAML.parse).mockReturnValue(MOCK_CONFIG);
-
       loader.load();
+      expect(loader.getSpawnConfig('non-existent')).toBeNull();
+    });
 
-      const name = loader.getCliTypeName('non-existent');
-      expect(name).toBeNull();
+    it('throws error when called before load', () => {
+      expect(() => loader.getSpawnConfig('claude-code')).toThrow('Configuration not loaded');
+    });
+  });
+
+  describe('getCliTypeName', () => {
+    it('returns name from tools.yaml', () => {
+      loader.load();
+      expect(loader.getCliTypeName('claude-code')).toBe('Claude Code');
+    });
+
+    it('returns null for non-existent CLI type', () => {
+      loader.load();
+      expect(loader.getCliTypeName('non-existent')).toBeNull();
     });
   });
 
   describe('getCliTypes', () => {
-    it('returns array of CLI type keys', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('yaml content');
-      vi.mocked(YAML.parse).mockReturnValue(MOCK_CONFIG);
-
+    it('returns CLI type keys from tools.yaml', () => {
       loader.load();
-
-      const cliTypes = loader.getCliTypes();
-      expect(cliTypes).toEqual(['claude-code', 'copilot-cli']);
+      expect(loader.getCliTypes()).toEqual(['claude-code', 'copilot-cli']);
     });
   });
 
-  describe('getConfig', () => {
-    it('returns full config object', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('yaml content');
-      vi.mocked(YAML.parse).mockReturnValue(MOCK_CONFIG);
-
+  describe('getConfig (legacy)', () => {
+    it('assembles a backward-compatible Config object', () => {
       loader.load();
-
       const config = loader.getConfig();
-      expect(config).toEqual(MOCK_CONFIG);
+      expect(config.cliTypes['claude-code'].name).toBe('Claude Code');
+      expect(config.cliTypes['claude-code'].spawn).toEqual(TOOLS.cliTypes['claude-code'].spawn);
+      expect(config.cliTypes['claude-code'].bindings).toEqual(DEFAULT_PROFILE.cliTypes['claude-code']);
+      expect(config.global).toEqual(DEFAULT_PROFILE.global);
+      expect(config.openwhisper).toEqual(TOOLS.openwhisper);
+      expect(config.workingDirectories).toEqual(DIRECTORIES.workingDirectories);
     });
   });
+
+  describe('getOpenWhisperConfig', () => {
+    it('returns openwhisper config from tools.yaml', () => {
+      loader.load();
+      expect(loader.getOpenWhisperConfig()).toEqual(TOOLS.openwhisper);
+    });
+  });
+
+  describe('getWorkingDirectories', () => {
+    it('returns directories from directories.yaml', () => {
+      loader.load();
+      expect(loader.getWorkingDirectories()).toEqual(DIRECTORIES.workingDirectories);
+    });
+  });
+
+  // =========================================================================
+  // setBinding (backward compatible)
+  // =========================================================================
 
   describe('setBinding', () => {
-    function loadMockConfig() {
-      // Deep clone to avoid mutation across tests
-      const config = JSON.parse(JSON.stringify(MOCK_CONFIG));
-      vi.mocked(fs.existsSync).mockReturnValue(true);
-      vi.mocked(fs.readFileSync).mockReturnValue('yaml content');
-      vi.mocked(YAML.parse).mockReturnValue(config);
-      loader.load();
-      return config;
-    }
-
     it('throws error when called before load', () => {
       expect(() => loader.setBinding('A', null, { action: 'keyboard', keys: ['Enter'] }))
         .toThrow('Configuration not loaded');
     });
 
-    it('sets a global binding and writes to disk', () => {
-      loadMockConfig();
+    it('sets a global binding and persists to profile file', () => {
+      loader.load();
       const newBinding = { action: 'keyboard' as const, keys: ['Enter'] };
-
       loader.setBinding('A', null, newBinding);
 
-      const config = loader.getConfig();
-      expect(config.global['A']).toEqual(newBinding);
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        testConfigPath,
-        expect.any(String),
-        'utf8'
-      );
+      expect(loader.getGlobalBindings()['A']).toEqual(newBinding);
+
+      // Verify written to disk
+      const onDisk = readYaml<any>('profiles/default.yaml');
+      expect(onDisk.global['A']).toEqual(newBinding);
     });
 
-    it('updates an existing global binding', () => {
-      loadMockConfig();
-      const newBinding = { action: 'spawn' as const, cliType: 'copilot-cli' };
-
-      loader.setBinding('Up', null, newBinding);
-
-      const config = loader.getConfig();
-      expect(config.global['Up']).toEqual(newBinding);
-    });
-
-    it('sets a CLI-specific binding and writes to disk', () => {
-      loadMockConfig();
+    it('sets a CLI-specific binding and persists', () => {
+      loader.load();
       const newBinding = { action: 'keyboard' as const, keys: ['Ctrl', 'z'] };
-
       loader.setBinding('X', 'claude-code', newBinding);
 
-      const config = loader.getConfig();
-      expect(config.cliTypes['claude-code'].bindings['X']).toEqual(newBinding);
-      expect(fs.writeFileSync).toHaveBeenCalled();
+      expect(loader.getBindings('claude-code')!['X']).toEqual(newBinding);
+
+      const onDisk = readYaml<any>('profiles/default.yaml');
+      expect(onDisk.cliTypes['claude-code']['X']).toEqual(newBinding);
     });
 
     it('throws error for unknown CLI type', () => {
-      loadMockConfig();
-      const newBinding = { action: 'keyboard' as const, keys: ['Enter'] };
-
-      expect(() => loader.setBinding('A', 'nonexistent', newBinding))
+      loader.load();
+      expect(() => loader.setBinding('A', 'nonexistent', { action: 'keyboard', keys: ['Enter'] }))
         .toThrow('Unknown CLI type: nonexistent');
     });
+  });
 
-    it('calls YAML.stringify when saving', () => {
-      loadMockConfig();
-      const newBinding = { action: 'list-sessions' as const };
+  // =========================================================================
+  // Profile CRUD
+  // =========================================================================
 
-      loader.setBinding('Start', null, newBinding);
+  describe('Profile CRUD', () => {
+    it('getActiveProfile returns current profile name', () => {
+      loader.load();
+      expect(loader.getActiveProfile()).toBe('default');
+    });
 
-      expect(YAML.stringify).toHaveBeenCalled();
+    it('listProfiles returns profile names from disk', () => {
+      loader.load();
+      expect(loader.listProfiles()).toContain('default');
+    });
+
+    it('createProfile creates a new empty profile file', () => {
+      loader.load();
+      loader.createProfile('gaming');
+
+      const profiles = loader.listProfiles();
+      expect(profiles).toContain('gaming');
+
+      const onDisk = readYaml<any>('profiles/gaming.yaml');
+      expect(onDisk.name).toBe('gaming');
+      expect(onDisk.global).toEqual({});
+    });
+
+    it('createProfile with copyFrom clones an existing profile', () => {
+      loader.load();
+      loader.createProfile('gaming', 'default');
+
+      const onDisk = readYaml<any>('profiles/gaming.yaml');
+      expect(onDisk.name).toBe('gaming');
+      expect(onDisk.cliTypes['claude-code']).toEqual(DEFAULT_PROFILE.cliTypes['claude-code']);
+      expect(onDisk.global).toEqual(DEFAULT_PROFILE.global);
+    });
+
+    it('createProfile throws if profile already exists', () => {
+      loader.load();
+      expect(() => loader.createProfile('default')).toThrow('Profile already exists: default');
+    });
+
+    it('switchProfile changes active profile and updates settings', () => {
+      loader.load();
+      // Create a second profile with different bindings
+      const gamingProfile = {
+        name: 'Gaming',
+        cliTypes: { 'claude-code': { A: { action: 'keyboard', keys: ['Escape'] } } },
+        global: { Up: { action: 'session-switch', direction: 'next' } },
+      };
+      writeYaml('profiles/gaming.yaml', gamingProfile);
+
+      loader.switchProfile('gaming');
+
+      expect(loader.getActiveProfile()).toBe('gaming');
+      expect(loader.getBindings('claude-code')).toEqual(gamingProfile.cliTypes['claude-code']);
+      expect(loader.getGlobalBindings()).toEqual(gamingProfile.global);
+
+      // settings.yaml on disk should be updated
+      const settings = readYaml<any>('settings.yaml');
+      expect(settings.activeProfile).toBe('gaming');
+    });
+
+    it('switchProfile throws for non-existent profile', () => {
+      loader.load();
+      expect(() => loader.switchProfile('nonexistent')).toThrow('Profile not found: nonexistent');
+    });
+
+    it('deleteProfile removes a profile file', () => {
+      loader.load();
+      loader.createProfile('temp');
+      expect(loader.listProfiles()).toContain('temp');
+
+      loader.deleteProfile('temp');
+      expect(loader.listProfiles()).not.toContain('temp');
+    });
+
+    it('deleteProfile throws when deleting default', () => {
+      loader.load();
+      expect(() => loader.deleteProfile('default')).toThrow('Cannot delete the default profile');
+    });
+
+    it('deleteProfile falls back to default when deleting active profile', () => {
+      loader.load();
+      const profile = {
+        name: 'Temp',
+        cliTypes: { 'claude-code': {} },
+        global: { Up: { action: 'session-switch', direction: 'next' } },
+      };
+      writeYaml('profiles/temp.yaml', profile);
+      loader.switchProfile('temp');
+      expect(loader.getActiveProfile()).toBe('temp');
+
+      loader.deleteProfile('temp');
+      expect(loader.getActiveProfile()).toBe('default');
+    });
+  });
+
+  // =========================================================================
+  // Working Directory CRUD
+  // =========================================================================
+
+  describe('Working Directory CRUD', () => {
+    it('addWorkingDirectory appends and persists', () => {
+      loader.load();
+      loader.addWorkingDirectory('New', 'D:\\new');
+
+      const dirs = loader.getWorkingDirectories();
+      expect(dirs).toHaveLength(3);
+      expect(dirs[2]).toEqual({ name: 'New', path: 'D:\\new' });
+
+      const onDisk = readYaml<any>('directories.yaml');
+      expect(onDisk.workingDirectories).toHaveLength(3);
+    });
+
+    it('updateWorkingDirectory updates in place', () => {
+      loader.load();
+      loader.updateWorkingDirectory(0, 'Updated', 'E:\\updated');
+
+      expect(loader.getWorkingDirectories()[0]).toEqual({ name: 'Updated', path: 'E:\\updated' });
+    });
+
+    it('updateWorkingDirectory throws for invalid index', () => {
+      loader.load();
+      expect(() => loader.updateWorkingDirectory(99, 'X', 'X')).toThrow('Invalid working directory index');
+    });
+
+    it('removeWorkingDirectory removes and persists', () => {
+      loader.load();
+      loader.removeWorkingDirectory(0);
+
+      const dirs = loader.getWorkingDirectories();
+      expect(dirs).toHaveLength(1);
+      expect(dirs[0].name).toBe('Home');
+    });
+
+    it('removeWorkingDirectory throws for invalid index', () => {
+      loader.load();
+      expect(() => loader.removeWorkingDirectory(-1)).toThrow('Invalid working directory index');
+    });
+  });
+
+  // =========================================================================
+  // Tools CRUD
+  // =========================================================================
+
+  describe('Tools CRUD', () => {
+    it('addCliType adds a new CLI type and persists', () => {
+      loader.load();
+      loader.addCliType('new-tool', 'New Tool', 'cmd', ['/c', 'echo']);
+
+      expect(loader.getCliTypes()).toContain('new-tool');
+      expect(loader.getCliTypeName('new-tool')).toBe('New Tool');
+      expect(loader.getSpawnConfig('new-tool')).toEqual({ command: 'cmd', args: ['/c', 'echo'] });
+
+      const onDisk = readYaml<any>('tools.yaml');
+      expect(onDisk.cliTypes['new-tool']).toBeDefined();
+    });
+
+    it('addCliType throws if key already exists', () => {
+      loader.load();
+      expect(() => loader.addCliType('claude-code', 'X', 'x', []))
+        .toThrow('CLI type already exists: claude-code');
+    });
+
+    it('updateCliType updates an existing CLI type', () => {
+      loader.load();
+      loader.updateCliType('claude-code', 'CC Updated', 'pwsh', ['-c', 'cc']);
+
+      expect(loader.getCliTypeName('claude-code')).toBe('CC Updated');
+      expect(loader.getSpawnConfig('claude-code')).toEqual({ command: 'pwsh', args: ['-c', 'cc'] });
+    });
+
+    it('updateCliType throws for non-existent key', () => {
+      loader.load();
+      expect(() => loader.updateCliType('nope', 'X', 'x', []))
+        .toThrow('CLI type not found: nope');
+    });
+
+    it('removeCliType removes and persists', () => {
+      loader.load();
+      loader.removeCliType('copilot-cli');
+
+      expect(loader.getCliTypes()).not.toContain('copilot-cli');
+
+      const onDisk = readYaml<any>('tools.yaml');
+      expect(onDisk.cliTypes['copilot-cli']).toBeUndefined();
+    });
+
+    it('removeCliType throws for non-existent key', () => {
+      loader.load();
+      expect(() => loader.removeCliType('nope')).toThrow('CLI type not found: nope');
     });
   });
 });

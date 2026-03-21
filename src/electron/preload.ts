@@ -123,11 +123,6 @@ const gamepadCliAPI = {
     ipcRenderer.invoke('config:setBinding', button, cliType, binding),
 
   /**
-   * Save configuration to file
-   */
-  configSave: () => ipcRenderer.invoke('config:save'),
-
-  /**
    * Reload configuration from file
    */
   configReload: () => ipcRenderer.invoke('config:reload'),
@@ -159,6 +154,33 @@ const gamepadCliAPI = {
    * Get working directory presets from config
    */
   configGetWorkingDirs: () => ipcRenderer.invoke('config:getWorkingDirs'),
+
+  // ========================================================================
+  // Working Directory CRUD
+  // ========================================================================
+
+  configAddWorkingDir: (name: string, dirPath: string) => ipcRenderer.invoke('config:addWorkingDir', name, dirPath),
+  configUpdateWorkingDir: (index: number, name: string, dirPath: string) => ipcRenderer.invoke('config:updateWorkingDir', index, name, dirPath),
+  configRemoveWorkingDir: (index: number) => ipcRenderer.invoke('config:removeWorkingDir', index),
+
+  // ========================================================================
+  // Profile Management
+  // ========================================================================
+
+  profileList: () => ipcRenderer.invoke('profile:list'),
+  profileGetActive: () => ipcRenderer.invoke('profile:getActive'),
+  profileSwitch: (name: string) => ipcRenderer.invoke('profile:switch', name),
+  profileCreate: (name: string, copyFrom?: string) => ipcRenderer.invoke('profile:create', name, copyFrom),
+  profileDelete: (name: string) => ipcRenderer.invoke('profile:delete', name),
+
+  // ========================================================================
+  // Tools CRUD
+  // ========================================================================
+
+  toolsGetAll: () => ipcRenderer.invoke('tools:getAll'),
+  toolsAddCliType: (key: string, name: string, command: string, args: string[]) => ipcRenderer.invoke('tools:addCliType', key, name, command, args),
+  toolsUpdateCliType: (key: string, name: string, command: string, args: string[]) => ipcRenderer.invoke('tools:updateCliType', key, name, command, args),
+  toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),
 
   // ========================================================================
   // Keyboard

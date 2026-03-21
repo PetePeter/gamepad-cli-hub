@@ -89,6 +89,7 @@ const state = {
   bindingEditorVisible: false,
   editingBinding: null as { button: string; cliType: string | null; binding: any } | null,
   bindingEditorFocusIndex: 0,
+  activeProfile: 'default' as string,
 };
 
 // ============================================================================
@@ -210,6 +211,7 @@ async function focusSession(sessionId: string): Promise<void> {
     await window.gamepadCli.sessionSetActive(sessionId);
     state.activeSessionId = sessionId;
     await loadSessions();
+    renderFooterBindings();
     logEvent(`Focused: ${sessionId}`);
   } catch (error) {
     console.error('Failed to focus session:', error);
@@ -283,6 +285,23 @@ async function executeGlobalBinding(button: string, binding: any): Promise<void>
       case 'list-sessions': {
         showScreen('sessions');
         logEvent('Action: list-sessions');
+        break;
+      }
+      case 'profile-switch': {
+        const profiles = await window.gamepadCli.profileList();
+        const active = await window.gamepadCli.profileGetActive();
+        const currentIdx = profiles.indexOf(active);
+        let nextIdx: number;
+        if (binding.direction === 'next') {
+          nextIdx = (currentIdx + 1) % profiles.length;
+        } else {
+          nextIdx = (currentIdx - 1 + profiles.length) % profiles.length;
+        }
+        await window.gamepadCli.profileSwitch(profiles[nextIdx]);
+        await initConfigCache();
+        logEvent(`Profile: ${profiles[nextIdx]}`);
+        updateProfileDisplay();
+        renderFooterBindings();
         break;
       }
       default:
@@ -500,7 +519,7 @@ function handleSettingsScreenButton(button: string): boolean {
 }
 
 function navigateSettingsTab(direction: number): void {
-  const allTabs = ['global', ...state.cliTypes];
+  const allTabs = ['profiles', 'global', ...state.cliTypes, 'tools', 'directories'];
   const currentIndex = allTabs.indexOf(state.settingsTab);
   let nextIndex = currentIndex + direction;
   if (nextIndex < 0) nextIndex = allTabs.length - 1;
@@ -857,6 +876,10 @@ async function init(): Promise<void> {
   // Cache config bindings for fast gamepad dispatch
   await initConfigCache();
 
+  // Update profile display and footer bindings
+  await updateProfileDisplay();
+  renderFooterBindings();
+
   // Refresh sessions from existing terminals
   try {
     if (window.gamepadCli) {
@@ -886,10 +909,16 @@ async function loadSettingsScreen(): Promise<void> {
 
     renderSettingsTabs(cliTypes);
 
-    if (state.settingsTab === 'global') {
+    if (state.settingsTab === 'profiles') {
+      await renderProfilesPanel();
+    } else if (state.settingsTab === 'global') {
       const bindings = state.globalBindings
         || (window.gamepadCli ? await window.gamepadCli.configGetGlobalBindings() : {});
       renderBindingsDisplay(bindings || {}, 'Global Bindings');
+    } else if (state.settingsTab === 'tools') {
+      await renderToolsPanel();
+    } else if (state.settingsTab === 'directories') {
+      await renderDirectoriesPanel();
     } else {
       const bindings = state.cliBindingsCache[state.settingsTab]
         || (window.gamepadCli ? await window.gamepadCli.configGetBindings(state.settingsTab) : null);
@@ -907,8 +936,11 @@ function renderSettingsTabs(cliTypes: string[]): void {
   container.innerHTML = '';
 
   const allTabs = [
+    { key: 'profiles', label: '👤 Profiles' },
     { key: 'global', label: 'Global' },
     ...cliTypes.map(ct => ({ key: ct, label: getCliDisplayName(ct) })),
+    { key: 'tools', label: '🔧 Tools' },
+    { key: 'directories', label: '📁 Directories' },
   ];
 
   allTabs.forEach(tab => {
@@ -985,16 +1017,601 @@ function formatBindingDetails(binding: any): string {
         : 'voice';
     case 'list-sessions':
       return 'show sessions list';
+    case 'profile-switch':
+      return binding.direction ? `profile: ${binding.direction}` : 'profile switch';
     default:
       return JSON.stringify(binding);
   }
 }
 
 // ============================================================================
+// Profile Display
+// ============================================================================
+
+async function updateProfileDisplay(): Promise<void> {
+  try {
+    if (!window.gamepadCli) return;
+    const active = await window.gamepadCli.profileGetActive();
+    state.activeProfile = active;
+    const nameEl = document.getElementById('profileName');
+    if (nameEl) nameEl.textContent = active;
+  } catch (error) {
+    console.error('[Renderer] Failed to update profile display:', error);
+  }
+}
+
+/**
+ * Render binding summary in the footer bar from global + active CLI bindings.
+ * Shows button → short action label for quick reference.
+ */
+function renderFooterBindings(): void {
+  const container = document.getElementById('footerBindings');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  const bindings = state.globalBindings || {};
+  const allBindings: Record<string, string> = {};
+
+  // Global bindings
+  for (const [button, binding] of Object.entries(bindings)) {
+    allBindings[button] = getShortActionLabel(binding);
+  }
+
+  // Active CLI bindings (if a session is focused)
+  if (state.activeSessionId) {
+    const session = state.sessions.find(s => s.id === state.activeSessionId);
+    if (session) {
+      const cliBindings = state.cliBindingsCache[session.cliType] || {};
+      for (const [button, binding] of Object.entries(cliBindings)) {
+        if (!allBindings[button]) {
+          allBindings[button] = getShortActionLabel(binding);
+        }
+      }
+    }
+  }
+
+  // Render each as a hint
+  for (const [button, label] of Object.entries(allBindings)) {
+    const hint = document.createElement('span');
+    hint.className = 'nav-hint';
+    hint.innerHTML = `<kbd>${getButtonSymbol(button)}</kbd> ${label}`;
+    container.appendChild(hint);
+  }
+}
+
+function getShortActionLabel(binding: any): string {
+  switch (binding.action) {
+    case 'keyboard':
+      return binding.keys?.length === 1 ? binding.keys[0] : (binding.keys?.join('+') || 'keys');
+    case 'spawn':
+      return `+${getCliDisplayName(binding.cliType || '')}`;
+    case 'session-switch':
+      return binding.direction === 'next' ? 'Next' : 'Prev';
+    case 'profile-switch':
+      return binding.direction === 'next' ? 'Prof→' : '←Prof';
+    case 'openwhisper':
+      return 'Voice';
+    case 'voice':
+      return 'Voice';
+    case 'list-sessions':
+      return 'Sessions';
+    default:
+      return binding.action || '?';
+  }
+}
+
+function getButtonSymbol(button: string): string {
+  const symbols: Record<string, string> = {
+    'Up': '↑',
+    'Down': '↓',
+    'Left': '←',
+    'Right': '→',
+    'A': 'A',
+    'B': 'B',
+    'X': 'X',
+    'Y': 'Y',
+    'LeftTrigger': 'LT',
+    'RightTrigger': 'RT',
+    'LeftBumper': 'LB',
+    'RightBumper': 'RB',
+    'Back': '⊲',
+    'Start': '⊳',
+  };
+  return symbols[button] || button;
+}
+
+// ============================================================================
+// Profiles Panel
+// ============================================================================
+
+async function renderProfilesPanel(): Promise<void> {
+  const container = document.getElementById('bindingsDisplay');
+  if (!container || !window.gamepadCli) return;
+
+  container.innerHTML = '';
+
+  const profiles = await window.gamepadCli.profileList();
+  const active = await window.gamepadCli.profileGetActive();
+
+  const panel = document.createElement('div');
+  panel.className = 'settings-panel';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'settings-panel__header';
+  header.innerHTML = `<span class="settings-panel__title">Binding Profiles</span>`;
+
+  const createBtn = document.createElement('button');
+  createBtn.className = 'btn btn--primary btn--sm focusable';
+  createBtn.tabIndex = 0;
+  createBtn.textContent = '+ Create Profile';
+  createBtn.addEventListener('click', () => showCreateProfilePrompt(profiles));
+  header.appendChild(createBtn);
+  panel.appendChild(header);
+
+  // Profile list
+  const list = document.createElement('div');
+  list.className = 'settings-list';
+
+  profiles.forEach(name => {
+    const item = document.createElement('div');
+    const isActive = name === active;
+    item.className = `settings-list-item${isActive ? ' settings-list-item--active' : ''}`;
+
+    item.innerHTML = `
+      <div class="settings-list-item__info">
+        <span class="settings-list-item__name">${name}${isActive ? '<span class="settings-list-item__badge">Active</span>' : ''}</span>
+      </div>
+    `;
+
+    const actions = document.createElement('div');
+    actions.className = 'settings-list-item__actions';
+
+    if (!isActive) {
+      const switchBtn = document.createElement('button');
+      switchBtn.className = 'btn btn--primary btn--sm focusable';
+      switchBtn.tabIndex = 0;
+      switchBtn.textContent = 'Switch';
+      switchBtn.addEventListener('click', async () => {
+        await window.gamepadCli.profileSwitch(name);
+        await initConfigCache();
+        updateProfileDisplay();
+        renderFooterBindings();
+        logEvent(`Profile: ${name}`);
+        loadSettingsScreen();
+      });
+      actions.appendChild(switchBtn);
+    }
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn btn--danger btn--sm focusable';
+    deleteBtn.tabIndex = 0;
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.disabled = name === 'default';
+    if (name !== 'default') {
+      deleteBtn.addEventListener('click', async () => {
+        if (!confirm(`Delete profile "${name}"?`)) return;
+        const result = await window.gamepadCli.profileDelete(name);
+        if (result.success) {
+          logEvent(`Deleted profile: ${name}`);
+          loadSettingsScreen();
+        }
+      });
+    }
+    actions.appendChild(deleteBtn);
+
+    item.appendChild(actions);
+    list.appendChild(item);
+  });
+
+  panel.appendChild(list);
+  container.appendChild(panel);
+}
+
+function showCreateProfilePrompt(existingProfiles: string[]): void {
+  const name = prompt('New profile name:');
+  if (!name || !name.trim()) return;
+
+  const slug = name.trim();
+  const copyFrom = prompt(`Copy bindings from existing profile? (${existingProfiles.join(', ')}) — leave blank for empty:`);
+
+  (async () => {
+    try {
+      const result = await window.gamepadCli.profileCreate(slug, copyFrom?.trim() || undefined);
+      if (result.success) {
+        logEvent(`Created profile: ${slug}`);
+        loadSettingsScreen();
+      } else {
+        logEvent('Profile creation failed');
+      }
+    } catch (error) {
+      console.error('Failed to create profile:', error);
+      logEvent(`Profile create error: ${error}`);
+    }
+  })();
+}
+
+// ============================================================================
+// Tools Panel
+// ============================================================================
+
+async function renderToolsPanel(): Promise<void> {
+  const container = document.getElementById('bindingsDisplay');
+  if (!container || !window.gamepadCli) return;
+
+  container.innerHTML = '';
+
+  let toolsData: any;
+  try {
+    toolsData = await window.gamepadCli.toolsGetAll();
+  } catch {
+    container.innerHTML = '<p style="color: var(--text-dim);">Failed to load tools config</p>';
+    return;
+  }
+
+  const panel = document.createElement('div');
+  panel.className = 'settings-panel';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'settings-panel__header';
+  header.innerHTML = `<span class="settings-panel__title">CLI Types</span>`;
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn btn--primary btn--sm focusable';
+  addBtn.tabIndex = 0;
+  addBtn.textContent = '+ Add CLI Type';
+  addBtn.addEventListener('click', () => showAddCliTypeForm(panel));
+  header.appendChild(addBtn);
+  panel.appendChild(header);
+
+  // CLI Types list
+  const cliTypes = toolsData?.cliTypes || {};
+  const list = document.createElement('div');
+  list.className = 'settings-list';
+  list.id = 'toolsList';
+
+  Object.entries(cliTypes).forEach(([key, value]: [string, any]) => {
+    list.appendChild(createCliTypeItem(key, value));
+  });
+
+  if (Object.keys(cliTypes).length === 0) {
+    list.innerHTML = '<p style="color: var(--text-dim); padding: var(--spacing-md);">No CLI types configured</p>';
+  }
+
+  panel.appendChild(list);
+
+  // OpenWhisper read-only
+  if (toolsData?.openwhisper) {
+    const owCard = document.createElement('div');
+    owCard.className = 'settings-readonly-card';
+    owCard.innerHTML = `
+      <div class="settings-readonly-card__title">OpenWhisper Config (read-only)</div>
+      <div class="settings-readonly-card__content">${JSON.stringify(toolsData.openwhisper, null, 2)}</div>
+    `;
+    panel.appendChild(owCard);
+  }
+
+  container.appendChild(panel);
+}
+
+function createCliTypeItem(key: string, value: any): HTMLElement {
+  const item = document.createElement('div');
+  item.className = 'settings-list-item';
+  item.dataset.cliKey = key;
+
+  const spawn = value.spawn || {};
+  const argsStr = Array.isArray(spawn.args) ? spawn.args.join(', ') : '';
+
+  item.innerHTML = `
+    <div class="settings-list-item__info">
+      <span class="settings-list-item__name">${value.name || key}</span>
+      <span class="settings-list-item__detail">${spawn.command || '—'}${argsStr ? ` ${argsStr}` : ''}</span>
+    </div>
+  `;
+
+  const actions = document.createElement('div');
+  actions.className = 'settings-list-item__actions';
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'btn btn--secondary btn--sm focusable';
+  editBtn.tabIndex = 0;
+  editBtn.textContent = 'Edit';
+  editBtn.addEventListener('click', () => showEditCliTypeForm(key, value));
+  actions.appendChild(editBtn);
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'btn btn--danger btn--sm focusable';
+  deleteBtn.tabIndex = 0;
+  deleteBtn.textContent = 'Delete';
+  deleteBtn.addEventListener('click', async () => {
+    if (!confirm(`Delete CLI type "${key}"?`)) return;
+    const result = await window.gamepadCli.toolsRemoveCliType(key);
+    if (result.success) {
+      logEvent(`Deleted CLI type: ${key}`);
+      // Refresh cliTypes in state
+      state.cliTypes = await window.gamepadCli.configGetCliTypes();
+      state.availableSpawnTypes = state.cliTypes;
+      renderSpawnButtons();
+      loadSettingsScreen();
+    }
+  });
+  actions.appendChild(deleteBtn);
+
+  item.appendChild(actions);
+  return item;
+}
+
+function showAddCliTypeForm(panel: HTMLElement): void {
+  // Remove existing add form if present
+  panel.querySelector('#addCliTypeForm')?.remove();
+
+  const form = document.createElement('div');
+  form.className = 'settings-form';
+  form.id = 'addCliTypeForm';
+  form.innerHTML = `
+    <span class="settings-form__title">Add CLI Type</span>
+    <div class="settings-form__row">
+      <div class="settings-form__field">
+        <label>Key (slug)</label>
+        <input type="text" id="newCliKey" placeholder="e.g. my-tool" class="focusable" tabindex="0" />
+      </div>
+      <div class="settings-form__field">
+        <label>Name</label>
+        <input type="text" id="newCliName" placeholder="e.g. My Tool" class="focusable" tabindex="0" />
+      </div>
+    </div>
+    <div class="settings-form__row">
+      <div class="settings-form__field">
+        <label>Command</label>
+        <input type="text" id="newCliCommand" placeholder="e.g. my-tool.exe" class="focusable" tabindex="0" />
+      </div>
+      <div class="settings-form__field">
+        <label>Args (comma-separated)</label>
+        <input type="text" id="newCliArgs" placeholder="e.g. --interactive, --color" class="focusable" tabindex="0" />
+      </div>
+    </div>
+    <div class="settings-form__row">
+      <button class="btn btn--primary btn--sm focusable" tabindex="0" id="saveNewCliBtn">Save</button>
+      <button class="btn btn--secondary btn--sm focusable" tabindex="0" id="cancelNewCliBtn">Cancel</button>
+    </div>
+  `;
+
+  // Insert after header
+  const header = panel.querySelector('.settings-panel__header');
+  if (header && header.nextSibling) {
+    panel.insertBefore(form, header.nextSibling);
+  } else {
+    panel.appendChild(form);
+  }
+
+  document.getElementById('saveNewCliBtn')?.addEventListener('click', async () => {
+    const key = (document.getElementById('newCliKey') as HTMLInputElement).value.trim();
+    const name = (document.getElementById('newCliName') as HTMLInputElement).value.trim();
+    const command = (document.getElementById('newCliCommand') as HTMLInputElement).value.trim();
+    const argsStr = (document.getElementById('newCliArgs') as HTMLInputElement).value.trim();
+    const args = argsStr ? argsStr.split(',').map(a => a.trim()).filter(Boolean) : [];
+
+    if (!key || !name || !command) {
+      logEvent('Add CLI type: key, name, command are required');
+      return;
+    }
+
+    const result = await window.gamepadCli.toolsAddCliType(key, name, command, args);
+    if (result.success) {
+      logEvent(`Added CLI type: ${key}`);
+      state.cliTypes = await window.gamepadCli.configGetCliTypes();
+      state.availableSpawnTypes = state.cliTypes;
+      renderSpawnButtons();
+      loadSettingsScreen();
+    } else {
+      logEvent('Failed to add CLI type');
+    }
+  });
+
+  document.getElementById('cancelNewCliBtn')?.addEventListener('click', () => {
+    form.remove();
+  });
+
+  (document.getElementById('newCliKey') as HTMLInputElement)?.focus();
+}
+
+function showEditCliTypeForm(key: string, value: any): void {
+  const spawn = value.spawn || {};
+  const argsStr = Array.isArray(spawn.args) ? spawn.args.join(', ') : '';
+
+  const name = prompt('Name:', value.name || key);
+  if (name === null) return;
+  const command = prompt('Command:', spawn.command || '');
+  if (command === null) return;
+  const argsInput = prompt('Args (comma-separated):', argsStr);
+  if (argsInput === null) return;
+
+  const args = argsInput ? argsInput.split(',').map(a => a.trim()).filter(Boolean) : [];
+
+  (async () => {
+    const result = await window.gamepadCli.toolsUpdateCliType(key, name.trim(), command.trim(), args);
+    if (result.success) {
+      logEvent(`Updated CLI type: ${key}`);
+      state.cliTypes = await window.gamepadCli.configGetCliTypes();
+      state.availableSpawnTypes = state.cliTypes;
+      renderSpawnButtons();
+      loadSettingsScreen();
+    } else {
+      logEvent('Failed to update CLI type');
+    }
+  })();
+}
+
+// ============================================================================
+// Directories Panel
+// ============================================================================
+
+async function renderDirectoriesPanel(): Promise<void> {
+  const container = document.getElementById('bindingsDisplay');
+  if (!container || !window.gamepadCli) return;
+
+  container.innerHTML = '';
+
+  let dirs: Array<{ name: string; path: string }>;
+  try {
+    dirs = await window.gamepadCli.configGetWorkingDirs();
+  } catch {
+    container.innerHTML = '<p style="color: var(--text-dim);">Failed to load directories</p>';
+    return;
+  }
+
+  const panel = document.createElement('div');
+  panel.className = 'settings-panel';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'settings-panel__header';
+  header.innerHTML = `<span class="settings-panel__title">Working Directories</span>`;
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn btn--primary btn--sm focusable';
+  addBtn.tabIndex = 0;
+  addBtn.textContent = '+ Add Directory';
+  addBtn.addEventListener('click', () => showAddDirectoryForm(panel));
+  header.appendChild(addBtn);
+  panel.appendChild(header);
+
+  // Directories list
+  const list = document.createElement('div');
+  list.className = 'settings-list';
+  list.id = 'directoriesList';
+
+  if (dirs.length === 0) {
+    list.innerHTML = '<p style="color: var(--text-dim); padding: var(--spacing-md);">No working directories configured</p>';
+  } else {
+    dirs.forEach((dir, index) => {
+      list.appendChild(createDirectoryItem(dir, index));
+    });
+  }
+
+  panel.appendChild(list);
+  container.appendChild(panel);
+}
+
+function createDirectoryItem(dir: { name: string; path: string }, index: number): HTMLElement {
+  const item = document.createElement('div');
+  item.className = 'settings-list-item';
+
+  item.innerHTML = `
+    <div class="settings-list-item__info">
+      <span class="settings-list-item__name">${dir.name}</span>
+      <span class="settings-list-item__detail">${dir.path}</span>
+    </div>
+  `;
+
+  const actions = document.createElement('div');
+  actions.className = 'settings-list-item__actions';
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'btn btn--secondary btn--sm focusable';
+  editBtn.tabIndex = 0;
+  editBtn.textContent = 'Edit';
+  editBtn.addEventListener('click', () => showEditDirectoryPrompt(dir, index));
+  actions.appendChild(editBtn);
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'btn btn--danger btn--sm focusable';
+  deleteBtn.tabIndex = 0;
+  deleteBtn.textContent = 'Delete';
+  deleteBtn.addEventListener('click', async () => {
+    if (!confirm(`Delete directory "${dir.name}"?`)) return;
+    const result = await window.gamepadCli.configRemoveWorkingDir(index);
+    if (result.success) {
+      logEvent(`Deleted directory: ${dir.name}`);
+      loadSettingsScreen();
+    }
+  });
+  actions.appendChild(deleteBtn);
+
+  item.appendChild(actions);
+  return item;
+}
+
+function showAddDirectoryForm(panel: HTMLElement): void {
+  panel.querySelector('#addDirForm')?.remove();
+
+  const form = document.createElement('div');
+  form.className = 'settings-form';
+  form.id = 'addDirForm';
+  form.innerHTML = `
+    <span class="settings-form__title">Add Directory</span>
+    <div class="settings-form__row">
+      <div class="settings-form__field">
+        <label>Name</label>
+        <input type="text" id="newDirName" placeholder="e.g. My Project" class="focusable" tabindex="0" />
+      </div>
+      <div class="settings-form__field">
+        <label>Path</label>
+        <input type="text" id="newDirPath" placeholder="e.g. C:\\projects\\my-project" class="focusable" tabindex="0" />
+      </div>
+    </div>
+    <div class="settings-form__row">
+      <button class="btn btn--primary btn--sm focusable" tabindex="0" id="saveNewDirBtn">Save</button>
+      <button class="btn btn--secondary btn--sm focusable" tabindex="0" id="cancelNewDirBtn">Cancel</button>
+    </div>
+  `;
+
+  const header = panel.querySelector('.settings-panel__header');
+  if (header && header.nextSibling) {
+    panel.insertBefore(form, header.nextSibling);
+  } else {
+    panel.appendChild(form);
+  }
+
+  document.getElementById('saveNewDirBtn')?.addEventListener('click', async () => {
+    const name = (document.getElementById('newDirName') as HTMLInputElement).value.trim();
+    const dirPath = (document.getElementById('newDirPath') as HTMLInputElement).value.trim();
+
+    if (!name || !dirPath) {
+      logEvent('Add directory: name and path are required');
+      return;
+    }
+
+    const result = await window.gamepadCli.configAddWorkingDir(name, dirPath);
+    if (result.success) {
+      logEvent(`Added directory: ${name}`);
+      loadSettingsScreen();
+    } else {
+      logEvent('Failed to add directory');
+    }
+  });
+
+  document.getElementById('cancelNewDirBtn')?.addEventListener('click', () => {
+    form.remove();
+  });
+
+  (document.getElementById('newDirName') as HTMLInputElement)?.focus();
+}
+
+function showEditDirectoryPrompt(dir: { name: string; path: string }, index: number): void {
+  const name = prompt('Name:', dir.name);
+  if (name === null) return;
+  const dirPath = prompt('Path:', dir.path);
+  if (dirPath === null) return;
+
+  (async () => {
+    const result = await window.gamepadCli.configUpdateWorkingDir(index, name.trim(), dirPath.trim());
+    if (result.success) {
+      logEvent(`Updated directory: ${name.trim()}`);
+      loadSettingsScreen();
+    } else {
+      logEvent('Failed to update directory');
+    }
+  })();
+}
+
+// ============================================================================
 // Binding Editor Modal
 // ============================================================================
 
-const ACTION_TYPES = ['keyboard', 'voice', 'openwhisper', 'session-switch', 'spawn', 'list-sessions'] as const;
+const ACTION_TYPES = ['keyboard', 'voice', 'openwhisper', 'session-switch', 'spawn', 'list-sessions', 'profile-switch'] as const;
 
 function openBindingEditor(button: string, cliType: string | null, binding: any): void {
   state.editingBinding = { button, cliType, binding: { ...binding } };
@@ -1098,6 +1715,15 @@ function renderActionParams(form: HTMLElement, binding: any): void {
         <input type="text" value="No additional parameters" disabled />
       `, true));
       break;
+    case 'profile-switch': {
+      const profDirOptions = ['previous', 'next'].map(d =>
+        `<option value="${d}" ${d === binding.direction ? 'selected' : ''}>${d}</option>`
+      ).join('');
+      form.appendChild(createEditorField('Direction', `
+        <select id="bindingEditorDirection">${profDirOptions}</select>
+      `));
+      break;
+    }
   }
 }
 
@@ -1122,6 +1748,8 @@ function buildDefaultBinding(action: string): any {
       return { action: 'spawn', cliType: state.cliTypes[0] || 'generic-terminal' };
     case 'list-sessions':
       return { action: 'list-sessions' };
+    case 'profile-switch':
+      return { action: 'profile-switch', direction: 'next' };
     default:
       return { action };
   }
@@ -1162,6 +1790,10 @@ function collectBindingFromForm(): any | null {
     }
     case 'list-sessions':
       return { action: 'list-sessions' };
+    case 'profile-switch': {
+      const profDirSelect = document.getElementById('bindingEditorDirection') as HTMLSelectElement;
+      return { action: 'profile-switch', direction: profDirSelect?.value || 'next' };
+    }
     default:
       return null;
   }

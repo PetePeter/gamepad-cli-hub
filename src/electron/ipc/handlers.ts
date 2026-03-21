@@ -156,24 +156,44 @@ function setupSessionHandlers(): void {
 
 function setupConfigHandlers(): void {
   ipcMain.handle('config:getAll', () => {
-    configLoader.load();
-    return {
-      cliTypes: configLoader.getCliTypes(),
-      globalBindings: configLoader.getGlobalBindings(),
-      openwhisper: configLoader.getOpenWhisperConfig(),
-    };
+    try {
+      configLoader.load();
+      return {
+        cliTypes: configLoader.getCliTypes(),
+        globalBindings: configLoader.getGlobalBindings(),
+        openwhisper: configLoader.getOpenWhisperConfig(),
+      };
+    } catch (error) {
+      console.error('[IPC] Failed to get all config:', error);
+      return { cliTypes: [], globalBindings: {}, openwhisper: null };
+    }
   });
 
   ipcMain.handle('config:getGlobalBindings', () => {
-    return configLoader.getGlobalBindings();
+    try {
+      return configLoader.getGlobalBindings();
+    } catch (error) {
+      console.error('[IPC] Failed to get global bindings:', error);
+      return {};
+    }
   });
 
   ipcMain.handle('config:getBindings', (_event, cliType: string) => {
-    return configLoader.getBindings(cliType);
+    try {
+      return configLoader.getBindings(cliType);
+    } catch (error) {
+      console.error(`[IPC] Failed to get bindings for ${cliType}:`, error);
+      return null;
+    }
   });
 
   ipcMain.handle('config:getCliTypes', () => {
-    return configLoader.getCliTypes();
+    try {
+      return configLoader.getCliTypes();
+    } catch (error) {
+      console.error('[IPC] Failed to get CLI types:', error);
+      return [];
+    }
   });
 
   ipcMain.handle('config:setBinding', (_event, button: string, cliType: string | null, binding: any) => {
@@ -185,12 +205,6 @@ function setupConfigHandlers(): void {
       console.error(`[IPC] Failed to set binding: ${button}`, error);
       return { success: false, error: String(error) };
     }
-  });
-
-  ipcMain.handle('config:save', () => {
-    // Save config to file
-    console.log('[IPC] Save config');
-    return { success: true };
   });
 
   ipcMain.handle('config:reload', () => {
@@ -205,7 +219,150 @@ function setupConfigHandlers(): void {
   });
 
   ipcMain.handle('config:getWorkingDirs', () => {
-    return configLoader.getWorkingDirectories();
+    try {
+      return configLoader.getWorkingDirectories();
+    } catch (error) {
+      console.error('[IPC] Failed to get working dirs:', error);
+      return [];
+    }
+  });
+
+  // Working directory CRUD
+  ipcMain.handle('config:addWorkingDir', (_event, name: string, dirPath: string) => {
+    try {
+      configLoader.addWorkingDirectory(name, dirPath);
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Failed to add working dir:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('config:updateWorkingDir', (_event, index: number, name: string, dirPath: string) => {
+    try {
+      configLoader.updateWorkingDirectory(index, name, dirPath);
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Failed to update working dir:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('config:removeWorkingDir', (_event, index: number) => {
+    try {
+      configLoader.removeWorkingDirectory(index);
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Failed to remove working dir:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+}
+
+// ============================================================================
+// Profile Handlers
+// ============================================================================
+
+function setupProfileHandlers(): void {
+  ipcMain.handle('profile:list', () => {
+    try {
+      return configLoader.listProfiles();
+    } catch (error) {
+      console.error('[IPC] Failed to list profiles:', error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('profile:getActive', () => {
+    try {
+      return configLoader.getActiveProfile();
+    } catch (error) {
+      console.error('[IPC] Failed to get active profile:', error);
+      return 'default';
+    }
+  });
+
+  ipcMain.handle('profile:switch', (_event, name: string) => {
+    try {
+      configLoader.switchProfile(name);
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Failed to switch profile:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('profile:create', (_event, name: string, copyFrom?: string) => {
+    try {
+      configLoader.createProfile(name, copyFrom);
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Failed to create profile:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('profile:delete', (_event, name: string) => {
+    try {
+      configLoader.deleteProfile(name);
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Failed to delete profile:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+}
+
+// ============================================================================
+// Tools Handlers
+// ============================================================================
+
+function setupToolsHandlers(): void {
+  ipcMain.handle('tools:getAll', () => {
+    try {
+      return {
+        cliTypes: Object.fromEntries(
+          configLoader.getCliTypes().map(key => [key, {
+            name: configLoader.getCliTypeName(key),
+            spawn: configLoader.getSpawnConfig(key),
+          }])
+        ),
+        openwhisper: configLoader.getOpenWhisperConfig(),
+      };
+    } catch (error) {
+      console.error('[IPC] Failed to get tools:', error);
+      return { cliTypes: {}, openwhisper: null };
+    }
+  });
+
+  ipcMain.handle('tools:addCliType', (_event, key: string, name: string, command: string, args: string[]) => {
+    try {
+      configLoader.addCliType(key, name, command, args);
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Failed to add CLI type:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('tools:updateCliType', (_event, key: string, name: string, command: string, args: string[]) => {
+    try {
+      configLoader.updateCliType(key, name, command, args);
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Failed to update CLI type:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('tools:removeCliType', (_event, key: string) => {
+    try {
+      configLoader.removeCliType(key);
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Failed to remove CLI type:', error);
+      return { success: false, error: String(error) };
+    }
   });
 }
 
@@ -297,6 +454,8 @@ export function registerIPCHandlers(): void {
   setupGamepadHandlers();
   setupSessionHandlers();
   setupConfigHandlers();
+  setupProfileHandlers();
+  setupToolsHandlers();
   setupWindowHandlers();
   setupSpawnHandlers();
   setupKeyboardHandlers();

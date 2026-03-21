@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from 'node:child_process';
-import { configLoader, SpawnConfig } from './config-loader.js';
+import { configLoader, type SpawnConfig } from '../config/loader.js';
 
 export interface SpawnedProcess {
   process: ChildProcess;

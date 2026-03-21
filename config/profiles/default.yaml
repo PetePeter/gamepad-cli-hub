@@ -1,0 +1,22 @@
+name: "Default"
+cliTypes:
+  claude-code:
+    A: { action: "keyboard", keys: ["Clear"] }
+    B: { action: "openwhisper", recordingDuration: 5000 }
+    X: { action: "keyboard", keys: ["/","h","e","l","p","Enter"] }
+    Y: { action: "keyboard", keys: ["/","s","t","a","t","u","s","Enter"] }
+  copilot-cli:
+    A: { action: "keyboard", keys: ["Clear"] }
+    B: { action: "keyboard", keys: ["Escape"] }
+    X: { action: "keyboard", keys: ["?","Enter"] }
+    Y: { action: "keyboard", keys: ["Ctrl","c"] }
+  generic-terminal:
+    A: { action: "keyboard", keys: ["Clear"] }
+    B: { action: "keyboard", keys: ["Ctrl","c"] }
+global:
+  Up: { action: "session-switch", direction: "previous" }
+  Down: { action: "session-switch", direction: "next" }
+  LeftTrigger: { action: "spawn", cliType: "claude-code" }
+  RightBumper: { action: "spawn", cliType: "copilot-cli" }
+  Back: { action: "profile-switch", direction: "previous" }
+  Start: { action: "profile-switch", direction: "next" }

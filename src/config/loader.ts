@@ -2,76 +2,76 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as YAML from 'yaml';
 
-// Action types for button bindings
-export type ActionType = 'keyboard' | 'voice' | 'openwhisper' | 'session-switch' | 'spawn' | 'list-sessions';
+// ============================================================================
+// Action & Binding Types
+// ============================================================================
 
-// Base binding interface
+export type ActionType = 'keyboard' | 'voice' | 'openwhisper' | 'session-switch' | 'spawn' | 'list-sessions' | 'profile-switch';
+
 export interface BaseBinding {
   action: ActionType;
 }
 
-// Keyboard action - sends keystrokes
 export interface KeyboardBinding extends BaseBinding {
   action: 'keyboard';
   keys: string[];
 }
 
-// Voice action - long-press spacebar for voice input (Claude Code built-in)
 export interface VoiceBinding extends BaseBinding {
   action: 'voice';
-  holdDuration?: number; // milliseconds
+  holdDuration?: number;
 }
 
-// OpenWhisper action - local transcription using whisper.cpp
 export interface OpenWhisperBinding extends BaseBinding {
   action: 'openwhisper';
-  recordingDuration?: number; // milliseconds, default 5000
+  recordingDuration?: number;
 }
 
-// Session switch action - switch between sessions
 export interface SessionSwitchBinding extends BaseBinding {
   action: 'session-switch';
   direction: 'previous' | 'next';
 }
 
-// Spawn action - launch a new CLI instance
 export interface SpawnBinding extends BaseBinding {
   action: 'spawn';
   cliType: string;
 }
 
-// List sessions action - show all active sessions
 export interface ListSessionsBinding extends BaseBinding {
   action: 'list-sessions';
 }
 
-// Union type for all binding types
-export type Binding = KeyboardBinding | VoiceBinding | OpenWhisperBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding;
+export interface ProfileSwitchBinding extends BaseBinding {
+  action: 'profile-switch';
+  direction: 'previous' | 'next';
+}
 
-// Spawn configuration for a CLI
+export type Binding = KeyboardBinding | VoiceBinding | OpenWhisperBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding | ProfileSwitchBinding;
+
+// ============================================================================
+// Shared Config Types
+// ============================================================================
+
 export interface SpawnConfig {
   command: string;
   args: string[];
 }
 
-// Button mapping for a specific CLI type
 export interface ButtonBindings {
   [button: string]: Binding;
 }
 
-// Configuration for a specific CLI type
+/** @deprecated Use ToolsConfig cliTypes entries instead */
 export interface CliTypeConfig {
   name: string;
   spawn: SpawnConfig;
   bindings: ButtonBindings;
 }
 
-// Global bindings configuration
 export interface GlobalBindings {
   [button: string]: Binding;
 }
 
-// OpenWhisper configuration
 export interface OpenWhisperConfig {
   whisperPath: string;
   model: string;
@@ -79,223 +79,360 @@ export interface OpenWhisperConfig {
   tempDir?: string;
 }
 
-// Working directory preset
 export interface WorkingDirectory {
   name: string;
   path: string;
 }
 
-// Root configuration structure
+/** @deprecated Kept for backward compat — prefer split config types */
 export interface Config {
-  cliTypes: {
-    [key: string]: CliTypeConfig;
-  };
+  cliTypes: { [key: string]: CliTypeConfig };
   global: GlobalBindings;
   openwhisper?: OpenWhisperConfig;
   workingDirectories?: WorkingDirectory[];
 }
 
-// Default config path
-const DEFAULT_CONFIG_PATH = path.join(process.cwd(), 'config', 'bindings.yaml');
+// ============================================================================
+// Split Config File Types
+// ============================================================================
 
-/**
- * Configuration loader class
- * Loads and provides access to YAML-based button binding configuration
- */
+export interface DirectoriesConfig {
+  workingDirectories: WorkingDirectory[];
+}
+
+export interface ToolsConfig {
+  openwhisper?: OpenWhisperConfig;
+  cliTypes: { [key: string]: { name: string; spawn: SpawnConfig } };
+}
+
+export interface SettingsConfig {
+  activeProfile: string;
+}
+
+export interface ProfileConfig {
+  name: string;
+  cliTypes: { [key: string]: ButtonBindings };
+  global: GlobalBindings;
+}
+
+// ============================================================================
+// ConfigLoader
+// ============================================================================
+
+const DEFAULT_CONFIG_DIR = path.join(process.cwd(), 'config');
+
 export class ConfigLoader {
-  private config: Config | null = null;
-  private configPath: string;
+  private configDir: string;
+  private directories: DirectoriesConfig | null = null;
+  private tools: ToolsConfig | null = null;
+  private settings: SettingsConfig | null = null;
+  private activeProfile: ProfileConfig | null = null;
+  private activeProfileName: string = 'default';
 
-  /**
-   * Create a new ConfigLoader
-   * @param configPath - Path to the YAML config file (defaults to config/bindings.yaml)
-   */
-  constructor(configPath: string = DEFAULT_CONFIG_PATH) {
-    this.configPath = configPath;
+  constructor(configDir: string = DEFAULT_CONFIG_DIR) {
+    this.configDir = configDir;
   }
 
-  /**
-   * Load configuration from file
-   * @throws Error if file cannot be read or parsed
-   */
+  // ---------- Loading --------------------------------------------------
+
   load(): void {
-    if (!fs.existsSync(this.configPath)) {
-      throw new Error(`Configuration file not found: ${this.configPath}`);
-    }
-
-    const fileContents = fs.readFileSync(this.configPath, 'utf8');
-    this.config = YAML.parse(fileContents) as Config;
-
-    if (!this.config) {
-      throw new Error(`Failed to parse configuration file: ${this.configPath}`);
-    }
-
-    this.validate();
+    this.loadDirectories();
+    this.loadTools();
+    this.loadSettings();
+    this.loadActiveProfile();
   }
 
-  /**
-   * Validate the loaded configuration
-   * @throws Error if configuration is invalid
-   */
-  private validate(): void {
-    if (!this.config) {
-      throw new Error('No configuration loaded');
-    }
-
-    if (!this.config.cliTypes || typeof this.config.cliTypes !== 'object') {
-      throw new Error('Invalid configuration: missing or invalid cliTypes');
-    }
-
-    if (!this.config.global || typeof this.config.global !== 'object') {
-      throw new Error('Invalid configuration: missing or invalid global bindings');
-    }
-
-    // Validate each CLI type
-    for (const [key, cliType] of Object.entries(this.config.cliTypes)) {
-      if (!cliType.name || typeof cliType.name !== 'string') {
-        throw new Error(`Invalid configuration: cliType '${key}' missing name`);
-      }
-      if (!cliType.spawn || typeof cliType.spawn !== 'object') {
-        throw new Error(`Invalid configuration: cliType '${key}' missing spawn config`);
-      }
-      if (!cliType.bindings || typeof cliType.bindings !== 'object') {
-        throw new Error(`Invalid configuration: cliType '${key}' missing bindings`);
-      }
+  private loadDirectories(): void {
+    const filePath = path.join(this.configDir, 'directories.yaml');
+    this.directories = this.readYaml<DirectoriesConfig>(filePath);
+    if (!this.directories || !Array.isArray(this.directories.workingDirectories)) {
+      throw new Error('Invalid directories.yaml: missing workingDirectories array');
     }
   }
 
-  /**
-   * Get button mappings for a specific CLI type
-   * @param cliType - The CLI type key (e.g., 'claude-code')
-   * @returns Button bindings for the CLI type, or null if not found
-   */
+  private loadTools(): void {
+    const filePath = path.join(this.configDir, 'tools.yaml');
+    this.tools = this.readYaml<ToolsConfig>(filePath);
+    if (!this.tools || !this.tools.cliTypes || typeof this.tools.cliTypes !== 'object') {
+      throw new Error('Invalid tools.yaml: missing or invalid cliTypes');
+    }
+    for (const [key, entry] of Object.entries(this.tools.cliTypes)) {
+      if (!entry.name) throw new Error(`tools.yaml: cliType '${key}' missing name`);
+      if (!entry.spawn) throw new Error(`tools.yaml: cliType '${key}' missing spawn config`);
+    }
+  }
+
+  private loadSettings(): void {
+    const filePath = path.join(this.configDir, 'settings.yaml');
+    this.settings = this.readYaml<SettingsConfig>(filePath);
+    if (!this.settings || !this.settings.activeProfile) {
+      throw new Error('Invalid settings.yaml: missing activeProfile');
+    }
+    this.activeProfileName = this.settings.activeProfile;
+  }
+
+  private loadActiveProfile(): void {
+    const filePath = path.join(this.configDir, 'profiles', `${this.activeProfileName}.yaml`);
+    this.activeProfile = this.readYaml<ProfileConfig>(filePath);
+    if (!this.activeProfile) {
+      throw new Error(`Failed to load profile: ${this.activeProfileName}`);
+    }
+    if (!this.activeProfile.cliTypes || typeof this.activeProfile.cliTypes !== 'object') {
+      throw new Error(`Invalid profile '${this.activeProfileName}': missing cliTypes`);
+    }
+    if (!this.activeProfile.global || typeof this.activeProfile.global !== 'object') {
+      throw new Error(`Invalid profile '${this.activeProfileName}': missing global bindings`);
+    }
+  }
+
+  private readYaml<T>(filePath: string): T {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Configuration file not found: ${filePath}`);
+    }
+    const content = fs.readFileSync(filePath, 'utf8');
+    const parsed = YAML.parse(content) as T;
+    if (!parsed) {
+      throw new Error(`Failed to parse configuration file: ${filePath}`);
+    }
+    return parsed;
+  }
+
+  // ---------- Existing read methods (backward compatible) ---------------
+
+  private ensureLoaded(): void {
+    if (!this.tools || !this.activeProfile || !this.directories) {
+      throw new Error('Configuration not loaded. Call load() first.');
+    }
+  }
+
   getBindings(cliType: string): ButtonBindings | null {
-    if (!this.config) {
-      throw new Error('Configuration not loaded. Call load() first.');
-    }
-
-    const cliConfig = this.config.cliTypes[cliType];
-    return cliConfig?.bindings ?? null;
+    this.ensureLoaded();
+    return this.activeProfile!.cliTypes[cliType] ?? null;
   }
 
-  /**
-   * Get global button mappings (work regardless of active session)
-   * @returns Global button bindings
-   */
   getGlobalBindings(): GlobalBindings {
-    if (!this.config) {
-      throw new Error('Configuration not loaded. Call load() first.');
-    }
-
-    return this.config.global;
+    this.ensureLoaded();
+    return this.activeProfile!.global;
   }
 
-  /**
-   * Get spawn configuration for a specific CLI type
-   * @param cliType - The CLI type key (e.g., 'claude-code')
-   * @returns Spawn configuration, or null if not found
-   */
   getSpawnConfig(cliType: string): SpawnConfig | null {
-    if (!this.config) {
-      throw new Error('Configuration not loaded. Call load() first.');
-    }
-
-    const cliConfig = this.config.cliTypes[cliType];
-    return cliConfig?.spawn ?? null;
+    this.ensureLoaded();
+    return this.tools!.cliTypes[cliType]?.spawn ?? null;
   }
 
-  /**
-   * Get the display name for a CLI type
-   * @param cliType - The CLI type key
-   * @returns Display name, or null if not found
-   */
   getCliTypeName(cliType: string): string | null {
-    if (!this.config) {
-      throw new Error('Configuration not loaded. Call load() first.');
-    }
-
-    const cliConfig = this.config.cliTypes[cliType];
-    return cliConfig?.name ?? null;
+    this.ensureLoaded();
+    return this.tools!.cliTypes[cliType]?.name ?? null;
   }
 
-  /**
-   * Get all configured CLI type keys
-   * @returns Array of CLI type keys
-   */
   getCliTypes(): string[] {
-    if (!this.config) {
-      throw new Error('Configuration not loaded. Call load() first.');
-    }
-
-    return Object.keys(this.config.cliTypes);
+    this.ensureLoaded();
+    return Object.keys(this.tools!.cliTypes);
   }
 
-  /**
-   * Get the full raw configuration object
-   * @returns The complete configuration
-   */
+  /** @deprecated Assembles a legacy Config object from split files */
   getConfig(): Config {
-    if (!this.config) {
-      throw new Error('Configuration not loaded. Call load() first.');
+    this.ensureLoaded();
+    const cliTypes: { [key: string]: CliTypeConfig } = {};
+    for (const [key, tool] of Object.entries(this.tools!.cliTypes)) {
+      cliTypes[key] = {
+        name: tool.name,
+        spawn: tool.spawn,
+        bindings: this.activeProfile!.cliTypes[key] || {},
+      };
     }
-
-    return this.config;
+    return {
+      cliTypes,
+      global: this.activeProfile!.global,
+      openwhisper: this.tools!.openwhisper,
+      workingDirectories: this.directories!.workingDirectories,
+    };
   }
 
-  /**
-   * Get OpenWhisper configuration if available.
-   * @returns OpenWhisper configuration or null
-   */
   getOpenWhisperConfig(): OpenWhisperConfig | null {
-    if (!this.config) {
-      throw new Error('Configuration not loaded. Call load() first.');
-    }
-
-    return this.config.openwhisper ?? null;
+    this.ensureLoaded();
+    return this.tools!.openwhisper ?? null;
   }
 
-  /**
-   * Get working directory presets for the directory picker.
-   * @returns Array of working directory presets, empty if none configured
-   */
   getWorkingDirectories(): WorkingDirectory[] {
-    if (!this.config) {
-      throw new Error('Configuration not loaded. Call load() first.');
-    }
-
-    return this.config.workingDirectories || [];
+    this.ensureLoaded();
+    return this.directories!.workingDirectories || [];
   }
 
-  /**
-   * Update a single button binding and persist to disk.
-   * @param button - The button name (e.g. 'A', 'Up')
-   * @param cliType - CLI type key, or null for global bindings
-   * @param binding - The new binding to set
-   */
+  // ---------- Binding edit (backward compatible) -----------------------
+
   setBinding(button: string, cliType: string | null, binding: Binding): void {
-    if (!this.config) {
-      throw new Error('Configuration not loaded. Call load() first.');
-    }
-
+    this.ensureLoaded();
     if (cliType === null) {
-      this.config.global[button] = binding;
+      this.activeProfile!.global[button] = binding;
     } else {
-      if (!this.config.cliTypes[cliType]) {
-        throw new Error(`Unknown CLI type: ${cliType}`);
+      if (!this.activeProfile!.cliTypes[cliType]) {
+        // Auto-create entry if CLI type exists in tools but not yet in profile
+        if (this.tools!.cliTypes[cliType]) {
+          this.activeProfile!.cliTypes[cliType] = {};
+        } else {
+          throw new Error(`Unknown CLI type: ${cliType}`);
+        }
       }
-      this.config.cliTypes[cliType].bindings[button] = binding;
+      this.activeProfile!.cliTypes[cliType][button] = binding;
     }
-
-    this.save();
+    this.saveActiveProfile();
   }
 
-  /**
-   * Write current in-memory config back to YAML file.
-   */
-  private save(): void {
-    if (!this.config) return;
-    const yamlStr = YAML.stringify(this.config);
-    fs.writeFileSync(this.configPath, yamlStr, 'utf8');
+  // ---------- Profile CRUD ---------------------------------------------
+
+  getActiveProfile(): string {
+    return this.activeProfileName;
+  }
+
+  listProfiles(): string[] {
+    const profilesDir = path.join(this.configDir, 'profiles');
+    if (!fs.existsSync(profilesDir)) return [];
+    return fs.readdirSync(profilesDir)
+      .filter(f => f.endsWith('.yaml'))
+      .map(f => f.replace(/\.yaml$/, ''));
+  }
+
+  switchProfile(profileName: string): void {
+    const filePath = path.join(this.configDir, 'profiles', `${profileName}.yaml`);
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Profile not found: ${profileName}`);
+    }
+    this.activeProfileName = profileName;
+    this.settings!.activeProfile = profileName;
+    this.saveSettings();
+    this.loadActiveProfile();
+  }
+
+  createProfile(name: string, copyFrom?: string): void {
+    const profilesDir = path.join(this.configDir, 'profiles');
+    fs.mkdirSync(profilesDir, { recursive: true });
+
+    const targetPath = path.join(profilesDir, `${name}.yaml`);
+    if (fs.existsSync(targetPath)) {
+      throw new Error(`Profile already exists: ${name}`);
+    }
+
+    let profile: ProfileConfig;
+    if (copyFrom) {
+      const srcPath = path.join(profilesDir, `${copyFrom}.yaml`);
+      if (!fs.existsSync(srcPath)) {
+        throw new Error(`Source profile not found: ${copyFrom}`);
+      }
+      profile = this.readYaml<ProfileConfig>(srcPath);
+      profile.name = name;
+    } else {
+      // Empty profile with stubs for every known CLI type
+      const cliTypes: { [key: string]: ButtonBindings } = {};
+      if (this.tools) {
+        for (const key of Object.keys(this.tools.cliTypes)) {
+          cliTypes[key] = {};
+        }
+      }
+      profile = { name, cliTypes, global: {} };
+    }
+
+    const yamlStr = YAML.stringify(profile);
+    fs.writeFileSync(targetPath, yamlStr, 'utf8');
+  }
+
+  deleteProfile(name: string): void {
+    if (name === 'default') {
+      throw new Error('Cannot delete the default profile');
+    }
+    const filePath = path.join(this.configDir, 'profiles', `${name}.yaml`);
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Profile not found: ${name}`);
+    }
+    fs.unlinkSync(filePath);
+
+    // If we deleted the active profile, fall back to default
+    if (this.activeProfileName === name) {
+      this.switchProfile('default');
+    }
+  }
+
+  // ---------- Working Directory CRUD -----------------------------------
+
+  addWorkingDirectory(name: string, dirPath: string): void {
+    this.ensureLoaded();
+    this.directories!.workingDirectories.push({ name, path: dirPath });
+    this.saveDirectories();
+  }
+
+  updateWorkingDirectory(index: number, name: string, dirPath: string): void {
+    this.ensureLoaded();
+    const dirs = this.directories!.workingDirectories;
+    if (index < 0 || index >= dirs.length) {
+      throw new Error(`Invalid working directory index: ${index}`);
+    }
+    dirs[index] = { name, path: dirPath };
+    this.saveDirectories();
+  }
+
+  removeWorkingDirectory(index: number): void {
+    this.ensureLoaded();
+    const dirs = this.directories!.workingDirectories;
+    if (index < 0 || index >= dirs.length) {
+      throw new Error(`Invalid working directory index: ${index}`);
+    }
+    dirs.splice(index, 1);
+    this.saveDirectories();
+  }
+
+  // ---------- Tools CRUD -----------------------------------------------
+
+  addCliType(key: string, name: string, spawnCommand: string, spawnArgs: string[]): void {
+    this.ensureLoaded();
+    if (this.tools!.cliTypes[key]) {
+      throw new Error(`CLI type already exists: ${key}`);
+    }
+    this.tools!.cliTypes[key] = { name, spawn: { command: spawnCommand, args: spawnArgs } };
+    this.saveTools();
+  }
+
+  updateCliType(key: string, name: string, spawnCommand: string, spawnArgs: string[]): void {
+    this.ensureLoaded();
+    if (!this.tools!.cliTypes[key]) {
+      throw new Error(`CLI type not found: ${key}`);
+    }
+    this.tools!.cliTypes[key] = { name, spawn: { command: spawnCommand, args: spawnArgs } };
+    this.saveTools();
+  }
+
+  removeCliType(key: string): void {
+    this.ensureLoaded();
+    if (!this.tools!.cliTypes[key]) {
+      throw new Error(`CLI type not found: ${key}`);
+    }
+    delete this.tools!.cliTypes[key];
+    this.saveTools();
+  }
+
+  // ---------- Save helpers ---------------------------------------------
+
+  private saveDirectories(): void {
+    if (!this.directories) return;
+    const filePath = path.join(this.configDir, 'directories.yaml');
+    fs.writeFileSync(filePath, YAML.stringify(this.directories), 'utf8');
+  }
+
+  private saveTools(): void {
+    if (!this.tools) return;
+    const filePath = path.join(this.configDir, 'tools.yaml');
+    fs.writeFileSync(filePath, YAML.stringify(this.tools), 'utf8');
+  }
+
+  private saveSettings(): void {
+    if (!this.settings) return;
+    const filePath = path.join(this.configDir, 'settings.yaml');
+    fs.writeFileSync(filePath, YAML.stringify(this.settings), 'utf8');
+  }
+
+  private saveActiveProfile(): void {
+    if (!this.activeProfile) return;
+    const filePath = path.join(this.configDir, 'profiles', `${this.activeProfileName}.yaml`);
+    fs.writeFileSync(filePath, YAML.stringify(this.activeProfile), 'utf8');
   }
 }
 

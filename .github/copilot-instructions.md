@@ -14,8 +14,9 @@ The controller acts as a universal remote: switch between terminal windows, spaw
 | Left Trigger | Spawn new Claude Code instance |
 | Right Bumper | Spawn new Copilot CLI instance |
 | A | Clear screen |
-| B | Voice input (long-press spacebar) |
+| B | OpenWhisper voice input |
 | X/Y | Custom commands per CLI type |
+| Back/Start | Switch profile (previous/next) |
 
 ---
 
@@ -55,23 +56,26 @@ src/
 │   ├── main.ts            # App entry point, window creation
 │   ├── preload.ts         # Context bridge for renderer ↔ main IPC
 │   └── ipc/
-│       └── handlers.ts    # IPC message handlers
+│       └── handlers.ts    # IPC message handlers (gamepad, session, config, profile, tools)
 ├── input/
 │   └── gamepad.ts         # Dual gamepad detection (XInput + Browser API)
 ├── session/
 │   ├── manager.ts         # Track active sessions, switch between them
-│   ├── spawner.ts         # Launch new CLI processes
-│   └── config-loader.ts   # Load per-CLI-type button bindings
+│   └── spawner.ts         # Launch new CLI processes
 ├── output/
 │   ├── keyboard.ts        # Keystroke simulation via @jitsi/robotjs
 │   └── windows.ts         # Window enumeration/focus (PowerShell Win32)
 ├── config/
-│   └── loader.ts          # YAML config file loading
+│   └── loader.ts          # Split YAML config loading + profile/tools/directory CRUD
 └── voice/                 # OpenWhisper voice transcription
 
 renderer/                  # Electron renderer (vanilla TypeScript, no framework)
 config/
-└── bindings.yaml          # Button → action mappings per CLI type
+├── settings.yaml          # Active profile name
+├── tools.yaml             # CLI types (spawn commands) + OpenWhisper config
+├── directories.yaml       # Working directory presets
+└── profiles/
+    └── default.yaml       # Button bindings (per CLI type + global)
 tests/                     # Vitest test suite
 ```
 
@@ -147,8 +151,8 @@ CLI sessions run in **external terminal windows** (Windows Terminal, cmd, etc.),
 - Enumerating/focusing windows via `windows.ts` (PowerShell Win32 calls)
 - Sending keystrokes to the focused window via `keyboard.ts`
 
-### YAML Button Bindings
-Button mappings are defined per CLI type in `config/bindings.yaml`. This allows different button behaviors depending on which CLI (Claude Code vs Copilot CLI) is currently focused.
+### Split YAML Config & Profiles
+Configuration is split across four concerns: `settings.yaml` (active profile), `tools.yaml` (CLI types + OpenWhisper), `directories.yaml` (working directory presets), and `profiles/*.yaml` (button bindings per profile). Each profile defines bindings per CLI type plus global bindings, allowing different button behaviors depending on context. Profiles, tools, and directories support full CRUD via IPC handlers and the Settings UI.
 
 ---
 
@@ -158,4 +162,4 @@ Button mappings are defined per CLI type in `config/bindings.yaml`. This allows 
 2. **Follow the input → processing → output pipeline** — don't mix concerns
 3. **Windows-only** — this app targets Windows; PowerShell scripts are integral, not optional
 4. **Electron security model** — never bypass the preload/IPC bridge
-5. **Check `config/bindings.yaml`** before adding hardcoded button mappings
+5. **Check `config/profiles/*.yaml` and `config/tools.yaml`** before adding hardcoded button mappings or CLI types
