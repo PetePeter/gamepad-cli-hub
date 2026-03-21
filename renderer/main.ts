@@ -530,9 +530,7 @@ function navigateSettingsTab(direction: number): void {
 
 function activateSettingsFocused(): void {
   const active = document.activeElement as HTMLElement;
-  if (active?.classList.contains('settings-tab')) {
-    active.click();
-  } else if (active?.classList.contains('binding-card')) {
+  if (active?.classList.contains('focusable')) {
     active.click();
   }
 }
@@ -838,7 +836,6 @@ function renderSpawnButtons(): void {
 
 async function init(): Promise<void> {
   console.log('[Renderer] Initializing');
-  console.log('[Renderer] Debug log override active');
   console.log('[Renderer] navigator.gamepad API exists:', typeof navigator.getGamepads === 'function');
 
   // Setup gamepad navigation

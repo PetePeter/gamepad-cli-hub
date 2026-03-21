@@ -1,21 +1,29 @@
 openwhisper:
-  whisperPath: "whisper.exe"
-  model: "models/ggml-base.en.bin"
-  language: "en"
-
+  whisperPath: whisper.exe
+  model: models/ggml-base.en.bin
+  language: en
 cliTypes:
   claude-code:
-    name: "Claude Code"
+    name: Claude Code
     spawn:
-      command: "wt"
-      args: ["-w", "0", "cc"]
+      command: wt
+      args:
+        - -w
+        - "0"
+        - cc
   copilot-cli:
-    name: "GitHub Copilot CLI"
+    name: GitHub Copilot CLI
     spawn:
-      command: "wt"
-      args: ["-w", "0", "gh", "copilot"]
+      command: wt
+      args:
+        - -w
+        - "0"
+        - gh
+        - copilot
   generic-terminal:
-    name: "Generic Terminal"
+    name: Generic Terminal
     spawn:
-      command: "wt"
-      args: ["-w", "0"]
+      command: wt
+      args:
+        - -w
+        - "0"

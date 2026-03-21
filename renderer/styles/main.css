@@ -260,14 +260,16 @@ button {
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
+  border: none;
   border-radius: var(--radius-sm);
   font-weight: 500;
   font-size: var(--font-size-md);
+  cursor: pointer;
   transition: background 0.15s, color 0.15s, transform 0.1s;
 }
 
 .btn--sm {
-  padding: 2px var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md);
   font-size: var(--font-size-sm);
 }
 

@@ -315,8 +315,8 @@ export class WindowsWindowManager {
       const output = await this.executeWindowScript('findbyprocess', {
         PROCESS_NAME: processName
       });
-      const windows: WindowInfo[] = JSON.parse(output || '[]');
-      return windows;
+      const parsed = JSON.parse(output || '[]');
+      return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
       console.error(`Failed to find windows by process "${processName}":`, error);
       return [];

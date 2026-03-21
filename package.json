@@ -11,7 +11,7 @@
     "dev:watch": "tsx watch src/index.ts",
     "build": "npm run build:electron && npm run build:preload && npm run build:renderer",
     "build:electron": "esbuild src/electron/main.ts --bundle --platform=node --external:electron --external:@jitsi/robotjs --external:yaml --external:systeminformation --external:winston --external:winston-daily-rotate-file --outfile=dist-electron/main.js --format=esm --sourcemap",
-    "build:preload": "esbuild src/electron/preload.ts --bundle --platform=node --external:electron --outfile=dist-electron/preload.js --format=cjs --sourcemap",
+    "build:preload": "esbuild src/electron/preload.ts --bundle --platform=node --external:electron --outfile=dist-electron/preload.cjs --format=cjs --sourcemap",
     "build:renderer": "esbuild renderer/main.ts --bundle --sourcemap --outfile=renderer/main.js --format=esm --target=es2022",
     "test": "vitest",
     "test:ui": "vitest --ui"

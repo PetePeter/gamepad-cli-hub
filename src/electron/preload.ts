@@ -214,7 +214,12 @@ const gamepadCliAPI = {
 /**
  * Expose the API to the renderer via contextBridge
  */
-contextBridge.exposeInMainWorld('gamepadCli', gamepadCliAPI);
+try {
+  contextBridge.exposeInMainWorld('gamepadCli', gamepadCliAPI);
+  console.log('[Preload] gamepadCli API exposed successfully');
+} catch (error) {
+  console.error('[Preload] Failed to expose gamepadCli API:', error);
+}
 
 /**
  * Type declarations for the exposed API

@@ -23,6 +23,9 @@ let mainWindow: BrowserWindow | null = null;
  * Create the main application window
  */
 function createWindow(): void {
+  const preloadPath = join(__dirname, 'preload.cjs');
+  console.log('[Main] Preload path:', preloadPath);
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -31,7 +34,7 @@ function createWindow(): void {
     backgroundColor: '#0a0a0a',
     show: false, // Don't show until ready-to-show
     webPreferences: {
-      preload: join(__dirname, 'preload.js'),
+      preload: join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false, // Needed for gamepad access
@@ -52,10 +55,22 @@ function createWindow(): void {
     console.log('[Main] Window shown');
   });
 
-  // DevTools in development
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.webContents.openDevTools();
-  }
+  // Check preload worked after renderer loads
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow?.webContents.executeJavaScript('typeof window.gamepadCli')
+      .then(result => console.log('[Main] Preload check: window.gamepadCli is', result))
+      .catch(err => console.error('[Main] Preload check failed:', err));
+  });
+
+  // Log any renderer/preload console output to terminal
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (sourceId?.includes('preload') || message.includes('Preload') || level >= 2) {
+      console.log(`[WebContents:${level}] ${message} (${sourceId}:${line})`);
+    }
+  });
+
+  // DevTools (always for now, to debug)
+  mainWindow.webContents.openDevTools();
 
   // Handle window close
   mainWindow.on('closed', () => {
