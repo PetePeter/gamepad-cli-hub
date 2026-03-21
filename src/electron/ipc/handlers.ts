@@ -177,15 +177,31 @@ function setupConfigHandlers(): void {
   });
 
   ipcMain.handle('config:setBinding', (_event, button: string, cliType: string | null, binding: any) => {
-    // This would modify the config - for now, just acknowledge
-    console.log(`[IPC] Set binding: ${button} for ${cliType || 'global'}`, binding);
-    return { success: true };
+    try {
+      configLoader.setBinding(button, cliType, binding);
+      console.log(`[IPC] Set binding: ${button} for ${cliType || 'global'}`, binding);
+      return { success: true };
+    } catch (error) {
+      console.error(`[IPC] Failed to set binding: ${button}`, error);
+      return { success: false, error: String(error) };
+    }
   });
 
   ipcMain.handle('config:save', () => {
     // Save config to file
     console.log('[IPC] Save config');
     return { success: true };
+  });
+
+  ipcMain.handle('config:reload', () => {
+    try {
+      configLoader.load();
+      console.log('[IPC] Config reloaded');
+      return { success: true };
+    } catch (error) {
+      console.error('[IPC] Failed to reload config:', error);
+      return { success: false, error: String(error) };
+    }
   });
 
   ipcMain.handle('config:getWorkingDirs', () => {
@@ -269,6 +285,14 @@ function setupAppHandlers(): void {
  */
 export function registerIPCHandlers(): void {
   console.log('[IPC] Registering handlers');
+
+  // Load config eagerly so individual handlers don't need to call load()
+  try {
+    configLoader.load();
+    console.log('[IPC] Config loaded:', configLoader.getCliTypes());
+  } catch (error) {
+    console.error('[IPC] Failed to load config:', error);
+  }
 
   setupGamepadHandlers();
   setupSessionHandlers();

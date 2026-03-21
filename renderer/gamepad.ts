@@ -244,21 +244,15 @@ class BrowserGamepadPoller {
   }
 
   private emitConnectionEvent(connected: boolean): void {
-    // Update count first
-    this.connectedCount = connected ? 1 : 0;
     console.log('[BrowserGamepad] emitConnectionEvent:', connected, 'count:', this.connectedCount);
 
-    // Send connection event to main process
-    if (window.gamepadCli) {
-      // Forward as a gamepad event with special button name
-      this.callbacks.forEach(cb => {
-        cb({
-          button: connected ? '_connected' : '_disconnected',
-          gamepadIndex: 0,
-          timestamp: Date.now(),
-        });
+    this.callbacks.forEach(cb => {
+      cb({
+        button: connected ? '_connected' : '_disconnected',
+        gamepadIndex: 0,
+        timestamp: Date.now(),
       });
-    }
+    });
   }
 }
 

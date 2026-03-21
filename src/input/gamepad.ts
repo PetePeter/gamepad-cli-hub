@@ -47,90 +47,112 @@ export type ConnectionCallback = (event: ConnectionEvent) => void;
 type EventType = 'button-press' | 'connection-change';
 
 /**
- * XInput state structure returned from PowerShell
+ * Event emitted by the XInput PowerShell polling script.
+ * The script does edge detection internally and only emits on state changes.
  */
-interface XInputState {
-  connected: boolean;
-  buttons: {
-    a: boolean;
-    b: boolean;
-    x: boolean;
-    y: boolean;
-    leftShoulder: boolean;
-    rightShoulder: boolean;
-    back: boolean;
-    start: boolean;
-    leftThumb: boolean;
-    rightThumb: boolean;
-  };
-  dpad: {
-    up: boolean;
-    down: boolean;
-    left: boolean;
-    right: boolean;
-  };
-  triggers: {
-    left: boolean;
-    right: boolean;
-  };
+interface XInputEvent {
+  event: 'connected' | 'disconnected' | 'button';
+  button?: string;
+  index: number;
 }
 
 /**
- * PowerShell script to query XInput state using Windows.Gaming.Input
- * Silently fails if API is unavailable
+ * PowerShell script using XInput P/Invoke for gamepad state polling.
+ * Uses xinput1_4.dll directly (pre-installed on Windows 10/11).
+ * Works with Bluetooth Xbox controllers unlike Windows.Gaming.Input.
+ * Outputs JSON events on stdout: connected, disconnected, button press.
  */
 const XINPUT_PS1 = `
-$ErrorActionPreference = 'SilentlyContinue'
-$assemblyLoaded = $false
-try {
-    Add-Type -AssemblyName Windows.Gaming.Input -ErrorAction Stop
-    $assemblyLoaded = $true
-} catch {
-    # Windows.Gaming.Input not available - will return disconnected state
-}
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
 
-function Get-GamepadState {
-    if (-not $assemblyLoaded) {
-        return @{ connected = $false }
+public class XInput {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct XINPUT_GAMEPAD {
+        public ushort wButtons;
+        public byte bLeftTrigger;
+        public byte bRightTrigger;
+        public short sThumbLX;
+        public short sThumbLY;
+        public short sThumbRX;
+        public short sThumbRY;
     }
-    $gamepad = [Windows.Gaming.Input.Gamepad]::Gamepads | Select-Object -First 1
-    if (-not $gamepad) {
-        return @{ connected = $false }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct XINPUT_STATE {
+        public uint dwPacketNumber;
+        public XINPUT_GAMEPAD Gamepad;
     }
-    $reading = $gamepad.GetCurrentReading()
-    $buttons = $reading.Buttons.value__
-    $gamepadButtons = @{
-        a = ($buttons -band 0x1000) -ne 0
-        b = ($buttons -band 0x2000) -ne 0
-        x = ($buttons -band 0x4000) -ne 0
-        y = ($buttons -band 0x8000) -ne 0
-        leftShoulder = ($buttons -band 0x0100) -ne 0
-        rightShoulder = ($buttons -band 0x0200) -ne 0
-        back = ($buttons -band 0x0020) -ne 0
-        start = ($buttons -band 0x0010) -ne 0
-        leftThumb = ($buttons -band 0x0040) -ne 0
-        rightThumb = ($buttons -band 0x0080) -ne 0
-    }
-    $dpad = @{
-        up = ($buttons -band 0x0001) -ne 0
-        down = ($buttons -band 0x0002) -ne 0
-        left = ($buttons -band 0x0004) -ne 0
-        right = ($buttons -band 0x0008) -ne 0
-    }
-    $triggers = @{
-        left = $reading.LeftTrigger -gt 0.5
-        right = $reading.RightTrigger -gt 0.5
-    }
-    return @{
-        connected = $true
-        buttons = $gamepadButtons
-        dpad = $dpad
-        triggers = $triggers
-    }
+
+    [DllImport("xinput1_4.dll")]
+    public static extern uint XInputGetState(uint dwUserIndex, ref XINPUT_STATE pState);
 }
+"@
+
+$prevButtons = 0
+$connected = $false
+
 while ($true) {
-    $state = Get-GamepadState
-    $state | ConvertTo-Json -Compress
+    $state = New-Object XInput+XINPUT_STATE
+    $result = [XInput]::XInputGetState(0, [ref]$state)
+
+    if ($result -eq 0) {
+        if (-not $connected) {
+            $connected = $true
+            Write-Output '{"event":"connected","index":0}'
+        }
+
+        $buttons = $state.Gamepad.wButtons
+        $lt = $state.Gamepad.bLeftTrigger
+        $rt = $state.Gamepad.bRightTrigger
+
+        $buttonMap = @{
+            'Up' = 0x0001
+            'Down' = 0x0002
+            'Left' = 0x0004
+            'Right' = 0x0008
+            'Start' = 0x0010
+            'Back' = 0x0020
+            'LeftStick' = 0x0040
+            'RightStick' = 0x0080
+            'LeftBumper' = 0x0100
+            'RightBumper' = 0x0200
+            'A' = 0x1000
+            'B' = 0x2000
+            'X' = 0x4000
+            'Y' = 0x8000
+        }
+
+        foreach ($entry in $buttonMap.GetEnumerator()) {
+            $wasPressed = ($prevButtons -band $entry.Value) -ne 0
+            $isPressed = ($buttons -band $entry.Value) -ne 0
+            if ($isPressed -and -not $wasPressed) {
+                Write-Output ('{"event":"button","button":"' + $entry.Key + '","index":0}')
+            }
+        }
+
+        $ltPressed = $lt -gt 128
+        $prevLt = ($prevButtons -band 0x10000) -ne 0
+        if ($ltPressed -and -not $prevLt) {
+            Write-Output '{"event":"button","button":"LeftTrigger","index":0}'
+        }
+        $rtPressed = $rt -gt 128
+        $prevRt = ($prevButtons -band 0x20000) -ne 0
+        if ($rtPressed -and -not $prevRt) {
+            Write-Output '{"event":"button","button":"RightTrigger","index":0}'
+        }
+
+        $prevButtons = $buttons
+        if ($ltPressed) { $prevButtons = $prevButtons -bor 0x10000 }
+        if ($rtPressed) { $prevButtons = $prevButtons -bor 0x20000 }
+    } else {
+        if ($connected) {
+            $connected = $false
+            Write-Output '{"event":"disconnected","index":0}'
+        }
+    }
+
     Start-Sleep -Milliseconds 16
 }
 `;
@@ -217,8 +239,8 @@ export class GamepadInput {
         const trimmed = line.trim();
         if (trimmed) {
           try {
-            const state: XInputState = JSON.parse(trimmed);
-            this.processState(state);
+            const event: XInputEvent = JSON.parse(trimmed);
+            this.processEvent(event);
           } catch (e) {
             // Skip invalid JSON
           }
@@ -260,62 +282,32 @@ export class GamepadInput {
     console.log('Gamepad input listener stopped');
   }
 
-  private processState(state: XInputState): void {
-    // Track connection state changes
-    const nowConnected = state.connected;
-    if (nowConnected !== this.wasConnected) {
-      this.wasConnected = nowConnected;
-      this.connectedCount = nowConnected ? 1 : 0;
-      console.log(`[Gamepad] ${nowConnected ? 'Connected' : 'Disconnected'}`);
-      this.emitConnectionEvent(nowConnected);
-    }
-
-    if (!state.connected) {
-      return;
-    }
-
-    const gamepadIndex = 0;
-
-    const buttonMap: Array<{ key: keyof XInputState['buttons']; name: ButtonName }> = [
-      { key: 'a', name: 'A' },
-      { key: 'b', name: 'B' },
-      { key: 'x', name: 'X' },
-      { key: 'y', name: 'Y' },
-      { key: 'leftShoulder', name: 'LeftBumper' },
-      { key: 'rightShoulder', name: 'RightBumper' },
-    ];
-
-    for (const { key, name } of buttonMap) {
-      const pressed = state.buttons[key];
-      this.checkButton(name, pressed, gamepadIndex);
-    }
-
-    const dpadMap: Array<{ key: keyof XInputState['dpad']; name: ButtonName }> = [
-      { key: 'up', name: 'Up' },
-      { key: 'down', name: 'Down' },
-      { key: 'left', name: 'Left' },
-      { key: 'right', name: 'Right' },
-    ];
-
-    for (const { key, name } of dpadMap) {
-      const pressed = state.dpad[key];
-      this.checkButton(name, pressed, gamepadIndex);
-    }
-
-    this.checkButton('LeftTrigger', state.triggers.left, gamepadIndex);
-    this.checkButton('RightTrigger', state.triggers.right, gamepadIndex);
-  }
-
-  private checkButton(button: ButtonName, pressed: boolean, gamepadIndex: number): void {
-    const stateKey = `${gamepadIndex}-${button}`;
-    const previousState = this.buttonState.get(stateKey) ?? false;
-
-    if (pressed !== previousState) {
-      this.buttonState.set(stateKey, pressed);
-
-      if (pressed) {
-        this.handleButtonPress(button, gamepadIndex);
-      }
+  private processEvent(event: XInputEvent): void {
+    switch (event.event) {
+      case 'connected':
+        if (!this.wasConnected) {
+          this.wasConnected = true;
+          this.connectedCount = 1;
+          console.log('[Gamepad] Connected');
+          this.emitConnectionEvent(true);
+        }
+        break;
+      case 'disconnected':
+        if (this.wasConnected) {
+          this.wasConnected = false;
+          this.connectedCount = 0;
+          this.buttonState.clear();
+          console.log('[Gamepad] Disconnected');
+          this.emitConnectionEvent(false);
+        }
+        break;
+      case 'button':
+        if (event.button) {
+          const stateKey = `${event.index}-${event.button}`;
+          this.buttonState.set(stateKey, true);
+          this.handleButtonPress(event.button as ButtonName, event.index);
+        }
+        break;
     }
   }
 

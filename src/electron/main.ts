@@ -5,7 +5,7 @@
  * Manages window creation, IPC communication, and application lifecycle.
  */
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { registerIPCHandlers } from './ipc/handlers.js';
@@ -74,6 +74,9 @@ app.whenReady().then(() => {
 
   // Register IPC handlers
   registerIPCHandlers();
+
+  // Remove default application menu (no File/Edit/View/Window/Help needed)
+  Menu.setApplicationMenu(null);
 
   // Create main window
   createWindow();

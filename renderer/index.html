@@ -113,6 +113,22 @@
           </div>
         </div>
       </div>
+
+      <!-- Binding Editor Modal -->
+      <div class="modal-overlay" id="bindingEditorModal" aria-hidden="true" role="dialog" aria-label="Edit binding">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title" id="bindingEditorTitle">Edit Binding</h3>
+            <button class="btn btn--secondary btn--sm" id="bindingEditorCancelBtn">Cancel (B)</button>
+          </div>
+          <div class="binding-editor-form" id="bindingEditorForm">
+            <!-- Form fields rendered by JS -->
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn--primary" id="bindingEditorSaveBtn">Save (A)</button>
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- Debug Log Panel (toggleable) -->

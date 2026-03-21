@@ -265,6 +265,38 @@ export class ConfigLoader {
 
     return this.config.workingDirectories || [];
   }
+
+  /**
+   * Update a single button binding and persist to disk.
+   * @param button - The button name (e.g. 'A', 'Up')
+   * @param cliType - CLI type key, or null for global bindings
+   * @param binding - The new binding to set
+   */
+  setBinding(button: string, cliType: string | null, binding: Binding): void {
+    if (!this.config) {
+      throw new Error('Configuration not loaded. Call load() first.');
+    }
+
+    if (cliType === null) {
+      this.config.global[button] = binding;
+    } else {
+      if (!this.config.cliTypes[cliType]) {
+        throw new Error(`Unknown CLI type: ${cliType}`);
+      }
+      this.config.cliTypes[cliType].bindings[button] = binding;
+    }
+
+    this.save();
+  }
+
+  /**
+   * Write current in-memory config back to YAML file.
+   */
+  private save(): void {
+    if (!this.config) return;
+    const yamlStr = YAML.stringify(this.config);
+    fs.writeFileSync(this.configPath, yamlStr, 'utf8');
+  }
 }
 
 // Export a singleton instance for convenience

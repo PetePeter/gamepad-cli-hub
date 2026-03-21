@@ -127,6 +127,11 @@ const gamepadCliAPI = {
    */
   configSave: () => ipcRenderer.invoke('config:save'),
 
+  /**
+   * Reload configuration from file
+   */
+  configReload: () => ipcRenderer.invoke('config:reload'),
+
   // ========================================================================
   // Window Management
   // ========================================================================

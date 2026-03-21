@@ -24,7 +24,7 @@ class ProcessSpawner {
     const childProcess = spawn(command, args, {
       detached: true,
       stdio: 'ignore',
-      shell: false,
+      shell: true,
       cwd: workingDir || undefined,
     });
 

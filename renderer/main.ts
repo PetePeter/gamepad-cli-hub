@@ -86,6 +86,9 @@ const state = {
   dirPickerItems: [] as Array<{ name: string; path: string }>,
   dirPickerSelectedIndex: 0,
   dirPickerCliType: '' as string,
+  bindingEditorVisible: false,
+  editingBinding: null as { button: string; cliType: string | null; binding: any } | null,
+  bindingEditorFocusIndex: 0,
 };
 
 // ============================================================================
@@ -340,9 +343,9 @@ function setupGamepadNavigation(): void {
   browserGamepadUnsubscribe = browserGamepad.onButton((event) => {
     console.log('[Renderer] Browser gamepad event received:', event);
     if (event.button === '_connected') {
-      handleConnectionEvent({ connected: true, count: 1, timestamp: event.timestamp });
+      handleConnectionEvent({ connected: true, count: browserGamepad.getCount(), timestamp: event.timestamp });
     } else if (event.button === '_disconnected') {
-      handleConnectionEvent({ connected: false, count: 0, timestamp: event.timestamp });
+      handleConnectionEvent({ connected: false, count: browserGamepad.getCount(), timestamp: event.timestamp });
     } else {
       handleGamepadEvent(event);
     }
@@ -410,9 +413,23 @@ function handleGamepadEvent(event: ButtonEvent): void {
   // Update status
   document.getElementById('statusLastButton')!.textContent = event.button;
 
+  // If receiving button events, ensure gamepad count is updated
+  if (state.gamepadCount === 0) {
+    const count = browserGamepad.getCount();
+    if (count > 0) {
+      handleConnectionEvent({ connected: true, count, timestamp: event.timestamp });
+    }
+  }
+
   // Directory picker modal intercepts all input when visible
   if (state.dirPickerVisible) {
     handleDirPickerButton(event.button);
+    return;
+  }
+
+  // Binding editor modal intercepts all input when visible
+  if (state.bindingEditorVisible) {
+    handleBindingEditorButton(event.button);
     return;
   }
 
@@ -495,6 +512,8 @@ function navigateSettingsTab(direction: number): void {
 function activateSettingsFocused(): void {
   const active = document.activeElement as HTMLElement;
   if (active?.classList.contains('settings-tab')) {
+    active.click();
+  } else if (active?.classList.contains('binding-card')) {
     active.click();
   }
 }
@@ -608,6 +627,17 @@ function setupUIHandlers(): void {
   document.getElementById('dirPickerCancelBtn')?.addEventListener('click', () => {
     hideDirPicker();
     logEvent('Spawn cancelled');
+  });
+
+  // Binding editor cancel button
+  document.getElementById('bindingEditorCancelBtn')?.addEventListener('click', () => {
+    closeBindingEditor();
+    logEvent('Binding edit cancelled');
+  });
+
+  // Binding editor save button
+  document.getElementById('bindingEditorSaveBtn')?.addEventListener('click', () => {
+    saveBinding();
   });
 
   // Keyboard shortcut to toggle debug log (Ctrl+L)
@@ -799,6 +829,15 @@ async function init(): Promise<void> {
   // Setup UI event handlers
   setupUIHandlers();
 
+  // Warm up config (must be first — triggers configLoader.load() on main process)
+  try {
+    if (window.gamepadCli) {
+      await window.gamepadCli.configGetAll();
+    }
+  } catch (error) {
+    console.warn('[Renderer] Failed to warm up config:', error);
+  }
+
   // Load available CLI types for spawning
   try {
     if (window.gamepadCli) {
@@ -832,13 +871,6 @@ async function init(): Promise<void> {
 
   // Load initial data
   await loadSessions();
-  try {
-    if (window.gamepadCli) {
-      await window.gamepadCli.configGetAll();
-    }
-  } catch (error) {
-    console.warn('[Renderer] Failed to warm up config:', error);
-  }
 
   // Log initialization
   logEvent('App ready');
@@ -911,7 +943,8 @@ function renderBindingsDisplay(bindings: Record<string, any>, label: string): vo
 
   entries.forEach(([button, binding]) => {
     const card = document.createElement('div');
-    card.className = 'binding-card';
+    card.className = 'binding-card focusable';
+    card.tabIndex = 0;
 
     const actionType = binding.action || 'unknown';
     const details = formatBindingDetails(binding);
@@ -923,6 +956,13 @@ function renderBindingsDisplay(bindings: Record<string, any>, label: string): vo
       </div>
       <div class="binding-card__details">${details}</div>
     `;
+
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', () => {
+      const cliType = state.settingsTab === 'global' ? null : state.settingsTab;
+      openBindingEditor(button, cliType, { ...binding });
+    });
+
     container.appendChild(card);
   });
 }
@@ -947,6 +987,275 @@ function formatBindingDetails(binding: any): string {
       return 'show sessions list';
     default:
       return JSON.stringify(binding);
+  }
+}
+
+// ============================================================================
+// Binding Editor Modal
+// ============================================================================
+
+const ACTION_TYPES = ['keyboard', 'voice', 'openwhisper', 'session-switch', 'spawn', 'list-sessions'] as const;
+
+function openBindingEditor(button: string, cliType: string | null, binding: any): void {
+  state.editingBinding = { button, cliType, binding: { ...binding } };
+  state.bindingEditorVisible = true;
+  state.bindingEditorFocusIndex = 0;
+
+  const modal = document.getElementById('bindingEditorModal');
+  if (!modal) return;
+
+  const title = document.getElementById('bindingEditorTitle');
+  if (title) {
+    const context = cliType ? getCliDisplayName(cliType) : 'Global';
+    title.textContent = `Edit Binding — ${button} (${context})`;
+  }
+
+  renderBindingEditorForm();
+  modal.classList.add('modal--visible');
+  modal.setAttribute('aria-hidden', 'false');
+  logEvent(`Editing binding: ${button}`);
+}
+
+function renderBindingEditorForm(): void {
+  const form = document.getElementById('bindingEditorForm');
+  if (!form || !state.editingBinding) return;
+
+  const { button, binding } = state.editingBinding;
+  form.innerHTML = '';
+
+  // Button name (read-only)
+  form.appendChild(createEditorField('Button', `
+    <input type="text" value="${button}" disabled />
+  `, true));
+
+  // Action type dropdown
+  const actionOptions = ACTION_TYPES.map(t =>
+    `<option value="${t}" ${t === binding.action ? 'selected' : ''}>${t}</option>`
+  ).join('');
+  form.appendChild(createEditorField('Action Type', `
+    <select id="bindingEditorAction">${actionOptions}</select>
+  `));
+
+  // Dynamic params based on action type
+  renderActionParams(form, binding);
+
+  // Wire action type change to re-render params
+  const actionSelect = document.getElementById('bindingEditorAction') as HTMLSelectElement;
+  actionSelect?.addEventListener('change', () => {
+    if (!state.editingBinding) return;
+    const newAction = actionSelect.value;
+    state.editingBinding.binding = buildDefaultBinding(newAction);
+    renderBindingEditorForm();
+  });
+
+  focusBindingEditorField();
+}
+
+function renderActionParams(form: HTMLElement, binding: any): void {
+  switch (binding.action) {
+    case 'keyboard': {
+      const keysValue = Array.isArray(binding.keys) ? binding.keys.join(',') : '';
+      form.appendChild(createEditorField('Keys (comma-separated)', `
+        <input type="text" id="bindingEditorKeys" value="${keysValue}" placeholder="e.g. Clear or Ctrl,c" />
+      `));
+      break;
+    }
+    case 'voice': {
+      const holdDuration = binding.holdDuration || 3000;
+      form.appendChild(createEditorField('Hold Duration (ms)', `
+        <input type="number" id="bindingEditorHoldDuration" value="${holdDuration}" min="100" step="100" />
+      `));
+      break;
+    }
+    case 'openwhisper': {
+      const recordingDuration = binding.recordingDuration || 5000;
+      form.appendChild(createEditorField('Recording Duration (ms)', `
+        <input type="number" id="bindingEditorRecordingDuration" value="${recordingDuration}" min="1000" step="500" />
+      `));
+      break;
+    }
+    case 'session-switch': {
+      const dirOptions = ['previous', 'next'].map(d =>
+        `<option value="${d}" ${d === binding.direction ? 'selected' : ''}>${d}</option>`
+      ).join('');
+      form.appendChild(createEditorField('Direction', `
+        <select id="bindingEditorDirection">${dirOptions}</select>
+      `));
+      break;
+    }
+    case 'spawn': {
+      const spawnOptions = state.cliTypes.map(ct =>
+        `<option value="${ct}" ${ct === binding.cliType ? 'selected' : ''}>${getCliDisplayName(ct)} (${ct})</option>`
+      ).join('');
+      form.appendChild(createEditorField('CLI Type', `
+        <select id="bindingEditorCliType">${spawnOptions}</select>
+      `));
+      break;
+    }
+    case 'list-sessions':
+      // No additional parameters
+      form.appendChild(createEditorField('Parameters', `
+        <input type="text" value="No additional parameters" disabled />
+      `, true));
+      break;
+  }
+}
+
+function createEditorField(label: string, inputHtml: string, readonly = false): HTMLElement {
+  const field = document.createElement('div');
+  field.className = `binding-editor-field${readonly ? ' binding-editor-field--readonly' : ''}`;
+  field.innerHTML = `<label>${label}</label>${inputHtml}`;
+  return field;
+}
+
+function buildDefaultBinding(action: string): any {
+  switch (action) {
+    case 'keyboard':
+      return { action: 'keyboard', keys: [] };
+    case 'voice':
+      return { action: 'voice', holdDuration: 3000 };
+    case 'openwhisper':
+      return { action: 'openwhisper', recordingDuration: 5000 };
+    case 'session-switch':
+      return { action: 'session-switch', direction: 'next' };
+    case 'spawn':
+      return { action: 'spawn', cliType: state.cliTypes[0] || 'generic-terminal' };
+    case 'list-sessions':
+      return { action: 'list-sessions' };
+    default:
+      return { action };
+  }
+}
+
+function collectBindingFromForm(): any | null {
+  if (!state.editingBinding) return null;
+
+  const actionSelect = document.getElementById('bindingEditorAction') as HTMLSelectElement;
+  if (!actionSelect) return null;
+
+  const action = actionSelect.value;
+
+  switch (action) {
+    case 'keyboard': {
+      const keysInput = document.getElementById('bindingEditorKeys') as HTMLInputElement;
+      const keysStr = keysInput?.value?.trim() || '';
+      const keys = keysStr ? keysStr.split(',').map(k => k.trim()).filter(Boolean) : [];
+      return { action: 'keyboard', keys };
+    }
+    case 'voice': {
+      const durationInput = document.getElementById('bindingEditorHoldDuration') as HTMLInputElement;
+      const holdDuration = parseInt(durationInput?.value || '3000', 10);
+      return { action: 'voice', holdDuration };
+    }
+    case 'openwhisper': {
+      const durationInput = document.getElementById('bindingEditorRecordingDuration') as HTMLInputElement;
+      const recordingDuration = parseInt(durationInput?.value || '5000', 10);
+      return { action: 'openwhisper', recordingDuration };
+    }
+    case 'session-switch': {
+      const dirSelect = document.getElementById('bindingEditorDirection') as HTMLSelectElement;
+      return { action: 'session-switch', direction: dirSelect?.value || 'next' };
+    }
+    case 'spawn': {
+      const typeSelect = document.getElementById('bindingEditorCliType') as HTMLSelectElement;
+      return { action: 'spawn', cliType: typeSelect?.value || 'generic-terminal' };
+    }
+    case 'list-sessions':
+      return { action: 'list-sessions' };
+    default:
+      return null;
+  }
+}
+
+async function saveBinding(): Promise<void> {
+  if (!state.editingBinding || !window.gamepadCli) return;
+
+  const binding = collectBindingFromForm();
+  if (!binding) {
+    logEvent('Save failed: could not read form');
+    return;
+  }
+
+  const { button, cliType } = state.editingBinding;
+
+  try {
+    const result = await window.gamepadCli.configSetBinding(button, cliType, binding);
+    if (result.success) {
+      logEvent(`Saved binding: ${button} → ${binding.action}`);
+
+      // Update local caches so dispatch uses new bindings immediately
+      if (cliType === null) {
+        if (state.globalBindings) {
+          state.globalBindings[button] = binding;
+        }
+      } else {
+        if (state.cliBindingsCache[cliType]) {
+          state.cliBindingsCache[cliType][button] = binding;
+        }
+      }
+
+      closeBindingEditor();
+      loadSettingsScreen();
+    } else {
+      logEvent(`Save failed: ${result.error || 'unknown error'}`);
+    }
+  } catch (error) {
+    console.error('Failed to save binding:', error);
+    logEvent(`Save error: ${error}`);
+  }
+}
+
+function closeBindingEditor(): void {
+  state.bindingEditorVisible = false;
+  state.editingBinding = null;
+
+  const modal = document.getElementById('bindingEditorModal');
+  if (modal) {
+    modal.classList.remove('modal--visible');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function getBindingEditorFocusables(): HTMLElement[] {
+  const form = document.getElementById('bindingEditorForm');
+  if (!form) return [];
+  return Array.from(form.querySelectorAll<HTMLElement>('select:not([disabled]), input:not([disabled])'));
+}
+
+function focusBindingEditorField(): void {
+  const fields = getBindingEditorFocusables();
+  if (fields.length === 0) return;
+  if (state.bindingEditorFocusIndex >= fields.length) {
+    state.bindingEditorFocusIndex = fields.length - 1;
+  }
+  fields[state.bindingEditorFocusIndex]?.focus();
+}
+
+function handleBindingEditorButton(button: string): void {
+  switch (button) {
+    case 'Up': {
+      const fields = getBindingEditorFocusables();
+      state.bindingEditorFocusIndex = Math.max(0, state.bindingEditorFocusIndex - 1);
+      if (fields[state.bindingEditorFocusIndex]) {
+        fields[state.bindingEditorFocusIndex].focus();
+      }
+      break;
+    }
+    case 'Down': {
+      const fields = getBindingEditorFocusables();
+      state.bindingEditorFocusIndex = Math.min(fields.length - 1, state.bindingEditorFocusIndex + 1);
+      if (fields[state.bindingEditorFocusIndex]) {
+        fields[state.bindingEditorFocusIndex].focus();
+      }
+      break;
+    }
+    case 'A':
+      saveBinding();
+      break;
+    case 'B':
+      closeBindingEditor();
+      logEvent('Binding edit cancelled');
+      break;
   }
 }
 

@@ -10,9 +10,11 @@ vi.mock('fs', () => ({
   default: {
     existsSync: vi.fn(() => false),
     readFileSync: vi.fn(() => ''),
+    writeFileSync: vi.fn(),
   },
   existsSync: vi.fn(() => false),
   readFileSync: vi.fn(() => ''),
+  writeFileSync: vi.fn(),
 }));
 
 // Mock YAML module - need to use importActual to preserve named exports
@@ -21,6 +23,7 @@ vi.mock('yaml', async (importOriginal) => {
   return {
     ...actual,
     parse: vi.fn(() => ({})),
+    stringify: vi.fn(() => 'yaml output'),
   };
 });
 
@@ -207,6 +210,76 @@ describe('ConfigLoader', () => {
 
       const config = loader.getConfig();
       expect(config).toEqual(MOCK_CONFIG);
+    });
+  });
+
+  describe('setBinding', () => {
+    function loadMockConfig() {
+      // Deep clone to avoid mutation across tests
+      const config = JSON.parse(JSON.stringify(MOCK_CONFIG));
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue('yaml content');
+      vi.mocked(YAML.parse).mockReturnValue(config);
+      loader.load();
+      return config;
+    }
+
+    it('throws error when called before load', () => {
+      expect(() => loader.setBinding('A', null, { action: 'keyboard', keys: ['Enter'] }))
+        .toThrow('Configuration not loaded');
+    });
+
+    it('sets a global binding and writes to disk', () => {
+      loadMockConfig();
+      const newBinding = { action: 'keyboard' as const, keys: ['Enter'] };
+
+      loader.setBinding('A', null, newBinding);
+
+      const config = loader.getConfig();
+      expect(config.global['A']).toEqual(newBinding);
+      expect(fs.writeFileSync).toHaveBeenCalledWith(
+        testConfigPath,
+        expect.any(String),
+        'utf8'
+      );
+    });
+
+    it('updates an existing global binding', () => {
+      loadMockConfig();
+      const newBinding = { action: 'spawn' as const, cliType: 'copilot-cli' };
+
+      loader.setBinding('Up', null, newBinding);
+
+      const config = loader.getConfig();
+      expect(config.global['Up']).toEqual(newBinding);
+    });
+
+    it('sets a CLI-specific binding and writes to disk', () => {
+      loadMockConfig();
+      const newBinding = { action: 'keyboard' as const, keys: ['Ctrl', 'z'] };
+
+      loader.setBinding('X', 'claude-code', newBinding);
+
+      const config = loader.getConfig();
+      expect(config.cliTypes['claude-code'].bindings['X']).toEqual(newBinding);
+      expect(fs.writeFileSync).toHaveBeenCalled();
+    });
+
+    it('throws error for unknown CLI type', () => {
+      loadMockConfig();
+      const newBinding = { action: 'keyboard' as const, keys: ['Enter'] };
+
+      expect(() => loader.setBinding('A', 'nonexistent', newBinding))
+        .toThrow('Unknown CLI type: nonexistent');
+    });
+
+    it('calls YAML.stringify when saving', () => {
+      loadMockConfig();
+      const newBinding = { action: 'list-sessions' as const };
+
+      loader.setBinding('Start', null, newBinding);
+
+      expect(YAML.stringify).toHaveBeenCalled();
     });
   });
 });

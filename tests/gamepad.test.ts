@@ -152,7 +152,7 @@ describe('GamepadInput', () => {
       gamepad.start();
       expect(fs.writeFileSync).toHaveBeenCalledWith(
         expect.stringMatching(/gamepad-xinput-.*\.ps1$/),
-        expect.stringContaining('Add-Type -AssemblyName Windows.Gaming.Input'),
+        expect.stringContaining('XInputGetState'),
         'utf-8'
       );
     });
