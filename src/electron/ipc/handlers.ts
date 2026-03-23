@@ -11,6 +11,7 @@ import { configLoader } from '../../config/loader.js';
 import { windowManager } from '../../output/windows.js';
 import { keyboard } from '../../output/keyboard.js';
 import { processSpawner } from '../../session/spawner.js';
+import { OpenWhisperTranscriber } from '../../voice/openwhisper.js';
 
 // ============================================================================
 // Helpers
@@ -498,6 +499,99 @@ function setupSystemHandlers(): void {
 }
 
 // ============================================================================
+// Voice Handlers
+// ============================================================================
+
+function setupVoiceHandlers(): void {
+  ipcMain.handle('voice:recordAndTranscribe', async (_event, durationMs: number) => {
+    try {
+      const whisperConfig = configLoader.getOpenWhisperConfig();
+
+      if (!whisperConfig?.whisperPath) {
+        return { success: false, text: '', error: 'OpenWhisper not configured. Set whisperPath in tools.yaml' };
+      }
+
+      const transcriber = new OpenWhisperTranscriber({
+        whisperPath: whisperConfig.whisperPath,
+        model: whisperConfig.model,
+        language: whisperConfig.language,
+        tempDir: whisperConfig.tempDir,
+      });
+
+      const result = await transcriber.recordAndTranscribe(durationMs);
+      return result;
+    } catch (error) {
+      console.error('[Voice] recordAndTranscribe failed:', error);
+      return { success: false, text: '', error: String(error) };
+    }
+  });
+
+  console.log('[IPC] Voice handlers registered');
+}
+
+// ============================================================================
+// Foreground Sync
+// ============================================================================
+
+let foregroundSyncInterval: ReturnType<typeof setInterval> | null = null;
+let lastMatchedSessionId: string | null = null;
+
+function setupForegroundSyncHandlers(): void {
+  ipcMain.handle('session:startForegroundSync', () => {
+    if (foregroundSyncInterval) return { success: true, already: true };
+
+    foregroundSyncInterval = setInterval(async () => {
+      try {
+        const activeWindow = await windowManager.getActiveWindow();
+        if (!activeWindow) return;
+
+        // Match hwnd against known sessions
+        const sessions = sessionManager.getAllSessions();
+        const matched = sessions.find(s => s.windowHandle === activeWindow.hwnd);
+
+        if (matched && matched.id !== lastMatchedSessionId) {
+          lastMatchedSessionId = matched.id;
+          const mainWindow = BrowserWindow.getAllWindows()[0];
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('session:foreground-changed', {
+              sessionId: matched.id,
+              windowHandle: matched.windowHandle,
+              timestamp: Date.now(),
+            });
+          }
+        } else if (!matched && lastMatchedSessionId !== null) {
+          // Foreground window is not a tracked session
+          lastMatchedSessionId = null;
+          const mainWindow = BrowserWindow.getAllWindows()[0];
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('session:foreground-changed', {
+              sessionId: null,
+              windowHandle: activeWindow.hwnd,
+              timestamp: Date.now(),
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[ForegroundSync] Poll error:', error);
+      }
+    }, 500);
+
+    console.log('[IPC] Foreground sync started (500ms interval)');
+    return { success: true };
+  });
+
+  ipcMain.handle('session:stopForegroundSync', () => {
+    if (foregroundSyncInterval) {
+      clearInterval(foregroundSyncInterval);
+      foregroundSyncInterval = null;
+      lastMatchedSessionId = null;
+      console.log('[IPC] Foreground sync stopped');
+    }
+    return { success: true };
+  });
+}
+
+// ============================================================================
 // Registration
 // ============================================================================
 
@@ -523,8 +617,10 @@ export function registerIPCHandlers(): void {
   setupWindowHandlers();
   setupSpawnHandlers();
   setupKeyboardHandlers();
+  setupVoiceHandlers();
   setupAppHandlers();
   setupSystemHandlers();
+  setupForegroundSyncHandlers();
 
   console.log('[IPC] All handlers registered');
 }

@@ -168,6 +168,24 @@ function renderSessions(): void {
     state.sessions.some(s => s.id === state.activeSessionId) ? '1' : '0';
 }
 
+function updateSessionHighlight(): void {
+  // Update active session highlight without full re-render
+  document.querySelectorAll('.session-item').forEach(el => {
+    const sessionId = (el as HTMLElement).dataset.sessionId;
+    if (sessionId === state.activeSessionId) {
+      el.classList.add('session-item--active');
+    } else {
+      el.classList.remove('session-item--active');
+    }
+  });
+
+  // Update status counts
+  const statusActive = document.getElementById('statusActiveSessions');
+  if (statusActive) {
+    statusActive.textContent = state.activeSessionId ? '1' : '0';
+  }
+}
+
 function createSessionItem(session: Session): HTMLElement {
   const div = document.createElement('div');
   div.className = 'session-item focusable';
@@ -340,8 +358,20 @@ async function executeCliBinding(button: string, binding: any): Promise<void> {
         break;
       }
       case 'openwhisper': {
-        logEvent('OpenWhisper: not yet implemented');
-        console.warn('[Renderer] OpenWhisper action not yet implemented');
+        const duration = binding.recordingDuration || 5000;
+        logEvent(`OpenWhisper: recording ${duration}ms...`);
+        try {
+          const result = await window.gamepadCli.voiceRecordAndTranscribe(duration);
+          if (result.success && result.text) {
+            logEvent(`OpenWhisper: "${result.text}"`);
+            await window.gamepadCli.keyboardTypeString(result.text);
+          } else {
+            logEvent(`OpenWhisper: failed - ${result.error || 'no text'}`);
+          }
+        } catch (error) {
+          logEvent(`OpenWhisper: error - ${error}`);
+          console.error('[Renderer] OpenWhisper failed:', error);
+        }
         break;
       }
       default:
@@ -919,6 +949,31 @@ async function init(): Promise<void> {
 
   // Load initial data
   await loadSessions();
+
+  // Start foreground sync to track which terminal is actually focused
+  if (window.gamepadCli?.sessionStartForegroundSync) {
+    try {
+      await window.gamepadCli.sessionStartForegroundSync();
+      console.log('[Renderer] Foreground sync started');
+    } catch (error) {
+      console.warn('[Renderer] Failed to start foreground sync:', error);
+    }
+  }
+
+  // Listen for foreground window changes
+  if (window.gamepadCli?.onForegroundChanged) {
+    window.gamepadCli.onForegroundChanged((event) => {
+      if (event.sessionId && event.sessionId !== state.activeSessionId) {
+        console.log(`[Renderer] Foreground changed to session: ${event.sessionId}`);
+        state.activeSessionId = event.sessionId;
+        // Update UI highlight without triggering focus change
+        updateSessionHighlight();
+      } else if (!event.sessionId && state.activeSessionId) {
+        // Foreground is not a tracked session — keep current highlight but could dim
+        console.log('[Renderer] Foreground window is not a tracked session');
+      }
+    });
+  }
 
   // Log initialization
   logEvent('App ready');

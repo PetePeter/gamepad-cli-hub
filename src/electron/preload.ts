@@ -210,6 +210,40 @@ const gamepadCliAPI = {
   keyboardLongPress: (key: string, duration: number) => ipcRenderer.invoke('keyboard:longPress', key, duration),
 
   // ========================================================================
+  // Voice / OpenWhisper
+  // ========================================================================
+
+  /**
+   * Record audio and transcribe using OpenWhisper
+   */
+  voiceRecordAndTranscribe: (durationMs: number) => ipcRenderer.invoke('voice:recordAndTranscribe', durationMs),
+
+  // ========================================================================
+  // Foreground Sync
+  // ========================================================================
+
+  /**
+   * Start polling for foreground window changes
+   */
+  sessionStartForegroundSync: () => ipcRenderer.invoke('session:startForegroundSync'),
+
+  /**
+   * Stop polling for foreground window changes
+   */
+  sessionStopForegroundSync: () => ipcRenderer.invoke('session:stopForegroundSync'),
+
+  /**
+   * Subscribe to foreground window change events
+   * @param callback - Function to call when the foreground window changes
+   * @returns Unsubscribe function
+   */
+  onForegroundChanged: (callback: (event: { sessionId: string | null; windowHandle: string; timestamp: number }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('session:foreground-changed', listener);
+    return () => ipcRenderer.removeListener('session:foreground-changed', listener);
+  },
+
+  // ========================================================================
   // System
   // ========================================================================
 

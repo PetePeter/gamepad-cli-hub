@@ -14,6 +14,78 @@ Control multiple CLI sessions (Claude Code, Copilot CLI, etc.) with an Xbox cont
 - 👤 Multiple binding profiles (create/switch/delete via UI or gamepad)
 - 🔧 Configurable CLI types, working directories, and per-profile bindings
 
+## System Overview
+
+```mermaid
+graph TB
+    subgraph "Xbox Controller"
+        XC[USB / Bluetooth]
+    end
+
+    subgraph "Electron App"
+        subgraph "Renderer"
+            UI[Sessions / Settings / Status UI]
+            BGA[Browser Gamepad API]
+        end
+        subgraph "Main Process"
+            IPC[IPC Bridge]
+            GI[GamepadInput<br/>XInput + Debounce]
+            SM[SessionManager]
+            PS[ProcessSpawner]
+            KS[KeyboardSimulator]
+            WM[WindowManager]
+            CL[ConfigLoader]
+            OW[OpenWhisper]
+        end
+        UI <-->|preload.ts| IPC
+        BGA --> IPC
+    end
+
+    XC --> GI
+    XC --> BGA
+    GI --> IPC
+    IPC --> SM & PS & KS & WM & CL & OW
+    SM --> WM
+    PS --> SM
+    KS & WM --> TW[Terminal Windows]
+```
+
+### How It Works
+
+1. **Gamepad input** is detected via PowerShell XInput polling (wired) or Browser Gamepad API (Bluetooth), with 600ms debounce
+2. **Button presses** are resolved against the active profile's bindings — CLI-specific bindings are checked first, then global
+3. **Actions execute**: send keystrokes, spawn CLI processes, switch sessions, or trigger voice transcription
+4. **Window management** ensures the correct terminal window is focused before any keystroke is sent
+
+### Modules
+
+| Module | Purpose |
+|--------|---------|
+| `src/input/gamepad.ts` | XInput polling, debounce, button-press events |
+| `src/output/keyboard.ts` | Keystroke simulation (@jitsi/robotjs) |
+| `src/output/windows.ts` | Win32 window enumeration/focus (PowerShell) |
+| `src/session/manager.ts` | Session tracking, switching (EventEmitter) |
+| `src/session/spawner.ts` | Spawn detached CLI processes |
+| `src/config/loader.ts` | Split YAML config + profile CRUD |
+| `src/voice/openwhisper.ts` | Audio recording + whisper.cpp transcription |
+| `src/electron/ipc/handlers.ts` | IPC bridge (10 handler groups) |
+| `renderer/main.ts` | UI screens + Browser Gamepad API |
+
+### Tech Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Desktop shell | Electron 41 |
+| Language | TypeScript (ESM) |
+| Bundler | esbuild |
+| Tests | Vitest |
+| Gamepad | PowerShell XInput + Browser Gamepad API |
+| Keyboard | @jitsi/robotjs |
+| Windows | PowerShell Win32 API |
+| Voice | OpenWhisper (whisper.cpp) |
+| Config | YAML |
+| Logging | Winston |
+
 ## Key Controls
 
 | Input | Action |
