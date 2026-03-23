@@ -11,7 +11,6 @@ import { configLoader } from '../../config/loader.js';
 import { windowManager } from '../../output/windows.js';
 import { keyboard } from '../../output/keyboard.js';
 import { processSpawner } from '../../session/spawner.js';
-import { OpenWhisperTranscriber } from '../../voice/openwhisper.js';
 
 // ============================================================================
 // Helpers
@@ -149,6 +148,30 @@ function setupSessionHandlers(): void {
   ipcMain.handle('session:remove', (_event, id: string) => {
     sessionManager.removeSession(id);
     return { success: true };
+  });
+
+  ipcMain.handle('session:close', async (_event, id: string) => {
+    try {
+      const session = sessionManager.getSession(id);
+      if (!session) {
+        return { success: false, error: 'Session not found' };
+      }
+
+      // Try to kill the process
+      try {
+        process.kill(session.processId);
+      } catch (killError) {
+        console.warn(`[Session] Failed to kill process ${session.processId}:`, killError);
+      }
+
+      // Remove from session manager
+      sessionManager.removeSession(id);
+
+      return { success: true };
+    } catch (error) {
+      console.error('[Session] Close failed:', error);
+      return { success: false, error: String(error) };
+    }
   });
 
   ipcMain.handle('session:next', async () => {
@@ -499,37 +522,6 @@ function setupSystemHandlers(): void {
 }
 
 // ============================================================================
-// Voice Handlers
-// ============================================================================
-
-function setupVoiceHandlers(): void {
-  ipcMain.handle('voice:recordAndTranscribe', async (_event, durationMs: number) => {
-    try {
-      const whisperConfig = configLoader.getOpenWhisperConfig();
-
-      if (!whisperConfig?.whisperPath) {
-        return { success: false, text: '', error: 'OpenWhisper not configured. Set whisperPath in tools.yaml' };
-      }
-
-      const transcriber = new OpenWhisperTranscriber({
-        whisperPath: whisperConfig.whisperPath,
-        model: whisperConfig.model,
-        language: whisperConfig.language,
-        tempDir: whisperConfig.tempDir,
-      });
-
-      const result = await transcriber.recordAndTranscribe(durationMs);
-      return result;
-    } catch (error) {
-      console.error('[Voice] recordAndTranscribe failed:', error);
-      return { success: false, text: '', error: String(error) };
-    }
-  });
-
-  console.log('[IPC] Voice handlers registered');
-}
-
-// ============================================================================
 // Foreground Sync
 // ============================================================================
 
@@ -617,7 +609,6 @@ export function registerIPCHandlers(): void {
   setupWindowHandlers();
   setupSpawnHandlers();
   setupKeyboardHandlers();
-  setupVoiceHandlers();
   setupAppHandlers();
   setupSystemHandlers();
   setupForegroundSyncHandlers();

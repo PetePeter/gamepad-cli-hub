@@ -83,6 +83,11 @@ const gamepadCliAPI = {
   sessionRemove: (id: string) => ipcRenderer.invoke('session:remove', id),
 
   /**
+   * Close a session (kill process and remove)
+   */
+  sessionClose: (id: string) => ipcRenderer.invoke('session:close', id),
+
+  /**
    * Move to next session
    */
   sessionNext: () => ipcRenderer.invoke('session:next'),
@@ -208,15 +213,6 @@ const gamepadCliAPI = {
    * Long press a key
    */
   keyboardLongPress: (key: string, duration: number) => ipcRenderer.invoke('keyboard:longPress', key, duration),
-
-  // ========================================================================
-  // Voice / OpenWhisper
-  // ========================================================================
-
-  /**
-   * Record audio and transcribe using OpenWhisper
-   */
-  voiceRecordAndTranscribe: (durationMs: number) => ipcRenderer.invoke('voice:recordAndTranscribe', durationMs),
 
   // ========================================================================
   // Foreground Sync

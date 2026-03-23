@@ -6,8 +6,9 @@ cliTypes:
       keys:
         - Clear
     B:
-      action: openwhisper
-      recordingDuration: 5000
+      action: voice
+      key: space
+      holdDuration: 3000
     X:
       action: keyboard
       keys:
@@ -73,9 +74,6 @@ global:
   Back:
     action: profile-switch
     direction: previous
-  Sandwich:
-    action: profile-switch
-    direction: next
   LeftBumper:
     action: session-switch
     direction: previous
@@ -85,3 +83,8 @@ global:
   RightTrigger:
     action: spawn
     cliType: copilot-cli
+  Sandwich:
+    action: keyboard
+    keys:
+      - Ctrl
+      - w

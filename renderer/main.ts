@@ -331,6 +331,21 @@ async function executeGlobalBinding(button: string, binding: any): Promise<void>
         renderFooterBindings();
         break;
       }
+      case 'close-session': {
+        if (state.activeSessionId) {
+          const closingId = state.activeSessionId;
+          const result = await window.gamepadCli.sessionClose(closingId);
+          if (result.success) {
+            logEvent(`Closed session: ${closingId}`);
+            await loadSessions();
+          } else {
+            logEvent(`Failed to close session: ${result.error}`);
+          }
+        } else {
+          logEvent('No active session to close');
+        }
+        break;
+      }
       default:
         console.warn(`[Renderer] Unknown global action: ${binding.action}`);
     }
@@ -353,25 +368,9 @@ async function executeCliBinding(button: string, binding: any): Promise<void> {
       }
       case 'voice': {
         const duration = binding.holdDuration || 3000;
-        await window.gamepadCli.keyboardLongPress('space', duration);
-        logEvent(`Voice: hold space ${duration}ms`);
-        break;
-      }
-      case 'openwhisper': {
-        const duration = binding.recordingDuration || 5000;
-        logEvent(`OpenWhisper: recording ${duration}ms...`);
-        try {
-          const result = await window.gamepadCli.voiceRecordAndTranscribe(duration);
-          if (result.success && result.text) {
-            logEvent(`OpenWhisper: "${result.text}"`);
-            await window.gamepadCli.keyboardTypeString(result.text);
-          } else {
-            logEvent(`OpenWhisper: failed - ${result.error || 'no text'}`);
-          }
-        } catch (error) {
-          logEvent(`OpenWhisper: error - ${error}`);
-          console.error('[Renderer] OpenWhisper failed:', error);
-        }
+        const key = binding.key || 'space';
+        await window.gamepadCli.keyboardLongPress(key, duration);
+        logEvent(`Voice: hold ${key} ${duration}ms`);
         break;
       }
       default:
@@ -1246,18 +1245,16 @@ function formatBindingDetails(binding: any): string {
       return binding.cliType ? `spawn: ${binding.cliType}` : '—';
     case 'session-switch':
       return binding.direction ? `direction: ${binding.direction}` : '—';
-    case 'openwhisper':
-      return binding.recordingDuration
-        ? `openwhisper ${binding.recordingDuration}ms`
-        : 'openwhisper';
     case 'voice':
       return binding.holdDuration
-        ? `voice hold ${binding.holdDuration}ms`
+        ? `voice hold ${binding.key || 'space'} ${binding.holdDuration}ms`
         : 'voice';
     case 'hub-focus':
       return 'bring hub to foreground';
     case 'list-sessions':
       return 'show sessions list';
+    case 'close-session':
+      return 'close active session';
     case 'profile-switch':
       return binding.direction ? `profile: ${binding.direction}` : 'profile switch';
     default:
@@ -1331,14 +1328,14 @@ function getShortActionLabel(binding: any): string {
       return binding.direction === 'next' ? 'Next' : 'Prev';
     case 'profile-switch':
       return binding.direction === 'next' ? 'Prof→' : '←Prof';
-    case 'openwhisper':
-      return 'Voice';
     case 'voice':
       return 'Voice';
     case 'hub-focus':
       return 'Hub';
     case 'list-sessions':
       return 'Sessions';
+    case 'close-session':
+      return 'Close';
     default:
       return binding.action || '?';
   }
@@ -1610,7 +1607,7 @@ async function renderToolsPanel(): Promise<void> {
   addBtn.className = 'btn btn--primary btn--sm focusable';
   addBtn.tabIndex = 0;
   addBtn.textContent = '+ Add CLI Type';
-  addBtn.addEventListener('click', () => showAddCliTypeForm(panel));
+  addBtn.addEventListener('click', () => showAddCliTypeForm());
   header.appendChild(addBtn);
   panel.appendChild(header);
 
@@ -1770,78 +1767,37 @@ function createCliTypeItem(key: string, value: any): HTMLElement {
   return item;
 }
 
-function showAddCliTypeForm(panel: HTMLElement): void {
-  // Remove existing add form if present
-  panel.querySelector('#addCliTypeForm')?.remove();
+async function showAddCliTypeForm(): Promise<void> {
+  const result = await showFormModal('Add CLI Type', [
+    { key: 'slug', label: 'Key (slug)', defaultValue: '' },
+    { key: 'name', label: 'Name', defaultValue: '' },
+    { key: 'command', label: 'Command', defaultValue: '' },
+    { key: 'args', label: 'Args (comma-separated)', defaultValue: '' },
+  ]);
 
-  const form = document.createElement('div');
-  form.className = 'settings-form';
-  form.id = 'addCliTypeForm';
-  form.innerHTML = `
-    <span class="settings-form__title">Add CLI Type</span>
-    <div class="settings-form__row">
-      <div class="settings-form__field">
-        <label>Key (slug)</label>
-        <input type="text" id="newCliKey" placeholder="e.g. my-tool" class="focusable" tabindex="0" />
-      </div>
-      <div class="settings-form__field">
-        <label>Name</label>
-        <input type="text" id="newCliName" placeholder="e.g. My Tool" class="focusable" tabindex="0" />
-      </div>
-    </div>
-    <div class="settings-form__row">
-      <div class="settings-form__field">
-        <label>Command</label>
-        <input type="text" id="newCliCommand" placeholder="e.g. my-tool.exe" class="focusable" tabindex="0" />
-      </div>
-      <div class="settings-form__field">
-        <label>Args (comma-separated)</label>
-        <input type="text" id="newCliArgs" placeholder="e.g. --interactive, --color" class="focusable" tabindex="0" />
-      </div>
-    </div>
-    <div class="settings-form__row">
-      <button class="btn btn--primary btn--sm focusable" tabindex="0" id="saveNewCliBtn">Save</button>
-      <button class="btn btn--secondary btn--sm focusable" tabindex="0" id="cancelNewCliBtn">Cancel</button>
-    </div>
-  `;
+  if (!result) return;
 
-  // Insert after header
-  const header = panel.querySelector('.settings-panel__header');
-  if (header && header.nextSibling) {
-    panel.insertBefore(form, header.nextSibling);
-  } else {
-    panel.appendChild(form);
+  const key = result.slug?.trim();
+  const name = result.name?.trim();
+  const command = result.command?.trim();
+
+  if (!key || !name || !command) {
+    logEvent('Add CLI type: key, name, command are required');
+    return;
   }
 
-  document.getElementById('saveNewCliBtn')?.addEventListener('click', async () => {
-    const key = (document.getElementById('newCliKey') as HTMLInputElement).value.trim();
-    const name = (document.getElementById('newCliName') as HTMLInputElement).value.trim();
-    const command = (document.getElementById('newCliCommand') as HTMLInputElement).value.trim();
-    const argsStr = (document.getElementById('newCliArgs') as HTMLInputElement).value.trim();
-    const args = argsStr ? argsStr.split(',').map(a => a.trim()).filter(Boolean) : [];
+  const args = result.args ? result.args.split(',').map((a: string) => a.trim()).filter(Boolean) : [];
 
-    if (!key || !name || !command) {
-      logEvent('Add CLI type: key, name, command are required');
-      return;
-    }
-
-    const result = await window.gamepadCli.toolsAddCliType(key, name, command, args);
-    if (result.success) {
-      logEvent(`Added CLI type: ${key}`);
-      state.cliTypes = await window.gamepadCli.configGetCliTypes();
-      state.availableSpawnTypes = state.cliTypes;
-      renderSpawnButtons();
-      loadSettingsScreen();
-    } else {
-      logEvent('Failed to add CLI type');
-    }
-  });
-
-  document.getElementById('cancelNewCliBtn')?.addEventListener('click', () => {
-    form.remove();
-  });
-
-  (document.getElementById('newCliKey') as HTMLInputElement)?.focus();
+  const addResult = await window.gamepadCli.toolsAddCliType(key, name, command, args);
+  if (addResult.success) {
+    logEvent(`Added CLI type: ${key}`);
+    state.cliTypes = await window.gamepadCli.configGetCliTypes();
+    state.availableSpawnTypes = state.cliTypes;
+    renderSpawnButtons();
+    loadSettingsScreen();
+  } else {
+    logEvent('Failed to add CLI type');
+  }
 }
 
 async function showEditCliTypeForm(key: string, value: any): Promise<void> {
@@ -2051,7 +2007,7 @@ async function showEditDirectoryPrompt(dir: { name: string; path: string }, inde
 // Binding Editor Modal
 // ============================================================================
 
-const ACTION_TYPES = ['keyboard', 'voice', 'openwhisper', 'session-switch', 'spawn', 'list-sessions', 'profile-switch', 'hub-focus'] as const;
+const ACTION_TYPES = ['keyboard', 'voice', 'session-switch', 'spawn', 'list-sessions', 'close-session', 'profile-switch', 'hub-focus'] as const;
 
 const ALL_BUTTONS = ['A', 'B', 'X', 'Y', 'Up', 'Down', 'Left', 'Right', 'LeftBumper', 'RightBumper', 'LeftTrigger', 'RightTrigger', 'LeftStick', 'RightStick', 'Sandwich', 'Back', 'Xbox'] as const;
 
@@ -2154,15 +2110,12 @@ function renderActionParams(form: HTMLElement, binding: any): void {
     }
     case 'voice': {
       const holdDuration = binding.holdDuration || 3000;
+      const key = binding.key || 'space';
+      form.appendChild(createEditorField('Key to Hold', `
+        <input type="text" id="bindingEditorVoiceKey" value="${key}" placeholder="e.g. space, f5" />
+      `));
       form.appendChild(createEditorField('Hold Duration (ms)', `
         <input type="number" id="bindingEditorHoldDuration" value="${holdDuration}" min="100" step="100" />
-      `));
-      break;
-    }
-    case 'openwhisper': {
-      const recordingDuration = binding.recordingDuration || 5000;
-      form.appendChild(createEditorField('Recording Duration (ms)', `
-        <input type="number" id="bindingEditorRecordingDuration" value="${recordingDuration}" min="1000" step="500" />
       `));
       break;
     }
@@ -2195,6 +2148,11 @@ function renderActionParams(form: HTMLElement, binding: any): void {
         <input type="text" value="No additional parameters" disabled />
       `, true));
       break;
+    case 'close-session':
+      form.appendChild(createEditorField('Parameters', `
+        <input type="text" value="No additional parameters" disabled />
+      `, true));
+      break;
     case 'profile-switch': {
       const profDirOptions = ['previous', 'next'].map(d =>
         `<option value="${d}" ${d === binding.direction ? 'selected' : ''}>${d}</option>`
@@ -2219,9 +2177,7 @@ function buildDefaultBinding(action: string): any {
     case 'keyboard':
       return { action: 'keyboard', keys: [] };
     case 'voice':
-      return { action: 'voice', holdDuration: 3000 };
-    case 'openwhisper':
-      return { action: 'openwhisper', recordingDuration: 5000 };
+      return { action: 'voice', key: 'space', holdDuration: 3000 };
     case 'session-switch':
       return { action: 'session-switch', direction: 'next' };
     case 'spawn':
@@ -2230,6 +2186,8 @@ function buildDefaultBinding(action: string): any {
       return { action: 'list-sessions' };
     case 'hub-focus':
       return { action: 'hub-focus' };
+    case 'close-session':
+      return { action: 'close-session' };
     case 'profile-switch':
       return { action: 'profile-switch', direction: 'next' };
     default:
@@ -2263,14 +2221,11 @@ function collectBindingFromForm(): any | null {
       return { action: 'keyboard', keys };
     }
     case 'voice': {
+      const keyInput = document.getElementById('bindingEditorVoiceKey') as HTMLInputElement;
       const durationInput = document.getElementById('bindingEditorHoldDuration') as HTMLInputElement;
+      const key = keyInput?.value?.trim() || 'space';
       const holdDuration = parseInt(durationInput?.value || '3000', 10);
-      return { action: 'voice', holdDuration };
-    }
-    case 'openwhisper': {
-      const durationInput = document.getElementById('bindingEditorRecordingDuration') as HTMLInputElement;
-      const recordingDuration = parseInt(durationInput?.value || '5000', 10);
-      return { action: 'openwhisper', recordingDuration };
+      return { action: 'voice', key, holdDuration };
     }
     case 'session-switch': {
       const dirSelect = document.getElementById('bindingEditorDirection') as HTMLSelectElement;
@@ -2284,6 +2239,8 @@ function collectBindingFromForm(): any | null {
       return { action: 'list-sessions' };
     case 'hub-focus':
       return { action: 'hub-focus' };
+    case 'close-session':
+      return { action: 'close-session' };
     case 'profile-switch': {
       const profDirSelect = document.getElementById('bindingEditorDirection') as HTMLSelectElement;
       return { action: 'profile-switch', direction: profDirSelect?.value || 'next' };
