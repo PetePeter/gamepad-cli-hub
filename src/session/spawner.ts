@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from 'node:child_process';
 import { configLoader, type SpawnConfig } from '../config/loader.js';
+import { logger } from '../utils/logger.js';
 
 export interface SpawnedProcess {
   process: ChildProcess;
@@ -16,7 +17,7 @@ class ProcessSpawner {
   spawn(cliType: string, workingDir?: string): SpawnedProcess | null {
     const spawnConfig = configLoader.getSpawnConfig(cliType);
     if (!spawnConfig) {
-      console.error(`No spawn config found for CLI type: ${cliType}`);
+      logger.error(`No spawn config found for CLI type: ${cliType}`);
       return null;
     }
 
@@ -41,11 +42,11 @@ class ProcessSpawner {
 
     childProcess.on('exit', (code: number | null) => {
       this.processes.delete(childProcess.pid ?? 0);
-      console.log(`Process ${childProcess.pid} exited with code ${code}`);
+      logger.info(`Process ${childProcess.pid} exited with code ${code}`);
     });
 
     childProcess.on('error', (err: Error) => {
-      console.error(`Failed to spawn ${cliType}:`, err.message);
+      logger.error(`Failed to spawn ${cliType}: ${err.message}`);
       this.processes.delete(childProcess.pid ?? 0);
     });
 

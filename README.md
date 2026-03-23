@@ -68,8 +68,10 @@ graph TB
 | `src/session/spawner.ts` | Spawn detached CLI processes |
 | `src/config/loader.ts` | Split YAML config + profile CRUD |
 | `src/voice/openwhisper.ts` | Audio recording + whisper.cpp transcription |
-| `src/electron/ipc/handlers.ts` | IPC bridge (10 handler groups) |
-| `renderer/main.ts` | UI screens + Browser Gamepad API |
+| `src/input/xinput-poll.ps1` | XInput polling script (extracted from inline) |
+| `src/utils/logger.ts` | Winston logger (used across all src/ modules) |
+| `src/electron/ipc/handlers.ts` | 60-line orchestrator delegating to 10 domain handler files under `src/electron/ipc/` |
+| `renderer/main.ts` | 230-line entry point; UI split into `state`, `utils`, `bindings`, `navigation`, `screens/{sessions,settings,status}`, `modals/{dir-picker,binding-editor}` |
 
 ### Tech Stack
 

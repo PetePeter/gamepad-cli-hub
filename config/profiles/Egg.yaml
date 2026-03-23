@@ -1,0 +1,7 @@
+name: Egg
+cliTypes:
+  claude-code: {}
+  copilot-cli: {}
+  generic-terminal: {}
+  python: {}
+global: {}

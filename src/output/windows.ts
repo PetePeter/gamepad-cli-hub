@@ -11,6 +11,7 @@ import { join } from 'path';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { promisify } from 'util';
 import { exec as execCallback } from 'child_process';
+import { logger } from '../utils/logger.js';
 
 const exec = promisify(execCallback);
 
@@ -286,7 +287,7 @@ export class WindowsWindowManager {
         count: windows.length
       };
     } catch (error) {
-      console.error('Failed to enumerate windows:', error);
+      logger.error(`Failed to enumerate windows: ${error}`);
       return { windows: [], count: 0 };
     }
   }
@@ -302,7 +303,7 @@ export class WindowsWindowManager {
       const windows: WindowInfo[] = JSON.parse(output || '[]');
       return windows;
     } catch (error) {
-      console.error(`Failed to find windows by title pattern "${pattern}":`, error);
+      logger.error(`Failed to find windows by title pattern "${pattern}": ${error}`);
       return [];
     }
   }
@@ -318,7 +319,7 @@ export class WindowsWindowManager {
       const parsed = JSON.parse(output || '[]');
       return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
-      console.error(`Failed to find windows by process "${processName}":`, error);
+      logger.error(`Failed to find windows by process "${processName}": ${error}`);
       return [];
     }
   }
@@ -334,7 +335,7 @@ export class WindowsWindowManager {
       const result = JSON.parse(output);
       return result.success === true;
     } catch (error) {
-      console.error(`Failed to focus window ${hwnd}:`, error);
+      logger.error(`Failed to focus window ${hwnd}: ${error}`);
       return false;
     }
   }
@@ -356,7 +357,7 @@ export class WindowsWindowManager {
         isVisible: true
       };
     } catch (error) {
-      console.error('Failed to get active window:', error);
+      logger.error(`Failed to get active window: ${error}`);
       return null;
     }
   }
@@ -377,7 +378,7 @@ export class WindowsWindowManager {
           mainWindowTitle: p.MainWindowTitle
         }));
     } catch (error) {
-      console.error('Failed to get processes:', error);
+      logger.error(`Failed to get processes: ${error}`);
       return [];
     }
   }

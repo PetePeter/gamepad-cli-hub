@@ -221,6 +221,54 @@ export class KeyboardSimulator {
     }
 
     /**
+     * Hold a key combination for a specified duration.
+     * Modifiers are held down, then the main key is held, then all released.
+     */
+    longPressCombo(keyNames: string[], duration: number): void {
+        if (keyNames.length === 0) return;
+
+        if (keyNames.length === 1) {
+            this.longPress(keyNames[0], duration);
+            return;
+        }
+
+        // Separate modifiers from non-modifiers
+        const modifierSet = new Set(['control', 'shift', 'alt', 'command', 'meta']);
+        const normalized = keyNames.map(k => this.normalizeKey(k));
+        const mods = normalized.filter(k => modifierSet.has(k));
+        const mainKeys = normalized.filter(k => !modifierSet.has(k));
+        const mainKey = mainKeys[0] || normalized[normalized.length - 1];
+
+        // Press modifiers down
+        for (const mod of mods) {
+            robot.keyToggle(mod, 'down');
+        }
+
+        // Press main key down
+        robot.keyToggle(mainKey, 'down');
+
+        // Wait for duration
+        const endTime = Date.now() + duration;
+        while (Date.now() < endTime) {
+            const remaining = endTime - Date.now();
+            if (remaining > 20) {
+                const target = Date.now() + Math.min(remaining, 50);
+                while (Date.now() < target) {
+                    // Busy wait
+                }
+            }
+        }
+
+        // Release main key
+        robot.keyToggle(mainKey, 'up');
+
+        // Release modifiers in reverse
+        for (const mod of mods.reverse()) {
+            robot.keyToggle(mod, 'up');
+        }
+    }
+
+    /**
      * Types a string of text character by character.
      *
      * @param text - The text string to type

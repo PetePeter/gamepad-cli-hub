@@ -108,9 +108,11 @@ flowchart LR
 | **ProcessSpawner** | `src/session/spawner.ts` | Spawns detached CLI processes from tool config. Tracks by PID. Auto-registers with SessionManager. |
 | **ConfigLoader** | `src/config/loader.ts` | Loads split YAML config. Full CRUD for profiles, tools, and directories. Resolves per-CLI vs global bindings. |
 | **OpenWhisper** | `src/voice/openwhisper.ts` | Records audio (FFmpeg→WAV 16kHz), calls whisper.exe for transcription, returns text. Fallbacks: FFmpeg→Sox→PowerShell→silent WAV. |
-| **IPC Handlers** | `src/electron/ipc/handlers.ts` | 10 handler groups bridging renderer↔main. Loads config on startup, caches state. |
+| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator (handlers.ts) + 10 domain handler files with dependency injection. Domains: gamepad, session, config, profile, tools, window, spawn, keyboard, system, app. |
 | **Preload** | `src/electron/preload.ts` | Context bridge exposing typed IPC API to renderer. Must be .cjs when package.json has "type":"module". |
-| **Renderer** | `renderer/main.ts` | Vanilla TypeScript UI. Three screens: Sessions, Settings (5 tabs), Status. Browser Gamepad API for BT controllers. Gamepad-navigable with D-pad. |
+| **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils, bindings, navigation, screens (sessions/settings/status), modals (dir-picker/binding-editor). Browser Gamepad API for BT controllers. Gamepad-navigable with D-pad. |
+| **XInput Script** | `src/input/xinput-poll.ps1` | External PowerShell XInput P/Invoke polling script. Loaded at runtime by gamepad.ts. |
+| **Logger** | `src/utils/logger.ts` | Winston logger with daily file rotation + console. Used across all src/ modules (not in renderer/preload). |
 | **CLI Entry** | `src/index.ts` | Standalone CLI orchestrator (GamepadCliHub class). Same binding resolution as Electron mode. |
 
 ---
@@ -167,9 +169,20 @@ src/
 │   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle
 │   ├── preload.ts              # Context bridge (renderer ↔ main IPC)
 │   └── ipc/
-│       └── handlers.ts         # 10 IPC handler groups
+│       ├── handlers.ts         # Orchestrator — imports + wires 10 domain handlers
+│       ├── gamepad-handlers.ts
+│       ├── session-handlers.ts
+│       ├── config-handlers.ts
+│       ├── profile-handlers.ts
+│       ├── tools-handlers.ts
+│       ├── window-handlers.ts
+│       ├── spawn-handlers.ts
+│       ├── keyboard-handlers.ts
+│       ├── system-handlers.ts
+│       └── app-handlers.ts
 ├── input/
-│   └── gamepad.ts              # XInput polling + debounce + event emission
+│   ├── gamepad.ts              # XInput polling + debounce + event emission
+│   └── xinput-poll.ps1         # PowerShell XInput P/Invoke script (external)
 ├── output/
 │   ├── keyboard.ts             # Keystroke simulation (robotjs)
 │   └── windows.ts              # Window enumeration/focus (PowerShell Win32)
@@ -185,13 +198,24 @@ src/
 ├── types/
 │   └── session.ts              # SessionInfo, SessionChangeEvent types
 └── utils/
-    ├── logger.ts               # Winston logger setup
+    ├── logger.ts               # Winston logger (daily rotation, used everywhere)
     └── index.ts
 
 renderer/
 ├── index.html                  # Main UI template
-├── main.ts                     # Renderer: UI screens + Browser Gamepad API
+├── main.ts                     # Entry point — init, wiring, DOMContentLoaded
+├── state.ts                    # Shared AppState type + singleton
+├── utils.ts                    # DOM helpers, logEvent, showScreen, footer rendering
+├── bindings.ts                 # Config cache, binding dispatch (CLI → global fallback)
+├── navigation.ts               # Gamepad navigation setup, event routing
 ├── gamepad.ts                  # Browser Gamepad API wrapper
+├── screens/
+│   ├── sessions.ts             # Session list, spawn, focus
+│   ├── settings.ts             # 5-tab settings (profiles, bindings, tools, dirs)
+│   └── status.ts               # Status screen handler
+├── modals/
+│   ├── dir-picker.ts           # Directory picker modal
+│   └── binding-editor.ts       # Binding editor modal
 └── styles/
     └── main.css
 
@@ -203,12 +227,10 @@ config/
     └── default.yaml
 
 tests/
-├── gamepad.test.ts
-├── keyboard.test.ts
-├── keyboard-simulator.test.ts
-├── session.test.ts
-├── session-manager.test.ts
-└── config.test.ts
+├── gamepad.test.ts             # 30 tests
+├── keyboard.test.ts            # 16 tests
+├── session.test.ts             # 30 tests
+└── config.test.ts              # 47 tests
 ```
 
 ---
@@ -246,10 +268,7 @@ CLI sessions run in **real terminal windows** (Windows Terminal, cmd, etc.), not
 - `keyboard.ts` → send keystrokes to focused window
 
 ### IPC Bridge Pattern
-Electron context isolation enforced:
-- `preload.ts` exposes typed API via `contextBridge`
-- `handlers.ts` registers listeners in main process
-- Renderer never directly accesses Node.js APIs
+Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 10 domain files (`src/electron/ipc/*-handlers.ts`) with dependency injection — the orchestrator (`handlers.ts`) creates singletons and wires them. Renderer never directly accesses Node.js APIs.
 
 ### Split YAML Config & Profiles
 Four separate concerns: tools (spawn definitions), directories (workspaces), settings (active profile), and profiles (button bindings). Each profile defines per-CLI-type + global bindings. Full CRUD via IPC + Settings UI.

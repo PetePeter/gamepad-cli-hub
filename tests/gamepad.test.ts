@@ -19,11 +19,15 @@ vi.mock('child_process', () => ({
   })),
 }));
 
-// Mock fs module
-vi.mock('fs', () => ({
-  writeFileSync: vi.fn(),
-  unlinkSync: vi.fn(),
-}));
+// Mock fs module — pass through readFileSync so gamepad.ts can load the .ps1 file
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
+    readFileSync: actual.readFileSync,
+    writeFileSync: vi.fn(),
+    unlinkSync: vi.fn(),
+  };
+});
 
 // Mock os module
 vi.mock('os', () => ({

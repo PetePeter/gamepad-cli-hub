@@ -214,6 +214,11 @@ const gamepadCliAPI = {
    */
   keyboardLongPress: (key: string, duration: number) => ipcRenderer.invoke('keyboard:longPress', key, duration),
 
+  /**
+   * Long press a key combination (modifiers + key)
+   */
+  keyboardLongPressCombo: (keys: string[], duration: number) => ipcRenderer.invoke('keyboard:longPressCombo', keys, duration),
+
   // ========================================================================
   // Foreground Sync
   // ========================================================================

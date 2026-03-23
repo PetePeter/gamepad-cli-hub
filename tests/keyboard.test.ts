@@ -2,21 +2,19 @@
  * Keyboard simulator unit tests
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { KeyboardSimulator } from '../src/output/keyboard.js';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Mock robotjs - match actual API only, no fake methods
-vi.mock('@jitsi/robotjs', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jitsi/robotjs')>();
-  return {
-    default: {
-      ...actual,
-      keyTap: vi.fn(() => true),
-      keyToggle: vi.fn(() => ({})),
-      typeString: vi.fn(),
-    },
-  };
-});
+// Mock robotjs before importing the module - match actual API only
+vi.mock('@jitsi/robotjs', () => ({
+  default: {
+    keyTap: vi.fn(),
+    keyToggle: vi.fn(),
+    typeString: vi.fn(),
+  },
+}));
+
+import { KeyboardSimulator } from '../src/output/keyboard.js';
+import robot from '@jitsi/robotjs';
 
 describe('KeyboardSimulator', () => {
   let keyboard: KeyboardSimulator;
@@ -29,25 +27,42 @@ describe('KeyboardSimulator', () => {
   describe('sendKey', () => {
     it('sends a single key tap', () => {
       keyboard.sendKey('a');
+
       expect(robot.keyTap).toHaveBeenCalledWith('a');
     });
 
     it('normalizes common key aliases', () => {
+      keyboard.sendKey('enter');
+      expect(robot.keyTap).toHaveBeenCalledWith('enter');
+
       keyboard.sendKey('ctrl');
       expect(robot.keyTap).toHaveBeenCalledWith('control');
 
       keyboard.sendKey('esc');
       expect(robot.keyTap).toHaveBeenCalledWith('escape');
 
+      vi.clearAllMocks();
       keyboard.sendKey('return');
       expect(robot.keyTap).toHaveBeenCalledWith('enter');
     });
   });
 
   describe('sendKeys', () => {
-    it('sends multiple keys in sequence', () => {
+    it('sends a sequence of keys', () => {
       keyboard.sendKeys(['h', 'e', 'l', 'l', 'o']);
+
       expect(robot.keyTap).toHaveBeenCalledTimes(5);
+      expect(robot.keyTap).toHaveBeenNthCalledWith(1, 'h');
+      expect(robot.keyTap).toHaveBeenNthCalledWith(2, 'e');
+      expect(robot.keyTap).toHaveBeenNthCalledWith(3, 'l');
+      expect(robot.keyTap).toHaveBeenNthCalledWith(4, 'l');
+      expect(robot.keyTap).toHaveBeenNthCalledWith(5, 'o');
+    });
+
+    it('sends command sequences', () => {
+      keyboard.sendKeys(['/', 'h', 'e', 'l', 'p', 'Enter']);
+
+      expect(robot.keyTap).toHaveBeenCalledTimes(6);
     });
 
     it('handles mixed keys and aliases', () => {
@@ -57,54 +72,85 @@ describe('KeyboardSimulator', () => {
   });
 
   describe('sendKeyCombo', () => {
-    it('sends a single key when only one key provided', () => {
-      keyboard.sendKeyCombo(['a']);
-      expect(robot.keyTap).toHaveBeenCalledWith('a');
-    });
-
-    it('sends key combination with modifiers', () => {
+    it('sends a key combination with modifiers', () => {
       keyboard.sendKeyCombo(['ctrl', 'c']);
+
       expect(robot.keyTap).toHaveBeenCalledWith('c', ['control']);
     });
 
-    it('handles multiple modifiers', () => {
+    it('sends a three-key combination', () => {
       keyboard.sendKeyCombo(['ctrl', 'shift', 'esc']);
+
       expect(robot.keyTap).toHaveBeenCalledWith('escape', ['control', 'shift']);
+    });
+
+    it('handles single key as combo', () => {
+      keyboard.sendKeyCombo(['a']);
+
+      expect(robot.keyTap).toHaveBeenCalledWith('a');
+    });
+
+    it('handles empty combo gracefully', () => {
+      keyboard.sendKeyCombo([]);
+
+      expect(robot.keyTap).not.toHaveBeenCalled();
     });
 
     it('normalizes key names in combinations', () => {
       keyboard.sendKeyCombo(['cmd', 'v']);
       expect(robot.keyTap).toHaveBeenCalledWith('v', ['command']);
     });
+  });
 
-    it('does nothing for empty array', () => {
-      keyboard.sendKeyCombo([]);
-      expect(robot.keyTap).not.toHaveBeenCalled();
+  describe('longPress', () => {
+    it('holds a key for the specified duration', () => {
+      const shortDuration = 50;
+
+      keyboard.longPress('space', shortDuration);
+
+      expect(robot.keyToggle).toHaveBeenNthCalledWith(1, 'space', 'down');
+      expect(robot.keyToggle).toHaveBeenNthCalledWith(2, 'space', 'up');
+      expect(robot.keyToggle).toHaveBeenCalledTimes(2);
+    });
+
+    it('normalizes key names in long press', () => {
+      keyboard.longPress('enter', 20);
+
+      expect(robot.keyToggle).toHaveBeenNthCalledWith(1, 'enter', 'down');
+      expect(robot.keyToggle).toHaveBeenNthCalledWith(2, 'enter', 'up');
     });
   });
 
   describe('typeString', () => {
     it('types a string of text', () => {
       keyboard.typeString('Hello World');
+
       expect(robot.typeString).toHaveBeenCalledWith('Hello World');
     });
   });
 
-  describe('setKeyDelay', () => {
-    it('updates the key delay', () => {
+  describe('setKeyDelay and getKeyDelay', () => {
+    it('sets and retrieves the key delay', () => {
+      expect(keyboard.getKeyDelay()).toBe(10);
+
       keyboard.setKeyDelay(50);
       expect(keyboard.getKeyDelay()).toBe(50);
+      // Note: @jitsi/robotjs doesn't support setKeyboardDelay, delay is internal only
     });
   });
 
-  describe('getKeyDelay', () => {
-    it('returns the default delay', () => {
-      expect(keyboard.getKeyDelay()).toBe(10);
+  describe('constructor', () => {
+    it('uses default delay when not specified', () => {
+      const defaultKeyboard = new KeyboardSimulator();
+
+      expect(defaultKeyboard.getKeyDelay()).toBe(10);
+      // Note: @jitsi/robotjs doesn't support setKeyboardDelay, delay is internal only
     });
 
-    it('returns updated delay after setKeyDelay', () => {
-      keyboard.setKeyDelay(100);
-      expect(keyboard.getKeyDelay()).toBe(100);
+    it('uses custom delay when specified', () => {
+      const customKeyboard = new KeyboardSimulator(100);
+
+      expect(customKeyboard.getKeyDelay()).toBe(100);
     });
   });
 });

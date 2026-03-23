@@ -79,8 +79,10 @@ Xbox Controller
 | **ProcessSpawner** | `src/session/spawner.ts` | Spawn detached CLI processes from config, register with SessionManager |
 | **ConfigLoader** | `src/config/loader.ts` | Split YAML config loading + profile/tools/directory CRUD |
 | **OpenWhisper** | `src/voice/openwhisper.ts` | Audio recording (FFmpeg) → whisper.cpp transcription |
-| **IPC Handlers** | `src/electron/ipc/handlers.ts` | Bridge between renderer and main process (10 handler groups) |
-| **Renderer** | `renderer/main.ts` | UI screens (Sessions, Settings, Status) + Browser Gamepad API |
+| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 10 domain handler files (gamepad, session, config, profile, tools, window, spawn, keyboard, system, app). Dependencies injected via function parameters. |
+| **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils, bindings, navigation, screens (sessions/settings/status), modals (dir-picker/binding-editor). Browser Gamepad API. |
+| **XInput Script** | `src/input/xinput-poll.ps1` | External PowerShell script for XInput polling (was previously inline in gamepad.ts) |
+| **Logger** | `src/utils/logger.ts` | Winston logger with daily rotation. Used across all src/ modules. |
 | **CLI Entry** | `src/index.ts` | Standalone CLI orchestrator (GamepadCliHub class) |
 
 ## Config System
@@ -132,7 +134,7 @@ config/
 
 1. **Dual gamepad detection** — XInput (PowerShell) for wired + Browser Gamepad API for Bluetooth
 2. **External terminal windows** — CLIs run in real terminal windows, not embedded; managed via Win32 focus/enumeration
-3. **IPC bridge pattern** — Electron context isolation; preload.ts exposes typed API via contextBridge
+3. **IPC bridge pattern** — Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 10 domain files with dependency injection — the orchestrator (`handlers.ts`) wires dependencies. Renderer never directly accesses Node.js APIs.
 4. **Split YAML config** — Separate concerns: tools, directories, settings, profiles (each with CRUD)
 5. **Per-CLI bindings** — Same button does different things depending on active CLI type
 6. **PowerShell for native APIs** — No native DLLs needed; spawn PS process, parse JSON stdout
@@ -154,3 +156,76 @@ npm test         # Vitest suite
 - Composition over inheritance
 - Clean separation: input → processing → output
 - Document **why**, not **how**
+
+## File Structure
+
+```
+src/
+├── index.ts                    # CLI entry point (GamepadCliHub orchestrator)
+├── electron/
+│   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle
+│   ├── preload.ts              # Context bridge (renderer ↔ main IPC)
+│   └── ipc/
+│       ├── handlers.ts         # Orchestrator — imports + wires 10 domain handlers
+│       ├── gamepad-handlers.ts
+│       ├── session-handlers.ts
+│       ├── config-handlers.ts
+│       ├── profile-handlers.ts
+│       ├── tools-handlers.ts
+│       ├── window-handlers.ts
+│       ├── spawn-handlers.ts
+│       ├── keyboard-handlers.ts
+│       ├── system-handlers.ts
+│       └── app-handlers.ts
+├── input/
+│   ├── gamepad.ts              # XInput polling + debounce + event emission
+│   └── xinput-poll.ps1         # PowerShell XInput P/Invoke script (external)
+├── output/
+│   ├── keyboard.ts             # Keystroke simulation (robotjs)
+│   └── windows.ts              # Window enumeration/focus (PowerShell Win32)
+├── session/
+│   ├── manager.ts              # Session tracking (EventEmitter)
+│   ├── spawner.ts              # CLI process spawning
+│   └── index.ts
+├── config/
+│   └── loader.ts               # Split YAML config + CRUD operations
+├── voice/
+│   ├── openwhisper.ts          # Audio recording + whisper.cpp transcription
+│   └── index.ts
+├── types/
+│   └── session.ts              # SessionInfo, SessionChangeEvent types
+└── utils/
+    ├── logger.ts               # Winston logger (daily rotation, used everywhere)
+    └── index.ts
+
+renderer/
+├── index.html                  # Main UI template
+├── main.ts                     # Entry point — init, wiring, DOMContentLoaded
+├── state.ts                    # Shared AppState type + singleton
+├── utils.ts                    # DOM helpers, logEvent, showScreen, footer rendering
+├── bindings.ts                 # Config cache, binding dispatch (CLI → global fallback)
+├── navigation.ts               # Gamepad navigation setup, event routing
+├── gamepad.ts                  # Browser Gamepad API wrapper
+├── screens/
+│   ├── sessions.ts             # Session list, spawn, focus
+│   ├── settings.ts             # 5-tab settings (profiles, bindings, tools, dirs)
+│   └── status.ts               # Status screen handler
+├── modals/
+│   ├── dir-picker.ts           # Directory picker modal
+│   └── binding-editor.ts       # Binding editor modal
+└── styles/
+    └── main.css
+
+config/
+├── settings.yaml
+├── tools.yaml
+├── directories.yaml
+└── profiles/
+    └── default.yaml
+
+tests/
+├── gamepad.test.ts             # 30 tests
+├── keyboard.test.ts            # 16 tests
+├── session.test.ts             # 30 tests
+└── config.test.ts              # 47 tests
+```

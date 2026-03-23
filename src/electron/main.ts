@@ -10,6 +10,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { registerIPCHandlers } from './ipc/handlers.js';
 import { gamepadInput } from '../input/gamepad.js';
+import { logger } from '../utils/logger.js';
 
 // Enable Chromium gamepad extensions for Bluetooth controller support
 app.commandLine.appendSwitch('enable-gamepad-extensions');
@@ -24,7 +25,7 @@ let mainWindow: BrowserWindow | null = null;
  */
 function createWindow(): void {
   const preloadPath = join(__dirname, 'preload.cjs');
-  console.log('[Main] Preload path:', preloadPath);
+  logger.debug(`[Main] Preload path: ${preloadPath}`);
 
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -52,20 +53,20 @@ function createWindow(): void {
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
-    console.log('[Main] Window shown');
+    logger.info('[Main] Window shown');
   });
 
   // Check preload worked after renderer loads
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow?.webContents.executeJavaScript('typeof window.gamepadCli')
-      .then(result => console.log('[Main] Preload check: window.gamepadCli is', result))
-      .catch(err => console.error('[Main] Preload check failed:', err));
+      .then(result => logger.debug(`[Main] Preload check: window.gamepadCli is ${result}`))
+      .catch(err => logger.error(`[Main] Preload check failed: ${err}`));
   });
 
   // Log any renderer/preload console output to terminal
   mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     if (sourceId?.includes('preload') || message.includes('Preload') || level >= 2) {
-      console.log(`[WebContents:${level}] ${message} (${sourceId}:${line})`);
+      logger.debug(`[WebContents:${level}] ${message} (${sourceId}:${line})`);
     }
   });
 
@@ -75,17 +76,17 @@ function createWindow(): void {
   // Handle window close
   mainWindow.on('closed', () => {
     mainWindow = null;
-    console.log('[Main] Window closed');
+    logger.info('[Main] Window closed');
   });
 
-  console.log('[Main] Window created');
+  logger.info('[Main] Window created');
 }
 
 /**
  * Application lifecycle - Ready
  */
 app.whenReady().then(() => {
-  console.log('[Main] App ready');
+  logger.info('[Main] App ready');
 
   // Register IPC handlers
   registerIPCHandlers();
@@ -98,7 +99,7 @@ app.whenReady().then(() => {
 
   // Start gamepad input listener
   gamepadInput.start();
-  console.log('[Main] Gamepad listener started');
+  logger.info('[Main] Gamepad listener started');
 
   // Handle macOS dock behavior
   app.on('activate', () => {
@@ -112,7 +113,7 @@ app.whenReady().then(() => {
  * Application lifecycle - All windows closed
  */
 app.on('window-all-closed', () => {
-  console.log('[Main] All windows closed');
+  logger.info('[Main] All windows closed');
 
   // Stop gamepad input
   gamepadInput.stop();
@@ -127,7 +128,7 @@ app.on('window-all-closed', () => {
  * Application lifecycle - Before quit
  */
 app.on('before-quit', () => {
-  console.log('[Main] App quitting');
+  logger.info('[Main] App quitting');
 
   // Stop gamepad input
   gamepadInput.stop();
@@ -137,7 +138,7 @@ app.on('before-quit', () => {
  * Application lifecycle - Will quit
  */
 app.on('will-quit', (event) => {
-  console.log('[Main] App will quit');
+  logger.info('[Main] App will quit');
 
   // Prevent default quit to allow cleanup
   // event.preventDefault();
@@ -149,11 +150,11 @@ app.on('will-quit', (event) => {
  * Handle uncaught errors
  */
 process.on('uncaughtException', (error) => {
-  console.error('[Main] Uncaught exception:', error);
+  logger.error(`[Main] Uncaught exception: ${error}`);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('[Main] Unhandled rejection at:', promise, 'reason:', reason);
+  logger.error(`[Main] Unhandled rejection at: ${promise} reason: ${reason}`);
 });
 
 /**

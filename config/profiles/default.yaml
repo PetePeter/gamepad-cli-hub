@@ -7,7 +7,8 @@ cliTypes:
         - Clear
     B:
       action: voice
-      key: space
+      keys:
+        - space
       holdDuration: 3000
     X:
       action: keyboard
@@ -62,6 +63,11 @@ cliTypes:
       action: keyboard
       keys:
         - as asd
+  python:
+    A:
+      action: keyboard
+      keys:
+        - Enter
 global:
   Xbox:
     action: hub-focus
@@ -83,8 +89,3 @@ global:
   RightTrigger:
     action: spawn
     cliType: copilot-cli
-  Sandwich:
-    action: keyboard
-    keys:
-      - Ctrl
-      - w

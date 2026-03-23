@@ -28,3 +28,11 @@ cliTypes:
       args:
         - -w
         - "0"
+  python:
+    name: python
+    spawn:
+      command: wt
+      args:
+        - -w
+        - "0"
+        - python

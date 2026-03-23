@@ -2,7 +2,17 @@ import { EventEmitter } from 'events';
 import type { SessionInfo, SessionChangeEvent, SessionAddedEvent, SessionRemovedEvent } from '../types/session.js';
 
 /**
- * Manages CLI sessions, tracking active sessions and handling focus switching
+ * Manages CLI sessions, tracking active sessions and handling focus switching.
+ *
+ * ## Events
+ *
+ * SessionManager extends EventEmitter and emits the following events that
+ * external code can subscribe to:
+ *
+ * - `session:added`   (SessionAddedEvent)   — A new session was registered.
+ * - `session:removed` (SessionRemovedEvent)  — A session was removed.
+ * - `session:changed` (SessionChangeEvent)   — The active session changed
+ *                                              (including when cleared to null).
  */
 export class SessionManager extends EventEmitter {
   private sessions: Map<string, SessionInfo> = new Map();
