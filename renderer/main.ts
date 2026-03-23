@@ -243,24 +243,29 @@ async function initConfigCache(): Promise<void> {
 
 /**
  * Process a button press against config bindings.
- * Global bindings always fire. Per-CLI bindings fire when an active session exists.
+ * CLI-specific bindings take priority over global bindings.
+ * Global bindings fire only when no CLI binding matches.
  */
 function processConfigBinding(button: string): void {
   if (!window.gamepadCli) return;
 
+  // Check CLI-specific bindings first (higher priority)
+  if (state.activeSessionId) {
+    const activeSession = state.sessions.find(s => s.id === state.activeSessionId);
+    if (activeSession) {
+      const cliBindings = state.cliBindingsCache[activeSession.cliType];
+      const cliBinding = cliBindings?.[button];
+      if (cliBinding) {
+        executeCliBinding(button, cliBinding);
+        return; // CLI binding handled — skip global
+      }
+    }
+  }
+
+  // Fall through to global bindings
   const globalBinding = state.globalBindings?.[button];
   if (globalBinding) {
     executeGlobalBinding(button, globalBinding);
-  }
-
-  if (!state.activeSessionId) return;
-  const activeSession = state.sessions.find(s => s.id === state.activeSessionId);
-  if (!activeSession) return;
-
-  const cliBindings = state.cliBindingsCache[activeSession.cliType];
-  const cliBinding = cliBindings?.[button];
-  if (cliBinding) {
-    executeCliBinding(button, cliBinding);
   }
 }
 
@@ -268,18 +273,22 @@ async function executeGlobalBinding(button: string, binding: any): Promise<void>
   try {
     switch (binding.action) {
       case 'session-switch': {
-        const direction = binding.direction === 'next' ? 'next' : 'previous';
-        if (direction === 'next') {
+        if (binding.direction === 'next') {
           await window.gamepadCli.sessionNext();
         } else {
           await window.gamepadCli.sessionPrevious();
         }
-        logEvent(`Session: ${direction}`);
+        logEvent(`Session: ${binding.direction}`);
         await loadSessions();
         break;
       }
       case 'spawn': {
         await spawnNewSession(binding.cliType);
+        break;
+      }
+      case 'hub-focus': {
+        await window.gamepadCli.hubFocus();
+        logEvent('Action: hub-focus');
         break;
       }
       case 'list-sessions': {
@@ -474,10 +483,10 @@ function handleGamepadEvent(event: ButtonEvent): void {
 function handleSessionsScreenButton(button: string): boolean {
   switch (button) {
     case 'Up':
-      navigateFocus(-1);
+      navigateSessionItems(-1);
       return true;
     case 'Down':
-      navigateFocus(1);
+      navigateSessionItems(1);
       return true;
     case 'A':
       activateFocusedItem();
@@ -542,6 +551,25 @@ function handleStatusScreenButton(button: string): boolean {
       return true;
     default:
       return false;
+  }
+}
+
+/** Navigate only between session items and auto-focus the selected session's window */
+function navigateSessionItems(direction: number): void {
+  const items = Array.from(document.querySelectorAll<HTMLElement>('.session-item'));
+  if (items.length === 0) return;
+
+  const currentIndex = items.findIndex(el => el === document.activeElement);
+  let nextIndex = currentIndex + direction;
+
+  if (nextIndex < 0) nextIndex = items.length - 1;
+  if (nextIndex >= items.length) nextIndex = 0;
+
+  items[nextIndex].focus();
+
+  const sessionId = items[nextIndex].dataset?.sessionId;
+  if (sessionId) {
+    focusSession(sessionId);
   }
 }
 
@@ -977,23 +1005,21 @@ function renderBindingsDisplay(bindings: Record<string, any>, label: string): vo
     const actionType = binding.action || 'unknown';
     const details = formatBindingDetails(binding);
 
-    card.innerHTML = `
-      <div class="binding-card__header">
-        <span class="binding-card__button">${button}</span>
-        <span class="binding-card__action-badge">${actionType}</span>
-      </div>
-      <div class="binding-card__details">${details}</div>
-    `;
+    // Build header as flex row: button name | action badge | spacer | delete
+    const header = document.createElement('div');
+    header.className = 'binding-card__header';
 
-    // Click card to edit
-    card.style.cursor = 'pointer';
-    card.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).closest('.binding-card__delete')) return;
-      const cliType = state.settingsTab === 'global' ? null : state.settingsTab;
-      openBindingEditor(button, cliType, { ...binding });
-    });
+    const btnName = document.createElement('span');
+    btnName.className = 'binding-card__button';
+    btnName.textContent = button;
+    header.appendChild(btnName);
 
-    // Delete button
+    const badge = document.createElement('span');
+    badge.className = 'binding-card__action-badge';
+    badge.textContent = actionType;
+    header.appendChild(badge);
+
+    // Delete button — inline in the header row
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'binding-card__delete btn btn--danger btn--sm focusable';
     deleteBtn.tabIndex = 0;
@@ -1026,7 +1052,22 @@ function renderBindingsDisplay(bindings: Record<string, any>, label: string): vo
         console.error('Remove binding failed:', error);
       }
     });
-    card.querySelector('.binding-card__header')?.appendChild(deleteBtn);
+    header.appendChild(deleteBtn);
+
+    const detailsEl = document.createElement('div');
+    detailsEl.className = 'binding-card__details';
+    detailsEl.textContent = details;
+
+    card.appendChild(header);
+    card.appendChild(detailsEl);
+
+    // Click card to edit (but not on delete button)
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.binding-card__delete')) return;
+      const cliType = state.settingsTab === 'global' ? null : state.settingsTab;
+      openBindingEditor(button, cliType, { ...binding });
+    });
 
     container.appendChild(card);
   });
@@ -1108,6 +1149,8 @@ function formatBindingDetails(binding: any): string {
       return binding.holdDuration
         ? `voice hold ${binding.holdDuration}ms`
         : 'voice';
+    case 'hub-focus':
+      return 'bring hub to foreground';
     case 'list-sessions':
       return 'show sessions list';
     case 'profile-switch':
@@ -1187,6 +1230,8 @@ function getShortActionLabel(binding: any): string {
       return 'Voice';
     case 'voice':
       return 'Voice';
+    case 'hub-focus':
+      return 'Hub';
     case 'list-sessions':
       return 'Sessions';
     default:
@@ -1743,7 +1788,7 @@ function showEditDirectoryPrompt(dir: { name: string; path: string }, index: num
 // Binding Editor Modal
 // ============================================================================
 
-const ACTION_TYPES = ['keyboard', 'voice', 'openwhisper', 'session-switch', 'spawn', 'list-sessions', 'profile-switch'] as const;
+const ACTION_TYPES = ['keyboard', 'voice', 'openwhisper', 'session-switch', 'spawn', 'list-sessions', 'profile-switch', 'hub-focus'] as const;
 
 const ALL_BUTTONS = ['A', 'B', 'X', 'Y', 'Up', 'Down', 'Left', 'Right', 'LeftBumper', 'RightBumper', 'LeftTrigger', 'RightTrigger', 'LeftStick', 'RightStick', 'Start', 'Back', 'Guide'] as const;
 
@@ -1849,6 +1894,11 @@ function renderActionParams(form: HTMLElement, binding: any): void {
         <input type="text" value="No additional parameters" disabled />
       `, true));
       break;
+    case 'hub-focus':
+      form.appendChild(createEditorField('Parameters', `
+        <input type="text" value="No additional parameters" disabled />
+      `, true));
+      break;
     case 'profile-switch': {
       const profDirOptions = ['previous', 'next'].map(d =>
         `<option value="${d}" ${d === binding.direction ? 'selected' : ''}>${d}</option>`
@@ -1882,6 +1932,8 @@ function buildDefaultBinding(action: string): any {
       return { action: 'spawn', cliType: state.cliTypes[0] || 'generic-terminal' };
     case 'list-sessions':
       return { action: 'list-sessions' };
+    case 'hub-focus':
+      return { action: 'hub-focus' };
     case 'profile-switch':
       return { action: 'profile-switch', direction: 'next' };
     default:
@@ -1924,6 +1976,8 @@ function collectBindingFromForm(): any | null {
     }
     case 'list-sessions':
       return { action: 'list-sessions' };
+    case 'hub-focus':
+      return { action: 'hub-focus' };
     case 'profile-switch': {
       const profDirSelect = document.getElementById('bindingEditorDirection') as HTMLSelectElement;
       return { action: 'profile-switch', direction: profDirSelect?.value || 'next' };

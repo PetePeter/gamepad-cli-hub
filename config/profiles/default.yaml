@@ -1,22 +1,87 @@
-name: "Default"
+name: Default
 cliTypes:
   claude-code:
-    A: { action: "keyboard", keys: ["Clear"] }
-    B: { action: "openwhisper", recordingDuration: 5000 }
-    X: { action: "keyboard", keys: ["/","h","e","l","p","Enter"] }
-    Y: { action: "keyboard", keys: ["/","s","t","a","t","u","s","Enter"] }
+    A:
+      action: keyboard
+      keys:
+        - Clear
+    B:
+      action: openwhisper
+      recordingDuration: 5000
+    X:
+      action: keyboard
+      keys:
+        - /
+        - h
+        - e
+        - l
+        - p
+        - Enter
+    Y:
+      action: keyboard
+      keys:
+        - /
+        - s
+        - t
+        - a
+        - t
+        - u
+        - s
+        - Enter
   copilot-cli:
-    A: { action: "keyboard", keys: ["Clear"] }
-    B: { action: "keyboard", keys: ["Escape"] }
-    X: { action: "keyboard", keys: ["?","Enter"] }
-    Y: { action: "keyboard", keys: ["Ctrl","c"] }
+    A:
+      action: keyboard
+      keys:
+        - Clear
+    B:
+      action: keyboard
+      keys:
+        - Escape
+    X:
+      action: keyboard
+      keys:
+        - "?"
+        - Enter
+    Y:
+      action: keyboard
+      keys:
+        - Ctrl
+        - c
   generic-terminal:
-    A: { action: "keyboard", keys: ["Clear"] }
-    B: { action: "keyboard", keys: ["Ctrl","c"] }
+    A:
+      action: keyboard
+      keys:
+        - Clear
+    B:
+      action: keyboard
+      keys:
+        - Ctrl
+        - c
+    LeftBumper:
+      action: keyboard
+      keys:
+        - as asd
 global:
-  Up: { action: "session-switch", direction: "previous" }
-  Down: { action: "session-switch", direction: "next" }
-  LeftTrigger: { action: "spawn", cliType: "claude-code" }
-  RightBumper: { action: "spawn", cliType: "copilot-cli" }
-  Back: { action: "profile-switch", direction: "previous" }
-  Start: { action: "profile-switch", direction: "next" }
+  Guide:
+    action: hub-focus
+  Down:
+    action: session-switch
+    direction: next
+  LeftTrigger:
+    action: spawn
+    cliType: claude-code
+  Back:
+    action: profile-switch
+    direction: previous
+  Start:
+    action: profile-switch
+    direction: next
+  LeftBumper:
+    action: session-switch
+    direction: previous
+  RightBumper:
+    action: session-switch
+    direction: next
+  RightTrigger:
+    action: spawn
+    cliType: copilot-cli

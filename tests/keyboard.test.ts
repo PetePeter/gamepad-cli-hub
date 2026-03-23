@@ -9,14 +9,14 @@ import { KeyboardSimulator } from '../src/output/keyboard.js';
 vi.mock('@jitsi/robotjs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@jitsi/robotjs')>();
   return {
-    ...actual,
-    keyTap: vi.fn(() => true),
-    keyToggle: vi.fn(() => ({})),
-    typeString: vi.fn(),
+    default: {
+      ...actual,
+      keyTap: vi.fn(() => true),
+      keyToggle: vi.fn(() => ({})),
+      typeString: vi.fn(),
+    },
   };
 });
-
-import * as robot from '@jitsi/robotjs';
 
 describe('KeyboardSimulator', () => {
   let keyboard: KeyboardSimulator;

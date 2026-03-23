@@ -5,7 +5,7 @@
  * Supports individual keys, key sequences, combinations, and long-press.
  */
 
-import * as robot from '@jitsi/robotjs';
+import robot from '@jitsi/robotjs';
 
 /**
  * Common key name mappings for convenience.

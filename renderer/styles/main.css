@@ -614,8 +614,8 @@ kbd {
 
 .binding-card__header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 8px;
 }
 
 .binding-card__button {
@@ -986,18 +986,17 @@ kbd {
 }
 
 .binding-card__delete {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+  margin-left: auto;
   width: 24px;
   height: 24px;
   padding: 0;
   font-size: 12px;
-  line-height: 24px;
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   border-radius: 4px;
   opacity: 0.6;
-  z-index: 1;
+  flex-shrink: 0;
 }
 
 .binding-card__delete:hover,

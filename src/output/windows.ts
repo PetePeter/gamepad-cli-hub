@@ -218,7 +218,7 @@ export class WindowsWindowManager {
       return;
     }
 
-    this.scriptPath = join(tmpdir(), `gamepad-windows-${Date.now()}.ps1`);
+    this.scriptPath = join(tmpdir(), 'gamepad-windows.ps1');
     writeFileSync(this.scriptPath, WINDOW_PS1, 'utf-8');
   }
 
@@ -247,7 +247,7 @@ export class WindowsWindowManager {
     };
 
     return new Promise((resolve, reject) => {
-      const proc = spawn('powershell', powershellArgs, spawnOptions);
+      const proc = spawn('pwsh', powershellArgs, spawnOptions);
       let stdout = '';
       let stderr = '';
 
@@ -260,7 +260,7 @@ export class WindowsWindowManager {
       });
 
       proc.on('close', (code: number) => {
-        if (code === 0 && stdout) {
+        if (code === 0) {
           resolve(stdout.trim().split('\n').pop() || '');
         } else {
           reject(new Error(`PowerShell failed: ${stderr || 'unknown error'}`));

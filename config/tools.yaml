@@ -10,7 +10,7 @@ cliTypes:
       args:
         - -w
         - "0"
-        - cc
+        - claude
   copilot-cli:
     name: GitHub Copilot CLI
     spawn:
@@ -18,7 +18,8 @@ cliTypes:
       args:
         - -w
         - "0"
-        - gh
+        - cmd
+        - /k
         - copilot
   generic-terminal:
     name: Generic Terminal

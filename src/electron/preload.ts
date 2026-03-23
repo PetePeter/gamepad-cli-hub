@@ -140,6 +140,11 @@ const gamepadCliAPI = {
   focusWindow: (hwnd: string) => ipcRenderer.invoke('window:focus', hwnd),
 
   /**
+   * Bring the hub app window to foreground
+   */
+  hubFocus: () => ipcRenderer.invoke('hub:focus'),
+
+  /**
    * Find terminal windows
    */
   findTerminalWindows: () => ipcRenderer.invoke('window:findTerminals'),

@@ -74,6 +74,17 @@ function setupGamepadHandlers(): void {
 // Session Handlers
 // ============================================================================
 
+/**
+ * Helper: Get active session and focus its window
+ */
+async function getActiveAndFocus(): Promise<Session | null> {
+  const session = sessionManager.getActiveSession();
+  if (session?.windowHandle) {
+    await windowManager.focusWindow(session.windowHandle);
+  }
+  return session;
+}
+
 function setupSessionHandlers(): void {
   // Refresh sessions from existing terminal windows
   ipcMain.handle('session:refresh', async () => {
@@ -114,9 +125,9 @@ function setupSessionHandlers(): void {
     return sessionManager.getSession(id);
   });
 
-  ipcMain.handle('session:setActive', (_event, id: string) => {
+  ipcMain.handle('session:setActive', async (_event, id: string) => {
     sessionManager.setActiveSession(id);
-    return sessionManager.getActiveSession();
+    return getActiveAndFocus();
   });
 
   ipcMain.handle('session:getActive', () => {
@@ -139,14 +150,14 @@ function setupSessionHandlers(): void {
     return { success: true };
   });
 
-  ipcMain.handle('session:next', () => {
+  ipcMain.handle('session:next', async () => {
     sessionManager.nextSession();
-    return sessionManager.getActiveSession();
+    return getActiveAndFocus();
   });
 
-  ipcMain.handle('session:previous', () => {
+  ipcMain.handle('session:previous', async () => {
     sessionManager.previousSession();
-    return sessionManager.getActiveSession();
+    return getActiveAndFocus();
   });
 }
 
@@ -386,6 +397,16 @@ function setupWindowHandlers(): void {
 
   ipcMain.handle('window:findTerminals', async () => {
     return await windowManager.findTerminalWindows();
+  });
+
+  ipcMain.handle('hub:focus', () => {
+    const mainWindow = BrowserWindow.getAllWindows()[0];
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+      return { success: true };
+    }
+    return { success: false, error: 'No main window' };
   });
 }
 

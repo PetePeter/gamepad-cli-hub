@@ -6,9 +6,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock robotjs before importing the module - match actual API only
 vi.mock('@jitsi/robotjs', () => ({
-  keyTap: vi.fn(),
-  keyToggle: vi.fn(),
-  typeString: vi.fn(),
   default: {
     keyTap: vi.fn(),
     keyToggle: vi.fn(),
@@ -17,7 +14,7 @@ vi.mock('@jitsi/robotjs', () => ({
 }));
 
 import { KeyboardSimulator } from '../src/output/keyboard.js';
-import * as robot from '@jitsi/robotjs';
+import robot from '@jitsi/robotjs';
 
 describe('KeyboardSimulator - Happy Path', () => {
   let keyboard: KeyboardSimulator;

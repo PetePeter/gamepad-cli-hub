@@ -415,6 +415,7 @@ npm start</code></pre>
                     <li>Node.js 18+ installed</li>
                     <li>Xbox controller (wired or wireless)</li>
                     <li>Windows Terminal (recommended)</li>
+                    <li>PowerShell Core (pwsh) - included with Windows 11 and Windows 10 1709+</li>
                 </ul>
 
                 <h3>Installation Steps</h3>
@@ -427,14 +428,18 @@ cd gamepad-cli-hub</code></pre>
                         <pre><code>npm install</code></pre>
                     </li>
                     <li>Connect your Xbox controller</li>
-                    <li>Review and customize <code>config/bindings.yaml</code></li>
+                    <li>Review and customize configuration in <code>config/</code> (optional - defaults are provided)</li>
                     <li>Start the application:
                         <pre><code>npm start</code></pre>
                     </li>
                 </ol>
 
                 <h3>Xbox Controller Setup</h3>
-                <p>Your Xbox controller should work automatically once connected via USB or Xbox wireless adapter. The application uses the <code>gamepad</code> npm package for input detection.</p>
+                <p>Your Xbox controller should work automatically once connected via USB or Xbox wireless adapter. The application uses dual input detection methods:</p>
+                <ul>
+                    <li><strong>Browser Gamepad API</strong> - Primary detection method, works with Bluetooth controllers</li>
+                    <li><strong>PowerShell XInput</strong> - Fallback for wired/Xbox wireless adapter connections</li>
+                </ul>
 
                 <div class="callout callout-warning">
                     <div class="callout-title">⚠️ Controller Not Detected?</div>
@@ -483,7 +488,7 @@ cd gamepad-cli-hub</code></pre>
                         </tr>
                         <tr>
                             <td><code>session-switch</code></td>
-                            <td>Switch between active CLI sessions</td>
+                            <td>Switch between active CLI sessions (auto-focuses the window)</td>
                             <td><code>direction</code>: "previous" or "next"</td>
                         </tr>
                         <tr>
@@ -494,6 +499,16 @@ cd gamepad-cli-hub</code></pre>
                         <tr>
                             <td><code>list-sessions</code></td>
                             <td>Display all tracked sessions</td>
+                            <td>None</td>
+                        </tr>
+                        <tr>
+                            <td><code>profile-switch</code></td>
+                            <td>Switch to a different binding profile</td>
+                            <td><code>direction</code>: "previous" or "next"</td>
+                        </tr>
+                        <tr>
+                            <td><code>hub-focus</code></td>
+                            <td>Bring the hub window to foreground</td>
                             <td>None</td>
                         </tr>
                     </tbody>
@@ -514,6 +529,9 @@ cd gamepad-cli-hub</code></pre>
   <span class="code-attr">action:</span> <span class="code-value">"session-switch"</span>
   <span class="code-attr">direction:</span> <span class="code-value">"previous"</span></code></pre>
 
+                <h3>CLI-Specific vs Global Bindings</h3>
+                <p>When a button is pressed, the system first checks for a CLI-specific binding for the active session's CLI type. If none exists, the global binding is used. This means the same button can have different actions depending on which CLI session is active.</p>
+
                 <h3>Available Buttons</h3>
                 <table>
                     <thead>
@@ -529,6 +547,7 @@ cd gamepad-cli-hub</code></pre>
                         <tr><td><code>LeftStick</code>, <code>RightStick</code></td><td>Stick click buttons</td></tr>
                         <tr><td><code>Up</code>, <code>Down</code>, <code>Left</code>, <code>Right</code></td><td>D-Pad directions</td></tr>
                         <tr><td><code>Start</code>, <code>Back</code></td><td>Center buttons</td></tr>
+                        <tr><td><code>Guide</code></td><td>Xbox logo button (center)</td></tr>
                     </tbody>
                 </table>
 
@@ -905,7 +924,7 @@ cmake --build build --config Release</code></pre>
                 </ul>
 
                 <h4>4. session-switch</h4>
-                <p>Switches the active CLI session.</p>
+                <p>Switches the active CLI session and automatically brings the selected window to the foreground.</p>
                 <pre><code><span class="code-tag">Up:</span>
   <span class="code-attr">action:</span> <span class="code-value">"session-switch"</span>
   <span class="code-attr">direction:</span> <span class="code-value">"previous"</span>
@@ -934,6 +953,26 @@ cmake --build build --config Release</code></pre>
   <span class="code-attr">action:</span> <span class="code-value">"list-sessions"</span></code></pre>
                 <p><strong>Options:</strong> None</p>
 
+                <h4>7. profile-switch</h4>
+                <p>Switches to a different binding profile.</p>
+                <pre><code><span class="code-tag">Back:</span>
+  <span class="code-attr">action:</span> <span class="code-value">"profile-switch"</span>
+  <span class="code-attr">direction:</span> <span class="code-value">"previous"</span>
+
+<span class="code-tag">Start:</span>
+  <span class="code-attr">action:</span> <span class="code-value">"profile-switch"</span>
+  <span class="code-attr">direction:</span> <span class="code-value">"next"</span></code></pre>
+                <p><strong>Options:</strong></p>
+                <ul>
+                    <li><code>direction</code>: Either <code>"previous"</code> or <code>"next"</code></li>
+                </ul>
+
+                <h4>8. hub-focus</h4>
+                <p>Brings the hub window to the foreground (useful when you've switched focus to a CLI session).</p>
+                <pre><code><span class="code-tag">Guide:</span>
+  <span class="code-attr">action:</span> <span class="code-value">"hub-focus"</span></code></pre>
+                <p><strong>Options:</strong> None</p>
+
                 <h3>Default Global Bindings</h3>
                 <p>These are the default global bindings defined in the standard configuration:</p>
                 <table>
@@ -946,10 +985,18 @@ cmake --build build --config Release</code></pre>
                     <tbody>
                         <tr>
                             <td><span class="button-badge">Up</span></td>
-                            <td>Switch to previous session</td>
+                            <td>Switch to next session</td>
                         </tr>
                         <tr>
                             <td><span class="button-badge">Down</span></td>
+                            <td>Switch to next session</td>
+                        </tr>
+                        <tr>
+                            <td><span class="button-badge">LeftBumper</span></td>
+                            <td>Switch to previous session</td>
+                        </tr>
+                        <tr>
+                            <td><span class="button-badge">RightBumper</span></td>
                             <td>Switch to next session</td>
                         </tr>
                         <tr>
@@ -957,12 +1004,20 @@ cmake --build build --config Release</code></pre>
                             <td>Spawn new Claude Code instance</td>
                         </tr>
                         <tr>
-                            <td><span class="button-badge">RightBumper</span></td>
+                            <td><span class="button-badge">RightTrigger</span></td>
                             <td>Spawn new Copilot CLI instance</td>
                         </tr>
                         <tr>
+                            <td><span class="button-badge">Back</span></td>
+                            <td>Switch to previous profile</td>
+                        </tr>
+                        <tr>
                             <td><span class="button-badge">Start</span></td>
-                            <td>List all sessions</td>
+                            <td>Switch to next profile</td>
+                        </tr>
+                        <tr>
+                            <td><span class="button-badge">Guide</span></td>
+                            <td>Bring hub window to foreground</td>
                         </tr>
                     </tbody>
                 </table>
