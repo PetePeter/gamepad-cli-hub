@@ -992,6 +992,24 @@ function renderBindingsDisplay(bindings: Record<string, any>, label: string): vo
 
   container.innerHTML = '';
 
+  // Render "Add Binding" button into the action bar
+  const actionBar = document.getElementById('bindingActionBar');
+  if (actionBar) {
+    actionBar.innerHTML = '';
+    const mappedButtons = Object.keys(bindings);
+    const unmappedButtons = ALL_BUTTONS.filter(b => !mappedButtons.includes(b));
+    if (unmappedButtons.length > 0) {
+      const addBtn = document.createElement('button');
+      addBtn.className = 'btn btn--primary focusable';
+      addBtn.tabIndex = 0;
+      addBtn.textContent = '+ Add Binding';
+      addBtn.addEventListener('click', () => {
+        showAddBindingPicker(unmappedButtons);
+      });
+      actionBar.appendChild(addBtn);
+    }
+  }
+
   const entries = Object.entries(bindings);
   if (entries.length === 0) {
     container.innerHTML = '<p style="color: var(--text-dim);">No bindings configured</p>';
@@ -1072,25 +1090,57 @@ function renderBindingsDisplay(bindings: Record<string, any>, label: string): vo
     container.appendChild(card);
   });
 
-  // "Add Binding" button
-  const mappedButtons = Object.keys(bindings);
-  const unmappedButtons = ALL_BUTTONS.filter(b => !mappedButtons.includes(b));
+  // Show global bindings as reference on CLI-specific tabs
+  if (state.settingsTab !== 'global' && state.settingsTab !== 'profiles' 
+      && state.settingsTab !== 'tools' && state.settingsTab !== 'directories') {
+    const globalBindings = state.globalBindings || {};
+    const globalEntries = Object.entries(globalBindings);
+    if (globalEntries.length > 0) {
+      const divider = document.createElement('div');
+      divider.className = 'global-bindings-divider';
+      divider.textContent = 'Global Bindings (inherited)';
+      container.appendChild(divider);
 
-  if (unmappedButtons.length > 0) {
-    const addRow = document.createElement('div');
-    addRow.className = 'binding-add-row';
+      globalEntries.forEach(([button, binding]: [string, any]) => {
+        const isOverridden = bindings.hasOwnProperty(button);
+        const card = document.createElement('div');
+        card.className = 'binding-card binding-card--global';
+        if (isOverridden) card.classList.add('binding-card--overridden');
 
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn btn--primary focusable';
-    addBtn.tabIndex = 0;
-    addBtn.textContent = '+ Add Binding';
-    addBtn.addEventListener('click', () => {
-      showAddBindingPicker(unmappedButtons);
-    });
+        const actionType = binding.action || 'unknown';
+        const details = formatBindingDetails(binding);
 
-    addRow.appendChild(addBtn);
-    container.appendChild(addRow);
+        const header = document.createElement('div');
+        header.className = 'binding-card__header';
+
+        const btnName = document.createElement('span');
+        btnName.className = 'binding-card__button';
+        btnName.textContent = button;
+        header.appendChild(btnName);
+
+        const badge = document.createElement('span');
+        badge.className = 'binding-card__action-badge';
+        badge.textContent = actionType;
+        header.appendChild(badge);
+
+        if (isOverridden) {
+          const overrideTag = document.createElement('span');
+          overrideTag.className = 'binding-card__override-tag';
+          overrideTag.textContent = 'overridden';
+          header.appendChild(overrideTag);
+        }
+
+        const detailsEl = document.createElement('div');
+        detailsEl.className = 'binding-card__details';
+        detailsEl.textContent = details;
+
+        card.appendChild(header);
+        card.appendChild(detailsEl);
+        container.appendChild(card);
+      });
+    }
   }
+
 }
 
 function showAddBindingPicker(unmappedButtons: string[]): void {
@@ -1254,7 +1304,8 @@ function getButtonSymbol(button: string): string {
     'LeftBumper': 'LB',
     'RightBumper': 'RB',
     'Back': '⊲',
-    'Start': '⊳',
+    'Sandwich': '☰',
+    'Xbox': 'ⓧ',
   };
   return symbols[button] || button;
 }
@@ -1266,6 +1317,9 @@ function getButtonSymbol(button: string): string {
 async function renderProfilesPanel(): Promise<void> {
   const container = document.getElementById('bindingsDisplay');
   if (!container || !window.gamepadCli) return;
+
+  const actionBar = document.getElementById('bindingActionBar');
+  if (actionBar) actionBar.innerHTML = '';
 
   container.innerHTML = '';
 
@@ -1358,27 +1412,114 @@ async function renderProfilesPanel(): Promise<void> {
   container.appendChild(panel);
 }
 
-function showCreateProfilePrompt(existingProfiles: string[]): void {
-  const name = prompt('New profile name:');
-  if (!name || !name.trim()) return;
+interface FormField {
+  key: string;
+  label: string;
+  defaultValue?: string;
+  placeholder?: string;
+  type?: 'text' | 'select';
+  options?: string[];
+}
 
-  const slug = name.trim();
-  const copyFrom = prompt(`Copy bindings from existing profile? (${existingProfiles.join(', ')}) — leave blank for empty:`);
-
-  (async () => {
-    try {
-      const result = await window.gamepadCli.profileCreate(slug, copyFrom?.trim() || undefined);
-      if (result.success) {
-        logEvent(`Created profile: ${slug}`);
-        loadSettingsScreen();
-      } else {
-        logEvent('Profile creation failed');
-      }
-    } catch (error) {
-      console.error('Failed to create profile:', error);
-      logEvent(`Profile create error: ${error}`);
+function showFormModal(title: string, fields: FormField[]): Promise<Record<string, string> | null> {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('formModal');
+    const titleEl = document.getElementById('formModalTitle');
+    const fieldsEl = document.getElementById('formModalFields');
+    const saveBtn = document.getElementById('formModalSaveBtn');
+    const cancelBtn = document.getElementById('formModalCancelBtn');
+    if (!modal || !titleEl || !fieldsEl || !saveBtn || !cancelBtn) {
+      resolve(null);
+      return;
     }
-  })();
+
+    titleEl.textContent = title;
+    fieldsEl.innerHTML = '';
+
+    fields.forEach(field => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'binding-editor-field';
+      const label = document.createElement('label');
+      label.textContent = field.label;
+      wrapper.appendChild(label);
+
+      if (field.type === 'select' && field.options) {
+        const select = document.createElement('select');
+        select.id = `formField_${field.key}`;
+        field.options.forEach(opt => {
+          const option = document.createElement('option');
+          option.value = opt;
+          option.textContent = opt;
+          if (opt === field.defaultValue) option.selected = true;
+          select.appendChild(option);
+        });
+        wrapper.appendChild(select);
+      } else {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = `formField_${field.key}`;
+        input.value = field.defaultValue || '';
+        if (field.placeholder) input.placeholder = field.placeholder;
+        wrapper.appendChild(input);
+      }
+
+      fieldsEl.appendChild(wrapper);
+    });
+
+    modal.classList.add('modal--visible');
+    modal.setAttribute('aria-hidden', 'false');
+
+    // Focus first input
+    const firstInput = fieldsEl.querySelector('input, select') as HTMLElement;
+    if (firstInput) firstInput.focus();
+
+    function cleanup() {
+      modal.classList.remove('modal--visible');
+      modal.setAttribute('aria-hidden', 'true');
+      saveBtn.removeEventListener('click', onSave);
+      cancelBtn.removeEventListener('click', onCancel);
+    }
+
+    function onSave() {
+      const result: Record<string, string> = {};
+      fields.forEach(field => {
+        const el = document.getElementById(`formField_${field.key}`) as HTMLInputElement | HTMLSelectElement;
+        result[field.key] = el?.value?.trim() || '';
+      });
+      cleanup();
+      resolve(result);
+    }
+
+    function onCancel() {
+      cleanup();
+      resolve(null);
+    }
+
+    saveBtn.addEventListener('click', onSave);
+    cancelBtn.addEventListener('click', onCancel);
+  });
+}
+
+async function showCreateProfilePrompt(existingProfiles: string[]): Promise<void> {
+  const result = await showFormModal('Create Profile', [
+    { key: 'name', label: 'Profile Name', placeholder: 'e.g. my-profile' },
+    { key: 'copyFrom', label: `Copy from (${existingProfiles.join(', ')}) — leave blank for empty`, placeholder: 'optional' },
+  ]);
+
+  if (!result || !result.name) return;
+
+  try {
+    const createResult = await window.gamepadCli.profileCreate(result.name, result.copyFrom || undefined);
+    if (createResult.success) {
+      logEvent(`Created profile: ${result.name}`);
+      loadSettingsScreen();
+    } else {
+      logEvent('Profile creation failed');
+    }
+  } catch (error) {
+    console.error('Failed to create profile:', error);
+    logEvent(`Profile create error: ${error}`);
+  }
 }
 
 // ============================================================================
@@ -1388,6 +1529,9 @@ function showCreateProfilePrompt(existingProfiles: string[]): void {
 async function renderToolsPanel(): Promise<void> {
   const container = document.getElementById('bindingsDisplay');
   if (!container || !window.gamepadCli) return;
+
+  const actionBar = document.getElementById('bindingActionBar');
+  if (actionBar) actionBar.innerHTML = '';
 
   container.innerHTML = '';
 
@@ -1441,6 +1585,68 @@ async function renderToolsPanel(): Promise<void> {
     `;
     panel.appendChild(owCard);
   }
+
+  // Game Bar toggle
+  const systemCard = document.createElement('div');
+  systemCard.className = 'settings-panel';
+  systemCard.style.marginTop = 'var(--spacing-lg)';
+
+  const systemHeader = document.createElement('div');
+  systemHeader.className = 'settings-panel__header';
+  systemHeader.innerHTML = `<span class="settings-panel__title">System</span>`;
+  systemCard.appendChild(systemHeader);
+
+  const gameBarRow = document.createElement('div');
+  gameBarRow.className = 'settings-list-item';
+  gameBarRow.style.display = 'flex';
+  gameBarRow.style.justifyContent = 'space-between';
+  gameBarRow.style.alignItems = 'center';
+
+  const gameBarLabel = document.createElement('div');
+  gameBarLabel.innerHTML = `
+    <div style="font-weight: 500;">Xbox Game Bar</div>
+    <div style="font-size: var(--font-size-sm); color: var(--text-dim);">
+      Disable to free the Guide button for gamepad use
+    </div>
+  `;
+  gameBarRow.appendChild(gameBarLabel);
+
+  const gameBarBtn = document.createElement('button');
+  gameBarBtn.className = 'btn btn--sm focusable';
+  gameBarBtn.tabIndex = 0;
+  gameBarBtn.textContent = 'Loading...';
+  gameBarBtn.disabled = true;
+  gameBarRow.appendChild(gameBarBtn);
+  systemCard.appendChild(gameBarRow);
+
+  // Fetch current state
+  (async () => {
+    try {
+      const enabled = await window.gamepadCli.systemGetGameBarEnabled();
+      if (enabled === null) {
+        gameBarBtn.textContent = 'Unknown';
+        return;
+      }
+      gameBarBtn.disabled = false;
+      gameBarBtn.textContent = enabled ? 'Enabled' : 'Disabled';
+      gameBarBtn.classList.add(enabled ? 'btn--danger' : 'btn--success');
+      gameBarBtn.addEventListener('click', async () => {
+        gameBarBtn.disabled = true;
+        gameBarBtn.textContent = 'Updating...';
+        const result = await window.gamepadCli.systemSetGameBarEnabled(!enabled);
+        if (result.success) {
+          loadSettingsScreen();
+        } else {
+          gameBarBtn.textContent = 'Error';
+          gameBarBtn.disabled = false;
+        }
+      });
+    } catch {
+      gameBarBtn.textContent = 'Error';
+    }
+  })();
+
+  panel.appendChild(systemCard);
 
   container.appendChild(panel);
 }
@@ -1583,31 +1789,30 @@ function showAddCliTypeForm(panel: HTMLElement): void {
   (document.getElementById('newCliKey') as HTMLInputElement)?.focus();
 }
 
-function showEditCliTypeForm(key: string, value: any): void {
+async function showEditCliTypeForm(key: string, value: any): Promise<void> {
   const spawn = value.spawn || {};
   const argsStr = Array.isArray(spawn.args) ? spawn.args.join(', ') : '';
 
-  const name = prompt('Name:', value.name || key);
-  if (name === null) return;
-  const command = prompt('Command:', spawn.command || '');
-  if (command === null) return;
-  const argsInput = prompt('Args (comma-separated):', argsStr);
-  if (argsInput === null) return;
+  const result = await showFormModal(`Edit CLI Type: ${key}`, [
+    { key: 'name', label: 'Name', defaultValue: value.name || key },
+    { key: 'command', label: 'Command', defaultValue: spawn.command || '' },
+    { key: 'args', label: 'Args (comma-separated)', defaultValue: argsStr },
+  ]);
 
-  const args = argsInput ? argsInput.split(',').map(a => a.trim()).filter(Boolean) : [];
+  if (!result) return;
 
-  (async () => {
-    const result = await window.gamepadCli.toolsUpdateCliType(key, name.trim(), command.trim(), args);
-    if (result.success) {
-      logEvent(`Updated CLI type: ${key}`);
-      state.cliTypes = await window.gamepadCli.configGetCliTypes();
-      state.availableSpawnTypes = state.cliTypes;
-      renderSpawnButtons();
-      loadSettingsScreen();
-    } else {
-      logEvent('Failed to update CLI type');
-    }
-  })();
+  const args = result.args ? result.args.split(',').map(a => a.trim()).filter(Boolean) : [];
+
+  const updateResult = await window.gamepadCli.toolsUpdateCliType(key, result.name, result.command, args);
+  if (updateResult.success) {
+    logEvent(`Updated CLI type: ${key}`);
+    state.cliTypes = await window.gamepadCli.configGetCliTypes();
+    state.availableSpawnTypes = state.cliTypes;
+    renderSpawnButtons();
+    loadSettingsScreen();
+  } else {
+    logEvent('Failed to update CLI type');
+  }
 }
 
 // ============================================================================
@@ -1617,6 +1822,9 @@ function showEditCliTypeForm(key: string, value: any): void {
 async function renderDirectoriesPanel(): Promise<void> {
   const container = document.getElementById('bindingsDisplay');
   if (!container || !window.gamepadCli) return;
+
+  const actionBar = document.getElementById('bindingActionBar');
+  if (actionBar) actionBar.innerHTML = '';
 
   container.innerHTML = '';
 
@@ -1767,21 +1975,21 @@ function showAddDirectoryForm(panel: HTMLElement): void {
   (document.getElementById('newDirName') as HTMLInputElement)?.focus();
 }
 
-function showEditDirectoryPrompt(dir: { name: string; path: string }, index: number): void {
-  const name = prompt('Name:', dir.name);
-  if (name === null) return;
-  const dirPath = prompt('Path:', dir.path);
-  if (dirPath === null) return;
+async function showEditDirectoryPrompt(dir: { name: string; path: string }, index: number): Promise<void> {
+  const result = await showFormModal('Edit Directory', [
+    { key: 'name', label: 'Name', defaultValue: dir.name },
+    { key: 'path', label: 'Path', defaultValue: dir.path },
+  ]);
 
-  (async () => {
-    const result = await window.gamepadCli.configUpdateWorkingDir(index, name.trim(), dirPath.trim());
-    if (result.success) {
-      logEvent(`Updated directory: ${name.trim()}`);
-      loadSettingsScreen();
-    } else {
-      logEvent('Failed to update directory');
-    }
-  })();
+  if (!result) return;
+
+  const updateResult = await window.gamepadCli.configUpdateWorkingDir(index, result.name, result.path);
+  if (updateResult.success) {
+    logEvent(`Updated directory: ${result.name}`);
+    loadSettingsScreen();
+  } else {
+    logEvent('Failed to update directory');
+  }
 }
 
 // ============================================================================
@@ -1790,7 +1998,7 @@ function showEditDirectoryPrompt(dir: { name: string; path: string }, index: num
 
 const ACTION_TYPES = ['keyboard', 'voice', 'openwhisper', 'session-switch', 'spawn', 'list-sessions', 'profile-switch', 'hub-focus'] as const;
 
-const ALL_BUTTONS = ['A', 'B', 'X', 'Y', 'Up', 'Down', 'Left', 'Right', 'LeftBumper', 'RightBumper', 'LeftTrigger', 'RightTrigger', 'LeftStick', 'RightStick', 'Start', 'Back', 'Guide'] as const;
+const ALL_BUTTONS = ['A', 'B', 'X', 'Y', 'Up', 'Down', 'Left', 'Right', 'LeftBumper', 'RightBumper', 'LeftTrigger', 'RightTrigger', 'LeftStick', 'RightStick', 'Sandwich', 'Back', 'Xbox'] as const;
 
 function openBindingEditor(button: string, cliType: string | null, binding: any): void {
   state.editingBinding = { button, cliType, binding: { ...binding } };
@@ -1850,9 +2058,42 @@ function renderBindingEditorForm(): void {
 function renderActionParams(form: HTMLElement, binding: any): void {
   switch (binding.action) {
     case 'keyboard': {
-      const keysValue = Array.isArray(binding.keys) ? binding.keys.join(',') : '';
+      const allKeys = Array.isArray(binding.keys) ? [...binding.keys] : [];
+      const modifiers = ['Ctrl', 'Alt', 'Shift'];
+      const activeModifiers = allKeys.filter(k => modifiers.includes(k));
+      const nonModifierKeys = allKeys.filter(k => !modifiers.includes(k));
+      const keysValue = nonModifierKeys.join(',');
+
+      // Modifier toggles
+      const modField = document.createElement('div');
+      modField.className = 'binding-editor-field';
+      const modLabel = document.createElement('label');
+      modLabel.textContent = 'Modifiers';
+      modField.appendChild(modLabel);
+
+      const modRow = document.createElement('div');
+      modRow.className = 'modifier-toggles';
+
+      modifiers.forEach(mod => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn--sm modifier-toggle focusable';
+        if (activeModifiers.includes(mod)) btn.classList.add('modifier-toggle--active');
+        btn.textContent = mod;
+        btn.tabIndex = 0;
+        btn.dataset.modifier = mod;
+        btn.addEventListener('click', () => {
+          btn.classList.toggle('modifier-toggle--active');
+        });
+        modRow.appendChild(btn);
+      });
+
+      modField.appendChild(modRow);
+      form.appendChild(modField);
+
+      // Keys input (non-modifier keys only)
       form.appendChild(createEditorField('Keys (comma-separated)', `
-        <input type="text" id="bindingEditorKeys" value="${keysValue}" placeholder="e.g. Clear or Ctrl,c" />
+        <input type="text" id="bindingEditorKeys" value="${keysValue}" placeholder="e.g. c, w, F4, Clear" />
       `));
       break;
     }
@@ -1953,7 +2194,17 @@ function collectBindingFromForm(): any | null {
     case 'keyboard': {
       const keysInput = document.getElementById('bindingEditorKeys') as HTMLInputElement;
       const keysStr = keysInput?.value?.trim() || '';
-      const keys = keysStr ? keysStr.split(',').map(k => k.trim()).filter(Boolean) : [];
+      const baseKeys = keysStr ? keysStr.split(',').map(k => k.trim()).filter(Boolean) : [];
+      
+      // Collect active modifiers
+      const activeModBtns = document.querySelectorAll('.modifier-toggle--active');
+      const mods: string[] = [];
+      activeModBtns.forEach(btn => {
+        const mod = (btn as HTMLElement).dataset.modifier;
+        if (mod) mods.push(mod);
+      });
+      
+      const keys = [...mods, ...baseKeys];
       return { action: 'keyboard', keys };
     }
     case 'voice': {

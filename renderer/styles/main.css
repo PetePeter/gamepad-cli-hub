@@ -589,6 +589,15 @@ kbd {
   margin-bottom: -2px;
 }
 
+.binding-action-bar {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.binding-action-bar:empty {
+  display: none;
+}
+
 /* Bindings Display */
 .bindings-display {
   display: grid;
@@ -767,6 +776,29 @@ kbd {
   cursor: not-allowed;
 }
 
+.modifier-toggles {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.modifier-toggle {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.modifier-toggle--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.modifier-toggle:hover {
+  border-color: var(--accent);
+}
+
 .modal-footer {
   padding: var(--spacing-md) var(--spacing-lg);
   border-top: 1px solid var(--border);
@@ -811,6 +843,16 @@ kbd {
   color: #999;
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.btn--success {
+  background: #33aa55;
+  color: white;
+}
+
+.btn--success:hover,
+.btn--success:focus {
+  background: #44bb66;
 }
 
 /* Settings Panel Styles */
@@ -1004,10 +1046,36 @@ kbd {
   opacity: 1;
 }
 
-.binding-add-row {
-  margin-top: 12px;
-  text-align: center;
+.global-bindings-divider {
+  grid-column: 1 / -1;
+  padding: var(--spacing-sm) 0;
+  margin-top: var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-dim);
+  border-top: 1px solid var(--border);
+  font-weight: 500;
 }
+
+.binding-card--global {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.binding-card--overridden {
+  opacity: 0.3;
+  text-decoration: line-through;
+}
+
+.binding-card__override-tag {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--accent);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+
 
 .binding-picker {
   margin-top: 12px;

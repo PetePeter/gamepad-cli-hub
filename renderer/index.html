@@ -62,6 +62,9 @@
             <div class="settings-tabs" id="settingsTabs" role="tablist">
               <!-- tabs rendered by JS -->
             </div>
+            <div class="binding-action-bar" id="bindingActionBar">
+              <!-- Add Binding button rendered by JS -->
+            </div>
             <div class="bindings-display" id="bindingsDisplay">
               <!-- bindings rendered by JS -->
             </div>
@@ -115,13 +118,29 @@
         <div class="modal">
           <div class="modal-header">
             <h3 class="modal-title" id="bindingEditorTitle">Edit Binding</h3>
-            <button class="btn btn--secondary btn--sm" id="bindingEditorCancelBtn">Cancel (B)</button>
           </div>
           <div class="binding-editor-form" id="bindingEditorForm">
             <!-- Form fields rendered by JS -->
           </div>
           <div class="modal-footer">
+            <button class="btn btn--secondary" id="bindingEditorCancelBtn">Cancel (B)</button>
             <button class="btn btn--primary" id="bindingEditorSaveBtn">Save (A)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Generic Form Modal -->
+      <div class="modal-overlay" id="formModal" aria-hidden="true" role="dialog" aria-label="Form">
+        <div class="modal">
+          <div class="modal-header">
+            <h3 class="modal-title" id="formModalTitle">Form</h3>
+          </div>
+          <div class="binding-editor-form" id="formModalFields">
+            <!-- Fields rendered by JS -->
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn--secondary" id="formModalCancelBtn">Cancel</button>
+            <button class="btn btn--primary" id="formModalSaveBtn">OK</button>
           </div>
         </div>
       </div>

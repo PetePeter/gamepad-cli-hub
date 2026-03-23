@@ -279,4 +279,46 @@ describe('GamepadInput', () => {
       expect(() => gamepad.setDebounceTime(250)).not.toThrow();
     });
   });
+
+  describe('button naming', () => {
+    it('XInput script maps Sandwich instead of Start', () => {
+      // Start the gamepad to trigger script creation
+      gamepad.start();
+
+      // Get the PowerShell script content that was written
+      const writeCall = (fs.writeFileSync as any).mock.calls[0];
+      const scriptContent = writeCall[1] as string;
+
+      expect(scriptContent).toContain("'Sandwich' = 0x0010");
+      expect(scriptContent).not.toContain("'Start' = 0x0010");
+    });
+
+    it('XInput script does not contain Guide button mapping', () => {
+      gamepad.start();
+
+      const writeCall = (fs.writeFileSync as any).mock.calls[0];
+      const scriptContent = writeCall[1] as string;
+
+      // Guide/Xbox is not in XInput button map (detected differently)
+      expect(scriptContent).not.toContain("'Guide'");
+      expect(scriptContent).not.toContain("'Start'");
+    });
+
+    it('ButtonName type includes Xbox and Sandwich', () => {
+      // This test validates that the ButtonPressEvent can carry the renamed buttons
+      const event: ButtonPressEvent = {
+        button: 'Sandwich',
+        gamepadIndex: 0,
+        timestamp: Date.now(),
+      };
+      expect(event.button).toBe('Sandwich');
+
+      const event2: ButtonPressEvent = {
+        button: 'Xbox',
+        gamepadIndex: 0,
+        timestamp: Date.now(),
+      };
+      expect(event2.button).toBe('Xbox');
+    });
+  });
 });

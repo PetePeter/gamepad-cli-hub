@@ -459,4 +459,58 @@ describe('ConfigLoader', () => {
       expect(() => loader.removeCliType('nope')).toThrow('CLI type not found: nope');
     });
   });
+
+  // =========================================================================
+  // Button naming in bindings (renamed buttons: Guide→Xbox, Start→Sandwich)
+  // =========================================================================
+
+  describe('button naming in bindings', () => {
+    it('loads bindings with Sandwich button name', () => {
+      const profileWithSandwich = {
+        name: 'Test',
+        cliTypes: {
+          'claude-code': {
+            Sandwich: { action: 'profile-switch', direction: 'next' },
+          },
+        },
+        global: {
+          Xbox: { action: 'hub-focus' },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithSandwich);
+      loader.load();
+
+      const bindings = loader.getBindings('claude-code');
+      expect(bindings).toHaveProperty('Sandwich');
+      expect(bindings!['Sandwich']).toEqual({ action: 'profile-switch', direction: 'next' });
+    });
+
+    it('loads global bindings with Xbox button name', () => {
+      const profileWithXbox = {
+        name: 'Test',
+        cliTypes: {},
+        global: {
+          Xbox: { action: 'hub-focus' },
+          Back: { action: 'profile-switch', direction: 'previous' },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithXbox);
+      loader.load();
+
+      const global = loader.getGlobalBindings();
+      expect(global).toHaveProperty('Xbox');
+      expect(global['Xbox']).toEqual({ action: 'hub-focus' });
+    });
+
+    it('persists renamed button bindings through setBinding', () => {
+      loader.load();
+      loader.setBinding('Sandwich', 'claude-code', { action: 'keyboard', keys: ['Ctrl', 'w'] });
+
+      // Re-load and verify
+      loader.load();
+      const bindings = loader.getBindings('claude-code');
+      expect(bindings).toHaveProperty('Sandwich');
+      expect(bindings!['Sandwich']).toEqual({ action: 'keyboard', keys: ['Ctrl', 'w'] });
+    });
+  });
 });

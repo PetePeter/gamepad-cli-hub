@@ -19,8 +19,8 @@ export type ButtonName =
   | 'LeftBumper' | 'RightBumper'
   | 'LeftTrigger' | 'RightTrigger'
   | 'LeftStick' | 'RightStick'
-  | 'Start' | 'Back'
-  | 'Guide';
+  | 'Sandwich' | 'Back'
+  | 'Xbox';
 
 /**
  * Button press event data
@@ -112,7 +112,7 @@ while ($true) {
             'Down' = 0x0002
             'Left' = 0x0004
             'Right' = 0x0008
-            'Start' = 0x0010
+            'Sandwich' = 0x0010
             'Back' = 0x0020
             'LeftStick' = 0x0040
             'RightStick' = 0x0080
@@ -207,7 +207,7 @@ export class GamepadInput {
   private connectedCount: number = 0;
   private wasConnected: boolean = false;
 
-  constructor(debounceMs: number = 350) {
+  constructor(debounceMs: number = 600) {
     this.debounceMs = debounceMs;
     this.pollFrequencyMs = 16;
   }

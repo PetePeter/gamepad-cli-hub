@@ -210,6 +210,13 @@ const gamepadCliAPI = {
   keyboardLongPress: (key: string, duration: number) => ipcRenderer.invoke('keyboard:longPress', key, duration),
 
   // ========================================================================
+  // System
+  // ========================================================================
+
+  systemGetGameBarEnabled: () => ipcRenderer.invoke('system:getGameBarEnabled'),
+  systemSetGameBarEnabled: (enabled: boolean) => ipcRenderer.invoke('system:setGameBarEnabled', enabled),
+
+  // ========================================================================
   // App Control
   // ========================================================================
 

@@ -18,7 +18,7 @@ class BrowserGamepadPoller {
   private pollMs = 16; // ~60fps
   private buttonStates: Map<number, boolean[]> = new Map();
   private lastPressTime: Map<string, number> = new Map();
-  private debounceMs = 350;
+  private debounceMs = 600;
   private callbacks: Set<ButtonCallback> = new Set();
   private connectedCount = 0;
   private eventsSetup = false;
@@ -142,7 +142,7 @@ class BrowserGamepadPoller {
       { button: 6, threshold: 0.5 },  // 6: LeftTrigger (analog)
       { button: 7, threshold: 0.5 },  // 7: RightTrigger (analog)
       8,                          // 8: Back/Select
-      9,                          // 9: Start
+      9,                          // 9: Sandwich
       10,                         // 10: LeftStick press
       11,                         // 11: RightStick press
     ];
@@ -151,7 +151,7 @@ class BrowserGamepadPoller {
       'A', 'B', 'X', 'Y',
       'LeftBumper', 'RightBumper',
       'LeftTrigger', 'RightTrigger',
-      'Back', 'Start',
+      'Back', 'Sandwich',
       'LeftStick', 'RightStick',
     ];
 

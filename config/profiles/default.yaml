@@ -62,7 +62,7 @@ cliTypes:
       keys:
         - as asd
 global:
-  Guide:
+  Xbox:
     action: hub-focus
   Down:
     action: session-switch
@@ -73,7 +73,7 @@ global:
   Back:
     action: profile-switch
     direction: previous
-  Start:
+  Sandwich:
     action: profile-switch
     direction: next
   LeftBumper:
