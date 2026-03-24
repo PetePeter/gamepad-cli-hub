@@ -175,15 +175,46 @@
     </footer>
   </div>
 
-  <!-- Session HUD Overlay (Sandwich/Xbox button) -->
-  <div class="modal-overlay hud-overlay" id="sessionHudOverlay" aria-hidden="true" role="dialog" aria-label="Session switcher">
+  <!-- Session Launcher HUD (Sandwich/Xbox button) -->
+  <div class="modal-overlay hud-overlay" id="sessionHudOverlay" aria-hidden="true" role="dialog" aria-label="Session Launcher">
     <div class="hud-panel">
       <div class="hud-header">
-        <span class="hud-title">Sessions</span>
-        <span class="hud-hint">D-Pad ↕ navigate · A select · B dismiss</span>
+        <span class="hud-title">Session Launcher</span>
       </div>
-      <div class="hud-session-list" id="hudSessionList" role="listbox">
-        <!-- Sessions rendered dynamically -->
+
+      <!-- Top: Existing Sessions -->
+      <div class="hud-section hud-section--sessions" id="hudSectionSessions">
+        <div class="hud-section-label">Existing Sessions</div>
+        <div class="hud-list" id="hudSessionList" role="listbox"></div>
+      </div>
+
+      <!-- Bottom: CLI Types + Directories side by side -->
+      <div class="hud-bottom-row">
+        <div class="hud-section hud-section--cli" id="hudSectionCli">
+          <div class="hud-section-label">New Session — CLI Type</div>
+          <div class="hud-list" id="hudCliList" role="listbox"></div>
+        </div>
+        <div class="hud-section hud-section--dir" id="hudSectionDir">
+          <div class="hud-section-label">Directory</div>
+          <div class="hud-list" id="hudDirList" role="listbox"></div>
+        </div>
+      </div>
+
+      <!-- Confirmation dialog (hidden by default) -->
+      <div class="hud-confirm" id="hudConfirm" style="display:none;">
+        <div class="hud-confirm-text" id="hudConfirmText"></div>
+        <div class="hud-confirm-actions">
+          <span class="hud-btn-hint"><kbd>A</kbd> Confirm</span>
+          <span class="hud-btn-hint"><kbd>B</kbd> Back</span>
+        </div>
+      </div>
+
+      <!-- Button legend -->
+      <div class="hud-footer">
+        <span class="hud-btn-hint"><kbd>A</kbd> Select</span>
+        <span class="hud-btn-hint"><kbd>B</kbd> Back</span>
+        <span class="hud-btn-hint"><kbd>X</kbd> Delete</span>
+        <span class="hud-btn-hint"><kbd>Y</kbd> Refresh</span>
       </div>
     </div>
   </div>

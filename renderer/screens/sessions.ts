@@ -205,12 +205,6 @@ export function renderSpawnButtons(): void {
 
 export function handleSessionsScreenButton(button: string): boolean {
   switch (button) {
-    case 'Up':
-      navigateSessionItems(-1);
-      return true;
-    case 'Down':
-      navigateSessionItems(1);
-      return true;
     case 'A':
       activateFocusedItem();
       return true;

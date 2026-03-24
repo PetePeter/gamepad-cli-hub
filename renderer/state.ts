@@ -39,7 +39,14 @@ export interface AppState {
   bindingEditorFocusIndex: number;
   activeProfile: string;
   hudVisible: boolean;
-  hudFocusIndex: number;
+  hudSessionsFocusIndex: number;
+  hudActivePanel: 'sessions' | 'cli' | 'directory' | 'confirm';
+  hudCliFocusIndex: number;
+  hudDirFocusIndex: number;
+  hudSelectedCliType: string | null;
+  hudSelectedDirectory: { name: string; path: string } | null;
+  hudCliTypes: string[];
+  hudDirectories: Array<{ name: string; path: string }>;
 }
 
 export const state: AppState = {
@@ -63,5 +70,12 @@ export const state: AppState = {
   bindingEditorFocusIndex: 0,
   activeProfile: 'default',
   hudVisible: false,
-  hudFocusIndex: 0,
+  hudSessionsFocusIndex: 0,
+  hudActivePanel: 'sessions',
+  hudCliFocusIndex: 0,
+  hudDirFocusIndex: 0,
+  hudSelectedCliType: null,
+  hudSelectedDirectory: null,
+  hudCliTypes: [],
+  hudDirectories: [],
 };

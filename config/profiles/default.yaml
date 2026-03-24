@@ -71,24 +71,12 @@ cliTypes:
 global:
   Xbox:
     action: hub-focus
-  Down:
-    action: session-switch
-    direction: next
-  LeftTrigger:
-    action: spawn
-    cliType: claude-code
   Back:
     action: profile-switch
     direction: previous
-  LeftBumper:
-    action: session-switch
-    direction: previous
-  RightBumper:
-    action: session-switch
+  Start:
+    action: profile-switch
     direction: next
-  RightTrigger:
-    action: spawn
-    cliType: copilot-cli
 sticks:
   left:
     mode: cursor

@@ -19,7 +19,7 @@ graph TB
     subgraph "Electron App"
         subgraph "Renderer Process"
             UI[UI Screens<br/>Sessions / Settings / Status]
-            HUD[HUD Overlay<br/>Session quick-switch]
+            HUD[Session Launcher HUD<br/>3-panel session management]
             BGA[Browser Gamepad API<br/>Bluetooth controllers]
         end
 
@@ -88,17 +88,17 @@ flowchart LR
 
 | Input | Action |
 |-------|--------|
-| D-Pad Up/Down | Switch between active CLI sessions |
+| Sandwich | Open Session Launcher (switch/spawn/delete sessions) |
+| D-Pad / Left Stick | Navigate within Session Launcher panels |
+| A (in launcher) | Select / Confirm |
+| B (in launcher) | Back / Cancel |
+| X (in launcher) | Delete session |
+| Y (in launcher) | Refresh |
+| A/B/X/Y (outside launcher) | Per-CLI bindings (keyboard shortcuts) |
 | Left Stick | D-pad emulation + cursor mode (arrow keys) |
 | Right Stick | Scroll mode (PageUp/PageDown), throttled by repeatRate |
-| Left/Right Bumper | Switch sessions (previous/next) |
-| Left Trigger | Spawn new Claude Code instance |
-| Right Trigger | Spawn new Copilot CLI instance |
-| A | Clear screen (per CLI type) |
-| B | Hold-key passthrough (e.g. Space for voice in Claude Code) |
-| X/Y | Custom commands per CLI type |
 | Back/Start | Switch profile (previous/next) |
-| Sandwich/Guide | Toggle HUD overlay (session quick-switch) |
+| Xbox | Bring hub window to foreground |
 
 ---
 
@@ -115,8 +115,8 @@ flowchart LR
 | **ConfigLoader** | `src/config/loader.ts` | Loads split YAML config. Full CRUD for profiles, tools, and directories. Resolves per-CLI vs global bindings. `StickConfig` types (`mode: 'cursor' | 'scroll' | 'disabled'`, `deadzone`, `repeatRate`). `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`. |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator (handlers.ts) + 10 domain handler files with dependency injection. Domains: gamepad, session, config, profile, tools, window, spawn, keyboard, system, app. Includes `gamepad:vibrate`, `config:getHapticFeedback`, `config:setHapticFeedback`. |
 | **Preload** | `src/electron/preload.ts` | Context bridge exposing typed IPC API to renderer. Must be .cjs when package.json has "type":"module". |
-| **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils, bindings, navigation, screens (sessions/settings/status), modals (dir-picker/binding-editor/session-hud). Browser Gamepad API for BT controllers. Gamepad-navigable with D-pad. |
-| **HUD Overlay** | `renderer/modals/session-hud.ts` | `toggleHud()`, `renderHudSessions()`, `handleHudButton()`. Triggered by Sandwich/Guide button from any screen. Shows session list with active session highlighted, CLI type badges. D-Pad Up/Down navigation, A to select/switch, B or Sandwich to dismiss. `.hud-overlay` styles with backdrop blur, z-index 1000. |
+| **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils, bindings, navigation, screens (sessions/settings/status), modals (dir-picker/binding-editor/session-hud). Browser Gamepad API for BT controllers. Session Launcher HUD for unified session management. |
+| **Session Launcher HUD** | `renderer/modals/session-hud.ts` | Session Launcher HUD (3-panel). `toggleHud()`, `renderHudSessions()`, `handleHudButton()`. Triggered by Sandwich button from any screen. 3-panel layout: existing sessions (top), CLI types (bottom-left), directories (bottom-right). Navigation state machine: sessions → cli → directory → confirm. A=Select, B=Back, X=Delete, Y=Refresh. Keyboard fallback (arrow keys, Enter, Escape). Auto-dismisses on action; cancel with B or Sandwich. `.hud-overlay` styles with backdrop blur, z-index 1000. |
 | **XInput Script** | `src/input/xinput-poll.ps1` | External PowerShell XInput P/Invoke polling script. Emits button + left/right analog stick events (above deadzone 8000). Left stick also emulates D-pad. `XInputSetState` P/Invoke for haptic vibration, reads JSON vibration commands from stdin. |
 | **Logger** | `src/utils/logger.ts` | Winston logger with daily file rotation + console. Used across all src/ modules (not in renderer/preload). |
 | **CLI Entry** | `src/index.ts` | Standalone CLI orchestrator (GamepadCliHub class). Same binding resolution as Electron mode. Left stick → arrow keys (cursor mode), right stick → PageUp/PageDown (scroll mode), throttled by repeatRate. |
@@ -235,7 +235,7 @@ renderer/
 ├── modals/
 │   ├── dir-picker.ts           # Directory picker modal
 │   ├── binding-editor.ts       # Binding editor modal
-│   └── session-hud.ts          # HUD overlay (toggleHud, renderHudSessions, handleHudButton)
+│   └── session-hud.ts          # Session Launcher HUD (3-panel: sessions/cli-types/directories)
 └── styles/
     └── main.css
 
@@ -297,8 +297,8 @@ Instead of embedding audio processing, the controller holds a configurable key c
 ### Session Persistence
 Sessions saved to `config/sessions.yaml` (as YAML) after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skips duplicates). `startHealthCheck(intervalMs)` periodically removes dead PIDs via `process.kill(pid, 0)`. Survives app crashes and restarts.
 
-### HUD Overlay
-Sandwich/Guide button toggles a floating session list overlay (`renderer/modals/session-hud.ts`) with backdrop blur (z-index 1000). D-Pad Up/Down navigates, A selects/switches session, B or Sandwich dismisses. Allows quick session switching from any screen without navigating to the sessions view.
+### Session Launcher HUD
+Sandwich button opens a unified Session Launcher (`renderer/modals/session-hud.ts`) with 3-panel layout: existing sessions (top), CLI types (bottom-left), directories (bottom-right). Navigation follows a state machine: sessions → cli → directory → confirm. Controls: A=Select, B=Back, X=Delete, Y=Refresh. Keyboard fallback with arrow keys, Enter, Escape. Auto-dismisses on action; cancel with B or Sandwich. D-pad Up/Down and triggers are now free for custom bindings since session management is consolidated here.
 
 ### Analog Stick Modes
 Left stick emulates D-pad plus cursor-mode arrow keys. Right stick provides scroll mode (PageUp/PageDown). Both configurable per-profile via `StickConfig` (`mode: 'cursor' | 'scroll' | 'disabled'`, `deadzone`, `repeatRate`). XInput PS script emits both left and right stick events when above deadzone (8000).
@@ -313,7 +313,7 @@ Electron context isolation enforced. `preload.ts` exposes typed API via `context
 Four separate concerns: tools (spawn definitions), directories (workspaces), settings (active profile), and profiles (button bindings). Each profile defines per-CLI-type + global bindings. Full CRUD via IPC + Settings UI.
 
 ### Per-CLI Button Bindings
-Same button can do different things depending on active CLI type. Global bindings are fallback. D-Pad/bumpers/triggers are typically global; A/B/X/Y are typically per-CLI.
+Same button can do different things depending on active CLI type. Global bindings are fallback. D-Pad Up/Down, bumpers, and triggers are available for custom bindings since session management is consolidated in the Session Launcher. A/B/X/Y are typically per-CLI outside the launcher.
 
 ### Debouncing
 600ms default in the input layer prevents accidental rapid re-presses. Per-button timestamp tracking.

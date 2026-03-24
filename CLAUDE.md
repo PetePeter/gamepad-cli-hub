@@ -15,7 +15,7 @@ graph TB
     subgraph "Electron App"
         subgraph "Renderer Process"
             UI[UI: Sessions / Settings / Status]
-            HUD[HUD Overlay<br/>Session quick-switch]
+            HUD[Session Launcher HUD<br/>3-panel session management]
             BGA[Browser Gamepad API]
         end
 
@@ -87,8 +87,8 @@ Xbox Controller
 | **ProcessSpawner** | `src/session/spawner.ts` | Spawn detached CLI processes from config, register with SessionManager. Accepts optional `onExit` callback. |
 | **ConfigLoader** | `src/config/loader.ts` | Split YAML config loading + profile/tools/directory CRUD. `StickConfig` types, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`. |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 10 domain handler files (gamepad, session, config, profile, tools, window, spawn, keyboard, system, app). Dependencies injected via function parameters. |
-| **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils, bindings, navigation, screens (sessions/settings/status), modals (dir-picker/binding-editor/session-hud). Browser Gamepad API. |
-| **HUD Overlay** | `renderer/modals/session-hud.ts` | `toggleHud()`, `renderHudSessions()`, `handleHudButton()`. Quick session switcher triggered by Sandwich/Guide button. |
+| **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils, bindings, navigation, screens (sessions/settings/status), modals (dir-picker/binding-editor/session-hud). Browser Gamepad API. Session Launcher HUD for unified session management. |
+| **Session Launcher HUD** | `renderer/modals/session-hud.ts` | Session Launcher HUD (3-panel). `toggleHud()`, `renderHudSessions()`, `handleHudButton()`. Unified session management triggered by Sandwich button. |
 | **XInput Script** | `src/input/xinput-poll.ps1` | External PowerShell XInput P/Invoke polling script. Emits button + analog stick events. Supports `XInputSetState` for haptic vibration. |
 | **Logger** | `src/utils/logger.ts` | Winston logger with daily rotation. Used across all src/ modules. |
 | **CLI Entry** | `src/index.ts` | Standalone CLI orchestrator (GamepadCliHub class) |
@@ -128,17 +128,17 @@ sticks:
 
 | Input | Action |
 |-------|--------|
-| D-Pad Up/Down | Switch between active CLI sessions |
+| Sandwich | Open Session Launcher (switch/spawn/delete sessions) |
+| D-Pad / Left Stick | Navigate within Session Launcher panels |
+| A (in launcher) | Select / Confirm |
+| B (in launcher) | Back / Cancel |
+| X (in launcher) | Delete session |
+| Y (in launcher) | Refresh |
+| A/B/X/Y (outside launcher) | Per-CLI bindings (keyboard shortcuts) |
 | Left Stick | D-pad emulation + cursor mode (arrow keys) |
 | Right Stick | Scroll mode (PageUp/PageDown), throttled by repeatRate |
-| Left Trigger | Spawn new Claude Code instance |
-| Right Trigger | Spawn new Copilot CLI instance |
-| Left/Right Bumper | Switch sessions (previous/next) |
-| A | Clear screen (per CLI type) |
-| B | Hold-key passthrough (e.g. Space for voice in Claude Code) |
-| X/Y | Custom commands per CLI type |
 | Back/Start | Switch profile (previous/next) |
-| Sandwich/Guide | Toggle HUD overlay (session quick-switch) |
+| Xbox | Bring hub window to foreground |
 
 ## Tech Stack
 
@@ -166,7 +166,7 @@ sticks:
 7. **Debouncing in input layer** — 600ms default prevents accidental rapid re-presses
 8. **Hold-key passthrough** — Instead of embedding audio processing, the controller holds a configurable key combo (via robotjs `keyToggle`) and lets the target app handle voice natively. Zero external dependencies — the controller just holds a key, the CLI does the rest.
 9. **Session persistence** — Sessions saved to `config/sessions.yaml` after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skipping duplicates). A health check (`startHealthCheck()`) periodically removes dead PIDs via `process.kill(pid, 0)`. Survives crashes and restarts.
-10. **HUD overlay** — Sandwich/Guide button toggles a floating session list overlay (`renderer/modals/session-hud.ts`) with backdrop blur. D-pad navigates, A selects, B/Sandwich dismisses. Allows quick session switching from any screen without navigating to the sessions view.
+10. **Session Launcher HUD** — Sandwich button opens a unified Session Launcher (`renderer/modals/session-hud.ts`) with 3-panel layout: existing sessions (top), CLI types (bottom-left), directories (bottom-right). Navigation state machine: sessions → cli → directory → confirm. A=Select, B=Back, X=Delete, Y=Refresh. Keyboard fallback with arrow keys, Enter, Escape. Auto-dismisses on action; cancel with B or Sandwich.
 11. **Analog stick modes** — Left stick emulates D-pad plus cursor-mode arrow keys. Right stick provides scroll mode (PageUp/PageDown). Both configurable per-profile with deadzone and repeatRate settings.
 
 ## Build & Test
@@ -240,7 +240,7 @@ renderer/
 ├── modals/
 │   ├── dir-picker.ts           # Directory picker modal
 │   ├── binding-editor.ts       # Binding editor modal
-│   └── session-hud.ts          # HUD overlay (toggleHud, renderHudSessions, handleHudButton)
+│   └── session-hud.ts          # Session Launcher HUD (3-panel: sessions/cli-types/directories)
 └── styles/
     └── main.css
 
