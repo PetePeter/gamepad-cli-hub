@@ -18,6 +18,8 @@ const mockGamepadInput = {
   stop: vi.fn(),
   on: vi.fn(),
   off: vi.fn(),
+  onAnalog: vi.fn(),
+  pulse: vi.fn(),
   getConnectedGamepadCount: vi.fn(() => 0),
 };
 
@@ -28,12 +30,13 @@ const mockConfigLoader = {
   getSpawnConfig: vi.fn(() => null),
   getCliTypeName: vi.fn(() => null),
   getCliTypes: vi.fn(() => [] as string[]),
-  getOpenWhisperConfig: vi.fn(() => null),
   getConfig: vi.fn(() => ({})),
   getWorkingDirectories: vi.fn(() => []),
   listProfiles: vi.fn(() => ['default']),
   getActiveProfile: vi.fn(() => 'default'),
   switchProfile: vi.fn(),
+  getStickConfig: vi.fn(() => ({ mode: 'disabled', deadzone: 0.25, repeatRate: 100 })),
+  getHapticFeedback: vi.fn(() => false),
 };
 
 const mockProcessSpawner = {
@@ -70,7 +73,6 @@ vi.mock('../src/config/loader.js', () => ({ configLoader: mockConfigLoader }));
 vi.mock('../src/session/spawner.js', () => ({ processSpawner: mockProcessSpawner }));
 vi.mock('../src/output/keyboard.js', () => ({ keyboard: mockKeyboard }));
 vi.mock('../src/output/windows.js', () => ({ windowManager: mockWindowManager }));
-vi.mock('../src/voice/openwhisper.js', () => ({ createTranscriber: vi.fn(() => null) }));
 vi.mock('../src/utils/logger.js', () => ({ logger: mockLogger }));
 
 // ---------------------------------------------------------------------------
@@ -104,7 +106,6 @@ async function freshHub(overrides?: () => void): Promise<void> {
   mockConfigLoader.getGlobalBindings.mockReturnValue({});
   mockConfigLoader.getBindings.mockReturnValue(null);
   mockConfigLoader.getCliTypes.mockReturnValue([]);
-  mockConfigLoader.getOpenWhisperConfig.mockReturnValue(null);
   mockConfigLoader.getCliTypeName.mockReturnValue(null);
   mockWindowManager.findTerminalWindows.mockResolvedValue([]);
 
@@ -372,20 +373,20 @@ describe('GamepadCliHub', () => {
       expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('Status'));
     });
 
-    it('voice action calls keyboard.longPress()', () => {
+    it('hold-key action calls keyboard.longPress()', () => {
       mockConfigLoader.getGlobalBindings.mockReturnValue({
-        X: { action: 'voice', holdDuration: 800 },
+        X: { action: 'hold-key', keys: ['space'], delay: 800 },
       });
       pressButton(captureButtonPressHandler(), 'X');
       expect(mockKeyboard.longPress).toHaveBeenCalledWith('space', 800);
     });
 
-    it('voice action uses default 500ms when holdDuration not set', () => {
+    it('hold-key action uses default 200ms when delay not set', () => {
       mockConfigLoader.getGlobalBindings.mockReturnValue({
-        X: { action: 'voice' },
+        X: { action: 'hold-key', keys: ['space'] },
       });
       pressButton(captureButtonPressHandler(), 'X');
-      expect(mockKeyboard.longPress).toHaveBeenCalledWith('space', 500);
+      expect(mockKeyboard.longPress).toHaveBeenCalledWith('space', 200);
     });
 
     it('unknown action type logs warning', () => {

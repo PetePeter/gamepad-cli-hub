@@ -175,6 +175,19 @@
     </footer>
   </div>
 
+  <!-- Session HUD Overlay (Sandwich/Xbox button) -->
+  <div class="modal-overlay hud-overlay" id="sessionHudOverlay" aria-hidden="true" role="dialog" aria-label="Session switcher">
+    <div class="hud-panel">
+      <div class="hud-header">
+        <span class="hud-title">Sessions</span>
+        <span class="hud-hint">D-Pad ↕ navigate · A select · B dismiss</span>
+      </div>
+      <div class="hud-session-list" id="hudSessionList" role="listbox">
+        <!-- Sessions rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
   <script src="main.js" type="module"></script>
 </body>
 </html>

@@ -1,7 +1,3 @@
-openwhisper:
-  whisperPath: whisper.exe
-  model: models/ggml-base.en.bin
-  language: en
 cliTypes:
   claude-code:
     name: Claude Code

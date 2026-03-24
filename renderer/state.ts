@@ -38,6 +38,8 @@ export interface AppState {
   editingBinding: { button: string; cliType: string | null; binding: any } | null;
   bindingEditorFocusIndex: number;
   activeProfile: string;
+  hudVisible: boolean;
+  hudFocusIndex: number;
 }
 
 export const state: AppState = {
@@ -60,4 +62,6 @@ export const state: AppState = {
   editingBinding: null,
   bindingEditorFocusIndex: 0,
   activeProfile: 'default',
+  hudVisible: false,
+  hudFocusIndex: 0,
 };

@@ -6,10 +6,10 @@ cliTypes:
       keys:
         - Clear
     B:
-      action: voice
+      action: hold-key
       keys:
         - space
-      holdDuration: 3000
+      delay: 200
     X:
       action: keyboard
       keys:
@@ -89,3 +89,12 @@ global:
   RightTrigger:
     action: spawn
     cliType: copilot-cli
+sticks:
+  left:
+    mode: cursor
+    deadzone: 0.25
+    repeatRate: 100
+  right:
+    mode: scroll
+    deadzone: 0.25
+    repeatRate: 150

@@ -16,11 +16,10 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
       return {
         cliTypes: configLoader.getCliTypes(),
         globalBindings: configLoader.getGlobalBindings(),
-        openwhisper: configLoader.getOpenWhisperConfig(),
       };
     } catch (error) {
       logger.error(`[IPC] Failed to get all config: ${error}`);
-      return { cliTypes: [], globalBindings: {}, openwhisper: null };
+      return { cliTypes: [], globalBindings: {} };
     }
   });
 
@@ -117,6 +116,26 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to remove working dir: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('config:getHapticFeedback', () => {
+    try {
+      return configLoader.getHapticFeedback();
+    } catch (error) {
+      logger.error(`[IPC] Failed to get haptic feedback setting: ${error}`);
+      return true; // Default to enabled
+    }
+  });
+
+  ipcMain.handle('config:setHapticFeedback', (_event, enabled: boolean) => {
+    try {
+      configLoader.setHapticFeedback(enabled);
+      logger.info(`[IPC] Haptic feedback set to: ${enabled}`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to set haptic feedback: ${error}`);
       return { success: false, error: String(error) };
     }
   });

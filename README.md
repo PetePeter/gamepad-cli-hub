@@ -1,131 +1,83 @@
-# gamepad-cli-hub
+# Gamepad CLI Hub
 
-Xbox controller → multi-CLI session manager
+**Your Xbox controller is now a command center for AI coding assistants.**
 
-Control multiple CLI sessions (Claude Code, Copilot CLI, etc.) with an Xbox controller. Built as an Electron desktop app on Windows.
+You're running Claude Code in one terminal, Copilot CLI in another, maybe a third session for a side project. Alt-tabbing between them is slow. Finding the right window is annoying. Typing repetitive commands is tedious.
 
-## Features
+Pick up your controller. One button spawns a new Claude Code session. Another fires up Copilot CLI. The D-pad flips between them instantly — the right window snaps to focus before you blink. Voice input lets you dictate prompts without touching the keyboard.
 
-- 🎮 Xbox controller input detection (XInput + Browser Gamepad API)
-- 🔄 Switch between CLI sessions with D-pad (auto-focuses selected window)
-- ⚡ Spawn new CLI instances on demand
-- ⌨️ Send keyboard commands to active session
-- 🎙️ Voice input via OpenWhisper transcription
-- 👤 Multiple binding profiles (create/switch/delete via UI or gamepad)
-- 🔧 Configurable CLI types, working directories, and per-profile bindings
+This is a session manager for people who run multiple AI-assisted terminals at once and got tired of the friction.
 
-## System Overview
+---
 
-```mermaid
-graph TB
-    subgraph "Xbox Controller"
-        XC[USB / Bluetooth]
-    end
+## What It Does
 
-    subgraph "Electron App"
-        subgraph "Renderer"
-            UI[Sessions / Settings / Status UI]
-            BGA[Browser Gamepad API]
-        end
-        subgraph "Main Process"
-            IPC[IPC Bridge]
-            GI[GamepadInput<br/>XInput + Debounce]
-            SM[SessionManager]
-            PS[ProcessSpawner]
-            KS[KeyboardSimulator]
-            WM[WindowManager]
-            CL[ConfigLoader]
-            OW[OpenWhisper]
-        end
-        UI <-->|preload.ts| IPC
-        BGA --> IPC
-    end
+**Session Switching** — D-pad up/down cycles through your open CLI sessions. The app auto-detects running terminals, focuses the correct window, and keeps everything in sync. No manual window hunting.
 
-    XC --> GI
-    XC --> BGA
-    GI --> IPC
-    IPC --> SM & PS & KS & WM & CL & OW
-    SM --> WM
-    PS --> SM
-    KS & WM --> TW[Terminal Windows]
-```
+**Instant Spawning** — Pull a trigger and a new CLI instance launches in your configured working directory, ready to go. Left trigger for Claude Code, right trigger for Copilot CLI — or remap to whatever tools you use.
 
-### How It Works
+**Voice Input** — Press B, speak your prompt, release. OpenWhisper transcribes locally (no cloud, no latency) and types it into the active session. Hands stay on the controller.
 
-1. **Gamepad input** is detected via PowerShell XInput polling (wired) or Browser Gamepad API (Bluetooth), with 600ms debounce
-2. **Button presses** are resolved against the active profile's bindings — CLI-specific bindings are checked first, then global
-3. **Actions execute**: send keystrokes, spawn CLI processes, switch sessions, or trigger voice transcription
-4. **Window management** ensures the correct terminal window is focused before any keystroke is sent
+**Context-Aware Bindings** — The same button can do different things depending on which CLI is active. Press A in Claude Code and it clears the screen. Press A in Copilot CLI and it runs a different command. The app checks the active session type and dispatches accordingly.
 
-### Modules
+**Profiles** — Save different button configurations for different workflows. Switch profiles with Back/Start on the controller, or from the settings screen. Deep focus session? Debugging profile? Pair programming layout? One button away.
 
-| Module | Purpose |
-|--------|---------|
-| `src/input/gamepad.ts` | XInput polling, debounce, button-press events |
-| `src/output/keyboard.ts` | Keystroke simulation (@jitsi/robotjs) |
-| `src/output/windows.ts` | Win32 window enumeration/focus (PowerShell) |
-| `src/session/manager.ts` | Session tracking, switching (EventEmitter) |
-| `src/session/spawner.ts` | Spawn detached CLI processes |
-| `src/config/loader.ts` | Split YAML config + profile CRUD |
-| `src/voice/openwhisper.ts` | Audio recording + whisper.cpp transcription |
-| `src/input/xinput-poll.ps1` | XInput polling script (extracted from inline) |
-| `src/utils/logger.ts` | Winston logger (used across all src/ modules) |
-| `src/electron/ipc/handlers.ts` | 60-line orchestrator delegating to 10 domain handler files under `src/electron/ipc/` |
-| `renderer/main.ts` | 230-line entry point; UI split into `state`, `utils`, `bindings`, `navigation`, `screens/{sessions,settings,status}`, `modals/{dir-picker,binding-editor}` |
+**Full Settings UI** — Everything is configurable from the app itself. Add new CLI tools, set working directories, remap every button, manage profiles — five tabs, no YAML editing required (though the YAML files are there if you prefer).
 
-### Tech Stack
+---
 
-| Component | Technology |
-|-----------|-----------|
-| Desktop shell | Electron 41 |
-| Language | TypeScript (ESM) |
-| Bundler | esbuild |
-| Tests | Vitest |
-| Gamepad | PowerShell XInput + Browser Gamepad API |
-| Keyboard | @jitsi/robotjs |
-| Windows | PowerShell Win32 API |
-| Voice | OpenWhisper (whisper.cpp) |
-| Config | YAML |
-| Logging | Winston |
-
-## Key Controls
+## Controls
 
 | Input | Action |
 |-------|--------|
-| D-Pad Down | Switch to next CLI session (auto-focuses window) |
-| D-Pad Left/Right | Available for custom bindings |
-| Left Stick | D-pad replacement (same actions as D-pad) |
-| Left/Right Bumper | Switch between sessions (previous/next) |
+| D-Pad Up / Down | Switch between CLI sessions |
+| Left Stick | Same as D-pad |
+| Left / Right Bumper | Previous / next session |
 | Left Trigger | Spawn new Claude Code instance |
 | Right Trigger | Spawn new Copilot CLI instance |
-| A | Clear screen (per CLI type) |
-| B | OpenWhisper voice input or Escape (per CLI type) |
-| X/Y | Custom commands per CLI type |
-| Back/Start | Switch profile (previous/next) |
-| Guide (center button) | Bring hub window to foreground |
+| A | Clear screen |
+| B | Voice input |
+| X / Y | Custom command (per CLI type) |
+| Back / Start | Previous / next profile |
+| Guide | Bring hub window to foreground |
 
-## Configuration
+Every binding is remappable. Every action is configurable per CLI type.
 
-Config is split across multiple YAML files:
+---
 
+## How It Fits Together
+
+```mermaid
+graph LR
+    XB[Xbox Controller] --> APP[Gamepad CLI Hub]
+    APP --> T1[Claude Code]
+    APP --> T2[Copilot CLI]
+    APP --> T3[Any Terminal]
+    APP --> T4[... more sessions]
+
+    style APP fill:#4a9eff,color:#fff,stroke:#2d7ad6
 ```
-config/
-├── settings.yaml          # Active profile name
-├── tools.yaml             # CLI types (spawn commands) + OpenWhisper config
-├── directories.yaml       # Working directory presets
-└── profiles/
-    └── default.yaml       # Button bindings (per CLI type + global)
-```
 
-### Binding Priority
+The app sits between your controller and your terminal windows. It reads gamepad input, resolves bindings, and sends keystrokes to whichever window should have focus. Your terminals are real, standalone windows — not embedded shells — so there are zero compatibility compromises.
 
-When a button is pressed, CLI-specific bindings are checked first. If no CLI-specific binding exists for the active session's CLI type, the global binding is used. This means a button can have different actions depending on which CLI session is active.
+Works with USB and Bluetooth Xbox controllers out of the box.
 
-Profiles, CLI tools, and working directories can also be managed from the **Settings** screen in the app (5 tabs: Profiles, Global, per-CLI, Tools, Directories).
+---
 
-## Usage
+## Get Started
 
 ```bash
 npm install
 npm start
 ```
+
+Plug in a controller. The app detects it automatically and you're ready to go.
+
+---
+
+## Built For
+
+- Developers running multiple AI coding assistants side by side
+- Anyone who uses CLI tools heavily and wants a physical control surface
+- People who think keyboards are great but controllers are faster for switching context
+- The kind of person who automates their automation

@@ -35,7 +35,18 @@ export interface ButtonPressEvent {
 // Re-export as ButtonEvent for compatibility
 export type ButtonEvent = ButtonPressEvent;
 
+/**
+ * Analog stick event — emitted continuously while a stick is outside its deadzone.
+ */
+export interface AnalogEvent {
+  stick: 'left' | 'right';
+  x: number;       // -32768 to 32767
+  y: number;       // -32768 to 32767
+  timestamp: number;
+}
+
 export type EventCallback = (event: ButtonPressEvent) => void;
+export type AnalogCallback = (event: AnalogEvent) => void;
 
 export type ConnectionEvent = {
   connected: boolean;
@@ -45,15 +56,18 @@ export type ConnectionEvent = {
 
 export type ConnectionCallback = (event: ConnectionEvent) => void;
 
-type EventType = 'button-press' | 'connection-change';
+type EventType = 'button-press' | 'connection-change' | 'analog';
 
 /**
  * Event emitted by the XInput PowerShell polling script.
  * The script does edge detection internally and only emits on state changes.
  */
 interface XInputEvent {
-  event: 'connected' | 'disconnected' | 'button';
+  event: 'connected' | 'disconnected' | 'button' | 'analog';
   button?: string;
+  stick?: 'left' | 'right';
+  x?: number;
+  y?: number;
   index: number;
 }
 
@@ -123,6 +137,10 @@ export class GamepadInput {
     this.on('button-press', wrappedCallback);
   }
 
+  onAnalog(callback: AnalogCallback): void {
+    this.on('analog', callback as any);
+  }
+
   start(): void {
     if (this.isRunning) {
       return;
@@ -139,7 +157,7 @@ export class GamepadInput {
       '-NoProfile',
       '-ExecutionPolicy', 'Bypass',
       '-File', this.scriptPath!
-    ]);
+    ], { stdio: ['pipe', 'pipe', 'pipe'] });
 
     let buffer = '';
 
@@ -221,6 +239,11 @@ export class GamepadInput {
           this.handleButtonPress(event.button as ButtonName, event.index);
         }
         break;
+      case 'analog':
+        if (event.stick) {
+          this.emitAnalogEvent(event.stick, event.x ?? 0, event.y ?? 0);
+        }
+        break;
     }
   }
 
@@ -277,6 +300,61 @@ export class GamepadInput {
         logger.error(`Error in connection-change callback: ${error}`);
       }
     }
+  }
+
+  private emitAnalogEvent(stick: 'left' | 'right', x: number, y: number): void {
+    const callbacks = this.eventCallbacks.get('analog');
+    if (!callbacks || callbacks.size === 0) {
+      return;
+    }
+
+    const event: AnalogEvent = {
+      stick,
+      x,
+      y,
+      timestamp: Date.now(),
+    };
+
+    for (const callback of Array.from(callbacks)) {
+      try {
+        (callback as unknown as AnalogCallback)(event);
+      } catch (error) {
+        logger.error(`Error in analog callback for ${stick} stick: ${error}`);
+      }
+    }
+  }
+
+  /**
+   * Send a vibration command to the controller.
+   * Automatically stops vibration after the specified duration.
+   */
+  vibrate(leftMotor: number, rightMotor: number, durationMs: number): void {
+    if (!this.pollProcess?.stdin?.writable) return;
+
+    const cmd = JSON.stringify({ event: 'vibrate', left: leftMotor, right: rightMotor });
+    this.pollProcess.stdin.write(cmd + '\n');
+
+    setTimeout(() => {
+      if (this.pollProcess?.stdin?.writable) {
+        const stop = JSON.stringify({ event: 'vibrate', left: 0, right: 0 });
+        this.pollProcess.stdin.write(stop + '\n');
+      }
+    }, durationMs);
+  }
+
+  /**
+   * Short symmetric vibration pulse on both motors.
+   */
+  pulse(durationMs: number = 200, intensity: number = 32768): void {
+    this.vibrate(intensity, intensity, durationMs);
+  }
+
+  /**
+   * Two quick pulses separated by a short gap.
+   */
+  doublePulse(): void {
+    this.pulse(100, 32768);
+    setTimeout(() => this.pulse(100, 32768), 150);
   }
 
   isButtonPressed(button: ButtonName, gamepadIndex: number = 0): boolean {

@@ -38,4 +38,13 @@ export function setupGamepadHandlers(gamepadInput: GamepadInput): void {
   ipcMain.handle('gamepad:getCount', () => {
     return gamepadInput.getConnectedGamepadCount();
   });
+
+  ipcMain.handle('gamepad:vibrate', (_event, leftMotor: number, rightMotor: number, durationMs: number) => {
+    try {
+      gamepadInput.vibrate(leftMotor, rightMotor, durationMs);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
 }

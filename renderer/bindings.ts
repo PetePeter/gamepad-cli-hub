@@ -130,11 +130,12 @@ async function executeCliBinding(button: string, binding: any): Promise<void> {
         logEvent(`Keys: ${binding.keys.join('+')}`);
         break;
       }
-      case 'voice': {
-        const duration = binding.holdDuration || 3000;
-        const key = binding.key || 'space';
-        await window.gamepadCli.keyboardLongPress(key, duration);
-        logEvent(`Voice: hold ${key} ${duration}ms`);
+      case 'hold-key': {
+        const keys: string[] = binding.keys || ['space'];
+        const delay = binding.delay || 200;
+        const key = keys.length === 1 ? keys[0] : keys.join('+');
+        await window.gamepadCli.keyboardLongPress(key, delay);
+        logEvent(`Hold-key: ${key} ${delay}ms`);
         break;
       }
       default:

@@ -10,13 +10,12 @@
  */
 
 import { configLoader } from './config/loader';
-import { gamepadInput, type ButtonPressEvent, type ButtonName } from './input/gamepad';
+import { gamepadInput, type ButtonPressEvent, type ButtonName, type AnalogEvent } from './input/gamepad';
 import { SessionManager } from './session/manager';
 import { processSpawner } from './session/spawner';
 import { windowManager } from './output/windows';
 import { keyboard } from './output/keyboard';
-import { createTranscriber, type OpenWhisperTranscriber } from './voice/openwhisper';
-import type { Binding, KeyboardBinding, VoiceBinding, OpenWhisperBinding, SessionSwitchBinding, SpawnBinding, ListSessionsBinding } from './config/loader';
+import type { Binding, KeyboardBinding, HoldKeyBinding, SessionSwitchBinding, SpawnBinding, ListSessionsBinding } from './config/loader';
 import { logger } from './utils/logger.js';
 
 // ============================================================================
@@ -27,7 +26,6 @@ class GamepadCliHub {
   private sessionManager = new SessionManager();
   private isRunning = false;
   private activeCliType: string | null = null;
-  private openwhisper: OpenWhisperTranscriber | null = null;
 
   // Per-CLI button mappings (A/B/X/Y) for the active session
   private readonly PER_CLI_BUTTONS = ['A', 'B', 'X', 'Y'] as const;
@@ -47,9 +45,6 @@ class GamepadCliHub {
 
       // Load configuration
       this.loadConfiguration();
-
-      // Initialize OpenWhisper if configured
-      this.initializeOpenWhisper();
 
       // Setup signal handlers for graceful shutdown
       this.setupSignalHandlers();
@@ -85,30 +80,6 @@ class GamepadCliHub {
       logger.info('Configuration loaded successfully');
     } catch (error) {
       throw new Error(`Failed to load configuration: ${error}`);
-    }
-  }
-
-  private initializeOpenWhisper(): void {
-    try {
-      const openwhisperConfig = configLoader.getOpenWhisperConfig();
-      if (openwhisperConfig) {
-        this.openwhisper = createTranscriber(openwhisperConfig);
-        const status = this.openwhisper.getStatus();
-        if (status.ready) {
-          logger.info('OpenWhisper transcription enabled');
-        } else {
-          logger.warn('OpenWhisper configured but not ready:');
-          if (!status.whisperExists) {
-            logger.warn(`  - whisper.exe not found at: ${status.whisperPath}`);
-          }
-          if (!status.modelExists) {
-            logger.warn(`  - Model file not found at: ${status.modelPath}`);
-          }
-          this.openwhisper = null;
-        }
-      }
-    } catch (error) {
-      logger.warn(`Failed to initialize OpenWhisper: ${error}`);
     }
   }
 
@@ -172,6 +143,11 @@ class GamepadCliHub {
       this.handleButtonPress(event);
     });
 
+    // Register analog stick handler
+    gamepadInput.onAnalog((event: AnalogEvent) => {
+      this.handleAnalogEvent(event);
+    });
+
     // Count registered bindings
     const globalBindings = configLoader.getGlobalBindings();
     const cliTypes = configLoader.getCliTypes();
@@ -225,12 +201,8 @@ class GamepadCliHub {
           this.handleKeyboardAction(binding as KeyboardBinding);
           break;
 
-        case 'voice':
-          this.handleVoiceAction(binding as VoiceBinding);
-          break;
-
-        case 'openwhisper':
-          this.handleOpenWhisperAction(binding as OpenWhisperBinding);
+        case 'hold-key':
+          this.handleHoldKeyAction(binding as HoldKeyBinding);
           break;
 
         case 'session-switch':
@@ -259,47 +231,18 @@ class GamepadCliHub {
     keyboard.sendKeys(keys);
   }
 
-  private handleVoiceAction(binding: VoiceBinding): void {
-    const duration = binding.holdDuration || 500;
-    logger.debug(`Voice input: holding space for ${duration}ms`);
-    keyboard.longPress('space', duration);
-  }
+  private handleHoldKeyAction(binding: HoldKeyBinding): void {
+    const { keys, delay } = binding;
+    const duration = delay || 200;
+    logger.debug(`Hold-key: ${keys.join('+')} for ${duration}ms`);
 
-  private async handleOpenWhisperAction(binding: OpenWhisperBinding): Promise<void> {
-    if (!this.openwhisper) {
-      logger.warn('OpenWhisper not available - falling back to standard voice input');
-      const duration = 500;
-      keyboard.longPress('space', duration);
-      return;
-    }
-
-    const duration = binding.recordingDuration || 5000;
-    logger.debug(`Recording audio for ${duration}ms...`);
-
-    // Record and transcribe
-    const result = await this.openwhisper.recordAndTranscribe(duration);
-
-    if (result.success && result.text) {
-      logger.info(`Transcription: "${result.text}"`);
-
-      // Type the transcribed text into the active session
-      const activeSession = this.sessionManager.getActiveSession();
-      if (activeSession) {
-        // Focus the session first
-        await windowManager.focusWindow(activeSession.windowHandle);
-
-        // Small delay to ensure window is focused
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Type the transcribed text
-        keyboard.typeString(result.text);
-        logger.info('Transcribed text sent to active session');
-      } else {
-        logger.warn('No active session to send text to');
-      }
+    if (keys.length === 1) {
+      keyboard.longPress(keys[0], duration);
     } else {
-      logger.error(`Transcription failed: ${result.error || 'Unknown error'}`);
+      keyboard.longPressCombo(keys, duration);
     }
+
+    this.hapticPulse();
   }
 
   private handleSessionSwitchAction(binding: SessionSwitchBinding): void {
@@ -314,6 +257,7 @@ class GamepadCliHub {
     }
 
     this.focusActiveSession();
+    this.hapticPulse(100, 16384);
   }
 
   private handleSpawnAction(binding: SpawnBinding): void {
@@ -330,6 +274,57 @@ class GamepadCliHub {
 
   private handleListSessionsAction(_binding: ListSessionsBinding): void {
     this.printStatus();
+  }
+
+  // ============================================================================
+  // Analog Stick Handling
+  // ============================================================================
+
+  private analogThrottles = { left: 0, right: 0 };
+
+  private handleAnalogEvent(event: AnalogEvent): void {
+    const config = configLoader.getStickConfig(event.stick);
+    if (config.mode === 'disabled') return;
+
+    const now = Date.now();
+    if (now - this.analogThrottles[event.stick] < config.repeatRate) return;
+    this.analogThrottles[event.stick] = now;
+
+    const magnitude = Math.sqrt(event.x * event.x + event.y * event.y);
+    const normalizedDeadzone = config.deadzone * 32767;
+    if (magnitude < normalizedDeadzone) return;
+
+    // Determine dominant axis
+    const absX = Math.abs(event.x);
+    const absY = Math.abs(event.y);
+
+    if (config.mode === 'cursor') {
+      if (absY > absX) {
+        keyboard.sendKey(event.y > 0 ? 'up' : 'down');
+      } else {
+        keyboard.sendKey(event.x > 0 ? 'right' : 'left');
+      }
+    } else if (config.mode === 'scroll') {
+      if (absY > absX) {
+        keyboard.sendKey(event.y > 0 ? 'pageup' : 'pagedown');
+      } else {
+        keyboard.sendKey(event.x > 0 ? 'right' : 'left');
+      }
+    }
+  }
+
+  // ============================================================================
+  // Haptic Feedback
+  // ============================================================================
+
+  private hapticPulse(durationMs = 200, intensity = 32768): void {
+    try {
+      if (configLoader.getHapticFeedback()) {
+        gamepadInput.pulse(durationMs, intensity);
+      }
+    } catch {
+      // Haptic is non-critical — silently ignore failures
+    }
   }
 
   // ============================================================================

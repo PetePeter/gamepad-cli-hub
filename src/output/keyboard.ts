@@ -182,6 +182,48 @@ export class KeyboardSimulator {
     }
 
     /**
+     * Presses a key down without releasing it.
+     *
+     * @param keyName - The name of the key to press down
+     */
+    keyDown(keyName: string): void {
+        const normalizedKey = this.normalizeKey(keyName);
+        robot.keyToggle(normalizedKey, 'down');
+    }
+
+    /**
+     * Releases a previously pressed key.
+     *
+     * @param keyName - The name of the key to release
+     */
+    keyUp(keyName: string): void {
+        const normalizedKey = this.normalizeKey(keyName);
+        robot.keyToggle(normalizedKey, 'up');
+    }
+
+    /**
+     * Presses multiple keys down in order without releasing them.
+     *
+     * @param keyNames - Array of key names to press down
+     */
+    comboDown(keyNames: string[]): void {
+        for (const key of keyNames) {
+            this.keyDown(key);
+        }
+    }
+
+    /**
+     * Releases multiple keys in reverse order.
+     *
+     * @param keyNames - Array of key names to release (reversed internally)
+     */
+    comboUp(keyNames: string[]): void {
+        for (const key of [...keyNames].reverse()) {
+            this.keyUp(key);
+        }
+    }
+
+    /**
      * Simulates a long press (hold key for a duration).
      *
      * @param keyName - The name of the key to hold

@@ -14,7 +14,7 @@ export interface SpawnedProcess {
 class ProcessSpawner {
   private processes: Map<number, SpawnedProcess> = new Map();
 
-  spawn(cliType: string, workingDir?: string): SpawnedProcess | null {
+  spawn(cliType: string, workingDir?: string, onExit?: (pid: number) => void): SpawnedProcess | null {
     const spawnConfig = configLoader.getSpawnConfig(cliType);
     if (!spawnConfig) {
       logger.error(`No spawn config found for CLI type: ${cliType}`);
@@ -43,11 +43,17 @@ class ProcessSpawner {
     childProcess.on('exit', (code: number | null) => {
       this.processes.delete(childProcess.pid ?? 0);
       logger.info(`Process ${childProcess.pid} exited with code ${code}`);
+      if (onExit && childProcess.pid) {
+        onExit(childProcess.pid);
+      }
     });
 
     childProcess.on('error', (err: Error) => {
       logger.error(`Failed to spawn ${cliType}: ${err.message}`);
       this.processes.delete(childProcess.pid ?? 0);
+      if (onExit && childProcess.pid) {
+        onExit(childProcess.pid);
+      }
     });
 
     childProcess.unref();

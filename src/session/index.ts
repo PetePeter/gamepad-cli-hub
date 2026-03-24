@@ -1,4 +1,5 @@
 export { SessionManager } from './manager.js';
+export { saveSessions, loadSessions, clearPersistedSessions } from './persistence.js';
 export type {
   SessionInfo,
   SessionChangeEvent,

@@ -42,6 +42,15 @@ const gamepadCliAPI = {
    */
   getGamepadCount: () => ipcRenderer.invoke('gamepad:getCount'),
 
+  /**
+   * Vibrate a connected gamepad
+   * @param leftMotor - Left motor intensity (0–65535)
+   * @param rightMotor - Right motor intensity (0–65535)
+   * @param durationMs - Vibration duration in milliseconds
+   */
+  gamepadVibrate: (leftMotor: number, rightMotor: number, durationMs: number) =>
+    ipcRenderer.invoke('gamepad:vibrate', leftMotor, rightMotor, durationMs),
+
   // ========================================================================
   // Session Management
   // ========================================================================
@@ -134,6 +143,16 @@ const gamepadCliAPI = {
    * Reload configuration from file
    */
   configReload: () => ipcRenderer.invoke('config:reload'),
+
+  /**
+   * Get haptic feedback setting
+   */
+  configGetHapticFeedback: () => ipcRenderer.invoke('config:getHapticFeedback'),
+
+  /**
+   * Set haptic feedback setting
+   */
+  configSetHapticFeedback: (enabled: boolean) => ipcRenderer.invoke('config:setHapticFeedback', enabled),
 
   // ========================================================================
   // Window Management

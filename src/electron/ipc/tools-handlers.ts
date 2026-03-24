@@ -18,11 +18,10 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
             spawn: configLoader.getSpawnConfig(key),
           }])
         ),
-        openwhisper: configLoader.getOpenWhisperConfig(),
       };
     } catch (error) {
       logger.error(`[IPC] Failed to get tools: ${error}`);
-      return { cliTypes: {}, openwhisper: null };
+      return { cliTypes: {} };
     }
   });
 

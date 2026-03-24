@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GamepadInput, type ButtonPressEvent } from '../src/input/gamepad.js';
+import { GamepadInput, type ButtonPressEvent, type AnalogEvent } from '../src/input/gamepad.js';
 
 // Mock child_process module
 vi.mock('child_process', () => ({
@@ -49,6 +49,10 @@ describe('GamepadInput', () => {
 
     // Setup mock process with event emitter simulation
     mockProcess = {
+      stdin: {
+        writable: true,
+        write: vi.fn(),
+      },
       stdout: {
         on: vi.fn((event: string, callback: Function) => {
           if (!mockCallbacks.has('stdout')) mockCallbacks.set('stdout', []);
@@ -140,7 +144,8 @@ describe('GamepadInput', () => {
       gamepad.start();
       expect(spawn).toHaveBeenCalledWith(
         'powershell',
-        expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass'])
+        expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass']),
+        expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
       );
     });
 
@@ -323,6 +328,190 @@ describe('GamepadInput', () => {
         timestamp: Date.now(),
       };
       expect(event2.button).toBe('Xbox');
+    });
+  });
+
+  describe('analog events', () => {
+    it('XInput script emits analog events for left stick', () => {
+      gamepad.start();
+      const writeCall = (fs.writeFileSync as any).mock.calls[0];
+      const scriptContent = writeCall[1] as string;
+
+      expect(scriptContent).toContain('"event":"analog","stick":"left"');
+    });
+
+    it('XInput script emits analog events for right stick', () => {
+      gamepad.start();
+      const writeCall = (fs.writeFileSync as any).mock.calls[0];
+      const scriptContent = writeCall[1] as string;
+
+      expect(scriptContent).toContain('"event":"analog","stick":"right"');
+    });
+
+    it('onAnalog registers a callback', () => {
+      const callback = vi.fn();
+      expect(() => gamepad.onAnalog(callback)).not.toThrow();
+    });
+
+    it('emits analog events when processing analog JSON', () => {
+      const callback = vi.fn();
+      gamepad.on('analog', callback);
+      gamepad.start();
+
+      // Simulate stdout delivering an analog event
+      const stdoutHandler = mockCallbacks.get('stdout')![0];
+      stdoutHandler(Buffer.from('{"event":"analog","stick":"left","x":20000,"y":-15000,"index":0}\n'));
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      const event: AnalogEvent = callback.mock.calls[0][0];
+      expect(event.stick).toBe('left');
+      expect(event.x).toBe(20000);
+      expect(event.y).toBe(-15000);
+      expect(event.timestamp).toBeTypeOf('number');
+    });
+
+    it('emits right stick analog events', () => {
+      const callback = vi.fn();
+      gamepad.on('analog', callback);
+      gamepad.start();
+
+      const stdoutHandler = mockCallbacks.get('stdout')![0];
+      stdoutHandler(Buffer.from('{"event":"analog","stick":"right","x":-10000,"y":25000,"index":0}\n'));
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      const event: AnalogEvent = callback.mock.calls[0][0];
+      expect(event.stick).toBe('right');
+      expect(event.x).toBe(-10000);
+      expect(event.y).toBe(25000);
+    });
+
+    it('does not emit analog when no callbacks registered', () => {
+      gamepad.start();
+
+      // No callback registered — should not throw
+      const stdoutHandler = mockCallbacks.get('stdout')![0];
+      expect(() => {
+        stdoutHandler(Buffer.from('{"event":"analog","stick":"left","x":20000,"y":0,"index":0}\n'));
+      }).not.toThrow();
+    });
+
+    it('handles errors in analog callbacks gracefully', () => {
+      const errorCallback = vi.fn(() => { throw new Error('boom'); });
+      const goodCallback = vi.fn();
+
+      gamepad.on('analog', errorCallback);
+      gamepad.on('analog', goodCallback);
+      gamepad.start();
+
+      const stdoutHandler = mockCallbacks.get('stdout')![0];
+      stdoutHandler(Buffer.from('{"event":"analog","stick":"left","x":9000,"y":9000,"index":0}\n'));
+
+      // Error callback ran and threw, but good callback still ran
+      expect(errorCallback).toHaveBeenCalledTimes(1);
+      expect(goodCallback).toHaveBeenCalledTimes(1);
+    });
+
+    it('defaults x/y to 0 when missing from event', () => {
+      const callback = vi.fn();
+      gamepad.on('analog', callback);
+      gamepad.start();
+
+      const stdoutHandler = mockCallbacks.get('stdout')![0];
+      stdoutHandler(Buffer.from('{"event":"analog","stick":"left","index":0}\n'));
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback.mock.calls[0][0].x).toBe(0);
+      expect(callback.mock.calls[0][0].y).toBe(0);
+    });
+
+    it('AnalogEvent type has correct shape', () => {
+      const event: AnalogEvent = {
+        stick: 'right',
+        x: 32767,
+        y: -32768,
+        timestamp: Date.now(),
+      };
+      expect(event.stick).toBe('right');
+      expect(event.x).toBe(32767);
+      expect(event.y).toBe(-32768);
+    });
+  });
+
+  describe('vibration', () => {
+    it('vibrate sends a JSON command to stdin', () => {
+      gamepad.start();
+      gamepad.vibrate(30000, 20000, 500);
+
+      expect(mockProcess.stdin.write).toHaveBeenCalledWith(
+        JSON.stringify({ event: 'vibrate', left: 30000, right: 20000 }) + '\n'
+      );
+    });
+
+    it('vibrate auto-stops after duration', () => {
+      vi.useFakeTimers();
+      gamepad.start();
+      gamepad.vibrate(30000, 20000, 500);
+
+      // Initial write
+      expect(mockProcess.stdin.write).toHaveBeenCalledTimes(1);
+
+      // Advance past duration
+      vi.advanceTimersByTime(500);
+
+      // Stop command sent
+      expect(mockProcess.stdin.write).toHaveBeenCalledTimes(2);
+      expect(mockProcess.stdin.write).toHaveBeenLastCalledWith(
+        JSON.stringify({ event: 'vibrate', left: 0, right: 0 }) + '\n'
+      );
+
+      vi.useRealTimers();
+    });
+
+    it('vibrate is a no-op when process is not running', () => {
+      // Don't start — no process
+      gamepad.vibrate(30000, 20000, 500);
+      expect(mockProcess.stdin.write).not.toHaveBeenCalled();
+    });
+
+    it('pulse sends symmetric vibration', () => {
+      gamepad.start();
+      gamepad.pulse(200, 40000);
+
+      expect(mockProcess.stdin.write).toHaveBeenCalledWith(
+        JSON.stringify({ event: 'vibrate', left: 40000, right: 40000 }) + '\n'
+      );
+    });
+
+    it('pulse uses default values', () => {
+      gamepad.start();
+      gamepad.pulse();
+
+      expect(mockProcess.stdin.write).toHaveBeenCalledWith(
+        JSON.stringify({ event: 'vibrate', left: 32768, right: 32768 }) + '\n'
+      );
+    });
+
+    it('doublePulse sends two pulses with a gap', () => {
+      vi.useFakeTimers();
+      gamepad.start();
+      gamepad.doublePulse();
+
+      // First pulse immediate
+      expect(mockProcess.stdin.write).toHaveBeenCalledTimes(1);
+
+      // After 100ms, first pulse auto-stop fires
+      vi.advanceTimersByTime(100);
+      expect(mockProcess.stdin.write).toHaveBeenCalledTimes(2);
+
+      // At 150ms, second pulse fires
+      vi.advanceTimersByTime(50);
+      expect(mockProcess.stdin.write).toHaveBeenCalledTimes(3);
+
+      // At 250ms, second pulse auto-stop fires
+      vi.advanceTimersByTime(100);
+      expect(mockProcess.stdin.write).toHaveBeenCalledTimes(4);
+
+      vi.useRealTimers();
     });
   });
 });

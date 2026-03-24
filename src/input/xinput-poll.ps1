@@ -20,8 +20,17 @@ public class XInput {
         public XINPUT_GAMEPAD Gamepad;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct XINPUT_VIBRATION {
+        public ushort wLeftMotorSpeed;
+        public ushort wRightMotorSpeed;
+    }
+
     [DllImport("xinput1_4.dll")]
     public static extern uint XInputGetState(uint dwUserIndex, ref XINPUT_STATE pState);
+
+    [DllImport("xinput1_4.dll")]
+    public static extern uint XInputSetState(uint dwUserIndex, ref XINPUT_VIBRATION pVibration);
 }
 "@
 
@@ -106,6 +115,17 @@ while ($true) {
             Write-Output '{"event":"button","button":"Right","index":0}'
         }
 
+        # Emit analog stick values (only when above deadzone)
+        $rx = $state.Gamepad.sThumbRX
+        $ry = $state.Gamepad.sThumbRY
+        $analogDz = 8000
+        if ([Math]::Abs($lx) -gt $analogDz -or [Math]::Abs($ly) -gt $analogDz) {
+            Write-Output ('{"event":"analog","stick":"left","x":' + $lx + ',"y":' + $ly + ',"index":0}')
+        }
+        if ([Math]::Abs($rx) -gt $analogDz -or [Math]::Abs($ry) -gt $analogDz) {
+            Write-Output ('{"event":"analog","stick":"right","x":' + $rx + ',"y":' + $ry + ',"index":0}')
+        }
+
         $prevButtons = $buttons
         if ($ltPressed) { $prevButtons = $prevButtons -bor 0x10000 }
         if ($rtPressed) { $prevButtons = $prevButtons -bor 0x20000 }
@@ -117,6 +137,24 @@ while ($true) {
         if ($connected) {
             $connected = $false
             Write-Output '{"event":"disconnected","index":0}'
+        }
+    }
+
+    # Check stdin for vibration commands (non-blocking)
+    if ([Console]::KeyAvailable -or [Console]::In.Peek() -ne -1) {
+        $line = [Console]::In.ReadLine()
+        if ($line) {
+            try {
+                $cmd = $line | ConvertFrom-Json
+                if ($cmd.event -eq 'vibrate') {
+                    $vib = New-Object XInput+XINPUT_VIBRATION
+                    $vib.wLeftMotorSpeed = [uint16]$cmd.left
+                    $vib.wRightMotorSpeed = [uint16]$cmd.right
+                    [XInput]::XInputSetState(0, [ref]$vib) | Out-Null
+                }
+            } catch {
+                # Ignore malformed commands
+            }
         }
     }
 

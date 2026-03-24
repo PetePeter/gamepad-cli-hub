@@ -1,5 +1,7 @@
 import { EventEmitter } from 'events';
 import type { SessionInfo, SessionChangeEvent, SessionAddedEvent, SessionRemovedEvent } from '../types/session.js';
+import { saveSessions, loadSessions } from './persistence.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Manages CLI sessions, tracking active sessions and handling focus switching.
@@ -18,6 +20,7 @@ export class SessionManager extends EventEmitter {
   private sessions: Map<string, SessionInfo> = new Map();
   private activeSessionId: string | null = null;
   private sessionOrder: string[] = [];
+  private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     super();
@@ -41,6 +44,8 @@ export class SessionManager extends EventEmitter {
     if (this.sessions.size === 1) {
       this.setActiveSession(id);
     }
+
+    this.persistSessions();
 
     const event: SessionAddedEvent = {
       ...sessionInfo,
@@ -76,6 +81,8 @@ export class SessionManager extends EventEmitter {
         this.emit('session:changed', event);
       }
     }
+
+    this.persistSessions();
 
     const event: SessionRemovedEvent = {
       sessionId,
@@ -145,6 +152,8 @@ export class SessionManager extends EventEmitter {
     if (previousId !== sessionId) {
       this.activeSessionId = sessionId;
 
+      this.persistSessions();
+
       const event: SessionChangeEvent = {
         sessionId,
         previousSessionId: previousId,
@@ -204,6 +213,58 @@ export class SessionManager extends EventEmitter {
         timestamp: Date.now()
       };
       this.emit('session:changed', event);
+    }
+
+    this.persistSessions();
+  }
+
+  /**
+   * Restore sessions from disk that were persisted before a restart/crash.
+   * Skips sessions that already exist in memory.
+   */
+  restoreSessions(): SessionInfo[] {
+    const saved = loadSessions();
+    for (const session of saved) {
+      if (!this.getSession(session.id)) {
+        this.addSession(session);
+      }
+    }
+    return saved;
+  }
+
+  /**
+   * Start periodic health check that removes sessions whose process has died.
+   */
+  startHealthCheck(intervalMs: number = 5000): void {
+    this.healthCheckInterval = setInterval(() => {
+      for (const session of this.getAllSessions()) {
+        if (session.processId && !this.isProcessAlive(session.processId)) {
+          logger.info(`Session ${session.id} (PID ${session.processId}) is dead, removing`);
+          this.removeSession(session.id);
+        }
+      }
+    }, intervalMs);
+  }
+
+  /** Stop the periodic health check. */
+  stopHealthCheck(): void {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+    }
+  }
+
+  /** Write current session list to disk. */
+  private persistSessions(): void {
+    saveSessions(this.getAllSessions());
+  }
+
+  private isProcessAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
     }
   }
 }

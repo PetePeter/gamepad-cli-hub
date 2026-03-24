@@ -40,11 +40,6 @@ const DIRECTORIES = {
 };
 
 const TOOLS = {
-  openwhisper: {
-    whisperPath: 'whisper.exe',
-    model: 'models/ggml-base.en.bin',
-    language: 'en',
-  },
   cliTypes: {
     'claude-code': {
       name: 'Claude Code',
@@ -206,15 +201,7 @@ describe('ConfigLoader', () => {
       expect(config.cliTypes['claude-code'].spawn).toEqual(TOOLS.cliTypes['claude-code'].spawn);
       expect(config.cliTypes['claude-code'].bindings).toEqual(DEFAULT_PROFILE.cliTypes['claude-code']);
       expect(config.global).toEqual(DEFAULT_PROFILE.global);
-      expect(config.openwhisper).toEqual(TOOLS.openwhisper);
       expect(config.workingDirectories).toEqual(DIRECTORIES.workingDirectories);
-    });
-  });
-
-  describe('getOpenWhisperConfig', () => {
-    it('returns openwhisper config from tools.yaml', () => {
-      loader.load();
-      expect(loader.getOpenWhisperConfig()).toEqual(TOOLS.openwhisper);
     });
   });
 
@@ -511,6 +498,94 @@ describe('ConfigLoader', () => {
       const bindings = loader.getBindings('claude-code');
       expect(bindings).toHaveProperty('Sandwich');
       expect(bindings!['Sandwich']).toEqual({ action: 'keyboard', keys: ['Ctrl', 'w'] });
+    });
+  });
+
+  // =========================================================================
+  // Stick Config
+  // =========================================================================
+
+  describe('getStickConfig', () => {
+    it('returns defaults when profile has no sticks section', () => {
+      loader.load();
+      const left = loader.getStickConfig('left');
+      expect(left).toEqual({ mode: 'disabled', deadzone: 0.25, repeatRate: 100 });
+
+      const right = loader.getStickConfig('right');
+      expect(right).toEqual({ mode: 'disabled', deadzone: 0.25, repeatRate: 100 });
+    });
+
+    it('returns stick config from profile when present', () => {
+      const profileWithSticks = {
+        ...DEFAULT_PROFILE,
+        sticks: {
+          left: { mode: 'cursor', deadzone: 0.3, repeatRate: 80 },
+          right: { mode: 'scroll', deadzone: 0.2, repeatRate: 150 },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithSticks);
+      loader.load();
+
+      expect(loader.getStickConfig('left')).toEqual({ mode: 'cursor', deadzone: 0.3, repeatRate: 80 });
+      expect(loader.getStickConfig('right')).toEqual({ mode: 'scroll', deadzone: 0.2, repeatRate: 150 });
+    });
+
+    it('returns defaults for missing stick when only one is configured', () => {
+      const profileWithOneStick = {
+        ...DEFAULT_PROFILE,
+        sticks: {
+          left: { mode: 'cursor', deadzone: 0.25, repeatRate: 100 },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithOneStick);
+      loader.load();
+
+      expect(loader.getStickConfig('left')).toEqual({ mode: 'cursor', deadzone: 0.25, repeatRate: 100 });
+      expect(loader.getStickConfig('right')).toEqual({ mode: 'disabled', deadzone: 0.25, repeatRate: 100 });
+    });
+
+    it('throws when called before load', () => {
+      expect(() => loader.getStickConfig('left')).toThrow('Configuration not loaded');
+    });
+  });
+
+  // =========================================================================
+  // Haptic Feedback Setting
+  // =========================================================================
+
+  describe('hapticFeedback', () => {
+    it('defaults to true when not present in settings.yaml', () => {
+      // SETTINGS fixture has no hapticFeedback key
+      loader.load();
+      expect(loader.getHapticFeedback()).toBe(true);
+    });
+
+    it('reads hapticFeedback from settings.yaml when present', () => {
+      writeYaml('settings.yaml', { activeProfile: 'default', hapticFeedback: false });
+      loader.load();
+      expect(loader.getHapticFeedback()).toBe(false);
+    });
+
+    it('setHapticFeedback persists to settings.yaml', () => {
+      loader.load();
+      loader.setHapticFeedback(false);
+
+      const onDisk = readYaml<any>('settings.yaml');
+      expect(onDisk.hapticFeedback).toBe(false);
+    });
+
+    it('setHapticFeedback round-trips through reload', () => {
+      loader.load();
+      loader.setHapticFeedback(false);
+
+      // Create a fresh loader and reload
+      const loader2 = new ConfigLoader(TEST_DIR);
+      loader2.load();
+      expect(loader2.getHapticFeedback()).toBe(false);
+    });
+
+    it('throws when called before load', () => {
+      expect(() => loader.getHapticFeedback()).toThrow('Configuration not loaded');
     });
   });
 });

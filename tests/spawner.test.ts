@@ -32,6 +32,7 @@ vi.mock('../src/utils/logger.js', () => ({
 
 import { spawn } from 'node:child_process';
 import { configLoader } from '../src/config/loader.js';
+import { logger } from '../src/utils/logger.js';
 import { processSpawner } from '../src/session/spawner.js';
 
 // ---------------------------------------------------------------------------
@@ -142,6 +143,16 @@ describe('ProcessSpawner', () => {
       processSpawner.spawn('claude-code');
 
       expect(mockProcess.unref).toHaveBeenCalledOnce();
+    });
+
+    it('tracks process in internal Map after spawn', () => {
+      processSpawner.spawn('claude-code');
+
+      const all = processSpawner.getAllProcesses();
+      expect(all).toHaveLength(1);
+      expect(all[0].pid).toBe(1234);
+      expect(all[0].cliType).toBe('claude-code');
+      expect(processSpawner.getProcess(1234)).toBeDefined();
     });
   });
 
@@ -263,6 +274,9 @@ describe('ProcessSpawner', () => {
       mockProcess._emit('exit', 0);
 
       expect(processSpawner.getProcess(1234)).toBeUndefined();
+      expect(logger.info).toHaveBeenCalledWith(
+        'Process 1234 exited with code 0',
+      );
     });
 
     it('process error event removes process from tracking', () => {
@@ -272,6 +286,9 @@ describe('ProcessSpawner', () => {
       mockProcess._emit('error', new Error('spawn ENOENT'));
 
       expect(processSpawner.getProcess(1234)).toBeUndefined();
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to spawn claude-code: spawn ENOENT',
+      );
     });
   });
 

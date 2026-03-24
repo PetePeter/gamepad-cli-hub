@@ -6,7 +6,7 @@ import * as YAML from 'yaml';
 // Action & Binding Types
 // ============================================================================
 
-export type ActionType = 'keyboard' | 'voice' | 'openwhisper' | 'session-switch' | 'spawn' | 'list-sessions' | 'profile-switch';
+export type ActionType = 'keyboard' | 'hold-key' | 'session-switch' | 'spawn' | 'list-sessions' | 'profile-switch';
 
 export interface BaseBinding {
   action: ActionType;
@@ -17,14 +17,10 @@ export interface KeyboardBinding extends BaseBinding {
   keys: string[];
 }
 
-export interface VoiceBinding extends BaseBinding {
-  action: 'voice';
-  holdDuration?: number;
-}
-
-export interface OpenWhisperBinding extends BaseBinding {
-  action: 'openwhisper';
-  recordingDuration?: number;
+export interface HoldKeyBinding extends BaseBinding {
+  action: 'hold-key';
+  keys: string[];
+  delay: number;
 }
 
 export interface SessionSwitchBinding extends BaseBinding {
@@ -46,7 +42,7 @@ export interface ProfileSwitchBinding extends BaseBinding {
   direction: 'previous' | 'next';
 }
 
-export type Binding = KeyboardBinding | VoiceBinding | OpenWhisperBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding | ProfileSwitchBinding;
+export type Binding = KeyboardBinding | HoldKeyBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding | ProfileSwitchBinding;
 
 // ============================================================================
 // Shared Config Types
@@ -72,13 +68,6 @@ export interface GlobalBindings {
   [button: string]: Binding;
 }
 
-export interface OpenWhisperConfig {
-  whisperPath: string;
-  model: string;
-  language: string;
-  tempDir?: string;
-}
-
 export interface WorkingDirectory {
   name: string;
   path: string;
@@ -88,7 +77,6 @@ export interface WorkingDirectory {
 export interface Config {
   cliTypes: { [key: string]: CliTypeConfig };
   global: GlobalBindings;
-  openwhisper?: OpenWhisperConfig;
   workingDirectories?: WorkingDirectory[];
 }
 
@@ -101,18 +89,36 @@ export interface DirectoriesConfig {
 }
 
 export interface ToolsConfig {
-  openwhisper?: OpenWhisperConfig;
   cliTypes: { [key: string]: { name: string; spawn: SpawnConfig } };
 }
 
 export interface SettingsConfig {
   activeProfile: string;
+  hapticFeedback: boolean;
 }
 
 export interface ProfileConfig {
   name: string;
   cliTypes: { [key: string]: ButtonBindings };
   global: GlobalBindings;
+  sticks?: StickConfigs;
+}
+
+// ============================================================================
+// Stick Config Types
+// ============================================================================
+
+export type StickMode = 'cursor' | 'scroll' | 'disabled';
+
+export interface StickConfig {
+  mode: StickMode;
+  deadzone: number;    // 0.0–1.0 normalized
+  repeatRate: number;  // ms between repeat events
+}
+
+export interface StickConfigs {
+  left?: StickConfig;
+  right?: StickConfig;
 }
 
 // ============================================================================
@@ -167,6 +173,10 @@ export class ConfigLoader {
     this.settings = this.readYaml<SettingsConfig>(filePath);
     if (!this.settings || !this.settings.activeProfile) {
       throw new Error('Invalid settings.yaml: missing activeProfile');
+    }
+    // Default hapticFeedback to true if not present in file
+    if (this.settings.hapticFeedback === undefined) {
+      this.settings.hapticFeedback = true;
     }
     this.activeProfileName = this.settings.activeProfile;
   }
@@ -230,6 +240,18 @@ export class ConfigLoader {
     return Object.keys(this.tools!.cliTypes);
   }
 
+  getStickConfig(stick: 'left' | 'right'): StickConfig {
+    this.ensureLoaded();
+    const defaults: StickConfig = { mode: 'disabled', deadzone: 0.25, repeatRate: 100 };
+    const profileStick = this.activeProfile!.sticks?.[stick];
+    if (!profileStick) return defaults;
+    return {
+      mode: profileStick.mode ?? defaults.mode,
+      deadzone: profileStick.deadzone ?? defaults.deadzone,
+      repeatRate: profileStick.repeatRate ?? defaults.repeatRate,
+    };
+  }
+
   /** @deprecated Assembles a legacy Config object from split files */
   getConfig(): Config {
     this.ensureLoaded();
@@ -244,14 +266,8 @@ export class ConfigLoader {
     return {
       cliTypes,
       global: this.activeProfile!.global,
-      openwhisper: this.tools!.openwhisper,
       workingDirectories: this.directories!.workingDirectories,
     };
-  }
-
-  getOpenWhisperConfig(): OpenWhisperConfig | null {
-    this.ensureLoaded();
-    return this.tools!.openwhisper ?? null;
   }
 
   getWorkingDirectories(): WorkingDirectory[] {
@@ -295,6 +311,17 @@ export class ConfigLoader {
 
   getActiveProfile(): string {
     return this.activeProfileName;
+  }
+
+  getHapticFeedback(): boolean {
+    this.ensureLoaded();
+    return this.settings!.hapticFeedback;
+  }
+
+  setHapticFeedback(enabled: boolean): void {
+    this.ensureLoaded();
+    this.settings!.hapticFeedback = enabled;
+    this.saveSettings();
   }
 
   listProfiles(): string[] {

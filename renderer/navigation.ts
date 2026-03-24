@@ -11,6 +11,7 @@ import { handleSettingsScreenButton } from './screens/settings.js';
 import { handleStatusScreenButton } from './screens/status.js';
 import { handleDirPickerButton } from './modals/dir-picker.js';
 import { handleBindingEditorButton } from './modals/binding-editor.js';
+import { isHudVisible, handleHudButton, toggleHud } from './modals/session-hud.js';
 
 // ============================================================================
 // Unsubscribe handles (exported so main.ts can clean up)
@@ -97,6 +98,18 @@ export function handleGamepadEvent(event: ButtonEvent): void {
     if (count > 0) {
       handleConnectionEvent({ connected: true, count, timestamp: event.timestamp });
     }
+  }
+
+  // Session HUD overlay intercepts all input when visible
+  if (isHudVisible()) {
+    handleHudButton(event.button);
+    return;
+  }
+
+  // Sandwich button toggles the Session HUD from any screen
+  if (event.button === 'Sandwich') {
+    toggleHud();
+    return;
   }
 
   // Directory picker modal intercepts all input when visible

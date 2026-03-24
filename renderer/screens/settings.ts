@@ -514,17 +514,6 @@ async function renderToolsPanel(): Promise<void> {
 
   panel.appendChild(list);
 
-  // OpenWhisper read-only
-  if (toolsData?.openwhisper) {
-    const owCard = document.createElement('div');
-    owCard.className = 'settings-readonly-card';
-    owCard.innerHTML = `
-      <div class="settings-readonly-card__title">OpenWhisper Config (read-only)</div>
-      <div class="settings-readonly-card__content">${JSON.stringify(toolsData.openwhisper, null, 2)}</div>
-    `;
-    panel.appendChild(owCard);
-  }
-
   // Game Bar toggle
   const systemCard = document.createElement('div');
   systemCard.className = 'settings-panel';
