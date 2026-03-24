@@ -2,7 +2,21 @@
  * Directory picker modal — lets user choose a working directory before spawning.
  */
 
-import { state } from '../state.js';
+/** Dir-picker modal state — co-located with its only consumer. */
+export interface DirPickerState {
+  visible: boolean;
+  items: Array<{ name: string; path: string }>;
+  selectedIndex: number;
+  cliType: string;
+}
+
+export const dirPickerState: DirPickerState = {
+  visible: false,
+  items: [],
+  selectedIndex: 0,
+  cliType: '',
+};
+
 import { logEvent, getCliDisplayName } from '../utils.js';
 import { doSpawn } from '../screens/sessions.js';
 
@@ -11,10 +25,10 @@ import { doSpawn } from '../screens/sessions.js';
 // ============================================================================
 
 export function showDirPicker(cliType: string, dirs: Array<{ name: string; path: string }>): void {
-  state.dirPickerVisible = true;
-  state.dirPickerItems = dirs;
-  state.dirPickerSelectedIndex = 0;
-  state.dirPickerCliType = cliType;
+  dirPickerState.visible = true;
+  dirPickerState.items = dirs;
+  dirPickerState.selectedIndex = 0;
+  dirPickerState.cliType = cliType;
 
   const modal = document.getElementById('dirPickerModal');
   if (!modal) return;
@@ -28,7 +42,7 @@ export function showDirPicker(cliType: string, dirs: Array<{ name: string; path:
 }
 
 export function hideDirPicker(): void {
-  state.dirPickerVisible = false;
+  dirPickerState.visible = false;
   const modal = document.getElementById('dirPickerModal');
   if (modal) {
     modal.classList.remove('modal--visible');
@@ -46,10 +60,10 @@ function renderDirPickerList(): void {
 
   list.innerHTML = '';
 
-  state.dirPickerItems.forEach((dir, index) => {
+  dirPickerState.items.forEach((dir, index) => {
     const item = document.createElement('div');
     item.className = 'dir-picker-item focusable';
-    if (index === state.dirPickerSelectedIndex) {
+    if (index === dirPickerState.selectedIndex) {
       item.classList.add('dir-picker-item--selected');
     }
     item.tabIndex = 0;
@@ -62,7 +76,7 @@ function renderDirPickerList(): void {
   });
 
   // Focus the selected item
-  const selectedItem = list.children[state.dirPickerSelectedIndex] as HTMLElement;
+  const selectedItem = list.children[dirPickerState.selectedIndex] as HTMLElement;
   selectedItem?.focus();
 }
 
@@ -71,11 +85,11 @@ function renderDirPickerList(): void {
 // ============================================================================
 
 async function selectDirAndSpawn(index: number): Promise<void> {
-  const dir = state.dirPickerItems[index];
+  const dir = dirPickerState.items[index];
   if (!dir) return;
 
   hideDirPicker();
-  await doSpawn(state.dirPickerCliType, dir.path);
+  await doSpawn(dirPickerState.cliType, dir.path);
 }
 
 // ============================================================================
@@ -85,15 +99,15 @@ async function selectDirAndSpawn(index: number): Promise<void> {
 export function handleDirPickerButton(button: string): void {
   switch (button) {
     case 'Up':
-      state.dirPickerSelectedIndex = Math.max(0, state.dirPickerSelectedIndex - 1);
+      dirPickerState.selectedIndex = Math.max(0, dirPickerState.selectedIndex - 1);
       renderDirPickerList();
       break;
     case 'Down':
-      state.dirPickerSelectedIndex = Math.min(state.dirPickerItems.length - 1, state.dirPickerSelectedIndex + 1);
+      dirPickerState.selectedIndex = Math.min(dirPickerState.items.length - 1, dirPickerState.selectedIndex + 1);
       renderDirPickerList();
       break;
     case 'A':
-      selectDirAndSpawn(state.dirPickerSelectedIndex);
+      selectDirAndSpawn(dirPickerState.selectedIndex);
       break;
     case 'B':
       hideDirPicker();

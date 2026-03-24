@@ -7,21 +7,20 @@
  */
 
 import { state } from '../state.js';
+import { hudState, type HudPanel } from './hud-state.js';
 import { logEvent, getCliIcon, getCliDisplayName, renderFooterBindings } from '../utils.js';
 import { loadSessions } from '../screens/sessions.js';
-
-type HudPanel = typeof state.hudActivePanel;
 
 // ============================================================================
 // Public API
 // ============================================================================
 
 export function toggleHud(): void {
-  state.hudVisible ? closeHud() : openHud();
+  hudState.visible ? closeHud() : openHud();
 }
 
 export function isHudVisible(): boolean {
-  return state.hudVisible;
+  return hudState.visible;
 }
 
 export function handleHudButton(button: string): void {
@@ -39,10 +38,10 @@ async function openHud(): Promise<void> {
   const overlay = document.getElementById('sessionHudOverlay');
   if (!overlay) return;
 
-  state.hudVisible = true;
-  state.hudActivePanel = 'sessions';
-  state.hudSelectedCliType = null;
-  state.hudSelectedDirectory = null;
+  hudState.visible = true;
+  hudState.activePanel = 'sessions';
+  hudState.selectedCliType = null;
+  hudState.selectedDirectory = null;
   resetFocusIndices();
 
   overlay.classList.add('modal--visible');
@@ -57,16 +56,16 @@ function closeHud(): void {
   const overlay = document.getElementById('sessionHudOverlay');
   if (!overlay) return;
 
-  state.hudVisible = false;
+  hudState.visible = false;
   overlay.classList.remove('modal--visible');
   overlay.setAttribute('aria-hidden', 'true');
   teardownKeyboardListener();
 }
 
 function resetFocusIndices(): void {
-  state.hudSessionsFocusIndex = 0;
-  state.hudCliFocusIndex = 0;
-  state.hudDirFocusIndex = 0;
+  hudState.sessionsFocusIndex = 0;
+  hudState.cliFocusIndex = 0;
+  hudState.dirFocusIndex = 0;
 }
 
 // ============================================================================
@@ -74,7 +73,7 @@ function resetFocusIndices(): void {
 // ============================================================================
 
 function routeToPanel(button: string): void {
-  switch (state.hudActivePanel) {
+  switch (hudState.activePanel) {
     case 'sessions': handleSessionsPanel(button); break;
     case 'cli':      handleCliPanel(button); break;
     case 'directory': handleDirPanel(button); break;
@@ -92,13 +91,13 @@ function handleSessionsPanel(button: string): void {
   switch (button) {
     case 'Up':
       if (count === 0) return;
-      state.hudSessionsFocusIndex = wrap(state.hudSessionsFocusIndex - 1, count);
+      hudState.sessionsFocusIndex = wrap(hudState.sessionsFocusIndex - 1, count);
       updateFocusInPanel('sessions');
       return;
     case 'Down':
       if (count === 0) { setActivePanel('cli'); return; }
-      if (state.hudSessionsFocusIndex === count - 1) { setActivePanel('cli'); return; }
-      state.hudSessionsFocusIndex = wrap(state.hudSessionsFocusIndex + 1, count);
+      if (hudState.sessionsFocusIndex === count - 1) { setActivePanel('cli'); return; }
+      hudState.sessionsFocusIndex = wrap(hudState.sessionsFocusIndex + 1, count);
       updateFocusInPanel('sessions');
       return;
     case 'Left':
@@ -106,12 +105,12 @@ function handleSessionsPanel(button: string): void {
       setActivePanel('cli');
       return;
     case 'A': {
-      const session = state.sessions[state.hudSessionsFocusIndex];
+      const session = state.sessions[hudState.sessionsFocusIndex];
       if (session) switchToSession(session.id);
       return;
     }
     case 'X': {
-      const session = state.sessions[state.hudSessionsFocusIndex];
+      const session = state.sessions[hudState.sessionsFocusIndex];
       if (session) deleteSession(session.id);
       return;
     }
@@ -129,17 +128,17 @@ function handleSessionsPanel(button: string): void {
 // ============================================================================
 
 function handleCliPanel(button: string): void {
-  const count = state.hudCliTypes.length;
+  const count = hudState.cliTypes.length;
 
   switch (button) {
     case 'Up':
-      if (count === 0 || state.hudCliFocusIndex === 0) { setActivePanel('sessions'); return; }
-      state.hudCliFocusIndex = wrap(state.hudCliFocusIndex - 1, count);
+      if (count === 0 || hudState.cliFocusIndex === 0) { setActivePanel('sessions'); return; }
+      hudState.cliFocusIndex = wrap(hudState.cliFocusIndex - 1, count);
       updateFocusInPanel('cli');
       return;
     case 'Down':
       if (count === 0) return;
-      state.hudCliFocusIndex = wrap(state.hudCliFocusIndex + 1, count);
+      hudState.cliFocusIndex = wrap(hudState.cliFocusIndex + 1, count);
       updateFocusInPanel('cli');
       return;
     case 'A':
@@ -159,13 +158,13 @@ function handleCliPanel(button: string): void {
 }
 
 function selectCliType(): void {
-  const cliType = state.hudCliTypes[state.hudCliFocusIndex];
+  const cliType = hudState.cliTypes[hudState.cliFocusIndex];
   if (!cliType) return;
-  state.hudSelectedCliType = cliType;
+  hudState.selectedCliType = cliType;
 
   // If no directories configured, go straight to confirm
-  if (state.hudDirectories.length === 0) {
-    state.hudSelectedDirectory = null;
+  if (hudState.directories.length === 0) {
+    hudState.selectedDirectory = null;
     setActivePanel('confirm');
     renderConfirmDialog();
     return;
@@ -179,17 +178,17 @@ function selectCliType(): void {
 // ============================================================================
 
 function handleDirPanel(button: string): void {
-  const count = state.hudDirectories.length;
+  const count = hudState.directories.length;
 
   switch (button) {
     case 'Up':
       if (count === 0) return;
-      state.hudDirFocusIndex = wrap(state.hudDirFocusIndex - 1, count);
+      hudState.dirFocusIndex = wrap(hudState.dirFocusIndex - 1, count);
       updateFocusInPanel('directory');
       return;
     case 'Down':
       if (count === 0) return;
-      state.hudDirFocusIndex = wrap(state.hudDirFocusIndex + 1, count);
+      hudState.dirFocusIndex = wrap(hudState.dirFocusIndex + 1, count);
       updateFocusInPanel('directory');
       return;
     case 'A':
@@ -206,9 +205,9 @@ function handleDirPanel(button: string): void {
 }
 
 function selectDirectory(): void {
-  const dir = state.hudDirectories[state.hudDirFocusIndex];
+  const dir = hudState.directories[hudState.dirFocusIndex];
   if (!dir) return;
-  state.hudSelectedDirectory = dir;
+  hudState.selectedDirectory = dir;
   setActivePanel('confirm');
   renderConfirmDialog();
 }
@@ -225,7 +224,7 @@ function handleConfirmPanel(button: string): void {
     case 'B':
       hideConfirmDialog();
       // Go back to directory if dirs exist, otherwise cli
-      setActivePanel(state.hudDirectories.length > 0 ? 'directory' : 'cli');
+      setActivePanel(hudState.directories.length > 0 ? 'directory' : 'cli');
       return;
   }
 }
@@ -239,7 +238,7 @@ async function renderAllPanels(): Promise<void> {
   renderHudSessions();
   renderHudCliTypes();
   renderHudDirectories();
-  setActivePanel(state.hudActivePanel);
+  setActivePanel(hudState.activePanel);
 }
 
 async function loadHudData(): Promise<void> {
@@ -250,18 +249,18 @@ async function loadHudData(): Promise<void> {
   } catch (e) { console.error('[HUD] Failed to load sessions:', e); }
 
   try {
-    state.hudCliTypes = await window.gamepadCli.configGetCliTypes();
+    hudState.cliTypes = await window.gamepadCli.configGetCliTypes();
   } catch (e) { console.error('[HUD] Failed to load CLI types:', e); }
 
   try {
-    state.hudDirectories = (await window.gamepadCli.configGetWorkingDirs()) || [];
+    hudState.directories = (await window.gamepadCli.configGetWorkingDirs()) || [];
   } catch (e) { console.error('[HUD] Failed to load directories:', e); }
 
   // Clamp all focus indices to valid range after data reload
   const activeIdx = state.sessions.findIndex(s => s.id === state.activeSessionId);
-  state.hudSessionsFocusIndex = activeIdx >= 0 ? activeIdx : 0;
-  state.hudCliFocusIndex = clamp(state.hudCliFocusIndex, 0, Math.max(0, state.hudCliTypes.length - 1));
-  state.hudDirFocusIndex = clamp(state.hudDirFocusIndex, 0, Math.max(0, state.hudDirectories.length - 1));
+  hudState.sessionsFocusIndex = activeIdx >= 0 ? activeIdx : 0;
+  hudState.cliFocusIndex = clamp(hudState.cliFocusIndex, 0, Math.max(0, hudState.cliTypes.length - 1));
+  hudState.dirFocusIndex = clamp(hudState.dirFocusIndex, 0, Math.max(0, hudState.directories.length - 1));
 }
 
 // ============================================================================
@@ -284,7 +283,7 @@ function renderHudSessions(): void {
       label: session.name || `Session ${index + 1}`,
       badge: `${getCliDisplayName(session.cliType)} · PID ${session.processId}`,
       isActive: session.id === state.activeSessionId,
-      isFocused: index === state.hudSessionsFocusIndex,
+      isFocused: index === hudState.sessionsFocusIndex,
     });
     item.dataset.sessionId = session.id;
     item.addEventListener('click', () => switchToSession(session.id));
@@ -301,20 +300,20 @@ function renderHudCliTypes(): void {
   if (!list) return;
   list.innerHTML = '';
 
-  if (state.hudCliTypes.length === 0) {
+  if (hudState.cliTypes.length === 0) {
     appendEmptyMessage(list, 'No CLI types');
     return;
   }
 
-  state.hudCliTypes.forEach((cliType, index) => {
+  hudState.cliTypes.forEach((cliType, index) => {
     const item = createHudItem({
       icon: getCliIcon(cliType),
       label: getCliDisplayName(cliType),
-      isFocused: index === state.hudCliFocusIndex,
+      isFocused: index === hudState.cliFocusIndex,
     });
     item.addEventListener('click', () => {
-      state.hudCliFocusIndex = index;
-      state.hudSelectedCliType = cliType;
+      hudState.cliFocusIndex = index;
+      hudState.selectedCliType = cliType;
       setActivePanel('cli');
       updateFocusInPanel('cli');
       selectCliType();
@@ -332,20 +331,20 @@ function renderHudDirectories(): void {
   if (!list) return;
   list.innerHTML = '';
 
-  if (state.hudDirectories.length === 0) {
+  if (hudState.directories.length === 0) {
     appendEmptyMessage(list, 'No directories configured');
     return;
   }
 
-  state.hudDirectories.forEach((dir, index) => {
+  hudState.directories.forEach((dir, index) => {
     const item = createHudItem({
       icon: '📁',
       label: dir.name,
-      isFocused: index === state.hudDirFocusIndex,
+      isFocused: index === hudState.dirFocusIndex,
     });
     item.addEventListener('click', () => {
-      state.hudDirFocusIndex = index;
-      state.hudSelectedDirectory = dir;
+      hudState.dirFocusIndex = index;
+      hudState.selectedDirectory = dir;
       setActivePanel('directory');
       updateFocusInPanel('directory');
       selectDirectory();
@@ -363,8 +362,8 @@ function renderConfirmDialog(): void {
   const textEl = document.getElementById('hudConfirmText');
   if (!el || !textEl) return;
 
-  const cliName = getCliDisplayName(state.hudSelectedCliType || '');
-  const dirName = state.hudSelectedDirectory?.name || 'default directory';
+  const cliName = getCliDisplayName(hudState.selectedCliType || '');
+  const dirName = hudState.selectedDirectory?.name || 'default directory';
   textEl.textContent = `Launch ${cliName} in ${dirName}?`;
   el.style.display = '';
 }
@@ -379,7 +378,7 @@ function hideConfirmDialog(): void {
 // ============================================================================
 
 function setActivePanel(panel: HudPanel): void {
-  state.hudActivePanel = panel;
+  hudState.activePanel = panel;
 
   // Update section highlight CSS
   const sections = ['hudSectionSessions', 'hudSectionCli', 'hudSectionDir'];
@@ -418,9 +417,9 @@ function updateFocusInPanel(panel: string): void {
 /** Maps panel name → list element ID and current focus index getter */
 function getPanelConfig(panel: string) {
   switch (panel) {
-    case 'sessions':  return { listId: 'hudSessionList', getIndex: () => state.hudSessionsFocusIndex };
-    case 'cli':       return { listId: 'hudCliList',     getIndex: () => state.hudCliFocusIndex };
-    case 'directory':  return { listId: 'hudDirList',     getIndex: () => state.hudDirFocusIndex };
+    case 'sessions':  return { listId: 'hudSessionList', getIndex: () => hudState.sessionsFocusIndex };
+    case 'cli':       return { listId: 'hudCliList',     getIndex: () => hudState.cliFocusIndex };
+    case 'directory':  return { listId: 'hudDirList',     getIndex: () => hudState.dirFocusIndex };
     default: return null;
   }
 }
@@ -451,7 +450,7 @@ async function deleteSession(sessionId: string): Promise<void> {
       logEvent(`HUD deleted: ${sessionId}`);
       // Refresh after delete
       state.sessions = await window.gamepadCli.sessionGetAll();
-      state.hudSessionsFocusIndex = clamp(state.hudSessionsFocusIndex, 0, Math.max(0, state.sessions.length - 1));
+      hudState.sessionsFocusIndex = clamp(hudState.sessionsFocusIndex, 0, Math.max(0, state.sessions.length - 1));
       renderHudSessions();
       updateFocusInPanel('sessions');
     } else {
@@ -463,12 +462,12 @@ async function deleteSession(sessionId: string): Promise<void> {
 }
 
 async function spawnSession(): Promise<void> {
-  if (!state.hudSelectedCliType || !window.gamepadCli) return;
+  if (!hudState.selectedCliType || !window.gamepadCli) return;
 
   try {
     const result = await window.gamepadCli.spawnCli(
-      state.hudSelectedCliType,
-      state.hudSelectedDirectory?.path,
+      hudState.selectedCliType,
+      hudState.selectedDirectory?.path,
     );
     if (result.success) {
       logEvent(`Spawned: PID ${result.pid}`);
@@ -544,7 +543,7 @@ function appendEmptyMessage(container: HTMLElement, message: string): void {
 // ============================================================================
 
 function onKeyDown(e: KeyboardEvent): void {
-  if (!state.hudVisible) return;
+  if (!hudState.visible) return;
 
   const keyMap: Record<string, string> = {
     ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right',

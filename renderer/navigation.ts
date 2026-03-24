@@ -10,7 +10,9 @@ import { handleSessionsScreenButton } from './screens/sessions.js';
 import { handleSettingsScreenButton } from './screens/settings.js';
 import { handleStatusScreenButton } from './screens/status.js';
 import { handleDirPickerButton } from './modals/dir-picker.js';
+import { dirPickerState } from './modals/dir-picker.js';
 import { handleBindingEditorButton } from './modals/binding-editor.js';
+import { bindingEditorState } from './modals/binding-editor.js';
 import { isHudVisible, handleHudButton, toggleHud } from './modals/session-hud.js';
 
 // ============================================================================
@@ -113,13 +115,13 @@ export function handleGamepadEvent(event: ButtonEvent): void {
   }
 
   // Directory picker modal intercepts all input when visible
-  if (state.dirPickerVisible) {
+  if (dirPickerState.visible) {
     handleDirPickerButton(event.button);
     return;
   }
 
   // Binding editor modal intercepts all input when visible
-  if (state.bindingEditorVisible) {
+  if (bindingEditorState.visible) {
     handleBindingEditorButton(event.button);
     return;
   }

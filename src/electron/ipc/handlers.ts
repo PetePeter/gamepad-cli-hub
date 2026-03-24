@@ -32,7 +32,7 @@ import { setupSystemHandlers } from './system-handlers.js';
  * Dependencies are created/imported here and injected into each domain module
  * so handler files never import singletons directly.
  */
-export function registerIPCHandlers(): void {
+export function registerIPCHandlers(): () => void {
   logger.info('[IPC] Registering handlers');
 
   // Load config eagerly so individual handlers don't need to call load()
@@ -47,7 +47,7 @@ export function registerIPCHandlers(): void {
   const sessionManager = new SessionManager();
 
   setupGamepadHandlers(gamepadInput);
-  setupSessionHandlers(sessionManager, windowManager);
+  const cleanupSession = setupSessionHandlers(sessionManager, windowManager);
   setupConfigHandlers(configLoader);
   setupProfileHandlers(configLoader);
   setupToolsHandlers(configLoader);
@@ -58,4 +58,10 @@ export function registerIPCHandlers(): void {
   setupSystemHandlers();
 
   logger.info('[IPC] All handlers registered');
+
+  return () => {
+    cleanupSession();
+    windowManager.cleanup();
+    logger.info('[IPC] Cleanup complete');
+  };
 }

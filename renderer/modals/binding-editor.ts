@@ -2,6 +2,19 @@
  * Binding editor modal — edit or create button→action bindings.
  */
 
+/** Binding editor modal state — co-located with its only consumer. */
+export interface BindingEditorState {
+  visible: boolean;
+  editingBinding: { button: string; cliType: string | null; binding: any } | null;
+  focusIndex: number;
+}
+
+export const bindingEditorState: BindingEditorState = {
+  visible: false,
+  editingBinding: null,
+  focusIndex: 0,
+};
+
 import { state } from '../state.js';
 import { logEvent, getCliDisplayName } from '../utils.js';
 import { loadSettingsScreen } from '../screens/settings.js';
@@ -17,9 +30,9 @@ const ACTION_TYPES = ['keyboard', 'voice', 'session-switch', 'spawn', 'list-sess
 // ============================================================================
 
 export function openBindingEditor(button: string, cliType: string | null, binding: any): void {
-  state.editingBinding = { button, cliType, binding: { ...binding } };
-  state.bindingEditorVisible = true;
-  state.bindingEditorFocusIndex = 0;
+  bindingEditorState.editingBinding = { button, cliType, binding: { ...binding } };
+  bindingEditorState.visible = true;
+  bindingEditorState.focusIndex = 0;
 
   const modal = document.getElementById('bindingEditorModal');
   if (!modal) return;
@@ -37,8 +50,8 @@ export function openBindingEditor(button: string, cliType: string | null, bindin
 }
 
 export function closeBindingEditor(): void {
-  state.bindingEditorVisible = false;
-  state.editingBinding = null;
+  bindingEditorState.visible = false;
+  bindingEditorState.editingBinding = null;
 
   const modal = document.getElementById('bindingEditorModal');
   if (modal) {
@@ -53,9 +66,9 @@ export function closeBindingEditor(): void {
 
 function renderBindingEditorForm(): void {
   const form = document.getElementById('bindingEditorForm');
-  if (!form || !state.editingBinding) return;
+  if (!form || !bindingEditorState.editingBinding) return;
 
-  const { button, binding } = state.editingBinding;
+  const { button, binding } = bindingEditorState.editingBinding;
   form.innerHTML = '';
 
   // Button name (read-only)
@@ -77,9 +90,9 @@ function renderBindingEditorForm(): void {
   // Wire action type change to re-render params
   const actionSelect = document.getElementById('bindingEditorAction') as HTMLSelectElement;
   actionSelect?.addEventListener('change', () => {
-    if (!state.editingBinding) return;
+    if (!bindingEditorState.editingBinding) return;
     const newAction = actionSelect.value;
-    state.editingBinding.binding = buildDefaultBinding(newAction);
+    bindingEditorState.editingBinding.binding = buildDefaultBinding(newAction);
     renderBindingEditorForm();
   });
 
@@ -219,7 +232,7 @@ function buildDefaultBinding(action: string): any {
 // ============================================================================
 
 function collectBindingFromForm(): any | null {
-  if (!state.editingBinding) return null;
+  if (!bindingEditorState.editingBinding) return null;
 
   const actionSelect = document.getElementById('bindingEditorAction') as HTMLSelectElement;
   if (!actionSelect) return null;
@@ -274,7 +287,7 @@ function collectBindingFromForm(): any | null {
 }
 
 export async function saveBinding(): Promise<void> {
-  if (!state.editingBinding || !window.gamepadCli) return;
+  if (!bindingEditorState.editingBinding || !window.gamepadCli) return;
 
   const binding = collectBindingFromForm();
   if (!binding) {
@@ -282,7 +295,7 @@ export async function saveBinding(): Promise<void> {
     return;
   }
 
-  const { button, cliType } = state.editingBinding;
+  const { button, cliType } = bindingEditorState.editingBinding;
 
   try {
     const result = await window.gamepadCli.configSetBinding(button, cliType, binding);
@@ -324,27 +337,27 @@ function getBindingEditorFocusables(): HTMLElement[] {
 function focusBindingEditorField(): void {
   const fields = getBindingEditorFocusables();
   if (fields.length === 0) return;
-  if (state.bindingEditorFocusIndex >= fields.length) {
-    state.bindingEditorFocusIndex = fields.length - 1;
+  if (bindingEditorState.focusIndex >= fields.length) {
+    bindingEditorState.focusIndex = fields.length - 1;
   }
-  fields[state.bindingEditorFocusIndex]?.focus();
+  fields[bindingEditorState.focusIndex]?.focus();
 }
 
 export function handleBindingEditorButton(button: string): void {
   switch (button) {
     case 'Up': {
       const fields = getBindingEditorFocusables();
-      state.bindingEditorFocusIndex = Math.max(0, state.bindingEditorFocusIndex - 1);
-      if (fields[state.bindingEditorFocusIndex]) {
-        fields[state.bindingEditorFocusIndex].focus();
+      bindingEditorState.focusIndex = Math.max(0, bindingEditorState.focusIndex - 1);
+      if (fields[bindingEditorState.focusIndex]) {
+        fields[bindingEditorState.focusIndex].focus();
       }
       break;
     }
     case 'Down': {
       const fields = getBindingEditorFocusables();
-      state.bindingEditorFocusIndex = Math.min(fields.length - 1, state.bindingEditorFocusIndex + 1);
-      if (fields[state.bindingEditorFocusIndex]) {
-        fields[state.bindingEditorFocusIndex].focus();
+      bindingEditorState.focusIndex = Math.min(fields.length - 1, bindingEditorState.focusIndex + 1);
+      if (fields[bindingEditorState.focusIndex]) {
+        fields[bindingEditorState.focusIndex].focus();
       }
       break;
     }

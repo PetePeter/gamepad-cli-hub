@@ -40,7 +40,7 @@ function detectCliTypeFromTitle(title: string): string {
 export function setupSessionHandlers(
   sessionManager: SessionManager,
   windowManager: WindowsWindowManager,
-): void {
+): () => void {
   /** Get active session and focus its window */
   async function getActiveAndFocus(): Promise<SessionInfo | null> {
     const session = sessionManager.getActiveSession();
@@ -201,4 +201,12 @@ export function setupSessionHandlers(
     }
     return { success: true };
   });
+
+  return () => {
+    if (foregroundSyncInterval) {
+      clearInterval(foregroundSyncInterval);
+      foregroundSyncInterval = null;
+    }
+    sessionManager.stopHealthCheck();
+  };
 }

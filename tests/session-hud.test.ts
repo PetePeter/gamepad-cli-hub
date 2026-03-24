@@ -67,6 +67,10 @@ async function getState() {
   return (await import('../renderer/state.js')).state;
 }
 
+async function getHudState() {
+  return (await import('../renderer/modals/hud-state.js')).hudState;
+}
+
 async function getHud() {
   return await import('../renderer/modals/session-hud.js');
 }
@@ -103,6 +107,7 @@ function makeSessions(count: number) {
 describe('Session Launcher HUD', () => {
   let state: Awaited<ReturnType<typeof getState>>;
   let hud: Awaited<ReturnType<typeof getHud>>;
+  let hudState: Awaited<ReturnType<typeof getHudState>>;
 
   beforeEach(async () => {
     vi.useFakeTimers();
@@ -119,6 +124,7 @@ describe('Session Launcher HUD', () => {
     };
 
     state = await getState();
+    hudState = await getHudState();
     hud = await getHud();
 
     // Sensible defaults — individual tests override as needed
@@ -131,19 +137,21 @@ describe('Session Launcher HUD', () => {
   });
 
   afterEach(() => {
-    if (state.hudVisible) hud.handleHudButton('Sandwich');
+    if (hudState.visible) hud.handleHudButton('Sandwich');
     vi.useRealTimers();
     vi.clearAllMocks();
+    Object.assign(hudState, {
+      visible: false,
+      activePanel: 'sessions',
+      sessionsFocusIndex: 0,
+      cliFocusIndex: 0,
+      dirFocusIndex: 0,
+      selectedCliType: null,
+      selectedDirectory: null,
+      cliTypes: [],
+      directories: [],
+    });
     Object.assign(state, {
-      hudVisible: false,
-      hudActivePanel: 'sessions',
-      hudSessionsFocusIndex: 0,
-      hudCliFocusIndex: 0,
-      hudDirFocusIndex: 0,
-      hudSelectedCliType: null,
-      hudSelectedDirectory: null,
-      hudCliTypes: [],
-      hudDirectories: [],
       sessions: [],
       activeSessionId: null,
     });
@@ -156,18 +164,18 @@ describe('Session Launcher HUD', () => {
 
   describe('toggleHud / openHud / closeHud', () => {
     it('opening sets hudVisible true and resets to sessions panel', async () => {
-      state.hudActivePanel = 'cli';
-      state.hudSessionsFocusIndex = 5;
-      state.hudCliFocusIndex = 3;
-      state.hudDirFocusIndex = 2;
+      hudState.activePanel = 'cli';
+      hudState.sessionsFocusIndex = 5;
+      hudState.cliFocusIndex = 3;
+      hudState.dirFocusIndex = 2;
 
       await openHudAndFlush(hud);
 
-      expect(state.hudVisible).toBe(true);
-      expect(state.hudActivePanel).toBe('sessions');
-      expect(state.hudSessionsFocusIndex).toBe(0);
-      expect(state.hudCliFocusIndex).toBe(0);
-      expect(state.hudDirFocusIndex).toBe(0);
+      expect(hudState.visible).toBe(true);
+      expect(hudState.activePanel).toBe('sessions');
+      expect(hudState.sessionsFocusIndex).toBe(0);
+      expect(hudState.cliFocusIndex).toBe(0);
+      expect(hudState.dirFocusIndex).toBe(0);
     });
 
     it('opening adds modal--visible to the overlay', async () => {
@@ -180,7 +188,7 @@ describe('Session Launcher HUD', () => {
     it('closing sets hudVisible false', async () => {
       await openHudAndFlush(hud);
       hud.toggleHud(); // close
-      expect(state.hudVisible).toBe(false);
+      expect(hudState.visible).toBe(false);
     });
 
     it('closing removes modal--visible from overlay', async () => {
@@ -193,11 +201,11 @@ describe('Session Launcher HUD', () => {
     });
 
     it('toggle opens when closed and closes when open', async () => {
-      expect(state.hudVisible).toBe(false);
+      expect(hudState.visible).toBe(false);
       await openHudAndFlush(hud);
-      expect(state.hudVisible).toBe(true);
+      expect(hudState.visible).toBe(true);
       hud.toggleHud();
-      expect(state.hudVisible).toBe(false);
+      expect(hudState.visible).toBe(false);
     });
 
     it('isHudVisible reflects current state', async () => {
@@ -209,13 +217,13 @@ describe('Session Launcher HUD', () => {
     });
 
     it('opening resets selected CLI type and directory', async () => {
-      state.hudSelectedCliType = 'claude-code';
-      state.hudSelectedDirectory = { name: 'x', path: '/x' };
+      hudState.selectedCliType = 'claude-code';
+      hudState.selectedDirectory = { name: 'x', path: '/x' };
 
       await openHudAndFlush(hud);
 
-      expect(state.hudSelectedCliType).toBe(null);
-      expect(state.hudSelectedDirectory).toBe(null);
+      expect(hudState.selectedCliType).toBe(null);
+      expect(hudState.selectedDirectory).toBe(null);
     });
 
     it('opening hides confirm dialog', async () => {
@@ -239,31 +247,31 @@ describe('Session Launcher HUD', () => {
     });
 
     it('Down moves focus index forward', () => {
-      expect(state.hudSessionsFocusIndex).toBe(0);
+      expect(hudState.sessionsFocusIndex).toBe(0);
       hud.handleHudButton('Down');
-      expect(state.hudSessionsFocusIndex).toBe(1);
+      expect(hudState.sessionsFocusIndex).toBe(1);
     });
 
     it('Up wraps from first item to last', () => {
-      state.hudSessionsFocusIndex = 0;
+      hudState.sessionsFocusIndex = 0;
       hud.handleHudButton('Up');
-      expect(state.hudSessionsFocusIndex).toBe(2);
+      expect(hudState.sessionsFocusIndex).toBe(2);
     });
 
     it('Down past last session switches to CLI panel', () => {
-      state.hudSessionsFocusIndex = 2;
+      hudState.sessionsFocusIndex = 2;
       hud.handleHudButton('Down');
-      expect(state.hudActivePanel).toBe('cli');
+      expect(hudState.activePanel).toBe('cli');
     });
 
     it('Left switches to CLI panel', () => {
       hud.handleHudButton('Left');
-      expect(state.hudActivePanel).toBe('cli');
+      expect(hudState.activePanel).toBe('cli');
     });
 
     it('Right switches to CLI panel', () => {
       hud.handleHudButton('Right');
-      expect(state.hudActivePanel).toBe('cli');
+      expect(hudState.activePanel).toBe('cli');
     });
 
     it('A activates the focused session and closes HUD', async () => {
@@ -271,7 +279,7 @@ describe('Session Launcher HUD', () => {
       await flush();
 
       expect(mockSessionSetActive).toHaveBeenCalledWith('s-0');
-      expect(state.hudVisible).toBe(false);
+      expect(hudState.visible).toBe(false);
     });
 
     it('X deletes the focused session and refreshes list', async () => {
@@ -285,14 +293,14 @@ describe('Session Launcher HUD', () => {
     });
 
     it('X clamps focus index when list shrinks', async () => {
-      state.hudSessionsFocusIndex = 2;
+      hudState.sessionsFocusIndex = 2;
       mockSessionClose.mockResolvedValue({ success: true });
       mockSessionGetAll.mockResolvedValue(makeSessions(2));
 
       hud.handleHudButton('X');
       await flush();
 
-      expect(state.hudSessionsFocusIndex).toBeLessThanOrEqual(1);
+      expect(hudState.sessionsFocusIndex).toBeLessThanOrEqual(1);
     });
 
     it('Y refreshes all panels', async () => {
@@ -306,7 +314,7 @@ describe('Session Launcher HUD', () => {
 
     it('B closes the HUD', () => {
       hud.handleHudButton('B');
-      expect(state.hudVisible).toBe(false);
+      expect(hudState.visible).toBe(false);
     });
 
     it('empty sessions: Down goes straight to CLI panel', async () => {
@@ -317,7 +325,7 @@ describe('Session Launcher HUD', () => {
 
       expect(state.sessions).toHaveLength(0);
       hud.handleHudButton('Down');
-      expect(state.hudActivePanel).toBe('cli');
+      expect(hudState.activePanel).toBe('cli');
     });
 
     it('empty sessions: Up does nothing', async () => {
@@ -326,8 +334,8 @@ describe('Session Launcher HUD', () => {
       await openHudAndFlush(hud);
 
       hud.handleHudButton('Up');
-      expect(state.hudActivePanel).toBe('sessions');
-      expect(state.hudSessionsFocusIndex).toBe(0);
+      expect(hudState.activePanel).toBe('sessions');
+      expect(hudState.sessionsFocusIndex).toBe(0);
     });
   });
 
@@ -343,44 +351,44 @@ describe('Session Launcher HUD', () => {
     });
 
     it('Down moves focus index forward', () => {
-      expect(state.hudCliFocusIndex).toBe(0);
+      expect(hudState.cliFocusIndex).toBe(0);
       hud.handleHudButton('Down');
-      expect(state.hudCliFocusIndex).toBe(1);
+      expect(hudState.cliFocusIndex).toBe(1);
     });
 
     it('Down wraps around at end of list', () => {
-      state.hudCliFocusIndex = 2;
+      hudState.cliFocusIndex = 2;
       hud.handleHudButton('Down');
-      expect(state.hudCliFocusIndex).toBe(0);
+      expect(hudState.cliFocusIndex).toBe(0);
     });
 
     it('Up past first item switches to sessions panel', () => {
-      state.hudCliFocusIndex = 0;
+      hudState.cliFocusIndex = 0;
       hud.handleHudButton('Up');
-      expect(state.hudActivePanel).toBe('sessions');
+      expect(hudState.activePanel).toBe('sessions');
     });
 
     it('A selects CLI type and moves to directory panel', () => {
       hud.handleHudButton('A');
-      expect(state.hudSelectedCliType).toBe('claude-code');
-      expect(state.hudActivePanel).toBe('directory');
+      expect(hudState.selectedCliType).toBe('claude-code');
+      expect(hudState.activePanel).toBe('directory');
     });
 
     it('Right selects CLI type and moves to directory panel', () => {
-      state.hudCliFocusIndex = 1;
+      hudState.cliFocusIndex = 1;
       hud.handleHudButton('Right');
-      expect(state.hudSelectedCliType).toBe('copilot-cli');
-      expect(state.hudActivePanel).toBe('directory');
+      expect(hudState.selectedCliType).toBe('copilot-cli');
+      expect(hudState.activePanel).toBe('directory');
     });
 
     it('Left goes back to sessions panel', () => {
       hud.handleHudButton('Left');
-      expect(state.hudActivePanel).toBe('sessions');
+      expect(hudState.activePanel).toBe('sessions');
     });
 
     it('B goes back to sessions panel', () => {
       hud.handleHudButton('B');
-      expect(state.hudActivePanel).toBe('sessions');
+      expect(hudState.activePanel).toBe('sessions');
     });
 
     it('no directories: A goes straight to confirm', async () => {
@@ -391,9 +399,9 @@ describe('Session Launcher HUD', () => {
       hud.handleHudButton('Left'); // → CLI
       hud.handleHudButton('A');
 
-      expect(state.hudSelectedCliType).toBe('claude-code');
-      expect(state.hudSelectedDirectory).toBe(null);
-      expect(state.hudActivePanel).toBe('confirm');
+      expect(hudState.selectedCliType).toBe('claude-code');
+      expect(hudState.selectedDirectory).toBe(null);
+      expect(hudState.activePanel).toBe('confirm');
     });
 
     it('Y refreshes all panels from CLI panel', async () => {
@@ -423,37 +431,37 @@ describe('Session Launcher HUD', () => {
     });
 
     it('Down moves focus index forward', () => {
-      expect(state.hudDirFocusIndex).toBe(0);
+      expect(hudState.dirFocusIndex).toBe(0);
       hud.handleHudButton('Down');
-      expect(state.hudDirFocusIndex).toBe(1);
+      expect(hudState.dirFocusIndex).toBe(1);
     });
 
     it('Up wraps from first to last', () => {
-      state.hudDirFocusIndex = 0;
+      hudState.dirFocusIndex = 0;
       hud.handleHudButton('Up');
-      expect(state.hudDirFocusIndex).toBe(2);
+      expect(hudState.dirFocusIndex).toBe(2);
     });
 
     it('Down wraps from last to first', () => {
-      state.hudDirFocusIndex = 2;
+      hudState.dirFocusIndex = 2;
       hud.handleHudButton('Down');
-      expect(state.hudDirFocusIndex).toBe(0);
+      expect(hudState.dirFocusIndex).toBe(0);
     });
 
     it('A selects directory and shows confirm panel', () => {
       hud.handleHudButton('A');
-      expect(state.hudSelectedDirectory).toEqual({ name: 'proj-a', path: '/a' });
-      expect(state.hudActivePanel).toBe('confirm');
+      expect(hudState.selectedDirectory).toEqual({ name: 'proj-a', path: '/a' });
+      expect(hudState.activePanel).toBe('confirm');
     });
 
     it('Left goes back to CLI panel', () => {
       hud.handleHudButton('Left');
-      expect(state.hudActivePanel).toBe('cli');
+      expect(hudState.activePanel).toBe('cli');
     });
 
     it('B goes back to CLI panel', () => {
       hud.handleHudButton('B');
-      expect(state.hudActivePanel).toBe('cli');
+      expect(hudState.activePanel).toBe('cli');
     });
 
     it('Y refreshes all panels from directory panel', async () => {
@@ -486,12 +494,12 @@ describe('Session Launcher HUD', () => {
       await flush();
 
       expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', '/a');
-      expect(state.hudVisible).toBe(false);
+      expect(hudState.visible).toBe(false);
     });
 
     it('B goes back to directory panel when directories exist', () => {
       hud.handleHudButton('B');
-      expect(state.hudActivePanel).toBe('directory');
+      expect(hudState.activePanel).toBe('directory');
     });
 
     it('B goes back to CLI panel when no directories', async () => {
@@ -501,10 +509,10 @@ describe('Session Launcher HUD', () => {
 
       hud.handleHudButton('Left'); // → CLI
       hud.handleHudButton('A');    // → confirm (no dirs)
-      expect(state.hudActivePanel).toBe('confirm');
+      expect(hudState.activePanel).toBe('confirm');
 
       hud.handleHudButton('B');
-      expect(state.hudActivePanel).toBe('cli');
+      expect(hudState.activePanel).toBe('cli');
     });
 
     it('A with no directory passes undefined path', async () => {
@@ -556,10 +564,10 @@ describe('Session Launcher HUD', () => {
   describe('Sandwich button', () => {
     it('closes HUD from any panel', async () => {
       await openHudAndFlush(hud);
-      state.hudActivePanel = 'cli';
+      hudState.activePanel = 'cli';
 
       hud.handleHudButton('Sandwich');
-      expect(state.hudVisible).toBe(false);
+      expect(hudState.visible).toBe(false);
     });
   });
 
@@ -580,22 +588,22 @@ describe('Session Launcher HUD', () => {
 
     it('ArrowDown maps to Down', () => {
       pressKey('ArrowDown');
-      expect(state.hudSessionsFocusIndex).toBe(1);
+      expect(hudState.sessionsFocusIndex).toBe(1);
     });
 
     it('ArrowUp maps to Up (wraps)', () => {
       pressKey('ArrowUp');
-      expect(state.hudSessionsFocusIndex).toBe(2);
+      expect(hudState.sessionsFocusIndex).toBe(2);
     });
 
     it('ArrowLeft maps to Left (switches to CLI)', () => {
       pressKey('ArrowLeft');
-      expect(state.hudActivePanel).toBe('cli');
+      expect(hudState.activePanel).toBe('cli');
     });
 
     it('ArrowRight maps to Right (switches to CLI)', () => {
       pressKey('ArrowRight');
-      expect(state.hudActivePanel).toBe('cli');
+      expect(hudState.activePanel).toBe('cli');
     });
 
     it('Enter maps to A (activates session)', async () => {
@@ -606,7 +614,7 @@ describe('Session Launcher HUD', () => {
 
     it('Escape maps to B (closes HUD)', () => {
       pressKey('Escape');
-      expect(state.hudVisible).toBe(false);
+      expect(hudState.visible).toBe(false);
     });
 
     it('Delete maps to X (deletes session)', async () => {
@@ -628,21 +636,21 @@ describe('Session Launcher HUD', () => {
     });
 
     it('unmapped keys are ignored', () => {
-      const before = state.hudSessionsFocusIndex;
+      const before = hudState.sessionsFocusIndex;
       pressKey('Tab');
-      expect(state.hudSessionsFocusIndex).toBe(before);
+      expect(hudState.sessionsFocusIndex).toBe(before);
     });
 
     it('keyboard listener is removed when HUD closes', () => {
       hud.toggleHud(); // close
-      expect(state.hudVisible).toBe(false);
+      expect(hudState.visible).toBe(false);
 
-      state.hudActivePanel = 'sessions';
+      hudState.activePanel = 'sessions';
       state.sessions = makeSessions(3);
-      const indexBefore = state.hudSessionsFocusIndex;
+      const indexBefore = hudState.sessionsFocusIndex;
 
       pressKey('ArrowDown');
-      expect(state.hudSessionsFocusIndex).toBe(indexBefore);
+      expect(hudState.sessionsFocusIndex).toBe(indexBefore);
     });
   });
 
@@ -850,7 +858,7 @@ describe('Session Launcher HUD', () => {
 
       await openHudAndFlush(hud);
 
-      expect(state.hudSessionsFocusIndex).toBe(2);
+      expect(hudState.sessionsFocusIndex).toBe(2);
     });
 
     it('defaults to 0 when no active session', async () => {
@@ -859,7 +867,7 @@ describe('Session Launcher HUD', () => {
 
       await openHudAndFlush(hud);
 
-      expect(state.hudSessionsFocusIndex).toBe(0);
+      expect(hudState.sessionsFocusIndex).toBe(0);
     });
 
     it('defaults to 0 when active session not found in list', async () => {
@@ -868,7 +876,7 @@ describe('Session Launcher HUD', () => {
 
       await openHudAndFlush(hud);
 
-      expect(state.hudSessionsFocusIndex).toBe(0);
+      expect(hudState.sessionsFocusIndex).toBe(0);
     });
   });
 });

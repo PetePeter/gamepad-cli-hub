@@ -19,6 +19,7 @@ app.commandLine.appendSwitch('enable-features', 'WebGamepad');
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let mainWindow: BrowserWindow | null = null;
+let cleanupIPC: (() => void) | null = null;
 
 /**
  * Create the main application window
@@ -89,7 +90,7 @@ app.whenReady().then(() => {
   logger.info('[Main] App ready');
 
   // Register IPC handlers
-  registerIPCHandlers();
+  cleanupIPC = registerIPCHandlers();
 
   // Remove default application menu (no File/Edit/View/Window/Help needed)
   Menu.setApplicationMenu(null);
@@ -132,6 +133,11 @@ app.on('before-quit', () => {
 
   // Stop gamepad input
   gamepadInput.stop();
+
+  if (cleanupIPC) {
+    cleanupIPC();
+    cleanupIPC = null;
+  }
 });
 
 /**
