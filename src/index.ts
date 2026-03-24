@@ -428,6 +428,9 @@ class GamepadCliHub {
     // Clear sessions
     this.sessionManager.clear();
 
+    // Reset analog throttle state
+    this.analogThrottles = { left: 0, right: 0 };
+
     this.isRunning = false;
     logger.info('Gamepad CLI Hub stopped');
   }

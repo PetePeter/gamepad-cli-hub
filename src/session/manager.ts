@@ -30,7 +30,7 @@ export class SessionManager extends EventEmitter {
    * Add a new CLI session
    * @param sessionInfo - Session information
    */
-  addSession(sessionInfo: SessionInfo): void {
+  addSession(sessionInfo: SessionInfo, skipPersist = false): void {
     const { id } = sessionInfo;
 
     if (this.sessions.has(id)) {
@@ -42,10 +42,12 @@ export class SessionManager extends EventEmitter {
 
     // Set as active if it's the first session
     if (this.sessions.size === 1) {
-      this.setActiveSession(id);
+      this.setActiveSession(id, skipPersist);
     }
 
-    this.persistSessions();
+    if (!skipPersist) {
+      this.persistSessions();
+    }
 
     const event: SessionAddedEvent = {
       ...sessionInfo,
@@ -141,7 +143,7 @@ export class SessionManager extends EventEmitter {
    * Set a session as active
    * @param sessionId - Session ID to activate
    */
-  setActiveSession(sessionId: string): void {
+  setActiveSession(sessionId: string, skipPersist = false): void {
     if (!this.sessions.has(sessionId)) {
       throw new Error(`Session with id "${sessionId}" does not exist`);
     }
@@ -152,7 +154,9 @@ export class SessionManager extends EventEmitter {
     if (previousId !== sessionId) {
       this.activeSessionId = sessionId;
 
-      this.persistSessions();
+      if (!skipPersist) {
+        this.persistSessions();
+      }
 
       const event: SessionChangeEvent = {
         sessionId,
@@ -226,8 +230,11 @@ export class SessionManager extends EventEmitter {
     const saved = loadSessions();
     for (const session of saved) {
       if (!this.getSession(session.id)) {
-        this.addSession(session);
+        this.addSession(session, true);
       }
+    }
+    if (saved.length > 0) {
+      this.persistSessions();
     }
     return saved;
   }
