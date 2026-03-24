@@ -4,7 +4,7 @@
 
 A DIY Xbox controller → CLI session manager. Controls multiple CLI instances (Claude Code, Copilot CLI, etc.) from a single game controller. Built as an Electron 41 desktop app on Windows.
 
-The controller acts as a universal remote: switch between terminal windows, spawn new CLI sessions, send keystrokes, and trigger voice input — all without touching the keyboard.
+The controller acts as a universal remote: switch between terminal windows, spawn new CLI sessions, send keystrokes, and hold keys for voice passthrough — all without touching the keyboard.
 
 ---
 
@@ -19,33 +19,36 @@ graph TB
     subgraph "Electron App"
         subgraph "Renderer Process"
             UI[UI Screens<br/>Sessions / Settings / Status]
+            HUD[HUD Overlay<br/>Session quick-switch]
             BGA[Browser Gamepad API<br/>Bluetooth controllers]
         end
 
         subgraph "Main Process"
             IPC[IPC Handlers<br/>gamepad, session, config,<br/>profile, tools, window,<br/>spawn, keyboard, app, system]
-            GI[GamepadInput<br/>XInput via PowerShell<br/>600ms debounce]
+            GI[GamepadInput<br/>XInput via PowerShell<br/>600ms debounce<br/>Buttons + Analog Sticks]
             SM[SessionManager<br/>EventEmitter pattern]
+            SP[SessionPersistence<br/>YAML save/load/health check]
             PS[ProcessSpawner<br/>Detached CLI processes]
-            KS[KeyboardSimulator<br/>@jitsi/robotjs]
+            KS[KeyboardSimulator<br/>@jitsi/robotjs<br/>+ hold-key support]
             WM[WindowManager<br/>Win32 via PowerShell]
             CL[ConfigLoader<br/>Split YAML + CRUD]
-            OW[OpenWhisper<br/>whisper.cpp transcription]
         end
 
         UI <-->|contextBridge<br/>preload.ts| IPC
+        HUD <-->|contextBridge<br/>preload.ts| IPC
         BGA -->|gamepad:event| IPC
     end
 
     XC --> GI
     XC --> BGA
-    GI -->|button-press events| IPC
+    GI -->|button-press + analog events| IPC
     IPC --> SM
+    IPC --> SP
     IPC --> PS
     IPC --> KS
     IPC --> WM
     IPC --> CL
-    IPC --> OW
+    SM --> SP
     SM --> WM
     PS --> SM
     KS --> TW
@@ -65,7 +68,7 @@ flowchart LR
     C --> D{Binding Resolution}
     D -->|global| E[Execute Action]
     D -->|per-CLI type| E
-    E --> F[keyboard / spawn / switch / voice]
+    E --> F[keyboard / hold-key / spawn / switch]
     F --> G[WindowManager<br/>focus target window]
     G --> H[Terminal Window]
 ```
@@ -73,10 +76,11 @@ flowchart LR
 **Detailed flow:**
 1. PowerShell polls XInput at 16ms intervals (or Browser Gamepad API for BT)
 2. `GamepadInput.processEvent()` parses JSON events, applies 600ms debounce
-3. Emits `button-press` event to subscribers
+3. Emits `button-press` event to subscribers; analog sticks emit `analog` events
 4. Binding resolution: check global bindings first, then per-CLI-type bindings for A/B/X/Y
-5. Execute resolved action (keyboard, spawn, session-switch, voice, etc.)
+5. Execute resolved action (keyboard, hold-key, spawn, session-switch, etc.)
 6. WindowManager ensures correct terminal window is focused
+7. Haptic pulse fires (when enabled) after hold-key activation and session switch
 
 ---
 
@@ -85,15 +89,16 @@ flowchart LR
 | Input | Action |
 |-------|--------|
 | D-Pad Up/Down | Switch between active CLI sessions |
-| Left Stick | D-pad replacement (same actions as D-pad) |
+| Left Stick | D-pad emulation + cursor mode (arrow keys) |
+| Right Stick | Scroll mode (PageUp/PageDown), throttled by repeatRate |
 | Left/Right Bumper | Switch sessions (previous/next) |
 | Left Trigger | Spawn new Claude Code instance |
 | Right Trigger | Spawn new Copilot CLI instance |
 | A | Clear screen (per CLI type) |
-| B | OpenWhisper voice input or Escape (per CLI type) |
+| B | Hold-key passthrough (e.g. Space for voice in Claude Code) |
 | X/Y | Custom commands per CLI type |
 | Back/Start | Switch profile (previous/next) |
-| Guide | Bring hub window to foreground |
+| Sandwich/Guide | Toggle HUD overlay (session quick-switch) |
 
 ---
 
@@ -101,19 +106,20 @@ flowchart LR
 
 | Module | File | Responsibility |
 |--------|------|---------------|
-| **GamepadInput** | `src/input/gamepad.ts` | XInput polling via PowerShell P/Invoke to xinput1_4.dll. Detects A/B/X/Y, D-Pad, bumpers, triggers, sticks. 600ms debounce per button. Emits `button-press` and `connection-change` events. |
-| **KeyboardSimulator** | `src/output/keyboard.ts` | Wraps @jitsi/robotjs. Supports `sendKey()`, `sendKeys()`, `sendKeyCombo()`, `longPress()`, `typeString()`. Normalises key aliases. |
+| **GamepadInput** | `src/input/gamepad.ts` | XInput polling via PowerShell P/Invoke to xinput1_4.dll. Detects A/B/X/Y, D-Pad, bumpers, triggers, sticks. 600ms debounce per button. Emits `button-press`, `connection-change`, and `analog` events. Sends haptic vibration commands. |
+| **KeyboardSimulator** | `src/output/keyboard.ts` | Wraps @jitsi/robotjs. Supports `sendKey()`, `sendKeys()`, `sendKeyCombo()`, `longPress()`, `typeString()`, `keyDown()`, `keyUp()`, `comboDown()`, `comboUp()`. Normalises key aliases. Hold-key support via `keyToggle`. |
 | **WindowManager** | `src/output/windows.ts` | Win32 window enumeration/focus via PowerShell. Methods: `enumerateWindows()`, `findWindowsByTitle()`, `focusWindow()`, `findTerminalWindows()`. |
-| **SessionManager** | `src/session/manager.ts` | EventEmitter tracking active/inactive sessions. Emits `session:added`, `session:removed`, `session:changed`. Supports `nextSession()`, `previousSession()`. |
-| **ProcessSpawner** | `src/session/spawner.ts` | Spawns detached CLI processes from tool config. Tracks by PID. Auto-registers with SessionManager. |
-| **ConfigLoader** | `src/config/loader.ts` | Loads split YAML config. Full CRUD for profiles, tools, and directories. Resolves per-CLI vs global bindings. |
-| **OpenWhisper** | `src/voice/openwhisper.ts` | Records audio (FFmpeg→WAV 16kHz), calls whisper.exe for transcription, returns text. Fallbacks: FFmpeg→Sox→PowerShell→silent WAV. |
-| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator (handlers.ts) + 10 domain handler files with dependency injection. Domains: gamepad, session, config, profile, tools, window, spawn, keyboard, system, app. |
+| **SessionManager** | `src/session/manager.ts` | EventEmitter tracking active/inactive sessions. Emits `session:added`, `session:removed`, `session:changed`. Supports `nextSession()`, `previousSession()`. Calls `persistSessions()` after every state change. |
+| **SessionPersistence** | `src/session/persistence.ts` | `saveSessions()`, `loadSessions()`, `clearPersistedSessions()` to `config/sessions.yaml`. `restoreSessions()` on startup loads saved sessions, skips duplicates. `startHealthCheck(intervalMs)` periodically removes dead PIDs. |
+| **ProcessSpawner** | `src/session/spawner.ts` | Spawns detached CLI processes from tool config. Tracks by PID. Auto-registers with SessionManager. Accepts optional `onExit` callback. |
+| **ConfigLoader** | `src/config/loader.ts` | Loads split YAML config. Full CRUD for profiles, tools, and directories. Resolves per-CLI vs global bindings. `StickConfig` types (`mode: 'cursor' | 'scroll' | 'disabled'`, `deadzone`, `repeatRate`). `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`. |
+| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator (handlers.ts) + 10 domain handler files with dependency injection. Domains: gamepad, session, config, profile, tools, window, spawn, keyboard, system, app. Includes `gamepad:vibrate`, `config:getHapticFeedback`, `config:setHapticFeedback`. |
 | **Preload** | `src/electron/preload.ts` | Context bridge exposing typed IPC API to renderer. Must be .cjs when package.json has "type":"module". |
-| **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils, bindings, navigation, screens (sessions/settings/status), modals (dir-picker/binding-editor). Browser Gamepad API for BT controllers. Gamepad-navigable with D-pad. |
-| **XInput Script** | `src/input/xinput-poll.ps1` | External PowerShell XInput P/Invoke polling script. Loaded at runtime by gamepad.ts. |
+| **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils, bindings, navigation, screens (sessions/settings/status), modals (dir-picker/binding-editor/session-hud). Browser Gamepad API for BT controllers. Gamepad-navigable with D-pad. |
+| **HUD Overlay** | `renderer/modals/session-hud.ts` | `toggleHud()`, `renderHudSessions()`, `handleHudButton()`. Triggered by Sandwich/Guide button from any screen. Shows session list with active session highlighted, CLI type badges. D-Pad Up/Down navigation, A to select/switch, B or Sandwich to dismiss. `.hud-overlay` styles with backdrop blur, z-index 1000. |
+| **XInput Script** | `src/input/xinput-poll.ps1` | External PowerShell XInput P/Invoke polling script. Emits button + left/right analog stick events (above deadzone 8000). Left stick also emulates D-pad. `XInputSetState` P/Invoke for haptic vibration, reads JSON vibration commands from stdin. |
 | **Logger** | `src/utils/logger.ts` | Winston logger with daily file rotation + console. Used across all src/ modules (not in renderer/preload). |
-| **CLI Entry** | `src/index.ts` | Standalone CLI orchestrator (GamepadCliHub class). Same binding resolution as Electron mode. |
+| **CLI Entry** | `src/index.ts` | Standalone CLI orchestrator (GamepadCliHub class). Same binding resolution as Electron mode. Left stick → arrow keys (cursor mode), right stick → PageUp/PageDown (scroll mode), throttled by repeatRate. |
 
 ---
 
@@ -122,19 +128,22 @@ flowchart LR
 ```mermaid
 graph LR
     subgraph "config/"
-        S[settings.yaml<br/>Active profile name]
-        T[tools.yaml<br/>CLI type definitions<br/>+ OpenWhisper config]
+        S[settings.yaml<br/>Active profile name<br/>+ hapticFeedback toggle]
+        T[tools.yaml<br/>CLI type definitions]
         D[directories.yaml<br/>Working directory presets]
+        SS[sessions.yaml<br/>Persisted session state]
         subgraph "profiles/"
-            P[default.yaml<br/>Global + per-CLI bindings]
+            P[default.yaml<br/>Global + per-CLI bindings<br/>+ stick config]
         end
     end
 
     S --> CL[ConfigLoader]
     T --> CL
     D --> CL
+    SS --> SP[SessionPersistence]
     P --> CL
     CL --> |"getBindings(button, cliType)"| R[Resolved Action]
+    SP --> |"restoreSessions()"| SM[SessionManager]
 ```
 
 ### Binding Resolution Order
@@ -146,12 +155,24 @@ graph LR
 | Action | Description |
 |--------|-------------|
 | `keyboard` | Send key sequence to focused window |
-| `voice` | Long-press space for voice input |
-| `openwhisper` | Record audio → transcribe → type text |
+| `hold-key` | Hold a key combo while button is held. Format: `{ action: 'hold-key', keys: ['space'], delay: 200 }`. Sends key DOWN via robotjs `keyToggle` after delay, releases on button up. The target CLI app handles the held key (e.g. Claude Code listens for Space to start voice input). |
 | `session-switch` | Switch active session (next/previous) |
 | `spawn` | Spawn new CLI instance |
 | `list-sessions` | Show session status |
 | `profile-switch` | Switch config profile (next/previous) |
+
+### Stick Configuration (per profile)
+```yaml
+sticks:
+  left:
+    mode: cursor    # cursor | scroll | disabled
+    deadzone: 8000
+    repeatRate: 100
+  right:
+    mode: scroll
+    deadzone: 8000
+    repeatRate: 150
+```
 
 ### Settings UI (5 tabs)
 Profiles | Global Bindings | Per-CLI Bindings | Tools | Directories
@@ -181,22 +202,20 @@ src/
 │       ├── system-handlers.ts
 │       └── app-handlers.ts
 ├── input/
-│   ├── gamepad.ts              # XInput polling + debounce + event emission
-│   └── xinput-poll.ps1         # PowerShell XInput P/Invoke script (external)
+│   ├── gamepad.ts              # XInput polling + debounce + button/analog events + haptic commands
+│   └── xinput-poll.ps1         # PowerShell XInput P/Invoke + XInputSetState for haptics
 ├── output/
-│   ├── keyboard.ts             # Keystroke simulation (robotjs)
+│   ├── keyboard.ts             # Keystroke simulation (robotjs) + hold-key support (keyDown/keyUp/comboDown/comboUp)
 │   └── windows.ts              # Window enumeration/focus (PowerShell Win32)
 ├── session/
-│   ├── manager.ts              # Session tracking (EventEmitter)
-│   ├── spawner.ts              # CLI process spawning
+│   ├── manager.ts              # Session tracking (EventEmitter), calls persistence on changes
+│   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + health check
+│   ├── spawner.ts              # CLI process spawning (optional onExit callback)
 │   └── index.ts
 ├── config/
-│   └── loader.ts               # Split YAML config + CRUD operations
-├── voice/
-│   ├── openwhisper.ts          # Audio recording + whisper.cpp transcription
-│   └── index.ts
+│   └── loader.ts               # Split YAML config + CRUD + StickConfig + haptic settings
 ├── types/
-│   └── session.ts              # SessionInfo, SessionChangeEvent types
+│   └── session.ts              # SessionInfo, SessionChangeEvent, AnalogEvent types
 └── utils/
     ├── logger.ts               # Winston logger (daily rotation, used everywhere)
     └── index.ts
@@ -215,22 +234,27 @@ renderer/
 │   └── status.ts               # Status screen handler
 ├── modals/
 │   ├── dir-picker.ts           # Directory picker modal
-│   └── binding-editor.ts       # Binding editor modal
+│   ├── binding-editor.ts       # Binding editor modal
+│   └── session-hud.ts          # HUD overlay (toggleHud, renderHudSessions, handleHudButton)
 └── styles/
     └── main.css
 
 config/
-├── settings.yaml
-├── tools.yaml
-├── directories.yaml
+├── settings.yaml               # Active profile + hapticFeedback toggle
+├── tools.yaml                  # CLI type definitions (spawn commands)
+├── directories.yaml            # Working directory presets
+├── sessions.yaml               # Persisted session state (auto-managed)
 └── profiles/
-    └── default.yaml
+    └── default.yaml            # Button bindings + stick config
 
 tests/
-├── gamepad.test.ts             # 30 tests
+├── gamepad.test.ts             # 45 tests (buttons + analog + vibration)
 ├── keyboard.test.ts            # 16 tests
 ├── session.test.ts             # 30 tests
-└── config.test.ts              # 47 tests
+├── spawner.test.ts             # 22 tests
+├── persistence.test.ts         # 19 tests
+├── config.test.ts              # 61 tests (base + stick config + haptic)
+└── index.test.ts               # hold-key action tests
 ```
 
 ---
@@ -246,7 +270,7 @@ tests/
 | Gamepad input | PowerShell XInput scripts + Browser Gamepad API |
 | Keyboard simulation | @jitsi/robotjs |
 | Window management | PowerShell scripts (Win32 API) |
-| Voice | OpenWhisper (whisper.cpp) |
+| Haptic feedback | PowerShell XInputSetState P/Invoke |
 | Config format | YAML (`yaml` package) |
 | Logging | Winston |
 
@@ -266,6 +290,21 @@ CLI sessions run in **real terminal windows** (Windows Terminal, cmd, etc.), not
 - `spawner.ts` → launch detached processes
 - `windows.ts` → enumerate/focus via Win32 APIs
 - `keyboard.ts` → send keystrokes to focused window
+
+### Hold-Key Passthrough
+Instead of embedding audio processing, the controller holds a configurable key combo (via robotjs `keyToggle`) and lets the target CLI app handle voice natively. Format: `{ action: 'hold-key', keys: ['space'], delay: 200 }`. When the button is held past the delay, the key combo is sent DOWN; released on button up. Zero external dependencies — the controller just holds a key, the CLI does the rest (e.g. Claude Code listens for Space to start voice input).
+
+### Session Persistence
+Sessions saved to `config/sessions.yaml` (as YAML) after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skips duplicates). `startHealthCheck(intervalMs)` periodically removes dead PIDs via `process.kill(pid, 0)`. Survives app crashes and restarts.
+
+### HUD Overlay
+Sandwich/Guide button toggles a floating session list overlay (`renderer/modals/session-hud.ts`) with backdrop blur (z-index 1000). D-Pad Up/Down navigates, A selects/switches session, B or Sandwich dismisses. Allows quick session switching from any screen without navigating to the sessions view.
+
+### Analog Stick Modes
+Left stick emulates D-pad plus cursor-mode arrow keys. Right stick provides scroll mode (PageUp/PageDown). Both configurable per-profile via `StickConfig` (`mode: 'cursor' | 'scroll' | 'disabled'`, `deadzone`, `repeatRate`). XInput PS script emits both left and right stick events when above deadzone (8000).
+
+### Haptic Feedback
+`XInputSetState` P/Invoke in xinput-poll.ps1. PowerShell stdin listener reads JSON vibration commands. Methods: `vibrate(leftMotor, rightMotor, durationMs)`, `pulse(durationMs, intensity)`, `doublePulse()`. Enabled/disabled via `hapticFeedback: true/false` in settings.yaml. Fires haptic pulse after hold-key activation and session switch.
 
 ### IPC Bridge Pattern
 Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 10 domain files (`src/electron/ipc/*-handlers.ts`) with dependency injection — the orchestrator (`handlers.ts`) creates singletons and wires them. Renderer never directly accesses Node.js APIs.
