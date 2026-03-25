@@ -126,9 +126,11 @@ def main():
     # Step 2: Build TypeScript
     print_step(2, "Building TypeScript")
 
-    print("[INFO] Running tsc...")
-    if run_command("npx tsc") != 0:
-        print("[WARN] TypeScript compilation had issues (continuing anyway)")
+    print("[INFO] Running esbuild (electron + preload + renderer)...")
+    if run_command("npm run build") != 0:
+        print("[ERROR] Build failed")
+        sys.exit(1)
+    print("[SUCCESS] Build complete")
     print()
 
     # Step 3: Start the application
@@ -140,7 +142,7 @@ def main():
 
     try:
         app_process = subprocess.Popen(
-            "npm start",
+            "npx electron .",
             shell=True,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
         )

@@ -106,17 +106,24 @@ def run_tests(mode):
     if mode == "full":
         print("Test Output:")
         print("------------")
-        exit_code = run_command("npm test", capture_output=False)[0]
+        exit_code = run_command("npx vitest run", capture_output=False)[0]
         return exit_code, [], 0, []
     else:
-        exit_code, stdout, stderr = run_command("npm test")
+        exit_code, stdout, stderr = run_command("npx vitest run")
         output = (stdout or "") + (stderr or "")
         passed, failed, failures = extract_test_results(output)
         return exit_code, failures, passed, failed
 
 
 def run_linting(mode):
-    """Run ESLint."""
+    """Run ESLint if available."""
+    # Check if eslint is a project dependency (not a global install prompt)
+    eslint_bin = Path("node_modules/.bin/eslint")
+    eslint_cmd = Path("node_modules/.bin/eslint.cmd")
+    if not eslint_bin.exists() and not eslint_cmd.exists():
+        print("[INFO] ESLint not installed as project dependency (skipping)")
+        return 0, []
+
     print("Running linting...")
 
     if mode == "full":
