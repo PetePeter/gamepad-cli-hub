@@ -9,7 +9,6 @@ import {
   navigateFocus,
   getCliDisplayName,
   formatBindingDetails,
-  renderFooterBindings,
   updateProfileDisplay,
   showFormModal,
   toDirection,
@@ -49,6 +48,8 @@ export async function loadSettingsScreen(): Promise<void> {
       await renderToolsPanel();
     } else if (state.settingsTab === 'directories') {
       await renderDirectoriesPanel();
+    } else if (state.settingsTab === 'status') {
+      renderStatusPanel();
     } else {
       const bindings = state.cliBindingsCache[state.settingsTab]
         || (window.gamepadCli ? await window.gamepadCli.configGetBindings(state.settingsTab) : null);
@@ -86,7 +87,7 @@ export function handleSettingsScreenButton(button: string): boolean {
 }
 
 function navigateSettingsTab(direction: number): void {
-  const allTabs = ['profiles', 'global', ...state.cliTypes, 'tools', 'directories'];
+  const allTabs = ['profiles', 'global', ...state.cliTypes, 'tools', 'directories', 'status'];
   const currentIndex = allTabs.indexOf(state.settingsTab);
   let nextIndex = currentIndex + direction;
   if (nextIndex < 0) nextIndex = allTabs.length - 1;
@@ -114,10 +115,11 @@ function renderSettingsTabs(cliTypes: string[]): void {
 
   const allTabs = [
     { key: 'profiles', label: '👤 Profiles' },
-    { key: 'global', label: 'Global' },
+    { key: 'global', label: '🎮 Global' },
     ...cliTypes.map(ct => ({ key: ct, label: getCliDisplayName(ct) })),
     { key: 'tools', label: '🔧 Tools' },
-    { key: 'directories', label: '📁 Directories' },
+    { key: 'directories', label: '📁 Dirs' },
+    { key: 'status', label: '📊 Status' },
   ];
 
   allTabs.forEach(tab => {
@@ -397,7 +399,6 @@ async function renderProfilesPanel(): Promise<void> {
         await window.gamepadCli.profileSwitch(name);
         await initConfigCache();
         updateProfileDisplay();
-        renderFooterBindings();
         logEvent(`Profile: ${name}`);
         loadSettingsScreen();
       });
@@ -901,4 +902,69 @@ async function showEditDirectoryPrompt(dir: { name: string; path: string }, inde
   } else {
     logEvent('Failed to update directory');
   }
+}
+
+// ============================================================================
+// Status Panel (merged from former status screen)
+// ============================================================================
+
+function renderStatusPanel(): void {
+  const container = document.getElementById('bindingsDisplay');
+  if (!container) return;
+
+  const actionBar = document.getElementById('bindingActionBar');
+  if (actionBar) actionBar.innerHTML = '';
+
+  container.innerHTML = '';
+
+  const panel = document.createElement('div');
+  panel.className = 'settings-panel';
+
+  // Gamepad status card
+  const gamepadCard = document.createElement('div');
+  gamepadCard.className = 'settings-readonly-card';
+  gamepadCard.innerHTML = `
+    <div class="settings-readonly-card__title">🎮 Gamepad</div>
+    <div class="settings-readonly-card__content">
+      <p>Connected: <strong>${document.getElementById('statusGamepadConnected')?.textContent || 'No'}</strong></p>
+      <p>Last Button: <strong>${document.getElementById('statusLastButton')?.textContent || '-'}</strong></p>
+    </div>
+  `;
+  panel.appendChild(gamepadCard);
+
+  // Sessions status card
+  const sessionsCard = document.createElement('div');
+  sessionsCard.className = 'settings-readonly-card';
+  sessionsCard.style.marginTop = 'var(--spacing-sm)';
+  sessionsCard.innerHTML = `
+    <div class="settings-readonly-card__title">📋 Sessions</div>
+    <div class="settings-readonly-card__content">
+      <p>Active: <strong>${document.getElementById('statusActiveSessions')?.textContent || '0'}</strong></p>
+      <p>Total: <strong>${document.getElementById('statusTotalSessions')?.textContent || '0'}</strong></p>
+    </div>
+  `;
+  panel.appendChild(sessionsCard);
+
+  // Event log
+  const logCard = document.createElement('div');
+  logCard.className = 'settings-readonly-card';
+  logCard.style.marginTop = 'var(--spacing-sm)';
+
+  const logTitle = document.createElement('div');
+  logTitle.className = 'settings-readonly-card__title';
+  logTitle.textContent = '📝 Recent Events';
+  logCard.appendChild(logTitle);
+
+  const logContent = document.createElement('div');
+  logContent.style.cssText = 'max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 11px;';
+
+  // Copy current event log entries from hidden placeholder
+  const sourceLog = document.getElementById('eventLog');
+  if (sourceLog) {
+    logContent.innerHTML = sourceLog.innerHTML;
+  }
+  logCard.appendChild(logContent);
+
+  panel.appendChild(logCard);
+  container.appendChild(panel);
 }

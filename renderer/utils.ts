@@ -61,12 +61,14 @@ export function setLoadSettingsCallback(cb: () => void): void {
 }
 
 export function showScreen(screenName: string): void {
-  // Hide all screens
-  document.querySelectorAll('.screen').forEach(screen => {
-    screen.classList.remove('screen--active');
+  document.querySelectorAll('.screen').forEach(s => {
+    // Keep sessions visible when settings is shown (slide-over)
+    if (s.id === 'screen-sessions' && screenName === 'settings') {
+      return;
+    }
+    s.classList.remove('screen--active');
   });
 
-  // Show target screen
   const targetScreen = document.getElementById(`screen-${screenName}`);
   if (targetScreen) {
     targetScreen.classList.add('screen--active');
@@ -93,89 +95,6 @@ export async function updateProfileDisplay(): Promise<void> {
   } catch (error) {
     console.error('[Renderer] Failed to update profile display:', error);
   }
-}
-
-// ============================================================================
-// Footer Bindings
-// ============================================================================
-
-export function renderFooterBindings(): void {
-  const container = document.getElementById('footerBindings');
-  if (!container) return;
-
-  container.innerHTML = '';
-
-  const bindings = state.globalBindings || {};
-  const allBindings: Record<string, string> = {};
-
-  // Global bindings
-  for (const [button, binding] of Object.entries(bindings)) {
-    allBindings[button] = getShortActionLabel(binding);
-  }
-
-  // Active CLI bindings (if a session is focused)
-  if (state.activeSessionId) {
-    const session = state.sessions.find(s => s.id === state.activeSessionId);
-    if (session) {
-      const cliBindings = state.cliBindingsCache[session.cliType] || {};
-      for (const [button, binding] of Object.entries(cliBindings)) {
-        if (!allBindings[button]) {
-          allBindings[button] = getShortActionLabel(binding);
-        }
-      }
-    }
-  }
-
-  // Render each as a hint
-  for (const [button, label] of Object.entries(allBindings)) {
-    const hint = document.createElement('span');
-    hint.className = 'nav-hint';
-    hint.innerHTML = `<kbd>${getButtonSymbol(button)}</kbd> ${label}`;
-    container.appendChild(hint);
-  }
-}
-
-function getShortActionLabel(binding: any): string {
-  switch (binding.action) {
-    case 'keyboard':
-      return binding.hold
-        ? `hold ${binding.keys?.join('+') || 'keys'}`
-        : (binding.keys?.length === 1 ? binding.keys[0] : (binding.keys?.join('+') || 'keys'));
-    case 'spawn':
-      return `+${getCliDisplayName(binding.cliType || '')}`;
-    case 'session-switch':
-      return binding.direction === 'next' ? 'Next' : 'Prev';
-    case 'profile-switch':
-      return binding.direction === 'next' ? 'Prof→' : '←Prof';
-    case 'hub-focus':
-      return 'Hub';
-    case 'list-sessions':
-      return 'Sessions';
-    case 'close-session':
-      return 'Close';
-    default:
-      return binding.action || '?';
-  }
-}
-
-function getButtonSymbol(button: string): string {
-  const symbols: Record<string, string> = {
-    'DPadUp': '↑', 'DPadDown': '↓', 'DPadLeft': '←', 'DPadRight': '→',
-    'LeftStickUp': '↑', 'LeftStickDown': '↓', 'LeftStickLeft': '←', 'LeftStickRight': '→',
-    'RightStickUp': '↑', 'RightStickDown': '↓', 'RightStickLeft': '←', 'RightStickRight': '→',
-    'A': 'A',
-    'B': 'B',
-    'X': 'X',
-    'Y': 'Y',
-    'LeftTrigger': 'LT',
-    'RightTrigger': 'RT',
-    'LeftBumper': 'LB',
-    'RightBumper': 'RB',
-    'Back': '⊲',
-    'Sandwich': '☰',
-    'Xbox': 'ⓧ',
-  };
-  return symbols[button] || button;
 }
 
 // ============================================================================

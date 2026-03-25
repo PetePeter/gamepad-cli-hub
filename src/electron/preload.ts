@@ -185,6 +185,31 @@ const gamepadCliAPI = {
   findTerminalWindows: () => ipcRenderer.invoke('window:findTerminals'),
 
   // ========================================================================
+  // Sidebar Controls
+  // ========================================================================
+
+  /**
+   * Toggle sidebar between left and right edges
+   */
+  sidebarToggleSide: () => ipcRenderer.invoke('window:toggleSide'),
+
+  /**
+   * Toggle always-on-top pin
+   */
+  sidebarTogglePin: () => ipcRenderer.invoke('window:togglePin'),
+
+  /**
+   * Get sidebar preferences (side, width)
+   */
+  sidebarGetPrefs: () => ipcRenderer.invoke('window:getSidebarPrefs'),
+
+  /**
+   * Update sidebar preferences
+   */
+  sidebarSetPrefs: (prefs: { side?: string; width?: number }) =>
+    ipcRenderer.invoke('window:setSidebarPrefs', prefs),
+
+  // ========================================================================
   // Process Spawning
   // ========================================================================
 

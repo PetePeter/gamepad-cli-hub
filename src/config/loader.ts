@@ -104,9 +104,19 @@ export interface ToolsConfig {
   cliTypes: { [key: string]: CliTypeConfig };
 }
 
+export type SidebarSide = 'left' | 'right';
+
+export interface SidebarPrefs {
+  side: SidebarSide;
+  width: number;
+}
+
+export const DEFAULT_SIDEBAR_PREFS: SidebarPrefs = { side: 'left', width: 320 };
+
 export interface SettingsConfig {
   activeProfile: string;
   hapticFeedback: boolean;
+  sidebar?: SidebarPrefs;
 }
 
 export interface ProfileConfig {
@@ -368,6 +378,23 @@ export class ConfigLoader {
   setHapticFeedback(enabled: boolean): void {
     this.ensureLoaded();
     this.settings!.hapticFeedback = enabled;
+    this.saveSettings();
+  }
+
+  getSidebarPrefs(): SidebarPrefs {
+    this.ensureLoaded();
+    const saved = this.settings!.sidebar;
+    if (!saved) return { ...DEFAULT_SIDEBAR_PREFS };
+    return {
+      side: saved.side === 'right' ? 'right' : 'left',
+      width: Math.max(250, Math.min(450, saved.width ?? DEFAULT_SIDEBAR_PREFS.width)),
+    };
+  }
+
+  setSidebarPrefs(prefs: Partial<SidebarPrefs>): void {
+    this.ensureLoaded();
+    const current = this.getSidebarPrefs();
+    this.settings!.sidebar = { ...current, ...prefs };
     this.saveSettings();
   }
 

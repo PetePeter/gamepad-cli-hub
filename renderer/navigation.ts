@@ -8,7 +8,6 @@ import { logEvent, showScreen } from './utils.js';
 import { processConfigBinding, processConfigRelease } from './bindings.js';
 import { handleSessionsScreenButton } from './screens/sessions.js';
 import { handleSettingsScreenButton } from './screens/settings.js';
-import { handleStatusScreenButton } from './screens/status.js';
 import { handleDirPickerButton } from './modals/dir-picker.js';
 import { dirPickerState } from './modals/dir-picker.js';
 import { handleBindingEditorButton } from './modals/binding-editor.js';
@@ -72,8 +71,10 @@ export function setupGamepadNavigation(): void {
   state.gamepadCount = browserGamepad.getCount();
   const countEl = document.getElementById('gamepadCount');
   const statusEl = document.getElementById('statusGamepadConnected');
+  const dotEl = document.getElementById('gamepadDot');
   if (countEl) countEl.textContent = state.gamepadCount.toString();
   if (statusEl) statusEl.textContent = state.gamepadCount > 0 ? 'Yes' : 'No';
+  if (dotEl) dotEl.classList.toggle('connected', state.gamepadCount > 0);
   console.log('[Renderer] setupGamepadNavigation: END, count:', state.gamepadCount);
 }
 
@@ -87,11 +88,13 @@ function handleConnectionEvent(event: { connected: boolean; count: number; times
 
   const countEl = document.getElementById('gamepadCount');
   const statusEl = document.getElementById('statusGamepadConnected');
+  const dotEl = document.getElementById('gamepadDot');
 
   console.log('[Renderer] Updating UI - countEl:', countEl, 'statusEl:', statusEl);
 
   if (countEl) countEl.textContent = event.count.toString();
   if (statusEl) statusEl.textContent = event.connected ? 'Yes' : 'No';
+  if (dotEl) dotEl.classList.toggle('connected', event.count > 0);
 
   logEvent(`Gamepad ${event.connected ? 'connected' : 'disconnected'}`);
 }
@@ -100,7 +103,8 @@ export function handleGamepadEvent(event: ButtonEvent): void {
   logEvent(`⬇ ${event.button}`);
 
   // Update status
-  document.getElementById('statusLastButton')!.textContent = event.button;
+  const lastBtnEl = document.getElementById('statusLastButton');
+  if (lastBtnEl) lastBtnEl.textContent = event.button;
 
   // If receiving button events, ensure gamepad count is updated
   if (state.gamepadCount === 0) {
@@ -141,7 +145,8 @@ export function handleGamepadEvent(event: ButtonEvent): void {
       consumed = handleSettingsScreenButton(event.button);
       break;
     case 'status':
-      consumed = handleStatusScreenButton(event.button);
+      // Status screen merged into settings tab — redirect to sessions
+      consumed = false;
       break;
   }
 
@@ -169,8 +174,10 @@ export async function updateGamepadCount(): Promise<void> {
     state.gamepadCount = count;
     const countEl = document.getElementById('gamepadCount');
     const statusEl = document.getElementById('statusGamepadConnected');
+    const dotEl = document.getElementById('gamepadDot');
     if (countEl) countEl.textContent = count.toString();
     if (statusEl) statusEl.textContent = count > 0 ? 'Yes' : 'No';
+    if (dotEl) dotEl.classList.toggle('connected', count > 0);
   } catch (error) {
     console.error('Failed to get gamepad count:', error);
   }

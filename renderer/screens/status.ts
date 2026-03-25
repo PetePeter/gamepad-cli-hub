@@ -1,15 +1,8 @@
 /**
- * Status screen — displays system status and handles gamepad navigation.
+ * Status screen — DEPRECATED: merged into settings as a tab (Phase 4).
+ * Kept as a no-op stub so existing imports don't break.
  */
 
-import { showScreen } from '../utils.js';
-
-export function handleStatusScreenButton(button: string): boolean {
-  switch (button) {
-    case 'B':
-      showScreen('sessions');
-      return true;
-    default:
-      return false;
-  }
+export function handleStatusScreenButton(_button: string): boolean {
+  return false;
 }

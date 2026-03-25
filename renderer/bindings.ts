@@ -6,7 +6,7 @@
  */
 
 import { state } from './state.js';
-import { logEvent, showScreen, updateProfileDisplay, renderFooterBindings } from './utils.js';
+import { logEvent, showScreen, updateProfileDisplay } from './utils.js';
 import { loadSessions, spawnNewSession } from './screens/sessions.js';
 
 // Tracks which buttons are currently holding keys down
@@ -96,7 +96,6 @@ async function executeGlobalBinding(button: string, binding: any): Promise<void>
         await initConfigCache();
         logEvent(`Profile: ${profiles[nextIdx]}`);
         updateProfileDisplay();
-        renderFooterBindings();
         break;
       }
       case 'close-session': {

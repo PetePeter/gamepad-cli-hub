@@ -8,170 +8,111 @@
   <link rel="stylesheet" href="styles/main.css">
 </head>
 <body>
-  <div id="app">
-    <!-- Status Bar -->
-    <header class="status-bar">
-      <div class="status-bar__left">
-        <h1 class="app-title">Gamepad CLI Hub</h1>
-      </div>
-      <div class="status-bar__right">
-        <button class="icon-button" id="settingsBtn" data-nav="settings" aria-label="Settings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-          </svg>
-        </button>
+  <div id="app" class="sidebar">
+    <!-- Custom Titlebar -->
+    <header class="sidebar-header">
+      <span class="sidebar-logo">🎮</span>
+      <span class="sidebar-title">Gamepad Hub</span>
+      <div class="sidebar-actions">
+        <button class="sidebar-btn" id="settingsBtn" title="Settings">⚙</button>
+        <button class="sidebar-btn" id="pinBtn" title="Toggle pin">📌</button>
+        <button class="sidebar-btn" id="sideToggleBtn" title="Switch side">⇄</button>
       </div>
     </header>
 
+    <!-- Compact Status Strip -->
+    <div class="status-strip">
+      <span class="status-dot" id="gamepadDot"></span>
+      <span class="status-text"><span id="gamepadCount">0</span> connected</span>
+      <span class="profile-badge-compact">
+        <span id="profileName">default</span>
+      </span>
+    </div>
+
     <!-- Main Content Area -->
-    <main class="main-content">
-      <!-- Screens Container -->
-      <div class="screens">
-        <!-- Session Manager Screen -->
-        <section id="screen-sessions" class="screen screen--active">
-          <div class="sessions-launcher">
-            <!-- Top: Existing Sessions -->
-            <div class="launcher-section" id="launcherSectionSessions">
-              <h3 class="launcher-section__title">Sessions</h3>
-              <div class="launcher-list" id="launcherSessionList" role="listbox"></div>
-              <div class="launcher-empty" id="launcherSessionsEmpty" style="display:none">
-                No active sessions
-              </div>
-            </div>
-
-            <!-- Bottom Row: CLI Types + Directories -->
-            <div class="launcher-bottom-row">
-              <div class="launcher-section" id="launcherSectionCli">
-                <h3 class="launcher-section__title">New Session</h3>
-                <div class="launcher-list" id="launcherCliList" role="listbox"></div>
-                <div class="launcher-empty" id="launcherCliEmpty" style="display:none">
-                  No CLI types configured
-                </div>
-              </div>
-              <div class="launcher-section" id="launcherSectionDir">
-                <h3 class="launcher-section__title">Directory</h3>
-                <div class="launcher-list" id="launcherDirList" role="listbox"></div>
-                <div class="launcher-empty" id="launcherDirEmpty" style="display:none">
-                  No directories configured
-                </div>
-              </div>
-            </div>
-
-            <!-- Confirm Dialog -->
-            <div class="launcher-confirm" id="launcherConfirm" style="display:none">
-              <p id="launcherConfirmText"></p>
-              <div class="launcher-confirm__actions">
-                <span><kbd>A</kbd> Confirm</span>
-                <span><kbd>B</kbd> Back</span>
-              </div>
-            </div>
-
-            <!-- Button Legend -->
-            <div class="launcher-footer">
-              <span><kbd>A</kbd> Select</span>
-              <span><kbd>B</kbd> Back</span>
-              <span><kbd>X</kbd> Delete</span>
-              <span><kbd>Y</kbd> Refresh</span>
-            </div>
-          </div>
-        </section>
-
-        <!-- Settings Screen -->
-        <section id="screen-settings" class="screen">
-          <div class="screen-header">
-            <h2>Settings</h2>
-            <button class="btn btn--secondary" id="settingsBackBtn">Back</button>
-          </div>
-          <div class="settings-content">
-            <div class="settings-tabs" id="settingsTabs" role="tablist">
-              <!-- tabs rendered by JS -->
-            </div>
-            <div class="binding-action-bar" id="bindingActionBar">
-              <!-- Add Binding button rendered by JS -->
-            </div>
-            <div class="bindings-display" id="bindingsDisplay">
-              <!-- bindings rendered by JS -->
-            </div>
-          </div>
-        </section>
-
-        <!-- Status Screen -->
-        <section id="screen-status" class="screen">
-          <div class="screen-header">
-            <h2>System Status</h2>
-          </div>
-
-          <div class="status-content">
-            <div class="status-card">
-              <h3>Gamepad</h3>
-              <p>Connected: <strong id="statusGamepadConnected">No</strong></p>
-              <p>Last Button: <strong id="statusLastButton">-</strong></p>
-            </div>
-
-            <div class="status-card">
-              <h3>Sessions</h3>
-              <p>Active: <strong id="statusActiveSessions">0</strong></p>
-              <p>Total: <strong id="statusTotalSessions">0</strong></p>
-            </div>
-
-            <div class="status-card">
-              <h3>Recent Events</h3>
-              <div id="eventLog" class="event-log">
-                <!-- Events will be logged here -->
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <!-- Directory Picker Modal -->
-      <div class="modal-overlay" id="dirPickerModal" aria-hidden="true" role="dialog" aria-label="Select working directory">
-        <div class="modal">
-          <div class="modal-header">
-            <h3 class="modal-title">Select Directory</h3>
-            <button class="btn btn--secondary btn--sm" id="dirPickerCancelBtn">Cancel (B)</button>
-          </div>
-          <div class="dir-picker-list" id="dirPickerList" role="listbox">
-            <!-- Directory items rendered by JS -->
+    <main class="sidebar-content">
+      <!-- Sessions Screen (default) -->
+      <section id="screen-sessions" class="screen screen--active">
+        <div class="sessions-list" id="sessionsList">
+          <!-- Session cards rendered dynamically by sessions.ts -->
+        </div>
+        <div class="sessions-empty" id="sessionsEmpty" style="display:none">
+          No active sessions
+        </div>
+        <div class="spawn-section">
+          <h3 class="section-label">Quick Spawn</h3>
+          <div class="spawn-grid" id="spawnGrid">
+            <!-- Spawn buttons rendered dynamically by sessions.ts -->
           </div>
         </div>
-      </div>
+        <!-- Spawn Wizard (shown when entering wizard from spawn grid) -->
+        <div class="spawn-wizard" id="spawnWizard" style="display:none"></div>
+      </section>
 
-      <!-- Binding Editor Modal -->
-      <div class="modal-overlay" id="bindingEditorModal" aria-hidden="true" role="dialog" aria-label="Edit binding">
-        <div class="modal">
-          <div class="modal-header">
-            <h3 class="modal-title" id="bindingEditorTitle">Edit Binding</h3>
-          </div>
-          <div class="binding-editor-form" id="bindingEditorForm">
-            <!-- Form fields rendered by JS -->
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn--secondary" id="bindingEditorCancelBtn">Cancel (B)</button>
-            <button class="btn btn--primary" id="bindingEditorSaveBtn">Save (A)</button>
-          </div>
+      <!-- Settings Screen (slide-over from right) -->
+      <section id="screen-settings" class="screen">
+        <div class="screen-header">
+          <h2>Settings</h2>
+          <button class="btn btn--secondary" id="settingsBackBtn">Back</button>
         </div>
-      </div>
+        <div class="settings-content">
+          <div class="settings-tabs" id="settingsTabs" role="tablist"></div>
+          <div class="binding-action-bar" id="bindingActionBar"></div>
+          <div class="bindings-display" id="bindingsDisplay"></div>
+        </div>
+      </section>
 
-      <!-- Generic Form Modal -->
-      <div class="modal-overlay" id="formModal" aria-hidden="true" role="dialog" aria-label="Form">
-        <div class="modal">
-          <div class="modal-header">
-            <h3 class="modal-title" id="formModalTitle">Form</h3>
-          </div>
-          <div class="binding-editor-form" id="formModalFields">
-            <!-- Fields rendered by JS -->
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn--secondary" id="formModalCancelBtn">Cancel</button>
-            <button class="btn btn--primary" id="formModalSaveBtn">OK</button>
-          </div>
-        </div>
-      </div>
     </main>
 
-    <!-- Debug Log Panel (toggleable) -->
+    <!-- Hidden status placeholders (updated by navigation.ts, read by settings status tab) -->
+    <div style="display:none">
+      <span id="statusGamepadConnected">No</span>
+      <span id="statusLastButton">-</span>
+      <span id="statusActiveSessions">0</span>
+      <span id="statusTotalSessions">0</span>
+      <div id="eventLog" class="event-log"></div>
+    </div>
+
+    <!-- Directory Picker Modal (keep existing) -->
+    <div class="modal-overlay" id="dirPickerModal" aria-hidden="true" role="dialog" aria-label="Select working directory">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">Select Directory</h3>
+          <button class="btn btn--secondary btn--sm" id="dirPickerCancelBtn">Cancel (B)</button>
+        </div>
+        <div class="dir-picker-list" id="dirPickerList" role="listbox"></div>
+      </div>
+    </div>
+
+    <!-- Binding Editor Modal (keep existing) -->
+    <div class="modal-overlay" id="bindingEditorModal" aria-hidden="true" role="dialog" aria-label="Edit binding">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title" id="bindingEditorTitle">Edit Binding</h3>
+        </div>
+        <div class="binding-editor-form" id="bindingEditorForm"></div>
+        <div class="modal-footer">
+          <button class="btn btn--secondary" id="bindingEditorCancelBtn">Cancel (B)</button>
+          <button class="btn btn--primary" id="bindingEditorSaveBtn">Save (A)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generic Form Modal (keep existing) -->
+    <div class="modal-overlay" id="formModal" aria-hidden="true" role="dialog" aria-label="Form">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title" id="formModalTitle">Form</h3>
+        </div>
+        <div class="binding-editor-form" id="formModalFields"></div>
+        <div class="modal-footer">
+          <button class="btn btn--secondary" id="formModalCancelBtn">Cancel</button>
+          <button class="btn btn--primary" id="formModalSaveBtn">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Debug Log Panel (keep existing structure) -->
     <div class="debug-log" id="debugLog">
       <div class="debug-log__header">
         <span>Debug Log</span>
@@ -181,23 +122,6 @@
         <div class="debug-log__line">[App] Initializing...</div>
       </div>
     </div>
-
-    <!-- Status Footer -->
-    <footer class="status-footer">
-      <div class="status-footer__left">
-        <span class="profile-badge" id="profileBadge">
-          <span class="profile-badge__label">Profile:</span>
-          <span class="profile-badge__name" id="profileName">default</span>
-        </span>
-        <span class="gamepad-status" id="gamepadStatus">
-          <span class="gamepad-icon"></span>
-          <span id="gamepadCount">0</span> Connected
-        </span>
-      </div>
-      <div class="status-footer__bindings" id="footerBindings">
-        <!-- Populated by JS from config bindings -->
-      </div>
-    </footer>
   </div>
 
   <script src="main.js" type="module"></script>

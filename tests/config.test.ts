@@ -594,6 +594,57 @@ describe('ConfigLoader', () => {
   });
 
   // =========================================================================
+  // Sidebar preferences
+  // =========================================================================
+
+  describe('sidebar preferences', () => {
+    it('getSidebarPrefs returns defaults when settings.yaml has no sidebar section', () => {
+      // SETTINGS fixture has no sidebar key
+      loader.load();
+      expect(loader.getSidebarPrefs()).toEqual({ side: 'left', width: 320 });
+    });
+
+    it('getSidebarPrefs reads saved values from settings.yaml', () => {
+      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { side: 'right', width: 400 } });
+      loader.load();
+      expect(loader.getSidebarPrefs()).toEqual({ side: 'right', width: 400 });
+    });
+
+    it('setSidebarPrefs updates only side, keeps width', () => {
+      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { side: 'left', width: 320 } });
+      loader.load();
+      loader.setSidebarPrefs({ side: 'right' });
+      expect(loader.getSidebarPrefs()).toEqual({ side: 'right', width: 320 });
+    });
+
+    it('setSidebarPrefs updates only width, keeps side', () => {
+      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { side: 'right', width: 320 } });
+      loader.load();
+      loader.setSidebarPrefs({ width: 400 });
+      expect(loader.getSidebarPrefs()).toEqual({ side: 'right', width: 400 });
+    });
+
+    it('setSidebarPrefs persists to disk', () => {
+      loader.load();
+      loader.setSidebarPrefs({ side: 'right', width: 500 });
+
+      const onDisk = readYaml<any>('settings.yaml');
+      expect(onDisk.sidebar.side).toBe('right');
+      expect(onDisk.sidebar.width).toBe(500);
+    });
+
+    it('getSidebarPrefs fills missing fields from defaults', () => {
+      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { side: 'right' } });
+      loader.load();
+      expect(loader.getSidebarPrefs()).toEqual({ side: 'right', width: 320 });
+    });
+
+    it('throws when called before load', () => {
+      expect(() => loader.getSidebarPrefs()).toThrow('Configuration not loaded');
+    });
+  });
+
+  // =========================================================================
   // buildSpawnConfig (via getSpawnConfig)
   // =========================================================================
 

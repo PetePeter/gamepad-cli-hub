@@ -1,2 +1,5 @@
 activeProfile: default
 hapticFeedback: true
+sidebar:
+  side: left
+  width: 320

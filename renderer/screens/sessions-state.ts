@@ -1,28 +1,28 @@
 /**
- * Sessions screen state — panel navigation for the 3-panel launcher.
- * Only sessions.ts should read/write these properties.
+ * Sessions screen state — vertical session list + spawn grid navigation.
  */
 
-export type SessionPanel = 'sessions' | 'cli' | 'directory' | 'confirm';
+export type SessionsFocus = 'sessions' | 'spawn' | 'wizard';
 
 export interface SessionsScreenState {
-  activePanel: SessionPanel;
+  activeFocus: SessionsFocus;
   sessionsFocusIndex: number;
-  cliFocusIndex: number;
-  dirFocusIndex: number;
-  selectedCliType: string | null;
-  selectedDirectory: { name: string; path: string } | null;
+  spawnFocusIndex: number;
   cliTypes: string[];
   directories: Array<{ name: string; path: string }>;
+  // Wizard state
+  wizardCliType: string | null;
+  wizardDirIndex: number;
+  wizardStep: 'directory' | 'confirm';
 }
 
 export const sessionsState: SessionsScreenState = {
-  activePanel: 'sessions',
+  activeFocus: 'sessions',
   sessionsFocusIndex: 0,
-  cliFocusIndex: 0,
-  dirFocusIndex: 0,
-  selectedCliType: null,
-  selectedDirectory: null,
+  spawnFocusIndex: 0,
   cliTypes: [],
   directories: [],
+  wizardCliType: null,
+  wizardDirIndex: 0,
+  wizardStep: 'directory',
 };

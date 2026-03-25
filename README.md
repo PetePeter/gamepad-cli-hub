@@ -20,7 +20,7 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 
 **Session Persistence** — Sessions survive crashes and restarts. The app saves session state to disk after every change and restores on startup. A health check periodically removes dead sessions so the list stays clean.
 
-**HUD Overlay** — Press the Sandwich/Guide button from anywhere to pop up a floating session switcher. Navigate with D-pad, select with A, dismiss with B. Fast context switching without leaving what you're doing.
+**Quick Access** — Press the Sandwich/Guide button from anywhere to snap back to the session list. The app lives as a slim sidebar on the edge of your screen — always visible, never in the way.
 
 **Analog Sticks** — Each stick emits virtual button names (LeftStickUp, RightStickDown, etc.) that can be bound to any action. If no binding exists, left stick sends arrow keys in cursor mode. Right stick scrolls (PageUp/PageDown). Both configurable per-profile with deadzone and repeat rate settings.
 
@@ -48,7 +48,7 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 | B | Hold keys (e.g. Space for voice passthrough) |
 | X / Y | Custom command (per CLI type) |
 | Back / Start | Previous / next profile |
-| Sandwich / Guide | Toggle HUD overlay (session quick-switch) |
+| Sandwich / Guide | Focus hub + show sessions |
 
 Every binding is remappable. Every action is configurable per CLI type.
 

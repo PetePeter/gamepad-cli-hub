@@ -1,8 +1,8 @@
 /**
- * Sessions screen — navigation, panel transitions, rendering, and actions.
+ * Sessions screen — vertical session list + quick spawn grid.
  *
- * Replaces the old session-hud.test.ts. The HUD overlay was merged into the
- * always-visible sessions screen; open/close/visibility tests are gone.
+ * Two navigation zones: session cards (top) and spawn buttons (bottom).
+ * Replaces the old 3-panel launcher layout tests.
  *
  * @vitest-environment jsdom
  */
@@ -47,41 +47,25 @@ vi.mock('../renderer/utils.js', () => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function buildLauncherDom(): void {
-  // jsdom doesn't implement scrollIntoView
+function buildSidebarDom(): void {
   if (!Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = vi.fn();
   }
 
   document.body.innerHTML = `
     <section id="screen-sessions" class="screen screen--active">
-      <div class="sessions-launcher">
-        <div class="launcher-section" id="launcherSectionSessions">
-          <h3 class="launcher-section__title">Sessions</h3>
-          <div class="launcher-list" id="launcherSessionList" role="listbox"></div>
-          <div class="launcher-empty" id="launcherSessionsEmpty" style="display:none">No active sessions</div>
-        </div>
-        <div class="launcher-bottom-row">
-          <div class="launcher-section" id="launcherSectionCli">
-            <h3 class="launcher-section__title">New Session</h3>
-            <div class="launcher-list" id="launcherCliList" role="listbox"></div>
-            <div class="launcher-empty" id="launcherCliEmpty" style="display:none">No CLI types configured</div>
-          </div>
-          <div class="launcher-section" id="launcherSectionDir">
-            <h3 class="launcher-section__title">Directory</h3>
-            <div class="launcher-list" id="launcherDirList" role="listbox"></div>
-            <div class="launcher-empty" id="launcherDirEmpty" style="display:none">No directories configured</div>
-          </div>
-        </div>
-        <div class="launcher-confirm" id="launcherConfirm" style="display:none">
-          <p id="launcherConfirmText"></p>
-          <div class="launcher-confirm__actions">
-            <span><kbd>A</kbd> Confirm</span>
-            <span><kbd>B</kbd> Back</span>
-          </div>
-        </div>
+      <div class="sessions-list" id="sessionsList"></div>
+      <div class="sessions-empty" id="sessionsEmpty" style="display:none">
+        No active sessions
       </div>
+      <div class="spawn-section">
+        <h3 class="section-label">Quick Spawn</h3>
+        <div class="spawn-grid" id="spawnGrid"></div>
+      </div>
+      <div class="spawn-wizard" id="spawnWizard" style="display:none"></div>
     </section>
+    <p id="statusTotalSessions">0</p>
+    <p id="statusActiveSessions">0</p>
   `;
 }
 
@@ -97,9 +81,7 @@ async function getSessions() {
   return await import('../renderer/screens/sessions.js');
 }
 
-/**
- * Flush the microtask queue so async fire-and-forget calls complete.
- */
+/** Flush the microtask queue so async fire-and-forget calls complete. */
 async function flush(): Promise<void> {
   await vi.advanceTimersByTimeAsync(0);
   await vi.advanceTimersByTimeAsync(0);
@@ -134,7 +116,7 @@ describe('Sessions Screen', () => {
 
   beforeEach(async () => {
     vi.useFakeTimers();
-    buildLauncherDom();
+    buildSidebarDom();
 
     (window as any).gamepadCli = {
       sessionGetAll: mockSessionGetAll,
@@ -163,15 +145,17 @@ describe('Sessions Screen', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+    // Reset module-level bridge so tests don't leak state
+    sessions.setDirPickerBridge(null as any);
     Object.assign(sessionsState, {
-      activePanel: 'sessions',
+      activeFocus: 'sessions',
       sessionsFocusIndex: 0,
-      cliFocusIndex: 0,
-      dirFocusIndex: 0,
-      selectedCliType: null,
-      selectedDirectory: null,
+      spawnFocusIndex: 0,
       cliTypes: [],
       directories: [],
+      wizardCliType: null,
+      wizardDirIndex: 0,
+      wizardStep: 'directory',
     });
     Object.assign(state, {
       sessions: [],
@@ -201,10 +185,8 @@ describe('Sessions Screen', () => {
       expect(sessionsState.directories).toEqual([{ name: 'a', path: '/a' }]);
     });
 
-    it('clamps focus indices after load', async () => {
+    it('clamps sessionsFocusIndex after load when out of bounds', async () => {
       sessionsState.sessionsFocusIndex = 5;
-      sessionsState.cliFocusIndex = 3;
-      sessionsState.dirFocusIndex = 2;
 
       mockSessionGetAll.mockResolvedValue(makeSessions(2));
       mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
@@ -213,70 +195,289 @@ describe('Sessions Screen', () => {
       await loadAndFlush(sessions);
 
       expect(sessionsState.sessionsFocusIndex).toBeLessThanOrEqual(1);
-      expect(sessionsState.cliFocusIndex).toBe(0);
-      expect(sessionsState.dirFocusIndex).toBe(0);
     });
 
-    it('renders all panels after loading data', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(1));
+    it('clamps spawnFocusIndex after load when out of bounds', async () => {
+      sessionsState.spawnFocusIndex = 10;
+
+      mockSessionGetAll.mockResolvedValue([]);
       mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
-      mockConfigGetWorkingDirs.mockResolvedValue([{ name: 'd', path: '/d' }]);
+      mockConfigGetWorkingDirs.mockResolvedValue([]);
 
       await loadAndFlush(sessions);
 
-      expect(document.querySelectorAll('#launcherSessionList .launcher-item')).toHaveLength(1);
-      expect(document.querySelectorAll('#launcherCliList .launcher-item')).toHaveLength(1);
-      expect(document.querySelectorAll('#launcherDirList .launcher-item')).toHaveLength(1);
+      expect(sessionsState.spawnFocusIndex).toBe(0);
+    });
+
+    it('renders session list and spawn grid after loading', async () => {
+      mockSessionGetAll.mockResolvedValue(makeSessions(1));
+      mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli']);
+
+      await loadAndFlush(sessions);
+
+      expect(document.querySelectorAll('#sessionsList .session-card')).toHaveLength(1);
+      expect(document.querySelectorAll('#spawnGrid .spawn-btn')).toHaveLength(2);
+    });
+
+    it('does nothing when window.gamepadCli is not set', async () => {
+      delete (window as any).gamepadCli;
+      await loadAndFlush(sessions);
+      expect(state.sessions).toEqual([]);
     });
   });
 
   // ==========================================================================
-  // Sessions panel navigation
+  // Rendering — session list
   // ==========================================================================
 
-  describe('Sessions panel navigation', () => {
+  describe('Rendering — session list', () => {
+    it('shows empty state when no sessions', async () => {
+      mockSessionGetAll.mockResolvedValue([]);
+      await loadAndFlush(sessions);
+
+      const list = document.getElementById('sessionsList')!;
+      const empty = document.getElementById('sessionsEmpty')!;
+      expect(list.style.display).toBe('none');
+      expect(empty.style.display).not.toBe('none');
+    });
+
+    it('hides empty state when sessions exist', async () => {
+      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      await loadAndFlush(sessions);
+
+      const list = document.getElementById('sessionsList')!;
+      const empty = document.getElementById('sessionsEmpty')!;
+      expect(list.style.display).not.toBe('none');
+      expect(empty.style.display).toBe('none');
+    });
+
+    it('renders session cards with .session-card class', async () => {
+      mockSessionGetAll.mockResolvedValue(makeSessions(3));
+      await loadAndFlush(sessions);
+
+      const cards = document.querySelectorAll('#sessionsList .session-card');
+      expect(cards).toHaveLength(3);
+    });
+
+    it('session card contains .session-icon element', async () => {
+      mockSessionGetAll.mockResolvedValue(makeSessions(1));
+      await loadAndFlush(sessions);
+
+      const icon = document.querySelector('#sessionsList .session-card .session-icon');
+      expect(icon).not.toBeNull();
+      expect(icon!.textContent).toBe('🤖');
+    });
+
+    it('session card contains .session-info with .session-name and .session-meta', async () => {
+      mockSessionGetAll.mockResolvedValue([
+        { id: 's-0', name: 'My Session', cliType: 'claude-code', processId: 42, windowHandle: 'h0' },
+      ]);
+      await loadAndFlush(sessions);
+
+      const info = document.querySelector('#sessionsList .session-card .session-info');
+      expect(info).not.toBeNull();
+      const name = info!.querySelector('.session-name');
+      const meta = info!.querySelector('.session-meta');
+      expect(name).not.toBeNull();
+      expect(meta).not.toBeNull();
+      expect(name!.textContent).toBe('My Session');
+      expect(meta!.textContent).toContain('PID 42');
+    });
+
+    it('active session card has .active class', async () => {
+      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      state.activeSessionId = 's-1';
+      await loadAndFlush(sessions);
+
+      const cards = document.querySelectorAll('#sessionsList .session-card');
+      expect(cards[0]!.classList.contains('active')).toBe(false);
+      expect(cards[1]!.classList.contains('active')).toBe(true);
+    });
+
+    it('first session card has .focused class when activeFocus is sessions', async () => {
+      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      await loadAndFlush(sessions);
+
+      const cards = document.querySelectorAll('#sessionsList .session-card');
+      expect(cards[0]!.classList.contains('focused')).toBe(true);
+      expect(cards[1]!.classList.contains('focused')).toBe(false);
+    });
+
+    it('uses fallback name when session name is empty', async () => {
+      mockSessionGetAll.mockResolvedValue([
+        { id: 's-0', name: '', cliType: 'claude-code', processId: 1, windowHandle: 'h0' },
+      ]);
+      await loadAndFlush(sessions);
+
+      const name = document.querySelector('.session-name')!;
+      expect(name.textContent).toBe('Session 1');
+    });
+
+    it('updates status counts', async () => {
+      mockSessionGetAll.mockResolvedValue(makeSessions(3));
+      state.activeSessionId = 's-1';
+      await loadAndFlush(sessions);
+
+      expect(document.getElementById('statusTotalSessions')!.textContent).toBe('3');
+      expect(document.getElementById('statusActiveSessions')!.textContent).toBe('1');
+    });
+
+    it('status shows 0 active when no matching activeSessionId', async () => {
+      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      state.activeSessionId = 'nonexistent';
+      await loadAndFlush(sessions);
+
+      expect(document.getElementById('statusTotalSessions')!.textContent).toBe('2');
+      expect(document.getElementById('statusActiveSessions')!.textContent).toBe('0');
+    });
+  });
+
+  // ==========================================================================
+  // Rendering — spawn grid
+  // ==========================================================================
+
+  describe('Rendering — spawn grid', () => {
+    it('renders a .spawn-btn for each CLI type', async () => {
+      mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli', 'generic-terminal']);
+      await loadAndFlush(sessions);
+
+      const btns = document.querySelectorAll('#spawnGrid .spawn-btn');
+      expect(btns).toHaveLength(3);
+    });
+
+    it('spawn button contains icon and label', async () => {
+      mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
+      mockGetCliIcon.mockReturnValue('🤖');
+      mockGetCliDisplayName.mockReturnValue('Claude Code');
+      await loadAndFlush(sessions);
+
+      const btn = document.querySelector('#spawnGrid .spawn-btn')!;
+      expect(btn.querySelector('.spawn-icon')!.textContent).toBe('🤖');
+      expect(btn.querySelector('.spawn-label')!.textContent).toBe('Claude Code');
+    });
+
+    it('empty CLI types render empty spawn grid', async () => {
+      mockConfigGetCliTypes.mockResolvedValue([]);
+      await loadAndFlush(sessions);
+
+      const btns = document.querySelectorAll('#spawnGrid .spawn-btn');
+      expect(btns).toHaveLength(0);
+    });
+
+    it('spawn buttons do not have .focused when activeFocus is sessions', async () => {
+      mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli']);
+      await loadAndFlush(sessions);
+
+      const btns = document.querySelectorAll('#spawnGrid .spawn-btn');
+      btns.forEach(btn => {
+        expect(btn.classList.contains('focused')).toBe(false);
+      });
+    });
+  });
+
+  // ==========================================================================
+  // Navigation — sessions zone
+  // ==========================================================================
+
+  describe('Sessions zone navigation', () => {
     beforeEach(async () => {
       mockSessionGetAll.mockResolvedValue(makeSessions(3));
       await loadAndFlush(sessions);
     });
 
-    it('Down moves focus index forward', () => {
+    it('DPadDown moves sessionsFocusIndex forward', () => {
       expect(sessionsState.sessionsFocusIndex).toBe(0);
       sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.sessionsFocusIndex).toBe(1);
     });
 
-    it('Up wraps from first item to last', () => {
-      sessionsState.sessionsFocusIndex = 0;
-      sessions.handleSessionsScreenButton('DPadUp');
+    it('DPadDown again advances to index 2', () => {
+      sessions.handleSessionsScreenButton('DPadDown');
+      sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.sessionsFocusIndex).toBe(2);
     });
 
-    it('Down past last session switches to CLI panel', () => {
+    it('DPadUp moves sessionsFocusIndex backward', () => {
+      sessionsState.sessionsFocusIndex = 2;
+      sessions.handleSessionsScreenButton('DPadUp');
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
+    });
+
+    it('DPadUp stops at 0 (no wrap)', () => {
+      sessionsState.sessionsFocusIndex = 0;
+      sessions.handleSessionsScreenButton('DPadUp');
+      expect(sessionsState.sessionsFocusIndex).toBe(0);
+      expect(sessionsState.activeFocus).toBe('sessions');
+    });
+
+    it('DPadDown past last session switches to spawn zone', () => {
       sessionsState.sessionsFocusIndex = 2;
       sessions.handleSessionsScreenButton('DPadDown');
-      expect(sessionsState.activePanel).toBe('cli');
+      expect(sessionsState.activeFocus).toBe('spawn');
+      expect(sessionsState.spawnFocusIndex).toBe(0);
     });
 
-    it('Left switches to CLI panel', () => {
-      sessions.handleSessionsScreenButton('DPadLeft');
-      expect(sessionsState.activePanel).toBe('cli');
+    it('DPadDown with no sessions switches to spawn zone immediately', async () => {
+      mockSessionGetAll.mockResolvedValue([]);
+      await loadAndFlush(sessions);
+
+      sessions.handleSessionsScreenButton('DPadDown');
+      expect(sessionsState.activeFocus).toBe('spawn');
+      expect(sessionsState.spawnFocusIndex).toBe(0);
     });
 
-    it('Right switches to CLI panel', () => {
-      sessions.handleSessionsScreenButton('DPadRight');
-      expect(sessionsState.activePanel).toBe('cli');
+    it('DPadUp with no sessions does nothing', async () => {
+      mockSessionGetAll.mockResolvedValue([]);
+      await loadAndFlush(sessions);
+
+      sessions.handleSessionsScreenButton('DPadUp');
+      expect(sessionsState.activeFocus).toBe('sessions');
+      expect(sessionsState.sessionsFocusIndex).toBe(0);
     });
 
-    it('A activates the focused session and focuses its window', async () => {
+    it('.focused class moves with sessionsFocusIndex', () => {
+      const cards = () => document.querySelectorAll('#sessionsList .session-card');
+      expect(cards()[0]!.classList.contains('focused')).toBe(true);
+
+      sessions.handleSessionsScreenButton('DPadDown');
+      expect(cards()[0]!.classList.contains('focused')).toBe(false);
+      expect(cards()[1]!.classList.contains('focused')).toBe(true);
+    });
+
+    it('.focused is removed from session cards when switching to spawn zone', () => {
+      sessionsState.sessionsFocusIndex = 2;
+      sessions.handleSessionsScreenButton('DPadDown'); // → spawn
+
+      const cards = document.querySelectorAll('#sessionsList .session-card');
+      cards.forEach(card => {
+        expect(card.classList.contains('focused')).toBe(false);
+      });
+    });
+
+    it('A activates the focused session', async () => {
       sessions.handleSessionsScreenButton('A');
       await flush();
 
       expect(mockSessionSetActive).toHaveBeenCalledWith('s-0');
+    });
+
+    it('A focuses the session window', async () => {
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+
       expect(mockFocusWindow).toHaveBeenCalledWith('hwnd-0');
     });
 
-    it('X deletes the focused session and refreshes list', async () => {
+    it('A on second session activates that session', async () => {
+      sessions.handleSessionsScreenButton('DPadDown');
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+
+      expect(mockSessionSetActive).toHaveBeenCalledWith('s-1');
+      expect(mockFocusWindow).toHaveBeenCalledWith('hwnd-1');
+    });
+
+    it('X deletes the focused session', async () => {
       mockSessionClose.mockResolvedValue({ success: true });
       mockSessionGetAll.mockResolvedValue(makeSessions(2));
 
@@ -286,7 +487,351 @@ describe('Sessions Screen', () => {
       expect(mockSessionClose).toHaveBeenCalledWith('s-0');
     });
 
-    it('X clamps focus index when list shrinks', async () => {
+    it('Y triggers reload', async () => {
+      mockSessionGetAll.mockClear();
+      sessions.handleSessionsScreenButton('Y');
+      await flush();
+
+      expect(mockSessionGetAll).toHaveBeenCalled();
+      expect(mockLogEvent).toHaveBeenCalledWith('Sessions refreshed');
+    });
+
+    it('handleSessionsScreenButton always returns true', () => {
+      expect(sessions.handleSessionsScreenButton('DPadDown')).toBe(true);
+      expect(sessions.handleSessionsScreenButton('A')).toBe(true);
+      expect(sessions.handleSessionsScreenButton('B')).toBe(true);
+      expect(sessions.handleSessionsScreenButton('X')).toBe(true);
+      expect(sessions.handleSessionsScreenButton('Y')).toBe(true);
+      expect(sessions.handleSessionsScreenButton('UnknownButton')).toBe(true);
+    });
+
+    it('LeftStickDown also navigates down (toDirection mapping)', () => {
+      sessions.handleSessionsScreenButton('LeftStickDown');
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
+    });
+  });
+
+  // ==========================================================================
+  // Navigation — spawn zone
+  // ==========================================================================
+
+  describe('Spawn zone navigation', () => {
+    beforeEach(async () => {
+      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli', 'generic-terminal', 'powershell']);
+      await loadAndFlush(sessions);
+
+      // Navigate to spawn zone
+      sessionsState.activeFocus = 'spawn';
+      sessionsState.spawnFocusIndex = 0;
+    });
+
+    it('DPadDown moves spawnFocusIndex by 2 (columns)', () => {
+      sessions.handleSessionsScreenButton('DPadDown');
+      expect(sessionsState.spawnFocusIndex).toBe(2);
+    });
+
+    it('DPadDown does not go past last row', () => {
+      sessionsState.spawnFocusIndex = 2;
+      sessions.handleSessionsScreenButton('DPadDown');
+      // 2 + 2 = 4, which is valid (4 items: 0,1,2,3) — no, 4 >= 4, so stays
+      expect(sessionsState.spawnFocusIndex).toBe(2);
+    });
+
+    it('DPadUp moves spawnFocusIndex by -2', () => {
+      sessionsState.spawnFocusIndex = 2;
+      sessions.handleSessionsScreenButton('DPadUp');
+      expect(sessionsState.spawnFocusIndex).toBe(0);
+    });
+
+    it('DPadUp past top row switches to sessions zone', () => {
+      sessionsState.spawnFocusIndex = 0;
+      sessions.handleSessionsScreenButton('DPadUp');
+      expect(sessionsState.activeFocus).toBe('sessions');
+      // Should focus last session (index 1 since we have 2 sessions)
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
+    });
+
+    it('DPadUp past top row from column 1 also switches to sessions zone', () => {
+      sessionsState.spawnFocusIndex = 1;
+      sessions.handleSessionsScreenButton('DPadUp');
+      expect(sessionsState.activeFocus).toBe('sessions');
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
+    });
+
+    it('DPadRight moves within row', () => {
+      sessionsState.spawnFocusIndex = 0;
+      sessions.handleSessionsScreenButton('DPadRight');
+      expect(sessionsState.spawnFocusIndex).toBe(1);
+    });
+
+    it('DPadRight does not go past column boundary', () => {
+      sessionsState.spawnFocusIndex = 1;
+      sessions.handleSessionsScreenButton('DPadRight');
+      expect(sessionsState.spawnFocusIndex).toBe(1);
+    });
+
+    it('DPadLeft moves within row', () => {
+      sessionsState.spawnFocusIndex = 1;
+      sessions.handleSessionsScreenButton('DPadLeft');
+      expect(sessionsState.spawnFocusIndex).toBe(0);
+    });
+
+    it('DPadLeft does not go past column 0', () => {
+      sessionsState.spawnFocusIndex = 0;
+      sessions.handleSessionsScreenButton('DPadLeft');
+      expect(sessionsState.spawnFocusIndex).toBe(0);
+    });
+
+    it('DPadLeft on second row col 0 stays put', () => {
+      sessionsState.spawnFocusIndex = 2;
+      sessions.handleSessionsScreenButton('DPadLeft');
+      expect(sessionsState.spawnFocusIndex).toBe(2);
+    });
+
+    it('DPadRight on second row moves within row', () => {
+      sessionsState.spawnFocusIndex = 2;
+      sessions.handleSessionsScreenButton('DPadRight');
+      expect(sessionsState.spawnFocusIndex).toBe(3);
+    });
+
+    it('A on focused spawn button enters wizard mode', async () => {
+      sessionsState.spawnFocusIndex = 0;
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+
+      expect(sessionsState.activeFocus).toBe('wizard');
+      expect(sessionsState.wizardCliType).toBe('claude-code');
+    });
+
+    it('B returns to sessions zone', () => {
+      sessions.handleSessionsScreenButton('B');
+      expect(sessionsState.activeFocus).toBe('sessions');
+    });
+
+    it('Y triggers reload from spawn zone', async () => {
+      mockSessionGetAll.mockClear();
+      sessions.handleSessionsScreenButton('Y');
+      await flush();
+
+      expect(mockSessionGetAll).toHaveBeenCalled();
+      expect(mockLogEvent).toHaveBeenCalledWith('Sessions refreshed');
+    });
+
+    it('.focused class applied to correct spawn button', async () => {
+      // Need to trigger a focus update via navigation
+      sessions.handleSessionsScreenButton('DPadRight');
+
+      const btns = document.querySelectorAll('#spawnGrid .spawn-btn');
+      expect(btns[0]!.classList.contains('focused')).toBe(false);
+      expect(btns[1]!.classList.contains('focused')).toBe(true);
+    });
+
+    it('.focused removed from spawn buttons when switching to sessions zone', () => {
+      sessions.handleSessionsScreenButton('B'); // → sessions
+
+      const btns = document.querySelectorAll('#spawnGrid .spawn-btn');
+      btns.forEach(btn => {
+        expect(btn.classList.contains('focused')).toBe(false);
+      });
+    });
+  });
+
+  // ==========================================================================
+  // Spawn zone — odd item count (2-col navigation edge case)
+  // ==========================================================================
+
+  describe('Spawn zone — odd item count', () => {
+    beforeEach(async () => {
+      mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli', 'generic-terminal']);
+      mockSessionGetAll.mockResolvedValue([]);
+      await loadAndFlush(sessions);
+
+      sessionsState.activeFocus = 'spawn';
+      sessionsState.spawnFocusIndex = 0;
+    });
+
+    it('DPadDown from row 0 col 0 → row 1 col 0 (index 2)', () => {
+      sessions.handleSessionsScreenButton('DPadDown');
+      expect(sessionsState.spawnFocusIndex).toBe(2);
+    });
+
+    it('DPadDown from row 0 col 1 stays put (no index 3)', () => {
+      sessionsState.spawnFocusIndex = 1;
+      sessions.handleSessionsScreenButton('DPadDown');
+      // 1 + 2 = 3, which >= 3 items, so no move
+      expect(sessionsState.spawnFocusIndex).toBe(1);
+    });
+
+    it('DPadRight from last item in second row (index 2) stays put (no index 3)', () => {
+      sessionsState.spawnFocusIndex = 2;
+      sessions.handleSessionsScreenButton('DPadRight');
+      // 2 % 2 = 0, which < 1, BUT 2 + 1 = 3 >= count (3) → no move
+      expect(sessionsState.spawnFocusIndex).toBe(2);
+    });
+  });
+
+  // ==========================================================================
+  // Actions — doSpawn
+  // ==========================================================================
+
+  describe('doSpawn', () => {
+    it('calls spawnCli with cli type', async () => {
+      await sessions.doSpawn('claude-code');
+      await flush();
+
+      expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', undefined);
+    });
+
+    it('calls spawnCli with cli type and working dir', async () => {
+      await sessions.doSpawn('claude-code', '/projects/a');
+      await flush();
+
+      expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', '/projects/a');
+    });
+
+    it('logs spawning event', async () => {
+      await sessions.doSpawn('claude-code');
+      await flush();
+
+      expect(mockLogEvent).toHaveBeenCalledWith('Spawning claude-code...');
+    });
+
+    it('logs spawning event with working dir', async () => {
+      await sessions.doSpawn('claude-code', '/mydir');
+      await flush();
+
+      expect(mockLogEvent).toHaveBeenCalledWith('Spawning claude-code in /mydir...');
+    });
+
+    it('logs PID on success', async () => {
+      mockSpawnCli.mockResolvedValue({ success: true, pid: 4242 });
+      await sessions.doSpawn('claude-code');
+      await flush();
+
+      expect(mockLogEvent).toHaveBeenCalledWith('Spawned: PID 4242');
+    });
+
+    it('logs error on failure', async () => {
+      mockSpawnCli.mockResolvedValue({ success: false, error: 'No executable found' });
+      await sessions.doSpawn('claude-code');
+      await flush();
+
+      expect(mockLogEvent).toHaveBeenCalledWith('Spawn failed: No executable found');
+    });
+
+    it('triggers delayed session refresh on success', async () => {
+      mockSpawnCli.mockResolvedValue({ success: true, pid: 1 });
+      await sessions.doSpawn('claude-code');
+      await flush();
+
+      await vi.advanceTimersByTimeAsync(500);
+      await flush();
+
+      expect(mockSessionRefresh).toHaveBeenCalled();
+    });
+
+    it('logs failure when gamepadCli is not available', async () => {
+      delete (window as any).gamepadCli;
+      await sessions.doSpawn('claude-code');
+      await flush();
+
+      expect(mockLogEvent).toHaveBeenCalledWith('Spawn failed: gamepadCli not available');
+    });
+  });
+
+  // ==========================================================================
+  // Actions — spawnNewSession
+  // ==========================================================================
+
+  describe('spawnNewSession', () => {
+    it('calls doSpawn directly when no dirs and no bridge', async () => {
+      mockConfigGetWorkingDirs.mockResolvedValue([]);
+
+      await sessions.spawnNewSession('claude-code');
+      await flush();
+
+      expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', undefined);
+    });
+
+    it('calls bridge when dirs exist and bridge is set', async () => {
+      const mockBridge = vi.fn();
+      sessions.setDirPickerBridge(mockBridge);
+
+      mockConfigGetWorkingDirs.mockResolvedValue([
+        { name: 'proj', path: '/proj' },
+      ]);
+
+      await sessions.spawnNewSession('claude-code');
+      await flush();
+
+      expect(mockBridge).toHaveBeenCalledWith('claude-code', [{ name: 'proj', path: '/proj' }]);
+      expect(mockSpawnCli).not.toHaveBeenCalled();
+    });
+
+    it('calls doSpawn when dirs exist but no bridge', async () => {
+      // Explicitly clear any bridge set by prior tests
+      sessions.setDirPickerBridge(null as any);
+      mockConfigGetWorkingDirs.mockResolvedValue([
+        { name: 'proj', path: '/proj' },
+      ]);
+
+      await sessions.spawnNewSession('claude-code');
+      await flush();
+
+      expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', undefined);
+    });
+
+    it('uses availableSpawnTypes[0] when no cliType provided', async () => {
+      state.availableSpawnTypes = ['copilot-cli', 'claude-code'];
+      mockConfigGetWorkingDirs.mockResolvedValue([]);
+
+      await sessions.spawnNewSession();
+      await flush();
+
+      expect(mockSpawnCli).toHaveBeenCalledWith('copilot-cli', undefined);
+    });
+
+    it('falls back to generic-terminal when no cliType and no availableSpawnTypes', async () => {
+      state.availableSpawnTypes = [];
+      mockConfigGetWorkingDirs.mockResolvedValue([]);
+
+      await sessions.spawnNewSession();
+      await flush();
+
+      expect(mockSpawnCli).toHaveBeenCalledWith('generic-terminal', undefined);
+    });
+
+    it('logs failure when gamepadCli is not available', async () => {
+      delete (window as any).gamepadCli;
+      await sessions.spawnNewSession('claude-code');
+      await flush();
+
+      expect(mockLogEvent).toHaveBeenCalledWith('Spawn failed: gamepadCli not available');
+    });
+  });
+
+  // ==========================================================================
+  // Actions — delete session
+  // ==========================================================================
+
+  describe('Delete session', () => {
+    beforeEach(async () => {
+      mockSessionGetAll.mockResolvedValue(makeSessions(3));
+      await loadAndFlush(sessions);
+    });
+
+    it('X calls sessionClose with focused session id', async () => {
+      mockSessionClose.mockResolvedValue({ success: true });
+      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+
+      sessions.handleSessionsScreenButton('X');
+      await flush();
+
+      expect(mockSessionClose).toHaveBeenCalledWith('s-0');
+    });
+
+    it('clamps focus index when focused on last and list shrinks', async () => {
       sessionsState.sessionsFocusIndex = 2;
       mockSessionClose.mockResolvedValue({ success: true });
       mockSessionGetAll.mockResolvedValue(makeSessions(2));
@@ -297,270 +842,38 @@ describe('Sessions Screen', () => {
       expect(sessionsState.sessionsFocusIndex).toBeLessThanOrEqual(1);
     });
 
-    it('Y refreshes all panels', async () => {
-      mockSessionGetAll.mockClear();
-      sessions.handleSessionsScreenButton('Y');
+    it('focus stays at 0 when deleting first of many', async () => {
+      sessionsState.sessionsFocusIndex = 0;
+      mockSessionClose.mockResolvedValue({ success: true });
+      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+
+      sessions.handleSessionsScreenButton('X');
       await flush();
 
-      expect(mockSessionGetAll).toHaveBeenCalled();
-      expect(mockLogEvent).toHaveBeenCalledWith('Sessions refreshed');
-    });
-
-    it('B is a no-op on sessions panel', () => {
-      const panelBefore = sessionsState.activePanel;
-      const indexBefore = sessionsState.sessionsFocusIndex;
-
-      sessions.handleSessionsScreenButton('B');
-
-      expect(sessionsState.activePanel).toBe(panelBefore);
-      expect(sessionsState.sessionsFocusIndex).toBe(indexBefore);
-    });
-
-    it('empty sessions: Down goes straight to CLI panel', async () => {
-      mockSessionGetAll.mockResolvedValue([]);
-      await loadAndFlush(sessions);
-
-      expect(state.sessions).toHaveLength(0);
-      sessions.handleSessionsScreenButton('DPadDown');
-      expect(sessionsState.activePanel).toBe('cli');
-    });
-
-    it('empty sessions: Up does nothing', async () => {
-      mockSessionGetAll.mockResolvedValue([]);
-      await loadAndFlush(sessions);
-
-      sessions.handleSessionsScreenButton('DPadUp');
-      expect(sessionsState.activePanel).toBe('sessions');
       expect(sessionsState.sessionsFocusIndex).toBe(0);
     });
-  });
 
-  // ==========================================================================
-  // CLI panel navigation
-  // ==========================================================================
-
-  describe('CLI panel navigation', () => {
-    beforeEach(async () => {
-      mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli', 'generic-terminal']);
-      await loadAndFlush(sessions);
-      sessions.handleSessionsScreenButton('DPadLeft'); // → CLI panel
-    });
-
-    it('Down moves focus index forward', () => {
-      expect(sessionsState.cliFocusIndex).toBe(0);
-      sessions.handleSessionsScreenButton('DPadDown');
-      expect(sessionsState.cliFocusIndex).toBe(1);
-    });
-
-    it('Down wraps around at end of list', () => {
-      sessionsState.cliFocusIndex = 2;
-      sessions.handleSessionsScreenButton('DPadDown');
-      expect(sessionsState.cliFocusIndex).toBe(0);
-    });
-
-    it('Up past first item switches to sessions panel', () => {
-      sessionsState.cliFocusIndex = 0;
-      sessions.handleSessionsScreenButton('DPadUp');
-      expect(sessionsState.activePanel).toBe('sessions');
-    });
-
-    it('A selects CLI type and moves to directory panel', () => {
-      sessions.handleSessionsScreenButton('A');
-      expect(sessionsState.selectedCliType).toBe('claude-code');
-      expect(sessionsState.activePanel).toBe('directory');
-    });
-
-    it('Right selects CLI type and moves to directory panel', () => {
-      sessionsState.cliFocusIndex = 1;
-      sessions.handleSessionsScreenButton('DPadRight');
-      expect(sessionsState.selectedCliType).toBe('copilot-cli');
-      expect(sessionsState.activePanel).toBe('directory');
-    });
-
-    it('Left goes back to sessions panel', () => {
-      sessions.handleSessionsScreenButton('DPadLeft');
-      expect(sessionsState.activePanel).toBe('sessions');
-    });
-
-    it('B goes back to sessions panel', () => {
-      sessions.handleSessionsScreenButton('B');
-      expect(sessionsState.activePanel).toBe('sessions');
-    });
-
-    it('no directories: A goes straight to confirm', async () => {
-      mockConfigGetWorkingDirs.mockResolvedValue([]);
-      await loadAndFlush(sessions);
-      // Still on CLI panel from beforeEach; directories now empty
-      sessions.handleSessionsScreenButton('A');
-
-      expect(sessionsState.selectedCliType).toBe('claude-code');
-      expect(sessionsState.selectedDirectory).toBe(null);
-      expect(sessionsState.activePanel).toBe('confirm');
-    });
-
-    it('Y refreshes all panels from CLI panel', async () => {
-      mockSessionGetAll.mockClear();
-      sessions.handleSessionsScreenButton('Y');
-      await flush();
-
-      expect(mockLogEvent).toHaveBeenCalledWith('Sessions refreshed');
-    });
-  });
-
-  // ==========================================================================
-  // Directory panel navigation
-  // ==========================================================================
-
-  describe('Directory panel navigation', () => {
-    beforeEach(async () => {
-      mockConfigGetWorkingDirs.mockResolvedValue([
-        { name: 'proj-a', path: '/a' },
-        { name: 'proj-b', path: '/b' },
-        { name: 'proj-c', path: '/c' },
-      ]);
+    it('focus clamps to 0 when deleting last session', async () => {
+      mockSessionGetAll.mockResolvedValue(makeSessions(1));
       await loadAndFlush(sessions);
 
-      sessions.handleSessionsScreenButton('DPadLeft'); // → CLI
-      sessions.handleSessionsScreenButton('A');    // → directory
-    });
+      sessionsState.sessionsFocusIndex = 0;
+      mockSessionClose.mockResolvedValue({ success: true });
+      mockSessionGetAll.mockResolvedValue([]);
 
-    it('Down moves focus index forward', () => {
-      expect(sessionsState.dirFocusIndex).toBe(0);
-      sessions.handleSessionsScreenButton('DPadDown');
-      expect(sessionsState.dirFocusIndex).toBe(1);
-    });
-
-    it('Up wraps from first to last', () => {
-      sessionsState.dirFocusIndex = 0;
-      sessions.handleSessionsScreenButton('DPadUp');
-      expect(sessionsState.dirFocusIndex).toBe(2);
-    });
-
-    it('Down wraps from last to first', () => {
-      sessionsState.dirFocusIndex = 2;
-      sessions.handleSessionsScreenButton('DPadDown');
-      expect(sessionsState.dirFocusIndex).toBe(0);
-    });
-
-    it('A selects directory and shows confirm panel', () => {
-      sessions.handleSessionsScreenButton('A');
-      expect(sessionsState.selectedDirectory).toEqual({ name: 'proj-a', path: '/a' });
-      expect(sessionsState.activePanel).toBe('confirm');
-    });
-
-    it('Left goes back to CLI panel', () => {
-      sessions.handleSessionsScreenButton('DPadLeft');
-      expect(sessionsState.activePanel).toBe('cli');
-    });
-
-    it('B goes back to CLI panel', () => {
-      sessions.handleSessionsScreenButton('B');
-      expect(sessionsState.activePanel).toBe('cli');
-    });
-
-    it('Y refreshes all panels from directory panel', async () => {
-      mockSessionGetAll.mockClear();
-      sessions.handleSessionsScreenButton('Y');
+      sessions.handleSessionsScreenButton('X');
       await flush();
 
-      expect(mockLogEvent).toHaveBeenCalledWith('Sessions refreshed');
-    });
-  });
-
-  // ==========================================================================
-  // Confirm panel
-  // ==========================================================================
-
-  describe('Confirm panel', () => {
-    beforeEach(async () => {
-      mockConfigGetWorkingDirs.mockResolvedValue([
-        { name: 'proj-a', path: '/a' },
-      ]);
-      await loadAndFlush(sessions);
-
-      sessions.handleSessionsScreenButton('DPadLeft'); // → CLI
-      sessions.handleSessionsScreenButton('A');    // → directory
-      sessions.handleSessionsScreenButton('A');    // → confirm
+      expect(sessionsState.sessionsFocusIndex).toBe(0);
     });
 
-    it('A spawns CLI with selected type and directory', async () => {
-      sessions.handleSessionsScreenButton('A');
+    it('does not modify list on delete failure', async () => {
+      mockSessionClose.mockResolvedValue({ success: false, error: 'access denied' });
+
+      sessions.handleSessionsScreenButton('X');
       await flush();
 
-      expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', '/a');
-    });
-
-    it('A resets to sessions panel after spawn', async () => {
-      sessions.handleSessionsScreenButton('A');
-      await flush();
-
-      expect(sessionsState.activePanel).toBe('sessions');
-      expect(sessionsState.selectedCliType).toBe(null);
-      expect(sessionsState.selectedDirectory).toBe(null);
-    });
-
-    it('B goes back to directory panel when directories exist', () => {
-      sessions.handleSessionsScreenButton('B');
-      expect(sessionsState.activePanel).toBe('directory');
-    });
-
-    it('B goes back to CLI panel when no directories', async () => {
-      // Reset to sessions panel and reload with no directories
-      sessionsState.activePanel = 'sessions';
-      sessionsState.selectedCliType = null;
-      sessionsState.selectedDirectory = null;
-      mockConfigGetWorkingDirs.mockResolvedValue([]);
-      await loadAndFlush(sessions);
-
-      sessions.handleSessionsScreenButton('DPadLeft'); // → CLI
-      sessions.handleSessionsScreenButton('A');    // → confirm (no dirs)
-      expect(sessionsState.activePanel).toBe('confirm');
-
-      sessions.handleSessionsScreenButton('B');
-      expect(sessionsState.activePanel).toBe('cli');
-    });
-
-    it('A with no directory passes undefined path', async () => {
-      // Reset to sessions panel and reload with no directories
-      sessionsState.activePanel = 'sessions';
-      sessionsState.selectedCliType = null;
-      sessionsState.selectedDirectory = null;
-      mockConfigGetWorkingDirs.mockResolvedValue([]);
-      await loadAndFlush(sessions);
-
-      sessions.handleSessionsScreenButton('DPadLeft'); // → CLI
-      sessions.handleSessionsScreenButton('A');    // → confirm (no dirs)
-      sessions.handleSessionsScreenButton('A');    // spawn
-      await flush();
-
-      expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', undefined);
-    });
-
-    it('spawn triggers delayed session refresh', async () => {
-      sessions.handleSessionsScreenButton('A');
-      await flush();
-
-      // The 500ms setTimeout for post-spawn refresh
-      await vi.advanceTimersByTimeAsync(500);
-      await flush();
-
-      expect(mockSessionRefresh).toHaveBeenCalled();
-    });
-
-    it('spawn logs the PID on success', async () => {
-      mockSpawnCli.mockResolvedValue({ success: true, pid: 4242 });
-      sessions.handleSessionsScreenButton('A');
-      await flush();
-
-      expect(mockLogEvent).toHaveBeenCalledWith('Spawned: PID 4242');
-    });
-
-    it('spawn logs error on failure', async () => {
-      mockSpawnCli.mockResolvedValue({ success: false, error: 'No executable found' });
-      sessions.handleSessionsScreenButton('A');
-      await flush();
-
-      expect(mockLogEvent).toHaveBeenCalledWith('Spawn failed: No executable found');
+      expect(mockLogEvent).toHaveBeenCalledWith('Delete failed: access denied');
     });
   });
 
@@ -579,24 +892,14 @@ describe('Sessions Screen', () => {
       document.dispatchEvent(event);
     }
 
-    it('ArrowDown maps to Down', () => {
+    it('ArrowDown maps to DPadDown', () => {
       pressKey('ArrowDown');
       expect(sessionsState.sessionsFocusIndex).toBe(1);
     });
 
-    it('ArrowUp maps to Up (wraps)', () => {
+    it('ArrowUp maps to DPadUp (stops at 0)', () => {
       pressKey('ArrowUp');
-      expect(sessionsState.sessionsFocusIndex).toBe(2);
-    });
-
-    it('ArrowLeft maps to Left (switches to CLI)', () => {
-      pressKey('ArrowLeft');
-      expect(sessionsState.activePanel).toBe('cli');
-    });
-
-    it('ArrowRight maps to Right (switches to CLI)', () => {
-      pressKey('ArrowRight');
-      expect(sessionsState.activePanel).toBe('cli');
+      expect(sessionsState.sessionsFocusIndex).toBe(0);
     });
 
     it('Enter maps to A (activates session)', async () => {
@@ -605,10 +908,9 @@ describe('Sessions Screen', () => {
       expect(mockSessionSetActive).toHaveBeenCalledWith('s-0');
     });
 
-    it('Escape maps to B (no-op on sessions panel)', () => {
+    it('Escape maps to B (no-op on sessions zone)', () => {
       pressKey('Escape');
-      // B on sessions panel is a no-op — panel stays the same
-      expect(sessionsState.activePanel).toBe('sessions');
+      expect(sessionsState.activeFocus).toBe('sessions');
     });
 
     it('Delete maps to X (deletes session)', async () => {
@@ -637,208 +939,44 @@ describe('Sessions Screen', () => {
 
     it('keyboard is ignored when not on sessions screen', () => {
       state.currentScreen = 'settings';
-      state.sessions = makeSessions(3);
       const indexBefore = sessionsState.sessionsFocusIndex;
 
       pressKey('ArrowDown');
       expect(sessionsState.sessionsFocusIndex).toBe(indexBefore);
     });
-  });
 
-  // ==========================================================================
-  // Panel focus management
-  // ==========================================================================
-
-  describe('Panel focus management', () => {
-    beforeEach(async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
-      mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli']);
-      await loadAndFlush(sessions);
+    it('ArrowDown past last session switches to spawn zone via keyboard', () => {
+      sessionsState.sessionsFocusIndex = 2;
+      pressKey('ArrowDown');
+      expect(sessionsState.activeFocus).toBe('spawn');
     });
 
-    it('sessions panel gets launcher-section--active on load', () => {
-      const section = document.getElementById('launcherSectionSessions')!;
-      expect(section.classList.contains('launcher-section--active')).toBe(true);
+    it('ArrowLeft in spawn zone moves focus left', async () => {
+      // Get into spawn zone
+      sessionsState.activeFocus = 'spawn';
+      sessionsState.spawnFocusIndex = 1;
+
+      pressKey('ArrowLeft');
+      expect(sessionsState.spawnFocusIndex).toBe(0);
     });
 
-    it('switching to CLI panel moves active class', () => {
-      sessions.handleSessionsScreenButton('DPadLeft');
+    it('ArrowRight in spawn zone moves focus right', async () => {
+      sessionsState.activeFocus = 'spawn';
+      sessionsState.spawnFocusIndex = 0;
 
-      const sessionsEl = document.getElementById('launcherSectionSessions')!;
-      const cli = document.getElementById('launcherSectionCli')!;
-      expect(sessionsEl.classList.contains('launcher-section--active')).toBe(false);
-      expect(cli.classList.contains('launcher-section--active')).toBe(true);
+      pressKey('ArrowRight');
+      expect(sessionsState.spawnFocusIndex).toBe(1);
     });
 
-    it('switching to directory panel moves active class', async () => {
-      mockConfigGetWorkingDirs.mockResolvedValue([{ name: 'd', path: '/d' }]);
-      await loadAndFlush(sessions);
-
-      sessions.handleSessionsScreenButton('DPadLeft'); // CLI
-      sessions.handleSessionsScreenButton('A');    // directory
-
-      const dir = document.getElementById('launcherSectionDir')!;
-      expect(dir.classList.contains('launcher-section--active')).toBe(true);
-    });
-
-    it('launcher-focused class moves with focus index in sessions list', () => {
-      const items = document.querySelectorAll('#launcherSessionList .launcher-item');
-      expect(items[0]?.classList.contains('launcher-focused')).toBe(true);
-
-      sessions.handleSessionsScreenButton('DPadDown');
-      const updatedItems = document.querySelectorAll('#launcherSessionList .launcher-item');
-      expect(updatedItems[0]?.classList.contains('launcher-focused')).toBe(false);
-      expect(updatedItems[1]?.classList.contains('launcher-focused')).toBe(true);
-    });
-
-    it('launcher-focused class moves with focus index in CLI list', () => {
-      sessions.handleSessionsScreenButton('DPadLeft'); // go to CLI panel
-
-      const items = document.querySelectorAll('#launcherCliList .launcher-item');
-      expect(items[0]?.classList.contains('launcher-focused')).toBe(true);
-
-      sessions.handleSessionsScreenButton('DPadDown');
-      const updatedItems = document.querySelectorAll('#launcherCliList .launcher-item');
-      expect(updatedItems[0]?.classList.contains('launcher-focused')).toBe(false);
-      expect(updatedItems[1]?.classList.contains('launcher-focused')).toBe(true);
+    it('Escape in spawn zone returns to sessions zone', () => {
+      sessionsState.activeFocus = 'spawn';
+      pressKey('Escape');
+      expect(sessionsState.activeFocus).toBe('sessions');
     });
   });
 
   // ==========================================================================
-  // Rendering
-  // ==========================================================================
-
-  describe('Rendering', () => {
-    it('sessions render with icon, name, badge, and active marker', async () => {
-      const sessionData = [
-        { id: 's-0', name: 'My Claude', cliType: 'claude-code', processId: 100, windowHandle: 'h0' },
-        { id: 's-1', name: 'My Copilot', cliType: 'copilot-cli', processId: 200, windowHandle: 'h1' },
-      ];
-      mockSessionGetAll.mockResolvedValue(sessionData);
-      state.activeSessionId = 's-0';
-
-      await loadAndFlush(sessions);
-
-      const items = document.querySelectorAll('#launcherSessionList .launcher-item');
-      expect(items).toHaveLength(2);
-      expect(items[0]!.classList.contains('launcher-active')).toBe(true);
-      expect(items[1]!.classList.contains('launcher-active')).toBe(false);
-      expect(items[0]!.querySelector('.launcher-item-badge')).not.toBeNull();
-    });
-
-    it('CLI types render with icon and display name', async () => {
-      mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
-      mockGetCliDisplayName.mockReturnValue('Claude');
-      mockGetCliIcon.mockReturnValue('🤖');
-
-      await loadAndFlush(sessions);
-
-      const items = document.querySelectorAll('#launcherCliList .launcher-item');
-      expect(items).toHaveLength(1);
-      expect(items[0]!.textContent).toContain('🤖');
-      expect(items[0]!.textContent).toContain('Claude');
-    });
-
-    it('directories render with folder icon and name', async () => {
-      mockConfigGetWorkingDirs.mockResolvedValue([
-        { name: 'my-project', path: '/home/user/my-project' },
-      ]);
-
-      await loadAndFlush(sessions);
-
-      const items = document.querySelectorAll('#launcherDirList .launcher-item');
-      expect(items).toHaveLength(1);
-      expect(items[0]!.textContent).toContain('📁');
-      expect(items[0]!.textContent).toContain('my-project');
-    });
-
-    it('empty sessions show "No active sessions" message', async () => {
-      mockSessionGetAll.mockResolvedValue([]);
-      await loadAndFlush(sessions);
-
-      const empty = document.getElementById('launcherSessionsEmpty')!;
-      expect(empty.style.display).not.toBe('none');
-      expect(empty.textContent).toBe('No active sessions');
-    });
-
-    it('empty CLI types show "No CLI types configured" message', async () => {
-      mockConfigGetCliTypes.mockResolvedValue([]);
-      await loadAndFlush(sessions);
-
-      const empty = document.getElementById('launcherCliEmpty')!;
-      expect(empty.style.display).not.toBe('none');
-      expect(empty.textContent).toBe('No CLI types configured');
-    });
-
-    it('empty directories show "No directories configured" message', async () => {
-      mockConfigGetWorkingDirs.mockResolvedValue([]);
-      await loadAndFlush(sessions);
-
-      const empty = document.getElementById('launcherDirEmpty')!;
-      expect(empty.style.display).not.toBe('none');
-      expect(empty.textContent).toBe('No directories configured');
-    });
-
-    it('confirm dialog shows CLI name + directory name', async () => {
-      mockGetCliDisplayName.mockReturnValue('Claude');
-      mockConfigGetWorkingDirs.mockResolvedValue([
-        { name: 'workspace', path: '/ws' },
-      ]);
-      await loadAndFlush(sessions);
-
-      sessions.handleSessionsScreenButton('DPadLeft');
-      sessions.handleSessionsScreenButton('A');
-      sessions.handleSessionsScreenButton('A');
-
-      const text = document.getElementById('launcherConfirmText')!;
-      expect(text.textContent).toContain('Claude');
-      expect(text.textContent).toContain('workspace');
-    });
-
-    it('confirm dialog shows "default directory" when no dir selected', async () => {
-      mockGetCliDisplayName.mockReturnValue('Claude');
-      mockConfigGetWorkingDirs.mockResolvedValue([]);
-      await loadAndFlush(sessions);
-
-      sessions.handleSessionsScreenButton('DPadLeft');
-      sessions.handleSessionsScreenButton('A'); // no dirs → straight to confirm
-
-      const text = document.getElementById('launcherConfirmText')!;
-      expect(text.textContent).toContain('default directory');
-    });
-
-    it('confirm dialog becomes visible when entering confirm panel', async () => {
-      mockConfigGetWorkingDirs.mockResolvedValue([{ name: 'd', path: '/d' }]);
-      await loadAndFlush(sessions);
-
-      const confirm = document.getElementById('launcherConfirm')!;
-      expect(confirm.style.display).toBe('none');
-
-      sessions.handleSessionsScreenButton('DPadLeft');
-      sessions.handleSessionsScreenButton('A');
-      sessions.handleSessionsScreenButton('A');
-
-      expect(confirm.style.display).toBe('');
-    });
-
-    it('confirm dialog is hidden when pressing B from confirm', async () => {
-      mockConfigGetWorkingDirs.mockResolvedValue([{ name: 'd', path: '/d' }]);
-      await loadAndFlush(sessions);
-
-      sessions.handleSessionsScreenButton('DPadLeft');
-      sessions.handleSessionsScreenButton('A');
-      sessions.handleSessionsScreenButton('A');
-
-      const confirm = document.getElementById('launcherConfirm')!;
-      expect(confirm.style.display).toBe('');
-
-      sessions.handleSessionsScreenButton('B');
-      expect(confirm.style.display).toBe('none');
-    });
-  });
-
-  // ==========================================================================
-  // Pre-focus active session
+  // Pre-focus active session on load
   // ==========================================================================
 
   describe('Pre-focus active session', () => {
@@ -867,6 +1005,366 @@ describe('Sessions Screen', () => {
       await loadAndFlush(sessions);
 
       expect(sessionsState.sessionsFocusIndex).toBe(0);
+    });
+  });
+
+  // ==========================================================================
+  // Focus clamping on reload
+  // ==========================================================================
+
+  describe('Focus clamping on reload', () => {
+    it('clamps sessionsFocusIndex when sessions shrink', async () => {
+      mockSessionGetAll.mockResolvedValue(makeSessions(5));
+      await loadAndFlush(sessions);
+      sessionsState.sessionsFocusIndex = 4;
+
+      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      await loadAndFlush(sessions);
+
+      expect(sessionsState.sessionsFocusIndex).toBeLessThanOrEqual(1);
+    });
+
+    it('clamps spawnFocusIndex when CLI types shrink', async () => {
+      mockConfigGetCliTypes.mockResolvedValue(['a', 'b', 'c', 'd']);
+      await loadAndFlush(sessions);
+      sessionsState.spawnFocusIndex = 3;
+
+      mockConfigGetCliTypes.mockResolvedValue(['a']);
+      await loadAndFlush(sessions);
+
+      expect(sessionsState.spawnFocusIndex).toBe(0);
+    });
+  });
+
+  // ==========================================================================
+  // updateSessionHighlight
+  // ==========================================================================
+
+  describe('updateSessionHighlight', () => {
+    it('re-renders sessions and updates focus', async () => {
+      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      await loadAndFlush(sessions);
+
+      // Change active session
+      state.activeSessionId = 's-1';
+      sessions.updateSessionHighlight();
+
+      const cards = document.querySelectorAll('#sessionsList .session-card');
+      expect(cards[0]!.classList.contains('active')).toBe(false);
+      expect(cards[1]!.classList.contains('active')).toBe(true);
+    });
+  });
+
+  // ==========================================================================
+  // Spawn Wizard
+  // ==========================================================================
+
+  describe('Spawn Wizard', () => {
+    // -- Wizard entry ---------------------------------------------------------
+
+    describe('wizard entry', () => {
+      beforeEach(async () => {
+        mockSessionGetAll.mockResolvedValue(makeSessions(1));
+        mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli']);
+        mockConfigGetWorkingDirs.mockResolvedValue([
+          { name: 'project-a', path: '/projects/a' },
+          { name: 'project-b', path: '/projects/b' },
+        ]);
+        await loadAndFlush(sessions);
+        sessionsState.activeFocus = 'spawn';
+        sessionsState.spawnFocusIndex = 0;
+      });
+
+      it('A on spawn sets activeFocus to wizard and wizardCliType', () => {
+        sessions.handleSessionsScreenButton('A');
+        expect(sessionsState.activeFocus).toBe('wizard');
+        expect(sessionsState.wizardCliType).toBe('claude-code');
+      });
+
+      it('selects second CLI type when spawnFocusIndex is 1', () => {
+        sessionsState.spawnFocusIndex = 1;
+        sessions.handleSessionsScreenButton('A');
+        expect(sessionsState.wizardCliType).toBe('copilot-cli');
+      });
+
+      it('with directories: wizardStep is directory', () => {
+        sessions.handleSessionsScreenButton('A');
+        expect(sessionsState.wizardStep).toBe('directory');
+      });
+
+      it('without directories: wizardStep is confirm', async () => {
+        mockConfigGetWorkingDirs.mockResolvedValue([]);
+        await loadAndFlush(sessions);
+        sessionsState.activeFocus = 'spawn';
+        sessionsState.spawnFocusIndex = 0;
+
+        sessions.handleSessionsScreenButton('A');
+        expect(sessionsState.wizardStep).toBe('confirm');
+      });
+
+      it('wizard container becomes visible, session list + spawn section hidden', () => {
+        sessions.handleSessionsScreenButton('A');
+
+        const wizard = document.getElementById('spawnWizard');
+        const list = document.getElementById('sessionsList');
+        const spawn = document.querySelector('.spawn-section') as HTMLElement;
+
+        expect(wizard!.style.display).toBe('');
+        expect(list!.style.display).toBe('none');
+        expect(spawn!.style.display).toBe('none');
+      });
+    });
+
+    // -- Directory step navigation -------------------------------------------
+
+    describe('directory step navigation', () => {
+      beforeEach(async () => {
+        mockSessionGetAll.mockResolvedValue([]);
+        mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
+        mockConfigGetWorkingDirs.mockResolvedValue([
+          { name: 'project-a', path: '/projects/a' },
+          { name: 'project-b', path: '/projects/b' },
+          { name: 'project-c', path: '/projects/c' },
+        ]);
+        await loadAndFlush(sessions);
+        sessionsState.activeFocus = 'spawn';
+        sessionsState.spawnFocusIndex = 0;
+        // Enter wizard
+        sessions.handleSessionsScreenButton('A');
+      });
+
+      it('DPadDown moves wizardDirIndex forward', () => {
+        expect(sessionsState.wizardDirIndex).toBe(0);
+        sessions.handleSessionsScreenButton('DPadDown');
+        expect(sessionsState.wizardDirIndex).toBe(1);
+        sessions.handleSessionsScreenButton('DPadDown');
+        expect(sessionsState.wizardDirIndex).toBe(2);
+      });
+
+      it('DPadUp moves wizardDirIndex backward, stops at 0', () => {
+        sessionsState.wizardDirIndex = 1;
+        sessions.handleSessionsScreenButton('DPadUp');
+        expect(sessionsState.wizardDirIndex).toBe(0);
+        sessions.handleSessionsScreenButton('DPadUp');
+        expect(sessionsState.wizardDirIndex).toBe(0);
+      });
+
+      it('DPadDown does not go past last directory', () => {
+        sessionsState.wizardDirIndex = 2;
+        sessions.handleSessionsScreenButton('DPadDown');
+        expect(sessionsState.wizardDirIndex).toBe(2);
+      });
+
+      it('A on directory advances to confirm step', () => {
+        sessions.handleSessionsScreenButton('A');
+        expect(sessionsState.wizardStep).toBe('confirm');
+      });
+
+      it('B exits wizard back to spawn zone', () => {
+        sessions.handleSessionsScreenButton('B');
+        expect(sessionsState.activeFocus).toBe('spawn');
+        expect(sessionsState.wizardCliType).toBeNull();
+      });
+    });
+
+    // -- Confirm step --------------------------------------------------------
+
+    describe('confirm step', () => {
+      beforeEach(async () => {
+        mockSessionGetAll.mockResolvedValue([]);
+        mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
+        mockConfigGetWorkingDirs.mockResolvedValue([
+          { name: 'project-a', path: '/projects/a' },
+          { name: 'project-b', path: '/projects/b' },
+        ]);
+        await loadAndFlush(sessions);
+        sessionsState.activeFocus = 'spawn';
+        sessionsState.spawnFocusIndex = 0;
+        // Enter wizard → directory → select first → confirm
+        sessions.handleSessionsScreenButton('A');
+        sessions.handleSessionsScreenButton('A'); // advance to confirm
+      });
+
+      it('shows CLI type and directory in confirm view', () => {
+        const wizard = document.getElementById('spawnWizard')!;
+        const values = wizard.querySelectorAll('.wizard-confirm__value');
+        expect(values.length).toBe(2);
+        // CLI value: icon + display name (mock returns display name)
+        expect(values[0]!.textContent).toContain('🤖');
+        expect(values[0]!.textContent).toContain(mockGetCliDisplayName('claude-code'));
+        // Directory value
+        expect(values[1]!.textContent).toBe('project-a');
+      });
+
+      it('A calls doSpawn with correct CLI type and directory path', async () => {
+        sessions.handleSessionsScreenButton('A');
+        await flush();
+
+        expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', '/projects/a');
+      });
+
+      it('B goes back to directory step when dirs exist', () => {
+        sessions.handleSessionsScreenButton('B');
+        expect(sessionsState.wizardStep).toBe('directory');
+        expect(sessionsState.activeFocus).toBe('wizard');
+      });
+
+      it('after spawning, wizard is hidden and spawn section is shown', async () => {
+        sessions.handleSessionsScreenButton('A');
+        await flush();
+
+        const wizard = document.getElementById('spawnWizard')!;
+        const spawn = document.querySelector('.spawn-section') as HTMLElement;
+
+        expect(wizard.style.display).toBe('none');
+        expect(spawn.style.display).toBe('');
+      });
+    });
+
+    describe('confirm step — no directories', () => {
+      beforeEach(async () => {
+        mockSessionGetAll.mockResolvedValue([]);
+        mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
+        mockConfigGetWorkingDirs.mockResolvedValue([]);
+        await loadAndFlush(sessions);
+        sessionsState.activeFocus = 'spawn';
+        sessionsState.spawnFocusIndex = 0;
+        // Enter wizard → goes straight to confirm
+        sessions.handleSessionsScreenButton('A');
+      });
+
+      it('skips directory step when no directories configured', () => {
+        expect(sessionsState.wizardStep).toBe('confirm');
+      });
+
+      it('A with no directories calls doSpawn with no directory', async () => {
+        sessions.handleSessionsScreenButton('A');
+        await flush();
+
+        expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', undefined);
+      });
+
+      it('B exits wizard when no dirs', () => {
+        sessions.handleSessionsScreenButton('B');
+        expect(sessionsState.activeFocus).toBe('spawn');
+        expect(sessionsState.wizardCliType).toBeNull();
+      });
+
+      it('confirm shows Default for directory when no dirs', () => {
+        const wizard = document.getElementById('spawnWizard')!;
+        const values = wizard.querySelectorAll('.wizard-confirm__value');
+        expect(values[1]!.textContent).toBe('Default');
+      });
+    });
+
+    // -- Rendering -----------------------------------------------------------
+
+    describe('rendering', () => {
+      beforeEach(async () => {
+        mockSessionGetAll.mockResolvedValue([]);
+        mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
+        mockConfigGetWorkingDirs.mockResolvedValue([
+          { name: 'project-a', path: '/projects/a' },
+          { name: 'project-b', path: '/projects/b' },
+        ]);
+        await loadAndFlush(sessions);
+        sessionsState.activeFocus = 'spawn';
+        sessionsState.spawnFocusIndex = 0;
+        sessions.handleSessionsScreenButton('A');
+      });
+
+      it('breadcrumb shows correct active step on directory', () => {
+        const wizard = document.getElementById('spawnWizard')!;
+        const crumbs = wizard.querySelectorAll('.wizard-crumb');
+        // First crumb: CLI type (done)
+        expect(crumbs[0]!.classList.contains('wizard-crumb--done')).toBe(true);
+        // Second crumb: Directory (active)
+        expect(crumbs[1]!.classList.contains('wizard-crumb--active')).toBe(true);
+        // Third crumb: Confirm (not active)
+        expect(crumbs[2]!.classList.contains('wizard-crumb--active')).toBe(false);
+      });
+
+      it('breadcrumb shows correct active step on confirm', () => {
+        sessions.handleSessionsScreenButton('A'); // advance to confirm
+        const wizard = document.getElementById('spawnWizard')!;
+        const crumbs = wizard.querySelectorAll('.wizard-crumb');
+        // Third crumb: Confirm (active)
+        expect(crumbs[2]!.classList.contains('wizard-crumb--active')).toBe(true);
+        // Second crumb: Directory (done, since dirs exist)
+        expect(crumbs[1]!.classList.contains('wizard-crumb--done')).toBe(true);
+      });
+
+      it('directory items have .wizard-dir-item class', () => {
+        const wizard = document.getElementById('spawnWizard')!;
+        const items = wizard.querySelectorAll('.wizard-dir-item');
+        expect(items.length).toBe(2);
+      });
+
+      it('focused directory item has .focused class', () => {
+        const wizard = document.getElementById('spawnWizard')!;
+        const items = wizard.querySelectorAll('.wizard-dir-item');
+        expect(items[0]!.classList.contains('focused')).toBe(true);
+        expect(items[1]!.classList.contains('focused')).toBe(false);
+      });
+
+      it('focused class moves with DPadDown', () => {
+        sessions.handleSessionsScreenButton('DPadDown');
+        const wizard = document.getElementById('spawnWizard')!;
+        const items = wizard.querySelectorAll('.wizard-dir-item');
+        expect(items[0]!.classList.contains('focused')).toBe(false);
+        expect(items[1]!.classList.contains('focused')).toBe(true);
+      });
+
+      it('confirm shows CLI icon + name + directory name', () => {
+        sessions.handleSessionsScreenButton('A'); // advance to confirm
+        const wizard = document.getElementById('spawnWizard')!;
+        const values = wizard.querySelectorAll('.wizard-confirm__value');
+        // CLI row: icon + display name
+        expect(values[0]!.textContent).toContain('🤖');
+        expect(values[0]!.textContent).toContain(mockGetCliDisplayName('claude-code'));
+        // Dir row
+        expect(values[1]!.textContent).toBe('project-a');
+      });
+
+      it('clicking a directory item advances to confirm', () => {
+        const wizard = document.getElementById('spawnWizard')!;
+        const items = wizard.querySelectorAll('.wizard-dir-item');
+        (items[1] as HTMLElement).click();
+
+        expect(sessionsState.wizardDirIndex).toBe(1);
+        expect(sessionsState.wizardStep).toBe('confirm');
+      });
+    });
+  });
+
+  // ==========================================================================
+  // setDirPickerBridge
+  // ==========================================================================
+
+  describe('setDirPickerBridge', () => {
+    it('sets the bridge function for spawnNewSession to use', async () => {
+      const bridge = vi.fn();
+      sessions.setDirPickerBridge(bridge);
+
+      mockConfigGetWorkingDirs.mockResolvedValue([{ name: 'x', path: '/x' }]);
+      await sessions.spawnNewSession('claude-code');
+      await flush();
+
+      expect(bridge).toHaveBeenCalledWith('claude-code', [{ name: 'x', path: '/x' }]);
+    });
+
+    it('can be overwritten with a new bridge', async () => {
+      const bridge1 = vi.fn();
+      const bridge2 = vi.fn();
+      sessions.setDirPickerBridge(bridge1);
+      sessions.setDirPickerBridge(bridge2);
+
+      mockConfigGetWorkingDirs.mockResolvedValue([{ name: 'x', path: '/x' }]);
+      await sessions.spawnNewSession('claude-code');
+      await flush();
+
+      expect(bridge1).not.toHaveBeenCalled();
+      expect(bridge2).toHaveBeenCalled();
     });
   });
 });

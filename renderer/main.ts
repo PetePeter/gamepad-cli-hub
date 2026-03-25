@@ -7,7 +7,7 @@
 
 import { browserGamepad } from './gamepad.js';
 import { state } from './state.js';
-import { logEvent, showScreen, setLoadSettingsCallback, updateProfileDisplay, renderFooterBindings } from './utils.js';
+import { logEvent, showScreen, setLoadSettingsCallback, updateProfileDisplay } from './utils.js';
 import { initConfigCache } from './bindings.js';
 import { loadSessions, updateSessionHighlight, setDirPickerBridge } from './screens/sessions.js';
 import { loadSettingsScreen } from './screens/settings.js';
@@ -78,7 +78,7 @@ setDirPickerBridge((cliType, dirs) => showDirPicker(cliType, dirs));
 // ============================================================================
 
 function setupUIHandlers(): void {
-  // Settings button
+  // Settings button (in sidebar header)
   document.getElementById('settingsBtn')?.addEventListener('click', () => {
     showScreen('settings');
   });
@@ -88,7 +88,27 @@ function setupUIHandlers(): void {
     showScreen('sessions');
   });
 
-  // Spawn buttons are rendered dynamically by renderSpawnButtons()
+  // Sidebar pin toggle
+  document.getElementById('pinBtn')?.addEventListener('click', async () => {
+    try {
+      const result = await window.gamepadCli?.sidebarTogglePin();
+      if (result?.success) {
+        const btn = document.getElementById('pinBtn');
+        if (btn) btn.textContent = result.pinned ? '📌' : '📍';
+        logEvent(result.pinned ? 'Pinned on top' : 'Unpinned');
+      }
+    } catch (e) { console.error('[Renderer] Pin toggle failed:', e); }
+  });
+
+  // Sidebar side toggle (left ↔ right)
+  document.getElementById('sideToggleBtn')?.addEventListener('click', async () => {
+    try {
+      const result = await window.gamepadCli?.sidebarToggleSide();
+      if (result?.success) {
+        logEvent(`Snapped ${result.side}`);
+      }
+    } catch (e) { console.error('[Renderer] Side toggle failed:', e); }
+  });
 
   // Close debug log
   document.getElementById('closeDebugLog')?.addEventListener('click', () => {
@@ -170,9 +190,8 @@ async function init(): Promise<void> {
   // Cache config bindings for fast gamepad dispatch
   await initConfigCache();
 
-  // Update profile display and footer bindings
+  // Update profile display
   await updateProfileDisplay();
-  renderFooterBindings();
 
   // Refresh sessions from existing terminals
   try {

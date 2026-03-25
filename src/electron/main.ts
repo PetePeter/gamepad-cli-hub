@@ -5,11 +5,12 @@
  * Manages window creation, IPC communication, and application lifecycle.
  */
 
-import { app, BrowserWindow, ipcMain, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, screen } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { registerIPCHandlers } from './ipc/handlers.js';
 import { gamepadInput } from '../input/gamepad.js';
+import { configLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
 
 // Enable Chromium gamepad extensions for Bluetooth controller support
@@ -22,65 +23,114 @@ let mainWindow: BrowserWindow | null = null;
 let cleanupIPC: (() => void) | null = null;
 
 /**
- * Create the main application window
+ * Create the main application window as a docked sidebar
  */
 function createWindow(): void {
   const preloadPath = join(__dirname, 'preload.cjs');
   logger.debug(`[Main] Preload path: ${preloadPath}`);
 
+  // Read sidebar preferences (config already loaded by registerIPCHandlers)
+  let sidebarPrefs = { side: 'left' as const, width: 320 };
+  try {
+    sidebarPrefs = configLoader.getSidebarPrefs();
+  } catch {
+    logger.warn('[Main] Could not read sidebar prefs, using defaults');
+  }
+
+  // Position sidebar against monitor edge, respecting taskbar
+  const display = screen.getPrimaryDisplay();
+  const workArea = display.workArea;
+  const x = sidebarPrefs.side === 'left'
+    ? workArea.x
+    : workArea.x + workArea.width - sidebarPrefs.width;
+
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
+    width: sidebarPrefs.width,
+    height: workArea.height,
+    x,
+    y: workArea.y,
+    minWidth: 250,
+    maxWidth: 450,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: true,
     backgroundColor: '#0a0a0a',
-    show: false, // Don't show until ready-to-show
+    show: false,
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false, // Needed for gamepad access
+      sandbox: false,
     },
-    titleBarStyle: 'default',
     title: 'Gamepad CLI Hub',
   });
 
   // Load the renderer HTML
-  // In development, renderer is at project root /renderer
-  // In production, it would be packaged differently
   const rendererPath = join(process.cwd(), 'renderer', 'index.html');
   mainWindow.loadFile(rendererPath);
 
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
-    logger.info('[Main] Window shown');
+    logger.info('[Main] Sidebar shown');
   });
 
-  // Check preload worked after renderer loads
+  // Preload check
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow?.webContents.executeJavaScript('typeof window.gamepadCli')
       .then(result => logger.debug(`[Main] Preload check: window.gamepadCli is ${result}`))
       .catch(err => logger.error(`[Main] Preload check failed: ${err}`));
   });
 
-  // Log any renderer/preload console output to terminal
+  // Log renderer console output
   mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     if (sourceId?.includes('preload') || message.includes('Preload') || level >= 2) {
       logger.debug(`[WebContents:${level}] ${message} (${sourceId}:${line})`);
     }
   });
 
-  // DevTools (always for now, to debug)
+  // DevTools (kept for dev phase)
   mainWindow.webContents.openDevTools();
 
-  // Handle window close
+  // Re-snap sidebar after resize (debounced) — persists width + locks height/position
+  let isRepositioning = false;
+  let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  mainWindow.on('resize', () => {
+    if (!mainWindow || isRepositioning) return;
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      isRepositioning = true;
+      const [width] = mainWindow.getSize();
+      try {
+        const prefs = configLoader.getSidebarPrefs();
+        const wa = screen.getPrimaryDisplay().workArea;
+        const snapX = prefs.side === 'left' ? wa.x : wa.x + wa.width - width;
+        mainWindow.setBounds({ x: snapX, y: wa.y, width, height: wa.height });
+        configLoader.setSidebarPrefs({ width });
+      } catch { /* config may not be ready */ }
+      setTimeout(() => { isRepositioning = false; }, 100);
+    }, 300);
+  });
+
+  // Re-snap when display layout changes (e.g. resolution, taskbar moved)
+  screen.on('display-metrics-changed', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    try {
+      const prefs = configLoader.getSidebarPrefs();
+      const wa = screen.getPrimaryDisplay().workArea;
+      const snapX = prefs.side === 'left' ? wa.x : wa.x + wa.width - prefs.width;
+      mainWindow.setBounds({ x: snapX, y: wa.y, width: prefs.width, height: wa.height });
+    } catch { /* ignore */ }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
     logger.info('[Main] Window closed');
   });
 
-  logger.info('[Main] Window created');
+  logger.info(`[Main] Sidebar created (${sidebarPrefs.side}, ${sidebarPrefs.width}px)`);
 }
 
 /**

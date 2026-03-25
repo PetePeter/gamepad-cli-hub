@@ -51,7 +51,7 @@ export function registerIPCHandlers(): () => void {
   setupConfigHandlers(configLoader);
   setupProfileHandlers(configLoader);
   setupToolsHandlers(configLoader);
-  setupWindowHandlers(windowManager);
+  setupWindowHandlers(windowManager, configLoader);
   setupSpawnHandlers(sessionManager, processSpawner);
   setupKeyboardHandlers(keyboard);
   setupAppHandlers();
