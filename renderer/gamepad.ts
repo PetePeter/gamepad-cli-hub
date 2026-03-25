@@ -20,6 +20,7 @@ class BrowserGamepadPoller {
   private lastPressTime: Map<string, number> = new Map();
   private debounceMs = 600;
   private callbacks: Set<ButtonCallback> = new Set();
+  private releaseCallbacks: Set<ButtonCallback> = new Set();
   private connectedCount = 0;
   private eventsSetup = false;
 
@@ -42,6 +43,24 @@ class BrowserGamepadPoller {
 
     window.addEventListener('gamepaddisconnected', (e) => {
       console.log('[BrowserGamepad] Disconnected:', e.gamepad.id);
+      // Release any held buttons for this gamepad before clearing state
+      const index = e.gamepad.index;
+      const prevState = this.buttonStates.get(index);
+      if (prevState) {
+        const buttonNames = [
+          'A', 'B', 'X', 'Y',
+          'LeftBumper', 'RightBumper',
+          'LeftTrigger', 'RightTrigger',
+          'Back', 'Sandwich',
+          'LeftStick', 'RightStick',
+        ];
+        for (let i = 0; i < Math.min(buttonNames.length, prevState.length); i++) {
+          if (prevState[i]) {
+            this.handleButtonRelease(buttonNames[i], index);
+          }
+        }
+        this.buttonStates.delete(index);
+      }
       this.connectedCount = navigator.getGamepads().filter(g => g).length;
       this.emitConnectionEvent(false);
     });
@@ -104,6 +123,11 @@ class BrowserGamepadPoller {
   onButton(callback: ButtonCallback): () => void {
     this.callbacks.add(callback);
     return () => this.callbacks.delete(callback);
+  }
+
+  onRelease(callback: ButtonCallback): () => void {
+    this.releaseCallbacks.add(callback);
+    return () => this.releaseCallbacks.delete(callback);
   }
 
   getCount(): number {
@@ -174,6 +198,8 @@ class BrowserGamepadPoller {
         prevState[i] = pressed;
         if (pressed) {
           this.handleButtonPress(buttonNames[i], index);
+        } else {
+          this.handleButtonRelease(buttonNames[i], index);
         }
       }
     }
@@ -205,6 +231,8 @@ class BrowserGamepadPoller {
         prevState[stateIdx] = active;
         if (active) {
           this.handleButtonPress(name, index);
+        } else {
+          this.handleButtonRelease(name, index);
         }
       }
     }
@@ -235,6 +263,8 @@ class BrowserGamepadPoller {
         prevState[stateIndex] = pressed;
         if (pressed) {
           this.handleButtonPress(name, index);
+        } else {
+          this.handleButtonRelease(name, index);
         }
       }
     }
@@ -267,6 +297,22 @@ class BrowserGamepadPoller {
         callback(event);
       } catch (error) {
         console.error('[BrowserGamepad] Callback error:', error);
+      }
+    }
+  }
+
+  private handleButtonRelease(button: string, gamepadIndex: number): void {
+    const event: BrowserButtonEvent = {
+      button,
+      gamepadIndex,
+      timestamp: Date.now(),
+    };
+
+    for (const callback of this.releaseCallbacks) {
+      try {
+        callback(event);
+      } catch (error) {
+        console.error('[BrowserGamepad] Release callback error:', error);
       }
     }
   }

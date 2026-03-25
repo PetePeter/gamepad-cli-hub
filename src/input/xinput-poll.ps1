@@ -74,6 +74,9 @@ while ($true) {
             if ($isPressed -and -not $wasPressed) {
                 Write-Output ('{"event":"button","button":"' + $entry.Key + '","index":0}')
             }
+            if (-not $isPressed -and $wasPressed) {
+                Write-Output ('{"event":"button-release","button":"' + $entry.Key + '","index":0}')
+            }
         }
 
         $ltPressed = $lt -gt 128
@@ -81,10 +84,16 @@ while ($true) {
         if ($ltPressed -and -not $prevLt) {
             Write-Output '{"event":"button","button":"LeftTrigger","index":0}'
         }
+        if (-not $ltPressed -and $prevLt) {
+            Write-Output '{"event":"button-release","button":"LeftTrigger","index":0}'
+        }
         $rtPressed = $rt -gt 128
         $prevRt = ($prevButtons -band 0x20000) -ne 0
         if ($rtPressed -and -not $prevRt) {
             Write-Output '{"event":"button","button":"RightTrigger","index":0}'
+        }
+        if (-not $rtPressed -and $prevRt) {
+            Write-Output '{"event":"button-release","button":"RightTrigger","index":0}'
         }
 
         # Left stick → D-pad emulation (deadzone threshold ~8000 of 32767)
@@ -105,14 +114,26 @@ while ($true) {
         if ($stickUp -and -not $prevStickUp) {
             Write-Output '{"event":"button","button":"Up","index":0}'
         }
+        if (-not $stickUp -and $prevStickUp) {
+            Write-Output '{"event":"button-release","button":"Up","index":0}'
+        }
         if ($stickDown -and -not $prevStickDown) {
             Write-Output '{"event":"button","button":"Down","index":0}'
+        }
+        if (-not $stickDown -and $prevStickDown) {
+            Write-Output '{"event":"button-release","button":"Down","index":0}'
         }
         if ($stickLeft -and -not $prevStickLeft) {
             Write-Output '{"event":"button","button":"Left","index":0}'
         }
+        if (-not $stickLeft -and $prevStickLeft) {
+            Write-Output '{"event":"button-release","button":"Left","index":0}'
+        }
         if ($stickRight -and -not $prevStickRight) {
             Write-Output '{"event":"button","button":"Right","index":0}'
+        }
+        if (-not $stickRight -and $prevStickRight) {
+            Write-Output '{"event":"button-release","button":"Right","index":0}'
         }
 
         # Emit analog stick values (only when above deadzone)

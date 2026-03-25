@@ -10,12 +10,12 @@
  */
 
 import { configLoader } from './config/loader';
-import { gamepadInput, type ButtonPressEvent, type ButtonName, type AnalogEvent } from './input/gamepad';
+import { gamepadInput, type ButtonPressEvent, type ButtonReleaseEvent, type ButtonName, type AnalogEvent } from './input/gamepad';
 import { SessionManager } from './session/manager';
 import { processSpawner } from './session/spawner';
 import { windowManager } from './output/windows';
 import { keyboard } from './output/keyboard';
-import type { Binding, KeyboardBinding, HoldKeyBinding, SessionSwitchBinding, SpawnBinding, ListSessionsBinding } from './config/loader';
+import type { Binding, KeyboardBinding, SessionSwitchBinding, SpawnBinding, ListSessionsBinding } from './config/loader';
 import { logger } from './utils/logger.js';
 
 // ============================================================================
@@ -26,6 +26,7 @@ class GamepadCliHub {
   private sessionManager = new SessionManager();
   private isRunning = false;
   private activeCliType: string | null = null;
+  private heldKeys: Map<string, string[]> = new Map();
 
   // Per-CLI button mappings (A/B/X/Y) for the active session
   private readonly PER_CLI_BUTTONS = ['A', 'B', 'X', 'Y'] as const;
@@ -143,6 +144,11 @@ class GamepadCliHub {
       this.handleButtonPress(event);
     });
 
+    // Register handler for button-release events (for hold support)
+    gamepadInput.on('button-release', (event: ButtonReleaseEvent) => {
+      this.handleButtonRelease(event);
+    });
+
     // Register analog stick handler
     gamepadInput.onAnalog((event: AnalogEvent) => {
       this.handleAnalogEvent(event);
@@ -169,7 +175,7 @@ class GamepadCliHub {
     // First check if this is a global binding (works regardless of active session)
     const globalBindings = configLoader.getGlobalBindings();
     if (button in globalBindings) {
-      this.handleBindingAction(globalBindings[button]);
+      this.handleBindingAction(globalBindings[button], button);
       return;
     }
 
@@ -183,10 +189,28 @@ class GamepadCliHub {
 
       const cliBindings = configLoader.getBindings(activeSession.cliType);
       if (cliBindings && button in cliBindings) {
-        this.handleBindingAction(cliBindings[button]);
+        this.handleBindingAction(cliBindings[button], button);
       } else {
         logger.debug(`No binding for ${button} in ${activeSession.cliType}`);
       }
+    }
+  }
+
+  private releaseAllHeldKeys(): void {
+    for (const [_button, keys] of this.heldKeys) {
+      keyboard.comboUp(keys);
+      logger.debug(`Released held keys: ${keys.join('+')}`);
+    }
+    this.heldKeys.clear();
+  }
+
+  private handleButtonRelease(event: ButtonReleaseEvent): void {
+    const { button } = event;
+    const held = this.heldKeys.get(button);
+    if (held) {
+      keyboard.comboUp(held);
+      this.heldKeys.delete(button);
+      logger.debug(`Released held keys: ${held.join('+')}`);
     }
   }
 
@@ -194,15 +218,11 @@ class GamepadCliHub {
   // Action Handling
   // ============================================================================
 
-  private handleBindingAction(binding: Binding): void {
+  private handleBindingAction(binding: Binding, button: string): void {
     try {
       switch (binding.action) {
         case 'keyboard':
-          this.handleKeyboardAction(binding as KeyboardBinding);
-          break;
-
-        case 'hold-key':
-          this.handleHoldKeyAction(binding as HoldKeyBinding);
+          this.handleKeyboardAction(binding as KeyboardBinding, button);
           break;
 
         case 'session-switch':
@@ -225,24 +245,17 @@ class GamepadCliHub {
     }
   }
 
-  private handleKeyboardAction(binding: KeyboardBinding): void {
+  private handleKeyboardAction(binding: KeyboardBinding, button: string): void {
     const { keys } = binding;
-    logger.debug(`Sending keys: ${keys.join(' ')}`);
-    keyboard.sendKeys(keys);
-  }
-
-  private handleHoldKeyAction(binding: HoldKeyBinding): void {
-    const { keys, delay } = binding;
-    const duration = delay || 200;
-    logger.debug(`Hold-key: ${keys.join('+')} for ${duration}ms`);
-
-    if (keys.length === 1) {
-      keyboard.longPress(keys[0], duration);
+    if ((binding as any).hold) {
+      logger.debug(`Hold keys down: ${keys.join('+')}`);
+      keyboard.comboDown(keys);
+      this.heldKeys.set(button, keys);
+      this.hapticPulse();
     } else {
-      keyboard.longPressCombo(keys, duration);
+      logger.debug(`Sending keys: ${keys.join(' ')}`);
+      keyboard.sendKeys(keys);
     }
-
-    this.hapticPulse();
   }
 
   private handleSessionSwitchAction(binding: SessionSwitchBinding): void {
@@ -421,6 +434,8 @@ class GamepadCliHub {
     }
 
     logger.info('Stopping Gamepad CLI Hub...');
+
+    this.releaseAllHeldKeys();
 
     // Stop gamepad input
     gamepadInput.stop();

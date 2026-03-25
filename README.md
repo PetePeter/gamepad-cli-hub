@@ -4,7 +4,7 @@
 
 You're running Claude Code in one terminal, Copilot CLI in another, maybe a third session for a side project. Alt-tabbing between them is slow. Finding the right window is annoying. Typing repetitive commands is tedious.
 
-Pick up your controller. One button spawns a new Claude Code session. Another fires up Copilot CLI. The D-pad flips between them instantly — the right window snaps to focus before you blink. Hold B to activate voice input in whichever CLI supports it — the controller just holds the key, your CLI does the rest.
+Pick up your controller. One button spawns a new Claude Code session. Another fires up Copilot CLI. The D-pad flips between them instantly — the right window snaps to focus before you blink. Hold B to hold down a key in whichever CLI supports it — the controller just holds the key, your CLI does the rest.
 
 This is a session manager for people who run multiple AI-assisted terminals at once and got tired of the friction.
 
@@ -16,7 +16,7 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 
 **Instant Spawning** — Pull a trigger and a new CLI instance launches in your configured working directory, ready to go. Left trigger for Claude Code, right trigger for Copilot CLI — or remap to whatever tools you use.
 
-**Hold-Key Passthrough** — Press and hold B, and a configurable key combo is held down in the active terminal. Release B, the key releases. Your CLI handles the rest — Claude Code hears Space for voice input, any voice-enabled CLI gets its expected key. No extra dependencies, just a key held at the right time.
+**Hold-Key Passthrough** — Press and hold B, and a configurable key combo is held down in the active terminal. Release B, the key releases. Your CLI handles the rest — Claude Code hears Space for voice input, any app that listens for a held key gets its expected combo. No extra dependencies, just a key held at the right time.
 
 **Session Persistence** — Sessions survive crashes and restarts. The app saves session state to disk after every change and restores on startup. A health check periodically removes dead sessions so the list stays clean.
 
@@ -45,7 +45,7 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 | Left Trigger | Spawn new Claude Code instance |
 | Right Trigger | Spawn new Copilot CLI instance |
 | A | Clear screen |
-| B | Hold-key passthrough (e.g. Space for voice) |
+| B | Hold keys (e.g. Space for voice passthrough) |
 | X / Y | Custom command (per CLI type) |
 | Back / Start | Previous / next profile |
 | Sandwich / Guide | Toggle HUD overlay (session quick-switch) |

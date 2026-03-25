@@ -4,7 +4,7 @@
 
 A DIY Xbox controller → CLI session manager. Controls multiple CLI instances (Claude Code, Copilot CLI, etc.) from a single game controller. Built as an Electron 41 desktop app on Windows.
 
-The controller acts as a universal remote: switch between terminal windows, spawn new CLI sessions, send keystrokes, and hold keys for voice passthrough — all without touching the keyboard.
+The controller acts as a universal remote: switch between terminal windows, spawn new CLI sessions, send keystrokes, and hold keys for passthrough — all without touching the keyboard.
 
 ---
 
@@ -68,7 +68,7 @@ flowchart LR
     C --> D{Binding Resolution}
     D -->|global| E[Execute Action]
     D -->|per-CLI type| E
-    E --> F[keyboard / hold-key / spawn / switch]
+    E --> F[keyboard / spawn / switch]
     F --> G[WindowManager<br/>focus target window]
     G --> H[Terminal Window]
 ```
@@ -78,7 +78,7 @@ flowchart LR
 2. `GamepadInput.processEvent()` parses JSON events, applies 600ms debounce
 3. Emits `button-press` event to subscribers; analog sticks emit `analog` events
 4. Binding resolution: check global bindings first, then per-CLI-type bindings for A/B/X/Y
-5. Execute resolved action (keyboard, hold-key, spawn, session-switch, etc.)
+5. Execute resolved action (keyboard, spawn, session-switch, etc.)
 6. WindowManager ensures correct terminal window is focused
 7. Haptic pulse fires (when enabled) after hold-key activation and session switch
 
@@ -107,7 +107,7 @@ flowchart LR
 | Module | File | Responsibility |
 |--------|------|---------------|
 | **GamepadInput** | `src/input/gamepad.ts` | XInput polling via PowerShell P/Invoke to xinput1_4.dll. Detects A/B/X/Y, D-Pad, bumpers, triggers, sticks. 600ms debounce per button. Emits `button-press`, `connection-change`, and `analog` events. Sends haptic vibration commands. |
-| **KeyboardSimulator** | `src/output/keyboard.ts` | Wraps @jitsi/robotjs. Supports `sendKey()`, `sendKeys()`, `sendKeyCombo()`, `longPress()`, `typeString()`, `keyDown()`, `keyUp()`, `comboDown()`, `comboUp()`. Normalises key aliases. Hold-key support via `keyToggle`. |
+| **KeyboardSimulator** | `src/output/keyboard.ts` | Wraps @jitsi/robotjs. Supports `sendKey()`, `sendKeys()`, `sendKeyCombo()`, `longPress()`, `typeString()`, `keyDown()`, `keyUp()`, `comboDown()`, `comboUp()`. Normalises key aliases. Hold support via `keyToggle` (used by `keyboard` action with `hold: true`). |
 | **WindowManager** | `src/output/windows.ts` | Win32 window enumeration/focus via PowerShell. Methods: `enumerateWindows()`, `findWindowsByTitle()`, `focusWindow()`, `findTerminalWindows()`. |
 | **SessionManager** | `src/session/manager.ts` | EventEmitter tracking active/inactive sessions. Emits `session:added`, `session:removed`, `session:changed`. Supports `nextSession()`, `previousSession()`. Calls `persistSessions()` after every state change. |
 | **SessionPersistence** | `src/session/persistence.ts` | `saveSessions()`, `loadSessions()`, `clearPersistedSessions()` to `config/sessions.yaml`. `restoreSessions()` on startup loads saved sessions, skips duplicates. `startHealthCheck(intervalMs)` periodically removes dead PIDs. |
@@ -154,8 +154,7 @@ graph LR
 ### Binding Action Types
 | Action | Description |
 |--------|-------------|
-| `keyboard` | Send key sequence to focused window |
-| `hold-key` | Hold a key combo while button is held. Format: `{ action: 'hold-key', keys: ['space'], delay: 200 }`. Sends key DOWN via robotjs `keyToggle` after delay, releases on button up. The target CLI app handles the held key (e.g. Claude Code listens for Space to start voice input). |
+| `keyboard` | Send key sequence to focused window. With `hold: true`, holds keys down while gamepad button is pressed and releases on button up. Example: `{ action: 'keyboard', keys: ['space'], hold: true }`. The target CLI app handles the held key (e.g. Claude Code listens for Space to start voice input). |
 | `session-switch` | Switch active session (next/previous) |
 | `spawn` | Spawn new CLI instance |
 | `list-sessions` | Show session status |
@@ -292,7 +291,7 @@ CLI sessions run in **real terminal windows** (Windows Terminal, cmd, etc.), not
 - `keyboard.ts` → send keystrokes to focused window
 
 ### Hold-Key Passthrough
-Instead of embedding audio processing, the controller holds a configurable key combo (via robotjs `keyToggle`) and lets the target CLI app handle voice natively. Format: `{ action: 'hold-key', keys: ['space'], delay: 200 }`. When the button is held past the delay, the key combo is sent DOWN; released on button up. Zero external dependencies — the controller just holds a key, the CLI does the rest (e.g. Claude Code listens for Space to start voice input).
+Instead of embedding audio processing, the `keyboard` action with `hold: true` holds a configurable key combo (via robotjs `keyToggle`) and lets the target CLI app handle voice natively. Format: `{ action: 'keyboard', keys: ['space'], hold: true }`. When the gamepad button is pressed, the key combo is sent DOWN; released on button up. Zero external dependencies — the controller just holds a key, the CLI does the rest (e.g. Claude Code listens for Space to start voice input).
 
 ### Session Persistence
 Sessions saved to `config/sessions.yaml` (as YAML) after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skips duplicates). `startHealthCheck(intervalMs)` periodically removes dead PIDs via `process.kill(pid, 0)`. Survives app crashes and restarts.

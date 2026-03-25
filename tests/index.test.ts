@@ -49,6 +49,8 @@ const mockKeyboard = {
   sendKeyCombo: vi.fn(),
   typeString: vi.fn(),
   longPress: vi.fn(),
+  comboDown: vi.fn(),
+  comboUp: vi.fn(),
 };
 
 const mockWindowManager = {
@@ -373,20 +375,20 @@ describe('GamepadCliHub', () => {
       expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('Status'));
     });
 
-    it('hold-key action calls keyboard.longPress()', () => {
+    it('hold-key action calls keyboard.comboDown()', () => {
       mockConfigLoader.getGlobalBindings.mockReturnValue({
-        X: { action: 'hold-key', keys: ['space'], delay: 800 },
+        X: { action: 'keyboard', keys: ['space'], hold: true },
       });
       pressButton(captureButtonPressHandler(), 'X');
-      expect(mockKeyboard.longPress).toHaveBeenCalledWith('space', 800);
+      expect(mockKeyboard.comboDown).toHaveBeenCalledWith(['space']);
     });
 
-    it('hold-key action uses default 200ms when delay not set', () => {
+    it('hold-key action defaults to comboDown with hold flag', () => {
       mockConfigLoader.getGlobalBindings.mockReturnValue({
-        X: { action: 'hold-key', keys: ['space'] },
+        X: { action: 'keyboard', keys: ['space'], hold: true },
       });
       pressButton(captureButtonPressHandler(), 'X');
-      expect(mockKeyboard.longPress).toHaveBeenCalledWith('space', 200);
+      expect(mockKeyboard.comboDown).toHaveBeenCalledWith(['space']);
     });
 
     it('unknown action type logs warning', () => {

@@ -27,6 +27,17 @@ const gamepadCliAPI = {
   },
 
   /**
+   * Subscribe to gamepad button release events
+   * @param callback - Function to call when a button is released
+   * @returns Unsubscribe function
+   */
+  onGamepadRelease: (callback: (event: { button: string; gamepadIndex: number; timestamp: number }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('gamepad:release', listener);
+    return () => ipcRenderer.removeListener('gamepad:release', listener);
+  },
+
+  /**
    * Subscribe to gamepad connection events
    * @param callback - Function to call when connection state changes
    * @returns Unsubscribe function
@@ -229,14 +240,14 @@ const gamepadCliAPI = {
   keyboardTypeString: (text: string) => ipcRenderer.invoke('keyboard:typeString', text),
 
   /**
-   * Long press a key
+   * Hold keys down (for hold bindings)
    */
-  keyboardLongPress: (key: string, duration: number) => ipcRenderer.invoke('keyboard:longPress', key, duration),
+  keyboardComboDown: (keys: string[]) => ipcRenderer.invoke('keyboard:comboDown', keys),
 
   /**
-   * Long press a key combination (modifiers + key)
+   * Release held keys
    */
-  keyboardLongPressCombo: (keys: string[], duration: number) => ipcRenderer.invoke('keyboard:longPressCombo', keys, duration),
+  keyboardComboUp: (keys: string[]) => ipcRenderer.invoke('keyboard:comboUp', keys),
 
   // ========================================================================
   // Foreground Sync

@@ -9,6 +9,9 @@ import { state } from './state.js';
 import { logEvent, showScreen, updateProfileDisplay, renderFooterBindings } from './utils.js';
 import { loadSessions, spawnNewSession } from './screens/sessions.js';
 
+// Tracks which buttons are currently holding keys down
+const heldKeys = new Map<string, string[]>();
+
 export async function initConfigCache(): Promise<void> {
   try {
     if (!window.gamepadCli) return;
@@ -79,6 +82,7 @@ async function executeGlobalBinding(button: string, binding: any): Promise<void>
         break;
       }
       case 'profile-switch': {
+        releaseAllHeldKeys();
         const profiles = await window.gamepadCli.profileList();
         const active = await window.gamepadCli.profileGetActive();
         const currentIdx = profiles.indexOf(active);
@@ -118,6 +122,21 @@ async function executeGlobalBinding(button: string, binding: any): Promise<void>
   }
 }
 
+export function processConfigRelease(button: string): void {
+  const keys = heldKeys.get(button);
+  if (keys) {
+    window.gamepadCli.keyboardComboUp(keys);
+    heldKeys.delete(button);
+  }
+}
+
+export function releaseAllHeldKeys(): void {
+  for (const [_button, keys] of heldKeys) {
+    window.gamepadCli.keyboardComboUp(keys);
+  }
+  heldKeys.clear();
+}
+
 async function executeCliBinding(button: string, binding: any): Promise<void> {
   try {
     switch (binding.action) {
@@ -126,16 +145,14 @@ async function executeCliBinding(button: string, binding: any): Promise<void> {
           console.warn(`[Renderer] Keyboard binding for ${button} missing keys`);
           break;
         }
-        await window.gamepadCli.keyboardSendKeys(binding.keys);
-        logEvent(`Keys: ${binding.keys.join('+')}`);
-        break;
-      }
-      case 'hold-key': {
-        const keys: string[] = binding.keys || ['space'];
-        const delay = binding.delay || 200;
-        const key = keys.length === 1 ? keys[0] : keys.join('+');
-        await window.gamepadCli.keyboardLongPress(key, delay);
-        logEvent(`Hold-key: ${key} ${delay}ms`);
+        if (binding.hold) {
+          await window.gamepadCli.keyboardComboDown(binding.keys);
+          heldKeys.set(button, binding.keys);
+          logEvent(`Hold: ${binding.keys.join('+')}`);
+        } else {
+          await window.gamepadCli.keyboardSendKeys(binding.keys);
+          logEvent(`Keys: ${binding.keys.join('+')}`);
+        }
         break;
       }
       default:

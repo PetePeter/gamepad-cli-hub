@@ -121,15 +121,15 @@ export function renderFooterBindings(): void {
 function getShortActionLabel(binding: any): string {
   switch (binding.action) {
     case 'keyboard':
-      return binding.keys?.length === 1 ? binding.keys[0] : (binding.keys?.join('+') || 'keys');
+      return binding.hold
+        ? `hold ${binding.keys?.join('+') || 'keys'}`
+        : (binding.keys?.length === 1 ? binding.keys[0] : (binding.keys?.join('+') || 'keys'));
     case 'spawn':
       return `+${getCliDisplayName(binding.cliType || '')}`;
     case 'session-switch':
       return binding.direction === 'next' ? 'Next' : 'Prev';
     case 'profile-switch':
       return binding.direction === 'next' ? 'Prof→' : '←Prof';
-    case 'voice':
-      return 'Voice';
     case 'hub-focus':
       return 'Hub';
     case 'list-sessions':
@@ -213,15 +213,14 @@ export function navigateFocus(direction: number): void {
 export function formatBindingDetails(binding: any): string {
   switch (binding.action) {
     case 'keyboard':
+      if (binding.hold) {
+        return binding.keys ? `hold ${binding.keys.join('+')}` : '—';
+      }
       return binding.keys ? binding.keys.join(' → ') : '—';
     case 'spawn':
       return binding.cliType ? `spawn: ${binding.cliType}` : '—';
     case 'session-switch':
       return binding.direction ? `direction: ${binding.direction}` : '—';
-    case 'voice':
-      return binding.holdDuration
-        ? `voice hold ${binding.key || 'space'} ${binding.holdDuration}ms`
-        : 'voice';
     case 'hub-focus':
       return 'bring hub to foreground';
     case 'list-sessions':

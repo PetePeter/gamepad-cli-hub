@@ -2,7 +2,7 @@
  * Keyboard Simulation Module
  *
  * Provides keyboard input simulation using robotjs.
- * Supports individual keys, key sequences, combinations, and long-press.
+ * Supports individual keys, key sequences, combinations, and hold-down/release.
  */
 
 import robot from '@jitsi/robotjs';
@@ -220,93 +220,6 @@ export class KeyboardSimulator {
     comboUp(keyNames: string[]): void {
         for (const key of [...keyNames].reverse()) {
             this.keyUp(key);
-        }
-    }
-
-    /**
-     * Simulates a long press (hold key for a duration).
-     *
-     * @param keyName - The name of the key to hold
-     * @param duration - Duration to hold the key in milliseconds
-     *
-     * @example
-     * ```ts
-     * keyboard.longPress('space', 1000); // Hold space for 1 second
-     * keyboard.longPress('a', 500); // Hold 'a' for 500ms
-     * ```
-     */
-    longPress(keyName: string, duration: number): void {
-        const normalizedKey = this.normalizeKey(keyName);
-
-        // Press the key down
-        robot.keyToggle(normalizedKey, 'down');
-
-        // Wait for the specified duration
-        const startTime = Date.now();
-        const endTime = startTime + duration;
-
-        // Busy wait for precision (avoid setInterval overhead for short durations)
-        while (Date.now() < endTime) {
-            // Sleep in small chunks to avoid 100% CPU
-            const remaining = endTime - Date.now();
-            if (remaining > 20) {
-                // Use a blocking sleep approximation
-                const target = Date.now() + Math.min(remaining, 50);
-                while (Date.now() < target) {
-                    // Busy wait loop
-                }
-            }
-        }
-
-        // Release the key
-        robot.keyToggle(normalizedKey, 'up');
-    }
-
-    /**
-     * Hold a key combination for a specified duration.
-     * Modifiers are held down, then the main key is held, then all released.
-     */
-    longPressCombo(keyNames: string[], duration: number): void {
-        if (keyNames.length === 0) return;
-
-        if (keyNames.length === 1) {
-            this.longPress(keyNames[0], duration);
-            return;
-        }
-
-        // Separate modifiers from non-modifiers
-        const modifierSet = new Set(['control', 'shift', 'alt', 'command', 'meta']);
-        const normalized = keyNames.map(k => this.normalizeKey(k));
-        const mods = normalized.filter(k => modifierSet.has(k));
-        const mainKeys = normalized.filter(k => !modifierSet.has(k));
-        const mainKey = mainKeys[0] || normalized[normalized.length - 1];
-
-        // Press modifiers down
-        for (const mod of mods) {
-            robot.keyToggle(mod, 'down');
-        }
-
-        // Press main key down
-        robot.keyToggle(mainKey, 'down');
-
-        // Wait for duration
-        const endTime = Date.now() + duration;
-        while (Date.now() < endTime) {
-            const remaining = endTime - Date.now();
-            if (remaining > 20) {
-                const target = Date.now() + Math.min(remaining, 50);
-                while (Date.now() < target) {
-                    // Busy wait
-                }
-            }
-        }
-
-        // Release main key
-        robot.keyToggle(mainKey, 'up');
-
-        // Release modifiers in reverse
-        for (const mod of mods.reverse()) {
-            robot.keyToggle(mod, 'up');
         }
     }
 

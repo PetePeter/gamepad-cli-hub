@@ -354,7 +354,6 @@
                     <div class="nav-section-title">Integrations</div>
                     <a href="#claude-code">Claude Code</a>
                     <a href="#copilot-cli">Copilot CLI</a>
-                    <a href="#openwhisper">OpenWhisper</a>
                 </div>
 
                 <div class="nav-section">
@@ -391,8 +390,8 @@
                         <div class="feature-desc">Send keystrokes to active session</div>
                     </div>
                     <div class="feature-card">
-                        <div class="feature-title">🎙️ Voice Input</div>
-                        <div class="feature-desc">Built-in voice or OpenWhisper transcription</div>
+                        <div class="feature-title">🎮 Hold Keys</div>
+                        <div class="feature-desc">Hold keyboard keys while gamepad button is pressed — perfect for voice activation in Claude Code, OpenWhisper, etc.</div>
                     </div>
                     <div class="feature-card">
                         <div class="feature-title">⚙️ YAML Config</div>
@@ -474,17 +473,7 @@ cd gamepad-cli-hub</code></pre>
                         <tr>
                             <td><code>keyboard</code></td>
                             <td>Send keyboard keystrokes to the active window</td>
-                            <td><code>keys</code>: array of key names</td>
-                        </tr>
-                        <tr>
-                            <td><code>voice</code></td>
-                            <td>Trigger built-in voice input (long-press spacebar)</td>
-                            <td>None</td>
-                        </tr>
-                        <tr>
-                            <td><code>openwhisper</code></td>
-                            <td>Record audio and transcribe using OpenWhisper</td>
-                            <td><code>recordingDuration</code>: milliseconds</td>
+                            <td><code>keys</code>: array of key names; <code>hold</code>: <code>true</code> to hold keys while gamepad button is pressed</td>
                         </tr>
                         <tr>
                             <td><code>session-switch</code></td>
@@ -521,8 +510,9 @@ cd gamepad-cli-hub</code></pre>
   <span class="code-attr">keys:</span> [<span class="code-value">"Clear"</span>]
 
 <span class="code-tag">B:</span>
-  <span class="code-attr">action:</span> <span class="code-value">"openwhisper"</span>
-  <span class="code-attr">recordingDuration:</span> <span class="code-number">5000</span>
+  <span class="code-attr">action:</span> <span class="code-value">"keyboard"</span>
+  <span class="code-attr">keys:</span> [<span class="code-value">"space"</span>]
+  <span class="code-attr">hold:</span> <span class="code-value">true</span>
 
 <span class="code-comment"># D-Pad binding (usually in global section)</span>
 <span class="code-tag">Up:</span>
@@ -570,7 +560,7 @@ cd gamepad-cli-hub</code></pre>
             <section id="claude-code" class="section">
                 <h2>Claude Code Integration</h2>
 
-                <p>Claude Code has excellent built-in voice input via long-press spacebar. Gamepad CLI Hub can trigger this automatically, or you can use OpenWhisper for local transcription.</p>
+                <p>Claude Code has built-in voice input triggered by holding spacebar. Gamepad CLI Hub can hold the spacebar for you while a gamepad button is pressed — just set <code>hold: true</code> on a keyboard binding.</p>
 
                 <h3>Recommended Button Setup</h3>
                 <table>
@@ -589,8 +579,8 @@ cd gamepad-cli-hub</code></pre>
                         </tr>
                         <tr>
                             <td><span class="button-badge">B</span></td>
-                            <td>Voice (OpenWhisper)</td>
-                            <td>Record and transcribe voice input</td>
+                            <td>Hold Space (voice)</td>
+                            <td>Hold spacebar while pressed — triggers Claude Code voice input</td>
                         </tr>
                         <tr>
                             <td><span class="button-badge">X</span></td>
@@ -617,10 +607,10 @@ cd gamepad-cli-hub</code></pre>
         <span class="code-attr">action:</span> <span class="code-value">"keyboard"</span>
         <span class="code-attr">keys:</span> [<span class="code-value">"Clear"</span>]
       <span class="code-tag">B:</span>
-        <span class="code-comment"># Use "voice" for built-in (long-press spacebar)</span>
-        <span class="code-comment"># Use "openwhisper" for local transcription</span>
-        <span class="code-attr">action:</span> <span class="code-value">"openwhisper"</span>
-        <span class="code-attr">recordingDuration:</span> <span class="code-number">5000</span>
+        <span class="code-comment"># Hold spacebar while B is pressed — triggers Claude Code voice input</span>
+        <span class="code-attr">action:</span> <span class="code-value">"keyboard"</span>
+        <span class="code-attr">keys:</span> [<span class="code-value">"space"</span>]
+        <span class="code-attr">hold:</span> <span class="code-value">true</span>
       <span class="code-tag">X:</span>
         <span class="code-attr">action:</span> <span class="code-value">"keyboard"</span>
         <span class="code-attr">keys:</span> [<span class="code-value">"/"</span>, <span class="code-value">"h"</span>, <span class="code-value">"e"</span>, <span class="code-value">"l"</span>, <span class="code-value">"p"</span>, <span class="code-value">"Enter"</span>]
@@ -628,12 +618,17 @@ cd gamepad-cli-hub</code></pre>
         <span class="code-attr">action:</span> <span class="code-value">"keyboard"</span>
         <span class="code-attr">keys:</span> [<span class="code-value">"/"</span>, <span class="code-value">"s"</span>, <span class="code-value">"t"</span>, <span class="code-value">"a"</span>, <span class="code-value">"t"</span>, <span class="code-value">"u"</span>, <span class="code-value">"s"</span>, <span class="code-value">"Enter"</span>]</code></pre>
 
-                <h3>Voice Input Options</h3>
-                <p>You have two options for voice input with Claude Code:</p>
+                <h3>Hold Keys for Voice Input</h3>
+                <p>Setting <code>hold: true</code> on a keyboard binding will hold the specified keys down for as long as the gamepad button is physically pressed. When the button is released, the keys are released. This is perfect for activating voice input in CLI apps that listen for held keys.</p>
                 <ul>
-                    <li><strong>Built-in Voice</strong> (<code>action: "voice"</code>): Simulates a long-press of spacebar to trigger Claude Code's built-in voice input system.</li>
-                    <li><strong>OpenWhisper</strong> (<code>action: "openwhisper"</code>): Records audio and transcribes it locally using whisper.cpp, then types the result.</li>
+                    <li><strong>Claude Code</strong>: Hold <code>space</code> — Claude Code's built-in voice input activates on spacebar hold.</li>
+                    <li><strong>Any voice-enabled CLI</strong>: Configure the appropriate key combo (e.g. <code>keys: ["ctrl", "alt"]</code> for apps that use Ctrl+Alt).</li>
                 </ul>
+                <pre><code><span class="code-comment"># Example: B button holds spacebar for Claude Code voice</span>
+<span class="code-tag">B:</span>
+  <span class="code-attr">action:</span> <span class="code-value">"keyboard"</span>
+  <span class="code-attr">keys:</span> [<span class="code-value">"space"</span>]
+  <span class="code-attr">hold:</span> <span class="code-value">true</span></code></pre>
             </section>
 
             <!-- Copilot CLI -->
@@ -697,166 +692,9 @@ cd gamepad-cli-hub</code></pre>
         <span class="code-attr">keys:</span> [<span class="code-value">"Ctrl"</span>, <span class="code-value">"c"</span>]</code></pre>
 
                 <div class="callout callout-info">
-                    <div class="callout-title">ℹ️ Difference from Claude Code</div>
-                    <p>Copilot CLI doesn't have built-in voice input like Claude Code. For voice functionality with Copilot CLI, use the <code>openwhisper</code> action.</p>
+                    <div class="callout-title">💡 Hold Keys for Voice</div>
+                    <p>Copilot CLI doesn't have built-in voice input like Claude Code. You can still use <code>hold: true</code> with whatever key combo a third-party voice tool expects (e.g. <code>keys: ["ctrl", "alt"]</code>).</p>
                 </div>
-            </section>
-
-            <!-- OpenWhisper -->
-            <section id="openwhisper" class="section">
-                <h2>OpenWhisper Integration</h2>
-
-                <p>OpenWhisper provides offline speech-to-text transcription using <strong>whisper.cpp</strong>, a high-performance C++ implementation of OpenAI's Whisper model. It runs entirely locally on your machine—no internet connection required.</p>
-
-                <h3>What is OpenWhisper?</h3>
-                <ul>
-                    <li><strong>whisper.cpp</strong>: C++ implementation of OpenAI's Whisper model</li>
-                    <li><strong>Offline</strong>: No internet connection needed after setup</li>
-                    <li><strong>Privacy</strong>: Audio never leaves your machine</li>
-                    <li><strong>Fast</strong>: Optimized for CPU inference</li>
-                </ul>
-
-                <h3>Installation Steps</h3>
-                <ol>
-                    <li><strong>Clone whisper.cpp:</strong>
-                        <pre><code>git clone https://github.com/ggerganov/whisper.cpp.git
-cd whisper.cpp</code></pre>
-                    </li>
-                    <li><strong>Build the Windows executable:</strong>
-                        <pre><code>cmake -B build
-cmake --build build --config Release</code></pre>
-                        <p>The executable will be at <code>build/bin/Release/whisper.exe</code></p>
-                    </li>
-                    <li><strong>Download a model file:</strong>
-                        <pre><code>cd models
-.\download-ggml-model.sh base.en</code></pre>
-                        <p>Or manually download from <a href="https://huggingface.co/ggerganov/whisper.cpp" target="_blank">HuggingFace</a></p>
-                    </li>
-                    <li><strong>Copy files to your project:</strong>
-                        <ul>
-                            <li>Copy <code>whisper.exe</code> to your project directory</li>
-                            <li>Copy the model file (e.g., <code>ggml-base.en.bin</code>) to <code>models/</code></li>
-                        </ul>
-                    </li>
-                </ol>
-
-                <h3>Configuration</h3>
-                <pre><code><span class="code-comment"># OpenWhisper configuration for local transcription</span>
-<span class="code-tag">openwhisper:</span>
-  <span class="code-attr">whisperPath:</span> <span class="code-value">"whisper.exe"</span>
-  <span class="code-attr">model:</span> <span class="code-value">"models/ggml-base.en.bin"</span>
-  <span class="code-attr">language:</span> <span class="code-value">"en"</span>
-  <span class="code-comment"># tempDir: "/tmp/gamepad-voice"  # Optional: custom temp directory</span></code></pre>
-
-                <h3>Configuration Options</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Option</th>
-                            <th>Description</th>
-                            <th>Default</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><code>whisperPath</code></td>
-                            <td>Path to whisper.cpp CLI executable</td>
-                            <td><code>"whisper.exe"</code></td>
-                        </tr>
-                        <tr>
-                            <td><code>model</code></td>
-                            <td>Path to the Whisper model file</td>
-                            <td><code>"models/ggml-base.en.bin"</code></td>
-                        </tr>
-                        <tr>
-                            <td><code>language</code></td>
-                            <td>Language code or "auto" for auto-detect</td>
-                            <td><code>"en"</code></td>
-                        </tr>
-                        <tr>
-                            <td><code>tempDir</code></td>
-                            <td>Custom temp directory for recordings</td>
-                            <td>System temp</td>
-                        </tr>
-                        <tr>
-                            <td><code>recordingDuration</code></td>
-                            <td>Max recording length in milliseconds (per binding)</td>
-                            <td><code>5000</code></td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <h3>Model Choices</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Model</th>
-                            <th>Description</th>
-                            <th>Size</th>
-                            <th>Speed</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><code>tiny</code></td>
-                            <td>Fastest, least accurate</td>
-                            <td>~39MB</td>
-                            <td>⚡⚡⚡</td>
-                        </tr>
-                        <tr>
-                            <td><code>base</code></td>
-                            <td>Good balance</td>
-                            <td>~74MB</td>
-                            <td>⚡⚡</td>
-                        </tr>
-                        <tr>
-                            <td><code>base.en</code></td>
-                            <td>English-only, better than base for EN</td>
-                            <td>~74MB</td>
-                            <td>⚡⚡</td>
-                        </tr>
-                        <tr>
-                            <td><code>small</code></td>
-                            <td>Better accuracy</td>
-                            <td>~244MB</td>
-                            <td>⚡</td>
-                        </tr>
-                        <tr>
-                            <td><code>medium</code></td>
-                            <td>Very good accuracy</td>
-                            <td>~769MB</td>
-                            <td>~</td>
-                        </tr>
-                        <tr>
-                            <td><code>large</code></td>
-                            <td>Best accuracy, slowest</td>
-                            <td>~1.5GB</td>
-                            <td>🐌</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <h3>Using OpenWhisper in Button Bindings</h3>
-                <pre><code><span class="code-tag">bindings:</span>
-  <span class="code-tag">B:</span>
-    <span class="code-attr">action:</span> <span class="code-value">"openwhisper"</span>
-    <span class="code-attr">recordingDuration:</span> <span class="code-number">5000</span></code></pre>
-
-                <div class="callout callout-warning">
-                    <div class="callout-title">⚠️ Recording Requirements</div>
-                    <p>OpenWhisper requires a working microphone. Ensure Windows microphone permissions are granted and your default recording device is set correctly.</p>
-                </div>
-
-                <h3>Language Settings</h3>
-                <p>The <code>language</code> option accepts:</p>
-                <ul>
-                    <li><code>"en"</code> - English</li>
-                    <li><code>"es"</code> - Spanish</li>
-                    <li><code>"fr"</code> - French</li>
-                    <li><code>"de"</code> - German</li>
-                    <li><code>"auto"</code> - Auto-detect language</li>
-                    <li>And more - see Whisper documentation for full list</li>
-                </ul>
             </section>
 
             <!-- Configuration Reference -->
@@ -865,15 +703,6 @@ cmake --build build --config Release</code></pre>
 
                 <h3>Full YAML Structure</h3>
                 <pre><code><span class="code-comment"># ============================================</span>
-<span class="code-comment"># OpenWhisper configuration (optional)</span>
-<span class="code-comment"># ============================================</span>
-<span class="code-tag">openwhisper:</span>
-  <span class="code-attr">whisperPath:</span> <span class="code-value">"whisper.exe"</span>
-  <span class="code-attr">model:</span> <span class="code-value">"models/ggml-base.en.bin"</span>
-  <span class="code-attr">language:</span> <span class="code-value">"en"</span>
-  <span class="code-attr">tempDir:</span> <span class="code-value">"/tmp/gamepad-voice"</span>
-
-<span class="code-comment"># ============================================</span>
 <span class="code-comment"># CLI type definitions</span>
 <span class="code-comment"># ============================================</span>
 <span class="code-tag">cliTypes:</span>
@@ -898,32 +727,23 @@ cmake --build build --config Release</code></pre>
                 <h3>Action Details by Type</h3>
 
                 <h4>1. keyboard</h4>
-                <p>Simulates pressing keys on the keyboard.</p>
+                <p>Simulates pressing keys on the keyboard. With <code>hold: true</code>, holds the keys down while the gamepad button is pressed and releases them when the button is released.</p>
                 <pre><code><span class="code-tag">A:</span>
   <span class="code-attr">action:</span> <span class="code-value">"keyboard"</span>
-  <span class="code-attr">keys:</span> [<span class="code-value">"Ctrl"</span>, <span class="code-value">"c"</span>]</code></pre>
+  <span class="code-attr">keys:</span> [<span class="code-value">"Ctrl"</span>, <span class="code-value">"c"</span>]
+
+<span class="code-comment"># Hold keys while button is pressed (e.g. voice activation)</span>
+<span class="code-tag">B:</span>
+  <span class="code-attr">action:</span> <span class="code-value">"keyboard"</span>
+  <span class="code-attr">keys:</span> [<span class="code-value">"space"</span>]
+  <span class="code-attr">hold:</span> <span class="code-value">true</span></code></pre>
                 <p><strong>Options:</strong></p>
                 <ul>
                     <li><code>keys</code>: Array of key names to press in sequence. Modifiers should come before the key they modify.</li>
+                    <li><code>hold</code>: When <code>true</code>, holds the keys down while the gamepad button is pressed. Keys are released when the button is released.</li>
                 </ul>
 
-                <h4>2. voice</h4>
-                <p>Simulates a long-press of the spacebar (for Claude Code's built-in voice input).</p>
-                <pre><code><span class="code-tag">B:</span>
-  <span class="code-attr">action:</span> <span class="code-value">"voice"</span></code></pre>
-                <p><strong>Options:</strong> None</p>
-
-                <h4>3. openwhisper</h4>
-                <p>Records audio and transcribes it using OpenWhisper, then types the result.</p>
-                <pre><code><span class="code-tag">B:</span>
-  <span class="code-attr">action:</span> <span class="code-value">"openwhisper"</span>
-  <span class="code-attr">recordingDuration:</span> <span class="code-number">5000</span></code></pre>
-                <p><strong>Options:</strong></p>
-                <ul>
-                    <li><code>recordingDuration</code>: Maximum recording time in milliseconds (default: 5000)</li>
-                </ul>
-
-                <h4>4. session-switch</h4>
+                <h4>2. session-switch</h4>
                 <p>Switches the active CLI session and automatically brings the selected window to the foreground.</p>
                 <pre><code><span class="code-tag">Up:</span>
   <span class="code-attr">action:</span> <span class="code-value">"session-switch"</span>
@@ -937,7 +757,7 @@ cmake --build build --config Release</code></pre>
                     <li><code>direction</code>: Either <code>"previous"</code> or <code>"next"</code></li>
                 </ul>
 
-                <h4>5. spawn</h4>
+                <h4>3. spawn</h4>
                 <p>Launches a new CLI instance using the spawn configuration from the specified CLI type.</p>
                 <pre><code><span class="code-tag">LeftTrigger:</span>
   <span class="code-attr">action:</span> <span class="code-value">"spawn"</span>
@@ -947,13 +767,13 @@ cmake --build build --config Release</code></pre>
                     <li><code>cliType</code>: The CLI type identifier defined in the <code>cliTypes</code> section</li>
                 </ul>
 
-                <h4>6. list-sessions</h4>
+                <h4>4. list-sessions</h4>
                 <p>Displays all tracked CLI sessions in the console.</p>
                 <pre><code><span class="code-tag">Start:</span>
   <span class="code-attr">action:</span> <span class="code-value">"list-sessions"</span></code></pre>
                 <p><strong>Options:</strong> None</p>
 
-                <h4>7. profile-switch</h4>
+                <h4>5. profile-switch</h4>
                 <p>Switches to a different binding profile.</p>
                 <pre><code><span class="code-tag">Back:</span>
   <span class="code-attr">action:</span> <span class="code-value">"profile-switch"</span>
@@ -967,7 +787,7 @@ cmake --build build --config Release</code></pre>
                     <li><code>direction</code>: Either <code>"previous"</code> or <code>"next"</code></li>
                 </ul>
 
-                <h4>8. hub-focus</h4>
+                <h4>6. hub-focus</h4>
                 <p>Brings the hub window to the foreground (useful when you've switched focus to a CLI session).</p>
                 <pre><code><span class="code-tag">Guide:</span>
   <span class="code-attr">action:</span> <span class="code-value">"hub-focus"</span></code></pre>
@@ -1054,19 +874,17 @@ cmake --build build --config Release</code></pre>
                     <li>Run as Administrator if window detection is failing</li>
                 </ul>
 
-                <h3>OpenWhisper Recording Problems</h3>
+                <h3>Hold Keys Not Working</h3>
                 <div class="callout callout-warning">
                     <div class="callout-title">Symptoms</div>
-                    <p>Voice input doesn't produce text or fails silently.</p>
+                    <p>Keys not being held or not releasing when button is released.</p>
                 </div>
                 <p><strong>Solutions:</strong></p>
                 <ul>
-                    <li>Verify whisper.exe is in the correct path and runs from command line</li>
-                    <li>Check that the model file exists and is accessible</li>
-                    <li>Test whisper.exe manually: <code>whisper.exe -f test.wav</code></li>
-                    <li>Ensure Windows microphone permissions are granted</li>
-                    <li>Check that no other app is using the microphone</li>
-                    <li>Verify your default recording device in Windows sound settings</li>
+                    <li>Verify the binding has <code>hold: true</code> set in your profile config</li>
+                    <li>Check gamepad connection — if the controller disconnects while a key is held, the key may stick</li>
+                    <li>Restart the app to release any stuck keys</li>
+                    <li>Ensure the target window has focus when pressing the button</li>
                 </ul>
 
                 <h3>Spawned Windows Don't Appear</h3>

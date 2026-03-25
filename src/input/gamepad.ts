@@ -32,6 +32,15 @@ export interface ButtonPressEvent {
   timestamp: number;
 }
 
+/**
+ * Button release event data
+ */
+export interface ButtonReleaseEvent {
+  button: string;
+  gamepadIndex: number;
+  timestamp: number;
+}
+
 // Re-export as ButtonEvent for compatibility
 export type ButtonEvent = ButtonPressEvent;
 
@@ -56,14 +65,14 @@ export type ConnectionEvent = {
 
 export type ConnectionCallback = (event: ConnectionEvent) => void;
 
-type EventType = 'button-press' | 'connection-change' | 'analog';
+type EventType = 'button-press' | 'button-release' | 'connection-change' | 'analog';
 
 /**
  * Event emitted by the XInput PowerShell polling script.
  * The script does edge detection internally and only emits on state changes.
  */
 interface XInputEvent {
-  event: 'connected' | 'disconnected' | 'button' | 'analog';
+  event: 'connected' | 'disconnected' | 'button' | 'button-release' | 'analog';
   button?: string;
   stick?: 'left' | 'right';
   x?: number;
@@ -225,6 +234,14 @@ export class GamepadInput {
         break;
       case 'disconnected':
         if (this.wasConnected) {
+          // Release any held buttons before clearing state
+          for (const [key, held] of this.buttonState) {
+            if (held) {
+              const [indexStr, ...buttonParts] = key.split('-');
+              const button = buttonParts.join('-') as ButtonName;
+              this.emitButtonRelease(button, parseInt(indexStr, 10));
+            }
+          }
           this.wasConnected = false;
           this.connectedCount = 0;
           this.buttonState.clear();
@@ -237,6 +254,13 @@ export class GamepadInput {
           const stateKey = `${event.index}-${event.button}`;
           this.buttonState.set(stateKey, true);
           this.handleButtonPress(event.button as ButtonName, event.index);
+        }
+        break;
+      case 'button-release':
+        if (event.button) {
+          const stateKey = `${event.index}-${event.button}`;
+          this.buttonState.set(stateKey, false);
+          this.emitButtonRelease(event.button as ButtonName, event.index);
         }
         break;
       case 'analog':
@@ -277,6 +301,25 @@ export class GamepadInput {
         callback(event);
       } catch (error) {
         logger.error(`Error in button-press callback for ${button}: ${error}`);
+      }
+    }
+  }
+
+  private emitButtonRelease(button: ButtonName, gamepadIndex: number): void {
+    const callbacks = this.eventCallbacks.get('button-release');
+    if (!callbacks || callbacks.size === 0) return;
+
+    const event: ButtonReleaseEvent = {
+      button,
+      gamepadIndex,
+      timestamp: Date.now(),
+    };
+
+    for (const callback of Array.from(callbacks)) {
+      try {
+        callback(event);
+      } catch (error) {
+        logger.error(`Error in button-release callback for ${button}: ${error}`);
       }
     }
   }

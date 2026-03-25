@@ -1,7 +1,7 @@
 /**
  * Keyboard IPC Handlers
  *
- * Keyboard simulation — key sequences, text typing, long presses.
+ * Keyboard simulation — key sequences and text typing.
  */
 
 import { ipcMain } from 'electron';
@@ -18,8 +18,13 @@ export function setupKeyboardHandlers(keyboard: KeyboardSimulator): void {
     return { success: true };
   });
 
-  ipcMain.handle('keyboard:longPress', (_event, key: string, duration: number) => {
-    keyboard.longPress(key, duration);
+  ipcMain.handle('keyboard:comboDown', (_event, keys: string[]) => {
+    keyboard.comboDown(keys);
+    return { success: true };
+  });
+
+  ipcMain.handle('keyboard:comboUp', (_event, keys: string[]) => {
+    keyboard.comboUp(keys);
     return { success: true };
   });
 }

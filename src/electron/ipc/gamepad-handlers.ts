@@ -24,6 +24,17 @@ export function setupGamepadHandlers(gamepadInput: GamepadInput): void {
     }
   });
 
+  gamepadInput.on('button-release', (event) => {
+    const mainWindow = getMainWindow();
+    if (mainWindow) {
+      mainWindow.webContents.send('gamepad:release', {
+        button: event.button,
+        gamepadIndex: event.gamepadIndex,
+        timestamp: event.timestamp,
+      });
+    }
+  });
+
   gamepadInput.on('connection-change', (event) => {
     const mainWindow = getMainWindow();
     if (mainWindow) {

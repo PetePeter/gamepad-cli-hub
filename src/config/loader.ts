@@ -6,7 +6,7 @@ import * as YAML from 'yaml';
 // Action & Binding Types
 // ============================================================================
 
-export type ActionType = 'keyboard' | 'hold-key' | 'session-switch' | 'spawn' | 'list-sessions' | 'profile-switch';
+export type ActionType = 'keyboard' | 'session-switch' | 'spawn' | 'list-sessions' | 'profile-switch';
 
 export interface BaseBinding {
   action: ActionType;
@@ -15,12 +15,7 @@ export interface BaseBinding {
 export interface KeyboardBinding extends BaseBinding {
   action: 'keyboard';
   keys: string[];
-}
-
-export interface HoldKeyBinding extends BaseBinding {
-  action: 'hold-key';
-  keys: string[];
-  delay: number;
+  hold?: boolean;
 }
 
 export interface SessionSwitchBinding extends BaseBinding {
@@ -42,7 +37,7 @@ export interface ProfileSwitchBinding extends BaseBinding {
   direction: 'previous' | 'next';
 }
 
-export type Binding = KeyboardBinding | HoldKeyBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding | ProfileSwitchBinding;
+export type Binding = KeyboardBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding | ProfileSwitchBinding;
 
 // ============================================================================
 // Shared Config Types

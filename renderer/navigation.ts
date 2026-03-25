@@ -5,7 +5,7 @@
 import { state, type ButtonEvent } from './state.js';
 import { browserGamepad } from './gamepad.js';
 import { logEvent, showScreen } from './utils.js';
-import { processConfigBinding } from './bindings.js';
+import { processConfigBinding, processConfigRelease } from './bindings.js';
 import { handleSessionsScreenButton } from './screens/sessions.js';
 import { handleSettingsScreenButton } from './screens/settings.js';
 import { handleStatusScreenButton } from './screens/status.js';
@@ -21,6 +21,7 @@ import { bindingEditorState } from './modals/binding-editor.js';
 export let gamepadUnsubscribe: (() => void) | null = null;
 export let connectionUnsubscribe: (() => void) | null = null;
 export let browserGamepadUnsubscribe: (() => void) | null = null;
+export let releaseUnsubscribe: (() => void) | null = null;
 
 // ============================================================================
 // Setup
@@ -45,11 +46,19 @@ export function setupGamepadNavigation(): void {
   });
   console.log('[Renderer] Registered browser gamepad callback');
 
+  // Subscribe to browser gamepad release events
+  browserGamepad.onRelease((event) => {
+    handleGamepadRelease(event);
+  });
+
   // Subscribe to main process gamepad events (PowerShell XInput fallback)
   try {
     if (window.gamepadCli) {
       gamepadUnsubscribe = window.gamepadCli.onGamepadEvent(handleGamepadEvent);
       connectionUnsubscribe = window.gamepadCli.onGamepadConnection(handleConnectionEvent);
+      if (window.gamepadCli.onGamepadRelease) {
+        releaseUnsubscribe = window.gamepadCli.onGamepadRelease(handleGamepadRelease);
+      }
       console.log('[Renderer] Subscribed to main process IPC events');
     } else {
       console.warn('[Renderer] window.gamepadCli not available - preload may have failed');
@@ -88,7 +97,7 @@ function handleConnectionEvent(event: { connected: boolean; count: number; times
 }
 
 export function handleGamepadEvent(event: ButtonEvent): void {
-  logEvent(`Button: ${event.button}`);
+  logEvent(`⬇ ${event.button}`);
 
   // Update status
   document.getElementById('statusLastButton')!.textContent = event.button;
@@ -139,6 +148,11 @@ export function handleGamepadEvent(event: ButtonEvent): void {
   if (!consumed) {
     processConfigBinding(event.button);
   }
+}
+
+function handleGamepadRelease(event: ButtonEvent): void {
+  logEvent(`⬆ ${event.button}`);
+  processConfigRelease(event.button);
 }
 
 // ============================================================================

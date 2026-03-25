@@ -13,17 +13,19 @@ cliTypes:
         - c
         - t
     RightTrigger:
-      action: voice
-      key: Insert
-      holdDuration: 300
+      action: keyboard
+      keys:
+        - Insert
+      hold: true
     LeftTrigger:
       action: keyboard
       keys:
         - Enter
     A:
-      action: voice
-      key: Insert
-      holdDuration: 3000
+      action: keyboard
+      keys:
+        - Insert
+      hold: true
   copilot-cli:
     A:
       action: keyboard

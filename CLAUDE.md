@@ -64,8 +64,7 @@ Xbox Controller
       → emit('button-press') / emit('analog') for stick events
         → Resolve binding (global first, then per-CLI type)
           → Execute action:
-              keyboard  → KeyboardSimulator.sendKeys()
-              hold-key  → KeyboardSimulator.keyDown() (held) → keyUp() (released)
+              keyboard  → KeyboardSimulator.sendKeys() (hold: true → keyDown/keyUp)
               spawn     → ProcessSpawner.spawn() → SessionManager.addSession()
               switch    → SessionManager.next/previous() → WindowManager.focusWindow()
             → WindowManager.focusWindow() (ensure correct window focused)
@@ -107,9 +106,9 @@ config/
 
 **Binding resolution:** CLI-specific bindings checked first → fall back to global bindings. Each profile defines different button behaviours per CLI type.
 
-**Binding action types:** `keyboard`, `hold-key`, `session-switch`, `spawn`, `list-sessions`, `profile-switch`
+**Binding action types:** `keyboard`, `session-switch`, `spawn`, `list-sessions`, `profile-switch`
 
-**hold-key binding format:** `{ action: 'hold-key', keys: ['space'], delay: 200 }` — when button held past delay, sends configurable key combo DOWN via robotjs `keyToggle`, releases on button up. The OS / target CLI app handles the actual action (e.g. Claude Code listens for Space to start voice input).
+**keyboard hold binding format:** `{ action: 'keyboard', keys: ['space'], hold: true }` — when the gamepad button is pressed, holds the configured keys DOWN via robotjs `keyToggle`; releases on button up. The OS / target CLI app handles the actual action (e.g. Claude Code listens for Space to start voice input).
 
 **Stick config** (in profile YAML):
 ```yaml
@@ -164,7 +163,7 @@ sticks:
 5. **Per-CLI bindings** — Same button does different things depending on active CLI type
 6. **PowerShell for native APIs** — No native DLLs needed; spawn PS process, parse JSON stdout
 7. **Debouncing in input layer** — 600ms default prevents accidental rapid re-presses
-8. **Hold-key passthrough** — Instead of embedding audio processing, the controller holds a configurable key combo (via robotjs `keyToggle`) and lets the target app handle voice natively. Zero external dependencies — the controller just holds a key, the CLI does the rest.
+8. **Hold-key passthrough** — Instead of embedding audio processing, the `keyboard` action with `hold: true` holds a configurable key combo (via robotjs `keyToggle`) and lets the target app handle voice natively. Zero external dependencies — the controller just holds a key, the CLI does the rest.
 9. **Session persistence** — Sessions saved to `config/sessions.yaml` after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skipping duplicates). A health check (`startHealthCheck()`) periodically removes dead PIDs via `process.kill(pid, 0)`. Survives crashes and restarts.
 10. **Session Launcher HUD** — Sandwich button opens a unified Session Launcher (`renderer/modals/session-hud.ts`) with 3-panel layout: existing sessions (top), CLI types (bottom-left), directories (bottom-right). Navigation state machine: sessions → cli → directory → confirm. A=Select, B=Back, X=Delete, Y=Refresh. Keyboard fallback with arrow keys, Enter, Escape. Auto-dismisses on action; cancel with B or Sandwich.
 11. **Analog stick modes** — Left stick emulates D-pad plus cursor-mode arrow keys. Right stick provides scroll mode (PageUp/PageDown). Both configurable per-profile with deadzone and repeatRate settings.

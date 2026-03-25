@@ -23,7 +23,7 @@ import { loadSettingsScreen } from '../screens/settings.js';
 // Constants
 // ============================================================================
 
-const ACTION_TYPES = ['keyboard', 'voice', 'session-switch', 'spawn', 'list-sessions', 'close-session', 'profile-switch', 'hub-focus'] as const;
+const ACTION_TYPES = ['keyboard', 'session-switch', 'spawn', 'list-sessions', 'close-session', 'profile-switch', 'hub-focus'] as const;
 
 // ============================================================================
 // Open / Close
@@ -139,17 +139,22 @@ function renderActionParams(form: HTMLElement, binding: any): void {
       form.appendChild(createEditorField('Keys (comma-separated)', `
         <input type="text" id="bindingEditorKeys" value="${keysValue}" placeholder="e.g. c, w, F4, Clear" />
       `));
-      break;
-    }
-    case 'voice': {
-      const holdDuration = binding.holdDuration || 3000;
-      const key = binding.key || 'space';
-      form.appendChild(createEditorField('Key to Hold', `
-        <input type="text" id="bindingEditorVoiceKey" value="${key}" placeholder="e.g. space, f5" />
-      `));
-      form.appendChild(createEditorField('Hold Duration (ms)', `
-        <input type="number" id="bindingEditorHoldDuration" value="${holdDuration}" min="100" step="100" />
-      `));
+
+      // Hold checkbox
+      const holdChecked = binding.hold === true;
+      const holdField = document.createElement('div');
+      holdField.className = 'binding-editor-field';
+      const holdLabel = document.createElement('label');
+      holdLabel.textContent = 'Hold while pressed';
+      holdField.appendChild(holdLabel);
+
+      const holdCheckbox = document.createElement('input');
+      holdCheckbox.type = 'checkbox';
+      holdCheckbox.id = 'bindingEditorHold';
+      holdCheckbox.checked = holdChecked;
+      holdCheckbox.className = 'focusable';
+      holdField.appendChild(holdCheckbox);
+      form.appendChild(holdField);
       break;
     }
     case 'session-switch': {
@@ -208,8 +213,6 @@ function buildDefaultBinding(action: string): any {
   switch (action) {
     case 'keyboard':
       return { action: 'keyboard', keys: [] };
-    case 'voice':
-      return { action: 'voice', key: 'space', holdDuration: 3000 };
     case 'session-switch':
       return { action: 'session-switch', direction: 'next' };
     case 'spawn':
@@ -254,14 +257,12 @@ function collectBindingFromForm(): any | null {
       });
 
       const keys = [...mods, ...baseKeys];
-      return { action: 'keyboard', keys };
-    }
-    case 'voice': {
-      const keyInput = document.getElementById('bindingEditorVoiceKey') as HTMLInputElement;
-      const durationInput = document.getElementById('bindingEditorHoldDuration') as HTMLInputElement;
-      const key = keyInput?.value?.trim() || 'space';
-      const holdDuration = parseInt(durationInput?.value || '3000', 10);
-      return { action: 'voice', key, holdDuration };
+      const holdCheckbox = document.getElementById('bindingEditorHold') as HTMLInputElement;
+      const hold = holdCheckbox?.checked === true;
+
+      const result: any = { action: 'keyboard', keys };
+      if (hold) result.hold = true;
+      return result;
     }
     case 'session-switch': {
       const dirSelect = document.getElementById('bindingEditorDirection') as HTMLSelectElement;

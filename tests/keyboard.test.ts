@@ -102,25 +102,6 @@ describe('KeyboardSimulator', () => {
     });
   });
 
-  describe('longPress', () => {
-    it('holds a key for the specified duration', () => {
-      const shortDuration = 50;
-
-      keyboard.longPress('space', shortDuration);
-
-      expect(robot.keyToggle).toHaveBeenNthCalledWith(1, 'space', 'down');
-      expect(robot.keyToggle).toHaveBeenNthCalledWith(2, 'space', 'up');
-      expect(robot.keyToggle).toHaveBeenCalledTimes(2);
-    });
-
-    it('normalizes key names in long press', () => {
-      keyboard.longPress('enter', 20);
-
-      expect(robot.keyToggle).toHaveBeenNthCalledWith(1, 'enter', 'down');
-      expect(robot.keyToggle).toHaveBeenNthCalledWith(2, 'enter', 'up');
-    });
-  });
-
   describe('typeString', () => {
     it('types a string of text', () => {
       keyboard.typeString('Hello World');
