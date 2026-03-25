@@ -8,6 +8,7 @@
 import { state } from './state.js';
 import { logEvent, showScreen, updateProfileDisplay } from './utils.js';
 import { loadSessions, spawnNewSession } from './screens/sessions.js';
+import { parseSequence, formatSequencePreview, type SequenceAction } from './sequence-parser.js';
 
 // Tracks which buttons are currently holding keys down
 const heldKeys = new Map<string, string[]>();
@@ -140,8 +141,13 @@ async function executeCliBinding(button: string, binding: any): Promise<void> {
   try {
     switch (binding.action) {
       case 'keyboard': {
+        // New sequence format takes priority over legacy keys array
+        if (binding.sequence && typeof binding.sequence === 'string') {
+          await executeSequence(binding.sequence);
+          break;
+        }
         if (!binding.keys || !Array.isArray(binding.keys)) {
-          console.warn(`[Renderer] Keyboard binding for ${button} missing keys`);
+          console.warn(`[Renderer] Keyboard binding for ${button} missing both keys and sequence`);
           break;
         }
         if (binding.hold) {
@@ -159,5 +165,44 @@ async function executeCliBinding(button: string, binding: any): Promise<void> {
     }
   } catch (error) {
     console.error(`[Renderer] CLI binding failed for ${button}:`, error);
+  }
+}
+
+async function executeSequence(input: string): Promise<void> {
+  const actions = parseSequence(input);
+  logEvent(`Seq: ${formatSequencePreview(actions)}`);
+
+  for (const action of actions) {
+    try {
+      await executeSequenceAction(action);
+    } catch (error) {
+      console.error(`[Renderer] Sequence action failed at ${action.type}:`, error);
+      throw error;
+    }
+  }
+}
+
+async function executeSequenceAction(action: SequenceAction): Promise<void> {
+  switch (action.type) {
+    case 'text':
+      await window.gamepadCli.keyboardTypeString(action.value);
+      break;
+    case 'key':
+      await window.gamepadCli.keyboardSendKeys([action.key]);
+      break;
+    case 'combo':
+      await window.gamepadCli.keyboardSendKeys(action.keys);
+      break;
+    case 'modDown':
+      await window.gamepadCli.keyboardComboDown([action.key]);
+      break;
+    case 'modUp':
+      await window.gamepadCli.keyboardComboUp([action.key]);
+      break;
+    case 'wait':
+      await new Promise(resolve => setTimeout(resolve, action.ms));
+      break;
+    default:
+      console.warn(`[Renderer] Unknown sequence action type: ${(action as any).type}`);
   }
 }

@@ -979,6 +979,72 @@ kbd {
   border-color: var(--accent);
 }
 
+.mode-toggles {
+  display: flex;
+  gap: 4px;
+}
+
+.mode-toggle {
+  opacity: 0.5;
+  transition: opacity 150ms ease, border-color 150ms ease;
+}
+
+.mode-toggle--active {
+  opacity: 1;
+  border-color: var(--accent);
+}
+
+#bindingEditorSequence {
+  width: 100%;
+  min-height: 80px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.85rem;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  resize: vertical;
+}
+
+#bindingEditorSequence:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.sequence-help-toggle {
+  font-size: 0.75rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  margin-top: 4px;
+  padding: 2px 0;
+  user-select: none;
+}
+
+.sequence-help-toggle:hover {
+  color: var(--text-primary);
+}
+
+.sequence-help {
+  display: none;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+
+.sequence-help--visible {
+  display: block;
+}
+
 .modal-footer {
   padding: var(--spacing-md) var(--spacing-lg);
   border-top: 1px solid var(--border);

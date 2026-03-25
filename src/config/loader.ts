@@ -16,6 +16,7 @@ export interface KeyboardBinding extends BaseBinding {
   action: 'keyboard';
   keys: string[];
   hold?: boolean;
+  sequence?: string;
 }
 
 export interface SessionSwitchBinding extends BaseBinding {

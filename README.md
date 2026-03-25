@@ -52,6 +52,22 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 
 Every binding is remappable. Every action is configurable per CLI type.
 
+### Keystroke Sequences
+
+Button bindings support a `sequence` field for scripting complex keystroke patterns.
+See [Keystroke Sequences](docs/keystroke-sequences.md) for the full syntax reference.
+
+Example:
+```yaml
+A:
+  action: keyboard
+  sequence: |
+    /clear
+    {Wait 500}
+    yes
+    {Ctrl+S}
+```
+
 ---
 
 ## How It Fits Together

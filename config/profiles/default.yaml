@@ -3,15 +3,7 @@ cliTypes:
   claude-code:
     Y:
       action: keyboard
-      keys:
-        - /
-        - c
-        - o
-        - m
-        - p
-        - a
-        - c
-        - t
+      sequence: "/compact{Enter}"  # Sequence adds Enter to submit (original keys array didn't)
     RightTrigger:
       action: keyboard
       keys:
