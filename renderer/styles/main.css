@@ -1092,55 +1092,29 @@ kbd {
 }
 
 /* ========================================================================== */
-/* Session Launcher HUD                                                       */
+/* Sessions Launcher (replaces HUD overlay)                                   */
 /* ========================================================================== */
 
-.hud-overlay {
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
-  z-index: 1000;
-}
-
-.hud-panel {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-md);
-  width: 40vw;
-  min-width: 500px;
-  max-width: 700px;
-  max-height: 70vh;
-  overflow-y: auto;
-  box-shadow: var(--shadow-lg);
+.sessions-launcher {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  padding: var(--spacing-md);
   gap: var(--spacing-sm);
 }
 
-.hud-header {
-  margin-bottom: var(--spacing-sm);
-  padding-bottom: var(--spacing-sm);
-  border-bottom: 1px solid var(--border);
-}
-
-.hud-title {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
 /* Sections (sessions, cli, directory) */
-.hud-section {
+.launcher-section {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: var(--spacing-sm);
 }
 
-.hud-section--active {
+.launcher-section--active {
   border-color: var(--accent);
 }
 
-.hud-section-label {
+.launcher-section__title {
   font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -1149,21 +1123,35 @@ kbd {
   margin-bottom: 6px;
 }
 
+/* Top section grows to fill space */
+#launcherSectionSessions {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#launcherSectionSessions .launcher-list {
+  flex: 1;
+  min-height: 0;
+}
+
 /* Bottom row: CLI + Directory side by side */
-.hud-bottom-row {
+.launcher-bottom-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 /* Scrollable list within each section */
-.hud-list {
+.launcher-list {
   max-height: 20vh;
   overflow-y: auto;
 }
 
 /* Reusable list item */
-.hud-item {
+.launcher-item {
   padding: 8px var(--spacing-sm);
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -1175,17 +1163,17 @@ kbd {
   font-size: var(--font-size-sm);
 }
 
-.hud-item:hover,
-.hud-item.hud-focused {
+.launcher-item:hover,
+.launcher-item.launcher-focused {
   background: var(--bg-tertiary);
 }
 
-.hud-item.hud-active {
+.launcher-item.launcher-active {
   border-left: 3px solid var(--accent);
   padding-left: calc(var(--spacing-sm) - 3px);
 }
 
-.hud-item-badge {
+.launcher-item-badge {
   font-size: 10px;
   padding: 2px 6px;
   border-radius: var(--radius-sm);
@@ -1194,7 +1182,7 @@ kbd {
   margin-left: auto;
 }
 
-.hud-empty {
+.launcher-empty {
   padding: var(--spacing-md);
   text-align: center;
   color: var(--text-dim);
@@ -1202,40 +1190,40 @@ kbd {
 }
 
 /* Confirmation sub-card */
-.hud-confirm {
+.launcher-confirm {
   background: var(--bg-tertiary);
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
   padding: var(--spacing-md);
   text-align: center;
+  flex-shrink: 0;
 }
 
-.hud-confirm-text {
+.launcher-confirm p {
   color: var(--text-primary);
   font-size: var(--font-size-sm);
   margin-bottom: var(--spacing-sm);
 }
 
-.hud-confirm-actions {
+.launcher-confirm__actions {
   display: flex;
   justify-content: center;
   gap: var(--spacing-md);
 }
 
 /* Button legend footer */
-.hud-footer {
+.launcher-footer {
   display: flex;
   gap: var(--spacing-md);
   padding-top: var(--spacing-sm);
   border-top: 1px solid var(--border);
-}
-
-.hud-btn-hint {
+  flex-shrink: 0;
   font-size: 11px;
   color: var(--text-dim);
 }
 
-.hud-btn-hint kbd {
+.launcher-footer kbd,
+.launcher-confirm__actions kbd {
   display: inline-block;
   min-width: 18px;
   padding: 1px 5px;
@@ -1247,4 +1235,11 @@ kbd {
   border: 1px solid var(--border);
   border-radius: 3px;
   margin-right: 2px;
+}
+
+.settings-warning {
+  color: var(--accent);
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.5rem;
 }

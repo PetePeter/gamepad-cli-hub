@@ -14,7 +14,7 @@ import {
   showFormModal,
 } from '../utils.js';
 import { initConfigCache } from '../bindings.js';
-import { renderSpawnButtons } from './sessions.js';
+import { loadSessions } from './sessions.js';
 import { openBindingEditor } from '../modals/binding-editor.js';
 
 // ============================================================================
@@ -22,6 +22,9 @@ import { openBindingEditor } from '../modals/binding-editor.js';
 // ============================================================================
 
 const ALL_BUTTONS = ['A', 'B', 'X', 'Y', 'Up', 'Down', 'Left', 'Right', 'LeftBumper', 'RightBumper', 'LeftTrigger', 'RightTrigger', 'LeftStick', 'RightStick', 'Sandwich', 'Back', 'Xbox'] as const;
+
+/** Tracks whether Game Bar was toggled this session so we can show a restart warning. */
+let gameBarToggled = false;
 
 // ============================================================================
 // Main entry
@@ -550,6 +553,13 @@ async function renderToolsPanel(): Promise<void> {
   gameBarRow.appendChild(gameBarBtn);
   systemCard.appendChild(gameBarRow);
 
+  if (gameBarToggled) {
+    const warning = document.createElement('p');
+    warning.className = 'settings-warning';
+    warning.textContent = '\u26A1 Restart Windows for changes to take effect';
+    systemCard.appendChild(warning);
+  }
+
   // Fetch current state
   (async () => {
     try {
@@ -566,6 +576,7 @@ async function renderToolsPanel(): Promise<void> {
         gameBarBtn.textContent = 'Updating...';
         const result = await window.gamepadCli.systemSetGameBarEnabled(!enabled);
         if (result.success) {
+          gameBarToggled = true;
           loadSettingsScreen();
         } else {
           gameBarBtn.textContent = 'Error';
@@ -633,7 +644,7 @@ function createCliTypeItem(key: string, value: any): HTMLElement {
         logEvent(`Deleted CLI type: ${key}`);
         state.cliTypes = await window.gamepadCli.configGetCliTypes();
         state.availableSpawnTypes = state.cliTypes;
-        renderSpawnButtons();
+        loadSessions();
         loadSettingsScreen();
       } else {
         logEvent(`Failed to delete: ${result.error || 'unknown error'}`);
@@ -679,7 +690,7 @@ async function showAddCliTypeForm(): Promise<void> {
     logEvent(`Added CLI type: ${key}`);
     state.cliTypes = await window.gamepadCli.configGetCliTypes();
     state.availableSpawnTypes = state.cliTypes;
-    renderSpawnButtons();
+    loadSessions();
     loadSettingsScreen();
   } else {
     logEvent('Failed to add CLI type');
@@ -710,7 +721,7 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
     logEvent(`Updated CLI type: ${key}`);
     state.cliTypes = await window.gamepadCli.configGetCliTypes();
     state.availableSpawnTypes = state.cliTypes;
-    renderSpawnButtons();
+    loadSessions();
     loadSettingsScreen();
   } else {
     logEvent('Failed to update CLI type');

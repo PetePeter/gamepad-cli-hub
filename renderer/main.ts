@@ -9,7 +9,7 @@ import { browserGamepad } from './gamepad.js';
 import { state } from './state.js';
 import { logEvent, showScreen, setLoadSettingsCallback, updateProfileDisplay, renderFooterBindings } from './utils.js';
 import { initConfigCache } from './bindings.js';
-import { loadSessions, renderSpawnButtons, updateSessionHighlight, setDirPickerBridge } from './screens/sessions.js';
+import { loadSessions, updateSessionHighlight, setDirPickerBridge } from './screens/sessions.js';
 import { loadSettingsScreen } from './screens/settings.js';
 import {
   setupGamepadNavigation,
@@ -165,7 +165,7 @@ async function init(): Promise<void> {
   }
 
   // Render spawn buttons based on loaded CLI types
-  renderSpawnButtons();
+  // (Now handled by the sessions screen launcher panels)
 
   // Cache config bindings for fast gamepad dispatch
   await initConfigCache();

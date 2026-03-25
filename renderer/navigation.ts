@@ -4,7 +4,7 @@
 
 import { state, type ButtonEvent } from './state.js';
 import { browserGamepad } from './gamepad.js';
-import { logEvent } from './utils.js';
+import { logEvent, showScreen } from './utils.js';
 import { processConfigBinding } from './bindings.js';
 import { handleSessionsScreenButton } from './screens/sessions.js';
 import { handleSettingsScreenButton } from './screens/settings.js';
@@ -13,7 +13,6 @@ import { handleDirPickerButton } from './modals/dir-picker.js';
 import { dirPickerState } from './modals/dir-picker.js';
 import { handleBindingEditorButton } from './modals/binding-editor.js';
 import { bindingEditorState } from './modals/binding-editor.js';
-import { isHudVisible, handleHudButton, toggleHud } from './modals/session-hud.js';
 
 // ============================================================================
 // Unsubscribe handles (exported so main.ts can clean up)
@@ -102,15 +101,12 @@ export function handleGamepadEvent(event: ButtonEvent): void {
     }
   }
 
-  // Session HUD overlay intercepts all input when visible
-  if (isHudVisible()) {
-    handleHudButton(event.button);
-    return;
-  }
-
-  // Sandwich button toggles the Session HUD from any screen
+  // Sandwich button brings the app to foreground and shows sessions screen
   if (event.button === 'Sandwich') {
-    toggleHud();
+    window.gamepadCli?.hubFocus();
+    if (state.currentScreen !== 'sessions') {
+      showScreen('sessions');
+    }
     return;
   }
 

@@ -30,23 +30,49 @@
       <div class="screens">
         <!-- Session Manager Screen -->
         <section id="screen-sessions" class="screen screen--active">
-          <div class="screen-header">
-            <h2>Sessions</h2>
-            <div class="spawn-buttons" id="spawnButtons">
-              <!-- Spawn buttons rendered by JS based on config -->
+          <div class="sessions-launcher">
+            <!-- Top: Existing Sessions -->
+            <div class="launcher-section" id="launcherSectionSessions">
+              <h3 class="launcher-section__title">Sessions</h3>
+              <div class="launcher-list" id="launcherSessionList" role="listbox"></div>
+              <div class="launcher-empty" id="launcherSessionsEmpty" style="display:none">
+                No active sessions
+              </div>
             </div>
-          </div>
 
-          <div class="session-list" id="sessionList" role="listbox" tabindex="0" aria-label="Sessions">
-            <!-- Sessions will be rendered here -->
-            <div class="empty-state" id="emptyState">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                <line x1="8" y1="21" x2="16" y2="21"></line>
-                <line x1="12" y1="17" x2="12" y2="21"></line>
-              </svg>
-              <p>No sessions active</p>
-              <p class="hint">Press D-pad to navigate, A to select</p>
+            <!-- Bottom Row: CLI Types + Directories -->
+            <div class="launcher-bottom-row">
+              <div class="launcher-section" id="launcherSectionCli">
+                <h3 class="launcher-section__title">New Session</h3>
+                <div class="launcher-list" id="launcherCliList" role="listbox"></div>
+                <div class="launcher-empty" id="launcherCliEmpty" style="display:none">
+                  No CLI types configured
+                </div>
+              </div>
+              <div class="launcher-section" id="launcherSectionDir">
+                <h3 class="launcher-section__title">Directory</h3>
+                <div class="launcher-list" id="launcherDirList" role="listbox"></div>
+                <div class="launcher-empty" id="launcherDirEmpty" style="display:none">
+                  No directories configured
+                </div>
+              </div>
+            </div>
+
+            <!-- Confirm Dialog -->
+            <div class="launcher-confirm" id="launcherConfirm" style="display:none">
+              <p id="launcherConfirmText"></p>
+              <div class="launcher-confirm__actions">
+                <span><kbd>A</kbd> Confirm</span>
+                <span><kbd>B</kbd> Back</span>
+              </div>
+            </div>
+
+            <!-- Button Legend -->
+            <div class="launcher-footer">
+              <span><kbd>A</kbd> Select</span>
+              <span><kbd>B</kbd> Back</span>
+              <span><kbd>X</kbd> Delete</span>
+              <span><kbd>Y</kbd> Refresh</span>
             </div>
           </div>
         </section>
@@ -172,50 +198,6 @@
         <!-- Populated by JS from config bindings -->
       </div>
     </footer>
-  </div>
-
-  <!-- Session Launcher HUD (Sandwich/Xbox button) -->
-  <div class="modal-overlay hud-overlay" id="sessionHudOverlay" aria-hidden="true" role="dialog" aria-label="Session Launcher">
-    <div class="hud-panel">
-      <div class="hud-header">
-        <span class="hud-title">Session Launcher</span>
-      </div>
-
-      <!-- Top: Existing Sessions -->
-      <div class="hud-section hud-section--sessions" id="hudSectionSessions">
-        <div class="hud-section-label">Existing Sessions</div>
-        <div class="hud-list" id="hudSessionList" role="listbox"></div>
-      </div>
-
-      <!-- Bottom: CLI Types + Directories side by side -->
-      <div class="hud-bottom-row">
-        <div class="hud-section hud-section--cli" id="hudSectionCli">
-          <div class="hud-section-label">New Session — CLI Type</div>
-          <div class="hud-list" id="hudCliList" role="listbox"></div>
-        </div>
-        <div class="hud-section hud-section--dir" id="hudSectionDir">
-          <div class="hud-section-label">Directory</div>
-          <div class="hud-list" id="hudDirList" role="listbox"></div>
-        </div>
-      </div>
-
-      <!-- Confirmation dialog (hidden by default) -->
-      <div class="hud-confirm" id="hudConfirm" style="display:none;">
-        <div class="hud-confirm-text" id="hudConfirmText"></div>
-        <div class="hud-confirm-actions">
-          <span class="hud-btn-hint"><kbd>A</kbd> Confirm</span>
-          <span class="hud-btn-hint"><kbd>B</kbd> Back</span>
-        </div>
-      </div>
-
-      <!-- Button legend -->
-      <div class="hud-footer">
-        <span class="hud-btn-hint"><kbd>A</kbd> Select</span>
-        <span class="hud-btn-hint"><kbd>B</kbd> Back</span>
-        <span class="hud-btn-hint"><kbd>X</kbd> Delete</span>
-        <span class="hud-btn-hint"><kbd>Y</kbd> Refresh</span>
-      </div>
-    </div>
   </div>
 
   <script src="main.js" type="module"></script>

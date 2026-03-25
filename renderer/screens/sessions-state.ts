@@ -1,13 +1,12 @@
 /**
- * HUD-specific state — isolated from the shared AppState.
- * Only session-hud.ts should read/write these properties.
+ * Sessions screen state — panel navigation for the 3-panel launcher.
+ * Only sessions.ts should read/write these properties.
  */
 
-export type HudPanel = 'sessions' | 'cli' | 'directory' | 'confirm';
+export type SessionPanel = 'sessions' | 'cli' | 'directory' | 'confirm';
 
-export interface HudState {
-  visible: boolean;
-  activePanel: HudPanel;
+export interface SessionsScreenState {
+  activePanel: SessionPanel;
   sessionsFocusIndex: number;
   cliFocusIndex: number;
   dirFocusIndex: number;
@@ -17,8 +16,7 @@ export interface HudState {
   directories: Array<{ name: string; path: string }>;
 }
 
-export const hudState: HudState = {
-  visible: false,
+export const sessionsState: SessionsScreenState = {
   activePanel: 'sessions',
   sessionsFocusIndex: 0,
   cliFocusIndex: 0,

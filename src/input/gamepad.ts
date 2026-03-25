@@ -101,7 +101,7 @@ export class GamepadInput {
   private connectedCount: number = 0;
   private wasConnected: boolean = false;
 
-  constructor(debounceMs: number = 600) {
+  constructor(debounceMs: number = 200) {
     this.debounceMs = debounceMs;
     this.pollFrequencyMs = 16;
   }
