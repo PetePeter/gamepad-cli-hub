@@ -64,4 +64,4 @@
 | axes[1] | LeftStick Y |
 | axes[2] | RightStick X |
 | axes[3] | RightStick Y |
-| (D-pad via axes or buttons 14-17) | Up/Down/Left/Right |
+| (D-pad via axes or buttons 14-17) | DPadUp/DPadDown/DPadLeft/DPadRight |

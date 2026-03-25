@@ -16,7 +16,7 @@ import { logger } from '../utils/logger.js';
  */
 export type ButtonName =
   | 'A' | 'B' | 'X' | 'Y'
-  | 'Up' | 'Down' | 'Left' | 'Right'
+  | 'DPadUp' | 'DPadDown' | 'DPadLeft' | 'DPadRight'
   | 'LeftBumper' | 'RightBumper'
   | 'LeftTrigger' | 'RightTrigger'
   | 'LeftStick' | 'RightStick'

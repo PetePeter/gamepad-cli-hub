@@ -15,7 +15,8 @@ import { SessionManager } from './session/manager';
 import { processSpawner } from './session/spawner';
 import { windowManager } from './output/windows';
 import { keyboard } from './output/keyboard';
-import type { Binding, KeyboardBinding, SessionSwitchBinding, SpawnBinding, ListSessionsBinding } from './config/loader';
+import type { Binding, KeyboardBinding, SessionSwitchBinding, SpawnBinding, ListSessionsBinding, CloseSessionBinding, StickDirection } from './config/loader';
+import { stickVirtualButtonName } from './config/loader';
 import { logger } from './utils/logger.js';
 
 // ============================================================================
@@ -237,6 +238,14 @@ class GamepadCliHub {
           this.handleListSessionsAction(binding as ListSessionsBinding);
           break;
 
+        case 'close-session':
+          this.handleCloseSessionAction();
+          break;
+
+        case 'hub-focus':
+          logger.debug('hub-focus action is a no-op in CLI mode');
+          break;
+
         default:
           logger.warn(`Unknown action type: ${(binding as Binding).action}`);
       }
@@ -247,7 +256,7 @@ class GamepadCliHub {
 
   private handleKeyboardAction(binding: KeyboardBinding, button: string): void {
     const { keys } = binding;
-    if ((binding as any).hold) {
+    if (binding.hold) {
       logger.debug(`Hold keys down: ${keys.join('+')}`);
       keyboard.comboDown(keys);
       this.heldKeys.set(button, keys);
@@ -289,6 +298,23 @@ class GamepadCliHub {
     this.printStatus();
   }
 
+  private handleCloseSessionAction(): void {
+    const activeSession = this.sessionManager.getActiveSession();
+    if (!activeSession) {
+      logger.info('No active session to close');
+      return;
+    }
+
+    try {
+      process.kill(activeSession.processId);
+    } catch (error) {
+      logger.warn(`Failed to kill process ${activeSession.processId}: ${error}`);
+    }
+
+    this.sessionManager.removeSession(activeSession.id);
+    logger.info(`Closed session: ${activeSession.name} (PID: ${activeSession.processId})`);
+  }
+
   // ============================================================================
   // Analog Stick Handling
   // ============================================================================
@@ -297,32 +323,43 @@ class GamepadCliHub {
 
   private handleAnalogEvent(event: AnalogEvent): void {
     const config = configLoader.getStickConfig(event.stick);
-    if (config.mode === 'disabled') return;
 
     const now = Date.now();
     if (now - this.analogThrottles[event.stick] < config.repeatRate) return;
-    this.analogThrottles[event.stick] = now;
 
     const magnitude = Math.sqrt(event.x * event.x + event.y * event.y);
     const normalizedDeadzone = config.deadzone * 32767;
     if (magnitude < normalizedDeadzone) return;
 
-    // Determine dominant axis
+    this.analogThrottles[event.stick] = now;
+
+    // Determine dominant direction
     const absX = Math.abs(event.x);
     const absY = Math.abs(event.y);
+    let direction: StickDirection;
+    if (absY > absX) {
+      direction = event.y > 0 ? 'up' : 'down';
+    } else {
+      direction = event.x > 0 ? 'right' : 'left';
+    }
+
+    // Check for explicit binding on this stick direction
+    const binding = configLoader.getStickDirectionBinding(event.stick, direction);
+    if (binding) {
+      const virtualButton = stickVirtualButtonName(event.stick, direction);
+      this.handleBindingAction(binding, virtualButton);
+      return;
+    }
+
+    // Fall back to stick mode behavior
+    if (config.mode === 'disabled') return;
 
     if (config.mode === 'cursor') {
-      if (absY > absX) {
-        keyboard.sendKey(event.y > 0 ? 'up' : 'down');
-      } else {
-        keyboard.sendKey(event.x > 0 ? 'right' : 'left');
-      }
+      const keyMap: Record<StickDirection, string> = { up: 'up', down: 'down', left: 'left', right: 'right' };
+      keyboard.sendKey(keyMap[direction]);
     } else if (config.mode === 'scroll') {
-      if (absY > absX) {
-        keyboard.sendKey(event.y > 0 ? 'pageup' : 'pagedown');
-      } else {
-        keyboard.sendKey(event.x > 0 ? 'right' : 'left');
-      }
+      const keyMap: Record<StickDirection, string> = { up: 'pageup', down: 'pagedown', left: 'left', right: 'right' };
+      keyboard.sendKey(keyMap[direction]);
     }
   }
 

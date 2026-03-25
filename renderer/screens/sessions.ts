@@ -7,7 +7,7 @@
 
 import { state } from '../state.js';
 import { sessionsState, type SessionPanel } from './sessions-state.js';
-import { logEvent, getCliIcon, getCliDisplayName, renderFooterBindings } from '../utils.js';
+import { logEvent, getCliIcon, getCliDisplayName, renderFooterBindings, toDirection } from '../utils.js';
 
 // ============================================================================
 // Public API
@@ -67,23 +67,29 @@ function routeToPanel(button: string): void {
 
 function handleSessionsPanel(button: string): void {
   const count = state.sessions.length;
+  const dir = toDirection(button);
+
+  if (dir) {
+    switch (dir) {
+      case 'up':
+        if (count === 0) return;
+        sessionsState.sessionsFocusIndex = wrap(sessionsState.sessionsFocusIndex - 1, count);
+        updateFocusInPanel('sessions');
+        return;
+      case 'down':
+        if (count === 0) { setActivePanel('cli'); return; }
+        if (sessionsState.sessionsFocusIndex === count - 1) { setActivePanel('cli'); return; }
+        sessionsState.sessionsFocusIndex = wrap(sessionsState.sessionsFocusIndex + 1, count);
+        updateFocusInPanel('sessions');
+        return;
+      case 'left':
+      case 'right':
+        setActivePanel('cli');
+        return;
+    }
+  }
 
   switch (button) {
-    case 'Up':
-      if (count === 0) return;
-      sessionsState.sessionsFocusIndex = wrap(sessionsState.sessionsFocusIndex - 1, count);
-      updateFocusInPanel('sessions');
-      return;
-    case 'Down':
-      if (count === 0) { setActivePanel('cli'); return; }
-      if (sessionsState.sessionsFocusIndex === count - 1) { setActivePanel('cli'); return; }
-      sessionsState.sessionsFocusIndex = wrap(sessionsState.sessionsFocusIndex + 1, count);
-      updateFocusInPanel('sessions');
-      return;
-    case 'Left':
-    case 'Right':
-      setActivePanel('cli');
-      return;
     case 'A': {
       const session = state.sessions[sessionsState.sessionsFocusIndex];
       if (session) switchToSession(session.id);
@@ -109,24 +115,32 @@ function handleSessionsPanel(button: string): void {
 
 function handleCliPanel(button: string): void {
   const count = sessionsState.cliTypes.length;
+  const dir = toDirection(button);
+
+  if (dir) {
+    switch (dir) {
+      case 'up':
+        if (count === 0 || sessionsState.cliFocusIndex === 0) { setActivePanel('sessions'); return; }
+        sessionsState.cliFocusIndex = wrap(sessionsState.cliFocusIndex - 1, count);
+        updateFocusInPanel('cli');
+        return;
+      case 'down':
+        if (count === 0) return;
+        sessionsState.cliFocusIndex = wrap(sessionsState.cliFocusIndex + 1, count);
+        updateFocusInPanel('cli');
+        return;
+      case 'right':
+        selectCliType();
+        return;
+      case 'left':
+        setActivePanel('sessions');
+        return;
+    }
+  }
 
   switch (button) {
-    case 'Up':
-      if (count === 0 || sessionsState.cliFocusIndex === 0) { setActivePanel('sessions'); return; }
-      sessionsState.cliFocusIndex = wrap(sessionsState.cliFocusIndex - 1, count);
-      updateFocusInPanel('cli');
-      return;
-    case 'Down':
-      if (count === 0) return;
-      sessionsState.cliFocusIndex = wrap(sessionsState.cliFocusIndex + 1, count);
-      updateFocusInPanel('cli');
-      return;
     case 'A':
-    case 'Right':
       selectCliType();
-      return;
-    case 'Left':
-      setActivePanel('sessions');
       return;
     case 'B':
       setActivePanel('sessions');
@@ -158,22 +172,30 @@ function selectCliType(): void {
 
 function handleDirPanel(button: string): void {
   const count = sessionsState.directories.length;
+  const dir = toDirection(button);
+
+  if (dir) {
+    switch (dir) {
+      case 'up':
+        if (count === 0) return;
+        sessionsState.dirFocusIndex = wrap(sessionsState.dirFocusIndex - 1, count);
+        updateFocusInPanel('directory');
+        return;
+      case 'down':
+        if (count === 0) return;
+        sessionsState.dirFocusIndex = wrap(sessionsState.dirFocusIndex + 1, count);
+        updateFocusInPanel('directory');
+        return;
+      case 'left':
+        setActivePanel('cli');
+        return;
+    }
+  }
 
   switch (button) {
-    case 'Up':
-      if (count === 0) return;
-      sessionsState.dirFocusIndex = wrap(sessionsState.dirFocusIndex - 1, count);
-      updateFocusInPanel('directory');
-      return;
-    case 'Down':
-      if (count === 0) return;
-      sessionsState.dirFocusIndex = wrap(sessionsState.dirFocusIndex + 1, count);
-      updateFocusInPanel('directory');
-      return;
     case 'A':
       selectDirectory();
       return;
-    case 'Left':
     case 'B':
       setActivePanel('cli');
       return;
@@ -545,7 +567,7 @@ function onKeyDown(e: KeyboardEvent): void {
   if (state.currentScreen !== 'sessions') return;
 
   const keyMap: Record<string, string> = {
-    ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right',
+    ArrowUp: 'DPadUp', ArrowDown: 'DPadDown', ArrowLeft: 'DPadLeft', ArrowRight: 'DPadRight',
     Enter: 'A', Escape: 'B', Delete: 'X', F5: 'Y',
   };
 

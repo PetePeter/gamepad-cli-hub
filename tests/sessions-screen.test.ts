@@ -27,12 +27,21 @@ const mockGetCliIcon = vi.fn((_type: string) => '🤖');
 const mockGetCliDisplayName = vi.fn((type: string) => type || 'Unknown');
 const mockRenderFooterBindings = vi.fn();
 
-vi.mock('../renderer/utils.js', () => ({
-  logEvent: mockLogEvent,
-  getCliIcon: mockGetCliIcon,
-  getCliDisplayName: mockGetCliDisplayName,
-  renderFooterBindings: mockRenderFooterBindings,
-}));
+vi.mock('../renderer/utils.js', () => {
+  const dirMap: Record<string, string> = {
+    DPadUp: 'up', LeftStickUp: 'up', RightStickUp: 'up',
+    DPadDown: 'down', LeftStickDown: 'down', RightStickDown: 'down',
+    DPadLeft: 'left', LeftStickLeft: 'left', RightStickLeft: 'left',
+    DPadRight: 'right', LeftStickRight: 'right', RightStickRight: 'right',
+  };
+  return {
+    logEvent: mockLogEvent,
+    getCliIcon: mockGetCliIcon,
+    getCliDisplayName: mockGetCliDisplayName,
+    renderFooterBindings: mockRenderFooterBindings,
+    toDirection: (button: string) => dirMap[button] ?? null,
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -233,29 +242,29 @@ describe('Sessions Screen', () => {
 
     it('Down moves focus index forward', () => {
       expect(sessionsState.sessionsFocusIndex).toBe(0);
-      sessions.handleSessionsScreenButton('Down');
+      sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.sessionsFocusIndex).toBe(1);
     });
 
     it('Up wraps from first item to last', () => {
       sessionsState.sessionsFocusIndex = 0;
-      sessions.handleSessionsScreenButton('Up');
+      sessions.handleSessionsScreenButton('DPadUp');
       expect(sessionsState.sessionsFocusIndex).toBe(2);
     });
 
     it('Down past last session switches to CLI panel', () => {
       sessionsState.sessionsFocusIndex = 2;
-      sessions.handleSessionsScreenButton('Down');
+      sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.activePanel).toBe('cli');
     });
 
     it('Left switches to CLI panel', () => {
-      sessions.handleSessionsScreenButton('Left');
+      sessions.handleSessionsScreenButton('DPadLeft');
       expect(sessionsState.activePanel).toBe('cli');
     });
 
     it('Right switches to CLI panel', () => {
-      sessions.handleSessionsScreenButton('Right');
+      sessions.handleSessionsScreenButton('DPadRight');
       expect(sessionsState.activePanel).toBe('cli');
     });
 
@@ -312,7 +321,7 @@ describe('Sessions Screen', () => {
       await loadAndFlush(sessions);
 
       expect(state.sessions).toHaveLength(0);
-      sessions.handleSessionsScreenButton('Down');
+      sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.activePanel).toBe('cli');
     });
 
@@ -320,7 +329,7 @@ describe('Sessions Screen', () => {
       mockSessionGetAll.mockResolvedValue([]);
       await loadAndFlush(sessions);
 
-      sessions.handleSessionsScreenButton('Up');
+      sessions.handleSessionsScreenButton('DPadUp');
       expect(sessionsState.activePanel).toBe('sessions');
       expect(sessionsState.sessionsFocusIndex).toBe(0);
     });
@@ -334,24 +343,24 @@ describe('Sessions Screen', () => {
     beforeEach(async () => {
       mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli', 'generic-terminal']);
       await loadAndFlush(sessions);
-      sessions.handleSessionsScreenButton('Left'); // → CLI panel
+      sessions.handleSessionsScreenButton('DPadLeft'); // → CLI panel
     });
 
     it('Down moves focus index forward', () => {
       expect(sessionsState.cliFocusIndex).toBe(0);
-      sessions.handleSessionsScreenButton('Down');
+      sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.cliFocusIndex).toBe(1);
     });
 
     it('Down wraps around at end of list', () => {
       sessionsState.cliFocusIndex = 2;
-      sessions.handleSessionsScreenButton('Down');
+      sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.cliFocusIndex).toBe(0);
     });
 
     it('Up past first item switches to sessions panel', () => {
       sessionsState.cliFocusIndex = 0;
-      sessions.handleSessionsScreenButton('Up');
+      sessions.handleSessionsScreenButton('DPadUp');
       expect(sessionsState.activePanel).toBe('sessions');
     });
 
@@ -363,13 +372,13 @@ describe('Sessions Screen', () => {
 
     it('Right selects CLI type and moves to directory panel', () => {
       sessionsState.cliFocusIndex = 1;
-      sessions.handleSessionsScreenButton('Right');
+      sessions.handleSessionsScreenButton('DPadRight');
       expect(sessionsState.selectedCliType).toBe('copilot-cli');
       expect(sessionsState.activePanel).toBe('directory');
     });
 
     it('Left goes back to sessions panel', () => {
-      sessions.handleSessionsScreenButton('Left');
+      sessions.handleSessionsScreenButton('DPadLeft');
       expect(sessionsState.activePanel).toBe('sessions');
     });
 
@@ -411,25 +420,25 @@ describe('Sessions Screen', () => {
       ]);
       await loadAndFlush(sessions);
 
-      sessions.handleSessionsScreenButton('Left'); // → CLI
+      sessions.handleSessionsScreenButton('DPadLeft'); // → CLI
       sessions.handleSessionsScreenButton('A');    // → directory
     });
 
     it('Down moves focus index forward', () => {
       expect(sessionsState.dirFocusIndex).toBe(0);
-      sessions.handleSessionsScreenButton('Down');
+      sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.dirFocusIndex).toBe(1);
     });
 
     it('Up wraps from first to last', () => {
       sessionsState.dirFocusIndex = 0;
-      sessions.handleSessionsScreenButton('Up');
+      sessions.handleSessionsScreenButton('DPadUp');
       expect(sessionsState.dirFocusIndex).toBe(2);
     });
 
     it('Down wraps from last to first', () => {
       sessionsState.dirFocusIndex = 2;
-      sessions.handleSessionsScreenButton('Down');
+      sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.dirFocusIndex).toBe(0);
     });
 
@@ -440,7 +449,7 @@ describe('Sessions Screen', () => {
     });
 
     it('Left goes back to CLI panel', () => {
-      sessions.handleSessionsScreenButton('Left');
+      sessions.handleSessionsScreenButton('DPadLeft');
       expect(sessionsState.activePanel).toBe('cli');
     });
 
@@ -469,7 +478,7 @@ describe('Sessions Screen', () => {
       ]);
       await loadAndFlush(sessions);
 
-      sessions.handleSessionsScreenButton('Left'); // → CLI
+      sessions.handleSessionsScreenButton('DPadLeft'); // → CLI
       sessions.handleSessionsScreenButton('A');    // → directory
       sessions.handleSessionsScreenButton('A');    // → confirm
     });
@@ -503,7 +512,7 @@ describe('Sessions Screen', () => {
       mockConfigGetWorkingDirs.mockResolvedValue([]);
       await loadAndFlush(sessions);
 
-      sessions.handleSessionsScreenButton('Left'); // → CLI
+      sessions.handleSessionsScreenButton('DPadLeft'); // → CLI
       sessions.handleSessionsScreenButton('A');    // → confirm (no dirs)
       expect(sessionsState.activePanel).toBe('confirm');
 
@@ -519,7 +528,7 @@ describe('Sessions Screen', () => {
       mockConfigGetWorkingDirs.mockResolvedValue([]);
       await loadAndFlush(sessions);
 
-      sessions.handleSessionsScreenButton('Left'); // → CLI
+      sessions.handleSessionsScreenButton('DPadLeft'); // → CLI
       sessions.handleSessionsScreenButton('A');    // → confirm (no dirs)
       sessions.handleSessionsScreenButton('A');    // spawn
       await flush();
@@ -653,7 +662,7 @@ describe('Sessions Screen', () => {
     });
 
     it('switching to CLI panel moves active class', () => {
-      sessions.handleSessionsScreenButton('Left');
+      sessions.handleSessionsScreenButton('DPadLeft');
 
       const sessionsEl = document.getElementById('launcherSectionSessions')!;
       const cli = document.getElementById('launcherSectionCli')!;
@@ -665,7 +674,7 @@ describe('Sessions Screen', () => {
       mockConfigGetWorkingDirs.mockResolvedValue([{ name: 'd', path: '/d' }]);
       await loadAndFlush(sessions);
 
-      sessions.handleSessionsScreenButton('Left'); // CLI
+      sessions.handleSessionsScreenButton('DPadLeft'); // CLI
       sessions.handleSessionsScreenButton('A');    // directory
 
       const dir = document.getElementById('launcherSectionDir')!;
@@ -676,19 +685,19 @@ describe('Sessions Screen', () => {
       const items = document.querySelectorAll('#launcherSessionList .launcher-item');
       expect(items[0]?.classList.contains('launcher-focused')).toBe(true);
 
-      sessions.handleSessionsScreenButton('Down');
+      sessions.handleSessionsScreenButton('DPadDown');
       const updatedItems = document.querySelectorAll('#launcherSessionList .launcher-item');
       expect(updatedItems[0]?.classList.contains('launcher-focused')).toBe(false);
       expect(updatedItems[1]?.classList.contains('launcher-focused')).toBe(true);
     });
 
     it('launcher-focused class moves with focus index in CLI list', () => {
-      sessions.handleSessionsScreenButton('Left'); // go to CLI panel
+      sessions.handleSessionsScreenButton('DPadLeft'); // go to CLI panel
 
       const items = document.querySelectorAll('#launcherCliList .launcher-item');
       expect(items[0]?.classList.contains('launcher-focused')).toBe(true);
 
-      sessions.handleSessionsScreenButton('Down');
+      sessions.handleSessionsScreenButton('DPadDown');
       const updatedItems = document.querySelectorAll('#launcherCliList .launcher-item');
       expect(updatedItems[0]?.classList.contains('launcher-focused')).toBe(false);
       expect(updatedItems[1]?.classList.contains('launcher-focused')).toBe(true);
@@ -777,7 +786,7 @@ describe('Sessions Screen', () => {
       ]);
       await loadAndFlush(sessions);
 
-      sessions.handleSessionsScreenButton('Left');
+      sessions.handleSessionsScreenButton('DPadLeft');
       sessions.handleSessionsScreenButton('A');
       sessions.handleSessionsScreenButton('A');
 
@@ -791,7 +800,7 @@ describe('Sessions Screen', () => {
       mockConfigGetWorkingDirs.mockResolvedValue([]);
       await loadAndFlush(sessions);
 
-      sessions.handleSessionsScreenButton('Left');
+      sessions.handleSessionsScreenButton('DPadLeft');
       sessions.handleSessionsScreenButton('A'); // no dirs → straight to confirm
 
       const text = document.getElementById('launcherConfirmText')!;
@@ -805,7 +814,7 @@ describe('Sessions Screen', () => {
       const confirm = document.getElementById('launcherConfirm')!;
       expect(confirm.style.display).toBe('none');
 
-      sessions.handleSessionsScreenButton('Left');
+      sessions.handleSessionsScreenButton('DPadLeft');
       sessions.handleSessionsScreenButton('A');
       sessions.handleSessionsScreenButton('A');
 
@@ -816,7 +825,7 @@ describe('Sessions Screen', () => {
       mockConfigGetWorkingDirs.mockResolvedValue([{ name: 'd', path: '/d' }]);
       await loadAndFlush(sessions);
 
-      sessions.handleSessionsScreenButton('Left');
+      sessions.handleSessionsScreenButton('DPadLeft');
       sessions.handleSessionsScreenButton('A');
       sessions.handleSessionsScreenButton('A');
 

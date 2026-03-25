@@ -43,20 +43,27 @@ class BrowserGamepadPoller {
 
     window.addEventListener('gamepaddisconnected', (e) => {
       console.log('[BrowserGamepad] Disconnected:', e.gamepad.id);
-      // Release any held buttons for this gamepad before clearing state
+      // Release all tracked buttons (physical + D-pad + virtual sticks) on disconnect
       const index = e.gamepad.index;
       const prevState = this.buttonStates.get(index);
       if (prevState) {
-        const buttonNames = [
-          'A', 'B', 'X', 'Y',
-          'LeftBumper', 'RightBumper',
-          'LeftTrigger', 'RightTrigger',
-          'Back', 'Sandwich',
-          'LeftStick', 'RightStick',
+        const allButtons: Array<{ idx: number; name: string }> = [
+          { idx: 0, name: 'A' }, { idx: 1, name: 'B' },
+          { idx: 2, name: 'X' }, { idx: 3, name: 'Y' },
+          { idx: 4, name: 'LeftBumper' }, { idx: 5, name: 'RightBumper' },
+          { idx: 6, name: 'LeftTrigger' }, { idx: 7, name: 'RightTrigger' },
+          { idx: 8, name: 'Back' }, { idx: 9, name: 'Sandwich' },
+          { idx: 10, name: 'LeftStick' }, { idx: 11, name: 'RightStick' },
+          { idx: 12, name: 'DPadUp' }, { idx: 13, name: 'DPadDown' },
+          { idx: 14, name: 'DPadLeft' }, { idx: 15, name: 'DPadRight' },
+          { idx: 20, name: 'LeftStickUp' }, { idx: 21, name: 'LeftStickDown' },
+          { idx: 22, name: 'LeftStickLeft' }, { idx: 23, name: 'LeftStickRight' },
+          { idx: 24, name: 'RightStickUp' }, { idx: 25, name: 'RightStickDown' },
+          { idx: 26, name: 'RightStickLeft' }, { idx: 27, name: 'RightStickRight' },
         ];
-        for (let i = 0; i < Math.min(buttonNames.length, prevState.length); i++) {
-          if (prevState[i]) {
-            this.handleButtonRelease(buttonNames[i], index);
+        for (const { idx, name } of allButtons) {
+          if (prevState[idx]) {
+            this.handleButtonRelease(name, index);
           }
         }
         this.buttonStates.delete(index);
@@ -150,7 +157,7 @@ class BrowserGamepadPoller {
     // Get previous state
     let prevState = this.buttonStates.get(index);
     if (!prevState) {
-      prevState = new Array(gamepad.buttons.length).fill(false);
+      prevState = new Array(Math.max(gamepad.buttons.length, 28)).fill(false);
       this.buttonStates.set(index, prevState);
       console.log('[BrowserGamepad] Initial state for gamepad', index, 'buttons:', gamepad.buttons.length);
     }
@@ -207,25 +214,34 @@ class BrowserGamepadPoller {
     // Check D-pad (varies by controller - try axes first, then buttons)
     this.checkDpad(gamepad, index, prevState);
 
-    // Left stick → D-pad emulation
-    this.checkLeftStickAsDpad(gamepad, index, prevState);
+    // Left stick → virtual LeftStick* buttons (for config bindings + UI navigation)
+    this.checkStickVirtualButtons(gamepad, index, prevState, 'left', 0, 1, 20);
+
+    // Right stick → virtual RightStick* buttons (for config bindings)
+    this.checkStickVirtualButtons(gamepad, index, prevState, 'right', 2, 3, 24);
   }
 
-  private checkLeftStickAsDpad(gamepad: Gamepad, index: number, prevState: boolean[]): void {
-    // Left stick axes: 0 = X (left/right), 1 = Y (up/down)
+  /**
+   * Emit virtual stick buttons (e.g. LeftStickUp, RightStickDown) for config binding dispatch.
+   * stateOffset reserves 4 indices in prevState for up/down/left/right.
+   */
+  private checkStickVirtualButtons(
+    gamepad: Gamepad, index: number, prevState: boolean[],
+    side: 'left' | 'right', axisX: number, axisY: number, stateOffset: number,
+  ): void {
     const threshold = 0.5;
-    const stickX = gamepad.axes[0] ?? 0;
-    const stickY = gamepad.axes[1] ?? 0;
+    const x = gamepad.axes[axisX] ?? 0;
+    const y = gamepad.axes[axisY] ?? 0;
 
-    // State indices 16-19 for stick directions
-    const stickMap: Array<{ active: boolean; name: string; stateIdx: number }> = [
-      { active: stickY < -threshold, name: 'Up', stateIdx: 16 },
-      { active: stickY > threshold, name: 'Down', stateIdx: 17 },
-      { active: stickX < -threshold, name: 'Left', stateIdx: 18 },
-      { active: stickX > threshold, name: 'Right', stateIdx: 19 },
+    const prefix = side === 'left' ? 'LeftStick' : 'RightStick';
+    const directions: Array<{ active: boolean; name: string; stateIdx: number }> = [
+      { active: y < -threshold, name: `${prefix}Up`, stateIdx: stateOffset },
+      { active: y > threshold, name: `${prefix}Down`, stateIdx: stateOffset + 1 },
+      { active: x < -threshold, name: `${prefix}Left`, stateIdx: stateOffset + 2 },
+      { active: x > threshold, name: `${prefix}Right`, stateIdx: stateOffset + 3 },
     ];
 
-    for (const { active, name, stateIdx } of stickMap) {
+    for (const { active, name, stateIdx } of directions) {
       const prev = prevState[stateIdx] ?? false;
       if (active !== prev) {
         prevState[stateIdx] = active;
@@ -249,10 +265,10 @@ class BrowserGamepadPoller {
     const dpadRightIndex = 15;
 
     const dpadMap: Array<{ index: number; name: string }> = [
-      { index: dpadUpIndex, name: 'Up' },
-      { index: dpadDownIndex, name: 'Down' },
-      { index: dpadLeftIndex, name: 'Left' },
-      { index: dpadRightIndex, name: 'Right' },
+      { index: dpadUpIndex, name: 'DPadUp' },
+      { index: dpadDownIndex, name: 'DPadDown' },
+      { index: dpadLeftIndex, name: 'DPadLeft' },
+      { index: dpadRightIndex, name: 'DPadRight' },
     ];
 
     for (const { index: btnIndex, name } of dpadMap) {

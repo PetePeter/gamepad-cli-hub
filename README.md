@@ -22,7 +22,7 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 
 **HUD Overlay** — Press the Sandwich/Guide button from anywhere to pop up a floating session switcher. Navigate with D-pad, select with A, dismiss with B. Fast context switching without leaving what you're doing.
 
-**Analog Sticks** — Left stick emulates D-pad plus sends arrow keys in cursor mode. Right stick scrolls (PageUp/PageDown). Both configurable per-profile with deadzone and repeat rate settings.
+**Analog Sticks** — Each stick emits virtual button names (LeftStickUp, RightStickDown, etc.) that can be bound to any action. If no binding exists, left stick sends arrow keys in cursor mode. Right stick scrolls (PageUp/PageDown). Both configurable per-profile with deadzone and repeat rate settings.
 
 **Haptic Feedback** — Feel the controller pulse when you activate hold-key or switch sessions. Configurable in settings — turn it off if you prefer silence.
 
@@ -39,8 +39,8 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 | Input | Action |
 |-------|--------|
 | D-Pad Up / Down | Switch between CLI sessions |
-| Left Stick | D-pad emulation + arrow keys (cursor mode) |
-| Right Stick | Scroll (PageUp/PageDown) |
+| Left Stick | Bindable virtual buttons (LeftStickUp/Down/Left/Right); cursor mode fallback |
+| Right Stick | Bindable virtual buttons (RightStickUp/Down/Left/Right); scroll fallback |
 | Left / Right Bumper | Previous / next session |
 | Left Trigger | Spawn new Claude Code instance |
 | Right Trigger | Spawn new Copilot CLI instance |

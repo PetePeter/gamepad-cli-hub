@@ -12,6 +12,7 @@ import {
   renderFooterBindings,
   updateProfileDisplay,
   showFormModal,
+  toDirection,
 } from '../utils.js';
 import { initConfigCache } from '../bindings.js';
 import { loadSessions } from './sessions.js';
@@ -21,7 +22,7 @@ import { openBindingEditor } from '../modals/binding-editor.js';
 // Constants
 // ============================================================================
 
-const ALL_BUTTONS = ['A', 'B', 'X', 'Y', 'Up', 'Down', 'Left', 'Right', 'LeftBumper', 'RightBumper', 'LeftTrigger', 'RightTrigger', 'LeftStick', 'RightStick', 'Sandwich', 'Back', 'Xbox'] as const;
+const ALL_BUTTONS = ['A', 'B', 'X', 'Y', 'DPadUp', 'DPadDown', 'DPadLeft', 'DPadRight', 'LeftBumper', 'RightBumper', 'LeftTrigger', 'RightTrigger', 'LeftStick', 'RightStick', 'Sandwich', 'Back', 'Xbox', 'LeftStickUp', 'LeftStickDown', 'LeftStickLeft', 'LeftStickRight', 'RightStickUp', 'RightStickDown', 'RightStickLeft', 'RightStickRight'] as const;
 
 /** Tracks whether Game Bar was toggled this session so we can show a restart warning. */
 let gameBarToggled = false;
@@ -63,21 +64,18 @@ export async function loadSettingsScreen(): Promise<void> {
 // ============================================================================
 
 export function handleSettingsScreenButton(button: string): boolean {
+  const dir = toDirection(button);
+  if (dir) {
+    switch (dir) {
+      case 'left':  navigateSettingsTab(-1); return true;
+      case 'right': navigateSettingsTab(1);  return true;
+      case 'up':    navigateFocus(-1);       return true;
+      case 'down':  navigateFocus(1);        return true;
+    }
+  }
   switch (button) {
     case 'B':
       showScreen('sessions');
-      return true;
-    case 'Left':
-      navigateSettingsTab(-1);
-      return true;
-    case 'Right':
-      navigateSettingsTab(1);
-      return true;
-    case 'Up':
-      navigateFocus(-1);
-      return true;
-    case 'Down':
-      navigateFocus(1);
       return true;
     case 'A':
       activateSettingsFocused();

@@ -6,7 +6,7 @@ import * as YAML from 'yaml';
 // Action & Binding Types
 // ============================================================================
 
-export type ActionType = 'keyboard' | 'session-switch' | 'spawn' | 'list-sessions' | 'profile-switch';
+export type ActionType = 'keyboard' | 'session-switch' | 'spawn' | 'list-sessions' | 'profile-switch' | 'close-session' | 'hub-focus';
 
 export interface BaseBinding {
   action: ActionType;
@@ -37,7 +37,15 @@ export interface ProfileSwitchBinding extends BaseBinding {
   direction: 'previous' | 'next';
 }
 
-export type Binding = KeyboardBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding | ProfileSwitchBinding;
+export interface CloseSessionBinding extends BaseBinding {
+  action: 'close-session';
+}
+
+export interface HubFocusBinding extends BaseBinding {
+  action: 'hub-focus';
+}
+
+export type Binding = KeyboardBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding | ProfileSwitchBinding | CloseSessionBinding | HubFocusBinding;
 
 // ============================================================================
 // Shared Config Types
@@ -123,6 +131,23 @@ export interface StickConfig {
 export interface StickConfigs {
   left?: StickConfig;
   right?: StickConfig;
+}
+
+/** Virtual button names for joystick directions — bindable like physical buttons */
+export const STICK_VIRTUAL_BUTTONS = [
+  'LeftStickUp', 'LeftStickDown', 'LeftStickLeft', 'LeftStickRight',
+  'RightStickUp', 'RightStickDown', 'RightStickLeft', 'RightStickRight',
+] as const;
+
+export type StickVirtualButton = typeof STICK_VIRTUAL_BUTTONS[number];
+
+export type StickDirection = 'up' | 'down' | 'left' | 'right';
+
+/** Build a virtual button name from stick + direction */
+export function stickVirtualButtonName(stick: 'left' | 'right', direction: StickDirection): StickVirtualButton {
+  const prefix = stick === 'left' ? 'LeftStick' : 'RightStick';
+  const suffix = direction.charAt(0).toUpperCase() + direction.slice(1);
+  return `${prefix}${suffix}` as StickVirtualButton;
 }
 
 // ============================================================================
@@ -261,6 +286,17 @@ export class ConfigLoader {
       deadzone: profileStick.deadzone ?? defaults.deadzone,
       repeatRate: profileStick.repeatRate ?? defaults.repeatRate,
     };
+  }
+
+  /**
+   * Resolve a binding for a joystick direction.
+   * Checks global bindings for the virtual button name (e.g. LeftStickUp).
+   * Returns null if no explicit binding exists (caller should fall back to stick mode).
+   */
+  getStickDirectionBinding(stick: 'left' | 'right', direction: StickDirection): Binding | null {
+    this.ensureLoaded();
+    const virtualButton = stickVirtualButtonName(stick, direction);
+    return this.activeProfile!.global[virtualButton] ?? null;
   }
 
   /** @deprecated Assembles a legacy Config object from split files */

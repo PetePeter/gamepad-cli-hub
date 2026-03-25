@@ -37,6 +37,7 @@ const mockConfigLoader = {
   switchProfile: vi.fn(),
   getStickConfig: vi.fn(() => ({ mode: 'disabled', deadzone: 0.25, repeatRate: 100 })),
   getHapticFeedback: vi.fn(() => false),
+  getStickDirectionBinding: vi.fn(() => null),
 };
 
 const mockProcessSpawner = {
@@ -71,7 +72,14 @@ const mockLogger = {
 // ---------------------------------------------------------------------------
 
 vi.mock('../src/input/gamepad.js', () => ({ gamepadInput: mockGamepadInput }));
-vi.mock('../src/config/loader.js', () => ({ configLoader: mockConfigLoader }));
+vi.mock('../src/config/loader.js', () => ({
+  configLoader: mockConfigLoader,
+  stickVirtualButtonName: (stick: string, direction: string) => {
+    const prefix = stick === 'left' ? 'LeftStick' : 'RightStick';
+    const suffix = direction.charAt(0).toUpperCase() + direction.slice(1);
+    return `${prefix}${suffix}`;
+  },
+}));
 vi.mock('../src/session/spawner.js', () => ({ processSpawner: mockProcessSpawner }));
 vi.mock('../src/output/keyboard.js', () => ({ keyboard: mockKeyboard }));
 vi.mock('../src/output/windows.js', () => ({ windowManager: mockWindowManager }));
@@ -91,6 +99,12 @@ function captureButtonPressHandler(): (event: { button: string; gamepadIndex: nu
 
 function pressButton(handler: ReturnType<typeof captureButtonPressHandler>, button: string): void {
   handler({ button, gamepadIndex: 0, timestamp: Date.now() });
+}
+
+function captureAnalogHandler(): (event: { stick: 'left' | 'right'; x: number; y: number }) => void {
+  const call = mockGamepadInput.onAnalog.mock.calls[0];
+  if (!call) throw new Error('No analog handler registered');
+  return call[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -310,17 +324,17 @@ describe('GamepadCliHub', () => {
   describe('handleBindingAction()', () => {
     it('keyboard action calls keyboard.sendKeys()', () => {
       mockConfigLoader.getGlobalBindings.mockReturnValue({
-        Up: { action: 'keyboard', keys: ['up'] },
+        DPadUp: { action: 'keyboard', keys: ['up'] },
       });
-      pressButton(captureButtonPressHandler(), 'Up');
+      pressButton(captureButtonPressHandler(), 'DPadUp');
       expect(mockKeyboard.sendKeys).toHaveBeenCalledWith(['up']);
     });
 
     it('keyboard action sends multi-key sequences', () => {
       mockConfigLoader.getGlobalBindings.mockReturnValue({
-        Down: { action: 'keyboard', keys: ['ctrl', 'c'] },
+        DPadDown: { action: 'keyboard', keys: ['ctrl', 'c'] },
       });
-      pressButton(captureButtonPressHandler(), 'Down');
+      pressButton(captureButtonPressHandler(), 'DPadDown');
       expect(mockKeyboard.sendKeys).toHaveBeenCalledWith(['ctrl', 'c']);
     });
 
@@ -407,14 +421,14 @@ describe('GamepadCliHub', () => {
   describe('error handling', () => {
     it('catches and logs errors in action execution', () => {
       mockConfigLoader.getGlobalBindings.mockReturnValue({
-        Up: { action: 'keyboard', keys: ['enter'] },
+        DPadUp: { action: 'keyboard', keys: ['enter'] },
       });
       mockKeyboard.sendKeys.mockImplementation(() => {
         throw new Error('keyboard exploded');
       });
 
       const handler = captureButtonPressHandler();
-      expect(() => pressButton(handler, 'Up')).not.toThrow();
+      expect(() => pressButton(handler, 'DPadUp')).not.toThrow();
       expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining('Error handling action'));
     });
 
@@ -465,6 +479,188 @@ describe('GamepadCliHub', () => {
 
     it('registers unhandledRejection handler', () => {
       expect(process.on).toHaveBeenCalledWith('unhandledRejection', expect.any(Function));
+    });
+  });
+
+  // ========================================================================
+  // New Action Types: close-session, hub-focus
+  // ========================================================================
+
+  describe('close-session action', () => {
+    it('close-session logs message when no active session', () => {
+      mockConfigLoader.getGlobalBindings.mockReturnValue({
+        X: { action: 'close-session' },
+      });
+      pressButton(captureButtonPressHandler(), 'X');
+      expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('No active session to close'));
+    });
+
+    it('close-session kills process and removes session', async () => {
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true);
+
+      await freshHub(() => {
+        mockConfigLoader.getGlobalBindings.mockReturnValue({
+          X: { action: 'close-session' },
+        });
+        mockConfigLoader.getCliTypes.mockReturnValue(['claude-code']);
+        mockConfigLoader.getCliTypeName.mockReturnValue('Claude Code');
+        mockConfigLoader.getBindings.mockReturnValue(null);
+        mockWindowManager.findTerminalWindows.mockResolvedValue([
+          { hwnd: '0x1', title: 'Claude Code', processId: 999, className: 'C', processName: 'node', isVisible: true },
+        ]);
+      });
+
+      pressButton(captureButtonPressHandler(), 'X');
+      expect(killSpy).toHaveBeenCalledWith(999);
+      expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('Closed session'));
+      killSpy.mockRestore();
+    });
+
+    it('close-session handles kill failure gracefully', async () => {
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => { throw new Error('no such process'); });
+
+      await freshHub(() => {
+        mockConfigLoader.getGlobalBindings.mockReturnValue({
+          X: { action: 'close-session' },
+        });
+        mockConfigLoader.getCliTypes.mockReturnValue(['claude-code']);
+        mockConfigLoader.getCliTypeName.mockReturnValue('Claude Code');
+        mockConfigLoader.getBindings.mockReturnValue(null);
+        mockWindowManager.findTerminalWindows.mockResolvedValue([
+          { hwnd: '0x1', title: 'Claude Code', processId: 999, className: 'C', processName: 'node', isVisible: true },
+        ]);
+      });
+
+      expect(() => pressButton(captureButtonPressHandler(), 'X')).not.toThrow();
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to kill'));
+      expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('Closed session'));
+      killSpy.mockRestore();
+    });
+  });
+
+  describe('hub-focus action', () => {
+    it('hub-focus is a no-op in CLI mode (logs debug)', () => {
+      mockConfigLoader.getGlobalBindings.mockReturnValue({
+        Xbox: { action: 'hub-focus' },
+      });
+      pressButton(captureButtonPressHandler(), 'Xbox');
+      expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('hub-focus'));
+    });
+  });
+
+  // ========================================================================
+  // Joystick Virtual Button Bindings
+  // ========================================================================
+
+  describe('analog stick bindings', () => {
+    it('explicit stick binding overrides mode-based behavior', async () => {
+      await freshHub(() => {
+        mockConfigLoader.getGlobalBindings.mockReturnValue({});
+        mockConfigLoader.getStickConfig.mockReturnValue({ mode: 'cursor', deadzone: 0.25, repeatRate: 0 });
+        mockConfigLoader.getStickDirectionBinding.mockImplementation(
+          (stick: string, direction: string) =>
+            stick === 'right' && direction === 'up'
+              ? { action: 'session-switch', direction: 'next' }
+              : null,
+        );
+      });
+
+      const analogHandler = captureAnalogHandler();
+      // Right stick pushed up (y > 0 means up)
+      analogHandler({ stick: 'right', x: 0, y: 20000 });
+
+      // Should use the explicit binding, not the cursor mode default
+      expect(mockLogger.info).toHaveBeenCalledWith('Switched to next session');
+      expect(mockKeyboard.sendKey).not.toHaveBeenCalled();
+    });
+
+    it('falls back to cursor mode when no explicit stick binding', async () => {
+      await freshHub(() => {
+        mockConfigLoader.getGlobalBindings.mockReturnValue({});
+        mockConfigLoader.getStickConfig.mockReturnValue({ mode: 'cursor', deadzone: 0.25, repeatRate: 0 });
+        mockConfigLoader.getStickDirectionBinding.mockReturnValue(null);
+      });
+
+      const analogHandler = captureAnalogHandler();
+      analogHandler({ stick: 'left', x: 0, y: 20000 });
+
+      expect(mockKeyboard.sendKey).toHaveBeenCalledWith('up');
+    });
+
+    it('falls back to scroll mode when no explicit stick binding', async () => {
+      await freshHub(() => {
+        mockConfigLoader.getGlobalBindings.mockReturnValue({});
+        mockConfigLoader.getStickConfig.mockReturnValue({ mode: 'scroll', deadzone: 0.25, repeatRate: 0 });
+        mockConfigLoader.getStickDirectionBinding.mockReturnValue(null);
+      });
+
+      const analogHandler = captureAnalogHandler();
+      analogHandler({ stick: 'right', x: 0, y: 20000 });
+
+      expect(mockKeyboard.sendKey).toHaveBeenCalledWith('pageup');
+    });
+
+    it('disabled mode ignores analog even when no explicit binding', async () => {
+      await freshHub(() => {
+        mockConfigLoader.getGlobalBindings.mockReturnValue({});
+        mockConfigLoader.getStickConfig.mockReturnValue({ mode: 'disabled', deadzone: 0.25, repeatRate: 0 });
+        mockConfigLoader.getStickDirectionBinding.mockReturnValue(null);
+      });
+
+      const analogHandler = captureAnalogHandler();
+      analogHandler({ stick: 'left', x: 0, y: 20000 });
+
+      expect(mockKeyboard.sendKey).not.toHaveBeenCalled();
+    });
+
+    it('explicit binding on disabled stick still fires', async () => {
+      await freshHub(() => {
+        mockConfigLoader.getGlobalBindings.mockReturnValue({});
+        mockConfigLoader.getStickConfig.mockReturnValue({ mode: 'disabled', deadzone: 0.25, repeatRate: 0 });
+        mockConfigLoader.getStickDirectionBinding.mockImplementation(
+          (stick: string, direction: string) =>
+            stick === 'left' && direction === 'down'
+              ? { action: 'keyboard', keys: ['pagedown'] }
+              : null,
+        );
+      });
+
+      const analogHandler = captureAnalogHandler();
+      analogHandler({ stick: 'left', x: 0, y: -20000 });
+
+      expect(mockKeyboard.sendKeys).toHaveBeenCalledWith(['pagedown']);
+    });
+
+    it('deadzone filters out small analog movements', async () => {
+      await freshHub(() => {
+        mockConfigLoader.getGlobalBindings.mockReturnValue({});
+        mockConfigLoader.getStickConfig.mockReturnValue({ mode: 'cursor', deadzone: 0.5, repeatRate: 0 });
+        mockConfigLoader.getStickDirectionBinding.mockReturnValue(null);
+      });
+
+      const analogHandler = captureAnalogHandler();
+      // Below deadzone (0.5 * 32767 ≈ 16383)
+      analogHandler({ stick: 'left', x: 0, y: 10000 });
+
+      expect(mockKeyboard.sendKey).not.toHaveBeenCalled();
+    });
+
+    it('stick binding receives keyboard action with correct keys', async () => {
+      await freshHub(() => {
+        mockConfigLoader.getGlobalBindings.mockReturnValue({});
+        mockConfigLoader.getStickConfig.mockReturnValue({ mode: 'cursor', deadzone: 0.25, repeatRate: 0 });
+        mockConfigLoader.getStickDirectionBinding.mockImplementation(
+          (stick: string, direction: string) =>
+            stick === 'right' && direction === 'left'
+              ? { action: 'keyboard', keys: ['ctrl', 'left'] }
+              : null,
+        );
+      });
+
+      const analogHandler = captureAnalogHandler();
+      analogHandler({ stick: 'right', x: -20000, y: 0 });
+
+      expect(mockKeyboard.sendKeys).toHaveBeenCalledWith(['ctrl', 'left']);
     });
   });
 });

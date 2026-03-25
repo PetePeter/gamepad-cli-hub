@@ -673,6 +673,114 @@ describe('ConfigLoader', () => {
 });
 
 // ============================================================================
+// getStickDirectionBinding
+// ============================================================================
+
+import { stickVirtualButtonName, STICK_VIRTUAL_BUTTONS } from '../src/config/loader.js';
+
+describe('getStickDirectionBinding', () => {
+  let loader: ConfigLoader;
+
+  beforeEach(() => {
+    fs.mkdirSync(TEST_DIR + '-stick', { recursive: true });
+  });
+
+  afterEach(() => {
+    fs.rmSync(TEST_DIR + '-stick', { recursive: true, force: true });
+  });
+
+  function setupWithGlobal(globalBindings: Record<string, any>): void {
+    const dir = TEST_DIR + '-stick';
+    const writeYamlStick = (rel: string, data: unknown) => {
+      const fullPath = path.join(dir, rel);
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      fs.writeFileSync(fullPath, YAML.stringify(data), 'utf8');
+    };
+
+    writeYamlStick('directories.yaml', { workingDirectories: [] });
+    writeYamlStick('tools.yaml', { cliTypes: { test: { name: 'Test', terminal: 'wt', command: 'test' } } });
+    writeYamlStick('settings.yaml', { activeProfile: 'default' });
+    writeYamlStick('profiles/default.yaml', {
+      name: 'Default',
+      cliTypes: { test: {} },
+      global: globalBindings,
+    });
+
+    loader = new ConfigLoader(dir);
+    loader.load();
+  }
+
+  it('returns binding for an explicit stick direction', () => {
+    setupWithGlobal({
+      LeftStickUp: { action: 'keyboard', keys: ['up'] },
+    });
+    const binding = loader.getStickDirectionBinding('left', 'up');
+    expect(binding).toEqual({ action: 'keyboard', keys: ['up'] });
+  });
+
+  it('returns null when no binding for stick direction', () => {
+    setupWithGlobal({});
+    expect(loader.getStickDirectionBinding('right', 'down')).toBeNull();
+  });
+
+  it('distinguishes left from right stick', () => {
+    setupWithGlobal({
+      LeftStickUp: { action: 'keyboard', keys: ['up'] },
+      RightStickUp: { action: 'session-switch', direction: 'previous' },
+    });
+    expect(loader.getStickDirectionBinding('left', 'up')).toEqual({ action: 'keyboard', keys: ['up'] });
+    expect(loader.getStickDirectionBinding('right', 'up')).toEqual({ action: 'session-switch', direction: 'previous' });
+  });
+
+  it('returns null for directions without explicit bindings even when others exist', () => {
+    setupWithGlobal({
+      RightStickDown: { action: 'keyboard', keys: ['pagedown'] },
+    });
+    expect(loader.getStickDirectionBinding('right', 'up')).toBeNull();
+    expect(loader.getStickDirectionBinding('left', 'down')).toBeNull();
+  });
+});
+
+// ============================================================================
+// stickVirtualButtonName
+// ============================================================================
+
+describe('stickVirtualButtonName', () => {
+  it('builds left stick up name', () => {
+    expect(stickVirtualButtonName('left', 'up')).toBe('LeftStickUp');
+  });
+
+  it('builds right stick down name', () => {
+    expect(stickVirtualButtonName('right', 'down')).toBe('RightStickDown');
+  });
+
+  it('builds left stick right name', () => {
+    expect(stickVirtualButtonName('left', 'right')).toBe('LeftStickRight');
+  });
+
+  it('builds right stick left name', () => {
+    expect(stickVirtualButtonName('right', 'left')).toBe('RightStickLeft');
+  });
+});
+
+describe('STICK_VIRTUAL_BUTTONS', () => {
+  it('contains exactly 8 virtual button names', () => {
+    expect(STICK_VIRTUAL_BUTTONS).toHaveLength(8);
+  });
+
+  it('includes all 4 directions for each stick', () => {
+    expect(STICK_VIRTUAL_BUTTONS).toContain('LeftStickUp');
+    expect(STICK_VIRTUAL_BUTTONS).toContain('LeftStickDown');
+    expect(STICK_VIRTUAL_BUTTONS).toContain('LeftStickLeft');
+    expect(STICK_VIRTUAL_BUTTONS).toContain('LeftStickRight');
+    expect(STICK_VIRTUAL_BUTTONS).toContain('RightStickUp');
+    expect(STICK_VIRTUAL_BUTTONS).toContain('RightStickDown');
+    expect(STICK_VIRTUAL_BUTTONS).toContain('RightStickLeft');
+    expect(STICK_VIRTUAL_BUTTONS).toContain('RightStickRight');
+  });
+});
+
+// ============================================================================
 // slugify (standalone export)
 // ============================================================================
 

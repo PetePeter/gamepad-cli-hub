@@ -16,7 +16,7 @@ export const bindingEditorState: BindingEditorState = {
 };
 
 import { state } from '../state.js';
-import { logEvent, getCliDisplayName } from '../utils.js';
+import { logEvent, getCliDisplayName, toDirection } from '../utils.js';
 import { loadSettingsScreen } from '../screens/settings.js';
 
 // ============================================================================
@@ -345,23 +345,24 @@ function focusBindingEditorField(): void {
 }
 
 export function handleBindingEditorButton(button: string): void {
+  const dir = toDirection(button);
+  if (dir === 'up') {
+    const fields = getBindingEditorFocusables();
+    bindingEditorState.focusIndex = Math.max(0, bindingEditorState.focusIndex - 1);
+    if (fields[bindingEditorState.focusIndex]) {
+      fields[bindingEditorState.focusIndex].focus();
+    }
+    return;
+  }
+  if (dir === 'down') {
+    const fields = getBindingEditorFocusables();
+    bindingEditorState.focusIndex = Math.min(fields.length - 1, bindingEditorState.focusIndex + 1);
+    if (fields[bindingEditorState.focusIndex]) {
+      fields[bindingEditorState.focusIndex].focus();
+    }
+    return;
+  }
   switch (button) {
-    case 'Up': {
-      const fields = getBindingEditorFocusables();
-      bindingEditorState.focusIndex = Math.max(0, bindingEditorState.focusIndex - 1);
-      if (fields[bindingEditorState.focusIndex]) {
-        fields[bindingEditorState.focusIndex].focus();
-      }
-      break;
-    }
-    case 'Down': {
-      const fields = getBindingEditorFocusables();
-      bindingEditorState.focusIndex = Math.min(fields.length - 1, bindingEditorState.focusIndex + 1);
-      if (fields[bindingEditorState.focusIndex]) {
-        fields[bindingEditorState.focusIndex].focus();
-      }
-      break;
-    }
     case 'A':
       saveBinding();
       break;

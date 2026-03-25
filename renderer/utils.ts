@@ -5,6 +5,23 @@
 import { state } from './state.js';
 
 // ============================================================================
+// Directional button normalisation
+// ============================================================================
+
+/** Maps all directional button names (DPad*, LeftStick*, RightStick*) to a cardinal direction. */
+const DIRECTION_MAP: Record<string, 'up' | 'down' | 'left' | 'right'> = {
+  DPadUp: 'up', LeftStickUp: 'up', RightStickUp: 'up',
+  DPadDown: 'down', LeftStickDown: 'down', RightStickDown: 'down',
+  DPadLeft: 'left', LeftStickLeft: 'left', RightStickLeft: 'left',
+  DPadRight: 'right', LeftStickRight: 'right', RightStickRight: 'right',
+};
+
+/** Returns the cardinal direction for any directional button, or null for non-directional buttons. */
+export function toDirection(button: string): 'up' | 'down' | 'left' | 'right' | null {
+  return DIRECTION_MAP[button] ?? null;
+}
+
+// ============================================================================
 // Event Logging
 // ============================================================================
 
@@ -143,10 +160,9 @@ function getShortActionLabel(binding: any): string {
 
 function getButtonSymbol(button: string): string {
   const symbols: Record<string, string> = {
-    'Up': '↑',
-    'Down': '↓',
-    'Left': '←',
-    'Right': '→',
+    'DPadUp': '↑', 'DPadDown': '↓', 'DPadLeft': '←', 'DPadRight': '→',
+    'LeftStickUp': '↑', 'LeftStickDown': '↓', 'LeftStickLeft': '←', 'LeftStickRight': '→',
+    'RightStickUp': '↑', 'RightStickDown': '↓', 'RightStickLeft': '←', 'RightStickRight': '→',
     'A': 'A',
     'B': 'B',
     'X': 'X',

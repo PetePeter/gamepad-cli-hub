@@ -17,7 +17,7 @@ export const dirPickerState: DirPickerState = {
   cliType: '',
 };
 
-import { logEvent, getCliDisplayName } from '../utils.js';
+import { logEvent, getCliDisplayName, toDirection } from '../utils.js';
 import { doSpawn } from '../screens/sessions.js';
 
 // ============================================================================
@@ -97,15 +97,18 @@ async function selectDirAndSpawn(index: number): Promise<void> {
 // ============================================================================
 
 export function handleDirPickerButton(button: string): void {
+  const dir = toDirection(button);
+  if (dir === 'up') {
+    dirPickerState.selectedIndex = Math.max(0, dirPickerState.selectedIndex - 1);
+    renderDirPickerList();
+    return;
+  }
+  if (dir === 'down') {
+    dirPickerState.selectedIndex = Math.min(dirPickerState.items.length - 1, dirPickerState.selectedIndex + 1);
+    renderDirPickerList();
+    return;
+  }
   switch (button) {
-    case 'Up':
-      dirPickerState.selectedIndex = Math.max(0, dirPickerState.selectedIndex - 1);
-      renderDirPickerList();
-      break;
-    case 'Down':
-      dirPickerState.selectedIndex = Math.min(dirPickerState.items.length - 1, dirPickerState.selectedIndex + 1);
-      renderDirPickerList();
-      break;
     case 'A':
       selectDirAndSpawn(dirPickerState.selectedIndex);
       break;
