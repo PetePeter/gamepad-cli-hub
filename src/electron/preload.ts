@@ -210,8 +210,8 @@ const gamepadCliAPI = {
   // ========================================================================
 
   toolsGetAll: () => ipcRenderer.invoke('tools:getAll'),
-  toolsAddCliType: (key: string, name: string, command: string, args: string[]) => ipcRenderer.invoke('tools:addCliType', key, name, command, args),
-  toolsUpdateCliType: (key: string, name: string, command: string, args: string[]) => ipcRenderer.invoke('tools:updateCliType', key, name, command, args),
+  toolsAddCliType: (key: string, name: string, terminal: string, command: string) => ipcRenderer.invoke('tools:addCliType', key, name, terminal, command),
+  toolsUpdateCliType: (key: string, name: string, terminal: string, command: string) => ipcRenderer.invoke('tools:updateCliType', key, name, terminal, command),
   toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),
 
   // ========================================================================

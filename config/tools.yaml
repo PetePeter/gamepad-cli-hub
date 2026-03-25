@@ -1,34 +1,17 @@
 cliTypes:
   claude-code:
     name: Claude Code
-    spawn:
-      command: wt
-      args:
-        - -w
-        - "0"
-        - claude
+    terminal: wt
+    command: claude
   copilot-cli:
     name: GitHub Copilot CLI
-    spawn:
-      command: wt
-      args:
-        - -w
-        - "0"
-        - cmd
-        - /k
-        - copilot
+    terminal: wt
+    command: copilot
   generic-terminal:
     name: Generic Terminal
-    spawn:
-      command: wt
-      args:
-        - -w
-        - "0"
+    terminal: wt
+    command: ""
   python:
     name: python
-    spawn:
-      command: wt
-      args:
-        - -w
-        - "0"
-        - python
+    terminal: wt
+    command: python

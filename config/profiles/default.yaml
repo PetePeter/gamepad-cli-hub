@@ -1,35 +1,29 @@
 name: Default
 cliTypes:
   claude-code:
-    A:
-      action: keyboard
-      keys:
-        - Clear
-    B:
-      action: hold-key
-      keys:
-        - space
-      delay: 200
-    X:
-      action: keyboard
-      keys:
-        - /
-        - h
-        - e
-        - l
-        - p
-        - Enter
     Y:
       action: keyboard
       keys:
         - /
-        - s
-        - t
+        - c
+        - o
+        - m
+        - p
         - a
+        - c
         - t
-        - u
-        - s
+    RightTrigger:
+      action: voice
+      key: Insert
+      holdDuration: 300
+    LeftTrigger:
+      action: keyboard
+      keys:
         - Enter
+    A:
+      action: voice
+      key: Insert
+      holdDuration: 3000
   copilot-cli:
     A:
       action: keyboard
@@ -44,11 +38,6 @@ cliTypes:
       keys:
         - "?"
         - Enter
-    Y:
-      action: keyboard
-      keys:
-        - Ctrl
-        - c
   generic-terminal:
     A:
       action: keyboard

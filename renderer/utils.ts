@@ -239,13 +239,18 @@ export function formatBindingDetails(binding: any): string {
 // Form Modal (shared utility for profile/tools/directories)
 // ============================================================================
 
+export interface FormFieldOption {
+  value: string;
+  label: string;
+}
+
 export interface FormField {
   key: string;
   label: string;
   defaultValue?: string;
   placeholder?: string;
   type?: 'text' | 'select';
-  options?: string[];
+  options?: FormFieldOption[];
 }
 
 export function showFormModal(title: string, fields: FormField[]): Promise<Record<string, string> | null> {
@@ -275,9 +280,9 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
         select.id = `formField_${field.key}`;
         field.options.forEach(opt => {
           const option = document.createElement('option');
-          option.value = opt;
-          option.textContent = opt;
-          if (opt === field.defaultValue) option.selected = true;
+          option.value = opt.value;
+          option.textContent = opt.label;
+          if (opt.value === (field.defaultValue ?? '')) option.selected = true;
           select.appendChild(option);
         });
         wrapper.appendChild(select);

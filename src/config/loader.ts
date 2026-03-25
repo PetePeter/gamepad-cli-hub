@@ -48,9 +48,18 @@ export type Binding = KeyboardBinding | HoldKeyBinding | SessionSwitchBinding | 
 // Shared Config Types
 // ============================================================================
 
+export type TerminalType = 'wt' | 'cmd' | 'pwsh' | 'custom';
+
 export interface SpawnConfig {
   command: string;
   args: string[];
+}
+
+export interface CliTypeConfig {
+  name: string;
+  terminal: TerminalType;
+  command: string;
+  customSpawn?: SpawnConfig;  // only used when terminal === 'custom'
 }
 
 export interface ButtonBindings {
@@ -58,7 +67,7 @@ export interface ButtonBindings {
 }
 
 /** @deprecated Use ToolsConfig cliTypes entries instead */
-export interface CliTypeConfig {
+export interface LegacyCliTypeConfig {
   name: string;
   spawn: SpawnConfig;
   bindings: ButtonBindings;
@@ -75,7 +84,7 @@ export interface WorkingDirectory {
 
 /** @deprecated Kept for backward compat — prefer split config types */
 export interface Config {
-  cliTypes: { [key: string]: CliTypeConfig };
+  cliTypes: { [key: string]: LegacyCliTypeConfig };
   global: GlobalBindings;
   workingDirectories?: WorkingDirectory[];
 }
@@ -89,7 +98,7 @@ export interface DirectoriesConfig {
 }
 
 export interface ToolsConfig {
-  cliTypes: { [key: string]: { name: string; spawn: SpawnConfig } };
+  cliTypes: { [key: string]: CliTypeConfig };
 }
 
 export interface SettingsConfig {
@@ -164,7 +173,7 @@ export class ConfigLoader {
     }
     for (const [key, entry] of Object.entries(this.tools.cliTypes)) {
       if (!entry.name) throw new Error(`tools.yaml: cliType '${key}' missing name`);
-      if (!entry.spawn) throw new Error(`tools.yaml: cliType '${key}' missing spawn config`);
+      if (!entry.terminal) throw new Error(`tools.yaml: cliType '${key}' missing terminal`);
     }
   }
 
@@ -227,7 +236,14 @@ export class ConfigLoader {
 
   getSpawnConfig(cliType: string): SpawnConfig | null {
     this.ensureLoaded();
-    return this.tools!.cliTypes[cliType]?.spawn ?? null;
+    const config = this.tools!.cliTypes[cliType];
+    if (!config) return null;
+    return this.buildSpawnConfig(config);
+  }
+
+  getCliTypeEntry(cliType: string): CliTypeConfig | null {
+    this.ensureLoaded();
+    return this.tools!.cliTypes[cliType] ?? null;
   }
 
   getCliTypeName(cliType: string): string | null {
@@ -255,11 +271,11 @@ export class ConfigLoader {
   /** @deprecated Assembles a legacy Config object from split files */
   getConfig(): Config {
     this.ensureLoaded();
-    const cliTypes: { [key: string]: CliTypeConfig } = {};
+    const cliTypes: { [key: string]: LegacyCliTypeConfig } = {};
     for (const [key, tool] of Object.entries(this.tools!.cliTypes)) {
       cliTypes[key] = {
         name: tool.name,
-        spawn: tool.spawn,
+        spawn: this.buildSpawnConfig(tool),
         bindings: this.activeProfile!.cliTypes[key] || {},
       };
     }
@@ -421,21 +437,21 @@ export class ConfigLoader {
 
   // ---------- Tools CRUD -----------------------------------------------
 
-  addCliType(key: string, name: string, spawnCommand: string, spawnArgs: string[]): void {
+  addCliType(key: string, name: string, terminal: TerminalType, command: string): void {
     this.ensureLoaded();
     if (this.tools!.cliTypes[key]) {
       throw new Error(`CLI type already exists: ${key}`);
     }
-    this.tools!.cliTypes[key] = { name, spawn: { command: spawnCommand, args: spawnArgs } };
+    this.tools!.cliTypes[key] = { name, terminal, command };
     this.saveTools();
   }
 
-  updateCliType(key: string, name: string, spawnCommand: string, spawnArgs: string[]): void {
+  updateCliType(key: string, name: string, terminal: TerminalType, command: string): void {
     this.ensureLoaded();
     if (!this.tools!.cliTypes[key]) {
       throw new Error(`CLI type not found: ${key}`);
     }
-    this.tools!.cliTypes[key] = { name, spawn: { command: spawnCommand, args: spawnArgs } };
+    this.tools!.cliTypes[key] = { name, terminal, command };
     this.saveTools();
   }
 
@@ -446,6 +462,24 @@ export class ConfigLoader {
     }
     delete this.tools!.cliTypes[key];
     this.saveTools();
+  }
+
+  // ---------- Spawn config builder ----------------------------------------
+
+  private buildSpawnConfig(config: CliTypeConfig): SpawnConfig {
+    const cmd = config.command || '';
+    switch (config.terminal) {
+      case 'wt':
+        return { command: 'wt', args: cmd ? ['-w', '0', cmd] : ['-w', '0'] };
+      case 'cmd':
+        return { command: 'cmd', args: cmd ? ['/k', cmd] : [] };
+      case 'pwsh':
+        return { command: 'pwsh', args: cmd ? ['-NoExit', '-Command', cmd] : ['-NoExit'] };
+      case 'custom':
+        return config.customSpawn || { command: cmd, args: [] };
+      default:
+        return { command: 'wt', args: cmd ? ['-w', '0', cmd] : ['-w', '0'] };
+    }
   }
 
   // ---------- Save helpers ---------------------------------------------
@@ -477,3 +511,8 @@ export class ConfigLoader {
 
 // Export a singleton instance for convenience
 export const configLoader = new ConfigLoader();
+
+/** Derive a URL-safe slug from a display name */
+export function slugify(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}

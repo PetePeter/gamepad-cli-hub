@@ -90,23 +90,6 @@ function setupUIHandlers(): void {
 
   // Spawn buttons are rendered dynamically by renderSpawnButtons()
 
-  // Detect gamepad button (requires user gesture)
-  document.getElementById('detectGamepadBtn')?.addEventListener('click', () => {
-    console.log('[Renderer] Manual gamepad detection triggered');
-    browserGamepad.requestGamepadAccess();
-
-    // Also check main process gamepad count
-    try {
-      if (window.gamepadCli) {
-        updateGamepadCount();
-      }
-    } catch (error) {
-      console.warn('[Renderer] Could not check main process gamepad count:', error);
-    }
-
-    logEvent('Gamepad detection triggered — press a button on your controller');
-  });
-
   // Close debug log
   document.getElementById('closeDebugLog')?.addEventListener('click', () => {
     const debugLogEl = document.getElementById('debugLog');
