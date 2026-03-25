@@ -1,4 +1,13 @@
 /**
+ * Pipeline state for an AI CLI session.
+ * Detected from AIAGENT-* keywords in PTY output.
+ */
+export type SessionState = 'implementing' | 'waiting' | 'planning' | 'idle';
+
+/** Runtime-safe list of valid SessionState values for input validation. */
+export const VALID_SESSION_STATES: readonly SessionState[] = ['implementing', 'waiting', 'planning', 'idle'];
+
+/**
  * CLI session information
  */
 export interface SessionInfo {
@@ -8,10 +17,14 @@ export interface SessionInfo {
   name: string;
   /** Type of CLI (e.g., 'claude-code', 'copilot-cli') */
   cliType: string;
-  /** OS window handle (hex string) */
+  /** OS window handle (hex string) — kept for backward compat with external window sessions */
   windowHandle: string;
   /** Process ID */
   processId: number;
+  /** Pipeline state detected from PTY output */
+  state?: SessionState;
+  /** True when AIAGENT-QUESTION detected; clears on next non-question output */
+  questionPending?: boolean;
 }
 
 /**
@@ -38,5 +51,15 @@ export interface SessionAddedEvent extends SessionInfo {
  */
 export interface SessionRemovedEvent {
   sessionId: string;
+  timestamp: number;
+}
+
+/**
+ * Emitted when a session's pipeline state changes (detected from AIAGENT-* keywords).
+ */
+export interface SessionStateChangeEvent {
+  sessionId: string;
+  previousState: SessionState;
+  newState: SessionState;
   timestamp: number;
 }

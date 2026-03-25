@@ -69,10 +69,11 @@ function createWindow(): void {
   const rendererPath = join(process.cwd(), 'renderer', 'index.html');
   mainWindow.loadFile(rendererPath);
 
-  // Show window when ready
+  // Show window when ready — maximize for embedded terminal usage
   mainWindow.once('ready-to-show', () => {
+    mainWindow?.maximize();
     mainWindow?.show();
-    logger.info('[Main] Sidebar shown');
+    logger.info('[Main] Window shown (maximized)');
   });
 
   // Preload check
@@ -89,8 +90,10 @@ function createWindow(): void {
     }
   });
 
-  // DevTools (kept for dev phase)
-  mainWindow.webContents.openDevTools();
+  // DevTools — only open in development
+  if (process.env.NODE_ENV !== 'production' && !app.isPackaged) {
+    mainWindow.webContents.openDevTools();
+  }
 
   // Re-snap sidebar after resize (debounced) — persists width + locks height/position
   let isRepositioning = false;
@@ -140,7 +143,7 @@ app.whenReady().then(() => {
   logger.info('[Main] App ready');
 
   // Register IPC handlers
-  cleanupIPC = registerIPCHandlers();
+  cleanupIPC = registerIPCHandlers(() => mainWindow);
 
   // Remove default application menu (no File/Edit/View/Window/Help needed)
   Menu.setApplicationMenu(null);

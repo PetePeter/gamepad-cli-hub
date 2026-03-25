@@ -218,6 +218,87 @@ const gamepadCliAPI = {
    */
   spawnCli: (cliType: string, workingDir?: string) => ipcRenderer.invoke('spawn:cli', cliType, workingDir),
 
+  // ========================================================================
+  // PTY Terminal Management
+  // ========================================================================
+
+  /** Spawn a new embedded PTY terminal */
+  ptySpawn: (sessionId: string, command: string, args: string[], cwd?: string, cliType?: string) =>
+    ipcRenderer.invoke('pty:spawn', sessionId, command, args, cwd, cliType),
+
+  /** Write data to a PTY terminal's stdin */
+  ptyWrite: (sessionId: string, data: string) =>
+    ipcRenderer.invoke('pty:write', sessionId, data),
+
+  /** Resize a PTY terminal */
+  ptyResize: (sessionId: string, cols: number, rows: number) =>
+    ipcRenderer.invoke('pty:resize', sessionId, cols, rows),
+
+  /** Kill a PTY terminal */
+  ptyKill: (sessionId: string) =>
+    ipcRenderer.invoke('pty:kill', sessionId),
+
+  /** Subscribe to PTY output data */
+  onPtyData: (callback: (sessionId: string, data: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, sessionId: string, data: string) => callback(sessionId, data);
+    ipcRenderer.on('pty:data', listener);
+    return () => ipcRenderer.removeListener('pty:data', listener);
+  },
+
+  /** Subscribe to PTY exit events */
+  onPtyExit: (callback: (sessionId: string, exitCode: number) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, sessionId: string, exitCode: number) => callback(sessionId, exitCode);
+    ipcRenderer.on('pty:exit', listener);
+    return () => ipcRenderer.removeListener('pty:exit', listener);
+  },
+
+  /** Subscribe to session state change events */
+  onPtyStateChange: (callback: (transition: { sessionId: string; previousState: string; newState: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('pty:state-change', listener);
+    return () => ipcRenderer.removeListener('pty:state-change', listener);
+  },
+
+  /** Subscribe to question detected events */
+  onPtyQuestionDetected: (callback: (event: { sessionId: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('pty:question-detected', listener);
+    return () => ipcRenderer.removeListener('pty:question-detected', listener);
+  },
+
+  /** Subscribe to question cleared events */
+  onPtyQuestionCleared: (callback: (event: { sessionId: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('pty:question-cleared', listener);
+    return () => ipcRenderer.removeListener('pty:question-cleared', listener);
+  },
+
+  // ========================================================================
+  // Pipeline Queue
+  // ========================================================================
+
+  /** Enqueue a session for auto-implementation */
+  pipelineEnqueue: (sessionId: string) => ipcRenderer.invoke('pipeline:enqueue', sessionId),
+
+  /** Remove a session from the waiting queue */
+  pipelineDequeue: (sessionId: string) => ipcRenderer.invoke('pipeline:dequeue', sessionId),
+
+  /** Get all sessions in the waiting queue */
+  pipelineGetQueue: () => ipcRenderer.invoke('pipeline:getQueue'),
+
+  /** Get a session's position in the queue (1-based, 0 if not queued) */
+  pipelineGetPosition: (sessionId: string) => ipcRenderer.invoke('pipeline:getPosition', sessionId),
+
+  /** Manually set a session's pipeline state */
+  sessionSetState: (sessionId: string, state: string) => ipcRenderer.invoke('session:setState', sessionId, state),
+
+  /** Subscribe to auto-handoff events */
+  onPtyHandoff: (callback: (event: { fromSessionId: string; toSessionId: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('pty:handoff', listener);
+    return () => ipcRenderer.removeListener('pty:handoff', listener);
+  },
+
   /**
    * Get working directory presets from config
    */

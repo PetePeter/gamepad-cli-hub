@@ -20,6 +20,17 @@ import {
 } from './navigation.js';
 import { hideDirPicker, showDirPicker } from './modals/dir-picker.js';
 import { closeBindingEditor, saveBinding } from './modals/binding-editor.js';
+import { TerminalManager } from './terminal/terminal-manager.js';
+
+// ============================================================================
+// Terminal Manager
+// ============================================================================
+
+let terminalManager: TerminalManager | null = null;
+
+export function getTerminalManager(): TerminalManager | null {
+  return terminalManager;
+}
 
 // ============================================================================
 // Debug Logging
@@ -190,6 +201,13 @@ async function init(): Promise<void> {
   // Cache config bindings for fast gamepad dispatch
   await initConfigCache();
 
+  // Initialize embedded terminal manager
+  const terminalContainer = document.getElementById('terminalContainer');
+  if (terminalContainer) {
+    terminalManager = new TerminalManager(terminalContainer);
+    console.log('[Renderer] Terminal manager initialized');
+  }
+
   // Update profile display
   await updateProfileDisplay();
 
@@ -248,6 +266,7 @@ if (document.readyState === 'loading') {
 
 // Handle cleanup
 window.addEventListener('beforeunload', () => {
+  terminalManager?.dispose();
   gamepadUnsubscribe?.();
   connectionUnsubscribe?.();
   browserGamepadUnsubscribe?.();

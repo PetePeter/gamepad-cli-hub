@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect } from 'vitest';
-import { parseSequence, formatSequencePreview, type SequenceAction } from '../renderer/sequence-parser';
+import { parseSequence, formatSequencePreview, type SequenceAction } from '../src/input/sequence-parser';
 
 describe('parseSequence', () => {
   describe('plain text', () => {

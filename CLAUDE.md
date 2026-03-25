@@ -80,14 +80,21 @@ Xbox Controller
 | Module | File | Responsibility |
 |--------|------|---------------|
 | **GamepadInput** | `src/input/gamepad.ts` | XInput polling via PowerShell P/Invoke, debouncing, button-press events, analog stick events (`onAnalog()`), haptic vibration commands |
-| **KeyboardSimulator** | `src/output/keyboard.ts` | Keystroke simulation via @jitsi/robotjs. `sendKey()`, `sendKeys()`, `sendKeyCombo()`, `longPress()`, `typeString()`, `keyDown()`, `keyUp()`, `comboDown()`, `comboUp()` for hold-key support |
-| **WindowManager** | `src/output/windows.ts` | Win32 window enumeration/focus via PowerShell |
+| **KeyboardSimulator** | `src/output/keyboard.ts` | ⚠️ DEPRECATED — Keystroke simulation via @jitsi/robotjs. Fallback for non-PTY contexts. |
+| **WindowManager** | `src/output/windows.ts` | ⚠️ DEPRECATED — Win32 window enumeration/focus via PowerShell. Replaced by embedded terminals. |
 | **SessionManager** | `src/session/manager.ts` | Track sessions, switch active, emit session:added/removed/changed. Calls persistence after every state change. |
 | **SessionPersistence** | `src/session/persistence.ts` | `saveSessions()`, `loadSessions()`, `clearPersistedSessions()` to `config/sessions.yaml`. Health check removes dead PIDs. |
 | **ProcessSpawner** | `src/session/spawner.ts` | Spawn detached CLI processes from config, register with SessionManager. Accepts optional `onExit` callback. |
+| **PtyManager** | `src/session/pty-manager.ts` | PTY process lifecycle — spawn via node-pty, write to stdin, resize, kill. One PTY per embedded terminal session. |
+| **StateDetector** | `src/session/state-detector.ts` | Scans PTY output for AIAGENT-* keywords to detect CLI state (waiting, implementing, etc.). |
+| **PipelineQueue** | `src/session/pipeline-queue.ts` | Auto-handoff queue — routes tasks to waiting sessions based on state detection. |
+| **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — sends initial text to newly spawned PTY sessions. |
+| **SequenceParser** | `src/input/sequence-parser.ts` | Parses keystroke sequence format strings into typed SequenceAction arrays. |
 | **ConfigLoader** | `src/config/loader.ts` | Split YAML config loading + profile/tools/directory CRUD. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getStickDirectionBinding()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 10 domain handler files (gamepad, session, config, profile, tools, window, spawn, keyboard, system, app). Dependencies injected via function parameters. |
-| **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization), bindings, navigation, screens (sessions/settings, status stub), modals (dir-picker/binding-editor). Browser Gamepad API. Vertical session cards + spawn grid with inline spawn wizard. Slide-over settings with status tab (merged from old status screen). |
+| **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization), bindings (PTY-aware routing), navigation, screens (sessions/settings, status stub), modals (dir-picker/binding-editor). Browser Gamepad API. Vertical session cards + spawn grid with inline spawn wizard. Slide-over settings with status tab. |
+| **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. |
+| **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, PTY IPC data routing, and cleanup. |
 | **XInput Script** | `src/input/xinput-poll.ps1` | External PowerShell XInput P/Invoke polling script. Emits button events (DPadUp/DPadDown/DPadLeft/DPadRight, face buttons, etc.) + raw analog stick values. Supports `XInputSetState` for haptic vibration. Stick virtual buttons are generated in the renderer, not here. |
 | **Logger** | `src/utils/logger.ts` | Winston logger with daily rotation. Used across all src/ modules. |
 | **CLI Entry** | `src/index.ts` | Standalone CLI orchestrator (GamepadCliHub class). Handles all action types including `close-session` and `hub-focus`. Resolves stick direction bindings before falling back to stick mode. |
@@ -148,8 +155,9 @@ sticks:
 | Bundler | esbuild |
 | Tests | Vitest |
 | Gamepad input | PowerShell XInput + Browser Gamepad API |
-| Keyboard sim | @jitsi/robotjs |
-| Window mgmt | PowerShell Win32 API |
+| Keyboard sim | @jitsi/robotjs (deprecated — PTY fallback only) |
+| Window mgmt | PowerShell Win32 API (deprecated — embedded terminals) |
+| Embedded terminals | node-pty + @xterm/xterm (xterm.js) |
 | Haptic feedback | PowerShell XInputSetState P/Invoke |
 | Config | YAML (yaml package) |
 | Logging | Winston |
@@ -167,6 +175,38 @@ sticks:
 9. **Session persistence** — Sessions saved to `config/sessions.yaml` after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skipping duplicates). A health check (`startHealthCheck()`) periodically removes dead PIDs via `process.kill(pid, 0)`. Survives crashes and restarts.
 10. **Sidebar session UI** — App runs as a 320px frameless always-on-top sidebar (left or right edge). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with an inline directory wizard. Settings is a slide-over panel with status merged as a tab. Sandwich button focuses the hub and returns to the sessions screen. Old 3-panel Session Launcher HUD removed.
 11. **Analog stick virtual buttons** — Each stick emits distinct virtual button names (e.g. `LeftStickUp`, `RightStickDown`) that can be bound like physical buttons. If no explicit binding exists, the stick falls back to its configured mode (cursor or scroll). D-pad buttons are separate (`DPadUp`, `DPadDown`, etc.). All directional inputs are normalized to cardinal directions via `toDirection()` for UI navigation. All inputs are context-dependent except Sandwich (hardcoded hub focus).
+
+## Embedded Terminal Architecture
+
+CLIs now run inside the Electron app as embedded terminals instead of external windows.
+
+**Stack:** node-pty (PTY process management) + xterm.js (terminal rendering)
+
+```
+Gamepad Button Press
+  → bindings.ts: check for active embedded terminal
+    → YES: convert key/combo to PTY escape sequence → ptyWrite(sessionId, data)
+    → NO:  fallback to robotjs keyboard simulation (legacy path)
+
+PTY Data Flow:
+  Main Process                           Renderer Process
+  ┌─────────────┐   IPC: pty:data       ┌──────────────────┐
+  │ PtyManager   │ ────────────────────→ │ TerminalManager   │
+  │ (node-pty)   │                       │  → TerminalView   │
+  │              │ ←──────────────────── │    (xterm.js)     │
+  └─────────────┘   IPC: pty:write       └──────────────────┘
+```
+
+**Key modules:**
+- `src/session/pty-manager.ts` — Spawns node-pty processes, routes stdin/stdout, handles resize/kill
+- `src/session/state-detector.ts` — Scans PTY output for `AIAGENT-*` keywords to detect CLI state
+- `src/session/pipeline-queue.ts` — Auto-handoff: routes queued tasks to the first session in "waiting" state
+- `src/session/initial-prompt.ts` — Sends pre-configured text to newly spawned PTY sessions
+- `renderer/terminal/terminal-view.ts` — xterm.js wrapper with fit/search addons
+- `renderer/terminal/terminal-manager.ts` — Multi-terminal switching and lifecycle
+- `renderer/bindings.ts` — PTY-aware input routing with escape sequence conversion
+
+**PTY escape conversion:** `keyToPtyEscape()` and `comboToPtyEscape()` in `renderer/bindings.ts` translate named keys (Enter, Tab, arrows, F-keys) and modifier combos (Ctrl+C, Ctrl+Z) into terminal escape sequences for writing to PTY stdin.
 
 ## Build & Test
 
@@ -207,14 +247,19 @@ src/
 │       └── app-handlers.ts
 ├── input/
 │   ├── gamepad.ts              # XInput polling + debounce + button/analog events + haptic commands
+│   ├── sequence-parser.ts      # Keystroke sequence format parser
 │   └── xinput-poll.ps1         # PowerShell XInput P/Invoke + XInputSetState for haptics
 ├── output/
-│   ├── keyboard.ts             # Keystroke simulation (robotjs) + hold-key support (keyDown/keyUp/comboDown/comboUp)
-│   └── windows.ts              # Window enumeration/focus (PowerShell Win32)
+│   ├── keyboard.ts             # DEPRECATED: Keystroke simulation (robotjs) — PTY fallback only
+│   └── windows.ts              # DEPRECATED: Window enumeration/focus (PowerShell Win32)
 ├── session/
 │   ├── manager.ts              # Session tracking (EventEmitter), calls persistence on changes
 │   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + health check
 │   ├── spawner.ts              # CLI process spawning (optional onExit callback)
+│   ├── pty-manager.ts          # PTY process management (node-pty spawn/write/resize/kill)
+│   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection
+│   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue
+│   ├── initial-prompt.ts       # Per-CLI prompt pre-loading
 │   └── index.ts
 ├── config/
 │   └── loader.ts               # Split YAML config + CRUD + StickConfig + haptic settings
@@ -226,12 +271,15 @@ src/
 
 renderer/
 ├── index.html                  # Main UI template
-├── main.ts                     # Entry point — init, wiring, DOMContentLoaded
+├── main.ts                     # Entry point — init, wiring, DOMContentLoaded, terminal manager
 ├── state.ts                    # Shared AppState type + singleton
 ├── utils.ts                    # DOM helpers, logEvent, showScreen, toDirection
-├── bindings.ts                 # Config cache, binding dispatch (CLI → global fallback)
-├── navigation.ts               # Gamepad navigation setup, event routing
+├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing + robotjs fallback)
+├── navigation.ts               # Gamepad navigation setup, event routing, terminal scrolling
 ├── gamepad.ts                  # Browser Gamepad API wrapper
+├── terminal/
+│   ├── terminal-view.ts        # xterm.js wrapper (fit/search/weblinks addons)
+│   └── terminal-manager.ts     # Multi-terminal orchestration (create/switch/resize/destroy)
 ├── screens/
 │   ├── sessions.ts             # Vertical session cards + spawn grid + inline wizard
 │   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn/wizard zones)
@@ -260,5 +308,10 @@ tests/
 ├── windows.test.ts             # 34 tests
 ├── config.test.ts              # 80 tests (base + stick config + haptic + virtual buttons)
 ├── index.test.ts               # 44 tests (action dispatch + hold-key + close-session + stick bindings)
-└── sessions-screen.test.ts     # 67 tests (session cards + spawn grid navigation + directional buttons)
+├── sessions-screen.test.ts     # 67 tests (session cards + spawn grid navigation + directional buttons)
+├── sequence-parser.test.ts     # Sequence format parser tests
+├── pty-manager.test.ts         # PTY process management tests
+├── terminal-manager.test.ts    # Embedded terminal lifecycle tests
+├── bindings-pty.test.ts        # PTY escape helpers + routing tests
+└── ...
 ```

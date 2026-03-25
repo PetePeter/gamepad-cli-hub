@@ -75,17 +75,19 @@ A:
 ```mermaid
 graph LR
     XB[Xbox Controller] --> APP[Gamepad CLI Hub]
-    APP --> T1[Claude Code]
-    APP --> T2[Copilot CLI]
-    APP --> T3[Any Terminal]
+    APP --> T1[Claude Code PTY]
+    APP --> T2[Copilot CLI PTY]
+    APP --> T3[OpenCode PTY]
     APP --> T4[... more sessions]
 
     style APP fill:#4a9eff,color:#fff,stroke:#2d7ad6
 ```
 
-The app sits between your controller and your terminal windows. It reads gamepad input (buttons and analog sticks), resolves bindings, and sends keystrokes to whichever window should have focus. Your terminals are real, standalone windows — not embedded shells — so there are zero compatibility compromises.
+The app sits between your controller and your AI coding assistants. It reads gamepad input (buttons and analog sticks), resolves bindings, and routes keystrokes to embedded terminal sessions running inside the app via PTY. Terminals run inline — full xterm.js rendering with state-aware pipeline management.
 
-Sessions persist across restarts — if the app crashes or you reboot, it picks up where you left off and cleans up any sessions that didn't survive.
+Each terminal session has a state (implementing, waiting, planning, idle) auto-detected from CLI output keywords, and a pipeline queue auto-dispatches work to waiting sessions as implementers finish.
+
+Sessions persist across restarts — if the app crashes or you reboot, it picks up where you left off.
 
 Works with USB and Bluetooth Xbox controllers out of the box.
 

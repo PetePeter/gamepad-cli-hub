@@ -1,6 +1,9 @@
 /**
  * Windows Window Management Module
  *
+ * @deprecated External window management is being replaced by embedded terminals.
+ * This module will be removed once the migration is complete.
+ *
  * Provides window enumeration and focus management using PowerShell
  * with Windows COM APIs (WScript.Shell and UI Automation).
  */

@@ -8,10 +8,53 @@
 import { state } from './state.js';
 import { logEvent, showScreen, updateProfileDisplay } from './utils.js';
 import { loadSessions, spawnNewSession } from './screens/sessions.js';
-import { parseSequence, formatSequencePreview, type SequenceAction } from './sequence-parser.js';
+import { parseSequence, formatSequencePreview, type SequenceAction } from '../src/input/sequence-parser.js';
+import { getTerminalManager } from './main.js';
 
 // Tracks which buttons are currently holding keys down
 const heldKeys = new Map<string, string[]>();
+
+// ============================================================================
+// PTY Escape Sequence Helpers
+// ============================================================================
+
+/** Map a named key to its terminal escape sequence or character. */
+export function keyToPtyEscape(key: string): string {
+  const keyMap: Record<string, string> = {
+    'Enter': '\r',
+    'Tab': '\t',
+    'Escape': '\x1b',
+    'Backspace': '\x7f',
+    'Delete': '\x1b[3~',
+    'Up': '\x1b[A',
+    'Down': '\x1b[B',
+    'Right': '\x1b[C',
+    'Left': '\x1b[D',
+    'Home': '\x1b[H',
+    'End': '\x1b[F',
+    'PageUp': '\x1b[5~',
+    'PageDown': '\x1b[6~',
+    'Space': ' ',
+    'F1': '\x1bOP', 'F2': '\x1bOQ', 'F3': '\x1bOR', 'F4': '\x1bOS',
+    'F5': '\x1b[15~', 'F6': '\x1b[17~', 'F7': '\x1b[18~', 'F8': '\x1b[19~',
+    'F9': '\x1b[20~', 'F10': '\x1b[21~', 'F11': '\x1b[23~', 'F12': '\x1b[24~',
+  };
+  return keyMap[key] ?? key;  // fallback: send the key character itself
+}
+
+/** Map a modifier+key combo to a terminal escape sequence (e.g. Ctrl+C → \x03). */
+export function comboToPtyEscape(keys: string[]): string {
+  if (keys.length === 2 && keys[0].toLowerCase() === 'ctrl') {
+    const k = keys[1].toUpperCase();
+    if (k.length === 1 && k >= 'A' && k <= 'Z') {
+      return String.fromCharCode(k.charCodeAt(0) - 64);
+    }
+    // Ctrl+special keys
+    if (k === '[') return '\x1b';  // Ctrl+[ = Escape
+  }
+  // For other combos, just send the keys as text
+  return keys.join('');
+}
 
 export async function initConfigCache(): Promise<void> {
   try {
@@ -125,14 +168,26 @@ async function executeGlobalBinding(button: string, binding: any): Promise<void>
 export function processConfigRelease(button: string): void {
   const keys = heldKeys.get(button);
   if (keys) {
-    window.gamepadCli.keyboardComboUp(keys);
+    const tm = getTerminalManager();
+    const activeId = tm?.getActiveSessionId();
+
+    // Only release via robotjs if NOT in terminal mode
+    if (!activeId) {
+      window.gamepadCli.keyboardComboUp(keys);
+    }
     heldKeys.delete(button);
   }
 }
 
 export function releaseAllHeldKeys(): void {
+  const tm = getTerminalManager();
+  const activeId = tm?.getActiveSessionId();
+
   for (const [_button, keys] of heldKeys) {
-    window.gamepadCli.keyboardComboUp(keys);
+    // Only release via robotjs if NOT in terminal mode
+    if (!activeId) {
+      window.gamepadCli.keyboardComboUp(keys);
+    }
   }
   heldKeys.clear();
 }
@@ -150,13 +205,32 @@ async function executeCliBinding(button: string, binding: any): Promise<void> {
           console.warn(`[Renderer] Keyboard binding for ${button} missing both keys and sequence`);
           break;
         }
-        if (binding.hold) {
-          await window.gamepadCli.keyboardComboDown(binding.keys);
-          heldKeys.set(button, binding.keys);
-          logEvent(`Hold: ${binding.keys.join('+')}`);
+
+        const tm = getTerminalManager();
+        const activeId = tm?.getActiveSessionId();
+
+        if (activeId && window.gamepadCli?.ptyWrite) {
+          // Route legacy keys to PTY — treat each key as a tap
+          if (binding.hold) {
+            const esc = comboToPtyEscape(binding.keys);
+            await window.gamepadCli.ptyWrite(activeId, esc);
+          } else {
+            for (const key of binding.keys) {
+              const esc = keyToPtyEscape(key);
+              await window.gamepadCli.ptyWrite(activeId, esc);
+            }
+          }
+          logEvent(`PTY keys: ${binding.keys.join('+')}`);
         } else {
-          await window.gamepadCli.keyboardSendKeys(binding.keys);
-          logEvent(`Keys: ${binding.keys.join('+')}`);
+          // Fallback to robotjs
+          if (binding.hold) {
+            await window.gamepadCli.keyboardComboDown(binding.keys);
+            heldKeys.set(button, binding.keys);
+            logEvent(`Hold: ${binding.keys.join('+')}`);
+          } else {
+            await window.gamepadCli.keyboardSendKeys(binding.keys);
+            logEvent(`Keys: ${binding.keys.join('+')}`);
+          }
         }
         break;
       }
@@ -183,6 +257,34 @@ async function executeSequence(input: string): Promise<void> {
 }
 
 async function executeSequenceAction(action: SequenceAction): Promise<void> {
+  const tm = getTerminalManager();
+  const activeId = tm?.getActiveSessionId();
+
+  // Route to embedded PTY terminal if one is active
+  if (activeId && window.gamepadCli?.ptyWrite) {
+    switch (action.type) {
+      case 'text':
+        await window.gamepadCli.ptyWrite(activeId, action.value);
+        break;
+      case 'key':
+        await window.gamepadCli.ptyWrite(activeId, keyToPtyEscape(action.key));
+        break;
+      case 'combo':
+        await window.gamepadCli.ptyWrite(activeId, comboToPtyEscape(action.keys));
+        break;
+      case 'modDown':
+        // Modifier holds don't make sense for PTY — no-op
+        break;
+      case 'modUp':
+        break;
+      case 'wait':
+        await new Promise(resolve => setTimeout(resolve, action.ms));
+        break;
+    }
+    return;
+  }
+
+  // Fallback to robotjs for non-terminal contexts (backward compat)
   switch (action.type) {
     case 'text':
       await window.gamepadCli.keyboardTypeString(action.value);

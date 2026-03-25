@@ -1,6 +1,8 @@
 /**
  * Window IPC Handlers
  *
+ * @deprecated Window handlers will be removed once external terminal management is retired.
+ *
  * Window focus, terminal enumeration, hub window management,
  * and sidebar positioning/pinning controls.
  */

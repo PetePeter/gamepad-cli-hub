@@ -1,6 +1,8 @@
 /**
  * Keyboard IPC Handlers
  *
+ * @deprecated Keyboard handlers will be removed once all input routes through PTY.
+ *
  * Keyboard simulation — key sequences and text typing.
  */
 

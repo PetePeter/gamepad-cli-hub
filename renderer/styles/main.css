@@ -1325,3 +1325,130 @@ kbd {
   margin-top: 0.5rem;
   padding: 0.25rem 0.5rem;
 }
+
+/* ============================================================================
+   Terminal Area (Phase 2 — Embedded Terminals)
+   ============================================================================ */
+
+.terminal-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.terminal-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  min-height: 36px;
+}
+
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.terminal-tab:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.terminal-tab--active {
+  background: var(--bg-tertiary);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+.terminal-tab__state {
+  font-size: 10px;
+}
+
+.terminal-tab__name {
+  font-weight: 500;
+}
+
+.terminal-tab__badge {
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: var(--radius-sm, 4px);
+  font-weight: 700;
+}
+
+.terminal-tab__badge--question {
+  background: rgba(255, 170, 0, 0.2);
+  color: #ffaa00;
+}
+
+.terminal-tab__badge--queue {
+  background: rgba(255, 170, 0, 0.15);
+  color: #ffaa00;
+  font-size: 9px;
+}
+
+.terminal-tab__close {
+  font-size: 14px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.terminal-tab__close:hover {
+  color: var(--accent);
+}
+
+.terminal-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.terminal-pane {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.terminal-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-height: 28px;
+}
+
+.terminal-status__state {
+  font-weight: 600;
+}
+
+.terminal-status__info {
+  margin-left: auto;
+}
+
+/* State color indicators on tabs */
+.terminal-tab[data-state="implementing"] .terminal-tab__state { color: #44cc44; }
+.terminal-tab[data-state="waiting"] .terminal-tab__state { color: #ffaa00; }
+.terminal-tab[data-state="planning"] .terminal-tab__state { color: #4488ff; }
+.terminal-tab[data-state="idle"] .terminal-tab__state { color: var(--text-dim); }

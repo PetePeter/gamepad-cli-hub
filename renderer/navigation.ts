@@ -12,6 +12,7 @@ import { handleDirPickerButton } from './modals/dir-picker.js';
 import { dirPickerState } from './modals/dir-picker.js';
 import { handleBindingEditorButton } from './modals/binding-editor.js';
 import { bindingEditorState } from './modals/binding-editor.js';
+import { getTerminalManager } from './main.js';
 
 // ============================================================================
 // Unsubscribe handles (exported so main.ts can clean up)
@@ -101,6 +102,20 @@ function handleConnectionEvent(event: { connected: boolean; count: number; times
 
 export function handleGamepadEvent(event: ButtonEvent): void {
   logEvent(`⬇ ${event.button}`);
+
+  // Terminal scrolling via right stick
+  if (event.button === 'RightStickUp' || event.button === 'RightStickDown') {
+    const tm = getTerminalManager();
+    const activeId = tm?.getActiveSessionId();
+    if (activeId) {
+      const session = tm?.getSession(activeId);
+      if (session) {
+        const lines = event.button === 'RightStickUp' ? -5 : 5;
+        session.view.scrollLines(lines);
+        return;
+      }
+    }
+  }
 
   // Update status
   const lastBtnEl = document.getElementById('statusLastButton');

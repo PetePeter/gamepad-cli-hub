@@ -1,6 +1,9 @@
 /**
  * Keyboard Simulation Module
  *
+ * @deprecated Use PTY stdin writes instead. This module will be removed
+ * once all keyboard input is routed through embedded terminals.
+ *
  * Provides keyboard input simulation using robotjs.
  * Supports individual keys, key sequences, combinations, and hold-down/release.
  */

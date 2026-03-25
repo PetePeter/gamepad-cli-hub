@@ -1,0 +1,321 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { scheduleInitialPrompt, actionToPtyData } from '../src/session/initial-prompt';
+import type { SequenceAction } from '../src/input/sequence-parser';
+
+vi.mock('../src/utils/logger.js', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
+describe('actionToPtyData', () => {
+  it('returns text value for text actions', () => {
+    const action: SequenceAction = { type: 'text', value: 'hello world' };
+    expect(actionToPtyData(action)).toBe('hello world');
+  });
+
+  it('returns null for Enter key (does not auto-submit)', () => {
+    const action: SequenceAction = { type: 'key', key: 'Enter' };
+    expect(actionToPtyData(action)).toBeNull();
+  });
+
+  it('maps Tab to \\t', () => {
+    const action: SequenceAction = { type: 'key', key: 'Tab' };
+    expect(actionToPtyData(action)).toBe('\t');
+  });
+
+  it('maps Escape to \\x1b', () => {
+    const action: SequenceAction = { type: 'key', key: 'Escape' };
+    expect(actionToPtyData(action)).toBe('\x1b');
+  });
+
+  it('maps Backspace to \\x7f', () => {
+    const action: SequenceAction = { type: 'key', key: 'Backspace' };
+    expect(actionToPtyData(action)).toBe('\x7f');
+  });
+
+  it('maps Space to literal space', () => {
+    const action: SequenceAction = { type: 'key', key: 'Space' };
+    expect(actionToPtyData(action)).toBe(' ');
+  });
+
+  it('maps arrow keys to ANSI escape sequences', () => {
+    expect(actionToPtyData({ type: 'key', key: 'Up' })).toBe('\x1b[A');
+    expect(actionToPtyData({ type: 'key', key: 'Down' })).toBe('\x1b[B');
+    expect(actionToPtyData({ type: 'key', key: 'Right' })).toBe('\x1b[C');
+    expect(actionToPtyData({ type: 'key', key: 'Left' })).toBe('\x1b[D');
+  });
+
+  it('returns null for unknown keys', () => {
+    const action: SequenceAction = { type: 'key', key: 'F99' };
+    expect(actionToPtyData(action)).toBeNull();
+  });
+
+  it('maps Ctrl+C combo to \\x03', () => {
+    const action: SequenceAction = { type: 'combo', keys: ['Ctrl', 'C'] };
+    expect(actionToPtyData(action)).toBe('\x03');
+  });
+
+  it('maps Ctrl+A combo to \\x01', () => {
+    const action: SequenceAction = { type: 'combo', keys: ['Ctrl', 'A'] };
+    expect(actionToPtyData(action)).toBe('\x01');
+  });
+
+  it('maps Ctrl+Z combo to \\x1a', () => {
+    const action: SequenceAction = { type: 'combo', keys: ['Ctrl', 'Z'] };
+    expect(actionToPtyData(action)).toBe('\x1a');
+  });
+
+  it('maps Ctrl+L combo to \\x0c (case-insensitive ctrl)', () => {
+    const action: SequenceAction = { type: 'combo', keys: ['ctrl', 'L'] };
+    expect(actionToPtyData(action)).toBe('\x0c');
+  });
+
+  it('returns null for non-Ctrl combos', () => {
+    const action: SequenceAction = { type: 'combo', keys: ['Alt', 'F4'] };
+    expect(actionToPtyData(action)).toBeNull();
+  });
+
+  it('returns null for wait actions', () => {
+    const action: SequenceAction = { type: 'wait', ms: 500 };
+    expect(actionToPtyData(action)).toBeNull();
+  });
+
+  it('returns null for modDown actions', () => {
+    const action: SequenceAction = { type: 'modDown', key: 'Ctrl' };
+    expect(actionToPtyData(action)).toBeNull();
+  });
+
+  it('returns null for modUp actions', () => {
+    const action: SequenceAction = { type: 'modUp', key: 'Ctrl' };
+    expect(actionToPtyData(action)).toBeNull();
+  });
+});
+
+describe('scheduleInitialPrompt', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns null for empty initialPrompt', () => {
+    const result = scheduleInitialPrompt('s1', { initialPrompt: '' }, vi.fn());
+    expect(result).toBeNull();
+  });
+
+  it('returns null for undefined initialPrompt', () => {
+    const result = scheduleInitialPrompt('s1', {}, vi.fn());
+    expect(result).toBeNull();
+  });
+
+  it('returns null for whitespace-only initialPrompt', () => {
+    const result = scheduleInitialPrompt('s1', { initialPrompt: '   ' }, vi.fn());
+    expect(result).toBeNull();
+  });
+
+  it('returns a cancel function for valid prompt', () => {
+    const cancel = scheduleInitialPrompt('s1', { initialPrompt: 'hello' }, vi.fn());
+    expect(cancel).toBeTypeOf('function');
+    cancel!();
+  });
+
+  it('writes text to PTY after delay', async () => {
+    const writeFn = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: 'hello world',
+      initialPromptDelay: 1000,
+    }, writeFn);
+
+    // Not written yet
+    expect(writeFn).not.toHaveBeenCalled();
+
+    // Advance past delay
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(writeFn).toHaveBeenCalledWith('s1', 'hello world');
+  });
+
+  it('uses default delay of 2000ms', async () => {
+    const writeFn = vi.fn();
+    scheduleInitialPrompt('s1', { initialPrompt: 'test' }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(writeFn).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(writeFn).toHaveBeenCalledWith('s1', 'test');
+  });
+
+  it('does NOT write Enter/newline — prompt stays in input buffer', async () => {
+    const writeFn = vi.fn();
+    // "\n" parses to { type: 'key', key: 'Enter' } — should be skipped
+    scheduleInitialPrompt('s1', {
+      initialPrompt: 'hello\n',
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Only 'hello' should be written, not Enter
+    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn).toHaveBeenCalledWith('s1', 'hello');
+  });
+
+  it('cancel function prevents writing', async () => {
+    const writeFn = vi.fn();
+    const cancel = scheduleInitialPrompt('s1', {
+      initialPrompt: 'hello',
+      initialPromptDelay: 1000,
+    }, writeFn);
+
+    cancel!();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(writeFn).not.toHaveBeenCalled();
+  });
+
+  it('handles Tab key correctly', async () => {
+    const writeFn = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: '{Tab}',
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(writeFn).toHaveBeenCalledWith('s1', '\t');
+  });
+
+  it('handles Ctrl+C combo', async () => {
+    const writeFn = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: '{Ctrl+C}',
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(writeFn).toHaveBeenCalledWith('s1', '\x03');
+  });
+
+  it('writes multiple text segments in order', async () => {
+    const writeFn = vi.fn();
+    // "hello{Tab}world" → text("hello") + key("Tab") + text("world")
+    scheduleInitialPrompt('s1', {
+      initialPrompt: 'hello{Tab}world',
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(writeFn).toHaveBeenCalledTimes(3);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', 'hello']);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', '\t']);
+    expect(writeFn.mock.calls[2]).toEqual(['s1', 'world']);
+  });
+
+  it('zero delay works (immediate execution)', async () => {
+    const writeFn = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: 'fast',
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(writeFn).toHaveBeenCalledWith('s1', 'fast');
+  });
+
+  it('prompt with only newlines produces no output (Enter is skipped)', async () => {
+    const writeFn = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: '\n\n\n',
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(writeFn).not.toHaveBeenCalled();
+  });
+
+  it('handles Wait actions with delay between writes', async () => {
+    const writeFn = vi.fn();
+    // "a{Wait 500}b" → text("a") + wait(500) + text("b")
+    scheduleInitialPrompt('s1', {
+      initialPrompt: 'a{Wait 500}b',
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    // Execute the initial setTimeout(0)
+    await vi.advanceTimersByTimeAsync(0);
+
+    // "a" should be written, "b" not yet (waiting 500ms)
+    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn).toHaveBeenCalledWith('s1', 'a');
+
+    // Advance past the wait
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', 'b']);
+  });
+
+  it('complex prompt with text + special keys + waits', async () => {
+    const writeFn = vi.fn();
+    // "/clear{Tab}{Wait 200}yes{Ctrl+S}"
+    scheduleInitialPrompt('s1', {
+      initialPrompt: '/clear{Tab}{Wait 200}yes{Ctrl+S}',
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    // "/clear" + Tab written, then wait 200ms
+    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', '/clear']);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', '\t']);
+
+    // Advance past wait
+    await vi.advanceTimersByTimeAsync(200);
+
+    // "yes" + Ctrl+S (\x13)
+    expect(writeFn).toHaveBeenCalledTimes(4);
+    expect(writeFn.mock.calls[2]).toEqual(['s1', 'yes']);
+    expect(writeFn.mock.calls[3]).toEqual(['s1', '\x13']);
+  });
+
+  it('cancellation during wait prevents subsequent writes', async () => {
+    const writeFn = vi.fn();
+    const cancel = scheduleInitialPrompt('s1', {
+      initialPrompt: 'a{Wait 500}b',
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    // "a" written
+    expect(writeFn).toHaveBeenCalledTimes(1);
+
+    // Cancel during the wait
+    cancel!();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // "b" should NOT be written
+    expect(writeFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips modDown and modUp actions', async () => {
+    const writeFn = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: '{Ctrl Down}x{Ctrl Up}',
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Only the text "x" should be written
+    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn).toHaveBeenCalledWith('s1', 'x');
+  });
+});

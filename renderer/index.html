@@ -6,6 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:">
   <title>Gamepad CLI Hub</title>
   <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css">
 </head>
 <body>
   <div id="app" class="sidebar">
@@ -63,6 +64,20 @@
       </section>
 
     </main>
+
+    <!-- Embedded Terminal Area (Phase 2) -->
+    <div class="terminal-area" id="terminalArea" style="display:none">
+      <div class="terminal-tabs" id="terminalTabs">
+        <!-- Tab bar rendered dynamically by terminal-manager -->
+      </div>
+      <div class="terminal-container" id="terminalContainer">
+        <!-- xterm.js terminals rendered here -->
+      </div>
+      <div class="terminal-status" id="terminalStatus">
+        <span class="terminal-status__state" id="terminalStateLabel">💤 Idle</span>
+        <span class="terminal-status__info" id="terminalInfoLabel"></span>
+      </div>
+    </div>
 
     <!-- Hidden status placeholders (updated by navigation.ts, read by settings status tab) -->
     <div style="display:none">

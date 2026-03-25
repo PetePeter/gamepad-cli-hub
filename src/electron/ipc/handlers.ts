@@ -6,7 +6,11 @@
  * are never imported directly by the application.
  */
 
+import type { BrowserWindow } from 'electron';
 import { SessionManager } from '../../session/manager.js';
+import { PtyManager } from '../../session/pty-manager.js';
+import { StateDetector } from '../../session/state-detector.js';
+import { PipelineQueue } from '../../session/pipeline-queue.js';
 import { gamepadInput } from '../../input/gamepad.js';
 import { configLoader } from '../../config/loader.js';
 import { windowManager } from '../../output/windows.js';
@@ -24,6 +28,7 @@ import { setupSpawnHandlers } from './spawn-handlers.js';
 import { setupKeyboardHandlers } from './keyboard-handlers.js';
 import { setupAppHandlers } from './app-handlers.js';
 import { setupSystemHandlers } from './system-handlers.js';
+import { setupPtyHandlers, cancelAllPrompts } from './pty-handlers.js';
 
 
 /**
@@ -32,7 +37,7 @@ import { setupSystemHandlers } from './system-handlers.js';
  * Dependencies are created/imported here and injected into each domain module
  * so handler files never import singletons directly.
  */
-export function registerIPCHandlers(): () => void {
+export function registerIPCHandlers(getMainWindow: () => BrowserWindow | null): () => void {
   logger.info('[IPC] Registering handlers');
 
   // Load config eagerly so individual handlers don't need to call load()
@@ -45,6 +50,9 @@ export function registerIPCHandlers(): () => void {
 
   // SessionManager is created here and shared via dependency injection
   const sessionManager = new SessionManager();
+  const ptyManager = new PtyManager();
+  const stateDetector = new StateDetector();
+  const pipelineQueue = new PipelineQueue();
 
   setupGamepadHandlers(gamepadInput);
   const cleanupSession = setupSessionHandlers(sessionManager, windowManager);
@@ -56,11 +64,14 @@ export function registerIPCHandlers(): () => void {
   setupKeyboardHandlers(keyboard);
   setupAppHandlers();
   setupSystemHandlers();
+  setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader);
 
   logger.info('[IPC] All handlers registered');
 
   return () => {
     cleanupSession();
+    cancelAllPrompts();
+    ptyManager.killAll();
     windowManager.cleanup();
     logger.info('[IPC] Cleanup complete');
   };
