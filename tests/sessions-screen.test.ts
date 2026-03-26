@@ -31,10 +31,11 @@ const mockSwitchTo = vi.fn();
 
 vi.mock('../renderer/utils.js', () => {
   const dirMap: Record<string, string> = {
-    DPadUp: 'up', LeftStickUp: 'up',
-    DPadDown: 'down', LeftStickDown: 'down',
-    DPadLeft: 'left', LeftStickLeft: 'left',
-    DPadRight: 'right', LeftStickRight: 'right',
+    DPadUp: 'up',
+    DPadDown: 'down',
+    DPadLeft: 'left',
+    DPadRight: 'right',
+    // Left/right sticks excluded — only used for CLI bindings, not UI navigation
   };
   return {
     logEvent: mockLogEvent,
@@ -508,9 +509,11 @@ describe('Sessions Screen', () => {
       expect(sessions.handleSessionsScreenButton('UnknownButton')).toBe(false);
     });
 
-    it('LeftStickDown also navigates down (toDirection mapping)', () => {
-      sessions.handleSessionsScreenButton('LeftStickDown');
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+    it('LeftStickDown does NOT navigate session list (no toDirection mapping)', () => {
+      const before = sessionsState.sessionsFocusIndex;
+      // LeftStick is not in dirMap, so toDirection returns null and it's not consumed
+      expect(sessions.handleSessionsScreenButton('LeftStickDown')).toBe(false);
+      expect(sessionsState.sessionsFocusIndex).toBe(before);
     });
 
     it('RightStick does NOT navigate the session list', () => {
