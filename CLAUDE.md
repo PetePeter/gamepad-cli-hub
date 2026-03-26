@@ -29,7 +29,7 @@ graph TB
             SD[StateDetector<br/>AIAGENT-* keywords]
             PQ[PipelineQueue<br/>Auto-handoff]
             IP[InitialPrompt<br/>Sequence → PTY]
-            CL[ConfigLoader<br/>Split YAML]
+            CL[ConfigLoader<br/>Profile YAML]
         end
 
         UI <-->|contextBridge| IPC
@@ -91,9 +91,9 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 | **PipelineQueue** | `src/session/pipeline-queue.ts` | Auto-handoff queue — routes tasks to waiting sessions based on state detection. |
 | **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. |
 | **SequenceParser** | `src/input/sequence-parser.ts` | Parses sequence format strings (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, `{Mod Down/Up}`, `{{`/`}}` escapes, plain text) into typed SequenceAction arrays. Used by both button bindings and initial prompts. |
-| **ConfigLoader** | `src/config/loader.ts` | Split YAML config loading + profile/tools/directory CRUD. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
+| **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 7 domain handler files (session, config, profile, tools, keyboard, pty, system). Dependencies injected via function parameters. |
-| **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings, status stub), modals (dir-picker/binding-editor). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
+| **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. |
 | **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, grey=idle). Exposes onSwitch/onEmpty callbacks. |
 | **Logger** | `src/utils/logger.ts` | Winston logger with daily rotation. Used across all src/ modules. |
@@ -101,13 +101,15 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 
 ```
 config/
-├── settings.yaml       # Active profile name, hapticFeedback toggle
-├── tools.yaml          # CLI type definitions (spawn commands)
-├── directories.yaml    # Working directory presets
-├── sessions.yaml       # Persisted session state (auto-managed)
+├── settings.yaml               # Active profile name, hapticFeedback toggle, sidebar prefs, sorting
+├── sessions.yaml               # Persisted session state (auto-managed)
 └── profiles/
-    └── default.yaml    # Button bindings (per CLI type) + stick config
+    └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 ```
+
+**Profiles are self-contained** — each profile YAML includes tools (CLI definitions), working directories, button bindings, stick config, and dpad config. Switching profiles changes everything. Profile switch shows a confirmation dialog when terminals are open (keep sessions / close all). `createProfile()` copies tools + dirs from the current profile.
+
+**Auto-migration:** On first load, if legacy `config/tools.yaml` and `config/directories.yaml` exist, their contents are merged into all profiles and the old files are deleted.
 
 **Binding resolution:** CLI-specific bindings are used. Each profile defines different button behaviours per CLI type.
 
@@ -119,12 +121,11 @@ config/
 
 **scroll binding:** `{ action: 'scroll', direction: 'up'|'down', lines?: 5 }` — Scroll active terminal buffer. Format: `{ action: 'scroll', direction: 'up'|'down', lines?: 5 }`
 
-**CLI type config** (in `tools.yaml`):
+**Tool config** (in profile YAML `tools` section):
 ```yaml
 claude-code:
   name: Claude Code
   command: claude
-  args: []
   initialPrompt: ""           # Sequence parser string pre-loaded into PTY after spawn
   initialPromptDelay: 2000    # ms to wait before sending initialPrompt (default 2000 for AI CLIs, 0 for generic)
 ```
@@ -200,13 +201,13 @@ dpad:
 5. **D-pad auto-selection** — D-pad navigation automatically selects and activates the terminal for the focused session. No separate focus/unfocus toggle — keyboard always types into the active terminal, D-pad always navigates sessions.
 6. **Tab bar with state dots** — Horizontal tab strip above terminal area. Each tab shows session name + colored dot (green=implementing, orange=waiting, blue=planning, grey=idle). Ctrl+Tab / Ctrl+Shift+Tab for keyboard switching, D-pad for gamepad switching.
 7. **IPC bridge pattern** — Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 8 domain files with dependency injection — the orchestrator (`handlers.ts`) wires dependencies. Renderer never directly accesses Node.js APIs.
-8. **Split YAML config** — Separate concerns: tools, directories, settings, profiles (each with CRUD)
+8. **Self-contained profile YAML** — Each profile is a single YAML file containing tools, working directories, bindings, stick config, and dpad config. Switching profiles changes everything. Settings stored separately. Auto-migration merges legacy `tools.yaml`/`directories.yaml` into profiles on first load.
 9. **Per-CLI bindings** — Same button does different things depending on active CLI type
 10. **Button pass-through** — Non-navigation buttons (XYAB, bumpers, triggers) return false from session navigation, allowing them to fall through to per-CLI configurable bindings
 11. **Debouncing in input layer** — 250ms default prevents accidental rapid re-presses while staying responsive
 12. **Sequence parser for input** — Instead of direct key simulation, the `keyboard` action uses a sequence parser syntax (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, plain text) that converts to PTY escape codes. Same syntax used for button `sequence` bindings and `initialPrompt` config.
 13. **Session persistence** — Sessions saved to `config/sessions.yaml` after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skipping duplicates). A health check (`startHealthCheck()`) periodically removes dead PIDs via `process.kill(pid, 0)`. Survives crashes and restarts.
-14. **Sidebar session UI** — App runs as a 320px frameless always-on-top sidebar (left or right edge). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with a directory picker modal. Settings is a slide-over panel with status merged as a tab. Sandwich button focuses the hub and returns to the sessions screen.
+14. **Sidebar session UI** — App runs as a 320px frameless always-on-top sidebar (left or right edge). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with a directory picker modal. Settings is a slide-over panel. Sandwich button focuses the hub and returns to the sessions screen.
 15. **Analog stick virtual buttons** — Each stick emits distinct virtual button names (e.g. `LeftStickUp`, `RightStickDown`) that can be bound like physical buttons. If no explicit binding exists, the stick falls back to its configured mode (cursor or scroll). Right stick scroll is a configurable per-CLI binding (default: `scroll` action), not hardcoded. D-pad buttons are separate (`DPadUp`, `DPadDown`, etc.). All directional inputs are normalized to cardinal directions via `toDirection()` for UI navigation. D-pad and sticks auto-repeat when held. D-pad uses keyboard-like delay (initialDelay) then constant rate. Sticks use displacement-proportional rate — gentle tilt = slow, full deflection = fast.
 
 ## Embedded Terminal Architecture
@@ -308,7 +309,7 @@ src/
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
 │   └── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay
 ├── config/
-│   └── loader.ts               # Split YAML config + CRUD + StickConfig + haptic settings
+│   └── loader.ts               # Self-contained profile YAML config + CRUD + StickConfig + haptic settings + auto-migration
 ├── types/
 │   └── session.ts              # SessionInfo, SessionChangeEvent, AnalogEvent types
 └── utils/
@@ -329,8 +330,7 @@ renderer/
 ├── screens/
 │   ├── sessions.ts             # Vertical session cards + spawn grid + dir picker modal
 │   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn zones)
-│   ├── settings.ts             # Slide-over settings (profiles, bindings, tools, dirs, status tab)
-│   └── status.ts               # DEPRECATED stub (status merged into settings)
+│   ├── settings.ts             # Slide-over settings (profiles, bindings, tools, dirs)
 ├── modals/
 │   ├── dir-picker.ts           # Directory picker modal
 │   └── binding-editor.ts       # Binding editor modal
@@ -339,11 +339,9 @@ renderer/
 
 config/
 ├── settings.yaml               # Active profile + hapticFeedback toggle
-├── tools.yaml                  # CLI type definitions (spawn commands)
-├── directories.yaml            # Working directory presets
 ├── sessions.yaml               # Persisted session state (auto-managed)
 └── profiles/
-    └── default.yaml            # Button bindings + stick config
+    └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 
 tests/                                  # 595 tests across 18 files
 ├── config.test.ts              # Config loading, stick config, haptic, virtual buttons

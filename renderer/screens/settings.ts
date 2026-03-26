@@ -19,6 +19,7 @@ import { loadSessions } from './sessions.js';
 import { openBindingEditor } from '../modals/binding-editor.js';
 import { sortBindingEntries, BINDING_SORT_LABELS, type BindingSortField, type SortDirection } from '../sort-logic.js';
 import { createSortControl, type SortControlHandle } from '../components/sort-control.js';
+import { getTerminalManager } from '../main.js';
 
 // ============================================================================
 // Constants
@@ -52,8 +53,6 @@ export async function loadSettingsScreen(): Promise<void> {
       await renderToolsPanel();
     } else if (state.settingsTab === 'directories') {
       await renderDirectoriesPanel();
-    } else if (state.settingsTab === 'status') {
-      renderStatusPanel();
     } else {
       const bindings = state.cliBindingsCache[state.settingsTab]
         || (window.gamepadCli ? await window.gamepadCli.configGetBindings(state.settingsTab) : null);
@@ -91,7 +90,7 @@ export function handleSettingsScreenButton(button: string): boolean {
 }
 
 function navigateSettingsTab(direction: number): void {
-  const allTabs = ['profiles', ...state.cliTypes, 'tools', 'directories', 'status'];
+  const allTabs = ['profiles', ...state.cliTypes, 'tools', 'directories'];
   const currentIndex = allTabs.indexOf(state.settingsTab);
   let nextIndex = currentIndex + direction;
   if (nextIndex < 0) nextIndex = allTabs.length - 1;
@@ -122,7 +121,6 @@ function renderSettingsTabs(cliTypes: string[]): void {
     ...cliTypes.map(ct => ({ key: ct, label: getCliDisplayName(ct) })),
     { key: 'tools', label: '🔧 Tools' },
     { key: 'directories', label: '📁 Dirs' },
-    { key: 'status', label: '📊 Status' },
   ];
 
   allTabs.forEach(tab => {
@@ -173,7 +171,7 @@ async function renderBindingsDisplay(bindings: Record<string, any>, _label: stri
     // "Copy from…" dropdown — only for per-CLI tabs
     const currentTab = state.settingsTab;
     const isCliTab = currentTab !== 'profiles'
-      && currentTab !== 'tools' && currentTab !== 'directories' && currentTab !== 'status';
+      && currentTab !== 'tools' && currentTab !== 'directories';
     if (isCliTab && state.cliTypes.length > 0) {
       const copyBtn = document.createElement('select');
       copyBtn.className = 'btn btn--sm focusable';
@@ -424,11 +422,37 @@ async function renderProfilesPanel(): Promise<void> {
       switchBtn.tabIndex = 0;
       switchBtn.textContent = 'Switch';
       switchBtn.addEventListener('click', async () => {
+        const tm = getTerminalManager();
+        const sessionCount = tm?.getCount() ?? 0;
+
+        if (sessionCount > 0) {
+          const result = await showFormModal('Switch Profile', [{
+            key: 'action',
+            label: `${sessionCount} terminal(s) are open. What should happen?`,
+            type: 'select',
+            options: [
+              { value: 'keep', label: 'Keep sessions open' },
+              { value: 'close', label: 'Close all sessions' },
+            ],
+            defaultValue: 'keep',
+          }]);
+          if (!result) return; // cancelled
+
+          if (result.action === 'close' && tm) {
+            tm.dispose();
+            state.sessions = [];
+            state.activeSessionId = null;
+          }
+        }
+
         await window.gamepadCli.profileSwitch(name);
+        state.cliTypes = await window.gamepadCli.configGetCliTypes();
+        state.availableSpawnTypes = state.cliTypes;
         await initConfigCache();
         updateProfileDisplay();
         logEvent(`Profile: ${name}`);
         loadSettingsScreen();
+        loadSessions();
       });
       actions.appendChild(switchBtn);
     }
@@ -917,69 +941,4 @@ async function showEditDirectoryPrompt(dir: { name: string; path: string }, inde
   } else {
     logEvent('Failed to update directory');
   }
-}
-
-// ============================================================================
-// Status Panel (merged from former status screen)
-// ============================================================================
-
-function renderStatusPanel(): void {
-  const container = document.getElementById('bindingsDisplay');
-  if (!container) return;
-
-  const actionBar = document.getElementById('bindingActionBar');
-  if (actionBar) actionBar.innerHTML = '';
-
-  container.innerHTML = '';
-
-  const panel = document.createElement('div');
-  panel.className = 'settings-panel';
-
-  // Gamepad status card
-  const gamepadCard = document.createElement('div');
-  gamepadCard.className = 'settings-readonly-card';
-  gamepadCard.innerHTML = `
-    <div class="settings-readonly-card__title">🎮 Gamepad</div>
-    <div class="settings-readonly-card__content">
-      <p>Connected: <strong>${document.getElementById('statusGamepadConnected')?.textContent || 'No'}</strong></p>
-      <p>Last Button: <strong>${document.getElementById('statusLastButton')?.textContent || '-'}</strong></p>
-    </div>
-  `;
-  panel.appendChild(gamepadCard);
-
-  // Sessions status card
-  const sessionsCard = document.createElement('div');
-  sessionsCard.className = 'settings-readonly-card';
-  sessionsCard.style.marginTop = 'var(--spacing-sm)';
-  sessionsCard.innerHTML = `
-    <div class="settings-readonly-card__title">📋 Sessions</div>
-    <div class="settings-readonly-card__content">
-      <p>Active: <strong>${document.getElementById('statusActiveSessions')?.textContent || '0'}</strong></p>
-      <p>Total: <strong>${document.getElementById('statusTotalSessions')?.textContent || '0'}</strong></p>
-    </div>
-  `;
-  panel.appendChild(sessionsCard);
-
-  // Event log
-  const logCard = document.createElement('div');
-  logCard.className = 'settings-readonly-card';
-  logCard.style.marginTop = 'var(--spacing-sm)';
-
-  const logTitle = document.createElement('div');
-  logTitle.className = 'settings-readonly-card__title';
-  logTitle.textContent = '📝 Recent Events';
-  logCard.appendChild(logTitle);
-
-  const logContent = document.createElement('div');
-  logContent.style.cssText = 'max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 11px;';
-
-  // Copy current event log entries from hidden placeholder
-  const sourceLog = document.getElementById('eventLog');
-  if (sourceLog) {
-    logContent.innerHTML = sourceLog.innerHTML;
-  }
-  logCard.appendChild(logContent);
-
-  panel.appendChild(logCard);
-  container.appendChild(panel);
 }

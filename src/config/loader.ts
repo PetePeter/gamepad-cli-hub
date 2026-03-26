@@ -57,18 +57,6 @@ export interface WorkingDirectory {
   path: string;
 }
 
-// ============================================================================
-// Split Config File Types
-// ============================================================================
-
-export interface DirectoriesConfig {
-  workingDirectories: WorkingDirectory[];
-}
-
-export interface ToolsConfig {
-  cliTypes: { [key: string]: CliTypeConfig };
-}
-
 export type SidebarSide = 'left' | 'right';
 
 export interface SidebarPrefs {
@@ -113,7 +101,10 @@ export interface SettingsConfig {
 
 export interface ProfileConfig {
   name: string;
-  cliTypes: { [key: string]: ButtonBindings };
+  tools: { [key: string]: CliTypeConfig };
+  workingDirectories: WorkingDirectory[];
+  bindings: { [key: string]: ButtonBindings };
+  global?: { [button: string]: Binding };
   sticks?: StickConfigs;
   dpad?: DpadConfig;
 }
@@ -165,8 +156,6 @@ const DEFAULT_CONFIG_DIR = path.join(process.cwd(), 'config');
 
 export class ConfigLoader {
   private configDir: string;
-  private directories: DirectoriesConfig | null = null;
-  private tools: ToolsConfig | null = null;
   private settings: SettingsConfig | null = null;
   private activeProfile: ProfileConfig | null = null;
   private activeProfileName: string = 'default';
@@ -178,29 +167,9 @@ export class ConfigLoader {
   // ---------- Loading --------------------------------------------------
 
   load(): void {
-    this.loadDirectories();
-    this.loadTools();
     this.loadSettings();
     this.loadActiveProfile();
-  }
-
-  private loadDirectories(): void {
-    const filePath = path.join(this.configDir, 'directories.yaml');
-    this.directories = this.readYaml<DirectoriesConfig>(filePath);
-    if (!this.directories || !Array.isArray(this.directories.workingDirectories)) {
-      throw new Error('Invalid directories.yaml: missing workingDirectories array');
-    }
-  }
-
-  private loadTools(): void {
-    const filePath = path.join(this.configDir, 'tools.yaml');
-    this.tools = this.readYaml<ToolsConfig>(filePath);
-    if (!this.tools || !this.tools.cliTypes || typeof this.tools.cliTypes !== 'object') {
-      throw new Error('Invalid tools.yaml: missing or invalid cliTypes');
-    }
-    for (const [key, entry] of Object.entries(this.tools.cliTypes)) {
-      if (!entry.name) throw new Error(`tools.yaml: cliType '${key}' missing name`);
-    }
+    this.migrateGlobalFiles();
   }
 
   private loadSettings(): void {
@@ -209,7 +178,6 @@ export class ConfigLoader {
     if (!this.settings || !this.settings.activeProfile) {
       throw new Error('Invalid settings.yaml: missing activeProfile');
     }
-    // Default hapticFeedback to true if not present in file
     if (this.settings.hapticFeedback === undefined) {
       this.settings.hapticFeedback = true;
     }
@@ -218,13 +186,26 @@ export class ConfigLoader {
 
   private loadActiveProfile(): void {
     const filePath = path.join(this.configDir, 'profiles', `${this.activeProfileName}.yaml`);
-    this.activeProfile = this.readYaml<ProfileConfig>(filePath);
-    if (!this.activeProfile) {
+    const raw = this.readYaml<any>(filePath);
+    if (!raw) {
       throw new Error(`Failed to load profile: ${this.activeProfileName}`);
     }
-    if (!this.activeProfile.cliTypes || typeof this.activeProfile.cliTypes !== 'object') {
-      throw new Error(`Invalid profile '${this.activeProfileName}': missing cliTypes`);
+
+    // Migrate cliTypes → bindings if needed
+    if (raw.cliTypes && !raw.bindings) {
+      raw.bindings = raw.cliTypes;
+      delete raw.cliTypes;
+      fs.writeFileSync(filePath, YAML.stringify(raw), 'utf8');
     }
+
+    // Ensure required fields have defaults
+    if (!raw.tools) raw.tools = {};
+    if (!raw.workingDirectories) raw.workingDirectories = [];
+    if (!raw.bindings || typeof raw.bindings !== 'object') {
+      throw new Error(`Invalid profile '${this.activeProfileName}': missing bindings`);
+    }
+
+    this.activeProfile = raw as ProfileConfig;
   }
 
   private readYaml<T>(filePath: string): T {
@@ -247,39 +228,92 @@ export class ConfigLoader {
     }
   }
 
+  private migrateGlobalFiles(): void {
+    const toolsPath = path.join(this.configDir, 'tools.yaml');
+    const dirsPath = path.join(this.configDir, 'directories.yaml');
+
+    let toolsData: { cliTypes: Record<string, CliTypeConfig> } | null = null;
+    let dirsData: { workingDirectories: WorkingDirectory[] } | null = null;
+
+    if (fs.existsSync(toolsPath)) {
+      try { toolsData = this.readYaml(toolsPath); } catch { /* ignore */ }
+    }
+    if (fs.existsSync(dirsPath)) {
+      try { dirsData = this.readYaml(dirsPath); } catch { /* ignore */ }
+    }
+
+    if (!toolsData && !dirsData) return;
+
+    // Merge into ALL profiles
+    const profilesDir = path.join(this.configDir, 'profiles');
+    if (fs.existsSync(profilesDir)) {
+      for (const file of fs.readdirSync(profilesDir).filter(f => f.endsWith('.yaml'))) {
+        const profilePath = path.join(profilesDir, file);
+        try {
+          const profile = this.readYaml<any>(profilePath);
+          let changed = false;
+
+          if (toolsData?.cliTypes && !profile.tools) {
+            profile.tools = toolsData.cliTypes;
+            changed = true;
+          }
+          if (dirsData?.workingDirectories && !profile.workingDirectories) {
+            profile.workingDirectories = dirsData.workingDirectories;
+            changed = true;
+          }
+          if (profile.cliTypes && !profile.bindings) {
+            profile.bindings = profile.cliTypes;
+            delete profile.cliTypes;
+            changed = true;
+          }
+
+          if (changed) {
+            fs.writeFileSync(profilePath, YAML.stringify(profile), 'utf8');
+          }
+        } catch { /* skip broken profiles */ }
+      }
+    }
+
+    if (toolsData) { fs.unlinkSync(toolsPath); console.log('[Config] Migrated tools.yaml into profiles'); }
+    if (dirsData) { fs.unlinkSync(dirsPath); console.log('[Config] Migrated directories.yaml into profiles'); }
+
+    // Reload active profile to pick up migrations
+    this.loadActiveProfile();
+  }
+
   // ---------- Existing read methods (backward compatible) ---------------
 
   private ensureLoaded(): void {
-    if (!this.tools || !this.activeProfile || !this.directories) {
+    if (!this.activeProfile) {
       throw new Error('Configuration not loaded. Call load() first.');
     }
   }
 
   getBindings(cliType: string): ButtonBindings | null {
     this.ensureLoaded();
-    return this.activeProfile!.cliTypes[cliType] ?? null;
+    return this.activeProfile!.bindings[cliType] ?? null;
   }
 
   getSpawnConfig(cliType: string): SpawnConfig | null {
     this.ensureLoaded();
-    const config = this.tools!.cliTypes[cliType];
+    const config = this.activeProfile!.tools[cliType];
     if (!config) return null;
     return this.buildSpawnConfig(config);
   }
 
   getCliTypeEntry(cliType: string): CliTypeConfig | null {
     this.ensureLoaded();
-    return this.tools!.cliTypes[cliType] ?? null;
+    return this.activeProfile!.tools[cliType] ?? null;
   }
 
   getCliTypeName(cliType: string): string | null {
     this.ensureLoaded();
-    return this.tools!.cliTypes[cliType]?.name ?? null;
+    return this.activeProfile!.tools[cliType]?.name ?? null;
   }
 
   getCliTypes(): string[] {
     this.ensureLoaded();
-    return Object.keys(this.tools!.cliTypes);
+    return Object.keys(this.activeProfile!.tools);
   }
 
   getStickConfig(stick: 'left' | 'right'): StickConfig {
@@ -304,49 +338,49 @@ export class ConfigLoader {
 
   getWorkingDirectories(): WorkingDirectory[] {
     this.ensureLoaded();
-    return this.directories!.workingDirectories || [];
+    return this.activeProfile!.workingDirectories || [];
   }
 
   // ---------- Binding edit (backward compatible) -----------------------
 
   setBinding(button: string, cliType: string, binding: Binding): void {
     this.ensureLoaded();
-    if (!this.activeProfile!.cliTypes[cliType]) {
+    if (!this.activeProfile!.bindings[cliType]) {
       // Auto-create entry if CLI type exists in tools but not yet in profile
-      if (this.tools!.cliTypes[cliType]) {
-        this.activeProfile!.cliTypes[cliType] = {};
+      if (this.activeProfile!.tools[cliType]) {
+        this.activeProfile!.bindings[cliType] = {};
       } else {
         throw new Error(`Unknown CLI type: ${cliType}`);
       }
     }
-    this.activeProfile!.cliTypes[cliType][button] = binding;
+    this.activeProfile!.bindings[cliType][button] = binding;
     this.saveActiveProfile();
   }
 
   removeBinding(button: string, cliType: string): void {
     this.ensureLoaded();
-    if (this.activeProfile!.cliTypes[cliType]) {
-      delete this.activeProfile!.cliTypes[cliType][button];
+    if (this.activeProfile!.bindings[cliType]) {
+      delete this.activeProfile!.bindings[cliType][button];
     }
     this.saveActiveProfile();
   }
 
   copyCliBindings(sourceCli: string, targetCli: string): number {
     this.ensureLoaded();
-    const sourceBindings = this.activeProfile!.cliTypes[sourceCli];
+    const sourceBindings = this.activeProfile!.bindings[sourceCli];
     if (!sourceBindings) {
       throw new Error(`No bindings found for source: ${sourceCli}`);
     }
-    if (!this.activeProfile!.cliTypes[targetCli]) {
-      if (this.tools!.cliTypes[targetCli]) {
-        this.activeProfile!.cliTypes[targetCli] = {};
+    if (!this.activeProfile!.bindings[targetCli]) {
+      if (this.activeProfile!.tools[targetCli]) {
+        this.activeProfile!.bindings[targetCli] = {};
       } else {
         throw new Error(`Unknown target CLI type: ${targetCli}`);
       }
     }
     let count = 0;
     for (const [button, binding] of Object.entries(sourceBindings)) {
-      this.activeProfile!.cliTypes[targetCli][button] = { ...binding };
+      this.activeProfile!.bindings[targetCli][button] = { ...binding };
       count++;
     }
     this.saveActiveProfile();
@@ -446,13 +480,17 @@ export class ConfigLoader {
       profile.name = name;
     } else {
       // Empty profile with stubs for every known CLI type
-      const cliTypes: { [key: string]: ButtonBindings } = {};
-      if (this.tools) {
-        for (const key of Object.keys(this.tools.cliTypes)) {
-          cliTypes[key] = {};
-        }
+      const bindings: { [key: string]: ButtonBindings } = {};
+      const tools = this.activeProfile?.tools || {};
+      for (const key of Object.keys(tools)) {
+        bindings[key] = {};
       }
-      profile = { name, cliTypes };
+      profile = {
+        name,
+        tools: { ...tools },
+        workingDirectories: [...(this.activeProfile?.workingDirectories || [])],
+        bindings,
+      };
     }
 
     const yamlStr = YAML.stringify(profile);
@@ -479,63 +517,63 @@ export class ConfigLoader {
 
   addWorkingDirectory(name: string, dirPath: string): void {
     this.ensureLoaded();
-    this.directories!.workingDirectories.push({ name, path: dirPath });
-    this.saveDirectories();
+    this.activeProfile!.workingDirectories.push({ name, path: dirPath });
+    this.saveActiveProfile();
   }
 
   updateWorkingDirectory(index: number, name: string, dirPath: string): void {
     this.ensureLoaded();
-    const dirs = this.directories!.workingDirectories;
+    const dirs = this.activeProfile!.workingDirectories;
     if (index < 0 || index >= dirs.length) {
       throw new Error(`Invalid working directory index: ${index}`);
     }
     dirs[index] = { name, path: dirPath };
-    this.saveDirectories();
+    this.saveActiveProfile();
   }
 
   removeWorkingDirectory(index: number): void {
     this.ensureLoaded();
-    const dirs = this.directories!.workingDirectories;
+    const dirs = this.activeProfile!.workingDirectories;
     if (index < 0 || index >= dirs.length) {
       throw new Error(`Invalid working directory index: ${index}`);
     }
     dirs.splice(index, 1);
-    this.saveDirectories();
+    this.saveActiveProfile();
   }
 
   // ---------- Tools CRUD -----------------------------------------------
 
   addCliType(key: string, name: string, command: string, initialPrompt?: string, initialPromptDelay?: number): void {
     this.ensureLoaded();
-    if (this.tools!.cliTypes[key]) {
+    if (this.activeProfile!.tools[key]) {
       throw new Error(`CLI type already exists: ${key}`);
     }
-    this.tools!.cliTypes[key] = { name, command, initialPrompt: initialPrompt ?? '', initialPromptDelay: initialPromptDelay ?? 0 };
-    this.saveTools();
+    this.activeProfile!.tools[key] = { name, command, initialPrompt: initialPrompt ?? '', initialPromptDelay: initialPromptDelay ?? 0 };
+    this.saveActiveProfile();
   }
 
   updateCliType(key: string, name: string, command: string, initialPrompt?: string, initialPromptDelay?: number): void {
     this.ensureLoaded();
-    if (!this.tools!.cliTypes[key]) {
+    if (!this.activeProfile!.tools[key]) {
       throw new Error(`CLI type not found: ${key}`);
     }
-    const existing = this.tools!.cliTypes[key];
-    this.tools!.cliTypes[key] = {
+    const existing = this.activeProfile!.tools[key];
+    this.activeProfile!.tools[key] = {
       name,
       command,
       initialPrompt: initialPrompt ?? '',
       initialPromptDelay: initialPromptDelay !== undefined ? initialPromptDelay : existing.initialPromptDelay,
     };
-    this.saveTools();
+    this.saveActiveProfile();
   }
 
   removeCliType(key: string): void {
     this.ensureLoaded();
-    if (!this.tools!.cliTypes[key]) {
+    if (!this.activeProfile!.tools[key]) {
       throw new Error(`CLI type not found: ${key}`);
     }
-    delete this.tools!.cliTypes[key];
-    this.saveTools();
+    delete this.activeProfile!.tools[key];
+    this.saveActiveProfile();
   }
 
   // ---------- Spawn config builder ----------------------------------------
@@ -546,18 +584,6 @@ export class ConfigLoader {
   }
 
   // ---------- Save helpers ---------------------------------------------
-
-  private saveDirectories(): void {
-    if (!this.directories) return;
-    const filePath = path.join(this.configDir, 'directories.yaml');
-    fs.writeFileSync(filePath, YAML.stringify(this.directories), 'utf8');
-  }
-
-  private saveTools(): void {
-    if (!this.tools) return;
-    const filePath = path.join(this.configDir, 'tools.yaml');
-    fs.writeFileSync(filePath, YAML.stringify(this.tools), 'utf8');
-  }
 
   private saveSettings(): void {
     if (!this.settings) return;

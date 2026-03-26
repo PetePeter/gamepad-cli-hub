@@ -31,7 +31,7 @@ graph TB
             SD[StateDetector<br/>AIAGENT-* keywords]
             PQ[PipelineQueue<br/>Auto-handoff]
             IP[InitialPrompt<br/>Sequence → PTY]
-            CL[ConfigLoader<br/>Split YAML]
+            CL[ConfigLoader<br/>Profile YAML]
         end
 
         UI <-->|contextBridge| IPC
@@ -111,7 +111,7 @@ flowchart LR
 | **StateDetector** | `src/session/state-detector.ts` | Scans PTY output for AIAGENT-* keywords to detect CLI state (waiting, implementing, etc.). |
 | **PipelineQueue** | `src/session/pipeline-queue.ts` | Auto-handoff queue — routes tasks to waiting sessions based on state detection. |
 | **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. |
-| **ConfigLoader** | `src/config/loader.ts` | Split YAML config loading + profile/tools/directory CRUD. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
+| **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 10 domain handler files(session, config, profile, tools, window, spawn, keyboard, pty, system, app). Dependencies injected via function parameters. |
 | **Preload** | `src/electron/preload.ts` | Context bridge exposing typed IPC API to renderer. Must be .cjs when package.json has "type":"module". |
 | **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
@@ -129,17 +129,13 @@ flowchart LR
 graph LR
     subgraph "config/"
         S[settings.yaml<br/>Active profile name<br/>+ hapticFeedback toggle]
-        T[tools.yaml<br/>CLI type definitions]
-        D[directories.yaml<br/>Working directory presets]
         SS[sessions.yaml<br/>Persisted session state]
         subgraph "profiles/"
-            P[default.yaml<br/>Per-CLI bindings<br/>+ stick config]
+            P[default.yaml<br/>Self-contained:<br/>tools + dirs + bindings<br/>+ sticks + dpad]
         end
     end
 
     S --> CL[ConfigLoader]
-    T --> CL
-    D --> CL
     SS --> SP[SessionPersistence]
     P --> CL
     CL --> |"getBindings(button, cliType)"| R[Resolved Action]
@@ -174,17 +170,16 @@ sticks:
     repeatRate: 150
 ```
 
-### Settings UI (5 tabs)
-Profiles | Per-CLI Bindings | Tools | Directories | Status
+### Settings UI (4 tabs)
+Profiles | Per-CLI Bindings | Tools | Directories
 
 All config supports CRUD via IPC handlers and the Settings UI.
 
-### CLI Type Config (in `tools.yaml`)
+### Tool Config (in profile YAML `tools` section)
 ```yaml
 claude-code:
   name: Claude Code
   command: claude
-  args: []
   initialPrompt: ""           # Sequence parser string pre-loaded into PTY after spawn
   initialPromptDelay: 2000    # ms to wait before sending initialPrompt (default 2000 for AI CLIs, 0 for generic)
 ```
@@ -238,7 +233,7 @@ src/
 │   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay
 │   └── index.ts
 ├── config/
-│   └── loader.ts               # Split YAML config + CRUD + StickConfig + haptic settings
+│   └── loader.ts               # Self-contained profile YAML config + CRUD + StickConfig + haptic settings + auto-migration
 ├── types/
 │   └── session.ts              # SessionInfo, SessionChangeEvent, AnalogEvent types
 └── utils/
@@ -260,8 +255,7 @@ renderer/
 ├── screens/
 │   ├── sessions.ts             # Vertical session cards + spawn grid + dir picker modal
 │   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn zones)
-│   ├── settings.ts             # Slide-over settings (profiles, bindings, tools, dirs, status tab)
-│   └── status.ts               # DEPRECATED stub (status merged into settings)
+│   ├── settings.ts             # Slide-over settings (profiles, bindings, tools, dirs)
 ├── modals/
 │   ├── dir-picker.ts           # Directory picker modal
 │   └── binding-editor.ts       # Binding editor modal
@@ -270,11 +264,9 @@ renderer/
 
 config/
 ├── settings.yaml               # Active profile + hapticFeedback toggle
-├── tools.yaml                  # CLI type definitions (spawn commands)
-├── directories.yaml            # Working directory presets
 ├── sessions.yaml               # Persisted session state (auto-managed)
 └── profiles/
-    └── default.yaml            # Button bindings + stick config
+    └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 
 tests/                                  # 547 tests across 16 files
 ├── config.test.ts              # Config loading, stick config, haptic, virtual buttons
@@ -349,8 +341,8 @@ Haptic feedback is a config setting (`hapticFeedback: true/false` in settings.ya
 ### IPC Bridge Pattern
 Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 10 domain files (`src/electron/ipc/*-handlers.ts`) with dependency injection — the orchestrator (`handlers.ts`) wires dependencies. Renderer never directly accesses Node.js APIs.
 
-### Split YAML Config & Profiles
-Four separate concerns: tools (spawn definitions), directories (workspaces), settings (active profile), and profiles (button bindings). Each profile defines per-CLI-type bindings. Full CRUD via IPC + Settings UI.
+### Self-Contained Profile YAML
+Each profile is a single YAML file containing tools, working directories, bindings, stick config, and dpad config. Switching profiles changes everything (tools, directories, bindings). Settings (active profile, haptic, sidebar) stored separately. Auto-migration merges legacy `tools.yaml`/`directories.yaml` into profiles on first load. Profile switch shows a confirmation dialog when terminals are open (keep sessions / close all). `createProfile()` copies tools + dirs from the current profile.
 
 ### Per-CLI Button Bindings
 Same button can do different things depending on active CLI type. A/B/X/Y are typically per-CLI outside navigation.
@@ -362,7 +354,7 @@ Instead of direct key simulation, the `keyboard` action uses a sequence parser s
 250ms default in the input layer prevents accidental rapid re-presses while staying responsive. Per-button timestamp tracking.
 
 ### Sidebar Layout
-App runs as a 320px frameless always-on-top sidebar (left or right edge). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with a directory picker modal. Settings is a slide-over panel with status merged as a tab. Sandwich button focuses the hub and returns to the sessions screen.
+App runs as a 320px frameless always-on-top sidebar (left or right edge). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with a directory picker modal. Settings is a slide-over panel. Sandwich button focuses the hub and returns to the sessions screen.
 
 ---
 
