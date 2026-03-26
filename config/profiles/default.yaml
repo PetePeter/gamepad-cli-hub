@@ -107,7 +107,6 @@ bindings:
     A:
       action: keyboard
       sequence: "{Enter}"
-global: {}
 sticks:
   left:
     mode: cursor

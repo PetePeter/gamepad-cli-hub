@@ -104,7 +104,6 @@ export interface ProfileConfig {
   tools: { [key: string]: CliTypeConfig };
   workingDirectories: WorkingDirectory[];
   bindings: { [key: string]: ButtonBindings };
-  global?: { [button: string]: Binding };
   sticks?: StickConfigs;
   dpad?: DpadConfig;
 }
