@@ -71,10 +71,8 @@ export function handleSessionsScreenButton(button: string): boolean {
 
   if (sessionsState.activeFocus === 'sessions') {
     handleSessionsZone(button, dir);
-  } else if (sessionsState.activeFocus === 'spawn') {
-    handleSpawnZone(button, dir);
   } else {
-    handleWizardZone(button, dir);
+    handleSpawnZone(button, dir);
   }
   return true;
 }
@@ -370,6 +368,9 @@ function showStateDropdown(anchor: HTMLElement, sessionId: string, currentState:
   dropdown.className = 'session-state-dropdown';
 
   const states = ['implementing', 'waiting', 'planning', 'idle'];
+  let focusIndex = states.indexOf(currentState);
+  if (focusIndex < 0) focusIndex = 0;
+
   for (const s of states) {
     const option = document.createElement('button');
     option.className = 'session-state-option';
@@ -377,21 +378,68 @@ function showStateDropdown(anchor: HTMLElement, sessionId: string, currentState:
     option.textContent = getStateLabel(s);
     option.addEventListener('click', (e) => {
       e.stopPropagation();
+      cleanup();
       setSessionState(sessionId, s);
-      dropdown.remove();
     });
     dropdown.appendChild(option);
   }
 
-  anchor.parentElement!.appendChild(dropdown);
+  // Append to sidebar (not session-info) so it's not clipped by overflow
+  const sidebar = document.getElementById('panelLeft') || anchor.parentElement!;
+  sidebar.appendChild(dropdown);
+
+  // Position relative to anchor, flipping if it would go off-screen
+  const anchorRect = anchor.getBoundingClientRect();
+  const sidebarRect = sidebar.getBoundingClientRect();
+  dropdown.style.position = 'fixed';
+  dropdown.style.left = `${anchorRect.left}px`;
+
+  // Try above first; if clipped, put below
+  const dropdownHeight = dropdown.offsetHeight || 120;
+  if (anchorRect.top - dropdownHeight < sidebarRect.top) {
+    dropdown.style.top = `${anchorRect.bottom + 2}px`;
+  } else {
+    dropdown.style.top = `${anchorRect.top - dropdownHeight - 2}px`;
+  }
+
+  // Focus the current state option
+  const options = dropdown.querySelectorAll('.session-state-option') as NodeListOf<HTMLButtonElement>;
+  options[focusIndex]?.focus();
+
+  // Keyboard navigation: Up/Down arrows + Enter to select + ESC to close
+  function onKeyDown(e: KeyboardEvent): void {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      focusIndex = Math.min(states.length - 1, focusIndex + 1);
+      options[focusIndex]?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      focusIndex = Math.max(0, focusIndex - 1);
+      options[focusIndex]?.focus();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      cleanup();
+      setSessionState(sessionId, states[focusIndex]);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cleanup();
+    }
+  }
+
+  function cleanup(): void {
+    dropdown.remove();
+    document.removeEventListener('keydown', onKeyDown, true);
+    document.removeEventListener('click', closeHandler, true);
+  }
 
   // Close on outside click
   const closeHandler = (e: MouseEvent) => {
     if (!dropdown.contains(e.target as Node)) {
-      dropdown.remove();
-      document.removeEventListener('click', closeHandler, true);
+      cleanup();
     }
   };
+
+  document.addEventListener('keydown', onKeyDown, true);
   // Defer to avoid the current click closing immediately
   setTimeout(() => document.addEventListener('click', closeHandler, true), 0);
 }
@@ -531,7 +579,7 @@ function handleSpawnZone(button: string, dir: string | null): void {
   switch (button) {
     case 'A': {
       const cliType = sessionsState.cliTypes[sessionsState.spawnFocusIndex];
-      if (cliType) enterWizard(cliType);
+      if (cliType) spawnNewSession(cliType);
       return;
     }
     case 'B':
@@ -541,216 +589,6 @@ function handleSpawnZone(button: string, dir: string | null): void {
     case 'Y':
       refreshSessions();
       return;
-  }
-}
-
-// ============================================================================
-// Wizard — inline step wizard for spawning sessions
-// ============================================================================
-
-function enterWizard(cliType: string): void {
-  sessionsState.wizardCliType = cliType;
-  sessionsState.wizardDirIndex = 0;
-
-  if (sessionsState.directories.length > 0) {
-    sessionsState.wizardStep = 'directory';
-  } else {
-    sessionsState.wizardStep = 'confirm';
-  }
-
-  sessionsState.activeFocus = 'wizard';
-  showWizard();
-}
-
-function exitWizard(): void {
-  sessionsState.activeFocus = 'spawn';
-  sessionsState.wizardCliType = null;
-  hideWizard();
-}
-
-function showWizard(): void {
-  const wizard = document.getElementById('spawnWizard');
-  const list = document.getElementById('sessionsList');
-  const empty = document.getElementById('sessionsEmpty');
-  const spawn = document.querySelector('.spawn-section') as HTMLElement;
-
-  if (wizard) wizard.style.display = '';
-  if (list) list.style.display = 'none';
-  if (empty) empty.style.display = 'none';
-  if (spawn) spawn.style.display = 'none';
-
-  renderWizard();
-}
-
-function hideWizard(): void {
-  const wizard = document.getElementById('spawnWizard');
-  const spawn = document.querySelector('.spawn-section') as HTMLElement;
-
-  if (wizard) wizard.style.display = 'none';
-  if (spawn) spawn.style.display = '';
-
-  renderSessions();
-  renderSpawnGrid();
-}
-
-function renderWizard(): void {
-  const wizard = document.getElementById('spawnWizard');
-  if (!wizard || !sessionsState.wizardCliType) return;
-
-  const cliType = sessionsState.wizardCliType;
-  const step = sessionsState.wizardStep;
-
-  wizard.innerHTML = '';
-
-  // Breadcrumb
-  const breadcrumb = document.createElement('div');
-  breadcrumb.className = 'wizard-breadcrumb';
-  breadcrumb.innerHTML = `
-    <span class="wizard-crumb wizard-crumb--done">✓ ${getCliDisplayName(cliType)}</span>
-    <span class="wizard-crumb-sep">›</span>
-    <span class="wizard-crumb${step === 'directory' ? ' wizard-crumb--active' : (step === 'confirm' && sessionsState.directories.length > 0 ? ' wizard-crumb--done' : '')}">Directory</span>
-    <span class="wizard-crumb-sep">›</span>
-    <span class="wizard-crumb${step === 'confirm' ? ' wizard-crumb--active' : ''}">Confirm</span>
-  `;
-  wizard.appendChild(breadcrumb);
-
-  if (step === 'directory') {
-    renderDirectoryStep(wizard);
-  } else {
-    renderConfirmStep(wizard);
-  }
-}
-
-function renderDirectoryStep(container: HTMLElement): void {
-  const section = document.createElement('div');
-  section.className = 'wizard-step wizard-step--active';
-
-  const header = document.createElement('div');
-  header.className = 'wizard-step__header';
-  header.innerHTML = '<span class="wizard-step__number">2</span> Select Directory';
-  section.appendChild(header);
-
-  const content = document.createElement('div');
-  content.className = 'wizard-step__content';
-
-  sessionsState.directories.forEach((dir, index) => {
-    const item = document.createElement('div');
-    item.className = 'wizard-dir-item';
-    if (index === sessionsState.wizardDirIndex) item.classList.add('focused');
-    item.innerHTML = `
-      <span class="wizard-dir-name">${dir.name}</span>
-      <span class="wizard-dir-path">${dir.path}</span>
-    `;
-    item.addEventListener('click', () => {
-      sessionsState.wizardDirIndex = index;
-      advanceToConfirm();
-    });
-    content.appendChild(item);
-  });
-
-  section.appendChild(content);
-  container.appendChild(section);
-
-  // Hint footer
-  const hint = document.createElement('div');
-  hint.className = 'wizard-hint';
-  hint.innerHTML = '<kbd>A</kbd> Select  <kbd>B</kbd> Cancel';
-  container.appendChild(hint);
-}
-
-function renderConfirmStep(container: HTMLElement): void {
-  const cliType = sessionsState.wizardCliType!;
-  const dir = sessionsState.directories[sessionsState.wizardDirIndex];
-  const dirDisplay = dir ? dir.name : 'Default';
-
-  const section = document.createElement('div');
-  section.className = 'wizard-step wizard-step--active';
-
-  const header = document.createElement('div');
-  header.className = 'wizard-step__header';
-  header.innerHTML = '<span class="wizard-step__number">✓</span> Ready to Spawn';
-  section.appendChild(header);
-
-  const content = document.createElement('div');
-  content.className = 'wizard-step__content wizard-confirm';
-
-  content.innerHTML = `
-    <div class="wizard-confirm__row">
-      <span class="wizard-confirm__label">CLI</span>
-      <span class="wizard-confirm__value">${getCliIcon(cliType)} ${getCliDisplayName(cliType)}</span>
-    </div>
-    <div class="wizard-confirm__row">
-      <span class="wizard-confirm__label">Directory</span>
-      <span class="wizard-confirm__value">${dirDisplay}</span>
-    </div>
-  `;
-
-  section.appendChild(content);
-  container.appendChild(section);
-
-  // Action hint
-  const hint = document.createElement('div');
-  hint.className = 'wizard-hint';
-  hint.innerHTML = '<kbd>A</kbd> Spawn  <kbd>B</kbd> Back';
-  container.appendChild(hint);
-}
-
-function advanceToConfirm(): void {
-  sessionsState.wizardStep = 'confirm';
-  renderWizard();
-}
-
-function handleWizardZone(button: string, dir: string | null): void {
-  if (sessionsState.wizardStep === 'directory') {
-    handleWizardDirectory(button, dir);
-  } else {
-    handleWizardConfirm(button);
-  }
-}
-
-function handleWizardDirectory(button: string, dir: string | null): void {
-  const count = sessionsState.directories.length;
-
-  if (dir === 'up') {
-    sessionsState.wizardDirIndex = Math.max(0, sessionsState.wizardDirIndex - 1);
-    renderWizard();
-    return;
-  }
-  if (dir === 'down') {
-    sessionsState.wizardDirIndex = Math.min(count - 1, sessionsState.wizardDirIndex + 1);
-    renderWizard();
-    return;
-  }
-
-  switch (button) {
-    case 'A':
-      advanceToConfirm();
-      return;
-    case 'B':
-      exitWizard();
-      return;
-  }
-}
-
-function handleWizardConfirm(button: string): void {
-  switch (button) {
-    case 'A': {
-      const cliType = sessionsState.wizardCliType;
-      if (!cliType) return;
-      const dir = sessionsState.directories[sessionsState.wizardDirIndex];
-      exitWizard();
-      doSpawn(cliType, dir?.path);
-      return;
-    }
-    case 'B': {
-      if (sessionsState.directories.length > 0) {
-        sessionsState.wizardStep = 'directory';
-        renderWizard();
-      } else {
-        exitWizard();
-      }
-      return;
-    }
   }
 }
 

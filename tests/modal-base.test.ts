@@ -51,4 +51,73 @@ describe('modal-base', () => {
       expect(onCancel).not.toHaveBeenCalled();
     });
   });
+
+  describe('arrow key navigation', () => {
+    let cleanup: () => void;
+    let container: HTMLDivElement;
+
+    beforeEach(() => {
+      // Create a mock modal structure
+      container = document.createElement('div');
+      container.className = 'modal';
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay modal--visible';
+      overlay.appendChild(container);
+      document.body.appendChild(overlay);
+
+      // Add focusable elements
+      for (let i = 0; i < 3; i++) {
+        const input = document.createElement('input');
+        input.id = `field-${i}`;
+        container.appendChild(input);
+      }
+
+      cleanup = attachModalKeyboard({
+        onAccept: vi.fn(),
+        onCancel: vi.fn(),
+        container,
+      });
+    });
+
+    afterEach(() => {
+      cleanup();
+      document.body.innerHTML = '';
+    });
+
+    it('ArrowDown moves focus to next focusable element', () => {
+      const fields = container.querySelectorAll('input');
+      (fields[0] as HTMLElement).focus();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      expect(document.activeElement).toBe(fields[1]);
+    });
+
+    it('ArrowUp moves focus to previous focusable element', () => {
+      const fields = container.querySelectorAll('input');
+      (fields[1] as HTMLElement).focus();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+      expect(document.activeElement).toBe(fields[0]);
+    });
+
+    it('ArrowDown wraps from last to first', () => {
+      const fields = container.querySelectorAll('input');
+      (fields[2] as HTMLElement).focus();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      expect(document.activeElement).toBe(fields[0]);
+    });
+
+    it('ArrowUp wraps from first to last', () => {
+      const fields = container.querySelectorAll('input');
+      (fields[0] as HTMLElement).focus();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+      expect(document.activeElement).toBe(fields[2]);
+    });
+
+    it('does not navigate arrows in a textarea', () => {
+      const textarea = document.createElement('textarea');
+      container.appendChild(textarea);
+      textarea.focus();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      expect(document.activeElement).toBe(textarea);
+    });
+  });
 });

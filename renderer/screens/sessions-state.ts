@@ -2,7 +2,7 @@
  * Sessions screen state — vertical session list + spawn grid navigation.
  */
 
-export type SessionsFocus = 'sessions' | 'spawn' | 'wizard';
+export type SessionsFocus = 'sessions' | 'spawn';
 
 export interface SessionsScreenState {
   activeFocus: SessionsFocus;
@@ -10,10 +10,6 @@ export interface SessionsScreenState {
   spawnFocusIndex: number;
   cliTypes: string[];
   directories: Array<{ name: string; path: string }>;
-  // Wizard state
-  wizardCliType: string | null;
-  wizardDirIndex: number;
-  wizardStep: 'directory' | 'confirm';
 }
 
 export const sessionsState: SessionsScreenState = {
@@ -22,7 +18,4 @@ export const sessionsState: SessionsScreenState = {
   spawnFocusIndex: 0,
   cliTypes: [],
   directories: [],
-  wizardCliType: null,
-  wizardDirIndex: 0,
-  wizardStep: 'directory',
 };

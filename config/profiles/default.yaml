@@ -1,9 +1,6 @@
 name: Default
 cliTypes:
   claude-code:
-    Y:
-      action: keyboard
-      sequence: "/compact{Enter}"  # Sequence adds Enter to submit (original keys array didn't)
     RightTrigger:
       action: keyboard
       keys:
@@ -51,15 +48,7 @@ cliTypes:
       action: keyboard
       keys:
         - Enter
-global:
-  Xbox:
-    action: hub-focus
-  Back:
-    action: profile-switch
-    direction: previous
-  Start:
-    action: profile-switch
-    direction: next
+global: {}
 sticks:
   left:
     mode: cursor

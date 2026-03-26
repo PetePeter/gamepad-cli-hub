@@ -67,7 +67,6 @@ function buildSidebarDom(): void {
         <h3 class="section-label">Quick Spawn</h3>
         <div class="spawn-grid" id="spawnGrid"></div>
       </div>
-      <div class="spawn-wizard" id="spawnWizard" style="display:none"></div>
     </section>
     <div id="terminalArea" style="display:none">
       <div id="terminalContainer"></div>
@@ -188,9 +187,6 @@ describe('Sessions Screen', () => {
       spawnFocusIndex: 0,
       cliTypes: [],
       directories: [],
-      wizardCliType: null,
-      wizardDirIndex: 0,
-      wizardStep: 'directory',
     });
     Object.assign(state, {
       sessions: [],
@@ -625,13 +621,18 @@ describe('Sessions Screen', () => {
       expect(sessionsState.spawnFocusIndex).toBe(3);
     });
 
-    it('A on focused spawn button enters wizard mode', async () => {
+    it('A on focused spawn button calls spawnNewSession', async () => {
       sessionsState.spawnFocusIndex = 0;
       sessions.handleSessionsScreenButton('A');
       await flush();
 
-      expect(sessionsState.activeFocus).toBe('wizard');
-      expect(sessionsState.wizardCliType).toBe('claude-code');
+      expect(mockCreateTerminal).toHaveBeenCalledWith(
+        expect.stringContaining('pty-claude-code-'),
+        'claude-code',
+        'claude',
+        [],
+        undefined,
+      );
     });
 
     it('B returns to sessions zone', () => {
@@ -1092,296 +1093,6 @@ describe('Sessions Screen', () => {
       const cards = document.querySelectorAll('#sessionsList .session-card');
       expect(cards[0]!.classList.contains('active')).toBe(false);
       expect(cards[1]!.classList.contains('active')).toBe(true);
-    });
-  });
-
-  // ==========================================================================
-  // Spawn Wizard
-  // ==========================================================================
-
-  describe('Spawn Wizard', () => {
-    // -- Wizard entry ---------------------------------------------------------
-
-    describe('wizard entry', () => {
-      beforeEach(async () => {
-        setMockTerminalSessions(makeSessions(1));
-        mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli']);
-        mockConfigGetWorkingDirs.mockResolvedValue([
-          { name: 'project-a', path: '/projects/a' },
-          { name: 'project-b', path: '/projects/b' },
-        ]);
-        await loadAndFlush(sessions);
-        sessionsState.activeFocus = 'spawn';
-        sessionsState.spawnFocusIndex = 0;
-      });
-
-      it('A on spawn sets activeFocus to wizard and wizardCliType', () => {
-        sessions.handleSessionsScreenButton('A');
-        expect(sessionsState.activeFocus).toBe('wizard');
-        expect(sessionsState.wizardCliType).toBe('claude-code');
-      });
-
-      it('selects second CLI type when spawnFocusIndex is 1', () => {
-        sessionsState.spawnFocusIndex = 1;
-        sessions.handleSessionsScreenButton('A');
-        expect(sessionsState.wizardCliType).toBe('copilot-cli');
-      });
-
-      it('with directories: wizardStep is directory', () => {
-        sessions.handleSessionsScreenButton('A');
-        expect(sessionsState.wizardStep).toBe('directory');
-      });
-
-      it('without directories: wizardStep is confirm', async () => {
-        mockConfigGetWorkingDirs.mockResolvedValue([]);
-        await loadAndFlush(sessions);
-        sessionsState.activeFocus = 'spawn';
-        sessionsState.spawnFocusIndex = 0;
-
-        sessions.handleSessionsScreenButton('A');
-        expect(sessionsState.wizardStep).toBe('confirm');
-      });
-
-      it('wizard container becomes visible, session list + spawn section hidden', () => {
-        sessions.handleSessionsScreenButton('A');
-
-        const wizard = document.getElementById('spawnWizard');
-        const list = document.getElementById('sessionsList');
-        const spawn = document.querySelector('.spawn-section') as HTMLElement;
-
-        expect(wizard!.style.display).toBe('');
-        expect(list!.style.display).toBe('none');
-        expect(spawn!.style.display).toBe('none');
-      });
-    });
-
-    // -- Directory step navigation -------------------------------------------
-
-    describe('directory step navigation', () => {
-      beforeEach(async () => {
-        mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
-        mockConfigGetWorkingDirs.mockResolvedValue([
-          { name: 'project-a', path: '/projects/a' },
-          { name: 'project-b', path: '/projects/b' },
-          { name: 'project-c', path: '/projects/c' },
-        ]);
-        await loadAndFlush(sessions);
-        sessionsState.activeFocus = 'spawn';
-        sessionsState.spawnFocusIndex = 0;
-        // Enter wizard
-        sessions.handleSessionsScreenButton('A');
-      });
-
-      it('DPadDown moves wizardDirIndex forward', () => {
-        expect(sessionsState.wizardDirIndex).toBe(0);
-        sessions.handleSessionsScreenButton('DPadDown');
-        expect(sessionsState.wizardDirIndex).toBe(1);
-        sessions.handleSessionsScreenButton('DPadDown');
-        expect(sessionsState.wizardDirIndex).toBe(2);
-      });
-
-      it('DPadUp moves wizardDirIndex backward, stops at 0', () => {
-        sessionsState.wizardDirIndex = 1;
-        sessions.handleSessionsScreenButton('DPadUp');
-        expect(sessionsState.wizardDirIndex).toBe(0);
-        sessions.handleSessionsScreenButton('DPadUp');
-        expect(sessionsState.wizardDirIndex).toBe(0);
-      });
-
-      it('DPadDown does not go past last directory', () => {
-        sessionsState.wizardDirIndex = 2;
-        sessions.handleSessionsScreenButton('DPadDown');
-        expect(sessionsState.wizardDirIndex).toBe(2);
-      });
-
-      it('A on directory advances to confirm step', () => {
-        sessions.handleSessionsScreenButton('A');
-        expect(sessionsState.wizardStep).toBe('confirm');
-      });
-
-      it('B exits wizard back to spawn zone', () => {
-        sessions.handleSessionsScreenButton('B');
-        expect(sessionsState.activeFocus).toBe('spawn');
-        expect(sessionsState.wizardCliType).toBeNull();
-      });
-    });
-
-    // -- Confirm step --------------------------------------------------------
-
-    describe('confirm step', () => {
-      beforeEach(async () => {
-        mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
-        mockConfigGetWorkingDirs.mockResolvedValue([
-          { name: 'project-a', path: '/projects/a' },
-          { name: 'project-b', path: '/projects/b' },
-        ]);
-        await loadAndFlush(sessions);
-        sessionsState.activeFocus = 'spawn';
-        sessionsState.spawnFocusIndex = 0;
-        // Enter wizard → directory → select first → confirm
-        sessions.handleSessionsScreenButton('A');
-        sessions.handleSessionsScreenButton('A'); // advance to confirm
-      });
-
-      it('shows CLI type and directory in confirm view', () => {
-        const wizard = document.getElementById('spawnWizard')!;
-        const values = wizard.querySelectorAll('.wizard-confirm__value');
-        expect(values.length).toBe(2);
-        // CLI value: icon + display name (mock returns display name)
-        expect(values[0]!.textContent).toContain('🤖');
-        expect(values[0]!.textContent).toContain(mockGetCliDisplayName('claude-code'));
-        // Directory value
-        expect(values[1]!.textContent).toBe('project-a');
-      });
-
-      it('A calls doSpawn with correct CLI type and directory path', async () => {
-        sessions.handleSessionsScreenButton('A');
-        await flush();
-
-        expect(mockCreateTerminal).toHaveBeenCalledWith(
-          expect.stringContaining('pty-claude-code-'),
-          'claude-code',
-          'claude',
-          [],
-          '/projects/a',
-        );
-      });
-
-      it('B goes back to directory step when dirs exist', () => {
-        sessions.handleSessionsScreenButton('B');
-        expect(sessionsState.wizardStep).toBe('directory');
-        expect(sessionsState.activeFocus).toBe('wizard');
-      });
-
-      it('after spawning, wizard is hidden and spawn section is shown', async () => {
-        sessions.handleSessionsScreenButton('A');
-        await flush();
-
-        const wizard = document.getElementById('spawnWizard')!;
-        const spawn = document.querySelector('.spawn-section') as HTMLElement;
-
-        expect(wizard.style.display).toBe('none');
-        expect(spawn.style.display).toBe('');
-      });
-    });
-
-    describe('confirm step — no directories', () => {
-      beforeEach(async () => {
-        mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
-        mockConfigGetWorkingDirs.mockResolvedValue([]);
-        await loadAndFlush(sessions);
-        sessionsState.activeFocus = 'spawn';
-        sessionsState.spawnFocusIndex = 0;
-        // Enter wizard → goes straight to confirm
-        sessions.handleSessionsScreenButton('A');
-      });
-
-      it('skips directory step when no directories configured', () => {
-        expect(sessionsState.wizardStep).toBe('confirm');
-      });
-
-      it('A with no directories calls doSpawn with no directory', async () => {
-        sessions.handleSessionsScreenButton('A');
-        await flush();
-
-        expect(mockCreateTerminal).toHaveBeenCalledWith(
-          expect.stringContaining('pty-claude-code-'),
-          'claude-code',
-          'claude',
-          [],
-          undefined,
-        );
-      });
-
-      it('B exits wizard when no dirs', () => {
-        sessions.handleSessionsScreenButton('B');
-        expect(sessionsState.activeFocus).toBe('spawn');
-        expect(sessionsState.wizardCliType).toBeNull();
-      });
-
-      it('confirm shows Default for directory when no dirs', () => {
-        const wizard = document.getElementById('spawnWizard')!;
-        const values = wizard.querySelectorAll('.wizard-confirm__value');
-        expect(values[1]!.textContent).toBe('Default');
-      });
-    });
-
-    // -- Rendering -----------------------------------------------------------
-
-    describe('rendering', () => {
-      beforeEach(async () => {
-        mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
-        mockConfigGetWorkingDirs.mockResolvedValue([
-          { name: 'project-a', path: '/projects/a' },
-          { name: 'project-b', path: '/projects/b' },
-        ]);
-        await loadAndFlush(sessions);
-        sessionsState.activeFocus = 'spawn';
-        sessionsState.spawnFocusIndex = 0;
-        sessions.handleSessionsScreenButton('A');
-      });
-
-      it('breadcrumb shows correct active step on directory', () => {
-        const wizard = document.getElementById('spawnWizard')!;
-        const crumbs = wizard.querySelectorAll('.wizard-crumb');
-        // First crumb: CLI type (done)
-        expect(crumbs[0]!.classList.contains('wizard-crumb--done')).toBe(true);
-        // Second crumb: Directory (active)
-        expect(crumbs[1]!.classList.contains('wizard-crumb--active')).toBe(true);
-        // Third crumb: Confirm (not active)
-        expect(crumbs[2]!.classList.contains('wizard-crumb--active')).toBe(false);
-      });
-
-      it('breadcrumb shows correct active step on confirm', () => {
-        sessions.handleSessionsScreenButton('A'); // advance to confirm
-        const wizard = document.getElementById('spawnWizard')!;
-        const crumbs = wizard.querySelectorAll('.wizard-crumb');
-        // Third crumb: Confirm (active)
-        expect(crumbs[2]!.classList.contains('wizard-crumb--active')).toBe(true);
-        // Second crumb: Directory (done, since dirs exist)
-        expect(crumbs[1]!.classList.contains('wizard-crumb--done')).toBe(true);
-      });
-
-      it('directory items have .wizard-dir-item class', () => {
-        const wizard = document.getElementById('spawnWizard')!;
-        const items = wizard.querySelectorAll('.wizard-dir-item');
-        expect(items.length).toBe(2);
-      });
-
-      it('focused directory item has .focused class', () => {
-        const wizard = document.getElementById('spawnWizard')!;
-        const items = wizard.querySelectorAll('.wizard-dir-item');
-        expect(items[0]!.classList.contains('focused')).toBe(true);
-        expect(items[1]!.classList.contains('focused')).toBe(false);
-      });
-
-      it('focused class moves with DPadDown', () => {
-        sessions.handleSessionsScreenButton('DPadDown');
-        const wizard = document.getElementById('spawnWizard')!;
-        const items = wizard.querySelectorAll('.wizard-dir-item');
-        expect(items[0]!.classList.contains('focused')).toBe(false);
-        expect(items[1]!.classList.contains('focused')).toBe(true);
-      });
-
-      it('confirm shows CLI icon + name + directory name', () => {
-        sessions.handleSessionsScreenButton('A'); // advance to confirm
-        const wizard = document.getElementById('spawnWizard')!;
-        const values = wizard.querySelectorAll('.wizard-confirm__value');
-        // CLI row: icon + display name
-        expect(values[0]!.textContent).toContain('🤖');
-        expect(values[0]!.textContent).toContain(mockGetCliDisplayName('claude-code'));
-        // Dir row
-        expect(values[1]!.textContent).toBe('project-a');
-      });
-
-      it('clicking a directory item advances to confirm', () => {
-        const wizard = document.getElementById('spawnWizard')!;
-        const items = wizard.querySelectorAll('.wizard-dir-item');
-        (items[1] as HTMLElement).click();
-
-        expect(sessionsState.wizardDirIndex).toBe(1);
-        expect(sessionsState.wizardStep).toBe('confirm');
-      });
     });
   });
 

@@ -1,7 +1,9 @@
 workingDirectories:
-  - name: "Projects"
-    path: "X:\\coding"
-  - name: "Gamepad Hub"
-    path: "X:\\coding\\gamepad-cli-hub"
-  - name: "Home"
-    path: "C:\\Users\\oscar"
+  - name: Projects
+    path: X:\coding
+  - name: Gamepad Hub
+    path: X:\coding\gamepad-cli-hub
+  - name: Home
+    path: C:\Users\oscar
+  - name: HomeAssistant
+    path: X:\homeassistant
