@@ -22,6 +22,7 @@ import { setupKeyboardRelay } from './paste-handler.js';
 import { initContextMenuClickHandlers } from './modals/context-menu.js';
 import { initSequencePickerClickHandlers } from './modals/sequence-picker.js';
 import { initCloseConfirmClickHandlers } from './modals/close-confirm.js';
+import { resolveNextTerminalId } from './tab-cycling.js';
 
 // ============================================================================
 // Terminal Manager
@@ -155,13 +156,14 @@ async function init(): Promise<void> {
       e.stopPropagation();
       const tm = terminalManager;
       if (!tm) return;
-      const ids = tm.getSessionIds();
-      const activeId = tm.getActiveSessionId();
-      if (ids.length <= 1 || !activeId) return;
-      const currentIdx = ids.indexOf(activeId);
-      const direction = e.shiftKey ? -1 : 1;
-      const newIdx = (currentIdx + direction + ids.length) % ids.length;
-      tm.switchTo(ids[newIdx]);
+      // Use sorted display order so Ctrl+Tab matches what the user sees.
+      const nextId = resolveNextTerminalId(
+        state.sessions.map(s => s.id),
+        tm.getSessionIds(),
+        tm.getActiveSessionId(),
+        e.shiftKey ? -1 : 1,
+      );
+      if (nextId) tm.switchTo(nextId);
     }
   }, true);
 
