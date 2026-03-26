@@ -196,6 +196,39 @@ describe('ConfigLoader', () => {
       expect(() => loader.setBinding('A', 'nonexistent', { action: 'keyboard', keys: ['Enter'] }))
         .toThrow('Unknown CLI type: nonexistent');
     });
+
+    it('sets a sequence-list binding and persists', () => {
+      loader.load();
+      const seqListBinding = {
+        action: 'sequence-list' as const,
+        items: [
+          { label: 'Clear', sequence: '/clear{Enter}' },
+          { label: 'Help', sequence: '/help{Enter}' },
+        ],
+      };
+      loader.setBinding('Y', 'claude-code', seqListBinding);
+
+      expect(loader.getBindings('claude-code')!['Y']).toEqual(seqListBinding);
+
+      const onDisk = readYaml<any>('profiles/default.yaml');
+      expect(onDisk.bindings['claude-code']['Y']).toEqual(seqListBinding);
+    });
+
+    it('round-trips sequence-list binding through save and reload', () => {
+      loader.load();
+      const seqListBinding = {
+        action: 'sequence-list' as const,
+        items: [
+          { label: 'Compact', sequence: '/compact{Enter}' },
+        ],
+      };
+      loader.setBinding('Y', 'copilot-cli', seqListBinding);
+
+      // Reload from disk
+      const loader2 = new ConfigLoader(TEST_DIR);
+      loader2.load();
+      expect(loader2.getBindings('copilot-cli')!['Y']).toEqual(seqListBinding);
+    });
   });
 
   // =========================================================================

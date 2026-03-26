@@ -16,6 +16,7 @@ import { dirPickerState } from './modals/dir-picker.js';
 import { handleBindingEditorButton } from './modals/binding-editor.js';
 import { bindingEditorState } from './modals/binding-editor.js';
 import { contextMenuState, handleContextMenuButton } from './modals/context-menu.js';
+import { sequencePickerState, handleSequencePickerButton } from './modals/sequence-picker.js';
 import { closeConfirmState, handleCloseConfirmButton } from './modals/close-confirm.js';
 import { formModalVisible } from './utils.js';
 import { getTerminalManager } from './main.js';
@@ -140,6 +141,12 @@ export function handleGamepadEvent(event: ButtonEvent): void {
   // Context menu intercepts all input when visible
   if (contextMenuState.visible) {
     handleContextMenuButton(event.button);
+    return;
+  }
+
+  // Sequence picker intercepts all input when visible
+  if (sequencePickerState.visible) {
+    handleSequencePickerButton(event.button);
     return;
   }
 

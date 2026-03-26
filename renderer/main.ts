@@ -20,6 +20,7 @@ import { closeBindingEditor, saveBinding } from './modals/binding-editor.js';
 import { TerminalManager } from './terminal/terminal-manager.js';
 import { setupKeyboardRelay } from './paste-handler.js';
 import { initContextMenuClickHandlers } from './modals/context-menu.js';
+import { initSequencePickerClickHandlers } from './modals/sequence-picker.js';
 import { initCloseConfirmClickHandlers } from './modals/close-confirm.js';
 
 // ============================================================================
@@ -246,6 +247,9 @@ async function init(): Promise<void> {
 
       // Wire context menu click handlers
       initContextMenuClickHandlers();
+
+      // Wire sequence picker click handlers
+      initSequencePickerClickHandlers();
 
       // Wire close confirm modal click handlers
       initCloseConfirmClickHandlers();

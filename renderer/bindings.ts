@@ -212,6 +212,15 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
         }
         break;
       }
+      case 'sequence-list': {
+        if (!binding.items || binding.items.length === 0) {
+          console.warn(`[Renderer] sequence-list binding for ${button} has no items`);
+          break;
+        }
+        const { showSequencePicker } = await import('./modals/sequence-picker.js');
+        showSequencePicker(binding.items, (sequence) => executeSequence(sequence));
+        break;
+      }
       default:
         console.warn(`[Renderer] Unknown CLI action: ${binding.action}`);
     }

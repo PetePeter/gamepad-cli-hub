@@ -6,7 +6,7 @@ import * as YAML from 'yaml';
 // Action & Binding Types
 // ============================================================================
 
-export type ActionType = 'keyboard' | 'voice' | 'scroll' | 'context-menu';
+export type ActionType = 'keyboard' | 'voice' | 'scroll' | 'context-menu' | 'sequence-list';
 
 interface BaseBinding {
   action: ActionType;
@@ -34,7 +34,17 @@ interface ContextMenuBinding extends BaseBinding {
   action: 'context-menu';
 }
 
-export type Binding = KeyboardBinding | VoiceBinding | ScrollBinding | ContextMenuBinding;
+export interface SequenceListItem {
+  label: string;
+  sequence: string;
+}
+
+interface SequenceListBinding extends BaseBinding {
+  action: 'sequence-list';
+  items: SequenceListItem[];
+}
+
+export type Binding = KeyboardBinding | VoiceBinding | ScrollBinding | ContextMenuBinding | SequenceListBinding;
 
 // ============================================================================
 // Shared Config Types

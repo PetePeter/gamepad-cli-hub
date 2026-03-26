@@ -2,6 +2,8 @@
  * Binding editor modal — edit or create button→action bindings.
  */
 
+import type { SequenceListItem } from '../../src/config/loader.js';
+
 /** Binding editor modal state — co-located with its only consumer. */
 export interface BindingEditorState {
   visible: boolean;
@@ -16,7 +18,7 @@ export const bindingEditorState: BindingEditorState = {
 };
 
 import { state } from '../state.js';
-import { logEvent, getCliDisplayName, toDirection, getSequenceSyntaxHelpText } from '../utils.js';
+import { logEvent, getCliDisplayName, toDirection, getSequenceSyntaxHelpText, showFormModal } from '../utils.js';
 import { loadSettingsScreen } from '../screens/settings.js';
 import { attachModalKeyboard } from './modal-base.js';
 
@@ -27,7 +29,7 @@ let cleanupKeyboard: (() => void) | null = null;
 // Constants
 // ============================================================================
 
-const ACTION_TYPES = ['keyboard', 'voice', 'scroll'] as const;
+const ACTION_TYPES = ['keyboard', 'voice', 'scroll', 'sequence-list'] as const;
 
 // ============================================================================
 // Open / Close
@@ -178,7 +180,115 @@ function renderActionParams(form: HTMLElement, binding: any): void {
       `));
       break;
     }
+    case 'sequence-list': {
+      renderSequenceListParams(form, binding);
+      break;
+    }
   }
+}
+
+function renderSequenceListParams(form: HTMLElement, binding: any): void {
+  const items: SequenceListItem[] = binding.items || [];
+
+  const container = document.createElement('div');
+  container.className = 'binding-editor-field';
+  container.id = 'sequenceListContainer';
+
+  const label = document.createElement('label');
+  label.textContent = `Sequences (${items.length})`;
+  container.appendChild(label);
+
+  const list = document.createElement('div');
+  list.className = 'sequence-list-items';
+  list.id = 'sequenceListItems';
+
+  items.forEach((item, index) => {
+    list.appendChild(createSequenceListItemRow(item, index));
+  });
+
+  container.appendChild(list);
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'btn btn--secondary sequence-list-add focusable';
+  addBtn.textContent = '+ Add Item';
+  addBtn.addEventListener('click', async () => {
+    const result = await showFormModal('Add Sequence Item', [
+      { key: 'label', label: 'Label', placeholder: 'e.g. Clear screen' },
+      { key: 'sequence', label: 'Sequence', type: 'textarea', placeholder: '/clear{Enter}' },
+    ]);
+    if (result) {
+      if (!bindingEditorState.editingBinding) return;
+      const currentItems = bindingEditorState.editingBinding.binding.items || [];
+      currentItems.push({ label: result.label, sequence: result.sequence });
+      bindingEditorState.editingBinding.binding.items = currentItems;
+      renderBindingEditorForm();
+    }
+  });
+  container.appendChild(addBtn);
+
+  form.appendChild(container);
+}
+
+function createSequenceListItemRow(item: SequenceListItem, index: number): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'sequence-list-row';
+  row.dataset.index = String(index);
+
+  const info = document.createElement('div');
+  info.className = 'sequence-list-row__info';
+  info.innerHTML = `<strong>${escapeHtml(item.label)}</strong><span class="sequence-list-row__preview">${escapeHtml(item.sequence)}</span>`;
+
+  const actions = document.createElement('div');
+  actions.className = 'sequence-list-row__actions';
+
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'btn btn--small focusable';
+  editBtn.textContent = '✏';
+  editBtn.title = 'Edit';
+  editBtn.addEventListener('click', async () => {
+    const result = await showFormModal('Edit Sequence Item', [
+      { key: 'label', label: 'Label', defaultValue: item.label },
+      { key: 'sequence', label: 'Sequence', type: 'textarea', defaultValue: item.sequence },
+    ]);
+    if (result && bindingEditorState.editingBinding) {
+      const items = bindingEditorState.editingBinding.binding.items || [];
+      if (items[index]) {
+        items[index] = { label: result.label, sequence: result.sequence };
+        renderBindingEditorForm();
+      }
+    }
+  });
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'btn btn--small btn--danger focusable';
+  removeBtn.textContent = '✕';
+  removeBtn.title = 'Remove';
+  removeBtn.addEventListener('click', () => {
+    if (!bindingEditorState.editingBinding) return;
+    const items = bindingEditorState.editingBinding.binding.items || [];
+    items.splice(index, 1);
+    bindingEditorState.editingBinding.binding.items = items;
+    renderBindingEditorForm();
+  });
+
+  actions.appendChild(editBtn);
+  actions.appendChild(removeBtn);
+  row.appendChild(info);
+  row.appendChild(actions);
+  return row;
+}
+
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function collectSequenceListFromForm(): any {
+  if (!bindingEditorState.editingBinding) return null;
+  const items = bindingEditorState.editingBinding.binding.items || [];
+  return { action: 'sequence-list', items: [...items] };
 }
 
 function createEditorField(label: string, inputHtml: string, readonly = false): HTMLElement {
@@ -196,6 +306,8 @@ function buildDefaultBinding(action: string): any {
       return { action: 'voice', key: '', mode: 'tap' };
     case 'scroll':
       return { action: 'scroll', direction: 'down' };
+    case 'sequence-list':
+      return { action: 'sequence-list', items: [] };
     default:
       return { action };
   }
@@ -232,6 +344,9 @@ function collectBindingFromForm(): any | null {
       const scrollLinesInput = document.getElementById('bindingEditorScrollLines') as HTMLInputElement;
       const lines = parseInt(scrollLinesInput?.value || '5', 10);
       return { action: 'scroll', direction: scrollDirSelect?.value || 'down', lines: isNaN(lines) ? 5 : lines };
+    }
+    case 'sequence-list': {
+      return collectSequenceListFromForm();
     }
     default:
       return null;
