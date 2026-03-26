@@ -10,6 +10,7 @@ import { TerminalView } from './terminal-view.js';
 export interface TerminalSession {
   sessionId: string;
   cliType: string;
+  name: string;
   view: TerminalView;
   element: HTMLElement;
   cwd?: string;
@@ -67,7 +68,7 @@ export class TerminalManager {
       },
     });
 
-    this.terminals.set(sessionId, { sessionId, cliType, view, element, cwd });
+    this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd });
 
     // Right-click context menu on the terminal pane
     element.addEventListener('contextmenu', (e) => {
@@ -157,6 +158,14 @@ export class TerminalManager {
   /** Get terminal session info */
   getSession(sessionId: string): TerminalSession | undefined {
     return this.terminals.get(sessionId);
+  }
+
+  /** Update the display name for a terminal session */
+  renameSession(sessionId: string, newName: string): void {
+    const session = this.terminals.get(sessionId);
+    if (session) {
+      session.name = newName;
+    }
   }
 
   /** Destroy a terminal and kill its PTY */

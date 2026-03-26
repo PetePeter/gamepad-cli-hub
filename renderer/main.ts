@@ -9,7 +9,7 @@ import { browserGamepad } from './gamepad.js';
 import { state } from './state.js';
 import { logEvent, showScreen, setLoadSettingsCallback, updateProfileDisplay } from './utils.js';
 import { initConfigCache } from './bindings.js';
-import { loadSessions, updateSessionHighlight, syncSessionHighlight, setDirPickerBridge, setTerminalManagerGetter, hideTerminalArea } from './screens/sessions.js';
+import { loadSessions, updateSessionHighlight, syncSessionHighlight, setDirPickerBridge, setTerminalManagerGetter, hideTerminalArea, setSessionActivity } from './screens/sessions.js';
 import { loadSettingsScreen } from './screens/settings.js';
 import {
   setupGamepadNavigation,
@@ -20,6 +20,7 @@ import { closeBindingEditor, saveBinding } from './modals/binding-editor.js';
 import { TerminalManager } from './terminal/terminal-manager.js';
 import { setupKeyboardRelay } from './paste-handler.js';
 import { initContextMenuClickHandlers } from './modals/context-menu.js';
+import { initCloseConfirmClickHandlers } from './modals/close-confirm.js';
 
 // ============================================================================
 // Terminal Manager
@@ -246,6 +247,9 @@ async function init(): Promise<void> {
       // Wire context menu click handlers
       initContextMenuClickHandlers();
 
+      // Wire close confirm modal click handlers
+      initCloseConfirmClickHandlers();
+
       // Click on terminal area → focus terminal
       const terminalArea = document.getElementById('terminalArea');
       terminalArea?.addEventListener('mousedown', () => {
@@ -269,7 +273,7 @@ async function init(): Promise<void> {
   // Setup PTY state change listener
   if (window.gamepadCli) {
     window.gamepadCli.onPtyStateChange((transition) => {
-      // Update local session state cache
+      // Update local session state cache (also triggers re-render)
       setSessionState(transition.sessionId, transition.newState);
 
       // Update actual session data
@@ -278,10 +282,13 @@ async function init(): Promise<void> {
         state.sessions[sessionIndex].state = transition.newState as any;
       }
 
-      // Re-render sessions to update colored dots
-      renderSessions();
-
       // Auto-handoff is handled by the main process via pty:handoff event
+    });
+
+    // Setup PTY activity change listener
+    window.gamepadCli.onPtyActivityChange((event) => {
+      // Update local activity cache (also triggers re-render)
+      setSessionActivity(event.sessionId, event.isActive);
     });
   }
 

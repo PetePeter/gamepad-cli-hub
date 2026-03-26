@@ -700,6 +700,54 @@ describe('ConfigLoader', () => {
   });
 
   // =========================================================================
+  // Activity config
+  // =========================================================================
+
+  describe('getActivityTimeout', () => {
+    it('returns default 30000ms when profile has no activity section', () => {
+      loader.load();
+      expect(loader.getActivityTimeout()).toBe(30000);
+    });
+
+    it('returns activity timeout from profile when present', () => {
+      const profileWithActivity = {
+        ...DEFAULT_PROFILE,
+        activity: { timeoutMs: 45000 },
+      };
+      writeYaml('profiles/default.yaml', profileWithActivity);
+      loader.load();
+
+      expect(loader.getActivityTimeout()).toBe(45000);
+    });
+  });
+
+  describe('setActivityTimeout', () => {
+    it('sets activity timeout and persists to profile', () => {
+      loader.load();
+      loader.setActivityTimeout(60000);
+
+      expect(loader.getActivityTimeout()).toBe(60000);
+
+      const profile = readYaml<typeof DEFAULT_PROFILE & { activity?: { timeoutMs: number } }>('profiles/default.yaml');
+      expect(profile.activity?.timeoutMs).toBe(60000);
+    });
+
+    it('updates existing activity config', () => {
+      const profileWithActivity = {
+        ...DEFAULT_PROFILE,
+        activity: { timeoutMs: 45000 },
+      };
+      writeYaml('profiles/default.yaml', profileWithActivity);
+      loader.load();
+
+      loader.setActivityTimeout(15000);
+
+      const profile = readYaml<typeof DEFAULT_PROFILE & { activity?: { timeoutMs: number } }>('profiles/default.yaml');
+      expect(profile.activity?.timeoutMs).toBe(15000);
+    });
+  });
+
+  // =========================================================================
   // Scroll binding type
   // =========================================================================
 

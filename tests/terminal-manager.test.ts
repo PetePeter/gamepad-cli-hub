@@ -506,6 +506,42 @@ describe('TerminalManager', () => {
       mgr.dispose();
     });
   });
+
+  // -------------------------------------------------------------------------
+  // renameSession
+  // -------------------------------------------------------------------------
+
+  describe('renameSession', () => {
+    it('updates the session name', async () => {
+      const mgr = new TerminalManager(container);
+      await mgr.createTerminal('s1', 'aider', 'aider');
+
+      const before = mgr.getSession('s1');
+      expect(before!.name).toBe('aider'); // defaults to cliType
+
+      mgr.renameSession('s1', 'My Custom Name');
+
+      const after = mgr.getSession('s1');
+      expect(after!.name).toBe('My Custom Name');
+
+      mgr.dispose();
+    });
+
+    it('is a no-op for unknown session', () => {
+      const mgr = new TerminalManager(container);
+      expect(() => mgr.renameSession('nonexistent', 'name')).not.toThrow();
+      mgr.dispose();
+    });
+
+    it('name field defaults to cliType on creation', async () => {
+      const mgr = new TerminalManager(container);
+      await mgr.createTerminal('s1', 'claude-code', 'claude');
+
+      expect(mgr.getSession('s1')!.name).toBe('claude-code');
+
+      mgr.dispose();
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -306,7 +306,7 @@ button {
 .session-card {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 10px 12px;
   border-radius: var(--radius-md, 8px);
   border: 1px solid transparent;
@@ -316,12 +316,38 @@ button {
 .session-card:hover,
 .session-card.focused { background: var(--bg-tertiary); }
 .session-card.active { border-color: var(--accent); background: var(--bg-secondary); }
-.session-card .tab-state-dot { flex-shrink: 0; }
+
+/* Activity dot (bright = active, dim = inactive) */
+.session-activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.session-activity-dot--active {
+  background: #44cc44;
+  box-shadow: 0 0 6px #44cc44;
+}
+.session-activity-dot--inactive {
+  background: #555555;
+  opacity: 0.5;
+}
+
+/* State icon */
+.session-state-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+}
+
 .session-card .session-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; position: relative; }
 .session-card .session-name { font-size: var(--font-size-sm); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .session-card .session-meta { font-size: 10px; color: var(--text-dim); }
 
-/* Session close button */
+/* Session action buttons (rename, state, close) - always visible */
+.session-rename,
+.session-state-btn,
 .session-close {
   background: none;
   border: none;
@@ -330,13 +356,16 @@ button {
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
-  margin-left: auto;
-  opacity: 0;
-  transition: opacity 0.2s, color 0.2s;
-}
-.session-card:hover .session-close,
-.session-card.focused .session-close {
+  flex-shrink: 0;
+  transition: color 0.2s, background 0.2s;
   opacity: 1;
+}
+.session-rename:hover { color: var(--accent); background: rgba(100, 150, 255, 0.1); }
+.session-state-btn:hover { color: var(--accent); background: rgba(100, 150, 255, 0.1); }
+
+/* Session close button specific styles */
+.session-close {
+  color: #666;
 }
 .session-close:hover {
   color: #ff4444;
@@ -355,28 +384,6 @@ button {
   gap: 6px;
   flex: 1;
   min-width: 0;
-}
-
-.session-rename {
-  background: none;
-  border: none;
-  color: #666;
-  font-size: 12px;
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.2s, color 0.2s;
-  flex-shrink: 0;
-}
-.session-card:hover .session-rename,
-.session-card.focused .session-rename {
-  opacity: 0.6;
-}
-.session-rename:hover {
-  opacity: 1 !important;
-  color: var(--accent, #4fc3f7);
-  background: rgba(79, 195, 247, 0.1);
 }
 
 /* Rename edit mode input and buttons */
@@ -1480,4 +1487,47 @@ kbd {
   width: 20px;
   text-align: center;
   font-size: 14px;
+}
+
+/* =========================================================================
+   Close Confirmation Modal
+   ========================================================================= */
+
+.close-confirm-modal {
+  max-width: 320px;
+  text-align: center;
+}
+
+.close-confirm-body {
+  padding: 16px 20px;
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.close-confirm-modal .modal-footer {
+  justify-content: center;
+  gap: 12px;
+}
+
+.btn--danger {
+  background: rgba(255, 68, 68, 0.15);
+  color: #ff4444;
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.btn--danger:hover,
+.btn--danger.btn--focused {
+  background: rgba(255, 68, 68, 0.3);
+  border-color: #ff4444;
+}
+
+.btn--focused {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }

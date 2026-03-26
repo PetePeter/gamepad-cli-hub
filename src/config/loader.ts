@@ -110,6 +110,7 @@ export interface ProfileConfig {
   bindings: { [key: string]: ButtonBindings };
   sticks?: StickConfigs;
   dpad?: DpadConfig;
+  activity?: ActivityConfig;
 }
 
 // ============================================================================
@@ -120,6 +121,16 @@ export interface DpadConfig {
   initialDelay: number;  // ms before first repeat (default 400)
   repeatRate: number;    // ms between repeats (default 120)
 }
+
+// ============================================================================
+// Activity Config Types
+// ============================================================================
+
+export interface ActivityConfig {
+  timeoutMs: number;  // ms of no output before considering session inactive (default 30000)
+}
+
+const DEFAULT_ACTIVITY_CONFIG: ActivityConfig = { timeoutMs: 30000 };
 
 type StickMode = 'cursor' | 'scroll' | 'disabled';
 
@@ -337,6 +348,21 @@ export class ConfigLoader {
       initialDelay: dpad?.initialDelay ?? 400,
       repeatRate: dpad?.repeatRate ?? 120,
     };
+  }
+
+  getActivityTimeout(): number {
+    this.ensureLoaded();
+    return this.activeProfile!.activity?.timeoutMs ?? DEFAULT_ACTIVITY_CONFIG.timeoutMs;
+  }
+
+  setActivityTimeout(timeoutMs: number): void {
+    this.ensureLoaded();
+    if (!this.activeProfile!.activity) {
+      this.activeProfile!.activity = { timeoutMs };
+    } else {
+      this.activeProfile!.activity.timeoutMs = timeoutMs;
+    }
+    this.saveActiveProfile();
   }
 
   getWorkingDirectories(): WorkingDirectory[] {

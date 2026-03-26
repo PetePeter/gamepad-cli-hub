@@ -10,6 +10,7 @@ import { sessionsState, type SessionsFocus } from './sessions-state.js';
 import { logEvent, getCliIcon, getCliDisplayName, toDirection } from '../utils.js';
 import type { TerminalManager } from '../terminal/terminal-manager.js';
 import type { Session } from '../state.js';
+import { showCloseConfirm } from '../modals/close-confirm.js';
 import { sortSessions, SESSION_SORT_LABELS, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import { createSortControl, type SortControlHandle } from '../components/sort-control.js';
 
@@ -31,6 +32,14 @@ const STATE_LABELS: Record<string, string> = {
   idle: '💤 Idle',
 };
 
+/** State icons for display next to activity dot */
+const STATE_ICONS: Record<string, string> = {
+  implementing: '🔨',
+  waiting: '⏳',
+  planning: '🧠',
+  idle: '💤',
+};
+
 const STATE_ORDER: Record<string, number> = {
   implementing: 0,
   waiting: 1,
@@ -48,6 +57,9 @@ function getStateLabel(sessionState: string): string {
 
 const sessionStates = new Map<string, string>();
 
+/** Track session activity status (active = recent output, inactive = no output for timeout period) */
+const sessionActivity = new Map<string, boolean>();
+
 export function getSessionState(sessionId: string): string {
   return sessionStates.get(sessionId) || 'idle';
 }
@@ -59,43 +71,38 @@ export function setSessionState(sessionId: string, newState: string): void {
 
 export function removeSessionState(sessionId: string): void {
   sessionStates.delete(sessionId);
+  sessionActivity.delete(sessionId);
 }
 
-let closeConfirmSessionId: string | null = null;
-let closeConfirmTimer: ReturnType<typeof setTimeout> | null = null;
+/** Get session activity status */
+export function getSessionActivity(sessionId: string): boolean {
+  return sessionActivity.get(sessionId) ?? false;
+}
+
+/** Set session activity status */
+export function setSessionActivity(sessionId: string, isActive: boolean): void {
+  const wasActive = sessionActivity.get(sessionId) ?? false;
+  if (wasActive !== isActive) {
+    sessionActivity.set(sessionId, isActive);
+    loadSessions();
+  }
+}
+
+function doCloseSession(sessionId: string): void {
+  const tm = terminalManagerGetter ? terminalManagerGetter() : null;
+  if (tm) tm.destroyTerminal(sessionId);
+  removeSessionState(sessionId);
+  loadSessions();
+}
 
 function confirmCloseSession(): void {
   const session = state.sessions[sessionsState.sessionsFocusIndex];
   if (!session) return;
+  const displayName = session.name !== session.cliType
+    ? session.name
+    : getCliDisplayName(session.cliType);
 
-  if (closeConfirmSessionId === session.id) {
-    // Second press — actually close
-    clearCloseConfirm();
-    const tm = terminalManagerGetter ? terminalManagerGetter() : null;
-    if (tm) tm.destroyTerminal(session.id);
-    removeSessionState(session.id);
-    loadSessions();
-    return;
-  }
-
-  // First press — show confirm state
-  closeConfirmSessionId = session.id;
-  const card = document.querySelector(`.session-card[data-session-id="${session.id}"]`);
-  const closeBtn = card?.querySelector('.session-close');
-  if (closeBtn) closeBtn.textContent = '?';
-
-  closeConfirmTimer = setTimeout(() => {
-    clearCloseConfirm();
-    loadSessions(); // Re-render to reset '?' back to '×'
-  }, 3000);
-}
-
-function clearCloseConfirm(): void {
-  closeConfirmSessionId = null;
-  if (closeConfirmTimer) {
-    clearTimeout(closeConfirmTimer);
-    closeConfirmTimer = null;
-  }
+  showCloseConfirm(session.id, displayName, doCloseSession);
 }
 
 function getSessionCwd(sessionId: string): string {
@@ -432,10 +439,11 @@ async function loadSessionsData(): Promise<void> {
   if (tm) {
     for (const id of tm.getSessionIds()) {
       const session = tm.getSession(id);
+      const cliType = session?.cliType || 'unknown';
       state.sessions.push({
         id,
-        name: session?.cliType || 'Terminal',
-        cliType: session?.cliType || 'unknown',
+        name: session?.name || cliType,
+        cliType,
         processId: 0,
       } as Session);
     }
@@ -502,6 +510,9 @@ async function commitRename(sessionId: string, newName: string): void {
     if (result.success) {
       logEvent(`Renamed to: ${trimmed}`);
       sessionsState.editingSessionId = null;
+      // Update the name in TerminalManager so it persists across reloads
+      const tm = terminalManagerGetter ? terminalManagerGetter() : null;
+      if (tm) tm.renameSession(sessionId, trimmed);
       // Reload sessions to get updated data
       await loadSessionsData();
       renderSessions();
@@ -547,20 +558,27 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   }
   card.dataset.sessionId = session.id;
 
-  // State dot icon (replaces old CLI icon)
-  const dot = document.createElement('span');
   const sessionState = getSessionState(session.id);
-  dot.className = `tab-state-dot tab-state-dot--${sessionState}`;
+  const isActive = getSessionActivity(session.id);
+  const displayName = session.name !== session.cliType ? session.name : getCliDisplayName(session.cliType);
+  const folder = getSessionCwd(session.id);
+
+  // Activity dot (bright = active, dim = inactive)
+  const activityDot = document.createElement('span');
+  activityDot.className = `session-activity-dot${isActive ? ' session-activity-dot--active' : ' session-activity-dot--inactive'}`;
+
+  // State icon (🔨🧠⏳💤)
+  const stateIcon = document.createElement('span');
+  stateIcon.className = 'session-state-icon';
+  stateIcon.textContent = STATE_ICONS[sessionState] || '💤';
 
   const info = document.createElement('div');
   info.className = 'session-info';
 
   const isEditing = sessionsState.editingSessionId === session.id;
   const isFocusedCard = index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
-  const displayName = getCliDisplayName(session.cliType);
-  const folder = getSessionCwd(session.id);
 
-  // Name line container (holds name/edit input + rename button)
+  // Name line container (holds name/edit input)
   const nameLine = document.createElement('div');
   nameLine.className = 'session-name-line';
 
@@ -611,11 +629,17 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
     nameLine.appendChild(saveBtn);
     nameLine.appendChild(cancelBtn);
   } else {
-    // Display mode: name text + rename button
+    // Display mode: name text only (rename button moved to actions)
     const name = document.createElement('span');
     name.className = 'session-name';
     name.textContent = folder ? `${displayName} — ${folder}` : displayName;
+    nameLine.appendChild(name);
+  }
 
+  info.appendChild(nameLine);
+
+  // Rename button (always visible, moved to actions area)
+  if (!isEditing) {
     const renameBtn = document.createElement('button');
     renameBtn.className = 'session-rename';
     renameBtn.textContent = '✎';
@@ -624,12 +648,10 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
       e.stopPropagation();
       startRename(session.id);
     });
-
-    nameLine.appendChild(name);
-    nameLine.appendChild(renameBtn);
+    card.appendChild(renameBtn);
   }
 
-  // Meta: state dropdown button
+  // State dropdown button
   const stateBtn = document.createElement('button');
   stateBtn.className = 'session-state-btn';
   if (isFocusedCard && sessionsState.cardColumn === 1) stateBtn.classList.add('card-col-focused');
@@ -638,36 +660,23 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
     e.stopPropagation();
     showStateDropdown(stateBtn, session.id, sessionState);
   });
+  card.appendChild(stateBtn);
 
-  info.appendChild(nameLine);
-  info.appendChild(stateBtn);
-
-  // Close button — double-click-to-confirm pattern (matches binding delete)
+  // Close button — shows confirmation modal
   const closeBtn = document.createElement('button');
   closeBtn.className = 'session-close';
   if (isFocusedCard && sessionsState.cardColumn === 2) closeBtn.classList.add('card-col-focused');
-  closeBtn.textContent = '×';
+  closeBtn.textContent = '?';
   closeBtn.title = `Close ${displayName}`;
-  let closeConfirmPending = false;
   closeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (!closeConfirmPending) {
-      closeBtn.textContent = '?';
-      closeBtn.title = 'Click again to confirm';
-      closeConfirmPending = true;
-      setTimeout(() => { if (closeConfirmPending) { closeBtn.textContent = '×'; closeBtn.title = `Close ${displayName}`; closeConfirmPending = false; } }, 3000);
-      return;
-    }
-    closeConfirmPending = false;
-    const tm = terminalManagerGetter ? terminalManagerGetter() : null;
-    if (tm) tm.destroyTerminal(session.id);
-    removeSessionState(session.id);
-    loadSessions();
+    showCloseConfirm(session.id, displayName, doCloseSession);
   });
-
-  card.appendChild(dot);
-  card.appendChild(info);
   card.appendChild(closeBtn);
+
+  card.appendChild(activityDot);
+  card.appendChild(stateIcon);
+  card.appendChild(info);
 
   card.addEventListener('click', () => switchToSession(session.id));
   return card;
@@ -837,7 +846,6 @@ function handleSessionsZone(button: string, dir: string | null): void {
     // col=0: existing card navigation
     sessionsState.sessionsFocusIndex = Math.max(0, sessionsState.sessionsFocusIndex - 1);
     sessionsState.cardColumn = 0;
-    clearCloseConfirm();
     updateSessionsFocus();
     autoSelectFocusedSession();
     return;
@@ -849,13 +857,11 @@ function handleSessionsZone(button: string, dir: string | null): void {
       sessionsState.activeFocus = 'spawn';
       sessionsState.spawnFocusIndex = 0;
       sessionsState.cardColumn = 0;
-      clearCloseConfirm();
       updateAllFocus();
       return;
     }
     sessionsState.sessionsFocusIndex++;
     sessionsState.cardColumn = 0;
-    clearCloseConfirm();
     updateSessionsFocus();
     autoSelectFocusedSession();
     return;
@@ -878,7 +884,6 @@ function handleSessionsZoneButton(button: string): boolean {
   if (button === 'B') {
     if (sessionsState.cardColumn > 0) {
       sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2;
-      clearCloseConfirm();
       updateSessionsFocus();
       return true;
     }

@@ -163,6 +163,13 @@ const gamepadCliAPI = {
     return () => ipcRenderer.removeListener('pty:question-cleared', listener);
   },
 
+  /** Subscribe to activity change events */
+  onPtyActivityChange: (callback: (event: { sessionId: string; isActive: boolean }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('pty:activity-change', listener);
+    return () => ipcRenderer.removeListener('pty:activity-change', listener);
+  },
+
   // ========================================================================
   // Pipeline Queue
   // ========================================================================

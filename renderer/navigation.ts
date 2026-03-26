@@ -16,6 +16,7 @@ import { dirPickerState } from './modals/dir-picker.js';
 import { handleBindingEditorButton } from './modals/binding-editor.js';
 import { bindingEditorState } from './modals/binding-editor.js';
 import { contextMenuState, handleContextMenuButton } from './modals/context-menu.js';
+import { closeConfirmState, handleCloseConfirmButton } from './modals/close-confirm.js';
 import { formModalVisible } from './utils.js';
 import { getTerminalManager } from './main.js';
 
@@ -127,6 +128,12 @@ export function handleGamepadEvent(event: ButtonEvent): void {
       document.getElementById('formModalCancelBtn')?.click();
     }
     // Swallow all other buttons while form modal is open
+    return;
+  }
+
+  // Close confirmation modal intercepts all input when visible
+  if (closeConfirmState.visible) {
+    handleCloseConfirmButton(event.button);
     return;
   }
 

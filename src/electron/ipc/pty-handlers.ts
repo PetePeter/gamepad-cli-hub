@@ -180,6 +180,14 @@ export function setupPtyHandlers(
     }
   });
 
+  // Forward activity change events to renderer
+  stateDetector.on('activity-change', (event) => {
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('pty:activity-change', event);
+    }
+  });
+
   // Pipeline queue management
   ipcMain.handle('pipeline:enqueue', (_event, sessionId: string) => {
     pipelineQueue.enqueue(sessionId);

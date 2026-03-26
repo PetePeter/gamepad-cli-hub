@@ -93,9 +93,9 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 | **SequenceParser** | `src/input/sequence-parser.ts` | Parses sequence format strings (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, `{Mod Down/Up}`, `{{`/`}}` escapes, plain text) into typed SequenceAction arrays. Used by both button bindings and initial prompts. |
 | **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. `ActionType = 'keyboard' \| 'voice' \| 'scroll' \| 'context-menu'`. `Binding` union includes `ContextMenuBinding`. |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 7 domain handler files (session, config, profile, tools, keyboard, pty, system). Dependencies injected via function parameters. Config handlers include `dialog:openFolder` for native OS folder picker. |
-| **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization, `showFormModal` with `FormField` types: text/select/textarea + `browse?: boolean` for native folder picker), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`, context-menu action centers overlay in gamepad mode), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor/context-menu). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
+| **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization, `showFormModal` with `FormField` types: text/select/textarea + `browse?: boolean` for native folder picker), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`, context-menu action centers overlay in gamepad mode), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor/context-menu/close-confirm). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. Selection API: `getSelection()`, `hasSelection()`, `clearSelection()`. |
-| **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, grey=idle). Exposes onSwitch/onEmpty callbacks. `getActiveView()` returns current TerminalView. Right-click `contextmenu` listener on terminal area shows context menu overlay. |
+| **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, rename, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, grey=idle). Exposes onSwitch/onEmpty callbacks. `getActiveView()` returns current TerminalView. `renameSession()` updates the display name persisted across UI reloads. Right-click `contextmenu` listener on terminal area shows context menu overlay. |
 | **Logger** | `src/utils/logger.ts` | Winston logger with daily rotation. Used across all src/ modules. |
 ## Config System
 
@@ -324,11 +324,11 @@ renderer/
 ├── utils.ts                    # DOM helpers, logEvent, showScreen, toDirection
 ├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing, voice OS-default + PTY via target: 'terminal', F1-F12 VT220 escape sequences)
 ├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY
-├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → contextMenu → screen routing → configBinding fallback
+├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → contextMenu → screen routing → configBinding fallback
 ├── gamepad.ts                  # Browser Gamepad API wrapper + repeat engine
 ├── terminal/
 │   ├── terminal-view.ts        # xterm.js wrapper (fit/search/weblinks addons)
-│   └── terminal-manager.ts     # Multi-terminal orchestration (create/switch/resize/destroy + tab bar)
+│   └── terminal-manager.ts     # Multi-terminal orchestration (create/switch/rename/resize/destroy + tab bar)
 ├── screens/
 │   ├── sessions.ts             # Vertical session cards + spawn grid + dir picker modal. `doSpawn()` accepts optional `contextText` for spawning with selected text (via `setPendingContextText()`)
 │   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn zones)
@@ -336,7 +336,8 @@ renderer/
 ├── modals/
 │   ├── dir-picker.ts           # Directory picker modal
 │   ├── binding-editor.ts       # Binding editor modal
-│   └── context-menu.ts         # Context menu overlay — Copy/Paste/New Session/New Session with Selection/Cancel. Selection-aware items, gamepad D-pad navigation, mouse + right-click support
+│   ├── context-menu.ts         # Context menu overlay — Copy/Paste/New Session/New Session with Selection/Cancel. Selection-aware items, gamepad D-pad navigation, mouse + right-click support
+│   └── close-confirm.ts        # Close session confirmation popup — centered modal with Close/Cancel, gamepad + keyboard support
 └── styles/
     └── main.css
 
@@ -364,5 +365,6 @@ tests/                                  # 629 tests across 19 files
 ├── modal-base.test.ts          # Modal UI base tests
 ├── gamepad-repeat.test.ts      # D-pad/stick key repeat engine tests
 ├── context-menu.test.ts        # Context menu overlay tests (show/hide, selection-aware items, gamepad navigation, click handlers)
+├── close-confirm.test.ts       # Close confirmation modal tests (show/hide, confirm/cancel, gamepad + keyboard navigation)
 └── utils.test.ts               # Utility function tests
 ```

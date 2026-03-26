@@ -28,6 +28,7 @@ const mockGetCliIcon = vi.fn((_type: string) => '🤖');
 const mockGetCliDisplayName = vi.fn((type: string) => type || 'Unknown');
 const mockRenderFooterBindings = vi.fn();
 const mockSwitchTo = vi.fn();
+const mockShowCloseConfirm = vi.fn();
 
 vi.mock('../renderer/utils.js', () => {
   const dirMap: Record<string, string> = {
@@ -45,6 +46,10 @@ vi.mock('../renderer/utils.js', () => {
     toDirection: (button: string) => dirMap[button] ?? null,
   };
 });
+
+vi.mock('../renderer/modals/close-confirm.js', () => ({
+  showCloseConfirm: mockShowCloseConfirm,
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -112,8 +117,8 @@ function makeSessions(count: number) {
 }
 
 /** Mock TerminalManager that returns configured sessions. */
-function createMockTerminalManager(sessionData: Array<{ id: string; cliType: string }>) {
-  const sessionsMap = new Map(sessionData.map(s => [s.id, { sessionId: s.id, cliType: s.cliType }]));
+function createMockTerminalManager(sessionData: Array<{ id: string; cliType: string; name?: string }>) {
+  const sessionsMap = new Map(sessionData.map(s => [s.id, { sessionId: s.id, cliType: s.cliType, name: s.name || s.cliType }]));
   return {
     getSessionIds: () => Array.from(sessionsMap.keys()),
     getSession: (id: string) => sessionsMap.get(id),
@@ -124,6 +129,10 @@ function createMockTerminalManager(sessionData: Array<{ id: string; cliType: str
     fitActive: vi.fn(),
     createTerminal: mockCreateTerminal,
     destroyTerminal: mockDestroyTerminal,
+    renameSession: vi.fn((id: string, newName: string) => {
+      const s = sessionsMap.get(id);
+      if (s) s.name = newName;
+    }),
   };
 }
 
@@ -284,28 +293,37 @@ describe('Sessions Screen', () => {
       expect(cards).toHaveLength(3);
     });
 
-    it('session card contains .tab-state-dot element', async () => {
+    it('session card contains .session-activity-dot element', async () => {
       setMockTerminalSessions(makeSessions(1));
       await loadAndFlush(sessions);
 
-      const dot = document.querySelector('#sessionsList .session-card .tab-state-dot');
+      const dot = document.querySelector('#sessionsList .session-card .session-activity-dot');
       expect(dot).not.toBeNull();
-      expect(dot!.classList.contains('tab-state-dot--idle')).toBe(true);
+      // New sessions start inactive (no output yet)
+      expect(dot!.classList.contains('session-activity-dot--inactive')).toBe(true);
     });
 
-    it('session card contains .session-info with .session-name and .session-state-btn', async () => {
+    it('session card contains .session-state-icon, .session-info with .session-name, and .session-state-btn', async () => {
       sessions.setTerminalManagerGetter(() => createMockTerminalManager([
         { id: 's-0', cliType: 'claude-code' },
       ]));
       await loadAndFlush(sessions);
 
-      const info = document.querySelector('#sessionsList .session-card .session-info');
+      const card = document.querySelector('#sessionsList .session-card');
+      expect(card).not.toBeNull();
+
+      const stateIcon = card!.querySelector('.session-state-icon');
+      expect(stateIcon).not.toBeNull();
+      expect(stateIcon!.textContent).toBe('💤');
+
+      const info = card!.querySelector('.session-info');
       expect(info).not.toBeNull();
       const name = info!.querySelector('.session-name');
-      const stateBtn = info!.querySelector('.session-state-btn');
       expect(name).not.toBeNull();
-      expect(stateBtn).not.toBeNull();
       expect(name!.textContent).toBe('claude-code');
+
+      const stateBtn = card!.querySelector('.session-state-btn');
+      expect(stateBtn).not.toBeNull();
       expect(stateBtn!.textContent).toBe('💤 Idle');
     });
 
@@ -1143,14 +1161,14 @@ describe('Sessions Screen', () => {
   // ==========================================================================
 
   describe('session card UI elements', () => {
-    it('session cards include .session-close button', async () => {
+    it('session cards include .session-close button with ? icon', async () => {
       setMockTerminalSessions(makeSessions(2));
       mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
       await loadAndFlush(sessions);
 
       const closeButtons = document.querySelectorAll('.session-card .session-close');
       expect(closeButtons).toHaveLength(2);
-      expect(closeButtons[0].textContent).toBe('×');
+      expect(closeButtons[0].textContent).toBe('?');
     });
 
     it('session cards include .session-state-btn button', async () => {
@@ -1163,26 +1181,19 @@ describe('Sessions Screen', () => {
       expect(stateButtons[0].textContent).toBe('💤 Idle');
     });
 
-    it('clicking close button twice (double-click-to-confirm) calls destroyTerminal', async () => {
+    it('clicking close button shows close confirmation modal', async () => {
       const sessionData = makeSessions(1);
       setMockTerminalSessions(sessionData);
       mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
       await loadAndFlush(sessions);
 
       const closeBtn = document.querySelector('.session-card .session-close') as HTMLButtonElement;
-      // First click — enters confirm pending state
       closeBtn.click();
       await flush();
-      expect(closeBtn.textContent).toBe('?');
-      expect(mockDestroyTerminal).not.toHaveBeenCalled();
-
-      // Second click — confirms and destroys
-      closeBtn.click();
-      await flush();
-      expect(mockDestroyTerminal).toHaveBeenCalledWith('s-0');
+      expect(mockShowCloseConfirm).toHaveBeenCalledWith('s-0', expect.any(String), expect.any(Function));
     });
 
-    it('clicking close button once does not destroy (pending state only)', async () => {
+    it('clicking close button shows modal without destroying', async () => {
       setMockTerminalSessions(makeSessions(1));
       mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
       await loadAndFlush(sessions);
@@ -1193,6 +1204,7 @@ describe('Sessions Screen', () => {
 
       expect(closeBtn.textContent).toBe('?');
       expect(mockDestroyTerminal).not.toHaveBeenCalled();
+      expect(mockShowCloseConfirm).toHaveBeenCalled();
     });
   });
 
@@ -1363,35 +1375,30 @@ describe('Sessions Screen', () => {
       expect(sessionsState.cardColumn).toBe(0);
     });
 
-    it('A at col=2 triggers close confirm', async () => {
+    it('A at col=2 triggers close confirm modal', async () => {
       sessionsState.cardColumn = 2;
       sessions.handleSessionsScreenButton('A');
       await flush();
-      // First press shows '?'
-      const card = document.querySelector('.session-card[data-session-id="s-0"]');
-      const closeBtn = card?.querySelector('.session-close');
-      expect(closeBtn?.textContent).toBe('?');
+      expect(mockShowCloseConfirm).toHaveBeenCalledWith('s-0', expect.any(String), expect.any(Function));
     });
 
-    it('A at col=2 twice closes session', async () => {
+    it('A at col=2 close confirm callback destroys session', async () => {
       sessionsState.cardColumn = 2;
-      sessions.handleSessionsScreenButton('A'); // first — confirm prompt
+      sessions.handleSessionsScreenButton('A');
       await flush();
-      sessions.handleSessionsScreenButton('A'); // second — actual close
+      // Extract the onConfirm callback and invoke it
+      const onConfirm = mockShowCloseConfirm.mock.calls[0][2];
+      onConfirm('s-0');
       await flush();
       expect(mockDestroyTerminal).toHaveBeenCalledWith('s-0');
     });
 
-    it('close confirm resets after 3s timeout', async () => {
+    it('close button always shows ? icon', async () => {
       sessionsState.cardColumn = 2;
-      sessions.handleSessionsScreenButton('A');
-      await flush();
-      await vi.advanceTimersByTimeAsync(3100);
-      await flush();
-      // After timeout, re-render should show '×' again
+      await loadAndFlush(sessions);
       const card = document.querySelector('.session-card[data-session-id="s-0"]');
       const closeBtn = card?.querySelector('.session-close');
-      expect(closeBtn?.textContent).toBe('×');
+      expect(closeBtn?.textContent).toBe('?');
     });
 
     it('card-col-focused class applied to state btn at col=1', async () => {
