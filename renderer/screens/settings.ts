@@ -48,10 +48,6 @@ export async function loadSettingsScreen(): Promise<void> {
 
     if (state.settingsTab === 'profiles') {
       await renderProfilesPanel();
-    } else if (state.settingsTab === 'global') {
-      const bindings = state.globalBindings
-        || (window.gamepadCli ? await window.gamepadCli.configGetGlobalBindings() : {});
-      await renderBindingsDisplay(bindings || {}, 'Global Bindings');
     } else if (state.settingsTab === 'tools') {
       await renderToolsPanel();
     } else if (state.settingsTab === 'directories') {
@@ -95,7 +91,7 @@ export function handleSettingsScreenButton(button: string): boolean {
 }
 
 function navigateSettingsTab(direction: number): void {
-  const allTabs = ['profiles', 'global', ...state.cliTypes, 'tools', 'directories', 'status'];
+  const allTabs = ['profiles', ...state.cliTypes, 'tools', 'directories', 'status'];
   const currentIndex = allTabs.indexOf(state.settingsTab);
   let nextIndex = currentIndex + direction;
   if (nextIndex < 0) nextIndex = allTabs.length - 1;
@@ -123,7 +119,6 @@ function renderSettingsTabs(cliTypes: string[]): void {
 
   const allTabs = [
     { key: 'profiles', label: '👤 Profiles' },
-    { key: 'global', label: '🎮 Global' },
     ...cliTypes.map(ct => ({ key: ct, label: getCliDisplayName(ct) })),
     { key: 'tools', label: '🔧 Tools' },
     { key: 'directories', label: '📁 Dirs' },
@@ -149,7 +144,7 @@ function renderSettingsTabs(cliTypes: string[]): void {
 }
 
 // ============================================================================
-// Bindings Display (Global + CLI tabs)
+// Bindings Display (CLI tabs)
 // ============================================================================
 
 async function renderBindingsDisplay(bindings: Record<string, any>, _label: string): Promise<void> {
@@ -177,19 +172,13 @@ async function renderBindingsDisplay(bindings: Record<string, any>, _label: stri
 
     // "Copy from…" dropdown — only for per-CLI tabs
     const currentTab = state.settingsTab;
-    const isCliTab = currentTab !== 'global' && currentTab !== 'profiles'
+    const isCliTab = currentTab !== 'profiles'
       && currentTab !== 'tools' && currentTab !== 'directories' && currentTab !== 'status';
     if (isCliTab && state.cliTypes.length > 0) {
       const copyBtn = document.createElement('select');
       copyBtn.className = 'btn btn--sm focusable';
       copyBtn.tabIndex = 0;
       copyBtn.innerHTML = '<option value="" disabled selected>📋 Copy from…</option>';
-
-      // Add global option
-      const globalOpt = document.createElement('option');
-      globalOpt.value = 'global';
-      globalOpt.textContent = '🎮 Global';
-      copyBtn.appendChild(globalOpt);
 
       // Add other CLI types
       for (const ct of state.cliTypes) {
@@ -206,7 +195,7 @@ async function renderBindingsDisplay(bindings: Record<string, any>, _label: stri
         try {
           const result = await window.gamepadCli?.configCopyCliBindings(source, currentTab);
           if (result?.success) {
-            logEvent(`Copied ${result.count} binding(s) from ${source === 'global' ? 'Global' : getCliDisplayName(source)}`);
+            logEvent(`Copied ${result.count} binding(s) from ${getCliDisplayName(source)}`);
             // Invalidate cache and reload
             delete state.cliBindingsCache[currentTab];
             await loadSettingsScreen();
@@ -305,13 +294,11 @@ async function renderBindingsDisplay(bindings: Record<string, any>, _label: stri
       }
       confirmPending = false;
       try {
-        const cliType = state.settingsTab === 'global' ? null : state.settingsTab;
+        const cliType = state.settingsTab;
         const result = await window.gamepadCli.configRemoveBinding(button, cliType);
         if (result.success) {
           logEvent(`Removed binding: ${button}`);
-          if (cliType === null && state.globalBindings) {
-            delete state.globalBindings[button];
-          } else if (cliType && state.cliBindingsCache[cliType]) {
+          if (state.cliBindingsCache[cliType]) {
             delete state.cliBindingsCache[cliType][button];
           }
           loadSettingsScreen();
@@ -333,63 +320,12 @@ async function renderBindingsDisplay(bindings: Record<string, any>, _label: stri
     card.style.cursor = 'pointer';
     card.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).closest('.binding-card__delete')) return;
-      const cliType = state.settingsTab === 'global' ? null : state.settingsTab;
+      const cliType = state.settingsTab;
       openBindingEditor(button, cliType, { ...binding });
     });
 
     container.appendChild(card);
   });
-
-  // Show global bindings as reference on CLI-specific tabs
-  if (state.settingsTab !== 'global' && state.settingsTab !== 'profiles'
-      && state.settingsTab !== 'tools' && state.settingsTab !== 'directories') {
-    const globalBindings = state.globalBindings || {};
-    const globalEntries = sortBindingEntries(Object.entries(globalBindings), bindingsSortField, bindingsSortDirection);
-    if (globalEntries.length > 0) {
-      const divider = document.createElement('div');
-      divider.className = 'global-bindings-divider';
-      divider.textContent = 'Global Bindings (inherited)';
-      container.appendChild(divider);
-
-      globalEntries.forEach(([button, binding]: [string, any]) => {
-        const isOverridden = bindings.hasOwnProperty(button);
-        const card = document.createElement('div');
-        card.className = 'binding-card binding-card--global';
-        if (isOverridden) card.classList.add('binding-card--overridden');
-
-        const actionType = binding.action || 'unknown';
-        const details = formatBindingDetails(binding);
-
-        const header = document.createElement('div');
-        header.className = 'binding-card__header';
-
-        const btnName = document.createElement('span');
-        btnName.className = 'binding-card__button';
-        btnName.textContent = button;
-        header.appendChild(btnName);
-
-        const badge = document.createElement('span');
-        badge.className = 'binding-card__action-badge';
-        badge.textContent = actionType;
-        header.appendChild(badge);
-
-        if (isOverridden) {
-          const overrideTag = document.createElement('span');
-          overrideTag.className = 'binding-card__override-tag';
-          overrideTag.textContent = 'overridden';
-          header.appendChild(overrideTag);
-        }
-
-        const detailsEl = document.createElement('div');
-        detailsEl.className = 'binding-card__details';
-        detailsEl.textContent = details;
-
-        card.appendChild(header);
-        card.appendChild(detailsEl);
-        container.appendChild(card);
-      });
-    }
-  }
 }
 
 function showAddBindingPicker(unmappedButtons: readonly string[]): void {
@@ -418,7 +354,7 @@ function showAddBindingPicker(unmappedButtons: readonly string[]): void {
     btn.tabIndex = 0;
     btn.textContent = button;
     btn.addEventListener('click', () => {
-      const cliType = state.settingsTab === 'global' ? null : state.settingsTab;
+      const cliType = state.settingsTab;
       openBindingEditor(button, cliType, { action: 'keyboard', sequence: '' });
     });
     grid.appendChild(btn);

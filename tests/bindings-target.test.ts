@@ -117,7 +117,6 @@ describe('binding action routing', () => {
     state.activeSessionId = 'session-1';
     state.sessions = [{ id: 'session-1', cliType: 'claude-code', name: 'Test', processId: 123 }];
     state.cliBindingsCache = {};
-    state.globalBindings = {};
 
     // Default: terminal manager returns an active session (embedded terminal)
     mockTerminalManager.getActiveSessionId.mockReturnValue('session-1');

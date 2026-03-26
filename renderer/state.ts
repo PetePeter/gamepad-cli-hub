@@ -25,7 +25,6 @@ export interface AppState {
   eventLog: Array<{ time: string; event: string }>;
   cliTypes: string[];
   availableSpawnTypes: string[];
-  globalBindings: Record<string, any> | null;
   cliBindingsCache: Record<string, Record<string, any>>;
   settingsTab: string;
   activeProfile: string;
@@ -39,8 +38,7 @@ export const state: AppState = {
   eventLog: [],
   cliTypes: [],
   availableSpawnTypes: [],
-  globalBindings: null,
   cliBindingsCache: {},
-  settingsTab: 'global',
+  settingsTab: 'profiles',
   activeProfile: 'default',
 };

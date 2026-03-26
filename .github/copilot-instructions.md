@@ -60,8 +60,7 @@ flowchart LR
     A[Xbox Controller] --> B[Browser Gamepad API<br/>renderer polling]
     B --> C[250ms debounce + repeat engine]
     C --> D{Binding Resolution}
-    D -->|global| E[Execute Action]
-    D -->|per-CLI type| E
+    D -->|per-CLI type| E[Execute Action]
     E --> F[keyboard → SequenceParser → PTY stdin<br/>voice → OS-default robotjs, PTY when target: 'terminal'<br/>spawn → PtyManager<br/>switch → SessionManager → TerminalManager<br/>scroll → terminal buffer scroll]
 ```
 
@@ -69,10 +68,10 @@ flowchart LR
 1. Browser Gamepad API polls at 16ms in the renderer process
 2. Button presses debounced at 250ms; D-pad and sticks auto-repeat when held (400ms initial delay, 120ms rate for D-pad; displacement-proportional for sticks)
 3. Emits button events to subscribers; analog sticks emit virtual button events
-4. Binding resolution: check CLI-specific bindings first, then global bindings
+4. Binding resolution: check CLI-specific bindings
 5. Execute resolved action (keyboard sequence → PTY stdin, voice → OS-default robotjs or PTY when target: 'terminal', spawn → PTY, session-switch, scroll, etc.)
 6. Voice bindings: default to OS (robotjs). If active terminal exists and `target === 'terminal'` → convert key to escape sequence via `keyToPtyEscape()` → `ptyWrite()`. Otherwise → robotjs. Hold mode sends escape sequence once (PTY has no key-up).
-7. Analog sticks: explicit binding found → execute action; no binding → fall back to stick mode (left=cursor arrows via PTY, right=configurable via global bindings, default: scroll)
+7. Analog sticks: explicit binding found → execute action; no binding → fall back to stick mode (left=cursor arrows via PTY, right=configurable per-CLI bindings, default: scroll)
 8. D-pad / left stick navigates sessions and auto-selects the terminal
 9. Keyboard input always routes to the active terminal (PTY stdin)
 10. Ctrl+V paste: document-level interceptor reads clipboard text → writes to active PTY via `ptyWrite()` regardless of DOM focus
@@ -112,8 +111,8 @@ flowchart LR
 | **StateDetector** | `src/session/state-detector.ts` | Scans PTY output for AIAGENT-* keywords to detect CLI state (waiting, implementing, etc.). |
 | **PipelineQueue** | `src/session/pipeline-queue.ts` | Auto-handoff queue — routes tasks to waiting sessions based on state detection. |
 | **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. |
-| **ConfigLoader** | `src/config/loader.ts` | Split YAML config loading + profile/tools/directory CRUD. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getStickDirectionBinding()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
-| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 10 domain handler files (session, config, profile, tools, window, spawn, keyboard, pty, system, app). Dependencies injected via function parameters. |
+| **ConfigLoader** | `src/config/loader.ts` | Split YAML config loading + profile/tools/directory CRUD. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
+| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 10 domain handler files(session, config, profile, tools, window, spawn, keyboard, pty, system, app). Dependencies injected via function parameters. |
 | **Preload** | `src/electron/preload.ts` | Context bridge exposing typed IPC API to renderer. Must be .cjs when package.json has "type":"module". |
 | **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. |
@@ -134,7 +133,7 @@ graph LR
         D[directories.yaml<br/>Working directory presets]
         SS[sessions.yaml<br/>Persisted session state]
         subgraph "profiles/"
-            P[default.yaml<br/>Global + per-CLI bindings<br/>+ stick config]
+            P[default.yaml<br/>Per-CLI bindings<br/>+ stick config]
         end
     end
 
@@ -149,8 +148,7 @@ graph LR
 
 ### Binding Resolution Order
 1. Check **CLI-specific** bindings for the active session's CLI type
-2. If no match, check **global** bindings
-3. This allows the same button to behave differently per CLI type
+2. This allows the same button to behave differently per CLI type
 
 ### Binding Action Types
 | Action | Description |
@@ -162,7 +160,6 @@ graph LR
 | `list-sessions` | Show session status |
 | `profile-switch` | Switch config profile (next/previous) |
 | `close-session` | Close the active terminal session |
-| `hub-focus` | Bring hub window to foreground |
 
 ### Stick Configuration (per profile)
 ```yaml
@@ -178,7 +175,7 @@ sticks:
 ```
 
 ### Settings UI (5 tabs)
-Profiles | Global Bindings | Per-CLI Bindings | Tools | Directories | Status
+Profiles | Per-CLI Bindings | Tools | Directories | Status
 
 All config supports CRUD via IPC handlers and the Settings UI.
 
@@ -353,10 +350,10 @@ Haptic feedback is a config setting (`hapticFeedback: true/false` in settings.ya
 Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 10 domain files (`src/electron/ipc/*-handlers.ts`) with dependency injection — the orchestrator (`handlers.ts`) wires dependencies. Renderer never directly accesses Node.js APIs.
 
 ### Split YAML Config & Profiles
-Four separate concerns: tools (spawn definitions), directories (workspaces), settings (active profile), and profiles (button bindings). Each profile defines per-CLI-type + global bindings. Full CRUD via IPC + Settings UI.
+Four separate concerns: tools (spawn definitions), directories (workspaces), settings (active profile), and profiles (button bindings). Each profile defines per-CLI-type bindings. Full CRUD via IPC + Settings UI.
 
 ### Per-CLI Button Bindings
-Same button can do different things depending on active CLI type. Global bindings are fallback. A/B/X/Y are typically per-CLI outside navigation.
+Same button can do different things depending on active CLI type. A/B/X/Y are typically per-CLI outside navigation.
 
 ### Sequence Parser for Input
 Instead of direct key simulation, the `keyboard` action uses a sequence parser syntax (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, plain text) that converts to PTY escape codes. Same syntax used for button `sequence` bindings and `initialPrompt` config.

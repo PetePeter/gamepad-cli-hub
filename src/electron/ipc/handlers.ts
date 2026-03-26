@@ -19,7 +19,6 @@ import { setupSessionHandlers } from './session-handlers.js';
 import { setupConfigHandlers } from './config-handlers.js';
 import { setupProfileHandlers } from './profile-handlers.js';
 import { setupToolsHandlers } from './tools-handlers.js';
-import { setupHubHandlers } from './hub-handlers.js';
 import { setupKeyboardHandlers } from './keyboard-handlers.js';
 import { setupSystemHandlers } from './system-handlers.js';
 import { setupPtyHandlers, cancelAllPrompts } from './pty-handlers.js';
@@ -52,7 +51,6 @@ export function registerIPCHandlers(getMainWindow: () => BrowserWindow | null): 
   setupConfigHandlers(configLoader);
   setupProfileHandlers(configLoader);
   setupToolsHandlers(configLoader);
-  setupHubHandlers();
   setupKeyboardHandlers(keyboard);
   setupSystemHandlers();
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader);

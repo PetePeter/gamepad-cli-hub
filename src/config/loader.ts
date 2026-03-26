@@ -6,7 +6,7 @@ import * as YAML from 'yaml';
 // Action & Binding Types
 // ============================================================================
 
-export type ActionType = 'keyboard' | 'voice' | 'hub-focus' | 'scroll';
+export type ActionType = 'keyboard' | 'voice' | 'scroll';
 
 interface BaseBinding {
   action: ActionType;
@@ -24,17 +24,13 @@ interface VoiceBinding extends BaseBinding {
   target?: 'terminal';
 }
 
-interface HubFocusBinding extends BaseBinding {
-  action: 'hub-focus';
-}
-
 interface ScrollBinding extends BaseBinding {
   action: 'scroll';
   direction: 'up' | 'down';
   lines?: number;  // defaults to 5
 }
 
-export type Binding = KeyboardBinding | VoiceBinding | HubFocusBinding | ScrollBinding;
+export type Binding = KeyboardBinding | VoiceBinding | ScrollBinding;
 
 // ============================================================================
 // Shared Config Types
@@ -53,10 +49,6 @@ export interface CliTypeConfig {
 }
 
 export interface ButtonBindings {
-  [button: string]: Binding;
-}
-
-export interface GlobalBindings {
   [button: string]: Binding;
 }
 
@@ -122,7 +114,6 @@ export interface SettingsConfig {
 export interface ProfileConfig {
   name: string;
   cliTypes: { [key: string]: ButtonBindings };
-  global: GlobalBindings;
   sticks?: StickConfigs;
   dpad?: DpadConfig;
 }
@@ -234,9 +225,6 @@ export class ConfigLoader {
     if (!this.activeProfile.cliTypes || typeof this.activeProfile.cliTypes !== 'object') {
       throw new Error(`Invalid profile '${this.activeProfileName}': missing cliTypes`);
     }
-    if (!this.activeProfile.global || typeof this.activeProfile.global !== 'object') {
-      throw new Error(`Invalid profile '${this.activeProfileName}': missing global bindings`);
-    }
   }
 
   private readYaml<T>(filePath: string): T {
@@ -270,11 +258,6 @@ export class ConfigLoader {
   getBindings(cliType: string): ButtonBindings | null {
     this.ensureLoaded();
     return this.activeProfile!.cliTypes[cliType] ?? null;
-  }
-
-  getGlobalBindings(): GlobalBindings {
-    this.ensureLoaded();
-    return this.activeProfile!.global;
   }
 
   getSpawnConfig(cliType: string): SpawnConfig | null {
@@ -319,17 +302,6 @@ export class ConfigLoader {
     };
   }
 
-  /**
-   * Resolve a binding for a joystick direction.
-   * Checks global bindings for the virtual button name (e.g. LeftStickUp).
-   * Returns null if no explicit binding exists (caller should fall back to stick mode).
-   */
-  getStickDirectionBinding(stick: 'left' | 'right', direction: StickDirection): Binding | null {
-    this.ensureLoaded();
-    const virtualButton = stickVirtualButtonName(stick, direction);
-    return this.activeProfile!.global[virtualButton] ?? null;
-  }
-
   getWorkingDirectories(): WorkingDirectory[] {
     this.ensureLoaded();
     return this.directories!.workingDirectories || [];
@@ -337,45 +309,35 @@ export class ConfigLoader {
 
   // ---------- Binding edit (backward compatible) -----------------------
 
-  setBinding(button: string, cliType: string | null, binding: Binding): void {
+  setBinding(button: string, cliType: string, binding: Binding): void {
     this.ensureLoaded();
-    if (cliType === null) {
-      this.activeProfile!.global[button] = binding;
-    } else {
-      if (!this.activeProfile!.cliTypes[cliType]) {
-        // Auto-create entry if CLI type exists in tools but not yet in profile
-        if (this.tools!.cliTypes[cliType]) {
-          this.activeProfile!.cliTypes[cliType] = {};
-        } else {
-          throw new Error(`Unknown CLI type: ${cliType}`);
-        }
+    if (!this.activeProfile!.cliTypes[cliType]) {
+      // Auto-create entry if CLI type exists in tools but not yet in profile
+      if (this.tools!.cliTypes[cliType]) {
+        this.activeProfile!.cliTypes[cliType] = {};
+      } else {
+        throw new Error(`Unknown CLI type: ${cliType}`);
       }
-      this.activeProfile!.cliTypes[cliType][button] = binding;
     }
+    this.activeProfile!.cliTypes[cliType][button] = binding;
     this.saveActiveProfile();
   }
 
-  removeBinding(button: string, cliType: string | null): void {
+  removeBinding(button: string, cliType: string): void {
     this.ensureLoaded();
-    if (cliType === null) {
-      delete this.activeProfile!.global[button];
-    } else {
-      if (this.activeProfile!.cliTypes[cliType]) {
-        delete this.activeProfile!.cliTypes[cliType][button];
-      }
+    if (this.activeProfile!.cliTypes[cliType]) {
+      delete this.activeProfile!.cliTypes[cliType][button];
     }
     this.saveActiveProfile();
   }
 
   copyCliBindings(sourceCli: string, targetCli: string): number {
     this.ensureLoaded();
-    const sourceBindings = sourceCli === 'global'
-      ? this.activeProfile!.global
-      : this.activeProfile!.cliTypes[sourceCli];
+    const sourceBindings = this.activeProfile!.cliTypes[sourceCli];
     if (!sourceBindings) {
       throw new Error(`No bindings found for source: ${sourceCli}`);
     }
-    if (targetCli !== 'global' && !this.activeProfile!.cliTypes[targetCli]) {
+    if (!this.activeProfile!.cliTypes[targetCli]) {
       if (this.tools!.cliTypes[targetCli]) {
         this.activeProfile!.cliTypes[targetCli] = {};
       } else {
@@ -384,11 +346,7 @@ export class ConfigLoader {
     }
     let count = 0;
     for (const [button, binding] of Object.entries(sourceBindings)) {
-      if (targetCli === 'global') {
-        this.activeProfile!.global[button] = { ...binding };
-      } else {
-        this.activeProfile!.cliTypes[targetCli][button] = { ...binding };
-      }
+      this.activeProfile!.cliTypes[targetCli][button] = { ...binding };
       count++;
     }
     this.saveActiveProfile();
@@ -494,7 +452,7 @@ export class ConfigLoader {
           cliTypes[key] = {};
         }
       }
-      profile = { name, cliTypes, global: {} };
+      profile = { name, cliTypes };
     }
 
     const yamlStr = YAML.stringify(profile);

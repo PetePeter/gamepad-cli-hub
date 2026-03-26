@@ -1,8 +1,7 @@
 /**
  * Config-driven binding dispatch.
  *
- * CLI-specific bindings take priority over global bindings.
- * Global bindings fire only when no CLI binding matches.
+ * Resolves CLI-specific bindings for the active session.
  */
 
 import { state } from './state.js';
@@ -11,7 +10,7 @@ import { parseSequence, formatSequencePreview, type SequenceAction } from '../sr
 import type { Binding } from '../src/config/loader.js';
 import { getTerminalManager } from './main.js';
 
-/** Shared scroll handler — used by both global and CLI binding executors. */
+/** Scroll handler for scroll bindings. */
 function executeScroll(binding: { direction: string; lines?: number }): void {
   const tm = getTerminalManager();
   const activeId = tm?.getActiveSessionId();
@@ -88,9 +87,6 @@ export async function initConfigCache(): Promise<void> {
   try {
     if (!window.gamepadCli) return;
 
-    state.globalBindings = await window.gamepadCli.configGetGlobalBindings();
-    console.log('[Renderer] Cached global bindings:', Object.keys(state.globalBindings || {}));
-
     for (const cliType of state.cliTypes) {
       const bindings = await window.gamepadCli.configGetBindings(cliType);
       if (bindings) {
@@ -106,7 +102,6 @@ export async function initConfigCache(): Promise<void> {
 export function processConfigBinding(button: string): void {
   if (!window.gamepadCli) return;
 
-  // Check CLI-specific bindings first (higher priority)
   if (state.activeSessionId) {
     const activeSession = state.sessions.find(s => s.id === state.activeSessionId);
     if (activeSession) {
@@ -114,35 +109,8 @@ export function processConfigBinding(button: string): void {
       const cliBinding = cliBindings?.[button];
       if (cliBinding) {
         executeCliBinding(button, cliBinding);
-        return; // CLI binding handled — skip global
       }
     }
-  }
-
-  // Fall through to global bindings
-  const globalBinding = state.globalBindings?.[button];
-  if (globalBinding) {
-    executeGlobalBinding(button, globalBinding);
-  }
-}
-
-async function executeGlobalBinding(button: string, binding: Binding): Promise<void> {
-  try {
-    switch (binding.action) {
-      case 'hub-focus': {
-        await window.gamepadCli.hubFocus();
-        logEvent('Action: hub-focus');
-        break;
-      }
-      case 'scroll': {
-        executeScroll(binding);
-        break;
-      }
-      default:
-        console.warn(`[Renderer] Unknown global action: ${binding.action}`);
-    }
-  } catch (error) {
-    console.error(`[Renderer] Global binding failed for ${button}:`, error);
   }
 }
 

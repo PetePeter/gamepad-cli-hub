@@ -1260,21 +1260,6 @@ kbd {
   opacity: 1;
 }
 
-.global-bindings-divider {
-  grid-column: 1 / -1;
-  padding: var(--spacing-sm) 0;
-  margin-top: var(--spacing-md);
-  font-size: var(--font-size-sm);
-  color: var(--text-dim);
-  border-top: 1px solid var(--border);
-  font-weight: 500;
-}
-
-.binding-card--global {
-  opacity: 0.45;
-  pointer-events: none;
-}
-
 .binding-card--overridden {
   opacity: 0.3;
   text-decoration: line-through;

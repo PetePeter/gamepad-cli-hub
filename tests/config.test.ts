@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConfigLoader } from '../src/config/loader.js';
+import { stickVirtualButtonName, STICK_VIRTUAL_BUTTONS } from '../src/config/loader.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as YAML from 'yaml';
@@ -67,9 +68,6 @@ const DEFAULT_PROFILE = {
       A: { action: 'keyboard', sequence: '{Ctrl+L}' },
       Y: { action: 'keyboard', sequence: '{Ctrl+C}' },
     },
-  },
-  global: {
-    Xbox: { action: 'hub-focus' },
   },
 };
 
@@ -148,17 +146,6 @@ describe('ConfigLoader', () => {
     });
   });
 
-  describe('getGlobalBindings', () => {
-    it('returns global bindings from active profile', () => {
-      loader.load();
-      expect(loader.getGlobalBindings()).toEqual(DEFAULT_PROFILE.global);
-    });
-
-    it('throws error when called before load', () => {
-      expect(() => loader.getGlobalBindings()).toThrow('Configuration not loaded');
-    });
-  });
-
   describe('getSpawnConfig', () => {
     it('returns built spawn config from tools.yaml', () => {
       loader.load();
@@ -207,20 +194,8 @@ describe('ConfigLoader', () => {
 
   describe('setBinding', () => {
     it('throws error when called before load', () => {
-      expect(() => loader.setBinding('A', null, { action: 'keyboard', keys: ['Enter'] }))
+      expect(() => loader.setBinding('A', 'claude-code', { action: 'keyboard', keys: ['Enter'] }))
         .toThrow('Configuration not loaded');
-    });
-
-    it('sets a global binding and persists to profile file', () => {
-      loader.load();
-      const newBinding = { action: 'keyboard' as const, keys: ['Enter'] };
-      loader.setBinding('A', null, newBinding);
-
-      expect(loader.getGlobalBindings()['A']).toEqual(newBinding);
-
-      // Verify written to disk
-      const onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.global['A']).toEqual(newBinding);
     });
 
     it('sets a CLI-specific binding and persists', () => {
@@ -270,20 +245,6 @@ describe('ConfigLoader', () => {
       loader.load();
       const count = loader.copyCliBindings('claude-code', 'copilot-cli');
       expect(count).toBe(2); // A and B
-    });
-
-    it('copies global bindings to a CLI type', () => {
-      loader.load();
-      loader.copyCliBindings('global', 'copilot-cli');
-      const target = loader.getBindings('copilot-cli')!;
-      expect(target['Xbox']).toEqual({ action: 'hub-focus' });
-    });
-
-    it('copies CLI bindings to global', () => {
-      loader.load();
-      loader.copyCliBindings('claude-code', 'global');
-      const global = loader.getGlobalBindings();
-      expect(global['A']).toEqual({ action: 'keyboard', sequence: '{Ctrl+L}' });
     });
 
     it('throws for unknown source CLI', () => {
@@ -341,7 +302,7 @@ describe('ConfigLoader', () => {
 
       const onDisk = readYaml<any>('profiles/gaming.yaml');
       expect(onDisk.name).toBe('gaming');
-      expect(onDisk.global).toEqual({});
+      expect(onDisk.cliTypes).toBeDefined();
     });
 
     it('createProfile with copyFrom clones an existing profile', () => {
@@ -365,7 +326,6 @@ describe('ConfigLoader', () => {
       const gamingProfile = {
         name: 'Gaming',
         cliTypes: { 'claude-code': { A: { action: 'keyboard', keys: ['Escape'] } } },
-        global: { Up: { action: 'hub-focus' } },
       };
       writeYaml('profiles/gaming.yaml', gamingProfile);
 
@@ -373,7 +333,6 @@ describe('ConfigLoader', () => {
 
       expect(loader.getActiveProfile()).toBe('gaming');
       expect(loader.getBindings('claude-code')).toEqual(gamingProfile.cliTypes['claude-code']);
-      expect(loader.getGlobalBindings()).toEqual(gamingProfile.global);
 
       // settings.yaml on disk should be updated
       const settings = readYaml<any>('settings.yaml');
@@ -404,7 +363,6 @@ describe('ConfigLoader', () => {
       const profile = {
         name: 'Temp',
         cliTypes: { 'claude-code': {} },
-        global: { Up: { action: 'hub-focus' } },
       };
       writeYaml('profiles/temp.yaml', profile);
       loader.switchProfile('temp');
@@ -619,11 +577,8 @@ describe('ConfigLoader', () => {
         name: 'Test',
         cliTypes: {
           'claude-code': {
-            Sandwich: { action: 'hub-focus' },
+            Sandwich: { action: 'keyboard', sequence: '{Escape}' },
           },
-        },
-        global: {
-          Xbox: { action: 'hub-focus' },
         },
       };
       writeYaml('profiles/default.yaml', profileWithSandwich);
@@ -631,24 +586,25 @@ describe('ConfigLoader', () => {
 
       const bindings = loader.getBindings('claude-code');
       expect(bindings).toHaveProperty('Sandwich');
-      expect(bindings!['Sandwich']).toEqual({ action: 'hub-focus' });
+      expect(bindings!['Sandwich']).toEqual({ action: 'keyboard', sequence: '{Escape}' });
     });
 
-    it('loads global bindings with Xbox button name', () => {
+    it('loads bindings with Xbox button name', () => {
       const profileWithXbox = {
         name: 'Test',
-        cliTypes: {},
-        global: {
-          Xbox: { action: 'hub-focus' },
-          Back: { action: 'hub-focus' },
+        cliTypes: {
+          'claude-code': {
+            Xbox: { action: 'keyboard', sequence: '{Enter}' },
+            Back: { action: 'keyboard', sequence: '{Escape}' },
+          },
         },
       };
       writeYaml('profiles/default.yaml', profileWithXbox);
       loader.load();
 
-      const global = loader.getGlobalBindings();
-      expect(global).toHaveProperty('Xbox');
-      expect(global['Xbox']).toEqual({ action: 'hub-focus' });
+      const bindings = loader.getBindings('claude-code');
+      expect(bindings).toHaveProperty('Xbox');
+      expect(bindings!['Xbox']).toEqual({ action: 'keyboard', sequence: '{Enter}' });
     });
 
     it('persists renamed button bindings through setBinding', () => {
@@ -749,25 +705,25 @@ describe('ConfigLoader', () => {
   // =========================================================================
 
   describe('scroll binding type', () => {
-    it('can store and retrieve scroll bindings in global', () => {
+    it('can store and retrieve scroll bindings', () => {
       loader.load();
-      loader.setBinding('RightStickUp', null, { action: 'scroll', direction: 'up', lines: 3 } as any);
-      loader.setBinding('RightStickDown', null, { action: 'scroll', direction: 'down' } as any);
+      loader.setBinding('RightStickUp', 'claude-code', { action: 'scroll', direction: 'up', lines: 3 } as any);
+      loader.setBinding('RightStickDown', 'claude-code', { action: 'scroll', direction: 'down' } as any);
 
-      const global = loader.getGlobalBindings();
-      expect(global['RightStickUp']).toEqual({ action: 'scroll', direction: 'up', lines: 3 });
-      expect(global['RightStickDown']).toEqual({ action: 'scroll', direction: 'down' });
+      const bindings = loader.getBindings('claude-code')!;
+      expect(bindings['RightStickUp']).toEqual({ action: 'scroll', direction: 'up', lines: 3 });
+      expect(bindings['RightStickDown']).toEqual({ action: 'scroll', direction: 'down' });
     });
 
     it('persists scroll bindings to disk', () => {
       loader.load();
-      loader.setBinding('RightStickUp', null, { action: 'scroll', direction: 'up' } as any);
+      loader.setBinding('RightStickUp', 'claude-code', { action: 'scroll', direction: 'up' } as any);
 
       // Reload from disk
       const freshLoader = new ConfigLoader(TEST_DIR);
       freshLoader.load();
-      const global = freshLoader.getGlobalBindings();
-      expect(global['RightStickUp']).toEqual({ action: 'scroll', direction: 'up' });
+      const bindings = freshLoader.getBindings('claude-code')!;
+      expect(bindings['RightStickUp']).toEqual({ action: 'scroll', direction: 'up' });
     });
   });
 
@@ -891,75 +847,6 @@ describe('ConfigLoader', () => {
       loader.load();
       expect(loader.getSpawnConfig('test')).toEqual({ command: '', args: [] });
     });
-  });
-});
-
-// ============================================================================
-// getStickDirectionBinding
-// ============================================================================
-
-import { stickVirtualButtonName, STICK_VIRTUAL_BUTTONS } from '../src/config/loader.js';
-
-describe('getStickDirectionBinding', () => {
-  let loader: ConfigLoader;
-
-  beforeEach(() => {
-    fs.mkdirSync(TEST_DIR + '-stick', { recursive: true });
-  });
-
-  afterEach(() => {
-    fs.rmSync(TEST_DIR + '-stick', { recursive: true, force: true });
-  });
-
-  function setupWithGlobal(globalBindings: Record<string, any>): void {
-    const dir = TEST_DIR + '-stick';
-    const writeYamlStick = (rel: string, data: unknown) => {
-      const fullPath = path.join(dir, rel);
-      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-      fs.writeFileSync(fullPath, YAML.stringify(data), 'utf8');
-    };
-
-    writeYamlStick('directories.yaml', { workingDirectories: [] });
-    writeYamlStick('tools.yaml', { cliTypes: { test: { name: 'Test', command: 'test' } } });
-    writeYamlStick('settings.yaml', { activeProfile: 'default' });
-    writeYamlStick('profiles/default.yaml', {
-      name: 'Default',
-      cliTypes: { test: {} },
-      global: globalBindings,
-    });
-
-    loader = new ConfigLoader(dir);
-    loader.load();
-  }
-
-  it('returns binding for an explicit stick direction', () => {
-    setupWithGlobal({
-      LeftStickUp: { action: 'keyboard', keys: ['up'] },
-    });
-    const binding = loader.getStickDirectionBinding('left', 'up');
-    expect(binding).toEqual({ action: 'keyboard', keys: ['up'] });
-  });
-
-  it('returns null when no binding for stick direction', () => {
-    setupWithGlobal({});
-    expect(loader.getStickDirectionBinding('right', 'down')).toBeNull();
-  });
-
-  it('distinguishes left from right stick', () => {
-    setupWithGlobal({
-      LeftStickUp: { action: 'keyboard', keys: ['up'] },
-      RightStickUp: { action: 'hub-focus' },
-    });
-    expect(loader.getStickDirectionBinding('left', 'up')).toEqual({ action: 'keyboard', keys: ['up'] });
-    expect(loader.getStickDirectionBinding('right', 'up')).toEqual({ action: 'hub-focus' });
-  });
-
-  it('returns null for directions without explicit bindings even when others exist', () => {
-    setupWithGlobal({
-      RightStickDown: { action: 'keyboard', keys: ['pagedown'] },
-    });
-    expect(loader.getStickDirectionBinding('right', 'up')).toBeNull();
-    expect(loader.getStickDirectionBinding('left', 'down')).toBeNull();
   });
 });
 

@@ -5,7 +5,7 @@
 /** Binding editor modal state — co-located with its only consumer. */
 export interface BindingEditorState {
   visible: boolean;
-  editingBinding: { button: string; cliType: string | null; binding: any } | null;
+  editingBinding: { button: string; cliType: string; binding: any } | null;
   focusIndex: number;
 }
 
@@ -27,13 +27,13 @@ let cleanupKeyboard: (() => void) | null = null;
 // Constants
 // ============================================================================
 
-const ACTION_TYPES = ['keyboard', 'voice', 'scroll', 'hub-focus'] as const;
+const ACTION_TYPES = ['keyboard', 'voice', 'scroll'] as const;
 
 // ============================================================================
 // Open / Close
 // ============================================================================
 
-export function openBindingEditor(button: string, cliType: string | null, binding: any): void {
+export function openBindingEditor(button: string, cliType: string, binding: any): void {
   bindingEditorState.editingBinding = { button, cliType, binding: { ...binding } };
   bindingEditorState.visible = true;
   bindingEditorState.focusIndex = 0;
@@ -43,7 +43,7 @@ export function openBindingEditor(button: string, cliType: string | null, bindin
 
   const title = document.getElementById('bindingEditorTitle');
   if (title) {
-    const context = cliType ? getCliDisplayName(cliType) : 'Global';
+    const context = cliType ? getCliDisplayName(cliType) : cliType;
     title.textContent = `Edit Binding — ${button} (${context})`;
   }
 
@@ -166,11 +166,6 @@ function renderActionParams(form: HTMLElement, binding: any): void {
       `));
       break;
     }
-    case 'hub-focus':
-      form.appendChild(createEditorField('Parameters', `
-        <input type="text" value="No additional parameters" disabled />
-      `, true));
-      break;
     case 'scroll': {
       const scrollDirOptions = ['up', 'down'].map(d =>
         `<option value="${d}" ${d === (binding.direction || 'down') ? 'selected' : ''}>${d}</option>`
@@ -199,8 +194,6 @@ function buildDefaultBinding(action: string): any {
       return { action: 'keyboard', sequence: '' };
     case 'voice':
       return { action: 'voice', key: '', mode: 'tap' };
-    case 'hub-focus':
-      return { action: 'hub-focus' };
     case 'scroll':
       return { action: 'scroll', direction: 'down' };
     default:
@@ -234,8 +227,6 @@ function collectBindingFromForm(): any | null {
         mode: (modeSelect?.value as 'tap' | 'hold') || 'tap',
       };
     }
-    case 'hub-focus':
-      return { action: 'hub-focus' };
     case 'scroll': {
       const scrollDirSelect = document.getElementById('bindingEditorScrollDirection') as HTMLSelectElement;
       const scrollLinesInput = document.getElementById('bindingEditorScrollLines') as HTMLInputElement;
@@ -263,12 +254,8 @@ export async function saveBinding(): Promise<void> {
     if (result.success) {
       logEvent(`Saved binding: ${button} → ${binding.action}`);
 
-      // Update local caches so dispatch uses new bindings immediately
-      if (cliType === null) {
-        if (state.globalBindings) {
-          state.globalBindings[button] = binding;
-        }
-      } else {
+      // Update local cache so dispatch uses new bindings immediately
+      if (cliType) {
         if (state.cliBindingsCache[cliType]) {
           state.cliBindingsCache[cliType][button] = binding;
         }

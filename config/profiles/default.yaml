@@ -26,6 +26,9 @@ cliTypes:
     X:
       action: keyboard
       sequence: /clear{Enter}
+    Y:
+      action: keyboard
+      sequence: "/foundation:"
   copilot-cli:
     RightTrigger:
       action: voice
@@ -35,11 +38,11 @@ cliTypes:
       action: keyboard
       sequence: "{Enter}"
     RightStickDown:
-      action: scroll
-      direction: down
+      action: keyboard
+      sequence: "{Down}"
     RightStickUp:
-      action: scroll
-      direction: up
+      action: keyboard
+      sequence: "{Up}"
     B:
       action: keyboard
       sequence: "{Escape}"
@@ -49,6 +52,12 @@ cliTypes:
     RightStickRight:
       action: keyboard
       sequence: "{Space}"
+    X:
+      action: keyboard
+      sequence: /clear{Enter}
+    Y:
+      action: keyboard
+      sequence: "/foundation:"
   generic-terminal:
     A:
       action: keyboard
@@ -63,7 +72,6 @@ cliTypes:
     A:
       action: keyboard
       sequence: "{Enter}"
-global: {}
 sticks:
   left:
     mode: cursor

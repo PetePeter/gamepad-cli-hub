@@ -15,24 +15,14 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
       configLoader.load();
       return {
         cliTypes: configLoader.getCliTypes(),
-        globalBindings: configLoader.getGlobalBindings(),
       };
     } catch (error) {
       logger.error(`[IPC] Failed to get all config: ${error}`);
-      return { cliTypes: [], globalBindings: {} };
+      return { cliTypes: [] };
     }
   });
 
-  ipcMain.handle('config:getGlobalBindings', () => {
-    try {
-      return configLoader.getGlobalBindings();
-    } catch (error) {
-      logger.error(`[IPC] Failed to get global bindings: ${error}`);
-      return {};
-    }
-  });
-
-  ipcMain.handle('config:getBindings', (_event, cliType: string) => {
+  ipcMain.handle('config:getBindings',(_event, cliType: string) => {
     try {
       return configLoader.getBindings(cliType);
     } catch (error) {
@@ -50,10 +40,10 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     }
   });
 
-  ipcMain.handle('config:setBinding', (_event, button: string, cliType: string | null, binding: any) => {
+  ipcMain.handle('config:setBinding', (_event, button: string, cliType: string, binding: any) => {
     try {
       configLoader.setBinding(button, cliType, binding);
-      logger.info(`[IPC] Set binding: ${button} for ${cliType || 'global'} ${JSON.stringify(binding)}`);
+      logger.info(`[IPC] Set binding: ${button} for ${cliType} ${JSON.stringify(binding)}`);
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to set binding: ${button} ${error}`);
@@ -61,7 +51,7 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     }
   });
 
-  ipcMain.handle('config:removeBinding', (_event, button: string, cliType: string | null) => {
+  ipcMain.handle('config:removeBinding', (_event, button: string, cliType: string) => {
     try {
       configLoader.removeBinding(button, cliType);
       return { success: true };

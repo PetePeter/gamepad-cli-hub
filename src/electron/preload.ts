@@ -50,11 +50,6 @@ const gamepadCliAPI = {
   configGetAll: () => ipcRenderer.invoke('config:getAll'),
 
   /**
-   * Get global bindings
-   */
-  configGetGlobalBindings: () => ipcRenderer.invoke('config:getGlobalBindings'),
-
-  /**
    * Get bindings for a specific CLI type
    */
   configGetBindings: (cliType: string) => ipcRenderer.invoke('config:getBindings', cliType),
@@ -67,10 +62,10 @@ const gamepadCliAPI = {
   /**
    * Set a binding (for settings screen)
    */
-  configSetBinding: (button: string, cliType: string | null, binding: any) =>
+  configSetBinding: (button: string, cliType: string, binding: any) =>
     ipcRenderer.invoke('config:setBinding', button, cliType, binding),
 
-  configRemoveBinding: (button: string, cliType: string | null) =>
+  configRemoveBinding: (button: string, cliType: string) =>
     ipcRenderer.invoke('config:removeBinding', button, cliType),
 
   configCopyCliBindings: (sourceCli: string, targetCli: string) =>
@@ -105,11 +100,6 @@ const gamepadCliAPI = {
   configGetDpadConfig: () => ipcRenderer.invoke('config:getDpadConfig'),
 
   configGetStickConfig: (stick: string) => ipcRenderer.invoke('config:getStickConfig', stick),
-
-  /**
-   * Bring the hub app window to foreground
-   */
-  hubFocus: () => ipcRenderer.invoke('hub:focus'),
 
   // ========================================================================
   // PTY Terminal Management

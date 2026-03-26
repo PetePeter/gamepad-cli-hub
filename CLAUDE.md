@@ -58,7 +58,7 @@ Xbox Controller
   → Browser Gamepad API (renderer polling, 16ms)
     → IPC gamepad:event → debounce (250ms)
       → emit('button-press') / emit('analog') for stick events
-        → Resolve binding (global first, then per-CLI type)
+        → Resolve binding (per-CLI type)
           → Execute action:
               keyboard  → SequenceParser.parse() → pty:write (escape sequences to PTY stdin)
               voice     → OS-default (robotjs), PTY when target: 'terminal' (see Input Routing below)
@@ -70,7 +70,7 @@ Xbox Controller
                 → Explicit binding found → execute bound action
                 → No binding → fall back to stick mode:
                     left stick  → cursor mode (arrow keys via PTY)
-                    right stick → configurable per-CLI bindings (default: scroll via global binding)
+                    right stick → configurable per-CLI bindings (default: scroll)
               D-pad auto-repeats when held (400ms delay, 120ms rate). Sticks repeat proportional to deflection.
 
 D-pad / Left stick navigates sessions and auto-selects the terminal.
@@ -91,8 +91,8 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 | **PipelineQueue** | `src/session/pipeline-queue.ts` | Auto-handoff queue — routes tasks to waiting sessions based on state detection. |
 | **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. |
 | **SequenceParser** | `src/input/sequence-parser.ts` | Parses sequence format strings (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, `{Mod Down/Up}`, `{{`/`}}` escapes, plain text) into typed SequenceAction arrays. Used by both button bindings and initial prompts. |
-| **ConfigLoader** | `src/config/loader.ts` | Split YAML config loading + profile/tools/directory CRUD. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getStickDirectionBinding()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
-| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 8 domain handler files (session, config, profile, tools, hub, keyboard, pty, system). Dependencies injected via function parameters. |
+| **ConfigLoader** | `src/config/loader.ts` | Split YAML config loading + profile/tools/directory CRUD. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
+| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 7 domain handler files (session, config, profile, tools, keyboard, pty, system). Dependencies injected via function parameters. |
 | **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings, status stub), modals (dir-picker/binding-editor). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. |
 | **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, grey=idle). Exposes onSwitch/onEmpty callbacks. |
@@ -106,12 +106,12 @@ config/
 ├── directories.yaml    # Working directory presets
 ├── sessions.yaml       # Persisted session state (auto-managed)
 └── profiles/
-    └── default.yaml    # Button bindings (global + per CLI type) + stick config
+    └── default.yaml    # Button bindings (per CLI type) + stick config
 ```
 
-**Binding resolution:** CLI-specific bindings checked first → fall back to global bindings. Each profile defines different button behaviours per CLI type.
+**Binding resolution:** CLI-specific bindings are used. Each profile defines different button behaviours per CLI type.
 
-**Binding action types:** `keyboard`, `voice`, `hub-focus`, `scroll`
+**Binding action types:** `keyboard`, `voice`, `scroll`
 
 **keyboard binding:** `{ action: 'keyboard', sequence: '{Wait 500}some text{Enter}{Ctrl+C}' }` — sequence parser syntax string sent to PTY stdin as escape codes. The sequence format is the only input mode for keyboard bindings.
 
@@ -164,7 +164,7 @@ dpad:
 |-------|--------|
 | D-Pad Up/Down | Switch sessions (auto-selects terminal) |
 | Left Stick | Same as D-pad |
-| Right Stick | Configurable (default: scroll terminal buffer via global binding) |
+| Right Stick | Configurable (default: scroll terminal buffer) |
 | A | Configurable per-CLI binding |
 | B | Back to sessions zone / configurable per-CLI binding |
 | X | Configurable per-CLI binding |
@@ -207,7 +207,7 @@ dpad:
 12. **Sequence parser for input** — Instead of direct key simulation, the `keyboard` action uses a sequence parser syntax (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, plain text) that converts to PTY escape codes. Same syntax used for button `sequence` bindings and `initialPrompt` config.
 13. **Session persistence** — Sessions saved to `config/sessions.yaml` after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skipping duplicates). A health check (`startHealthCheck()`) periodically removes dead PIDs via `process.kill(pid, 0)`. Survives crashes and restarts.
 14. **Sidebar session UI** — App runs as a 320px frameless always-on-top sidebar (left or right edge). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with a directory picker modal. Settings is a slide-over panel with status merged as a tab. Sandwich button focuses the hub and returns to the sessions screen.
-15. **Analog stick virtual buttons** — Each stick emits distinct virtual button names (e.g. `LeftStickUp`, `RightStickDown`) that can be bound like physical buttons. If no explicit binding exists, the stick falls back to its configured mode (cursor or scroll). Right stick scroll is now a configurable binding (default: `scroll` action in global bindings), not hardcoded. D-pad buttons are separate (`DPadUp`, `DPadDown`, etc.). All directional inputs are normalized to cardinal directions via `toDirection()` for UI navigation. D-pad and sticks auto-repeat when held. D-pad uses keyboard-like delay (initialDelay) then constant rate. Sticks use displacement-proportional rate — gentle tilt = slow, full deflection = fast.
+15. **Analog stick virtual buttons** — Each stick emits distinct virtual button names (e.g. `LeftStickUp`, `RightStickDown`) that can be bound like physical buttons. If no explicit binding exists, the stick falls back to its configured mode (cursor or scroll). Right stick scroll is a configurable per-CLI binding (default: `scroll` action), not hardcoded. D-pad buttons are separate (`DPadUp`, `DPadDown`, etc.). All directional inputs are normalized to cardinal directions via `toDirection()` for UI navigation. D-pad and sticks auto-repeat when held. D-pad uses keyboard-like delay (initialDelay) then constant rate. Sticks use displacement-proportional rate — gentle tilt = slow, full deflection = fast.
 
 ## Embedded Terminal Architecture
 
@@ -291,7 +291,6 @@ src/
 │       ├── config-handlers.ts
 │       ├── profile-handlers.ts
 │       ├── tools-handlers.ts
-│       ├── hub-handlers.ts
 │       ├── keyboard-handlers.ts
 │       ├── pty-handlers.ts
 │       └── system-handlers.ts

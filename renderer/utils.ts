@@ -163,8 +163,6 @@ export function formatBindingDetails(binding: any): string {
       return binding.key
         ? `${binding.mode || 'tap'}: ${binding.key}`
         : '—';
-    case 'hub-focus':
-      return 'bring hub to foreground';
     case 'scroll':
       return `scroll: ${binding.direction || 'down'}${binding.lines ? ` (${binding.lines} lines)` : ''}`;
     default:
