@@ -726,6 +726,66 @@ describe('ConfigLoader', () => {
   });
 
   // =========================================================================
+  // getDpadConfig
+  // =========================================================================
+
+  describe('getDpadConfig', () => {
+    it('returns defaults when profile has no dpad section', () => {
+      loader.load();
+      expect(loader.getDpadConfig()).toEqual({ initialDelay: 400, repeatRate: 120 });
+    });
+
+    it('returns dpad config from profile when present', () => {
+      const profileWithDpad = {
+        ...DEFAULT_PROFILE,
+        dpad: { initialDelay: 300, repeatRate: 80 },
+      };
+      writeYaml('profiles/default.yaml', profileWithDpad);
+      loader.load();
+
+      expect(loader.getDpadConfig()).toEqual({ initialDelay: 300, repeatRate: 80 });
+    });
+
+    it('fills in defaults for partial dpad config', () => {
+      const profileWithPartialDpad = {
+        ...DEFAULT_PROFILE,
+        dpad: { initialDelay: 500 },
+      };
+      writeYaml('profiles/default.yaml', profileWithPartialDpad);
+      loader.load();
+
+      expect(loader.getDpadConfig()).toEqual({ initialDelay: 500, repeatRate: 120 });
+    });
+  });
+
+  // =========================================================================
+  // Scroll binding type
+  // =========================================================================
+
+  describe('scroll binding type', () => {
+    it('can store and retrieve scroll bindings in global', () => {
+      loader.load();
+      loader.setBinding('RightStickUp', null, { action: 'scroll', direction: 'up', lines: 3 } as any);
+      loader.setBinding('RightStickDown', null, { action: 'scroll', direction: 'down' } as any);
+
+      const global = loader.getGlobalBindings();
+      expect(global['RightStickUp']).toEqual({ action: 'scroll', direction: 'up', lines: 3 });
+      expect(global['RightStickDown']).toEqual({ action: 'scroll', direction: 'down' });
+    });
+
+    it('persists scroll bindings to disk', () => {
+      loader.load();
+      loader.setBinding('RightStickUp', null, { action: 'scroll', direction: 'up' } as any);
+
+      // Reload from disk
+      const freshLoader = new ConfigLoader(TEST_DIR);
+      freshLoader.load();
+      const global = freshLoader.getGlobalBindings();
+      expect(global['RightStickUp']).toEqual({ action: 'scroll', direction: 'up' });
+    });
+  });
+
+  // =========================================================================
   // Haptic Feedback Setting
   // =========================================================================
 

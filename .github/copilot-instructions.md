@@ -35,7 +35,7 @@ graph TB
         end
 
         UI <-->|contextBridge| IPC
-        BGA -->|gamepad:event| IPC
+        BGA -->|button events| UI
         TM --> TV
         TV <-->|pty:data / pty:write| PTY
     end
@@ -58,21 +58,21 @@ graph TB
 ```mermaid
 flowchart LR
     A[Xbox Controller] --> B[Browser Gamepad API<br/>renderer polling]
-    B --> C[IPC gamepad:event<br/>250ms debounce]
+    B --> C[250ms debounce + repeat engine]
     C --> D{Binding Resolution}
     D -->|global| E[Execute Action]
     D -->|per-CLI type| E
-    E --> F[keyboard → SequenceParser → PTY stdin<br/>voice → OS-default robotjs, PTY when target: 'terminal'<br/>spawn → PtyManager<br/>switch → SessionManager → TerminalManager]
+    E --> F[keyboard → SequenceParser → PTY stdin<br/>voice → OS-default robotjs, PTY when target: 'terminal'<br/>spawn → PtyManager<br/>switch → SessionManager → TerminalManager<br/>scroll → terminal buffer scroll]
 ```
 
 **Detailed flow:**
 1. Browser Gamepad API polls at 16ms in the renderer process
-2. Button presses debounced at 250ms, sent via IPC `gamepad:event`
-3. Emits `button-press` event to subscribers; analog sticks emit virtual button events
-4. Binding resolution: check global bindings first, then per-CLI-type bindings
-5. Execute resolved action (keyboard sequence → PTY stdin, voice → OS-default robotjs or PTY when target: 'terminal', spawn → PTY, session-switch, etc.)
+2. Button presses debounced at 250ms; D-pad and sticks auto-repeat when held (400ms initial delay, 120ms rate for D-pad; displacement-proportional for sticks)
+3. Emits button events to subscribers; analog sticks emit virtual button events
+4. Binding resolution: check CLI-specific bindings first, then global bindings
+5. Execute resolved action (keyboard sequence → PTY stdin, voice → OS-default robotjs or PTY when target: 'terminal', spawn → PTY, session-switch, scroll, etc.)
 6. Voice bindings: default to OS (robotjs). If active terminal exists and `target === 'terminal'` → convert key to escape sequence via `keyToPtyEscape()` → `ptyWrite()`. Otherwise → robotjs. Hold mode sends escape sequence once (PTY has no key-up).
-7. Analog sticks: explicit binding found → execute action; no binding → fall back to stick mode (left=cursor arrows via PTY, right=scroll terminal buffer)
+7. Analog sticks: explicit binding found → execute action; no binding → fall back to stick mode (left=cursor arrows via PTY, right=configurable via global bindings, default: scroll)
 8. D-pad / left stick navigates sessions and auto-selects the terminal
 9. Keyboard input always routes to the active terminal (PTY stdin)
 10. Ctrl+V paste: document-level interceptor reads clipboard text → writes to active PTY via `ptyWrite()` regardless of DOM focus

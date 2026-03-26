@@ -11,6 +11,20 @@ import { loadSessions, spawnNewSession } from './screens/sessions.js';
 import { parseSequence, formatSequencePreview, type SequenceAction } from '../src/input/sequence-parser.js';
 import { getTerminalManager } from './main.js';
 
+/** Shared scroll handler — used by both global and CLI binding executors. */
+function executeScroll(binding: { direction: string; lines?: number }): void {
+  const tm = getTerminalManager();
+  const activeId = tm?.getActiveSessionId();
+  if (activeId) {
+    const session = tm?.getSession(activeId);
+    if (session) {
+      const lines = binding.direction === 'up' ? -(binding.lines ?? 5) : (binding.lines ?? 5);
+      session.view.scrollLines(lines);
+    }
+  }
+  logEvent(`Scroll: ${binding.direction}`);
+}
+
 // Tracks which buttons are holding keys via voice hold bindings (robotjs path)
 const heldKeys = new Map<string, string[]>();
 
@@ -171,6 +185,10 @@ async function executeGlobalBinding(button: string, binding: any): Promise<void>
         }
         break;
       }
+      case 'scroll': {
+        executeScroll(binding);
+        break;
+      }
       default:
         console.warn(`[Renderer] Unknown global action: ${binding.action}`);
     }
@@ -260,6 +278,10 @@ async function executeCliBinding(button: string, binding: any): Promise<void> {
             logEvent(`Voice tap→OS: ${binding.key}`);
           }
         }
+        break;
+      }
+      case 'scroll': {
+        executeScroll(binding);
         break;
       }
       default:

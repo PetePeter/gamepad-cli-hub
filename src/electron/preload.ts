@@ -128,6 +128,10 @@ const gamepadCliAPI = {
    */
   configGetSpawnCommand: (cliType: string) => ipcRenderer.invoke('config:getSpawnCommand', cliType),
 
+  configGetDpadConfig: () => ipcRenderer.invoke('config:getDpadConfig'),
+
+  configGetStickConfig: (stick: string) => ipcRenderer.invoke('config:getStickConfig', stick),
+
   /**
    * Bring the hub app window to foreground
    */

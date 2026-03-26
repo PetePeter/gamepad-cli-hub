@@ -13,6 +13,14 @@ interface BrowserButtonEvent {
 
 type ButtonCallback = (event: BrowserButtonEvent) => void;
 
+export interface RepeatConfig {
+  dpad: { initialDelay: number; repeatRate: number };
+  sticks: {
+    left: { deadzone: number; repeatRate: number };
+    right: { deadzone: number; repeatRate: number };
+  };
+}
+
 class BrowserGamepadPoller {
   private pollInterval: number | null = null;
   private pollMs = 16; // ~60fps
@@ -24,9 +32,34 @@ class BrowserGamepadPoller {
   private connectedCount = 0;
   private eventsSetup = false;
 
+  private repeatConfig: RepeatConfig = {
+    dpad: { initialDelay: 400, repeatRate: 120 },
+    sticks: {
+      left: { deadzone: 0.25, repeatRate: 100 },
+      right: { deadzone: 0.25, repeatRate: 150 },
+    },
+  };
+
+  /** Tracks when each repeatable button was first held and when it last repeated */
+  private repeatState: Map<string, { pressTime: number; lastRepeatTime: number }> = new Map();
+
+  private static readonly REPEATABLE_BUTTONS = new Set([
+    'DPadUp', 'DPadDown', 'DPadLeft', 'DPadRight',
+    'LeftStickUp', 'LeftStickDown', 'LeftStickLeft', 'LeftStickRight',
+    'RightStickUp', 'RightStickDown', 'RightStickLeft', 'RightStickRight',
+  ]);
+
   constructor() {
     // Don't set up event listeners here - wait for start()
     // This ensures callbacks are registered before events fire
+  }
+
+  setRepeatConfig(config: RepeatConfig): void {
+    this.repeatConfig = config;
+  }
+
+  getRepeatConfig(): RepeatConfig {
+    return this.repeatConfig;
   }
 
   private setupEvents(): void {
@@ -151,6 +184,8 @@ class BrowserGamepadPoller {
 
       this.processGamepad(gamepad, i);
     }
+
+    this.checkRepeats();
   }
 
   private processGamepad(gamepad: Gamepad, index: number): void {
@@ -229,7 +264,9 @@ class BrowserGamepadPoller {
     gamepad: Gamepad, index: number, prevState: boolean[],
     side: 'left' | 'right', axisX: number, axisY: number, stateOffset: number,
   ): void {
-    const threshold = 0.5;
+    const threshold = side === 'left'
+      ? this.repeatConfig.sticks.left.deadzone
+      : this.repeatConfig.sticks.right.deadzone;
     const x = gamepad.axes[axisX] ?? 0;
     const y = gamepad.axes[axisY] ?? 0;
 
@@ -315,9 +352,18 @@ class BrowserGamepadPoller {
         console.error('[BrowserGamepad] Callback error:', error);
       }
     }
+
+    // Start repeat tracking for repeatable buttons
+    if (BrowserGamepadPoller.REPEATABLE_BUTTONS.has(button)) {
+      this.repeatState.set(key, { pressTime: now, lastRepeatTime: now });
+    }
   }
 
   private handleButtonRelease(button: string, gamepadIndex: number): void {
+    // Stop repeat tracking on release
+    const repeatKey = `${gamepadIndex}-${button}`;
+    this.repeatState.delete(repeatKey);
+
     const event: BrowserButtonEvent = {
       button,
       gamepadIndex,
@@ -329,6 +375,62 @@ class BrowserGamepadPoller {
         callback(event);
       } catch (error) {
         console.error('[BrowserGamepad] Release callback error:', error);
+      }
+    }
+  }
+
+  private checkRepeats(): void {
+    const now = Date.now();
+
+    for (const [key, state] of this.repeatState) {
+      const [gamepadIndexStr, ...buttonParts] = key.split('-');
+      const gamepadIndex = parseInt(gamepadIndexStr, 10);
+      const button = buttonParts.join('-');
+
+      const isDpad = button.startsWith('DPad');
+      const isLeftStick = button.startsWith('LeftStick');
+
+      let interval: number;
+
+      if (isDpad) {
+        const elapsed = now - state.pressTime;
+        if (elapsed < this.repeatConfig.dpad.initialDelay) continue;
+        interval = this.repeatConfig.dpad.repeatRate;
+      } else {
+        // Stick repeat — rate inversely proportional to displacement
+        const side = isLeftStick ? 'left' : 'right';
+        const stickConfig = this.repeatConfig.sticks[side];
+
+        const gamepad = navigator.getGamepads()?.[gamepadIndex];
+        if (!gamepad) continue;
+
+        const axisX = isLeftStick ? 0 : 2;
+        const axisY = isLeftStick ? 1 : 3;
+        const x = gamepad.axes[axisX] ?? 0;
+        const y = gamepad.axes[axisY] ?? 0;
+        const magnitude = Math.sqrt(x * x + y * y);
+        const clamped = Math.min(1, magnitude);
+
+        if (clamped < stickConfig.deadzone) continue;
+
+        // Lerp: deadzone→1.0 maps to slowRate→fastRate
+        const normalised = (clamped - stickConfig.deadzone) / (1 - stickConfig.deadzone);
+        const slowRate = 300;
+        const fastRate = Math.max(stickConfig.repeatRate, 50);
+        interval = slowRate - normalised * (slowRate - fastRate);
+      }
+
+      if (now - state.lastRepeatTime >= interval) {
+        state.lastRepeatTime = now;
+
+        const event: BrowserButtonEvent = { button, gamepadIndex, timestamp: now };
+        for (const callback of this.callbacks) {
+          try {
+            callback(event);
+          } catch (error) {
+            console.error('[BrowserGamepad] Repeat callback error:', error);
+          }
+        }
       }
     }
   }
@@ -346,4 +448,5 @@ class BrowserGamepadPoller {
   }
 }
 
+export { BrowserGamepadPoller };
 export const browserGamepad = new BrowserGamepadPoller();

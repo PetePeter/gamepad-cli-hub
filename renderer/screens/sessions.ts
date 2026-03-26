@@ -742,18 +742,8 @@ function handleSessionsZoneButton(button: string): boolean {
     }
     return false;
   }
-  switch (button) {
-    case 'X': {
-      const session = state.sessions[sessionsState.sessionsFocusIndex];
-      if (session) deleteSession(session.id);
-      return true;
-    }
-    case 'Y':
-      refreshSessions();
-      return true;
-    default:
-      return false;
-  }
+  // X, Y, bumpers, triggers — fall through to config bindings
+  return false;
 }
 
 // ============================================================================
@@ -811,9 +801,6 @@ function handleSpawnZoneButton(button: string): boolean {
     case 'B':
       sessionsState.activeFocus = 'sessions';
       updateAllFocus();
-      return true;
-    case 'Y':
-      refreshSessions();
       return true;
     default:
       return false;

@@ -488,27 +488,20 @@ describe('Sessions Screen', () => {
       expect(mockSwitchTo).toHaveBeenCalledWith('s-1');
     });
 
-    it('X deletes the focused session', async () => {
-      mockSessionClose.mockResolvedValue({ success: true });
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
-
-      sessions.handleSessionsScreenButton('X');
-      await flush();
-
-      expect(mockSessionClose).toHaveBeenCalledWith('s-0');
+    it('X falls through to config bindings (not consumed)', () => {
+      expect(sessions.handleSessionsScreenButton('X')).toBe(false);
+      expect(mockSessionClose).not.toHaveBeenCalled();
     });
 
-    it('Y triggers reload', async () => {
-      sessions.handleSessionsScreenButton('Y');
-      await flush();
-
-      expect(mockLogEvent).toHaveBeenCalledWith('Sessions refreshed');
+    it('Y falls through to config bindings (not consumed)', () => {
+      expect(sessions.handleSessionsScreenButton('Y')).toBe(false);
+      expect(mockLogEvent).not.toHaveBeenCalledWith('Sessions refreshed');
     });
 
     it('directional buttons return true, non-navigation buttons return false for unhandled', () => {
       expect(sessions.handleSessionsScreenButton('DPadDown')).toBe(true);
-      expect(sessions.handleSessionsScreenButton('X')).toBe(true);
-      expect(sessions.handleSessionsScreenButton('Y')).toBe(true);
+      expect(sessions.handleSessionsScreenButton('X')).toBe(false);
+      expect(sessions.handleSessionsScreenButton('Y')).toBe(false);
       // A is no longer consumed in sessions zone (auto-select on D-pad instead)
       expect(sessions.handleSessionsScreenButton('A')).toBe(false);
       // Unknown buttons are not consumed — fall through to config bindings
@@ -631,11 +624,8 @@ describe('Sessions Screen', () => {
       expect(sessionsState.activeFocus).toBe('sessions');
     });
 
-    it('Y triggers reload from spawn zone', async () => {
-      sessions.handleSessionsScreenButton('Y');
-      await flush();
-
-      expect(mockLogEvent).toHaveBeenCalledWith('Sessions refreshed');
+    it('Y falls through to config bindings from spawn zone', () => {
+      expect(sessions.handleSessionsScreenButton('Y')).toBe(false);
     });
 
     it('.focused class applied to correct spawn button', async () => {
@@ -845,68 +835,18 @@ describe('Sessions Screen', () => {
   });
 
   // ==========================================================================
-  // Actions — delete session
+  // Actions — X button falls through to config bindings
   // ==========================================================================
 
-  describe('Delete session', () => {
+  describe('X button (sessions zone)', () => {
     beforeEach(async () => {
       setMockTerminalSessions(makeSessions(3));
       await loadAndFlush(sessions);
     });
 
-    it('X calls sessionClose with focused session id', async () => {
-      mockSessionClose.mockResolvedValue({ success: true });
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
-
-      sessions.handleSessionsScreenButton('X');
-      await flush();
-
-      expect(mockSessionClose).toHaveBeenCalledWith('s-0');
-    });
-
-    it('clamps focus index when focused on last and list shrinks', async () => {
-      sessionsState.sessionsFocusIndex = 2;
-      mockSessionClose.mockResolvedValue({ success: true });
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
-
-      sessions.handleSessionsScreenButton('X');
-      await flush();
-
-      expect(sessionsState.sessionsFocusIndex).toBeLessThanOrEqual(1);
-    });
-
-    it('focus stays at 0 when deleting first of many', async () => {
-      sessionsState.sessionsFocusIndex = 0;
-      mockSessionClose.mockResolvedValue({ success: true });
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
-
-      sessions.handleSessionsScreenButton('X');
-      await flush();
-
-      expect(sessionsState.sessionsFocusIndex).toBe(0);
-    });
-
-    it('focus clamps to 0 when deleting last session', async () => {
-      setMockTerminalSessions(makeSessions(1));
-      await loadAndFlush(sessions);
-
-      sessionsState.sessionsFocusIndex = 0;
-      mockSessionClose.mockResolvedValue({ success: true });
-      mockSessionGetAll.mockResolvedValue([]);
-
-      sessions.handleSessionsScreenButton('X');
-      await flush();
-
-      expect(sessionsState.sessionsFocusIndex).toBe(0);
-    });
-
-    it('does not modify list on delete failure', async () => {
-      mockSessionClose.mockResolvedValue({ success: false, error: 'access denied' });
-
-      sessions.handleSessionsScreenButton('X');
-      await flush();
-
-      expect(mockLogEvent).toHaveBeenCalledWith('Delete failed: access denied');
+    it('X is not consumed — falls through to config bindings', () => {
+      expect(sessions.handleSessionsScreenButton('X')).toBe(false);
+      expect(mockSessionClose).not.toHaveBeenCalled();
     });
   });
 
@@ -946,21 +886,16 @@ describe('Sessions Screen', () => {
       expect(sessionsState.activeFocus).toBe('sessions');
     });
 
-    it('Delete maps to X (deletes session)', async () => {
-      mockSessionClose.mockResolvedValue({ success: true });
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
-
+    it('Delete maps to X (falls through to config bindings)', () => {
       pressKey('Delete');
-      await flush();
-
-      expect(mockSessionClose).toHaveBeenCalledWith('s-0');
+      // X no longer calls sessionClose directly — handled by config bindings
+      expect(mockSessionClose).not.toHaveBeenCalled();
     });
 
-    it('F5 maps to Y (refresh)', async () => {
+    it('F5 maps to Y (falls through to config bindings)', () => {
       pressKey('F5');
-      await flush();
-
-      expect(mockLogEvent).toHaveBeenCalledWith('Sessions refreshed');
+      // Y no longer calls refreshSessions directly — handled by config bindings
+      expect(mockLogEvent).not.toHaveBeenCalledWith('Sessions refreshed');
     });
 
     it('unmapped keys are ignored', () => {

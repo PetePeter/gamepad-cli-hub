@@ -86,20 +86,6 @@ function handleConnectionEvent(event: { connected: boolean; count: number; times
 export function handleGamepadEvent(event: ButtonEvent): void {
   logEvent(`⬇ ${event.button}`);
 
-  // Terminal scrolling via right stick
-  if (event.button === 'RightStickUp' || event.button === 'RightStickDown') {
-    const tm = getTerminalManager();
-    const activeId = tm?.getActiveSessionId();
-    if (activeId) {
-      const session = tm?.getSession(activeId);
-      if (session) {
-        const lines = event.button === 'RightStickUp' ? -5 : 5;
-        session.view.scrollLines(lines);
-        return;
-      }
-    }
-  }
-
   // Update status
   const lastBtnEl = document.getElementById('statusLastButton');
   if (lastBtnEl) lastBtnEl.textContent = event.button;

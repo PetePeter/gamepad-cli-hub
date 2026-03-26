@@ -175,6 +175,8 @@ export function formatBindingDetails(binding: any): string {
       return 'close active session';
     case 'profile-switch':
       return binding.direction ? `profile: ${binding.direction}` : 'profile switch';
+    case 'scroll':
+      return `scroll: ${binding.direction || 'down'}${binding.lines ? ` (${binding.lines} lines)` : ''}`;
     default:
       return JSON.stringify(binding);
   }

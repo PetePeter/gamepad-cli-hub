@@ -201,6 +201,34 @@ async function init(): Promise<void> {
     console.error('[Renderer] Failed to init config cache:', error);
   }
 
+  // Load D-pad and stick repeat config into the gamepad poller
+  try {
+    if (window.gamepadCli?.configGetDpadConfig && window.gamepadCli?.configGetStickConfig) {
+      const dpadConfig = await window.gamepadCli.configGetDpadConfig();
+      const leftStick = await window.gamepadCli.configGetStickConfig('left');
+      const rightStick = await window.gamepadCli.configGetStickConfig('right');
+
+      browserGamepad.setRepeatConfig({
+        dpad: {
+          initialDelay: dpadConfig?.initialDelay ?? 400,
+          repeatRate: dpadConfig?.repeatRate ?? 120,
+        },
+        sticks: {
+          left: {
+            deadzone: leftStick?.deadzone ?? 0.25,
+            repeatRate: leftStick?.repeatRate ?? 100,
+          },
+          right: {
+            deadzone: rightStick?.deadzone ?? 0.25,
+            repeatRate: rightStick?.repeatRate ?? 150,
+          },
+        },
+      });
+    }
+  } catch (error) {
+    console.error('[Renderer] Failed to load repeat config:', error);
+  }
+
   // Initialize embedded terminal manager
   try {
     const terminalContainer = document.getElementById('terminalContainer');

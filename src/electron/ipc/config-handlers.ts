@@ -182,4 +182,22 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
       return null;
     }
   });
+
+  ipcMain.handle('config:getDpadConfig', () => {
+    try {
+      return configLoader.getDpadConfig();
+    } catch (error) {
+      logger.error(`[IPC] Failed to get dpad config: ${error}`);
+      return { initialDelay: 400, repeatRate: 120 };
+    }
+  });
+
+  ipcMain.handle('config:getStickConfig', (_event, stick: string) => {
+    try {
+      return configLoader.getStickConfig(stick as 'left' | 'right');
+    } catch (error) {
+      logger.error(`[IPC] Failed to get stick config for ${stick}: ${error}`);
+      return { mode: 'disabled', deadzone: 0.25, repeatRate: 100 };
+    }
+  });
 }

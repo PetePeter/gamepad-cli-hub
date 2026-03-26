@@ -27,7 +27,7 @@ let cleanupKeyboard: (() => void) | null = null;
 // Constants
 // ============================================================================
 
-const ACTION_TYPES = ['keyboard', 'voice', 'session-switch', 'spawn', 'list-sessions', 'close-session', 'profile-switch', 'hub-focus'] as const;
+const ACTION_TYPES = ['keyboard', 'voice', 'scroll', 'session-switch', 'spawn', 'list-sessions', 'close-session', 'profile-switch', 'hub-focus'] as const;
 
 // ============================================================================
 // Open / Close
@@ -208,6 +208,18 @@ function renderActionParams(form: HTMLElement, binding: any): void {
       `));
       break;
     }
+    case 'scroll': {
+      const scrollDirOptions = ['up', 'down'].map(d =>
+        `<option value="${d}" ${d === (binding.direction || 'down') ? 'selected' : ''}>${d}</option>`
+      ).join('');
+      form.appendChild(createEditorField('Direction', `
+        <select id="bindingEditorScrollDirection">${scrollDirOptions}</select>
+      `));
+      form.appendChild(createEditorField('Lines', `
+        <input type="number" id="bindingEditorScrollLines" value="${binding.lines ?? 5}" min="1" max="100" />
+      `));
+      break;
+    }
   }
 }
 
@@ -236,6 +248,8 @@ function buildDefaultBinding(action: string): any {
       return { action: 'close-session' };
     case 'profile-switch':
       return { action: 'profile-switch', direction: 'next' };
+    case 'scroll':
+      return { action: 'scroll', direction: 'down' };
     default:
       return { action };
   }
@@ -284,6 +298,12 @@ function collectBindingFromForm(): any | null {
     case 'profile-switch': {
       const profDirSelect = document.getElementById('bindingEditorDirection') as HTMLSelectElement;
       return { action: 'profile-switch', direction: profDirSelect?.value || 'next' };
+    }
+    case 'scroll': {
+      const scrollDirSelect = document.getElementById('bindingEditorScrollDirection') as HTMLSelectElement;
+      const scrollLinesInput = document.getElementById('bindingEditorScrollLines') as HTMLInputElement;
+      const lines = parseInt(scrollLinesInput?.value || '5', 10);
+      return { action: 'scroll', direction: scrollDirSelect?.value || 'down', lines: isNaN(lines) ? 5 : lines };
     }
     default:
       return null;

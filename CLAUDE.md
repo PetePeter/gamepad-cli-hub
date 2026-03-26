@@ -33,7 +33,7 @@ graph TB
         end
 
         UI <-->|contextBridge| IPC
-        BGA -->|gamepad:event| IPC
+        BGA -->|button events| UI
         TM --> TV
         TV <-->|pty:data / pty:write| PTY
     end
@@ -70,7 +70,8 @@ Xbox Controller
                 → Explicit binding found → execute bound action
                 → No binding → fall back to stick mode:
                     left stick  → cursor mode (arrow keys via PTY)
-                    right stick → scroll mode (terminal buffer scroll), throttled by repeatRate
+                    right stick → configurable per-CLI bindings (default: scroll via global binding)
+              D-pad auto-repeats when held (400ms delay, 120ms rate). Sticks repeat proportional to deflection.
 
 D-pad / Left stick navigates sessions and auto-selects the terminal.
 Keyboard input always routes to the active terminal (PTY stdin).
@@ -81,7 +82,7 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 
 | Module | File | Responsibility |
 |--------|------|---------------|
-| **BrowserGamepad** | `renderer/gamepad.ts` | Browser Gamepad API polling (250ms debounce), button-press events via IPC, analog stick events. Sole gamepad input source. |
+| **BrowserGamepad** | `renderer/gamepad.ts` | Browser Gamepad API polling (250ms debounce), button-press events via IPC, analog stick events, **D-pad and stick auto-repeat engine**. Sole gamepad input source. |
 | **SessionManager** | `src/session/manager.ts` | Track sessions, switch active, emit session:added/removed/changed. Calls persistence after every state change. |
 | **SessionPersistence** | `src/session/persistence.ts` | `saveSessions()`, `loadSessions()`, `clearPersistedSessions()` to `config/sessions.yaml`. Health check removes dead PIDs. |
 | **ProcessSpawner** | `src/session/process-spawner.ts` | Spawn CLI processes via PtyManager, register with SessionManager. Supports initial prompt delay. |
@@ -110,11 +111,13 @@ config/
 
 **Binding resolution:** CLI-specific bindings checked first → fall back to global bindings. Each profile defines different button behaviours per CLI type.
 
-**Binding action types:** `keyboard`, `voice`, `session-switch`, `spawn`, `list-sessions`, `profile-switch`, `close-session`, `hub-focus`
+**Binding action types:** `keyboard`, `voice`, `session-switch`, `spawn`, `list-sessions`, `profile-switch`, `close-session`, `hub-focus`, `scroll`
 
 **keyboard binding:** `{ action: 'keyboard', sequence: '{Wait 500}some text{Enter}{Ctrl+C}' }` — sequence parser syntax string sent to PTY stdin as escape codes. The sequence format is the only input mode for keyboard bindings.
 
 **voice binding:** `{ action: 'voice', key: 'F1', mode: 'tap', target?: 'terminal' }` — key simulation for voice activation triggers. **OS-default routing:** voice bindings default to OS-level robotjs simulation (for external apps like OpenWhisper). Only routes through PTY when `target: 'terminal'` is explicitly set — converts key to terminal escape sequence via `keyToPtyEscape()` and writes to PTY via `ptyWrite()`. Falls back to OS-level robotjs when no terminal is active or `target` is not `'terminal'`. `mode: 'tap'` sends a single key event; `mode: 'hold'` sends the escape sequence once on press (PTY has no key-up concept) or holds/releases via robotjs for OS-targeted bindings. Key supports single keys (`F1`, `Space`) and combos (`Ctrl+Alt`). Supports F1-F12 (VT220 escape sequences), navigation keys, and modifier combos.
+
+**scroll binding:** `{ action: 'scroll', direction: 'up'|'down', lines?: 5 }` — Scroll active terminal buffer. Format: `{ action: 'scroll', direction: 'up'|'down', lines?: 5 }`
 
 **CLI type config** (in `tools.yaml`):
 ```yaml
@@ -144,12 +147,15 @@ No `terminal` field — all CLIs run as embedded PTY sessions (no external windo
 sticks:
   left:
     mode: cursor    # cursor | scroll | disabled
-    deadzone: 8000
+    deadzone: 0.25
     repeatRate: 100
   right:
     mode: scroll
-    deadzone: 8000
+    deadzone: 0.25
     repeatRate: 150
+dpad:
+  initialDelay: 400
+  repeatRate: 120
 ```
 
 ## Key Controls
@@ -158,10 +164,10 @@ sticks:
 |-------|--------|
 | D-Pad Up/Down | Switch sessions (auto-selects terminal) |
 | Left Stick | Same as D-pad |
-| Right Stick | Scroll terminal buffer |
+| Right Stick | Configurable (default: scroll terminal buffer via global binding) |
 | A | Activate spawn action / configurable per-CLI binding |
 | B | Back to sessions zone / configurable per-CLI binding |
-| X | Close terminal |
+| X | Configurable (default: close-session via global binding) |
 | Y | (planned: cycle terminal state) |
 | Left Trigger | Spawn Claude Code |
 | Right Bumper | Spawn Copilot CLI |
@@ -201,7 +207,7 @@ sticks:
 12. **Sequence parser for input** — Instead of direct key simulation, the `keyboard` action uses a sequence parser syntax (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, plain text) that converts to PTY escape codes. Same syntax used for button `sequence` bindings and `initialPrompt` config.
 13. **Session persistence** — Sessions saved to `config/sessions.yaml` after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skipping duplicates). A health check (`startHealthCheck()`) periodically removes dead PIDs via `process.kill(pid, 0)`. Survives crashes and restarts.
 14. **Sidebar session UI** — App runs as a 320px frameless always-on-top sidebar (left or right edge). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with a directory picker modal. Settings is a slide-over panel with status merged as a tab. Sandwich button focuses the hub and returns to the sessions screen.
-15. **Analog stick virtual buttons** — Each stick emits distinct virtual button names (e.g. `LeftStickUp`, `RightStickDown`) that can be bound like physical buttons. If no explicit binding exists, the stick falls back to its configured mode (cursor or scroll). D-pad buttons are separate (`DPadUp`, `DPadDown`, etc.). All directional inputs are normalized to cardinal directions via `toDirection()` for UI navigation.
+15. **Analog stick virtual buttons** — Each stick emits distinct virtual button names (e.g. `LeftStickUp`, `RightStickDown`) that can be bound like physical buttons. If no explicit binding exists, the stick falls back to its configured mode (cursor or scroll). Right stick scroll is now a configurable binding (default: `scroll` action in global bindings), not hardcoded. D-pad buttons are separate (`DPadUp`, `DPadDown`, etc.). All directional inputs are normalized to cardinal directions via `toDirection()` for UI navigation. D-pad and sticks auto-repeat when held. D-pad uses keyboard-like delay (initialDelay) then constant rate. Sticks use displacement-proportional rate — gentle tilt = slow, full deflection = fast.
 
 ## Embedded Terminal Architecture
 
@@ -320,8 +326,8 @@ renderer/
 ├── utils.ts                    # DOM helpers, logEvent, showScreen, toDirection
 ├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing, voice OS-default + PTY via target: 'terminal', F1-F12 VT220 escape sequences)
 ├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY
-├── navigation.ts               # Gamepad navigation setup, event routing, terminal focus/scroll
-├── gamepad.ts                  # Browser Gamepad API wrapper
+├── navigation.ts               # Gamepad navigation setup, event routing
+├── gamepad.ts                  # Browser Gamepad API wrapper + repeat engine
 ├── terminal/
 │   ├── terminal-view.ts        # xterm.js wrapper (fit/search/weblinks addons)
 │   └── terminal-manager.ts     # Multi-terminal orchestration (create/switch/resize/destroy + tab bar)
@@ -344,7 +350,7 @@ config/
 └── profiles/
     └── default.yaml            # Button bindings + stick config
 
-tests/                                  # 547 tests across 16 files
+tests/                                  # 596 tests across 18 files
 ├── config.test.ts              # Config loading, stick config, haptic, virtual buttons
 ├── session.test.ts             # Session management
 ├── persistence.test.ts         # Session persistence
@@ -360,5 +366,6 @@ tests/                                  # 547 tests across 16 files
 ├── pipeline-queue.test.ts      # Auto-handoff queue tests
 ├── initial-prompt.test.ts      # Initial prompt delivery tests
 ├── modal-base.test.ts          # Modal UI base tests
+├── gamepad-repeat.test.ts      # D-pad/stick key repeat engine tests
 └── utils.test.ts               # Utility function tests
 ```

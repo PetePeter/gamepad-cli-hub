@@ -6,7 +6,7 @@ import * as YAML from 'yaml';
 // Action & Binding Types
 // ============================================================================
 
-export type ActionType = 'keyboard' | 'voice' | 'session-switch' | 'spawn' | 'list-sessions' | 'profile-switch' | 'close-session' | 'hub-focus';
+export type ActionType = 'keyboard' | 'voice' | 'session-switch' | 'spawn' | 'list-sessions' | 'profile-switch' | 'close-session' | 'hub-focus' | 'scroll';
 
 export interface BaseBinding {
   action: ActionType;
@@ -50,7 +50,13 @@ export interface HubFocusBinding extends BaseBinding {
   action: 'hub-focus';
 }
 
-export type Binding = KeyboardBinding | VoiceBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding | ProfileSwitchBinding | CloseSessionBinding | HubFocusBinding;
+export interface ScrollBinding extends BaseBinding {
+  action: 'scroll';
+  direction: 'up' | 'down';
+  lines?: number;  // defaults to 5
+}
+
+export type Binding = KeyboardBinding | VoiceBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding | ProfileSwitchBinding | CloseSessionBinding | HubFocusBinding | ScrollBinding;
 
 // ============================================================================
 // Shared Config Types
@@ -151,11 +157,17 @@ export interface ProfileConfig {
   cliTypes: { [key: string]: ButtonBindings };
   global: GlobalBindings;
   sticks?: StickConfigs;
+  dpad?: DpadConfig;
 }
 
 // ============================================================================
 // Stick Config Types
 // ============================================================================
+
+export interface DpadConfig {
+  initialDelay: number;  // ms before first repeat (default 400)
+  repeatRate: number;    // ms between repeats (default 120)
+}
 
 export type StickMode = 'cursor' | 'scroll' | 'disabled';
 
@@ -321,6 +333,14 @@ export class ConfigLoader {
       mode: profileStick.mode ?? defaults.mode,
       deadzone: profileStick.deadzone ?? defaults.deadzone,
       repeatRate: profileStick.repeatRate ?? defaults.repeatRate,
+    };
+  }
+
+  getDpadConfig(): DpadConfig {
+    const dpad = this.activeProfile?.dpad;
+    return {
+      initialDelay: dpad?.initialDelay ?? 400,
+      repeatRate: dpad?.repeatRate ?? 120,
     };
   }
 
