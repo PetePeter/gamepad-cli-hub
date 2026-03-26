@@ -525,6 +525,13 @@ describe('Sessions Screen', () => {
       sessions.handleSessionsScreenButton('LeftStickDown');
       expect(sessionsState.sessionsFocusIndex).toBe(1);
     });
+
+    it('RightStick does NOT navigate the session list', () => {
+      const before = sessionsState.sessionsFocusIndex;
+      expect(sessions.handleSessionsScreenButton('RightStickDown')).toBe(false);
+      expect(sessions.handleSessionsScreenButton('RightStickUp')).toBe(false);
+      expect(sessionsState.sessionsFocusIndex).toBe(before);
+    });
   });
 
   // ==========================================================================
@@ -1003,6 +1010,19 @@ describe('Sessions Screen', () => {
       sessionsState.activeFocus = 'spawn';
       pressKey('Escape');
       expect(sessionsState.activeFocus).toBe('sessions');
+    });
+
+    it('keyboard fallback is skipped when terminal area is visible', () => {
+      // Simulate terminal area being shown (active terminal session)
+      const terminalArea = document.getElementById('terminalArea')!;
+      terminalArea.style.display = 'flex';
+
+      const indexBefore = sessionsState.sessionsFocusIndex;
+      pressKey('ArrowDown');
+      expect(sessionsState.sessionsFocusIndex).toBe(indexBefore);
+
+      // Restore
+      terminalArea.style.display = 'none';
     });
   });
 
