@@ -64,6 +64,10 @@ bindings:
     Y:
       action: keyboard
       sequence: "/foundation:"
+    LeftTrigger:
+      action: voice
+      key: F1
+      mode: hold
   copilot-cli:
     RightTrigger:
       action: voice

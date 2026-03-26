@@ -61,7 +61,7 @@ flowchart LR
     B --> C[250ms debounce + repeat engine]
     C --> D{Binding Resolution}
     D -->|per-CLI type| E[Execute Action]
-    E --> F[keyboard → SequenceParser → PTY stdin<br/>voice → OS-default robotjs, PTY when target: 'terminal'<br/>spawn → PtyManager<br/>switch → SessionManager → TerminalManager<br/>scroll → terminal buffer scroll]
+    E --> F[keyboard → SequenceParser → PTY stdin<br/>voice → OS-default robotjs, PTY when target: 'terminal'<br/>spawn → PtyManager<br/>switch → SessionManager → TerminalManager<br/>scroll → terminal buffer scroll<br/>context-menu → overlay modal]
 ```
 
 **Detailed flow:**
@@ -111,12 +111,12 @@ flowchart LR
 | **StateDetector** | `src/session/state-detector.ts` | Scans PTY output for AIAGENT-* keywords to detect CLI state (waiting, implementing, etc.). |
 | **PipelineQueue** | `src/session/pipeline-queue.ts` | Auto-handoff queue — routes tasks to waiting sessions based on state detection. |
 | **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. |
-| **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
+| **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. `ActionType = 'keyboard' \| 'voice' \| 'scroll' \| 'context-menu'`. `Binding` union includes `ContextMenuBinding`. |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 10 domain handler files(session, config, profile, tools, window, spawn, keyboard, pty, system, app). Dependencies injected via function parameters. Config handlers include `dialog:openFolder` for native OS folder picker. |
 | **Preload** | `src/electron/preload.ts` | Context bridge exposing typed IPC API to renderer. Must be .cjs when package.json has "type":"module". |
-| **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization, `showFormModal` with `FormField` types: text/select/textarea + `browse?: boolean` for native folder picker), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
-| **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. |
-| **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, grey=idle). Exposes onSwitch/onEmpty callbacks. |
+| **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization, `showFormModal` with `FormField` types: text/select/textarea + `browse?: boolean` for native folder picker), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`, context-menu action centers overlay in gamepad mode), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor/context-menu). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
+| **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. Selection API: `getSelection()`, `hasSelection()`, `clearSelection()`. |
+| **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, grey=idle). Exposes onSwitch/onEmpty callbacks. `getActiveView()` returns current TerminalView. Right-click `contextmenu` listener on terminal area shows context menu overlay. |
 | ⚠️ **KeyboardSimulator** | `src/output/keyboard.ts` | **DEPRECATED** — robotjs keystroke simulation. Legacy fallback only; not used in PTY-based architecture. |
 | ⚠️ **WindowManager** | `src/output/windows.ts` | **DEPRECATED** — Win32 window enumeration/focus via PowerShell. No longer used (all terminals are embedded). |
 | **Logger** | `src/utils/logger.ts` | Winston logger with daily rotation. Used across all src/ modules. |
@@ -156,6 +156,8 @@ graph LR
 | `list-sessions` | Show session status |
 | `profile-switch` | Switch config profile (next/previous) |
 | `close-session` | Close the active terminal session |
+| `scroll` | Scroll terminal buffer. Format: `{ action: 'scroll', direction: 'up'\|'down', lines?: 5 }` |
+| `context-menu` | Open context menu overlay. Format: `{ action: 'context-menu' }`. Gamepad binding centers menu in viewport; right-click shows at mouse position. Items: Copy, Paste, New Session, New Session with Selection, Cancel. Copy and "New Session with Selection" disabled when no text selected. |
 
 ### Stick Configuration (per profile)
 ```yaml
@@ -249,18 +251,19 @@ renderer/
 ├── utils.ts                    # DOM helpers, logEvent, showScreen, toDirection
 ├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing, voice OS-default + PTY via target: 'terminal', F1-F12 VT220 escape sequences)
 ├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY
-├── navigation.ts               # Gamepad navigation setup, event routing, terminal focus/scroll
+├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → contextMenu → screen routing → configBinding fallback
 ├── gamepad.ts                  # Browser Gamepad API wrapper
 ├── terminal/
 │   ├── terminal-view.ts        # xterm.js wrapper (fit/search/weblinks addons)
 │   └── terminal-manager.ts     # Multi-terminal orchestration (create/switch/resize/destroy + tab bar)
 ├── screens/
-│   ├── sessions.ts             # Vertical session cards + spawn grid + dir picker modal
+│   ├── sessions.ts             # Vertical session cards + spawn grid + dir picker modal. `doSpawn()` accepts optional `contextText` for spawning with selected text (via `setPendingContextText()`)
 │   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn zones)
 │   ├── settings.ts             # Slide-over settings (profiles, bindings, tools, dirs)
 ├── modals/
 │   ├── dir-picker.ts           # Directory picker modal
-│   └── binding-editor.ts       # Binding editor modal
+│   ├── binding-editor.ts       # Binding editor modal
+│   └── context-menu.ts         # Context menu overlay — Copy/Paste/New Session/New Session with Selection/Cancel. Selection-aware items, gamepad D-pad navigation, mouse + right-click support
 └── styles/
     └── main.css
 
@@ -270,7 +273,7 @@ config/
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 
-tests/                                  # 600 tests across 18 files
+tests/                                  # 629 tests across 19 files
 ├── config.test.ts              # Config loading, stick config, haptic, virtual buttons
 ├── session.test.ts             # Session management
 ├── persistence.test.ts         # Session persistence
@@ -286,6 +289,8 @@ tests/                                  # 600 tests across 18 files
 ├── pipeline-queue.test.ts      # Auto-handoff queue tests
 ├── initial-prompt.test.ts      # Initial prompt delivery tests
 ├── modal-base.test.ts          # Modal UI base tests
+├── gamepad-repeat.test.ts      # D-pad/stick key repeat engine tests
+├── context-menu.test.ts        # Context menu overlay tests (show/hide, selection-aware items, gamepad navigation, click handlers)
 └── utils.test.ts               # Utility function tests
 ```
 

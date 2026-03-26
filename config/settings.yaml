@@ -2,7 +2,7 @@ activeProfile: default
 hapticFeedback: true
 sidebar:
   side: left
-  width: 800
+  width: 1850
   height: 800
-  x: 1053
-  y: 229
+  x: 678
+  y: 429

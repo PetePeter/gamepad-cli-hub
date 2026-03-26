@@ -284,9 +284,9 @@ describe('ConfigLoader', () => {
 
       const onDisk = readYaml<any>('profiles/gaming.yaml');
       expect(onDisk.name).toBe('gaming');
-      expect(onDisk.bindings).toBeDefined();
-      expect(onDisk.tools).toBeDefined();
-      expect(onDisk.workingDirectories).toBeDefined();
+      expect(onDisk.bindings).toEqual({});
+      expect(onDisk.tools).toEqual({});
+      expect(onDisk.workingDirectories).toEqual([]);
     });
 
     it('createProfile with copyFrom clones an existing profile', () => {
@@ -296,8 +296,8 @@ describe('ConfigLoader', () => {
       const onDisk = readYaml<any>('profiles/gaming.yaml');
       expect(onDisk.name).toBe('gaming');
       expect(onDisk.bindings['claude-code']).toEqual(DEFAULT_PROFILE.bindings['claude-code']);
-      expect(onDisk.tools).toBeDefined();
-      expect(onDisk.global).toEqual(DEFAULT_PROFILE.global);
+      expect(onDisk.tools).toEqual(DEFAULT_PROFILE.tools);
+      expect(onDisk.workingDirectories).toEqual(DEFAULT_PROFILE.workingDirectories);
     });
 
     it('createProfile throws if profile already exists', () => {

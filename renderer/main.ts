@@ -19,6 +19,7 @@ import { hideDirPicker, showDirPicker, handleDirPickerButton } from './modals/di
 import { closeBindingEditor, saveBinding } from './modals/binding-editor.js';
 import { TerminalManager } from './terminal/terminal-manager.js';
 import { setupKeyboardRelay } from './paste-handler.js';
+import { initContextMenuClickHandlers } from './modals/context-menu.js';
 
 // ============================================================================
 // Terminal Manager
@@ -242,6 +243,9 @@ async function init(): Promise<void> {
       });
       console.log('[Renderer] Terminal manager initialized');
 
+      // Wire context menu click handlers
+      initContextMenuClickHandlers();
+
       // Click on terminal area → focus terminal
       const terminalArea = document.getElementById('terminalArea');
       terminalArea?.addEventListener('mousedown', () => {
@@ -261,6 +265,25 @@ async function init(): Promise<void> {
 
   // Load initial data
   await loadSessions();
+
+  // Setup PTY state change listener
+  if (window.gamepadCli) {
+    window.gamepadCli.onPtyStateChange((transition) => {
+      // Update local session state cache
+      setSessionState(transition.sessionId, transition.newState);
+
+      // Update actual session data
+      const sessionIndex = state.sessions.findIndex(s => s.id === transition.sessionId);
+      if (sessionIndex !== -1) {
+        state.sessions[sessionIndex].state = transition.newState as any;
+      }
+
+      // Re-render sessions to update colored dots
+      renderSessions();
+
+      // Auto-handoff is handled by the main process via pty:handoff event
+    });
+  }
 
   // Log initialization
   logEvent('App ready');

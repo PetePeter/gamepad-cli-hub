@@ -6,7 +6,7 @@ import * as YAML from 'yaml';
 // Action & Binding Types
 // ============================================================================
 
-export type ActionType = 'keyboard' | 'voice' | 'scroll';
+export type ActionType = 'keyboard' | 'voice' | 'scroll' | 'context-menu';
 
 interface BaseBinding {
   action: ActionType;
@@ -30,7 +30,11 @@ interface ScrollBinding extends BaseBinding {
   lines?: number;  // defaults to 5
 }
 
-export type Binding = KeyboardBinding | VoiceBinding | ScrollBinding;
+interface ContextMenuBinding extends BaseBinding {
+  action: 'context-menu';
+}
+
+export type Binding = KeyboardBinding | VoiceBinding | ScrollBinding | ContextMenuBinding;
 
 // ============================================================================
 // Shared Config Types
@@ -478,17 +482,12 @@ export class ConfigLoader {
       profile = this.readYaml<ProfileConfig>(srcPath);
       profile.name = name;
     } else {
-      // Empty profile with stubs for every known CLI type
-      const bindings: { [key: string]: ButtonBindings } = {};
-      const tools = this.activeProfile?.tools || {};
-      for (const key of Object.keys(tools)) {
-        bindings[key] = {};
-      }
+      // Empty profile - no tools, no directories, minimal stub bindings
       profile = {
         name,
-        tools: { ...tools },
-        workingDirectories: [...(this.activeProfile?.workingDirectories || [])],
-        bindings,
+        tools: {},
+        workingDirectories: [],
+        bindings: {},
       };
     }
 

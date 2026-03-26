@@ -69,6 +69,14 @@ export class TerminalManager {
 
     this.terminals.set(sessionId, { sessionId, cliType, view, element, cwd });
 
+    // Right-click context menu on the terminal pane
+    element.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      import('../modals/context-menu.js').then(({ showContextMenu }) => {
+        showContextMenu(e.clientX, e.clientY, sessionId, 'mouse');
+      });
+    });
+
     const result = await window.gamepadCli?.ptySpawn(sessionId, command, args, cwd, cliType);
     console.log(`[TerminalManager] ptySpawn result:`, JSON.stringify(result));
     if (!result?.success) {
@@ -117,6 +125,12 @@ export class TerminalManager {
   /** Get the active session ID */
   getActiveSessionId(): string | null {
     return this.activeSessionId;
+  }
+
+  /** Get the active terminal view (convenience for context menu, etc.) */
+  getActiveView(): TerminalView | null {
+    if (!this.activeSessionId) return null;
+    return this.terminals.get(this.activeSessionId)?.view ?? null;
   }
 
   /** Focus the currently active terminal */

@@ -150,6 +150,21 @@ export class TerminalView {
     this.terminal.clear();
   }
 
+  /** Get currently selected text from terminal */
+  getSelection(): string {
+    return this.terminal.getSelection();
+  }
+
+  /** Check if any text is selected */
+  hasSelection(): boolean {
+    return this.terminal.hasSelection();
+  }
+
+  /** Clear the current selection */
+  clearSelection(): void {
+    this.terminal.clearSelection();
+  }
+
   /** Dispose terminal and release resources */
   dispose(): void {
     if (this.disposed) return;

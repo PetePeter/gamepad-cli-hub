@@ -202,6 +202,16 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
         executeScroll(binding);
         break;
       }
+      case 'context-menu': {
+        const { showContextMenu } = await import('./modals/context-menu.js');
+        const tm = getTerminalManager();
+        if (tm) {
+          const centerX = window.innerWidth / 2;
+          const centerY = window.innerHeight / 2;
+          showContextMenu(centerX, centerY, state.activeSessionId || '', 'gamepad');
+        }
+        break;
+      }
       default:
         console.warn(`[Renderer] Unknown CLI action: ${binding.action}`);
     }

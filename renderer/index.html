@@ -131,6 +131,27 @@
       </div>
     </div>
 
+    <!-- Context Menu -->
+    <div class="modal-overlay" id="contextMenuOverlay" aria-hidden="true" role="menu" aria-label="Terminal context menu">
+      <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" data-action="copy" tabindex="-1">
+          <span class="item-icon">📋</span><span class="item-text">Copy</span>
+        </div>
+        <div class="context-menu-item" data-action="paste" tabindex="-1">
+          <span class="item-icon">📥</span><span class="item-text">Paste</span>
+        </div>
+        <div class="context-menu-item" data-action="new-session" tabindex="-1">
+          <span class="item-icon">➕</span><span class="item-text">New Session</span>
+        </div>
+        <div class="context-menu-item" data-action="new-session-with-selection" tabindex="-1">
+          <span class="item-icon">📋➕</span><span class="item-text">New Session with Selection</span>
+        </div>
+        <div class="context-menu-item context-menu-item--cancel" data-action="cancel" tabindex="-1">
+          <span class="item-text">Cancel</span>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="../dist/renderer/main.js" type="module"></script>

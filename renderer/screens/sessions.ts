@@ -14,6 +14,13 @@ import { sortSessions, SESSION_SORT_LABELS, type SessionSortField, type SortDire
 import { createSortControl, type SortControlHandle } from '../components/sort-control.js';
 
 // ============================================================================
+// Constants
+// ============================================================================
+
+/** Delay before sending context text to a newly spawned PTY (ms) */
+const CONTEXT_TEXT_DELAY_MS = 500;
+
+// ============================================================================
 // State helpers
 // ============================================================================
 
@@ -233,7 +240,7 @@ export function handleSessionsScreenButton(button: string): boolean {
   const dir = toDirection(button);
 
   if (dir) {
-    // D-pad / left stick navigation — always consumed
+    // D-pad navigation — always consumed
     if (sessionsState.activeFocus === 'sessions') {
       handleSessionsZone(button, dir);
     } else {
@@ -250,7 +257,11 @@ export function handleSessionsScreenButton(button: string): boolean {
   }
 }
 
-export async function doSpawn(cliType: string, workingDir?: string): Promise<void> {
+export async function doSpawn(cliType: string, workingDir?: string, contextText?: string): Promise<void> {
+  // Consume pendingContextText if no explicit contextText was provided
+  const resolvedContextText = contextText ?? pendingContextText ?? undefined;
+  pendingContextText = null;
+
   try {
     logEvent(`Spawning ${cliType}${workingDir ? ` in ${workingDir}` : ''}...`);
     console.warn(`[doSpawn] ENTRY — cliType=${cliType}, workingDir=${workingDir}`);
@@ -288,6 +299,14 @@ export async function doSpawn(cliType: string, workingDir?: string): Promise<voi
         // Auto-select the new session
         tm.switchTo(sessionId);
         state.activeSessionId = sessionId;
+
+        // Send context text to the PTY after a short delay
+        if (resolvedContextText && resolvedContextText.trim()) {
+          setTimeout(() => {
+            window.gamepadCli?.ptyWrite(sessionId, resolvedContextText);
+          }, CONTEXT_TEXT_DELAY_MS);
+        }
+
         setTimeout(async () => {
           try {
             await loadSessions();
@@ -369,6 +388,16 @@ export function setTerminalManagerGetter(fn: () => TerminalManager | null): void
   terminalManagerGetter = fn;
 }
 
+// ============================================================================
+// Pending context text — set by context menu, consumed by spawnNewSession
+// ============================================================================
+
+let pendingContextText: string | null = null;
+
+export function setPendingContextText(text: string | null): void {
+  pendingContextText = text;
+}
+
 export async function spawnNewSession(cliType?: string): Promise<void> {
   const resolvedType = cliType || state.availableSpawnTypes[0] || 'generic-terminal';
 
@@ -379,6 +408,7 @@ export async function spawnNewSession(cliType?: string): Promise<void> {
     }
     const dirs = await window.gamepadCli.configGetWorkingDirs();
     if (dirs && dirs.length > 0 && dirPickerBridge) {
+      // pendingContextText survives through dirPicker — doSpawn consumes it
       dirPickerBridge(resolvedType, dirs);
       return;
     }
