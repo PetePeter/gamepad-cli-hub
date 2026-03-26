@@ -94,6 +94,9 @@ const gamepadCliAPI = {
   configRemoveBinding: (button: string, cliType: string | null) =>
     ipcRenderer.invoke('config:removeBinding', button, cliType),
 
+  configCopyCliBindings: (sourceCli: string, targetCli: string) =>
+    ipcRenderer.invoke('config:copyCliBindings', sourceCli, targetCli),
+
   /**
    * Reload configuration from file
    */
@@ -108,6 +111,17 @@ const gamepadCliAPI = {
    * Set haptic feedback setting
    */
   configSetHapticFeedback: (enabled: boolean) => ipcRenderer.invoke('config:setHapticFeedback', enabled),
+
+  /**
+   * Get sort preferences for an area (sessions or bindings)
+   */
+  configGetSortPrefs: (area: string) => ipcRenderer.invoke('config:getSortPrefs', area),
+
+  /**
+   * Set sort preferences for an area (sessions or bindings)
+   */
+  configSetSortPrefs: (area: string, prefs: { field?: string; direction?: string }) =>
+    ipcRenderer.invoke('config:setSortPrefs', area, prefs),
 
   /**
    * Get the raw spawn command for a CLI type (for embedded PTY — no terminal wrapper)

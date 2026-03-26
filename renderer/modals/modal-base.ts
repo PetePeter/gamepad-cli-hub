@@ -26,6 +26,11 @@ export function attachModalKeyboard(handlers: ModalHandlers): () => void {
       e.preventDefault();
       e.stopPropagation();
       handlers.onCancel();
+    } else if (e.key === 'Enter' && e.ctrlKey) {
+      // Ctrl+Enter always accepts — even inside textareas
+      e.preventDefault();
+      e.stopPropagation();
+      handlers.onAccept();
     } else if (e.key === 'Enter') {
       const active = document.activeElement;
       if (active?.tagName === 'TEXTAREA') return;

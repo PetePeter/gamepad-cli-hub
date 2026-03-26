@@ -39,6 +39,20 @@ describe('modal-base', () => {
       document.body.removeChild(textarea);
     });
 
+    it('calls onAccept when Ctrl+Enter is pressed', () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }));
+      expect(onAccept).toHaveBeenCalledOnce();
+    });
+
+    it('calls onAccept when Ctrl+Enter is pressed even in a textarea', () => {
+      const textarea = document.createElement('textarea');
+      document.body.appendChild(textarea);
+      textarea.focus();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }));
+      expect(onAccept).toHaveBeenCalledOnce();
+      document.body.removeChild(textarea);
+    });
+
     it('cleanup removes listeners', () => {
       cleanup();
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));

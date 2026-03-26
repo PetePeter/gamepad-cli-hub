@@ -70,6 +70,17 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     }
   });
 
+  ipcMain.handle('config:copyCliBindings', (_event, sourceCli: string, targetCli: string) => {
+    try {
+      const count = configLoader.copyCliBindings(sourceCli, targetCli);
+      logger.info(`[IPC] Copied ${count} bindings from ${sourceCli} to ${targetCli}`);
+      return { success: true, count };
+    } catch (error) {
+      logger.error(`[IPC] Failed to copy bindings: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle('config:reload', () => {
     try {
       configLoader.load();
@@ -136,6 +147,26 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to set haptic feedback: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('config:getSortPrefs', (_event, area: string) => {
+    try {
+      return configLoader.getSortPrefs(area as 'sessions' | 'bindings');
+    } catch (error) {
+      logger.error(`[IPC] Failed to get sort prefs for ${area}: ${error}`);
+      return { field: area === 'sessions' ? 'state' : 'button', direction: 'asc' };
+    }
+  });
+
+  ipcMain.handle('config:setSortPrefs', (_event, area: string, prefs: { field?: string; direction?: string }) => {
+    try {
+      configLoader.setSortPrefs(area as 'sessions' | 'bindings', prefs);
+      logger.info(`[IPC] Sort prefs for ${area} set to: ${JSON.stringify(prefs)}`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to set sort prefs for ${area}: ${error}`);
       return { success: false, error: String(error) };
     }
   });

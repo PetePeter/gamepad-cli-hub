@@ -116,10 +116,34 @@ export interface SidebarPrefs {
 
 export const DEFAULT_SIDEBAR_PREFS: SidebarPrefs = { side: 'left', width: 320 };
 
+// ============================================================================
+// Sorting Config Types
+// ============================================================================
+
+export type SessionSortField = 'state' | 'cliType' | 'directory' | 'name';
+export type BindingSortField = 'button' | 'action';
+export type SortDirection = 'asc' | 'desc';
+
+export interface AreaSortPrefs {
+  field: string;
+  direction: SortDirection;
+}
+
+export interface SortingConfig {
+  sessions: AreaSortPrefs;
+  bindings: AreaSortPrefs;
+}
+
+export const DEFAULT_SORTING: SortingConfig = {
+  sessions: { field: 'state', direction: 'asc' },
+  bindings: { field: 'button', direction: 'asc' },
+};
+
 export interface SettingsConfig {
   activeProfile: string;
   hapticFeedback: boolean;
   sidebar?: SidebarPrefs;
+  sorting?: SortingConfig;
 }
 
 export interface ProfileConfig {
@@ -366,6 +390,34 @@ export class ConfigLoader {
     this.saveActiveProfile();
   }
 
+  copyCliBindings(sourceCli: string, targetCli: string): number {
+    this.ensureLoaded();
+    const sourceBindings = sourceCli === 'global'
+      ? this.activeProfile!.global
+      : this.activeProfile!.cliTypes[sourceCli];
+    if (!sourceBindings) {
+      throw new Error(`No bindings found for source: ${sourceCli}`);
+    }
+    if (targetCli !== 'global' && !this.activeProfile!.cliTypes[targetCli]) {
+      if (this.tools!.cliTypes[targetCli]) {
+        this.activeProfile!.cliTypes[targetCli] = {};
+      } else {
+        throw new Error(`Unknown target CLI type: ${targetCli}`);
+      }
+    }
+    let count = 0;
+    for (const [button, binding] of Object.entries(sourceBindings)) {
+      if (targetCli === 'global') {
+        this.activeProfile!.global[button] = { ...binding };
+      } else {
+        this.activeProfile!.cliTypes[targetCli][button] = { ...binding };
+      }
+      count++;
+    }
+    this.saveActiveProfile();
+    return count;
+  }
+
   // ---------- Profile CRUD ---------------------------------------------
 
   getActiveProfile(): string {
@@ -397,6 +449,24 @@ export class ConfigLoader {
     this.ensureLoaded();
     const current = this.getSidebarPrefs();
     this.settings!.sidebar = { ...current, ...prefs };
+    this.saveSettings();
+  }
+
+  getSortPrefs(area: 'sessions' | 'bindings'): AreaSortPrefs {
+    this.ensureLoaded();
+    const sorting = this.settings!.sorting;
+    if (sorting && sorting[area]) {
+      return { ...DEFAULT_SORTING[area], ...sorting[area] };
+    }
+    return { ...DEFAULT_SORTING[area] };
+  }
+
+  setSortPrefs(area: 'sessions' | 'bindings', prefs: Partial<AreaSortPrefs>): void {
+    this.ensureLoaded();
+    if (!this.settings!.sorting) {
+      this.settings!.sorting = { ...DEFAULT_SORTING };
+    }
+    this.settings!.sorting[area] = { ...this.settings!.sorting[area], ...prefs };
     this.saveSettings();
   }
 

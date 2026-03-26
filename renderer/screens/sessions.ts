@@ -10,6 +10,8 @@ import { sessionsState, type SessionsFocus } from './sessions-state.js';
 import { logEvent, getCliIcon, getCliDisplayName, toDirection } from '../utils.js';
 import type { TerminalManager } from '../terminal/terminal-manager.js';
 import type { Session } from '../state.js';
+import { sortSessions, SESSION_SORT_LABELS, type SessionSortField, type SortDirection } from '../sort-logic.js';
+import { createSortControl, type SortControlHandle } from '../components/sort-control.js';
 
 // ============================================================================
 // State helpers
@@ -28,6 +30,10 @@ const STATE_ORDER: Record<string, number> = {
   planning: 2,
   idle: 3,
 };
+
+let sessionsSortControl: SortControlHandle | null = null;
+let sessionsSortField: SessionSortField = 'state';
+let sessionsSortDirection: SortDirection = 'asc';
 
 function getStateLabel(sessionState: string): string {
   return STATE_LABELS[sessionState] || '💤 Idle';
@@ -98,9 +104,68 @@ function getSessionCwd(sessionId: string): string {
 
 export async function loadSessions(): Promise<void> {
   await loadSessionsData();
+  await initSessionsSortControl();
   renderSessions();
   renderSpawnGrid();
   updateStatusCounts();
+}
+
+async function initSessionsSortControl(): Promise<void> {
+  const container = document.getElementById('sessionsSortBar');
+  if (!container) return;
+
+  // Load saved prefs (only on first call or when no control exists)
+  if (!sessionsSortControl) {
+    try {
+      const prefs = await window.gamepadCli.configGetSortPrefs('sessions');
+      if (prefs) {
+        sessionsSortField = (prefs.field as SessionSortField) || 'state';
+        sessionsSortDirection = (prefs.direction as SortDirection) || 'asc';
+        // Re-sort with loaded prefs
+        state.sessions = sortSessions(
+          state.sessions,
+          sessionsSortField,
+          sessionsSortDirection,
+          getSessionState,
+          getSessionCwd,
+        );
+      }
+    } catch (e) {
+      console.error('[Sessions] Failed to load sort prefs:', e);
+    }
+
+    const options = Object.entries(SESSION_SORT_LABELS).map(([value, label]) => ({ value, label }));
+
+    sessionsSortControl = createSortControl({
+      area: 'sessions',
+      options,
+      currentField: sessionsSortField,
+      currentDirection: sessionsSortDirection,
+      onChange: async (field, direction) => {
+        sessionsSortField = field as SessionSortField;
+        sessionsSortDirection = direction;
+        state.sessions = sortSessions(
+          state.sessions,
+          sessionsSortField,
+          sessionsSortDirection,
+          getSessionState,
+          getSessionCwd,
+        );
+        renderSessions();
+        updateSessionsFocus();
+        try {
+          await window.gamepadCli.configSetSortPrefs('sessions', { field, direction });
+        } catch (e) {
+          console.error('[Sessions] Failed to save sort prefs:', e);
+        }
+      },
+    });
+
+    container.innerHTML = '';
+    container.appendChild(sessionsSortControl.element);
+  } else {
+    sessionsSortControl.update(sessionsSortField, sessionsSortDirection);
+  }
 }
 
 /** Open the state dropdown for the currently focused session card. */
@@ -346,12 +411,14 @@ async function loadSessionsData(): Promise<void> {
     }
   }
 
-  // Sort sessions by state priority
-  state.sessions.sort((a, b) => {
-    const stateA = STATE_ORDER[getSessionState(a.id)] ?? 3;
-    const stateB = STATE_ORDER[getSessionState(b.id)] ?? 3;
-    return stateA - stateB;
-  });
+  // Sort sessions by user preference
+  state.sessions = sortSessions(
+    state.sessions,
+    sessionsSortField,
+    sessionsSortDirection,
+    getSessionState,
+    getSessionCwd,
+  );
 
   try {
     sessionsState.cliTypes = await window.gamepadCli.configGetCliTypes();

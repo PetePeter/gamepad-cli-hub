@@ -255,6 +255,83 @@ describe('ConfigLoader', () => {
   });
 
   // =========================================================================
+  // copyCliBindings
+  // =========================================================================
+
+  describe('copyCliBindings', () => {
+    it('copies all bindings from one CLI to another', () => {
+      loader.load();
+      loader.copyCliBindings('claude-code', 'copilot-cli');
+      const target = loader.getBindings('copilot-cli')!;
+      // claude-code has A and B — both should now exist on copilot-cli
+      expect(target['A']).toEqual({ action: 'keyboard', sequence: '{Ctrl+L}' });
+      expect(target['B']).toEqual({ action: 'voice', key: 'Space', mode: 'hold' });
+    });
+
+    it('overwrites existing bindings on target', () => {
+      loader.load();
+      // copilot-cli already has A={Ctrl+L} and Y={Ctrl+C}
+      loader.copyCliBindings('claude-code', 'copilot-cli');
+      const target = loader.getBindings('copilot-cli')!;
+      // A was overwritten with claude-code's A
+      expect(target['A']).toEqual({ action: 'keyboard', sequence: '{Ctrl+L}' });
+      // Y was not in source — should remain untouched
+      expect(target['Y']).toEqual({ action: 'keyboard', sequence: '{Ctrl+C}' });
+    });
+
+    it('returns count of copied bindings', () => {
+      loader.load();
+      const count = loader.copyCliBindings('claude-code', 'copilot-cli');
+      expect(count).toBe(2); // A and B
+    });
+
+    it('copies global bindings to a CLI type', () => {
+      loader.load();
+      loader.copyCliBindings('global', 'copilot-cli');
+      const target = loader.getBindings('copilot-cli')!;
+      expect(target['Up']).toEqual({ action: 'session-switch', direction: 'previous' });
+      expect(target['Down']).toEqual({ action: 'session-switch', direction: 'next' });
+    });
+
+    it('copies CLI bindings to global', () => {
+      loader.load();
+      loader.copyCliBindings('claude-code', 'global');
+      const global = loader.getGlobalBindings();
+      expect(global['A']).toEqual({ action: 'keyboard', sequence: '{Ctrl+L}' });
+    });
+
+    it('throws for unknown source CLI', () => {
+      loader.load();
+      expect(() => loader.copyCliBindings('nonexistent', 'copilot-cli'))
+        .toThrow('No bindings found for source: nonexistent');
+    });
+
+    it('throws for unknown target CLI', () => {
+      loader.load();
+      expect(() => loader.copyCliBindings('claude-code', 'nonexistent'))
+        .toThrow('Unknown target CLI type: nonexistent');
+    });
+
+    it('persists copied bindings to disk', () => {
+      loader.load();
+      loader.copyCliBindings('claude-code', 'copilot-cli');
+      const fresh = new ConfigLoader(TEST_DIR);
+      fresh.load();
+      const target = fresh.getBindings('copilot-cli')!;
+      expect(target['B']).toEqual({ action: 'voice', key: 'Space', mode: 'hold' });
+    });
+
+    it('does not mutate source bindings via shared reference', () => {
+      loader.load();
+      loader.copyCliBindings('claude-code', 'copilot-cli');
+      // Modify target binding — should not affect source
+      loader.setBinding('A', 'copilot-cli', { action: 'keyboard', sequence: '{Enter}' });
+      const source = loader.getBindings('claude-code')!;
+      expect(source['A']).toEqual({ action: 'keyboard', sequence: '{Ctrl+L}' });
+    });
+  });
+
+  // =========================================================================
   // Profile CRUD
   // =========================================================================
 
