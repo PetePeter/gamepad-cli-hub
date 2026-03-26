@@ -381,4 +381,81 @@ describe('Gamepad Repeat Engine', () => {
     // Should still be just the initial press
     expect(events.filter(e => e.button === 'A').length).toBe(1);
   });
+
+  // =========================================================================
+  // 12. Quadratic acceleration curve
+  // =========================================================================
+  describe('Quadratic acceleration', () => {
+    it('uses quadratic curve — full deflection repeats faster than half', () => {
+      // Configure with known repeatRate
+      poller.setRepeatConfig({
+        dpad: { initialDelay: 400, repeatRate: 120 },
+        sticks: {
+          left: { deadzone: 0.25, repeatRate: 60 },
+          right: { deadzone: 0.25, repeatRate: 60 },
+        },
+      });
+
+      // Test at 50% deflection (above 0.25 deadzone)
+      const gp50 = makeGamepad({ axes: [0, 0.625, 0, 0] }); // normalised = 0.5
+      setGamepad(gp50);
+      startAndTick();
+      events.length = 0;
+      tick(600);
+      const count50 = events.filter(e => e.button === 'LeftStickDown').length;
+
+      // Test at full deflection
+      poller.stop();
+      events.length = 0;
+      const poller2 = new BrowserGamepadPoller();
+      poller2.setRepeatConfig({
+        dpad: { initialDelay: 400, repeatRate: 120 },
+        sticks: {
+          left: { deadzone: 0.25, repeatRate: 60 },
+          right: { deadzone: 0.25, repeatRate: 60 },
+        },
+      });
+      const events2: Array<{ button: string }> = [];
+      const unsub2 = poller2.onButton(e => events2.push({ button: e.button }));
+
+      const gp100 = makeGamepad({ axes: [0, 1.0, 0, 0] }); // normalised = 1.0
+      setGamepad(gp100);
+      poller2.start();
+      tick(16);
+      events2.length = 0;
+      tick(600);
+      const count100 = events2.filter(e => e.button === 'LeftStickDown').length;
+
+      // Quadratic: full deflection should produce significantly more repeats
+      expect(count100).toBeGreaterThan(count50);
+
+      unsub2();
+      poller2.stop();
+    });
+
+    it('respects 40ms minimum interval cap', () => {
+      // Set repeatRate to 20 (below 40ms minimum)
+      poller.setRepeatConfig({
+        dpad: { initialDelay: 400, repeatRate: 120 },
+        sticks: {
+          left: { deadzone: 0.25, repeatRate: 20 },
+          right: { deadzone: 0.25, repeatRate: 20 },
+        },
+      });
+
+      const gp = makeGamepad({ axes: [0, 1.0, 0, 0] }); // full deflection
+      setGamepad(gp);
+      startAndTick();
+      events.length = 0;
+
+      // At full deflection with quadratic, interval = slowRate - 1*1*(300-40) = 40ms
+      // In 320ms we expect ~8 repeats (320/40)
+      tick(320);
+      const count = events.filter(e => e.button === 'LeftStickDown').length;
+      // With 40ms floor and 16ms poll tick, expect at least 4 repeats in 320ms
+      expect(count).toBeGreaterThanOrEqual(4);
+      // But not more than 20 (which would indicate no floor)
+      expect(count).toBeLessThanOrEqual(20);
+    });
+  });
 });

@@ -163,11 +163,11 @@ sticks:
   left:
     mode: cursor    # cursor | scroll | disabled
     deadzone: 8000
-    repeatRate: 100
+    repeatRate: 60
   right:
     mode: scroll
-    deadzone: 8000
-    repeatRate: 150
+    deadzone: 0.25
+    repeatRate: 60
 ```
 
 ### Settings UI (4 tabs)

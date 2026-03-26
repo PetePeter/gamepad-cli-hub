@@ -149,11 +149,11 @@ sticks:
   left:
     mode: cursor    # cursor | scroll | disabled
     deadzone: 0.25
-    repeatRate: 100
+    repeatRate: 60
   right:
     mode: scroll
     deadzone: 0.25
-    repeatRate: 150
+    repeatRate: 60
 dpad:
   initialDelay: 400
   repeatRate: 120

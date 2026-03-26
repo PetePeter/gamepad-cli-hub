@@ -111,8 +111,8 @@ sticks:
   left:
     mode: cursor
     deadzone: 0.25
-    repeatRate: 100
+    repeatRate: 60
   right:
     mode: scroll
     deadzone: 0.25
-    repeatRate: 150
+    repeatRate: 60

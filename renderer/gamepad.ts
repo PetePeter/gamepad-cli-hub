@@ -413,11 +413,11 @@ class BrowserGamepadPoller {
 
         if (clamped < stickConfig.deadzone) continue;
 
-        // Lerp: deadzone→1.0 maps to slowRate→fastRate
+        // Quadratic: deadzone→1.0 maps to slowRate→fastRate with n² curve
         const normalised = (clamped - stickConfig.deadzone) / (1 - stickConfig.deadzone);
         const slowRate = 300;
-        const fastRate = Math.max(stickConfig.repeatRate, 50);
-        interval = slowRate - normalised * (slowRate - fastRate);
+        const fastRate = Math.max(stickConfig.repeatRate, 40);
+        interval = slowRate - normalised * normalised * (slowRate - fastRate);
       }
 
       if (now - state.lastRepeatTime >= interval) {
