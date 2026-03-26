@@ -2,12 +2,15 @@ cliTypes:
   claude-code:
     name: Claude Code
     command: claude
-    initialPrompt: quack quack motehrfucker
+    initialPromptDelay: 2000
+    initialPrompt: ""
   copilot-cli:
     name: GitHub Copilot CLI
     command: copilot
+    initialPromptDelay: 2000
     initialPrompt: ""
   python:
     name: python
     command: python
+    initialPromptDelay: 0
     initialPrompt: ""

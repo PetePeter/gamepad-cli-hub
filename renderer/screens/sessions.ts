@@ -129,6 +129,17 @@ export function updateSessionHighlight(): void {
   updateSessionsFocus();
 }
 
+/** Sync sidebar session highlight after a tab switch (e.g. Ctrl+Tab) */
+export function syncSessionHighlight(sessionId: string): void {
+  const idx = state.sessions.findIndex(s => s.id === sessionId);
+  if (idx >= 0) {
+    sessionsState.sessionsFocusIndex = idx;
+    state.activeSessionId = sessionId;
+    renderSessions();
+    updateSessionsFocus();
+  }
+}
+
 // ============================================================================
 // Bridge for spawning via dir-picker (set by main.ts to avoid circular imports)
 // ============================================================================

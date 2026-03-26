@@ -16,7 +16,7 @@ export const bindingEditorState: BindingEditorState = {
 };
 
 import { state } from '../state.js';
-import { logEvent, getCliDisplayName, toDirection } from '../utils.js';
+import { logEvent, getCliDisplayName, toDirection, getSequenceSyntaxHelpText } from '../utils.js';
 import { loadSettingsScreen } from '../screens/settings.js';
 
 // ============================================================================
@@ -241,27 +241,7 @@ function renderActionParams(form: HTMLElement, binding: any): void {
 
         const helpPanel = document.createElement('div');
         helpPanel.className = 'sequence-help';
-        helpPanel.textContent =
-`SYNTAX REFERENCE
-
-Plain text     \u2192 Typed literally
-{Enter}        \u2192 Tap special key
-{Ctrl+S}       \u2192 Key combo
-{Ctrl+Shift+P} \u2192 Multi-modifier combo
-{Ctrl Down}    \u2192 Press & hold modifier
-{Ctrl Up}      \u2192 Release modifier
-{Wait 500}     \u2192 Pause 500ms
-{{ or }}        \u2192 Literal { or }
-Newline        \u2192 Enter key press
-
-MODIFIERS: Ctrl, Alt, Shift, Win
-
-SPECIAL KEYS: Enter, Tab, Esc, Space, Backspace, Delete,
-  Insert, Home, End, PageUp, PageDown, Up, Down, Left,
-  Right, F1\u2013F12, CapsLock, PrintScreen
-
-EXAMPLE:
-  /clear{Enter}{Wait 500}yes{Enter}{Ctrl+S}`;
+        helpPanel.textContent = getSequenceSyntaxHelpText();
         seqField.appendChild(helpPanel);
 
         helpToggle.addEventListener('click', () => {

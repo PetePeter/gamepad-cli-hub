@@ -12,6 +12,7 @@ import {
   updateProfileDisplay,
   showFormModal,
   toDirection,
+  createSequenceSyntaxHelp,
 } from '../utils.js';
 import { initConfigCache } from '../bindings.js';
 import { loadSessions } from './sessions.js';
@@ -659,7 +660,7 @@ async function showAddCliTypeForm(): Promise<void> {
   const result = await showFormModal('Add CLI Type', [
     { key: 'name', label: 'Name', placeholder: 'e.g. Claude Code' },
     { key: 'command', label: 'Command', placeholder: 'e.g. claude, python' },
-    { key: 'initialPrompt', label: 'Initial Prompt', type: 'textarea', defaultValue: '' },
+    { key: 'initialPrompt', label: 'Initial Prompt', type: 'textarea', defaultValue: '', afterElement: createSequenceSyntaxHelp() },
   ]);
 
   if (!result) return;
@@ -690,7 +691,7 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
   const result = await showFormModal(`Edit CLI Type: ${key}`, [
     { key: 'name', label: 'Name', defaultValue: value.name || key },
     { key: 'command', label: 'Command', defaultValue: value.command || '' },
-    { key: 'initialPrompt', label: 'Initial Prompt', type: 'textarea', defaultValue: value.initialPrompt || '' },
+    { key: 'initialPrompt', label: 'Initial Prompt', type: 'textarea', defaultValue: value.initialPrompt || '', afterElement: createSequenceSyntaxHelp() },
   ]);
 
   if (!result) return;

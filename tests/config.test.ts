@@ -448,6 +448,63 @@ describe('ConfigLoader', () => {
       loader.load();
       expect(() => loader.removeCliType('nope')).toThrow('CLI type not found: nope');
     });
+
+    it('initialPromptDelay is preserved through updateCliType', () => {
+      // Write a tool with initialPromptDelay set
+      writeYaml('tools.yaml', {
+        cliTypes: {
+          'claude-code': {
+            name: 'Claude Code',
+            command: 'cc',
+            initialPrompt: 'hello',
+            initialPromptDelay: 3000,
+          },
+          'copilot-cli': {
+            name: 'GitHub Copilot CLI',
+            command: 'copilot',
+            initialPrompt: '',
+          },
+        },
+      });
+      loader.load();
+
+      // Update name and command — delay should survive
+      loader.updateCliType('claude-code', 'CC Renamed', 'cc2', 'new prompt');
+
+      const entry = loader.getCliTypeEntry('claude-code');
+      expect(entry).not.toBeNull();
+      expect(entry!.name).toBe('CC Renamed');
+      expect(entry!.command).toBe('cc2');
+      expect(entry!.initialPrompt).toBe('new prompt');
+      expect(entry!.initialPromptDelay).toBe(3000);
+
+      // Verify persisted to disk
+      const onDisk = readYaml<any>('tools.yaml');
+      expect(onDisk.cliTypes['claude-code'].initialPromptDelay).toBe(3000);
+    });
+
+    it('initialPromptDelay is loaded from disk on fresh load', () => {
+      writeYaml('tools.yaml', {
+        cliTypes: {
+          'claude-code': {
+            name: 'Claude Code',
+            command: 'cc',
+            initialPrompt: '',
+            initialPromptDelay: 1500,
+          },
+        },
+      });
+      loader.load();
+
+      const entry = loader.getCliTypeEntry('claude-code');
+      expect(entry!.initialPromptDelay).toBe(1500);
+    });
+
+    it('initialPromptDelay is undefined when not set in config', () => {
+      loader.load();
+      const entry = loader.getCliTypeEntry('claude-code');
+      expect(entry!.initialPromptDelay).toBeUndefined();
+    });
   });
 
   // =========================================================================

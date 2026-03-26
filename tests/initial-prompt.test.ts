@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { scheduleInitialPrompt, actionToPtyData } from '../src/session/initial-prompt';
+import { scheduleInitialPrompt, actionToPtyData, KEY_TO_ESCAPE } from '../src/session/initial-prompt';
 import type { SequenceAction } from '../src/input/sequence-parser';
 
 vi.mock('../src/utils/logger.js', () => ({
@@ -87,6 +87,53 @@ describe('actionToPtyData', () => {
   it('returns null for modUp actions', () => {
     const action: SequenceAction = { type: 'modUp', key: 'Ctrl' };
     expect(actionToPtyData(action)).toBeNull();
+  });
+
+  it('maps Esc alias to \\x1b', () => {
+    expect(actionToPtyData({ type: 'key', key: 'Esc' })).toBe('\x1b');
+  });
+
+  it('maps F1-F12 to escape sequences', () => {
+    expect(actionToPtyData({ type: 'key', key: 'F1' })).toBe('\x1bOP');
+    expect(actionToPtyData({ type: 'key', key: 'F2' })).toBe('\x1bOQ');
+    expect(actionToPtyData({ type: 'key', key: 'F3' })).toBe('\x1bOR');
+    expect(actionToPtyData({ type: 'key', key: 'F4' })).toBe('\x1bOS');
+    expect(actionToPtyData({ type: 'key', key: 'F5' })).toBe('\x1b[15~');
+    expect(actionToPtyData({ type: 'key', key: 'F6' })).toBe('\x1b[17~');
+    expect(actionToPtyData({ type: 'key', key: 'F7' })).toBe('\x1b[18~');
+    expect(actionToPtyData({ type: 'key', key: 'F8' })).toBe('\x1b[19~');
+    expect(actionToPtyData({ type: 'key', key: 'F9' })).toBe('\x1b[20~');
+    expect(actionToPtyData({ type: 'key', key: 'F10' })).toBe('\x1b[21~');
+    expect(actionToPtyData({ type: 'key', key: 'F11' })).toBe('\x1b[23~');
+    expect(actionToPtyData({ type: 'key', key: 'F12' })).toBe('\x1b[24~');
+  });
+
+  it('maps PageUp/PageDown to escape sequences', () => {
+    expect(actionToPtyData({ type: 'key', key: 'PageUp' })).toBe('\x1b[5~');
+    expect(actionToPtyData({ type: 'key', key: 'PageDown' })).toBe('\x1b[6~');
+  });
+
+  it('maps Insert to escape sequence', () => {
+    expect(actionToPtyData({ type: 'key', key: 'Insert' })).toBe('\x1b[2~');
+  });
+});
+
+describe('KEY_TO_ESCAPE', () => {
+  it('contains Enter mapping to \\r', () => {
+    expect(KEY_TO_ESCAPE['Enter']).toBe('\r');
+  });
+
+  it('contains all expected keys', () => {
+    const expectedKeys = [
+      'Enter', 'Tab', 'Esc', 'Escape', 'Space', 'Backspace', 'Delete',
+      'Up', 'Down', 'Right', 'Left', 'Home', 'End',
+      'PageUp', 'PageDown', 'Insert',
+      'F1', 'F2', 'F3', 'F4', 'F5', 'F6',
+      'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
+    ];
+    for (const key of expectedKeys) {
+      expect(KEY_TO_ESCAPE).toHaveProperty(key);
+    }
   });
 });
 

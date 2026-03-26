@@ -4,7 +4,7 @@
 
 You're running Claude Code in one terminal, Copilot CLI in another, maybe a third session for a side project. Alt-tabbing between them is slow. Finding the right window is annoying. Typing repetitive commands is tedious.
 
-Pick up your controller. One button spawns a new Claude Code session. Another fires up Copilot CLI. The D-pad flips between them instantly — the right window snaps to focus before you blink. Hold B to hold down a key in whichever CLI supports it — the controller just holds the key, your CLI does the rest.
+Pick up your controller. One button spawns a new Claude Code session — it opens as an embedded terminal right inside the app. Another fires up Copilot CLI in its own tab. The D-pad flips between tabs instantly. Press A to focus the terminal and type; press B to go back to the session list. Ctrl+Tab cycles tabs from the keyboard.
 
 This is a session manager for people who run multiple AI-assisted terminals at once and got tired of the friction.
 
@@ -12,19 +12,19 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 
 ## What It Does
 
-**Session Switching** — D-pad up/down cycles through your open CLI sessions. The app auto-detects running terminals, focuses the correct window, and keeps everything in sync. No manual window hunting.
+**Session Switching** — D-pad up/down cycles through your open terminal tabs. Each session runs as an embedded terminal inside the app — no external windows to hunt for. The tab bar shows colored dots so you can see which CLI is implementing, waiting, or idle at a glance.
 
-**Instant Spawning** — Pull a trigger and a new CLI instance launches in your configured working directory, ready to go. Left trigger for Claude Code, right trigger for Copilot CLI — or remap to whatever tools you use.
+**Instant Spawning** — Pull a trigger and a new CLI instance launches in an embedded terminal, ready to go. Left trigger for Claude Code, right bumper for Copilot CLI — or remap to whatever tools you use. An optional initial prompt auto-types a command after spawn.
 
-**Hold-Key Passthrough** — Press and hold B, and a configurable key combo is held down in the active terminal. Release B, the key releases. Your CLI handles the rest — Claude Code hears Space for voice input, any app that listens for a held key gets its expected combo. No extra dependencies, just a key held at the right time.
+**Keystroke Sequences** — Button bindings support a `sequence` field for scripting complex input patterns. Type text, press Enter, wait, send Ctrl+C — all in one binding. Same syntax configures initial prompts for newly spawned sessions.
 
 **Session Persistence** — Sessions survive crashes and restarts. The app saves session state to disk after every change and restores on startup. A health check periodically removes dead sessions so the list stays clean.
 
-**Quick Access** — Press the Sandwich/Guide button from anywhere to snap back to the session list. The app lives as a slim sidebar on the edge of your screen — always visible, never in the way.
+**Quick Access** — Press the Sandwich/Guide button from anywhere to snap back to the session list. The app lives as a slim sidebar on the edge of your screen — always visible, never in the way. Press A to focus into a terminal, B to come back.
 
-**Analog Sticks** — Each stick emits virtual button names (LeftStickUp, RightStickDown, etc.) that can be bound to any action. If no binding exists, left stick sends arrow keys in cursor mode. Right stick scrolls (PageUp/PageDown). Both configurable per-profile with deadzone and repeat rate settings.
+**Analog Sticks** — Each stick emits virtual button names (LeftStickUp, RightStickDown, etc.) that can be bound to any action. If no binding exists, right stick scrolls the terminal buffer. Both configurable per-profile with deadzone and repeat rate settings.
 
-**Haptic Feedback** — Feel the controller pulse when you activate hold-key or switch sessions. Configurable in settings — turn it off if you prefer silence.
+**Haptic Feedback** — Feel the controller pulse when you switch sessions or trigger actions. Configurable in settings — turn it off if you prefer silence.
 
 **Context-Aware Bindings** — The same button can do different things depending on which CLI is active. Press A in Claude Code and it clears the screen. Press A in Copilot CLI and it runs a different command. The app checks the active session type and dispatches accordingly.
 
@@ -38,35 +38,46 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 
 | Input | Action |
 |-------|--------|
-| D-Pad Up / Down | Switch between CLI sessions |
-| Left Stick | Bindable virtual buttons (LeftStickUp/Down/Left/Right); cursor mode fallback |
-| Right Stick | Bindable virtual buttons (RightStickUp/Down/Left/Right); scroll fallback |
-| Left / Right Bumper | Previous / next session |
-| Left Trigger | Spawn new Claude Code instance |
-| Right Trigger | Spawn new Copilot CLI instance |
-| A | Clear screen |
-| B | Hold keys (e.g. Space for voice passthrough) |
-| X / Y | Custom command (per CLI type) |
+| D-Pad Up / Down | Switch terminal tabs (terminal mode) / Switch sessions (sidebar) |
+| Left Stick | Same as D-pad |
+| Right Stick | Scroll terminal buffer |
+| A | Select / Focus terminal |
+| B | Back / Unfocus terminal |
+| X | Close terminal |
+| Y | (planned: cycle terminal state) |
+| Left Trigger | Spawn Claude Code |
+| Right Bumper | Spawn Copilot CLI |
 | Back / Start | Previous / next profile |
 | Sandwich / Guide | Focus hub + show sessions |
+| Ctrl+Tab | Next terminal tab |
+| Ctrl+Shift+Tab | Previous terminal tab |
 
 Every binding is remappable. Every action is configurable per CLI type.
 
 ### Keystroke Sequences
 
-Button bindings support a `sequence` field for scripting complex keystroke patterns.
-See [Keystroke Sequences](docs/keystroke-sequences.md) for the full syntax reference.
+Button bindings and initial prompts use the same **sequence parser syntax**:
 
-Example:
 ```yaml
 A:
   action: keyboard
   sequence: |
     /clear
     {Wait 500}
-    yes
-    {Ctrl+S}
+    yes{Enter}
+    {Ctrl+C}
 ```
+
+| Token | Effect |
+|-------|--------|
+| Plain text | Sent as literal characters to PTY |
+| `{Enter}`, `{Tab}`, `{Escape}` | Named keys |
+| `{Ctrl+C}`, `{Ctrl+Z}` | Modifier + key combos |
+| `{Wait 500}` | Pause N ms (max 30000) |
+| `{Ctrl Down}`, `{Ctrl Up}` | Hold/release modifier |
+| `{{`, `}}` | Literal `{` and `}` |
+
+See [Keystroke Sequences](docs/keystroke-sequences.md) for the full syntax reference.
 
 ---
 
@@ -83,9 +94,11 @@ graph LR
     style APP fill:#4a9eff,color:#fff,stroke:#2d7ad6
 ```
 
-The app sits between your controller and your AI coding assistants. It reads gamepad input (buttons and analog sticks), resolves bindings, and routes keystrokes to embedded terminal sessions running inside the app via PTY. Terminals run inline — full xterm.js rendering with state-aware pipeline management.
+The app sits between your controller and your AI coding assistants. It reads gamepad input (buttons and analog sticks), resolves bindings, and routes keystrokes to embedded terminal sessions running inside the app via PTY. Each session renders in its own xterm.js tab — a tab bar with colored state dots (🟢 implementing, 🟠 waiting, 🔵 planning, ⚪ idle) sits above the terminal area.
 
-Each terminal session has a state (implementing, waiting, planning, idle) auto-detected from CLI output keywords, and a pipeline queue auto-dispatches work to waiting sessions as implementers finish.
+**Terminal focus mode:** Press A or click to focus into a terminal — keyboard and gamepad input routes to the PTY. Press B to unfocus back to the sidebar. D-pad switches tabs in terminal mode. Ctrl+Tab / Ctrl+Shift+Tab for keyboard tab switching.
+
+**State detection:** The app watches PTY output for AIAGENT-* keywords and auto-detects whether a CLI is implementing, waiting, or planning. A pipeline queue auto-dispatches work to waiting sessions.
 
 Sessions persist across restarts — if the app crashes or you reboot, it picks up where you left off.
 

@@ -37,6 +37,7 @@ function makeMockTerminal() {
     dispose: vi.fn(),
     scrollToBottom: vi.fn(),
     scrollLines: vi.fn(),
+    attachCustomKeyEventHandler: vi.fn(),
     onData: vi.fn().mockReturnValue({ dispose: vi.fn() }),
     onResize: vi.fn().mockReturnValue({ dispose: vi.fn() }),
     cols: 120,
@@ -447,5 +448,104 @@ describe('TerminalManager', () => {
     expect(() => mgr.destroyTerminal('nonexistent')).not.toThrow();
 
     mgr.dispose();
+  });
+
+  // -------------------------------------------------------------------------
+  // onSwitch callback
+  // -------------------------------------------------------------------------
+
+  describe('onSwitch callback', () => {
+    it('calls onSwitch when switchTo is called', async () => {
+      const onSwitch = vi.fn();
+      const mgr = new TerminalManager(container);
+      mgr.setOnSwitch(onSwitch);
+
+      await mgr.createTerminal('s1', 'aider', 'aider');
+      await mgr.createTerminal('s2', 'claude', 'claude');
+
+      mgr.switchTo('s2');
+
+      expect(onSwitch).toHaveBeenCalledWith('s2');
+
+      mgr.dispose();
+    });
+
+    it('does not call onSwitch if not set', async () => {
+      const mgr = new TerminalManager(container);
+
+      await mgr.createTerminal('s1', 'aider', 'aider');
+      await mgr.createTerminal('s2', 'claude', 'claude');
+
+      // switchTo should not throw when onSwitch is null
+      expect(() => mgr.switchTo('s2')).not.toThrow();
+
+      mgr.dispose();
+    });
+
+    it('calls onSwitch with correct id on each switch', async () => {
+      const onSwitch = vi.fn();
+      const mgr = new TerminalManager(container);
+      mgr.setOnSwitch(onSwitch);
+
+      await mgr.createTerminal('s1', 'aider', 'aider');
+      await mgr.createTerminal('s2', 'claude', 'claude');
+      await mgr.createTerminal('s3', 'copilot', 'copilot');
+
+      // Clear calls from createTerminal auto-activate
+      onSwitch.mockClear();
+
+      mgr.switchTo('s2');
+      mgr.switchTo('s3');
+      mgr.switchTo('s1');
+
+      expect(onSwitch).toHaveBeenCalledTimes(3);
+      expect(onSwitch).toHaveBeenNthCalledWith(1, 's2');
+      expect(onSwitch).toHaveBeenNthCalledWith(2, 's3');
+      expect(onSwitch).toHaveBeenNthCalledWith(3, 's1');
+
+      mgr.dispose();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TerminalView — attachCustomKeyEventHandler
+// ---------------------------------------------------------------------------
+
+describe('TerminalView — custom key handler', () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    terminalInstances.length = 0;
+    fitAddonInstances.length = 0;
+    searchAddonInstances.length = 0;
+    container = createContainer();
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('attaches a custom key event handler on construction', () => {
+    new TerminalView({ sessionId: 'ckh-1', container });
+    expect(lastTerminal().attachCustomKeyEventHandler).toHaveBeenCalledTimes(1);
+    expect(typeof lastTerminal().attachCustomKeyEventHandler.mock.calls[0][0]).toBe('function');
+  });
+
+  it('custom handler returns false for Ctrl+Tab to let it bubble', () => {
+    new TerminalView({ sessionId: 'ckh-2', container });
+    const handler = lastTerminal().attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
+
+    const result = handler({ key: 'Tab', ctrlKey: true } as KeyboardEvent);
+    expect(result).toBe(false);
+  });
+
+  it('custom handler returns true for normal keys', () => {
+    new TerminalView({ sessionId: 'ckh-3', container });
+    const handler = lastTerminal().attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
+
+    const result = handler({ key: 'a', ctrlKey: false } as KeyboardEvent);
+    expect(result).toBe(true);
   });
 });

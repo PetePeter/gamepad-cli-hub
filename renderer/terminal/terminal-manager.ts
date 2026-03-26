@@ -21,6 +21,7 @@ export class TerminalManager {
   private unsubscribers: Array<() => void> = [];
   private resizeObserver: ResizeObserver | null = null;
   private onEmpty: (() => void) | null = null;
+  private onSwitch: ((sessionId: string) => void) | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -31,6 +32,10 @@ export class TerminalManager {
   /** Register a callback invoked when the last terminal is destroyed */
   setOnEmpty(callback: () => void): void {
     this.onEmpty = callback;
+  }
+
+  setOnSwitch(callback: (sessionId: string) => void): void {
+    this.onSwitch = callback;
   }
 
   /** Create a new terminal and spawn its PTY process */
@@ -102,6 +107,7 @@ export class TerminalManager {
     });
 
     this.renderTabs();
+    this.onSwitch?.(sessionId);
   }
 
   /** Get the active session ID */

@@ -191,6 +191,8 @@ export interface FormField {
   placeholder?: string;
   type?: 'text' | 'select' | 'textarea';
   options?: FormFieldOption[];
+  /** Optional element appended after the input (e.g. syntax help panel). */
+  afterElement?: HTMLElement;
 }
 
 export function showFormModal(title: string, fields: FormField[]): Promise<Record<string, string> | null> {
@@ -242,6 +244,10 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
         wrapper.appendChild(input);
       }
 
+      if (field.afterElement) {
+        wrapper.appendChild(field.afterElement);
+      }
+
       fieldsEl.appendChild(wrapper);
     });
 
@@ -277,4 +283,61 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
     saveBtn.addEventListener('click', onSave);
     cancelBtn.addEventListener('click', onCancel);
   });
+}
+
+// ============================================================================
+// Sequence syntax help (shared by binding editor + CLI type settings form)
+// ============================================================================
+
+/** Returns the plain-text syntax reference for the sequence input language. */
+export function getSequenceSyntaxHelpText(): string {
+  return `SYNTAX REFERENCE
+
+Plain text     \u2192 Typed literally
+{Enter}        \u2192 Tap special key
+{Ctrl+S}       \u2192 Key combo
+{Ctrl+Shift+P} \u2192 Multi-modifier combo
+{Ctrl Down}    \u2192 Press & hold modifier
+{Ctrl Up}      \u2192 Release modifier
+{Wait 500}     \u2192 Pause 500ms
+{{ or }}        \u2192 Literal { or }
+Newline        \u2192 Enter key press
+
+MODIFIERS: Ctrl, Alt, Shift, Win
+
+SPECIAL KEYS: Enter, Tab, Esc, Space, Backspace, Delete,
+  Insert, Home, End, PageUp, PageDown, Up, Down, Left,
+  Right, F1\u2013F12, CapsLock, PrintScreen
+
+EXAMPLE:
+  /clear{Enter}{Wait 500}yes{Enter}{Ctrl+S}`;
+}
+
+/**
+ * Creates a collapsible syntax help panel (toggle button + panel div).
+ * Returns the wrapper element to append into a form field container.
+ */
+export function createSequenceSyntaxHelp(): HTMLElement {
+  const wrapper = document.createDocumentFragment() as unknown as HTMLElement;
+
+  const helpToggle = document.createElement('button');
+  helpToggle.type = 'button';
+  helpToggle.className = 'sequence-help-toggle focusable';
+  helpToggle.textContent = '? Syntax Help';
+  helpToggle.tabIndex = 0;
+
+  const helpPanel = document.createElement('div');
+  helpPanel.className = 'sequence-help';
+  helpPanel.textContent = getSequenceSyntaxHelpText();
+
+  helpToggle.addEventListener('click', () => {
+    helpPanel.classList.toggle('sequence-help--visible');
+  });
+
+  // Return as a container div
+  const container = document.createElement('div');
+  container.className = 'sequence-syntax-help-container';
+  container.appendChild(helpToggle);
+  container.appendChild(helpPanel);
+  return container;
 }

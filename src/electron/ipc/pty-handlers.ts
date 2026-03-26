@@ -26,15 +26,12 @@ function resolvePromptConfig(
   try {
     const cfg = configLoader.getCliTypeEntry?.(cliType);
     if (cfg) {
-      // initialPrompt/initialPromptDelay will be added to CliTypeConfig in Phase 6.
-      // Until then, safely read via index access.
-      const raw = cfg as Record<string, unknown>;
       return {
-        initialPrompt: raw.initialPrompt as string | undefined,
-        initialPromptDelay: raw.initialPromptDelay as number | undefined,
+        initialPrompt: cfg.initialPrompt,
+        initialPromptDelay: cfg.initialPromptDelay,
       };
     }
-  } catch { /* config may not support this yet */ }
+  } catch { /* config may not be loaded yet */ }
   return {};
 }
 

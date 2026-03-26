@@ -66,6 +66,15 @@ export class TerminalView {
     this.terminal.loadAddon(this.searchAddon);
 
     this.terminal.open(this.container);
+
+    // Let Ctrl+Tab/Ctrl+Shift+Tab pass through to the global handler
+    this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      if (event.key === 'Tab' && event.ctrlKey) {
+        return false;
+      }
+      return true;
+    });
+
     this.fit();
 
     if (options.onData) {

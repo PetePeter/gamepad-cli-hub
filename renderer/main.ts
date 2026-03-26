@@ -9,7 +9,7 @@ import { browserGamepad } from './gamepad.js';
 import { state } from './state.js';
 import { logEvent, showScreen, setLoadSettingsCallback, updateProfileDisplay } from './utils.js';
 import { initConfigCache } from './bindings.js';
-import { loadSessions, updateSessionHighlight, setDirPickerBridge, setTerminalManagerGetter, hideTerminalArea } from './screens/sessions.js';
+import { loadSessions, updateSessionHighlight, syncSessionHighlight, setDirPickerBridge, setTerminalManagerGetter, hideTerminalArea } from './screens/sessions.js';
 import { loadSettingsScreen } from './screens/settings.js';
 import {
   setupGamepadNavigation,
@@ -143,6 +143,25 @@ async function init(): Promise<void> {
   console.log('[Renderer] Initializing');
   console.log('[Renderer] navigator.gamepad API exists:', typeof navigator.getGamepads === 'function');
 
+  // Global Ctrl+Tab / Ctrl+Shift+Tab to switch terminal tabs (capture phase
+  // so it fires before xterm.js can swallow the event)
+  document.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Tab' && e.ctrlKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      const tm = terminalManager;
+      if (!tm) return;
+      const ids = tm.getSessionIds();
+      const activeId = tm.getActiveSessionId();
+      if (ids.length <= 1 || !activeId) return;
+      const currentIdx = ids.indexOf(activeId);
+      const direction = e.shiftKey ? -1 : 1;
+      const newIdx = (currentIdx + direction + ids.length) % ids.length;
+      tm.switchTo(ids[newIdx]);
+      state.terminalFocused = true;
+    }
+  }, true);
+
   // Setup gamepad navigation
   setupGamepadNavigation();
   console.log('[Renderer] Gamepad navigation setup complete');
@@ -190,6 +209,9 @@ async function init(): Promise<void> {
       terminalManager.setOnEmpty(() => {
         hideTerminalArea();
         state.terminalFocused = false;
+      });
+      terminalManager.setOnSwitch((sessionId) => {
+        syncSessionHighlight(sessionId);
       });
       console.log('[Renderer] Terminal manager initialized');
 

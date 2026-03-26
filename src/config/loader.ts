@@ -61,6 +61,7 @@ export interface CliTypeConfig {
   name: string;
   command: string;
   initialPrompt?: string;
+  initialPromptDelay?: number;
 }
 
 export interface ButtonBindings {
@@ -506,7 +507,13 @@ export class ConfigLoader {
     if (!this.tools!.cliTypes[key]) {
       throw new Error(`CLI type not found: ${key}`);
     }
-    this.tools!.cliTypes[key] = { name, command, initialPrompt: initialPrompt ?? '' };
+    const existing = this.tools!.cliTypes[key];
+    this.tools!.cliTypes[key] = {
+      name,
+      command,
+      initialPrompt: initialPrompt ?? '',
+      initialPromptDelay: existing.initialPromptDelay,
+    };
     this.saveTools();
   }
 

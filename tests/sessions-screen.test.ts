@@ -1384,6 +1384,53 @@ describe('Sessions Screen', () => {
   });
 
   // ==========================================================================
+  // syncSessionHighlight
+  // ==========================================================================
+
+  describe('syncSessionHighlight', () => {
+    it('updates session focus index to match session id', async () => {
+      sessions.setTerminalManagerGetter(() => createMockTerminalManager([
+        { id: 'pty-claude-1', cliType: 'claude-code' },
+        { id: 'pty-copilot-1', cliType: 'copilot-cli' },
+      ]));
+      await loadAndFlush(sessions);
+
+      sessions.syncSessionHighlight('pty-copilot-1');
+
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(state.activeSessionId).toBe('pty-copilot-1');
+    });
+
+    it('does nothing for unknown session id', async () => {
+      sessions.setTerminalManagerGetter(() => createMockTerminalManager([
+        { id: 'pty-claude-1', cliType: 'claude-code' },
+      ]));
+      await loadAndFlush(sessions);
+      sessionsState.sessionsFocusIndex = 0;
+
+      sessions.syncSessionHighlight('nonexistent');
+
+      expect(sessionsState.sessionsFocusIndex).toBe(0);
+    });
+
+    it('sets focus to first session when matching first id', async () => {
+      sessions.setTerminalManagerGetter(() => createMockTerminalManager([
+        { id: 'pty-a', cliType: 'claude-code' },
+        { id: 'pty-b', cliType: 'copilot-cli' },
+        { id: 'pty-c', cliType: 'claude-code' },
+      ]));
+      await loadAndFlush(sessions);
+
+      // Start at a different index
+      sessionsState.sessionsFocusIndex = 2;
+      sessions.syncSessionHighlight('pty-a');
+
+      expect(sessionsState.sessionsFocusIndex).toBe(0);
+      expect(state.activeSessionId).toBe('pty-a');
+    });
+  });
+
+  // ==========================================================================
   // setDirPickerBridge
   // ==========================================================================
 

@@ -2,7 +2,7 @@
 
 ## Mission
 
-DIY Xbox controller → CLI session manager. Control multiple CLI instances (Claude Code, Copilot CLI, etc.) from a single game controller. Built as an Electron 41 desktop app on Windows.
+DIY Xbox controller → CLI session manager. Control multiple AI coding CLIs (Claude Code, Copilot CLI, etc.) from a single game controller. Embedded terminals via node-pty + xterm.js — no external windows. Built as an Electron 41 desktop app on Windows.
 
 ## System Overview
 
@@ -16,41 +16,42 @@ graph TB
         subgraph "Renderer Process"
             UI[UI: Sessions / Settings]
             BGA[Browser Gamepad API]
+            TM[TerminalManager<br/>Tab bar + switching]
+            TV[TerminalView<br/>xterm.js]
         end
 
         subgraph "Main Process"
             IPC[IPC Handlers<br/>10 handler groups]
-            GI[GamepadInput<br/>XInput via PowerShell<br/>Buttons + Analog Sticks]
+            GI[GamepadInput<br/>XInput via PowerShell]
             SM[SessionManager<br/>EventEmitter]
-            SP[SessionPersistence<br/>YAML save/load/health check]
+            SP[SessionPersistence<br/>YAML save/load]
             PS[ProcessSpawner]
-            KS[KeyboardSimulator<br/>robotjs + hold-key]
-            WM[WindowManager<br/>Win32 via PowerShell]
+            PTY[PtyManager<br/>node-pty spawn/write/resize]
+            SD[StateDetector<br/>AIAGENT-* keywords]
+            PQ[PipelineQueue<br/>Auto-handoff]
+            IP[InitialPrompt<br/>Sequence → PTY]
             CL[ConfigLoader<br/>Split YAML]
         end
 
         UI <-->|contextBridge| IPC
         BGA -->|gamepad:event| IPC
+        TM --> TV
+        TV <-->|pty:data / pty:write| PTY
     end
 
     XC --> GI
     XC --> BGA
-    GI -->|button-press + analog events| IPC
+    GI -->|button-press + analog| IPC
     IPC --> SM
     IPC --> SP
     IPC --> PS
-    IPC --> KS
-    IPC --> WM
+    IPC --> PTY
     IPC --> CL
     SM --> SP
-    SM --> WM
-    PS --> SM
-    KS --> TW
-    WM --> TW
-
-    subgraph "External"
-        TW[Terminal Windows<br/>Claude Code / Copilot CLI / etc.]
-    end
+    PS --> PTY
+    PTY --> SD
+    SD --> PQ
+    PTY --> IP
 ```
 
 ## Data Flow
@@ -62,17 +63,21 @@ Xbox Controller
       → emit('button-press') / emit('analog') for stick events
         → Resolve binding (global first, then per-CLI type)
           → Execute action:
-              keyboard  → KeyboardSimulator.sendKeys() (hold: true → keyDown/keyUp)
-              spawn     → ProcessSpawner.spawn() → SessionManager.addSession()
-              switch    → SessionManager.next/previous() → WindowManager.focusWindow()
-            → WindowManager.focusWindow() (ensure correct window focused)
+              keyboard  → SequenceParser.parse() → pty:write (escape sequences to PTY stdin)
+              spawn     → ProcessSpawner.spawn() → PtyManager.spawn() → SessionManager.addSession()
+              switch    → SessionManager.next/previous() → TerminalManager.switchTo()
             → Haptic pulse (when enabled)
         → Analog sticks:
               Each stick emits virtual buttons (LeftStickUp, RightStickDown, etc.)
                 → Explicit binding found → execute bound action
                 → No binding → fall back to stick mode:
-                    left stick  → cursor mode (arrow keys)
-                    right stick → scroll mode (PageUp/PageDown), throttled by repeatRate
+                    left stick  → cursor mode (arrow keys via PTY)
+                    right stick → scroll mode (terminal buffer scroll), throttled by repeatRate
+
+Terminal Focus Mode (state.terminalFocused):
+  → true:  keyboard input routes to xterm.js (PTY stdin), D-pad/stick switches tabs
+  → false: keyboard input routes to sidebar navigation
+  → Toggle: A button or click (focus) / B button (unfocus)
 ```
 
 ## Modules
@@ -80,21 +85,19 @@ Xbox Controller
 | Module | File | Responsibility |
 |--------|------|---------------|
 | **GamepadInput** | `src/input/gamepad.ts` | XInput polling via PowerShell P/Invoke, debouncing, button-press events, analog stick events (`onAnalog()`), haptic vibration commands |
-| **KeyboardSimulator** | `src/output/keyboard.ts` | ⚠️ DEPRECATED — Keystroke simulation via @jitsi/robotjs. Fallback for non-PTY contexts. |
-| **WindowManager** | `src/output/windows.ts` | ⚠️ DEPRECATED — Win32 window enumeration/focus via PowerShell. Replaced by embedded terminals. |
 | **SessionManager** | `src/session/manager.ts` | Track sessions, switch active, emit session:added/removed/changed. Calls persistence after every state change. |
 | **SessionPersistence** | `src/session/persistence.ts` | `saveSessions()`, `loadSessions()`, `clearPersistedSessions()` to `config/sessions.yaml`. Health check removes dead PIDs. |
 | **ProcessSpawner** | `src/session/spawner.ts` | Spawn detached CLI processes from config, register with SessionManager. Accepts optional `onExit` callback. |
-| **PtyManager** | `src/session/pty-manager.ts` | PTY process lifecycle — spawn via node-pty, write to stdin, resize, kill. One PTY per embedded terminal session. |
+| **PtyManager** | `src/session/pty-manager.ts` | PTY process lifecycle — spawn via node-pty (cmd.exe on Windows, bash on Unix), write to stdin, resize, kill. One PTY per embedded terminal session. |
 | **StateDetector** | `src/session/state-detector.ts` | Scans PTY output for AIAGENT-* keywords to detect CLI state (waiting, implementing, etc.). |
 | **PipelineQueue** | `src/session/pipeline-queue.ts` | Auto-handoff queue — routes tasks to waiting sessions based on state detection. |
-| **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — sends initial text to newly spawned PTY sessions. |
-| **SequenceParser** | `src/input/sequence-parser.ts` | Parses keystroke sequence format strings into typed SequenceAction arrays. |
+| **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. |
+| **SequenceParser** | `src/input/sequence-parser.ts` | Parses sequence format strings (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, `{Mod Down/Up}`, `{{`/`}}` escapes, plain text) into typed SequenceAction arrays. Used by both button bindings and initial prompts. |
 | **ConfigLoader** | `src/config/loader.ts` | Split YAML config loading + profile/tools/directory CRUD. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getStickDirectionBinding()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 10 domain handler files (gamepad, session, config, profile, tools, window, spawn, keyboard, system, app). Dependencies injected via function parameters. |
-| **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization), bindings (PTY-aware routing), navigation, screens (sessions/settings, status stub), modals (dir-picker/binding-editor). Browser Gamepad API. Vertical session cards + spawn grid with inline spawn wizard. Slide-over settings with status tab. |
+| **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state (`terminalFocused` toggle), utils (includes `toDirection()` for directional button normalization), bindings (PTY-aware routing), navigation, screens (sessions/settings, status stub), modals (dir-picker/binding-editor). Browser Gamepad API. Session list shows embedded terminals only. |
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. |
-| **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, PTY IPC data routing, and cleanup. |
+| **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, grey=idle). Exposes onSwitch/onEmpty callbacks. |
 | **XInput Script** | `src/input/xinput-poll.ps1` | External PowerShell XInput P/Invoke polling script. Emits button events (DPadUp/DPadDown/DPadLeft/DPadRight, face buttons, etc.) + raw analog stick values. Supports `XInputSetState` for haptic vibration. Stick virtual buttons are generated in the renderer, not here. |
 | **Logger** | `src/utils/logger.ts` | Winston logger with daily rotation. Used across all src/ modules. |
 | **CLI Entry** | `src/index.ts` | Standalone CLI orchestrator (GamepadCliHub class). Handles all action types including `close-session` and `hub-focus`. Resolves stick direction bindings before falling back to stick mode. |
@@ -115,7 +118,30 @@ config/
 
 **Binding action types:** `keyboard`, `session-switch`, `spawn`, `list-sessions`, `profile-switch`, `close-session`, `hub-focus`
 
-**keyboard hold binding format:** `{ action: 'keyboard', keys: ['space'], hold: true }` — when the gamepad button is pressed, holds the configured keys DOWN via robotjs `keyToggle`; releases on button up. The OS / target CLI app handles the actual action (e.g. Claude Code listens for Space to start voice input).
+**keyboard sequence binding format:** `{ action: 'keyboard', sequence: '{Wait 500}some text{Enter}{Ctrl+C}' }` — sequence parser syntax string sent to PTY stdin as escape codes. Replaces the old `keys`/`hold` format.
+
+**CLI type config** (in `tools.yaml`):
+```yaml
+claude-code:
+  name: Claude Code
+  command: claude
+  args: []
+  initialPrompt: ""           # Sequence parser string pre-loaded into PTY after spawn
+  initialPromptDelay: 2000    # ms to wait before sending initialPrompt (default 2000 for AI CLIs, 0 for generic)
+```
+
+No `terminal` field — all CLIs run as embedded PTY sessions (no external window config).
+
+**Sequence parser syntax** (used by both `sequence` bindings and `initialPrompt`):
+| Token | Effect |
+|-------|--------|
+| Plain text | Sent as literal characters |
+| `{Enter}` | Newline / carriage return |
+| `{Tab}`, `{Escape}`, `{Delete}`, etc. | Named keys |
+| `{Ctrl+C}`, `{Ctrl+Z}`, etc. | Modifier + key combos |
+| `{Wait 500}` | Pause N ms (max 30000) |
+| `{Ctrl Down}`, `{Ctrl Up}` | Hold/release modifier |
+| `{{`, `}}` | Literal `{` and `}` |
 
 **Stick config** (in profile YAML):
 ```yaml
@@ -134,17 +160,19 @@ sticks:
 
 | Input | Action |
 |-------|--------|
-| Sandwich | Focus hub window + show sessions screen — hardcoded, not context-dependent |
-| D-Pad (DPadUp/DPadDown/DPadLeft/DPadRight) | Navigate session cards / spawn grid; bindable outside sessions screen |
-| Left Stick (LeftStickUp/Down/Left/Right) | Navigate session cards / spawn grid; bindable via virtual buttons, cursor mode fallback |
-| A (in sessions) | Select / Confirm |
-| B (in sessions) | Back / Cancel |
-| X (in sessions) | Delete session |
-| Y (in sessions) | Refresh |
-| A/B/X/Y (outside sessions) | Per-CLI bindings (keyboard shortcuts) |
-| Right Stick (RightStickUp/Down/Left/Right) | Bindable via virtual buttons, scroll mode (PageUp/PageDown) fallback |
+| D-Pad Up/Down | Switch sessions (sidebar) / Switch tabs (terminal mode) |
+| Left Stick | Same as D-pad |
+| Right Stick | Scroll terminal buffer |
+| A | Select / Focus terminal |
+| B | Back / Unfocus terminal |
+| X | Close terminal |
+| Y | (planned: cycle terminal state) |
+| Left Trigger | Spawn Claude Code |
+| Right Bumper | Spawn Copilot CLI |
 | Back/Start | Switch profile (previous/next) |
-| Xbox | Bring hub window to foreground |
+| Sandwich/Guide | Focus hub window + show sessions screen |
+| Ctrl+Tab | Next terminal tab |
+| Ctrl+Shift+Tab | Previous terminal tab |
 
 ## Tech Stack
 
@@ -155,9 +183,8 @@ sticks:
 | Bundler | esbuild |
 | Tests | Vitest |
 | Gamepad input | PowerShell XInput + Browser Gamepad API |
-| Keyboard sim | @jitsi/robotjs (deprecated — PTY fallback only) |
-| Window mgmt | PowerShell Win32 API (deprecated — embedded terminals) |
-| Embedded terminals | node-pty + @xterm/xterm (xterm.js) |
+| Embedded terminals | node-pty (PTY) + @xterm/xterm (xterm.js) |
+| PTY shell | cmd.exe (Windows), bash (Unix) |
 | Haptic feedback | PowerShell XInputSetState P/Invoke |
 | Config | YAML (yaml package) |
 | Logging | Winston |
@@ -165,28 +192,30 @@ sticks:
 ## Design Decisions
 
 1. **Dual gamepad detection** — XInput (PowerShell) for wired + Browser Gamepad API for Bluetooth
-2. **External terminal windows** — CLIs run in real terminal windows, not embedded; managed via Win32 focus/enumeration
-3. **IPC bridge pattern** — Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 10 domain files with dependency injection — the orchestrator (`handlers.ts`) wires dependencies. Renderer never directly accesses Node.js APIs.
-4. **Split YAML config** — Separate concerns: tools, directories, settings, profiles (each with CRUD)
-5. **Per-CLI bindings** — Same button does different things depending on active CLI type
-6. **PowerShell for native APIs** — No native DLLs needed; spawn PS process, parse JSON stdout
-7. **Debouncing in input layer** — 600ms default prevents accidental rapid re-presses
-8. **Hold-key passthrough** — Instead of embedding audio processing, the `keyboard` action with `hold: true` holds a configurable key combo (via robotjs `keyToggle`) and lets the target app handle voice natively. Zero external dependencies — the controller just holds a key, the CLI does the rest.
-9. **Session persistence** — Sessions saved to `config/sessions.yaml` after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skipping duplicates). A health check (`startHealthCheck()`) periodically removes dead PIDs via `process.kill(pid, 0)`. Survives crashes and restarts.
-10. **Sidebar session UI** — App runs as a 320px frameless always-on-top sidebar (left or right edge). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with an inline directory wizard. Settings is a slide-over panel with status merged as a tab. Sandwich button focuses the hub and returns to the sessions screen. Old 3-panel Session Launcher HUD removed.
-11. **Analog stick virtual buttons** — Each stick emits distinct virtual button names (e.g. `LeftStickUp`, `RightStickDown`) that can be bound like physical buttons. If no explicit binding exists, the stick falls back to its configured mode (cursor or scroll). D-pad buttons are separate (`DPadUp`, `DPadDown`, etc.). All directional inputs are normalized to cardinal directions via `toDirection()` for UI navigation. All inputs are context-dependent except Sandwich (hardcoded hub focus).
+2. **Embedded terminals via PTY** — CLIs run inside the Electron app using node-pty + xterm.js. No external terminal windows. PTY spawns cmd.exe on Windows, bash on Unix. All keyboard/sequence input routes through PTY stdin.
+3. **Terminal focus mode** — `state.terminalFocused` controls keyboard routing: `true` = keyboard/gamepad input goes to xterm.js (PTY stdin), `false` = input goes to sidebar navigation. A/click focuses, B unfocuses.
+4. **Tab bar with state dots** — Horizontal tab strip above terminal area. Each tab shows session name + colored dot (green=implementing, orange=waiting, blue=planning, grey=idle). Ctrl+Tab / Ctrl+Shift+Tab for keyboard switching, D-pad for gamepad switching.
+5. **IPC bridge pattern** — Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 10 domain files with dependency injection — the orchestrator (`handlers.ts`) wires dependencies. Renderer never directly accesses Node.js APIs.
+6. **Split YAML config** — Separate concerns: tools, directories, settings, profiles (each with CRUD)
+7. **Per-CLI bindings** — Same button does different things depending on active CLI type
+8. **PowerShell for native APIs** — No native DLLs needed; spawn PS process, parse JSON stdout
+9. **Debouncing in input layer** — 600ms default prevents accidental rapid re-presses
+10. **Sequence parser for input** — Instead of direct key simulation, the `keyboard` action uses a sequence parser syntax (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, plain text) that converts to PTY escape codes. Same syntax used for button `sequence` bindings and `initialPrompt` config.
+11. **Session persistence** — Sessions saved to `config/sessions.yaml` after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skipping duplicates). A health check (`startHealthCheck()`) periodically removes dead PIDs via `process.kill(pid, 0)`. Survives crashes and restarts.
+12. **Sidebar session UI** — App runs as a 320px frameless always-on-top sidebar (left or right edge). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with an inline directory wizard. Settings is a slide-over panel with status merged as a tab. Sandwich button focuses the hub and returns to the sessions screen.
+13. **Analog stick virtual buttons** — Each stick emits distinct virtual button names (e.g. `LeftStickUp`, `RightStickDown`) that can be bound like physical buttons. If no explicit binding exists, the stick falls back to its configured mode (cursor or scroll). D-pad buttons are separate (`DPadUp`, `DPadDown`, etc.). All directional inputs are normalized to cardinal directions via `toDirection()` for UI navigation.
 
 ## Embedded Terminal Architecture
 
-CLIs now run inside the Electron app as embedded terminals instead of external windows.
+All CLIs run inside the Electron app as embedded PTY terminals. No external windows.
 
-**Stack:** node-pty (PTY process management) + xterm.js (terminal rendering)
+**Stack:** node-pty (PTY process management, cmd.exe on Windows) + xterm.js (terminal rendering)
 
 ```
-Gamepad Button Press
-  → bindings.ts: check for active embedded terminal
-    → YES: convert key/combo to PTY escape sequence → ptyWrite(sessionId, data)
-    → NO:  fallback to robotjs keyboard simulation (legacy path)
+Gamepad Button Press / Keyboard Input
+  → state.terminalFocused?
+    → YES: route to xterm.js → pty:write (PTY stdin)
+    → NO:  sidebar navigation
 
 PTY Data Flow:
   Main Process                           Renderer Process
@@ -195,26 +224,38 @@ PTY Data Flow:
   │ (node-pty)   │                       │  → TerminalView   │
   │              │ ←──────────────────── │    (xterm.js)     │
   └─────────────┘   IPC: pty:write       └──────────────────┘
+                                          ┌──────────────────┐
+  StateDetector  ←── PTY stdout ──────── │ Tab Bar           │
+  PipelineQueue  ←── state changes ───── │ [●Claude][●Copilot]│
+                                          └──────────────────┘
 ```
 
+**Tab bar:** Horizontal strip above the terminal area. Each tab shows session name + colored state dot. Ctrl+Tab / Ctrl+Shift+Tab (keyboard) or D-pad (gamepad terminal mode) switches tabs.
+
+**State dots:** 🟢 implementing (green `#44cc44`) · 🟠 waiting (orange `#ffaa00`) · 🔵 planning (blue `#4488ff`) · ⚪ idle (grey `#555555`)
+
 **Key modules:**
-- `src/session/pty-manager.ts` — Spawns node-pty processes, routes stdin/stdout, handles resize/kill
+- `src/session/pty-manager.ts` — Spawns node-pty processes (cmd.exe), routes stdin/stdout, handles resize/kill
 - `src/session/state-detector.ts` — Scans PTY output for `AIAGENT-*` keywords to detect CLI state
 - `src/session/pipeline-queue.ts` — Auto-handoff: routes queued tasks to the first session in "waiting" state
-- `src/session/initial-prompt.ts` — Sends pre-configured text to newly spawned PTY sessions
+- `src/session/initial-prompt.ts` — Converts sequence parser syntax to PTY escape codes, sends after configurable delay
+- `src/input/sequence-parser.ts` — Parses `{Enter}`, `{Ctrl+C}`, `{Wait 500}` etc. into typed actions
 - `renderer/terminal/terminal-view.ts` — xterm.js wrapper with fit/search addons
-- `renderer/terminal/terminal-manager.ts` — Multi-terminal switching and lifecycle
+- `renderer/terminal/terminal-manager.ts` — Multi-terminal switching, tab bar rendering, lifecycle
 - `renderer/bindings.ts` — PTY-aware input routing with escape sequence conversion
-
-**PTY escape conversion:** `keyToPtyEscape()` and `comboToPtyEscape()` in `renderer/bindings.ts` translate named keys (Enter, Tab, arrows, F-keys) and modifier combos (Ctrl+C, Ctrl+Z) into terminal escape sequences for writing to PTY stdin.
 
 ## Build & Test
 
 ```bash
-npm run build    # esbuild: electron + renderer
+npm run build    # esbuild: electron (dist-electron/main.js) + renderer (dist/renderer/main.js)
 npm run start    # Build and launch
 npm test         # Vitest suite
 ```
+
+**Build notes:**
+- Renderer output: `dist/renderer/main.js` (not `renderer/main.js`)
+- node-pty is `--external` in the electron esbuild (native addon, not bundled)
+- No `--allow-overwrite` flag
 
 ## Architecture Principles
 
@@ -247,19 +288,19 @@ src/
 │       └── app-handlers.ts
 ├── input/
 │   ├── gamepad.ts              # XInput polling + debounce + button/analog events + haptic commands
-│   ├── sequence-parser.ts      # Keystroke sequence format parser
+│   ├── sequence-parser.ts      # {Enter}, {Ctrl+C}, {Wait 500}, {Mod Down/Up}, {{/}} — used by bindings + initialPrompt
 │   └── xinput-poll.ps1         # PowerShell XInput P/Invoke + XInputSetState for haptics
 ├── output/
-│   ├── keyboard.ts             # DEPRECATED: Keystroke simulation (robotjs) — PTY fallback only
-│   └── windows.ts              # DEPRECATED: Window enumeration/focus (PowerShell Win32)
+│   ├── keyboard.ts             # ⚠️ DEPRECATED: robotjs keystroke simulation (legacy fallback only)
+│   └── windows.ts              # ⚠️ DEPRECATED: Win32 window enumeration/focus (no longer used)
 ├── session/
 │   ├── manager.ts              # Session tracking (EventEmitter), calls persistence on changes
 │   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + health check
 │   ├── spawner.ts              # CLI process spawning (optional onExit callback)
-│   ├── pty-manager.ts          # PTY process management (node-pty spawn/write/resize/kill)
+│   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
 │   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection
-│   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue
-│   ├── initial-prompt.ts       # Per-CLI prompt pre-loading
+│   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
+│   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay
 │   └── index.ts
 ├── config/
 │   └── loader.ts               # Split YAML config + CRUD + StickConfig + haptic settings
@@ -272,14 +313,14 @@ src/
 renderer/
 ├── index.html                  # Main UI template
 ├── main.ts                     # Entry point — init, wiring, DOMContentLoaded, terminal manager
-├── state.ts                    # Shared AppState type + singleton
+├── state.ts                    # Shared AppState type + singleton (includes terminalFocused toggle)
 ├── utils.ts                    # DOM helpers, logEvent, showScreen, toDirection
-├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing + robotjs fallback)
-├── navigation.ts               # Gamepad navigation setup, event routing, terminal scrolling
+├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing, sequence parser)
+├── navigation.ts               # Gamepad navigation setup, event routing, terminal focus/scroll
 ├── gamepad.ts                  # Browser Gamepad API wrapper
 ├── terminal/
 │   ├── terminal-view.ts        # xterm.js wrapper (fit/search/weblinks addons)
-│   └── terminal-manager.ts     # Multi-terminal orchestration (create/switch/resize/destroy)
+│   └── terminal-manager.ts     # Multi-terminal orchestration (create/switch/resize/destroy + tab bar)
 ├── screens/
 │   ├── sessions.ts             # Vertical session cards + spawn grid + inline wizard
 │   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn/wizard zones)
