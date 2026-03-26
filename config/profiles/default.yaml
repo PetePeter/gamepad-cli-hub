@@ -23,6 +23,9 @@ cliTypes:
     RightStickRight:
       action: keyboard
       sequence: "{Space}"
+    X:
+      action: keyboard
+      sequence: /clear{Enter}
   copilot-cli:
     RightTrigger:
       action: voice
@@ -32,11 +35,11 @@ cliTypes:
       action: keyboard
       sequence: "{Enter}"
     RightStickDown:
-      action: keyboard
-      sequence: "{Down}"
+      action: scroll
+      direction: down
     RightStickUp:
-      action: keyboard
-      sequence: "{Up}"
+      action: scroll
+      direction: up
     B:
       action: keyboard
       sequence: "{Escape}"
@@ -60,15 +63,7 @@ cliTypes:
     A:
       action: keyboard
       sequence: "{Enter}"
-global:
-  X:
-    action: close-session
-  RightStickUp:
-    action: scroll
-    direction: up
-  RightStickDown:
-    action: scroll
-    direction: down
+global: {}
 sticks:
   left:
     mode: cursor

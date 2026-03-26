@@ -81,17 +81,6 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     }
   });
 
-  ipcMain.handle('config:reload', () => {
-    try {
-      configLoader.load();
-      logger.info('[IPC] Config reloaded');
-      return { success: true };
-    } catch (error) {
-      logger.error(`[IPC] Failed to reload config: ${error}`);
-      return { success: false, error: String(error) };
-    }
-  });
-
   ipcMain.handle('config:getWorkingDirs', () => {
     try {
       return configLoader.getWorkingDirectories();

@@ -181,7 +181,7 @@ async function renderBindingsDisplay(bindings: Record<string, any>, _label: stri
       && currentTab !== 'tools' && currentTab !== 'directories' && currentTab !== 'status';
     if (isCliTab && state.cliTypes.length > 0) {
       const copyBtn = document.createElement('select');
-      copyBtn.className = 'btn focusable';
+      copyBtn.className = 'btn btn--sm focusable';
       copyBtn.tabIndex = 0;
       copyBtn.innerHTML = '<option value="" disabled selected>📋 Copy from…</option>';
 

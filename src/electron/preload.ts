@@ -21,11 +21,6 @@ const gamepadCliAPI = {
   sessionGetAll: () => ipcRenderer.invoke('session:getAll'),
 
   /**
-   * Get a specific session by ID
-   */
-  sessionGet: (id: string) => ipcRenderer.invoke('session:get', id),
-
-  /**
    * Set the active session
    */
   sessionSetActive: (id: string) => ipcRenderer.invoke('session:setActive', id),
@@ -36,12 +31,6 @@ const gamepadCliAPI = {
   sessionGetActive: () => ipcRenderer.invoke('session:getActive'),
 
   /**
-   * Add a new session
-   */
-  sessionAdd: (session: { id: string; name: string; cliType: string; processId: number }) =>
-    ipcRenderer.invoke('session:add', session),
-
-  /**
    * Remove a session
    */
   sessionRemove: (id: string) => ipcRenderer.invoke('session:remove', id),
@@ -50,16 +39,6 @@ const gamepadCliAPI = {
    * Close a session (kill process and remove)
    */
   sessionClose: (id: string) => ipcRenderer.invoke('session:close', id),
-
-  /**
-   * Move to next session
-   */
-  sessionNext: () => ipcRenderer.invoke('session:next'),
-
-  /**
-   * Move to previous session
-   */
-  sessionPrevious: () => ipcRenderer.invoke('session:previous'),
 
   // ========================================================================
   // Configuration
@@ -98,11 +77,6 @@ const gamepadCliAPI = {
     ipcRenderer.invoke('config:copyCliBindings', sourceCli, targetCli),
 
   /**
-   * Reload configuration from file
-   */
-  configReload: () => ipcRenderer.invoke('config:reload'),
-
-  /**
    * Get haptic feedback setting
    */
   configGetHapticFeedback: () => ipcRenderer.invoke('config:getHapticFeedback'),
@@ -136,31 +110,6 @@ const gamepadCliAPI = {
    * Bring the hub app window to foreground
    */
   hubFocus: () => ipcRenderer.invoke('hub:focus'),
-
-  // ========================================================================
-  // Sidebar Controls
-  // ========================================================================
-
-  /**
-   * Toggle sidebar between left and right edges
-   */
-  sidebarToggleSide: () => ipcRenderer.invoke('window:toggleSide'),
-
-  /**
-   * Toggle always-on-top pin
-   */
-  sidebarTogglePin: () => ipcRenderer.invoke('window:togglePin'),
-
-  /**
-   * Get sidebar preferences (side, width)
-   */
-  sidebarGetPrefs: () => ipcRenderer.invoke('window:getSidebarPrefs'),
-
-  /**
-   * Update sidebar preferences
-   */
-  sidebarSetPrefs: (prefs: { side?: string; width?: number }) =>
-    ipcRenderer.invoke('window:setSidebarPrefs', prefs),
 
   // ========================================================================
   // PTY Terminal Management
@@ -308,14 +257,6 @@ const gamepadCliAPI = {
   systemGetGameBarEnabled: () => ipcRenderer.invoke('system:getGameBarEnabled'),
   systemSetGameBarEnabled: (enabled: boolean) => ipcRenderer.invoke('system:setGameBarEnabled', enabled),
 
-  // ========================================================================
-  // App Control
-  // ========================================================================
-
-  /**
-   * Get app version
-   */
-  getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
 };
 
 /**

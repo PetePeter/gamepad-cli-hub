@@ -21,10 +21,6 @@ export function setupSessionHandlers(
     return sessionManager.getAllSessions();
   });
 
-  ipcMain.handle('session:get', (_event, id: string) => {
-    return sessionManager.getSession(id);
-  });
-
   ipcMain.handle('session:setActive', (_event, id: string) => {
     sessionManager.setActiveSession(id);
     return sessionManager.getActiveSession();
@@ -32,16 +28,6 @@ export function setupSessionHandlers(
 
   ipcMain.handle('session:getActive', () => {
     return sessionManager.getActiveSession();
-  });
-
-  ipcMain.handle('session:add', (_event, session: { id: string; name: string; cliType: string; processId: number }) => {
-    sessionManager.addSession({
-      id: session.id,
-      name: session.name,
-      cliType: session.cliType,
-      processId: session.processId,
-    });
-    return { success: true };
   });
 
   ipcMain.handle('session:remove', (_event, id: string) => {
@@ -69,16 +55,6 @@ export function setupSessionHandlers(
       logger.error(`[Session] Close failed: ${error}`);
       return { success: false, error: String(error) };
     }
-  });
-
-  ipcMain.handle('session:next', () => {
-    sessionManager.nextSession();
-    return sessionManager.getActiveSession();
-  });
-
-  ipcMain.handle('session:previous', () => {
-    sessionManager.previousSession();
-    return sessionManager.getActiveSession();
   });
 
   return () => {

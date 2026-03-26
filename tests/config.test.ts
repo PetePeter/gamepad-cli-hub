@@ -69,8 +69,7 @@ const DEFAULT_PROFILE = {
     },
   },
   global: {
-    Up: { action: 'session-switch', direction: 'previous' },
-    Down: { action: 'session-switch', direction: 'next' },
+    Xbox: { action: 'hub-focus' },
   },
 };
 
@@ -195,18 +194,6 @@ describe('ConfigLoader', () => {
     });
   });
 
-  describe('getConfig (legacy)', () => {
-    it('assembles a backward-compatible Config object', () => {
-      loader.load();
-      const config = loader.getConfig();
-      expect(config.cliTypes['claude-code'].name).toBe('Claude Code');
-      expect(config.cliTypes['claude-code'].spawn).toEqual({ command: 'cc', args: [] });
-      expect(config.cliTypes['claude-code'].bindings).toEqual(DEFAULT_PROFILE.cliTypes['claude-code']);
-      expect(config.global).toEqual(DEFAULT_PROFILE.global);
-      expect(config.workingDirectories).toEqual(DIRECTORIES.workingDirectories);
-    });
-  });
-
   describe('getWorkingDirectories', () => {
     it('returns directories from directories.yaml', () => {
       loader.load();
@@ -289,8 +276,7 @@ describe('ConfigLoader', () => {
       loader.load();
       loader.copyCliBindings('global', 'copilot-cli');
       const target = loader.getBindings('copilot-cli')!;
-      expect(target['Up']).toEqual({ action: 'session-switch', direction: 'previous' });
-      expect(target['Down']).toEqual({ action: 'session-switch', direction: 'next' });
+      expect(target['Xbox']).toEqual({ action: 'hub-focus' });
     });
 
     it('copies CLI bindings to global', () => {
@@ -379,7 +365,7 @@ describe('ConfigLoader', () => {
       const gamingProfile = {
         name: 'Gaming',
         cliTypes: { 'claude-code': { A: { action: 'keyboard', keys: ['Escape'] } } },
-        global: { Up: { action: 'session-switch', direction: 'next' } },
+        global: { Up: { action: 'hub-focus' } },
       };
       writeYaml('profiles/gaming.yaml', gamingProfile);
 
@@ -418,7 +404,7 @@ describe('ConfigLoader', () => {
       const profile = {
         name: 'Temp',
         cliTypes: { 'claude-code': {} },
-        global: { Up: { action: 'session-switch', direction: 'next' } },
+        global: { Up: { action: 'hub-focus' } },
       };
       writeYaml('profiles/temp.yaml', profile);
       loader.switchProfile('temp');
@@ -633,7 +619,7 @@ describe('ConfigLoader', () => {
         name: 'Test',
         cliTypes: {
           'claude-code': {
-            Sandwich: { action: 'profile-switch', direction: 'next' },
+            Sandwich: { action: 'hub-focus' },
           },
         },
         global: {
@@ -645,7 +631,7 @@ describe('ConfigLoader', () => {
 
       const bindings = loader.getBindings('claude-code');
       expect(bindings).toHaveProperty('Sandwich');
-      expect(bindings!['Sandwich']).toEqual({ action: 'profile-switch', direction: 'next' });
+      expect(bindings!['Sandwich']).toEqual({ action: 'hub-focus' });
     });
 
     it('loads global bindings with Xbox button name', () => {
@@ -654,7 +640,7 @@ describe('ConfigLoader', () => {
         cliTypes: {},
         global: {
           Xbox: { action: 'hub-focus' },
-          Back: { action: 'profile-switch', direction: 'previous' },
+          Back: { action: 'hub-focus' },
         },
       };
       writeYaml('profiles/default.yaml', profileWithXbox);
@@ -833,27 +819,27 @@ describe('ConfigLoader', () => {
     it('getSidebarPrefs returns defaults when settings.yaml has no sidebar section', () => {
       // SETTINGS fixture has no sidebar key
       loader.load();
-      expect(loader.getSidebarPrefs()).toEqual({ side: 'left', width: 320 });
+      expect(loader.getSidebarPrefs()).toEqual({ side: 'left', width: 320, height: undefined, x: undefined, y: undefined });
     });
 
     it('getSidebarPrefs reads saved values from settings.yaml', () => {
       writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { side: 'right', width: 400 } });
       loader.load();
-      expect(loader.getSidebarPrefs()).toEqual({ side: 'right', width: 400 });
+      expect(loader.getSidebarPrefs()).toMatchObject({ side: 'right', width: 400 });
     });
 
     it('setSidebarPrefs updates only side, keeps width', () => {
       writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { side: 'left', width: 320 } });
       loader.load();
       loader.setSidebarPrefs({ side: 'right' });
-      expect(loader.getSidebarPrefs()).toEqual({ side: 'right', width: 320 });
+      expect(loader.getSidebarPrefs()).toMatchObject({ side: 'right', width: 320 });
     });
 
     it('setSidebarPrefs updates only width, keeps side', () => {
       writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { side: 'right', width: 320 } });
       loader.load();
       loader.setSidebarPrefs({ width: 400 });
-      expect(loader.getSidebarPrefs()).toEqual({ side: 'right', width: 400 });
+      expect(loader.getSidebarPrefs()).toMatchObject({ side: 'right', width: 400 });
     });
 
     it('setSidebarPrefs persists to disk', () => {
@@ -868,7 +854,16 @@ describe('ConfigLoader', () => {
     it('getSidebarPrefs fills missing fields from defaults', () => {
       writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { side: 'right' } });
       loader.load();
-      expect(loader.getSidebarPrefs()).toEqual({ side: 'right', width: 320 });
+      expect(loader.getSidebarPrefs()).toEqual({ side: 'right', width: 320, height: undefined, x: undefined, y: undefined });
+    });
+
+    it('round-trips height, x, y through set/get', () => {
+      loader.load();
+      loader.setSidebarPrefs({ width: 1000, height: 600, x: 100, y: 50 });
+      const prefs = loader.getSidebarPrefs();
+      expect(prefs.height).toBe(600);
+      expect(prefs.x).toBe(100);
+      expect(prefs.y).toBe(50);
     });
 
     it('throws when called before load', () => {
@@ -953,10 +948,10 @@ describe('getStickDirectionBinding', () => {
   it('distinguishes left from right stick', () => {
     setupWithGlobal({
       LeftStickUp: { action: 'keyboard', keys: ['up'] },
-      RightStickUp: { action: 'session-switch', direction: 'previous' },
+      RightStickUp: { action: 'hub-focus' },
     });
     expect(loader.getStickDirectionBinding('left', 'up')).toEqual({ action: 'keyboard', keys: ['up'] });
-    expect(loader.getStickDirectionBinding('right', 'up')).toEqual({ action: 'session-switch', direction: 'previous' });
+    expect(loader.getStickDirectionBinding('right', 'up')).toEqual({ action: 'hub-focus' });
   });
 
   it('returns null for directions without explicit bindings even when others exist', () => {

@@ -163,18 +163,8 @@ export function formatBindingDetails(binding: any): string {
       return binding.key
         ? `${binding.mode || 'tap'}: ${binding.key}`
         : '—';
-    case 'spawn':
-      return binding.cliType ? `spawn: ${binding.cliType}` : '—';
-    case 'session-switch':
-      return binding.direction ? `direction: ${binding.direction}` : '—';
     case 'hub-focus':
       return 'bring hub to foreground';
-    case 'list-sessions':
-      return 'show sessions list';
-    case 'close-session':
-      return 'close active session';
-    case 'profile-switch':
-      return binding.direction ? `profile: ${binding.direction}` : 'profile switch';
     case 'scroll':
       return `scroll: ${binding.direction || 'down'}${binding.lines ? ` (${binding.lines} lines)` : ''}`;
     default:

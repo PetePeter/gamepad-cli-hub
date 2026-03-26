@@ -6,57 +6,35 @@ import * as YAML from 'yaml';
 // Action & Binding Types
 // ============================================================================
 
-export type ActionType = 'keyboard' | 'voice' | 'session-switch' | 'spawn' | 'list-sessions' | 'profile-switch' | 'close-session' | 'hub-focus' | 'scroll';
+export type ActionType = 'keyboard' | 'voice' | 'hub-focus' | 'scroll';
 
-export interface BaseBinding {
+interface BaseBinding {
   action: ActionType;
 }
 
-export interface KeyboardBinding extends BaseBinding {
+interface KeyboardBinding extends BaseBinding {
   action: 'keyboard';
   sequence: string;
 }
 
-export interface VoiceBinding extends BaseBinding {
+interface VoiceBinding extends BaseBinding {
   action: 'voice';
   key: string;
   mode: 'tap' | 'hold';
+  target?: 'terminal';
 }
 
-export interface SessionSwitchBinding extends BaseBinding {
-  action: 'session-switch';
-  direction: 'previous' | 'next';
-}
-
-export interface SpawnBinding extends BaseBinding {
-  action: 'spawn';
-  cliType: string;
-}
-
-export interface ListSessionsBinding extends BaseBinding {
-  action: 'list-sessions';
-}
-
-export interface ProfileSwitchBinding extends BaseBinding {
-  action: 'profile-switch';
-  direction: 'previous' | 'next';
-}
-
-export interface CloseSessionBinding extends BaseBinding {
-  action: 'close-session';
-}
-
-export interface HubFocusBinding extends BaseBinding {
+interface HubFocusBinding extends BaseBinding {
   action: 'hub-focus';
 }
 
-export interface ScrollBinding extends BaseBinding {
+interface ScrollBinding extends BaseBinding {
   action: 'scroll';
   direction: 'up' | 'down';
   lines?: number;  // defaults to 5
 }
 
-export type Binding = KeyboardBinding | VoiceBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding | ProfileSwitchBinding | CloseSessionBinding | HubFocusBinding | ScrollBinding;
+export type Binding = KeyboardBinding | VoiceBinding | HubFocusBinding | ScrollBinding;
 
 // ============================================================================
 // Shared Config Types
@@ -78,13 +56,6 @@ export interface ButtonBindings {
   [button: string]: Binding;
 }
 
-/** @deprecated Use ToolsConfig cliTypes entries instead */
-export interface LegacyCliTypeConfig {
-  name: string;
-  spawn: SpawnConfig;
-  bindings: ButtonBindings;
-}
-
 export interface GlobalBindings {
   [button: string]: Binding;
 }
@@ -92,13 +63,6 @@ export interface GlobalBindings {
 export interface WorkingDirectory {
   name: string;
   path: string;
-}
-
-/** @deprecated Kept for backward compat — prefer split config types */
-export interface Config {
-  cliTypes: { [key: string]: LegacyCliTypeConfig };
-  global: GlobalBindings;
-  workingDirectories?: WorkingDirectory[];
 }
 
 // ============================================================================
@@ -118,9 +82,12 @@ export type SidebarSide = 'left' | 'right';
 export interface SidebarPrefs {
   side: SidebarSide;
   width: number;
+  height?: number;
+  x?: number;
+  y?: number;
 }
 
-export const DEFAULT_SIDEBAR_PREFS: SidebarPrefs = { side: 'left', width: 320 };
+const DEFAULT_SIDEBAR_PREFS: SidebarPrefs = { side: 'left', width: 320 };
 
 // ============================================================================
 // Sorting Config Types
@@ -140,7 +107,7 @@ export interface SortingConfig {
   bindings: AreaSortPrefs;
 }
 
-export const DEFAULT_SORTING: SortingConfig = {
+const DEFAULT_SORTING: SortingConfig = {
   sessions: { field: 'state', direction: 'asc' },
   bindings: { field: 'button', direction: 'asc' },
 };
@@ -169,7 +136,7 @@ export interface DpadConfig {
   repeatRate: number;    // ms between repeats (default 120)
 }
 
-export type StickMode = 'cursor' | 'scroll' | 'disabled';
+type StickMode = 'cursor' | 'scroll' | 'disabled';
 
 export interface StickConfig {
   mode: StickMode;
@@ -363,24 +330,6 @@ export class ConfigLoader {
     return this.activeProfile!.global[virtualButton] ?? null;
   }
 
-  /** @deprecated Assembles a legacy Config object from split files */
-  getConfig(): Config {
-    this.ensureLoaded();
-    const cliTypes: { [key: string]: LegacyCliTypeConfig } = {};
-    for (const [key, tool] of Object.entries(this.tools!.cliTypes)) {
-      cliTypes[key] = {
-        name: tool.name,
-        spawn: this.buildSpawnConfig(tool),
-        bindings: this.activeProfile!.cliTypes[key] || {},
-      };
-    }
-    return {
-      cliTypes,
-      global: this.activeProfile!.global,
-      workingDirectories: this.directories!.workingDirectories,
-    };
-  }
-
   getWorkingDirectories(): WorkingDirectory[] {
     this.ensureLoaded();
     return this.directories!.workingDirectories || [];
@@ -470,6 +419,9 @@ export class ConfigLoader {
     return {
       side: saved.side === 'right' ? 'right' : 'left',
       width: Math.max(250, Math.min(450, saved.width ?? DEFAULT_SIDEBAR_PREFS.width)),
+      height: saved.height,
+      x: saved.x,
+      y: saved.y,
     };
   }
 

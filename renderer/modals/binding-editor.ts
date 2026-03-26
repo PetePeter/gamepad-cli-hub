@@ -27,7 +27,7 @@ let cleanupKeyboard: (() => void) | null = null;
 // Constants
 // ============================================================================
 
-const ACTION_TYPES = ['keyboard', 'voice', 'scroll', 'session-switch', 'spawn', 'list-sessions', 'close-session', 'profile-switch', 'hub-focus'] as const;
+const ACTION_TYPES = ['keyboard', 'voice', 'scroll', 'hub-focus'] as const;
 
 // ============================================================================
 // Open / Close
@@ -166,48 +166,11 @@ function renderActionParams(form: HTMLElement, binding: any): void {
       `));
       break;
     }
-    case 'session-switch': {
-      const dirOptions = ['previous', 'next'].map(d =>
-        `<option value="${d}" ${d === binding.direction ? 'selected' : ''}>${d}</option>`
-      ).join('');
-      form.appendChild(createEditorField('Direction', `
-        <select id="bindingEditorDirection">${dirOptions}</select>
-      `));
-      break;
-    }
-    case 'spawn': {
-      const spawnOptions = state.cliTypes.map(ct =>
-        `<option value="${ct}" ${ct === binding.cliType ? 'selected' : ''}>${getCliDisplayName(ct)} (${ct})</option>`
-      ).join('');
-      form.appendChild(createEditorField('CLI Type', `
-        <select id="bindingEditorCliType">${spawnOptions}</select>
-      `));
-      break;
-    }
-    case 'list-sessions':
-      form.appendChild(createEditorField('Parameters', `
-        <input type="text" value="No additional parameters" disabled />
-      `, true));
-      break;
     case 'hub-focus':
       form.appendChild(createEditorField('Parameters', `
         <input type="text" value="No additional parameters" disabled />
       `, true));
       break;
-    case 'close-session':
-      form.appendChild(createEditorField('Parameters', `
-        <input type="text" value="No additional parameters" disabled />
-      `, true));
-      break;
-    case 'profile-switch': {
-      const profDirOptions = ['previous', 'next'].map(d =>
-        `<option value="${d}" ${d === binding.direction ? 'selected' : ''}>${d}</option>`
-      ).join('');
-      form.appendChild(createEditorField('Direction', `
-        <select id="bindingEditorDirection">${profDirOptions}</select>
-      `));
-      break;
-    }
     case 'scroll': {
       const scrollDirOptions = ['up', 'down'].map(d =>
         `<option value="${d}" ${d === (binding.direction || 'down') ? 'selected' : ''}>${d}</option>`
@@ -236,18 +199,8 @@ function buildDefaultBinding(action: string): any {
       return { action: 'keyboard', sequence: '' };
     case 'voice':
       return { action: 'voice', key: '', mode: 'tap' };
-    case 'session-switch':
-      return { action: 'session-switch', direction: 'next' };
-    case 'spawn':
-      return { action: 'spawn', cliType: state.cliTypes[0] || 'generic-terminal' };
-    case 'list-sessions':
-      return { action: 'list-sessions' };
     case 'hub-focus':
       return { action: 'hub-focus' };
-    case 'close-session':
-      return { action: 'close-session' };
-    case 'profile-switch':
-      return { action: 'profile-switch', direction: 'next' };
     case 'scroll':
       return { action: 'scroll', direction: 'down' };
     default:
@@ -281,24 +234,8 @@ function collectBindingFromForm(): any | null {
         mode: (modeSelect?.value as 'tap' | 'hold') || 'tap',
       };
     }
-    case 'session-switch': {
-      const dirSelect = document.getElementById('bindingEditorDirection') as HTMLSelectElement;
-      return { action: 'session-switch', direction: dirSelect?.value || 'next' };
-    }
-    case 'spawn': {
-      const typeSelect = document.getElementById('bindingEditorCliType') as HTMLSelectElement;
-      return { action: 'spawn', cliType: typeSelect?.value || 'generic-terminal' };
-    }
-    case 'list-sessions':
-      return { action: 'list-sessions' };
     case 'hub-focus':
       return { action: 'hub-focus' };
-    case 'close-session':
-      return { action: 'close-session' };
-    case 'profile-switch': {
-      const profDirSelect = document.getElementById('bindingEditorDirection') as HTMLSelectElement;
-      return { action: 'profile-switch', direction: profDirSelect?.value || 'next' };
-    }
     case 'scroll': {
       const scrollDirSelect = document.getElementById('bindingEditorScrollDirection') as HTMLSelectElement;
       const scrollLinesInput = document.getElementById('bindingEditorScrollLines') as HTMLInputElement;

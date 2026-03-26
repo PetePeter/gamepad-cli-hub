@@ -92,7 +92,7 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 | **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. |
 | **SequenceParser** | `src/input/sequence-parser.ts` | Parses sequence format strings (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, `{Mod Down/Up}`, `{{`/`}}` escapes, plain text) into typed SequenceAction arrays. Used by both button bindings and initial prompts. |
 | **ConfigLoader** | `src/config/loader.ts` | Split YAML config loading + profile/tools/directory CRUD. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getStickDirectionBinding()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
-| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 9 domain handler files (session, config, profile, tools, hub, keyboard, pty, system, app). Dependencies injected via function parameters. |
+| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 8 domain handler files (session, config, profile, tools, hub, keyboard, pty, system). Dependencies injected via function parameters. |
 | **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings, status stub), modals (dir-picker/binding-editor). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. |
 | **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, grey=idle). Exposes onSwitch/onEmpty callbacks. |
@@ -111,7 +111,7 @@ config/
 
 **Binding resolution:** CLI-specific bindings checked first → fall back to global bindings. Each profile defines different button behaviours per CLI type.
 
-**Binding action types:** `keyboard`, `voice`, `session-switch`, `spawn`, `list-sessions`, `profile-switch`, `close-session`, `hub-focus`, `scroll`
+**Binding action types:** `keyboard`, `voice`, `hub-focus`, `scroll`
 
 **keyboard binding:** `{ action: 'keyboard', sequence: '{Wait 500}some text{Enter}{Ctrl+C}' }` — sequence parser syntax string sent to PTY stdin as escape codes. The sequence format is the only input mode for keyboard bindings.
 
@@ -165,9 +165,9 @@ dpad:
 | D-Pad Up/Down | Switch sessions (auto-selects terminal) |
 | Left Stick | Same as D-pad |
 | Right Stick | Configurable (default: scroll terminal buffer via global binding) |
-| A | Activate spawn action / configurable per-CLI binding |
+| A | Configurable per-CLI binding |
 | B | Back to sessions zone / configurable per-CLI binding |
-| X | Configurable (default: close-session via global binding) |
+| X | Configurable per-CLI binding |
 | Y | (planned: cycle terminal state) |
 | Left Trigger | Spawn Claude Code |
 | Right Bumper | Spawn Copilot CLI |
@@ -199,7 +199,7 @@ dpad:
 4. **Clipboard paste via PTY** — Document-level Ctrl+V interceptor (`renderer/paste-handler.ts`) reads clipboard and writes to active PTY via `ptyWrite()`, regardless of DOM focus. Solves paste not reaching terminal when gamepad navigation focuses the sidebar.
 5. **D-pad auto-selection** — D-pad navigation automatically selects and activates the terminal for the focused session. No separate focus/unfocus toggle — keyboard always types into the active terminal, D-pad always navigates sessions.
 6. **Tab bar with state dots** — Horizontal tab strip above terminal area. Each tab shows session name + colored dot (green=implementing, orange=waiting, blue=planning, grey=idle). Ctrl+Tab / Ctrl+Shift+Tab for keyboard switching, D-pad for gamepad switching.
-7. **IPC bridge pattern** — Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 9 domain files with dependency injection — the orchestrator (`handlers.ts`) wires dependencies. Renderer never directly accesses Node.js APIs.
+7. **IPC bridge pattern** — Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 8 domain files with dependency injection — the orchestrator (`handlers.ts`) wires dependencies. Renderer never directly accesses Node.js APIs.
 8. **Split YAML config** — Separate concerns: tools, directories, settings, profiles (each with CRUD)
 9. **Per-CLI bindings** — Same button does different things depending on active CLI type
 10. **Button pass-through** — Non-navigation buttons (XYAB, bumpers, triggers) return false from session navigation, allowing them to fall through to per-CLI configurable bindings
@@ -286,17 +286,15 @@ src/
 │   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle
 │   ├── preload.ts              # Context bridge (renderer ↔ main IPC)
 │   └── ipc/
-│       ├── handlers.ts         # Orchestrator — imports + wires 10 domain handlers
+│       ├── handlers.ts         # Orchestrator — imports + wires 8 domain handlers
 │       ├── session-handlers.ts
 │       ├── config-handlers.ts
 │       ├── profile-handlers.ts
 │       ├── tools-handlers.ts
-│       ├── window-handlers.ts
-│       ├── spawn-handlers.ts
+│       ├── hub-handlers.ts
 │       ├── keyboard-handlers.ts
 │       ├── pty-handlers.ts
-│       ├── system-handlers.ts
-│       └── app-handlers.ts
+│       └── system-handlers.ts
 ├── input/
 │   └── sequence-parser.ts      # {Enter}, {Ctrl+C}, {Wait 500}, {Mod Down/Up}, {{/}} — used by bindings + initialPrompt
 ├── output/
@@ -309,15 +307,13 @@ src/
 │   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
 │   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
-│   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay
-│   └── index.ts
+│   └── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay
 ├── config/
 │   └── loader.ts               # Split YAML config + CRUD + StickConfig + haptic settings
 ├── types/
 │   └── session.ts              # SessionInfo, SessionChangeEvent, AnalogEvent types
 └── utils/
-    ├── logger.ts               # Winston logger (daily rotation, used everywhere)
-    └── index.ts
+    └── logger.ts               # Winston logger (daily rotation, used everywhere)
 
 renderer/
 ├── index.html                  # Main UI template
@@ -350,7 +346,7 @@ config/
 └── profiles/
     └── default.yaml            # Button bindings + stick config
 
-tests/                                  # 596 tests across 18 files
+tests/                                  # 595 tests across 18 files
 ├── config.test.ts              # Config loading, stick config, haptic, virtual buttons
 ├── session.test.ts             # Session management
 ├── persistence.test.ts         # Session persistence

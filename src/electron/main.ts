@@ -37,9 +37,9 @@ function createWindow(): void {
   try {
     const prefs = configLoader.getSidebarPrefs();
     if (prefs.width) windowBounds.width = Math.max(prefs.width, 800);
-    if ((prefs as any).height) windowBounds.height = (prefs as any).height;
-    if ((prefs as any).x !== undefined) windowBounds.x = (prefs as any).x;
-    if ((prefs as any).y !== undefined) windowBounds.y = (prefs as any).y;
+    if (prefs.height) windowBounds.height = prefs.height;
+    if (prefs.x !== undefined) windowBounds.x = prefs.x;
+    if (prefs.y !== undefined) windowBounds.y = prefs.y;
   } catch {
     logger.warn('[Main] Could not read window prefs, using defaults');
   }
@@ -104,7 +104,7 @@ function createWindow(): void {
       if (!mainWindow || mainWindow.isDestroyed()) return;
       const bounds = mainWindow.getBounds();
       try {
-        configLoader.setSidebarPrefs({ width: bounds.width, ...({ height: bounds.height, x: bounds.x, y: bounds.y } as any) });
+        configLoader.setSidebarPrefs({ width: bounds.width, height: bounds.height, x: bounds.x, y: bounds.y });
       } catch { /* config may not be ready */ }
     }, 500);
   };

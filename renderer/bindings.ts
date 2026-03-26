@@ -6,8 +6,7 @@
  */
 
 import { state } from './state.js';
-import { logEvent, showScreen, updateProfileDisplay } from './utils.js';
-import { loadSessions, spawnNewSession } from './screens/sessions.js';
+import { logEvent } from './utils.js';
 import { parseSequence, formatSequencePreview, type SequenceAction } from '../src/input/sequence-parser.js';
 import type { Binding } from '../src/config/loader.js';
 import { getTerminalManager } from './main.js';
@@ -130,60 +129,9 @@ export function processConfigBinding(button: string): void {
 async function executeGlobalBinding(button: string, binding: Binding): Promise<void> {
   try {
     switch (binding.action) {
-      case 'session-switch': {
-        if (binding.direction === 'next') {
-          await window.gamepadCli.sessionNext();
-        } else {
-          await window.gamepadCli.sessionPrevious();
-        }
-        logEvent(`Session: ${binding.direction}`);
-        await loadSessions();
-        break;
-      }
-      case 'spawn': {
-        await spawnNewSession(binding.cliType);
-        break;
-      }
       case 'hub-focus': {
         await window.gamepadCli.hubFocus();
         logEvent('Action: hub-focus');
-        break;
-      }
-      case 'list-sessions': {
-        showScreen('sessions');
-        logEvent('Action: list-sessions');
-        break;
-      }
-      case 'profile-switch': {
-        releaseAllHeldKeys();
-        const profiles = await window.gamepadCli.profileList();
-        const active = await window.gamepadCli.profileGetActive();
-        const currentIdx = profiles.indexOf(active);
-        let nextIdx: number;
-        if (binding.direction === 'next') {
-          nextIdx = (currentIdx + 1) % profiles.length;
-        } else {
-          nextIdx = (currentIdx - 1 + profiles.length) % profiles.length;
-        }
-        await window.gamepadCli.profileSwitch(profiles[nextIdx]);
-        await initConfigCache();
-        logEvent(`Profile: ${profiles[nextIdx]}`);
-        updateProfileDisplay();
-        break;
-      }
-      case 'close-session': {
-        if (state.activeSessionId) {
-          const closingId = state.activeSessionId;
-          const result = await window.gamepadCli.sessionClose(closingId);
-          if (result.success) {
-            logEvent(`Closed session: ${closingId}`);
-            await loadSessions();
-          } else {
-            logEvent(`Failed to close session: ${result.error}`);
-          }
-        } else {
-          logEvent('No active session to close');
-        }
         break;
       }
       case 'scroll': {
