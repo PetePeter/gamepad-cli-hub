@@ -105,13 +105,14 @@ flowchart LR
 | **BrowserGamepad** | `renderer/gamepad.ts` | Browser Gamepad API polling (250ms debounce), button-press events via IPC, analog stick events. Sole gamepad input source — works with both USB and Bluetooth Xbox controllers. |
 | **SequenceParser** | `src/input/sequence-parser.ts` | Parses sequence format strings (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, `{Mod Down/Up}`, `{{`/`}}` escapes, plain text) into typed SequenceAction arrays. Used by both button bindings and initial prompts. |
 | **SessionManager** | `src/session/manager.ts` | EventEmitter tracking active/inactive sessions. Emits `session:added`, `session:removed`, `session:changed`. Supports `nextSession()`, `previousSession()`. Calls `persistSessions()` after every state change. |
-| **SessionPersistence** | `src/session/persistence.ts` | `saveSessions()`, `loadSessions()`, `clearPersistedSessions()` to `config/sessions.yaml`. `restoreSessions()` on startup loads saved sessions, skips duplicates. `startHealthCheck(intervalMs)` periodically removes dead PIDs. |
+| **SessionPersistence** | `src/session/persistence.ts` | `saveSessions()`, `loadSessions()`, `clearPersistedSessions()` to `config/sessions.yaml`. `restoreSessions()` on startup loads saved sessions, skips duplicates. `startHealthCheck(intervalMs)` periodically removes dead PIDs. ⚠️ `startHealthCheck()` is never called in production — dead code, tests only. |
 | **ProcessSpawner** | `src/session/spawner.ts` | Spawn detached CLI processes from config, register with SessionManager. Accepts optional `onExit` callback. |
 | **PtyManager** | `src/session/pty-manager.ts` | PTY process lifecycle — spawn via node-pty (cmd.exe on Windows, bash on Unix), write to stdin, resize, kill. One PTY per embedded terminal session. |
 | **StateDetector** | `src/session/state-detector.ts` | Scans PTY output for AIAGENT-* keywords to detect CLI state (waiting, implementing, etc.). |
 | **PipelineQueue** | `src/session/pipeline-queue.ts` | Auto-handoff queue — routes tasks to waiting sessions based on state detection. |
 | **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. |
 | **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. `ActionType = 'keyboard' \| 'voice' \| 'scroll' \| 'context-menu'`. `Binding` union includes `ContextMenuBinding`. |
+| **ElectronMain** | `src/electron/main.ts` | Window creation, IPC setup, app lifecycle. Renderer crash recovery (auto-reloads on `render-process-gone` — safe because session state lives in main process). Power monitoring (`suspend`/`resume`/`shutdown` logging via `powerMonitor`). |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 10 domain handler files(session, config, profile, tools, window, spawn, keyboard, pty, system, app). Dependencies injected via function parameters. Config handlers include `dialog:openFolder` for native OS folder picker. |
 | **Preload** | `src/electron/preload.ts` | Context bridge exposing typed IPC API to renderer. Must be .cjs when package.json has "type":"module". |
 | **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization, `showFormModal` with `FormField` types: text/select/textarea + `browse?: boolean` for native folder picker), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`, context-menu action centers overlay in gamepad mode), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor/context-menu). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
@@ -208,7 +209,7 @@ No `terminal` field — all CLIs run as embedded PTY sessions (no external windo
 ```
 src/
 ├── electron/
-│   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle
+│   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle, renderer crash recovery, power monitoring
 │   ├── preload.ts              # Context bridge (renderer ↔ main IPC)
 │   └── ipc/
 │       ├── handlers.ts         # Orchestrator — imports + wires 10 domain handlers
@@ -273,7 +274,7 @@ config/
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 
-tests/                                  # 629 tests across 19 files
+tests/                                  # 694 tests across 22 files
 ├── config.test.ts              # Config loading, stick config, haptic, virtual buttons
 ├── session.test.ts             # Session management
 ├── persistence.test.ts         # Session persistence
@@ -337,7 +338,10 @@ Horizontal tab strip above terminal area. Each tab shows session name + colored 
 Non-navigation buttons (XYAB, bumpers, triggers) return false from session navigation, allowing them to fall through to per-CLI configurable bindings.
 
 ### Session Persistence
-Sessions saved to `config/sessions.yaml` (as YAML) after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skips duplicates). `startHealthCheck(intervalMs)` periodically removes dead PIDs via `process.kill(pid, 0)`. Survives app crashes and restarts.
+Sessions saved to `config/sessions.yaml` (as YAML) after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skips duplicates). `startHealthCheck(intervalMs)` periodically removes dead PIDs via `process.kill(pid, 0)`. Survives app crashes and restarts. ⚠️ `startHealthCheck()` is never called in production — dead code, used only in tests.
+
+### Hibernate Resilience
+Renderer crash recovery via `render-process-gone` auto-reload — Chromium GPU process often crashes on hibernate resume. Safe because session state lives in `SessionManager` (main process), so terminals reconnect after reload. `powerMonitor` logs `suspend`/`resume`/`shutdown` for diagnostics. `unresponsive`/`responsive` events are also logged for visibility.
 
 ### Analog Stick Modes
 Left stick emulates D-pad plus cursor-mode arrow keys (sent as PTY escape codes). Right stick provides scroll mode (terminal buffer scroll). Both configurable per-profile via `StickConfig` (`mode: 'cursor' | 'scroll' | 'disabled'`, `deadzone`, `repeatRate`). Each stick emits distinct virtual button names (e.g. `LeftStickUp`, `RightStickDown`) that can be bound like physical buttons. If no explicit binding exists, falls back to stick mode.

@@ -5,7 +5,7 @@
  * Manages window creation, IPC communication, and application lifecycle.
  */
 
-import { app, BrowserWindow, ipcMain, Menu, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, screen, powerMonitor } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { registerIPCHandlers } from './ipc/handlers.js';
@@ -90,6 +90,30 @@ function createWindow(): void {
     logger.info(`[WebContents:${level}] ${message} (${sourceId}:${line})`);
   });
 
+  // Renderer crash recovery — Chromium GPU process often crashes on hibernate resume
+  let lastReloadTime = 0;
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    logger.error(`[Main] Render process gone: reason=${details.reason}, exitCode=${details.exitCode}`);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const now = Date.now();
+      if (now - lastReloadTime < 5000) {
+        logger.error('[Main] Renderer crashing in a loop — not reloading again');
+        return;
+      }
+      lastReloadTime = now;
+      logger.info('[Main] Attempting renderer reload after crash');
+      mainWindow.webContents.reload();
+    }
+  });
+
+  mainWindow.webContents.on('unresponsive', () => {
+    logger.warn('[Main] Renderer became unresponsive');
+  });
+
+  mainWindow.webContents.on('responsive', () => {
+    logger.info('[Main] Renderer became responsive again');
+  });
+
   // DevTools — only open via Ctrl+Shift+I (not auto-opened)
   // if (process.env.NODE_ENV !== 'production' && !app.isPackaged) {
   //   mainWindow.webContents.openDevTools();
@@ -139,6 +163,24 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
+  });
+});
+
+/**
+ * Power state monitoring — log suspend/resume for diagnostics.
+ * powerMonitor is only available after app.whenReady().
+ */
+app.whenReady().then(() => {
+  powerMonitor.on('suspend', () => {
+    logger.info('[Main] System suspending (hibernate/sleep)');
+  });
+
+  powerMonitor.on('resume', () => {
+    logger.info('[Main] System resumed from suspend');
+  });
+
+  powerMonitor.on('shutdown', () => {
+    logger.info('[Main] System shutting down');
   });
 });
 
