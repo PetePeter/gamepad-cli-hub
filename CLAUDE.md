@@ -89,7 +89,7 @@ Keyboard input always routes to the active terminal (PTY stdin).
 | **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. |
 | **SequenceParser** | `src/input/sequence-parser.ts` | Parses sequence format strings (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, `{Mod Down/Up}`, `{{`/`}}` escapes, plain text) into typed SequenceAction arrays. Used by both button bindings and initial prompts. |
 | **ConfigLoader** | `src/config/loader.ts` | Split YAML config loading + profile/tools/directory CRUD. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getStickDirectionBinding()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
-| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 9 domain handler files (session, config, profile, tools, window, spawn, keyboard, system, app, pty). Dependencies injected via function parameters. |
+| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 10 domain handler files (session, config, profile, tools, window, spawn, keyboard, pty, system, app). Dependencies injected via function parameters. |
 | **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization), bindings (PTY-aware routing), navigation, screens (sessions/settings, status stub), modals (dir-picker/binding-editor). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. |
 | **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, grey=idle). Exposes onSwitch/onEmpty callbacks. |
@@ -266,7 +266,7 @@ src/
 │   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle
 │   ├── preload.ts              # Context bridge (renderer ↔ main IPC)
 │   └── ipc/
-│       ├── handlers.ts         # Orchestrator — imports + wires 9 domain handlers
+│       ├── handlers.ts         # Orchestrator — imports + wires 10 domain handlers
 │       ├── session-handlers.ts
 │       ├── config-handlers.ts
 │       ├── profile-handlers.ts
@@ -274,6 +274,7 @@ src/
 │       ├── window-handlers.ts
 │       ├── spawn-handlers.ts
 │       ├── keyboard-handlers.ts
+│       ├── pty-handlers.ts
 │       ├── system-handlers.ts
 │       └── app-handlers.ts
 ├── input/

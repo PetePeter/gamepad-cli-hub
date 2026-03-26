@@ -14,8 +14,7 @@ cliTypes:
   copilot-cli:
     name: GitHub Copilot CLI
     command: copilot
-    initialPromptDelay: 2000
-    initialPrompt: |
+    initialPrompt: |-
       <application-prompt>
       SYSTEMPROMPT:
       - Include AIAGENT-IMPLEMENTING when actively coding.
@@ -23,6 +22,7 @@ cliTypes:
       - Include AIAGENT-IDLE when awaiting input or task complete.
       - End responses with an open ended question with a freetype entry field.
       </application-prompt>
+    initialPromptDelay: 5000
   python:
     name: python
     command: python

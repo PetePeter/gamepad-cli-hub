@@ -12,12 +12,13 @@ export let formModalVisible = false;
 // Directional button normalisation
 // ============================================================================
 
-/** Maps all directional button names (DPad*, LeftStick*, RightStick*) to a cardinal direction. */
+/** Maps D-pad and left stick directional buttons to a cardinal direction.
+ *  Right stick is excluded — it's used for scrolling/bindings, not UI navigation. */
 const DIRECTION_MAP: Record<string, 'up' | 'down' | 'left' | 'right'> = {
-  DPadUp: 'up', LeftStickUp: 'up', RightStickUp: 'up',
-  DPadDown: 'down', LeftStickDown: 'down', RightStickDown: 'down',
-  DPadLeft: 'left', LeftStickLeft: 'left', RightStickLeft: 'left',
-  DPadRight: 'right', LeftStickRight: 'right', RightStickRight: 'right',
+  DPadUp: 'up', LeftStickUp: 'up',
+  DPadDown: 'down', LeftStickDown: 'down',
+  DPadLeft: 'left', LeftStickLeft: 'left',
+  DPadRight: 'right', LeftStickRight: 'right',
 };
 
 /** Returns the cardinal direction for any directional button, or null for non-directional buttons. */

@@ -212,7 +212,7 @@ src/
 │   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle
 │   ├── preload.ts              # Context bridge (renderer ↔ main IPC)
 │   └── ipc/
-│       ├── handlers.ts         # Orchestrator — imports + wires 9 domain handlers
+│       ├── handlers.ts         # Orchestrator — imports + wires 10 domain handlers
 │       ├── session-handlers.ts
 │       ├── config-handlers.ts
 │       ├── profile-handlers.ts
@@ -220,6 +220,7 @@ src/
 │       ├── window-handlers.ts
 │       ├── spawn-handlers.ts
 │       ├── keyboard-handlers.ts
+│       ├── pty-handlers.ts
 │       ├── system-handlers.ts
 │       └── app-handlers.ts
 ├── input/
@@ -340,7 +341,7 @@ Left stick emulates D-pad plus cursor-mode arrow keys (sent as PTY escape codes)
 Haptic feedback is a config setting (`hapticFeedback: true/false` in settings.yaml) but the PowerShell XInput implementation was removed. The setting remains for future reimplementation.
 
 ### IPC Bridge Pattern
-Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 9 domain files (`src/electron/ipc/*-handlers.ts`) with dependency injection — the orchestrator (`handlers.ts`) wires dependencies. Renderer never directly accesses Node.js APIs.
+Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 10 domain files (`src/electron/ipc/*-handlers.ts`) with dependency injection — the orchestrator (`handlers.ts`) wires dependencies. Renderer never directly accesses Node.js APIs.
 
 ### Split YAML Config & Profiles
 Four separate concerns: tools (spawn definitions), directories (workspaces), settings (active profile), and profiles (button bindings). Each profile defines per-CLI-type + global bindings. Full CRUD via IPC + Settings UI.

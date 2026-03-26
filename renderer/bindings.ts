@@ -168,26 +168,16 @@ async function executeGlobalBinding(button: string, binding: any): Promise<void>
 export function processConfigRelease(button: string): void {
   const keys = heldKeys.get(button);
   if (keys) {
-    const tm = getTerminalManager();
-    const activeId = tm?.getActiveSessionId();
-
-    // Only release via robotjs if NOT in terminal mode
-    if (!activeId) {
-      window.gamepadCli.keyboardComboUp(keys);
-    }
+    // Always release via robotjs — held keys are OS-level by definition
+    window.gamepadCli.keyboardComboUp(keys);
     heldKeys.delete(button);
   }
 }
 
 export function releaseAllHeldKeys(): void {
-  const tm = getTerminalManager();
-  const activeId = tm?.getActiveSessionId();
-
+  // Always release via robotjs — held keys are OS-level by definition
   for (const [_button, keys] of heldKeys) {
-    // Only release via robotjs if NOT in terminal mode
-    if (!activeId) {
-      window.gamepadCli.keyboardComboUp(keys);
-    }
+    window.gamepadCli.keyboardComboUp(keys);
   }
   heldKeys.clear();
 }
@@ -206,31 +196,32 @@ async function executeCliBinding(button: string, binding: any): Promise<void> {
           break;
         }
 
-        const tm = getTerminalManager();
-        const activeId = tm?.getActiveSessionId();
+        // hold or target:'os' always use robotjs (OS-level key events)
+        const useOsPath = binding.hold || binding.target === 'os';
 
-        if (activeId && window.gamepadCli?.ptyWrite) {
-          // Route legacy keys to PTY — treat each key as a tap
-          if (binding.hold) {
-            const esc = comboToPtyEscape(binding.keys);
-            await window.gamepadCli.ptyWrite(activeId, esc);
-          } else {
+        if (!useOsPath) {
+          const tm = getTerminalManager();
+          const activeId = tm?.getActiveSessionId();
+
+          if (activeId && window.gamepadCli?.ptyWrite) {
+            // Route legacy keys to PTY — treat each key as a tap
             for (const key of binding.keys) {
               const esc = keyToPtyEscape(key);
               await window.gamepadCli.ptyWrite(activeId, esc);
             }
+            logEvent(`PTY keys: ${binding.keys.join('+')}`);
+            break;
           }
-          logEvent(`PTY keys: ${binding.keys.join('+')}`);
+        }
+
+        // OS-level path via robotjs
+        if (binding.hold) {
+          await window.gamepadCli.keyboardComboDown(binding.keys);
+          heldKeys.set(button, binding.keys);
+          logEvent(`Hold: ${binding.keys.join('+')}`);
         } else {
-          // Fallback to robotjs
-          if (binding.hold) {
-            await window.gamepadCli.keyboardComboDown(binding.keys);
-            heldKeys.set(button, binding.keys);
-            logEvent(`Hold: ${binding.keys.join('+')}`);
-          } else {
-            await window.gamepadCli.keyboardSendKeys(binding.keys);
-            logEvent(`Keys: ${binding.keys.join('+')}`);
-          }
+          await window.gamepadCli.keyboardSendKeys(binding.keys);
+          logEvent(`Keys: ${binding.keys.join('+')}`);
         }
         break;
       }

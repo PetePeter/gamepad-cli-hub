@@ -123,6 +123,7 @@ function renderActionParams(form: HTMLElement, binding: any): void {
       let savedModifiers = allKeys.filter(k => modifiers.includes(k));
       let savedKeysValue = allKeys.filter(k => !modifiers.includes(k)).join(',');
       let savedHold = binding.hold === true;
+      let savedTarget = binding.target || (savedHold ? 'os' : 'terminal');
       let savedSequence: string = binding.sequence || '';
 
       const initialMode = savedSequence.trim() ? 'sequence' : 'keys';
@@ -171,6 +172,8 @@ function renderActionParams(form: HTMLElement, binding: any): void {
         });
         const hc = document.getElementById('bindingEditorHold') as HTMLInputElement;
         if (hc) savedHold = hc.checked;
+        const tc = document.getElementById('bindingEditorTarget') as HTMLInputElement;
+        if (tc) savedTarget = tc.checked ? 'os' : 'terminal';
       };
 
       const saveCurrentSequenceState = () => {
@@ -227,6 +230,26 @@ function renderActionParams(form: HTMLElement, binding: any): void {
         holdCheckbox.className = 'focusable';
         holdField.appendChild(holdCheckbox);
         modeContent.appendChild(holdField);
+
+        // OS target checkbox
+        const osField = document.createElement('div');
+        osField.className = 'binding-editor-field';
+        const osLabel = document.createElement('label');
+        osLabel.textContent = 'OS-level (bypass terminal)';
+        osField.appendChild(osLabel);
+
+        const osCheckbox = document.createElement('input');
+        osCheckbox.type = 'checkbox';
+        osCheckbox.id = 'bindingEditorTarget';
+        osCheckbox.checked = savedTarget === 'os';
+        osCheckbox.className = 'focusable';
+        osField.appendChild(osCheckbox);
+        modeContent.appendChild(osField);
+
+        // Auto-link: hold checked → OS pre-ticked; hold unchecked → OS unticked
+        holdCheckbox.addEventListener('change', () => {
+          osCheckbox.checked = holdCheckbox.checked;
+        });
       };
 
       const renderSequenceMode = () => {
@@ -405,9 +428,12 @@ function collectBindingFromForm(): any | null {
       const keys = [...mods, ...baseKeys];
       const holdCheckbox = document.getElementById('bindingEditorHold') as HTMLInputElement;
       const hold = holdCheckbox?.checked === true;
+      const targetCheckbox = document.getElementById('bindingEditorTarget') as HTMLInputElement;
+      const targetOs = targetCheckbox?.checked === true;
 
       const result: any = { action: 'keyboard', keys };
       if (hold) result.hold = true;
+      if (targetOs) result.target = 'os';
       return result;
     }
     case 'session-switch': {

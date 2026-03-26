@@ -48,6 +48,43 @@ export function removeSessionState(sessionId: string): void {
   sessionStates.delete(sessionId);
 }
 
+let closeConfirmSessionId: string | null = null;
+let closeConfirmTimer: ReturnType<typeof setTimeout> | null = null;
+
+function confirmCloseSession(): void {
+  const session = state.sessions[sessionsState.sessionsFocusIndex];
+  if (!session) return;
+
+  if (closeConfirmSessionId === session.id) {
+    // Second press — actually close
+    clearCloseConfirm();
+    const tm = terminalManagerGetter ? terminalManagerGetter() : null;
+    if (tm) tm.destroyTerminal(session.id);
+    removeSessionState(session.id);
+    loadSessions();
+    return;
+  }
+
+  // First press — show confirm state
+  closeConfirmSessionId = session.id;
+  const card = document.querySelector(`.session-card[data-session-id="${session.id}"]`);
+  const closeBtn = card?.querySelector('.session-close');
+  if (closeBtn) closeBtn.textContent = '?';
+
+  closeConfirmTimer = setTimeout(() => {
+    clearCloseConfirm();
+    loadSessions(); // Re-render to reset '?' back to '×'
+  }, 3000);
+}
+
+function clearCloseConfirm(): void {
+  closeConfirmSessionId = null;
+  if (closeConfirmTimer) {
+    clearTimeout(closeConfirmTimer);
+    closeConfirmTimer = null;
+  }
+}
+
 function getSessionCwd(sessionId: string): string {
   const tm = terminalManagerGetter ? terminalManagerGetter() : null;
   if (!tm) return '';
@@ -66,7 +103,68 @@ export async function loadSessions(): Promise<void> {
   updateStatusCounts();
 }
 
+/** Open the state dropdown for the currently focused session card. */
+function openStateDropdownForFocused(): void {
+  const session = state.sessions[sessionsState.sessionsFocusIndex];
+  if (!session) return;
+  const card = document.querySelector(`.session-card[data-session-id="${session.id}"]`);
+  const stateBtn = card?.querySelector('.session-state-btn') as HTMLElement;
+  if (!stateBtn) return;
+  const currentState = getSessionState(session.id);
+  showStateDropdown(stateBtn, session.id, currentState);
+}
+
+/** Handle gamepad buttons while the state dropdown is open. */
+function handleStateDropdownButton(button: string, dropdown: HTMLElement): void {
+  const options = dropdown.querySelectorAll('.session-state-option') as NodeListOf<HTMLElement>;
+  if (options.length === 0) return;
+
+  // Find currently focused option via .dropdown-focused class
+  let focusIndex = Array.from(options).findIndex(o => o.classList.contains('dropdown-focused'));
+  if (focusIndex < 0) focusIndex = Array.from(options).findIndex(o => o.classList.contains('active'));
+  if (focusIndex < 0) focusIndex = 0;
+
+  const dir = toDirection(button);
+
+  if (dir === 'up') {
+    focusIndex = Math.max(0, focusIndex - 1);
+    setDropdownFocus(options, focusIndex);
+    return;
+  }
+  if (dir === 'down') {
+    focusIndex = Math.min(options.length - 1, focusIndex + 1);
+    setDropdownFocus(options, focusIndex);
+    return;
+  }
+  if (button === 'A') {
+    options[focusIndex]?.click();
+    return;
+  }
+  if (button === 'B') {
+    const cleanupFn = (dropdown as any)._cleanup;
+    if (cleanupFn) cleanupFn();
+    else dropdown.remove();
+    return;
+  }
+  // Other buttons: ignore while dropdown is open
+}
+
+function setDropdownFocus(options: NodeListOf<HTMLElement>, index: number): void {
+  options.forEach(o => o.classList.remove('dropdown-focused'));
+  if (options[index]) {
+    options[index].classList.add('dropdown-focused');
+    options[index].scrollIntoView({ block: 'nearest' });
+  }
+}
+
 export function handleSessionsScreenButton(button: string): boolean {
+  // State dropdown intercepts all input when open
+  const dropdown = document.querySelector('.session-state-dropdown');
+  if (dropdown) {
+    handleStateDropdownButton(button, dropdown as HTMLElement);
+    return true; // consumed
+  }
+
   const dir = toDirection(button);
 
   if (dir) {
@@ -122,9 +220,20 @@ export async function doSpawn(cliType: string, workingDir?: string): Promise<voi
       if (success) {
         logEvent(`Spawned embedded terminal: ${cliType}`);
         showTerminalArea();
+        // Auto-select the new session
+        tm.switchTo(sessionId);
+        state.activeSessionId = sessionId;
         setTimeout(async () => {
           try {
             await loadSessions();
+            // Focus the newly spawned session (last in the list)
+            const newIndex = state.sessions.findIndex(s => s.id === sessionId);
+            if (newIndex >= 0) {
+              sessionsState.sessionsFocusIndex = newIndex;
+              sessionsState.activeFocus = 'sessions';
+              sessionsState.cardColumn = 0;
+              updateSessionsFocus();
+            }
           } catch (e) { console.error('[Sessions] Post-spawn refresh failed:', e); }
         }, 300);
       } else {
@@ -329,6 +438,8 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   // Meta: state dropdown button
   const stateBtn = document.createElement('button');
   stateBtn.className = 'session-state-btn';
+  const isFocusedCard = index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
+  if (isFocusedCard && sessionsState.cardColumn === 1) stateBtn.classList.add('card-col-focused');
   stateBtn.textContent = getStateLabel(sessionState);
   stateBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -341,6 +452,7 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   // Close button — double-click-to-confirm pattern (matches binding delete)
   const closeBtn = document.createElement('button');
   closeBtn.className = 'session-close';
+  if (isFocusedCard && sessionsState.cardColumn === 2) closeBtn.classList.add('card-col-focused');
   closeBtn.textContent = '×';
   closeBtn.title = `Close ${displayName}`;
   let closeConfirmPending = false;
@@ -413,6 +525,7 @@ function showStateDropdown(anchor: HTMLElement, sessionId: string, currentState:
   // Focus the current state option
   const options = dropdown.querySelectorAll('.session-state-option') as NodeListOf<HTMLButtonElement>;
   options[focusIndex]?.focus();
+  options[focusIndex]?.classList.add('dropdown-focused');
 
   // Keyboard navigation: Up/Down arrows + Enter to select + ESC to close
   function onKeyDown(e: KeyboardEvent): void {
@@ -439,6 +552,9 @@ function showStateDropdown(anchor: HTMLElement, sessionId: string, currentState:
     document.removeEventListener('keydown', onKeyDown, true);
     document.removeEventListener('click', closeHandler, true);
   }
+
+  // Expose cleanup for gamepad B-button dismissal
+  (dropdown as any)._cleanup = cleanup;
 
   // Close on outside click
   const closeHandler = (e: MouseEvent) => {
@@ -506,21 +622,47 @@ function updateStatusCounts(): void {
 function handleSessionsZone(button: string, dir: string | null): void {
   const count = state.sessions.length;
 
+  if (dir === 'right') {
+    if (count === 0) return;
+    if (sessionsState.cardColumn < 2) {
+      sessionsState.cardColumn = (sessionsState.cardColumn + 1) as 0 | 1 | 2;
+      updateSessionsFocus();
+    }
+    return;
+  }
+  if (dir === 'left') {
+    if (sessionsState.cardColumn > 0) {
+      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2;
+      updateSessionsFocus();
+    }
+    return;
+  }
+
   if (dir === 'up') {
     if (count === 0) return;
+    if (sessionsState.cardColumn === 1 || sessionsState.cardColumn === 2) return; // no-op
+    // col=0: existing card navigation
     sessionsState.sessionsFocusIndex = Math.max(0, sessionsState.sessionsFocusIndex - 1);
+    sessionsState.cardColumn = 0;
+    clearCloseConfirm();
     updateSessionsFocus();
     autoSelectFocusedSession();
     return;
   }
   if (dir === 'down') {
+    if (sessionsState.cardColumn === 1 || sessionsState.cardColumn === 2) return; // no-op
+    // col=0: existing card navigation
     if (count === 0 || sessionsState.sessionsFocusIndex >= count - 1) {
       sessionsState.activeFocus = 'spawn';
       sessionsState.spawnFocusIndex = 0;
+      sessionsState.cardColumn = 0;
+      clearCloseConfirm();
       updateAllFocus();
       return;
     }
     sessionsState.sessionsFocusIndex++;
+    sessionsState.cardColumn = 0;
+    clearCloseConfirm();
     updateSessionsFocus();
     autoSelectFocusedSession();
     return;
@@ -528,6 +670,27 @@ function handleSessionsZone(button: string, dir: string | null): void {
 }
 
 function handleSessionsZoneButton(button: string): boolean {
+  if (button === 'A') {
+    if (sessionsState.cardColumn === 1) {
+      openStateDropdownForFocused();
+      return true;
+    }
+    if (sessionsState.cardColumn === 2) {
+      confirmCloseSession();
+      return true;
+    }
+    // col=0: fall through to config bindings
+    return false;
+  }
+  if (button === 'B') {
+    if (sessionsState.cardColumn > 0) {
+      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2;
+      clearCloseConfirm();
+      updateSessionsFocus();
+      return true;
+    }
+    return false;
+  }
   switch (button) {
     case 'X': {
       const session = state.sessions[sessionsState.sessionsFocusIndex];
@@ -555,6 +718,7 @@ function handleSpawnZone(button: string, dir: string | null): void {
     if (newIndex < 0) {
       sessionsState.activeFocus = 'sessions';
       sessionsState.sessionsFocusIndex = Math.max(0, state.sessions.length - 1);
+      sessionsState.cardColumn = 0;
       updateAllFocus();
       return;
     }
@@ -613,7 +777,12 @@ function updateSessionsFocus(): void {
   const list = document.getElementById('sessionsList');
   if (!list) return;
   list.querySelectorAll('.session-card').forEach((el, i) => {
-    el.classList.toggle('focused', i === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions');
+    const isFocused = i === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
+    el.classList.toggle('focused', isFocused);
+    const stateBtn = el.querySelector('.session-state-btn');
+    const closeBtn = el.querySelector('.session-close');
+    if (stateBtn) stateBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 1);
+    if (closeBtn) closeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 2);
   });
   const focused = list.children[sessionsState.sessionsFocusIndex] as HTMLElement;
   focused?.scrollIntoView({ block: 'nearest' });
@@ -706,6 +875,10 @@ function refreshSessions(): void {
 
 function onKeyDown(e: KeyboardEvent): void {
   if (state.currentScreen !== 'sessions') return;
+
+  // Don't intercept keyboard when an embedded terminal is visible
+  const terminalArea = document.getElementById('terminalArea');
+  if (terminalArea && terminalArea.style.display !== 'none') return;
 
   const keyMap: Record<string, string> = {
     ArrowUp: 'DPadUp', ArrowDown: 'DPadDown', ArrowLeft: 'DPadLeft', ArrowRight: 'DPadRight',

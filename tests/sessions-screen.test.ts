@@ -34,10 +34,10 @@ const mockSwitchTo = vi.fn();
 
 vi.mock('../renderer/utils.js', () => {
   const dirMap: Record<string, string> = {
-    DPadUp: 'up', LeftStickUp: 'up', RightStickUp: 'up',
-    DPadDown: 'down', LeftStickDown: 'down', RightStickDown: 'down',
-    DPadLeft: 'left', LeftStickLeft: 'left', RightStickLeft: 'left',
-    DPadRight: 'right', LeftStickRight: 'right', RightStickRight: 'right',
+    DPadUp: 'up', LeftStickUp: 'up',
+    DPadDown: 'down', LeftStickDown: 'down',
+    DPadLeft: 'left', LeftStickLeft: 'left',
+    DPadRight: 'right', LeftStickRight: 'right',
   };
   return {
     logEvent: mockLogEvent,
@@ -119,6 +119,7 @@ function createMockTerminalManager(sessionData: Array<{ id: string; cliType: str
   return {
     getSessionIds: () => Array.from(sessionsMap.keys()),
     getSession: (id: string) => sessionsMap.get(id),
+    getActiveSessionId: () => null,
     hasTerminal: (id: string) => sessionsMap.has(id),
     switchTo: mockSwitchTo,
     focusActive: vi.fn(),
@@ -185,6 +186,7 @@ describe('Sessions Screen', () => {
       activeFocus: 'sessions',
       sessionsFocusIndex: 0,
       spawnFocusIndex: 0,
+      cardColumn: 0,
       cliTypes: [],
       directories: [],
     });
@@ -1239,6 +1241,241 @@ describe('Sessions Screen', () => {
 
       expect(closeBtn.textContent).toBe('?');
       expect(mockDestroyTerminal).not.toHaveBeenCalled();
+    });
+  });
+
+  // ==========================================================================
+  // Horizontal card sub-navigation
+  // ==========================================================================
+
+  describe('horizontal card sub-navigation', () => {
+    beforeEach(async () => {
+      const data = makeSessions(3);
+      mockSessionGetAll.mockResolvedValue(data);
+      state.sessions = data;
+      setMockTerminalSessions(data);
+      await loadAndFlush(sessions);
+      sessionsState.activeFocus = 'sessions';
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.cardColumn = 0;
+    });
+
+    it('RIGHT moves cardColumn from 0 to 1', () => {
+      sessions.handleSessionsScreenButton('DPadRight');
+      expect(sessionsState.cardColumn).toBe(1);
+    });
+
+    it('RIGHT moves cardColumn from 1 to 2', () => {
+      sessionsState.cardColumn = 1;
+      sessions.handleSessionsScreenButton('DPadRight');
+      expect(sessionsState.cardColumn).toBe(2);
+    });
+
+    it('RIGHT does not exceed 2', () => {
+      sessionsState.cardColumn = 2;
+      sessions.handleSessionsScreenButton('DPadRight');
+      expect(sessionsState.cardColumn).toBe(2);
+    });
+
+    it('LEFT moves cardColumn from 2 to 1', () => {
+      sessionsState.cardColumn = 2;
+      sessions.handleSessionsScreenButton('DPadLeft');
+      expect(sessionsState.cardColumn).toBe(1);
+    });
+
+    it('LEFT moves cardColumn from 1 to 0', () => {
+      sessionsState.cardColumn = 1;
+      sessions.handleSessionsScreenButton('DPadLeft');
+      expect(sessionsState.cardColumn).toBe(0);
+    });
+
+    it('LEFT does not go below 0', () => {
+      sessionsState.cardColumn = 0;
+      sessions.handleSessionsScreenButton('DPadLeft');
+      expect(sessionsState.cardColumn).toBe(0);
+    });
+
+    it('UP/DOWN at col=1 is no-op', () => {
+      sessionsState.cardColumn = 1;
+      const indexBefore = sessionsState.sessionsFocusIndex;
+      const stateBefore = sessions.getSessionState('s-0');
+      sessions.handleSessionsScreenButton('DPadDown');
+      expect(sessionsState.sessionsFocusIndex).toBe(indexBefore);
+      expect(sessionsState.cardColumn).toBe(1);
+      expect(sessions.getSessionState('s-0')).toBe(stateBefore);
+      sessions.handleSessionsScreenButton('DPadUp');
+      expect(sessionsState.sessionsFocusIndex).toBe(indexBefore);
+      expect(sessionsState.cardColumn).toBe(1);
+      expect(sessions.getSessionState('s-0')).toBe(stateBefore);
+    });
+
+    it('A at col=1 opens state dropdown', async () => {
+      sessionsState.cardColumn = 1;
+      await loadAndFlush(sessions);
+      const consumed = sessions.handleSessionsScreenButton('A');
+      expect(consumed).toBe(true);
+      const dropdown = document.querySelector('.session-state-dropdown');
+      expect(dropdown).toBeTruthy();
+      // Clean up
+      dropdown?.remove();
+    });
+
+    it('gamepad UP/DOWN navigates dropdown options', async () => {
+      sessionsState.cardColumn = 1;
+      await loadAndFlush(sessions);
+      sessions.handleSessionsScreenButton('A');
+      const dropdown = document.querySelector('.session-state-dropdown');
+      expect(dropdown).toBeTruthy();
+      const options = dropdown!.querySelectorAll('.session-state-option');
+      expect(options.length).toBeGreaterThan(1);
+
+      // Initial focus is on 'idle' (index 3, last). Navigate UP to 'planning' (index 2).
+      sessions.handleSessionsScreenButton('DPadUp');
+      expect(options[2].classList.contains('dropdown-focused')).toBe(true);
+      expect(options[3].classList.contains('dropdown-focused')).toBe(false);
+      // Clean up
+      dropdown?.remove();
+    });
+
+    it('A in dropdown selects state', async () => {
+      sessions.setSessionState('s-0', 'idle');
+      await flush();
+      sessionsState.cardColumn = 1;
+      await loadAndFlush(sessions);
+      sessions.handleSessionsScreenButton('A'); // open dropdown
+      const dropdown = document.querySelector('.session-state-dropdown');
+      expect(dropdown).toBeTruthy();
+      // Navigate down to 'implementing' (first option, which gets dropdown-focused on open since idle is index 3)
+      // idle is the current state → focusIndex starts at 3. Navigate up twice to get to 'waiting' (index 1)
+      sessions.handleSessionsScreenButton('DPadUp'); // → planning (2)
+      sessions.handleSessionsScreenButton('DPadUp'); // → waiting (1)
+      sessions.handleSessionsScreenButton('DPadUp'); // → implementing (0)
+      sessions.handleSessionsScreenButton('A'); // select it
+      await flush();
+      expect(sessions.getSessionState('s-0')).toBe('implementing');
+      expect(document.querySelector('.session-state-dropdown')).toBeFalsy();
+    });
+
+    it('B in dropdown closes without changing state', async () => {
+      sessions.setSessionState('s-0', 'idle');
+      await flush();
+      sessionsState.cardColumn = 1;
+      await loadAndFlush(sessions);
+      sessions.handleSessionsScreenButton('A'); // open dropdown
+      expect(document.querySelector('.session-state-dropdown')).toBeTruthy();
+      sessions.handleSessionsScreenButton('B'); // close without selecting
+      expect(document.querySelector('.session-state-dropdown')).toBeFalsy();
+      expect(sessions.getSessionState('s-0')).toBe('idle');
+    });
+
+    it('dropdown intercepts all buttons', async () => {
+      sessionsState.cardColumn = 1;
+      await loadAndFlush(sessions);
+      sessions.handleSessionsScreenButton('A'); // open dropdown
+      expect(document.querySelector('.session-state-dropdown')).toBeTruthy();
+      // All buttons should return true (consumed) while dropdown is open
+      expect(sessions.handleSessionsScreenButton('X')).toBe(true);
+      expect(sessions.handleSessionsScreenButton('Y')).toBe(true);
+      expect(sessions.handleSessionsScreenButton('DPadLeft')).toBe(true);
+      expect(sessions.handleSessionsScreenButton('DPadRight')).toBe(true);
+      // Clean up
+      document.querySelector('.session-state-dropdown')?.remove();
+    });
+
+    it('B at cardColumn > 0 goes back one column', () => {
+      sessionsState.cardColumn = 2;
+      const consumed = sessions.handleSessionsScreenButton('B');
+      expect(consumed).toBe(true);
+      expect(sessionsState.cardColumn).toBe(1);
+    });
+
+    it('B at cardColumn 0 falls through', () => {
+      sessionsState.cardColumn = 0;
+      const consumed = sessions.handleSessionsScreenButton('B');
+      expect(consumed).toBe(false);
+    });
+
+    it('cardColumn resets to 0 on vertical card switch (DOWN)', () => {
+      sessionsState.cardColumn = 0;
+      sessionsState.sessionsFocusIndex = 0;
+      sessions.handleSessionsScreenButton('DPadDown');
+      expect(sessionsState.cardColumn).toBe(0);
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
+    });
+
+    it('cardColumn resets to 0 on zone switch to spawn', () => {
+      sessionsState.cardColumn = 0;
+      sessionsState.sessionsFocusIndex = 2; // last card
+      sessions.handleSessionsScreenButton('DPadDown');
+      expect(sessionsState.activeFocus).toBe('spawn');
+      expect(sessionsState.cardColumn).toBe(0);
+    });
+
+    it('A at col=2 triggers close confirm', async () => {
+      sessionsState.cardColumn = 2;
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+      // First press shows '?'
+      const card = document.querySelector('.session-card[data-session-id="s-0"]');
+      const closeBtn = card?.querySelector('.session-close');
+      expect(closeBtn?.textContent).toBe('?');
+    });
+
+    it('A at col=2 twice closes session', async () => {
+      sessionsState.cardColumn = 2;
+      sessions.handleSessionsScreenButton('A'); // first — confirm prompt
+      await flush();
+      sessions.handleSessionsScreenButton('A'); // second — actual close
+      await flush();
+      expect(mockDestroyTerminal).toHaveBeenCalledWith('s-0');
+    });
+
+    it('close confirm resets after 3s timeout', async () => {
+      sessionsState.cardColumn = 2;
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+      await vi.advanceTimersByTimeAsync(3100);
+      await flush();
+      // After timeout, re-render should show '×' again
+      const card = document.querySelector('.session-card[data-session-id="s-0"]');
+      const closeBtn = card?.querySelector('.session-close');
+      expect(closeBtn?.textContent).toBe('×');
+    });
+
+    it('card-col-focused class applied to state btn at col=1', async () => {
+      sessionsState.cardColumn = 1;
+      await loadAndFlush(sessions);
+      const card = document.querySelector('.session-card.focused');
+      const stateBtn = card?.querySelector('.session-state-btn');
+      expect(stateBtn?.classList.contains('card-col-focused')).toBe(true);
+    });
+
+    it('card-col-focused class applied to close btn at col=2', async () => {
+      sessionsState.cardColumn = 2;
+      await loadAndFlush(sessions);
+      const card = document.querySelector('.session-card.focused');
+      const closeBtn = card?.querySelector('.session-close');
+      expect(closeBtn?.classList.contains('card-col-focused')).toBe(true);
+    });
+
+    it('UP/DOWN at col=2 is no-op', () => {
+      sessionsState.cardColumn = 2;
+      const indexBefore = sessionsState.sessionsFocusIndex;
+      sessions.handleSessionsScreenButton('DPadUp');
+      expect(sessionsState.sessionsFocusIndex).toBe(indexBefore);
+      expect(sessionsState.cardColumn).toBe(2);
+      sessions.handleSessionsScreenButton('DPadDown');
+      expect(sessionsState.sessionsFocusIndex).toBe(indexBefore);
+      expect(sessionsState.cardColumn).toBe(2);
+    });
+
+    it('no horizontal nav when session list is empty', async () => {
+      state.sessions = [];
+      sessions.setTerminalManagerGetter(() => createMockTerminalManager([]));
+      await loadAndFlush(sessions);
+      sessionsState.cardColumn = 0;
+      sessions.handleSessionsScreenButton('DPadRight');
+      expect(sessionsState.cardColumn).toBe(0);
     });
   });
 });

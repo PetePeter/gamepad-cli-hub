@@ -342,6 +342,11 @@ button {
   color: #ff4444;
   background: rgba(255, 68, 68, 0.1);
 }
+.session-close.card-col-focused {
+  background: rgba(255, 80, 80, 0.2);
+  border-color: #ff5050;
+  color: #ff5050;
+}
 
 /* Session state dropdown button */
 .session-state-btn {
@@ -357,6 +362,11 @@ button {
 .session-state-btn:hover {
   border-color: #555;
   background: rgba(255, 255, 255, 0.05);
+}
+.session-state-btn.card-col-focused {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
 .session-state-dropdown {
   position: fixed;
@@ -379,8 +389,11 @@ button {
   cursor: pointer;
   text-align: left;
 }
-.session-state-option:hover {
+.session-state-option:hover,
+.session-state-option:focus,
+.session-state-option.dropdown-focused {
   background: rgba(255, 255, 255, 0.1);
+  outline: none;
 }
 .session-state-option.active {
   color: #4fc3f7;
