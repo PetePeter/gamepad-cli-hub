@@ -89,14 +89,17 @@
       <div id="eventLog" class="event-log"></div>
     </div>
 
-    <!-- Directory Picker Modal (keep existing) -->
+    <!-- Directory Picker Modal -->
     <div class="modal-overlay" id="dirPickerModal" aria-hidden="true" role="dialog" aria-label="Select working directory">
       <div class="modal">
         <div class="modal-header">
           <h3 class="modal-title">Select Directory</h3>
-          <button class="btn btn--secondary btn--sm" id="dirPickerCancelBtn">Cancel (B)</button>
         </div>
         <div class="dir-picker-list" id="dirPickerList" role="listbox"></div>
+        <div class="modal-footer">
+          <button class="btn btn--secondary" id="dirPickerCancelBtn">Cancel (B)</button>
+          <button class="btn btn--primary" id="dirPickerSelectBtn">Select (A)</button>
+        </div>
       </div>
     </div>
 
@@ -122,8 +125,8 @@
         </div>
         <div class="binding-editor-form" id="formModalFields"></div>
         <div class="modal-footer">
-          <button class="btn btn--secondary" id="formModalCancelBtn">Cancel</button>
-          <button class="btn btn--primary" id="formModalSaveBtn">OK</button>
+          <button class="btn btn--secondary" id="formModalCancelBtn">Cancel (B)</button>
+          <button class="btn btn--primary" id="formModalSaveBtn">OK (A)</button>
         </div>
       </div>
     </div>

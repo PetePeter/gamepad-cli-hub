@@ -19,6 +19,10 @@ export const dirPickerState: DirPickerState = {
 
 import { logEvent, getCliDisplayName, toDirection } from '../utils.js';
 import { doSpawn } from '../screens/sessions.js';
+import { attachModalKeyboard } from './modal-base.js';
+
+// Keyboard shortcut cleanup for the dir picker modal
+let cleanupKeyboard: (() => void) | null = null;
 
 // ============================================================================
 // Show / Hide
@@ -39,10 +43,21 @@ export function showDirPicker(cliType: string, dirs: Array<{ name: string; path:
   renderDirPickerList();
   modal.classList.add('modal--visible');
   modal.setAttribute('aria-hidden', 'false');
+
+  // Attach ESC/Enter keyboard shortcuts
+  cleanupKeyboard?.();
+  cleanupKeyboard = attachModalKeyboard({
+    onAccept: () => selectDirAndSpawn(dirPickerState.selectedIndex),
+    onCancel: () => { hideDirPicker(); logEvent('Spawn cancelled'); },
+  });
 }
 
 export function hideDirPicker(): void {
   dirPickerState.visible = false;
+
+  cleanupKeyboard?.();
+  cleanupKeyboard = null;
+
   const modal = document.getElementById('dirPickerModal');
   if (modal) {
     modal.classList.remove('modal--visible');

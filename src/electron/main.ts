@@ -92,10 +92,10 @@ function createWindow(): void {
     }
   });
 
-  // DevTools — only open in development
-  if (process.env.NODE_ENV !== 'production' && !app.isPackaged) {
-    mainWindow.webContents.openDevTools();
-  }
+  // DevTools — only open via Ctrl+Shift+I (not auto-opened)
+  // if (process.env.NODE_ENV !== 'production' && !app.isPackaged) {
+  //   mainWindow.webContents.openDevTools();
+  // }
 
   // Persist window bounds on resize/move (debounced)
   let boundsTimer: ReturnType<typeof setTimeout> | null = null;

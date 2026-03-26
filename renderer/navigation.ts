@@ -12,6 +12,7 @@ import { handleDirPickerButton } from './modals/dir-picker.js';
 import { dirPickerState } from './modals/dir-picker.js';
 import { handleBindingEditorButton } from './modals/binding-editor.js';
 import { bindingEditorState } from './modals/binding-editor.js';
+import { formModalVisible } from './utils.js';
 import { getTerminalManager } from './main.js';
 
 // ============================================================================
@@ -166,6 +167,17 @@ export function handleGamepadEvent(event: ButtonEvent): void {
   // Binding editor modal intercepts all input when visible
   if (bindingEditorState.visible) {
     handleBindingEditorButton(event.button);
+    return;
+  }
+
+  // Form modal intercepts A/B when visible
+  if (formModalVisible) {
+    if (event.button === 'A') {
+      document.getElementById('formModalSaveBtn')?.click();
+    } else if (event.button === 'B') {
+      document.getElementById('formModalCancelBtn')?.click();
+    }
+    // Swallow all other buttons while form modal is open
     return;
   }
 

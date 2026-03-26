@@ -3,6 +3,10 @@
  */
 
 import { state } from './state.js';
+import { attachModalKeyboard } from './modals/modal-base.js';
+
+/** Whether the generic form modal is currently visible (used by navigation.ts for gamepad interception). */
+export let formModalVisible = false;
 
 // ============================================================================
 // Directional button normalisation
@@ -255,15 +259,25 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
     modal.classList.add('modal--visible');
     modal.setAttribute('aria-hidden', 'false');
 
+    formModalVisible = true;
+
+    // Attach ESC/Enter keyboard shortcuts
+    const cleanupKb = attachModalKeyboard({
+      onAccept: onSave,
+      onCancel: onCancel,
+    });
+
     // Focus first input
     const firstInput = fieldsEl.querySelector('input, select, textarea') as HTMLElement;
     if (firstInput) firstInput.focus();
 
     function cleanup() {
+      formModalVisible = false;
       modal.classList.remove('modal--visible');
       modal.setAttribute('aria-hidden', 'true');
       saveBtn.removeEventListener('click', onSave);
       cancelBtn.removeEventListener('click', onCancel);
+      cleanupKb();
     }
 
     function onSave() {

@@ -18,6 +18,10 @@ export const bindingEditorState: BindingEditorState = {
 import { state } from '../state.js';
 import { logEvent, getCliDisplayName, toDirection, getSequenceSyntaxHelpText } from '../utils.js';
 import { loadSettingsScreen } from '../screens/settings.js';
+import { attachModalKeyboard } from './modal-base.js';
+
+// Keyboard shortcut cleanup for the binding editor modal
+let cleanupKeyboard: (() => void) | null = null;
 
 // ============================================================================
 // Constants
@@ -47,11 +51,21 @@ export function openBindingEditor(button: string, cliType: string | null, bindin
   modal.classList.add('modal--visible');
   modal.setAttribute('aria-hidden', 'false');
   logEvent(`Editing binding: ${button}`);
+
+  // Attach ESC/Enter keyboard shortcuts
+  cleanupKeyboard?.();
+  cleanupKeyboard = attachModalKeyboard({
+    onAccept: () => saveBinding(),
+    onCancel: () => { closeBindingEditor(); logEvent('Binding edit cancelled'); },
+  });
 }
 
 export function closeBindingEditor(): void {
   bindingEditorState.visible = false;
   bindingEditorState.editingBinding = null;
+
+  cleanupKeyboard?.();
+  cleanupKeyboard = null;
 
   const modal = document.getElementById('bindingEditorModal');
   if (modal) {

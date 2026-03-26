@@ -18,7 +18,7 @@ import {
   connectionUnsubscribe,
   browserGamepadUnsubscribe,
 } from './navigation.js';
-import { hideDirPicker, showDirPicker } from './modals/dir-picker.js';
+import { hideDirPicker, showDirPicker, handleDirPickerButton } from './modals/dir-picker.js';
 import { closeBindingEditor, saveBinding } from './modals/binding-editor.js';
 import { TerminalManager } from './terminal/terminal-manager.js';
 
@@ -66,6 +66,11 @@ function setupUIHandlers(): void {
   document.getElementById('dirPickerCancelBtn')?.addEventListener('click', () => {
     hideDirPicker();
     logEvent('Spawn cancelled');
+  });
+
+  // Directory picker select button
+  document.getElementById('dirPickerSelectBtn')?.addEventListener('click', () => {
+    handleDirPickerButton('A');
   });
 
   // Binding editor cancel button
