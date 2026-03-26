@@ -2,13 +2,27 @@ cliTypes:
   claude-code:
     name: Claude Code
     command: claude
-    initialPromptDelay: 2000
-    initialPrompt: ""
+    initialPromptDelay: 1000
+    initialPrompt: |
+      <application-prompt>
+      SYSTEMPROMPT:
+      - Include AIAGENT-IMPLEMENTING when actively coding.
+      - Include AIAGENT-PLANNING when researching or thinking.
+      - Include AIAGENT-IDLE when awaiting input or task complete.
+      - End responses with an open ended question with a freetype entry field.
+      </application-prompt>
   copilot-cli:
     name: GitHub Copilot CLI
     command: copilot
     initialPromptDelay: 2000
-    initialPrompt: ""
+    initialPrompt: |
+      <application-prompt>
+      SYSTEMPROMPT:
+      - Include AIAGENT-IMPLEMENTING when actively coding.
+      - Include AIAGENT-PLANNING when researching or thinking.
+      - Include AIAGENT-IDLE when awaiting input or task complete.
+      - End responses with an open ended question with a freetype entry field.
+      </application-prompt>
   python:
     name: python
     command: python

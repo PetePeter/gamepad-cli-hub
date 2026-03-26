@@ -317,9 +317,76 @@ button {
 .session-card.focused { background: var(--bg-tertiary); }
 .session-card.active { border-color: var(--accent); background: var(--bg-secondary); }
 .session-card .tab-state-dot { flex-shrink: 0; }
-.session-card .session-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.session-card .session-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; position: relative; }
 .session-card .session-name { font-size: var(--font-size-sm); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .session-card .session-meta { font-size: 10px; color: var(--text-dim); }
+
+/* Session close button */
+.session-close {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s;
+}
+.session-card:hover .session-close,
+.session-card.focused .session-close {
+  opacity: 1;
+}
+.session-close:hover {
+  color: #ff4444;
+  background: rgba(255, 68, 68, 0.1);
+}
+
+/* Session state dropdown button */
+.session-state-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: #999;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 1px 6px;
+  border-radius: 4px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.session-state-btn:hover {
+  border-color: #555;
+  background: rgba(255, 255, 255, 0.05);
+}
+.session-state-dropdown {
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  background: #2a2a2a;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 4px 0;
+  z-index: 100;
+  min-width: 150px;
+  box-shadow: 0 -4px 12px rgba(0,0,0,0.4);
+}
+.session-state-option {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.session-state-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.session-state-option.active {
+  color: #4fc3f7;
+}
 
 /* Quick Spawn Grid */
 .spawn-section {

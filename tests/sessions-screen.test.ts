@@ -24,6 +24,8 @@ const mockFocusWindow = vi.fn().mockResolvedValue(true);
 const mockConfigGetSpawnCommand = vi.fn().mockResolvedValue({ command: 'claude', args: [] });
 const mockCreateTerminal = vi.fn().mockResolvedValue(true);
 
+const mockDestroyTerminal = vi.fn();
+
 const mockLogEvent = vi.fn();
 const mockGetCliIcon = vi.fn((_type: string) => '🤖');
 const mockGetCliDisplayName = vi.fn((type: string) => type || 'Unknown');
@@ -123,6 +125,7 @@ function createMockTerminalManager(sessionData: Array<{ id: string; cliType: str
     focusActive: vi.fn(),
     fitActive: vi.fn(),
     createTerminal: mockCreateTerminal,
+    destroyTerminal: mockDestroyTerminal,
   };
 }
 
@@ -298,7 +301,7 @@ describe('Sessions Screen', () => {
       expect(dot!.classList.contains('tab-state-dot--idle')).toBe(true);
     });
 
-    it('session card contains .session-info with .session-name and .session-meta', async () => {
+    it('session card contains .session-info with .session-name and .session-state-btn', async () => {
       sessions.setTerminalManagerGetter(() => createMockTerminalManager([
         { id: 's-0', cliType: 'claude-code' },
       ]));
@@ -307,11 +310,11 @@ describe('Sessions Screen', () => {
       const info = document.querySelector('#sessionsList .session-card .session-info');
       expect(info).not.toBeNull();
       const name = info!.querySelector('.session-name');
-      const meta = info!.querySelector('.session-meta');
+      const stateBtn = info!.querySelector('.session-state-btn');
       expect(name).not.toBeNull();
-      expect(meta).not.toBeNull();
+      expect(stateBtn).not.toBeNull();
       expect(name!.textContent).toBe('claude-code');
-      expect(meta!.textContent).toBe('💤 Idle');
+      expect(stateBtn!.textContent).toBe('💤 Idle');
     });
 
     it('active session card has .active class', async () => {
@@ -1457,6 +1460,86 @@ describe('Sessions Screen', () => {
 
       expect(bridge1).not.toHaveBeenCalled();
       expect(bridge2).toHaveBeenCalled();
+    });
+  });
+
+  // ==========================================================================
+  // Session state management
+  // ==========================================================================
+
+  describe('session state management', () => {
+    it('setSessionState changes the state returned by getSessionState', async () => {
+      expect(sessions.getSessionState('s-0')).toBe('idle');
+      sessions.setSessionState('s-0', 'implementing');
+      await flush();
+      expect(sessions.getSessionState('s-0')).toBe('implementing');
+    });
+
+    it('removeSessionState resets to idle', async () => {
+      sessions.setSessionState('s-0', 'planning');
+      await flush();
+      expect(sessions.getSessionState('s-0')).toBe('planning');
+
+      sessions.removeSessionState('s-0');
+      expect(sessions.getSessionState('s-0')).toBe('idle');
+    });
+  });
+
+  // ==========================================================================
+  // Session card UI elements
+  // ==========================================================================
+
+  describe('session card UI elements', () => {
+    it('session cards include .session-close button', async () => {
+      setMockTerminalSessions(makeSessions(2));
+      mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
+      await loadAndFlush(sessions);
+
+      const closeButtons = document.querySelectorAll('.session-card .session-close');
+      expect(closeButtons).toHaveLength(2);
+      expect(closeButtons[0].textContent).toBe('×');
+    });
+
+    it('session cards include .session-state-btn button', async () => {
+      setMockTerminalSessions(makeSessions(1));
+      mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
+      await loadAndFlush(sessions);
+
+      const stateButtons = document.querySelectorAll('.session-card .session-state-btn');
+      expect(stateButtons).toHaveLength(1);
+      expect(stateButtons[0].textContent).toBe('💤 Idle');
+    });
+
+    it('clicking close button twice (double-click-to-confirm) calls destroyTerminal', async () => {
+      const sessionData = makeSessions(1);
+      setMockTerminalSessions(sessionData);
+      mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
+      await loadAndFlush(sessions);
+
+      const closeBtn = document.querySelector('.session-card .session-close') as HTMLButtonElement;
+      // First click — enters confirm pending state
+      closeBtn.click();
+      await flush();
+      expect(closeBtn.textContent).toBe('?');
+      expect(mockDestroyTerminal).not.toHaveBeenCalled();
+
+      // Second click — confirms and destroys
+      closeBtn.click();
+      await flush();
+      expect(mockDestroyTerminal).toHaveBeenCalledWith('s-0');
+    });
+
+    it('clicking close button once does not destroy (pending state only)', async () => {
+      setMockTerminalSessions(makeSessions(1));
+      mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
+      await loadAndFlush(sessions);
+
+      const closeBtn = document.querySelector('.session-card .session-close') as HTMLButtonElement;
+      closeBtn.click();
+      await flush();
+
+      expect(closeBtn.textContent).toBe('?');
+      expect(mockDestroyTerminal).not.toHaveBeenCalled();
     });
   });
 });

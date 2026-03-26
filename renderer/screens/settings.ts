@@ -661,6 +661,7 @@ async function showAddCliTypeForm(): Promise<void> {
     { key: 'name', label: 'Name', placeholder: 'e.g. Claude Code' },
     { key: 'command', label: 'Command', placeholder: 'e.g. claude, python' },
     { key: 'initialPrompt', label: 'Initial Prompt', type: 'textarea', defaultValue: '', afterElement: createSequenceSyntaxHelp() },
+    { key: 'initialPromptDelay', label: 'Initial Prompt Delay (ms)', type: 'text', defaultValue: '2000', placeholder: 'e.g. 2000' },
   ]);
 
   if (!result) return;
@@ -674,8 +675,9 @@ async function showAddCliTypeForm(): Promise<void> {
   const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const command = result.command?.trim() || '';
   const initialPrompt = result.initialPrompt || '';
+  const initialPromptDelay = parseInt(result.initialPromptDelay || '0', 10) || 0;
 
-  const addResult = await window.gamepadCli.toolsAddCliType(key, name, command, initialPrompt);
+  const addResult = await window.gamepadCli.toolsAddCliType(key, name, command, initialPrompt, initialPromptDelay);
   if (addResult.success) {
     logEvent(`Added CLI type: ${key}`);
     state.cliTypes = await window.gamepadCli.configGetCliTypes();
@@ -692,14 +694,16 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
     { key: 'name', label: 'Name', defaultValue: value.name || key },
     { key: 'command', label: 'Command', defaultValue: value.command || '' },
     { key: 'initialPrompt', label: 'Initial Prompt', type: 'textarea', defaultValue: value.initialPrompt || '', afterElement: createSequenceSyntaxHelp() },
+    { key: 'initialPromptDelay', label: 'Initial Prompt Delay (ms)', type: 'text', defaultValue: String(value.initialPromptDelay ?? 0), placeholder: 'e.g. 2000' },
   ]);
 
   if (!result) return;
 
   const command = result.command?.trim() || '';
   const initialPrompt = result.initialPrompt || '';
+  const initialPromptDelay = parseInt(result.initialPromptDelay || '0', 10) || 0;
 
-  const updateResult = await window.gamepadCli.toolsUpdateCliType(key, result.name, command, initialPrompt);
+  const updateResult = await window.gamepadCli.toolsUpdateCliType(key, result.name, command, initialPrompt, initialPromptDelay);
   if (updateResult.success) {
     logEvent(`Updated CLI type: ${key}`);
     state.cliTypes = await window.gamepadCli.configGetCliTypes();

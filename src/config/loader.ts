@@ -493,16 +493,16 @@ export class ConfigLoader {
 
   // ---------- Tools CRUD -----------------------------------------------
 
-  addCliType(key: string, name: string, command: string, initialPrompt?: string): void {
+  addCliType(key: string, name: string, command: string, initialPrompt?: string, initialPromptDelay?: number): void {
     this.ensureLoaded();
     if (this.tools!.cliTypes[key]) {
       throw new Error(`CLI type already exists: ${key}`);
     }
-    this.tools!.cliTypes[key] = { name, command, initialPrompt: initialPrompt ?? '' };
+    this.tools!.cliTypes[key] = { name, command, initialPrompt: initialPrompt ?? '', initialPromptDelay: initialPromptDelay ?? 0 };
     this.saveTools();
   }
 
-  updateCliType(key: string, name: string, command: string, initialPrompt?: string): void {
+  updateCliType(key: string, name: string, command: string, initialPrompt?: string, initialPromptDelay?: number): void {
     this.ensureLoaded();
     if (!this.tools!.cliTypes[key]) {
       throw new Error(`CLI type not found: ${key}`);
@@ -512,7 +512,7 @@ export class ConfigLoader {
       name,
       command,
       initialPrompt: initialPrompt ?? '',
-      initialPromptDelay: existing.initialPromptDelay,
+      initialPromptDelay: initialPromptDelay !== undefined ? initialPromptDelay : existing.initialPromptDelay,
     };
     this.saveTools();
   }

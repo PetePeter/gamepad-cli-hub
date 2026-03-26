@@ -19,6 +19,7 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
               name: entry?.name,
               command: entry?.command,
               initialPrompt: entry?.initialPrompt ?? '',
+              initialPromptDelay: entry?.initialPromptDelay ?? 0,
             }];
           })
         ),
@@ -29,9 +30,9 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
     }
   });
 
-  ipcMain.handle('tools:addCliType', (_event, key: string, name: string, command: string, initialPrompt: string) => {
+  ipcMain.handle('tools:addCliType', (_event, key: string, name: string, command: string, initialPrompt: string, initialPromptDelay: number) => {
     try {
-      configLoader.addCliType(key, name, command, initialPrompt);
+      configLoader.addCliType(key, name, command, initialPrompt, initialPromptDelay);
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to add CLI type: ${error}`);
@@ -39,9 +40,9 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
     }
   });
 
-  ipcMain.handle('tools:updateCliType', (_event, key: string, name: string, command: string, initialPrompt: string) => {
+  ipcMain.handle('tools:updateCliType', (_event, key: string, name: string, command: string, initialPrompt: string, initialPromptDelay: number) => {
     try {
-      configLoader.updateCliType(key, name, command, initialPrompt);
+      configLoader.updateCliType(key, name, command, initialPrompt, initialPromptDelay);
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to update CLI type: ${error}`);

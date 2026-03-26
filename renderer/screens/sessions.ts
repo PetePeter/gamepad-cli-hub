@@ -33,9 +33,19 @@ function getStateLabel(sessionState: string): string {
   return STATE_LABELS[sessionState] || '💤 Idle';
 }
 
-function getSessionState(sessionId: string): string {
-  // TODO: Wire to actual state detection. For now, default to 'idle'.
-  return 'idle';
+const sessionStates = new Map<string, string>();
+
+export function getSessionState(sessionId: string): string {
+  return sessionStates.get(sessionId) || 'idle';
+}
+
+export function setSessionState(sessionId: string, newState: string): void {
+  sessionStates.set(sessionId, newState);
+  loadSessions();
+}
+
+export function removeSessionState(sessionId: string): void {
+  sessionStates.delete(sessionId);
 }
 
 function getSessionCwd(sessionId: string): string {
@@ -310,19 +320,80 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   const folder = getSessionCwd(session.id);
   name.textContent = folder ? `${displayName} — ${folder}` : displayName;
 
-  // Meta: state label
-  const meta = document.createElement('span');
-  meta.className = 'session-meta';
-  meta.textContent = getStateLabel(sessionState);
+  // Meta: state dropdown button
+  const stateBtn = document.createElement('button');
+  stateBtn.className = 'session-state-btn';
+  stateBtn.textContent = getStateLabel(sessionState);
+  stateBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showStateDropdown(stateBtn, session.id, sessionState);
+  });
 
   info.appendChild(name);
-  info.appendChild(meta);
+  info.appendChild(stateBtn);
+
+  // Close button — double-click-to-confirm pattern (matches binding delete)
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'session-close';
+  closeBtn.textContent = '×';
+  closeBtn.title = `Close ${displayName}`;
+  let closeConfirmPending = false;
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!closeConfirmPending) {
+      closeBtn.textContent = '?';
+      closeBtn.title = 'Click again to confirm';
+      closeConfirmPending = true;
+      setTimeout(() => { if (closeConfirmPending) { closeBtn.textContent = '×'; closeBtn.title = `Close ${displayName}`; closeConfirmPending = false; } }, 3000);
+      return;
+    }
+    closeConfirmPending = false;
+    const tm = terminalManagerGetter ? terminalManagerGetter() : null;
+    if (tm) tm.destroyTerminal(session.id);
+    removeSessionState(session.id);
+    loadSessions();
+  });
 
   card.appendChild(dot);
   card.appendChild(info);
+  card.appendChild(closeBtn);
 
   card.addEventListener('click', () => switchToSession(session.id));
   return card;
+}
+
+function showStateDropdown(anchor: HTMLElement, sessionId: string, currentState: string): void {
+  // Close any existing dropdown
+  document.querySelectorAll('.session-state-dropdown').forEach(el => el.remove());
+
+  const dropdown = document.createElement('div');
+  dropdown.className = 'session-state-dropdown';
+
+  const states = ['implementing', 'waiting', 'planning', 'idle'];
+  for (const s of states) {
+    const option = document.createElement('button');
+    option.className = 'session-state-option';
+    if (s === currentState) option.classList.add('active');
+    option.textContent = getStateLabel(s);
+    option.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setSessionState(sessionId, s);
+      dropdown.remove();
+    });
+    dropdown.appendChild(option);
+  }
+
+  anchor.parentElement!.appendChild(dropdown);
+
+  // Close on outside click
+  const closeHandler = (e: MouseEvent) => {
+    if (!dropdown.contains(e.target as Node)) {
+      dropdown.remove();
+      document.removeEventListener('click', closeHandler, true);
+    }
+  };
+  // Defer to avoid the current click closing immediately
+  setTimeout(() => document.addEventListener('click', closeHandler, true), 0);
 }
 
 // ============================================================================

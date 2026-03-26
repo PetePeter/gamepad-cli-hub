@@ -505,6 +505,45 @@ describe('ConfigLoader', () => {
       const entry = loader.getCliTypeEntry('claude-code');
       expect(entry!.initialPromptDelay).toBeUndefined();
     });
+
+    it('addCliType with initialPromptDelay saves it', () => {
+      loader.load();
+      loader.addCliType('my-tool', 'My Tool', 'mytool', 'hello', 5000);
+
+      const entry = loader.getCliTypeEntry('my-tool');
+      expect(entry).not.toBeNull();
+      expect(entry!.initialPromptDelay).toBe(5000);
+
+      const onDisk = readYaml<any>('tools.yaml');
+      expect(onDisk.cliTypes['my-tool'].initialPromptDelay).toBe(5000);
+    });
+
+    it('updateCliType with initialPromptDelay saves new value (not preserving old)', () => {
+      writeYaml('tools.yaml', {
+        cliTypes: {
+          'claude-code': {
+            name: 'Claude Code',
+            command: 'cc',
+            initialPrompt: '',
+            initialPromptDelay: 3000,
+          },
+          'copilot-cli': {
+            name: 'GitHub Copilot CLI',
+            command: 'copilot',
+            initialPrompt: '',
+          },
+        },
+      });
+      loader.load();
+
+      loader.updateCliType('claude-code', 'CC Updated', 'cc2', 'prompt', 7000);
+
+      const entry = loader.getCliTypeEntry('claude-code');
+      expect(entry!.initialPromptDelay).toBe(7000);
+
+      const onDisk = readYaml<any>('tools.yaml');
+      expect(onDisk.cliTypes['claude-code'].initialPromptDelay).toBe(7000);
+    });
   });
 
   // =========================================================================
