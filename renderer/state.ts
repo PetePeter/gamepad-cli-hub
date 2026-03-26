@@ -9,7 +9,6 @@ export interface Session {
   name: string;
   cliType: string;
   processId: number;
-  windowHandle: string;
 }
 
 export interface ButtonEvent {

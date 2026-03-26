@@ -12,7 +12,6 @@ describe('SessionManager', () => {
     id: 'session-1',
     name: 'Claude Code 1',
     cliType: 'claude-code',
-    windowHandle: 12345,
     processId: 1001,
   };
 
@@ -20,7 +19,6 @@ describe('SessionManager', () => {
     id: 'session-2',
     name: 'Copilot CLI 1',
     cliType: 'copilot-cli',
-    windowHandle: 67890,
     processId: 1002,
   };
 
@@ -28,7 +26,6 @@ describe('SessionManager', () => {
     id: 'session-3',
     name: 'Claude Code 2',
     cliType: 'claude-code',
-    windowHandle: 11111,
     processId: 1003,
   };
 

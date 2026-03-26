@@ -152,17 +152,17 @@ export function navigateFocus(direction: number): void {
 
 export function formatBindingDetails(binding: any): string {
   switch (binding.action) {
-    case 'keyboard':
-      if (binding.sequence) {
-        const preview = binding.sequence.length > 40
-          ? binding.sequence.substring(0, 37) + '...'
-          : binding.sequence;
-        return `seq: ${preview.replace(/\n/g, '↵')}`;
-      }
-      if (binding.hold) {
-        return binding.keys ? `hold ${binding.keys.join('+')}` : '—';
-      }
-      return binding.keys ? binding.keys.join(' → ') : '—';
+    case 'keyboard': {
+      if (!binding.sequence) return '—';
+      const preview = binding.sequence.length > 40
+        ? binding.sequence.substring(0, 37) + '...'
+        : binding.sequence;
+      return `seq: ${preview.replace(/\n/g, '↵')}`;
+    }
+    case 'voice':
+      return binding.key
+        ? `${binding.mode || 'tap'}: ${binding.key}`
+        : '—';
     case 'spawn':
       return binding.cliType ? `spawn: ${binding.cliType}` : '—';
     case 'session-switch':

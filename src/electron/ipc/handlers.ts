@@ -12,17 +12,14 @@ import { PtyManager } from '../../session/pty-manager.js';
 import { StateDetector } from '../../session/state-detector.js';
 import { PipelineQueue } from '../../session/pipeline-queue.js';
 import { configLoader } from '../../config/loader.js';
-import { windowManager } from '../../output/windows.js';
 import { keyboard } from '../../output/keyboard.js';
-import { processSpawner } from '../../session/spawner.js';
 import { logger } from '../../utils/logger.js';
 
 import { setupSessionHandlers } from './session-handlers.js';
 import { setupConfigHandlers } from './config-handlers.js';
 import { setupProfileHandlers } from './profile-handlers.js';
 import { setupToolsHandlers } from './tools-handlers.js';
-import { setupWindowHandlers } from './window-handlers.js';
-import { setupSpawnHandlers } from './spawn-handlers.js';
+import { setupHubHandlers } from './hub-handlers.js';
 import { setupKeyboardHandlers } from './keyboard-handlers.js';
 import { setupAppHandlers } from './app-handlers.js';
 import { setupSystemHandlers } from './system-handlers.js';
@@ -52,12 +49,11 @@ export function registerIPCHandlers(getMainWindow: () => BrowserWindow | null): 
   const stateDetector = new StateDetector();
   const pipelineQueue = new PipelineQueue();
 
-  const cleanupSession = setupSessionHandlers(sessionManager, windowManager);
+  const cleanupSession = setupSessionHandlers(sessionManager);
   setupConfigHandlers(configLoader);
   setupProfileHandlers(configLoader);
   setupToolsHandlers(configLoader);
-  setupWindowHandlers(windowManager, configLoader);
-  setupSpawnHandlers(sessionManager, processSpawner);
+  setupHubHandlers(configLoader);
   setupKeyboardHandlers(keyboard);
   setupAppHandlers();
   setupSystemHandlers();
@@ -69,7 +65,6 @@ export function registerIPCHandlers(getMainWindow: () => BrowserWindow | null): 
     cleanupSession();
     cancelAllPrompts();
     ptyManager.killAll();
-    windowManager.cleanup();
     logger.info('[IPC] Cleanup complete');
   };
 }

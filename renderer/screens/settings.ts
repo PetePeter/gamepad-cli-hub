@@ -328,7 +328,7 @@ function showAddBindingPicker(unmappedButtons: readonly string[]): void {
     btn.textContent = button;
     btn.addEventListener('click', () => {
       const cliType = state.settingsTab === 'global' ? null : state.settingsTab;
-      openBindingEditor(button, cliType, { action: 'keyboard', keys: [] });
+      openBindingEditor(button, cliType, { action: 'keyboard', sequence: '' });
     });
     grid.appendChild(btn);
   });

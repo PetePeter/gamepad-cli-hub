@@ -2,21 +2,15 @@
 
 ## Overview
 
-Button bindings can now use a `sequence` field to script complex keystroke patterns — multi-line text, key combos, modifier holds, and timed delays — all from a single button press.
-
-Before sequences, typing `/compact` required eight separate entries in a `keys` array. With sequences, it's one readable string:
+Keyboard bindings use the `sequence` field to script complex keystroke patterns — multi-line text, key combos, modifier holds, and timed delays — all from a single button press. All keyboard input is routed through PTY stdin.
 
 ```yaml
-# Before (keys array)
-Y:
-  action: keyboard
-  keys: ["/", "c", "o", "m", "p", "a", "c", "t"]
-
-# After (sequence)
 Y:
   action: keyboard
   sequence: "/compact{Enter}"
 ```
+
+> **Note:** The legacy `keys: []` array format has been removed. All keyboard bindings must use `sequence`.
 
 ## Quick Start
 

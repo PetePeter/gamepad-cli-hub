@@ -11,7 +11,7 @@ import { loadSessions, spawnNewSession } from './screens/sessions.js';
 import { parseSequence, formatSequencePreview, type SequenceAction } from '../src/input/sequence-parser.js';
 import { getTerminalManager } from './main.js';
 
-// Tracks which buttons are currently holding keys down
+// Tracks which buttons are holding keys via voice hold bindings
 const heldKeys = new Map<string, string[]>();
 
 // ============================================================================
@@ -168,14 +168,14 @@ async function executeGlobalBinding(button: string, binding: any): Promise<void>
 export function processConfigRelease(button: string): void {
   const keys = heldKeys.get(button);
   if (keys) {
-    // Always release via robotjs — held keys are OS-level by definition
+    // Always release via OS-level keyboard — voice holds are OS-level by definition
     window.gamepadCli.keyboardComboUp(keys);
     heldKeys.delete(button);
   }
 }
 
 export function releaseAllHeldKeys(): void {
-  // Always release via robotjs — held keys are OS-level by definition
+  // Always release via OS-level keyboard — voice holds are OS-level by definition
   for (const [_button, keys] of heldKeys) {
     window.gamepadCli.keyboardComboUp(keys);
   }
@@ -186,42 +186,33 @@ async function executeCliBinding(button: string, binding: any): Promise<void> {
   try {
     switch (binding.action) {
       case 'keyboard': {
-        // New sequence format takes priority over legacy keys array
-        if (binding.sequence && typeof binding.sequence === 'string') {
-          await executeSequence(binding.sequence);
+        if (!binding.sequence || typeof binding.sequence !== 'string') {
+          console.warn(`[Renderer] Keyboard binding for ${button} missing sequence`);
           break;
         }
-        if (!binding.keys || !Array.isArray(binding.keys)) {
-          console.warn(`[Renderer] Keyboard binding for ${button} missing both keys and sequence`);
+        await executeSequence(binding.sequence);
+        break;
+      }
+      case 'voice': {
+        if (!binding.key) {
+          console.warn(`[Renderer] Voice binding for ${button} missing key`);
           break;
         }
+        const keys = binding.key.split('+').map((k: string) => k.trim()).filter(Boolean);
+        if (keys.length === 0) break;
 
-        // hold or target:'os' always use robotjs (OS-level key events)
-        const useOsPath = binding.hold || binding.target === 'os';
-
-        if (!useOsPath) {
-          const tm = getTerminalManager();
-          const activeId = tm?.getActiveSessionId();
-
-          if (activeId && window.gamepadCli?.ptyWrite) {
-            // Route legacy keys to PTY — treat each key as a tap
-            for (const key of binding.keys) {
-              const esc = keyToPtyEscape(key);
-              await window.gamepadCli.ptyWrite(activeId, esc);
-            }
-            logEvent(`PTY keys: ${binding.keys.join('+')}`);
-            break;
-          }
-        }
-
-        // OS-level path via robotjs
-        if (binding.hold) {
-          await window.gamepadCli.keyboardComboDown(binding.keys);
-          heldKeys.set(button, binding.keys);
-          logEvent(`Hold: ${binding.keys.join('+')}`);
+        if (binding.mode === 'hold') {
+          await window.gamepadCli.keyboardComboDown(keys);
+          heldKeys.set(button, keys);
+          logEvent(`Voice hold: ${binding.key}`);
         } else {
-          await window.gamepadCli.keyboardSendKeys(binding.keys);
-          logEvent(`Keys: ${binding.keys.join('+')}`);
+          // tap mode (default)
+          if (keys.length === 1) {
+            await window.gamepadCli.keyboardKeyTap(keys[0]);
+          } else {
+            await window.gamepadCli.keyboardSendKeyCombo(keys);
+          }
+          logEvent(`Voice tap: ${binding.key}`);
         }
         break;
       }
@@ -275,27 +266,6 @@ async function executeSequenceAction(action: SequenceAction): Promise<void> {
     return;
   }
 
-  // Fallback to robotjs for non-terminal contexts (backward compat)
-  switch (action.type) {
-    case 'text':
-      await window.gamepadCli.keyboardTypeString(action.value);
-      break;
-    case 'key':
-      await window.gamepadCli.keyboardSendKeys([action.key]);
-      break;
-    case 'combo':
-      await window.gamepadCli.keyboardSendKeys(action.keys);
-      break;
-    case 'modDown':
-      await window.gamepadCli.keyboardComboDown([action.key]);
-      break;
-    case 'modUp':
-      await window.gamepadCli.keyboardComboUp([action.key]);
-      break;
-    case 'wait':
-      await new Promise(resolve => setTimeout(resolve, action.ms));
-      break;
-    default:
-      console.warn(`[Renderer] Unknown sequence action type: ${(action as any).type}`);
-  }
+  // No active terminal — log warning
+  console.warn('[Renderer] Sequence action skipped — no active terminal');
 }

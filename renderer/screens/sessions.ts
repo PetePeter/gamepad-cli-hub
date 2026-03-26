@@ -240,21 +240,6 @@ export async function doSpawn(cliType: string, workingDir?: string): Promise<voi
         logEvent(`Spawn FAILED: PTY creation returned false for ${cliType}`);
         console.error(`[doSpawn] PTY creation failed — likely node-pty native module issue`);
       }
-    } else {
-      // Fallback: old external window spawning
-      console.warn(`[doSpawn] ⚠️ NO TERMINAL MANAGER — falling back to EXTERNAL spawn`);
-      const result = await window.gamepadCli.spawnCli(cliType, workingDir);
-      if (result.success) {
-        logEvent(`Spawned: PID ${result.pid}`);
-        setTimeout(async () => {
-          try {
-            await window.gamepadCli?.sessionRefresh();
-            await loadSessions();
-          } catch (e) { console.error('[Sessions] Post-spawn refresh failed:', e); }
-        }, 500);
-      } else {
-        logEvent(`Spawn failed: ${result.error || 'Unknown error'}`);
-      }
     }
   } catch (error) {
     console.error('[Sessions] Failed to spawn session:', error);
@@ -357,7 +342,6 @@ async function loadSessionsData(): Promise<void> {
         name: session?.cliType || 'Terminal',
         cliType: session?.cliType || 'unknown',
         processId: 0,
-        windowHandle: '',
       } as Session);
     }
   }
@@ -825,22 +809,8 @@ async function switchToSession(sessionId: string): Promise<void> {
     return;
   }
 
-  // Old external window path
-  try {
-    if (!window.gamepadCli) return;
-    await window.gamepadCli.sessionSetActive(sessionId);
-    state.activeSessionId = sessionId;
-    logEvent(`Switch: ${sessionId}`);
-
-    const session = state.sessions.find(s => s.id === sessionId);
-    if (session?.windowHandle) {
-      await window.gamepadCli.focusWindow(session.windowHandle);
-    }
-
-    await loadSessions();
-  } catch (error) {
-    console.error('[Sessions] Failed to switch session:', error);
-  }
+  // Non-embedded session — shouldn't happen, log warning
+  console.warn(`[Sessions] Session ${sessionId} is not an embedded terminal`);
 }
 
 async function deleteSession(sessionId: string): Promise<void> {

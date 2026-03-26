@@ -27,7 +27,7 @@ let cleanupKeyboard: (() => void) | null = null;
 // Constants
 // ============================================================================
 
-const ACTION_TYPES = ['keyboard', 'session-switch', 'spawn', 'list-sessions', 'close-session', 'profile-switch', 'hub-focus'] as const;
+const ACTION_TYPES = ['keyboard', 'voice', 'session-switch', 'spawn', 'list-sessions', 'close-session', 'profile-switch', 'hub-focus'] as const;
 
 // ============================================================================
 // Open / Close
@@ -116,206 +116,54 @@ function renderBindingEditorForm(): void {
 function renderActionParams(form: HTMLElement, binding: any): void {
   switch (binding.action) {
     case 'keyboard': {
-      const allKeys = Array.isArray(binding.keys) ? [...binding.keys] : [];
-      const modifiers = ['Ctrl', 'Alt', 'Shift'];
+      const savedSequence: string = binding.sequence || '';
 
-      // Preserved state across mode toggles
-      let savedModifiers = allKeys.filter(k => modifiers.includes(k));
-      let savedKeysValue = allKeys.filter(k => !modifiers.includes(k)).join(',');
-      let savedHold = binding.hold === true;
-      let savedTarget = binding.target || (savedHold ? 'os' : 'terminal');
-      let savedSequence: string = binding.sequence || '';
+      const seqField = document.createElement('div');
+      seqField.className = 'binding-editor-field';
+      const seqLabel = document.createElement('label');
+      seqLabel.textContent = 'Sequence';
+      seqField.appendChild(seqLabel);
 
-      const initialMode = savedSequence.trim() ? 'sequence' : 'keys';
+      const textarea = document.createElement('textarea');
+      textarea.id = 'bindingEditorSequence';
+      textarea.rows = 5;
+      textarea.className = 'sequence-textarea focusable';
+      textarea.placeholder = 'Type text, use {Ctrl+S} for combos, newlines = Enter';
+      textarea.value = savedSequence;
+      seqField.appendChild(textarea);
 
-      // Mode toggle buttons
-      const modeField = document.createElement('div');
-      modeField.className = 'binding-editor-field';
-      const modeLabel = document.createElement('label');
-      modeLabel.textContent = 'Input Mode';
-      modeField.appendChild(modeLabel);
+      const helpToggle = document.createElement('button');
+      helpToggle.type = 'button';
+      helpToggle.className = 'sequence-help-toggle focusable';
+      helpToggle.textContent = '? Syntax Help';
+      helpToggle.tabIndex = 0;
+      seqField.appendChild(helpToggle);
 
-      const modeToggles = document.createElement('div');
-      modeToggles.className = 'mode-toggles';
+      const helpPanel = document.createElement('div');
+      helpPanel.className = 'sequence-help';
+      helpPanel.textContent = getSequenceSyntaxHelpText();
+      seqField.appendChild(helpPanel);
 
-      const keysToggle = document.createElement('button');
-      keysToggle.type = 'button';
-      keysToggle.className = `btn btn--sm mode-toggle focusable${initialMode === 'keys' ? ' mode-toggle--active' : ''}`;
-      keysToggle.dataset.mode = 'keys';
-      keysToggle.textContent = 'Keys';
-      keysToggle.tabIndex = 0;
-
-      const seqToggle = document.createElement('button');
-      seqToggle.type = 'button';
-      seqToggle.className = `btn btn--sm mode-toggle focusable${initialMode === 'sequence' ? ' mode-toggle--active' : ''}`;
-      seqToggle.dataset.mode = 'sequence';
-      seqToggle.textContent = 'Sequence';
-      seqToggle.tabIndex = 0;
-
-      modeToggles.appendChild(keysToggle);
-      modeToggles.appendChild(seqToggle);
-      modeField.appendChild(modeToggles);
-      form.appendChild(modeField);
-
-      // Container for mode-specific content
-      const modeContent = document.createElement('div');
-      modeContent.id = 'bindingEditorModeContent';
-      form.appendChild(modeContent);
-
-      const saveCurrentKeysState = () => {
-        const ki = document.getElementById('bindingEditorKeys') as HTMLInputElement;
-        if (ki) savedKeysValue = ki.value;
-        savedModifiers = [];
-        modeContent.querySelectorAll('.modifier-toggle--active').forEach(btn => {
-          const mod = (btn as HTMLElement).dataset.modifier;
-          if (mod) savedModifiers.push(mod);
-        });
-        const hc = document.getElementById('bindingEditorHold') as HTMLInputElement;
-        if (hc) savedHold = hc.checked;
-        const tc = document.getElementById('bindingEditorTarget') as HTMLInputElement;
-        if (tc) savedTarget = tc.checked ? 'os' : 'terminal';
-      };
-
-      const saveCurrentSequenceState = () => {
-        const st = document.getElementById('bindingEditorSequence') as HTMLTextAreaElement;
-        if (st) savedSequence = st.value;
-      };
-
-      const renderKeysMode = () => {
-        modeContent.innerHTML = '';
-
-        // Modifier toggles
-        const modField = document.createElement('div');
-        modField.className = 'binding-editor-field';
-        const modLabel = document.createElement('label');
-        modLabel.textContent = 'Modifiers';
-        modField.appendChild(modLabel);
-
-        const modRow = document.createElement('div');
-        modRow.className = 'modifier-toggles';
-
-        modifiers.forEach(mod => {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'btn btn--sm modifier-toggle focusable';
-          if (savedModifiers.includes(mod)) btn.classList.add('modifier-toggle--active');
-          btn.textContent = mod;
-          btn.tabIndex = 0;
-          btn.dataset.modifier = mod;
-          btn.addEventListener('click', () => {
-            btn.classList.toggle('modifier-toggle--active');
-          });
-          modRow.appendChild(btn);
-        });
-
-        modField.appendChild(modRow);
-        modeContent.appendChild(modField);
-
-        // Keys input (non-modifier keys only)
-        modeContent.appendChild(createEditorField('Keys (comma-separated)', `
-          <input type="text" id="bindingEditorKeys" value="${savedKeysValue}" placeholder="e.g. c, w, F4, Clear" />
-        `));
-
-        // Hold checkbox
-        const holdField = document.createElement('div');
-        holdField.className = 'binding-editor-field';
-        const holdLabel = document.createElement('label');
-        holdLabel.textContent = 'Hold while pressed';
-        holdField.appendChild(holdLabel);
-
-        const holdCheckbox = document.createElement('input');
-        holdCheckbox.type = 'checkbox';
-        holdCheckbox.id = 'bindingEditorHold';
-        holdCheckbox.checked = savedHold;
-        holdCheckbox.className = 'focusable';
-        holdField.appendChild(holdCheckbox);
-        modeContent.appendChild(holdField);
-
-        // OS target checkbox
-        const osField = document.createElement('div');
-        osField.className = 'binding-editor-field';
-        const osLabel = document.createElement('label');
-        osLabel.textContent = 'OS-level (bypass terminal)';
-        osField.appendChild(osLabel);
-
-        const osCheckbox = document.createElement('input');
-        osCheckbox.type = 'checkbox';
-        osCheckbox.id = 'bindingEditorTarget';
-        osCheckbox.checked = savedTarget === 'os';
-        osCheckbox.className = 'focusable';
-        osField.appendChild(osCheckbox);
-        modeContent.appendChild(osField);
-
-        // Auto-link: hold checked → OS pre-ticked; hold unchecked → OS unticked
-        holdCheckbox.addEventListener('change', () => {
-          osCheckbox.checked = holdCheckbox.checked;
-        });
-      };
-
-      const renderSequenceMode = () => {
-        modeContent.innerHTML = '';
-
-        const seqField = document.createElement('div');
-        seqField.className = 'binding-editor-field';
-        const seqLabel = document.createElement('label');
-        seqLabel.textContent = 'Sequence';
-        seqField.appendChild(seqLabel);
-
-        const textarea = document.createElement('textarea');
-        textarea.id = 'bindingEditorSequence';
-        textarea.rows = 5;
-        textarea.className = 'sequence-textarea focusable';
-        textarea.placeholder = 'Type text, use {Ctrl+S} for combos, newlines = Enter';
-        textarea.value = savedSequence;
-        seqField.appendChild(textarea);
-
-        const helpToggle = document.createElement('button');
-        helpToggle.type = 'button';
-        helpToggle.className = 'sequence-help-toggle focusable';
-        helpToggle.textContent = '? Syntax Help';
-        helpToggle.tabIndex = 0;
-        seqField.appendChild(helpToggle);
-
-        const helpPanel = document.createElement('div');
-        helpPanel.className = 'sequence-help';
-        helpPanel.textContent = getSequenceSyntaxHelpText();
-        seqField.appendChild(helpPanel);
-
-        helpToggle.addEventListener('click', () => {
-          helpPanel.classList.toggle('sequence-help--visible');
-        });
-
-        modeContent.appendChild(seqField);
-      };
-
-      // Initial render
-      if (initialMode === 'sequence') {
-        renderSequenceMode();
-      } else {
-        renderKeysMode();
-      }
-
-      // Mode toggle click handlers
-      keysToggle.addEventListener('click', () => {
-        if (keysToggle.classList.contains('mode-toggle--active')) return;
-        saveCurrentSequenceState();
-        keysToggle.classList.add('mode-toggle--active');
-        seqToggle.classList.remove('mode-toggle--active');
-        renderKeysMode();
-        const firstKeysEl = modeContent.querySelector<HTMLElement>('input, button.focusable');
-        if (firstKeysEl) firstKeysEl.focus();
+      helpToggle.addEventListener('click', () => {
+        helpPanel.classList.toggle('sequence-help--visible');
       });
 
-      seqToggle.addEventListener('click', () => {
-        if (seqToggle.classList.contains('mode-toggle--active')) return;
-        saveCurrentKeysState();
-        seqToggle.classList.add('mode-toggle--active');
-        keysToggle.classList.remove('mode-toggle--active');
-        renderSequenceMode();
-        const firstSeqEl = modeContent.querySelector<HTMLElement>('textarea, button.focusable');
-        if (firstSeqEl) firstSeqEl.focus();
-      });
+      form.appendChild(seqField);
+      break;
+    }
+    case 'voice': {
+      // Key input (e.g. "F1" or "Ctrl+Alt")
+      form.appendChild(createEditorField('Key', `
+        <input type="text" id="bindingEditorVoiceKey" value="${binding.key || ''}" placeholder="e.g. F1, Space, Ctrl+Alt" />
+      `));
 
+      // Mode toggle (tap/hold)
+      const modeOptions = ['tap', 'hold'].map(m =>
+        `<option value="${m}" ${m === (binding.mode || 'tap') ? 'selected' : ''}>${m}</option>`
+      ).join('');
+      form.appendChild(createEditorField('Mode', `
+        <select id="bindingEditorVoiceMode">${modeOptions}</select>
+      `));
       break;
     }
     case 'session-switch': {
@@ -373,7 +221,9 @@ function createEditorField(label: string, inputHtml: string, readonly = false): 
 function buildDefaultBinding(action: string): any {
   switch (action) {
     case 'keyboard':
-      return { action: 'keyboard', keys: [] };
+      return { action: 'keyboard', sequence: '' };
+    case 'voice':
+      return { action: 'voice', key: '', mode: 'tap' };
     case 'session-switch':
       return { action: 'session-switch', direction: 'next' };
     case 'spawn':
@@ -406,35 +256,16 @@ function collectBindingFromForm(): any | null {
   switch (action) {
     case 'keyboard': {
       const sequenceTextarea = document.getElementById('bindingEditorSequence') as HTMLTextAreaElement;
-
-      // If sequence textarea exists and has content, use sequence mode
-      if (sequenceTextarea && sequenceTextarea.value.trim()) {
-        return { action: 'keyboard', keys: [], sequence: sequenceTextarea.value };
-      }
-
-      // Otherwise, collect legacy keys
-      const keysInput = document.getElementById('bindingEditorKeys') as HTMLInputElement;
-      const keysStr = keysInput?.value?.trim() || '';
-      const baseKeys = keysStr ? keysStr.split(',').map(k => k.trim()).filter(Boolean) : [];
-
-      // Collect active modifiers
-      const activeModBtns = document.querySelectorAll('.modifier-toggle--active');
-      const mods: string[] = [];
-      activeModBtns.forEach(btn => {
-        const mod = (btn as HTMLElement).dataset.modifier;
-        if (mod) mods.push(mod);
-      });
-
-      const keys = [...mods, ...baseKeys];
-      const holdCheckbox = document.getElementById('bindingEditorHold') as HTMLInputElement;
-      const hold = holdCheckbox?.checked === true;
-      const targetCheckbox = document.getElementById('bindingEditorTarget') as HTMLInputElement;
-      const targetOs = targetCheckbox?.checked === true;
-
-      const result: any = { action: 'keyboard', keys };
-      if (hold) result.hold = true;
-      if (targetOs) result.target = 'os';
-      return result;
+      return { action: 'keyboard', sequence: sequenceTextarea?.value || '' };
+    }
+    case 'voice': {
+      const keyInput = document.getElementById('bindingEditorVoiceKey') as HTMLInputElement;
+      const modeSelect = document.getElementById('bindingEditorVoiceMode') as HTMLSelectElement;
+      return {
+        action: 'voice',
+        key: keyInput?.value?.trim() || '',
+        mode: (modeSelect?.value as 'tap' | 'hold') || 'tap',
+      };
     }
     case 'session-switch': {
       const dirSelect = document.getElementById('bindingEditorDirection') as HTMLSelectElement;

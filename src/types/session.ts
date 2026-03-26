@@ -17,8 +17,6 @@ export interface SessionInfo {
   name: string;
   /** Type of CLI (e.g., 'claude-code', 'copilot-cli') */
   cliType: string;
-  /** OS window handle (hex string) — kept for backward compat with external window sessions */
-  windowHandle: string;
   /** Process ID */
   processId: number;
   /** Pipeline state detected from PTY output */

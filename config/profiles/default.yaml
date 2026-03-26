@@ -2,61 +2,45 @@ name: Default
 cliTypes:
   claude-code:
     RightTrigger:
-      action: keyboard
-      keys:
-        - Ctrl
-        - Alt
-      hold: true
-      target: os
+      action: voice
+      key: Ctrl+Alt
+      mode: hold
     A:
       action: keyboard
-      keys: []
       sequence: "{Enter}"
     RightStickDown:
       action: keyboard
-      keys: []
       sequence: "{Down}"
     RightStickUp:
       action: keyboard
-      keys: []
       sequence: "{Up}"
     B:
       action: keyboard
-      keys: []
       sequence: "{Escape}"
   copilot-cli:
     A:
       action: keyboard
-      keys:
-        - Clear
+      sequence: "{Ctrl+L}"
     B:
       action: keyboard
-      keys:
-        - Escape
+      sequence: "{Escape}"
     X:
       action: keyboard
-      keys:
-        - "?"
-        - Enter
+      sequence: "?{Enter}"
   generic-terminal:
     A:
       action: keyboard
-      keys:
-        - Clear
+      sequence: "{Ctrl+L}"
     B:
       action: keyboard
-      keys:
-        - Ctrl
-        - c
+      sequence: "{Ctrl+C}"
     LeftBumper:
       action: keyboard
-      keys:
-        - as asd
+      sequence: "as asd"
   python:
     A:
       action: keyboard
-      keys:
-        - Enter
+      sequence: "{Enter}"
 global: {}
 sticks:
   left:

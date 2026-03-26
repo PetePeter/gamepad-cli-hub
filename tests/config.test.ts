@@ -60,12 +60,12 @@ const DEFAULT_PROFILE = {
   name: 'Default',
   cliTypes: {
     'claude-code': {
-      A: { action: 'keyboard', keys: ['Clear'] },
-      B: { action: 'keyboard', keys: ['space'], hold: true },
+      A: { action: 'keyboard', sequence: '{Ctrl+L}' },
+      B: { action: 'voice', key: 'Space', mode: 'hold' },
     },
     'copilot-cli': {
-      A: { action: 'keyboard', keys: ['Clear'] },
-      Y: { action: 'keyboard', keys: ['Ctrl', 'c'] },
+      A: { action: 'keyboard', sequence: '{Ctrl+L}' },
+      Y: { action: 'keyboard', sequence: '{Ctrl+C}' },
     },
   },
   global: {

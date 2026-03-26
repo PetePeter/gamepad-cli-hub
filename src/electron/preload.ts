@@ -16,11 +16,6 @@ const gamepadCliAPI = {
   // ========================================================================
 
   /**
-   * Refresh sessions from existing terminal windows
-   */
-  sessionRefresh: () => ipcRenderer.invoke('session:refresh'),
-
-  /**
    * Get all sessions
    */
   sessionGetAll: () => ipcRenderer.invoke('session:getAll'),
@@ -119,24 +114,10 @@ const gamepadCliAPI = {
    */
   configGetSpawnCommand: (cliType: string) => ipcRenderer.invoke('config:getSpawnCommand', cliType),
 
-  // ========================================================================
-  // Window Management
-  // ========================================================================
-
-  /**
-   * Focus a window by handle
-   */
-  focusWindow: (hwnd: string) => ipcRenderer.invoke('window:focus', hwnd),
-
   /**
    * Bring the hub app window to foreground
    */
   hubFocus: () => ipcRenderer.invoke('hub:focus'),
-
-  /**
-   * Find terminal windows
-   */
-  findTerminalWindows: () => ipcRenderer.invoke('window:findTerminals'),
 
   // ========================================================================
   // Sidebar Controls
@@ -162,15 +143,6 @@ const gamepadCliAPI = {
    */
   sidebarSetPrefs: (prefs: { side?: string; width?: number }) =>
     ipcRenderer.invoke('window:setSidebarPrefs', prefs),
-
-  // ========================================================================
-  // Process Spawning
-  // ========================================================================
-
-  /**
-   * Spawn a new CLI instance
-   */
-  spawnCli: (cliType: string, workingDir?: string) => ipcRenderer.invoke('spawn:cli', cliType, workingDir),
 
   // ========================================================================
   // PTY Terminal Management
@@ -286,18 +258,18 @@ const gamepadCliAPI = {
   toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),
 
   // ========================================================================
-  // Keyboard
+  // Voice Keyboard (OS-level key events for voice bindings)
   // ========================================================================
 
   /**
-   * Send keystrokes
+   * Tap a single key (voice binding tap mode)
    */
-  keyboardSendKeys: (keys: string[]) => ipcRenderer.invoke('keyboard:sendKeys', keys),
+  keyboardKeyTap: (key: string) => ipcRenderer.invoke('keyboard:keyTap', key),
 
   /**
-   * Type a string
+   * Tap a key combo (voice binding tap mode with modifiers)
    */
-  keyboardTypeString: (text: string) => ipcRenderer.invoke('keyboard:typeString', text),
+  keyboardSendKeyCombo: (keys: string[]) => ipcRenderer.invoke('keyboard:sendKeyCombo', keys),
 
   /**
    * Hold keys down (for hold bindings)
@@ -308,31 +280,6 @@ const gamepadCliAPI = {
    * Release held keys
    */
   keyboardComboUp: (keys: string[]) => ipcRenderer.invoke('keyboard:comboUp', keys),
-
-  // ========================================================================
-  // Foreground Sync
-  // ========================================================================
-
-  /**
-   * Start polling for foreground window changes
-   */
-  sessionStartForegroundSync: () => ipcRenderer.invoke('session:startForegroundSync'),
-
-  /**
-   * Stop polling for foreground window changes
-   */
-  sessionStopForegroundSync: () => ipcRenderer.invoke('session:stopForegroundSync'),
-
-  /**
-   * Subscribe to foreground window change events
-   * @param callback - Function to call when the foreground window changes
-   * @returns Unsubscribe function
-   */
-  onForegroundChanged: (callback: (event: { sessionId: string | null; windowHandle: string; timestamp: number }) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
-    ipcRenderer.on('session:foreground-changed', listener);
-    return () => ipcRenderer.removeListener('session:foreground-changed', listener);
-  },
 
   // ========================================================================
   // System

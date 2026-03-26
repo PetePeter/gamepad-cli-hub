@@ -30,7 +30,6 @@ const mockSession1: SessionInfo = {
   id: 'session-1',
   name: 'Claude Code 1',
   cliType: 'claude-code',
-  windowHandle: 12345,
   processId: 1001,
 };
 
@@ -38,7 +37,6 @@ const mockSession2: SessionInfo = {
   id: 'session-2',
   name: 'Copilot CLI 1',
   cliType: 'copilot-cli',
-  windowHandle: 67890,
   processId: 1002,
 };
 
@@ -60,7 +58,6 @@ describe('persistence', () => {
         name: 'Claude Code 1',
         cliType: 'claude-code',
         processId: 1001,
-        windowHandle: 12345,
       });
     });
 

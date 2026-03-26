@@ -1,25 +1,14 @@
 /**
- * Window IPC Handlers
+ * Hub Window IPC Handlers
  *
- * @deprecated Window handlers will be removed once external terminal management is retired.
- *
- * Window focus, terminal enumeration, hub window management,
- * and sidebar positioning/pinning controls.
+ * Hub window management (focus, pin, sidebar positioning).
+ * These control the Electron app window itself, not external terminals.
  */
 
 import { ipcMain, BrowserWindow, screen } from 'electron';
-import type { WindowsWindowManager } from '../../output/windows.js';
 import type { ConfigLoader } from '../../config/loader.js';
 
-export function setupWindowHandlers(windowManager: WindowsWindowManager, config: ConfigLoader): void {
-  ipcMain.handle('window:focus', async (_event, hwnd: string) => {
-    return await windowManager.focusWindow(hwnd);
-  });
-
-  ipcMain.handle('window:findTerminals', async () => {
-    return await windowManager.findTerminalWindows();
-  });
-
+export function setupHubHandlers(config: ConfigLoader): void {
   ipcMain.handle('hub:focus', () => {
     const mainWindow = BrowserWindow.getAllWindows()[0];
     if (mainWindow && !mainWindow.isDestroyed()) {

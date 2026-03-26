@@ -227,45 +227,8 @@ async function init(): Promise<void> {
   // Update profile display
   await updateProfileDisplay();
 
-  // Refresh sessions from existing terminals
-  try {
-    if (window.gamepadCli) {
-      const refreshResult = await window.gamepadCli.sessionRefresh();
-      if (refreshResult.success) {
-        logEvent(`Found ${refreshResult.total} session(s)`);
-      }
-    }
-  } catch (error) {
-    console.error('Failed to refresh sessions:', error);
-  }
-
   // Load initial data
   await loadSessions();
-
-  // Start foreground sync to track which terminal is actually focused
-  if (window.gamepadCli?.sessionStartForegroundSync) {
-    try {
-      await window.gamepadCli.sessionStartForegroundSync();
-      console.log('[Renderer] Foreground sync started');
-    } catch (error) {
-      console.warn('[Renderer] Failed to start foreground sync:', error);
-    }
-  }
-
-  // Listen for foreground window changes
-  if (window.gamepadCli?.onForegroundChanged) {
-    window.gamepadCli.onForegroundChanged((event) => {
-      if (event.sessionId && event.sessionId !== state.activeSessionId) {
-        console.log(`[Renderer] Foreground changed to session: ${event.sessionId}`);
-        state.activeSessionId = event.sessionId;
-        // Update UI highlight without triggering focus change
-        updateSessionHighlight();
-      } else if (!event.sessionId && state.activeSessionId) {
-        // Foreground is not a tracked session — keep current highlight but could dim
-        console.log('[Renderer] Foreground window is not a tracked session');
-      }
-    });
-  }
 
   // Log initialization
   logEvent('App ready');

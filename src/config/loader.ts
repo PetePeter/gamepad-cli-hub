@@ -6,7 +6,7 @@ import * as YAML from 'yaml';
 // Action & Binding Types
 // ============================================================================
 
-export type ActionType = 'keyboard' | 'session-switch' | 'spawn' | 'list-sessions' | 'profile-switch' | 'close-session' | 'hub-focus';
+export type ActionType = 'keyboard' | 'voice' | 'session-switch' | 'spawn' | 'list-sessions' | 'profile-switch' | 'close-session' | 'hub-focus';
 
 export interface BaseBinding {
   action: ActionType;
@@ -14,10 +14,13 @@ export interface BaseBinding {
 
 export interface KeyboardBinding extends BaseBinding {
   action: 'keyboard';
-  keys: string[];
-  hold?: boolean;
-  target?: 'os' | 'terminal';
-  sequence?: string;
+  sequence: string;
+}
+
+export interface VoiceBinding extends BaseBinding {
+  action: 'voice';
+  key: string;
+  mode: 'tap' | 'hold';
 }
 
 export interface SessionSwitchBinding extends BaseBinding {
@@ -47,7 +50,7 @@ export interface HubFocusBinding extends BaseBinding {
   action: 'hub-focus';
 }
 
-export type Binding = KeyboardBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding | ProfileSwitchBinding | CloseSessionBinding | HubFocusBinding;
+export type Binding = KeyboardBinding | VoiceBinding | SessionSwitchBinding | SpawnBinding | ListSessionsBinding | ProfileSwitchBinding | CloseSessionBinding | HubFocusBinding;
 
 // ============================================================================
 // Shared Config Types

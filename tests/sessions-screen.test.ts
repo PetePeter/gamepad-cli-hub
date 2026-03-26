@@ -16,11 +16,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const mockSessionGetAll = vi.fn<() => Promise<any[]>>().mockResolvedValue([]);
 const mockSessionSetActive = vi.fn().mockResolvedValue(undefined);
 const mockSessionClose = vi.fn().mockResolvedValue({ success: true });
-const mockSessionRefresh = vi.fn().mockResolvedValue(undefined);
 const mockConfigGetCliTypes = vi.fn<() => Promise<string[]>>().mockResolvedValue([]);
 const mockConfigGetWorkingDirs = vi.fn<() => Promise<any[]>>().mockResolvedValue([]);
-const mockSpawnCli = vi.fn().mockResolvedValue({ success: true, pid: 9999 });
-const mockFocusWindow = vi.fn().mockResolvedValue(true);
 const mockConfigGetSpawnCommand = vi.fn().mockResolvedValue({ command: 'claude', args: [] });
 const mockCreateTerminal = vi.fn().mockResolvedValue(true);
 
@@ -109,7 +106,7 @@ function makeSessions(count: number) {
     name: `Session ${i}`,
     cliType: 'claude-code',
     processId: 1000 + i,
-    windowHandle: `hwnd-${i}`,
+
   }));
 }
 
@@ -153,11 +150,8 @@ describe('Sessions Screen', () => {
       sessionGetAll: mockSessionGetAll,
       sessionSetActive: mockSessionSetActive,
       sessionClose: mockSessionClose,
-      sessionRefresh: mockSessionRefresh,
       configGetCliTypes: mockConfigGetCliTypes,
       configGetWorkingDirs: mockConfigGetWorkingDirs,
-      spawnCli: mockSpawnCli,
-      focusWindow: mockFocusWindow,
       configGetSpawnCommand: mockConfigGetSpawnCommand,
     };
 

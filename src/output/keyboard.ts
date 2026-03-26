@@ -1,18 +1,15 @@
 /**
- * Keyboard Simulation Module
+ * OS-level Keyboard Simulation (Voice Bindings Only)
  *
- * @deprecated Use PTY stdin writes instead. This module will be removed
- * once all keyboard input is routed through embedded terminals.
- *
- * Provides keyboard input simulation using robotjs.
- * Supports individual keys, key sequences, combinations, and hold-down/release.
+ * Provides key tap and hold operations for voice binding triggers.
+ * Regular terminal input uses PTY stdin — this module is ONLY for
+ * OS-level key events that can't be expressed via PTY.
  */
 
 import robot from '@jitsi/robotjs';
 
 /**
- * Common key name mappings for convenience.
- * Maps common aliases to robotjs key names.
+ * Key name mappings to robotjs key names.
  */
 const KEY_MAP: Record<string, string> = {
     // Control keys
@@ -86,181 +83,59 @@ const KEY_MAP: Record<string, string> = {
 };
 
 /**
- * Default delay between key operations in milliseconds.
- */
-const DEFAULT_KEY_DELAY = 10;
-
-/**
- * KeyboardSimulator class for simulating keyboard input.
+ * KeyboardSimulator — OS-level key simulation for voice bindings.
  */
 export class KeyboardSimulator {
-    private keyDelay: number;
-
-    /**
-     * Creates a new KeyboardSimulator instance.
-     *
-     * @param keyDelay - Delay between key operations in milliseconds (default: 10)
-     */
-    constructor(keyDelay: number = DEFAULT_KEY_DELAY) {
-        this.keyDelay = keyDelay;
-        // Note: @jitsi/robotjs doesn't support setKeyboardDelay
-        // Delay is managed internally for manual use if needed
-    }
-
-    /**
-     * Normalizes a key name using the key map.
-     *
-     * @param keyName - The key name to normalize
-     * @returns The normalized key name for robotjs
-     */
     private normalizeKey(keyName: string): string {
         const lowerKey = keyName.toLowerCase();
         return KEY_MAP[lowerKey] || lowerKey;
     }
 
-    /**
-     * Sends a single key tap (press and release).
-     *
-     * @param keyName - The name of the key to send
-     *
-     * @example
-     * ```ts
-     * keyboard.sendKey('a');
-     * keyboard.sendKey('enter');
-     * keyboard.sendKey('f5');
-     * ```
-     */
-    sendKey(keyName: string): void {
+    /** Tap a single key (press and release). Used for voice tap mode. */
+    keyTap(keyName: string): void {
         const normalizedKey = this.normalizeKey(keyName);
         robot.keyTap(normalizedKey);
     }
 
-    /**
-     * Sends a sequence of keys in order.
-     *
-     * @param keyNames - Array of key names to send sequentially
-     *
-     * @example
-     * ```ts
-     * keyboard.sendKeys(['h', 'e', 'l', 'l', 'o']);
-     * keyboard.sendKeys(['ctrl', 'c']); // Not a combo - sends ctrl then c
-     * ```
-     */
-    sendKeys(keyNames: string[]): void {
-        for (const key of keyNames) {
-            this.sendKey(key);
-        }
-    }
-
-    /**
-     * Sends a key combination (multiple keys held together).
-     *
-     * The first key in the array is pressed first, followed by all modifiers,
-     * then all are released in reverse order.
-     *
-     * @param keyNames - Array of key names to send as a combination
-     *
-     * @example
-     * ```ts
-     * keyboard.sendKeyCombo(['ctrl', 'c']); // Copy
-     * keyboard.sendKeyCombo(['ctrl', 'v']); // Paste
-     * keyboard.sendKeyCombo(['ctrl', 'shift', 'esc']); // Task manager
-     * ```
-     */
+    /** Tap a key combo (modifiers + main key). Used for voice tap mode with combos. */
     sendKeyCombo(keyNames: string[]): void {
         if (keyNames.length === 0) return;
         if (keyNames.length === 1) {
-            this.sendKey(keyNames[0]);
+            this.keyTap(keyNames[0]);
             return;
         }
-
-        // Normalize all keys
         const normalizedKeys = keyNames.map(k => this.normalizeKey(k));
-
-        // The last key is the "main" key, others are modifiers
         const mainKey = normalizedKeys[normalizedKeys.length - 1];
         const modifiers = normalizedKeys.slice(0, -1);
-
         robot.keyTap(mainKey, modifiers);
     }
 
-    /**
-     * Presses a key down without releasing it.
-     *
-     * @param keyName - The name of the key to press down
-     */
+    /** Press a key down without releasing. Used for voice hold mode. */
     keyDown(keyName: string): void {
         const normalizedKey = this.normalizeKey(keyName);
         robot.keyToggle(normalizedKey, 'down');
     }
 
-    /**
-     * Releases a previously pressed key.
-     *
-     * @param keyName - The name of the key to release
-     */
+    /** Release a previously pressed key. Used for voice hold mode. */
     keyUp(keyName: string): void {
         const normalizedKey = this.normalizeKey(keyName);
         robot.keyToggle(normalizedKey, 'up');
     }
 
-    /**
-     * Presses multiple keys down in order without releasing them.
-     *
-     * @param keyNames - Array of key names to press down
-     */
+    /** Press multiple keys down in order. Used for voice hold mode with combos. */
     comboDown(keyNames: string[]): void {
         for (const key of keyNames) {
             this.keyDown(key);
         }
     }
 
-    /**
-     * Releases multiple keys in reverse order.
-     *
-     * @param keyNames - Array of key names to release (reversed internally)
-     */
+    /** Release multiple keys in reverse order. Used for voice hold mode. */
     comboUp(keyNames: string[]): void {
         for (const key of [...keyNames].reverse()) {
             this.keyUp(key);
         }
     }
-
-    /**
-     * Types a string of text character by character.
-     *
-     * @param text - The text string to type
-     *
-     * @example
-     * ```ts
-     * keyboard.typeString('Hello World');
-     * ```
-     */
-    typeString(text: string): void {
-        robot.typeString(text);
-    }
-
-    /**
-     * Updates the delay between key operations.
-     *
-     * @param delay - New delay in milliseconds
-     */
-    setKeyDelay(delay: number): void {
-        this.keyDelay = delay;
-        // Note: @jitsi/robotjs doesn't support setKeyboardDelay
-    }
-
-    /**
-     * Gets the current key delay.
-     *
-     * @returns The current delay in milliseconds
-     */
-    getKeyDelay(): number {
-        return this.keyDelay;
-    }
 }
 
-/**
- * Default singleton instance for convenience.
- */
+/** Default singleton instance. */
 export const keyboard = new KeyboardSimulator();
