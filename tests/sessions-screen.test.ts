@@ -68,7 +68,6 @@ function buildSidebarDom(): void {
       <div class="spawn-wizard" id="spawnWizard" style="display:none"></div>
     </section>
     <div id="terminalArea" style="display:none">
-      <div id="terminalTabs"></div>
       <div id="terminalContainer"></div>
     </div>
     <div id="panelSplitter" style="display:none"></div>
@@ -290,13 +289,13 @@ describe('Sessions Screen', () => {
       expect(cards).toHaveLength(3);
     });
 
-    it('session card contains .session-icon element', async () => {
+    it('session card contains .tab-state-dot element', async () => {
       setMockTerminalSessions(makeSessions(1));
       await loadAndFlush(sessions);
 
-      const icon = document.querySelector('#sessionsList .session-card .session-icon');
-      expect(icon).not.toBeNull();
-      expect(icon!.textContent).toBe('🤖');
+      const dot = document.querySelector('#sessionsList .session-card .tab-state-dot');
+      expect(dot).not.toBeNull();
+      expect(dot!.classList.contains('tab-state-dot--idle')).toBe(true);
     });
 
     it('session card contains .session-info with .session-name and .session-meta', async () => {
@@ -312,7 +311,7 @@ describe('Sessions Screen', () => {
       expect(name).not.toBeNull();
       expect(meta).not.toBeNull();
       expect(name!.textContent).toBe('claude-code');
-      expect(meta!.textContent).toContain('PID 0');
+      expect(meta!.textContent).toBe('💤 Idle');
     });
 
     it('active session card has .active class', async () => {
@@ -341,7 +340,7 @@ describe('Sessions Screen', () => {
       await loadAndFlush(sessions);
 
       const name = document.querySelector('.session-name')!;
-      expect(name.textContent).toBe('Terminal');
+      expect(name.textContent).toBe('unknown');
     });
 
     it('updates status counts', async () => {

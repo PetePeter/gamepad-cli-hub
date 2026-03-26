@@ -12,6 +12,40 @@ import type { TerminalManager } from '../terminal/terminal-manager.js';
 import type { Session } from '../state.js';
 
 // ============================================================================
+// State helpers
+// ============================================================================
+
+const STATE_LABELS: Record<string, string> = {
+  implementing: '🔨 Implementing',
+  waiting: '⏳ Waiting',
+  planning: '🧠 Planning',
+  idle: '💤 Idle',
+};
+
+const STATE_ORDER: Record<string, number> = {
+  implementing: 0,
+  waiting: 1,
+  planning: 2,
+  idle: 3,
+};
+
+function getStateLabel(sessionState: string): string {
+  return STATE_LABELS[sessionState] || '💤 Idle';
+}
+
+function getSessionState(sessionId: string): string {
+  // TODO: Wire to actual state detection. For now, default to 'idle'.
+  return 'idle';
+}
+
+function getSessionCwd(sessionId: string): string {
+  const tm = terminalManagerGetter ? terminalManagerGetter() : null;
+  if (!tm) return '';
+  const session = tm.getSession(sessionId);
+  return session?.cwd || '';
+}
+
+// ============================================================================
 // Public API
 // ============================================================================
 
@@ -203,6 +237,13 @@ async function loadSessionsData(): Promise<void> {
     }
   }
 
+  // Sort sessions by state priority
+  state.sessions.sort((a, b) => {
+    const stateA = STATE_ORDER[getSessionState(a.id)] ?? 3;
+    const stateB = STATE_ORDER[getSessionState(b.id)] ?? 3;
+    return stateA - stateB;
+  });
+
   try {
     sessionsState.cliTypes = await window.gamepadCli.configGetCliTypes();
   } catch (e) { console.error('[Sessions] Failed to load CLI types:', e); }
@@ -254,25 +295,30 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   }
   card.dataset.sessionId = session.id;
 
-  const icon = document.createElement('span');
-  icon.className = 'session-icon';
-  icon.textContent = getCliIcon(session.cliType);
+  // State dot icon (replaces old CLI icon)
+  const dot = document.createElement('span');
+  const sessionState = getSessionState(session.id);
+  dot.className = `tab-state-dot tab-state-dot--${sessionState}`;
 
   const info = document.createElement('div');
   info.className = 'session-info';
 
+  // Heading: CLI display name + folder
   const name = document.createElement('span');
   name.className = 'session-name';
-  name.textContent = session.name || `Session ${index + 1}`;
+  const displayName = getCliDisplayName(session.cliType);
+  const folder = getSessionCwd(session.id);
+  name.textContent = folder ? `${displayName} — ${folder}` : displayName;
 
+  // Meta: state label
   const meta = document.createElement('span');
   meta.className = 'session-meta';
-  meta.textContent = `${getCliDisplayName(session.cliType)} · PID ${session.processId}`;
+  meta.textContent = getStateLabel(sessionState);
 
   info.appendChild(name);
   info.appendChild(meta);
 
-  card.appendChild(icon);
+  card.appendChild(dot);
   card.appendChild(info);
 
   card.addEventListener('click', () => switchToSession(session.id));

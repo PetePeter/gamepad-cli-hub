@@ -12,6 +12,7 @@ export interface TerminalSession {
   cliType: string;
   view: TerminalView;
   element: HTMLElement;
+  cwd?: string;
 }
 
 export class TerminalManager {
@@ -65,7 +66,7 @@ export class TerminalManager {
       },
     });
 
-    this.terminals.set(sessionId, { sessionId, cliType, view, element });
+    this.terminals.set(sessionId, { sessionId, cliType, view, element, cwd });
 
     const result = await window.gamepadCli?.ptySpawn(sessionId, command, args, cwd, cliType);
     console.log(`[TerminalManager] ptySpawn result:`, JSON.stringify(result));
@@ -77,7 +78,6 @@ export class TerminalManager {
 
     // Always activate the newly created terminal
     this.switchTo(sessionId);
-    this.renderTabs();
 
     return true;
   }
@@ -106,7 +106,6 @@ export class TerminalManager {
       session.view.focus();
     });
 
-    this.renderTabs();
     this.onSwitch?.(sessionId);
   }
 
@@ -163,7 +162,6 @@ export class TerminalManager {
       }
     }
 
-    this.renderTabs();
   }
 
   /** Write data to a terminal's display (from PTY output) */
@@ -212,41 +210,6 @@ export class TerminalManager {
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
-    }
-  }
-
-  /** Render the tab bar reflecting current terminal sessions */
-  private renderTabs(): void {
-    const tabBar = document.getElementById('terminalTabs');
-    if (!tabBar) return;
-    tabBar.innerHTML = '';
-
-    for (const [id, session] of this.terminals) {
-      const tab = document.createElement('div');
-      tab.className = 'terminal-tab';
-      tab.dataset.sessionId = id;
-      if (id === this.activeSessionId) tab.classList.add('terminal-tab--active');
-
-      const stateDot = document.createElement('span');
-      stateDot.className = 'tab-state-dot tab-state-dot--idle';
-
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'terminal-tab__name';
-      nameSpan.textContent = session.cliType;
-
-      const closeBtn = document.createElement('span');
-      closeBtn.className = 'tab-close';
-      closeBtn.textContent = '×';
-      closeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.destroyTerminal(id);
-      });
-
-      tab.appendChild(stateDot);
-      tab.appendChild(nameSpan);
-      tab.appendChild(closeBtn);
-      tab.addEventListener('click', () => this.switchTo(id));
-      tabBar.appendChild(tab);
     }
   }
 

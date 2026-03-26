@@ -227,7 +227,7 @@ function renderActionParams(form: HTMLElement, binding: any): void {
         const textarea = document.createElement('textarea');
         textarea.id = 'bindingEditorSequence';
         textarea.rows = 5;
-        textarea.className = 'focusable';
+        textarea.className = 'sequence-textarea focusable';
         textarea.placeholder = 'Type text, use {Ctrl+S} for combos, newlines = Enter';
         textarea.value = savedSequence;
         seqField.appendChild(textarea);

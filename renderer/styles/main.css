@@ -306,31 +306,20 @@ button {
 .session-card {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) 10px;
-  background: transparent;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 8px);
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: all 0.15s;
 }
 .session-card:hover,
 .session-card.focused { background: var(--bg-tertiary); }
 .session-card.active { border-color: var(--accent); background: var(--bg-secondary); }
-.session-card .session-icon { font-size: 18px; flex-shrink: 0; width: 24px; text-align: center; }
+.session-card .tab-state-dot { flex-shrink: 0; }
 .session-card .session-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .session-card .session-name { font-size: var(--font-size-sm); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .session-card .session-meta { font-size: 10px; color: var(--text-dim); }
-.session-card .session-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
-.session-card:hover .session-actions,
-.session-card.focused .session-actions { opacity: 1; }
-.session-card .session-actions button {
-  padding: 2px 4px;
-  font-size: 11px;
-  border-radius: 3px;
-  color: var(--text-secondary);
-}
-.session-card .session-actions button:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 
 /* Quick Spawn Grid */
 .spawn-section {
@@ -962,7 +951,7 @@ kbd {
   border-color: var(--accent);
 }
 
-#bindingEditorSequence {
+.sequence-textarea {
   width: 100%;
   min-height: 80px;
   font-family: 'Consolas', 'Courier New', monospace;
@@ -975,9 +964,13 @@ kbd {
   resize: vertical;
 }
 
-#bindingEditorSequence:focus {
+.sequence-textarea:focus {
   border-color: var(--accent);
   outline: none;
+}
+
+.sequence-textarea::placeholder {
+  color: var(--text-dim);
 }
 
 .sequence-help-toggle {
@@ -1300,52 +1293,6 @@ kbd {
 
 /* .terminal-area replaced by .panel-right in app layout */
 
-.terminal-tabs {
-  display: flex;
-  align-items: stretch;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-  flex-shrink: 0;
-  height: 36px;
-}
-
-.terminal-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 14px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  border-right: 1px solid var(--border);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s;
-  position: relative;
-}
-
-.terminal-tab:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.terminal-tab--active {
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.terminal-tab--active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--accent);
-}
-
 .tab-state-dot {
   width: 8px;
   height: 8px;
@@ -1357,47 +1304,6 @@ kbd {
 .tab-state-dot--waiting { background: #ffaa00; box-shadow: 0 0 6px #ffaa00; }
 .tab-state-dot--planning { background: #4488ff; box-shadow: 0 0 6px #4488ff; }
 .tab-state-dot--idle { background: #555555; }
-
-.terminal-tab__name {
-  font-weight: 500;
-}
-
-.terminal-tab__badge {
-  font-size: 10px;
-  padding: 0 4px;
-  border-radius: var(--radius-sm, 4px);
-  font-weight: 700;
-}
-
-.terminal-tab__badge--question {
-  background: rgba(255, 170, 0, 0.2);
-  color: #ffaa00;
-}
-
-.terminal-tab__badge--queue {
-  background: rgba(255, 170, 0, 0.15);
-  color: #ffaa00;
-  font-size: 9px;
-}
-
-.tab-close {
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: var(--text-dim);
-  border-radius: 2px;
-  cursor: pointer;
-  font-size: 12px;
-  margin-left: 4px;
-}
-
-.tab-close:hover {
-  background: #cc3333;
-  color: white;
-}
 
 .terminal-container {
   flex: 1;
@@ -1432,5 +1338,3 @@ kbd {
 .terminal-status__info {
   margin-left: auto;
 }
-
-/* State color indicators on tabs — driven by tab-state-dot classes above */

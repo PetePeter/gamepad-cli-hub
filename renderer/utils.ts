@@ -231,6 +231,7 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
       } else if (field.type === 'textarea') {
         const textarea = document.createElement('textarea');
         textarea.id = `formField_${field.key}`;
+        textarea.className = 'sequence-textarea';
         textarea.value = field.defaultValue || '';
         textarea.rows = 4;
         if (field.placeholder) textarea.placeholder = field.placeholder;
