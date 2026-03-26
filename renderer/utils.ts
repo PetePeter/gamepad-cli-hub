@@ -189,7 +189,7 @@ export interface FormField {
   label: string;
   defaultValue?: string;
   placeholder?: string;
-  type?: 'text' | 'select';
+  type?: 'text' | 'select' | 'textarea';
   options?: FormFieldOption[];
 }
 
@@ -226,6 +226,13 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
           select.appendChild(option);
         });
         wrapper.appendChild(select);
+      } else if (field.type === 'textarea') {
+        const textarea = document.createElement('textarea');
+        textarea.id = `formField_${field.key}`;
+        textarea.value = field.defaultValue || '';
+        textarea.rows = 4;
+        if (field.placeholder) textarea.placeholder = field.placeholder;
+        wrapper.appendChild(textarea);
       } else {
         const input = document.createElement('input');
         input.type = 'text';
@@ -242,7 +249,7 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
     modal.setAttribute('aria-hidden', 'false');
 
     // Focus first input
-    const firstInput = fieldsEl.querySelector('input, select') as HTMLElement;
+    const firstInput = fieldsEl.querySelector('input, select, textarea') as HTMLElement;
     if (firstInput) firstInput.focus();
 
     function cleanup() {
@@ -255,7 +262,7 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
     function onSave() {
       const result: Record<string, string> = {};
       fields.forEach(field => {
-        const el = document.getElementById(`formField_${field.key}`) as HTMLInputElement | HTMLSelectElement;
+        const el = document.getElementById(`formField_${field.key}`) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
         result[field.key] = el?.value?.trim() || '';
       });
       cleanup();

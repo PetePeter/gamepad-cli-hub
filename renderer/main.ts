@@ -9,7 +9,7 @@ import { browserGamepad } from './gamepad.js';
 import { state } from './state.js';
 import { logEvent, showScreen, setLoadSettingsCallback, updateProfileDisplay } from './utils.js';
 import { initConfigCache } from './bindings.js';
-import { loadSessions, updateSessionHighlight, setDirPickerBridge } from './screens/sessions.js';
+import { loadSessions, updateSessionHighlight, setDirPickerBridge, setTerminalManagerGetter, hideTerminalArea } from './screens/sessions.js';
 import { loadSettingsScreen } from './screens/settings.js';
 import {
   setupGamepadNavigation,
@@ -33,48 +33,6 @@ export function getTerminalManager(): TerminalManager | null {
 }
 
 // ============================================================================
-// Debug Logging
-// ============================================================================
-
-function debugLog(message: string, type: 'info' | 'warn' | 'error' | 'success' = 'info'): void {
-  const debugLogContent = document.getElementById('debugLogContent');
-  if (!debugLogContent) return;
-
-  const line = document.createElement('div');
-  line.className = `debug-log__line debug-log__line--${type}`;
-  line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-  debugLogContent.appendChild(line);
-
-  // Auto-scroll to bottom
-  debugLogContent.scrollTop = debugLogContent.scrollHeight;
-
-  // Keep only last 100 lines
-  while (debugLogContent.children.length > 100) {
-    debugLogContent.removeChild(debugLogContent.firstChild!);
-  }
-}
-
-// Override console.log to also show in debug panel
-const originalLog = console.log;
-const originalWarn = console.warn;
-const originalError = console.error;
-
-console.log = (...args: any[]) => {
-  originalLog.apply(console, args);
-  debugLog(args.join(' '), 'info');
-};
-
-console.warn = (...args: any[]) => {
-  originalWarn.apply(console, args);
-  debugLog(args.join(' '), 'warn');
-};
-
-console.error = (...args: any[]) => {
-  originalError.apply(console, args);
-  debugLog(args.join(' '), 'error');
-};
-
-// ============================================================================
 // Cross-module wiring (breaks circular dependencies)
 // ============================================================================
 
@@ -84,9 +42,14 @@ setLoadSettingsCallback(() => loadSettingsScreen());
 // Let sessions.spawnNewSession open the dir picker without importing the modal
 setDirPickerBridge((cliType, dirs) => showDirPicker(cliType, dirs));
 
+// Let sessions.doSpawn access the terminal manager without importing main.ts
+setTerminalManagerGetter(() => terminalManager);
+
 // ============================================================================
 // UI Event Handlers
 // ============================================================================
+
+const PANEL_WIDTH_KEY = 'gamepad-hub:panel-width';
 
 function setupUIHandlers(): void {
   // Settings button (in sidebar header)
@@ -97,36 +60,6 @@ function setupUIHandlers(): void {
   // Settings back button
   document.getElementById('settingsBackBtn')?.addEventListener('click', () => {
     showScreen('sessions');
-  });
-
-  // Sidebar pin toggle
-  document.getElementById('pinBtn')?.addEventListener('click', async () => {
-    try {
-      const result = await window.gamepadCli?.sidebarTogglePin();
-      if (result?.success) {
-        const btn = document.getElementById('pinBtn');
-        if (btn) btn.textContent = result.pinned ? '📌' : '📍';
-        logEvent(result.pinned ? 'Pinned on top' : 'Unpinned');
-      }
-    } catch (e) { console.error('[Renderer] Pin toggle failed:', e); }
-  });
-
-  // Sidebar side toggle (left ↔ right)
-  document.getElementById('sideToggleBtn')?.addEventListener('click', async () => {
-    try {
-      const result = await window.gamepadCli?.sidebarToggleSide();
-      if (result?.success) {
-        logEvent(`Snapped ${result.side}`);
-      }
-    } catch (e) { console.error('[Renderer] Side toggle failed:', e); }
-  });
-
-  // Close debug log
-  document.getElementById('closeDebugLog')?.addEventListener('click', () => {
-    const debugLogEl = document.getElementById('debugLog');
-    if (debugLogEl) {
-      debugLogEl.style.display = 'none';
-    }
   });
 
   // Directory picker cancel button
@@ -146,15 +79,59 @@ function setupUIHandlers(): void {
     saveBinding();
   });
 
-  // Keyboard shortcut to toggle debug log (Ctrl+L)
-  document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key === 'l') {
-      e.preventDefault();
-      const debugLogEl = document.getElementById('debugLog');
-      if (debugLogEl) {
-        debugLogEl.style.display = debugLogEl.style.display === 'none' ? 'flex' : 'none';
-      }
-    }
+  // Restore persisted panel width
+  const panel = document.getElementById('panelLeft');
+  const saved = localStorage.getItem(PANEL_WIDTH_KEY);
+  if (panel && saved) {
+    const w = parseInt(saved, 10);
+    if (w >= 200 && w <= 600) panel.style.width = `${w}px`;
+  }
+
+  // Panel splitter drag
+  setupPanelSplitter();
+
+  // Click on sidebar → unfocus terminal, return keyboard to sidebar navigation
+  document.getElementById('panelLeft')?.addEventListener('mousedown', () => {
+    state.terminalFocused = false;
+  });
+}
+
+function setupPanelSplitter(): void {
+  const splitter = document.getElementById('panelSplitter');
+  const panel = document.getElementById('panelLeft');
+  if (!splitter || !panel) return;
+
+  let dragging = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  splitter.addEventListener('mousedown', (e: MouseEvent) => {
+    e.preventDefault();
+    dragging = true;
+    startX = e.clientX;
+    startWidth = panel.getBoundingClientRect().width;
+    splitter.classList.add('panel-splitter--dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', (e: MouseEvent) => {
+    if (!dragging) return;
+    const newWidth = Math.max(200, Math.min(600, startWidth + (e.clientX - startX)));
+    panel.style.width = `${newWidth}px`;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    splitter.classList.remove('panel-splitter--dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    // Persist width
+    const w = Math.round(panel.getBoundingClientRect().width);
+    localStorage.setItem(PANEL_WIDTH_KEY, String(w));
+    // Refit active terminal
+    terminalManager?.fitActive?.();
   });
 }
 
@@ -199,13 +176,36 @@ async function init(): Promise<void> {
   // (Now handled by the sessions screen launcher panels)
 
   // Cache config bindings for fast gamepad dispatch
-  await initConfigCache();
+  try {
+    await initConfigCache();
+  } catch (error) {
+    console.error('[Renderer] Failed to init config cache:', error);
+  }
 
   // Initialize embedded terminal manager
-  const terminalContainer = document.getElementById('terminalContainer');
-  if (terminalContainer) {
-    terminalManager = new TerminalManager(terminalContainer);
-    console.log('[Renderer] Terminal manager initialized');
+  try {
+    const terminalContainer = document.getElementById('terminalContainer');
+    if (terminalContainer) {
+      terminalManager = new TerminalManager(terminalContainer);
+      terminalManager.setOnEmpty(() => {
+        hideTerminalArea();
+        state.terminalFocused = false;
+      });
+      console.log('[Renderer] Terminal manager initialized');
+
+      // Click on terminal area → focus terminal
+      const terminalArea = document.getElementById('terminalArea');
+      terminalArea?.addEventListener('mousedown', () => {
+        if (terminalManager?.getActiveSessionId()) {
+          state.terminalFocused = true;
+          terminalManager.focusActive();
+        }
+      });
+    } else {
+      console.error('[Renderer] #terminalContainer not found in DOM');
+    }
+  } catch (error) {
+    console.error('[Renderer] Failed to init terminal manager:', error);
   }
 
   // Update profile display

@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terminal View — Single Active Terminal</title>
+<style>
+  /* ====== DESIGN SYSTEM (matching existing dark theme + sidebar mockups) ====== */
+  :root {
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #111111;
+    --bg-tertiary: #1a1a1a;
+    --bg-hover: #222222;
+    --accent: #ff6600;
+    --accent-hover: #ff8833;
+    --accent-dim: rgba(255, 102, 0, 0.15);
+    --text-primary: #eee;
+    --text-secondary: #999;
+    --text-dim: #555;
+    --border: #222222;
+    --border-active: #333;
+    --success: #44cc44;
+    --danger: #cc3333;
+    --warning: #ffaa00;
+    --info: #4488ff;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --sidebar-width: 320px;
+
+    /* Terminal state colours */
+    --state-implementing: #44cc44;
+    --state-waiting: #ffaa00;
+    --state-planning: #4488ff;
+    --state-idle: #555555;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.4;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ====== PLACEHOLDER SIDEBAR (from other session) ====== */
+  .sidebar-placeholder {
+    width: var(--sidebar-width);
+    height: 100vh;
+    background: var(--bg-primary);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    opacity: 0.35;
+    pointer-events: none;
+  }
+
+  .sidebar-placeholder-header {
+    padding: 10px 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sidebar-placeholder-logo {
+    width: 20px; height: 20px; background: var(--accent);
+    border-radius: var(--radius-sm); display: flex; align-items: center;
+    justify-content: center; font-size: 11px; font-weight: 800; color: white;
+  }
+
+  .sidebar-placeholder-title { font-size: 13px; font-weight: 700; }
+
+  .sidebar-placeholder-sessions {
+    flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 4px;
+  }
+
+  .sidebar-placeholder-card {
+    display: flex; align-items: center; gap: 10px; padding: 10px;
+    border-radius: var(--radius-md); border: 1px solid transparent;
+  }
+
+  .sidebar-placeholder-card--active {
+    background: var(--accent-dim); border-color: var(--accent);
+  }
+
+  .placeholder-icon {
+    width: 32px; height: 32px; border-radius: var(--radius-sm);
+    background: var(--bg-tertiary); display: flex; align-items: center;
+    justify-content: center; font-size: 14px;
+  }
+
+  .sidebar-placeholder-card--active .placeholder-icon { background: var(--accent); }
+
+  .placeholder-info { flex: 1; }
+  .placeholder-name { font-weight: 600; font-size: 12px; }
+  .placeholder-meta { font-size: 10px; color: var(--text-secondary); }
+
+  /* ====== TERMINAL MAIN AREA ====== */
+  .terminal-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--bg-primary);
+  }
+
+  /* ====== TERMINAL TAB BAR ====== */
+  .terminal-tabs {
+    display: flex;
+    align-items: stretch;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    height: 36px;
+    overflow-x: auto;
+  }
+
+  .terminal-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    position: relative;
+  }
+
+  .terminal-tab:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+  .terminal-tab--active {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .terminal-tab--active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent);
+  }
+
+  .tab-state-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .tab-state-dot--implementing { background: var(--state-implementing); box-shadow: 0 0 6px var(--state-implementing); }
+  .tab-state-dot--waiting { background: var(--state-waiting); box-shadow: 0 0 6px var(--state-waiting); }
+  .tab-state-dot--planning { background: var(--state-planning); box-shadow: 0 0 6px var(--state-planning); }
+  .tab-state-dot--idle { background: var(--state-idle); }
+
+  .tab-close {
+    width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;
+    border: none; background: transparent; color: var(--text-dim); border-radius: 2px;
+    cursor: pointer; font-size: 12px; margin-left: 4px;
+  }
+  .tab-close:hover { background: var(--danger); color: white; }
+
+  /* ====== TERMINAL STATUS BAR ====== */
+  .terminal-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    font-size: 11px;
+    height: 28px;
+  }
+
+  .terminal-status-bar__left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .terminal-status-bar__right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .state-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .state-badge--implementing {
+    background: rgba(68, 204, 68, 0.12);
+    color: var(--state-implementing);
+    border: 1px solid rgba(68, 204, 68, 0.25);
+  }
+
+  .state-badge--waiting {
+    background: rgba(255, 170, 0, 0.12);
+    color: var(--state-waiting);
+    border: 1px solid rgba(255, 170, 0, 0.25);
+  }
+
+  .state-badge--planning {
+    background: rgba(68, 136, 255, 0.12);
+    color: var(--state-planning);
+    border: 1px solid rgba(68, 136, 255, 0.25);
+  }
+
+  .state-badge--idle {
+    background: rgba(85, 85, 85, 0.12);
+    color: var(--state-idle);
+    border: 1px solid rgba(85, 85, 85, 0.25);
+  }
+
+  .state-badge__dot {
+    width: 6px; height: 6px; border-radius: 50%;
+  }
+  .state-badge--implementing .state-badge__dot { background: var(--state-implementing); }
+  .state-badge--waiting .state-badge__dot { background: var(--state-waiting); }
+  .state-badge--planning .state-badge__dot { background: var(--state-planning); }
+  .state-badge--idle .state-badge__dot { background: var(--state-idle); }
+
+  .status-meta {
+    color: var(--text-dim);
+    font-family: 'Consolas', monospace;
+    font-size: 11px;
+  }
+
+  .status-uptime { color: var(--text-dim); }
+
+  /* ====== TERMINAL BODY (xterm.js placeholder) ====== */
+  .terminal-body {
+    flex: 1;
+    background: #0c0c0c;
+    padding: 8px 12px;
+    font-family: 'Cascadia Code', 'Consolas', 'Fira Code', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #d4d4d4;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .terminal-body .prompt { color: var(--accent); font-weight: 600; }
+  .terminal-body .ai-output { color: #d4d4d4; }
+  .terminal-body .ai-thinking { color: #888; font-style: italic; }
+  .terminal-body .ai-code { color: #9cdcfe; background: rgba(255,255,255,0.04); padding: 0 3px; border-radius: 2px; }
+  .terminal-body .ai-success { color: var(--state-implementing); font-weight: 600; }
+  .terminal-body .ai-keyword { color: var(--warning); font-weight: 700; }
+  .terminal-body .cursor-block {
+    display: inline-block; width: 8px; height: 16px; background: #d4d4d4;
+    animation: blink 1s step-end infinite; vertical-align: text-bottom;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .terminal-line { margin-bottom: 2px; }
+  .terminal-line--gap { margin-top: 8px; }
+  .terminal-line--indent { padding-left: 16px; }
+
+  /* ====== TERMINAL INPUT INDICATOR ====== */
+  .input-indicator {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 4px 12px;
+    background: linear-gradient(transparent, rgba(12, 12, 12, 0.95));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .input-mode-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(255, 102, 0, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(255, 102, 0, 0.3);
+  }
+
+  /* ====== TERMINAL FOOTER (gamepad hints) ====== */
+  .terminal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    font-size: 11px;
+  }
+
+  .footer-hints {
+    display: flex;
+    gap: 12px;
+  }
+
+  .footer-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-dim);
+  }
+
+  kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    padding: 1px 5px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-active);
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+
+  .footer-profile {
+    color: var(--text-dim);
+  }
+
+  .footer-profile span { color: var(--accent); font-weight: 600; }
+
+  /* ====== ANNOTATIONS ====== */
+  .note-box {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    max-width: 380px;
+    background: rgba(0,0,0,0.9);
+    border: 1px solid rgba(100, 170, 255, 0.3);
+    border-radius: 8px;
+    padding: 16px;
+    font-size: 12px;
+    color: #aaa;
+    line-height: 1.5;
+    z-index: 100;
+  }
+
+  .note-box h3 { color: #6af; font-size: 13px; margin-bottom: 8px; }
+  .note-box ul { margin-left: 16px; margin-top: 4px; }
+  .note-box li { margin-bottom: 4px; }
+  .note-box code { color: var(--accent); background: rgba(255,102,0,0.1); padding: 1px 4px; border-radius: 2px; font-size: 11px; }
+
+  .annotation-arrow {
+    position: absolute;
+    font-size: 11px;
+    color: #6af;
+    background: rgba(100, 170, 255, 0.08);
+    border: 1px dashed rgba(100, 170, 255, 0.3);
+    padding: 3px 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 50;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+  /* Implementing animation — subtle left border pulse */
+  .terminal-body--implementing {
+    border-left: 3px solid var(--state-implementing);
+    animation: pulse-green 2s ease-in-out infinite;
+  }
+  @keyframes pulse-green {
+    0%, 100% { border-left-color: rgba(68, 204, 68, 0.4); }
+    50% { border-left-color: rgba(68, 204, 68, 1); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ====== SIDEBAR PLACEHOLDER (greyed out — built in other session) ====== -->
+<div class="sidebar-placeholder">
+  <div class="sidebar-placeholder-header">
+    <div class="sidebar-placeholder-logo">🎮</div>
+    <span class="sidebar-placeholder-title">Gamepad Hub</span>
+  </div>
+  <div class="sidebar-placeholder-sessions">
+    <div class="sidebar-placeholder-card sidebar-placeholder-card--active">
+      <div class="placeholder-icon">🟢</div>
+      <div class="placeholder-info">
+        <div class="placeholder-name">claude-code #1</div>
+        <div class="placeholder-meta">🔨 Implementing</div>
+      </div>
+    </div>
+    <div class="sidebar-placeholder-card">
+      <div class="placeholder-icon">⬡</div>
+      <div class="placeholder-info">
+        <div class="placeholder-name">copilot-cli #1</div>
+        <div class="placeholder-meta">⏳ Waiting</div>
+      </div>
+    </div>
+    <div class="sidebar-placeholder-card">
+      <div class="placeholder-icon">⬡</div>
+      <div class="placeholder-info">
+        <div class="placeholder-name">opencode #1</div>
+        <div class="placeholder-meta">🧠 Planning</div>
+      </div>
+    </div>
+    <div class="sidebar-placeholder-card">
+      <div class="placeholder-icon">⬡</div>
+      <div class="placeholder-info">
+        <div class="placeholder-name">claude-code #2</div>
+        <div class="placeholder-meta">💤 Idle</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== TERMINAL MAIN AREA ====== -->
+<div class="terminal-area">
+
+  <!-- Tab bar — shows all open terminals -->
+  <div class="terminal-tabs">
+    <div class="terminal-tab terminal-tab--active">
+      <span class="tab-state-dot tab-state-dot--implementing"></span>
+      <span>claude-code #1</span>
+      <button class="tab-close">×</button>
+    </div>
+    <div class="terminal-tab">
+      <span class="tab-state-dot tab-state-dot--waiting"></span>
+      <span>copilot-cli #1</span>
+      <button class="tab-close">×</button>
+    </div>
+    <div class="terminal-tab">
+      <span class="tab-state-dot tab-state-dot--planning"></span>
+      <span>opencode #1</span>
+      <button class="tab-close">×</button>
+    </div>
+    <div class="terminal-tab">
+      <span class="tab-state-dot tab-state-dot--idle"></span>
+      <span>claude-code #2</span>
+      <button class="tab-close">×</button>
+    </div>
+  </div>
+
+  <!-- Status bar — shows terminal info + state badge -->
+  <div class="terminal-status-bar">
+    <div class="terminal-status-bar__left">
+      <span class="state-badge state-badge--implementing">
+        <span class="state-badge__dot"></span>
+        🔨 Implementing
+      </span>
+      <span class="status-meta">claude-code • PID 14832 • X:\coding\gamepad-cli-hub</span>
+    </div>
+    <div class="terminal-status-bar__right">
+      <span class="status-uptime">↑ 12m 34s</span>
+      <span class="status-meta">80×24</span>
+    </div>
+  </div>
+
+  <!-- Terminal body — this is where xterm.js will render -->
+  <div class="terminal-body terminal-body--implementing">
+    <div class="terminal-line"><span class="prompt">claude &gt;</span> <span class="ai-thinking">Analyzing your codebase structure...</span></div>
+    <div class="terminal-line"></div>
+    <div class="terminal-line"><span class="ai-output">I'll implement the embedded terminal system. Let me start by creating the PTY manager.</span></div>
+    <div class="terminal-line"></div>
+    <div class="terminal-line"><span class="ai-success">✓ Created</span> <span class="ai-code">src/session/pty-manager.ts</span></div>
+    <div class="terminal-line"><span class="ai-success">✓ Created</span> <span class="ai-code">src/session/state-detector.ts</span></div>
+    <div class="terminal-line"><span class="ai-success">✓ Updated</span> <span class="ai-code">src/types/session.ts</span></div>
+    <div class="terminal-line"></div>
+    <div class="terminal-line"><span class="ai-output">Now adding the IPC channels for PTY communication...</span></div>
+    <div class="terminal-line"></div>
+    <div class="terminal-line"><span class="ai-code">// src/electron/ipc/pty-handlers.ts</span></div>
+    <div class="terminal-line"><span class="ai-code">ipcMain.handle('pty:spawn', async (_, cliType, cwd) =&gt; {</span></div>
+    <div class="terminal-line"><span class="ai-code">&nbsp;&nbsp;const pty = ptyManager.spawn(cliType, cwd);</span></div>
+    <div class="terminal-line"><span class="ai-code">&nbsp;&nbsp;return { id: pty.id, pid: pty.pid };</span></div>
+    <div class="terminal-line"><span class="ai-code">});</span></div>
+    <div class="terminal-line"></div>
+    <div class="terminal-line"><span class="ai-output">Running tests to verify...</span></div>
+    <div class="terminal-line"><span class="ai-code">$ npx vitest run</span></div>
+    <div class="terminal-line"><span class="ai-success">✓ 47 tests passed</span></div>
+    <div class="terminal-line"></div>
+    <div class="terminal-line"><span class="ai-output">Building the project...</span></div>
+    <div class="terminal-line"><span class="cursor-block"></span></div>
+
+    <!-- Input mode indicator (when terminal is focused for typing) -->
+    <div class="input-indicator" style="display: none;">
+      <div class="input-mode-badge">
+        🎮 TERMINAL INPUT MODE — Type with gamepad or keyboard
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer — gamepad hints contextual to terminal view -->
+  <div class="terminal-footer">
+    <div class="footer-hints">
+      <span class="footer-hint"><kbd>↕</kbd> Switch terminal</span>
+      <span class="footer-hint"><kbd>A</kbd> Focus / Enter</span>
+      <span class="footer-hint"><kbd>B</kbd> Back to sidebar</span>
+      <span class="footer-hint"><kbd>X</kbd> Close terminal</span>
+      <span class="footer-hint"><kbd>Y</kbd> Cycle state</span>
+      <span class="footer-hint"><kbd>LT</kbd> New Claude</span>
+      <span class="footer-hint"><kbd>RB</kbd> New Copilot</span>
+    </div>
+    <div class="footer-profile">Profile: <span>default</span></div>
+  </div>
+</div>
+
+<!-- ====== Annotation arrows ====== -->
+<div class="annotation-arrow" style="top: 8px; left: 340px;">← Tabs sync with sidebar; state dots show at-a-glance status</div>
+<div class="annotation-arrow" style="top: 44px; right: 20px;">← Auto-detected from AIAGENT-* keywords in output</div>
+<div class="annotation-arrow" style="bottom: 45px; left: 340px;">← xterm.js renders here — full PTY with ANSI, colours, interactivity</div>
+
+<!-- Design Notes -->
+<div class="note-box">
+  <h3>📐 Mockup 01: Single Active Terminal</h3>
+  <ul>
+    <li><strong>Tab bar</strong> — quick switch between terminals; state dot per tab</li>
+    <li><strong>Status bar</strong> — current state badge + PID + CWD + terminal size + uptime</li>
+    <li><strong>Terminal body</strong> — <code>xterm.js</code> renders here (this mockup shows static HTML placeholder)</li>
+    <li><strong>Left border pulse</strong> — subtle animation when <code>implementing</code></li>
+    <li><strong>State auto-detection</strong> via <code>AIAGENT-IDLE</code>, <code>AIAGENT-QUESTION</code>, <code>AIAGENT-PLANNING</code>, <code>AIAGENT-IMPLEMENTING</code> keywords in PTY output</li>
+    <li>Sidebar is <strong>greyed out</strong> — built in separate session, shown here for layout context only</li>
+    <li><strong>Footer hints</strong> change contextually (terminal vs sidebar mode)</li>
+  </ul>
+</div>
+
+</body>
+</html>

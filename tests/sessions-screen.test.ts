@@ -21,11 +21,14 @@ const mockConfigGetCliTypes = vi.fn<() => Promise<string[]>>().mockResolvedValue
 const mockConfigGetWorkingDirs = vi.fn<() => Promise<any[]>>().mockResolvedValue([]);
 const mockSpawnCli = vi.fn().mockResolvedValue({ success: true, pid: 9999 });
 const mockFocusWindow = vi.fn().mockResolvedValue(true);
+const mockConfigGetSpawnCommand = vi.fn().mockResolvedValue({ command: 'claude', args: [] });
+const mockCreateTerminal = vi.fn().mockResolvedValue(true);
 
 const mockLogEvent = vi.fn();
 const mockGetCliIcon = vi.fn((_type: string) => '🤖');
 const mockGetCliDisplayName = vi.fn((type: string) => type || 'Unknown');
 const mockRenderFooterBindings = vi.fn();
+const mockSwitchTo = vi.fn();
 
 vi.mock('../renderer/utils.js', () => {
   const dirMap: Record<string, string> = {
@@ -64,6 +67,11 @@ function buildSidebarDom(): void {
       </div>
       <div class="spawn-wizard" id="spawnWizard" style="display:none"></div>
     </section>
+    <div id="terminalArea" style="display:none">
+      <div id="terminalTabs"></div>
+      <div id="terminalContainer"></div>
+    </div>
+    <div id="panelSplitter" style="display:none"></div>
     <p id="statusTotalSessions">0</p>
     <p id="statusActiveSessions">0</p>
   `;
@@ -105,6 +113,20 @@ function makeSessions(count: number) {
   }));
 }
 
+/** Mock TerminalManager that returns configured sessions. */
+function createMockTerminalManager(sessionData: Array<{ id: string; cliType: string }>) {
+  const sessionsMap = new Map(sessionData.map(s => [s.id, { sessionId: s.id, cliType: s.cliType }]));
+  return {
+    getSessionIds: () => Array.from(sessionsMap.keys()),
+    getSession: (id: string) => sessionsMap.get(id),
+    hasTerminal: (id: string) => sessionsMap.has(id),
+    switchTo: mockSwitchTo,
+    focusActive: vi.fn(),
+    fitActive: vi.fn(),
+    createTerminal: mockCreateTerminal,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Test Suite
 // ---------------------------------------------------------------------------
@@ -113,6 +135,13 @@ describe('Sessions Screen', () => {
   let state: Awaited<ReturnType<typeof getState>>;
   let sessions: Awaited<ReturnType<typeof getSessions>>;
   let sessionsState: Awaited<ReturnType<typeof getSessionsState>>;
+
+  /** Set terminal manager sessions for loadAndFlush. */
+  function setMockTerminalSessions(sessionsData: ReturnType<typeof makeSessions>): void {
+    sessions.setTerminalManagerGetter(() => createMockTerminalManager(
+      sessionsData.map(s => ({ id: s.id, cliType: s.cliType }))
+    ));
+  }
 
   beforeEach(async () => {
     vi.useFakeTimers();
@@ -127,6 +156,7 @@ describe('Sessions Screen', () => {
       configGetWorkingDirs: mockConfigGetWorkingDirs,
       spawnCli: mockSpawnCli,
       focusWindow: mockFocusWindow,
+      configGetSpawnCommand: mockConfigGetSpawnCommand,
     };
 
     state = await getState();
@@ -134,8 +164,10 @@ describe('Sessions Screen', () => {
     sessions = await getSessions();
 
     // Sensible defaults — individual tests override as needed
-    mockSessionGetAll.mockResolvedValue([]);
+    sessions.setTerminalManagerGetter(() => createMockTerminalManager([]));
     mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli']);
+    mockConfigGetSpawnCommand.mockResolvedValue({ command: 'claude', args: [] });
+    mockCreateTerminal.mockResolvedValue(true);
     mockConfigGetWorkingDirs.mockResolvedValue([
       { name: 'project-a', path: '/projects/a' },
       { name: 'project-b', path: '/projects/b' },
@@ -145,8 +177,9 @@ describe('Sessions Screen', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
-    // Reset module-level bridge so tests don't leak state
+    // Reset module-level bridges so tests don't leak state
     sessions.setDirPickerBridge(null as any);
+    sessions.setTerminalManagerGetter(null as any);
     Object.assign(sessionsState, {
       activeFocus: 'sessions',
       sessionsFocusIndex: 0,
@@ -161,6 +194,7 @@ describe('Sessions Screen', () => {
       sessions: [],
       activeSessionId: null,
       currentScreen: 'sessions',
+      terminalFocused: false,
     });
     document.body.innerHTML = '';
   });
@@ -171,13 +205,12 @@ describe('Sessions Screen', () => {
 
   describe('loadSessions', () => {
     it('loads sessions, CLI types, and directories from IPC', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      setMockTerminalSessions(makeSessions(2));
       mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
       mockConfigGetWorkingDirs.mockResolvedValue([{ name: 'a', path: '/a' }]);
 
       await loadAndFlush(sessions);
 
-      expect(mockSessionGetAll).toHaveBeenCalled();
       expect(mockConfigGetCliTypes).toHaveBeenCalled();
       expect(mockConfigGetWorkingDirs).toHaveBeenCalled();
       expect(state.sessions).toHaveLength(2);
@@ -188,7 +221,7 @@ describe('Sessions Screen', () => {
     it('clamps sessionsFocusIndex after load when out of bounds', async () => {
       sessionsState.sessionsFocusIndex = 5;
 
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      setMockTerminalSessions(makeSessions(2));
       mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
       mockConfigGetWorkingDirs.mockResolvedValue([{ name: 'a', path: '/a' }]);
 
@@ -200,7 +233,6 @@ describe('Sessions Screen', () => {
     it('clamps spawnFocusIndex after load when out of bounds', async () => {
       sessionsState.spawnFocusIndex = 10;
 
-      mockSessionGetAll.mockResolvedValue([]);
       mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
       mockConfigGetWorkingDirs.mockResolvedValue([]);
 
@@ -210,7 +242,7 @@ describe('Sessions Screen', () => {
     });
 
     it('renders session list and spawn grid after loading', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(1));
+      setMockTerminalSessions(makeSessions(1));
       mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli']);
 
       await loadAndFlush(sessions);
@@ -232,7 +264,6 @@ describe('Sessions Screen', () => {
 
   describe('Rendering — session list', () => {
     it('shows empty state when no sessions', async () => {
-      mockSessionGetAll.mockResolvedValue([]);
       await loadAndFlush(sessions);
 
       const list = document.getElementById('sessionsList')!;
@@ -242,7 +273,7 @@ describe('Sessions Screen', () => {
     });
 
     it('hides empty state when sessions exist', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      setMockTerminalSessions(makeSessions(2));
       await loadAndFlush(sessions);
 
       const list = document.getElementById('sessionsList')!;
@@ -252,7 +283,7 @@ describe('Sessions Screen', () => {
     });
 
     it('renders session cards with .session-card class', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(3));
+      setMockTerminalSessions(makeSessions(3));
       await loadAndFlush(sessions);
 
       const cards = document.querySelectorAll('#sessionsList .session-card');
@@ -260,7 +291,7 @@ describe('Sessions Screen', () => {
     });
 
     it('session card contains .session-icon element', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(1));
+      setMockTerminalSessions(makeSessions(1));
       await loadAndFlush(sessions);
 
       const icon = document.querySelector('#sessionsList .session-card .session-icon');
@@ -269,9 +300,9 @@ describe('Sessions Screen', () => {
     });
 
     it('session card contains .session-info with .session-name and .session-meta', async () => {
-      mockSessionGetAll.mockResolvedValue([
-        { id: 's-0', name: 'My Session', cliType: 'claude-code', processId: 42, windowHandle: 'h0' },
-      ]);
+      sessions.setTerminalManagerGetter(() => createMockTerminalManager([
+        { id: 's-0', cliType: 'claude-code' },
+      ]));
       await loadAndFlush(sessions);
 
       const info = document.querySelector('#sessionsList .session-card .session-info');
@@ -280,12 +311,12 @@ describe('Sessions Screen', () => {
       const meta = info!.querySelector('.session-meta');
       expect(name).not.toBeNull();
       expect(meta).not.toBeNull();
-      expect(name!.textContent).toBe('My Session');
-      expect(meta!.textContent).toContain('PID 42');
+      expect(name!.textContent).toBe('claude-code');
+      expect(meta!.textContent).toContain('PID 0');
     });
 
     it('active session card has .active class', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      setMockTerminalSessions(makeSessions(2));
       state.activeSessionId = 's-1';
       await loadAndFlush(sessions);
 
@@ -295,7 +326,7 @@ describe('Sessions Screen', () => {
     });
 
     it('first session card has .focused class when activeFocus is sessions', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      setMockTerminalSessions(makeSessions(2));
       await loadAndFlush(sessions);
 
       const cards = document.querySelectorAll('#sessionsList .session-card');
@@ -303,18 +334,18 @@ describe('Sessions Screen', () => {
       expect(cards[1]!.classList.contains('focused')).toBe(false);
     });
 
-    it('uses fallback name when session name is empty', async () => {
-      mockSessionGetAll.mockResolvedValue([
-        { id: 's-0', name: '', cliType: 'claude-code', processId: 1, windowHandle: 'h0' },
-      ]);
+    it('uses fallback name when cliType is empty', async () => {
+      sessions.setTerminalManagerGetter(() => createMockTerminalManager([
+        { id: 's-0', cliType: '' },
+      ]));
       await loadAndFlush(sessions);
 
       const name = document.querySelector('.session-name')!;
-      expect(name.textContent).toBe('Session 1');
+      expect(name.textContent).toBe('Terminal');
     });
 
     it('updates status counts', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(3));
+      setMockTerminalSessions(makeSessions(3));
       state.activeSessionId = 's-1';
       await loadAndFlush(sessions);
 
@@ -323,7 +354,7 @@ describe('Sessions Screen', () => {
     });
 
     it('status shows 0 active when no matching activeSessionId', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      setMockTerminalSessions(makeSessions(2));
       state.activeSessionId = 'nonexistent';
       await loadAndFlush(sessions);
 
@@ -381,7 +412,7 @@ describe('Sessions Screen', () => {
 
   describe('Sessions zone navigation', () => {
     beforeEach(async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(3));
+      setMockTerminalSessions(makeSessions(3));
       await loadAndFlush(sessions);
     });
 
@@ -418,7 +449,7 @@ describe('Sessions Screen', () => {
     });
 
     it('DPadDown with no sessions switches to spawn zone immediately', async () => {
-      mockSessionGetAll.mockResolvedValue([]);
+      sessions.setTerminalManagerGetter(() => createMockTerminalManager([]));
       await loadAndFlush(sessions);
 
       sessions.handleSessionsScreenButton('DPadDown');
@@ -427,7 +458,7 @@ describe('Sessions Screen', () => {
     });
 
     it('DPadUp with no sessions does nothing', async () => {
-      mockSessionGetAll.mockResolvedValue([]);
+      sessions.setTerminalManagerGetter(() => createMockTerminalManager([]));
       await loadAndFlush(sessions);
 
       sessions.handleSessionsScreenButton('DPadUp');
@@ -458,14 +489,14 @@ describe('Sessions Screen', () => {
       sessions.handleSessionsScreenButton('A');
       await flush();
 
-      expect(mockSessionSetActive).toHaveBeenCalledWith('s-0');
+      expect(mockSwitchTo).toHaveBeenCalledWith('s-0');
     });
 
-    it('A focuses the session window', async () => {
+    it('A focuses the terminal area', async () => {
       sessions.handleSessionsScreenButton('A');
       await flush();
 
-      expect(mockFocusWindow).toHaveBeenCalledWith('hwnd-0');
+      expect(state.terminalFocused).toBe(true);
     });
 
     it('A on second session activates that session', async () => {
@@ -473,8 +504,7 @@ describe('Sessions Screen', () => {
       sessions.handleSessionsScreenButton('A');
       await flush();
 
-      expect(mockSessionSetActive).toHaveBeenCalledWith('s-1');
-      expect(mockFocusWindow).toHaveBeenCalledWith('hwnd-1');
+      expect(mockSwitchTo).toHaveBeenCalledWith('s-1');
     });
 
     it('X deletes the focused session', async () => {
@@ -488,11 +518,9 @@ describe('Sessions Screen', () => {
     });
 
     it('Y triggers reload', async () => {
-      mockSessionGetAll.mockClear();
       sessions.handleSessionsScreenButton('Y');
       await flush();
 
-      expect(mockSessionGetAll).toHaveBeenCalled();
       expect(mockLogEvent).toHaveBeenCalledWith('Sessions refreshed');
     });
 
@@ -517,7 +545,7 @@ describe('Sessions Screen', () => {
 
   describe('Spawn zone navigation', () => {
     beforeEach(async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      setMockTerminalSessions(makeSessions(2));
       mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli', 'generic-terminal', 'powershell']);
       await loadAndFlush(sessions);
 
@@ -610,11 +638,9 @@ describe('Sessions Screen', () => {
     });
 
     it('Y triggers reload from spawn zone', async () => {
-      mockSessionGetAll.mockClear();
       sessions.handleSessionsScreenButton('Y');
       await flush();
 
-      expect(mockSessionGetAll).toHaveBeenCalled();
       expect(mockLogEvent).toHaveBeenCalledWith('Sessions refreshed');
     });
 
@@ -644,7 +670,6 @@ describe('Sessions Screen', () => {
   describe('Spawn zone — odd item count', () => {
     beforeEach(async () => {
       mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli', 'generic-terminal']);
-      mockSessionGetAll.mockResolvedValue([]);
       await loadAndFlush(sessions);
 
       sessionsState.activeFocus = 'spawn';
@@ -676,18 +701,33 @@ describe('Sessions Screen', () => {
   // ==========================================================================
 
   describe('doSpawn', () => {
-    it('calls spawnCli with cli type', async () => {
+    it('creates embedded terminal via configGetSpawnCommand', async () => {
+      mockConfigGetSpawnCommand.mockResolvedValue({ command: 'claude', args: [] });
       await sessions.doSpawn('claude-code');
       await flush();
 
-      expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', undefined);
+      expect(mockConfigGetSpawnCommand).toHaveBeenCalledWith('claude-code');
+      expect(mockCreateTerminal).toHaveBeenCalledWith(
+        expect.stringContaining('pty-claude-code-'),
+        'claude-code',
+        'claude',
+        [],
+        undefined,
+      );
     });
 
-    it('calls spawnCli with cli type and working dir', async () => {
+    it('passes working directory to createTerminal', async () => {
+      mockConfigGetSpawnCommand.mockResolvedValue({ command: 'claude', args: ['--flag'] });
       await sessions.doSpawn('claude-code', '/projects/a');
       await flush();
 
-      expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', '/projects/a');
+      expect(mockCreateTerminal).toHaveBeenCalledWith(
+        expect.stringContaining('pty-claude-code-'),
+        'claude-code',
+        'claude',
+        ['--flag'],
+        '/projects/a',
+      );
     });
 
     it('logs spawning event', async () => {
@@ -704,31 +744,28 @@ describe('Sessions Screen', () => {
       expect(mockLogEvent).toHaveBeenCalledWith('Spawning claude-code in /mydir...');
     });
 
-    it('logs PID on success', async () => {
-      mockSpawnCli.mockResolvedValue({ success: true, pid: 4242 });
+    it('logs success on embedded terminal creation', async () => {
+      mockCreateTerminal.mockResolvedValue(true);
       await sessions.doSpawn('claude-code');
       await flush();
 
-      expect(mockLogEvent).toHaveBeenCalledWith('Spawned: PID 4242');
+      expect(mockLogEvent).toHaveBeenCalledWith('Spawned embedded terminal: claude-code');
     });
 
-    it('logs error on failure', async () => {
-      mockSpawnCli.mockResolvedValue({ success: false, error: 'No executable found' });
+    it('logs failure when createTerminal returns false', async () => {
+      mockCreateTerminal.mockResolvedValue(false);
       await sessions.doSpawn('claude-code');
       await flush();
 
-      expect(mockLogEvent).toHaveBeenCalledWith('Spawn failed: No executable found');
+      expect(mockLogEvent).toHaveBeenCalledWith(expect.stringContaining('Spawn FAILED'));
     });
 
-    it('triggers delayed session refresh on success', async () => {
-      mockSpawnCli.mockResolvedValue({ success: true, pid: 1 });
+    it('logs failure when configGetSpawnCommand returns null', async () => {
+      mockConfigGetSpawnCommand.mockResolvedValue(null);
       await sessions.doSpawn('claude-code');
       await flush();
 
-      await vi.advanceTimersByTimeAsync(500);
-      await flush();
-
-      expect(mockSessionRefresh).toHaveBeenCalled();
+      expect(mockLogEvent).toHaveBeenCalledWith(expect.stringContaining('Spawn failed'));
     });
 
     it('logs failure when gamepadCli is not available', async () => {
@@ -751,7 +788,8 @@ describe('Sessions Screen', () => {
       await sessions.spawnNewSession('claude-code');
       await flush();
 
-      expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', undefined);
+      expect(mockConfigGetSpawnCommand).toHaveBeenCalledWith('claude-code');
+      expect(mockCreateTerminal).toHaveBeenCalled();
     });
 
     it('calls bridge when dirs exist and bridge is set', async () => {
@@ -766,7 +804,7 @@ describe('Sessions Screen', () => {
       await flush();
 
       expect(mockBridge).toHaveBeenCalledWith('claude-code', [{ name: 'proj', path: '/proj' }]);
-      expect(mockSpawnCli).not.toHaveBeenCalled();
+      expect(mockCreateTerminal).not.toHaveBeenCalled();
     });
 
     it('calls doSpawn when dirs exist but no bridge', async () => {
@@ -779,17 +817,18 @@ describe('Sessions Screen', () => {
       await sessions.spawnNewSession('claude-code');
       await flush();
 
-      expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', undefined);
+      expect(mockCreateTerminal).toHaveBeenCalled();
     });
 
     it('uses availableSpawnTypes[0] when no cliType provided', async () => {
       state.availableSpawnTypes = ['copilot-cli', 'claude-code'];
       mockConfigGetWorkingDirs.mockResolvedValue([]);
+      mockConfigGetSpawnCommand.mockResolvedValue({ command: 'copilot', args: [] });
 
       await sessions.spawnNewSession();
       await flush();
 
-      expect(mockSpawnCli).toHaveBeenCalledWith('copilot-cli', undefined);
+      expect(mockConfigGetSpawnCommand).toHaveBeenCalledWith('copilot-cli');
     });
 
     it('falls back to generic-terminal when no cliType and no availableSpawnTypes', async () => {
@@ -799,7 +838,7 @@ describe('Sessions Screen', () => {
       await sessions.spawnNewSession();
       await flush();
 
-      expect(mockSpawnCli).toHaveBeenCalledWith('generic-terminal', undefined);
+      expect(mockConfigGetSpawnCommand).toHaveBeenCalledWith('generic-terminal');
     });
 
     it('logs failure when gamepadCli is not available', async () => {
@@ -817,7 +856,7 @@ describe('Sessions Screen', () => {
 
   describe('Delete session', () => {
     beforeEach(async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(3));
+      setMockTerminalSessions(makeSessions(3));
       await loadAndFlush(sessions);
     });
 
@@ -854,7 +893,7 @@ describe('Sessions Screen', () => {
     });
 
     it('focus clamps to 0 when deleting last session', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(1));
+      setMockTerminalSessions(makeSessions(1));
       await loadAndFlush(sessions);
 
       sessionsState.sessionsFocusIndex = 0;
@@ -883,7 +922,7 @@ describe('Sessions Screen', () => {
 
   describe('Keyboard fallback', () => {
     beforeEach(async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(3));
+      setMockTerminalSessions(makeSessions(3));
       await loadAndFlush(sessions);
     });
 
@@ -905,7 +944,7 @@ describe('Sessions Screen', () => {
     it('Enter maps to A (activates session)', async () => {
       pressKey('Enter');
       await flush();
-      expect(mockSessionSetActive).toHaveBeenCalledWith('s-0');
+      expect(mockSwitchTo).toHaveBeenCalledWith('s-0');
     });
 
     it('Escape maps to B (no-op on sessions zone)', () => {
@@ -924,7 +963,6 @@ describe('Sessions Screen', () => {
     });
 
     it('F5 maps to Y (refresh)', async () => {
-      mockSessionGetAll.mockClear();
       pressKey('F5');
       await flush();
 
@@ -981,7 +1019,7 @@ describe('Sessions Screen', () => {
 
   describe('Pre-focus active session', () => {
     it('focuses the active session index on load', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(3));
+      setMockTerminalSessions(makeSessions(3));
       state.activeSessionId = 's-2';
 
       await loadAndFlush(sessions);
@@ -990,7 +1028,7 @@ describe('Sessions Screen', () => {
     });
 
     it('defaults to 0 when no active session', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(3));
+      setMockTerminalSessions(makeSessions(3));
       state.activeSessionId = null;
 
       await loadAndFlush(sessions);
@@ -999,7 +1037,7 @@ describe('Sessions Screen', () => {
     });
 
     it('defaults to 0 when active session not found in list', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(3));
+      setMockTerminalSessions(makeSessions(3));
       state.activeSessionId = 'nonexistent';
 
       await loadAndFlush(sessions);
@@ -1014,11 +1052,11 @@ describe('Sessions Screen', () => {
 
   describe('Focus clamping on reload', () => {
     it('clamps sessionsFocusIndex when sessions shrink', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(5));
+      setMockTerminalSessions(makeSessions(5));
       await loadAndFlush(sessions);
       sessionsState.sessionsFocusIndex = 4;
 
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      setMockTerminalSessions(makeSessions(2));
       await loadAndFlush(sessions);
 
       expect(sessionsState.sessionsFocusIndex).toBeLessThanOrEqual(1);
@@ -1042,7 +1080,7 @@ describe('Sessions Screen', () => {
 
   describe('updateSessionHighlight', () => {
     it('re-renders sessions and updates focus', async () => {
-      mockSessionGetAll.mockResolvedValue(makeSessions(2));
+      setMockTerminalSessions(makeSessions(2));
       await loadAndFlush(sessions);
 
       // Change active session
@@ -1064,7 +1102,7 @@ describe('Sessions Screen', () => {
 
     describe('wizard entry', () => {
       beforeEach(async () => {
-        mockSessionGetAll.mockResolvedValue(makeSessions(1));
+        setMockTerminalSessions(makeSessions(1));
         mockConfigGetCliTypes.mockResolvedValue(['claude-code', 'copilot-cli']);
         mockConfigGetWorkingDirs.mockResolvedValue([
           { name: 'project-a', path: '/projects/a' },
@@ -1119,7 +1157,6 @@ describe('Sessions Screen', () => {
 
     describe('directory step navigation', () => {
       beforeEach(async () => {
-        mockSessionGetAll.mockResolvedValue([]);
         mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
         mockConfigGetWorkingDirs.mockResolvedValue([
           { name: 'project-a', path: '/projects/a' },
@@ -1171,7 +1208,6 @@ describe('Sessions Screen', () => {
 
     describe('confirm step', () => {
       beforeEach(async () => {
-        mockSessionGetAll.mockResolvedValue([]);
         mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
         mockConfigGetWorkingDirs.mockResolvedValue([
           { name: 'project-a', path: '/projects/a' },
@@ -1200,7 +1236,13 @@ describe('Sessions Screen', () => {
         sessions.handleSessionsScreenButton('A');
         await flush();
 
-        expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', '/projects/a');
+        expect(mockCreateTerminal).toHaveBeenCalledWith(
+          expect.stringContaining('pty-claude-code-'),
+          'claude-code',
+          'claude',
+          [],
+          '/projects/a',
+        );
       });
 
       it('B goes back to directory step when dirs exist', () => {
@@ -1223,7 +1265,6 @@ describe('Sessions Screen', () => {
 
     describe('confirm step — no directories', () => {
       beforeEach(async () => {
-        mockSessionGetAll.mockResolvedValue([]);
         mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
         mockConfigGetWorkingDirs.mockResolvedValue([]);
         await loadAndFlush(sessions);
@@ -1241,7 +1282,13 @@ describe('Sessions Screen', () => {
         sessions.handleSessionsScreenButton('A');
         await flush();
 
-        expect(mockSpawnCli).toHaveBeenCalledWith('claude-code', undefined);
+        expect(mockCreateTerminal).toHaveBeenCalledWith(
+          expect.stringContaining('pty-claude-code-'),
+          'claude-code',
+          'claude',
+          [],
+          undefined,
+        );
       });
 
       it('B exits wizard when no dirs', () => {
@@ -1261,7 +1308,6 @@ describe('Sessions Screen', () => {
 
     describe('rendering', () => {
       beforeEach(async () => {
-        mockSessionGetAll.mockResolvedValue([]);
         mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
         mockConfigGetWorkingDirs.mockResolvedValue([
           { name: 'project-a', path: '/projects/a' },

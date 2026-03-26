@@ -1,5 +1,8 @@
 import { EventEmitter } from 'events';
+import { createRequire } from 'node:module';
 import { logger } from '../utils/logger.js';
+
+const esmRequire = createRequire(import.meta.url);
 
 export interface PtyProcess {
   pid: number;
@@ -64,8 +67,7 @@ export class PtyManager extends EventEmitter {
       // Lazy-load node-pty at runtime to avoid import errors in test environments.
       this.factory = {
         spawn: (file, args, opts) => {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const pty = require('node-pty');
+          const pty = esmRequire('node-pty');
           return pty.spawn(file, args, opts);
         },
       };
@@ -80,7 +82,7 @@ export class PtyManager extends EventEmitter {
       throw new Error(`PTY already exists for session: ${sessionId}`);
     }
 
-    const shell = process.platform === 'win32' ? 'powershell.exe' : 'bash';
+    const shell = process.platform === 'win32' ? 'cmd.exe' : 'bash';
     const ptyProcess = this.factory.spawn(shell, [], {
       name: 'xterm-256color',
       cols,

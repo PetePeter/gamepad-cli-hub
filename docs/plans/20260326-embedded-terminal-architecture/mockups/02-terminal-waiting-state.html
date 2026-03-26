@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terminal View — Waiting State + State Transitions</title>
+<style>
+  :root {
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #111111;
+    --bg-tertiary: #1a1a1a;
+    --bg-hover: #222222;
+    --accent: #ff6600;
+    --accent-hover: #ff8833;
+    --accent-dim: rgba(255, 102, 0, 0.15);
+    --text-primary: #eee;
+    --text-secondary: #999;
+    --text-dim: #555;
+    --border: #222222;
+    --border-active: #333;
+    --success: #44cc44;
+    --danger: #cc3333;
+    --warning: #ffaa00;
+    --info: #4488ff;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+
+    --state-implementing: #44cc44;
+    --state-waiting: #ffaa00;
+    --state-planning: #4488ff;
+    --state-idle: #555555;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.4;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ====== TERMINAL MAIN AREA ====== */
+  .terminal-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--bg-primary);
+  }
+
+  /* ====== TAB BAR ====== */
+  .terminal-tabs {
+    display: flex;
+    align-items: stretch;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    height: 36px;
+  }
+
+  .terminal-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    position: relative;
+  }
+
+  .terminal-tab:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+  .terminal-tab--active {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .terminal-tab--active::after {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+    height: 2px; background: var(--accent);
+  }
+
+  .tab-state-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .tab-state-dot--implementing { background: var(--state-implementing); box-shadow: 0 0 6px var(--state-implementing); }
+  .tab-state-dot--waiting { background: var(--state-waiting); box-shadow: 0 0 6px var(--state-waiting); animation: pulse-dot 1.5s ease-in-out infinite; }
+  .tab-state-dot--planning { background: var(--state-planning); box-shadow: 0 0 6px var(--state-planning); }
+  .tab-state-dot--idle { background: var(--state-idle); }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .tab-close {
+    width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;
+    border: none; background: transparent; color: var(--text-dim); border-radius: 2px;
+    cursor: pointer; font-size: 12px; margin-left: 4px;
+  }
+  .tab-close:hover { background: var(--danger); color: white; }
+
+  /* Notification badge on tab when not active */
+  .tab-notification {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--danger);
+    position: absolute; top: 6px; right: 8px;
+    animation: pulse-dot 1s ease-in-out infinite;
+  }
+
+  /* ====== STATUS BAR ====== */
+  .terminal-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    font-size: 11px;
+    height: 28px;
+  }
+
+  .terminal-status-bar__left {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .terminal-status-bar__right {
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .state-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 10px; border-radius: 10px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+
+  .state-badge--waiting {
+    background: rgba(255, 170, 0, 0.12);
+    color: var(--state-waiting);
+    border: 1px solid rgba(255, 170, 0, 0.25);
+    animation: badge-glow-waiting 2s ease-in-out infinite;
+  }
+
+  @keyframes badge-glow-waiting {
+    0%, 100% { box-shadow: 0 0 4px rgba(255, 170, 0, 0.1); }
+    50% { box-shadow: 0 0 12px rgba(255, 170, 0, 0.3); }
+  }
+
+  .state-badge__dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--state-waiting);
+  }
+
+  .status-meta { color: var(--text-dim); font-family: 'Consolas', monospace; font-size: 11px; }
+  .status-uptime { color: var(--text-dim); }
+
+  /* ====== TERMINAL BODY ====== */
+  .terminal-body {
+    flex: 1;
+    background: #0c0c0c;
+    padding: 8px 12px;
+    font-family: 'Cascadia Code', 'Consolas', 'Fira Code', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #d4d4d4;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  /* Waiting state — amber left border */
+  .terminal-body--waiting {
+    border-left: 3px solid var(--state-waiting);
+  }
+
+  .terminal-line { margin-bottom: 2px; }
+  .prompt { color: var(--accent); font-weight: 600; }
+  .ai-output { color: #d4d4d4; }
+  .ai-code { color: #9cdcfe; background: rgba(255,255,255,0.04); padding: 0 3px; border-radius: 2px; }
+  .ai-success { color: var(--state-implementing); font-weight: 600; }
+  .ai-keyword { color: var(--state-waiting); font-weight: 700; font-size: 12px; }
+  .ai-question { color: var(--state-waiting); font-weight: 600; }
+  .ai-dim { color: #666; font-size: 12px; }
+  .cursor-block {
+    display: inline-block; width: 8px; height: 16px; background: #d4d4d4;
+    animation: blink 1s step-end infinite; vertical-align: text-bottom;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Question highlight block */
+  .question-block {
+    margin: 12px 0;
+    padding: 10px 14px;
+    background: rgba(255, 170, 0, 0.06);
+    border-left: 3px solid var(--state-waiting);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  }
+
+  .question-block__question {
+    color: var(--state-waiting);
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .question-block__choices {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .question-block__choice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+
+  .question-block__choice--selected {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .choice-marker {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 8px;
+  }
+
+  .question-block__choice--selected .choice-marker {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: white;
+  }
+
+  .question-block__freetext {
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-active);
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 13px;
+  }
+
+  /* AIAGENT keyword highlight in output */
+  .aiagent-keyword {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    font-family: monospace;
+  }
+
+  .aiagent-keyword--question {
+    background: rgba(255, 170, 0, 0.15);
+    color: var(--state-waiting);
+    border: 1px solid rgba(255, 170, 0, 0.3);
+  }
+
+  /* ====== STATE TRANSITION DIAGRAM (right panel) ====== */
+  .state-diagram {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    width: 300px;
+    background: rgba(0,0,0,0.92);
+    border: 1px solid var(--border-active);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    z-index: 100;
+  }
+
+  .state-diagram h3 {
+    color: #6af;
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+
+  .state-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 11px;
+    font-family: 'Consolas', monospace;
+  }
+
+  .state-flow__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .state-flow__trigger {
+    color: var(--text-dim);
+    min-width: 140px;
+  }
+
+  .state-flow__arrow { color: #6af; }
+
+  .state-flow__state {
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 600;
+    font-size: 10px;
+  }
+
+  .state-flow__state--implementing { background: rgba(68,204,68,0.15); color: var(--state-implementing); }
+  .state-flow__state--waiting { background: rgba(255,170,0,0.15); color: var(--state-waiting); }
+  .state-flow__state--planning { background: rgba(68,136,255,0.15); color: var(--state-planning); }
+  .state-flow__state--idle { background: rgba(85,85,85,0.15); color: var(--state-idle); }
+
+  .state-flow__divider {
+    border: none;
+    border-top: 1px dashed var(--border);
+    margin: 4px 0;
+  }
+
+  .state-flow__label {
+    color: #6af;
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  /* ====== FOOTER ====== */
+  .terminal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    font-size: 11px;
+  }
+
+  .footer-hints { display: flex; gap: 12px; }
+  .footer-hint { display: flex; align-items: center; gap: 4px; color: var(--text-dim); }
+  kbd {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; padding: 1px 5px; background: var(--bg-tertiary);
+    border: 1px solid var(--border-active); border-radius: 3px;
+    font-family: monospace; font-size: 10px; font-weight: 700; color: var(--text-secondary);
+  }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<!-- ====== TERMINAL AREA (no sidebar — this mockup focuses on waiting state) ====== -->
+<div class="terminal-area">
+
+  <div class="terminal-tabs">
+    <div class="terminal-tab">
+      <span class="tab-state-dot tab-state-dot--implementing"></span>
+      <span>claude-code #1</span>
+      <button class="tab-close">×</button>
+    </div>
+    <div class="terminal-tab terminal-tab--active">
+      <span class="tab-state-dot tab-state-dot--waiting"></span>
+      <span>copilot-cli #1</span>
+      <button class="tab-close">×</button>
+    </div>
+    <div class="terminal-tab">
+      <span class="tab-state-dot tab-state-dot--planning"></span>
+      <span>opencode #1</span>
+      <button class="tab-close">×</button>
+      <!-- Notification: this terminal has new output while not active -->
+      <span class="tab-notification"></span>
+    </div>
+    <div class="terminal-tab">
+      <span class="tab-state-dot tab-state-dot--idle"></span>
+      <span>claude-code #2</span>
+      <button class="tab-close">×</button>
+    </div>
+  </div>
+
+  <div class="terminal-status-bar">
+    <div class="terminal-status-bar__left">
+      <span class="state-badge state-badge--waiting">
+        <span class="state-badge__dot"></span>
+        ⏳ Waiting
+      </span>
+      <span class="status-meta">copilot-cli • PID 22104 • X:\coding\gamepad-cli-hub</span>
+    </div>
+    <div class="terminal-status-bar__right">
+      <span class="status-uptime">↑ 8m 12s</span>
+      <span class="status-meta">120×36</span>
+    </div>
+  </div>
+
+  <!-- Terminal showing a completed task with AIAGENT-QUESTION -->
+  <div class="terminal-body terminal-body--waiting">
+
+    <div class="terminal-line"><span class="prompt">copilot &gt;</span> I've completed the implementation of the PTY manager module.</div>
+    <div class="terminal-line"></div>
+    <div class="terminal-line"><span class="ai-success">✓ Created</span> <span class="ai-code">src/session/pty-manager.ts</span> — PTY spawn/kill/resize/write</div>
+    <div class="terminal-line"><span class="ai-success">✓ Created</span> <span class="ai-code">tests/pty-manager.test.ts</span> — 12 tests, all passing</div>
+    <div class="terminal-line"><span class="ai-success">✓ Updated</span> <span class="ai-code">src/types/session.ts</span> — added TerminalState type</div>
+    <div class="terminal-line"></div>
+    <div class="terminal-line"><span class="ai-output">All tests pass:</span></div>
+    <div class="terminal-line"><span class="ai-code">$ npx vitest run</span></div>
+    <div class="terminal-line"><span class="ai-success">✓ 59 tests passed (9 files)</span></div>
+    <div class="terminal-line"></div>
+
+    <!-- The AIAGENT keyword that triggers state transition -->
+    <div class="terminal-line">
+      <span class="aiagent-keyword aiagent-keyword--question">AIAGENT-QUESTION</span>
+    </div>
+    <div class="terminal-line"></div>
+
+    <!-- The question block — rendered specially because we detected AIAGENT-QUESTION -->
+    <div class="question-block">
+      <div class="question-block__question">
+        The PTY foundation is complete. What would you like me to tackle next?
+      </div>
+      <div class="question-block__choices">
+        <div class="question-block__choice question-block__choice--selected">
+          <span class="choice-marker">▸</span>
+          Wire up IPC channels for PTY data relay (Recommended)
+        </div>
+        <div class="question-block__choice">
+          <span class="choice-marker"></span>
+          Build the xterm.js terminal renderer component
+        </div>
+        <div class="question-block__choice">
+          <span class="choice-marker"></span>
+          Implement the state detection engine
+        </div>
+      </div>
+      <div class="question-block__freetext">
+        Or type your own instructions... <span class="cursor-block"></span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="terminal-footer">
+    <div class="footer-hints">
+      <span class="footer-hint"><kbd>↕</kbd> Navigate choices</span>
+      <span class="footer-hint"><kbd>A</kbd> Select / Submit</span>
+      <span class="footer-hint"><kbd>B</kbd> Back to sidebar</span>
+      <span class="footer-hint"><kbd>Y</kbd> Override state</span>
+      <span class="footer-hint"><kbd>RStick</kbd> Scroll output</span>
+    </div>
+  </div>
+</div>
+
+<!-- ====== STATE TRANSITION DIAGRAM ====== -->
+<div class="state-diagram">
+  <h3>🔄 State Auto-Detection (AIAGENT-* keywords)</h3>
+  <div class="state-flow">
+    <div class="state-flow__label">Keyword triggers</div>
+    <div class="state-flow__row">
+      <span class="state-flow__trigger">AIAGENT-IMPLEMENTING</span>
+      <span class="state-flow__arrow">→</span>
+      <span class="state-flow__state state-flow__state--implementing">🔨 IMPLEMENTING</span>
+    </div>
+    <div class="state-flow__row">
+      <span class="state-flow__trigger">AIAGENT-QUESTION</span>
+      <span class="state-flow__arrow">→</span>
+      <span class="state-flow__state state-flow__state--waiting">⏳ WAITING</span>
+    </div>
+    <div class="state-flow__row">
+      <span class="state-flow__trigger">AIAGENT-PLANNING</span>
+      <span class="state-flow__arrow">→</span>
+      <span class="state-flow__state state-flow__state--planning">🧠 PLANNING</span>
+    </div>
+    <div class="state-flow__row">
+      <span class="state-flow__trigger">AIAGENT-IDLE</span>
+      <span class="state-flow__arrow">→</span>
+      <span class="state-flow__state state-flow__state--idle">💤 IDLE</span>
+    </div>
+
+    <hr class="state-flow__divider">
+    <div class="state-flow__label">Heuristic triggers</div>
+    <div class="state-flow__row">
+      <span class="state-flow__trigger">No output > 30s</span>
+      <span class="state-flow__arrow">→</span>
+      <span class="state-flow__state state-flow__state--idle">💤 IDLE</span>
+    </div>
+    <div class="state-flow__row">
+      <span class="state-flow__trigger">Continuous output</span>
+      <span class="state-flow__arrow">→</span>
+      <span class="state-flow__state state-flow__state--implementing">🔨 IMPLEMENTING</span>
+    </div>
+
+    <hr class="state-flow__divider">
+    <div class="state-flow__label">Manual override</div>
+    <div class="state-flow__row">
+      <span class="state-flow__trigger">Gamepad <kbd style="font-size:9px">Y</kbd> button</span>
+      <span class="state-flow__arrow">→</span>
+      <span class="state-flow__state" style="background:rgba(255,102,0,0.15);color:var(--accent);">CYCLE</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

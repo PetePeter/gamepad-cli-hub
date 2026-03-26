@@ -43,13 +43,13 @@ const TOOLS = {
   cliTypes: {
     'claude-code': {
       name: 'Claude Code',
-      terminal: 'wt',
       command: 'cc',
+      initialPrompt: '',
     },
     'copilot-cli': {
       name: 'GitHub Copilot CLI',
-      terminal: 'wt',
       command: 'copilot',
+      initialPrompt: '',
     },
   },
 };
@@ -163,7 +163,7 @@ describe('ConfigLoader', () => {
   describe('getSpawnConfig', () => {
     it('returns built spawn config from tools.yaml', () => {
       loader.load();
-      expect(loader.getSpawnConfig('claude-code')).toEqual({ command: 'wt', args: ['-w', '0', 'cc'] });
+      expect(loader.getSpawnConfig('claude-code')).toEqual({ command: 'cc', args: [] });
     });
 
     it('returns null for non-existent CLI type', () => {
@@ -200,7 +200,7 @@ describe('ConfigLoader', () => {
       loader.load();
       const config = loader.getConfig();
       expect(config.cliTypes['claude-code'].name).toBe('Claude Code');
-      expect(config.cliTypes['claude-code'].spawn).toEqual({ command: 'wt', args: ['-w', '0', 'cc'] });
+      expect(config.cliTypes['claude-code'].spawn).toEqual({ command: 'cc', args: [] });
       expect(config.cliTypes['claude-code'].bindings).toEqual(DEFAULT_PROFILE.cliTypes['claude-code']);
       expect(config.global).toEqual(DEFAULT_PROFILE.global);
       expect(config.workingDirectories).toEqual(DIRECTORIES.workingDirectories);
@@ -403,35 +403,34 @@ describe('ConfigLoader', () => {
   describe('Tools CRUD', () => {
     it('addCliType adds a new CLI type and persists', () => {
       loader.load();
-      loader.addCliType('new-tool', 'New Tool', 'cmd', 'echo');
+      loader.addCliType('new-tool', 'New Tool', 'echo');
 
       expect(loader.getCliTypes()).toContain('new-tool');
       expect(loader.getCliTypeName('new-tool')).toBe('New Tool');
-      expect(loader.getSpawnConfig('new-tool')).toEqual({ command: 'cmd', args: ['/k', 'echo'] });
+      expect(loader.getSpawnConfig('new-tool')).toEqual({ command: 'echo', args: [] });
 
       const onDisk = readYaml<any>('tools.yaml');
       expect(onDisk.cliTypes['new-tool']).toBeDefined();
-      expect(onDisk.cliTypes['new-tool'].terminal).toBe('cmd');
       expect(onDisk.cliTypes['new-tool'].command).toBe('echo');
     });
 
     it('addCliType throws if key already exists', () => {
       loader.load();
-      expect(() => loader.addCliType('claude-code', 'X', 'wt', ''))
+      expect(() => loader.addCliType('claude-code', 'X', ''))
         .toThrow('CLI type already exists: claude-code');
     });
 
     it('updateCliType updates an existing CLI type', () => {
       loader.load();
-      loader.updateCliType('claude-code', 'CC Updated', 'pwsh', 'cc');
+      loader.updateCliType('claude-code', 'CC Updated', 'cc');
 
       expect(loader.getCliTypeName('claude-code')).toBe('CC Updated');
-      expect(loader.getSpawnConfig('claude-code')).toEqual({ command: 'pwsh', args: ['-NoExit', '-Command', 'cc'] });
+      expect(loader.getSpawnConfig('claude-code')).toEqual({ command: 'cc', args: [] });
     });
 
     it('updateCliType throws for non-existent key', () => {
       loader.load();
-      expect(() => loader.updateCliType('nope', 'X', 'wt', ''))
+      expect(() => loader.updateCliType('nope', 'X', ''))
         .toThrow('CLI type not found: nope');
     });
 
@@ -649,76 +648,20 @@ describe('ConfigLoader', () => {
   // =========================================================================
 
   describe('buildSpawnConfig', () => {
-    it('builds wt spawn config with command', () => {
+    it('builds spawn config with command', () => {
       writeYaml('tools.yaml', {
-        cliTypes: { test: { name: 'Test', terminal: 'wt', command: 'python' } },
+        cliTypes: { test: { name: 'Test', command: 'python' } },
       });
       loader.load();
-      expect(loader.getSpawnConfig('test')).toEqual({ command: 'wt', args: ['-w', '0', 'python'] });
+      expect(loader.getSpawnConfig('test')).toEqual({ command: 'python', args: [] });
     });
 
-    it('builds wt spawn config without command', () => {
+    it('builds spawn config without command', () => {
       writeYaml('tools.yaml', {
-        cliTypes: { test: { name: 'Test', terminal: 'wt', command: '' } },
+        cliTypes: { test: { name: 'Test', command: '' } },
       });
       loader.load();
-      expect(loader.getSpawnConfig('test')).toEqual({ command: 'wt', args: ['-w', '0'] });
-    });
-
-    it('builds cmd spawn config with command', () => {
-      writeYaml('tools.yaml', {
-        cliTypes: { test: { name: 'Test', terminal: 'cmd', command: 'python' } },
-      });
-      loader.load();
-      expect(loader.getSpawnConfig('test')).toEqual({ command: 'cmd', args: ['/k', 'python'] });
-    });
-
-    it('builds cmd spawn config without command', () => {
-      writeYaml('tools.yaml', {
-        cliTypes: { test: { name: 'Test', terminal: 'cmd', command: '' } },
-      });
-      loader.load();
-      expect(loader.getSpawnConfig('test')).toEqual({ command: 'cmd', args: [] });
-    });
-
-    it('builds pwsh spawn config with command', () => {
-      writeYaml('tools.yaml', {
-        cliTypes: { test: { name: 'Test', terminal: 'pwsh', command: 'python' } },
-      });
-      loader.load();
-      expect(loader.getSpawnConfig('test')).toEqual({ command: 'pwsh', args: ['-NoExit', '-Command', 'python'] });
-    });
-
-    it('builds pwsh spawn config without command', () => {
-      writeYaml('tools.yaml', {
-        cliTypes: { test: { name: 'Test', terminal: 'pwsh', command: '' } },
-      });
-      loader.load();
-      expect(loader.getSpawnConfig('test')).toEqual({ command: 'pwsh', args: ['-NoExit'] });
-    });
-
-    it('builds custom spawn config with customSpawn', () => {
-      writeYaml('tools.yaml', {
-        cliTypes: { test: { name: 'Test', terminal: 'custom', command: '', customSpawn: { command: 'my-term', args: ['--flag'] } } },
-      });
-      loader.load();
-      expect(loader.getSpawnConfig('test')).toEqual({ command: 'my-term', args: ['--flag'] });
-    });
-
-    it('builds custom spawn config fallback when customSpawn missing', () => {
-      writeYaml('tools.yaml', {
-        cliTypes: { test: { name: 'Test', terminal: 'custom', command: 'my-bin' } },
-      });
-      loader.load();
-      expect(loader.getSpawnConfig('test')).toEqual({ command: 'my-bin', args: [] });
-    });
-
-    it('defaults to wt for unknown terminal type', () => {
-      writeYaml('tools.yaml', {
-        cliTypes: { test: { name: 'Test', terminal: 'unknown', command: 'foo' } },
-      });
-      loader.load();
-      expect(loader.getSpawnConfig('test')).toEqual({ command: 'wt', args: ['-w', '0', 'foo'] });
+      expect(loader.getSpawnConfig('test')).toEqual({ command: '', args: [] });
     });
   });
 });
@@ -749,7 +692,7 @@ describe('getStickDirectionBinding', () => {
     };
 
     writeYamlStick('directories.yaml', { workingDirectories: [] });
-    writeYamlStick('tools.yaml', { cliTypes: { test: { name: 'Test', terminal: 'wt', command: 'test' } } });
+    writeYamlStick('tools.yaml', { cliTypes: { test: { name: 'Test', command: 'test' } } });
     writeYamlStick('settings.yaml', { activeProfile: 'default' });
     writeYamlStick('profiles/default.yaml', {
       name: 'Default',

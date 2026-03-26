@@ -23,36 +23,36 @@ let mainWindow: BrowserWindow | null = null;
 let cleanupIPC: (() => void) | null = null;
 
 /**
- * Create the main application window as a docked sidebar
+ * Create the main application window.
+ *
+ * Now a maximised desktop app (no longer a sidebar) so embedded
+ * terminals have room to render.  Window bounds are persisted and
+ * restored on next launch.
  */
 function createWindow(): void {
   const preloadPath = join(__dirname, 'preload.cjs');
   logger.debug(`[Main] Preload path: ${preloadPath}`);
 
-  // Read sidebar preferences (config already loaded by registerIPCHandlers)
-  let sidebarPrefs = { side: 'left' as const, width: 320 };
+  // Read persisted window bounds (falls back to sensible defaults)
+  let windowBounds = { width: 1280, height: 800, x: undefined as number | undefined, y: undefined as number | undefined };
   try {
-    sidebarPrefs = configLoader.getSidebarPrefs();
+    const prefs = configLoader.getSidebarPrefs();
+    if (prefs.width) windowBounds.width = Math.max(prefs.width, 800);
+    if ((prefs as any).height) windowBounds.height = (prefs as any).height;
+    if ((prefs as any).x !== undefined) windowBounds.x = (prefs as any).x;
+    if ((prefs as any).y !== undefined) windowBounds.y = (prefs as any).y;
   } catch {
-    logger.warn('[Main] Could not read sidebar prefs, using defaults');
+    logger.warn('[Main] Could not read window prefs, using defaults');
   }
 
-  // Position sidebar against monitor edge, respecting taskbar
-  const display = screen.getPrimaryDisplay();
-  const workArea = display.workArea;
-  const x = sidebarPrefs.side === 'left'
-    ? workArea.x
-    : workArea.x + workArea.width - sidebarPrefs.width;
-
   mainWindow = new BrowserWindow({
-    width: sidebarPrefs.width,
-    height: workArea.height,
-    x,
-    y: workArea.y,
-    minWidth: 250,
-    maxWidth: 450,
-    frame: false,
-    alwaysOnTop: true,
+    width: windowBounds.width,
+    height: windowBounds.height,
+    x: windowBounds.x,
+    y: windowBounds.y,
+    minWidth: 640,
+    minHeight: 400,
+    frame: true,
     resizable: true,
     backgroundColor: '#0a0a0a',
     show: false,
@@ -69,11 +69,13 @@ function createWindow(): void {
   const rendererPath = join(process.cwd(), 'renderer', 'index.html');
   mainWindow.loadFile(rendererPath);
 
-  // Show window when ready — maximize for embedded terminal usage
+  // Show window when ready — maximise on first launch
   mainWindow.once('ready-to-show', () => {
-    mainWindow?.maximize();
+    if (!windowBounds.x && !windowBounds.y) {
+      mainWindow?.maximize();
+    }
     mainWindow?.show();
-    logger.info('[Main] Window shown (maximized)');
+    logger.info('[Main] Window shown');
   });
 
   // Preload check
@@ -95,45 +97,28 @@ function createWindow(): void {
     mainWindow.webContents.openDevTools();
   }
 
-  // Re-snap sidebar after resize (debounced) — persists width + locks height/position
-  let isRepositioning = false;
-  let resizeTimer: ReturnType<typeof setTimeout> | null = null;
-
-  mainWindow.on('resize', () => {
-    if (!mainWindow || isRepositioning) return;
-    if (resizeTimer) clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
+  // Persist window bounds on resize/move (debounced)
+  let boundsTimer: ReturnType<typeof setTimeout> | null = null;
+  const persistBounds = () => {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isMaximized()) return;
+    if (boundsTimer) clearTimeout(boundsTimer);
+    boundsTimer = setTimeout(() => {
       if (!mainWindow || mainWindow.isDestroyed()) return;
-      isRepositioning = true;
-      const [width] = mainWindow.getSize();
+      const bounds = mainWindow.getBounds();
       try {
-        const prefs = configLoader.getSidebarPrefs();
-        const wa = screen.getPrimaryDisplay().workArea;
-        const snapX = prefs.side === 'left' ? wa.x : wa.x + wa.width - width;
-        mainWindow.setBounds({ x: snapX, y: wa.y, width, height: wa.height });
-        configLoader.setSidebarPrefs({ width });
+        configLoader.setSidebarPrefs({ width: bounds.width, ...({ height: bounds.height, x: bounds.x, y: bounds.y } as any) });
       } catch { /* config may not be ready */ }
-      setTimeout(() => { isRepositioning = false; }, 100);
-    }, 300);
-  });
-
-  // Re-snap when display layout changes (e.g. resolution, taskbar moved)
-  screen.on('display-metrics-changed', () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    try {
-      const prefs = configLoader.getSidebarPrefs();
-      const wa = screen.getPrimaryDisplay().workArea;
-      const snapX = prefs.side === 'left' ? wa.x : wa.x + wa.width - prefs.width;
-      mainWindow.setBounds({ x: snapX, y: wa.y, width: prefs.width, height: wa.height });
-    } catch { /* ignore */ }
-  });
+    }, 500);
+  };
+  mainWindow.on('resize', persistBounds);
+  mainWindow.on('move', persistBounds);
 
   mainWindow.on('closed', () => {
     mainWindow = null;
     logger.info('[Main] Window closed');
   });
 
-  logger.info(`[Main] Sidebar created (${sidebarPrefs.side}, ${sidebarPrefs.width}px)`);
+  logger.info(`[Main] Window created (${windowBounds.width}x${windowBounds.height})`);
 }
 
 /**

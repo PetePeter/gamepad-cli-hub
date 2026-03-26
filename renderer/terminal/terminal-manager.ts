@@ -20,11 +20,17 @@ export class TerminalManager {
   private container: HTMLElement;
   private unsubscribers: Array<() => void> = [];
   private resizeObserver: ResizeObserver | null = null;
+  private onEmpty: (() => void) | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
     this.setupIpcListeners();
     this.setupResizeObserver();
+  }
+
+  /** Register a callback invoked when the last terminal is destroyed */
+  setOnEmpty(callback: () => void): void {
+    this.onEmpty = callback;
   }
 
   /** Create a new terminal and spawn its PTY process */
@@ -57,15 +63,16 @@ export class TerminalManager {
     this.terminals.set(sessionId, { sessionId, cliType, view, element });
 
     const result = await window.gamepadCli?.ptySpawn(sessionId, command, args, cwd, cliType);
+    console.log(`[TerminalManager] ptySpawn result:`, JSON.stringify(result));
     if (!result?.success) {
+      console.error(`[TerminalManager] ptySpawn failed:`, result?.error || 'no result');
       this.destroyTerminal(sessionId);
       return false;
     }
 
-    // Auto-activate the first terminal
-    if (this.terminals.size === 1) {
-      this.switchTo(sessionId);
-    }
+    // Always activate the newly created terminal
+    this.switchTo(sessionId);
+    this.renderTabs();
 
     return true;
   }
@@ -93,11 +100,29 @@ export class TerminalManager {
       session.view.fit();
       session.view.focus();
     });
+
+    this.renderTabs();
   }
 
   /** Get the active session ID */
   getActiveSessionId(): string | null {
     return this.activeSessionId;
+  }
+
+  /** Focus the currently active terminal */
+  focusActive(): void {
+    if (this.activeSessionId) {
+      const session = this.terminals.get(this.activeSessionId);
+      session?.view.focus();
+    }
+  }
+
+  /** Refit the active terminal after layout changes (e.g. panel resize) */
+  fitActive(): void {
+    if (this.activeSessionId) {
+      const session = this.terminals.get(this.activeSessionId);
+      session?.view.fit();
+    }
   }
 
   /** Get all terminal session IDs */
@@ -127,8 +152,12 @@ export class TerminalManager {
       const remaining = Array.from(this.terminals.keys());
       if (remaining.length > 0) {
         this.switchTo(remaining[0]);
+      } else if (this.onEmpty) {
+        this.onEmpty();
       }
     }
+
+    this.renderTabs();
   }
 
   /** Write data to a terminal's display (from PTY output) */
@@ -158,6 +187,11 @@ export class TerminalManager {
     return this.terminals.has(sessionId);
   }
 
+  /** Check if a session is an embedded terminal (alias for has) */
+  hasTerminal(sessionId: string): boolean {
+    return this.terminals.has(sessionId);
+  }
+
   /** Clean up all terminals and listeners */
   dispose(): void {
     for (const unsub of this.unsubscribers) {
@@ -172,6 +206,41 @@ export class TerminalManager {
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
+    }
+  }
+
+  /** Render the tab bar reflecting current terminal sessions */
+  private renderTabs(): void {
+    const tabBar = document.getElementById('terminalTabs');
+    if (!tabBar) return;
+    tabBar.innerHTML = '';
+
+    for (const [id, session] of this.terminals) {
+      const tab = document.createElement('div');
+      tab.className = 'terminal-tab';
+      tab.dataset.sessionId = id;
+      if (id === this.activeSessionId) tab.classList.add('terminal-tab--active');
+
+      const stateDot = document.createElement('span');
+      stateDot.className = 'tab-state-dot tab-state-dot--idle';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'terminal-tab__name';
+      nameSpan.textContent = session.cliType;
+
+      const closeBtn = document.createElement('span');
+      closeBtn.className = 'tab-close';
+      closeBtn.textContent = '×';
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.destroyTerminal(id);
+      });
+
+      tab.appendChild(stateDot);
+      tab.appendChild(nameSpan);
+      tab.appendChild(closeBtn);
+      tab.addEventListener('click', () => this.switchTo(id));
+      tabBar.appendChild(tab);
     }
   }
 

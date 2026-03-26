@@ -103,6 +103,25 @@ function handleConnectionEvent(event: { connected: boolean; count: number; times
 export function handleGamepadEvent(event: ButtonEvent): void {
   logEvent(`⬇ ${event.button}`);
 
+  // Terminal focus mode — most buttons go to the terminal
+  if (state.terminalFocused) {
+    switch (event.button) {
+      case 'B':
+        state.terminalFocused = false;
+        return;
+      case 'DPadUp':
+      case 'LeftStickUp':
+        switchTerminalTab(-1);
+        return;
+      case 'DPadDown':
+      case 'LeftStickDown':
+        switchTerminalTab(1);
+        return;
+      default:
+        return;
+    }
+  }
+
   // Terminal scrolling via right stick
   if (event.button === 'RightStickUp' || event.button === 'RightStickDown') {
     const tm = getTerminalManager();
@@ -178,6 +197,17 @@ function handleGamepadRelease(event: ButtonEvent): void {
 // ============================================================================
 // Helpers
 // ============================================================================
+
+function switchTerminalTab(direction: number): void {
+  const tm = getTerminalManager();
+  if (!tm) return;
+  const ids = tm.getSessionIds();
+  const activeId = tm.getActiveSessionId();
+  if (ids.length <= 1 || !activeId) return;
+  const currentIdx = ids.indexOf(activeId);
+  const newIdx = (currentIdx + direction + ids.length) % ids.length;
+  tm.switchTo(ids[newIdx]);
+}
 
 export async function updateGamepadCount(): Promise<void> {
   try {

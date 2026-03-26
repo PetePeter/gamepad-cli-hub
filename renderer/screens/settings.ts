@@ -597,15 +597,12 @@ function createCliTypeItem(key: string, value: any): HTMLElement {
   item.className = 'settings-list-item';
   item.dataset.cliKey = key;
 
-  const terminal = value.terminal || 'wt';
-  const terminalLabels: Record<string, string> = { wt: 'Windows Terminal', cmd: 'CMD', pwsh: 'PowerShell', custom: 'Custom' };
-  const terminalLabel = terminalLabels[terminal] || terminal;
   const command = value.command || '';
 
   item.innerHTML = `
     <div class="settings-list-item__info">
       <span class="settings-list-item__name">${value.name || key}</span>
-      <span class="settings-list-item__detail">${terminalLabel}${command ? ` → ${command}` : ''}</span>
+      <span class="settings-list-item__detail">${command ? `→ ${command}` : '(no command)'}</span>
     </div>
   `;
 
@@ -659,17 +656,10 @@ function createCliTypeItem(key: string, value: any): HTMLElement {
 }
 
 async function showAddCliTypeForm(): Promise<void> {
-  const terminalOptions = [
-    { value: 'wt', label: 'Windows Terminal' },
-    { value: 'cmd', label: 'CMD' },
-    { value: 'pwsh', label: 'PowerShell' },
-    { value: 'custom', label: 'Custom' },
-  ];
-
   const result = await showFormModal('Add CLI Type', [
     { key: 'name', label: 'Name', placeholder: 'e.g. Claude Code' },
-    { key: 'terminal', label: 'Terminal', type: 'select', options: terminalOptions, defaultValue: 'wt' },
     { key: 'command', label: 'Command', placeholder: 'e.g. claude, python' },
+    { key: 'initialPrompt', label: 'Initial Prompt', type: 'textarea', defaultValue: '' },
   ]);
 
   if (!result) return;
@@ -681,10 +671,10 @@ async function showAddCliTypeForm(): Promise<void> {
   }
 
   const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const terminal = result.terminal || 'wt';
   const command = result.command?.trim() || '';
+  const initialPrompt = result.initialPrompt || '';
 
-  const addResult = await window.gamepadCli.toolsAddCliType(key, name, terminal, command);
+  const addResult = await window.gamepadCli.toolsAddCliType(key, name, command, initialPrompt);
   if (addResult.success) {
     logEvent(`Added CLI type: ${key}`);
     state.cliTypes = await window.gamepadCli.configGetCliTypes();
@@ -697,25 +687,18 @@ async function showAddCliTypeForm(): Promise<void> {
 }
 
 async function showEditCliTypeForm(key: string, value: any): Promise<void> {
-  const terminalOptions = [
-    { value: 'wt', label: 'Windows Terminal' },
-    { value: 'cmd', label: 'CMD' },
-    { value: 'pwsh', label: 'PowerShell' },
-    { value: 'custom', label: 'Custom' },
-  ];
-
   const result = await showFormModal(`Edit CLI Type: ${key}`, [
     { key: 'name', label: 'Name', defaultValue: value.name || key },
-    { key: 'terminal', label: 'Terminal', type: 'select', options: terminalOptions, defaultValue: value.terminal || 'wt' },
     { key: 'command', label: 'Command', defaultValue: value.command || '' },
+    { key: 'initialPrompt', label: 'Initial Prompt', type: 'textarea', defaultValue: value.initialPrompt || '' },
   ]);
 
   if (!result) return;
 
-  const terminal = result.terminal || 'wt';
   const command = result.command?.trim() || '';
+  const initialPrompt = result.initialPrompt || '';
 
-  const updateResult = await window.gamepadCli.toolsUpdateCliType(key, result.name, terminal, command);
+  const updateResult = await window.gamepadCli.toolsUpdateCliType(key, result.name, command, initialPrompt);
   if (updateResult.success) {
     logEvent(`Updated CLI type: ${key}`);
     state.cliTypes = await window.gamepadCli.configGetCliTypes();

@@ -52,8 +52,6 @@ export type Binding = KeyboardBinding | SessionSwitchBinding | SpawnBinding | Li
 // Shared Config Types
 // ============================================================================
 
-export type TerminalType = 'wt' | 'cmd' | 'pwsh' | 'custom';
-
 export interface SpawnConfig {
   command: string;
   args: string[];
@@ -61,9 +59,8 @@ export interface SpawnConfig {
 
 export interface CliTypeConfig {
   name: string;
-  terminal: TerminalType;
   command: string;
-  customSpawn?: SpawnConfig;  // only used when terminal === 'custom'
+  initialPrompt?: string;
 }
 
 export interface ButtonBindings {
@@ -204,7 +201,6 @@ export class ConfigLoader {
     }
     for (const [key, entry] of Object.entries(this.tools.cliTypes)) {
       if (!entry.name) throw new Error(`tools.yaml: cliType '${key}' missing name`);
-      if (!entry.terminal) throw new Error(`tools.yaml: cliType '${key}' missing terminal`);
     }
   }
 
@@ -496,21 +492,21 @@ export class ConfigLoader {
 
   // ---------- Tools CRUD -----------------------------------------------
 
-  addCliType(key: string, name: string, terminal: TerminalType, command: string): void {
+  addCliType(key: string, name: string, command: string, initialPrompt?: string): void {
     this.ensureLoaded();
     if (this.tools!.cliTypes[key]) {
       throw new Error(`CLI type already exists: ${key}`);
     }
-    this.tools!.cliTypes[key] = { name, terminal, command };
+    this.tools!.cliTypes[key] = { name, command, initialPrompt: initialPrompt ?? '' };
     this.saveTools();
   }
 
-  updateCliType(key: string, name: string, terminal: TerminalType, command: string): void {
+  updateCliType(key: string, name: string, command: string, initialPrompt?: string): void {
     this.ensureLoaded();
     if (!this.tools!.cliTypes[key]) {
       throw new Error(`CLI type not found: ${key}`);
     }
-    this.tools!.cliTypes[key] = { name, terminal, command };
+    this.tools!.cliTypes[key] = { name, command, initialPrompt: initialPrompt ?? '' };
     this.saveTools();
   }
 
@@ -527,18 +523,7 @@ export class ConfigLoader {
 
   private buildSpawnConfig(config: CliTypeConfig): SpawnConfig {
     const cmd = config.command || '';
-    switch (config.terminal) {
-      case 'wt':
-        return { command: 'wt', args: cmd ? ['-w', '0', cmd] : ['-w', '0'] };
-      case 'cmd':
-        return { command: 'cmd', args: cmd ? ['/k', cmd] : [] };
-      case 'pwsh':
-        return { command: 'pwsh', args: cmd ? ['-NoExit', '-Command', cmd] : ['-NoExit'] };
-      case 'custom':
-        return config.customSpawn || { command: cmd, args: [] };
-      default:
-        return { command: 'wt', args: cmd ? ['-w', '0', cmd] : ['-w', '0'] };
-    }
+    return { command: cmd, args: [] };
   }
 
   // ---------- Save helpers ---------------------------------------------

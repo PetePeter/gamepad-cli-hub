@@ -9,64 +9,68 @@
   <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css">
 </head>
 <body>
-  <div id="app" class="sidebar">
-    <!-- Custom Titlebar -->
-    <header class="sidebar-header">
-      <span class="sidebar-logo">🎮</span>
-      <span class="sidebar-title">Gamepad Hub</span>
-      <div class="sidebar-actions">
-        <button class="sidebar-btn" id="settingsBtn" title="Settings">⚙</button>
-        <button class="sidebar-btn" id="pinBtn" title="Toggle pin">📌</button>
-        <button class="sidebar-btn" id="sideToggleBtn" title="Switch side">⇄</button>
-      </div>
-    </header>
+  <div id="app" class="sidebar app-layout">
+    <!-- Left panel: sessions/settings/controls -->
+    <div class="panel-left" id="panelLeft">
+      <!-- Custom Titlebar -->
+      <header class="sidebar-header">
+        <span class="sidebar-logo">🎮</span>
+        <span class="sidebar-title">Gamepad Hub</span>
+        <div class="sidebar-actions">
+          <button class="sidebar-btn" id="settingsBtn" title="Settings">⚙</button>
+        </div>
+      </header>
 
-    <!-- Compact Status Strip -->
-    <div class="status-strip">
-      <span class="status-dot" id="gamepadDot"></span>
-      <span class="status-text"><span id="gamepadCount">0</span> connected</span>
-      <span class="profile-badge-compact">
-        <span id="profileName">default</span>
-      </span>
+      <!-- Compact Status Strip -->
+      <div class="status-strip">
+        <span class="status-dot" id="gamepadDot"></span>
+        <span class="status-text"><span id="gamepadCount">0</span> connected</span>
+        <span class="profile-badge-compact">
+          <span id="profileName">default</span>
+        </span>
+      </div>
+
+      <!-- Main Content Area -->
+      <main class="sidebar-content">
+        <!-- Sessions Screen (default) -->
+        <section id="screen-sessions" class="screen screen--active">
+          <div class="sessions-list" id="sessionsList">
+            <!-- Session cards rendered dynamically by sessions.ts -->
+          </div>
+          <div class="sessions-empty" id="sessionsEmpty" style="display:none">
+            No active sessions
+          </div>
+          <div class="spawn-section">
+            <h3 class="section-label">Quick Spawn</h3>
+            <div class="spawn-grid" id="spawnGrid">
+              <!-- Spawn buttons rendered dynamically by sessions.ts -->
+            </div>
+          </div>
+          <!-- Spawn Wizard (shown when entering wizard from spawn grid) -->
+          <div class="spawn-wizard" id="spawnWizard" style="display:none"></div>
+        </section>
+
+        <!-- Settings Screen (slide-over from right) -->
+        <section id="screen-settings" class="screen">
+          <div class="screen-header">
+            <h2>Settings</h2>
+            <button class="btn btn--secondary" id="settingsBackBtn">Back</button>
+          </div>
+          <div class="settings-content">
+            <div class="settings-tabs" id="settingsTabs" role="tablist"></div>
+            <div class="binding-action-bar" id="bindingActionBar"></div>
+            <div class="bindings-display" id="bindingsDisplay"></div>
+          </div>
+        </section>
+
+      </main>
     </div>
 
-    <!-- Main Content Area -->
-    <main class="sidebar-content">
-      <!-- Sessions Screen (default) -->
-      <section id="screen-sessions" class="screen screen--active">
-        <div class="sessions-list" id="sessionsList">
-          <!-- Session cards rendered dynamically by sessions.ts -->
-        </div>
-        <div class="sessions-empty" id="sessionsEmpty" style="display:none">
-          No active sessions
-        </div>
-        <div class="spawn-section">
-          <h3 class="section-label">Quick Spawn</h3>
-          <div class="spawn-grid" id="spawnGrid">
-            <!-- Spawn buttons rendered dynamically by sessions.ts -->
-          </div>
-        </div>
-        <!-- Spawn Wizard (shown when entering wizard from spawn grid) -->
-        <div class="spawn-wizard" id="spawnWizard" style="display:none"></div>
-      </section>
+    <!-- Resize handle between panels -->
+    <div class="panel-splitter" id="panelSplitter"></div>
 
-      <!-- Settings Screen (slide-over from right) -->
-      <section id="screen-settings" class="screen">
-        <div class="screen-header">
-          <h2>Settings</h2>
-          <button class="btn btn--secondary" id="settingsBackBtn">Back</button>
-        </div>
-        <div class="settings-content">
-          <div class="settings-tabs" id="settingsTabs" role="tablist"></div>
-          <div class="binding-action-bar" id="bindingActionBar"></div>
-          <div class="bindings-display" id="bindingsDisplay"></div>
-        </div>
-      </section>
-
-    </main>
-
-    <!-- Embedded Terminal Area (Phase 2) -->
-    <div class="terminal-area" id="terminalArea" style="display:none">
+    <!-- Right panel: terminal area (shown when terminals exist) -->
+    <div class="panel-right" id="terminalArea" style="display:none">
       <div class="terminal-tabs" id="terminalTabs">
         <!-- Tab bar rendered dynamically by terminal-manager -->
       </div>
@@ -127,18 +131,8 @@
       </div>
     </div>
 
-    <!-- Debug Log Panel (keep existing structure) -->
-    <div class="debug-log" id="debugLog">
-      <div class="debug-log__header">
-        <span>Debug Log</span>
-        <button class="debug-log__close" id="closeDebugLog">×</button>
-      </div>
-      <div class="debug-log__content" id="debugLogContent">
-        <div class="debug-log__line">[App] Initializing...</div>
-      </div>
-    </div>
   </div>
 
-  <script src="main.js" type="module"></script>
+  <script src="../dist/renderer/main.js" type="module"></script>
 </body>
 </html>

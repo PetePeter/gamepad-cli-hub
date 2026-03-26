@@ -48,6 +48,7 @@ export function setupPtyHandlers(
 ): void {
   // pty:spawn - Spawn a new PTY process and register as session
   ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string) => {
+    logger.info(`[PTY IPC] pty:spawn called: sessionId=${sessionId}, command=${command}, args=${JSON.stringify(args)}, cwd=${cwd}, cliType=${cliType}`);
     try {
       const pty = ptyManager.spawn({ sessionId, command, args, cwd });
 
@@ -60,6 +61,7 @@ export function setupPtyHandlers(
         promptCancellers.set(sessionId, cancel);
       }
 
+      logger.info(`[PTY IPC] Spawn success: pid=${pty.pid}`);
       return { success: true, pid: pty.pid };
     } catch (error) {
       logger.error(`[PTY IPC] Failed to spawn: ${error}`);

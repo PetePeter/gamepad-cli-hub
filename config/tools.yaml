@@ -1,17 +1,13 @@
 cliTypes:
   claude-code:
     name: Claude Code
-    terminal: wt
     command: claude
+    initialPrompt: quack quack motehrfucker
   copilot-cli:
     name: GitHub Copilot CLI
-    terminal: wt
     command: copilot
-  generic-terminal:
-    name: Generic Terminal
-    terminal: wt
-    command: ""
+    initialPrompt: ""
   python:
     name: python
-    terminal: wt
     command: python
+    initialPrompt: ""

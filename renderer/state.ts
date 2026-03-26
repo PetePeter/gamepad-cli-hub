@@ -30,6 +30,7 @@ export interface AppState {
   cliBindingsCache: Record<string, Record<string, any>>;
   settingsTab: string;
   activeProfile: string;
+  terminalFocused: boolean;
 }
 
 export const state: AppState = {
@@ -44,4 +45,5 @@ export const state: AppState = {
   cliBindingsCache: {},
   settingsTab: 'global',
   activeProfile: 'default',
+  terminalFocused: false,
 };

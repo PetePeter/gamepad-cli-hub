@@ -139,4 +139,16 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
       return { success: false, error: String(error) };
     }
   });
+
+  ipcMain.handle('config:getSpawnCommand', (_event, cliType: string) => {
+    try {
+      const entry = configLoader.getCliTypeEntry(cliType);
+      if (!entry) return null;
+      // For embedded PTY, use the raw command directly — no terminal wrapper
+      return { command: entry.command || cliType, args: [] };
+    } catch (error) {
+      logger.error(`[IPC] Failed to get spawn command for ${cliType}: ${error}`);
+      return null;
+    }
+  });
 }

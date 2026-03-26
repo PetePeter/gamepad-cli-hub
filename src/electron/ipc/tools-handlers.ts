@@ -17,8 +17,8 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
             const entry = configLoader.getCliTypeEntry(key);
             return [key, {
               name: entry?.name,
-              terminal: entry?.terminal,
               command: entry?.command,
+              initialPrompt: entry?.initialPrompt ?? '',
             }];
           })
         ),
@@ -29,9 +29,9 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
     }
   });
 
-  ipcMain.handle('tools:addCliType', (_event, key: string, name: string, terminal: string, command: string) => {
+  ipcMain.handle('tools:addCliType', (_event, key: string, name: string, command: string, initialPrompt: string) => {
     try {
-      configLoader.addCliType(key, name, terminal as any, command);
+      configLoader.addCliType(key, name, command, initialPrompt);
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to add CLI type: ${error}`);
@@ -39,9 +39,9 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
     }
   });
 
-  ipcMain.handle('tools:updateCliType', (_event, key: string, name: string, terminal: string, command: string) => {
+  ipcMain.handle('tools:updateCliType', (_event, key: string, name: string, command: string, initialPrompt: string) => {
     try {
-      configLoader.updateCliType(key, name, terminal as any, command);
+      configLoader.updateCliType(key, name, command, initialPrompt);
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to update CLI type: ${error}`);

@@ -8,6 +8,8 @@
 import { state } from '../state.js';
 import { sessionsState, type SessionsFocus } from './sessions-state.js';
 import { logEvent, getCliIcon, getCliDisplayName, toDirection } from '../utils.js';
+import type { TerminalManager } from '../terminal/terminal-manager.js';
+import type { Session } from '../state.js';
 
 // ============================================================================
 // Public API
@@ -36,26 +38,90 @@ export function handleSessionsScreenButton(button: string): boolean {
 export async function doSpawn(cliType: string, workingDir?: string): Promise<void> {
   try {
     logEvent(`Spawning ${cliType}${workingDir ? ` in ${workingDir}` : ''}...`);
+    console.warn(`[doSpawn] ENTRY — cliType=${cliType}, workingDir=${workingDir}`);
     if (!window.gamepadCli) {
       logEvent('Spawn failed: gamepadCli not available');
       return;
     }
-    const result = await window.gamepadCli.spawnCli(cliType, workingDir);
-    if (result.success) {
-      logEvent(`Spawned: PID ${result.pid}`);
-      setTimeout(async () => {
-        try {
-          await window.gamepadCli?.sessionRefresh();
-          await loadSessions();
-        } catch (e) { console.error('[Sessions] Post-spawn refresh failed:', e); }
-      }, 500);
+
+    const hasGetter = !!terminalManagerGetter;
+    const tm = terminalManagerGetter ? terminalManagerGetter() : null;
+    console.warn(`[doSpawn] hasGetter=${hasGetter}, tm=${!!tm}, tmType=${tm?.constructor?.name}`);
+    if (tm) {
+      // Embedded terminal path — use PTY
+      const spawnInfo = await window.gamepadCli.configGetSpawnCommand(cliType);
+      console.warn(`[doSpawn] spawnInfo=`, JSON.stringify(spawnInfo));
+      if (!spawnInfo) {
+        logEvent(`Spawn failed: no command configured for ${cliType}`);
+        return;
+      }
+
+      const sessionId = `pty-${cliType}-${Date.now()}`;
+      console.warn(`[doSpawn] Creating PTY terminal: id=${sessionId}, cmd=${spawnInfo.command}, args=${JSON.stringify(spawnInfo.args)}, cwd=${workingDir}`);
+      const success = await tm.createTerminal(
+        sessionId,
+        cliType,
+        spawnInfo.command,
+        spawnInfo.args || [],
+        workingDir,
+      );
+
+      console.warn(`[doSpawn] createTerminal result: ${success}`);
+      if (success) {
+        logEvent(`Spawned embedded terminal: ${cliType}`);
+        showTerminalArea();
+        state.terminalFocused = true;
+        setTimeout(async () => {
+          try {
+            await loadSessions();
+          } catch (e) { console.error('[Sessions] Post-spawn refresh failed:', e); }
+        }, 300);
+      } else {
+        logEvent(`Spawn FAILED: PTY creation returned false for ${cliType}`);
+        console.error(`[doSpawn] PTY creation failed — likely node-pty native module issue`);
+      }
     } else {
-      logEvent(`Spawn failed: ${result.error || 'Unknown error'}`);
+      // Fallback: old external window spawning
+      console.warn(`[doSpawn] ⚠️ NO TERMINAL MANAGER — falling back to EXTERNAL spawn`);
+      const result = await window.gamepadCli.spawnCli(cliType, workingDir);
+      if (result.success) {
+        logEvent(`Spawned: PID ${result.pid}`);
+        setTimeout(async () => {
+          try {
+            await window.gamepadCli?.sessionRefresh();
+            await loadSessions();
+          } catch (e) { console.error('[Sessions] Post-spawn refresh failed:', e); }
+        }, 500);
+      } else {
+        logEvent(`Spawn failed: ${result.error || 'Unknown error'}`);
+      }
     }
   } catch (error) {
     console.error('[Sessions] Failed to spawn session:', error);
     logEvent('Spawn failed');
   }
+}
+
+export function showTerminalArea(): void {
+  const terminalArea = document.getElementById('terminalArea');
+  const splitter = document.getElementById('panelSplitter');
+  if (terminalArea) terminalArea.style.display = 'flex';
+  if (splitter) splitter.style.display = 'block';
+  const tm = terminalManagerGetter ? terminalManagerGetter() : null;
+  if (tm) {
+    requestAnimationFrame(() => {
+      tm.focusActive();
+      tm.fitActive();
+    });
+  }
+}
+
+export function hideTerminalArea(): void {
+  const terminalArea = document.getElementById('terminalArea');
+  const splitter = document.getElementById('panelSplitter');
+  if (terminalArea) terminalArea.style.display = 'none';
+  if (splitter) splitter.style.display = 'none';
+  state.terminalFocused = false;
 }
 
 export function updateSessionHighlight(): void {
@@ -71,6 +137,16 @@ let dirPickerBridge: ((cliType: string, dirs: Array<{ name: string; path: string
 
 export function setDirPickerBridge(fn: (cliType: string, dirs: Array<{ name: string; path: string }>) => void): void {
   dirPickerBridge = fn;
+}
+
+// ============================================================================
+// Bridge for terminal manager (set by main.ts to avoid circular imports)
+// ============================================================================
+
+let terminalManagerGetter: (() => TerminalManager | null) | null = null;
+
+export function setTerminalManagerGetter(fn: () => TerminalManager | null): void {
+  terminalManagerGetter = fn;
 }
 
 export async function spawnNewSession(cliType?: string): Promise<void> {
@@ -100,9 +176,21 @@ export async function spawnNewSession(cliType?: string): Promise<void> {
 async function loadSessionsData(): Promise<void> {
   if (!window.gamepadCli) return;
 
-  try {
-    state.sessions = await window.gamepadCli.sessionGetAll();
-  } catch (e) { console.error('[Sessions] Failed to load sessions:', e); }
+  // Only show embedded terminal sessions — no external window sessions
+  state.sessions = [];
+  const tm = terminalManagerGetter ? terminalManagerGetter() : null;
+  if (tm) {
+    for (const id of tm.getSessionIds()) {
+      const session = tm.getSession(id);
+      state.sessions.push({
+        id,
+        name: session?.cliType || 'Terminal',
+        cliType: session?.cliType || 'unknown',
+        processId: 0,
+        windowHandle: '',
+      } as Session);
+    }
+  }
 
   try {
     sessionsState.cliTypes = await window.gamepadCli.configGetCliTypes();
@@ -570,6 +658,16 @@ function updateAllFocus(): void {
 // ============================================================================
 
 async function switchToSession(sessionId: string): Promise<void> {
+  // Check if this is an embedded terminal
+  const tm = terminalManagerGetter ? terminalManagerGetter() : null;
+  if (tm && tm.hasTerminal(sessionId)) {
+    tm.switchTo(sessionId);
+    showTerminalArea();
+    state.terminalFocused = true;
+    return;
+  }
+
+  // Old external window path
   try {
     if (!window.gamepadCli) return;
     await window.gamepadCli.sessionSetActive(sessionId);
@@ -619,6 +717,8 @@ function refreshSessions(): void {
 
 function onKeyDown(e: KeyboardEvent): void {
   if (state.currentScreen !== 'sessions') return;
+  // When terminal is focused, let xterm.js handle all keyboard input
+  if (state.terminalFocused) return;
 
   const keyMap: Record<string, string> = {
     ArrowUp: 'DPadUp', ArrowDown: 'DPadDown', ArrowLeft: 'DPadLeft', ArrowRight: 'DPadRight',

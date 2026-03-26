@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terminal View — Spawn Flow + Initial Prompt</title>
+<style>
+  :root {
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #111111;
+    --bg-tertiary: #1a1a1a;
+    --bg-hover: #222222;
+    --accent: #ff6600;
+    --accent-dim: rgba(255, 102, 0, 0.15);
+    --text-primary: #eee;
+    --text-secondary: #999;
+    --text-dim: #555;
+    --border: #222222;
+    --border-active: #333;
+    --success: #44cc44;
+    --danger: #cc3333;
+    --warning: #ffaa00;
+    --info: #4488ff;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+
+    --state-implementing: #44cc44;
+    --state-waiting: #ffaa00;
+    --state-planning: #4488ff;
+    --state-idle: #555555;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 13px;
+    line-height: 1.4;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ====== SPAWN FLOW — STEP-BY-STEP ====== */
+  .flow-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 24px;
+    gap: 20px;
+    overflow-y: auto;
+  }
+
+  .flow-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+
+  .flow-title span { color: var(--accent); }
+
+  .flow-subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+
+  /* Each step */
+  .flow-step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .flow-step__number {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 14px;
+    flex-shrink: 0;
+    border: 2px solid var(--accent);
+  }
+
+  .flow-step__content {
+    flex: 1;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .flow-step__header {
+    padding: 10px 14px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .flow-step__body {
+    padding: 12px 14px;
+  }
+
+  .flow-step__description {
+    color: var(--text-secondary);
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+
+  /* Terminal preview within step */
+  .mini-terminal {
+    background: #0c0c0c;
+    border: 1px solid #333;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .mini-terminal__bar {
+    height: 24px;
+    background: #2d2d2d;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 4px;
+    font-size: 10px;
+    color: #888;
+  }
+
+  .mini-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .mini-dot--r { background: #ff5f57; }
+  .mini-dot--y { background: #febc2e; }
+  .mini-dot--g { background: #28c840; }
+
+  .mini-terminal__body {
+    padding: 8px 10px;
+    color: #d4d4d4;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .mini-line { margin-bottom: 2px; }
+  .mini-prompt { color: var(--accent); font-weight: 600; }
+  .mini-system { color: #888; }
+  .mini-keyword { color: var(--warning); font-weight: 700; }
+  .mini-success { color: var(--success); }
+  .mini-code { color: #9cdcfe; background: rgba(255,255,255,0.04); padding: 0 2px; border-radius: 2px; }
+  .mini-cursor { display: inline-block; width: 7px; height: 13px; background: #d4d4d4; animation: blink 1s step-end infinite; vertical-align: text-bottom; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Config YAML block */
+  .config-block {
+    background: #0c0c0c;
+    border: 1px solid #333;
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #d4d4d4;
+  }
+
+  .yaml-key { color: #9cdcfe; }
+  .yaml-value { color: #ce9178; }
+  .yaml-comment { color: #6a9955; }
+
+  /* Arrow between steps */
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: 48px;
+    color: var(--text-dim);
+    font-size: 18px;
+  }
+
+  /* State badge inline */
+  .inline-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .inline-state--idle { background: rgba(85,85,85,0.15); color: var(--state-idle); }
+  .inline-state--implementing { background: rgba(68,204,68,0.15); color: var(--state-implementing); }
+  .inline-state--waiting { background: rgba(255,170,0,0.15); color: var(--state-waiting); }
+
+  /* Timing annotation */
+  .timing {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: rgba(100,170,255,0.08);
+    border: 1px dashed rgba(100,170,255,0.3);
+    border-radius: 4px;
+    font-size: 10px;
+    color: #6af;
+    margin-left: 8px;
+  }
+
+  kbd {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 20px; padding: 1px 5px; background: var(--bg-tertiary);
+    border: 1px solid var(--border-active); border-radius: 3px;
+    font-family: monospace; font-size: 10px; font-weight: 700; color: var(--text-secondary);
+  }
+
+  /* Note box */
+  .note-box {
+    background: rgba(0,0,0,0.85);
+    border: 1px solid rgba(100, 170, 255, 0.3);
+    border-radius: 8px;
+    padding: 16px;
+    font-size: 12px;
+    color: #aaa;
+    line-height: 1.5;
+    margin-top: 8px;
+  }
+
+  .note-box h3 { color: #6af; font-size: 13px; margin-bottom: 8px; }
+  .note-box ul { margin-left: 16px; margin-top: 4px; }
+  .note-box li { margin-bottom: 4px; }
+  .note-box code { color: var(--accent); background: rgba(255,102,0,0.1); padding: 1px 4px; border-radius: 2px; font-size: 11px; }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="flow-container">
+
+  <div>
+    <div class="flow-title">🚀 Terminal <span>Spawn Flow</span></div>
+    <div class="flow-subtitle">What happens when user presses <kbd>LT</kbd> to spawn a new Claude Code terminal</div>
+  </div>
+
+  <!-- STEP 1: Trigger -->
+  <div class="flow-step">
+    <div class="flow-step__number">1</div>
+    <div class="flow-step__content">
+      <div class="flow-step__header">🎮 Gamepad Trigger</div>
+      <div class="flow-step__body">
+        <div class="flow-step__description">
+          User presses <kbd>LT</kbd> (Left Trigger) — bound to spawn <code>claude-code</code>.
+          Or selects a CLI type from the sidebar spawn panel.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">↓</div>
+
+  <!-- STEP 2: PTY Spawn -->
+  <div class="flow-step">
+    <div class="flow-step__number">2</div>
+    <div class="flow-step__content">
+      <div class="flow-step__header">⚡ PTY Process Created <span class="timing">~50ms</span></div>
+      <div class="flow-step__body">
+        <div class="flow-step__description">
+          Main process: <code>PtyManager.spawn('claude-code', cwd)</code> creates a new pseudo-terminal via <code>node-pty</code>.
+          New tab appears in terminal area. State: <span class="inline-state inline-state--idle">💤 IDLE</span>
+        </div>
+        <div class="mini-terminal">
+          <div class="mini-terminal__bar">
+            <span class="mini-dot mini-dot--r"></span>
+            <span class="mini-dot mini-dot--y"></span>
+            <span class="mini-dot mini-dot--g"></span>
+            <span style="margin-left:6px;">claude-code #3 — X:\coding\gamepad-cli-hub</span>
+          </div>
+          <div class="mini-terminal__body">
+            <div class="mini-line"><span class="mini-system">Starting Claude Code...</span></div>
+            <div class="mini-line"><span class="mini-cursor"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">↓</div>
+
+  <!-- STEP 3: CLI Loads -->
+  <div class="flow-step">
+    <div class="flow-step__number">3</div>
+    <div class="flow-step__content">
+      <div class="flow-step__header">🖥️ CLI Initialises <span class="timing">~1-3s (configurable wait)</span></div>
+      <div class="flow-step__body">
+        <div class="flow-step__description">
+          The CLI tool (claude/copilot/opencode) loads and shows its welcome prompt. The app waits for the configured <code>initialPromptDelay</code> before sending the system prompt.
+        </div>
+        <div class="mini-terminal">
+          <div class="mini-terminal__bar">
+            <span class="mini-dot mini-dot--r"></span>
+            <span class="mini-dot mini-dot--y"></span>
+            <span class="mini-dot mini-dot--g"></span>
+            <span style="margin-left:6px;">claude-code #3</span>
+          </div>
+          <div class="mini-terminal__body">
+            <div class="mini-line"><span class="mini-system">╭─────────────────────────────────╮</span></div>
+            <div class="mini-line"><span class="mini-system">│  Claude Code v1.2.3             │</span></div>
+            <div class="mini-line"><span class="mini-system">│  Working dir: X:\coding\...     │</span></div>
+            <div class="mini-line"><span class="mini-system">╰─────────────────────────────────╯</span></div>
+            <div class="mini-line"></div>
+            <div class="mini-line"><span class="mini-prompt">claude &gt;</span> <span class="mini-cursor"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">↓</div>
+
+  <!-- STEP 4: System Prompt Pre-Loaded (NOT sent) -->
+  <div class="flow-step">
+    <div class="flow-step__number">4</div>
+    <div class="flow-step__content">
+      <div class="flow-step__header">📝 System Prompt Pre-Loaded (NOT Submitted) <span class="timing">automatic</span></div>
+      <div class="flow-step__body">
+        <div class="flow-step__description">
+          The app writes the <code>initialPrompt</code> to the PTY's stdin <strong>without pressing Enter</strong>. The text appears in the CLI's input buffer. The user can review, edit, clear, or submit when ready. State remains: <span class="inline-state inline-state--idle">💤 IDLE</span>
+        </div>
+        <div class="mini-terminal">
+          <div class="mini-terminal__bar">
+            <span class="mini-dot mini-dot--r"></span>
+            <span class="mini-dot mini-dot--y"></span>
+            <span class="mini-dot mini-dot--g"></span>
+            <span style="margin-left:6px;">claude-code #3 — 💤 Idle (prompt pre-loaded)</span>
+          </div>
+          <div class="mini-terminal__body">
+            <div class="mini-line"><span class="mini-system">╭─────────────────────────────────╮</span></div>
+            <div class="mini-line"><span class="mini-system">│  Claude Code v1.2.3             │</span></div>
+            <div class="mini-line"><span class="mini-system">╰─────────────────────────────────╯</span></div>
+            <div class="mini-line"></div>
+            <div class="mini-line" style="background: rgba(255,170,0,0.06); padding: 2px 4px; border-radius: 3px;">
+              <span class="mini-prompt">claude &gt;</span>
+              <span style="color: #888;">&lt;application-prompt&gt;</span>
+            </div>
+            <div class="mini-line" style="background: rgba(255,170,0,0.06); padding: 2px 4px;">
+              <span style="color: #ccc;">SYSTEMPROMPT:</span>
+            </div>
+            <div class="mini-line" style="background: rgba(255,170,0,0.06); padding: 2px 4px;">
+              <span style="color: #ccc;">- Include AIAGENT-QUESTION when done.</span>
+            </div>
+            <div class="mini-line" style="background: rgba(255,170,0,0.06); padding: 2px 4px;">
+              <span style="color: #ccc;">- Include AIAGENT-IMPLEMENTING when coding.</span>
+            </div>
+            <div class="mini-line" style="background: rgba(255,170,0,0.06); padding: 2px 4px;">
+              <span style="color: #ccc;">- End responses with an open ended question.</span>
+            </div>
+            <div class="mini-line" style="background: rgba(255,170,0,0.06); padding: 2px 4px;">
+              <span style="color: #888;">&lt;/application-prompt&gt;</span><span class="mini-cursor"></span>
+            </div>
+            <div class="mini-line" style="margin-top: 8px;">
+              <span style="color: #555; font-size: 10px;">⏎ Press Enter to send • Ctrl+C to clear • Edit freely</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">↓</div>
+
+  <!-- STEP 5: User decides -->
+  <div class="flow-step">
+    <div class="flow-step__number">5</div>
+    <div class="flow-step__content">
+      <div class="flow-step__header">👤 User Decides — Send, Edit, or Clear</div>
+      <div class="flow-step__body">
+        <div class="flow-step__description">
+          The user has full control:
+          <br>• <kbd>A</kbd> / <kbd>Enter</kbd> — Submit the pre-loaded prompt as-is (state → <span class="inline-state inline-state--implementing">🔨 IMPLEMENTING</span>)
+          <br>• Edit the text before sending — add project-specific instructions
+          <br>• <kbd>Ctrl+C</kbd> — Clear the prompt entirely and start fresh
+          <br>The prompt stays in the buffer indefinitely until the user acts.
+        </div>
+        <div class="mini-terminal">
+          <div class="mini-terminal__bar">
+            <span class="mini-dot mini-dot--r"></span>
+            <span class="mini-dot mini-dot--y"></span>
+            <span class="mini-dot mini-dot--g"></span>
+            <span style="margin-left:6px;">claude-code #3 — User pressed Enter → 🔨 Implementing</span>
+          </div>
+          <div class="mini-terminal__body">
+            <div class="mini-line"><span class="mini-prompt">claude &gt;</span> &lt;application-prompt&gt;...&lt;/application-prompt&gt;</div>
+            <div class="mini-line"></div>
+            <div class="mini-line"><span class="mini-success">✓ Understood.</span> I'll include state keywords in all responses.</div>
+            <div class="mini-line"></div>
+            <div class="mini-line"><span class="mini-keyword">AIAGENT-QUESTION</span></div>
+            <div class="mini-line"></div>
+            <div class="mini-line">What would you like me to work on?</div>
+            <div class="mini-line"></div>
+            <div class="mini-line"><span class="mini-prompt">claude &gt;</span> <span class="mini-cursor"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-arrow">↓</div>
+
+  <!-- STEP 6: Config Reference -->
+  <div class="flow-step">
+    <div class="flow-step__number">⚙</div>
+    <div class="flow-step__content">
+      <div class="flow-step__header">📄 Configuration — config/tools.yaml</div>
+      <div class="flow-step__body">
+        <div class="flow-step__description">
+          Each CLI type defines its command and initial prompt. The <code>initialPromptDelay</code> controls how long to wait after the CLI loads before injecting the prompt.
+        </div>
+        <div class="config-block">
+          <div><span class="yaml-key">cliTypes:</span></div>
+          <div>&nbsp;&nbsp;<span class="yaml-key">claude-code:</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-key">name:</span> <span class="yaml-value">Claude Code</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-key">command:</span> <span class="yaml-value">claude</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-key">initialPromptDelay:</span> <span class="yaml-value">2000</span> <span class="yaml-comment"># ms to wait before sending</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-key">initialPrompt:</span> <span class="yaml-value">|</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-value">SYSTEMPROMPT:</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-value">- Include AIAGENT-QUESTION when done with a task.</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-value">- Include AIAGENT-IMPLEMENTING when actively coding.</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-value">- Include AIAGENT-PLANNING when researching.</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-value">- Include AIAGENT-IDLE when awaiting input.</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-value">- End responses with an open ended question.</span></div>
+          <div></div>
+          <div>&nbsp;&nbsp;<span class="yaml-key">copilot-cli:</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-key">name:</span> <span class="yaml-value">GitHub Copilot CLI</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-key">command:</span> <span class="yaml-value">copilot</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-key">initialPromptDelay:</span> <span class="yaml-value">2000</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-key">initialPrompt:</span> <span class="yaml-value">|</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-value">SYSTEMPROMPT: ...</span> <span class="yaml-comment"># same as above</span></div>
+          <div></div>
+          <div>&nbsp;&nbsp;<span class="yaml-key">opencode:</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-key">name:</span> <span class="yaml-value">OpenCode</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-key">command:</span> <span class="yaml-value">opencode</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-key">initialPromptDelay:</span> <span class="yaml-value">3000</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-key">initialPrompt:</span> <span class="yaml-value">|</span></div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="yaml-value">SYSTEMPROMPT: ...</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notes -->
+  <div class="note-box">
+    <h3>📐 Mockup 03: Spawn Flow + Initial Prompt</h3>
+    <ul>
+      <li><strong>Spawn trigger</strong> — gamepad button (<kbd>LT</kbd>/<kbd>RB</kbd>) or sidebar spawn panel</li>
+      <li><strong>PTY creation</strong> — <code>node-pty.spawn()</code> with piped stdio, not detached</li>
+      <li><strong>Initial prompt</strong> — <strong>pre-loaded into input buffer, NOT auto-sent</strong></li>
+      <li>User sees prompt wrapped in <code>&lt;application-prompt&gt;</code> tags</li>
+      <li>User decides: Enter to send, edit first, or Ctrl+C to clear</li>
+      <li><strong>AIAGENT-* keywords</strong> in CLI output drive automatic state transitions</li>
+      <li><strong>State flow</strong>: IDLE → IMPLEMENTING (prompt sent) → WAITING (AIAGENT-QUESTION received)</li>
+      <li>The <code>terminal: wt</code> field is removed — no external terminal launcher needed</li>
+      <li>Each CLI type can have its own <code>initialPromptDelay</code> and <code>initialPrompt</code></li>
+    </ul>
+  </div>
+
+</div>
+
+</body>
+</html>

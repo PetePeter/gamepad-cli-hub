@@ -165,6 +165,11 @@ const gamepadCliAPI = {
    */
   configSetHapticFeedback: (enabled: boolean) => ipcRenderer.invoke('config:setHapticFeedback', enabled),
 
+  /**
+   * Get the raw spawn command for a CLI type (for embedded PTY — no terminal wrapper)
+   */
+  configGetSpawnCommand: (cliType: string) => ipcRenderer.invoke('config:getSpawnCommand', cliType),
+
   // ========================================================================
   // Window Management
   // ========================================================================
@@ -327,8 +332,8 @@ const gamepadCliAPI = {
   // ========================================================================
 
   toolsGetAll: () => ipcRenderer.invoke('tools:getAll'),
-  toolsAddCliType: (key: string, name: string, terminal: string, command: string) => ipcRenderer.invoke('tools:addCliType', key, name, terminal, command),
-  toolsUpdateCliType: (key: string, name: string, terminal: string, command: string) => ipcRenderer.invoke('tools:updateCliType', key, name, terminal, command),
+  toolsAddCliType: (key: string, name: string, command: string, initialPrompt: string) => ipcRenderer.invoke('tools:addCliType', key, name, command, initialPrompt),
+  toolsUpdateCliType: (key: string, name: string, command: string, initialPrompt: string) => ipcRenderer.invoke('tools:updateCliType', key, name, command, initialPrompt),
   toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),
 
   // ========================================================================
