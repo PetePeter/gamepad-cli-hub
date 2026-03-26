@@ -62,7 +62,7 @@ flowchart LR
     C --> D{Binding Resolution}
     D -->|global| E[Execute Action]
     D -->|per-CLI type| E
-    E --> F[keyboard → SequenceParser → PTY stdin<br/>spawn → PtyManager<br/>switch → SessionManager → TerminalManager]
+    E --> F[keyboard → SequenceParser → PTY stdin<br/>voice → OS-default robotjs, PTY when target: 'terminal'<br/>spawn → PtyManager<br/>switch → SessionManager → TerminalManager]
 ```
 
 **Detailed flow:**
@@ -70,10 +70,12 @@ flowchart LR
 2. Button presses debounced at 250ms, sent via IPC `gamepad:event`
 3. Emits `button-press` event to subscribers; analog sticks emit virtual button events
 4. Binding resolution: check global bindings first, then per-CLI-type bindings
-5. Execute resolved action (keyboard sequence → PTY stdin, spawn → PTY, session-switch, etc.)
-6. Analog sticks: explicit binding found → execute action; no binding → fall back to stick mode (left=cursor arrows via PTY, right=scroll terminal buffer)
-7. D-pad / left stick navigates sessions and auto-selects the terminal
-8. Keyboard input always routes to the active terminal (PTY stdin)
+5. Execute resolved action (keyboard sequence → PTY stdin, voice → OS-default robotjs or PTY when target: 'terminal', spawn → PTY, session-switch, etc.)
+6. Voice bindings: default to OS (robotjs). If active terminal exists and `target === 'terminal'` → convert key to escape sequence via `keyToPtyEscape()` → `ptyWrite()`. Otherwise → robotjs. Hold mode sends escape sequence once (PTY has no key-up).
+7. Analog sticks: explicit binding found → execute action; no binding → fall back to stick mode (left=cursor arrows via PTY, right=scroll terminal buffer)
+8. D-pad / left stick navigates sessions and auto-selects the terminal
+9. Keyboard input always routes to the active terminal (PTY stdin)
+10. Ctrl+V paste: document-level interceptor reads clipboard text → writes to active PTY via `ptyWrite()` regardless of DOM focus
 
 ---
 
@@ -113,7 +115,7 @@ flowchart LR
 | **ConfigLoader** | `src/config/loader.ts` | Split YAML config loading + profile/tools/directory CRUD. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getStickDirectionBinding()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 10 domain handler files (session, config, profile, tools, window, spawn, keyboard, pty, system, app). Dependencies injected via function parameters. |
 | **Preload** | `src/electron/preload.ts` | Context bridge exposing typed IPC API to renderer. Must be .cjs when package.json has "type":"module". |
-| **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization), bindings (PTY-aware routing), navigation, screens (sessions/settings), modals (dir-picker/binding-editor). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
+| **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. |
 | **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, grey=idle). Exposes onSwitch/onEmpty callbacks. |
 | ⚠️ **KeyboardSimulator** | `src/output/keyboard.ts` | **DEPRECATED** — robotjs keystroke simulation. Legacy fallback only; not used in PTY-based architecture. |
@@ -154,6 +156,7 @@ graph LR
 | Action | Description |
 |--------|-------------|
 | `keyboard` | Send sequence to PTY stdin. Format: `{ action: 'keyboard', sequence: '{Wait 500}some text{Enter}{Ctrl+C}' }` — sequence parser syntax converted to PTY escape codes. |
+| `voice` | Key simulation for voice activation. Format: `{ action: 'voice', key: 'F1', mode: 'tap', target?: 'terminal' }`. **OS-default routing:** defaults to robotjs (OS-level). Only routes through PTY when `target: 'terminal'` is set — converts key to escape sequence via `keyToPtyEscape()` → `ptyWrite()`. Falls back to robotjs when no terminal or `target` is not `'terminal'`. `mode: 'hold'` sends once on press (PTY) or holds/releases (OS). Supports F1-F12 (VT220), navigation keys, combos. |
 | `session-switch` | Switch active session (next/previous) |
 | `spawn` | Spawn new CLI instance |
 | `list-sessions` | Show session status |
@@ -250,7 +253,8 @@ renderer/
 ├── main.ts                     # Entry point — init, wiring, DOMContentLoaded, terminal manager
 ├── state.ts                    # Shared AppState type + singleton (currentScreen, sessions, activeSessionId, etc.)
 ├── utils.ts                    # DOM helpers, logEvent, showScreen, toDirection
-├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing, sequence parser)
+├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing, voice OS-default + PTY via target: 'terminal', F1-F12 VT220 escape sequences)
+├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY
 ├── navigation.ts               # Gamepad navigation setup, event routing, terminal focus/scroll
 ├── gamepad.ts                  # Browser Gamepad API wrapper
 ├── terminal/
@@ -275,24 +279,23 @@ config/
 └── profiles/
     └── default.yaml            # Button bindings + stick config
 
-tests/
-├── config.test.ts              # 80 tests (base + stick config + haptic + virtual buttons)
-├── session.test.ts             # 30 tests
-├── spawner.test.ts             # 18 tests
-├── persistence.test.ts         # 19 tests
-├── keyboard.test.ts            # 14 tests
-├── windows.test.ts             # 34 tests
+tests/                                  # 547 tests across 16 files
+├── config.test.ts              # Config loading, stick config, haptic, virtual buttons
+├── session.test.ts             # Session management
+├── persistence.test.ts         # Session persistence
+├── keyboard.test.ts            # Keyboard simulation
 ├── sessions-screen.test.ts     # Session cards + spawn grid navigation + directional buttons
 ├── sequence-parser.test.ts     # Sequence format parser tests
 ├── pty-manager.test.ts         # PTY process management tests
 ├── terminal-manager.test.ts    # Embedded terminal lifecycle tests
 ├── bindings-pty.test.ts        # PTY escape helpers + routing tests
+├── bindings-target.test.ts     # Voice binding target routing (PTY vs OS)
+├── paste-routing.test.ts       # Ctrl+V paste → PTY routing tests
 ├── state-detector.test.ts      # AIAGENT-* keyword detection tests
 ├── pipeline-queue.test.ts      # Auto-handoff queue tests
 ├── initial-prompt.test.ts      # Initial prompt delivery tests
 ├── modal-base.test.ts          # Modal UI base tests
-├── utils.test.ts               # Utility function tests
-└── ...
+└── utils.test.ts               # Utility function tests
 ```
 
 ---
@@ -321,6 +324,12 @@ Single input path via Chromium's Gamepad API. Works with both USB and Bluetooth 
 
 ### Embedded Terminals via PTY
 CLIs run inside the Electron app using node-pty + xterm.js. No external terminal windows. PTY spawns cmd.exe on Windows, bash on Unix. All keyboard/sequence input routes through PTY stdin.
+
+### Voice Binding OS-Default Routing
+Voice bindings (`action: 'voice'`) default to OS-level robotjs simulation (for external apps like OpenWhisper). Only route through PTY when `target === 'terminal'` is explicitly set: converts key to terminal escape sequence via `keyToPtyEscape()` and writes to PTY via `ptyWrite()`. Falls back to robotjs when no terminal is active or `target` is not `'terminal'`. Hold mode sends the escape sequence once on press (PTY has no key-up concept). `keyToPtyEscape()` supports F1-F12 (VT220 standard), navigation keys, and modifier combos.
+
+### Clipboard Paste via PTY
+A document-level `keydown` listener (`renderer/paste-handler.ts`) intercepts Ctrl+V, reads clipboard text via `navigator.clipboard.readText()`, and writes it to the active terminal's PTY via `ptyWrite()`. Works regardless of DOM focus — solves the problem of paste not reaching the terminal when gamepad navigation has focused the sidebar instead of xterm.js.
 
 ### D-pad Auto-Selection
 D-pad navigation automatically selects and activates the terminal for the focused session. No separate focus/unfocus toggle — keyboard always types into the active terminal, D-pad always navigates sessions.

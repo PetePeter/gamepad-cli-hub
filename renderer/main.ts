@@ -18,6 +18,7 @@ import {
 import { hideDirPicker, showDirPicker, handleDirPickerButton } from './modals/dir-picker.js';
 import { closeBindingEditor, saveBinding } from './modals/binding-editor.js';
 import { TerminalManager } from './terminal/terminal-manager.js';
+import { setupKeyboardRelay } from './paste-handler.js';
 
 // ============================================================================
 // Terminal Manager
@@ -88,6 +89,9 @@ function setupUIHandlers(): void {
     const w = parseInt(saved, 10);
     if (w >= 200 && w <= 600) panel.style.width = `${w}px`;
   }
+
+  // Keyboard relay — routes typed text and paste to active PTY
+  setupKeyboardRelay(() => terminalManager?.getActiveSessionId() ?? null);
 
   // Panel splitter drag
   setupPanelSplitter();

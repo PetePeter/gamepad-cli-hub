@@ -11,8 +11,11 @@ import { loadSessions, spawnNewSession } from './screens/sessions.js';
 import { parseSequence, formatSequencePreview, type SequenceAction } from '../src/input/sequence-parser.js';
 import { getTerminalManager } from './main.js';
 
-// Tracks which buttons are holding keys via voice hold bindings
+// Tracks which buttons are holding keys via voice hold bindings (robotjs path)
 const heldKeys = new Map<string, string[]>();
+
+// Tracks which buttons had their voice hold routed through PTY (skip robotjs on release)
+const ptyRoutedHolds = new Set<string>();
 
 // ============================================================================
 // PTY Escape Sequence Helpers
@@ -34,10 +37,21 @@ export function keyToPtyEscape(key: string): string {
     'End': '\x1b[F',
     'PageUp': '\x1b[5~',
     'PageDown': '\x1b[6~',
+    'Insert': '\x1b[2~',
+    // VT220 F1–F12 escape sequences
+    'F1': '\x1bOP',
+    'F2': '\x1bOQ',
+    'F3': '\x1bOR',
+    'F4': '\x1bOS',
+    'F5': '\x1b[15~',
+    'F6': '\x1b[17~',
+    'F7': '\x1b[18~',
+    'F8': '\x1b[19~',
+    'F9': '\x1b[20~',
+    'F10': '\x1b[21~',
+    'F11': '\x1b[23~',
+    'F12': '\x1b[24~',
     'Space': ' ',
-    'F1': '\x1bOP', 'F2': '\x1bOQ', 'F3': '\x1bOR', 'F4': '\x1bOS',
-    'F5': '\x1b[15~', 'F6': '\x1b[17~', 'F7': '\x1b[18~', 'F8': '\x1b[19~',
-    'F9': '\x1b[20~', 'F10': '\x1b[21~', 'F11': '\x1b[23~', 'F12': '\x1b[24~',
   };
   return keyMap[key] ?? key;  // fallback: send the key character itself
 }
@@ -166,20 +180,27 @@ async function executeGlobalBinding(button: string, binding: any): Promise<void>
 }
 
 export function processConfigRelease(button: string): void {
+  if (ptyRoutedHolds.has(button)) {
+    // Hold was routed through PTY — no OS-level key to release
+    ptyRoutedHolds.delete(button);
+    heldKeys.delete(button);
+    return;
+  }
   const keys = heldKeys.get(button);
   if (keys) {
-    // Always release via OS-level keyboard — voice holds are OS-level by definition
     window.gamepadCli.keyboardComboUp(keys);
     heldKeys.delete(button);
   }
 }
 
 export function releaseAllHeldKeys(): void {
-  // Always release via OS-level keyboard — voice holds are OS-level by definition
-  for (const [_button, keys] of heldKeys) {
-    window.gamepadCli.keyboardComboUp(keys);
+  for (const [button, keys] of heldKeys) {
+    if (!ptyRoutedHolds.has(button)) {
+      window.gamepadCli.keyboardComboUp(keys);
+    }
   }
   heldKeys.clear();
+  ptyRoutedHolds.clear();
 }
 
 async function executeCliBinding(button: string, binding: any): Promise<void> {
@@ -201,18 +222,43 @@ async function executeCliBinding(button: string, binding: any): Promise<void> {
         const keys = binding.key.split('+').map((k: string) => k.trim()).filter(Boolean);
         if (keys.length === 0) break;
 
+        const tm = getTerminalManager();
+        const activeId = tm?.getActiveSessionId();
+        // Voice bindings default to OS (robotjs) — they trigger external apps like OpenWhisper.
+        // Only route through PTY when explicitly set to target: 'terminal'.
+        const usePty = activeId && binding.target === 'terminal' && window.gamepadCli?.ptyWrite;
+
         if (binding.mode === 'hold') {
-          await window.gamepadCli.keyboardComboDown(keys);
-          heldKeys.set(button, keys);
-          logEvent(`Voice hold: ${binding.key}`);
+          if (usePty) {
+            // Route through PTY — send escape sequence once on press
+            const esc = keys.length === 1
+              ? keyToPtyEscape(keys[0])
+              : comboToPtyEscape(keys);
+            await window.gamepadCli.ptyWrite(activeId!, esc);
+            ptyRoutedHolds.add(button);
+            heldKeys.set(button, keys);
+            logEvent(`Voice hold→PTY: ${binding.key}`);
+          } else {
+            await window.gamepadCli.keyboardComboDown(keys);
+            heldKeys.set(button, keys);
+            logEvent(`Voice hold→OS: ${binding.key}`);
+          }
         } else {
           // tap mode (default)
-          if (keys.length === 1) {
-            await window.gamepadCli.keyboardKeyTap(keys[0]);
+          if (usePty) {
+            const esc = keys.length === 1
+              ? keyToPtyEscape(keys[0])
+              : comboToPtyEscape(keys);
+            await window.gamepadCli.ptyWrite(activeId!, esc);
+            logEvent(`Voice tap→PTY: ${binding.key}`);
           } else {
-            await window.gamepadCli.keyboardSendKeyCombo(keys);
+            if (keys.length === 1) {
+              await window.gamepadCli.keyboardKeyTap(keys[0]);
+            } else {
+              await window.gamepadCli.keyboardSendKeyCombo(keys);
+            }
+            logEvent(`Voice tap→OS: ${binding.key}`);
           }
-          logEvent(`Voice tap: ${binding.key}`);
         }
         break;
       }

@@ -153,8 +153,10 @@ const gamepadCliAPI = {
     ipcRenderer.invoke('pty:spawn', sessionId, command, args, cwd, cliType),
 
   /** Write data to a PTY terminal's stdin */
-  ptyWrite: (sessionId: string, data: string) =>
-    ipcRenderer.invoke('pty:write', sessionId, data),
+  ptyWrite: (sessionId: string, data: string) => {
+    console.log(`[Preload] ptyWrite → pty:write session=${sessionId} len=${data.length}`);
+    return ipcRenderer.invoke('pty:write', sessionId, data);
+  },
 
   /** Resize a PTY terminal */
   ptyResize: (sessionId: string, cols: number, rows: number) =>

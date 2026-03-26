@@ -121,10 +121,12 @@ export class PtyManager extends EventEmitter {
   write(sessionId: string, data: string): void {
     const pty = this.ptys.get(sessionId);
     if (!pty) {
-      logger.warn(`[PTY] No PTY found for session: ${sessionId}`);
+      logger.warn(`[PTY] No PTY found for session: ${sessionId} (available: ${[...this.ptys.keys()].join(', ')})`);
       return;
     }
+    logger.info(`[PTY] Writing to session=${sessionId} len=${data.length}`);
     pty.write(data);
+    logger.info(`[PTY] Write completed for session=${sessionId}`);
   }
 
   /** Resize a session's PTY. */

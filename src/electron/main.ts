@@ -85,10 +85,9 @@ function createWindow(): void {
   });
 
   // Log renderer console output
+  // TRACE: forward ALL renderer console logs for pipeline debugging
   mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    if (sourceId?.includes('preload') || message.includes('Preload') || level >= 2) {
-      logger.debug(`[WebContents:${level}] ${message} (${sourceId}:${line})`);
-    }
+    logger.info(`[WebContents:${level}] ${message} (${sourceId}:${line})`);
   });
 
   // DevTools — only open via Ctrl+Shift+I (not auto-opened)

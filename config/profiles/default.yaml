@@ -3,7 +3,7 @@ cliTypes:
   claude-code:
     RightTrigger:
       action: voice
-      key: Ctrl+Alt
+      key: F1
       mode: hold
     A:
       action: keyboard
@@ -17,16 +17,23 @@ cliTypes:
     B:
       action: keyboard
       sequence: "{Escape}"
+    RightStickLeft:
+      action: keyboard
+      sequence: "{Backspace}"
+    RightStickRight:
+      action: keyboard
+      sequence: "{Space}"
   copilot-cli:
     A:
       action: keyboard
-      sequence: "{Ctrl+L}"
+      sequence: "{Enter}"
     B:
       action: keyboard
       sequence: "{Escape}"
-    X:
-      action: keyboard
-      sequence: "?{Enter}"
+    RightTrigger:
+      action: voice
+      key: F1
+      mode: hold
   generic-terminal:
     A:
       action: keyboard
@@ -36,7 +43,7 @@ cliTypes:
       sequence: "{Ctrl+C}"
     LeftBumper:
       action: keyboard
-      sequence: "as asd"
+      sequence: as asd
   python:
     A:
       action: keyboard

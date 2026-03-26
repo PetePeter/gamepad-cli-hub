@@ -68,7 +68,9 @@ export function setupPtyHandlers(
 
   // pty:write - Write data to a session's PTY stdin
   ipcMain.handle('pty:write', (_event, sessionId: string, data: string) => {
+    logger.info(`[PTY IPC] pty:write received: session=${sessionId} len=${data.length}`);
     ptyManager.write(sessionId, data);
+    logger.info(`[PTY IPC] pty:write completed for session=${sessionId}`);
   });
 
   // pty:resize - Resize a session's PTY

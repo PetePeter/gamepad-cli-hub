@@ -208,7 +208,7 @@ describe('binding action routing', () => {
   // -------------------------------------------------------------------------
 
   describe('voice tap binding (single key)', () => {
-    it('calls keyboardKeyTap for a single key', async () => {
+    it('defaults to OS-level robotjs even when terminal is active', async () => {
       state.cliBindingsCache['claude-code'] = {
         X: { action: 'voice', key: 'F1', mode: 'tap' },
       };
@@ -219,6 +219,18 @@ describe('binding action routing', () => {
       expect(mockGamepadCli.keyboardKeyTap).toHaveBeenCalledWith('F1');
       expect(mockGamepadCli.ptyWrite).not.toHaveBeenCalled();
     });
+
+    it('routes to PTY when target is terminal', async () => {
+      state.cliBindingsCache['claude-code'] = {
+        X: { action: 'voice', key: 'F1', mode: 'tap', target: 'terminal' },
+      };
+
+      processConfigBinding('X');
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(mockGamepadCli.ptyWrite).toHaveBeenCalledWith('session-1', '\x1bOP');
+      expect(mockGamepadCli.keyboardKeyTap).not.toHaveBeenCalled();
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -226,7 +238,7 @@ describe('binding action routing', () => {
   // -------------------------------------------------------------------------
 
   describe('voice tap binding (combo)', () => {
-    it('calls keyboardSendKeyCombo for multi-key combo', async () => {
+    it('defaults to OS-level robotjs for multi-key combo', async () => {
       state.cliBindingsCache['claude-code'] = {
         Y: { action: 'voice', key: 'Ctrl+Shift+V', mode: 'tap' },
       };
@@ -235,8 +247,19 @@ describe('binding action routing', () => {
       await new Promise(r => setTimeout(r, 10));
 
       expect(mockGamepadCli.keyboardSendKeyCombo).toHaveBeenCalledWith(['Ctrl', 'Shift', 'V']);
-      expect(mockGamepadCli.keyboardKeyTap).not.toHaveBeenCalled();
       expect(mockGamepadCli.ptyWrite).not.toHaveBeenCalled();
+    });
+
+    it('routes combo to PTY when target is terminal', async () => {
+      state.cliBindingsCache['claude-code'] = {
+        Y: { action: 'voice', key: 'Ctrl+Shift+V', mode: 'tap', target: 'terminal' },
+      };
+
+      processConfigBinding('Y');
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(mockGamepadCli.ptyWrite).toHaveBeenCalledWith('session-1', expect.any(String));
+      expect(mockGamepadCli.keyboardSendKeyCombo).not.toHaveBeenCalled();
     });
   });
 
@@ -245,7 +268,7 @@ describe('binding action routing', () => {
   // -------------------------------------------------------------------------
 
   describe('voice hold binding', () => {
-    it('calls keyboardComboDown on press', async () => {
+    it('defaults to OS-level keyboardComboDown even with active terminal', async () => {
       state.cliBindingsCache['claude-code'] = {
         RightTrigger: { action: 'voice', key: 'Ctrl+Alt', mode: 'hold' },
       };
@@ -256,6 +279,18 @@ describe('binding action routing', () => {
       expect(mockGamepadCli.keyboardComboDown).toHaveBeenCalledWith(['Ctrl', 'Alt']);
       expect(mockGamepadCli.ptyWrite).not.toHaveBeenCalled();
     });
+
+    it('routes to PTY when target is terminal', async () => {
+      state.cliBindingsCache['claude-code'] = {
+        RightTrigger: { action: 'voice', key: 'Ctrl+Alt', mode: 'hold', target: 'terminal' },
+      };
+
+      processConfigBinding('RightTrigger');
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(mockGamepadCli.ptyWrite).toHaveBeenCalledWith('session-1', expect.any(String));
+      expect(mockGamepadCli.keyboardComboDown).not.toHaveBeenCalled();
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -263,20 +298,30 @@ describe('binding action routing', () => {
   // -------------------------------------------------------------------------
 
   describe('voice hold release', () => {
-    it('calls keyboardComboUp when releasing a held button', async () => {
+    it('calls keyboardComboUp for default OS-routed holds', async () => {
       state.cliBindingsCache['claude-code'] = {
         RightTrigger: { action: 'voice', key: 'Ctrl+Alt', mode: 'hold' },
       };
 
-      // Press
       processConfigBinding('RightTrigger');
       await new Promise(r => setTimeout(r, 10));
       expect(mockGamepadCli.keyboardComboDown).toHaveBeenCalledWith(['Ctrl', 'Alt']);
 
-      // Release
       processConfigRelease('RightTrigger');
-
       expect(mockGamepadCli.keyboardComboUp).toHaveBeenCalledWith(['Ctrl', 'Alt']);
+    });
+
+    it('skips keyboardComboUp for PTY-routed holds (target: terminal)', async () => {
+      state.cliBindingsCache['claude-code'] = {
+        RightTrigger: { action: 'voice', key: 'Ctrl+Alt', mode: 'hold', target: 'terminal' },
+      };
+
+      processConfigBinding('RightTrigger');
+      await new Promise(r => setTimeout(r, 10));
+      expect(mockGamepadCli.ptyWrite).toHaveBeenCalled();
+
+      processConfigRelease('RightTrigger');
+      expect(mockGamepadCli.keyboardComboUp).not.toHaveBeenCalled();
     });
 
     it('does nothing for buttons that are not held', () => {
@@ -290,7 +335,7 @@ describe('binding action routing', () => {
   // -------------------------------------------------------------------------
 
   describe('releaseAllHeldKeys', () => {
-    it('releases all voice holds via keyboardComboUp', async () => {
+    it('releases OS-routed holds via keyboardComboUp', async () => {
       state.cliBindingsCache['claude-code'] = {
         RightTrigger: { action: 'voice', key: 'Ctrl+Alt', mode: 'hold' },
         LeftTrigger: { action: 'voice', key: 'Shift+Space', mode: 'hold' },
@@ -304,6 +349,19 @@ describe('binding action routing', () => {
 
       expect(mockGamepadCli.keyboardComboUp).toHaveBeenCalledWith(['Ctrl', 'Alt']);
       expect(mockGamepadCli.keyboardComboUp).toHaveBeenCalledWith(['Shift', 'Space']);
+    });
+
+    it('skips keyboardComboUp for PTY-routed holds (target: terminal)', async () => {
+      state.cliBindingsCache['claude-code'] = {
+        RightTrigger: { action: 'voice', key: 'Ctrl+Alt', mode: 'hold', target: 'terminal' },
+      };
+
+      processConfigBinding('RightTrigger');
+      await new Promise(r => setTimeout(r, 10));
+
+      releaseAllHeldKeys();
+
+      expect(mockGamepadCli.keyboardComboUp).not.toHaveBeenCalled();
     });
 
     it('clears held state so subsequent release is a no-op', async () => {
@@ -320,6 +378,36 @@ describe('binding action routing', () => {
       // Second release should do nothing
       releaseAllHeldKeys();
       expect(mockGamepadCli.keyboardComboUp).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // voice target: 'os' override
+  // -------------------------------------------------------------------------
+
+  describe('voice target: os override', () => {
+    it('forces robotjs even when terminal is active (tap)', async () => {
+      state.cliBindingsCache['claude-code'] = {
+        X: { action: 'voice', key: 'F1', mode: 'tap', target: 'os' },
+      };
+
+      processConfigBinding('X');
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(mockGamepadCli.keyboardKeyTap).toHaveBeenCalledWith('F1');
+      expect(mockGamepadCli.ptyWrite).not.toHaveBeenCalled();
+    });
+
+    it('forces robotjs even when terminal is active (hold)', async () => {
+      state.cliBindingsCache['claude-code'] = {
+        RightTrigger: { action: 'voice', key: 'Ctrl+Alt', mode: 'hold', target: 'os' },
+      };
+
+      processConfigBinding('RightTrigger');
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(mockGamepadCli.keyboardComboDown).toHaveBeenCalledWith(['Ctrl', 'Alt']);
+      expect(mockGamepadCli.ptyWrite).not.toHaveBeenCalled();
     });
   });
 });
