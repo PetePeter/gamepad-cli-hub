@@ -15,20 +15,25 @@ tools:
   copilot-cli:
     name: GitHub Copilot CLI
     command: copilot
-    initialPrompt: |-
+    initialPrompt: >-
+      /allow-all {Enter}
+
       <application-prompt>
+
       SYSTEMPROMPT:
+
       - Include AIAGENT-IMPLEMENTING when actively coding.
+
       - Include AIAGENT-PLANNING when researching or thinking.
+
       - Include AIAGENT-IDLE when awaiting input or task complete.
-      - End responses with an open ended question with a freetype entry field.
+
       </application-prompt>
+
+
+      End your response with an open ended question with a freetype entry field.
+      Use the ask question tool.
     initialPromptDelay: 5000
-  python:
-    name: python
-    command: python
-    initialPromptDelay: 0
-    initialPrompt: ""
 workingDirectories:
   - name: Gamepad Hub
     path: X:\coding\gamepad-cli-hub
@@ -68,6 +73,9 @@ bindings:
       action: voice
       key: F1
       mode: hold
+    RightStick:
+      action: keyboard
+      sequence: "{Enter}"
   copilot-cli:
     RightTrigger:
       action: voice
@@ -97,6 +105,13 @@ bindings:
     Y:
       action: keyboard
       sequence: "/foundation:"
+    LeftTrigger:
+      action: voice
+      key: F1
+      mode: hold
+    RightStick:
+      action: keyboard
+      sequence: "{Enter}"
   generic-terminal:
     A:
       action: keyboard
