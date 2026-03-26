@@ -4,7 +4,7 @@
 
 You're running Claude Code in one terminal, Copilot CLI in another, maybe a third session for a side project. Alt-tabbing between them is slow. Finding the right window is annoying. Typing repetitive commands is tedious.
 
-Pick up your controller. One button spawns a new Claude Code session — it opens as an embedded terminal right inside the app. Another fires up Copilot CLI in its own tab. The D-pad flips between tabs instantly. Press A to focus the terminal and type; press B to go back to the session list. Ctrl+Tab cycles tabs from the keyboard.
+Pick up your controller. One button spawns a new Claude Code session — it opens as an embedded terminal right inside the app. Another fires up Copilot CLI in its own tab. The D-pad flips between tabs instantly, auto-selecting the terminal so you can start typing right away. Ctrl+Tab cycles tabs from the keyboard.
 
 This is a session manager for people who run multiple AI-assisted terminals at once and got tired of the friction.
 
@@ -20,7 +20,7 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 
 **Session Persistence** — Sessions survive crashes and restarts. The app saves session state to disk after every change and restores on startup. A health check periodically removes dead sessions so the list stays clean.
 
-**Quick Access** — Press the Sandwich/Guide button from anywhere to snap back to the session list. The app lives as a slim sidebar on the edge of your screen — always visible, never in the way. Press A to focus into a terminal, B to come back.
+**Quick Access** — Press the Sandwich/Guide button from anywhere to snap back to the session list. The app lives as a slim sidebar on the edge of your screen — always visible, never in the way. D-pad navigation auto-selects the terminal — no extra button presses needed.
 
 **Analog Sticks** — Each stick emits virtual button names (LeftStickUp, RightStickDown, etc.) that can be bound to any action. If no binding exists, right stick scrolls the terminal buffer. Both configurable per-profile with deadzone and repeat rate settings.
 
@@ -38,11 +38,11 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 
 | Input | Action |
 |-------|--------|
-| D-Pad Up / Down | Switch terminal tabs (terminal mode) / Switch sessions (sidebar) |
+| D-Pad Up / Down | Switch sessions (auto-selects terminal) |
 | Left Stick | Same as D-pad |
 | Right Stick | Scroll terminal buffer |
-| A | Select / Focus terminal |
-| B | Back / Unfocus terminal |
+| A | Spawn action / configurable per-CLI binding |
+| B | Back to sessions zone / configurable per-CLI binding |
 | X | Close terminal |
 | Y | (planned: cycle terminal state) |
 | Left Trigger | Spawn Claude Code |
@@ -94,9 +94,9 @@ graph LR
     style APP fill:#4a9eff,color:#fff,stroke:#2d7ad6
 ```
 
-The app sits between your controller and your AI coding assistants. It reads gamepad input (buttons and analog sticks), resolves bindings, and routes keystrokes to embedded terminal sessions running inside the app via PTY. Each session renders in its own xterm.js tab — a tab bar with colored state dots (🟢 implementing, 🟠 waiting, 🔵 planning, ⚪ idle) sits above the terminal area.
+The app sits between your controller and your AI coding assistants. It reads gamepad input via the Browser Gamepad API (buttons and analog sticks), resolves bindings, and routes keystrokes to embedded terminal sessions running inside the app via PTY. Each session renders in its own xterm.js tab — a tab bar with colored state dots (🟢 implementing, 🟠 waiting, 🔵 planning, ⚪ idle) sits above the terminal area.
 
-**Terminal focus mode:** Press A or click to focus into a terminal — keyboard and gamepad input routes to the PTY. Press B to unfocus back to the sidebar. D-pad switches tabs in terminal mode. Ctrl+Tab / Ctrl+Shift+Tab for keyboard tab switching.
+**D-pad navigation auto-selects terminals** — press up/down to switch sessions and the terminal activates immediately. Keyboard input always routes to the active terminal. Non-navigation buttons (XYAB, bumpers, triggers) pass through to per-CLI configurable bindings.
 
 **State detection:** The app watches PTY output for AIAGENT-* keywords and auto-detects whether a CLI is implementing, waiting, or planning. A pipeline queue auto-dispatches work to waiting sessions.
 

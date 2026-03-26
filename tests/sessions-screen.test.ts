@@ -192,7 +192,6 @@ describe('Sessions Screen', () => {
       sessions: [],
       activeSessionId: null,
       currentScreen: 'sessions',
-      terminalFocused: false,
     });
     document.body.innerHTML = '';
   });
@@ -483,24 +482,12 @@ describe('Sessions Screen', () => {
       });
     });
 
-    it('A activates the focused session', async () => {
-      sessions.handleSessionsScreenButton('A');
-      await flush();
-
-      expect(mockSwitchTo).toHaveBeenCalledWith('s-0');
+    it('A in sessions zone is not consumed (returns false)', () => {
+      expect(sessions.handleSessionsScreenButton('A')).toBe(false);
     });
 
-    it('A focuses the terminal area', async () => {
-      sessions.handleSessionsScreenButton('A');
-      await flush();
-
-      expect(state.terminalFocused).toBe(true);
-    });
-
-    it('A on second session activates that session', async () => {
+    it('D-pad down auto-selects the focused session', () => {
       sessions.handleSessionsScreenButton('DPadDown');
-      sessions.handleSessionsScreenButton('A');
-      await flush();
 
       expect(mockSwitchTo).toHaveBeenCalledWith('s-1');
     });
@@ -522,13 +509,14 @@ describe('Sessions Screen', () => {
       expect(mockLogEvent).toHaveBeenCalledWith('Sessions refreshed');
     });
 
-    it('handleSessionsScreenButton always returns true', () => {
+    it('directional buttons return true, non-navigation buttons return false for unhandled', () => {
       expect(sessions.handleSessionsScreenButton('DPadDown')).toBe(true);
-      expect(sessions.handleSessionsScreenButton('A')).toBe(true);
-      expect(sessions.handleSessionsScreenButton('B')).toBe(true);
       expect(sessions.handleSessionsScreenButton('X')).toBe(true);
       expect(sessions.handleSessionsScreenButton('Y')).toBe(true);
-      expect(sessions.handleSessionsScreenButton('UnknownButton')).toBe(true);
+      // A is no longer consumed in sessions zone (auto-select on D-pad instead)
+      expect(sessions.handleSessionsScreenButton('A')).toBe(false);
+      // Unknown buttons are not consumed — fall through to config bindings
+      expect(sessions.handleSessionsScreenButton('UnknownButton')).toBe(false);
     });
 
     it('LeftStickDown also navigates down (toDirection mapping)', () => {
@@ -944,10 +932,10 @@ describe('Sessions Screen', () => {
       expect(sessionsState.sessionsFocusIndex).toBe(0);
     });
 
-    it('Enter maps to A (activates session)', async () => {
+    it('Enter maps to A (not consumed in sessions zone)', () => {
       pressKey('Enter');
-      await flush();
-      expect(mockSwitchTo).toHaveBeenCalledWith('s-0');
+      // A is no longer consumed in sessions zone — auto-select happens on D-pad
+      expect(mockSwitchTo).not.toHaveBeenCalled();
     });
 
     it('Escape maps to B (no-op on sessions zone)', () => {

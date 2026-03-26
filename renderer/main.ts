@@ -13,9 +13,6 @@ import { loadSessions, updateSessionHighlight, syncSessionHighlight, setDirPicke
 import { loadSettingsScreen } from './screens/settings.js';
 import {
   setupGamepadNavigation,
-  updateGamepadCount,
-  gamepadUnsubscribe,
-  connectionUnsubscribe,
   browserGamepadUnsubscribe,
 } from './navigation.js';
 import { hideDirPicker, showDirPicker, handleDirPickerButton } from './modals/dir-picker.js';
@@ -94,11 +91,6 @@ function setupUIHandlers(): void {
 
   // Panel splitter drag
   setupPanelSplitter();
-
-  // Click on sidebar → unfocus terminal, return keyboard to sidebar navigation
-  document.getElementById('panelLeft')?.addEventListener('mousedown', () => {
-    state.terminalFocused = false;
-  });
 }
 
 function setupPanelSplitter(): void {
@@ -163,7 +155,6 @@ async function init(): Promise<void> {
       const direction = e.shiftKey ? -1 : 1;
       const newIdx = (currentIdx + direction + ids.length) % ids.length;
       tm.switchTo(ids[newIdx]);
-      state.terminalFocused = true;
     }
   }, true);
 
@@ -213,7 +204,6 @@ async function init(): Promise<void> {
       terminalManager = new TerminalManager(terminalContainer);
       terminalManager.setOnEmpty(() => {
         hideTerminalArea();
-        state.terminalFocused = false;
       });
       terminalManager.setOnSwitch((sessionId) => {
         syncSessionHighlight(sessionId);
@@ -224,7 +214,6 @@ async function init(): Promise<void> {
       const terminalArea = document.getElementById('terminalArea');
       terminalArea?.addEventListener('mousedown', () => {
         if (terminalManager?.getActiveSessionId()) {
-          state.terminalFocused = true;
           terminalManager.focusActive();
         }
       });
@@ -294,8 +283,6 @@ if (document.readyState === 'loading') {
 // Handle cleanup
 window.addEventListener('beforeunload', () => {
   terminalManager?.dispose();
-  gamepadUnsubscribe?.();
-  connectionUnsubscribe?.();
   browserGamepadUnsubscribe?.();
   browserGamepad.stop();
 });

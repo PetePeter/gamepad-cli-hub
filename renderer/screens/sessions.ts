@@ -69,12 +69,22 @@ export async function loadSessions(): Promise<void> {
 export function handleSessionsScreenButton(button: string): boolean {
   const dir = toDirection(button);
 
-  if (sessionsState.activeFocus === 'sessions') {
-    handleSessionsZone(button, dir);
-  } else {
-    handleSpawnZone(button, dir);
+  if (dir) {
+    // D-pad / left stick navigation — always consumed
+    if (sessionsState.activeFocus === 'sessions') {
+      handleSessionsZone(button, dir);
+    } else {
+      handleSpawnZone(button, dir);
+    }
+    return true;
   }
-  return true;
+
+  // Non-directional buttons: check specific handlers
+  if (sessionsState.activeFocus === 'sessions') {
+    return handleSessionsZoneButton(button);
+  } else {
+    return handleSpawnZoneButton(button);
+  }
 }
 
 export async function doSpawn(cliType: string, workingDir?: string): Promise<void> {
@@ -112,7 +122,6 @@ export async function doSpawn(cliType: string, workingDir?: string): Promise<voi
       if (success) {
         logEvent(`Spawned embedded terminal: ${cliType}`);
         showTerminalArea();
-        state.terminalFocused = true;
         setTimeout(async () => {
           try {
             await loadSessions();
@@ -163,7 +172,6 @@ export function hideTerminalArea(): void {
   const splitter = document.getElementById('panelSplitter');
   if (terminalArea) terminalArea.style.display = 'none';
   if (splitter) splitter.style.display = 'none';
-  state.terminalFocused = false;
 }
 
 export function updateSessionHighlight(): void {
@@ -502,6 +510,7 @@ function handleSessionsZone(button: string, dir: string | null): void {
     if (count === 0) return;
     sessionsState.sessionsFocusIndex = Math.max(0, sessionsState.sessionsFocusIndex - 1);
     updateSessionsFocus();
+    autoSelectFocusedSession();
     return;
   }
   if (dir === 'down') {
@@ -513,23 +522,23 @@ function handleSessionsZone(button: string, dir: string | null): void {
     }
     sessionsState.sessionsFocusIndex++;
     updateSessionsFocus();
+    autoSelectFocusedSession();
     return;
   }
+}
 
+function handleSessionsZoneButton(button: string): boolean {
   switch (button) {
-    case 'A': {
-      const session = state.sessions[sessionsState.sessionsFocusIndex];
-      if (session) switchToSession(session.id);
-      return;
-    }
     case 'X': {
       const session = state.sessions[sessionsState.sessionsFocusIndex];
       if (session) deleteSession(session.id);
-      return;
+      return true;
     }
     case 'Y':
       refreshSessions();
-      return;
+      return true;
+    default:
+      return false;
   }
 }
 
@@ -575,20 +584,24 @@ function handleSpawnZone(button: string, dir: string | null): void {
     }
     return;
   }
+}
 
+function handleSpawnZoneButton(button: string): boolean {
   switch (button) {
     case 'A': {
       const cliType = sessionsState.cliTypes[sessionsState.spawnFocusIndex];
       if (cliType) spawnNewSession(cliType);
-      return;
+      return true;
     }
     case 'B':
       sessionsState.activeFocus = 'sessions';
       updateAllFocus();
-      return;
+      return true;
     case 'Y':
       refreshSessions();
-      return;
+      return true;
+    default:
+      return false;
   }
 }
 
@@ -623,13 +636,23 @@ function updateAllFocus(): void {
 // Actions
 // ============================================================================
 
+/** Auto-switch the terminal to whichever session has D-pad focus. */
+function autoSelectFocusedSession(): void {
+  const session = state.sessions[sessionsState.sessionsFocusIndex];
+  if (!session) return;
+  const tm = terminalManagerGetter ? terminalManagerGetter() : null;
+  if (tm && tm.hasTerminal(session.id)) {
+    tm.switchTo(session.id);
+    state.activeSessionId = session.id;
+  }
+}
+
 async function switchToSession(sessionId: string): Promise<void> {
   // Check if this is an embedded terminal
   const tm = terminalManagerGetter ? terminalManagerGetter() : null;
   if (tm && tm.hasTerminal(sessionId)) {
     tm.switchTo(sessionId);
     showTerminalArea();
-    state.terminalFocused = true;
     return;
   }
 
@@ -683,8 +706,6 @@ function refreshSessions(): void {
 
 function onKeyDown(e: KeyboardEvent): void {
   if (state.currentScreen !== 'sessions') return;
-  // When terminal is focused, let xterm.js handle all keyboard input
-  if (state.terminalFocused) return;
 
   const keyMap: Record<string, string> = {
     ArrowUp: 'DPadUp', ArrowDown: 'DPadDown', ArrowLeft: 'DPadLeft', ArrowRight: 'DPadRight',

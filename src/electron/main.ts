@@ -9,7 +9,6 @@ import { app, BrowserWindow, ipcMain, Menu, screen } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { registerIPCHandlers } from './ipc/handlers.js';
-import { gamepadInput } from '../input/gamepad.js';
 import { configLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
 
@@ -136,10 +135,6 @@ app.whenReady().then(() => {
   // Create main window
   createWindow();
 
-  // Start gamepad input listener
-  gamepadInput.start();
-  logger.info('[Main] Gamepad listener started');
-
   // Handle macOS dock behavior
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -154,9 +149,6 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   logger.info('[Main] All windows closed');
 
-  // Stop gamepad input
-  gamepadInput.stop();
-
   // On macOS, don't quit the app
   if (process.platform !== 'darwin') {
     app.quit();
@@ -168,9 +160,6 @@ app.on('window-all-closed', () => {
  */
 app.on('before-quit', () => {
   logger.info('[Main] App quitting');
-
-  // Stop gamepad input
-  gamepadInput.stop();
 
   if (cleanupIPC) {
     cleanupIPC();

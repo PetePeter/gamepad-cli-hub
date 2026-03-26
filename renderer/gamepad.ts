@@ -18,7 +18,7 @@ class BrowserGamepadPoller {
   private pollMs = 16; // ~60fps
   private buttonStates: Map<number, boolean[]> = new Map();
   private lastPressTime: Map<string, number> = new Map();
-  private debounceMs = 600;
+  private debounceMs = 250;
   private callbacks: Set<ButtonCallback> = new Set();
   private releaseCallbacks: Set<ButtonCallback> = new Set();
   private connectedCount = 0;

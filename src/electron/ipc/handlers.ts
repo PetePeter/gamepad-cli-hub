@@ -11,14 +11,12 @@ import { SessionManager } from '../../session/manager.js';
 import { PtyManager } from '../../session/pty-manager.js';
 import { StateDetector } from '../../session/state-detector.js';
 import { PipelineQueue } from '../../session/pipeline-queue.js';
-import { gamepadInput } from '../../input/gamepad.js';
 import { configLoader } from '../../config/loader.js';
 import { windowManager } from '../../output/windows.js';
 import { keyboard } from '../../output/keyboard.js';
 import { processSpawner } from '../../session/spawner.js';
 import { logger } from '../../utils/logger.js';
 
-import { setupGamepadHandlers } from './gamepad-handlers.js';
 import { setupSessionHandlers } from './session-handlers.js';
 import { setupConfigHandlers } from './config-handlers.js';
 import { setupProfileHandlers } from './profile-handlers.js';
@@ -54,7 +52,6 @@ export function registerIPCHandlers(getMainWindow: () => BrowserWindow | null): 
   const stateDetector = new StateDetector();
   const pipelineQueue = new PipelineQueue();
 
-  setupGamepadHandlers(gamepadInput);
   const cleanupSession = setupSessionHandlers(sessionManager, windowManager);
   setupConfigHandlers(configLoader);
   setupProfileHandlers(configLoader);

@@ -12,57 +12,6 @@ import { contextBridge, ipcRenderer } from 'electron';
  */
 const gamepadCliAPI = {
   // ========================================================================
-  // Gamepad Events
-  // ========================================================================
-
-  /**
-   * Subscribe to gamepad button press events
-   * @param callback - Function to call when a button is pressed
-   * @returns Unsubscribe function
-   */
-  onGamepadEvent: (callback: (event: { button: string; gamepadIndex: number; timestamp: number }) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
-    ipcRenderer.on('gamepad:event', listener);
-    return () => ipcRenderer.removeListener('gamepad:event', listener);
-  },
-
-  /**
-   * Subscribe to gamepad button release events
-   * @param callback - Function to call when a button is released
-   * @returns Unsubscribe function
-   */
-  onGamepadRelease: (callback: (event: { button: string; gamepadIndex: number; timestamp: number }) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
-    ipcRenderer.on('gamepad:release', listener);
-    return () => ipcRenderer.removeListener('gamepad:release', listener);
-  },
-
-  /**
-   * Subscribe to gamepad connection events
-   * @param callback - Function to call when connection state changes
-   * @returns Unsubscribe function
-   */
-  onGamepadConnection: (callback: (event: { connected: boolean; count: number; timestamp: number }) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
-    ipcRenderer.on('gamepad:connection', listener);
-    return () => ipcRenderer.removeListener('gamepad:connection', listener);
-  },
-
-  /**
-   * Get the number of connected gamepads
-   */
-  getGamepadCount: () => ipcRenderer.invoke('gamepad:getCount'),
-
-  /**
-   * Vibrate a connected gamepad
-   * @param leftMotor - Left motor intensity (0–65535)
-   * @param rightMotor - Right motor intensity (0–65535)
-   * @param durationMs - Vibration duration in milliseconds
-   */
-  gamepadVibrate: (leftMotor: number, rightMotor: number, durationMs: number) =>
-    ipcRenderer.invoke('gamepad:vibrate', leftMotor, rightMotor, durationMs),
-
-  // ========================================================================
   // Session Management
   // ========================================================================
 

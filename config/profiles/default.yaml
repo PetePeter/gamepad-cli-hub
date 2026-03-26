@@ -4,17 +4,25 @@ cliTypes:
     RightTrigger:
       action: keyboard
       keys:
-        - Insert
+        - Ctrl
+        - Alt
       hold: true
-    LeftTrigger:
-      action: keyboard
-      keys:
-        - Enter
     A:
       action: keyboard
-      keys:
-        - Insert
-      hold: true
+      keys: []
+      sequence: "{Enter}"
+    RightStickDown:
+      action: keyboard
+      keys: []
+      sequence: "{Down}"
+    RightStickUp:
+      action: keyboard
+      keys: []
+      sequence: "{Up}"
+    B:
+      action: keyboard
+      keys: []
+      sequence: "{Escape}"
   copilot-cli:
     A:
       action: keyboard
