@@ -274,14 +274,22 @@ export class ConfigLoader {
 
   private readYaml<T>(filePath: string): T {
     if (!fs.existsSync(filePath)) {
+      console.error(`[Config] Configuration file not found: ${filePath}`);
       throw new Error(`Configuration file not found: ${filePath}`);
     }
     const content = fs.readFileSync(filePath, 'utf8');
-    const parsed = YAML.parse(content) as T;
-    if (!parsed) {
-      throw new Error(`Failed to parse configuration file: ${filePath}`);
+    try {
+      const parsed = YAML.parse(content) as T;
+      if (!parsed) {
+        console.error(`[Config] Empty or invalid YAML in: ${filePath}`);
+        throw new Error(`Failed to parse configuration file: ${filePath}`);
+      }
+      return parsed;
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Failed to parse')) throw error;
+      console.error(`[Config] YAML parse error in ${filePath}:`, error);
+      throw new Error(`Failed to parse configuration file: ${filePath} — ${error}`);
     }
-    return parsed;
   }
 
   // ---------- Existing read methods (backward compatible) ---------------

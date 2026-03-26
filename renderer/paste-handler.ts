@@ -53,11 +53,11 @@ export function setupKeyboardRelay(getActiveSessionId: GetActiveSessionId): void
       console.log(`[KeyRelay] PASTE detected for session=${sessionId}`);
       try {
         const text = await navigator.clipboard.readText();
-        const currentSession = getActiveSessionId(); // re-read after await
+        // Use sessionId captured before await — session may have switched during clipboard read
         console.log(`[KeyRelay] PASTE clipboard read: ${text.length} chars`);
-        if (currentSession && text.length > 0) {
-          console.log(`[KeyRelay] PASTE → ptyWrite(${currentSession}, ${text.length} chars)`);
-          window.gamepadCli.ptyWrite(currentSession, text);
+        if (text.length > 0) {
+          console.log(`[KeyRelay] PASTE → ptyWrite(${sessionId}, ${text.length} chars)`);
+          window.gamepadCli.ptyWrite(sessionId, text);
           console.log(`[KeyRelay] PASTE → ptyWrite sent OK`);
         } else {
           console.log(`[KeyRelay] PASTE → empty clipboard or no session, skipping`);

@@ -9,6 +9,7 @@ import { state } from './state.js';
 import { logEvent, showScreen, updateProfileDisplay } from './utils.js';
 import { loadSessions, spawnNewSession } from './screens/sessions.js';
 import { parseSequence, formatSequencePreview, type SequenceAction } from '../src/input/sequence-parser.js';
+import type { Binding } from '../src/config/loader.js';
 import { getTerminalManager } from './main.js';
 
 /** Shared scroll handler — used by both global and CLI binding executors. */
@@ -126,7 +127,7 @@ export function processConfigBinding(button: string): void {
   }
 }
 
-async function executeGlobalBinding(button: string, binding: any): Promise<void> {
+async function executeGlobalBinding(button: string, binding: Binding): Promise<void> {
   try {
     switch (binding.action) {
       case 'session-switch': {
@@ -221,7 +222,7 @@ export function releaseAllHeldKeys(): void {
   ptyRoutedHolds.clear();
 }
 
-async function executeCliBinding(button: string, binding: any): Promise<void> {
+async function executeCliBinding(button: string, binding: Binding): Promise<void> {
   try {
     switch (binding.action) {
       case 'keyboard': {
@@ -242,6 +243,7 @@ async function executeCliBinding(button: string, binding: any): Promise<void> {
 
         const tm = getTerminalManager();
         const activeId = tm?.getActiveSessionId();
+        // Capture activeId before any awaits — session may switch during async ops.
         // Voice bindings default to OS (robotjs) — they trigger external apps like OpenWhisper.
         // Only route through PTY when explicitly set to target: 'terminal'.
         const usePty = activeId && binding.target === 'terminal' && window.gamepadCli?.ptyWrite;

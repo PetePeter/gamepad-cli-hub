@@ -138,10 +138,6 @@ export function handleGamepadEvent(event: ButtonEvent): void {
     case 'settings':
       consumed = handleSettingsScreenButton(event.button);
       break;
-    case 'status':
-      // Status screen merged into settings tab — redirect to sessions
-      consumed = false;
-      break;
   }
 
   if (!consumed) {

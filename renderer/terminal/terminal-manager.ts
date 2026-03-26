@@ -23,6 +23,7 @@ export class TerminalManager {
   private resizeObserver: ResizeObserver | null = null;
   private onEmpty: (() => void) | null = null;
   private onSwitch: ((sessionId: string) => void) | null = null;
+  private pendingFitRaf: number | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -100,8 +101,12 @@ export class TerminalManager {
     session.element.style.display = 'block';
     this.activeSessionId = sessionId;
 
-    // Fit and focus after layout
-    requestAnimationFrame(() => {
+    // Fit and focus after layout — cancel pending rAF to avoid stacking on rapid switches
+    if (this.pendingFitRaf !== null) {
+      cancelAnimationFrame(this.pendingFitRaf);
+    }
+    this.pendingFitRaf = requestAnimationFrame(() => {
+      this.pendingFitRaf = null;
       session.view.fit();
       session.view.focus();
     });
