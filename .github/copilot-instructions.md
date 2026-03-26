@@ -112,9 +112,9 @@ flowchart LR
 | **PipelineQueue** | `src/session/pipeline-queue.ts` | Auto-handoff queue — routes tasks to waiting sessions based on state detection. |
 | **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. |
 | **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. |
-| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 10 domain handler files(session, config, profile, tools, window, spawn, keyboard, pty, system, app). Dependencies injected via function parameters. |
+| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 10 domain handler files(session, config, profile, tools, window, spawn, keyboard, pty, system, app). Dependencies injected via function parameters. Config handlers include `dialog:openFolder` for native OS folder picker. |
 | **Preload** | `src/electron/preload.ts` | Context bridge exposing typed IPC API to renderer. Must be .cjs when package.json has "type":"module". |
-| **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
+| **Renderer** | `renderer/*.ts` | Modular vanilla TypeScript UI. Entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization, `showFormModal` with `FormField` types: text/select/textarea + `browse?: boolean` for native folder picker), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. |
 | **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, grey=idle). Exposes onSwitch/onEmpty callbacks. |
 | ⚠️ **KeyboardSimulator** | `src/output/keyboard.ts` | **DEPRECATED** — robotjs keystroke simulation. Legacy fallback only; not used in PTY-based architecture. |
@@ -172,6 +172,8 @@ sticks:
 
 ### Settings UI (4 tabs)
 Profiles | Per-CLI Bindings | Tools | Directories
+
+Directories tab: add/edit forms include a Browse button (📁) that opens native OS folder picker via `dialog:openFolder` IPC channel and auto-fills path + name fields.
 
 All config supports CRUD via IPC handlers and the Settings UI.
 
@@ -268,7 +270,7 @@ config/
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 
-tests/                                  # 547 tests across 16 files
+tests/                                  # 600 tests across 18 files
 ├── config.test.ts              # Config loading, stick config, haptic, virtual buttons
 ├── session.test.ts             # Session management
 ├── persistence.test.ts         # Session persistence
@@ -339,7 +341,7 @@ Left stick emulates D-pad plus cursor-mode arrow keys (sent as PTY escape codes)
 Haptic feedback is a config setting (`hapticFeedback: true/false` in settings.yaml) but the PowerShell XInput implementation was removed. The setting remains for future reimplementation.
 
 ### IPC Bridge Pattern
-Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 10 domain files (`src/electron/ipc/*-handlers.ts`) with dependency injection — the orchestrator (`handlers.ts`) wires dependencies. Renderer never directly accesses Node.js APIs.
+Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge` (includes `dialogOpenFolder` for native folder picker). IPC handlers are split into 10 domain files (`src/electron/ipc/*-handlers.ts`) with dependency injection — the orchestrator (`handlers.ts`) wires dependencies. Renderer never directly accesses Node.js APIs.
 
 ### Self-Contained Profile YAML
 Each profile is a single YAML file containing tools, working directories, bindings, stick config, and dpad config. Switching profiles changes everything (tools, directories, bindings). Settings (active profile, haptic, sidebar) stored separately. Auto-migration merges legacy `tools.yaml`/`directories.yaml` into profiles on first load. Profile switch shows a confirmation dialog when terminals are open (keep sessions / close all). `createProfile()` copies tools + dirs from the current profile.

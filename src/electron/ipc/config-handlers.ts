@@ -5,7 +5,7 @@
  * bindings, CLI types, and working directory CRUD.
  */
 
-import { ipcMain } from 'electron';
+import { ipcMain, dialog, BrowserWindow } from 'electron';
 import type { ConfigLoader } from '../../config/loader.js';
 import { logger } from '../../utils/logger.js';
 
@@ -178,5 +178,15 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
       logger.error(`[IPC] Failed to get stick config for ${stick}: ${error}`);
       return { mode: 'disabled', deadzone: 0.25, repeatRate: 100 };
     }
+  });
+
+  ipcMain.handle('dialog:openFolder', async (_event) => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const options = { properties: ['openDirectory' as const], title: 'Select Working Directory' };
+    const result = focusedWindow
+      ? await dialog.showOpenDialog(focusedWindow, options)
+      : await dialog.showOpenDialog(options);
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
   });
 }

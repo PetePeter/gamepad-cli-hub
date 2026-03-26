@@ -188,6 +188,38 @@ export interface FormField {
   options?: FormFieldOption[];
   /** Optional element appended after the input (e.g. syntax help panel). */
   afterElement?: HTMLElement;
+  /** Show a native OS folder-picker button next to the text input. */
+  browse?: boolean;
+}
+
+/** Extract folder basename from a path (handles both / and \). */
+function folderBasename(folderPath: string): string {
+  const parts = folderPath.replace(/\\/g, '/').split('/');
+  return parts[parts.length - 1] || parts[parts.length - 2] || '';
+}
+
+/** Create a 📁 browse button that opens a native folder picker and fills the given input. */
+export function createBrowseButton(
+  pathInput: HTMLInputElement,
+  nameInput?: HTMLInputElement | null,
+): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.textContent = '📁';
+  btn.title = 'Browse…';
+  btn.type = 'button';
+  btn.style.cssText = 'padding: 4px 8px; background: #3a3a3a; border: 1px solid #555; color: #fff; border-radius: 4px; cursor: pointer; font-size: 14px;';
+  btn.addEventListener('click', async () => {
+    const selected = await window.gamepadCli.dialogOpenFolder();
+    if (selected) {
+      pathInput.value = selected;
+      pathInput.dispatchEvent(new Event('input', { bubbles: true }));
+      const nameEl = nameInput ?? document.getElementById('formField_name') as HTMLInputElement | null;
+      if (nameEl && !nameEl.value.trim()) {
+        nameEl.value = folderBasename(selected);
+      }
+    }
+  });
+  return btn;
 }
 
 export function showFormModal(title: string, fields: FormField[]): Promise<Record<string, string> | null> {
@@ -237,7 +269,20 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
         input.id = `formField_${field.key}`;
         input.value = field.defaultValue || '';
         if (field.placeholder) input.placeholder = field.placeholder;
-        wrapper.appendChild(input);
+
+        if (field.browse) {
+          const browseWrapper = document.createElement('div');
+          browseWrapper.style.display = 'flex';
+          browseWrapper.style.gap = '6px';
+          input.style.flex = '1';
+
+          const browseBtn = createBrowseButton(input);
+          browseWrapper.appendChild(input);
+          browseWrapper.appendChild(browseBtn);
+          wrapper.appendChild(browseWrapper);
+        } else {
+          wrapper.appendChild(input);
+        }
       }
 
       if (field.afterElement) {

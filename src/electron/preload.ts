@@ -252,6 +252,13 @@ const gamepadCliAPI = {
   systemGetGameBarEnabled: () => ipcRenderer.invoke('system:getGameBarEnabled'),
   systemSetGameBarEnabled: (enabled: boolean) => ipcRenderer.invoke('system:setGameBarEnabled', enabled),
 
+  // ========================================================================
+  // Dialog
+  // ========================================================================
+
+  /** Open a native OS folder picker and return the selected path (or null if cancelled) */
+  dialogOpenFolder: (): Promise<string | null> => ipcRenderer.invoke('dialog:openFolder'),
+
 };
 
 /**

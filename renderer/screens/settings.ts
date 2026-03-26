@@ -11,6 +11,7 @@ import {
   formatBindingDetails,
   updateProfileDisplay,
   showFormModal,
+  createBrowseButton,
   toDirection,
   createSequenceSyntaxHelp,
 } from '../utils.js';
@@ -901,6 +902,15 @@ function showAddDirectoryForm(panel: HTMLElement): void {
     panel.appendChild(form);
   }
 
+  const pathInput = form.querySelector('#newDirPath') as HTMLInputElement;
+  const nameInput = form.querySelector('#newDirName') as HTMLInputElement;
+  const browseBtn = createBrowseButton(pathInput, nameInput);
+  browseBtn.style.marginLeft = '6px';
+  pathInput.parentElement!.style.display = 'flex';
+  pathInput.parentElement!.style.gap = '6px';
+  pathInput.style.flex = '1';
+  pathInput.parentElement!.appendChild(browseBtn);
+
   document.getElementById('saveNewDirBtn')?.addEventListener('click', async () => {
     const name = (document.getElementById('newDirName') as HTMLInputElement).value.trim();
     const dirPath = (document.getElementById('newDirPath') as HTMLInputElement).value.trim();
@@ -929,7 +939,7 @@ function showAddDirectoryForm(panel: HTMLElement): void {
 async function showEditDirectoryPrompt(dir: { name: string; path: string }, index: number): Promise<void> {
   const result = await showFormModal('Edit Directory', [
     { key: 'name', label: 'Name', defaultValue: dir.name },
-    { key: 'path', label: 'Path', defaultValue: dir.path },
+    { key: 'path', label: 'Path', defaultValue: dir.path, browse: true },
   ]);
 
   if (!result) return;
