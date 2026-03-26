@@ -11,6 +11,7 @@ export interface SessionsScreenState {
   cardColumn: 0 | 1 | 2;
   cliTypes: string[];
   directories: Array<{ name: string; path: string }>;
+  editingSessionId: string | null;
 }
 
 export const sessionsState: SessionsScreenState = {
@@ -20,4 +21,5 @@ export const sessionsState: SessionsScreenState = {
   cardColumn: 0,
   cliTypes: [],
   directories: [],
+  editingSessionId: null,
 };

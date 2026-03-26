@@ -348,6 +348,81 @@ button {
   color: #ff5050;
 }
 
+/* Session rename button */
+.session-name-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.session-rename {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+.session-card:hover .session-rename,
+.session-card.focused .session-rename {
+  opacity: 0.6;
+}
+.session-rename:hover {
+  opacity: 1 !important;
+  color: var(--accent, #4fc3f7);
+  background: rgba(79, 195, 247, 0.1);
+}
+
+/* Rename edit mode input and buttons */
+.session-rename-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  color: var(--text-primary);
+  outline: none;
+}
+.session-rename-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.2);
+}
+
+.session-rename-save,
+.session-rename-cancel {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+}
+.session-rename-save {
+  color: #4cc94c;
+}
+.session-rename-save:hover {
+  background: rgba(76, 201, 76, 0.15);
+  color: #5dd95d;
+}
+.session-rename-cancel {
+  color: #888;
+}
+.session-rename-cancel:hover {
+  background: rgba(255, 68, 68, 0.1);
+  color: #ff4444;
+}
+
 /* Session state dropdown button */
 .session-state-btn {
   background: none;

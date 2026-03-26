@@ -83,7 +83,7 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 | Module | File | Responsibility |
 |--------|------|---------------|
 | **BrowserGamepad** | `renderer/gamepad.ts` | Browser Gamepad API polling (250ms debounce), button-press events via IPC, analog stick events, **D-pad and stick auto-repeat engine**. Sole gamepad input source. |
-| **SessionManager** | `src/session/manager.ts` | Track sessions, switch active, emit session:added/removed/changed. Calls persistence after every state change. |
+| **SessionManager** | `src/session/manager.ts` | Track sessions, switch active, rename sessions, emit session:added/removed/changed. Calls persistence after every state change. |
 | **SessionPersistence** | `src/session/persistence.ts` | `saveSessions()`, `loadSessions()`, `clearPersistedSessions()` to `config/sessions.yaml`. Health check removes dead PIDs. |
 | **ProcessSpawner** | `src/session/process-spawner.ts` | Spawn CLI processes via PtyManager, register with SessionManager. Supports initial prompt delay. |
 | **PtyManager** | `src/session/pty-manager.ts` | PTY process lifecycle — spawn via node-pty (cmd.exe on Windows, bash on Unix), write to stdin, resize, kill. One PTY per embedded terminal session. |

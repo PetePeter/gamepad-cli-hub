@@ -318,6 +318,69 @@ describe('SessionManager', () => {
     });
   });
 
+  describe('renameSession', () => {
+    beforeEach(() => {
+      manager.addSession(mockSession1);
+    });
+
+    it('renames an existing session', () => {
+      const result = manager.renameSession(mockSession1.id, 'New Name');
+
+      expect(result.name).toBe('New Name');
+      expect(manager.getSession(mockSession1.id)?.name).toBe('New Name');
+    });
+
+    it('trims whitespace from new name', () => {
+      const result = manager.renameSession(mockSession1.id, '  Spaced Name  ');
+
+      expect(result.name).toBe('Spaced Name');
+    });
+
+    it('emits session:changed event when renamed', () => {
+      let changedEvent: any = null;
+      manager.on('session:changed', (event) => {
+        changedEvent = event;
+      });
+
+      manager.renameSession(mockSession1.id, 'Renamed');
+
+      expect(changedEvent).toMatchObject({
+        sessionId: mockSession1.id,
+      });
+      expect(changedEvent.timestamp).toBeDefined();
+    });
+
+    it('throws error for non-existent session', () => {
+      expect(() => manager.renameSession('non-existent', 'Name'))
+        .toThrow('Session with id "non-existent" does not exist');
+    });
+
+    it('throws error for empty name', () => {
+      expect(() => manager.renameSession(mockSession1.id, '   '))
+        .toThrow('Session name cannot be empty');
+    });
+
+    it('throws error for name exceeding 50 characters', () => {
+      const longName = 'a'.repeat(51);
+      expect(() => manager.renameSession(mockSession1.id, longName))
+        .toThrow('Session name cannot exceed 50 characters');
+    });
+
+    it('returns same session if name unchanged', () => {
+      const result = manager.renameSession(mockSession1.id, mockSession1.name);
+
+      expect(result).toEqual(mockSession1);
+    });
+
+    it('persists sessions after rename', () => {
+      const persistSpy = vi.spyOn(manager as any, 'persistSessions');
+
+      manager.renameSession(mockSession1.id, 'Persisted Name');
+
+      expect(persistSpy).toHaveBeenCalled();
+    });
+  });
+
   describe('clear', () => {
     it('removes all sessions and clears active session', () => {
       manager.addSession(mockSession1);

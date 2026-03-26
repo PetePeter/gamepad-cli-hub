@@ -442,6 +442,52 @@ async function loadSessionsData(): Promise<void> {
 // Render — sessions list
 // ============================================================================
 
+/** Start editing a session name */
+function startRename(sessionId: string): void {
+  sessionsState.editingSessionId = sessionId;
+  renderSessions();
+}
+
+/** Cancel editing and restore display mode */
+function cancelRename(): void {
+  sessionsState.editingSessionId = null;
+  renderSessions();
+}
+
+/** Commit the rename and update the session */
+async function commitRename(sessionId: string, newName: string): void {
+  const trimmed = newName.trim();
+  if (!trimmed) {
+    logEvent('Name cannot be empty');
+    return;
+  }
+  if (trimmed.length > 50) {
+    logEvent('Name too long (max 50 chars)');
+    return;
+  }
+
+  try {
+    if (!window.gamepadCli) return;
+    const result = await window.gamepadCli.sessionRename(sessionId, trimmed);
+    if (result.success) {
+      logEvent(`Renamed to: ${trimmed}`);
+      sessionsState.editingSessionId = null;
+      // Reload sessions to get updated data
+      await loadSessionsData();
+      renderSessions();
+    } else {
+      logEvent(`Rename failed: ${result.error}`);
+      sessionsState.editingSessionId = null;
+      renderSessions();
+    }
+  } catch (error) {
+    console.error('[Sessions] Rename failed:', error);
+    logEvent('Rename failed');
+    sessionsState.editingSessionId = null;
+    renderSessions();
+  }
+}
+
 function renderSessions(): void {
   const list = document.getElementById('sessionsList');
   const empty = document.getElementById('sessionsEmpty');
@@ -479,17 +525,83 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   const info = document.createElement('div');
   info.className = 'session-info';
 
-  // Heading: CLI display name + folder
-  const name = document.createElement('span');
-  name.className = 'session-name';
+  const isEditing = sessionsState.editingSessionId === session.id;
+  const isFocusedCard = index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
   const displayName = getCliDisplayName(session.cliType);
   const folder = getSessionCwd(session.id);
-  name.textContent = folder ? `${displayName} — ${folder}` : displayName;
+
+  // Name line container (holds name/edit input + rename button)
+  const nameLine = document.createElement('div');
+  nameLine.className = 'session-name-line';
+
+  if (isEditing) {
+    // Edit mode: input field + save/cancel buttons
+    const input = document.createElement('input');
+    input.className = 'session-rename-input';
+    input.type = 'text';
+    input.maxLength = 50;
+    input.value = session.name;
+    input.placeholder = 'Enter name...';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'session-rename-save';
+    saveBtn.textContent = '✓';
+    saveBtn.title = 'Save (Enter)';
+    saveBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      commitRename(session.id, input.value);
+    });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'session-rename-cancel';
+    cancelBtn.textContent = '×';
+    cancelBtn.title = 'Cancel (Escape)';
+    cancelBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      cancelRename();
+    });
+
+    // Enter to save, Escape to cancel
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        commitRename(session.id, input.value);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        cancelRename();
+      }
+    });
+
+    // Auto-focus input
+    setTimeout(() => input.focus(), 0);
+
+    nameLine.appendChild(input);
+    nameLine.appendChild(saveBtn);
+    nameLine.appendChild(cancelBtn);
+  } else {
+    // Display mode: name text + rename button
+    const name = document.createElement('span');
+    name.className = 'session-name';
+    name.textContent = folder ? `${displayName} — ${folder}` : displayName;
+
+    const renameBtn = document.createElement('button');
+    renameBtn.className = 'session-rename';
+    renameBtn.textContent = '✎';
+    renameBtn.title = 'Rename session';
+    renameBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      startRename(session.id);
+    });
+
+    nameLine.appendChild(name);
+    nameLine.appendChild(renameBtn);
+  }
 
   // Meta: state dropdown button
   const stateBtn = document.createElement('button');
   stateBtn.className = 'session-state-btn';
-  const isFocusedCard = index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
   if (isFocusedCard && sessionsState.cardColumn === 1) stateBtn.classList.add('card-col-focused');
   stateBtn.textContent = getStateLabel(sessionState);
   stateBtn.addEventListener('click', (e) => {
@@ -497,7 +609,7 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
     showStateDropdown(stateBtn, session.id, sessionState);
   });
 
-  info.appendChild(name);
+  info.appendChild(nameLine);
   info.appendChild(stateBtn);
 
   // Close button — double-click-to-confirm pattern (matches binding delete)

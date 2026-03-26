@@ -40,6 +40,11 @@ const gamepadCliAPI = {
    */
   sessionClose: (id: string) => ipcRenderer.invoke('session:close', id),
 
+  /**
+   * Rename a session
+   */
+  sessionRename: (id: string, newName: string) => ipcRenderer.invoke('session:rename', id, newName),
+
   // ========================================================================
   // Configuration
   // ========================================================================

@@ -35,6 +35,16 @@ export function setupSessionHandlers(
     return { success: true };
   });
 
+  ipcMain.handle('session:rename', (_event, id: string, newName: string) => {
+    try {
+      const updatedSession = sessionManager.renameSession(id, newName);
+      return { success: true, session: updatedSession };
+    } catch (error) {
+      logger.error(`[Session] Rename failed: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle('session:close', async (_event, id: string) => {
     try {
       const session = sessionManager.getSession(id);

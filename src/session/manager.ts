@@ -202,6 +202,50 @@ export class SessionManager extends EventEmitter {
   }
 
   /**
+   * Rename a session
+   * @param sessionId - Session ID to rename
+   * @param newName - New display name (trimmed, max 50 chars)
+   * @returns The updated session info
+   * @throws Error if session doesn't exist or name is invalid
+   */
+  renameSession(sessionId: string, newName: string): SessionInfo {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session with id "${sessionId}" does not exist`);
+    }
+
+    const trimmedName = newName.trim();
+    if (trimmedName.length === 0) {
+      throw new Error('Session name cannot be empty');
+    }
+    if (trimmedName.length > 50) {
+      throw new Error('Session name cannot exceed 50 characters');
+    }
+
+    // Only update if name actually changed
+    if (session.name !== trimmedName) {
+      const updatedSession: SessionInfo = {
+        ...session,
+        name: trimmedName
+      };
+      this.sessions.set(sessionId, updatedSession);
+      this.persistSessions();
+
+      // Emit change event to notify UI
+      const event: SessionChangeEvent = {
+        sessionId,
+        previousSessionId: this.activeSessionId,
+        timestamp: Date.now()
+      };
+      this.emit('session:changed', event);
+
+      return updatedSession;
+    }
+
+    return session;
+  }
+
+  /**
    * Clear all sessions
    */
   clear(): void {
