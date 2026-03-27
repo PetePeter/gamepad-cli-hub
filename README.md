@@ -94,11 +94,11 @@ graph LR
     style APP fill:#4a9eff,color:#fff,stroke:#2d7ad6
 ```
 
-The app sits between your controller and your AI coding assistants. It reads gamepad input via the Browser Gamepad API (buttons and analog sticks), resolves bindings, and routes keystrokes to embedded terminal sessions running inside the app via PTY. Each session renders in its own xterm.js tab — a tab bar with colored state dots (🟢 implementing, 🟠 waiting, 🔵 planning, ⚪ idle) sits above the terminal area.
+The app sits between your controller and your AI coding assistants. It reads gamepad input via the Browser Gamepad API (buttons and analog sticks), resolves bindings, and routes keystrokes to embedded terminal sessions running inside the app via PTY. Each session renders in its own xterm.js tab — a tab bar with colored state dots (🟢 implementing, 🟠 waiting, 🔵 planning, 🟡 completed, ⚪ idle) sits above the terminal area.
 
 **D-pad navigation auto-selects terminals** — press up/down to switch sessions and the terminal activates immediately. Keyboard input always routes to the active terminal. Non-navigation buttons (XYAB, bumpers, triggers) pass through to per-CLI configurable bindings.
 
-**State detection:** The app watches PTY output for AIAGENT-* keywords and auto-detects whether a CLI is implementing, waiting, or planning. A pipeline queue auto-dispatches work to waiting sessions.
+**State detection:** The app watches PTY output for AIAGENT-* keywords and auto-detects whether a CLI is implementing, planning, completed, or idle. A pipeline queue auto-dispatches work to waiting sessions — handoff triggers when a session enters completed or idle state.
 
 Sessions persist across restarts — if the app crashes or you reboot, it picks up where you left off.
 

@@ -2,10 +2,10 @@
  * Pipeline state for an AI CLI session.
  * Detected from AIAGENT-* keywords in PTY output.
  */
-export type SessionState = 'implementing' | 'waiting' | 'planning' | 'idle';
+export type SessionState = 'implementing' | 'waiting' | 'planning' | 'completed' | 'idle';
 
 /** Runtime-safe list of valid SessionState values for input validation. */
-export const VALID_SESSION_STATES: readonly SessionState[] = ['implementing', 'waiting', 'planning', 'idle'];
+export const VALID_SESSION_STATES: readonly SessionState[] = ['implementing', 'waiting', 'planning', 'completed', 'idle'];
 
 /**
  * CLI session information

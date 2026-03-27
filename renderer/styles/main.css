@@ -1395,6 +1395,7 @@ kbd {
 .tab-state-dot--implementing { background: #44cc44; box-shadow: 0 0 6px #44cc44; }
 .tab-state-dot--waiting { background: #ffaa00; box-shadow: 0 0 6px #ffaa00; }
 .tab-state-dot--planning { background: #4488ff; box-shadow: 0 0 6px #4488ff; }
+.tab-state-dot--completed { background: #ffd700; box-shadow: 0 0 6px #ffd700; }
 .tab-state-dot--idle { background: #555555; }
 
 .terminal-container {
@@ -1409,26 +1410,6 @@ kbd {
   left: 0;
   right: 0;
   bottom: 0;
-}
-
-.terminal-status {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 4px 12px;
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border);
-  font-size: 11px;
-  color: var(--text-secondary);
-  min-height: 28px;
-}
-
-.terminal-status__state {
-  font-weight: 600;
-}
-
-.terminal-status__info {
-  margin-left: auto;
 }
 
 /* Context Menu */

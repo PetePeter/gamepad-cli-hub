@@ -143,8 +143,8 @@ export function setupPtyHandlers(
       session.state = transition.newState;
     }
 
-    // Auto-handoff: when a session becomes idle, trigger next in queue
-    if (transition.newState === 'idle') {
+    // Auto-handoff: when a session completes or goes idle, trigger next in queue
+    if (transition.newState === 'idle' || transition.newState === 'completed') {
       const handoff = pipelineQueue.triggerHandoff(transition.sessionId);
       if (handoff) {
         // Guard: ensure target PTY is still alive before writing

@@ -45,6 +45,24 @@ describe('StateDetector', () => {
       expect(detector.getState('s1')).toBe('idle');
     });
 
+    it('detects AIAGENT-COMPLETED', () => {
+      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+      detector.processOutput('s1', 'AIAGENT-COMPLETED');
+      expect(detector.getState('s1')).toBe('completed');
+    });
+
+    it('AIAGENT-COMPLETED emits state-change with correct transition', () => {
+      const handler = vi.fn();
+      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+      detector.on('state-change', handler);
+      detector.processOutput('s1', 'AIAGENT-COMPLETED');
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 's1',
+        previousState: 'implementing',
+        newState: 'completed',
+      }));
+    });
+
     it('does not emit state-change when state is the same', () => {
       const handler = vi.fn();
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');

@@ -1290,10 +1290,10 @@ describe('Sessions Screen', () => {
       const options = dropdown!.querySelectorAll('.session-state-option');
       expect(options.length).toBeGreaterThan(1);
 
-      // Initial focus is on 'idle' (index 3, last). Navigate UP to 'planning' (index 2).
+      // Initial focus is on 'idle' (index 4, last). Navigate UP to 'completed' (index 3).
       sessions.handleSessionsScreenButton('DPadUp');
-      expect(options[2].classList.contains('dropdown-focused')).toBe(true);
-      expect(options[3].classList.contains('dropdown-focused')).toBe(false);
+      expect(options[3].classList.contains('dropdown-focused')).toBe(true);
+      expect(options[4].classList.contains('dropdown-focused')).toBe(false);
       // Clean up
       dropdown?.remove();
     });
@@ -1306,8 +1306,9 @@ describe('Sessions Screen', () => {
       sessions.handleSessionsScreenButton('A'); // open dropdown
       const dropdown = document.querySelector('.session-state-dropdown');
       expect(dropdown).toBeTruthy();
-      // Navigate down to 'implementing' (first option, which gets dropdown-focused on open since idle is index 3)
-      // idle is the current state → focusIndex starts at 3. Navigate up twice to get to 'waiting' (index 1)
+      // Navigate down to 'implementing' (first option, which gets dropdown-focused on open since idle is index 4)
+      // idle is the current state → focusIndex starts at 4. Navigate up to get to 'implementing' (index 0)
+      sessions.handleSessionsScreenButton('DPadUp'); // → completed (3)
       sessions.handleSessionsScreenButton('DPadUp'); // → planning (2)
       sessions.handleSessionsScreenButton('DPadUp'); // → waiting (1)
       sessions.handleSessionsScreenButton('DPadUp'); // → implementing (0)

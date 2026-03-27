@@ -39,6 +39,7 @@ function stripAnsi(text: string): string {
 const KEYWORD_STATE_MAP: Record<string, SessionState> = {
   'AIAGENT-IMPLEMENTING': 'implementing',
   'AIAGENT-PLANNING': 'planning',
+  'AIAGENT-COMPLETED': 'completed',
   'AIAGENT-IDLE': 'idle',
 };
 

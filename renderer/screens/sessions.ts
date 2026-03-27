@@ -29,6 +29,7 @@ const STATE_LABELS: Record<string, string> = {
   implementing: '🔨 Implementing',
   waiting: '⏳ Waiting',
   planning: '🧠 Planning',
+  completed: '🎉 Completed',
   idle: '💤 Idle',
 };
 
@@ -38,7 +39,8 @@ const STATE_ORDER: Record<string, number> = {
   implementing: 0,
   waiting: 1,
   planning: 2,
-  idle: 3,
+  completed: 3,
+  idle: 4,
 };
 
 let sessionsSortControl: SortControlHandle | null = null;
@@ -682,7 +684,7 @@ function showStateDropdown(anchor: HTMLElement, sessionId: string, currentState:
   const dropdown = document.createElement('div');
   dropdown.className = 'session-state-dropdown';
 
-  const states = ['implementing', 'waiting', 'planning', 'idle'];
+  const states = ['implementing', 'waiting', 'planning', 'completed', 'idle'];
   let focusIndex = states.indexOf(currentState);
   if (focusIndex < 0) focusIndex = 0;
 
