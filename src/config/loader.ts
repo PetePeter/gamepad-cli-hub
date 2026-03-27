@@ -58,7 +58,7 @@ export interface SpawnConfig {
 export interface CliTypeConfig {
   name: string;
   command: string;
-  initialPrompt?: string;
+  initialPrompt?: SequenceListItem[];
   initialPromptDelay?: number;
 }
 
@@ -220,6 +220,26 @@ export class ConfigLoader {
       raw.bindings = raw.cliTypes;
       delete raw.cliTypes;
       fs.writeFileSync(filePath, YAML.stringify(raw), 'utf8');
+    }
+
+    // Migrate string initialPrompt → SequenceListItem[] in tools
+    let promptMigrated = false;
+    if (raw.tools && typeof raw.tools === 'object') {
+      for (const toolKey of Object.keys(raw.tools)) {
+        const tool = raw.tools[toolKey];
+        if (tool && typeof tool.initialPrompt === 'string') {
+          tool.initialPrompt = tool.initialPrompt.trim()
+            ? [{ label: 'Prompt', sequence: tool.initialPrompt }]
+            : [];
+          promptMigrated = true;
+        } else if (tool && tool.initialPrompt != null && !Array.isArray(tool.initialPrompt)) {
+          tool.initialPrompt = [];
+          promptMigrated = true;
+        }
+      }
+      if (promptMigrated) {
+        fs.writeFileSync(filePath, YAML.stringify(raw), 'utf8');
+      }
     }
 
     // Ensure required fields have defaults
@@ -577,16 +597,16 @@ export class ConfigLoader {
 
   // ---------- Tools CRUD -----------------------------------------------
 
-  addCliType(key: string, name: string, command: string, initialPrompt?: string, initialPromptDelay?: number): void {
+  addCliType(key: string, name: string, command: string, initialPrompt?: SequenceListItem[], initialPromptDelay?: number): void {
     this.ensureLoaded();
     if (this.activeProfile!.tools[key]) {
       throw new Error(`CLI type already exists: ${key}`);
     }
-    this.activeProfile!.tools[key] = { name, command, initialPrompt: initialPrompt ?? '', initialPromptDelay: initialPromptDelay ?? 0 };
+    this.activeProfile!.tools[key] = { name, command, initialPrompt: initialPrompt ?? [], initialPromptDelay: initialPromptDelay ?? 0 };
     this.saveActiveProfile();
   }
 
-  updateCliType(key: string, name: string, command: string, initialPrompt?: string, initialPromptDelay?: number): void {
+  updateCliType(key: string, name: string, command: string, initialPrompt?: SequenceListItem[], initialPromptDelay?: number): void {
     this.ensureLoaded();
     if (!this.activeProfile!.tools[key]) {
       throw new Error(`CLI type not found: ${key}`);
@@ -595,7 +615,7 @@ export class ConfigLoader {
     this.activeProfile!.tools[key] = {
       name,
       command,
-      initialPrompt: initialPrompt ?? '',
+      initialPrompt: initialPrompt ?? [],
       initialPromptDelay: initialPromptDelay !== undefined ? initialPromptDelay : existing.initialPromptDelay,
     };
     this.saveActiveProfile();

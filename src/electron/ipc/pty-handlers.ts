@@ -17,11 +17,11 @@ export function cancelAllPrompts(): void {
   promptCancellers.clear();
 }
 
-/** Build InitialPromptConfig from the CLI type definition in tools.yaml */
+/** Build InitialPromptConfig from the CLI type definition */
 function resolvePromptConfig(
   cliType: string | undefined,
   configLoader: ConfigLoader | undefined,
-): { initialPrompt?: string; initialPromptDelay?: number } {
+): { initialPrompt?: import('../../config/loader.js').SequenceListItem[]; initialPromptDelay?: number } {
   if (!cliType || !configLoader) return {};
   try {
     const cfg = configLoader.getCliTypeEntry?.(cliType);
@@ -48,6 +48,14 @@ export function setupPtyHandlers(
     logger.info(`[PTY IPC] pty:spawn called: sessionId=${sessionId}, command=${command}, args=${JSON.stringify(args)}, cwd=${cwd}, cliType=${cliType}`);
     try {
       const pty = ptyManager.spawn({ sessionId, command, args, cwd });
+
+      // Register with SessionManager so rename/state/persistence work
+      sessionManager.addSession({
+        id: sessionId,
+        name: cliType || 'unknown',
+        cliType: cliType || 'unknown',
+        processId: pty.pid,
+      });
 
       // Schedule initial prompt pre-loading from CLI type config
       const promptConfig = resolvePromptConfig(cliType, configLoader);

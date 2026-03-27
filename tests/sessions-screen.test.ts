@@ -193,6 +193,7 @@ describe('Sessions Screen', () => {
       cardColumn: 0,
       cliTypes: [],
       directories: [],
+      editingSessionId: null,
     });
     Object.assign(state, {
       sessions: [],
@@ -303,7 +304,7 @@ describe('Sessions Screen', () => {
       expect(dot!.classList.contains('session-activity-dot--inactive')).toBe(true);
     });
 
-    it('session card contains .session-state-icon, .session-info with .session-name, and .session-state-btn', async () => {
+    it('session card contains .session-info with .session-name and .session-state-btn', async () => {
       sessions.setTerminalManagerGetter(() => createMockTerminalManager([
         { id: 's-0', cliType: 'claude-code' },
       ]));
@@ -311,10 +312,6 @@ describe('Sessions Screen', () => {
 
       const card = document.querySelector('#sessionsList .session-card');
       expect(card).not.toBeNull();
-
-      const stateIcon = card!.querySelector('.session-state-icon');
-      expect(stateIcon).not.toBeNull();
-      expect(stateIcon!.textContent).toBe('💤');
 
       const info = card!.querySelector('.session-info');
       expect(info).not.toBeNull();
@@ -1161,14 +1158,14 @@ describe('Sessions Screen', () => {
   // ==========================================================================
 
   describe('session card UI elements', () => {
-    it('session cards include .session-close button with ? icon', async () => {
+    it('session cards include .session-close button with ✕ icon', async () => {
       setMockTerminalSessions(makeSessions(2));
       mockConfigGetCliTypes.mockResolvedValue(['claude-code']);
       await loadAndFlush(sessions);
 
       const closeButtons = document.querySelectorAll('.session-card .session-close');
       expect(closeButtons).toHaveLength(2);
-      expect(closeButtons[0].textContent).toBe('?');
+      expect(closeButtons[0].textContent).toBe('✕');
     });
 
     it('session cards include .session-state-btn button', async () => {
@@ -1202,7 +1199,7 @@ describe('Sessions Screen', () => {
       closeBtn.click();
       await flush();
 
-      expect(closeBtn.textContent).toBe('?');
+      expect(closeBtn.textContent).toBe('✕');
       expect(mockDestroyTerminal).not.toHaveBeenCalled();
       expect(mockShowCloseConfirm).toHaveBeenCalled();
     });
@@ -1235,10 +1232,10 @@ describe('Sessions Screen', () => {
       expect(sessionsState.cardColumn).toBe(2);
     });
 
-    it('RIGHT does not exceed 2', () => {
-      sessionsState.cardColumn = 2;
+    it('RIGHT does not exceed 3', () => {
+      sessionsState.cardColumn = 3;
       sessions.handleSessionsScreenButton('DPadRight');
-      expect(sessionsState.cardColumn).toBe(2);
+      expect(sessionsState.cardColumn).toBe(3);
     });
 
     it('LEFT moves cardColumn from 2 to 1', () => {
@@ -1375,15 +1372,15 @@ describe('Sessions Screen', () => {
       expect(sessionsState.cardColumn).toBe(0);
     });
 
-    it('A at col=2 triggers close confirm modal', async () => {
-      sessionsState.cardColumn = 2;
+    it('A at col=3 triggers close confirm modal', async () => {
+      sessionsState.cardColumn = 3;
       sessions.handleSessionsScreenButton('A');
       await flush();
       expect(mockShowCloseConfirm).toHaveBeenCalledWith('s-0', expect.any(String), expect.any(Function));
     });
 
-    it('A at col=2 close confirm callback destroys session', async () => {
-      sessionsState.cardColumn = 2;
+    it('A at col=3 close confirm callback destroys session', async () => {
+      sessionsState.cardColumn = 3;
       sessions.handleSessionsScreenButton('A');
       await flush();
       // Extract the onConfirm callback and invoke it
@@ -1393,12 +1390,19 @@ describe('Sessions Screen', () => {
       expect(mockDestroyTerminal).toHaveBeenCalledWith('s-0');
     });
 
-    it('close button always shows ? icon', async () => {
+    it('A at col=2 triggers rename for focused session', () => {
       sessionsState.cardColumn = 2;
+      const result = sessions.handleSessionsScreenButton('A');
+      expect(result).toBe(true);
+      expect(sessionsState.editingSessionId).toBe('s-0');
+    });
+
+    it('close button always shows ✕ icon', async () => {
+      sessionsState.cardColumn = 3;
       await loadAndFlush(sessions);
       const card = document.querySelector('.session-card[data-session-id="s-0"]');
       const closeBtn = card?.querySelector('.session-close');
-      expect(closeBtn?.textContent).toBe('?');
+      expect(closeBtn?.textContent).toBe('✕');
     });
 
     it('card-col-focused class applied to state btn at col=1', async () => {
@@ -1409,12 +1413,20 @@ describe('Sessions Screen', () => {
       expect(stateBtn?.classList.contains('card-col-focused')).toBe(true);
     });
 
-    it('card-col-focused class applied to close btn at col=2', async () => {
-      sessionsState.cardColumn = 2;
+    it('card-col-focused class applied to close btn at col=3', async () => {
+      sessionsState.cardColumn = 3;
       await loadAndFlush(sessions);
       const card = document.querySelector('.session-card.focused');
       const closeBtn = card?.querySelector('.session-close');
       expect(closeBtn?.classList.contains('card-col-focused')).toBe(true);
+    });
+
+    it('card-col-focused class applied to rename btn at col=2', async () => {
+      sessionsState.cardColumn = 2;
+      await loadAndFlush(sessions);
+      const card = document.querySelector('.session-card.focused');
+      const renameBtn = card?.querySelector('.session-rename');
+      expect(renameBtn?.classList.contains('card-col-focused')).toBe(true);
     });
 
     it('UP/DOWN at col=2 is no-op', () => {

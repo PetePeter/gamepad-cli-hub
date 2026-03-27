@@ -132,11 +132,13 @@ config/
 claude-code:
   name: Claude Code
   command: claude
-  initialPrompt: ""           # Sequence parser string pre-loaded into PTY after spawn
-  initialPromptDelay: 2000    # ms to wait before sending initialPrompt (default 2000 for AI CLIs, 0 for generic)
+  initialPrompt:              # Array of {label, sequence} items sent to PTY sequentially after spawn
+    - label: "Setup"
+      sequence: "/init{Enter}"
+  initialPromptDelay: 2000    # ms to wait before sending first item (default 2000 for AI CLIs, 0 for generic)
 ```
 
-No `terminal` field — all CLIs run as embedded PTY sessions (no external window config).
+No `terminal` field — all CLIs run as embedded PTY sessions (no external window config). `initialPrompt` items are sent in order; use `{Wait N}` within sequences for inter-item timing.
 
 **Sequence parser syntax** (used by both `sequence` bindings and `initialPrompt`):
 | Token | Effect |

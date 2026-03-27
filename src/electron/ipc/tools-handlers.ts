@@ -5,7 +5,7 @@
  */
 
 import { ipcMain } from 'electron';
-import type { ConfigLoader } from '../../config/loader.js';
+import type { ConfigLoader, SequenceListItem } from '../../config/loader.js';
 import { logger } from '../../utils/logger.js';
 
 export function setupToolsHandlers(configLoader: ConfigLoader): void {
@@ -18,7 +18,7 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
             return [key, {
               name: entry?.name,
               command: entry?.command,
-              initialPrompt: entry?.initialPrompt ?? '',
+              initialPrompt: entry?.initialPrompt ?? [],
               initialPromptDelay: entry?.initialPromptDelay ?? 0,
             }];
           })
@@ -30,7 +30,7 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
     }
   });
 
-  ipcMain.handle('tools:addCliType', (_event, key: string, name: string, command: string, initialPrompt: string, initialPromptDelay: number) => {
+  ipcMain.handle('tools:addCliType', (_event, key: string, name: string, command: string, initialPrompt: SequenceListItem[], initialPromptDelay: number) => {
     try {
       configLoader.addCliType(key, name, command, initialPrompt, initialPromptDelay);
       return { success: true };
@@ -40,7 +40,7 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
     }
   });
 
-  ipcMain.handle('tools:updateCliType', (_event, key: string, name: string, command: string, initialPrompt: string, initialPromptDelay: number) => {
+  ipcMain.handle('tools:updateCliType', (_event, key: string, name: string, command: string, initialPrompt: SequenceListItem[], initialPromptDelay: number) => {
     try {
       configLoader.updateCliType(key, name, command, initialPrompt, initialPromptDelay);
       return { success: true };

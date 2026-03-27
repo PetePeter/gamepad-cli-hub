@@ -41,12 +41,12 @@ const DEFAULT_PROFILE = {
     'claude-code': {
       name: 'Claude Code',
       command: 'cc',
-      initialPrompt: '',
+      initialPrompt: [],
     },
     'copilot-cli': {
       name: 'GitHub Copilot CLI',
       command: 'copilot',
-      initialPrompt: '',
+      initialPrompt: [],
     },
   },
   workingDirectories: [
@@ -500,13 +500,13 @@ describe('ConfigLoader', () => {
           'claude-code': {
             name: 'Claude Code',
             command: 'cc',
-            initialPrompt: 'hello',
+            initialPrompt: [{ label: 'Prompt', sequence: 'hello' }],
             initialPromptDelay: 3000,
           },
           'copilot-cli': {
             name: 'GitHub Copilot CLI',
             command: 'copilot',
-            initialPrompt: '',
+            initialPrompt: [],
           },
         },
       };
@@ -514,13 +514,13 @@ describe('ConfigLoader', () => {
       loader.load();
 
       // Update name and command — delay should survive
-      loader.updateCliType('claude-code', 'CC Renamed', 'cc2', 'new prompt');
+      loader.updateCliType('claude-code', 'CC Renamed', 'cc2', [{ label: 'New', sequence: 'new prompt' }]);
 
       const entry = loader.getCliTypeEntry('claude-code');
       expect(entry).not.toBeNull();
       expect(entry!.name).toBe('CC Renamed');
       expect(entry!.command).toBe('cc2');
-      expect(entry!.initialPrompt).toBe('new prompt');
+      expect(entry!.initialPrompt).toEqual([{ label: 'New', sequence: 'new prompt' }]);
       expect(entry!.initialPromptDelay).toBe(3000);
 
       // Verify persisted to disk
@@ -535,7 +535,7 @@ describe('ConfigLoader', () => {
           'claude-code': {
             name: 'Claude Code',
             command: 'cc',
-            initialPrompt: '',
+            initialPrompt: [],
             initialPromptDelay: 1500,
           },
         },
@@ -555,7 +555,7 @@ describe('ConfigLoader', () => {
 
     it('addCliType with initialPromptDelay saves it', () => {
       loader.load();
-      loader.addCliType('my-tool', 'My Tool', 'mytool', 'hello', 5000);
+      loader.addCliType('my-tool', 'My Tool', 'mytool', [{ label: 'Prompt', sequence: 'hello' }], 5000);
 
       const entry = loader.getCliTypeEntry('my-tool');
       expect(entry).not.toBeNull();
@@ -572,20 +572,20 @@ describe('ConfigLoader', () => {
           'claude-code': {
             name: 'Claude Code',
             command: 'cc',
-            initialPrompt: '',
+            initialPrompt: [],
             initialPromptDelay: 3000,
           },
           'copilot-cli': {
             name: 'GitHub Copilot CLI',
             command: 'copilot',
-            initialPrompt: '',
+            initialPrompt: [],
           },
         },
       };
       writeYaml('profiles/default.yaml', profileWithDelay);
       loader.load();
 
-      loader.updateCliType('claude-code', 'CC Updated', 'cc2', 'prompt', 7000);
+      loader.updateCliType('claude-code', 'CC Updated', 'cc2', [{ label: 'Prompt', sequence: 'prompt' }], 7000);
 
       const entry = loader.getCliTypeEntry('claude-code');
       expect(entry!.initialPromptDelay).toBe(7000);
@@ -593,11 +593,67 @@ describe('ConfigLoader', () => {
       const onDisk = readYaml<any>('profiles/default.yaml');
       expect(onDisk.tools['claude-code'].initialPromptDelay).toBe(7000);
     });
-  });
 
-  // =========================================================================
-  // Button naming in bindings (renamed buttons: Guide→Xbox, Start→Sandwich)
-  // =========================================================================
+    it('auto-migrates string initialPrompt to SequenceListItem array on load', () => {
+      const profileWithStringPrompt = {
+        ...DEFAULT_PROFILE,
+        tools: {
+          'claude-code': {
+            name: 'Claude Code',
+            command: 'cc',
+            initialPrompt: 'hello world',
+            initialPromptDelay: 1000,
+          },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithStringPrompt);
+      loader.load();
+
+      const entry = loader.getCliTypeEntry('claude-code');
+      expect(entry!.initialPrompt).toEqual([{ label: 'Prompt', sequence: 'hello world' }]);
+      expect(entry!.initialPromptDelay).toBe(1000);
+
+      // Verify migrated on disk too
+      const onDisk = readYaml<any>('profiles/default.yaml');
+      expect(onDisk.tools['claude-code'].initialPrompt).toEqual([{ label: 'Prompt', sequence: 'hello world' }]);
+    });
+
+    it('auto-migrates empty string initialPrompt to empty array', () => {
+      const profileWithEmptyPrompt = {
+        ...DEFAULT_PROFILE,
+        tools: {
+          'claude-code': {
+            name: 'Claude Code',
+            command: 'cc',
+            initialPrompt: '',
+          },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithEmptyPrompt);
+      loader.load();
+
+      const entry = loader.getCliTypeEntry('claude-code');
+      expect(entry!.initialPrompt).toEqual([]);
+    });
+
+    it('does not re-migrate already-migrated initialPrompt arrays', () => {
+      const profileWithArray = {
+        ...DEFAULT_PROFILE,
+        tools: {
+          'claude-code': {
+            name: 'Claude Code',
+            command: 'cc',
+            initialPrompt: [{ label: 'Cmd', sequence: '/clear{Enter}' }],
+          },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithArray);
+      loader.load();
+
+      const entry = loader.getCliTypeEntry('claude-code');
+      expect(entry!.initialPrompt).toEqual([{ label: 'Cmd', sequence: '/clear{Enter}' }]);
+    });
+  });
 
   describe('button naming in bindings', () => {
     it('loads bindings with Sandwich button name', () => {

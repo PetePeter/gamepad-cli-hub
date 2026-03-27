@@ -1,21 +1,20 @@
 import { parseSequence, type SequenceAction } from '../input/sequence-parser.js';
 import { logger } from '../utils/logger.js';
+import type { SequenceListItem } from '../config/loader.js';
 
 export interface InitialPromptConfig {
-  initialPrompt?: string;
+  initialPrompt?: SequenceListItem[];
   initialPromptDelay?: number;
 }
 
 /**
  * Convert a sequence action to PTY-writable data.
- * Skips Enter — the prompt stays in the input buffer for the user to review.
  */
 export function actionToPtyData(action: SequenceAction): string | null {
   switch (action.type) {
     case 'text':
       return action.value;
     case 'key':
-      if (action.key === 'Enter') return null;
       return keyToPtySequence(action.key);
     case 'combo':
       return comboToPtySequence(action.keys);
@@ -65,8 +64,9 @@ function comboToPtySequence(keys: string[]): string | null {
 /**
  * Schedule initial prompt pre-loading for a session.
  *
- * After initialPromptDelay ms, writes the prompt text to the PTY stdin
- * without sending Enter — the user reviews and submits manually.
+ * After initialPromptDelay ms, writes each item's sequence to the PTY stdin
+ * in order. {Enter} within sequences is respected (sends \r).
+ * Users control inter-item timing via {Wait N} in their sequences.
  *
  * Returns a cancel function to abort if the session is closed early,
  * or null if no prompt was configured.
@@ -78,18 +78,17 @@ export function scheduleInitialPrompt(
 ): (() => void) | null {
   const { initialPrompt, initialPromptDelay = 2000 } = config;
 
-  if (!initialPrompt || initialPrompt.trim() === '') {
+  if (!initialPrompt || initialPrompt.length === 0) {
     return null;
   }
 
   let cancelled = false;
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-  const execute = async () => {
-    if (cancelled) return;
+  const executeItem = async (item: SequenceListItem) => {
+    if (cancelled || !item.sequence || item.sequence.trim() === '') return;
 
-    const actions = parseSequence(initialPrompt);
-    logger.info(`[InitialPrompt] Pre-loading ${actions.length} actions for session ${sessionId}`);
+    const actions = parseSequence(item.sequence);
 
     for (const action of actions) {
       if (cancelled) break;
@@ -103,6 +102,18 @@ export function scheduleInitialPrompt(
       if (data !== null) {
         writeToPty(sessionId, data);
       }
+    }
+  };
+
+  const execute = async () => {
+    if (cancelled) return;
+
+    logger.info(`[InitialPrompt] Pre-loading ${initialPrompt.length} item(s) for session ${sessionId}`);
+
+    for (const item of initialPrompt) {
+      if (cancelled) break;
+      if (!item) continue;
+      await executeItem(item);
     }
 
     if (!cancelled) {

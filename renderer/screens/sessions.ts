@@ -32,13 +32,7 @@ const STATE_LABELS: Record<string, string> = {
   idle: '💤 Idle',
 };
 
-/** State icons for display next to activity dot */
-const STATE_ICONS: Record<string, string> = {
-  implementing: '🔨',
-  waiting: '⏳',
-  planning: '🧠',
-  idle: '💤',
-};
+// STATE_ICONS removed — state shown via dropdown button only
 
 const STATE_ORDER: Record<string, number> = {
   implementing: 0,
@@ -103,6 +97,12 @@ function confirmCloseSession(): void {
     : getCliDisplayName(session.cliType);
 
   showCloseConfirm(session.id, displayName, doCloseSession);
+}
+
+function startRenameForFocused(): void {
+  const session = state.sessions[sessionsState.sessionsFocusIndex];
+  if (!session) return;
+  startRename(session.id);
 }
 
 function getSessionCwd(sessionId: string): string {
@@ -563,27 +563,21 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   const displayName = session.name !== session.cliType ? session.name : getCliDisplayName(session.cliType);
   const folder = getSessionCwd(session.id);
 
-  // Activity dot (bright = active, dim = inactive)
+  const isEditing = sessionsState.editingSessionId === session.id;
+  const isFocusedCard = index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
+
+  // --- Left side: activity dot + name ---
+
   const activityDot = document.createElement('span');
   activityDot.className = `session-activity-dot${isActive ? ' session-activity-dot--active' : ' session-activity-dot--inactive'}`;
-
-  // State icon (🔨🧠⏳💤)
-  const stateIcon = document.createElement('span');
-  stateIcon.className = 'session-state-icon';
-  stateIcon.textContent = STATE_ICONS[sessionState] || '💤';
 
   const info = document.createElement('div');
   info.className = 'session-info';
 
-  const isEditing = sessionsState.editingSessionId === session.id;
-  const isFocusedCard = index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
-
-  // Name line container (holds name/edit input)
   const nameLine = document.createElement('div');
   nameLine.className = 'session-name-line';
 
   if (isEditing) {
-    // Edit mode: input field + save/cancel buttons
     const input = document.createElement('input');
     input.className = 'session-rename-input';
     input.type = 'text';
@@ -609,7 +603,6 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
       cancelRename();
     });
 
-    // Enter to save, Escape to cancel
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -622,14 +615,12 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
       }
     });
 
-    // Auto-focus input
     setTimeout(() => input.focus(), 0);
 
     nameLine.appendChild(input);
     nameLine.appendChild(saveBtn);
     nameLine.appendChild(cancelBtn);
   } else {
-    // Display mode: name text only (rename button moved to actions)
     const name = document.createElement('span');
     name.className = 'session-name';
     name.textContent = folder ? `${displayName} — ${folder}` : displayName;
@@ -638,20 +629,8 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
 
   info.appendChild(nameLine);
 
-  // Rename button (always visible, moved to actions area)
-  if (!isEditing) {
-    const renameBtn = document.createElement('button');
-    renameBtn.className = 'session-rename';
-    renameBtn.textContent = '✎';
-    renameBtn.title = 'Rename session';
-    renameBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      startRename(session.id);
-    });
-    card.appendChild(renameBtn);
-  }
+  // --- Right side: state → rename → close ---
 
-  // State dropdown button
   const stateBtn = document.createElement('button');
   stateBtn.className = 'session-state-btn';
   if (isFocusedCard && sessionsState.cardColumn === 1) stateBtn.classList.add('card-col-focused');
@@ -660,23 +639,36 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
     e.stopPropagation();
     showStateDropdown(stateBtn, session.id, sessionState);
   });
-  card.appendChild(stateBtn);
 
-  // Close button — shows confirmation modal
+  let renameBtn: HTMLButtonElement | null = null;
+  if (!isEditing) {
+    renameBtn = document.createElement('button');
+    renameBtn.className = 'session-rename';
+    if (isFocusedCard && sessionsState.cardColumn === 2) renameBtn.classList.add('card-col-focused');
+    renameBtn.textContent = '✎';
+    renameBtn.title = 'Rename session';
+    renameBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      startRename(session.id);
+    });
+  }
+
   const closeBtn = document.createElement('button');
   closeBtn.className = 'session-close';
-  if (isFocusedCard && sessionsState.cardColumn === 2) closeBtn.classList.add('card-col-focused');
-  closeBtn.textContent = '?';
+  if (isFocusedCard && sessionsState.cardColumn === 3) closeBtn.classList.add('card-col-focused');
+  closeBtn.textContent = '✕';
   closeBtn.title = `Close ${displayName}`;
   closeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     showCloseConfirm(session.id, displayName, doCloseSession);
   });
-  card.appendChild(closeBtn);
 
+  // Append in visual order: dot → name → state → rename → close
   card.appendChild(activityDot);
-  card.appendChild(stateIcon);
   card.appendChild(info);
+  card.appendChild(stateBtn);
+  if (renameBtn) card.appendChild(renameBtn);
+  card.appendChild(closeBtn);
 
   card.addEventListener('click', () => switchToSession(session.id));
   return card;
@@ -826,15 +818,15 @@ function handleSessionsZone(button: string, dir: string | null): void {
 
   if (dir === 'right') {
     if (count === 0) return;
-    if (sessionsState.cardColumn < 2) {
-      sessionsState.cardColumn = (sessionsState.cardColumn + 1) as 0 | 1 | 2;
+    if (sessionsState.cardColumn < 3) {
+      sessionsState.cardColumn = (sessionsState.cardColumn + 1) as 0 | 1 | 2 | 3;
       updateSessionsFocus();
     }
     return;
   }
   if (dir === 'left') {
     if (sessionsState.cardColumn > 0) {
-      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2;
+      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2 | 3;
       updateSessionsFocus();
     }
     return;
@@ -842,8 +834,7 @@ function handleSessionsZone(button: string, dir: string | null): void {
 
   if (dir === 'up') {
     if (count === 0) return;
-    if (sessionsState.cardColumn === 1 || sessionsState.cardColumn === 2) return; // no-op
-    // col=0: existing card navigation
+    if (sessionsState.cardColumn > 0) return; // no-op when on action buttons
     sessionsState.sessionsFocusIndex = Math.max(0, sessionsState.sessionsFocusIndex - 1);
     sessionsState.cardColumn = 0;
     updateSessionsFocus();
@@ -851,8 +842,7 @@ function handleSessionsZone(button: string, dir: string | null): void {
     return;
   }
   if (dir === 'down') {
-    if (sessionsState.cardColumn === 1 || sessionsState.cardColumn === 2) return; // no-op
-    // col=0: existing card navigation
+    if (sessionsState.cardColumn > 0) return; // no-op when on action buttons
     if (count === 0 || sessionsState.sessionsFocusIndex >= count - 1) {
       sessionsState.activeFocus = 'spawn';
       sessionsState.spawnFocusIndex = 0;
@@ -875,6 +865,10 @@ function handleSessionsZoneButton(button: string): boolean {
       return true;
     }
     if (sessionsState.cardColumn === 2) {
+      startRenameForFocused();
+      return true;
+    }
+    if (sessionsState.cardColumn === 3) {
       confirmCloseSession();
       return true;
     }
@@ -883,7 +877,7 @@ function handleSessionsZoneButton(button: string): boolean {
   }
   if (button === 'B') {
     if (sessionsState.cardColumn > 0) {
-      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2;
+      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2 | 3;
       updateSessionsFocus();
       return true;
     }
@@ -965,9 +959,11 @@ function updateSessionsFocus(): void {
     const isFocused = i === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
     el.classList.toggle('focused', isFocused);
     const stateBtn = el.querySelector('.session-state-btn');
+    const renameBtn = el.querySelector('.session-rename');
     const closeBtn = el.querySelector('.session-close');
     if (stateBtn) stateBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 1);
-    if (closeBtn) closeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 2);
+    if (renameBtn) renameBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 2);
+    if (closeBtn) closeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 3);
   });
   const focused = list.children[sessionsState.sessionsFocusIndex] as HTMLElement;
   focused?.scrollIntoView({ block: 'nearest' });

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { scheduleInitialPrompt, actionToPtyData, KEY_TO_ESCAPE } from '../src/session/initial-prompt';
 import type { SequenceAction } from '../src/input/sequence-parser';
+import type { SequenceListItem } from '../src/config/loader';
 
 vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -12,9 +13,9 @@ describe('actionToPtyData', () => {
     expect(actionToPtyData(action)).toBe('hello world');
   });
 
-  it('returns null for Enter key (does not auto-submit)', () => {
+  it('maps Enter key to \\r (carriage return)', () => {
     const action: SequenceAction = { type: 'key', key: 'Enter' };
-    expect(actionToPtyData(action)).toBeNull();
+    expect(actionToPtyData(action)).toBe('\r');
   });
 
   it('maps Tab to \\t', () => {
@@ -146,8 +147,8 @@ describe('scheduleInitialPrompt', () => {
     vi.useRealTimers();
   });
 
-  it('returns null for empty initialPrompt', () => {
-    const result = scheduleInitialPrompt('s1', { initialPrompt: '' }, vi.fn());
+  it('returns null for empty initialPrompt array', () => {
+    const result = scheduleInitialPrompt('s1', { initialPrompt: [] }, vi.fn());
     expect(result).toBeNull();
   });
 
@@ -156,13 +157,8 @@ describe('scheduleInitialPrompt', () => {
     expect(result).toBeNull();
   });
 
-  it('returns null for whitespace-only initialPrompt', () => {
-    const result = scheduleInitialPrompt('s1', { initialPrompt: '   ' }, vi.fn());
-    expect(result).toBeNull();
-  });
-
   it('returns a cancel function for valid prompt', () => {
-    const cancel = scheduleInitialPrompt('s1', { initialPrompt: 'hello' }, vi.fn());
+    const cancel = scheduleInitialPrompt('s1', { initialPrompt: [{ label: 'Test', sequence: 'hello' }] }, vi.fn());
     expect(cancel).toBeTypeOf('function');
     cancel!();
   });
@@ -170,22 +166,18 @@ describe('scheduleInitialPrompt', () => {
   it('writes text to PTY after delay', async () => {
     const writeFn = vi.fn();
     scheduleInitialPrompt('s1', {
-      initialPrompt: 'hello world',
+      initialPrompt: [{ label: 'Test', sequence: 'hello world' }],
       initialPromptDelay: 1000,
     }, writeFn);
 
-    // Not written yet
     expect(writeFn).not.toHaveBeenCalled();
-
-    // Advance past delay
     await vi.advanceTimersByTimeAsync(1000);
-
     expect(writeFn).toHaveBeenCalledWith('s1', 'hello world');
   });
 
   it('uses default delay of 2000ms', async () => {
     const writeFn = vi.fn();
-    scheduleInitialPrompt('s1', { initialPrompt: 'test' }, writeFn);
+    scheduleInitialPrompt('s1', { initialPrompt: [{ label: 'Test', sequence: 'test' }] }, writeFn);
 
     await vi.advanceTimersByTimeAsync(1999);
     expect(writeFn).not.toHaveBeenCalled();
@@ -194,63 +186,58 @@ describe('scheduleInitialPrompt', () => {
     expect(writeFn).toHaveBeenCalledWith('s1', 'test');
   });
 
-  it('does NOT write Enter/newline — prompt stays in input buffer', async () => {
+  it('writes Enter as \\r — Enter is no longer stripped', async () => {
     const writeFn = vi.fn();
-    // "\n" parses to { type: 'key', key: 'Enter' } — should be skipped
     scheduleInitialPrompt('s1', {
-      initialPrompt: 'hello\n',
+      initialPrompt: [{ label: 'Test', sequence: 'hello{Enter}' }],
       initialPromptDelay: 0,
     }, writeFn);
 
     await vi.advanceTimersByTimeAsync(0);
 
-    // Only 'hello' should be written, not Enter
-    expect(writeFn).toHaveBeenCalledTimes(1);
-    expect(writeFn).toHaveBeenCalledWith('s1', 'hello');
+    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', 'hello']);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', '\r']);
   });
 
   it('cancel function prevents writing', async () => {
     const writeFn = vi.fn();
     const cancel = scheduleInitialPrompt('s1', {
-      initialPrompt: 'hello',
+      initialPrompt: [{ label: 'Test', sequence: 'hello' }],
       initialPromptDelay: 1000,
     }, writeFn);
 
     cancel!();
     await vi.advanceTimersByTimeAsync(2000);
-
     expect(writeFn).not.toHaveBeenCalled();
   });
 
   it('handles Tab key correctly', async () => {
     const writeFn = vi.fn();
     scheduleInitialPrompt('s1', {
-      initialPrompt: '{Tab}',
+      initialPrompt: [{ label: 'Test', sequence: '{Tab}' }],
       initialPromptDelay: 0,
     }, writeFn);
 
     await vi.advanceTimersByTimeAsync(0);
-
     expect(writeFn).toHaveBeenCalledWith('s1', '\t');
   });
 
   it('handles Ctrl+C combo', async () => {
     const writeFn = vi.fn();
     scheduleInitialPrompt('s1', {
-      initialPrompt: '{Ctrl+C}',
+      initialPrompt: [{ label: 'Test', sequence: '{Ctrl+C}' }],
       initialPromptDelay: 0,
     }, writeFn);
 
     await vi.advanceTimersByTimeAsync(0);
-
     expect(writeFn).toHaveBeenCalledWith('s1', '\x03');
   });
 
   it('writes multiple text segments in order', async () => {
     const writeFn = vi.fn();
-    // "hello{Tab}world" → text("hello") + key("Tab") + text("world")
     scheduleInitialPrompt('s1', {
-      initialPrompt: 'hello{Tab}world',
+      initialPrompt: [{ label: 'Test', sequence: 'hello{Tab}world' }],
       initialPromptDelay: 0,
     }, writeFn);
 
@@ -265,68 +252,57 @@ describe('scheduleInitialPrompt', () => {
   it('zero delay works (immediate execution)', async () => {
     const writeFn = vi.fn();
     scheduleInitialPrompt('s1', {
-      initialPrompt: 'fast',
+      initialPrompt: [{ label: 'Test', sequence: 'fast' }],
       initialPromptDelay: 0,
     }, writeFn);
 
     await vi.advanceTimersByTimeAsync(0);
-
     expect(writeFn).toHaveBeenCalledWith('s1', 'fast');
   });
 
-  it('prompt with only newlines produces no output (Enter is skipped)', async () => {
+  it('prompt with Enter-only sequence writes carriage returns', async () => {
     const writeFn = vi.fn();
     scheduleInitialPrompt('s1', {
-      initialPrompt: '\n\n\n',
+      initialPrompt: [{ label: 'Test', sequence: '{Enter}{Enter}' }],
       initialPromptDelay: 0,
     }, writeFn);
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(writeFn).not.toHaveBeenCalled();
+    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', '\r']);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', '\r']);
   });
 
   it('handles Wait actions with delay between writes', async () => {
     const writeFn = vi.fn();
-    // "a{Wait 500}b" → text("a") + wait(500) + text("b")
     scheduleInitialPrompt('s1', {
-      initialPrompt: 'a{Wait 500}b',
+      initialPrompt: [{ label: 'Test', sequence: 'a{Wait 500}b' }],
       initialPromptDelay: 0,
     }, writeFn);
 
-    // Execute the initial setTimeout(0)
     await vi.advanceTimersByTimeAsync(0);
-
-    // "a" should be written, "b" not yet (waiting 500ms)
     expect(writeFn).toHaveBeenCalledTimes(1);
     expect(writeFn).toHaveBeenCalledWith('s1', 'a');
 
-    // Advance past the wait
     await vi.advanceTimersByTimeAsync(500);
-
     expect(writeFn).toHaveBeenCalledTimes(2);
     expect(writeFn.mock.calls[1]).toEqual(['s1', 'b']);
   });
 
   it('complex prompt with text + special keys + waits', async () => {
     const writeFn = vi.fn();
-    // "/clear{Tab}{Wait 200}yes{Ctrl+S}"
     scheduleInitialPrompt('s1', {
-      initialPrompt: '/clear{Tab}{Wait 200}yes{Ctrl+S}',
+      initialPrompt: [{ label: 'Test', sequence: '/clear{Tab}{Wait 200}yes{Ctrl+S}' }],
       initialPromptDelay: 0,
     }, writeFn);
 
     await vi.advanceTimersByTimeAsync(0);
-
-    // "/clear" + Tab written, then wait 200ms
     expect(writeFn).toHaveBeenCalledTimes(2);
     expect(writeFn.mock.calls[0]).toEqual(['s1', '/clear']);
     expect(writeFn.mock.calls[1]).toEqual(['s1', '\t']);
 
-    // Advance past wait
     await vi.advanceTimersByTimeAsync(200);
-
-    // "yes" + Ctrl+S (\x13)
     expect(writeFn).toHaveBeenCalledTimes(4);
     expect(writeFn.mock.calls[2]).toEqual(['s1', 'yes']);
     expect(writeFn.mock.calls[3]).toEqual(['s1', '\x13']);
@@ -335,34 +311,99 @@ describe('scheduleInitialPrompt', () => {
   it('cancellation during wait prevents subsequent writes', async () => {
     const writeFn = vi.fn();
     const cancel = scheduleInitialPrompt('s1', {
-      initialPrompt: 'a{Wait 500}b',
+      initialPrompt: [{ label: 'Test', sequence: 'a{Wait 500}b' }],
       initialPromptDelay: 0,
     }, writeFn);
 
     await vi.advanceTimersByTimeAsync(0);
-
-    // "a" written
     expect(writeFn).toHaveBeenCalledTimes(1);
 
-    // Cancel during the wait
     cancel!();
     await vi.advanceTimersByTimeAsync(1000);
-
-    // "b" should NOT be written
     expect(writeFn).toHaveBeenCalledTimes(1);
   });
 
   it('skips modDown and modUp actions', async () => {
     const writeFn = vi.fn();
     scheduleInitialPrompt('s1', {
-      initialPrompt: '{Ctrl Down}x{Ctrl Up}',
+      initialPrompt: [{ label: 'Test', sequence: '{Ctrl Down}x{Ctrl Up}' }],
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn).toHaveBeenCalledWith('s1', 'x');
+  });
+
+  // ---- Multi-item tests ----
+
+  it('sends multiple items in order', async () => {
+    const writeFn = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: [
+        { label: 'Slash cmd', sequence: '/allow-all{Enter}' },
+        { label: 'Prompt', sequence: 'hello world' },
+      ],
       initialPromptDelay: 0,
     }, writeFn);
 
     await vi.advanceTimersByTimeAsync(0);
 
-    // Only the text "x" should be written
+    expect(writeFn).toHaveBeenCalledTimes(3);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', '/allow-all']);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', '\r']);
+    expect(writeFn.mock.calls[2]).toEqual(['s1', 'hello world']);
+  });
+
+  it('handles Wait between items', async () => {
+    const writeFn = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: [
+        { label: 'First', sequence: 'a{Wait 500}' },
+        { label: 'Second', sequence: 'b' },
+      ],
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
     expect(writeFn).toHaveBeenCalledTimes(1);
-    expect(writeFn).toHaveBeenCalledWith('s1', 'x');
+    expect(writeFn.mock.calls[0]).toEqual(['s1', 'a']);
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', 'b']);
+  });
+
+  it('cancellation between items prevents subsequent items', async () => {
+    const writeFn = vi.fn();
+    const cancel = scheduleInitialPrompt('s1', {
+      initialPrompt: [
+        { label: 'First', sequence: 'a{Wait 500}' },
+        { label: 'Second', sequence: 'b' },
+      ],
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(writeFn).toHaveBeenCalledTimes(1);
+
+    cancel!();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(writeFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips items with empty sequence strings', async () => {
+    const writeFn = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: [
+        { label: 'Empty', sequence: '' },
+        { label: 'Real', sequence: 'hello' },
+      ],
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', 'hello']);
   });
 });

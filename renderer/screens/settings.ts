@@ -708,11 +708,93 @@ function createCliTypeItem(key: string, value: any): HTMLElement {
   return item;
 }
 
+interface PromptItem { label: string; sequence: string }
+
+/** Create an inline CRUD editor for initial prompt items. Mutates `items` in place. */
+function createInitialPromptItemsEditor(items: PromptItem[]): HTMLElement {
+  const container = document.createElement('div');
+  container.className = 'prompt-items-editor';
+
+  // Hide the sibling text input that showFormModal creates for this field
+  setTimeout(() => {
+    const input = container.previousElementSibling;
+    if (input instanceof HTMLElement && input.tagName === 'INPUT') input.style.display = 'none';
+  }, 0);
+
+  const list = document.createElement('div');
+  list.className = 'sequence-list-items';
+  container.appendChild(list);
+
+  function renderItems(): void {
+    list.innerHTML = '';
+    items.forEach((item, index) => {
+      const row = document.createElement('div');
+      row.className = 'sequence-list-row';
+      row.style.flexDirection = 'column';
+      row.style.alignItems = 'stretch';
+
+      const header = document.createElement('div');
+      header.style.display = 'flex';
+      header.style.alignItems = 'center';
+      header.style.gap = '6px';
+
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.placeholder = 'Label';
+      labelInput.value = item.label;
+      labelInput.style.flex = '1';
+      labelInput.style.fontSize = '12px';
+      labelInput.addEventListener('input', () => { items[index].label = labelInput.value; });
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn btn--small btn--danger';
+      removeBtn.textContent = '✕';
+      removeBtn.title = 'Remove';
+      removeBtn.addEventListener('click', () => { items.splice(index, 1); renderItems(); });
+
+      header.appendChild(labelInput);
+      header.appendChild(removeBtn);
+
+      const seqInput = document.createElement('textarea');
+      seqInput.className = 'sequence-textarea';
+      seqInput.placeholder = 'Sequence, e.g. /allow-all{Enter}';
+      seqInput.value = item.sequence;
+      seqInput.rows = 2;
+      seqInput.style.fontSize = '11px';
+      seqInput.addEventListener('input', () => { items[index].sequence = seqInput.value; });
+
+      row.appendChild(header);
+      row.appendChild(seqInput);
+      list.appendChild(row);
+    });
+  }
+
+  renderItems();
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'btn btn--secondary sequence-list-add';
+  addBtn.textContent = '+ Add Prompt Item';
+  addBtn.addEventListener('click', () => {
+    items.push({ label: '', sequence: '' });
+    renderItems();
+  });
+  container.appendChild(addBtn);
+
+  container.appendChild(createSequenceSyntaxHelp());
+
+  return container;
+}
+
 async function showAddCliTypeForm(): Promise<void> {
+  const items: PromptItem[] = [];
+  const itemsEditor = createInitialPromptItemsEditor(items);
+
   const result = await showFormModal('Add CLI Type', [
     { key: 'name', label: 'Name', placeholder: 'e.g. Claude Code' },
     { key: 'command', label: 'Command', placeholder: 'e.g. claude, python' },
-    { key: 'initialPrompt', label: 'Initial Prompt', type: 'textarea', defaultValue: '', afterElement: createSequenceSyntaxHelp() },
+    { key: '_promptItems', label: 'Initial Prompt Items', type: 'text', defaultValue: '', afterElement: itemsEditor },
     { key: 'initialPromptDelay', label: 'Initial Prompt Delay (ms)', type: 'text', defaultValue: '2000', placeholder: 'e.g. 2000' },
   ]);
 
@@ -726,10 +808,10 @@ async function showAddCliTypeForm(): Promise<void> {
 
   const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const command = result.command?.trim() || '';
-  const initialPrompt = result.initialPrompt || '';
+  const validItems = items.filter(i => i.sequence.trim());
   const initialPromptDelay = parseInt(result.initialPromptDelay || '0', 10) || 0;
 
-  const addResult = await window.gamepadCli.toolsAddCliType(key, name, command, initialPrompt, initialPromptDelay);
+  const addResult = await window.gamepadCli.toolsAddCliType(key, name, command, validItems, initialPromptDelay);
   if (addResult.success) {
     logEvent(`Added CLI type: ${key}`);
     state.cliTypes = await window.gamepadCli.configGetCliTypes();
@@ -742,20 +824,26 @@ async function showAddCliTypeForm(): Promise<void> {
 }
 
 async function showEditCliTypeForm(key: string, value: any): Promise<void> {
+  const existingItems: PromptItem[] = Array.isArray(value.initialPrompt)
+    ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))
+    : [];
+  const items: PromptItem[] = [...existingItems.map(i => ({ ...i }))];
+  const itemsEditor = createInitialPromptItemsEditor(items);
+
   const result = await showFormModal(`Edit CLI Type: ${key}`, [
     { key: 'name', label: 'Name', defaultValue: value.name || key },
     { key: 'command', label: 'Command', defaultValue: value.command || '' },
-    { key: 'initialPrompt', label: 'Initial Prompt', type: 'textarea', defaultValue: value.initialPrompt || '', afterElement: createSequenceSyntaxHelp() },
+    { key: '_promptItems', label: 'Initial Prompt Items', type: 'text', defaultValue: '', afterElement: itemsEditor },
     { key: 'initialPromptDelay', label: 'Initial Prompt Delay (ms)', type: 'text', defaultValue: String(value.initialPromptDelay ?? 0), placeholder: 'e.g. 2000' },
   ]);
 
   if (!result) return;
 
   const command = result.command?.trim() || '';
-  const initialPrompt = result.initialPrompt || '';
+  const validItems = items.filter(i => i.sequence.trim());
   const initialPromptDelay = parseInt(result.initialPromptDelay || '0', 10) || 0;
 
-  const updateResult = await window.gamepadCli.toolsUpdateCliType(key, result.name, command, initialPrompt, initialPromptDelay);
+  const updateResult = await window.gamepadCli.toolsUpdateCliType(key, result.name, command, validItems, initialPromptDelay);
   if (updateResult.success) {
     logEvent(`Updated CLI type: ${key}`);
     state.cliTypes = await window.gamepadCli.configGetCliTypes();

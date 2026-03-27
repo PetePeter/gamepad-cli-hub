@@ -4,41 +4,25 @@ tools:
     name: Claude Code
     command: claude
     initialPromptDelay: 1000
-    initialPrompt: |
-      <application-prompt>
-      SYSTEMPROMPT:
-      - Include AIAGENT-IMPLEMENTING when actively coding.
-      - Include AIAGENT-PLANNING when researching or thinking.
-      - Include AIAGENT-IDLE when awaiting input or task complete.
-      - End responses with an open ended question with a freetype entry field.
-      </application-prompt>
+    initialPrompt:
+      - label: System Prompt
+        sequence: "<application-prompt>\nSYSTEMPROMPT:\n- Include AIAGENT-IMPLEMENTING when actively coding.\n- Include AIAGENT-PLANNING when researching or thinking.\n- Include AIAGENT-IDLE when awaiting input or task complete.\n- End responses with an open ended question with a freetype entry field.\n</application-prompt>"
   copilot-cli:
     name: GitHub Copilot CLI
     command: copilot
-    initialPrompt: >-
-      /allow-all {Enter}
-
-      <application-prompt>
-
-      SYSTEMPROMPT:
-
-      - Include AIAGENT-IMPLEMENTING when actively coding.
-
-      - Include AIAGENT-PLANNING when researching or thinking.
-
-      - Include AIAGENT-IDLE when awaiting input or task complete.
-
-      </application-prompt>
-
-
-      End your response with an open ended question with a freetype entry field.
-      Use the ask question tool.
     initialPromptDelay: 5000
+    initialPrompt:
+      - label: Allow All
+        sequence: "/allow-all{Enter}"
+      - label: System Prompt
+        sequence: "{Wait 3000}<application-prompt>\nSYSTEMPROMPT:\n- Include AIAGENT-IMPLEMENTING when actively coding.\n- Include AIAGENT-PLANNING when researching or thinking.\n- Include AIAGENT-IDLE when awaiting input or task complete.\n</application-prompt>\nEnd your response with an open ended question with a freetype entry field.\nUse the ask question tool."
 workingDirectories:
   - name: Gamepad Hub
     path: X:\coding\gamepad-cli-hub
   - name: HomeAssistant
     path: X:\homeassistant
+  - name: stillhere
+    path: X:\coding\stillhere
 bindings:
   claude-code:
     RightTrigger:
@@ -76,6 +60,12 @@ bindings:
     RightStick:
       action: keyboard
       sequence: "{Enter}"
+    LeftStickDown:
+      action: keyboard
+      sequence: "{PageDown}"
+    LeftStickUp:
+      action: keyboard
+      sequence: "{PageUp}"
   copilot-cli:
     RightTrigger:
       action: voice
@@ -112,6 +102,12 @@ bindings:
     RightStick:
       action: keyboard
       sequence: "{Enter}"
+    LeftStickDown:
+      action: keyboard
+      sequence: "{PageDown}"
+    LeftStickUp:
+      action: keyboard
+      sequence: "{PageUp}"
   generic-terminal:
     A:
       action: keyboard

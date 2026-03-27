@@ -8,7 +8,7 @@ export interface SessionsScreenState {
   activeFocus: SessionsFocus;
   sessionsFocusIndex: number;
   spawnFocusIndex: number;
-  cardColumn: 0 | 1 | 2;
+  cardColumn: 0 | 1 | 2 | 3;
   cliTypes: string[];
   directories: Array<{ name: string; path: string }>;
   editingSessionId: string | null;

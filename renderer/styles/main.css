@@ -333,13 +333,7 @@ button {
   opacity: 0.5;
 }
 
-/* State icon */
-.session-state-icon {
-  flex-shrink: 0;
-  font-size: 14px;
-  width: 16px;
-  text-align: center;
-}
+/* State icon — removed, state shown via dropdown button only */
 
 .session-card .session-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; position: relative; }
 .session-card .session-name { font-size: var(--font-size-sm); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -361,6 +355,11 @@ button {
   opacity: 1;
 }
 .session-rename:hover { color: var(--accent); background: rgba(100, 150, 255, 0.1); }
+.session-rename.card-col-focused {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
 .session-state-btn:hover { color: var(--accent); background: rgba(100, 150, 255, 0.1); }
 
 /* Session close button specific styles */
