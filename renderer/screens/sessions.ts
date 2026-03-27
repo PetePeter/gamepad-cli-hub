@@ -379,9 +379,9 @@ export function syncSessionHighlight(sessionId: string): void {
 // Bridge for spawning via dir-picker (set by main.ts to avoid circular imports)
 // ============================================================================
 
-let dirPickerBridge: ((cliType: string, dirs: Array<{ name: string; path: string }>) => void) | null = null;
+let dirPickerBridge: ((cliType: string, dirs: Array<{ name: string; path: string }>, preselectedPath?: string) => void) | null = null;
 
-export function setDirPickerBridge(fn: (cliType: string, dirs: Array<{ name: string; path: string }>) => void): void {
+export function setDirPickerBridge(fn: (cliType: string, dirs: Array<{ name: string; path: string }>, preselectedPath?: string) => void): void {
   dirPickerBridge = fn;
 }
 
@@ -405,7 +405,7 @@ export function setPendingContextText(text: string | null): void {
   pendingContextText = text;
 }
 
-export async function spawnNewSession(cliType?: string): Promise<void> {
+export async function spawnNewSession(cliType?: string, preselectedPath?: string): Promise<void> {
   const resolvedType = cliType || state.availableSpawnTypes[0] || 'generic-terminal';
 
   try {
@@ -416,7 +416,7 @@ export async function spawnNewSession(cliType?: string): Promise<void> {
     const dirs = await window.gamepadCli.configGetWorkingDirs();
     if (dirs && dirs.length > 0 && dirPickerBridge) {
       // pendingContextText survives through dirPicker — doSpawn consumes it
-      dirPickerBridge(resolvedType, dirs);
+      dirPickerBridge(resolvedType, dirs, preselectedPath);
       return;
     }
     await doSpawn(resolvedType);
@@ -445,6 +445,7 @@ async function loadSessionsData(): Promise<void> {
         name: session?.name || cliType,
         cliType,
         processId: 0,
+        workingDir: session?.cwd || undefined,
       } as Session);
     }
   }

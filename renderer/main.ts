@@ -9,7 +9,7 @@ import { browserGamepad } from './gamepad.js';
 import { state } from './state.js';
 import { logEvent, showScreen, setLoadSettingsCallback, updateProfileDisplay } from './utils.js';
 import { initConfigCache } from './bindings.js';
-import { loadSessions, updateSessionHighlight, syncSessionHighlight, setDirPickerBridge, setTerminalManagerGetter, hideTerminalArea, setSessionActivity } from './screens/sessions.js';
+import { loadSessions, updateSessionHighlight, syncSessionHighlight, setDirPickerBridge, setTerminalManagerGetter, hideTerminalArea, setSessionActivity, setSessionState } from './screens/sessions.js';
 import { loadSettingsScreen } from './screens/settings.js';
 import {
   setupGamepadNavigation,
@@ -22,6 +22,7 @@ import { setupKeyboardRelay } from './paste-handler.js';
 import { initContextMenuClickHandlers } from './modals/context-menu.js';
 import { initSequencePickerClickHandlers } from './modals/sequence-picker.js';
 import { initCloseConfirmClickHandlers } from './modals/close-confirm.js';
+import { initQuickSpawnClickHandlers, hideQuickSpawn } from './modals/quick-spawn.js';
 import { resolveNextTerminalId } from './tab-cycling.js';
 
 // ============================================================================
@@ -42,7 +43,7 @@ export function getTerminalManager(): TerminalManager | null {
 setLoadSettingsCallback(() => loadSettingsScreen());
 
 // Let sessions.spawnNewSession open the dir picker without importing the modal
-setDirPickerBridge((cliType, dirs) => showDirPicker(cliType, dirs));
+setDirPickerBridge((cliType, dirs, preselectedPath) => showDirPicker(cliType, dirs, preselectedPath));
 
 // Let sessions.doSpawn access the terminal manager without importing main.ts
 setTerminalManagerGetter(() => terminalManager);
@@ -255,6 +256,14 @@ async function init(): Promise<void> {
 
       // Wire close confirm modal click handlers
       initCloseConfirmClickHandlers();
+
+      // Wire quick spawn modal click handlers
+      initQuickSpawnClickHandlers();
+
+      // Quick spawn cancel button
+      document.getElementById('quickSpawnCancelBtn')?.addEventListener('click', () => {
+        hideQuickSpawn();
+      });
 
       // Click on terminal area → focus terminal
       const terminalArea = document.getElementById('terminalArea');

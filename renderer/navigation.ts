@@ -18,6 +18,7 @@ import { bindingEditorState } from './modals/binding-editor.js';
 import { contextMenuState, handleContextMenuButton } from './modals/context-menu.js';
 import { sequencePickerState, handleSequencePickerButton } from './modals/sequence-picker.js';
 import { closeConfirmState, handleCloseConfirmButton } from './modals/close-confirm.js';
+import { quickSpawnState, handleQuickSpawnButton } from './modals/quick-spawn.js';
 import { formModalVisible } from './utils.js';
 import { getTerminalManager } from './main.js';
 
@@ -135,6 +136,12 @@ export function handleGamepadEvent(event: ButtonEvent): void {
   // Close confirmation modal intercepts all input when visible
   if (closeConfirmState.visible) {
     handleCloseConfirmButton(event.button);
+    return;
+  }
+
+  // Quick-spawn CLI type picker intercepts all input when visible
+  if (quickSpawnState.visible) {
+    handleQuickSpawnButton(event.button);
     return;
   }
 

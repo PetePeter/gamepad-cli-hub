@@ -805,7 +805,7 @@ describe('Sessions Screen', () => {
       await sessions.spawnNewSession('claude-code');
       await flush();
 
-      expect(mockBridge).toHaveBeenCalledWith('claude-code', [{ name: 'proj', path: '/proj' }]);
+      expect(mockBridge).toHaveBeenCalledWith('claude-code', [{ name: 'proj', path: '/proj' }], undefined);
       expect(mockCreateTerminal).not.toHaveBeenCalled();
     });
 
@@ -1113,7 +1113,7 @@ describe('Sessions Screen', () => {
       await sessions.spawnNewSession('claude-code');
       await flush();
 
-      expect(bridge).toHaveBeenCalledWith('claude-code', [{ name: 'x', path: '/x' }]);
+      expect(bridge).toHaveBeenCalledWith('claude-code', [{ name: 'x', path: '/x' }], undefined);
     });
 
     it('can be overwritten with a new bridge', async () => {

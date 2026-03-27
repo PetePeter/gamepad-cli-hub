@@ -173,6 +173,19 @@
       </div>
     </div>
 
+    <!-- Quick Spawn CLI Type Picker -->
+    <div class="modal-overlay" id="quickSpawnOverlay" aria-hidden="true" role="dialog" aria-label="Quick spawn CLI type picker">
+      <div class="modal">
+        <div class="modal-title">Select CLI type</div>
+        <div class="dir-picker-list" id="quickSpawnList">
+          <!-- Items rendered dynamically by quick-spawn.ts -->
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn--secondary" id="quickSpawnCancelBtn">Cancel (B)</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="../dist/renderer/main.js" type="module"></script>

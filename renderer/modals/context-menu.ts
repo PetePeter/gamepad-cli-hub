@@ -5,11 +5,13 @@
  * Triggered via right-click on the terminal area or a gamepad context-menu binding.
  */
 
-import { logEvent, showScreen } from '../utils.js';
+import { logEvent } from '../utils.js';
 import { getTerminalManager } from '../main.js';
 import { toDirection } from '../utils.js';
 import { attachModalKeyboard } from './modal-base.js';
-import { setPendingContextText } from '../screens/sessions.js';
+import { setPendingContextText, spawnNewSession } from '../screens/sessions.js';
+import { showQuickSpawn } from './quick-spawn.js';
+import { state } from '../state.js';
 
 // ============================================================================
 // State
@@ -241,12 +243,34 @@ async function executeSelectedItem(): Promise<void> {
 }
 
 // ============================================================================
-// Spawn helper — navigate to sessions screen spawn zone
+// Spawn helper — open quick-spawn CLI type picker
 // ============================================================================
 
 function showSpawnGridFromContext(contextText?: string): void {
   setPendingContextText(contextText ?? null);
-  showScreen('sessions');
+
+  // Resolve defaults from the active session
+  const activeSession = state.sessions.find(s => s.id === state.activeSessionId);
+  const preselectedCliType = activeSession?.cliType;
+  const preselectedPath = activeSession?.workingDir;
+
+  const cliTypes = state.availableSpawnTypes;
+  if (cliTypes.length === 0) {
+    logEvent('Quick spawn: no CLI types configured');
+    return;
+  }
+
+  // Single CLI type → skip picker, go straight to dir-picker / spawn
+  if (cliTypes.length === 1) {
+    spawnNewSession(cliTypes[0], preselectedPath);
+    logEvent(contextText ? 'New session with selection' : 'New session from context menu');
+    return;
+  }
+
+  showQuickSpawn(cliTypes, (selectedCliType) => {
+    spawnNewSession(selectedCliType, preselectedPath);
+  }, preselectedCliType);
+
   logEvent(contextText ? 'New session with selection' : 'New session from context menu');
 }
 

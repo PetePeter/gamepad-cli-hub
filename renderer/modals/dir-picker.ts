@@ -28,11 +28,16 @@ let cleanupKeyboard: (() => void) | null = null;
 // Show / Hide
 // ============================================================================
 
-export function showDirPicker(cliType: string, dirs: Array<{ name: string; path: string }>): void {
+export function showDirPicker(cliType: string, dirs: Array<{ name: string; path: string }>, preselectedPath?: string): void {
   dirPickerState.visible = true;
   dirPickerState.items = dirs;
-  dirPickerState.selectedIndex = 0;
   dirPickerState.cliType = cliType;
+
+  // Pre-select directory matching the given path, otherwise default to first
+  const matchIdx = preselectedPath
+    ? dirs.findIndex(d => d.path === preselectedPath)
+    : -1;
+  dirPickerState.selectedIndex = matchIdx >= 0 ? matchIdx : 0;
 
   const modal = document.getElementById('dirPickerModal');
   if (!modal) return;

@@ -19,6 +19,8 @@ export interface SessionInfo {
   cliType: string;
   /** Process ID */
   processId: number;
+  /** Working directory the session was spawned in */
+  workingDir?: string;
   /** Pipeline state detected from PTY output */
   state?: SessionState;
   /** True when AIAGENT-QUESTION detected; clears on next non-question output */

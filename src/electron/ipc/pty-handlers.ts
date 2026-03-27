@@ -55,6 +55,7 @@ export function setupPtyHandlers(
         name: cliType || 'unknown',
         cliType: cliType || 'unknown',
         processId: pty.pid,
+        ...(cwd ? { workingDir: cwd } : {}),
       });
 
       // Schedule initial prompt pre-loading from CLI type config

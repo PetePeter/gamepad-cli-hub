@@ -14,7 +14,9 @@ const mockLogEvent = vi.fn();
 const mockShowScreen = vi.fn();
 const mockAttachModalKeyboard = vi.fn(() => vi.fn());
 const mockSetPendingContextText = vi.fn();
+const mockSpawnNewSession = vi.fn();
 const mockGetTerminalManager = vi.fn();
+const mockShowQuickSpawn = vi.fn();
 
 vi.mock('../renderer/utils.js', () => {
   const dirMap: Record<string, string> = {
@@ -42,6 +44,19 @@ vi.mock('../renderer/modals/modal-base.js', () => ({
 
 vi.mock('../renderer/screens/sessions.js', () => ({
   setPendingContextText: mockSetPendingContextText,
+  spawnNewSession: mockSpawnNewSession,
+}));
+
+vi.mock('../renderer/modals/quick-spawn.js', () => ({
+  showQuickSpawn: mockShowQuickSpawn,
+}));
+
+vi.mock('../renderer/state.js', () => ({
+  state: {
+    sessions: [],
+    activeSessionId: null,
+    availableSpawnTypes: ['claude-code', 'copilot-cli'],
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -316,7 +331,7 @@ describe('Context Menu', () => {
       expect((window as any).gamepadCli.ptyWrite).toHaveBeenCalledWith('session-1', 'clipboard text');
     });
 
-    it('New Session navigates to sessions screen', async () => {
+    it('New Session opens quick-spawn picker', async () => {
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       // Navigate to New Session (index 2)
       mod.handleContextMenuButton('DPadDown'); // Paste(1) → NewSession(2)
@@ -325,11 +340,12 @@ describe('Context Menu', () => {
       mod.handleContextMenuButton('A');
       await flush();
 
-      expect(mockShowScreen).toHaveBeenCalledWith('sessions');
       expect(mockSetPendingContextText).toHaveBeenCalledWith(null);
+      expect(mockShowQuickSpawn).toHaveBeenCalled();
+      expect(mockShowQuickSpawn.mock.calls[0][0]).toEqual(['claude-code', 'copilot-cli']);
     });
 
-    it('New Session with Selection passes text', async () => {
+    it('New Session with Selection passes text and opens quick-spawn', async () => {
       const viewWithSel = makeMockView('selected code', true);
       mockGetTerminalManager.mockReturnValue(makeMockTerminalManager(viewWithSel));
 
@@ -345,7 +361,7 @@ describe('Context Menu', () => {
       await flush();
 
       expect(mockSetPendingContextText).toHaveBeenCalledWith('selected code');
-      expect(mockShowScreen).toHaveBeenCalledWith('sessions');
+      expect(mockShowQuickSpawn).toHaveBeenCalled();
     });
 
     it('Cancel hides menu', async () => {

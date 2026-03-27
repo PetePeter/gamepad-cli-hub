@@ -9,6 +9,7 @@ export interface Session {
   name: string;
   cliType: string;
   processId: number;
+  workingDir?: string;
 }
 
 export interface ButtonEvent {
