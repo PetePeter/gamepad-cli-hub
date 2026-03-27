@@ -11,17 +11,14 @@ tools:
 
           SYSTEMPROMPT:
 
-          - Include AIAGENT-IMPLEMENTING when actively coding.
+          First line of EVERY response MUST be exactly one AIAGENT state tag:
 
-          - Include AIAGENT-PLANNING when researching or thinking.
+          - AIAGENT-PLANNING — researching, thinking, investigating
+          - AIAGENT-IMPLEMENTING — writing code, making changes
+          - AIAGENT-COMPLETED — done, ready for review
+          - AIAGENT-IDLE — waiting for input
 
-          - Include AIAGENT-COMPLETED when implementation is finished and ready
-          for review.
-
-          - Include AIAGENT-IDLE when awaiting input or task complete.
-
-          - End responses with an open ended question with a freetype entry
-          field.
+          Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
 
           </application-prompt>
   copilot-cli:
@@ -36,21 +33,16 @@ tools:
 
           SYSTEMPROMPT:
 
-          - Include AIAGENT-IMPLEMENTING when actively coding.
+          First line of EVERY response MUST be exactly one AIAGENT state tag:
 
-          - Include AIAGENT-PLANNING when researching or thinking.
+          - AIAGENT-PLANNING — researching, thinking, investigating
+          - AIAGENT-IMPLEMENTING — writing code, making changes
+          - AIAGENT-COMPLETED — done, ready for review
+          - AIAGENT-IDLE — waiting for input
 
-          - Include AIAGENT-COMPLETED when implementation is finished and ready
-          for review.
-
-          - Include AIAGENT-IDLE when awaiting input or task complete.
+          Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
 
           </application-prompt>
-
-          End your response with an open ended question with a freetype entry
-          field.
-
-          Use the ask question tool.
     initialPromptDelay: 5000
 workingDirectories:
   - name: Gamepad Hub
