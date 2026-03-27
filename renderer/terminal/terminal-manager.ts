@@ -6,6 +6,7 @@
  */
 
 import { TerminalView } from './terminal-view.js';
+import { stripMouseTracking } from './pty-filter.js';
 
 export interface TerminalSession {
   sessionId: string;
@@ -48,6 +49,7 @@ export class TerminalManager {
     command: string,
     args: string[] = [],
     cwd?: string,
+    contextText?: string,
   ): Promise<boolean> {
     if (this.terminals.has(sessionId)) return false;
 
@@ -78,7 +80,7 @@ export class TerminalManager {
       });
     });
 
-    const result = await window.gamepadCli?.ptySpawn(sessionId, command, args, cwd, cliType);
+    const result = await window.gamepadCli?.ptySpawn(sessionId, command, args, cwd, cliType, contextText);
     console.log(`[TerminalManager] ptySpawn result:`, JSON.stringify(result));
     if (!result?.success) {
       console.error(`[TerminalManager] ptySpawn failed:`, result?.error || 'no result');
@@ -196,7 +198,7 @@ export class TerminalManager {
   writeToTerminal(sessionId: string, data: string): void {
     const session = this.terminals.get(sessionId);
     if (session) {
-      session.view.write(data);
+      session.view.write(stripMouseTracking(data));
     }
   }
 

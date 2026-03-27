@@ -75,6 +75,7 @@ export function scheduleInitialPrompt(
   sessionId: string,
   config: InitialPromptConfig,
   writeToPty: (sessionId: string, data: string) => void,
+  onComplete?: () => void,
 ): (() => void) | null {
   const { initialPrompt, initialPromptDelay = 2000 } = config;
 
@@ -118,6 +119,7 @@ export function scheduleInitialPrompt(
 
     if (!cancelled) {
       logger.info(`[InitialPrompt] Pre-load complete for session ${sessionId}`);
+      onComplete?.();
     }
   };
 

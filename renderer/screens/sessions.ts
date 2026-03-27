@@ -18,9 +18,6 @@ import { createSortControl, type SortControlHandle } from '../components/sort-co
 // Constants
 // ============================================================================
 
-/** Delay before sending context text to a newly spawned PTY (ms) */
-const CONTEXT_TEXT_DELAY_MS = 500;
-
 // ============================================================================
 // State helpers
 // ============================================================================
@@ -56,6 +53,10 @@ const sessionStates = new Map<string, string>();
 /** Track session activity status (active = recent output, inactive = no output for timeout period) */
 const sessionActivity = new Map<string, boolean>();
 
+/** Track last session switch time to debounce false activity from focus-induced PTY responses */
+let lastSwitchTime = 0;
+const ACTIVITY_DEBOUNCE_MS = 300;
+
 export function getSessionState(sessionId: string): string {
   return sessionStates.get(sessionId) || 'idle';
 }
@@ -77,6 +78,10 @@ export function getSessionActivity(sessionId: string): boolean {
 
 /** Set session activity status */
 export function setSessionActivity(sessionId: string, isActive: boolean): void {
+  // Ignore activity-true events right after a session switch (likely focus-induced PTY noise)
+  if (isActive && Date.now() - lastSwitchTime < ACTIVITY_DEBOUNCE_MS) {
+    return;
+  }
   const wasActive = sessionActivity.get(sessionId) ?? false;
   if (wasActive !== isActive) {
     sessionActivity.set(sessionId, isActive);
@@ -299,6 +304,7 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
         spawnInfo.command,
         spawnInfo.args || [],
         workingDir,
+        resolvedContextText,
       );
 
       console.warn(`[doSpawn] createTerminal result: ${success}`);
@@ -308,13 +314,6 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
         // Auto-select the new session
         tm.switchTo(sessionId);
         state.activeSessionId = sessionId;
-
-        // Send context text to the PTY after a short delay
-        if (resolvedContextText && resolvedContextText.trim()) {
-          setTimeout(() => {
-            window.gamepadCli?.ptyWrite(sessionId, resolvedContextText);
-          }, CONTEXT_TEXT_DELAY_MS);
-        }
 
         setTimeout(async () => {
           try {
@@ -1001,6 +1000,9 @@ function autoSelectFocusedSession(): void {
 }
 
 async function switchToSession(sessionId: string): Promise<void> {
+  // Track switch time to debounce false activity from focus-induced PTY responses
+  lastSwitchTime = Date.now();
+
   // Check if this is an embedded terminal
   const tm = terminalManagerGetter ? terminalManagerGetter() : null;
   if (tm && tm.hasTerminal(sessionId)) {

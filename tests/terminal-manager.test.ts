@@ -271,7 +271,7 @@ describe('TerminalManager', () => {
     const ok = await mgr.createTerminal('s1', 'aider', 'aider', ['--model', 'gpt4'], '/home');
 
     expect(ok).toBe(true);
-    expect(mockGamepadCli.ptySpawn).toHaveBeenCalledWith('s1', 'aider', ['--model', 'gpt4'], '/home', 'aider');
+    expect(mockGamepadCli.ptySpawn).toHaveBeenCalledWith('s1', 'aider', ['--model', 'gpt4'], '/home', 'aider', undefined);
     expect(mgr.has('s1')).toBe(true);
     expect(mgr.getCount()).toBe(1);
 

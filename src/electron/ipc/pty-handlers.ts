@@ -44,8 +44,8 @@ export function setupPtyHandlers(
   configLoader?: ConfigLoader,
 ): void {
   // pty:spawn - Spawn a new PTY process and register as session
-  ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string) => {
-    logger.info(`[PTY IPC] pty:spawn called: sessionId=${sessionId}, command=${command}, args=${JSON.stringify(args)}, cwd=${cwd}, cliType=${cliType}`);
+  ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string) => {
+    logger.info(`[PTY IPC] pty:spawn called: sessionId=${sessionId}, command=${command}, args=${JSON.stringify(args)}, cwd=${cwd}, cliType=${cliType}, hasContext=${!!contextText}`);
     try {
       const pty = ptyManager.spawn({ sessionId, command, args, cwd });
 
@@ -58,13 +58,25 @@ export function setupPtyHandlers(
         ...(cwd ? { workingDir: cwd } : {}),
       });
 
+      // Writes context text to PTY after initial prompt (or after default delay)
+      const writeContextText = () => {
+        if (contextText && contextText.trim()) {
+          ptyManager.write(sessionId, contextText);
+          logger.info(`[PTY IPC] Context text written to ${sessionId} (${contextText.length} chars)`);
+        }
+      };
+
       // Schedule initial prompt pre-loading from CLI type config
       const promptConfig = resolvePromptConfig(cliType, configLoader);
       const cancel = scheduleInitialPrompt(sessionId, promptConfig, (sid, data) => {
         ptyManager.write(sid, data);
-      });
+      }, writeContextText);
       if (cancel) {
         promptCancellers.set(sessionId, cancel);
+      } else if (contextText && contextText.trim()) {
+        // No initial prompt configured — send context text after a short delay
+        const fallbackTimeout = setTimeout(writeContextText, 500);
+        promptCancellers.set(sessionId, () => clearTimeout(fallbackTimeout));
       }
 
       logger.info(`[PTY IPC] Spawn success: pid=${pty.pid}`);

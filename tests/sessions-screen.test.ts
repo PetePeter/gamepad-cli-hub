@@ -634,6 +634,7 @@ describe('Sessions Screen', () => {
         'claude',
         [],
         undefined,
+        undefined,
       );
     });
 
@@ -715,6 +716,7 @@ describe('Sessions Screen', () => {
         'claude',
         [],
         undefined,
+        undefined,
       );
     });
 
@@ -729,6 +731,7 @@ describe('Sessions Screen', () => {
         'claude',
         ['--flag'],
         '/projects/a',
+        undefined,
       );
     });
 

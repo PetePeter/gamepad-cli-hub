@@ -406,4 +406,79 @@ describe('scheduleInitialPrompt', () => {
     expect(writeFn).toHaveBeenCalledTimes(1);
     expect(writeFn.mock.calls[0]).toEqual(['s1', 'hello']);
   });
+
+  // ---- onComplete callback tests ----
+
+  it('calls onComplete after all items execute', async () => {
+    const writeFn = vi.fn();
+    const onComplete = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: [{ label: 'Test', sequence: 'hello' }],
+      initialPromptDelay: 0,
+    }, writeFn, onComplete);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(writeFn).toHaveBeenCalledWith('s1', 'hello');
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onComplete after multi-item prompt with waits', async () => {
+    const writeFn = vi.fn();
+    const onComplete = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: [
+        { label: 'First', sequence: 'a{Wait 500}' },
+        { label: 'Second', sequence: 'b' },
+      ],
+      initialPromptDelay: 0,
+    }, writeFn, onComplete);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onComplete).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call onComplete when cancelled', async () => {
+    const writeFn = vi.fn();
+    const onComplete = vi.fn();
+    const cancel = scheduleInitialPrompt('s1', {
+      initialPrompt: [{ label: 'Test', sequence: 'hello' }],
+      initialPromptDelay: 1000,
+    }, writeFn, onComplete);
+
+    cancel!();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('does not call onComplete when cancelled mid-execution', async () => {
+    const writeFn = vi.fn();
+    const onComplete = vi.fn();
+    const cancel = scheduleInitialPrompt('s1', {
+      initialPrompt: [
+        { label: 'First', sequence: 'a{Wait 500}' },
+        { label: 'Second', sequence: 'b' },
+      ],
+      initialPromptDelay: 0,
+    }, writeFn, onComplete);
+
+    await vi.advanceTimersByTimeAsync(0);
+    cancel!();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('onComplete is optional (no error when omitted)', async () => {
+    const writeFn = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: [{ label: 'Test', sequence: 'hello' }],
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(writeFn).toHaveBeenCalledWith('s1', 'hello');
+  });
 });
