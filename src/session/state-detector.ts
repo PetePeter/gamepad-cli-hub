@@ -46,8 +46,8 @@ const KEYWORD_STATE_MAP: Record<string, SessionState> = {
 const STATE_KEYWORDS = Object.keys(KEYWORD_STATE_MAP);
 const QUESTION_KEYWORD = 'AIAGENT-QUESTION';
 
-/** Default activity timeout: 30 seconds of no output before considering a session inactive */
-export const DEFAULT_ACTIVITY_TIMEOUT_MS = 30_000;
+/** Default activity timeout: 5 seconds of no output before considering a session inactive */
+export const DEFAULT_ACTIVITY_TIMEOUT_MS = 5_000;
 
 /**
  * Detects session state from PTY output by scanning for AIAGENT-* keywords.

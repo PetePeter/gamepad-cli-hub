@@ -137,10 +137,10 @@ export interface DpadConfig {
 // ============================================================================
 
 export interface ActivityConfig {
-  timeoutMs: number;  // ms of no output before considering session inactive (default 30000)
+  timeoutMs: number;  // ms of no output before considering session inactive (default 5000)
 }
 
-const DEFAULT_ACTIVITY_CONFIG: ActivityConfig = { timeoutMs: 30000 };
+const DEFAULT_ACTIVITY_CONFIG: ActivityConfig = { timeoutMs: 5000 };
 
 type StickMode = 'cursor' | 'scroll' | 'disabled';
 

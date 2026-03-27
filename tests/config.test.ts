@@ -793,9 +793,9 @@ describe('ConfigLoader', () => {
   // =========================================================================
 
   describe('getActivityTimeout', () => {
-    it('returns default 30000ms when profile has no activity section', () => {
+    it('returns default 5000ms when profile has no activity section', () => {
       loader.load();
-      expect(loader.getActivityTimeout()).toBe(30000);
+      expect(loader.getActivityTimeout()).toBe(5000);
     });
 
     it('returns activity timeout from profile when present', () => {
