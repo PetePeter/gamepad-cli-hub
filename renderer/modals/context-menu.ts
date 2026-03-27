@@ -260,18 +260,10 @@ function showSpawnGridFromContext(contextText?: string): void {
     return;
   }
 
-  // Single CLI type → skip picker, go straight to dir-picker / spawn
-  if (cliTypes.length === 1) {
-    spawnNewSession(cliTypes[0], preselectedPath);
-    logEvent(contextText ? 'New session with selection' : 'New session from context menu');
-    return;
-  }
-
   showQuickSpawn(cliTypes, (selectedCliType) => {
     spawnNewSession(selectedCliType, preselectedPath);
+    logEvent(contextText ? 'New session with selection' : 'New session from context menu');
   }, preselectedCliType);
-
-  logEvent(contextText ? 'New session with selection' : 'New session from context menu');
 }
 
 // ============================================================================

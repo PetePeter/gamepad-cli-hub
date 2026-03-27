@@ -6,7 +6,7 @@ tools:
     initialPromptDelay: 1000
     initialPrompt:
       - label: System Prompt
-        sequence: "<application-prompt>\nSYSTEMPROMPT:\n- Include AIAGENT-IMPLEMENTING when actively coding.\n- Include AIAGENT-PLANNING when researching or thinking.\n- Include AIAGENT-IDLE when awaiting input or task complete.\n- End responses with an open ended question with a freetype entry field.\n</application-prompt>"
+        sequence: "<application-prompt>\nSYSTEMPROMPT:\n- Include AIAGENT-IMPLEMENTING when actively coding.\n- Include AIAGENT-PLANNING when researching or thinking.\n- Include AIAGENT-COMPLETED when implementation is finished and ready for review.\n- Include AIAGENT-IDLE when awaiting input or task complete.\n- End responses with an open ended question with a freetype entry field.\n</application-prompt>"
   copilot-cli:
     name: GitHub Copilot CLI
     command: copilot
@@ -15,7 +15,7 @@ tools:
       - label: Allow All
         sequence: "/allow-all{Enter}"
       - label: System Prompt
-        sequence: "{Wait 3000}<application-prompt>\nSYSTEMPROMPT:\n- Include AIAGENT-IMPLEMENTING when actively coding.\n- Include AIAGENT-PLANNING when researching or thinking.\n- Include AIAGENT-IDLE when awaiting input or task complete.\n</application-prompt>\nEnd your response with an open ended question with a freetype entry field.\nUse the ask question tool."
+        sequence: "{Wait 3000}<application-prompt>\nSYSTEMPROMPT:\n- Include AIAGENT-IMPLEMENTING when actively coding.\n- Include AIAGENT-PLANNING when researching or thinking.\n- Include AIAGENT-COMPLETED when implementation is finished and ready for review.\n- Include AIAGENT-IDLE when awaiting input or task complete.\n</application-prompt>\nEnd your response with an open ended question with a freetype entry field.\nUse the ask question tool."
 workingDirectories:
   - name: Gamepad Hub
     path: X:\coding\gamepad-cli-hub

@@ -75,7 +75,7 @@ export class PipelineQueue extends EventEmitter {
   }
 
   /**
-   * Trigger auto-handoff: called when an implementing session becomes idle.
+   * Trigger auto-handoff: called when a session becomes completed or idle.
    * Pops the next waiting session and emits 'handoff'.
    * Returns the handoff event or null if queue is empty.
    */
