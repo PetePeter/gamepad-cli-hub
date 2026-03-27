@@ -168,6 +168,7 @@ describe('StateDetector', () => {
     });
 
     afterEach(() => {
+      detector.dispose();
       vi.useRealTimers();
     });
 
@@ -180,65 +181,11 @@ describe('StateDetector', () => {
       expect(detector.getLastOutputTime('s1')).toBe(startTime);
     });
 
-    it('isSessionActive returns true when output within timeout', () => {
-      const timeout = 30000;
-      const startTime = Date.now();
-      vi.setSystemTime(startTime);
-
-      detector.processOutput('s1', 'output');
-      expect(detector.isSessionActive('s1', timeout)).toBe(true);
-
-      // 29 seconds later - still active
-      vi.setSystemTime(startTime + 29000);
-      expect(detector.isSessionActive('s1', timeout)).toBe(true);
-    });
-
-    it('isSessionActive returns false when output exceeds timeout', () => {
-      const timeout = 30000;
-      const startTime = Date.now();
-      vi.setSystemTime(startTime);
-
-      detector.processOutput('s1', 'output');
-      expect(detector.isSessionActive('s1', timeout)).toBe(true);
-
-      // 31 seconds later - inactive
-      vi.setSystemTime(startTime + 31000);
-      expect(detector.isSessionActive('s1', timeout)).toBe(false);
-    });
-
-    it('emits activity-change event when session transitions active→inactive', () => {
-      const timeout = 30000;
-      const startTime = Date.now();
-      vi.setSystemTime(startTime);
-
+    it('emits activity-change true on first output (inactive→active)', () => {
       const handler = vi.fn();
       detector.on('activity-change', handler);
 
-      detector.processOutput('s1', 'output'); // becomes active
-
-      // Move past timeout
-      vi.setSystemTime(startTime + 31000);
-      detector.checkActivity('s1', timeout); // trigger check
-
-      expect(handler).toHaveBeenCalledWith({
-        sessionId: 's1',
-        isActive: false,
-      } satisfies ActivityChange);
-    });
-
-    it('emits activity-change event when session transitions inactive→active', () => {
-      const timeout = 30000;
-      const startTime = Date.now();
-      vi.setSystemTime(startTime);
-
-      // Session is inactive (no output yet)
-      vi.setSystemTime(startTime + 31000);
-
-      const handler = vi.fn();
-      detector.on('activity-change', handler);
-
-      // New output makes it active again
-      detector.processOutput('s1', 'new output');
+      detector.processOutput('s1', 'output');
 
       expect(handler).toHaveBeenCalledWith({
         sessionId: 's1',
@@ -246,47 +193,130 @@ describe('StateDetector', () => {
       } satisfies ActivityChange);
     });
 
-    it('does not emit activity-change when state remains the same', () => {
-      const timeout = 30000;
-      const startTime = Date.now();
-      vi.setSystemTime(startTime);
-
-      detector.processOutput('s1', 'output');
-
+    it('emits activity-change false after timeout expires (active→inactive)', () => {
       const handler = vi.fn();
       detector.on('activity-change', handler);
 
-      // Still active - no change
-      vi.setSystemTime(startTime + 10000);
-      detector.checkActivity('s1', timeout);
+      detector.processOutput('s1', 'output');
+      handler.mockClear();
+
+      // Advance past the 30s default timeout
+      vi.advanceTimersByTime(30_001);
+
+      expect(handler).toHaveBeenCalledWith({
+        sessionId: 's1',
+        isActive: false,
+      } satisfies ActivityChange);
+    });
+
+    it('does not emit inactive before timeout expires', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'output');
+      handler.mockClear();
+
+      vi.advanceTimersByTime(29_000);
 
       expect(handler).not.toHaveBeenCalled();
     });
 
-    it('tracks multiple sessions independently', () => {
-      const timeout = 30000;
-      const startTime = Date.now();
-      vi.setSystemTime(startTime);
+    it('resets timer on rapid output — only one inactive event after final silence', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
 
       detector.processOutput('s1', 'output1');
-      vi.setSystemTime(startTime + 20000);
+      handler.mockClear();
+
+      // Output every 10s — timer keeps resetting
+      vi.advanceTimersByTime(10_000);
+      detector.processOutput('s1', 'output2');
+
+      vi.advanceTimersByTime(10_000);
+      detector.processOutput('s1', 'output3');
+
+      // No inactive events during rapid output
+      expect(handler).not.toHaveBeenCalled();
+
+      // Now go silent for 30s
+      vi.advanceTimersByTime(30_001);
+
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler).toHaveBeenCalledWith({
+        sessionId: 's1',
+        isActive: false,
+      } satisfies ActivityChange);
+    });
+
+    it('re-emits active after inactive→active transition', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'output1');
+      handler.mockClear();
+
+      // Go inactive
+      vi.advanceTimersByTime(30_001);
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', isActive: false });
+      handler.mockClear();
+
+      // New output → active again
+      detector.processOutput('s1', 'output2');
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', isActive: true });
+    });
+
+    it('does not emit duplicate active events for consecutive output', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'output1');
+      detector.processOutput('s1', 'output2');
+      detector.processOutput('s1', 'output3');
+
+      // Only one active event on the first output
+      const activeCalls = handler.mock.calls.filter(
+        ([e]: [ActivityChange]) => e.sessionId === 's1' && e.isActive === true,
+      );
+      expect(activeCalls.length).toBe(1);
+    });
+
+    it('tracks multiple sessions independently', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'output1');
+      vi.advanceTimersByTime(15_000);
       detector.processOutput('s2', 'output2');
 
-      // s1 is inactive, s2 is active
-      vi.setSystemTime(startTime + 35000);
-      expect(detector.isSessionActive('s1', timeout)).toBe(false);
-      expect(detector.isSessionActive('s2', timeout)).toBe(true);
+      handler.mockClear();
+
+      // s1 timeout fires at 30s from its last output (15s from now)
+      vi.advanceTimersByTime(15_001);
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', isActive: false });
+      expect(handler).not.toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's2', isActive: false }));
+
+      handler.mockClear();
+
+      // s2 timeout fires at 30s from its last output (15s later)
+      vi.advanceTimersByTime(15_000);
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's2', isActive: false });
     });
 
-    it('getLastOutputTime returns 0 for unknown session', () => {
-      expect(detector.getLastOutputTime('unknown')).toBe(0);
+    it('removeSession clears the activity timer — no late events', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'output');
+      handler.mockClear();
+
+      detector.removeSession('s1');
+
+      // Timer should have been cleared — no inactive event
+      vi.advanceTimersByTime(60_000);
+      expect(handler).not.toHaveBeenCalled();
     });
 
-    it('isSessionActive returns false for unknown session', () => {
-      expect(detector.isSessionActive('unknown', 30000)).toBe(false);
-    });
-
-    it('removeSession clears activity tracking', () => {
+    it('removeSession clears activity tracking data', () => {
       const startTime = Date.now();
       vi.setSystemTime(startTime);
 
@@ -297,30 +327,41 @@ describe('StateDetector', () => {
       expect(detector.getLastOutputTime('s1')).toBe(0);
     });
 
-    it('checkAllActivities emits changes for all tracked sessions', () => {
-      const timeout = 30000;
-      const startTime = Date.now();
-      vi.setSystemTime(startTime);
-
-      detector.processOutput('s1', 'output1');
-      detector.processOutput('s2', 'output2');
-
+    it('dispose clears all timers — no late events', () => {
       const handler = vi.fn();
       detector.on('activity-change', handler);
 
-      // Both sessions go inactive
-      vi.setSystemTime(startTime + 31000);
-      detector.checkAllActivities(timeout);
+      detector.processOutput('s1', 'output1');
+      detector.processOutput('s2', 'output2');
+      handler.mockClear();
 
-      expect(handler).toHaveBeenCalledTimes(2);
-      expect(handler).toHaveBeenCalledWith({
-        sessionId: 's1',
-        isActive: false,
-      } satisfies ActivityChange);
-      expect(handler).toHaveBeenCalledWith({
-        sessionId: 's2',
-        isActive: false,
-      } satisfies ActivityChange);
+      detector.dispose();
+
+      vi.advanceTimersByTime(60_000);
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('getLastOutputTime returns 0 for unknown session', () => {
+      expect(detector.getLastOutputTime('unknown')).toBe(0);
+    });
+
+    it('respects custom activityTimeoutMs via constructor', () => {
+      const custom = new StateDetector(5000);
+      const handler = vi.fn();
+      custom.on('activity-change', handler);
+
+      custom.processOutput('s1', 'output');
+      handler.mockClear();
+
+      // Not yet timed out at 4s
+      vi.advanceTimersByTime(4_000);
+      expect(handler).not.toHaveBeenCalled();
+
+      // Times out at 5s
+      vi.advanceTimersByTime(1_001);
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', isActive: false });
+
+      custom.dispose();
     });
   });
 });

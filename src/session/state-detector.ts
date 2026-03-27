@@ -46,7 +46,7 @@ const STATE_KEYWORDS = Object.keys(KEYWORD_STATE_MAP);
 const QUESTION_KEYWORD = 'AIAGENT-QUESTION';
 
 /** Default activity timeout: 30 seconds of no output before considering a session inactive */
-const DEFAULT_ACTIVITY_TIMEOUT_MS = 30000;
+export const DEFAULT_ACTIVITY_TIMEOUT_MS = 30_000;
 
 /**
  * Detects session state from PTY output by scanning for AIAGENT-* keywords.
@@ -56,23 +56,34 @@ const DEFAULT_ACTIVITY_TIMEOUT_MS = 30000;
  * - 'question-detected'  (QuestionDetected) — AIAGENT-QUESTION found
  * - 'question-cleared'   (QuestionCleared)  — new output arrived after question
  * - 'activity-change'   (ActivityChange)   — session transitioned active↔inactive
+ *
+ * Activity detection uses a per-session debounced timeout: each processOutput()
+ * call resets a timer. When the timer fires (no output for activityTimeoutMs),
+ * an activity-change event with isActive=false is emitted.
  */
 export class StateDetector extends EventEmitter {
   private sessionStates: Map<string, SessionTracking> = new Map();
+  private activityTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private readonly activityTimeoutMs: number;
+
+  constructor(activityTimeoutMs: number = DEFAULT_ACTIVITY_TIMEOUT_MS) {
+    super();
+    this.activityTimeoutMs = activityTimeoutMs;
+  }
 
   /** Feed output data from a session's PTY. */
   processOutput(sessionId: string, data: string): void {
     const tracking = this.getOrCreate(sessionId);
-    const now = Date.now();
-    const wasActive = tracking.lastOutputAt > 0 && (now - tracking.lastOutputAt) < 30000;
-    tracking.lastOutputAt = now;
-    const isNowActive = true;
+    tracking.lastOutputAt = Date.now();
 
     // Emit activity-change if transitioning from inactive to active
-    if (!wasActive && isNowActive) {
+    if (!tracking.lastKnownActivity) {
       tracking.lastKnownActivity = true;
       this.emit('activity-change', { sessionId, isActive: true } satisfies ActivityChange);
     }
+
+    // Reset the inactivity timer — fires after activityTimeoutMs of silence
+    this.resetActivityTimer(sessionId);
 
     const clean = stripAnsi(data);
 
@@ -147,7 +158,17 @@ export class StateDetector extends EventEmitter {
 
   /** Remove tracking for a session. */
   removeSession(sessionId: string): void {
+    this.clearActivityTimer(sessionId);
     this.sessionStates.delete(sessionId);
+  }
+
+  /** Clean up all timers (call on shutdown). */
+  dispose(): void {
+    for (const timer of this.activityTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.activityTimers.clear();
+    this.sessionStates.clear();
   }
 
   // ---------- Activity tracking ------------------------------------------
@@ -157,29 +178,26 @@ export class StateDetector extends EventEmitter {
     return this.sessionStates.get(sessionId)?.lastOutputAt ?? 0;
   }
 
-  /** Check if a session is currently active (output within timeoutMs). */
-  isSessionActive(sessionId: string, timeoutMs: number): boolean {
-    const lastOutput = this.getLastOutputTime(sessionId);
-    if (lastOutput === 0) return false;
-    return (Date.now() - lastOutput) < timeoutMs;
+  /** Reset (or start) the inactivity timer for a session. */
+  private resetActivityTimer(sessionId: string): void {
+    this.clearActivityTimer(sessionId);
+    const timer = setTimeout(() => {
+      this.activityTimers.delete(sessionId);
+      const tracking = this.sessionStates.get(sessionId);
+      if (tracking && tracking.lastKnownActivity) {
+        tracking.lastKnownActivity = false;
+        this.emit('activity-change', { sessionId, isActive: false } satisfies ActivityChange);
+      }
+    }, this.activityTimeoutMs);
+    this.activityTimers.set(sessionId, timer);
   }
 
-  /** Check activity for a single session and emit event if state changed. */
-  checkActivity(sessionId: string, timeoutMs: number): void {
-    const tracking = this.sessionStates.get(sessionId);
-    if (!tracking) return;
-
-    const isActive = this.isSessionActive(sessionId, timeoutMs);
-    if (isActive !== tracking.lastKnownActivity) {
-      tracking.lastKnownActivity = isActive;
-      this.emit('activity-change', { sessionId, isActive } satisfies ActivityChange);
-    }
-  }
-
-  /** Check activity for all tracked sessions. */
-  checkAllActivities(timeoutMs: number): void {
-    for (const [sessionId] of this.sessionStates) {
-      this.checkActivity(sessionId, timeoutMs);
+  /** Clear the inactivity timer for a session. */
+  private clearActivityTimer(sessionId: string): void {
+    const existing = this.activityTimers.get(sessionId);
+    if (existing) {
+      clearTimeout(existing);
+      this.activityTimers.delete(sessionId);
     }
   }
 

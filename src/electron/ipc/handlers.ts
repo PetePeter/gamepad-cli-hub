@@ -60,6 +60,7 @@ export function registerIPCHandlers(getMainWindow: () => BrowserWindow | null): 
   return () => {
     cleanupSession();
     cancelAllPrompts();
+    stateDetector.dispose();
     ptyManager.killAll();
     logger.info('[IPC] Cleanup complete');
   };
