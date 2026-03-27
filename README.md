@@ -4,33 +4,79 @@
 
 You're running Claude Code in one terminal, Copilot CLI in another, maybe a third session for a side project. Alt-tabbing between them is slow. Finding the right window is annoying. Typing repetitive commands is tedious.
 
-Pick up your controller. One button spawns a new Claude Code session — it opens as an embedded terminal right inside the app. Another fires up Copilot CLI in its own tab. The D-pad flips between tabs instantly, auto-selecting the terminal so you can start typing right away. Ctrl+Tab cycles tabs from the keyboard.
+Pick up your controller. One button spawns a new Claude Code session — it opens as an embedded terminal right inside the app. Another fires up Copilot CLI in its own tab. The D-pad flips between tabs instantly, auto-selecting the terminal so you can start typing right away.
 
 This is a session manager for people who run multiple AI-assisted terminals at once and got tired of the friction.
 
 ---
 
-## What It Does
+## What Is This?
 
-**Session Switching** — D-pad up/down cycles through your open terminal tabs. Each session runs as an embedded terminal inside the app — no external windows to hunt for. The tab bar shows colored dots so you can see which CLI is implementing, waiting, or idle at a glance.
+Gamepad CLI Hub is an Electron desktop app that lets you control multiple AI coding CLI sessions from a single Xbox controller. Each CLI runs as an embedded terminal (via node-pty + xterm.js) — no external windows to manage.
 
-**Instant Spawning** — Pull a trigger and a new CLI instance launches in an embedded terminal, ready to go. Left trigger for Claude Code, right bumper for Copilot CLI — or remap to whatever tools you use. An optional initial prompt auto-types a command after spawn.
+**Why use it?**
 
-**Keystroke Sequences** — Button bindings support a `sequence` field for scripting complex input patterns. Type text, press Enter, wait, send Ctrl+C — all in one binding. Same syntax configures initial prompts for newly spawned sessions.
+- **Multi-CLI workflows** — Run Claude Code, Copilot CLI, and other AI tools side-by-side
+- **Voice control ready** — Designed to work with OpenWhisper for voice-to-text input
+- **Physical controls** — D-pad, buttons, and analog sticks replace keyboard shortcuts
+- **Always-on sidebar** — Lives as a slim frameless window on your screen edge
 
-**Session Persistence** — Sessions survive crashes and restarts. The app saves session state to disk after every change and restores on startup. A health check periodically removes dead sessions so the list stays clean.
+---
 
-**Quick Access** — Press the Sandwich/Guide button from anywhere to snap back to the session list. The app lives as a slim sidebar on the edge of your screen — always visible, never in the way. D-pad navigation auto-selects the terminal — no extra button presses needed.
+## Voice Control
 
-**Analog Sticks** — Each stick emits virtual button names (LeftStickUp, RightStickDown, etc.) that can be bound to any action. If no binding exists, right stick scrolls the terminal buffer. Both configurable per-profile with deadzone and repeat rate settings.
+The app is designed to work with **OpenWhisper** (or any voice-to-text tool that listens for a hotkey). Bind a gamepad button to simulate a keypress, and OpenWhisper starts listening. When it transcribes your speech, the text flows directly into the active terminal.
 
-**Haptic Feedback** — Feel the controller pulse when you switch sessions or trigger actions. Configurable in settings — turn it off if you prefer silence.
+### How Voice Bindings Work
 
-**Context-Aware Bindings** — The same button can do different things depending on which CLI is active. Press A in Claude Code and it clears the screen. Press A in Copilot CLI and it runs a different command. The app checks the active session type and dispatches accordingly.
+Voice bindings simulate a keypress that triggers your voice recognition software:
 
-**Profiles** — Save different button configurations for different workflows. Switch profiles with Back/Start on the controller, or from the settings screen. Deep focus session? Debugging profile? Pair programming layout? One button away.
+```yaml
+LeftTrigger:
+  action: voice
+  key: F1
+  mode: tap
+```
 
-**Full Settings UI** — Everything is configurable from the app itself. Add new CLI tools, set working directories, remap every button, manage profiles — five tabs, no YAML editing required (though the YAML files are there if you prefer).
+When you press the button, the app simulates the F1 key. If OpenWhisper is configured to listen on F1, it starts capturing your voice. The transcribed text is then typed into the terminal.
+
+### Routing Modes
+
+Voice bindings support two routing modes:
+
+| Mode | Description |
+|------|-------------|
+| **OS (default)** | Key is simulated at the OS level via robotjs — works with external apps like OpenWhisper |
+| **Terminal** | Key is sent as an escape sequence to the active PTY — for terminal-resident voice tools |
+
+To route to the terminal explicitly:
+
+```yaml
+RightBumper:
+  action: voice
+  key: F2
+  mode: tap
+  target: terminal
+```
+
+### Example OpenWhisper Workflow
+
+1. Configure OpenWhisper to listen for F1
+2. Map your controller's Left Trigger to a `voice` binding with `key: F1`
+3. Press the trigger → F1 is simulated → OpenWhisper starts listening
+4. Speak your command → OpenWhisper transcribes and types the text
+5. The text appears in the active terminal
+
+---
+
+## Quick Start
+
+```bash
+npm install
+npm start
+```
+
+Plug in a controller (USB or Bluetooth). The app detects it automatically.
 
 ---
 
@@ -40,13 +86,14 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 |-------|--------|
 | D-Pad Up / Down | Switch sessions (auto-selects terminal) |
 | Left Stick | Same as D-pad |
-| Right Stick | Scroll terminal buffer |
-| A | Spawn action / configurable per-CLI binding |
-| B | Back to sessions zone / configurable per-CLI binding |
-| X | Close terminal |
+| Right Stick | Scroll terminal buffer (configurable) |
+| A | Configurable per-CLI binding |
+| B | Back / configurable per-CLI binding |
+| X | Configurable per-CLI binding |
 | Y | (planned: cycle terminal state) |
-| Left Trigger | Spawn Claude Code |
-| Right Bumper | Spawn Copilot CLI |
+| Left Trigger | Spawn Claude Code (default) |
+| Right Bumper | Spawn Copilot CLI (default) |
+| Left/Right Trigger | Voice activation (configure F1/F2 etc.) |
 | Back / Start | Previous / next profile |
 | Sandwich / Guide | Focus hub + show sessions |
 | Ctrl+Tab | Next terminal tab |
@@ -54,9 +101,11 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 
 Every binding is remappable. Every action is configurable per CLI type.
 
-### Keystroke Sequences
+---
 
-Button bindings and initial prompts use the same **sequence parser syntax**:
+## Sequence Syntax
+
+Button bindings and initial prompts use a sequence parser for scripting complex input patterns:
 
 ```yaml
 A:
@@ -71,13 +120,26 @@ A:
 | Token | Effect |
 |-------|--------|
 | Plain text | Sent as literal characters to PTY |
-| `{Enter}`, `{Tab}`, `{Escape}` | Named keys |
-| `{Ctrl+C}`, `{Ctrl+Z}` | Modifier + key combos |
+| `{Enter}`, `{Tab}`, `{Escape}`, `{Delete}` | Named keys |
+| `{Ctrl+C}`, `{Ctrl+Z}`, `{Ctrl+V}` | Modifier + key combos |
 | `{Wait 500}` | Pause N ms (max 30000) |
 | `{Ctrl Down}`, `{Ctrl Up}` | Hold/release modifier |
 | `{{`, `}}` | Literal `{` and `}` |
 
-See [Keystroke Sequences](docs/keystroke-sequences.md) for the full syntax reference.
+### Initial Prompts
+
+Automatically send commands when a session spawns:
+
+```yaml
+tools:
+  claude-code:
+    name: Claude Code
+    command: claude
+    initialPrompt:
+      - label: "Initialize"
+        sequence: "/init{Enter}"
+    initialPromptDelay: 2000
+```
 
 ---
 
@@ -94,26 +156,63 @@ graph LR
     style APP fill:#4a9eff,color:#fff,stroke:#2d7ad6
 ```
 
-The app sits between your controller and your AI coding assistants. It reads gamepad input via the Browser Gamepad API (buttons and analog sticks), resolves bindings, and routes keystrokes to embedded terminal sessions running inside the app via PTY. Each session renders in its own xterm.js tab — a tab bar with colored state dots (🟢 implementing, 🟠 waiting, 🔵 planning, 🟡 completed, ⚪ idle) sits above the terminal area.
+The app sits between your controller and your AI coding assistants. It reads gamepad input via the Browser Gamepad API, resolves bindings, and routes input to embedded terminal sessions via PTY.
 
-**D-pad navigation auto-selects terminals** — press up/down to switch sessions and the terminal activates immediately. Keyboard input always routes to the active terminal. Non-navigation buttons (XYAB, bumpers, triggers) pass through to per-CLI configurable bindings.
+**D-pad navigation auto-selects terminals** — press up/down to switch sessions and the terminal activates immediately. Keyboard input always routes to the active terminal.
 
-**State detection:** The app watches PTY output for AIAGENT-* keywords and auto-detects whether a CLI is implementing, planning, completed, or idle. A pipeline queue auto-dispatches work to waiting sessions — handoff triggers when a session enters completed or idle state.
+**State detection:** The app watches PTY output for `AIAGENT-*` keywords and auto-detects whether a CLI is implementing, planning, completed, or idle. Colored dots in the tab bar show the state:
 
-Sessions persist across restarts — if the app crashes or you reboot, it picks up where you left off.
+- 🟢 implementing
+- 🟠 waiting
+- 🔵 planning
+- 🟡 completed
+- ⚪ idle
 
-Works with USB and Bluetooth Xbox controllers out of the box.
+**Session persistence:** Sessions survive crashes and restarts. State is saved to disk after every change.
 
 ---
 
-## Get Started
+## Configuration
 
-```bash
-npm install
-npm start
+Everything is configurable from the in-app settings UI — no YAML editing required. But the config files are there if you prefer hand-editing.
+
+### Profiles
+
+Profiles are self-contained YAML files storing tools, directories, bindings, stick config, and D-pad settings. Switch profiles with Back/Start or from the settings screen.
+
+```
+config/
+├── settings.yaml
+├── sessions.yaml
+└── profiles/
+    └── default.yaml
 ```
 
-Plug in a controller. The app detects it automatically and you're ready to go.
+### Binding Actions
+
+| Action | Description |
+|--------|-------------|
+| `keyboard` | Send a sequence of keystrokes to the terminal |
+| `voice` | Simulate a keypress for voice recognition (OS or PTY) |
+| `scroll` | Scroll the terminal buffer up/down |
+| `context-menu` | Open the context menu overlay |
+| `sequence-list` | Show a picker of named sequences |
+
+### Per-CLI Bindings
+
+The same button can do different things depending on which CLI is active:
+
+```yaml
+bindings:
+  claude-code:
+    A:
+      action: keyboard
+      sequence: "/clear{Enter}"
+  copilot-cli:
+    A:
+      action: keyboard
+      sequence: "git status{Enter}"
+```
 
 ---
 
