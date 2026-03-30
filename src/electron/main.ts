@@ -5,7 +5,7 @@
  * Manages window creation, IPC communication, and application lifecycle.
  */
 
-import { app, BrowserWindow, ipcMain, Menu, screen, powerMonitor } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, screen, powerMonitor, crashReporter } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { registerIPCHandlers } from './ipc/handlers.js';
@@ -15,6 +15,16 @@ import { logger } from '../utils/logger.js';
 // Enable Chromium gamepad extensions for Bluetooth controller support
 app.commandLine.appendSwitch('enable-gamepad-extensions');
 app.commandLine.appendSwitch('enable-features', 'WebGamepad');
+// Prevent GPU sandbox crashes on hibernate/resume
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+// Don't kill app after repeated GPU process crashes
+app.commandLine.appendSwitch('disable-gpu-process-crash-limit');
+
+// Enable crash reporter to capture native crash dumps for diagnosis
+crashReporter.start({
+  submitURL: '',
+  uploadToServer: false,
+});
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -148,6 +158,7 @@ function createWindow(): void {
  */
 app.whenReady().then(() => {
   logger.info('[Main] App ready');
+  logger.info(`[Main] Crash dumps directory: ${app.getPath('crashDumps')}`);
 
   // Register IPC handlers
   cleanupIPC = registerIPCHandlers(() => mainWindow);
@@ -224,11 +235,13 @@ app.on('will-quit', (event) => {
  * Handle uncaught errors
  */
 process.on('uncaughtException', (error) => {
-  logger.error(`[Main] Uncaught exception: ${error}`);
+  logger.error(`[Main] Uncaught exception: ${error.stack || error}`);
+  // Don't exit — try to keep the app alive
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error(`[Main] Unhandled rejection at: ${promise} reason: ${reason}`);
+process.on('unhandledRejection', (reason) => {
+  logger.error(`[Main] Unhandled rejection: ${reason}`);
+  // Don't exit — try to keep the app alive
 });
 
 /**

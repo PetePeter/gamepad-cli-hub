@@ -13,10 +13,10 @@ tools:
 
           First line of EVERY response MUST be exactly one AIAGENT state tag:
 
-          - AIAGENT-PLANNING — researching, thinking, investigating
-          - AIAGENT-IMPLEMENTING — writing code, making changes
-          - AIAGENT-COMPLETED — done, ready for review
-          - AIAGENT-IDLE — waiting for input
+          - AIAGENT-PLANNING — researching, thinking, investigating -
+          AIAGENT-IMPLEMENTING — writing code, making changes -
+          AIAGENT-COMPLETED — done, ready for review - AIAGENT-IDLE — waiting
+          for input
 
           Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
 
@@ -35,10 +35,10 @@ tools:
 
           First line of EVERY response MUST be exactly one AIAGENT state tag:
 
-          - AIAGENT-PLANNING — researching, thinking, investigating
-          - AIAGENT-IMPLEMENTING — writing code, making changes
-          - AIAGENT-COMPLETED — done, ready for review
-          - AIAGENT-IDLE — waiting for input
+          - AIAGENT-PLANNING — researching, thinking, investigating -
+          AIAGENT-IMPLEMENTING — writing code, making changes -
+          AIAGENT-COMPLETED — done, ready for review - AIAGENT-IDLE — waiting
+          for input
 
           Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
 
@@ -94,6 +94,11 @@ bindings:
     LeftStickUp:
       action: keyboard
       sequence: "{PageUp}"
+    RightBumper:
+      action: sequence-list
+      items:
+        - label: commit
+          sequence: use skill(commit)
   copilot-cli:
     RightTrigger:
       action: voice
@@ -136,6 +141,11 @@ bindings:
     LeftStickUp:
       action: keyboard
       sequence: "{PageUp}"
+    RightBumper:
+      action: sequence-list
+      items:
+        - label: commit
+          sequence: use skill(commit)
   generic-terminal:
     A:
       action: keyboard

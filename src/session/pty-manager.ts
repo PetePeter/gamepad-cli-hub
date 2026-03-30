@@ -93,6 +93,16 @@ export class PtyManager extends EventEmitter {
 
     this.ptys.set(sessionId, ptyProcess);
 
+    // Attach error handlers to internal pipe Sockets to prevent unhandled errors from crashing the process.
+    // node-pty internals may change — guard with existence checks.
+    const agent = (ptyProcess as any)._agent;
+    if (agent) {
+      const inSocket = agent._inSocket || agent.inSocket;
+      const outSocket = agent._outSocket || agent.outSocket;
+      if (inSocket?.on) inSocket.on('error', (err: Error) => logger.error(`[PTY] Socket error (in) for ${sessionId}: ${err.message}`));
+      if (outSocket?.on) outSocket.on('error', (err: Error) => logger.error(`[PTY] Socket error (out) for ${sessionId}: ${err.message}`));
+    }
+
     ptyProcess.onData((data: string) => {
       this.emit('data', sessionId, data);
     });
@@ -110,7 +120,11 @@ export class PtyManager extends EventEmitter {
       const fullCommand = escapedArgs.length > 0
         ? escapedCommand + ' ' + escapedArgs.join(' ')
         : escapedCommand;
-      ptyProcess.write(fullCommand + '\r');
+      try {
+        ptyProcess.write(fullCommand + '\r');
+      } catch (error) {
+        logger.error(`[PTY] Initial command write failed for ${sessionId}: ${error}`);
+      }
     }
 
     logger.info(`[PTY] Spawned session ${sessionId}: ${command} (PID ${ptyProcess.pid})`);
@@ -125,29 +139,45 @@ export class PtyManager extends EventEmitter {
       return;
     }
     logger.info(`[PTY] Writing to session=${sessionId} len=${data.length}`);
-    pty.write(data);
-    logger.info(`[PTY] Write completed for session=${sessionId}`);
+    try {
+      pty.write(data);
+      logger.info(`[PTY] Write completed for session=${sessionId}`);
+    } catch (error) {
+      logger.error(`[PTY] Write failed for session=${sessionId}: ${error}`);
+    }
   }
 
   /** Resize a session's PTY. */
   resize(sessionId: string, cols: number, rows: number): void {
     const pty = this.ptys.get(sessionId);
     if (!pty) return;
-    pty.resize(cols, rows);
+    try {
+      pty.resize(cols, rows);
+    } catch (error) {
+      logger.error(`[PTY] Resize failed for session=${sessionId}: ${error}`);
+    }
   }
 
   /** Kill a session's PTY process. */
   kill(sessionId: string): void {
     const pty = this.ptys.get(sessionId);
     if (!pty) return;
-    pty.kill();
+    try {
+      pty.kill();
+    } catch (error) {
+      logger.error(`[PTY] Kill failed for session=${sessionId}: ${error}`);
+    }
     this.ptys.delete(sessionId);
   }
 
   /** Kill all PTY processes. */
   killAll(): void {
-    for (const [, pty] of this.ptys) {
-      pty.kill();
+    for (const [sessionId, pty] of this.ptys) {
+      try {
+        pty.kill();
+      } catch (error) {
+        logger.error(`[PTY] Kill failed during killAll for session=${sessionId}: ${error}`);
+      }
     }
     this.ptys.clear();
   }

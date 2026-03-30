@@ -89,14 +89,22 @@ export function setupPtyHandlers(
 
   // pty:write - Write data to a session's PTY stdin
   ipcMain.handle('pty:write', (_event, sessionId: string, data: string) => {
-    logger.info(`[PTY IPC] pty:write received: session=${sessionId} len=${data.length}`);
-    ptyManager.write(sessionId, data);
-    logger.info(`[PTY IPC] pty:write completed for session=${sessionId}`);
+    try {
+      logger.info(`[PTY IPC] pty:write received: session=${sessionId} len=${data.length}`);
+      ptyManager.write(sessionId, data);
+      logger.info(`[PTY IPC] pty:write completed for session=${sessionId}`);
+    } catch (error) {
+      logger.error(`[PTY IPC] pty:write failed for session=${sessionId}: ${error}`);
+    }
   });
 
   // pty:resize - Resize a session's PTY
   ipcMain.handle('pty:resize', (_event, sessionId: string, cols: number, rows: number) => {
-    ptyManager.resize(sessionId, cols, rows);
+    try {
+      ptyManager.resize(sessionId, cols, rows);
+    } catch (error) {
+      logger.error(`[PTY IPC] pty:resize failed for session=${sessionId}: ${error}`);
+    }
   });
 
   // pty:kill - Kill a session's PTY
@@ -107,7 +115,11 @@ export function setupPtyHandlers(
       cancelPrompt();
       promptCancellers.delete(sessionId);
     }
-    ptyManager.kill(sessionId);
+    try {
+      ptyManager.kill(sessionId);
+    } catch (error) {
+      logger.error(`[PTY IPC] pty:kill failed for session=${sessionId}: ${error}`);
+    }
   });
 
   // Forward PTY data events to renderer

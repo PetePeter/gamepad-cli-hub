@@ -184,4 +184,76 @@ describe('PtyManager', () => {
       expect(manager.getSessionIds()).toEqual([]);
     });
   });
+
+  describe('error resilience', () => {
+    it('write() catches error and does not remove PTY', () => {
+      manager.spawn({ sessionId: 's1', command: 'test' });
+      (mock.pty.write as any).mockImplementation(() => { throw new Error('broken pipe'); });
+
+      expect(() => manager.write('s1', 'data')).not.toThrow();
+      expect(manager.has('s1')).toBe(true); // PTY not removed
+    });
+
+    it('resize() catches error and does not remove PTY', () => {
+      manager.spawn({ sessionId: 's1', command: 'test' });
+      (mock.pty.resize as any).mockImplementation(() => { throw new Error('invalid handle'); });
+
+      expect(() => manager.resize('s1', 80, 24)).not.toThrow();
+      expect(manager.has('s1')).toBe(true); // PTY not removed
+    });
+
+    it('kill() catches error and still removes PTY from map', () => {
+      manager.spawn({ sessionId: 's1', command: 'test' });
+      (mock.pty.kill as any).mockImplementation(() => { throw new Error('already dead'); });
+
+      expect(() => manager.kill('s1')).not.toThrow();
+      expect(manager.has('s1')).toBe(false); // PTY removed despite error
+    });
+
+    it('killAll() catches errors and clears all PTYs', () => {
+      const mock2 = createMockPty(99);
+      const multiFactory: PtyFactory = {
+        spawn: vi.fn()
+          .mockReturnValueOnce(mock.pty)
+          .mockReturnValueOnce(mock2.pty),
+      };
+      const mgr = new PtyManager(multiFactory);
+      mgr.spawn({ sessionId: 's1', command: 'a' });
+      mgr.spawn({ sessionId: 's2', command: 'b' });
+
+      (mock.pty.kill as any).mockImplementation(() => { throw new Error('fail1'); });
+      (mock2.pty.kill as any).mockImplementation(() => { throw new Error('fail2'); });
+
+      expect(() => mgr.killAll()).not.toThrow();
+      expect(mgr.getSessionIds()).toEqual([]);
+    });
+
+    it('spawn() catches command write error but still registers PTY', () => {
+      // First call to write (the initial command) throws
+      (mock.pty.write as any).mockImplementation(() => { throw new Error('write failed'); });
+
+      // spawn should not throw — PTY is still registered
+      expect(() => manager.spawn({ sessionId: 's1', command: 'test' })).not.toThrow();
+      expect(manager.has('s1')).toBe(true);
+    });
+
+    it('attaches socket error handlers when internal agent exists', () => {
+      const inSocket = { on: vi.fn() };
+      const outSocket = { on: vi.fn() };
+      const agentMock = createMockPty(42);
+      (agentMock.pty as any)._agent = { _inSocket: inSocket, _outSocket: outSocket };
+
+      const agentFactory = createMockFactory(agentMock.pty);
+      const mgr = new PtyManager(agentFactory);
+      mgr.spawn({ sessionId: 's1', command: 'test' });
+
+      expect(inSocket.on).toHaveBeenCalledWith('error', expect.any(Function));
+      expect(outSocket.on).toHaveBeenCalledWith('error', expect.any(Function));
+    });
+
+    it('skips socket error handlers when no internal agent', () => {
+      // Default mock has no _agent property — should not throw
+      expect(() => manager.spawn({ sessionId: 's1', command: 'test' })).not.toThrow();
+    });
+  });
 });
