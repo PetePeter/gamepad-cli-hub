@@ -19,6 +19,8 @@ const mockSessionClose = vi.fn().mockResolvedValue({ success: true });
 const mockConfigGetCliTypes = vi.fn<() => Promise<string[]>>().mockResolvedValue([]);
 const mockConfigGetWorkingDirs = vi.fn<() => Promise<any[]>>().mockResolvedValue([]);
 const mockConfigGetSpawnCommand = vi.fn().mockResolvedValue({ command: 'claude', args: [] });
+const mockConfigGetSessionGroupPrefs = vi.fn().mockResolvedValue({ order: [], collapsed: [] });
+const mockConfigSetSessionGroupPrefs = vi.fn().mockResolvedValue({ success: true });
 const mockCreateTerminal = vi.fn().mockResolvedValue(true);
 
 const mockDestroyTerminal = vi.fn();
@@ -163,6 +165,8 @@ describe('Sessions Screen', () => {
       configGetCliTypes: mockConfigGetCliTypes,
       configGetWorkingDirs: mockConfigGetWorkingDirs,
       configGetSpawnCommand: mockConfigGetSpawnCommand,
+      configGetSessionGroupPrefs: mockConfigGetSessionGroupPrefs,
+      configSetSessionGroupPrefs: mockConfigSetSessionGroupPrefs,
     };
 
     state = await getState();
@@ -194,6 +198,9 @@ describe('Sessions Screen', () => {
       cliTypes: [],
       directories: [],
       editingSessionId: null,
+      navList: [],
+      groups: [],
+      groupPrefs: { order: [], collapsed: [] },
     });
     Object.assign(state, {
       sessions: [],
@@ -231,7 +238,7 @@ describe('Sessions Screen', () => {
 
       await loadAndFlush(sessions);
 
-      expect(sessionsState.sessionsFocusIndex).toBeLessThanOrEqual(1);
+      expect(sessionsState.sessionsFocusIndex).toBeLessThanOrEqual(2);
     });
 
     it('clamps spawnFocusIndex after load when out of bounds', async () => {
@@ -334,12 +341,14 @@ describe('Sessions Screen', () => {
       expect(cards[1]!.classList.contains('active')).toBe(true);
     });
 
-    it('first session card has .focused class when activeFocus is sessions', async () => {
+    it('group header has .focused class at default focus', async () => {
       setMockTerminalSessions(makeSessions(2));
       await loadAndFlush(sessions);
 
+      const header = document.querySelector('#sessionsList .group-header');
+      expect(header!.classList.contains('focused')).toBe(true);
       const cards = document.querySelectorAll('#sessionsList .session-card');
-      expect(cards[0]!.classList.contains('focused')).toBe(true);
+      expect(cards[0]!.classList.contains('focused')).toBe(false);
       expect(cards[1]!.classList.contains('focused')).toBe(false);
     });
 
@@ -451,7 +460,7 @@ describe('Sessions Screen', () => {
     });
 
     it('DPadDown past last session switches to spawn zone', () => {
-      sessionsState.sessionsFocusIndex = 2;
+      sessionsState.sessionsFocusIndex = 3;
       sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.activeFocus).toBe('spawn');
       expect(sessionsState.spawnFocusIndex).toBe(0);
@@ -477,15 +486,17 @@ describe('Sessions Screen', () => {
 
     it('.focused class moves with sessionsFocusIndex', () => {
       const cards = () => document.querySelectorAll('#sessionsList .session-card');
+      // After load, focus is on group header (index 0). Navigate to first session card.
+      sessions.handleSessionsScreenButton('DPadDown'); // → index 1 (first card)
       expect(cards()[0]!.classList.contains('focused')).toBe(true);
 
-      sessions.handleSessionsScreenButton('DPadDown');
+      sessions.handleSessionsScreenButton('DPadDown'); // → index 2 (second card)
       expect(cards()[0]!.classList.contains('focused')).toBe(false);
       expect(cards()[1]!.classList.contains('focused')).toBe(true);
     });
 
     it('.focused is removed from session cards when switching to spawn zone', () => {
-      sessionsState.sessionsFocusIndex = 2;
+      sessionsState.sessionsFocusIndex = 3;
       sessions.handleSessionsScreenButton('DPadDown'); // → spawn
 
       const cards = document.querySelectorAll('#sessionsList .session-card');
@@ -494,14 +505,15 @@ describe('Sessions Screen', () => {
       });
     });
 
-    it('A in sessions zone is not consumed (returns false)', () => {
+    it('A in sessions zone is not consumed at col=0 on session card (returns false)', () => {
+      sessionsState.sessionsFocusIndex = 1; // first session card
       expect(sessions.handleSessionsScreenButton('A')).toBe(false);
     });
 
     it('D-pad down auto-selects the focused session', () => {
       sessions.handleSessionsScreenButton('DPadDown');
 
-      expect(mockSwitchTo).toHaveBeenCalledWith('s-1');
+      expect(mockSwitchTo).toHaveBeenCalledWith('s-0');
     });
 
     it('X falls through to config bindings (not consumed)', () => {
@@ -518,7 +530,8 @@ describe('Sessions Screen', () => {
       expect(sessions.handleSessionsScreenButton('DPadDown')).toBe(true);
       expect(sessions.handleSessionsScreenButton('X')).toBe(false);
       expect(sessions.handleSessionsScreenButton('Y')).toBe(false);
-      // A is no longer consumed in sessions zone (auto-select on D-pad instead)
+      // A on session card at col=0 falls through to config bindings
+      sessionsState.sessionsFocusIndex = 1; // session card, not group header
       expect(sessions.handleSessionsScreenButton('A')).toBe(false);
       // Unknown buttons are not consumed — fall through to config bindings
       expect(sessions.handleSessionsScreenButton('UnknownButton')).toBe(false);
@@ -576,15 +589,15 @@ describe('Sessions Screen', () => {
       sessionsState.spawnFocusIndex = 0;
       sessions.handleSessionsScreenButton('DPadUp');
       expect(sessionsState.activeFocus).toBe('sessions');
-      // Should focus last session (index 1 since we have 2 sessions)
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      // Should focus last session (index 2 since we have 2 sessions + 1 header)
+      expect(sessionsState.sessionsFocusIndex).toBe(2);
     });
 
     it('DPadUp past top row from column 1 also switches to sessions zone', () => {
       sessionsState.spawnFocusIndex = 1;
       sessions.handleSessionsScreenButton('DPadUp');
       expect(sessionsState.activeFocus).toBe('sessions');
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(sessionsState.sessionsFocusIndex).toBe(2);
     });
 
     it('DPadRight moves within row', () => {
@@ -934,7 +947,7 @@ describe('Sessions Screen', () => {
     });
 
     it('ArrowDown past last session switches to spawn zone via keyboard', () => {
-      sessionsState.sessionsFocusIndex = 2;
+      sessionsState.sessionsFocusIndex = 3;
       pressKey('ArrowDown');
       expect(sessionsState.activeFocus).toBe('spawn');
     });
@@ -987,7 +1000,7 @@ describe('Sessions Screen', () => {
 
       await loadAndFlush(sessions);
 
-      expect(sessionsState.sessionsFocusIndex).toBe(2);
+      expect(sessionsState.sessionsFocusIndex).toBe(3);
     });
 
     it('defaults to 0 when no active session', async () => {
@@ -1022,7 +1035,7 @@ describe('Sessions Screen', () => {
       setMockTerminalSessions(makeSessions(2));
       await loadAndFlush(sessions);
 
-      expect(sessionsState.sessionsFocusIndex).toBeLessThanOrEqual(1);
+      expect(sessionsState.sessionsFocusIndex).toBeLessThanOrEqual(2);
     });
 
     it('clamps spawnFocusIndex when CLI types shrink', async () => {
@@ -1070,7 +1083,7 @@ describe('Sessions Screen', () => {
 
       sessions.syncSessionHighlight('pty-copilot-1');
 
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(sessionsState.sessionsFocusIndex).toBe(2);
       expect(state.activeSessionId).toBe('pty-copilot-1');
     });
 
@@ -1098,7 +1111,7 @@ describe('Sessions Screen', () => {
       sessionsState.sessionsFocusIndex = 2;
       sessions.syncSessionHighlight('pty-a');
 
-      expect(sessionsState.sessionsFocusIndex).toBe(0);
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
       expect(state.activeSessionId).toBe('pty-a');
     });
   });
@@ -1209,6 +1222,378 @@ describe('Sessions Screen', () => {
   });
 
   // ==========================================================================
+  // Group header interactions
+  // ==========================================================================
+
+  describe('group header interactions', () => {
+    /**
+     * Create a mock TerminalManager whose sessions carry `cwd`, so
+     * `getSessionCwd()` returns per-session working directories and
+     * `groupSessionsByDirectory()` produces multiple groups.
+     */
+    function setMultiGroupSessions(
+      entries: Array<{ id: string; cliType: string; cwd: string }>,
+    ): ReturnType<typeof makeSessions> {
+      const data = entries.map((e, i) => ({
+        id: e.id,
+        name: `Session ${i}`,
+        cliType: e.cliType,
+        processId: 1000 + i,
+      }));
+      const sessionsMap = new Map(
+        entries.map(e => [e.id, { sessionId: e.id, cliType: e.cliType, name: e.cliType, cwd: e.cwd }]),
+      );
+      sessions.setTerminalManagerGetter(() => ({
+        getSessionIds: () => Array.from(sessionsMap.keys()),
+        getSession: (id: string) => sessionsMap.get(id),
+        getActiveSessionId: () => null,
+        hasTerminal: (id: string) => sessionsMap.has(id),
+        switchTo: mockSwitchTo,
+        focusActive: vi.fn(),
+        fitActive: vi.fn(),
+        createTerminal: mockCreateTerminal,
+        destroyTerminal: mockDestroyTerminal,
+        renameSession: vi.fn(),
+      }));
+      mockSessionGetAll.mockResolvedValue(data);
+      return data;
+    }
+
+    it('A on group header at col=0 toggles collapse', async () => {
+      const data = makeSessions(2);
+      mockSessionGetAll.mockResolvedValue(data);
+      state.sessions = data;
+      setMockTerminalSessions(data);
+      await loadAndFlush(sessions);
+
+      sessionsState.activeFocus = 'sessions';
+      sessionsState.sessionsFocusIndex = 0; // group header
+      sessionsState.cardColumn = 0;
+
+      // Collapse
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+
+      expect(mockConfigSetSessionGroupPrefs).toHaveBeenCalled();
+      expect(sessionsState.navList).toHaveLength(1);
+      expect(sessionsState.navList[0].type).toBe('group-header');
+
+      // Uncollapse
+      mockConfigSetSessionGroupPrefs.mockClear();
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+
+      expect(mockConfigSetSessionGroupPrefs).toHaveBeenCalled();
+      expect(sessionsState.navList).toHaveLength(3); // header + 2 cards
+    });
+
+    it('A on group header at col=1 triggers moveGroupUp', async () => {
+      setMultiGroupSessions([
+        { id: 's-0', cliType: 'claude-code', cwd: '/projects/alpha' },
+        { id: 's-1', cliType: 'claude-code', cwd: '/projects/beta' },
+      ]);
+      await loadAndFlush(sessions);
+
+      // navList: [header-alpha, s-0, header-beta, s-1]
+      sessionsState.activeFocus = 'sessions';
+      sessionsState.sessionsFocusIndex = 2; // second group header (beta)
+      sessionsState.cardColumn = 1;
+
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+
+      expect(mockConfigSetSessionGroupPrefs).toHaveBeenCalled();
+      const prefs = mockConfigSetSessionGroupPrefs.mock.calls[0][0];
+      expect(prefs.order.indexOf('/projects/beta'))
+        .toBeLessThan(prefs.order.indexOf('/projects/alpha'));
+    });
+
+    it('A on group header at col=2 triggers moveGroupDown', async () => {
+      setMultiGroupSessions([
+        { id: 's-0', cliType: 'claude-code', cwd: '/projects/alpha' },
+        { id: 's-1', cliType: 'claude-code', cwd: '/projects/beta' },
+      ]);
+      await loadAndFlush(sessions);
+
+      // navList: [header-alpha, s-0, header-beta, s-1]
+      sessionsState.activeFocus = 'sessions';
+      sessionsState.sessionsFocusIndex = 0; // first group header (alpha)
+      sessionsState.cardColumn = 2;
+
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+
+      expect(mockConfigSetSessionGroupPrefs).toHaveBeenCalled();
+      const prefs = mockConfigSetSessionGroupPrefs.mock.calls[0][0];
+      expect(prefs.order.indexOf('/projects/alpha'))
+        .toBeGreaterThan(prefs.order.indexOf('/projects/beta'));
+    });
+
+    it('RIGHT on group header maxCol is 2', async () => {
+      const data = makeSessions(2);
+      mockSessionGetAll.mockResolvedValue(data);
+      state.sessions = data;
+      setMockTerminalSessions(data);
+      await loadAndFlush(sessions);
+
+      sessionsState.activeFocus = 'sessions';
+      sessionsState.sessionsFocusIndex = 0; // group header
+      sessionsState.cardColumn = 0;
+
+      sessions.handleSessionsScreenButton('DPadRight'); // 0 → 1
+      sessions.handleSessionsScreenButton('DPadRight'); // 1 → 2
+      sessions.handleSessionsScreenButton('DPadRight'); // 2 → 2 (clamped)
+
+      expect(sessionsState.cardColumn).toBe(2);
+    });
+
+    it('card-col-focused class on ▲ button at col=1', async () => {
+      const data = makeSessions(2);
+      mockSessionGetAll.mockResolvedValue(data);
+      state.sessions = data;
+      setMockTerminalSessions(data);
+
+      sessionsState.activeFocus = 'sessions';
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.cardColumn = 1;
+      await loadAndFlush(sessions);
+
+      const moveUp = document.querySelector('#sessionsList .group-header .group-move-up');
+      expect(moveUp).not.toBeNull();
+      expect(moveUp!.classList.contains('card-col-focused')).toBe(true);
+    });
+
+    it('card-col-focused class on ▼ button at col=2', async () => {
+      const data = makeSessions(2);
+      mockSessionGetAll.mockResolvedValue(data);
+      state.sessions = data;
+      setMockTerminalSessions(data);
+
+      sessionsState.activeFocus = 'sessions';
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.cardColumn = 2;
+      await loadAndFlush(sessions);
+
+      const moveDown = document.querySelector('#sessionsList .group-header .group-move-down');
+      expect(moveDown).not.toBeNull();
+      expect(moveDown!.classList.contains('card-col-focused')).toBe(true);
+    });
+
+    it('collapse hides session cards', async () => {
+      const data = makeSessions(3);
+      mockSessionGetAll.mockResolvedValue(data);
+      state.sessions = data;
+      setMockTerminalSessions(data);
+      await loadAndFlush(sessions);
+
+      expect(document.querySelectorAll('#sessionsList .session-card')).toHaveLength(3);
+      expect(document.querySelector('#sessionsList .group-header')).not.toBeNull();
+
+      // Collapse the group
+      sessionsState.activeFocus = 'sessions';
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.cardColumn = 0;
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+
+      expect(document.querySelectorAll('#sessionsList .session-card')).toHaveLength(0);
+      expect(document.querySelector('#sessionsList .group-header')).not.toBeNull();
+    });
+
+    it('auto-select skips group headers', async () => {
+      const data = makeSessions(2);
+      mockSessionGetAll.mockResolvedValue(data);
+      state.sessions = data;
+      setMockTerminalSessions(data);
+      await loadAndFlush(sessions);
+
+      sessionsState.activeFocus = 'sessions';
+      sessionsState.sessionsFocusIndex = 0; // group header
+      sessionsState.cardColumn = 0;
+
+      // Navigate down to session card
+      sessions.handleSessionsScreenButton('DPadDown');
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(mockSwitchTo).toHaveBeenCalled();
+
+      // Navigate back up to group header
+      mockSwitchTo.mockClear();
+      sessions.handleSessionsScreenButton('DPadUp');
+      expect(sessionsState.sessionsFocusIndex).toBe(0);
+      expect(mockSwitchTo).not.toHaveBeenCalled();
+    });
+  });
+
+  // ==========================================================================
+  // Group header interactions
+  // ==========================================================================
+
+  describe('group header interactions', () => {
+    /** Create a mock terminal manager with cwd support for multi-group tests. */
+    function createMockTMWithCwd(data: Array<{ id: string; cliType: string; cwd: string }>) {
+      const sessionsMap = new Map(data.map(s => [s.id, { sessionId: s.id, cliType: s.cliType, name: s.cliType, cwd: s.cwd }]));
+      return {
+        getSessionIds: () => Array.from(sessionsMap.keys()),
+        getSession: (id: string) => sessionsMap.get(id),
+        getActiveSessionId: () => null,
+        hasTerminal: (id: string) => sessionsMap.has(id),
+        switchTo: mockSwitchTo,
+        focusActive: vi.fn(),
+        fitActive: vi.fn(),
+        createTerminal: mockCreateTerminal,
+        destroyTerminal: mockDestroyTerminal,
+        renameSession: vi.fn(),
+      };
+    }
+
+    it('A at col=0 on group header toggles collapse', async () => {
+      setMockTerminalSessions(makeSessions(2));
+      await loadAndFlush(sessions);
+
+      // Focus is on group header (index 0), col 0
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.cardColumn = 0;
+      expect(sessionsState.navList.length).toBe(3); // 1 header + 2 cards
+
+      // Press A to collapse
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+
+      expect(mockConfigSetSessionGroupPrefs).toHaveBeenCalled();
+      // After collapse, navList should only have the header
+      expect(sessionsState.navList.length).toBe(1);
+      expect(sessionsState.navList[0].type).toBe('group-header');
+    });
+
+    it('A at col=0 uncollapse restores session cards', async () => {
+      setMockTerminalSessions(makeSessions(2));
+      await loadAndFlush(sessions);
+
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.cardColumn = 0;
+
+      // Collapse
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+      expect(sessionsState.navList.length).toBe(1);
+
+      // Uncollapse
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+      expect(sessionsState.navList.length).toBe(3);
+    });
+
+    it('RIGHT on group header maxCol is 2 (not 3)', async () => {
+      setMockTerminalSessions(makeSessions(2));
+      await loadAndFlush(sessions);
+
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.cardColumn = 0;
+
+      sessions.handleSessionsScreenButton('DPadRight');
+      expect(sessionsState.cardColumn).toBe(1);
+      sessions.handleSessionsScreenButton('DPadRight');
+      expect(sessionsState.cardColumn).toBe(2);
+      sessions.handleSessionsScreenButton('DPadRight');
+      expect(sessionsState.cardColumn).toBe(2); // capped at 2
+    });
+
+    it('card-col-focused on move-up button at col=1', async () => {
+      setMockTerminalSessions(makeSessions(2));
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.cardColumn = 1;
+      await loadAndFlush(sessions);
+
+      const header = document.querySelector('.group-header');
+      const moveUp = header?.querySelector('.group-move-up');
+      expect(moveUp?.classList.contains('card-col-focused')).toBe(true);
+    });
+
+    it('card-col-focused on move-down button at col=2', async () => {
+      setMockTerminalSessions(makeSessions(2));
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.cardColumn = 2;
+      await loadAndFlush(sessions);
+
+      const header = document.querySelector('.group-header');
+      const moveDown = header?.querySelector('.group-move-down');
+      expect(moveDown?.classList.contains('card-col-focused')).toBe(true);
+    });
+
+    it('collapse hides session cards from DOM', async () => {
+      setMockTerminalSessions(makeSessions(3));
+      await loadAndFlush(sessions);
+
+      expect(document.querySelectorAll('.session-card').length).toBe(3);
+      expect(document.querySelectorAll('.group-header').length).toBe(1);
+
+      // Collapse
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.cardColumn = 0;
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+
+      expect(document.querySelectorAll('.session-card').length).toBe(0);
+      expect(document.querySelectorAll('.group-header').length).toBe(1);
+    });
+
+    it('auto-select skips group headers', async () => {
+      setMockTerminalSessions(makeSessions(2));
+      await loadAndFlush(sessions);
+
+      // Focus on group header — switchTo should NOT be called
+      sessionsState.sessionsFocusIndex = 0;
+      mockSwitchTo.mockClear();
+      sessions.handleSessionsScreenButton('DPadDown'); // no-op at col=0 moves to card
+      // After DPadDown, we should be on session card index 1
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(mockSwitchTo).toHaveBeenCalledWith('s-0');
+    });
+
+    it('A at col=1 on group header triggers moveGroupUp', async () => {
+      sessions.setTerminalManagerGetter(() => createMockTMWithCwd([
+        { id: 's-0', cliType: 'claude-code', cwd: '/projects/alpha' },
+        { id: 's-1', cliType: 'claude-code', cwd: '/projects/beta' },
+      ]));
+      await loadAndFlush(sessions);
+
+      // Should have 2 group headers + 2 session cards = 4 navList items
+      expect(sessionsState.navList.length).toBe(4);
+
+      // Find the second group header index
+      const secondGroupIdx = sessionsState.navList.findIndex(
+        (item, i) => i > 0 && item.type === 'group-header'
+      );
+      expect(secondGroupIdx).toBeGreaterThan(0);
+
+      sessionsState.sessionsFocusIndex = secondGroupIdx;
+      sessionsState.cardColumn = 1;
+
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+
+      expect(mockConfigSetSessionGroupPrefs).toHaveBeenCalled();
+    });
+
+    it('A at col=2 on group header triggers moveGroupDown', async () => {
+      sessions.setTerminalManagerGetter(() => createMockTMWithCwd([
+        { id: 's-0', cliType: 'claude-code', cwd: '/projects/alpha' },
+        { id: 's-1', cliType: 'claude-code', cwd: '/projects/beta' },
+      ]));
+      await loadAndFlush(sessions);
+
+      // Focus first group header, col 2 (move down)
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.cardColumn = 2;
+
+      sessions.handleSessionsScreenButton('A');
+      await flush();
+
+      expect(mockConfigSetSessionGroupPrefs).toHaveBeenCalled();
+    });
+  });
+
+  // ==========================================================================
   // Horizontal card sub-navigation
   // ==========================================================================
 
@@ -1220,7 +1605,7 @@ describe('Sessions Screen', () => {
       setMockTerminalSessions(data);
       await loadAndFlush(sessions);
       sessionsState.activeFocus = 'sessions';
-      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.sessionsFocusIndex = 1;
       sessionsState.cardColumn = 0;
     });
 
@@ -1362,15 +1747,15 @@ describe('Sessions Screen', () => {
 
     it('cardColumn resets to 0 on vertical card switch (DOWN)', () => {
       sessionsState.cardColumn = 0;
-      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.sessionsFocusIndex = 1;
       sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.cardColumn).toBe(0);
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(sessionsState.sessionsFocusIndex).toBe(2);
     });
 
     it('cardColumn resets to 0 on zone switch to spawn', () => {
       sessionsState.cardColumn = 0;
-      sessionsState.sessionsFocusIndex = 2; // last card
+      sessionsState.sessionsFocusIndex = 3; // last navList item
       sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.activeFocus).toBe('spawn');
       expect(sessionsState.cardColumn).toBe(0);

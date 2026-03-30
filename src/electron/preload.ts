@@ -97,6 +97,12 @@ const gamepadCliAPI = {
   configSetSortPrefs: (area: string, prefs: { field?: string; direction?: string }) =>
     ipcRenderer.invoke('config:setSortPrefs', area, prefs),
 
+  configGetSessionGroupPrefs: () =>
+    ipcRenderer.invoke('config:getSessionGroupPrefs') as Promise<{ order: string[]; collapsed: string[] }>,
+
+  configSetSessionGroupPrefs: (prefs: { order: string[]; collapsed: string[] }) =>
+    ipcRenderer.invoke('config:setSessionGroupPrefs', prefs),
+
   /**
    * Get the raw spawn command for a CLI type (for embedded PTY — no terminal wrapper)
    */

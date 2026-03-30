@@ -150,6 +150,25 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     }
   });
 
+  ipcMain.handle('config:getSessionGroupPrefs', () => {
+    try {
+      return configLoader.getSessionGroupPrefs();
+    } catch (error) {
+      logger.error(`[IPC] Failed to get session group prefs: ${error}`);
+      return { order: [], collapsed: [] };
+    }
+  });
+
+  ipcMain.handle('config:setSessionGroupPrefs', (_event, prefs: { order: string[]; collapsed: string[] }) => {
+    try {
+      configLoader.setSessionGroupPrefs(prefs);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to set session group prefs: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle('config:getSpawnCommand', (_event, cliType: string) => {
     try {
       const entry = configLoader.getCliTypeEntry(cliType);

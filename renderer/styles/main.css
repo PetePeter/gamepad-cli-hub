@@ -303,6 +303,62 @@ button {
   justify-content: center;
 }
 
+/* ── Group headers ─────────────────────────────────────────── */
+
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid transparent;
+  user-select: none;
+}
+.group-header:hover,
+.group-header.focused { background: var(--bg-tertiary); }
+
+.group-chevron {
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.group-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.group-move-up,
+.group-move-down {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  line-height: 1;
+}
+.group-move-up:hover,
+.group-move-down:hover { color: var(--text-primary); background: var(--bg-secondary); }
+.group-move-up.card-col-focused,
+.group-move-down.card-col-focused {
+  color: var(--text-primary);
+  background: var(--accent);
+  outline: 1px solid var(--accent);
+}
+
+/* ── Session cards ────────────────────────────────────────── */
+
 .session-card {
   display: flex;
   align-items: center;

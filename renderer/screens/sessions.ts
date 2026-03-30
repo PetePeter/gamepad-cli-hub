@@ -11,6 +11,11 @@ import { logEvent, getCliDisplayName, toDirection } from '../utils.js';
 import type { Session } from '../state.js';
 import { showCloseConfirm } from '../modals/close-confirm.js';
 import { sortSessions, type SessionSortField, type SortDirection } from '../sort-logic.js';
+import {
+  groupSessionsByDirectory, buildFlatNavList,
+  moveGroupUp, moveGroupDown, toggleCollapse,
+  findNavIndexBySessionId,
+} from '../session-groups.js';
 
 // Sub-module imports — circular at module level, safe because all usages are in function bodies.
 import {
@@ -87,8 +92,77 @@ export function doCloseSession(sessionId: string): void {
   loadSessions();
 }
 
+// ============================================================================
+// Group prefs
+// ============================================================================
+
+let groupPrefsLoaded = false;
+
+async function initSessionGroupPrefs(): Promise<void> {
+  if (groupPrefsLoaded) return;
+  try {
+    if (!window.gamepadCli) return;
+    const prefs = await window.gamepadCli.configGetSessionGroupPrefs();
+    if (prefs) {
+      sessionsState.groupPrefs = prefs;
+    }
+  } catch (e) {
+    console.error('[Sessions] Failed to load group prefs:', e);
+  }
+  groupPrefsLoaded = true;
+}
+
+/** Ensure order array contains all current dir paths (appends missing ones). */
+function ensureCompleteOrder(order: string[], allDirPaths: string[]): string[] {
+  const missing = allDirPaths.filter(d => !order.includes(d));
+  return missing.length > 0 ? [...order, ...missing] : order;
+}
+
+async function saveGroupPrefs(): Promise<void> {
+  try {
+    if (!window.gamepadCli) return;
+    await window.gamepadCli.configSetSessionGroupPrefs(sessionsState.groupPrefs);
+  } catch (e) {
+    console.error('[Sessions] Failed to save group prefs:', e);
+  }
+}
+
+export async function toggleGroupCollapse(dirPath: string): Promise<void> {
+  sessionsState.groupPrefs = {
+    ...sessionsState.groupPrefs,
+    collapsed: toggleCollapse(sessionsState.groupPrefs.collapsed, dirPath),
+  };
+  await saveGroupPrefs();
+  await loadSessions();
+}
+
+export async function moveGroupUpAction(dirPath: string): Promise<void> {
+  const allDirPaths = sessionsState.groups.map(g => g.dirPath);
+  const fullOrder = ensureCompleteOrder(sessionsState.groupPrefs.order, allDirPaths);
+  const newOrder = moveGroupUp(fullOrder, dirPath);
+  sessionsState.groupPrefs = { ...sessionsState.groupPrefs, order: newOrder };
+  await saveGroupPrefs();
+  await loadSessions();
+}
+
+export async function moveGroupDownAction(dirPath: string): Promise<void> {
+  const allDirPaths = sessionsState.groups.map(g => g.dirPath);
+  const fullOrder = ensureCompleteOrder(sessionsState.groupPrefs.order, allDirPaths);
+  const newOrder = moveGroupDown(fullOrder, dirPath);
+  sessionsState.groupPrefs = { ...sessionsState.groupPrefs, order: newOrder };
+  await saveGroupPrefs();
+  await loadSessions();
+}
+
+/** Get the session at the current nav focus (only if it's a session-card). */
+function getSessionAtFocus(): Session | undefined {
+  const navItem = sessionsState.navList[sessionsState.sessionsFocusIndex];
+  if (!navItem || navItem.type !== 'session-card') return undefined;
+  return state.sessions.find(s => s.id === navItem.id);
+}
+
 function confirmCloseSession(): void {
-  const session = state.sessions[sessionsState.sessionsFocusIndex];
+  const session = getSessionAtFocus();
   if (!session) return;
   const displayName = session.name !== session.cliType
     ? session.name
@@ -98,7 +172,7 @@ function confirmCloseSession(): void {
 }
 
 function startRenameForFocused(): void {
-  const session = state.sessions[sessionsState.sessionsFocusIndex];
+  const session = getSessionAtFocus();
   if (!session) return;
   startRename(session.id);
 }
@@ -108,6 +182,7 @@ function startRenameForFocused(): void {
 // ============================================================================
 
 export async function loadSessions(): Promise<void> {
+  await initSessionGroupPrefs();
   await loadSessionsData();
   await initSessionsSortControl();
   renderSessions();
@@ -150,7 +225,7 @@ export function updateSessionHighlight(): void {
 
 /** Sync sidebar session highlight after a tab switch (e.g. Ctrl+Tab) */
 export function syncSessionHighlight(sessionId: string): void {
-  const idx = state.sessions.findIndex(s => s.id === sessionId);
+  const idx = findNavIndexBySessionId(sessionsState.navList, sessionId);
   if (idx >= 0) {
     sessionsState.sessionsFocusIndex = idx;
     state.activeSessionId = sessionId;
@@ -192,6 +267,10 @@ export async function loadSessionsData(): Promise<void> {
     getSessionCwd,
   );
 
+  // Build groups and flat navigation list
+  sessionsState.groups = groupSessionsByDirectory(state.sessions, getSessionCwd, sessionsState.groupPrefs);
+  sessionsState.navList = buildFlatNavList(sessionsState.groups);
+
   try {
     sessionsState.cliTypes = await window.gamepadCli.configGetCliTypes();
   } catch (e) { console.error('[Sessions] Failed to load CLI types:', e); }
@@ -201,10 +280,12 @@ export async function loadSessionsData(): Promise<void> {
   } catch (e) { console.error('[Sessions] Failed to load directories:', e); }
 
   // Clamp focus indices after data reload
-  const activeIdx = state.sessions.findIndex(s => s.id === state.activeSessionId);
+  const activeIdx = state.activeSessionId
+    ? findNavIndexBySessionId(sessionsState.navList, state.activeSessionId)
+    : -1;
   sessionsState.sessionsFocusIndex = activeIdx >= 0
     ? activeIdx
-    : clamp(sessionsState.sessionsFocusIndex, 0, Math.max(0, state.sessions.length - 1));
+    : clamp(sessionsState.sessionsFocusIndex, 0, Math.max(0, sessionsState.navList.length - 1));
   sessionsState.spawnFocusIndex = clamp(
     sessionsState.spawnFocusIndex, 0, Math.max(0, sessionsState.cliTypes.length - 1),
   );
@@ -216,7 +297,7 @@ export async function loadSessionsData(): Promise<void> {
 
 /** Open the state dropdown for the currently focused session card. */
 function openStateDropdownForFocused(): void {
-  const session = state.sessions[sessionsState.sessionsFocusIndex];
+  const session = getSessionAtFocus();
   if (!session) return;
   const card = document.querySelector(`.session-card[data-session-id="${session.id}"]`);
   const stateBtn = card?.querySelector('.session-state-btn') as HTMLElement;
@@ -273,7 +354,26 @@ function setDropdownFocus(options: NodeListOf<HTMLElement>, index: number): void
 // ============================================================================
 
 function handleSessionsZoneButton(button: string): boolean {
+  const navItem = sessionsState.navList[sessionsState.sessionsFocusIndex];
+  if (!navItem) return false;
+
   if (button === 'A') {
+    if (navItem.type === 'group-header') {
+      if (sessionsState.cardColumn === 0) {
+        toggleGroupCollapse(navItem.id);
+        return true;
+      }
+      if (sessionsState.cardColumn === 1) {
+        moveGroupUpAction(navItem.id);
+        return true;
+      }
+      if (sessionsState.cardColumn === 2) {
+        moveGroupDownAction(navItem.id);
+        return true;
+      }
+      return true; // consumed
+    }
+    // session-card
     if (sessionsState.cardColumn === 1) {
       openStateDropdownForFocused();
       return true;
@@ -308,17 +408,26 @@ function handleSessionsZoneButton(button: string): boolean {
 export function updateSessionsFocus(): void {
   const list = document.getElementById('sessionsList');
   if (!list) return;
-  list.querySelectorAll('.session-card').forEach((el, i) => {
+  const children = Array.from(list.children) as HTMLElement[];
+  children.forEach((el, i) => {
     const isFocused = i === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
     el.classList.toggle('focused', isFocused);
-    const stateBtn = el.querySelector('.session-state-btn');
-    const renameBtn = el.querySelector('.session-rename');
-    const closeBtn = el.querySelector('.session-close');
-    if (stateBtn) stateBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 1);
-    if (renameBtn) renameBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 2);
-    if (closeBtn) closeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 3);
+
+    if (el.classList.contains('session-card')) {
+      const stateBtn = el.querySelector('.session-state-btn');
+      const renameBtn = el.querySelector('.session-rename');
+      const closeBtn = el.querySelector('.session-close');
+      if (stateBtn) stateBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 1);
+      if (renameBtn) renameBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 2);
+      if (closeBtn) closeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 3);
+    } else if (el.classList.contains('group-header')) {
+      const moveUpBtn = el.querySelector('.group-move-up');
+      const moveDownBtn = el.querySelector('.group-move-down');
+      if (moveUpBtn) moveUpBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 1);
+      if (moveDownBtn) moveDownBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 2);
+    }
   });
-  const focused = list.children[sessionsState.sessionsFocusIndex] as HTMLElement;
+  const focused = children[sessionsState.sessionsFocusIndex];
   focused?.scrollIntoView({ block: 'nearest' });
 }
 

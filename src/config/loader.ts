@@ -111,6 +111,12 @@ export interface SettingsConfig {
   hapticFeedback: boolean;
   sidebar?: SidebarPrefs;
   sorting?: SortingConfig;
+  sessionGroups?: SessionGroupPrefs;
+}
+
+export interface SessionGroupPrefs {
+  order: string[];
+  collapsed: string[];
 }
 
 export interface ProfileConfig {
@@ -497,6 +503,17 @@ export class ConfigLoader {
       this.settings!.sorting = { ...DEFAULT_SORTING };
     }
     this.settings!.sorting[area] = { ...this.settings!.sorting[area], ...prefs };
+    this.saveSettings();
+  }
+
+  getSessionGroupPrefs(): SessionGroupPrefs {
+    this.ensureLoaded();
+    return this.settings!.sessionGroups ?? { order: [], collapsed: [] };
+  }
+
+  setSessionGroupPrefs(prefs: SessionGroupPrefs): void {
+    this.ensureLoaded();
+    this.settings!.sessionGroups = prefs;
     this.saveSettings();
   }
 

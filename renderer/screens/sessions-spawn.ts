@@ -8,6 +8,7 @@ import { state } from '../state.js';
 import { sessionsState } from './sessions-state.js';
 import { logEvent, getCliIcon, getCliDisplayName } from '../utils.js';
 import type { TerminalManager } from '../terminal/terminal-manager.js';
+import { findNavIndexBySessionId } from '../session-groups.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import {
@@ -104,8 +105,8 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
         setTimeout(async () => {
           try {
             await loadSessions();
-            // Focus the newly spawned session (last in the list)
-            const newIndex = state.sessions.findIndex(s => s.id === sessionId);
+            // Focus the newly spawned session in the navList
+            const newIndex = findNavIndexBySessionId(sessionsState.navList, sessionId);
             if (newIndex >= 0) {
               sessionsState.sessionsFocusIndex = newIndex;
               sessionsState.activeFocus = 'sessions';
@@ -193,7 +194,9 @@ export async function switchToSession(sessionId: string): Promise<void> {
 
 /** Auto-switch the terminal to whichever session has D-pad focus. */
 export function autoSelectFocusedSession(): void {
-  const session = state.sessions[sessionsState.sessionsFocusIndex];
+  const navItem = sessionsState.navList[sessionsState.sessionsFocusIndex];
+  if (!navItem || navItem.type !== 'session-card') return;
+  const session = state.sessions.find(s => s.id === navItem.id);
   if (!session) return;
   const tm = getTerminalManager();
   if (tm && tm.hasTerminal(session.id)) {
@@ -243,11 +246,14 @@ function createSpawnButton(cliType: string, index: number): HTMLElement {
 // ============================================================================
 
 export function handleSessionsZone(button: string, dir: string | null): void {
-  const count = state.sessions.length;
+  const navList = sessionsState.navList;
+  const count = navList.length;
 
   if (dir === 'right') {
     if (count === 0) return;
-    if (sessionsState.cardColumn < 3) {
+    const currentItem = navList[sessionsState.sessionsFocusIndex];
+    const maxCol = currentItem?.type === 'group-header' ? 2 : 3;
+    if (sessionsState.cardColumn < maxCol) {
       sessionsState.cardColumn = (sessionsState.cardColumn + 1) as 0 | 1 | 2 | 3;
       updateSessionsFocus();
     }
@@ -295,7 +301,7 @@ export function handleSpawnZone(button: string, dir: string | null): void {
     const newIndex = sessionsState.spawnFocusIndex - cols;
     if (newIndex < 0) {
       sessionsState.activeFocus = 'sessions';
-      sessionsState.sessionsFocusIndex = Math.max(0, state.sessions.length - 1);
+      sessionsState.sessionsFocusIndex = Math.max(0, sessionsState.navList.length - 1);
       sessionsState.cardColumn = 0;
       updateAllFocus();
       return;

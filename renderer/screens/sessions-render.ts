@@ -11,12 +11,14 @@ import { logEvent, getCliDisplayName } from '../utils.js';
 import { showCloseConfirm } from '../modals/close-confirm.js';
 import { sortSessions, SESSION_SORT_LABELS, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import { createSortControl, type SortControlHandle } from '../components/sort-control.js';
+import type { SessionGroup } from '../session-groups.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import {
   getSessionState, getSessionActivity, setSessionState, doCloseSession,
   loadSessionsData, updateSessionsFocus,
   switchToSession, getSessionCwd, getTerminalManager,
+  toggleGroupCollapse, moveGroupUpAction, moveGroupDownAction,
 } from './sessions.js';
 
 // --- Constants ---
@@ -155,7 +157,7 @@ async function commitRename(sessionId: string, newName: string): Promise<void> {
   }
 }
 
-// --- Render — sessions list ---
+// --- Render — sessions list (grouped by directory) ---
 export function renderSessions(): void {
   const list = document.getElementById('sessionsList');
   const empty = document.getElementById('sessionsEmpty');
@@ -171,9 +173,63 @@ export function renderSessions(): void {
   list.style.display = '';
   if (empty) empty.style.display = 'none';
 
-  state.sessions.forEach((session, index) => {
-    list.appendChild(createSessionCard(session, index));
+  sessionsState.navList.forEach((navItem, index) => {
+    if (navItem.type === 'group-header') {
+      const group = sessionsState.groups[navItem.groupIndex];
+      if (group) list.appendChild(createGroupHeader(group, index));
+    } else {
+      const session = state.sessions.find(s => s.id === navItem.id);
+      if (session) list.appendChild(createSessionCard(session, index));
+    }
   });
+}
+
+function createGroupHeader(group: SessionGroup, index: number): HTMLElement {
+  const header = document.createElement('div');
+  header.className = 'group-header';
+  if (index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions') {
+    header.classList.add('focused');
+  }
+  header.dataset.dirPath = group.dirPath;
+
+  const isFocused = index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
+
+  const chevron = document.createElement('span');
+  chevron.className = 'group-chevron';
+  chevron.textContent = group.collapsed ? '▸' : '▾';
+
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'group-name';
+  nameSpan.textContent = `${group.dirName} (${group.sessions.length})`;
+
+  const moveUp = document.createElement('button');
+  moveUp.className = 'group-move-up';
+  if (isFocused && sessionsState.cardColumn === 1) moveUp.classList.add('card-col-focused');
+  moveUp.textContent = '▲';
+  moveUp.title = 'Move group up';
+  moveUp.addEventListener('click', (e) => {
+    e.stopPropagation();
+    moveGroupUpAction(group.dirPath);
+  });
+
+  const moveDown = document.createElement('button');
+  moveDown.className = 'group-move-down';
+  if (isFocused && sessionsState.cardColumn === 2) moveDown.classList.add('card-col-focused');
+  moveDown.textContent = '▼';
+  moveDown.title = 'Move group down';
+  moveDown.addEventListener('click', (e) => {
+    e.stopPropagation();
+    moveGroupDownAction(group.dirPath);
+  });
+
+  header.appendChild(chevron);
+  header.appendChild(nameSpan);
+  header.appendChild(moveUp);
+  header.appendChild(moveDown);
+
+  header.addEventListener('click', () => toggleGroupCollapse(group.dirPath));
+
+  return header;
 }
 
 function createSessionCard(session: typeof state.sessions[0], index: number): HTMLElement {
@@ -188,7 +244,6 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   const sessionState = getSessionState(session.id);
   const isActive = getSessionActivity(session.id);
   const displayName = session.name !== session.cliType ? session.name : getCliDisplayName(session.cliType);
-  const folder = getSessionCwd(session.id);
 
   const isEditing = sessionsState.editingSessionId === session.id;
   const isFocusedCard = index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
@@ -250,7 +305,7 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   } else {
     const name = document.createElement('span');
     name.className = 'session-name';
-    name.textContent = folder ? `${displayName} — ${folder}` : displayName;
+    name.textContent = displayName;
     nameLine.appendChild(name);
   }
 

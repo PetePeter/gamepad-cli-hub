@@ -88,7 +88,7 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 | **PipelineQueue** | `src/session/pipeline-queue.ts` | Auto-handoff queue — routes tasks to waiting sessions. Handoff triggers when a session enters completed or idle state. |
 | **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. Optional `onComplete` callback fires after all prompt items execute (used by pty-handlers to write context text after prompt finishes). |
 | **SequenceParser** | `src/input/sequence-parser.ts` | Parses sequence format strings (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, `{Mod Down/Up}`, `{{`/`}}` escapes, plain text) into typed SequenceAction arrays. Used by both button bindings and initial prompts. |
-| **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. `ActionType = 'keyboard' \| 'voice' \| 'scroll' \| 'context-menu' \| 'sequence-list'`. `Binding` union includes `ContextMenuBinding`, `SequenceListBinding`. Exports `SequenceListItem { label, sequence }`. `CliTypeConfig` includes optional `handoffCommand` for auto-handoff pipeline. |
+| **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`, `SessionGroupPrefs`, `getSessionGroupPrefs()`, `setSessionGroupPrefs()`. `ActionType = 'keyboard' \| 'voice' \| 'scroll' \| 'context-menu' \| 'sequence-list'`. `Binding` union includes `ContextMenuBinding`, `SequenceListBinding`. Exports `SequenceListItem { label, sequence }`. `CliTypeConfig` includes optional `handoffCommand` for auto-handoff pipeline. |
 | **ElectronMain** | `src/electron/main.ts` | Window creation, IPC setup, app lifecycle. Renderer crash recovery (auto-reloads on `render-process-gone` — safe because session state lives in main process). Delegates power monitoring to `setupPowerMonitor()`. |
 | **PowerMonitor** | `src/session/power-monitor.ts` | Logs detailed session/PTY diagnostics on `suspend`/`resume`/`shutdown` via Electron `powerMonitor`. Reports session counts, PTY IDs, and PTY survival status on resume. Called from main.ts with sessionManager + ptyManager. |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 7 domain handler files (session, config, profile, tools, keyboard, pty, system). `registerIPCHandlers()` returns `{ cleanup, sessionManager, ptyManager }` for use by main.ts callers. Dependencies injected via function parameters. Config handlers include `dialog:openFolder` for native OS folder picker. `pty:spawn` accepts optional `contextText` — written to PTY after the initial prompt completes (via `onComplete` callback) rather than on a fixed timer. System handlers: `system:openLogsFolder`. |
@@ -96,6 +96,7 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons (scrollback: 10,000 lines). Forwards user input + resize events via callbacks. Selection API: `getSelection()`, `hasSelection()`, `clearSelection()`. |
 | **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, rename, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, gold=completed, grey=idle). Exposes onSwitch/onEmpty callbacks. `getActiveView()` returns current TerminalView. `renameSession()` updates the display name persisted across UI reloads. Right-click `contextmenu` listener on terminal area shows context menu overlay. `createTerminal()` accepts optional `contextText` forwarded through `ptySpawn()` to the main process. `writeToTerminal()` runs PTY output through `stripMouseTracking()` before writing to xterm.js. |
 | **PtyFilter** | `renderer/terminal/pty-filter.ts` | Strips mouse-tracking ANSI escape sequences (DEC modes 1000–1006, 1015–1016) from PTY output so xterm.js never enters mouse-reporting mode and native text selection always works. |
+| **SessionGroups** | `renderer/session-groups.ts` | Pure grouping logic — groups sessions by working directory. Types (`SessionGroup`, `NavItem`, `SessionGroupPrefs`) and functions (`groupSessionsByDirectory`, `buildFlatNavList`, `moveGroupUp/Down`, `toggleCollapse`, `findNavIndexBySessionId`). Group order + collapse state persisted in settings.yaml. |
 | **SortLogic** | `renderer/sort-logic.ts` | Pure sort functions for sessions (by state priority + alphabetical) and bindings. No side effects — easy to test. |
 | **TabCycling** | `renderer/tab-cycling.ts` | Resolves next/previous terminal for Ctrl+Tab cycling using sorted display order so tab switching matches what the user sees. |
 | **SortControl** | `renderer/components/sort-control.ts` | Reusable sort control widget — dropdown for field selection + direction toggle button. |
@@ -104,7 +105,7 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 
 ```
 config/
-├── settings.yaml               # Active profile name, hapticFeedback toggle, sidebar prefs, sorting
+├── settings.yaml               # Active profile name, hapticFeedback toggle, sidebar prefs, sorting, sessionGroups (order + collapsed)
 ├── sessions.yaml               # Persisted session state (auto-managed)
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
@@ -219,6 +220,7 @@ dpad:
 14. **Hibernate resilience** — Renderer crash recovery via `render-process-gone` auto-reload (Chromium GPU process often crashes on hibernate resume). Safe because session state lives in `SessionManager` (main process), so terminals reconnect after reload. `setupPowerMonitor()` (in `power-monitor.ts`) logs detailed session/PTY diagnostics on `suspend`/`resume`/`shutdown` — reports session counts, PTY IDs, and PTY survival status on resume. All PTY operations (write, resize, kill) are wrapped in try-catch blocks in both `PtyManager` and IPC handlers. On error, operations are logged but PTY processes are NOT killed — they may still be alive (e.g., after hibernate/resume with stale ConPTY handles). The app also registers error handlers on node-pty's internal pipe Sockets to catch unhandled pipe errors. GPU sandbox is disabled to prevent Chromium GPU crashes on resume. Electron crashReporter is enabled to capture native crash dumps at `app.getPath('crashDumps')`.
 15. **Desktop window layout** — App runs as a maximized desktop window (1280×800 default, 640×400 minimum). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with a directory picker modal. Settings is a slide-over panel. Sandwich button focuses the hub and returns to the sessions screen. Window bounds (width, height, x, y) persist across restarts via `getSidebarPrefs()`/`setSidebarPrefs()`.
 16. **Analog stick virtual buttons** — Each stick emits distinct virtual button names (e.g. `LeftStickUp`, `RightStickDown`) that can be bound like physical buttons. If no explicit binding exists, the stick falls back to its configured mode (cursor or scroll). Right stick scroll is a configurable per-CLI binding (default: `scroll` action), not hardcoded. D-pad buttons are separate (`DPadUp`, `DPadDown`, etc.). All directional inputs are normalized to cardinal directions via `toDirection()` for UI navigation. D-pad and sticks auto-repeat when held. D-pad uses keyboard-like delay (initialDelay) then constant rate. Sticks use displacement-proportional rate — gentle tilt = slow, full deflection = fast.
+17. **Session groups by working directory** — Sessions are grouped by their working directory. Each group has a collapsible header showing the directory name, session count, and ▲▼ reorder buttons. Group order and collapse state persist in `settings.yaml` via `SessionGroupPrefs`. Navigation uses a flat `navList` of group headers + session cards — D-pad traverses all items, A on a group header toggles collapse, A on a session card falls through to per-CLI bindings. Sorting (via sort control) applies within each group. New directories appear at the bottom of the group order.
 
 ## Embedded Terminal Architecture
 
@@ -334,6 +336,7 @@ renderer/
 ├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY
 ├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → contextMenu → sequencePicker → screen routing → configBinding fallback
 ├── gamepad.ts                  # Browser Gamepad API wrapper + repeat engine
+├── session-groups.ts           # Pure session grouping logic (by working directory) — types, grouping, nav list, reorder
 ├── sort-logic.ts               # Pure sort functions for sessions + bindings
 ├── tab-cycling.ts              # Ctrl+Tab / Ctrl+Shift+Tab terminal cycling resolver
 ├── components/
@@ -343,8 +346,8 @@ renderer/
 │   ├── terminal-manager.ts     # Multi-terminal orchestration (create/switch/rename/resize/destroy + tab bar)
 │   └── pty-filter.ts           # Strips mouse-tracking escape sequences from PTY output
 ├── screens/
-│   ├── sessions.ts             # Sessions screen orchestrator: state, navigation, public API. Re-exports from sessions-render + sessions-spawn.
-│   ├── sessions-render.ts      # Session card rendering, spawn grid UI, sort control, rename flow
+│   ├── sessions.ts             # Sessions screen orchestrator: group init, collapse/reorder actions, navigation, public API. Re-exports from sessions-render + sessions-spawn.
+│   ├── sessions-render.ts      # Session card rendering, group header rendering, spawn grid UI, sort control, rename flow
 │   ├── sessions-spawn.ts       # doSpawn(), PTY creation, terminal area visibility, spawn zone navigation
 │   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn zones)
 │   ├── settings.ts             # Settings slide-over orchestrator: tab bar, directories tab, public API
@@ -362,17 +365,17 @@ renderer/
     └── main.css
 
 config/
-├── settings.yaml               # Active profile + hapticFeedback toggle
+├── settings.yaml               # Active profile + hapticFeedback toggle + sessionGroups prefs
 ├── sessions.yaml               # Persisted session state (auto-managed)
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 
-tests/                                  # 789 tests across 28 files
+tests/                                  # 823 tests across 29 files
 ├── config.test.ts              # Config loading, stick config, haptic, virtual buttons, sequence-list binding persistence
 ├── session.test.ts             # Session management
 ├── persistence.test.ts         # Session persistence
 ├── keyboard.test.ts            # Keyboard simulation
-├── sessions-screen.test.ts     # Session cards + spawn grid navigation + directional buttons
+├── sessions-screen.test.ts     # Session cards + group headers + spawn grid navigation + directional buttons
 ├── sequence-parser.test.ts     # Sequence format parser tests
 ├── pty-manager.test.ts         # PTY process management tests
 ├── terminal-manager.test.ts    # Embedded terminal lifecycle tests
@@ -395,5 +398,6 @@ tests/                                  # 789 tests across 28 files
 ├── handoff-command.test.ts     # Configurable handoff command tests (per-CLI type, skip when undefined)
 ├── navigation.test.ts         # Navigation priority chain tests (modal intercept order, screen routing, config fallback)
 ├── power-monitor.test.ts      # Power monitor suspend/resume/shutdown diagnostics tests (8 tests)
+├── session-groups.test.ts     # Session grouping logic tests (groupByDir, navList, reorder, collapse, display names)
 └── utils.test.ts               # Utility function tests
 ```
