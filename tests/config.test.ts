@@ -911,42 +911,34 @@ describe('ConfigLoader', () => {
     it('getSidebarPrefs returns defaults when settings.yaml has no sidebar section', () => {
       // SETTINGS fixture has no sidebar key
       loader.load();
-      expect(loader.getSidebarPrefs()).toEqual({ side: 'left', width: 320, height: undefined, x: undefined, y: undefined });
+      expect(loader.getSidebarPrefs()).toEqual({ width: 1280, height: undefined, x: undefined, y: undefined });
     });
 
     it('getSidebarPrefs reads saved values from settings.yaml', () => {
-      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { side: 'right', width: 400 } });
+      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { width: 400 } });
       loader.load();
-      expect(loader.getSidebarPrefs()).toMatchObject({ side: 'right', width: 400 });
+      expect(loader.getSidebarPrefs()).toMatchObject({ width: 400 });
     });
 
-    it('setSidebarPrefs updates only side, keeps width', () => {
-      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { side: 'left', width: 320 } });
-      loader.load();
-      loader.setSidebarPrefs({ side: 'right' });
-      expect(loader.getSidebarPrefs()).toMatchObject({ side: 'right', width: 320 });
-    });
-
-    it('setSidebarPrefs updates only width, keeps side', () => {
-      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { side: 'right', width: 320 } });
+    it('setSidebarPrefs updates only width', () => {
+      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { width: 320 } });
       loader.load();
       loader.setSidebarPrefs({ width: 400 });
-      expect(loader.getSidebarPrefs()).toMatchObject({ side: 'right', width: 400 });
+      expect(loader.getSidebarPrefs()).toMatchObject({ width: 400 });
     });
 
     it('setSidebarPrefs persists to disk', () => {
       loader.load();
-      loader.setSidebarPrefs({ side: 'right', width: 500 });
+      loader.setSidebarPrefs({ width: 500 });
 
       const onDisk = readYaml<any>('settings.yaml');
-      expect(onDisk.sidebar.side).toBe('right');
       expect(onDisk.sidebar.width).toBe(500);
     });
 
     it('getSidebarPrefs fills missing fields from defaults', () => {
-      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { side: 'right' } });
+      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: {} });
       loader.load();
-      expect(loader.getSidebarPrefs()).toEqual({ side: 'right', width: 320, height: undefined, x: undefined, y: undefined });
+      expect(loader.getSidebarPrefs()).toEqual({ width: 1280, height: undefined, x: undefined, y: undefined });
     });
 
     it('round-trips height, x, y through set/get', () => {

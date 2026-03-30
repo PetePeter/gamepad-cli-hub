@@ -47,7 +47,7 @@ export function registerIPCHandlers(getMainWindow: () => BrowserWindow | null): 
   const stateDetector = new StateDetector();
   const pipelineQueue = new PipelineQueue();
 
-  const cleanupSession = setupSessionHandlers(sessionManager);
+  const cleanupSession = setupSessionHandlers(sessionManager, ptyManager);
   setupConfigHandlers(configLoader);
   setupProfileHandlers(configLoader);
   setupToolsHandlers(configLoader);

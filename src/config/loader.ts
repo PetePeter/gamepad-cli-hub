@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as YAML from 'yaml';
+import logger from '../utils/logger.js';
 
 // ============================================================================
 // Action & Binding Types
@@ -60,6 +61,8 @@ export interface CliTypeConfig {
   command: string;
   initialPrompt?: SequenceListItem[];
   initialPromptDelay?: number;
+  /** Command written to PTY on pipeline handoff. If omitted, no command is sent. */
+  handoffCommand?: string;
 }
 
 export interface ButtonBindings {
@@ -71,17 +74,14 @@ export interface WorkingDirectory {
   path: string;
 }
 
-export type SidebarSide = 'left' | 'right';
-
 export interface SidebarPrefs {
-  side: SidebarSide;
   width: number;
   height?: number;
   x?: number;
   y?: number;
 }
 
-const DEFAULT_SIDEBAR_PREFS: SidebarPrefs = { side: 'left', width: 320 };
+const DEFAULT_SIDEBAR_PREFS: SidebarPrefs = { width: 1280 };
 
 // ============================================================================
 // Sorting Config Types
@@ -254,20 +254,20 @@ export class ConfigLoader {
 
   private readYaml<T>(filePath: string): T {
     if (!fs.existsSync(filePath)) {
-      console.error(`[Config] Configuration file not found: ${filePath}`);
+      logger.error(`[Config] Configuration file not found: ${filePath}`);
       throw new Error(`Configuration file not found: ${filePath}`);
     }
     const content = fs.readFileSync(filePath, 'utf8');
     try {
       const parsed = YAML.parse(content) as T;
       if (!parsed) {
-        console.error(`[Config] Empty or invalid YAML in: ${filePath}`);
+        logger.error(`[Config] Empty or invalid YAML in: ${filePath}`);
         throw new Error(`Failed to parse configuration file: ${filePath}`);
       }
       return parsed;
     } catch (error) {
       if (error instanceof Error && error.message.startsWith('Failed to parse')) throw error;
-      console.error(`[Config] YAML parse error in ${filePath}:`, error);
+      logger.error(`[Config] YAML parse error in ${filePath}:`, error);
       throw new Error(`Failed to parse configuration file: ${filePath} — ${error}`);
     }
   }
@@ -318,8 +318,8 @@ export class ConfigLoader {
       }
     }
 
-    if (toolsData) { fs.unlinkSync(toolsPath); console.log('[Config] Migrated tools.yaml into profiles'); }
-    if (dirsData) { fs.unlinkSync(dirsPath); console.log('[Config] Migrated directories.yaml into profiles'); }
+    if (toolsData) { fs.unlinkSync(toolsPath); logger.info('[Config] Migrated tools.yaml into profiles'); }
+    if (dirsData) { fs.unlinkSync(dirsPath); logger.info('[Config] Migrated directories.yaml into profiles'); }
 
     // Reload active profile to pick up migrations
     this.loadActiveProfile();
@@ -468,8 +468,7 @@ export class ConfigLoader {
     const saved = this.settings!.sidebar;
     if (!saved) return { ...DEFAULT_SIDEBAR_PREFS };
     return {
-      side: saved.side === 'right' ? 'right' : 'left',
-      width: Math.max(250, Math.min(450, saved.width ?? DEFAULT_SIDEBAR_PREFS.width)),
+      width: saved.width ?? DEFAULT_SIDEBAR_PREFS.width,
       height: saved.height,
       x: saved.x,
       y: saved.y,

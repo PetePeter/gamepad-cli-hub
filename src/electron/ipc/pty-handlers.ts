@@ -175,9 +175,16 @@ export function setupPtyHandlers(
         if (!ptyManager.has(handoff.toSessionId)) {
           logger.warn(`[PTY IPC] Handoff target ${handoff.toSessionId} has no running PTY, skipping`);
         } else {
-          ptyManager.write(handoff.toSessionId, 'go implement it\r');
-
+          // Write handoff command from target session's CLI type config (if configured)
           const targetSession = sessionManager.getSession(handoff.toSessionId);
+          const targetCliType = targetSession?.cliType;
+          const targetConfig = targetCliType && configLoader ? configLoader.getCliTypeEntry(targetCliType) : null;
+          if (targetConfig?.handoffCommand) {
+            ptyManager.write(handoff.toSessionId, targetConfig.handoffCommand);
+          } else {
+            logger.debug(`[PTY IPC] No handoffCommand configured for CLI type '${targetCliType}', skipping command write`);
+          }
+
           if (targetSession) {
             targetSession.state = 'implementing';
           }

@@ -3,6 +3,7 @@ tools:
   claude-code:
     name: Claude Code
     command: claude
+    handoffCommand: "go implement it\r"
     initialPromptDelay: 1000
     initialPrompt:
       - label: System Prompt
@@ -24,6 +25,7 @@ tools:
   copilot-cli:
     name: GitHub Copilot CLI
     command: copilot
+    handoffCommand: "go implement it\r"
     initialPrompt:
       - label: Allow All
         sequence: /allow-all{Enter}

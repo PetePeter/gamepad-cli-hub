@@ -6,6 +6,7 @@
 
 import { ipcMain } from 'electron';
 import type { SessionManager } from '../../session/manager.js';
+import type { PtyManager } from '../../session/pty-manager.js';
 import { logger } from '../../utils/logger.js';
 
 // ============================================================================
@@ -14,6 +15,7 @@ import { logger } from '../../utils/logger.js';
 
 export function setupSessionHandlers(
   sessionManager: SessionManager,
+  ptyManager: PtyManager,
 ): () => void {
   // --- CRUD & navigation ---------------------------------------------------
 
@@ -53,9 +55,9 @@ export function setupSessionHandlers(
       }
 
       try {
-        process.kill(session.processId);
+        ptyManager.kill(id);
       } catch (killError) {
-        logger.warn(`[Session] Failed to kill process ${session.processId}: ${killError}`);
+        logger.warn(`[Session] Failed to kill PTY for session ${id}: ${killError}`);
       }
 
       sessionManager.removeSession(id);

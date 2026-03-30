@@ -5,7 +5,7 @@
  * Manages window creation, IPC communication, and application lifecycle.
  */
 
-import { app, BrowserWindow, ipcMain, Menu, screen, powerMonitor, crashReporter } from 'electron';
+import { app, BrowserWindow, Menu, powerMonitor, crashReporter } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { registerIPCHandlers } from './ipc/handlers.js';
@@ -69,7 +69,7 @@ function createWindow(): void {
       preload: join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: false, // Required: preload needs Node.js APIs for contextBridge IPC
     },
     title: 'Gamepad CLI Hub',
   });

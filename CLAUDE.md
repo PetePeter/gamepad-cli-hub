@@ -21,10 +21,9 @@ graph TB
         end
 
         subgraph "Main Process"
-            IPC[IPC Handlers<br/>10 handler groups]
+            IPC[IPC Handlers<br/>7 handler groups]
             SM[SessionManager<br/>EventEmitter]
             SP[SessionPersistence<br/>YAML save/load]
-            PS[ProcessSpawner]
             PTY[PtyManager<br/>node-pty spawn/write/resize]
             SD[StateDetector<br/>AIAGENT-* keywords]
             PQ[PipelineQueue<br/>Auto-handoff]
@@ -41,11 +40,9 @@ graph TB
     XC --> BGA
     IPC --> SM
     IPC --> SP
-    IPC --> PS
     IPC --> PTY
     IPC --> CL
     SM --> SP
-    PS --> PTY
     PTY --> SD
     SD --> PQ
     PTY --> IP
@@ -62,7 +59,7 @@ Xbox Controller
           → Execute action:
               keyboard       → SequenceParser.parse() → pty:write (escape sequences to PTY stdin)
               voice          → OS-default (robotjs), PTY when target: 'terminal' (see Input Routing below)
-              spawn          → ProcessSpawner.spawn() → PtyManager.spawn() → SessionManager.addSession()
+              spawn          → pty:spawn IPC → PtyManager.spawn() → SessionManager.addSession()
               switch         → SessionManager.next/previous() → TerminalManager.switchTo()
               sequence-list  → SequencePicker overlay → user picks item → SequenceParser.parse() → pty:write
             → Haptic pulse (when enabled)
@@ -86,19 +83,21 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 | **BrowserGamepad** | `renderer/gamepad.ts` | Browser Gamepad API polling (250ms debounce), button-press events via IPC, analog stick events, **D-pad and stick auto-repeat engine**. Sole gamepad input source. |
 | **SessionManager** | `src/session/manager.ts` | Track sessions, switch active, rename sessions, emit session:added/removed/changed. Calls persistence after every state change. |
 | **SessionPersistence** | `src/session/persistence.ts` | `saveSessions()`, `loadSessions()`, `clearPersistedSessions()` to `config/sessions.yaml`. Health check removes dead PIDs. ⚠️ `startHealthCheck()` is never called in production — dead code, tests only. |
-| **ProcessSpawner** | `src/session/process-spawner.ts` | Spawn CLI processes via PtyManager, register with SessionManager. Supports initial prompt delay. |
 | **PtyManager** | `src/session/pty-manager.ts` | PTY process lifecycle — spawn via node-pty (cmd.exe on Windows, bash on Unix), write to stdin, resize, kill. One PTY per embedded terminal session. |
 | **StateDetector** | `src/session/state-detector.ts` | Scans PTY output for AIAGENT-* keywords to detect CLI state (implementing, planning, completed, idle). |
 | **PipelineQueue** | `src/session/pipeline-queue.ts` | Auto-handoff queue — routes tasks to waiting sessions. Handoff triggers when a session enters completed or idle state. |
 | **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. Optional `onComplete` callback fires after all prompt items execute (used by pty-handlers to write context text after prompt finishes). |
 | **SequenceParser** | `src/input/sequence-parser.ts` | Parses sequence format strings (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, `{Mod Down/Up}`, `{{`/`}}` escapes, plain text) into typed SequenceAction arrays. Used by both button bindings and initial prompts. |
-| **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. `ActionType = 'keyboard' \| 'voice' \| 'scroll' \| 'context-menu' \| 'sequence-list'`. `Binding` union includes `ContextMenuBinding`, `SequenceListBinding`. Exports `SequenceListItem { label, sequence }`. |
+| **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. `ActionType = 'keyboard' \| 'voice' \| 'scroll' \| 'context-menu' \| 'sequence-list'`. `Binding` union includes `ContextMenuBinding`, `SequenceListBinding`. Exports `SequenceListItem { label, sequence }`. `CliTypeConfig` includes optional `handoffCommand` for auto-handoff pipeline. |
 | **ElectronMain** | `src/electron/main.ts` | Window creation, IPC setup, app lifecycle. Renderer crash recovery (auto-reloads on `render-process-gone` — safe because session state lives in main process). Power monitoring (`suspend`/`resume`/`shutdown` logging via `powerMonitor`). |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 7 domain handler files (session, config, profile, tools, keyboard, pty, system). Dependencies injected via function parameters. Config handlers include `dialog:openFolder` for native OS folder picker. `pty:spawn` accepts optional `contextText` — written to PTY after the initial prompt completes (via `onComplete` callback) rather than on a fixed timer. |
 | **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization, `showFormModal` with `FormField` types: text/select/textarea + `browse?: boolean` for native folder picker), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`, context-menu action centers overlay in gamepad mode, sequence-list action opens picker overlay), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor/context-menu/close-confirm/sequence-picker/quick-spawn). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. Selection API: `getSelection()`, `hasSelection()`, `clearSelection()`. |
 | **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, rename, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, gold=completed, grey=idle). Exposes onSwitch/onEmpty callbacks. `getActiveView()` returns current TerminalView. `renameSession()` updates the display name persisted across UI reloads. Right-click `contextmenu` listener on terminal area shows context menu overlay. `createTerminal()` accepts optional `contextText` forwarded through `ptySpawn()` to the main process. `writeToTerminal()` runs PTY output through `stripMouseTracking()` before writing to xterm.js. |
 | **PtyFilter** | `renderer/terminal/pty-filter.ts` | Strips mouse-tracking ANSI escape sequences (DEC modes 1000–1006, 1015–1016) from PTY output so xterm.js never enters mouse-reporting mode and native text selection always works. |
+| **SortLogic** | `renderer/sort-logic.ts` | Pure sort functions for sessions (by state priority + alphabetical) and bindings. No side effects — easy to test. |
+| **TabCycling** | `renderer/tab-cycling.ts` | Resolves next/previous terminal for Ctrl+Tab cycling using sorted display order so tab switching matches what the user sees. |
+| **SortControl** | `renderer/components/sort-control.ts` | Reusable sort control widget — dropdown for field selection + direction toggle button. |
 | **Logger** | `src/utils/logger.ts` | Winston logger with daily rotation. Used across all src/ modules. |
 ## Config System
 
@@ -209,7 +208,7 @@ dpad:
 4. **Clipboard paste via PTY** — Document-level Ctrl+V interceptor (`renderer/paste-handler.ts`) reads clipboard and writes to active PTY via `ptyWrite()`, regardless of DOM focus. Solves paste not reaching terminal when gamepad navigation focuses the sidebar.
 5. **D-pad auto-selection** — D-pad navigation automatically selects and activates the terminal for the focused session. No separate focus/unfocus toggle — keyboard always types into the active terminal, D-pad always navigates sessions.
 6. **Tab bar with state dots** — Horizontal tab strip above terminal area. Each tab shows session name + colored dot (green=implementing, orange=waiting, blue=planning, gold=completed, grey=idle). Ctrl+Tab / Ctrl+Shift+Tab for keyboard switching, D-pad for gamepad switching.
-7. **IPC bridge pattern** — Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers are split into 8 domain files with dependency injection — the orchestrator (`handlers.ts`) wires dependencies. Renderer never directly accesses Node.js APIs.
+7. **IPC bridge pattern** — Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers split into 7 domain files + 1 orchestrator (`handlers.ts`) with dependency injection. Renderer never directly accesses Node.js APIs.
 8. **Self-contained profile YAML** — Each profile is a single YAML file containing tools, working directories, bindings, stick config, and dpad config. Switching profiles changes everything. Settings stored separately. Auto-migration merges legacy `tools.yaml`/`directories.yaml` into profiles on first load.
 9. **Per-CLI bindings** — Same button does different things depending on active CLI type
 10. **Button pass-through** — Non-navigation buttons (XYAB, bumpers, triggers) return false from session navigation, allowing them to fall through to per-CLI configurable bindings
@@ -217,7 +216,7 @@ dpad:
 12. **Sequence parser for input** — Instead of direct key simulation, the `keyboard` action uses a sequence parser syntax (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, plain text) that converts to PTY escape codes. Same syntax used for button `sequence` bindings and `initialPrompt` config.
 13. **Session persistence** — Sessions saved to `config/sessions.yaml` after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skipping duplicates). A health check (`startHealthCheck()`) periodically removes dead PIDs via `process.kill(pid, 0)`. Survives crashes and restarts. ⚠️ `startHealthCheck()` is never called in production — dead code, used only in tests.
 14. **Hibernate resilience** — Renderer crash recovery via `render-process-gone` auto-reload (Chromium GPU process often crashes on hibernate resume). Safe because session state lives in `SessionManager` (main process), so terminals reconnect after reload. `powerMonitor` logs `suspend`/`resume`/`shutdown` for diagnostics. All PTY operations (write, resize, kill) are wrapped in try-catch blocks in both `PtyManager` and IPC handlers. On error, operations are logged but PTY processes are NOT killed — they may still be alive (e.g., after hibernate/resume with stale ConPTY handles). The app also registers error handlers on node-pty's internal pipe Sockets to catch unhandled pipe errors. GPU sandbox is disabled to prevent Chromium GPU crashes on resume. Electron crashReporter is enabled to capture native crash dumps at `app.getPath('crashDumps')`.
-15. **Sidebar session UI** — App runs as a 320px frameless always-on-top sidebar (left or right edge). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with a directory picker modal. Settings is a slide-over panel. Sandwich button focuses the hub and returns to the sessions screen.
+15. **Desktop window layout** — App runs as a maximized desktop window (1280×800 default, 640×400 minimum). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with a directory picker modal. Settings is a slide-over panel. Sandwich button focuses the hub and returns to the sessions screen. Window bounds (width, height, x, y) persist across restarts via `getSidebarPrefs()`/`setSidebarPrefs()`.
 16. **Analog stick virtual buttons** — Each stick emits distinct virtual button names (e.g. `LeftStickUp`, `RightStickDown`) that can be bound like physical buttons. If no explicit binding exists, the stick falls back to its configured mode (cursor or scroll). Right stick scroll is a configurable per-CLI binding (default: `scroll` action), not hardcoded. D-pad buttons are separate (`DPadUp`, `DPadDown`, etc.). All directional inputs are normalized to cardinal directions via `toDirection()` for UI navigation. D-pad and sticks auto-repeat when held. D-pad uses keyboard-like delay (initialDelay) then constant rate. Sticks use displacement-proportional rate — gentle tilt = slow, full deflection = fast.
 
 ## Embedded Terminal Architecture
@@ -298,7 +297,7 @@ src/
 │   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle, renderer crash recovery, power monitoring
 │   ├── preload.ts              # Context bridge (renderer ↔ main IPC)
 │   └── ipc/
-│       ├── handlers.ts         # Orchestrator — imports + wires 8 domain handlers
+│       ├── handlers.ts         # Orchestrator — imports + wires 7 domain handlers
 │       ├── session-handlers.ts
 │       ├── config-handlers.ts
 │       ├── profile-handlers.ts
@@ -309,12 +308,10 @@ src/
 ├── input/
 │   └── sequence-parser.ts      # {Enter}, {Ctrl+C}, {Wait 500}, {Mod Down/Up}, {{/}} — used by bindings + initialPrompt
 ├── output/
-│   ├── keyboard.ts             # ⚠️ DEPRECATED: robotjs keystroke simulation (legacy fallback only)
-│   └── windows.ts              # ⚠️ DEPRECATED: Win32 window enumeration/focus (no longer used)
+│   └── keyboard.ts             # ⚠️ DEPRECATED: robotjs keystroke simulation (legacy fallback only)
 ├── session/
 │   ├── manager.ts              # Session tracking (EventEmitter), calls persistence on changes
 │   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + health check
-│   ├── spawner.ts              # CLI process spawning (optional onExit callback)
 │   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
 │   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
@@ -335,14 +332,23 @@ renderer/
 ├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY
 ├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → contextMenu → sequencePicker → screen routing → configBinding fallback
 ├── gamepad.ts                  # Browser Gamepad API wrapper + repeat engine
+├── sort-logic.ts               # Pure sort functions for sessions + bindings
+├── tab-cycling.ts              # Ctrl+Tab / Ctrl+Shift+Tab terminal cycling resolver
+├── components/
+│   └── sort-control.ts         # Reusable sort dropdown + direction toggle widget
 ├── terminal/
 │   ├── terminal-view.ts        # xterm.js wrapper (fit/search/weblinks addons)
 │   ├── terminal-manager.ts     # Multi-terminal orchestration (create/switch/rename/resize/destroy + tab bar)
 │   └── pty-filter.ts           # Strips mouse-tracking escape sequences from PTY output
 ├── screens/
-│   ├── sessions.ts             # Vertical session cards + spawn grid + dir picker modal. Session row layout: dot → name → state dropdown → rename pencil → close X. Card column navigation 0-3. `doSpawn()` accepts optional `contextText` for spawning with selected text (via `setPendingContextText()`). Context text flows through `createTerminal()` → `ptySpawn()` → main process (written to PTY after initial prompt completes). Sort order: implementing(0) → waiting(1) → planning(2) → completed(3) → idle(4).
+│   ├── sessions.ts             # Sessions screen orchestrator: state, navigation, public API. Re-exports from sessions-render + sessions-spawn.
+│   ├── sessions-render.ts      # Session card rendering, spawn grid UI, sort control, rename flow
+│   ├── sessions-spawn.ts       # doSpawn(), PTY creation, terminal area visibility, spawn zone navigation
 │   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn zones)
-│   ├── settings.ts             # Slide-over settings (profiles, bindings, tools, dirs)
+│   ├── settings.ts             # Settings slide-over orchestrator: tab bar, directories tab, public API
+│   ├── settings-bindings.ts    # Bindings display, sort state, add-binding picker
+│   ├── settings-profiles.ts    # Profiles panel, create profile prompt
+│   └── settings-game-bar.ts    # Tools panel, Game Bar toggle, CLI type CRUD
 ├── modals/
 │   ├── dir-picker.ts           # Directory picker modal (supports pre-selection via preselectedPath)
 │   ├── binding-editor.ts       # Binding editor modal
@@ -359,7 +365,7 @@ config/
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 
-tests/                                  # 744 tests across 24 files
+tests/                                  # 779 tests across 27 files
 ├── config.test.ts              # Config loading, stick config, haptic, virtual buttons, sequence-list binding persistence
 ├── session.test.ts             # Session management
 ├── persistence.test.ts         # Session persistence
@@ -383,5 +389,8 @@ tests/                                  # 744 tests across 24 files
 ├── quick-spawn.test.ts         # Quick-spawn CLI type picker tests (show/hide, pre-selection, gamepad navigation, click handlers)
 ├── sort-logic.test.ts          # Session sort order tests (state priority, alphabetical tiebreaker)
 ├── tab-cycling.test.ts         # Ctrl+Tab / Ctrl+Shift+Tab terminal tab cycling tests
+├── session-handlers.test.ts    # session:close → PtyManager routing tests
+├── handoff-command.test.ts     # Configurable handoff command tests (per-CLI type, skip when undefined)
+├── navigation.test.ts         # Navigation priority chain tests (modal intercept order, screen routing, config fallback)
 └── utils.test.ts               # Utility function tests
 ```

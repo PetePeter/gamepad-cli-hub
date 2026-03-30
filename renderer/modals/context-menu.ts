@@ -5,9 +5,8 @@
  * Triggered via right-click on the terminal area or a gamepad context-menu binding.
  */
 
-import { logEvent } from '../utils.js';
+import { logEvent, toDirection } from '../utils.js';
 import { getTerminalManager } from '../main.js';
-import { toDirection } from '../utils.js';
 import { attachModalKeyboard } from './modal-base.js';
 import { setPendingContextText, spawnNewSession } from '../screens/sessions.js';
 import { showQuickSpawn } from './quick-spawn.js';
