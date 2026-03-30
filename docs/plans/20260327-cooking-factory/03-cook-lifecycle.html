@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cooking Lifecycle — Plan Pipeline</title>
+<style>
+  :root {
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #111;
+    --bg-tertiary: #1a1a1a;
+    --accent: #ff6600;
+    --accent-dim: rgba(255,102,0,0.12);
+    --text-primary: #eee;
+    --text-secondary: #999;
+    --text-dim: #555;
+    --border: #222;
+    --green: #44cc44;
+    --yellow: #ffaa00;
+    --red: #cc3333;
+    --blue: #4488ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    line-height: 1.5;
+    padding: 48px 24px 80px;
+    min-height: 100vh;
+  }
+
+  .container {
+    max-width: 780px;
+    margin: 0 auto;
+  }
+
+  /* ── Header ── */
+  .page-header {
+    margin-bottom: 56px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .page-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+
+  .page-header h1 .highlight {
+    color: var(--accent);
+  }
+
+  .page-header .subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+
+  /* ── Timeline spine ── */
+  .timeline {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── Arrow connector ── */
+  .arrow-connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 0 20px 28px;
+    position: relative;
+  }
+
+  .arrow-connector .arrow-line {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    color: var(--accent);
+    font-size: 18px;
+    opacity: 0.7;
+    letter-spacing: 2px;
+  }
+
+  .arrow-connector .arrow-line .pipe {
+    width: 2px;
+    height: 16px;
+    background: var(--accent);
+    opacity: 0.4;
+    border-radius: 1px;
+  }
+
+  .arrow-connector .arrow-line .chevron {
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  /* ── Branch arrow (for Step 5 → 6a / 6b) ── */
+  .branch-connector {
+    display: flex;
+    padding: 20px 0 20px 28px;
+    gap: 24px;
+  }
+
+  .branch-arm {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .branch-arm .label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 2px;
+  }
+
+  .branch-arm .label.approve { color: var(--green); }
+  .branch-arm .label.sendback { color: var(--yellow); }
+
+  .branch-arm .pipe {
+    width: 2px;
+    height: 14px;
+    border-radius: 1px;
+    opacity: 0.5;
+  }
+
+  .branch-arm .pipe.green { background: var(--green); }
+  .branch-arm .pipe.yellow { background: var(--yellow); }
+
+  .branch-arm .chevron {
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .branch-arm .chevron.green { color: var(--green); opacity: 0.7; }
+  .branch-arm .chevron.yellow { color: var(--yellow); opacity: 0.7; }
+
+  /* ── Step card ── */
+  .step-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    position: relative;
+  }
+
+  .step-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .step-number {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .step-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .step-title.grey   { color: var(--text-secondary); }
+  .step-title.green  { color: var(--green); }
+  .step-title.orange { color: var(--accent); }
+  .step-title.blue   { color: var(--blue); }
+  .step-title.yellow { color: var(--yellow); }
+
+  .step-rule {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  .step-body p {
+    font-size: 14px;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+  }
+
+  .step-body p .emoji {
+    margin-right: 6px;
+  }
+
+  .step-body .meta {
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+
+  .step-body .meta .key {
+    color: var(--text-dim);
+  }
+
+  .step-body .meta code {
+    font-family: 'Cascadia Code', 'Consolas', 'Fira Code', monospace;
+    font-size: 12px;
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--text-primary);
+  }
+
+  .step-body .annotation {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-style: italic;
+    margin-top: 4px;
+  }
+
+  /* ── PTY terminal box ── */
+  .pty-box {
+    background: #0c0c0c;
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    margin-top: 16px;
+    overflow: hidden;
+  }
+
+  .pty-box .pty-header {
+    background: #161616;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #2a2a2a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pty-box .pty-header .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    display: inline-block;
+    opacity: 0.7;
+  }
+
+  .pty-box .pty-body {
+    padding: 14px 18px;
+    font-family: 'Cascadia Code', 'Consolas', 'Fira Code', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: #b0b0b0;
+  }
+
+  .pty-box .pty-body .prompt {
+    color: var(--green);
+  }
+
+  .pty-box .pty-body .cmd {
+    color: var(--text-primary);
+  }
+
+  .pty-box .pty-body .success {
+    color: var(--green);
+  }
+
+  .pty-box .pty-body .signal {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  /* ── Review card ── */
+  .review-card {
+    background: var(--bg-tertiary);
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    margin-top: 16px;
+    overflow: hidden;
+  }
+
+  .review-card .review-header {
+    background: #1e1e1e;
+    padding: 10px 18px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border-bottom: 1px solid #2a2a2a;
+  }
+
+  .review-card .review-body {
+    padding: 16px 18px;
+  }
+
+  .review-card .review-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+
+  .review-card .review-row .label {
+    color: var(--text-dim);
+    min-width: 60px;
+  }
+
+  .review-card .review-row .value {
+    color: var(--text-primary);
+  }
+
+  .review-card .review-row .value code {
+    font-family: 'Cascadia Code', 'Consolas', 'Fira Code', monospace;
+    font-size: 12px;
+    background: var(--bg-primary);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .review-card .review-status {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #2a2a2a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .review-card .review-status .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .review-card .review-status .badge.finished {
+    background: rgba(68,204,68,0.12);
+    color: var(--green);
+  }
+
+  .review-card .review-status .badge.question {
+    background: rgba(255,170,0,0.12);
+    color: var(--yellow);
+  }
+
+  .review-card .review-actions {
+    margin-top: 16px;
+    display: flex;
+    gap: 10px;
+  }
+
+  .review-card .review-actions .btn {
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .review-card .review-actions .btn-approve {
+    background: rgba(68,204,68,0.15);
+    color: var(--green);
+    border: 1px solid rgba(68,204,68,0.3);
+  }
+
+  .review-card .review-actions .btn-approve:hover {
+    background: rgba(68,204,68,0.25);
+  }
+
+  .review-card .review-actions .btn-sendback {
+    background: rgba(255,102,0,0.12);
+    color: var(--yellow);
+    border: 1px solid rgba(255,170,0,0.25);
+  }
+
+  .review-card .review-actions .btn-sendback:hover {
+    background: rgba(255,136,51,0.2);
+  }
+
+  /* ── Split row for 6a / 6b ── */
+  .split-row {
+    display: flex;
+    gap: 16px;
+  }
+
+  .split-row .step-card {
+    flex: 1;
+  }
+
+  /* ── Conditional branch note ── */
+  .branch-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 0 0 28px;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  .branch-note code {
+    font-family: 'Cascadia Code', 'Consolas', 'Fira Code', monospace;
+    font-size: 11px;
+    background: var(--bg-tertiary);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--yellow);
+    font-style: normal;
+  }
+
+  /* ── Annotation box ── */
+  .annotation-box {
+    margin-top: 56px;
+    padding: 20px 24px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(255,102,0,0.2);
+    border-radius: 8px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .annotation-box .icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .annotation-box .content {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.65;
+  }
+
+  .annotation-box .content strong {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .annotation-box .content .on { color: var(--green); font-weight: 600; }
+  .annotation-box .content .off { color: var(--text-dim); font-weight: 600; }
+
+  /* ── Footer ── */
+  .page-footer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="page-header">
+    <h1><span class="highlight">Cooking Lifecycle</span> — Plan Pipeline</h1>
+    <div class="subtitle">How a plan moves through the cooking factory: queue → implement → validate → review → done</div>
+  </div>
+
+  <div class="timeline">
+
+    <!-- ═══ Step 1: PLAN QUEUED ═══ -->
+    <div class="step-card border-grey">
+      <div class="step-header">
+        <span class="step-number">Step 1</span>
+        <span class="step-title grey">Plan Queued</span>
+      </div>
+      <hr class="step-rule">
+      <div class="step-body">
+        <p><span class="emoji">📄</span> Plan added to <strong>"Plans Waiting"</strong></p>
+        <p class="meta"><span class="key">URL:</span> <code>docs/plans/auth-module/plan.md</code></p>
+        <p class="meta"><span class="key">Status:</span> ⏳ Waiting for worker</p>
+      </div>
+    </div>
+
+    <!-- Arrow -->
+    <div class="arrow-connector">
+      <div class="arrow-line">
+        <div class="pipe"></div>
+        <div class="pipe"></div>
+        <span class="chevron">▼</span>
+      </div>
+    </div>
+
+    <!-- ═══ Step 2: AUTO-ASSIGNED ═══ -->
+    <div class="step-card border-green">
+      <div class="step-header">
+        <span class="step-number">Step 2</span>
+        <span class="step-title green">Auto-Assigned</span>
+      </div>
+      <hr class="step-rule">
+      <div class="step-body">
+        <p><span class="emoji">🔥</span> Idle <strong>Worker-1</strong> picks plan from queue</p>
+        <p>Plan moves to <strong>"Being Cooked"</strong></p>
+        <p class="meta">App sends: Implementation prompt + plan URL → PTY</p>
+
+        <div class="pty-box">
+          <div class="pty-header"><span class="dot"></span> PTY Output — Worker-1</div>
+          <div class="pty-body">
+            <div><span class="cmd">Here is a plan to implement: file://docs/plans/auth-module/plan.md</span></div>
+            <div><span class="cmd">Read the plan and implement it fully...</span></div>
+            <div><span class="prompt">&gt;</span> Reading plan...</div>
+            <div><span class="prompt">&gt;</span> Creating src/auth/module.ts</div>
+            <div><span class="prompt">&gt;</span> Writing tests...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow -->
+    <div class="arrow-connector">
+      <div class="arrow-line">
+        <div class="pipe"></div>
+        <div class="pipe"></div>
+        <span class="chevron">▼</span>
+      </div>
+    </div>
+
+    <!-- ═══ Step 3: IDLE POLLING ═══ -->
+    <div class="step-card border-orange">
+      <div class="step-header">
+        <span class="step-number">Step 3</span>
+        <span class="step-title orange">Idle Polling</span>
+      </div>
+      <hr class="step-rule">
+      <div class="step-body">
+        <p><span class="emoji">⏱️</span> PTY idle for <strong>60 seconds</strong></p>
+        <p>App sends: <strong>"Where are you up to?"</strong> → structured query</p>
+        <p class="meta">Expected response: <code>AIAGENT-FINISHED</code> or <code>AIAGENT-QUESTION</code></p>
+
+        <div class="pty-box">
+          <div class="pty-header"><span class="dot"></span> PTY Output — Worker-1</div>
+          <div class="pty-body">
+            <div><span class="signal">AIAGENT-FINISHED</span></div>
+          </div>
+        </div>
+
+        <p class="annotation">↳ If <code style="font-family:'Cascadia Code','Consolas','Fira Code',monospace;font-size:11px;background:var(--bg-tertiary);padding:1px 5px;border-radius:3px;color:var(--yellow);">AIAGENT-QUESTION</code> → skip to Step 5</p>
+      </div>
+    </div>
+
+    <!-- Arrow -->
+    <div class="arrow-connector">
+      <div class="arrow-line">
+        <div class="pipe"></div>
+        <div class="pipe"></div>
+        <span class="chevron">▼</span>
+      </div>
+    </div>
+
+    <!-- ═══ Step 4: VALIDATION PHASE ═══ -->
+    <div class="step-card border-blue">
+      <div class="step-header">
+        <span class="step-number">Step 4</span>
+        <span class="step-title blue">Validation Phase</span>
+      </div>
+      <hr class="step-rule">
+      <div class="step-body">
+        <p><span class="emoji">🔍</span> App sends: <strong>Validation prompt</strong> + same plan URL → PTY</p>
+        <p>Worker reviews implementation, fixes gaps</p>
+
+        <div class="pty-box">
+          <div class="pty-header"><span class="dot"></span> PTY Output — Worker-1</div>
+          <div class="pty-body">
+            <div><span class="cmd">Reviewing implementation against plan...</span></div>
+            <div><span class="cmd">Found 2 missing test cases</span></div>
+            <div><span class="cmd">Adding tests for edge cases...</span></div>
+            <div><span class="success">All tests pass ✓</span></div>
+            <div><span class="signal">AIAGENT-FINISHED</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow -->
+    <div class="arrow-connector">
+      <div class="arrow-line">
+        <div class="pipe"></div>
+        <div class="pipe"></div>
+        <span class="chevron">▼</span>
+      </div>
+    </div>
+
+    <!-- ═══ Step 5: WAITING APPROVAL ═══ -->
+    <div class="step-card border-yellow">
+      <div class="step-header">
+        <span class="step-number">Step 5</span>
+        <span class="step-title yellow">Waiting Approval</span>
+      </div>
+      <hr class="step-rule">
+      <div class="step-body">
+        <p><span class="emoji">✋</span> Plan moves to <strong>"Waiting Approval"</strong></p>
+        <p>Human reviews the finished work:</p>
+
+        <div class="review-card">
+          <div class="review-header">Review Card</div>
+          <div class="review-body">
+            <div class="review-row">
+              <span class="label">Plan:</span>
+              <span class="value"><code>auth-module/plan.md</code></span>
+            </div>
+            <div class="review-row">
+              <span class="label">Worker:</span>
+              <span class="value">Worker-1 <span style="color:var(--text-dim)">(claude-code)</span></span>
+            </div>
+            <div class="review-row">
+              <span class="label">Branch:</span>
+              <span class="value"><code>feat/auth</code></span>
+            </div>
+            <div class="review-status">
+              <span class="label">Status:</span>
+              <span class="badge finished">✅ Finished</span>
+              <span style="color:var(--text-dim);font-size:12px;margin:0 4px;">or</span>
+              <span class="badge question">❓ Question: "Which auth provider?"</span>
+            </div>
+            <div class="review-actions">
+              <button class="btn btn-approve">✅ Approve</button>
+              <button class="btn btn-sendback">↩ Send Back</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Branch arrows -->
+    <div class="branch-connector">
+      <div class="branch-arm">
+        <span class="label approve">Approve</span>
+        <div class="pipe green"></div>
+        <div class="pipe green"></div>
+        <span class="chevron green">▼</span>
+      </div>
+      <div class="branch-arm">
+        <span class="label sendback">Send Back</span>
+        <div class="pipe yellow"></div>
+        <div class="pipe yellow"></div>
+        <span class="chevron yellow">▼</span>
+      </div>
+    </div>
+
+    <!-- ═══ Step 6a / 6b ═══ -->
+    <div class="split-row">
+      <div class="step-card border-green">
+        <div class="step-header">
+          <span class="step-number">Step 6a</span>
+          <span class="step-title green">Done</span>
+        </div>
+        <hr class="step-rule">
+        <div class="step-body">
+          <p><span class="emoji">✅</span> Plan disappears from board</p>
+          <p>Worker goes <strong>idle</strong></p>
+          <p class="meta">Auto-picks next queued plan</p>
+        </div>
+      </div>
+
+      <div class="step-card border-orange">
+        <div class="step-header">
+          <span class="step-number">Step 6b</span>
+          <span class="step-title orange">Re-Cook</span>
+        </div>
+        <hr class="step-rule">
+        <div class="step-body">
+          <p><span class="emoji">🔄</span> Human provides new instructions</p>
+          <p>Plan returns to <strong>"Being Cooked"</strong></p>
+          <p class="meta">Worker resumes with feedback</p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /timeline -->
+
+  <!-- Annotation -->
+  <div class="annotation-box">
+    <span class="icon">⚙️</span>
+    <div class="content">
+      <strong>Mandatory review toggle:</strong> when <span class="on">ON</span>, all plans must be human-approved before completion.
+      When <span class="off">OFF</span>, auto-finished plans (no questions) skip review entirely — the worker immediately picks the next queued plan.
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="page-footer">
+    <span>Cooking Factory — Lifecycle Reference</span>
+    <span>03-cook-lifecycle</span>
+  </div>
+
+</div>
+</body>
+</html>

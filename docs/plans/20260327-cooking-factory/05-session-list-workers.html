@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Session List — Workers vs Regular Sessions</title>
+<style>
+  :root {
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #111;
+    --bg-tertiary: #1a1a1a;
+    --accent: #ff6600;
+    --accent-dim: rgba(255,102,0,0.12);
+    --text-primary: #eee;
+    --text-secondary: #999;
+    --text-dim: #555;
+    --border: #222;
+    --green: #44cc44;
+    --yellow: #ffaa00;
+    --red: #cc3333;
+    --blue: #4488ff;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+    padding: 40px 0;
+  }
+
+  /* ── Page layout ─────────────────────────────────── */
+  .page-title {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+  }
+  .page-subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 40px;
+  }
+  .panels {
+    display: flex;
+    gap: 48px;
+    justify-content: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 0 40px;
+  }
+  .panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .panel-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+  }
+
+  /* ── Sidebar container ───────────────────────────── */
+  .sidebar {
+    width: 300px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar header ──────────────────────────────── */
+  .sidebar-header {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sidebar-header .folder-icon {
+    font-size: 14px;
+  }
+  .sidebar-header .project-path {
+    font-size: 12px;
+    font-family: 'Cascadia Code', 'Consolas', 'Fira Code', monospace;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── Section separator ───────────────────────────── */
+  .section-sep {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 16px;
+    margin: 4px 0;
+  }
+  .section-sep::before,
+  .section-sep::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .section-sep-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  /* ── Divider (plain line) ────────────────────────── */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 16px;
+  }
+
+  /* ── Session cards (regular) ─────────────────────── */
+  .session-list {
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .session-card {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    position: relative;
+    cursor: default;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .session-card:hover {
+    background: var(--bg-tertiary);
+  }
+
+  .session-card .close-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: #666;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  .session-card .close-btn:hover {
+    background: rgba(255, 68, 68, 0.1);
+    color: #ff4444;
+  }
+
+  .session-card .card-row-1 {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding-right: 24px;
+  }
+  .session-card .card-row-2 {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+    padding-left: 20px;
+  }
+
+  /* ── State dot ───────────────────────────────────── */
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-green  { background: var(--green); box-shadow: 0 0 6px #44cc44; }
+  .dot-orange { background: var(--accent); box-shadow: 0 0 6px rgba(255,102,0,0.4); }
+  .dot-yellow { background: var(--yellow); box-shadow: 0 0 6px rgba(255,170,0,0.4); }
+  .dot-grey   { background: var(--text-dim); opacity: 0.5; }
+
+  .session-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .session-detail {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  /* ── Worker cards ────────────────────────────────── */
+  .worker-card {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    position: relative;
+    cursor: default;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .worker-card:hover {
+    border-color: #333;
+    background: #1e1e1e;
+  }
+
+  /* Selected / focused state */
+  .worker-card.selected {
+    background: var(--bg-secondary);
+    border-color: var(--accent);
+  }
+
+  .worker-card .wrench-badge {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 13px;
+    opacity: 0.7;
+  }
+
+  .worker-card .card-row-1 {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding-right: 28px;
+  }
+  .worker-card .card-row-branch {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 3px;
+    padding-left: 20px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .worker-card .card-row-task {
+    font-size: 11px;
+    margin-top: 3px;
+    padding-left: 20px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .task-cooking  { color: var(--accent); }
+  .task-waiting  { color: var(--yellow); }
+  .task-idle     { color: var(--text-dim); }
+
+  /* ── Progress bar ────────────────────────────────── */
+  .progress-bar {
+    margin-top: 5px;
+    margin-left: 20px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+  .progress-fill-green  { background: var(--green); }
+  .progress-fill-orange { background: var(--accent); }
+
+  .progress-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 2px;
+    padding-left: 20px;
+  }
+
+  /* ── Sidebar footer ──────────────────────────────── */
+  .sidebar-footer {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .footer-buttons {
+    display: flex;
+    gap: 8px;
+  }
+  .btn {
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .btn:hover {
+    border-color: #444;
+    color: var(--text-primary);
+    background: #222;
+  }
+  .btn-accent {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .btn-accent:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .queue-status {
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  /* ── Annotation ──────────────────────────────────── */
+  .annotation {
+    margin-top: 32px;
+    padding: 0 40px;
+    text-align: center;
+  }
+  .annotation-box {
+    display: inline-block;
+    max-width: 780px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 20px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    text-align: left;
+  }
+  .annotation-box strong {
+    color: var(--text-primary);
+  }
+
+  /* ── Callout arrows / labels ─────────────────────── */
+  .callout {
+    position: absolute;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">Session List Sidebar — Workers vs Regular Sessions</div>
+<div class="page-subtitle">Visual differences between regular CLI sessions and cooking factory workers</div>
+
+<div class="panels">
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- Panel 1: Default state                          -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="panel">
+    <div class="panel-label">Default State</div>
+    <div class="sidebar">
+
+      <!-- Header -->
+      <div class="sidebar-header">
+        <span class="folder-icon">📁</span>
+        <span class="project-path">X:\coding\myproject</span>
+      </div>
+
+      <!-- Regular sessions -->
+      <div class="session-list">
+
+        <div class="session-card">
+          <button class="close-btn" title="Close session">×</button>
+          <div class="card-row-1">
+            <span class="dot dot-green"></span>
+            <span class="session-name">Claude Code</span>
+            <span class="session-detail">— main session</span>
+          </div>
+          <div class="card-row-2">PID 12345 · idle</div>
+        </div>
+
+        <div class="session-card">
+          <button class="close-btn" title="Close session">×</button>
+          <div class="card-row-1">
+            <span class="dot dot-grey"></span>
+            <span class="session-name">Copilot CLI</span>
+            <span class="session-detail">— research</span>
+          </div>
+          <div class="card-row-2">PID 12346 · idle</div>
+        </div>
+
+      </div>
+
+      <!-- Workers separator -->
+      <div class="section-sep">
+        <span class="section-sep-label">Workers</span>
+      </div>
+
+      <!-- Worker cards -->
+      <div class="session-list">
+
+        <!-- Worker 1: cooking (green, with progress) -->
+        <div class="worker-card">
+          <span class="wrench-badge">🔧</span>
+          <div class="card-row-1">
+            <span class="dot dot-green"></span>
+            <span class="session-name">Worker-1</span>
+            <span class="session-detail">· claude-code</span>
+          </div>
+          <div class="card-row-branch">
+            <span>🌿</span> feat/auth
+          </div>
+          <div class="card-row-task task-cooking">
+            <span>🔥</span> Cooking: auth-module plan
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill progress-fill-green" style="width: 60%;"></div>
+          </div>
+          <div class="progress-label">60% — Phase 3/5</div>
+        </div>
+
+        <!-- Worker 2: cooking, waiting CLI response (orange) -->
+        <div class="worker-card">
+          <span class="wrench-badge">🔧</span>
+          <div class="card-row-1">
+            <span class="dot dot-orange"></span>
+            <span class="session-name">Worker-2</span>
+            <span class="session-detail">· copilot-cli</span>
+          </div>
+          <div class="card-row-branch">
+            <span>🌿</span> fix/nav
+          </div>
+          <div class="card-row-task task-cooking">
+            <span>🔥</span> Cooking: navigation fix
+          </div>
+        </div>
+
+        <!-- Worker 3: waiting approval (yellow) -->
+        <div class="worker-card">
+          <span class="wrench-badge">🔧</span>
+          <div class="card-row-1">
+            <span class="dot dot-yellow"></span>
+            <span class="session-name">Worker-3</span>
+            <span class="session-detail">· claude-code</span>
+          </div>
+          <div class="card-row-branch">
+            <span>🌿</span> refactor/db
+          </div>
+          <div class="card-row-task task-waiting">
+            <span>✋</span> Waiting approval
+          </div>
+        </div>
+
+        <!-- Worker 4: idle (grey) -->
+        <div class="worker-card">
+          <span class="wrench-badge">🔧</span>
+          <div class="card-row-1">
+            <span class="dot dot-grey"></span>
+            <span class="session-name">Worker-4</span>
+            <span class="session-detail">· opencode</span>
+          </div>
+          <div class="card-row-branch">
+            <span>🌿</span> feat/api
+          </div>
+          <div class="card-row-task task-idle">
+            <span>💤</span> Idle (no plans in queue)
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="sidebar-footer">
+        <div class="footer-buttons">
+          <button class="btn">+ Add Session</button>
+          <button class="btn btn-accent">+ Add Worker</button>
+        </div>
+        <div class="queue-status">
+          <span>📊</span> Queue: 3 plans waiting
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- Panel 2: Worker selected / focused              -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <div class="panel">
+    <div class="panel-label">Worker Selected / Focused</div>
+    <div class="sidebar">
+
+      <!-- Header -->
+      <div class="sidebar-header">
+        <span class="folder-icon">📁</span>
+        <span class="project-path">X:\coding\myproject</span>
+      </div>
+
+      <!-- Regular sessions -->
+      <div class="session-list">
+
+        <div class="session-card">
+          <button class="close-btn" title="Close session">×</button>
+          <div class="card-row-1">
+            <span class="dot dot-green"></span>
+            <span class="session-name">Claude Code</span>
+            <span class="session-detail">— main session</span>
+          </div>
+          <div class="card-row-2">PID 12345 · idle</div>
+        </div>
+
+        <div class="session-card">
+          <button class="close-btn" title="Close session">×</button>
+          <div class="card-row-1">
+            <span class="dot dot-grey"></span>
+            <span class="session-name">Copilot CLI</span>
+            <span class="session-detail">— research</span>
+          </div>
+          <div class="card-row-2">PID 12346 · idle</div>
+        </div>
+
+      </div>
+
+      <!-- Workers separator -->
+      <div class="section-sep">
+        <span class="section-sep-label">Workers</span>
+      </div>
+
+      <!-- Worker cards -->
+      <div class="session-list">
+
+        <!-- Worker 1: SELECTED -->
+        <div class="worker-card selected">
+          <span class="wrench-badge">🔧</span>
+          <div class="card-row-1">
+            <span class="dot dot-green"></span>
+            <span class="session-name">Worker-1</span>
+            <span class="session-detail">· claude-code</span>
+          </div>
+          <div class="card-row-branch">
+            <span>🌿</span> feat/auth
+          </div>
+          <div class="card-row-task task-cooking">
+            <span>🔥</span> Cooking: auth-module plan
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill progress-fill-green" style="width: 60%;"></div>
+          </div>
+          <div class="progress-label">60% — Phase 3/5</div>
+        </div>
+
+        <!-- Worker 2 -->
+        <div class="worker-card">
+          <span class="wrench-badge">🔧</span>
+          <div class="card-row-1">
+            <span class="dot dot-orange"></span>
+            <span class="session-name">Worker-2</span>
+            <span class="session-detail">· copilot-cli</span>
+          </div>
+          <div class="card-row-branch">
+            <span>🌿</span> fix/nav
+          </div>
+          <div class="card-row-task task-cooking">
+            <span>🔥</span> Cooking: navigation fix
+          </div>
+        </div>
+
+        <!-- Worker 3 -->
+        <div class="worker-card">
+          <span class="wrench-badge">🔧</span>
+          <div class="card-row-1">
+            <span class="dot dot-yellow"></span>
+            <span class="session-name">Worker-3</span>
+            <span class="session-detail">· claude-code</span>
+          </div>
+          <div class="card-row-branch">
+            <span>🌿</span> refactor/db
+          </div>
+          <div class="card-row-task task-waiting">
+            <span>✋</span> Waiting approval
+          </div>
+        </div>
+
+        <!-- Worker 4 -->
+        <div class="worker-card">
+          <span class="wrench-badge">🔧</span>
+          <div class="card-row-1">
+            <span class="dot dot-grey"></span>
+            <span class="session-name">Worker-4</span>
+            <span class="session-detail">· opencode</span>
+          </div>
+          <div class="card-row-branch">
+            <span>🌿</span> feat/api
+          </div>
+          <div class="card-row-task task-idle">
+            <span>💤</span> Idle (no plans in queue)
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="sidebar-footer">
+        <div class="footer-buttons">
+          <button class="btn">+ Add Session</button>
+          <button class="btn btn-accent">+ Add Worker</button>
+        </div>
+        <div class="queue-status">
+          <span>📊</span> Queue: 3 plans waiting
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- Annotation -->
+<div class="annotation">
+  <div class="annotation-box">
+    <strong>Key visual differences:</strong> Workers are distinguished by the <strong>🔧 badge</strong> (top-right corner),
+    <strong>orange left accent border</strong>, and <strong>branch info</strong> (🌿).
+    No <strong>[×] button</strong> — workers are managed through the kanban board, not closed individually.
+    Regular sessions have normal close buttons. Worker state dots indicate activity:
+    <span style="color: var(--green);">●</span> cooking (implementing),
+    <span style="color: var(--accent);">●</span> cooking (waiting CLI),
+    <span style="color: var(--yellow);">●</span> waiting approval,
+    <span style="color: var(--text-dim);">●</span> idle.
+  </div>
+</div>
+
+</body>
+</html>

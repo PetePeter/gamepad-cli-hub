@@ -355,6 +355,7 @@ renderer/
 │   ├── settings-profiles.ts    # Profiles panel, create profile prompt
 │   └── settings-tools.ts       # Tools panel, CLI type CRUD
 ├── modals/
+│   ├── modal-base.ts           # Shared modal foundation (show/hide, backdrop, gamepad focus management)
 │   ├── dir-picker.ts           # Directory picker modal (supports pre-selection via preselectedPath)
 │   ├── binding-editor.ts       # Binding editor modal
 │   ├── context-menu.ts         # Context menu overlay — Copy/Paste/New Session/New Session with Selection/Clear Scrollback/Cancel. Selection-aware items, gamepad D-pad navigation, mouse + right-click support. New Session opens quick-spawn picker.
@@ -370,7 +371,7 @@ config/
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 
-tests/                                  # 823 tests across 29 files
+tests/                                  # 840 tests across 29 files
 ├── config.test.ts              # Config loading, stick config, haptic, virtual buttons, sequence-list binding persistence
 ├── session.test.ts             # Session management
 ├── persistence.test.ts         # Session persistence
