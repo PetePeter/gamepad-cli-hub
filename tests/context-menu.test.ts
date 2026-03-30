@@ -1,5 +1,5 @@
 /**
- * Context menu overlay — copy, paste, new-session, new-session-with-selection, cancel.
+ * Context menu overlay — copy, paste, new-session, new-session-with-selection, clear-scrollback, cancel.
  *
  * @vitest-environment jsdom
  */
@@ -71,6 +71,7 @@ function buildContextMenuDom(): void {
         <div class="context-menu-item" data-action="paste"></div>
         <div class="context-menu-item" data-action="new-session"></div>
         <div class="context-menu-item" data-action="new-session-with-selection"></div>
+        <div class="context-menu-item" data-action="clear-scrollback"></div>
         <div class="context-menu-item context-menu-item--cancel" data-action="cancel"></div>
       </div>
     </div>
@@ -82,6 +83,7 @@ function makeMockView(selection = '', hasSelection = false) {
     getSelection: vi.fn(() => selection),
     hasSelection: vi.fn(() => hasSelection),
     clearSelection: vi.fn(),
+    clear: vi.fn(),
   };
 }
 
@@ -238,13 +240,13 @@ describe('Context Menu', () => {
     });
 
     it('DPadUp moves selection up, wrapping', () => {
-      // No selection → enabled: Paste(1), NewSession(2), Cancel(4)
+      // No selection → enabled: Paste(1), NewSession(2), ClearScrollback(4), Cancel(5)
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       expect(mod.contextMenuState.selectedIndex).toBe(1); // Paste
 
       mod.handleContextMenuButton('DPadUp');
-      // Wraps around to Cancel(4)
-      expect(mod.contextMenuState.selectedIndex).toBe(4);
+      // Wraps around to Cancel(5)
+      expect(mod.contextMenuState.selectedIndex).toBe(5);
     });
 
     it('skips disabled items when no selection', () => {
@@ -253,11 +255,11 @@ describe('Context Menu', () => {
       expect(mod.contextMenuState.selectedIndex).toBe(1); // Paste
 
       const visited: number[] = [mod.contextMenuState.selectedIndex];
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 6; i++) {
         mod.handleContextMenuButton('DPadDown');
         visited.push(mod.contextMenuState.selectedIndex);
       }
-      // Should only visit enabled indices: 1 (Paste), 2 (NewSession), 4 (Cancel)
+      // Should only visit enabled indices: 1 (Paste), 2 (NewSession), 4 (ClearScrollback), 5 (Cancel)
       const unique = [...new Set(visited)];
       expect(unique).not.toContain(0); // Copy — disabled
       expect(unique).not.toContain(3); // NewSessionWithSelection — disabled
@@ -268,15 +270,15 @@ describe('Context Menu', () => {
       mockGetTerminalManager.mockReturnValue(makeMockTerminalManager(viewWithSel));
 
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
-      // With selection, all 5 items should be enabled
+      // With selection, all 6 items should be enabled
       const visited: number[] = [mod.contextMenuState.selectedIndex];
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 6; i++) {
         mod.handleContextMenuButton('DPadDown');
         visited.push(mod.contextMenuState.selectedIndex);
       }
       const unique = [...new Set(visited)];
-      expect(unique).toHaveLength(5);
-      expect(unique.sort()).toEqual([0, 1, 2, 3, 4]);
+      expect(unique).toHaveLength(6);
+      expect(unique.sort()).toEqual([0, 1, 2, 3, 4, 5]);
     });
 
     it('B button hides menu', () => {
@@ -366,7 +368,22 @@ describe('Context Menu', () => {
 
     it('Cancel hides menu', async () => {
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
-      // Navigate to Cancel (index 4): Paste(1) → NewSession(2) → Cancel(4, skips 3)
+      // Navigate to Cancel (index 5): Paste(1) → NewSession(2) → ClearScrollback(4) → Cancel(5, skips 3)
+      mod.handleContextMenuButton('DPadDown');
+      mod.handleContextMenuButton('DPadDown');
+      mod.handleContextMenuButton('DPadDown');
+      expect(mod.contextMenuState.selectedIndex).toBe(5);
+
+      mod.handleContextMenuButton('A');
+      await flush();
+
+      expect(mod.contextMenuState.visible).toBe(false);
+    });
+
+    it('Clear Scrollback clears terminal buffer', async () => {
+      mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
+      // No selection → enabled: Paste(1), NewSession(2), ClearScrollback(4), Cancel(5)
+      // Navigate: Paste(1) → NewSession(2) → ClearScrollback(4)
       mod.handleContextMenuButton('DPadDown');
       mod.handleContextMenuButton('DPadDown');
       expect(mod.contextMenuState.selectedIndex).toBe(4);
@@ -374,6 +391,8 @@ describe('Context Menu', () => {
       mod.handleContextMenuButton('A');
       await flush();
 
+      expect(mockView.clear).toHaveBeenCalled();
+      expect(mockLogEvent).toHaveBeenCalledWith('Cleared scrollback');
       expect(mod.contextMenuState.visible).toBe(false);
     });
 
@@ -480,7 +499,8 @@ describe('Context Menu', () => {
       expect(items[1].classList.contains('context-menu-item--disabled')).toBe(false); // Paste
       expect(items[2].classList.contains('context-menu-item--disabled')).toBe(false); // New Session
       expect(items[3].classList.contains('context-menu-item--disabled')).toBe(true);  // New Session with Selection
-      expect(items[4].classList.contains('context-menu-item--disabled')).toBe(false); // Cancel
+      expect(items[4].classList.contains('context-menu-item--disabled')).toBe(false); // Clear Scrollback
+      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(false); // Cancel
     });
   });
 });

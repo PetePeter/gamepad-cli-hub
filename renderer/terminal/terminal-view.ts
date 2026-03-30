@@ -30,6 +30,7 @@ export class TerminalView {
     this.container = options.container;
 
     this.terminal = new Terminal({
+      scrollback: 10_000,
       cursorBlink: true,
       fontSize: 14,
       fontFamily: "'Cascadia Code', 'Consolas', monospace",
