@@ -138,10 +138,8 @@ export class PtyManager extends EventEmitter {
       logger.warn(`[PTY] No PTY found for session: ${sessionId} (available: ${[...this.ptys.keys()].join(', ')})`);
       return;
     }
-    logger.info(`[PTY] Writing to session=${sessionId} len=${data.length}`);
     try {
       pty.write(data);
-      logger.info(`[PTY] Write completed for session=${sessionId}`);
     } catch (error) {
       logger.error(`[PTY] Write failed for session=${sessionId}: ${error}`);
     }

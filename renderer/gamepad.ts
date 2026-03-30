@@ -178,14 +178,15 @@ class BrowserGamepadPoller {
     const gamepads = navigator.getGamepads();
     if (!gamepads) return;
 
+    let hasConnected = false;
     for (let i = 0; i < gamepads.length; i++) {
       const gamepad = gamepads[i];
       if (!gamepad) continue;
-
+      hasConnected = true;
       this.processGamepad(gamepad, i);
     }
 
-    this.checkRepeats();
+    if (hasConnected) this.checkRepeats();
   }
 
   private processGamepad(gamepad: Gamepad, index: number): void {

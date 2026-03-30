@@ -39,10 +39,7 @@ export function setupKeyboardRelay(getActiveSessionId: GetActiveSessionId): void
 
   registeredHandler = async (e: KeyboardEvent) => {
     const sessionId = getActiveSessionId();
-    if (!sessionId) {
-      console.log('[KeyRelay] no active session, skipping', e.key);
-      return;
-    }
+    if (!sessionId) return;
 
     // Ctrl+V paste — always intercept, even when xterm has focus
     // (xterm.js doesn't reliably handle paste from clipboard)
@@ -50,17 +47,11 @@ export function setupKeyboardRelay(getActiveSessionId: GetActiveSessionId): void
       e.preventDefault();
       if (pasteInFlight) return;
       pasteInFlight = true;
-      console.log(`[KeyRelay] PASTE detected for session=${sessionId}`);
       try {
         const text = await navigator.clipboard.readText();
         // Use sessionId captured before await — session may have switched during clipboard read
-        console.log(`[KeyRelay] PASTE clipboard read: ${text.length} chars`);
         if (text.length > 0) {
-          console.log(`[KeyRelay] PASTE → ptyWrite(${sessionId}, ${text.length} chars)`);
           window.gamepadCli.ptyWrite(sessionId, text);
-          console.log(`[KeyRelay] PASTE → ptyWrite sent OK`);
-        } else {
-          console.log(`[KeyRelay] PASTE → empty clipboard or no session, skipping`);
         }
       } catch (err) {
         console.warn('[KeyRelay] clipboard read failed:', err);
@@ -71,18 +62,10 @@ export function setupKeyboardRelay(getActiveSessionId: GetActiveSessionId): void
     }
 
     // Let xterm.js handle its own input (except paste, handled above)
-    if (isXtermTarget(e)) {
-      console.log('[KeyRelay] xterm target, skipping', e.key);
-      return;
-    }
+    if (isXtermTarget(e)) return;
 
     // Don't intercept when editing a form field or inside a modal
-    if (isEditableOrModalFocused()) {
-      console.log('[KeyRelay] editable/modal focused, skipping', e.key);
-      return;
-    }
-
-    console.log('[KeyRelay] handling key:', e.key, 'ctrl:', e.ctrlKey, 'session:', sessionId);
+    if (isEditableOrModalFocused()) return;
 
     // Ctrl/Alt/Meta combos — let browser handle
     if (e.metaKey) return;

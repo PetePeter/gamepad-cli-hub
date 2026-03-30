@@ -90,9 +90,7 @@ export function setupPtyHandlers(
   // pty:write - Write data to a session's PTY stdin
   ipcMain.handle('pty:write', (_event, sessionId: string, data: string) => {
     try {
-      logger.info(`[PTY IPC] pty:write received: session=${sessionId} len=${data.length}`);
       ptyManager.write(sessionId, data);
-      logger.info(`[PTY IPC] pty:write completed for session=${sessionId}`);
     } catch (error) {
       logger.error(`[PTY IPC] pty:write failed for session=${sessionId}: ${error}`);
     }
