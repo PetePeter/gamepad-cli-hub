@@ -91,7 +91,7 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 | **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. `ActionType = 'keyboard' \| 'voice' \| 'scroll' \| 'context-menu' \| 'sequence-list'`. `Binding` union includes `ContextMenuBinding`, `SequenceListBinding`. Exports `SequenceListItem { label, sequence }`. `CliTypeConfig` includes optional `handoffCommand` for auto-handoff pipeline. |
 | **ElectronMain** | `src/electron/main.ts` | Window creation, IPC setup, app lifecycle. Renderer crash recovery (auto-reloads on `render-process-gone` — safe because session state lives in main process). Delegates power monitoring to `setupPowerMonitor()`. |
 | **PowerMonitor** | `src/session/power-monitor.ts` | Logs detailed session/PTY diagnostics on `suspend`/`resume`/`shutdown` via Electron `powerMonitor`. Reports session counts, PTY IDs, and PTY survival status on resume. Called from main.ts with sessionManager + ptyManager. |
-| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 7 domain handler files (session, config, profile, tools, keyboard, pty, system). `registerIPCHandlers()` returns `{ cleanup, sessionManager, ptyManager }` for use by main.ts callers. Dependencies injected via function parameters. Config handlers include `dialog:openFolder` for native OS folder picker. `pty:spawn` accepts optional `contextText` — written to PTY after the initial prompt completes (via `onComplete` callback) rather than on a fixed timer. System handlers: `system:getGameBarEnabled`, `system:setGameBarEnabled`, `system:openLogsFolder`. |
+| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 7 domain handler files (session, config, profile, tools, keyboard, pty, system). `registerIPCHandlers()` returns `{ cleanup, sessionManager, ptyManager }` for use by main.ts callers. Dependencies injected via function parameters. Config handlers include `dialog:openFolder` for native OS folder picker. `pty:spawn` accepts optional `contextText` — written to PTY after the initial prompt completes (via `onComplete` callback) rather than on a fixed timer. System handlers: `system:openLogsFolder`. |
 | **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization, `showFormModal` with `FormField` types: text/select/textarea + `browse?: boolean` for native folder picker), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`, context-menu action centers overlay in gamepad mode, sequence-list action opens picker overlay), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor/context-menu/close-confirm/sequence-picker/quick-spawn). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. Selection API: `getSelection()`, `hasSelection()`, `clearSelection()`. |
 | **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, rename, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, gold=completed, grey=idle). Exposes onSwitch/onEmpty callbacks. `getActiveView()` returns current TerminalView. `renameSession()` updates the display name persisted across UI reloads. Right-click `contextmenu` listener on terminal area shows context menu overlay. `createTerminal()` accepts optional `contextText` forwarded through `ptySpawn()` to the main process. `writeToTerminal()` runs PTY output through `stripMouseTracking()` before writing to xterm.js. |
@@ -305,7 +305,7 @@ src/
 │       ├── tools-handlers.ts
 │       ├── keyboard-handlers.ts
 │       ├── pty-handlers.ts
-│       └── system-handlers.ts  # system:getGameBarEnabled, system:setGameBarEnabled, system:openLogsFolder
+│       └── system-handlers.ts  # system:openLogsFolder
 ├── input/
 │   └── sequence-parser.ts      # {Enter}, {Ctrl+C}, {Wait 500}, {Mod Down/Up}, {{/}} — used by bindings + initialPrompt
 ├── output/
@@ -350,7 +350,7 @@ renderer/
 │   ├── settings.ts             # Settings slide-over orchestrator: tab bar, directories tab, public API
 │   ├── settings-bindings.ts    # Bindings display, sort state, add-binding picker
 │   ├── settings-profiles.ts    # Profiles panel, create profile prompt
-│   └── settings-game-bar.ts    # Tools panel, Game Bar toggle, CLI type CRUD
+│   └── settings-tools.ts       # Tools panel, CLI type CRUD
 ├── modals/
 │   ├── dir-picker.ts           # Directory picker modal (supports pre-selection via preselectedPath)
 │   ├── binding-editor.ts       # Binding editor modal

@@ -4,7 +4,7 @@
  * Sub-modules (imported below) handle individual tabs:
  * - settings-bindings.ts  — global + per-CLI binding tabs
  * - settings-profiles.ts  — profile management tab
- * - settings-game-bar.ts  — Tools panel (CLI type CRUD, Game Bar toggle)
+ * - settings-tools.ts     — Tools panel (CLI type CRUD)
  */
 
 import { state } from '../state.js';
@@ -19,7 +19,7 @@ import {
 } from '../utils.js';
 import { renderBindingsDisplay } from './settings-bindings.js';
 import { renderProfilesPanel } from './settings-profiles.js';
-import { renderToolsPanel } from './settings-game-bar.js';
+import { renderToolsPanel } from './settings-tools.js';
 
 // ============================================================================
 // Main entry

@@ -1,5 +1,5 @@
 /**
- * Settings screen — Tools panel (CLI type CRUD, Game Bar toggle).
+ * Settings screen — Tools panel (CLI type CRUD).
  */
 
 import { state } from '../state.js';
@@ -12,13 +12,6 @@ import { loadSessions } from './sessions.js';
 
 // Circular import — safe: all usages are inside event handlers, not at module-evaluation time.
 import { loadSettingsScreen } from './settings.js';
-
-// ============================================================================
-// State
-// ============================================================================
-
-/** Tracks whether Game Bar was toggled this session so we can show a restart warning. */
-let gameBarToggled = false;
 
 // ============================================================================
 // Types
@@ -78,76 +71,6 @@ export async function renderToolsPanel(): Promise<void> {
   }
 
   panel.appendChild(list);
-
-  // Game Bar toggle
-  const systemCard = document.createElement('div');
-  systemCard.className = 'settings-panel';
-  systemCard.style.marginTop = 'var(--spacing-lg)';
-
-  const systemHeader = document.createElement('div');
-  systemHeader.className = 'settings-panel__header';
-  systemHeader.innerHTML = `<span class="settings-panel__title">System</span>`;
-  systemCard.appendChild(systemHeader);
-
-  const gameBarRow = document.createElement('div');
-  gameBarRow.className = 'settings-list-item';
-  gameBarRow.style.display = 'flex';
-  gameBarRow.style.justifyContent = 'space-between';
-  gameBarRow.style.alignItems = 'center';
-
-  const gameBarLabel = document.createElement('div');
-  gameBarLabel.innerHTML = `
-    <div style="font-weight: 500;">Xbox Game Bar</div>
-    <div style="font-size: var(--font-size-sm); color: var(--text-dim);">
-      Disable to free the Guide button for gamepad use
-    </div>
-  `;
-  gameBarRow.appendChild(gameBarLabel);
-
-  const gameBarBtn = document.createElement('button');
-  gameBarBtn.className = 'btn btn--sm focusable';
-  gameBarBtn.tabIndex = 0;
-  gameBarBtn.textContent = 'Loading...';
-  gameBarBtn.disabled = true;
-  gameBarRow.appendChild(gameBarBtn);
-  systemCard.appendChild(gameBarRow);
-
-  if (gameBarToggled) {
-    const warning = document.createElement('p');
-    warning.className = 'settings-warning';
-    warning.textContent = '\u26A1 Restart Windows for changes to take effect';
-    systemCard.appendChild(warning);
-  }
-
-  // Fetch current state
-  (async () => {
-    try {
-      const enabled = await window.gamepadCli.systemGetGameBarEnabled();
-      if (enabled === null) {
-        gameBarBtn.textContent = 'Unknown';
-        return;
-      }
-      gameBarBtn.disabled = false;
-      gameBarBtn.textContent = enabled ? 'Enabled' : 'Disabled';
-      gameBarBtn.classList.add(enabled ? 'btn--danger' : 'btn--success');
-      gameBarBtn.addEventListener('click', async () => {
-        gameBarBtn.disabled = true;
-        gameBarBtn.textContent = 'Updating...';
-        const result = await window.gamepadCli.systemSetGameBarEnabled(!enabled);
-        if (result.success) {
-          gameBarToggled = true;
-          loadSettingsScreen();
-        } else {
-          gameBarBtn.textContent = 'Error';
-          gameBarBtn.disabled = false;
-        }
-      });
-    } catch {
-      gameBarBtn.textContent = 'Error';
-    }
-  })();
-
-  panel.appendChild(systemCard);
 
   container.appendChild(panel);
 }
