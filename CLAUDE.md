@@ -134,9 +134,8 @@ config/
 claude-code:
   name: Claude Code
   command: claude
-  initialPrompt:              # Array of {label, sequence} items sent to PTY sequentially after spawn
-    - label: "Setup"
-      sequence: "/init{Enter}"
+  initialPrompt:              # Array of sequence items sent to PTY sequentially after spawn
+    - sequence: "/init{Enter}"
   initialPromptDelay: 2000    # ms to wait before sending first item (default 2000 for AI CLIs, 0 for generic)
 ```
 

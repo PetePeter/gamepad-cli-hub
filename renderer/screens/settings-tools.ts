@@ -163,16 +163,17 @@ function createInitialPromptItemsEditor(items: PromptItem[]): HTMLElement {
 
       const header = document.createElement('div');
       header.style.display = 'flex';
-      header.style.alignItems = 'center';
+      header.style.alignItems = 'flex-start';
       header.style.gap = '6px';
 
-      const labelInput = document.createElement('input');
-      labelInput.type = 'text';
-      labelInput.placeholder = 'Label';
-      labelInput.value = item.label;
-      labelInput.style.flex = '1';
-      labelInput.style.fontSize = '12px';
-      labelInput.addEventListener('input', () => { items[index].label = labelInput.value; });
+      const seqInput = document.createElement('textarea');
+      seqInput.className = 'sequence-textarea';
+      seqInput.placeholder = 'Sequence, e.g. /allow-all{Enter}';
+      seqInput.value = item.sequence;
+      seqInput.rows = 2;
+      seqInput.style.flex = '1';
+      seqInput.style.fontSize = '11px';
+      seqInput.addEventListener('input', () => { items[index].sequence = seqInput.value; });
 
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
@@ -181,19 +182,9 @@ function createInitialPromptItemsEditor(items: PromptItem[]): HTMLElement {
       removeBtn.title = 'Remove';
       removeBtn.addEventListener('click', () => { items.splice(index, 1); renderItems(); });
 
-      header.appendChild(labelInput);
+      header.appendChild(seqInput);
       header.appendChild(removeBtn);
-
-      const seqInput = document.createElement('textarea');
-      seqInput.className = 'sequence-textarea';
-      seqInput.placeholder = 'Sequence, e.g. /allow-all{Enter}';
-      seqInput.value = item.sequence;
-      seqInput.rows = 2;
-      seqInput.style.fontSize = '11px';
-      seqInput.addEventListener('input', () => { items[index].sequence = seqInput.value; });
-
       row.appendChild(header);
-      row.appendChild(seqInput);
       list.appendChild(row);
     });
   }

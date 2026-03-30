@@ -6,8 +6,7 @@ tools:
     handoffCommand: "go implement it\r"
     initialPromptDelay: 1000
     initialPrompt:
-      - label: System Prompt
-        sequence: >-
+      - sequence: >-
           <application-prompt>
 
           SYSTEMPROMPT:
@@ -27,10 +26,8 @@ tools:
     command: copilot
     handoffCommand: "go implement it\r"
     initialPrompt:
-      - label: Allow All
-        sequence: /allow-all{Enter}
-      - label: System Prompt
-        sequence: >-
+      - sequence: /allow-all{Enter}
+      - sequence: >-
           {Wait 3000}<application-prompt>
 
           SYSTEMPROMPT:
