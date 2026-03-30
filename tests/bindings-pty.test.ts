@@ -109,6 +109,13 @@ describe('keyToPtyEscape', () => {
     expect(keyToPtyEscape('Left')).toBe('\x1b[D');
   });
 
+  it('maps Arrow-prefixed keys (KeyboardEvent.key format) to CSI sequences', () => {
+    expect(keyToPtyEscape('ArrowUp')).toBe('\x1b[A');
+    expect(keyToPtyEscape('ArrowDown')).toBe('\x1b[B');
+    expect(keyToPtyEscape('ArrowRight')).toBe('\x1b[C');
+    expect(keyToPtyEscape('ArrowLeft')).toBe('\x1b[D');
+  });
+
   it('maps Home and End', () => {
     expect(keyToPtyEscape('Home')).toBe('\x1b[H');
     expect(keyToPtyEscape('End')).toBe('\x1b[F');
