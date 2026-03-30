@@ -9,6 +9,7 @@ import { app, BrowserWindow, Menu, powerMonitor, crashReporter } from 'electron'
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { registerIPCHandlers } from './ipc/handlers.js';
+import { setupPowerMonitor } from '../session/power-monitor.js';
 import { configLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
 
@@ -161,7 +162,14 @@ app.whenReady().then(() => {
   logger.info(`[Main] Crash dumps directory: ${app.getPath('crashDumps')}`);
 
   // Register IPC handlers
-  cleanupIPC = registerIPCHandlers(() => mainWindow);
+  const ipc = registerIPCHandlers(() => mainWindow);
+  cleanupIPC = ipc.cleanup;
+
+  // Power monitor with full session/PTY diagnostics
+  setupPowerMonitor(powerMonitor, {
+    sessionManager: ipc.sessionManager,
+    ptyManager: ipc.ptyManager,
+  });
 
   // Remove default application menu (no File/Edit/View/Window/Help needed)
   Menu.setApplicationMenu(null);
@@ -174,24 +182,6 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
-  });
-});
-
-/**
- * Power state monitoring — log suspend/resume for diagnostics.
- * powerMonitor is only available after app.whenReady().
- */
-app.whenReady().then(() => {
-  powerMonitor.on('suspend', () => {
-    logger.info('[Main] System suspending (hibernate/sleep)');
-  });
-
-  powerMonitor.on('resume', () => {
-    logger.info('[Main] System resumed from suspend');
-  });
-
-  powerMonitor.on('shutdown', () => {
-    logger.info('[Main] System shutting down');
   });
 });
 

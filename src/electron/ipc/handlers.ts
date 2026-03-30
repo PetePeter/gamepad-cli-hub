@@ -30,7 +30,9 @@ import { setupPtyHandlers, cancelAllPrompts } from './pty-handlers.js';
  * Dependencies are created/imported here and injected into each domain module
  * so handler files never import singletons directly.
  */
-export function registerIPCHandlers(getMainWindow: () => BrowserWindow | null): () => void {
+export function registerIPCHandlers(
+  getMainWindow: () => BrowserWindow | null,
+): { cleanup: () => void; sessionManager: SessionManager; ptyManager: PtyManager } {
   logger.info('[IPC] Registering handlers');
 
   // Load config eagerly so individual handlers don't need to call load()
@@ -57,11 +59,15 @@ export function registerIPCHandlers(getMainWindow: () => BrowserWindow | null): 
 
   logger.info('[IPC] All handlers registered');
 
-  return () => {
-    cleanupSession();
-    cancelAllPrompts();
-    stateDetector.dispose();
-    ptyManager.killAll();
-    logger.info('[IPC] Cleanup complete');
+  return {
+    cleanup: () => {
+      cleanupSession();
+      cancelAllPrompts();
+      stateDetector.dispose();
+      ptyManager.killAll();
+      logger.info('[IPC] Cleanup complete');
+    },
+    sessionManager,
+    ptyManager,
   };
 }

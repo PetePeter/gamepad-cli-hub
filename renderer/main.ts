@@ -60,6 +60,12 @@ function setupUIHandlers(): void {
     showScreen('settings');
   });
 
+  // Open logs folder button (in sidebar header)
+  document.getElementById('openLogsBtn')?.addEventListener('click', () => {
+    window.gamepadCli?.systemOpenLogsFolder();
+    logEvent('Opening logs folder');
+  });
+
   // Settings back button
   document.getElementById('settingsBackBtn')?.addEventListener('click', () => {
     showScreen('sessions');

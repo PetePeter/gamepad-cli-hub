@@ -258,6 +258,7 @@ const gamepadCliAPI = {
 
   systemGetGameBarEnabled: () => ipcRenderer.invoke('system:getGameBarEnabled'),
   systemSetGameBarEnabled: (enabled: boolean) => ipcRenderer.invoke('system:setGameBarEnabled', enabled),
+  systemOpenLogsFolder: () => ipcRenderer.invoke('system:openLogsFolder'),
 
   // ========================================================================
   // Dialog

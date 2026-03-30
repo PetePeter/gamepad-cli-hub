@@ -89,8 +89,9 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 | **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. Optional `onComplete` callback fires after all prompt items execute (used by pty-handlers to write context text after prompt finishes). |
 | **SequenceParser** | `src/input/sequence-parser.ts` | Parses sequence format strings (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, `{Mod Down/Up}`, `{{`/`}}` escapes, plain text) into typed SequenceAction arrays. Used by both button bindings and initial prompts. |
 | **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. `ActionType = 'keyboard' \| 'voice' \| 'scroll' \| 'context-menu' \| 'sequence-list'`. `Binding` union includes `ContextMenuBinding`, `SequenceListBinding`. Exports `SequenceListItem { label, sequence }`. `CliTypeConfig` includes optional `handoffCommand` for auto-handoff pipeline. |
-| **ElectronMain** | `src/electron/main.ts` | Window creation, IPC setup, app lifecycle. Renderer crash recovery (auto-reloads on `render-process-gone` — safe because session state lives in main process). Power monitoring (`suspend`/`resume`/`shutdown` logging via `powerMonitor`). |
-| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 7 domain handler files (session, config, profile, tools, keyboard, pty, system). Dependencies injected via function parameters. Config handlers include `dialog:openFolder` for native OS folder picker. `pty:spawn` accepts optional `contextText` — written to PTY after the initial prompt completes (via `onComplete` callback) rather than on a fixed timer. |
+| **ElectronMain** | `src/electron/main.ts` | Window creation, IPC setup, app lifecycle. Renderer crash recovery (auto-reloads on `render-process-gone` — safe because session state lives in main process). Delegates power monitoring to `setupPowerMonitor()`. |
+| **PowerMonitor** | `src/session/power-monitor.ts` | Logs detailed session/PTY diagnostics on `suspend`/`resume`/`shutdown` via Electron `powerMonitor`. Reports session counts, PTY IDs, and PTY survival status on resume. Called from main.ts with sessionManager + ptyManager. |
+| **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 7 domain handler files (session, config, profile, tools, keyboard, pty, system). `registerIPCHandlers()` returns `{ cleanup, sessionManager, ptyManager }` for use by main.ts callers. Dependencies injected via function parameters. Config handlers include `dialog:openFolder` for native OS folder picker. `pty:spawn` accepts optional `contextText` — written to PTY after the initial prompt completes (via `onComplete` callback) rather than on a fixed timer. System handlers: `system:getGameBarEnabled`, `system:setGameBarEnabled`, `system:openLogsFolder`. |
 | **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state, utils (includes `toDirection()` for directional button normalization, `showFormModal` with `FormField` types: text/select/textarea + `browse?: boolean` for native folder picker), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`, context-menu action centers overlay in gamepad mode, sequence-list action opens picker overlay), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor/context-menu/close-confirm/sequence-picker/quick-spawn). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons. Forwards user input + resize events via callbacks. Selection API: `getSelection()`, `hasSelection()`, `clearSelection()`. |
 | **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, rename, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, gold=completed, grey=idle). Exposes onSwitch/onEmpty callbacks. `getActiveView()` returns current TerminalView. `renameSession()` updates the display name persisted across UI reloads. Right-click `contextmenu` listener on terminal area shows context menu overlay. `createTerminal()` accepts optional `contextText` forwarded through `ptySpawn()` to the main process. `writeToTerminal()` runs PTY output through `stripMouseTracking()` before writing to xterm.js. |
@@ -215,7 +216,7 @@ dpad:
 11. **Debouncing in input layer** — 250ms default prevents accidental rapid re-presses while staying responsive
 12. **Sequence parser for input** — Instead of direct key simulation, the `keyboard` action uses a sequence parser syntax (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, plain text) that converts to PTY escape codes. Same syntax used for button `sequence` bindings and `initialPrompt` config.
 13. **Session persistence** — Sessions saved to `config/sessions.yaml` after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skipping duplicates). A health check (`startHealthCheck()`) periodically removes dead PIDs via `process.kill(pid, 0)`. Survives crashes and restarts. ⚠️ `startHealthCheck()` is never called in production — dead code, used only in tests.
-14. **Hibernate resilience** — Renderer crash recovery via `render-process-gone` auto-reload (Chromium GPU process often crashes on hibernate resume). Safe because session state lives in `SessionManager` (main process), so terminals reconnect after reload. `powerMonitor` logs `suspend`/`resume`/`shutdown` for diagnostics. All PTY operations (write, resize, kill) are wrapped in try-catch blocks in both `PtyManager` and IPC handlers. On error, operations are logged but PTY processes are NOT killed — they may still be alive (e.g., after hibernate/resume with stale ConPTY handles). The app also registers error handlers on node-pty's internal pipe Sockets to catch unhandled pipe errors. GPU sandbox is disabled to prevent Chromium GPU crashes on resume. Electron crashReporter is enabled to capture native crash dumps at `app.getPath('crashDumps')`.
+14. **Hibernate resilience** — Renderer crash recovery via `render-process-gone` auto-reload (Chromium GPU process often crashes on hibernate resume). Safe because session state lives in `SessionManager` (main process), so terminals reconnect after reload. `setupPowerMonitor()` (in `power-monitor.ts`) logs detailed session/PTY diagnostics on `suspend`/`resume`/`shutdown` — reports session counts, PTY IDs, and PTY survival status on resume. All PTY operations (write, resize, kill) are wrapped in try-catch blocks in both `PtyManager` and IPC handlers. On error, operations are logged but PTY processes are NOT killed — they may still be alive (e.g., after hibernate/resume with stale ConPTY handles). The app also registers error handlers on node-pty's internal pipe Sockets to catch unhandled pipe errors. GPU sandbox is disabled to prevent Chromium GPU crashes on resume. Electron crashReporter is enabled to capture native crash dumps at `app.getPath('crashDumps')`.
 15. **Desktop window layout** — App runs as a maximized desktop window (1280×800 default, 640×400 minimum). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with a directory picker modal. Settings is a slide-over panel. Sandwich button focuses the hub and returns to the sessions screen. Window bounds (width, height, x, y) persist across restarts via `getSidebarPrefs()`/`setSidebarPrefs()`.
 16. **Analog stick virtual buttons** — Each stick emits distinct virtual button names (e.g. `LeftStickUp`, `RightStickDown`) that can be bound like physical buttons. If no explicit binding exists, the stick falls back to its configured mode (cursor or scroll). Right stick scroll is a configurable per-CLI binding (default: `scroll` action), not hardcoded. D-pad buttons are separate (`DPadUp`, `DPadDown`, etc.). All directional inputs are normalized to cardinal directions via `toDirection()` for UI navigation. D-pad and sticks auto-repeat when held. D-pad uses keyboard-like delay (initialDelay) then constant rate. Sticks use displacement-proportional rate — gentle tilt = slow, full deflection = fast.
 
@@ -294,17 +295,17 @@ npm test         # Vitest suite
 ```
 src/
 ├── electron/
-│   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle, renderer crash recovery, power monitoring
+│   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle, renderer crash recovery, delegates power monitoring to setupPowerMonitor()
 │   ├── preload.ts              # Context bridge (renderer ↔ main IPC)
 │   └── ipc/
-│       ├── handlers.ts         # Orchestrator — imports + wires 7 domain handlers
+│       ├── handlers.ts         # Orchestrator — imports + wires 7 domain handlers, returns { cleanup, sessionManager, ptyManager }
 │       ├── session-handlers.ts
 │       ├── config-handlers.ts
 │       ├── profile-handlers.ts
 │       ├── tools-handlers.ts
 │       ├── keyboard-handlers.ts
 │       ├── pty-handlers.ts
-│       └── system-handlers.ts
+│       └── system-handlers.ts  # system:getGameBarEnabled, system:setGameBarEnabled, system:openLogsFolder
 ├── input/
 │   └── sequence-parser.ts      # {Enter}, {Ctrl+C}, {Wait 500}, {Mod Down/Up}, {{/}} — used by bindings + initialPrompt
 ├── output/
@@ -315,7 +316,8 @@ src/
 │   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
 │   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
-│   └── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay, onComplete callback
+│   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay, onComplete callback
+│   └── power-monitor.ts        # Suspend/resume/shutdown diagnostics — session counts, PTY IDs, survival status
 ├── config/
 │   └── loader.ts               # Self-contained profile YAML config + CRUD + StickConfig + haptic settings + auto-migration
 ├── types/
@@ -324,7 +326,7 @@ src/
     └── logger.ts               # Winston logger (daily rotation, used everywhere)
 
 renderer/
-├── index.html                  # Main UI template
+├── index.html                  # Main UI template — sidebar header has ⚙ (settings) and 🐛 (open logs folder) buttons
 ├── main.ts                     # Entry point — init, wiring, DOMContentLoaded, terminal manager
 ├── state.ts                    # Shared AppState type + singleton (currentScreen, sessions, activeSessionId, etc.)
 ├── utils.ts                    # DOM helpers, logEvent, showScreen, toDirection
@@ -365,7 +367,7 @@ config/
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 
-tests/                                  # 779 tests across 27 files
+tests/                                  # 788 tests across 28 files
 ├── config.test.ts              # Config loading, stick config, haptic, virtual buttons, sequence-list binding persistence
 ├── session.test.ts             # Session management
 ├── persistence.test.ts         # Session persistence
@@ -392,5 +394,6 @@ tests/                                  # 779 tests across 27 files
 ├── session-handlers.test.ts    # session:close → PtyManager routing tests
 ├── handoff-command.test.ts     # Configurable handoff command tests (per-CLI type, skip when undefined)
 ├── navigation.test.ts         # Navigation priority chain tests (modal intercept order, screen routing, config fallback)
+├── power-monitor.test.ts      # Power monitor suspend/resume/shutdown diagnostics tests (8 tests)
 └── utils.test.ts               # Utility function tests
 ```
