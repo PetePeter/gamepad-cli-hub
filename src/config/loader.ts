@@ -42,7 +42,9 @@ export interface SequenceListItem {
 
 interface SequenceListBinding extends BaseBinding {
   action: 'sequence-list';
-  items: SequenceListItem[];
+  items?: SequenceListItem[];
+  /** Named sequence group reference — resolved from CliTypeConfig.sequences[groupId] */
+  sequenceGroup?: string;
 }
 
 export type Binding = KeyboardBinding | VoiceBinding | ScrollBinding | ContextMenuBinding | SequenceListBinding;
@@ -61,6 +63,8 @@ export interface CliTypeConfig {
   command: string;
   initialPrompt?: SequenceListItem[];
   initialPromptDelay?: number;
+  /** Named sequence groups — accessible via gamepad bindings and context menu */
+  sequences?: Record<string, SequenceListItem[]>;
   /** Command written to PTY on pipeline handoff. If omitted, no command is sent. */
   handoffCommand?: string;
   /** Command sent to PTY after spawn to name the session for later resume. Template: {cliSessionName} replaced at runtime. */
@@ -372,6 +376,18 @@ export class ConfigLoader {
     return Object.keys(this.activeProfile!.tools);
   }
 
+  /** Get all named sequence groups for a CLI type */
+  getSequences(cliType: string): Record<string, SequenceListItem[]> {
+    this.ensureLoaded();
+    return this.activeProfile!.tools[cliType]?.sequences ?? {};
+  }
+
+  /** Get a specific named sequence group for a CLI type */
+  getSequenceGroup(cliType: string, groupId: string): SequenceListItem[] | null {
+    this.ensureLoaded();
+    return this.activeProfile!.tools[cliType]?.sequences?.[groupId] ?? null;
+  }
+
   getStickConfig(stick: 'left' | 'right'): StickConfig {
     this.ensureLoaded();
     const defaults: StickConfig = { mode: 'disabled', deadzone: 0.25, repeatRate: 100 };
@@ -454,6 +470,16 @@ export class ConfigLoader {
       this.activeProfile!.bindings[targetCli][button] = { ...binding };
       count++;
     }
+
+    // Copy sequences from source CLI type to target
+    const sourceSequences = this.activeProfile!.tools[sourceCli]?.sequences;
+    if (sourceSequences && Object.keys(sourceSequences).length > 0) {
+      if (!this.activeProfile!.tools[targetCli]) {
+        throw new Error(`Unknown target CLI type: ${targetCli}`);
+      }
+      this.activeProfile!.tools[targetCli].sequences = structuredClone(sourceSequences);
+    }
+
     this.saveActiveProfile();
     return count;
   }

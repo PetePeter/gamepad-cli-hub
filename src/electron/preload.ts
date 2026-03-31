@@ -65,6 +65,11 @@ const gamepadCliAPI = {
   configGetCliTypes: () => ipcRenderer.invoke('config:getCliTypes'),
 
   /**
+   * Get named sequence groups for a CLI type
+   */
+  configGetSequences: (cliType: string) => ipcRenderer.invoke('config:getSequences', cliType),
+
+  /**
    * Set a binding (for settings screen)
    */
   configSetBinding: (button: string, cliType: string, binding: any) =>

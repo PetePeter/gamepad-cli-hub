@@ -40,6 +40,15 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     }
   });
 
+  ipcMain.handle('config:getSequences', (_event, cliType: string) => {
+    try {
+      return configLoader.getSequences(cliType);
+    } catch (error) {
+      logger.error(`[IPC] Failed to get sequences for ${cliType}: ${error}`);
+      return {};
+    }
+  });
+
   ipcMain.handle('config:setBinding', (_event, button: string, cliType: string, binding: any) => {
     try {
       configLoader.setBinding(button, cliType, binding);

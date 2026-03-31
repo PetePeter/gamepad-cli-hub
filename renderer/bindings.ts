@@ -96,6 +96,10 @@ export async function initConfigCache(): Promise<void> {
       if (bindings) {
         state.cliBindingsCache[cliType] = bindings;
       }
+      const sequences = await window.gamepadCli.configGetSequences(cliType);
+      if (sequences && Object.keys(sequences).length > 0) {
+        state.cliSequencesCache[cliType] = sequences;
+      }
     }
     console.log('[Renderer] Cached CLI bindings for:', Object.keys(state.cliBindingsCache));
   } catch (error) {
@@ -217,12 +221,23 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
         break;
       }
       case 'sequence-list': {
-        if (!binding.items || binding.items.length === 0) {
+        let items = binding.items;
+
+        // Resolve named sequence group from config
+        if (!items && binding.sequenceGroup) {
+          const activeSession = state.sessions.find(s => s.id === state.activeSessionId);
+          if (activeSession) {
+            const sequences = state.cliSequencesCache[activeSession.cliType];
+            items = sequences?.[binding.sequenceGroup] ?? undefined;
+          }
+        }
+
+        if (!items || items.length === 0) {
           console.warn(`[Renderer] sequence-list binding for ${button} has no items`);
           break;
         }
         const { showSequencePicker } = await import('./modals/sequence-picker.js');
-        showSequencePicker(binding.items, (sequence) => executeSequence(sequence));
+        showSequencePicker(items, (sequence) => executeSequence(sequence));
         break;
       }
       default:
@@ -233,7 +248,7 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
   }
 }
 
-async function executeSequence(input: string): Promise<void> {
+export async function executeSequence(input: string): Promise<void> {
   const actions = parseSequence(input);
   logEvent(`Seq: ${formatSequencePreview(actions)}`);
 

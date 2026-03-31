@@ -196,7 +196,7 @@ config/
 | `voice` | Simulate a keypress for voice recognition (OS or PTY) |
 | `scroll` | Scroll the terminal buffer up/down |
 | `context-menu` | Open the context menu overlay |
-| `sequence-list` | Show a picker of named sequences |
+| `sequence-list` | Show a picker of named sequences (via group reference or inline items) |
 
 ### Per-CLI Bindings
 

@@ -1,10 +1,11 @@
 /**
- * Context menu overlay — copy, paste, new-session, new-session-with-selection, clear-scrollback, cancel.
+ * Context menu overlay — copy, paste, new-session, new-session-with-selection, clear-scrollback, prompts, cancel.
  *
  * @vitest-environment jsdom
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { state } from '../renderer/state.js';
 
 // ---------------------------------------------------------------------------
 // Mocks — declared BEFORE vi.mock() calls so hoisted references resolve
@@ -51,11 +52,22 @@ vi.mock('../renderer/modals/quick-spawn.js', () => ({
   showQuickSpawn: mockShowQuickSpawn,
 }));
 
+const mockShowSequencePicker = vi.fn();
+vi.mock('../renderer/modals/sequence-picker.js', () => ({
+  showSequencePicker: mockShowSequencePicker,
+}));
+
+const mockExecuteSequence = vi.fn();
+vi.mock('../renderer/bindings.js', () => ({
+  executeSequence: mockExecuteSequence,
+}));
+
 vi.mock('../renderer/state.js', () => ({
   state: {
     sessions: [],
     activeSessionId: null,
     availableSpawnTypes: ['claude-code', 'copilot-cli'],
+    cliSequencesCache: {},
   },
 }));
 
@@ -72,6 +84,7 @@ function buildContextMenuDom(): void {
         <div class="context-menu-item" data-action="new-session"></div>
         <div class="context-menu-item" data-action="new-session-with-selection"></div>
         <div class="context-menu-item" data-action="clear-scrollback"></div>
+        <div class="context-menu-item" data-action="sequences"></div>
         <div class="context-menu-item context-menu-item--cancel" data-action="cancel"></div>
       </div>
     </div>
@@ -240,13 +253,14 @@ describe('Context Menu', () => {
     });
 
     it('DPadUp moves selection up, wrapping', () => {
-      // No selection → enabled: Paste(1), NewSession(2), ClearScrollback(4), Cancel(5)
+      // No selection → enabled: Paste(1), NewSession(2), ClearScrollback(4), Cancel(6)
+      // Disabled: Copy(0), NewSessionWithSelection(3), Prompts(5)
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       expect(mod.contextMenuState.selectedIndex).toBe(1); // Paste
 
       mod.handleContextMenuButton('DPadUp');
-      // Wraps around to Cancel(5)
-      expect(mod.contextMenuState.selectedIndex).toBe(5);
+      // Wraps around to Cancel(6)
+      expect(mod.contextMenuState.selectedIndex).toBe(6);
     });
 
     it('skips disabled items when no selection', () => {
@@ -270,15 +284,15 @@ describe('Context Menu', () => {
       mockGetTerminalManager.mockReturnValue(makeMockTerminalManager(viewWithSel));
 
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
-      // With selection, all 6 items should be enabled
+      // With selection, 6 of 7 items are enabled (Prompts still disabled — no sequences cache)
       const visited: number[] = [mod.contextMenuState.selectedIndex];
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 7; i++) {
         mod.handleContextMenuButton('DPadDown');
         visited.push(mod.contextMenuState.selectedIndex);
       }
       const unique = [...new Set(visited)];
       expect(unique).toHaveLength(6);
-      expect(unique.sort()).toEqual([0, 1, 2, 3, 4, 5]);
+      expect(unique.sort()).toEqual([0, 1, 2, 3, 4, 6]);
     });
 
     it('B button hides menu', () => {
@@ -368,11 +382,11 @@ describe('Context Menu', () => {
 
     it('Cancel hides menu', async () => {
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
-      // Navigate to Cancel (index 5): Paste(1) → NewSession(2) → ClearScrollback(4) → Cancel(5, skips 3)
+      // Navigate to Cancel (index 6): Paste(1) → NewSession(2) → ClearScrollback(4) → Cancel(6, skips 3+5)
       mod.handleContextMenuButton('DPadDown');
       mod.handleContextMenuButton('DPadDown');
       mod.handleContextMenuButton('DPadDown');
-      expect(mod.contextMenuState.selectedIndex).toBe(5);
+      expect(mod.contextMenuState.selectedIndex).toBe(6);
 
       mod.handleContextMenuButton('A');
       await flush();
@@ -500,7 +514,87 @@ describe('Context Menu', () => {
       expect(items[2].classList.contains('context-menu-item--disabled')).toBe(false); // New Session
       expect(items[3].classList.contains('context-menu-item--disabled')).toBe(true);  // New Session with Selection
       expect(items[4].classList.contains('context-menu-item--disabled')).toBe(false); // Clear Scrollback
-      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(false); // Cancel
+      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(true);  // Prompts (no sequences)
+      expect(items[6].classList.contains('context-menu-item--disabled')).toBe(false); // Cancel
+    });
+  });
+
+  // =========================================================================
+  // Prompts (Sequences) Item
+  // =========================================================================
+
+  describe('Prompts Item', () => {
+    const SEQUENCES = {
+      prompts: [
+        { label: 'commit', sequence: 'use skill(commit)' },
+        { label: 'review', sequence: 'use skill(code-review-it)' },
+      ],
+    };
+
+    it('Prompts is disabled when no sequences configured', () => {
+      state.cliSequencesCache = {};
+      state.sessions = [{ id: 'sess-1', name: 'Test', cliType: 'claude-code', processId: 1 }];
+      state.activeSessionId = 'sess-1';
+      mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
+      const items = document.querySelectorAll('.context-menu-item');
+      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(true);
+    });
+
+    it('Prompts is enabled when sequences exist for active CLI type', () => {
+      state.cliSequencesCache = { 'claude-code': SEQUENCES };
+      state.sessions = [{ id: 'sess-1', name: 'Test', cliType: 'claude-code', processId: 1 }];
+      state.activeSessionId = 'sess-1';
+      mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
+      const items = document.querySelectorAll('.context-menu-item');
+      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(false);
+    });
+
+    it('Prompts is disabled when no active session', () => {
+      state.cliSequencesCache = { 'claude-code': SEQUENCES };
+      state.sessions = [];
+      state.activeSessionId = null;
+      mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
+      const items = document.querySelectorAll('.context-menu-item');
+      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(true);
+    });
+
+    it('selecting Prompts hides context menu and opens sequence picker', async () => {
+      state.cliSequencesCache = { 'claude-code': SEQUENCES };
+      state.sessions = [{ id: 'sess-1', name: 'Test', cliType: 'claude-code', processId: 1 }];
+      state.activeSessionId = 'sess-1';
+      mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
+
+      // Navigate to Prompts (index 5): Paste(1) → NewSession(2) → ClearScrollback(4) → Prompts(5)
+      mod.handleContextMenuButton('DPadDown');
+      mod.handleContextMenuButton('DPadDown');
+      mod.handleContextMenuButton('DPadDown');
+      expect(mod.contextMenuState.selectedIndex).toBe(5);
+
+      mod.handleContextMenuButton('A');
+      await flush();
+
+      expect(mod.contextMenuState.visible).toBe(false);
+      expect(mockShowSequencePicker).toHaveBeenCalledTimes(1);
+      const [items, callback] = mockShowSequencePicker.mock.calls[0];
+      expect(items).toHaveLength(2);
+      expect(items[0].label).toBe('commit');
+      expect(typeof callback).toBe('function');
+    });
+
+    it('navigation skips disabled Prompts when no sequences', () => {
+      state.cliSequencesCache = {};
+      state.sessions = [{ id: 'sess-1', name: 'Test', cliType: 'claude-code', processId: 1 }];
+      state.activeSessionId = 'sess-1';
+      mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
+
+      // From Paste(1), navigate down: NewSession(2) → ClearScrollback(4) → Cancel(6) — skips 0,3,5
+      const visited: number[] = [mod.contextMenuState.selectedIndex];
+      for (let i = 0; i < 5; i++) {
+        mod.handleContextMenuButton('DPadDown');
+        visited.push(mod.contextMenuState.selectedIndex);
+      }
+      const unique = [...new Set(visited)];
+      expect(unique).not.toContain(5); // Prompts should be skipped
     });
   });
 });

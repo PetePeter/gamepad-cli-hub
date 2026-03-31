@@ -21,6 +21,10 @@ tools:
           Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
 
           </application-prompt>
+    sequences:
+      prompts:
+        - label: commit
+          sequence: use skill(commit)
   copilot-cli:
     name: GitHub Copilot CLI
     command: copilot
@@ -43,6 +47,10 @@ tools:
 
           </application-prompt>
     initialPromptDelay: 5000
+    sequences:
+      prompts:
+        - label: commit
+          sequence: use skill(commit)
 workingDirectories:
   - name: Gamepad Hub
     path: X:\coding\gamepad-cli-hub
@@ -95,9 +103,7 @@ bindings:
       sequence: "{PageUp}"
     RightBumper:
       action: sequence-list
-      items:
-        - label: commit
-          sequence: use skill(commit)
+      sequenceGroup: prompts
   copilot-cli:
     RightTrigger:
       action: voice
@@ -142,9 +148,7 @@ bindings:
       sequence: "{PageUp}"
     RightBumper:
       action: sequence-list
-      items:
-        - label: commit
-          sequence: use skill(commit)
+      sequenceGroup: prompts
   generic-terminal:
     A:
       action: keyboard

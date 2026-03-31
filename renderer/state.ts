@@ -27,6 +27,7 @@ export interface AppState {
   cliTypes: string[];
   availableSpawnTypes: string[];
   cliBindingsCache: Record<string, Record<string, any>>;
+  cliSequencesCache: Record<string, Record<string, Array<{ label: string; sequence: string }>>>;
   settingsTab: string;
   activeProfile: string;
 }
@@ -40,6 +41,7 @@ export const state: AppState = {
   cliTypes: [],
   availableSpawnTypes: [],
   cliBindingsCache: {},
+  cliSequencesCache: {},
   settingsTab: 'profiles',
   activeProfile: 'default',
 };

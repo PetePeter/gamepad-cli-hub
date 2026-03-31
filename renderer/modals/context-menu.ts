@@ -51,8 +51,29 @@ const MENU_ITEMS: MenuItem[] = [
   { action: 'new-session', label: 'New Session', icon: '➕', enabledWhen: () => true },
   { action: 'new-session-with-selection', label: 'New Session with Selection', icon: '📋➕', enabledWhen: () => contextMenuState.hasSelection },
   { action: 'clear-scrollback', label: 'Clear Scrollback', icon: '🗑️', enabledWhen: () => true },
+  { action: 'sequences', label: 'Prompts', icon: '⏩', enabledWhen: () => hasSequenceItems() },
   { action: 'cancel', label: 'Cancel', icon: '', enabledWhen: () => true },
 ];
+
+/** Returns true if the active session's CLI type has any configured sequence groups */
+function hasSequenceItems(): boolean {
+  if (!state.activeSessionId) return false;
+  const activeSession = state.sessions.find(s => s.id === state.activeSessionId);
+  if (!activeSession) return false;
+  const sequences = state.cliSequencesCache[activeSession.cliType];
+  if (!sequences) return false;
+  return Object.values(sequences).some(group => group.length > 0);
+}
+
+/** Collect all sequence items from all groups for the active session's CLI type */
+function collectSequenceItems(): Array<{ label: string; sequence: string }> {
+  if (!state.activeSessionId) return [];
+  const activeSession = state.sessions.find(s => s.id === state.activeSessionId);
+  if (!activeSession) return [];
+  const sequences = state.cliSequencesCache[activeSession.cliType];
+  if (!sequences) return [];
+  return Object.values(sequences).flat();
+}
 
 // Keyboard shortcut cleanup
 let cleanupKeyboard: (() => void) | null = null;
@@ -243,6 +264,16 @@ async function executeSelectedItem(): Promise<void> {
         logEvent('Cleared scrollback');
       }
       hideContextMenu();
+      break;
+    }
+    case 'sequences': {
+      const items = collectSequenceItems();
+      hideContextMenu();
+      if (items.length > 0) {
+        const { showSequencePicker } = await import('./sequence-picker.js');
+        const { executeSequence } = await import('../bindings.js');
+        showSequencePicker(items, (sequence) => executeSequence(sequence));
+      }
       break;
     }
     case 'cancel': {

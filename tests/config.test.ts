@@ -294,6 +294,100 @@ describe('ConfigLoader', () => {
   });
 
   // =========================================================================
+  // Sequences (named groups)
+  // =========================================================================
+
+  describe('Sequences', () => {
+    beforeEach(() => {
+      // Set up a profile with sequences
+      const profileWithSequences = {
+        ...DEFAULT_PROFILE,
+        tools: {
+          ...DEFAULT_PROFILE.tools,
+          'claude-code': {
+            ...DEFAULT_PROFILE.tools['claude-code'],
+            sequences: {
+              prompts: [
+                { label: 'commit', sequence: 'use skill(commit)' },
+                { label: 'review', sequence: 'use skill(code-review-it)' },
+              ],
+              snippets: [
+                { label: 'hello', sequence: 'Hello world!' },
+              ],
+            },
+          },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithSequences);
+      loader = new ConfigLoader(TEST_DIR);
+    });
+
+    it('getSequences returns all groups for a CLI type', () => {
+      loader.load();
+      const sequences = loader.getSequences('claude-code');
+      expect(Object.keys(sequences)).toEqual(['prompts', 'snippets']);
+      expect(sequences['prompts']).toHaveLength(2);
+      expect(sequences['snippets']).toHaveLength(1);
+    });
+
+    it('getSequences returns empty object for CLI without sequences', () => {
+      loader.load();
+      const sequences = loader.getSequences('copilot-cli');
+      expect(sequences).toEqual({});
+    });
+
+    it('getSequences returns empty object for unknown CLI', () => {
+      loader.load();
+      const sequences = loader.getSequences('nonexistent');
+      expect(sequences).toEqual({});
+    });
+
+    it('getSequenceGroup returns specific group', () => {
+      loader.load();
+      const prompts = loader.getSequenceGroup('claude-code', 'prompts');
+      expect(prompts).toHaveLength(2);
+      expect(prompts![0]).toEqual({ label: 'commit', sequence: 'use skill(commit)' });
+    });
+
+    it('getSequenceGroup returns null for unknown group', () => {
+      loader.load();
+      expect(loader.getSequenceGroup('claude-code', 'nonexistent')).toBeNull();
+    });
+
+    it('getSequenceGroup returns null for unknown CLI', () => {
+      loader.load();
+      expect(loader.getSequenceGroup('nonexistent', 'prompts')).toBeNull();
+    });
+
+    it('copyCliBindings also copies sequences', () => {
+      loader.load();
+      loader.copyCliBindings('claude-code', 'copilot-cli');
+      const sequences = loader.getSequences('copilot-cli');
+      expect(Object.keys(sequences)).toEqual(['prompts', 'snippets']);
+      expect(sequences['prompts']).toHaveLength(2);
+    });
+
+    it('copied sequences are deep clones (no shared references)', () => {
+      loader.load();
+      loader.copyCliBindings('claude-code', 'copilot-cli');
+      // Mutate target sequences — should not affect source
+      const targetSeq = loader.getSequences('copilot-cli');
+      targetSeq['prompts'].push({ label: 'new', sequence: 'new item' });
+      const sourceSeq = loader.getSequences('claude-code');
+      expect(sourceSeq['prompts']).toHaveLength(2);
+    });
+
+    it('copyCliBindings persists sequences to disk', () => {
+      loader.load();
+      loader.copyCliBindings('claude-code', 'copilot-cli');
+      const fresh = new ConfigLoader(TEST_DIR);
+      fresh.load();
+      const sequences = fresh.getSequences('copilot-cli');
+      expect(sequences['prompts']).toHaveLength(2);
+    });
+  });
+
+  // =========================================================================
   // Profile CRUD
   // =========================================================================
 
