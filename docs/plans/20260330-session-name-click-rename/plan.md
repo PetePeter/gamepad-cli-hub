@@ -25,9 +25,9 @@ Add a `click` handler on the `<span class="session-name">` that triggers `startR
 ### 1. `name-click-handler` — Add click listener on session name span
 **File:** `renderer/screens/sessions-render.ts`
 **Changes:**
-- In the `else` (display mode) branch (~line 248), add a `click` event listener on the `<span class="session-name">` element
-- Must call `e.stopPropagation()` to prevent the card click from also firing (which would switch sessions)
-- Call `startRename(session.id)` — same function the pencil icon uses
+- In the `else` (display mode) branch (lines 305–309), add a `click` event listener on the `<span class="session-name">` element
+- Must call `e.stopPropagation()` to prevent the card click at line 355 (`switchToSession`) from also firing
+- Call `startRename(session.id)` — same function the pencil icon uses (line 334)
 
 ### 2. `name-hover-css` — Add hover style for clickable session name
 **File:** `renderer/styles/main.css`

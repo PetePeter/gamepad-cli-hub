@@ -306,6 +306,10 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
     const name = document.createElement('span');
     name.className = 'session-name';
     name.textContent = displayName;
+    name.addEventListener('click', (e) => {
+      e.stopPropagation();
+      startRename(session.id);
+    });
     nameLine.appendChild(name);
   }
 

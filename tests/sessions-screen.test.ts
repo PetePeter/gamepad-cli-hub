@@ -1853,6 +1853,24 @@ describe('Sessions Screen', () => {
       expect(renameBtn?.classList.contains('card-col-focused')).toBe(true);
     });
 
+    it('clicking session name enters rename mode', async () => {
+      await loadAndFlush(sessions);
+      const card = document.querySelector('.session-card[data-session-id="s-0"]');
+      const nameSpan = card?.querySelector('.session-name') as HTMLElement;
+      expect(nameSpan).toBeTruthy();
+      nameSpan.click();
+      expect(sessionsState.editingSessionId).toBe('s-0');
+    });
+
+    it('clicking session name does not switch sessions', async () => {
+      await loadAndFlush(sessions);
+      mockSwitchTo.mockClear();
+      const card = document.querySelector('.session-card[data-session-id="s-0"]');
+      const nameSpan = card?.querySelector('.session-name') as HTMLElement;
+      nameSpan.click();
+      expect(mockSwitchTo).not.toHaveBeenCalled();
+    });
+
     it('UP/DOWN at col=2 is no-op', () => {
       sessionsState.cardColumn = 2;
       const indexBefore = sessionsState.sessionsFocusIndex;
