@@ -63,6 +63,12 @@ export interface CliTypeConfig {
   initialPromptDelay?: number;
   /** Command written to PTY on pipeline handoff. If omitted, no command is sent. */
   handoffCommand?: string;
+  /** Command sent to PTY after spawn to name the session for later resume. Template: {cliSessionName} replaced at runtime. */
+  renameCommand?: string;
+  /** CLI command template to resume a named session. Template: {cliSessionName} replaced at runtime. */
+  resumeCommand?: string;
+  /** CLI command to resume most recent session (fallback when no cliSessionName). */
+  continueCommand?: string;
 }
 
 export interface ButtonBindings {

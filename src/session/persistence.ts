@@ -15,6 +15,7 @@ export function saveSessions(sessions: SessionInfo[]): void {
       cliType: s.cliType,
       processId: s.processId,
       ...(s.workingDir ? { workingDir: s.workingDir } : {}),
+      ...(s.cliSessionName ? { cliSessionName: s.cliSessionName } : {}),
     }))};
     writeFileSync(SESSIONS_FILE, YAML.stringify(data), 'utf8');
   } catch (err) {

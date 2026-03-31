@@ -291,6 +291,27 @@ async function init(): Promise<void> {
   // Load initial data
   await loadSessions();
 
+  // Auto-resume sessions restored from previous run
+  try {
+    const restoredSessions = await window.gamepadCli?.sessionGetAll();
+    if (restoredSessions && restoredSessions.length > 0 && terminalManager) {
+      const terminalIds = terminalManager.getSessionIds();
+      for (const session of restoredSessions) {
+        // Session in main process but no terminal = restored from disk, needs resume
+        if (session.cliSessionName && !terminalIds.includes(session.id)) {
+          console.log(`[AutoResume] Resuming session: ${session.id} (${session.cliType}) with name ${session.cliSessionName}`);
+          // Remove stale session metadata (dead PID from previous run)
+          await window.gamepadCli?.sessionRemove(session.id);
+          // Spawn fresh terminal with CLI resume command
+          const { doSpawn } = await import('./screens/sessions-spawn.js');
+          await doSpawn(session.cliType, session.workingDir, undefined, session.cliSessionName);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[AutoResume] Failed to resume sessions:', err);
+  }
+
   // Setup PTY state change listener
   if (window.gamepadCli) {
     window.gamepadCli.onPtyStateChange((transition) => {

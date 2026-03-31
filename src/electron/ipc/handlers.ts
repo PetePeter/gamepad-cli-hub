@@ -49,6 +49,11 @@ export function registerIPCHandlers(
   const stateDetector = new StateDetector();
   const pipelineQueue = new PipelineQueue();
 
+  // Restore sessions persisted from previous run and start health check
+  const restored = sessionManager.restoreSessions();
+  logger.info(`[IPC] Restored ${restored.length} session(s) from previous run`);
+  sessionManager.startHealthCheck(30000);
+
   const cleanupSession = setupSessionHandlers(sessionManager, ptyManager);
   setupConfigHandlers(configLoader);
   setupProfileHandlers(configLoader);
@@ -63,6 +68,7 @@ export function registerIPCHandlers(
     cleanup: () => {
       cleanupSession();
       cancelAllPrompts();
+      sessionManager.stopHealthCheck();
       stateDetector.dispose();
       ptyManager.killAll();
       logger.info('[IPC] Cleanup complete');

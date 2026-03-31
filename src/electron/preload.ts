@@ -117,8 +117,8 @@ const gamepadCliAPI = {
   // ========================================================================
 
   /** Spawn a new embedded PTY terminal */
-  ptySpawn: (sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string) =>
-    ipcRenderer.invoke('pty:spawn', sessionId, command, args, cwd, cliType, contextText),
+  ptySpawn: (sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string, resumeSessionName?: string) =>
+    ipcRenderer.invoke('pty:spawn', sessionId, command, args, cwd, cliType, contextText, resumeSessionName),
 
   /** Write data to a PTY terminal's stdin */
   ptyWrite: (sessionId: string, data: string) =>

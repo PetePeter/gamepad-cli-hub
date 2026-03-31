@@ -648,6 +648,7 @@ describe('Sessions Screen', () => {
         [],
         undefined,
         undefined,
+        undefined,
       );
     });
 
@@ -730,6 +731,7 @@ describe('Sessions Screen', () => {
         [],
         undefined,
         undefined,
+        undefined,
       );
     });
 
@@ -744,6 +746,7 @@ describe('Sessions Screen', () => {
         'claude',
         ['--flag'],
         '/projects/a',
+        undefined,
         undefined,
       );
     });
@@ -792,6 +795,38 @@ describe('Sessions Screen', () => {
       await flush();
 
       expect(mockLogEvent).toHaveBeenCalledWith('Spawn failed: gamepadCli not available');
+    });
+
+    it('passes resumeSessionName to createTerminal', async () => {
+      mockConfigGetSpawnCommand.mockResolvedValue({ command: 'claude', args: ['--resume'] });
+      await sessions.doSpawn('claude-code', '/work', undefined, 'hub-my-session');
+      await flush();
+
+      expect(mockCreateTerminal).toHaveBeenCalledWith(
+        expect.stringContaining('pty-claude-code-'),
+        'claude-code',
+        'claude',
+        ['--resume'],
+        '/work',
+        undefined,
+        'hub-my-session',
+      );
+    });
+
+    it('passes undefined resumeSessionName when not provided', async () => {
+      mockConfigGetSpawnCommand.mockResolvedValue({ command: 'claude', args: [] });
+      await sessions.doSpawn('claude-code');
+      await flush();
+
+      expect(mockCreateTerminal).toHaveBeenCalledWith(
+        expect.stringContaining('pty-claude-code-'),
+        'claude-code',
+        'claude',
+        [],
+        undefined,
+        undefined,
+        undefined,
+      );
     });
   });
 

@@ -50,6 +50,7 @@ export class TerminalManager {
     args: string[] = [],
     cwd?: string,
     contextText?: string,
+    resumeSessionName?: string,
   ): Promise<boolean> {
     if (this.terminals.has(sessionId)) return false;
 
@@ -80,7 +81,7 @@ export class TerminalManager {
       });
     });
 
-    const result = await window.gamepadCli?.ptySpawn(sessionId, command, args, cwd, cliType, contextText);
+    const result = await window.gamepadCli?.ptySpawn(sessionId, command, args, cwd, cliType, contextText, resumeSessionName);
     console.log(`[TerminalManager] ptySpawn result:`, JSON.stringify(result));
     if (!result?.success) {
       console.error(`[TerminalManager] ptySpawn failed:`, result?.error || 'no result');

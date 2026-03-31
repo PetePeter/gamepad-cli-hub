@@ -76,6 +76,26 @@ describe('persistence', () => {
 
       expect(() => saveSessions([mockSession1])).not.toThrow();
     });
+
+    it('persists cliSessionName when present', () => {
+      const sessionWithName: SessionInfo = {
+        ...mockSession1,
+        cliSessionName: 'hub-session-1',
+      };
+      saveSessions([sessionWithName]);
+
+      const [, content] = (fs.writeFileSync as any).mock.calls[0];
+      const parsed = YAML.parse(content);
+      expect(parsed.sessions[0].cliSessionName).toBe('hub-session-1');
+    });
+
+    it('omits cliSessionName when not present', () => {
+      saveSessions([mockSession1]);
+
+      const [, content] = (fs.writeFileSync as any).mock.calls[0];
+      const parsed = YAML.parse(content);
+      expect(parsed.sessions[0]).not.toHaveProperty('cliSessionName');
+    });
   });
 
   describe('loadSessions', () => {
@@ -110,6 +130,16 @@ describe('persistence', () => {
       });
 
       expect(loadSessions()).toEqual([]);
+    });
+
+    it('loads cliSessionName from persisted data', () => {
+      (fs.existsSync as any).mockReturnValue(true);
+      (fs.readFileSync as any).mockReturnValue(
+        YAML.stringify({ sessions: [{ ...mockSession1, cliSessionName: 'hub-session-1' }] })
+      );
+
+      const result = loadSessions();
+      expect(result[0].cliSessionName).toBe('hub-session-1');
     });
   });
 

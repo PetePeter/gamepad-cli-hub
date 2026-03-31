@@ -5,6 +5,8 @@ import type { SequenceListItem } from '../config/loader.js';
 export interface InitialPromptConfig {
   initialPrompt?: SequenceListItem[];
   initialPromptDelay?: number;
+  /** Rename command to send after initial prompt completes (template with {cliSessionName} already replaced). */
+  renameCommand?: string;
 }
 
 /**
@@ -79,7 +81,7 @@ export function scheduleInitialPrompt(
 ): (() => void) | null {
   const { initialPrompt, initialPromptDelay = 2000 } = config;
 
-  if (!initialPrompt || initialPrompt.length === 0) {
+  if ((!initialPrompt || initialPrompt.length === 0) && !config.renameCommand) {
     return null;
   }
 
@@ -109,16 +111,24 @@ export function scheduleInitialPrompt(
   const execute = async () => {
     if (cancelled) return;
 
-    logger.info(`[InitialPrompt] Pre-loading ${initialPrompt.length} item(s) for session ${sessionId}`);
+    if (initialPrompt && initialPrompt.length > 0) {
+      logger.info(`[InitialPrompt] Pre-loading ${initialPrompt.length} item(s) for session ${sessionId}`);
 
-    for (const item of initialPrompt) {
-      if (cancelled) break;
-      if (!item) continue;
-      await executeItem(item);
+      for (const item of initialPrompt) {
+        if (cancelled) break;
+        if (!item) continue;
+        await executeItem(item);
+      }
+    }
+
+    // Send rename command after initial prompt items (if configured)
+    if (!cancelled && config.renameCommand) {
+      logger.info(`[InitialPrompt] Sending rename command for session ${sessionId}`);
+      writeToPty(sessionId, config.renameCommand + '\r');
     }
 
     if (!cancelled) {
-      logger.info(`[InitialPrompt] Pre-load complete for session ${sessionId}`);
+      logger.info(`[InitialPrompt] Complete for session ${sessionId}`);
       onComplete?.();
     }
   };

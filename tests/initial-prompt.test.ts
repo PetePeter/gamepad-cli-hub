@@ -482,3 +482,81 @@ describe('scheduleInitialPrompt', () => {
     expect(writeFn).toHaveBeenCalledWith('s1', 'hello');
   });
 });
+
+describe('rename command in scheduleInitialPrompt', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('sends rename command after initial prompt items', async () => {
+    const writeToPty = vi.fn();
+    const items: SequenceListItem[] = [{ label: 'Init', sequence: 'hello' }];
+
+    scheduleInitialPrompt('s1', {
+      initialPrompt: items,
+      initialPromptDelay: 100,
+      renameCommand: '/rename hub-s1',
+    }, writeToPty);
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    // First call: initial prompt text, second call: rename command
+    expect(writeToPty).toHaveBeenCalledWith('s1', 'hello');
+    expect(writeToPty).toHaveBeenCalledWith('s1', '/rename hub-s1\r');
+  });
+
+  it('sends rename command even when initialPrompt is empty', async () => {
+    const writeToPty = vi.fn();
+
+    const cancel = scheduleInitialPrompt('s1', {
+      initialPrompt: [],
+      initialPromptDelay: 100,
+      renameCommand: '/rename hub-s1',
+    }, writeToPty);
+
+    expect(cancel).not.toBeNull(); // should NOT return null
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(writeToPty).toHaveBeenCalledWith('s1', '/rename hub-s1\r');
+  });
+
+  it('does not send rename when renameCommand is not configured', async () => {
+    const writeToPty = vi.fn();
+    const items: SequenceListItem[] = [{ label: 'Init', sequence: 'hello' }];
+
+    scheduleInitialPrompt('s1', {
+      initialPrompt: items,
+      initialPromptDelay: 100,
+    }, writeToPty);
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(writeToPty).toHaveBeenCalledTimes(1);
+    expect(writeToPty).toHaveBeenCalledWith('s1', 'hello');
+  });
+
+  it('calls onComplete after rename command', async () => {
+    const writeToPty = vi.fn();
+    const onComplete = vi.fn();
+
+    scheduleInitialPrompt('s1', {
+      initialPrompt: [{ label: 'Init', sequence: 'hello' }],
+      initialPromptDelay: 100,
+      renameCommand: '/rename hub-s1',
+    }, writeToPty, onComplete);
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(onComplete).toHaveBeenCalledOnce();
+    // onComplete called after rename
+    const renameCallIndex = writeToPty.mock.calls.findIndex(
+      (c: any[]) => c[1] === '/rename hub-s1\r'
+    );
+    expect(renameCallIndex).toBeGreaterThan(-1);
+  });
+});

@@ -25,6 +25,8 @@ export interface SessionInfo {
   state?: SessionState;
   /** True when AIAGENT-QUESTION detected; clears on next non-question output */
   questionPending?: boolean;
+  /** CLI-internal session name used for resume (e.g., 'hub-pty-claude-code-xxx'). Set after spawn. */
+  cliSessionName?: string;
 }
 
 /**

@@ -21,14 +21,19 @@ export function cancelAllPrompts(): void {
 function resolvePromptConfig(
   cliType: string | undefined,
   configLoader: ConfigLoader | undefined,
-): { initialPrompt?: import('../../config/loader.js').SequenceListItem[]; initialPromptDelay?: number } {
+  cliSessionName?: string,
+): { initialPrompt?: import('../../config/loader.js').SequenceListItem[]; initialPromptDelay?: number; renameCommand?: string } {
   if (!cliType || !configLoader) return {};
   try {
     const cfg = configLoader.getCliTypeEntry?.(cliType);
     if (cfg) {
+      const renameCommand = cfg.renameCommand && cliSessionName
+        ? cfg.renameCommand.replace('{cliSessionName}', cliSessionName)
+        : undefined;
       return {
         initialPrompt: cfg.initialPrompt,
         initialPromptDelay: cfg.initialPromptDelay,
+        renameCommand,
       };
     }
   } catch { /* config may not be loaded yet */ }
@@ -44,10 +49,34 @@ export function setupPtyHandlers(
   configLoader?: ConfigLoader,
 ): void {
   // pty:spawn - Spawn a new PTY process and register as session
-  ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string) => {
-    logger.info(`[PTY IPC] pty:spawn called: sessionId=${sessionId}, command=${command}, args=${JSON.stringify(args)}, cwd=${cwd}, cliType=${cliType}, hasContext=${!!contextText}`);
+  ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string, resumeSessionName?: string) => {
+    logger.info(`[PTY IPC] pty:spawn called: sessionId=${sessionId}, command=${command}, args=${JSON.stringify(args)}, cwd=${cwd}, cliType=${cliType}, hasContext=${!!contextText}, resume=${resumeSessionName || 'none'}`);
     try {
-      const pty = ptyManager.spawn({ sessionId, command, args, cwd });
+      // Resolve actual command: resume > continue > base command
+      let actualCommand = command;
+      let actualArgs = args;
+      const isResume = !!resumeSessionName;
+
+      if (isResume && cliType && configLoader) {
+        const cfg = configLoader.getCliTypeEntry?.(cliType);
+        if (cfg?.resumeCommand && resumeSessionName) {
+          // Use resumeCommand template — it's the full command string
+          const fullCmd = cfg.resumeCommand.replace('{cliSessionName}', resumeSessionName);
+          const parts = fullCmd.split(/\s+/);
+          actualCommand = parts[0];
+          actualArgs = parts.slice(1);
+          logger.info(`[PTY IPC] Resuming with: ${actualCommand} ${actualArgs.join(' ')}`);
+        } else if (cfg?.continueCommand) {
+          // Fallback: continueCommand
+          const parts = cfg.continueCommand.split(/\s+/);
+          actualCommand = parts[0];
+          actualArgs = parts.slice(1);
+          logger.info(`[PTY IPC] Continuing with: ${actualCommand} ${actualArgs.join(' ')}`);
+        }
+        // else: use base command/args as-is (fresh spawn)
+      }
+
+      const pty = ptyManager.spawn({ sessionId, command: actualCommand, args: actualArgs, cwd });
 
       // Register with SessionManager so rename/state/persistence work
       sessionManager.addSession({
@@ -58,25 +87,48 @@ export function setupPtyHandlers(
         ...(cwd ? { workingDir: cwd } : {}),
       });
 
-      // Writes context text to PTY after initial prompt (or after default delay)
-      const writeContextText = () => {
-        if (contextText && contextText.trim()) {
-          ptyManager.write(sessionId, contextText);
-          logger.info(`[PTY IPC] Context text written to ${sessionId} (${contextText.length} chars)`);
-        }
-      };
+      // Generate CLI session name for resume capability
+      const cliSessionName = resumeSessionName || `hub-${sessionId}`;
+      const session = sessionManager.getSession(sessionId);
+      if (session) {
+        session.cliSessionName = cliSessionName;
+      }
 
-      // Schedule initial prompt pre-loading from CLI type config
-      const promptConfig = resolvePromptConfig(cliType, configLoader);
-      const cancel = scheduleInitialPrompt(sessionId, promptConfig, (sid, data) => {
-        ptyManager.write(sid, data);
-      }, writeContextText);
-      if (cancel) {
-        promptCancellers.set(sessionId, cancel);
-      } else if (contextText && contextText.trim()) {
-        // No initial prompt configured — send context text after a short delay
-        const fallbackTimeout = setTimeout(writeContextText, 500);
-        promptCancellers.set(sessionId, () => clearTimeout(fallbackTimeout));
+      // On resume: skip context text and initial prompt, only send rename command
+      if (isResume) {
+        const promptConfig = resolvePromptConfig(cliType, configLoader, cliSessionName);
+        // Only send rename command (no initial prompt items)
+        if (promptConfig.renameCommand) {
+          const cancel = scheduleInitialPrompt(sessionId, {
+            initialPromptDelay: promptConfig.initialPromptDelay,
+            renameCommand: promptConfig.renameCommand,
+          }, (sid, data) => {
+            ptyManager.write(sid, data);
+          });
+          if (cancel) {
+            promptCancellers.set(sessionId, cancel);
+          }
+        }
+      } else {
+        // Fresh spawn: normal initial prompt + context text flow
+        const writeContextText = () => {
+          if (contextText && contextText.trim()) {
+            ptyManager.write(sessionId, contextText);
+            logger.info(`[PTY IPC] Context text written to ${sessionId} (${contextText.length} chars)`);
+          }
+        };
+
+        const promptConfig = resolvePromptConfig(cliType, configLoader, cliSessionName);
+        const cancel = scheduleInitialPrompt(sessionId, promptConfig, (sid, data) => {
+          ptyManager.write(sid, data);
+        }, writeContextText);
+        if (cancel) {
+          promptCancellers.set(sessionId, cancel);
+        } else if (contextText && contextText.trim()) {
+          // No initial prompt configured — send context text after a short delay
+          const fallbackTimeout = setTimeout(writeContextText, 500);
+          promptCancellers.set(sessionId, () => clearTimeout(fallbackTimeout));
+        }
       }
 
       logger.info(`[PTY IPC] Spawn success: pid=${pty.pid}`);

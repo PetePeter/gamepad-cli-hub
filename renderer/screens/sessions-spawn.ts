@@ -64,10 +64,12 @@ export function clamp(value: number, min: number, max: number): number {
 // Spawn flow
 // ============================================================================
 
-export async function doSpawn(cliType: string, workingDir?: string, contextText?: string): Promise<void> {
-  // Consume pendingContextText if no explicit contextText was provided
-  const resolvedContextText = contextText ?? pendingContextText ?? undefined;
-  pendingContextText = null;
+export async function doSpawn(cliType: string, workingDir?: string, contextText?: string, resumeSessionName?: string): Promise<void> {
+  // Resume spawns never use context text (it was one-time context for the original spawn)
+  const resolvedContextText = resumeSessionName
+    ? undefined
+    : (contextText ?? pendingContextText ?? undefined);
+  if (!resumeSessionName) pendingContextText = null;
 
   try {
     logEvent(`Spawning ${cliType}${workingDir ? ` in ${workingDir}` : ''}...`);
@@ -93,6 +95,7 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
         spawnInfo.args || [],
         workingDir,
         resolvedContextText,
+        resumeSessionName,
       );
 
       if (success) {
