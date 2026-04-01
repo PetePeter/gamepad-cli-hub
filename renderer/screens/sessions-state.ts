@@ -20,6 +20,10 @@ export interface SessionsScreenState {
   groups: SessionGroup[];
   /** Persisted group preferences (order + collapse). */
   groupPrefs: SessionGroupPrefs;
+  /** Directory path of the group currently shown in overview (null = hidden). */
+  overviewGroup: string | null;
+  /** Focused card index within the overview grid. */
+  overviewFocusIndex: number;
 }
 
 export const sessionsState: SessionsScreenState = {
@@ -33,4 +37,6 @@ export const sessionsState: SessionsScreenState = {
   navList: [],
   groups: [],
   groupPrefs: { order: [], collapsed: [] },
+  overviewGroup: null,
+  overviewFocusIndex: 0,
 };

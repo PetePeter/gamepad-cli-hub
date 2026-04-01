@@ -7,9 +7,9 @@
 
 import { state, type ButtonEvent } from './state.js';
 import { browserGamepad } from './gamepad.js';
-import { logEvent, showScreen } from './utils.js';
+import { logEvent, showScreen, toDirection } from './utils.js';
 import { processConfigBinding, processConfigRelease } from './bindings.js';
-import { handleSessionsScreenButton } from './screens/sessions.js';
+import { handleSessionsScreenButton, switchToSession, showTerminalArea, hideTerminalArea, getSessionState } from './screens/sessions.js';
 import { handleSettingsScreenButton } from './screens/settings.js';
 import { handleDirPickerButton } from './modals/dir-picker.js';
 import { dirPickerState } from './modals/dir-picker.js';
@@ -21,6 +21,10 @@ import { closeConfirmState, handleCloseConfirmButton } from './modals/close-conf
 import { quickSpawnState, handleQuickSpawnButton } from './modals/quick-spawn.js';
 import { formModalVisible } from './utils.js';
 import { getTerminalManager } from './main.js';
+import { sessionsState } from './screens/sessions-state.js';
+import { hideOverview, getOverviewSessions, updateOverviewFocus, setSelectCardCallback } from './screens/group-overview.js';
+import { findNavIndexBySessionId } from './session-groups.js';
+import { updateSessionsFocus } from './screens/sessions.js';
 
 // ============================================================================
 // Unsubscribe handles (exported so main.ts can clean up)
@@ -64,6 +68,18 @@ export function setupGamepadNavigation(): void {
   if (statusEl) statusEl.textContent = state.gamepadCount > 0 ? 'Yes' : 'No';
   if (dotEl) dotEl.classList.toggle('connected', state.gamepadCount > 0);
   console.log('[Renderer] setupGamepadNavigation: END, count:', state.gamepadCount);
+
+  // Wire overview card click → session switch + sidebar sync
+  setSelectCardCallback((sessionId) => {
+    switchToSession(sessionId);
+    const navIdx = findNavIndexBySessionId(sessionsState.navList, sessionId);
+    if (navIdx >= 0) {
+      sessionsState.sessionsFocusIndex = navIdx;
+      sessionsState.cardColumn = 0;
+      state.activeSessionId = sessionId;
+      updateSessionsFocus();
+    }
+  });
 }
 
 // ============================================================================
@@ -160,9 +176,15 @@ export function handleGamepadEvent(event: ButtonEvent): void {
   // UI navigation consumes the event first; config bindings only fire for unconsumed buttons
   let consumed = false;
   switch (state.currentScreen) {
-    case 'sessions':
-      consumed = handleSessionsScreenButton(event.button);
+    case 'sessions': {
+      // Check if overview is visible — route to overview handler
+      if (sessionsState.overviewGroup) {
+        consumed = handleOverviewButton(event.button);
+      } else {
+        consumed = handleSessionsScreenButton(event.button);
+      }
       break;
+    }
     case 'settings':
       consumed = handleSettingsScreenButton(event.button);
       break;
@@ -176,6 +198,92 @@ export function handleGamepadEvent(event: ButtonEvent): void {
 function handleGamepadRelease(event: ButtonEvent): void {
   logEvent(`⬆ ${event.button}`);
   processConfigRelease(event.button);
+}
+
+function handleOverviewButton(button: string): boolean {
+  const dir = toDirection(button);
+  const sessions = getOverviewSessions();
+  const count = sessions.length;
+  if (count === 0) return false;
+
+  const cols = 2;
+  const idx = sessionsState.overviewFocusIndex;
+  const row = Math.floor(idx / cols);
+  const col = idx % cols;
+  const totalRows = Math.ceil(count / cols);
+
+  if (dir === 'up') {
+    if (row > 0) {
+      sessionsState.overviewFocusIndex = (row - 1) * cols + col;
+      updateOverviewFocus();
+    }
+    return true;
+  }
+  if (dir === 'down') {
+    const newIdx = (row + 1) * cols + col;
+    if (row + 1 < totalRows && newIdx < count) {
+      sessionsState.overviewFocusIndex = newIdx;
+      updateOverviewFocus();
+    }
+    return true;
+  }
+  if (dir === 'left') {
+    if (col > 0) {
+      sessionsState.overviewFocusIndex = idx - 1;
+      updateOverviewFocus();
+    } else {
+      // Column 0, left → exit overview, return to session list
+      hideOverview();
+      // Restore terminal area for active session
+      const tm = getTerminalManager();
+      if (tm && tm.getActiveSessionId()) {
+        showTerminalArea();
+      } else {
+        hideTerminalArea();
+      }
+    }
+    return true;
+  }
+  if (dir === 'right') {
+    if (col < cols - 1 && idx + 1 < count) {
+      sessionsState.overviewFocusIndex = idx + 1;
+      updateOverviewFocus();
+    }
+    return true;
+  }
+
+  if (button === 'A') {
+    const session = sessions[sessionsState.overviewFocusIndex];
+    if (session) {
+      hideOverview();
+      switchToSession(session.id);
+      // Also select in sidebar
+      const navIdx = findNavIndexBySessionId(sessionsState.navList, session.id);
+      if (navIdx >= 0) {
+        sessionsState.sessionsFocusIndex = navIdx;
+        sessionsState.cardColumn = 0;
+        state.activeSessionId = session.id;
+        updateSessionsFocus();
+      }
+    }
+    return true;
+  }
+
+  if (button === 'X') {
+    // Close the focused session
+    const session = sessions[sessionsState.overviewFocusIndex];
+    if (session) {
+      import('./modals/close-confirm.js').then(({ showCloseConfirm }) => {
+        showCloseConfirm(session.id, session.name);
+      });
+    }
+    return true;
+  }
+
+  // B consumed but no action
+  if (button === 'B') return true;
+
+  return false;
 }
 
 

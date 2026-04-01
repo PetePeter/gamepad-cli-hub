@@ -9,7 +9,7 @@ import { browserGamepad } from './gamepad.js';
 import { state } from './state.js';
 import { logEvent, showScreen, setLoadSettingsCallback, updateProfileDisplay } from './utils.js';
 import { initConfigCache } from './bindings.js';
-import { loadSessions, updateSessionHighlight, syncSessionHighlight, setDirPickerBridge, setTerminalManagerGetter, hideTerminalArea, setSessionActivity, setSessionState } from './screens/sessions.js';
+import { loadSessions, updateSessionHighlight, syncSessionHighlight, setDirPickerBridge, setTerminalManagerGetter, hideTerminalArea, setSessionActivity, setSessionState, getSessionState } from './screens/sessions.js';
 import { loadSettingsScreen } from './screens/settings.js';
 import {
   setupGamepadNavigation,
@@ -24,6 +24,7 @@ import { initSequencePickerClickHandlers } from './modals/sequence-picker.js';
 import { initCloseConfirmClickHandlers } from './modals/close-confirm.js';
 import { initQuickSpawnClickHandlers, hideQuickSpawn } from './modals/quick-spawn.js';
 import { resolveNextTerminalId } from './tab-cycling.js';
+import { setOutputBuffer, setSessionStateGetter } from './screens/group-overview.js';
 
 // ============================================================================
 // Terminal Manager
@@ -246,6 +247,8 @@ async function init(): Promise<void> {
     const terminalContainer = document.getElementById('terminalContainer');
     if (terminalContainer) {
       terminalManager = new TerminalManager(terminalContainer);
+      setOutputBuffer(terminalManager.getOutputBuffer());
+      setSessionStateGetter(getSessionState);
       terminalManager.setOnEmpty(() => {
         hideTerminalArea();
       });

@@ -92,10 +92,12 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 | **ElectronMain** | `src/electron/main.ts` | Window creation, IPC setup, app lifecycle. Renderer crash recovery (auto-reloads on `render-process-gone` — safe because session state lives in main process). Delegates power monitoring to `setupPowerMonitor()`. |
 | **PowerMonitor** | `src/session/power-monitor.ts` | Logs detailed session/PTY diagnostics on `suspend`/`resume`/`shutdown` via Electron `powerMonitor`. Reports session counts, PTY IDs, and PTY survival status on resume. Called from main.ts with sessionManager + ptyManager. |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 7 domain handler files (session, config, profile, tools, keyboard, pty, system). `registerIPCHandlers()` returns `{ cleanup, sessionManager, ptyManager }` for use by main.ts callers. Dependencies injected via function parameters. Config handlers include `dialog:openFolder` for native OS folder picker, `config:getSequences` for fetching CLI type sequence groups. `pty:spawn` accepts optional `contextText` — written to PTY after the initial prompt completes (via `onComplete` callback) rather than on a fixed timer. `pty:spawn` also accepts optional `resumeSessionName` for `--resume <name>` spawning. Tools handlers: `tools:getAll` returns full `CliTypeConfig` objects (all fields including optional commands). System handlers: `system:openLogsFolder`. |
-| **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state (includes `cliSequencesCache` for cached sequence groups per CLI type), utils (includes `toDirection()` for directional button normalization, `showFormModal` with `FormField` types: text/select/textarea + `browse?: boolean` for native folder picker), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`, context-menu action centers overlay in gamepad mode, sequence-list action resolves `sequenceGroup` via cache or falls back to inline `items`, exports `executeSequence()`), paste-handler (Ctrl+V → PTY), navigation, screens (sessions/settings), modals (dir-picker/binding-editor/context-menu/close-confirm/sequence-picker/quick-spawn). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
+| **Renderer** | `renderer/*.ts` | Modular UI: entry point (main.ts) + state (includes `cliSequencesCache` for cached sequence groups per CLI type), utils (includes `toDirection()` for directional button normalization, `showFormModal` with `FormField` types: text/select/textarea + `browse?: boolean` for native folder picker), bindings (PTY-aware routing with voice OS-default + PTY opt-in via `target: 'terminal'`, context-menu action centers overlay in gamepad mode, sequence-list action resolves `sequenceGroup` via cache or falls back to inline `items`, exports `executeSequence()`), paste-handler (Ctrl+V → PTY), navigation (overview-aware button routing), screens (sessions/settings/group-overview), modals (dir-picker/binding-editor/context-menu/close-confirm/sequence-picker/quick-spawn). Browser Gamepad API. Session list shows embedded terminals only. D-pad navigation auto-selects terminals. |
 | **TerminalView** | `renderer/terminal/terminal-view.ts` | xterm.js wrapper — one Terminal instance per session with fit/search/weblinks addons (scrollback: 10,000 lines). Forwards user input + resize events via callbacks. Selection API: `getSelection()`, `hasSelection()`, `clearSelection()`. |
-| **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, rename, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, gold=completed, grey=idle). Exposes onSwitch/onEmpty callbacks. `getActiveView()` returns current TerminalView. `renameSession()` updates the display name persisted across UI reloads. Right-click `contextmenu` listener on terminal area shows context menu overlay. `createTerminal()` accepts optional `contextText` forwarded through `ptySpawn()` to the main process. `writeToTerminal()` runs PTY output through `stripMouseTracking()` before writing to xterm.js. |
+| **TerminalManager** | `renderer/terminal/terminal-manager.ts` | Multi-terminal orchestrator — create, switch, resize, rename, PTY IPC data routing, cleanup. Renders horizontal tab bar with colored state dots (green=implementing, orange=waiting, blue=planning, gold=completed, grey=idle). Exposes onSwitch/onEmpty callbacks. `getActiveView()` returns current TerminalView. `renameSession()` updates the display name persisted across UI reloads. Right-click `contextmenu` listener on terminal area shows context menu overlay. `createTerminal()` accepts optional `contextText` forwarded through `ptySpawn()` to the main process. `writeToTerminal()` runs PTY output through `stripMouseTracking()` before writing to xterm.js. Owns a `PtyOutputBuffer` instance — feeds all PTY data to the ring buffer for preview display; exposes via `getOutputBuffer()`. |
+| **PtyOutputBuffer** | `renderer/terminal/pty-output-buffer.ts` | Ring buffer storing last N lines (default 50) per session as ANSI-stripped plain text. `append()` strips ANSI sequences, splits on newlines, handles `\r` overwrites, trims to max lines, and notifies update callbacks. `getLastLines(sessionId, count)` returns the most recent lines (including any partial line). `onUpdate()`/`offUpdate()` for live subscription. Used by GroupOverview for preview content. |
 | **PtyFilter** | `renderer/terminal/pty-filter.ts` | Strips mouse-tracking and alternate-scroll ANSI escape sequences (DEC modes 1000–1007, 1015–1016) from PTY output so xterm.js never enters mouse-reporting mode and native text selection always works. |
+| **GroupOverview** | `renderer/screens/group-overview.ts` | 2-column session preview grid — shows all sessions in a directory group with live PTY output previews. Renders into `#terminalArea` as a sibling to `#terminalContainer`. Each card shows session name, state dot, CLI type, and last 5 lines of PTY output. `showOverview(groupDirPath)` opens the grid, `hideOverview()` restores the terminal view. Live updates throttled at 500ms via `PtyOutputBuffer.onUpdate()`. Dependency-injected `PtyOutputBuffer` and session state getter to avoid circular imports. |
 | **SessionGroups** | `renderer/session-groups.ts` | Pure grouping logic — groups sessions by working directory. Types (`SessionGroup`, `NavItem`, `SessionGroupPrefs`) and functions (`groupSessionsByDirectory`, `buildFlatNavList`, `moveGroupUp/Down`, `toggleCollapse`, `findNavIndexBySessionId`). Group order + collapse state persisted in settings.yaml. |
 | **SortLogic** | `renderer/sort-logic.ts` | Pure sort functions for sessions (by state priority + alphabetical) and bindings. No side effects — easy to test. |
 | **TabCycling** | `renderer/tab-cycling.ts` | Resolves next/previous terminal for Ctrl+Tab cycling using sorted display order so tab switching matches what the user sees. |
@@ -182,11 +184,14 @@ dpad:
 | Input | Action |
 |-------|--------|
 | D-Pad Up/Down | Switch sessions (auto-selects terminal) |
+| D-Pad Right | Group header: open group overview grid |
+| D-Pad Left | Overview col 0: exit overview → session list |
+| D-Pad directions | Overview grid: 2D navigation between cards |
 | Left Stick | Same as D-pad |
 | Right Stick | Configurable (default: scroll terminal buffer) |
-| A | Configurable per-CLI binding |
+| A | Configurable per-CLI binding / overview: select session + exit |
 | B | Back to sessions zone / configurable per-CLI binding |
-| X | Configurable per-CLI binding |
+| X | Configurable per-CLI binding / overview: close focused session |
 | Y | (planned: cycle terminal state) |
 | Left Trigger | Spawn Claude Code |
 | Right Bumper | Spawn Copilot CLI |
@@ -229,6 +234,7 @@ dpad:
 15. **Desktop window layout** — App runs as a maximized desktop window (1280×800 default, 640×400 minimum). Sessions screen shows vertical session cards (top) and a spawn grid (bottom) with a directory picker modal. Settings is a slide-over panel. Sandwich button focuses the hub and returns to the sessions screen. Window bounds (width, height, x, y) persist across restarts via `getSidebarPrefs()`/`setSidebarPrefs()`.
 16. **Analog stick virtual buttons** — Each stick emits distinct virtual button names (e.g. `LeftStickUp`, `RightStickDown`) that can be bound like physical buttons. If no explicit binding exists, the stick falls back to its configured mode (cursor or scroll). Right stick scroll is a configurable per-CLI binding (default: `scroll` action), not hardcoded. D-pad buttons are separate (`DPadUp`, `DPadDown`, etc.). All directional inputs are normalized to cardinal directions via `toDirection()` for UI navigation. D-pad and sticks auto-repeat when held. D-pad uses keyboard-like delay (initialDelay) then constant rate. Sticks use displacement-proportional rate — gentle tilt = slow, full deflection = fast.
 17. **Session groups by working directory** — Sessions are grouped by their working directory. Each group has a collapsible header showing the directory name, session count, and ▲▼ reorder buttons. Group order and collapse state persist in `settings.yaml` via `SessionGroupPrefs`. Navigation uses a flat `navList` of group headers + session cards — D-pad traverses all items, A on a group header toggles collapse, A on a session card falls through to per-CLI bindings. Sorting (via sort control) applies within each group. New directories appear at the bottom of the group order.
+18. **Group Overview (session preview grid)** — D-pad Right from a group header opens a 2-column grid in the terminal area showing all sessions in that directory group. Each card displays session name, state dot, CLI type, and last 5 lines of ANSI-stripped PTY output. `PtyOutputBuffer` (ring buffer, default 50 lines per session) stores plain-text output and notifies the overview grid of updates, throttled at 500ms. D-pad navigates the 2D grid; A selects a session (exits overview and switches to it); X opens close-confirm for the focused session; D-pad Left from column 0 exits back to the session list. `PtyOutputBuffer` is owned by `TerminalManager` and injected into `GroupOverview` to avoid circular dependencies.
 
 ## Embedded Terminal Architecture
 
@@ -273,8 +279,9 @@ PTY Data Flow:
 - `src/session/initial-prompt.ts` — Converts sequence parser syntax to PTY escape codes, sends after configurable delay. `onComplete` callback signals when all items are done.
 - `src/input/sequence-parser.ts` — Parses `{Enter}`, `{Ctrl+C}`, `{Wait 500}` etc. into typed actions
 - `renderer/terminal/terminal-view.ts` — xterm.js wrapper with fit/search addons
-- `renderer/terminal/terminal-manager.ts` — Multi-terminal switching, tab bar rendering, lifecycle. Accepts `contextText` forwarded to main process via `ptySpawn()`.
+- `renderer/terminal/terminal-manager.ts` — Multi-terminal switching, tab bar rendering, lifecycle. Accepts `contextText` forwarded to main process via `ptySpawn()`. Owns `PtyOutputBuffer` for preview data.
 - `renderer/terminal/pty-filter.ts` — Strips mouse-tracking and alternate-scroll escape sequences from PTY output so native text selection works
+- `renderer/terminal/pty-output-buffer.ts` — Ring buffer for PTY output per session (ANSI-stripped plain text). Used by group overview for live previews.
 - `renderer/bindings.ts` — PTY-aware input routing: voice OS-default (robotjs) with PTY opt-in via `target: 'terminal'` + `keyToPtyEscape()` (F1-F12 VT220 sequences)
 - `renderer/paste-handler.ts` — Document-level Ctrl+V interceptor: reads clipboard, writes to active PTY via `ptyWrite()` regardless of DOM focus
 
@@ -342,7 +349,7 @@ renderer/
 ├── utils.ts                    # DOM helpers, logEvent, showScreen, toDirection
 ├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing, voice OS-default + PTY via target: 'terminal', F1-F12 VT220 escape sequences)
 ├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY
-├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → contextMenu → sequencePicker → screen routing → configBinding fallback
+├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → contextMenu → sequencePicker → quickSpawn → overview → screen routing → configBinding fallback
 ├── gamepad.ts                  # Browser Gamepad API wrapper + repeat engine
 ├── session-groups.ts           # Pure session grouping logic (by working directory) — types, grouping, nav list, reorder
 ├── sort-logic.ts               # Pure sort functions for sessions + bindings
@@ -351,13 +358,15 @@ renderer/
 │   └── sort-control.ts         # Reusable sort dropdown + direction toggle widget
 ├── terminal/
 │   ├── terminal-view.ts        # xterm.js wrapper (fit/search/weblinks addons)
-│   ├── terminal-manager.ts     # Multi-terminal orchestration (create/switch/rename/resize/destroy + tab bar)
-│   └── pty-filter.ts           # Strips mouse-tracking + alternate-scroll escape sequences from PTY output
+│   ├── terminal-manager.ts     # Multi-terminal orchestration (create/switch/rename/resize/destroy + tab bar + PtyOutputBuffer)
+│   ├── pty-filter.ts           # Strips mouse-tracking + alternate-scroll escape sequences from PTY output
+│   └── pty-output-buffer.ts    # Ring buffer for PTY output — last N lines per session, ANSI-stripped, for preview display
 ├── screens/
 │   ├── sessions.ts             # Sessions screen orchestrator: group init, collapse/reorder actions, navigation, public API. Re-exports from sessions-render + sessions-spawn.
 │   ├── sessions-render.ts      # Session card rendering, group header rendering, spawn grid UI, sort control, rename flow
-│   ├── sessions-spawn.ts       # doSpawn(), PTY creation, terminal area visibility, spawn zone navigation
-│   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn zones)
+│   ├── sessions-spawn.ts       # doSpawn(), PTY creation, terminal area visibility, spawn zone navigation, D-pad Right → group overview entry
+│   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn zones, overviewGroup + overviewFocusIndex)
+│   ├── group-overview.ts       # Group overview grid — 2-column session preview cards with live PTY output, entry/exit/2D navigation
 │   ├── settings.ts             # Settings slide-over orchestrator: tab bar, directories tab, public API
 │   ├── settings-bindings.ts    # Bindings display, sort state, add-binding picker
 │   ├── settings-profiles.ts    # Profiles panel, create profile prompt
@@ -379,7 +388,7 @@ config/
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 
-tests/                                  # 885 tests across 31 files
+tests/                                  # 917 tests across 33 files
 ├── config.test.ts              # Config loading, stick config, haptic, virtual buttons, sequence-list binding persistence, sequences CRUD (getSequences, getSequenceGroup, copyCliBindings sequences)
 ├── session.test.ts             # Session management
 ├── persistence.test.ts         # Session persistence
@@ -395,8 +404,10 @@ tests/                                  # 885 tests across 31 files
 ├── pipeline-queue.test.ts      # Auto-handoff queue tests
 ├── initial-prompt.test.ts      # Initial prompt delivery tests (including onComplete callback)
 ├── pty-filter.test.ts          # Mouse-tracking + alternate-scroll escape sequence stripping tests
+├── pty-output-buffer.test.ts  # PtyOutputBuffer ring buffer tests (append, ANSI stripping, line splitting, partial lines, getLastLines, update callbacks)
 ├── modal-base.test.ts          # Modal UI base tests
 ├── gamepad-repeat.test.ts      # D-pad/stick key repeat engine tests
+├── group-overview.test.ts     # Group overview grid tests (show/hide, card rendering, 2D grid navigation, live PTY preview updates, A/X button actions)
 ├── context-menu.test.ts        # Context menu overlay tests (show/hide, selection-aware items, Clear Scrollback, Prompts ⏩ item, gamepad navigation, click handlers, quick-spawn integration)
 ├── close-confirm.test.ts       # Close confirmation modal tests (show/hide, confirm/cancel, gamepad + keyboard navigation)
 ├── sequence-picker.test.ts     # Sequence picker overlay tests (show/hide, item selection, gamepad navigation, PTY dispatch)

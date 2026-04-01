@@ -85,6 +85,7 @@ Plug in a controller (USB or Bluetooth). The app detects it automatically.
 | Input | Action |
 |-------|--------|
 | D-Pad Up / Down | Switch sessions (auto-selects terminal) |
+| D-Pad Right | Open group overview (from group header) |
 | Left Stick | Same as D-pad |
 | Right Stick | Scroll terminal buffer (configurable) |
 | A | Configurable per-CLI binding |

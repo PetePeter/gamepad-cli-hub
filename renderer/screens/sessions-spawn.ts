@@ -259,6 +259,11 @@ export function handleSessionsZone(button: string, dir: string | null): void {
     if (sessionsState.cardColumn < maxCol) {
       sessionsState.cardColumn = (sessionsState.cardColumn + 1) as 0 | 1 | 2 | 3;
       updateSessionsFocus();
+    } else if (currentItem?.type === 'group-header') {
+      // Past max column on group header → open overview
+      import('./group-overview.js').then(({ showOverview }) => {
+        showOverview(currentItem.id);
+      });
     }
     return;
   }

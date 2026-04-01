@@ -7,6 +7,7 @@
 
 import { TerminalView } from './terminal-view.js';
 import { stripMouseTracking } from './pty-filter.js';
+import { PtyOutputBuffer } from './pty-output-buffer.js';
 
 export interface TerminalSession {
   sessionId: string;
@@ -26,11 +27,18 @@ export class TerminalManager {
   private onEmpty: (() => void) | null = null;
   private onSwitch: ((sessionId: string) => void) | null = null;
   private pendingFitRaf: number | null = null;
+  private outputBuffer: PtyOutputBuffer;
 
   constructor(container: HTMLElement) {
     this.container = container;
+    this.outputBuffer = new PtyOutputBuffer(50);
     this.setupIpcListeners();
     this.setupResizeObserver();
+  }
+
+  /** Get the shared PTY output buffer for preview display */
+  getOutputBuffer(): PtyOutputBuffer {
+    return this.outputBuffer;
   }
 
   /** Register a callback invoked when the last terminal is destroyed */
@@ -181,6 +189,7 @@ export class TerminalManager {
     this.terminals.delete(sessionId);
 
     window.gamepadCli?.ptyKill(sessionId);
+    this.outputBuffer.clear(sessionId);
 
     // Switch to another terminal if active one was destroyed
     if (this.activeSessionId === sessionId) {
@@ -250,6 +259,7 @@ export class TerminalManager {
 
     const unsubData = window.gamepadCli.onPtyData((sessionId: string, data: string) => {
       this.writeToTerminal(sessionId, data);
+      this.outputBuffer.append(sessionId, data);
     });
     this.unsubscribers.push(unsubData);
 
