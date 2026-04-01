@@ -1,10 +1,11 @@
 activeProfile: default
 hapticFeedback: true
 sidebar:
-  width: 1929
+  width: 2056
   height: 1078
   x: 374
   y: 745
 sessionGroups:
   order: []
   collapsed: []
+notifications: true

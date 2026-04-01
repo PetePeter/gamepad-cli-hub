@@ -8,16 +8,32 @@
 import { state, type Session } from '../state.js';
 import { sessionsState } from './sessions-state.js';
 import type { PtyOutputBuffer } from '../terminal/pty-output-buffer.js';
-import { getStateColor } from '../state-colors.js';
+import { getActivityColor } from '../state-colors.js';
 
 const PREVIEW_LINES = 10;
 
 let overviewContainer: HTMLElement | null = null;
 let outputBuffer: PtyOutputBuffer | null = null;
 let sessionStateGetter: ((sessionId: string) => string) | null = null;
+let activityLevelGetter: ((sessionId: string) => string) | null = null;
 let updateUnsubscribe: (() => void) | null = null;
 let throttleTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingUpdates = new Set<string>();
+let previousActiveSessionId: string | null = null;
+
+interface TerminalManagerLike {
+  deselect(): void;
+  switchTo(sessionId: string): void;
+  getActiveSessionId(): string | null;
+  hasTerminal(sessionId: string): boolean;
+}
+
+let terminalManagerGetter: (() => TerminalManagerLike | null) | null = null;
+
+/** Inject terminal manager getter (called once from main.ts to avoid circular deps) */
+export function setTerminalManagerGetter(fn: () => TerminalManagerLike | null): void {
+  terminalManagerGetter = fn;
+}
 
 /** Inject the PtyOutputBuffer instance (called once from main.ts) */
 export function setOutputBuffer(buffer: PtyOutputBuffer): void {
@@ -29,10 +45,20 @@ export function setSessionStateGetter(fn: (sessionId: string) => string): void {
   sessionStateGetter = fn;
 }
 
+/** Inject activity level getter to avoid circular deps with sessions.ts */
+export function setActivityLevelGetter(fn: (sessionId: string) => string): void {
+  activityLevelGetter = fn;
+}
+
 /** Show the overview grid for a specific group */
 export function showOverview(groupDirPath: string): void {
   sessionsState.overviewGroup = groupDirPath;
   sessionsState.overviewFocusIndex = 0;
+
+  // Deselect the active terminal — keyboard/paste should not affect any session while overview is open
+  const tm = terminalManagerGetter?.();
+  previousActiveSessionId = tm?.getActiveSessionId() ?? null;
+  tm?.deselect();
 
   const terminalArea = document.getElementById('terminalArea');
   if (!terminalArea) return;
@@ -87,6 +113,13 @@ export function hideOverview(): void {
   // Restore the terminal container
   const termContainer = document.getElementById('terminalContainer');
   if (termContainer) termContainer.style.display = '';
+
+  // Restore the previously active terminal
+  const tm = terminalManagerGetter?.();
+  if (tm && previousActiveSessionId && tm.hasTerminal(previousActiveSessionId)) {
+    tm.switchTo(previousActiveSessionId);
+  }
+  previousActiveSessionId = null;
 
   // Unsubscribe from live updates
   if (updateUnsubscribe) {
@@ -143,8 +176,8 @@ function createOverviewCard(session: Session): HTMLElement {
 
   const dot = document.createElement('span');
   dot.className = 'overview-state-dot';
-  const sessionState = getSessionStateForOverview(session.id);
-  dot.style.background = getStateColor(sessionState);
+  const activityLevel = getActivityLevelForOverview(session.id);
+  dot.style.background = getActivityColor(activityLevel);
   header.appendChild(dot);
 
   const name = document.createElement('span');
@@ -152,6 +185,7 @@ function createOverviewCard(session: Session): HTMLElement {
   name.textContent = session.name;
   header.appendChild(name);
 
+  const sessionState = getSessionStateForOverview(session.id);
   const stateLabel = document.createElement('span');
   stateLabel.className = 'overview-card-state';
   stateLabel.textContent = sessionState;
@@ -237,7 +271,8 @@ function flushPendingUpdates(): void {
     const stateLabel = card.querySelector('.overview-card-state');
     if (dot || stateLabel) {
       const sessionState = getSessionStateForOverview(sessionId);
-      if (dot) dot.style.background = getStateColor(sessionState);
+      const activityLevel = getActivityLevelForOverview(sessionId);
+      if (dot) dot.style.background = getActivityColor(activityLevel);
       if (stateLabel) stateLabel.textContent = sessionState;
     }
   }
@@ -247,4 +282,9 @@ function flushPendingUpdates(): void {
 /** Get session state via injected getter (avoids circular dep with sessions.ts) */
 function getSessionStateForOverview(sessionId: string): string {
   return sessionStateGetter?.(sessionId) ?? 'idle';
+}
+
+/** Get activity level via injected getter (avoids circular dep with sessions.ts) */
+function getActivityLevelForOverview(sessionId: string): string {
+  return activityLevelGetter?.(sessionId) ?? 'idle';
 }

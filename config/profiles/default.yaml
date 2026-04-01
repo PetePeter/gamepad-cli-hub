@@ -3,6 +3,13 @@ tools:
   claude-code:
     name: Claude Code
     command: claude
+    # Session resume — CLI parameters (written to shell stdin as-is on resume):
+    #   claude --session-id <uuid>       Start a new session with a specific UUID
+    #   claude --resume=<session-id>     Resume a specific session by ID
+    #   claude --continue                Resume most recent conversation in current directory
+    spawnCommand: "claude --session-id {cliSessionName}"
+    resumeCommand: "claude --resume={cliSessionName}"
+    continueCommand: "claude --continue"
     handoffCommand: "go implement it\r"
     initialPromptDelay: 1000
     initialPrompt:
@@ -28,6 +35,12 @@ tools:
   copilot-cli:
     name: GitHub Copilot CLI
     command: copilot
+    # Session resume — CLI parameters (written to shell stdin as-is on resume):
+    #   copilot --resume=<session-id>   Resume or create a session with a specific UUID
+    #   copilot --continue              Resume the most recent session
+    spawnCommand: "copilot --resume={cliSessionName}"
+    resumeCommand: "copilot --resume={cliSessionName}"
+    continueCommand: "copilot --continue"
     handoffCommand: "go implement it\r"
     initialPrompt:
       - sequence: /allow-all{Enter}

@@ -25,7 +25,7 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
   ipcMain.handle('tools:addCliType', (
     _event, key: string, name: string, command: string,
     initialPrompt: SequenceListItem[], initialPromptDelay: number,
-    options?: { handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string },
+    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string },
   ) => {
     try {
       configLoader.addCliType(key, name, command, initialPrompt, initialPromptDelay, options);
@@ -39,7 +39,7 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
   ipcMain.handle('tools:updateCliType', (
     _event, key: string, name: string, command: string,
     initialPrompt: SequenceListItem[], initialPromptDelay: number,
-    options?: { handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string },
+    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string },
   ) => {
     try {
       configLoader.updateCliType(key, name, command, initialPrompt, initialPromptDelay, options);

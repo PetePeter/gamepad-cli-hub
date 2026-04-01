@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { SessionState } from '../types/session.js';
+import type { SessionState, ActivityLevel } from '../types/session.js';
 
 export interface StateTransition {
   sessionId: string;
@@ -17,14 +17,14 @@ export interface QuestionCleared {
 
 export interface ActivityChange {
   sessionId: string;
-  isActive: boolean;
+  level: ActivityLevel;
 }
 
 interface SessionTracking {
   state: SessionState;
   questionPending: boolean;
   lastOutputAt: number;
-  lastKnownActivity: boolean; // tracks last emitted activity state to avoid duplicate events
+  activityLevel: ActivityLevel;
 }
 
 /** Strip ANSI escape sequences so keyword detection works on raw PTY output. */
@@ -46,8 +46,16 @@ const KEYWORD_STATE_MAP: Record<string, SessionState> = {
 const STATE_KEYWORDS = Object.keys(KEYWORD_STATE_MAP);
 const QUESTION_KEYWORD = 'AIAGENT-QUESTION';
 
-/** Default activity timeout: 5 seconds of no output before considering a session inactive */
-export const DEFAULT_ACTIVITY_TIMEOUT_MS = 5_000;
+/** Default timeout before considering a session inactive (no output for 10s) */
+export const DEFAULT_INACTIVE_TIMEOUT_MS = 10_000;
+
+/** Default timeout before considering a session idle (no output for 5 minutes) */
+export const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
+
+export interface ActivityTimeouts {
+  inactiveMs: number;
+  idleMs: number;
+}
 
 /**
  * Detects session state from PTY output by scanning for AIAGENT-* keywords.
@@ -56,20 +64,24 @@ export const DEFAULT_ACTIVITY_TIMEOUT_MS = 5_000;
  * - 'state-change'      (StateTransition)  — keyword triggered a state change
  * - 'question-detected'  (QuestionDetected) — AIAGENT-QUESTION found
  * - 'question-cleared'   (QuestionCleared)  — new output arrived after question
- * - 'activity-change'   (ActivityChange)   — session transitioned active↔inactive
+ * - 'activity-change'   (ActivityChange)   — session activity level changed
  *
- * Activity detection uses a per-session debounced timeout: each processOutput()
- * call resets a timer. When the timer fires (no output for activityTimeoutMs),
- * an activity-change event with isActive=false is emitted.
+ * Activity detection uses per-session debounced timeouts:
+ * - On output: level → 'active', reset both timers
+ * - After inactiveMs (10s default): level → 'inactive'
+ * - After idleMs (5min default): level → 'idle'
  */
 export class StateDetector extends EventEmitter {
   private sessionStates: Map<string, SessionTracking> = new Map();
-  private activityTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
-  private readonly activityTimeoutMs: number;
+  private inactiveTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private idleTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private readonly inactiveTimeoutMs: number;
+  private readonly idleTimeoutMs: number;
 
-  constructor(activityTimeoutMs: number = DEFAULT_ACTIVITY_TIMEOUT_MS) {
+  constructor(timeouts?: Partial<ActivityTimeouts>) {
     super();
-    this.activityTimeoutMs = activityTimeoutMs;
+    this.inactiveTimeoutMs = timeouts?.inactiveMs ?? DEFAULT_INACTIVE_TIMEOUT_MS;
+    this.idleTimeoutMs = timeouts?.idleMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   }
 
   /** Feed output data from a session's PTY. */
@@ -77,14 +89,14 @@ export class StateDetector extends EventEmitter {
     const tracking = this.getOrCreate(sessionId);
     tracking.lastOutputAt = Date.now();
 
-    // Emit activity-change if transitioning from inactive to active
-    if (!tracking.lastKnownActivity) {
-      tracking.lastKnownActivity = true;
-      this.emit('activity-change', { sessionId, isActive: true } satisfies ActivityChange);
+    // Emit activity-change if transitioning to active
+    if (tracking.activityLevel !== 'active') {
+      tracking.activityLevel = 'active';
+      this.emit('activity-change', { sessionId, level: 'active' } satisfies ActivityChange);
     }
 
-    // Reset the inactivity timer — fires after activityTimeoutMs of silence
-    this.resetActivityTimer(sessionId);
+    // Reset both inactivity timers
+    this.resetActivityTimers(sessionId);
 
     const clean = stripAnsi(data);
 
@@ -159,16 +171,16 @@ export class StateDetector extends EventEmitter {
 
   /** Remove tracking for a session. */
   removeSession(sessionId: string): void {
-    this.clearActivityTimer(sessionId);
+    this.clearActivityTimers(sessionId);
     this.sessionStates.delete(sessionId);
   }
 
   /** Clean up all timers (call on shutdown). */
   dispose(): void {
-    for (const timer of this.activityTimers.values()) {
-      clearTimeout(timer);
-    }
-    this.activityTimers.clear();
+    for (const timer of this.inactiveTimers.values()) clearTimeout(timer);
+    for (const timer of this.idleTimers.values()) clearTimeout(timer);
+    this.inactiveTimers.clear();
+    this.idleTimers.clear();
     this.sessionStates.clear();
   }
 
@@ -179,33 +191,51 @@ export class StateDetector extends EventEmitter {
     return this.sessionStates.get(sessionId)?.lastOutputAt ?? 0;
   }
 
-  /** Reset (or start) the inactivity timer for a session. */
-  private resetActivityTimer(sessionId: string): void {
-    this.clearActivityTimer(sessionId);
-    const timer = setTimeout(() => {
-      this.activityTimers.delete(sessionId);
+  /** Reset (or start) both activity timers for a session. */
+  private resetActivityTimers(sessionId: string): void {
+    this.clearActivityTimers(sessionId);
+
+    // Timer 1: inactive after inactiveTimeoutMs of silence
+    const inactiveTimer = setTimeout(() => {
+      this.inactiveTimers.delete(sessionId);
       const tracking = this.sessionStates.get(sessionId);
-      if (tracking && tracking.lastKnownActivity) {
-        tracking.lastKnownActivity = false;
-        this.emit('activity-change', { sessionId, isActive: false } satisfies ActivityChange);
+      if (tracking && tracking.activityLevel === 'active') {
+        tracking.activityLevel = 'inactive';
+        this.emit('activity-change', { sessionId, level: 'inactive' } satisfies ActivityChange);
       }
-    }, this.activityTimeoutMs);
-    this.activityTimers.set(sessionId, timer);
+    }, this.inactiveTimeoutMs);
+    this.inactiveTimers.set(sessionId, inactiveTimer);
+
+    // Timer 2: idle after idleTimeoutMs of silence
+    const idleTimer = setTimeout(() => {
+      this.idleTimers.delete(sessionId);
+      const tracking = this.sessionStates.get(sessionId);
+      if (tracking && tracking.activityLevel !== 'idle') {
+        tracking.activityLevel = 'idle';
+        this.emit('activity-change', { sessionId, level: 'idle' } satisfies ActivityChange);
+      }
+    }, this.idleTimeoutMs);
+    this.idleTimers.set(sessionId, idleTimer);
   }
 
-  /** Clear the inactivity timer for a session. */
-  private clearActivityTimer(sessionId: string): void {
-    const existing = this.activityTimers.get(sessionId);
-    if (existing) {
-      clearTimeout(existing);
-      this.activityTimers.delete(sessionId);
+  /** Clear both activity timers for a session. */
+  private clearActivityTimers(sessionId: string): void {
+    const inactiveTimer = this.inactiveTimers.get(sessionId);
+    if (inactiveTimer) {
+      clearTimeout(inactiveTimer);
+      this.inactiveTimers.delete(sessionId);
+    }
+    const idleTimer = this.idleTimers.get(sessionId);
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+      this.idleTimers.delete(sessionId);
     }
   }
 
   private getOrCreate(sessionId: string): SessionTracking {
     let tracking = this.sessionStates.get(sessionId);
     if (!tracking) {
-      tracking = { state: 'idle', questionPending: false, lastOutputAt: 0, lastKnownActivity: false };
+      tracking = { state: 'idle', questionPending: false, lastOutputAt: 0, activityLevel: 'idle' };
       this.sessionStates.set(sessionId, tracking);
     }
     return tracking;

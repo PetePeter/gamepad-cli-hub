@@ -76,19 +76,13 @@ export class TerminalView {
       return true;
     });
 
-    // Force mouse wheel to always scroll the terminal buffer, even in
-    // alternate screen mode (prevents CLIs from receiving arrow keys
-    // when the user scrolls)
-    const viewport = this.container.querySelector('.xterm-viewport');
-    if (viewport) {
-      viewport.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const we = e as WheelEvent;
-        const lines = Math.sign(we.deltaY) * Math.max(1, Math.round(Math.abs(we.deltaY) / 40));
-        this.terminal.scrollLines(lines);
-      }, { passive: false, capture: true });
-    }
+    // Prevent xterm.js from converting wheel events to Up/Down arrow key
+    // sequences in alternate screen mode. Without this, scrolling sends
+    // arrow keys to the PTY — navigating the CLI prompt and triggering
+    // false state changes. Return false → xterm.js skips its internal
+    // wheel-to-arrow conversion; normal buffer scrolling via
+    // SmoothScrollableElement is unaffected.
+    this.terminal.attachCustomWheelEventHandler((_ev: WheelEvent) => false);
 
     this.fit();
 

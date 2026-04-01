@@ -177,34 +177,24 @@ describe('NotificationManager', () => {
   // ==========================================================================
 
   describe('handleActivityChange', () => {
-    it('notifies when activity goes inactive while implementing', () => {
-      const event: ActivityChange = { sessionId: 'session-1', isActive: false };
-      manager.handleActivityChange(event, 'implementing');
+    it('notifies when activity goes inactive', () => {
+      const event: ActivityChange = { sessionId: 'session-1', level: 'inactive' };
+      manager.handleActivityChange(event);
       expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
         title: '🔇 Inactive — claude-code',
         body: '"hub-abc123" in my-project went quiet.',
       }));
     });
 
-    it('notifies when activity goes inactive while planning', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', isActive: false }, 'planning');
+    it('notifies when activity goes idle', () => {
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'idle' });
       expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
         title: '🔇 Inactive — claude-code',
       }));
     });
 
-    it('does NOT notify when activity goes inactive while idle', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', isActive: false }, 'idle');
-      expect(mockNotificationShow).not.toHaveBeenCalled();
-    });
-
-    it('does NOT notify when activity goes inactive while completed', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', isActive: false }, 'completed');
-      expect(mockNotificationShow).not.toHaveBeenCalled();
-    });
-
     it('does NOT notify when activity becomes active', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', isActive: true }, 'implementing');
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'active' });
       expect(mockNotificationShow).not.toHaveBeenCalled();
     });
   });
@@ -287,7 +277,7 @@ describe('NotificationManager', () => {
       expect(mockNotificationShow).toHaveBeenCalledTimes(1);
 
       // Second notification for same session within dedup window
-      manager.handleActivityChange({ sessionId: 'session-1', isActive: false }, 'implementing');
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).toHaveBeenCalledTimes(1);
     });
 

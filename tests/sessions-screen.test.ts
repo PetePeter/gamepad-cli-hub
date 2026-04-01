@@ -1026,6 +1026,33 @@ describe('Sessions Screen', () => {
       // Cleanup
       document.body.removeChild(xtermEl);
     });
+
+    it('keyboard fallback is skipped when an input element has DOM focus', () => {
+      const input = document.createElement('input');
+      input.className = 'session-rename-input';
+      document.body.appendChild(input);
+      input.focus();
+
+      const indexBefore = sessionsState.sessionsFocusIndex;
+      pressKey('Enter');
+      expect(sessionsState.sessionsFocusIndex).toBe(indexBefore);
+      pressKey('Escape');
+      expect(sessionsState.activeFocus).toBe('sessions');
+
+      document.body.removeChild(input);
+    });
+
+    it('keyboard fallback is skipped when a textarea has DOM focus', () => {
+      const textarea = document.createElement('textarea');
+      document.body.appendChild(textarea);
+      textarea.focus();
+
+      const indexBefore = sessionsState.sessionsFocusIndex;
+      pressKey('ArrowDown');
+      expect(sessionsState.sessionsFocusIndex).toBe(indexBefore);
+
+      document.body.removeChild(textarea);
+    });
   });
 
   // ==========================================================================

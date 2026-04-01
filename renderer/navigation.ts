@@ -266,8 +266,17 @@ function handleOverviewButton(button: string): boolean {
     return true;
   }
 
-  // B consumed but no action
-  if (button === 'B') return true;
+  if (button === 'B') {
+    // Exit overview, return to session list (same as D-pad Left)
+    hideOverview();
+    const tm = getTerminalManager();
+    if (tm && tm.getActiveSessionId()) {
+      showTerminalArea();
+    } else {
+      hideTerminalArea();
+    }
+    return true;
+  }
 
   return false;
 }

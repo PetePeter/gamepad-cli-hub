@@ -217,8 +217,9 @@ async function showAddCliTypeForm(): Promise<void> {
     { key: 'initialPromptDelay', label: 'Initial Prompt Delay (ms)', type: 'text', defaultValue: '2000', placeholder: 'e.g. 2000' },
     { key: 'handoffCommand', label: 'Handoff Command', placeholder: 'Command sent on pipeline handoff (e.g. go implement it\\r)' },
     { key: 'renameCommand', label: 'Rename Command', placeholder: 'Name session for resume (use {cliSessionName})' },
-    { key: 'resumeCommand', label: 'Resume Command', placeholder: 'Resume named session (use {cliSessionName})' },
-    { key: 'continueCommand', label: 'Continue Command', placeholder: 'Resume most recent session' },
+    { key: 'spawnCommand', label: 'Spawn Command', placeholder: 'Fresh spawn with session UUID (e.g. claude --session-id {cliSessionName})' },
+    { key: 'resumeCommand', label: 'Resume Command', placeholder: 'Resume by UUID (e.g. claude --resume={cliSessionName})' },
+    { key: 'continueCommand', label: 'Continue Command', placeholder: 'Resume most recent session (e.g. claude --continue)' },
   ]);
 
   if (!result) return;
@@ -261,8 +262,9 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
     { key: 'initialPromptDelay', label: 'Initial Prompt Delay (ms)', type: 'text', defaultValue: String(value.initialPromptDelay ?? 0), placeholder: 'e.g. 2000' },
     { key: 'handoffCommand', label: 'Handoff Command', defaultValue: value.handoffCommand || '', placeholder: 'Command sent on pipeline handoff (e.g. go implement it\\r)' },
     { key: 'renameCommand', label: 'Rename Command', defaultValue: value.renameCommand || '', placeholder: 'Name session for resume (use {cliSessionName})' },
-    { key: 'resumeCommand', label: 'Resume Command', defaultValue: value.resumeCommand || '', placeholder: 'Resume named session (use {cliSessionName})' },
-    { key: 'continueCommand', label: 'Continue Command', defaultValue: value.continueCommand || '', placeholder: 'Resume most recent session' },
+    { key: 'spawnCommand', label: 'Spawn Command', defaultValue: value.spawnCommand || '', placeholder: 'Fresh spawn with session UUID (e.g. claude --session-id {cliSessionName})' },
+    { key: 'resumeCommand', label: 'Resume Command', defaultValue: value.resumeCommand || '', placeholder: 'Resume by UUID (e.g. claude --resume={cliSessionName})' },
+    { key: 'continueCommand', label: 'Continue Command', defaultValue: value.continueCommand || '', placeholder: 'Resume most recent session (e.g. claude --continue)' },
   ]);
 
   if (!result) return;
@@ -285,8 +287,8 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
 }
 
 /** Build the optional command fields from form result. Empty string = clear, undefined = no change. */
-function buildCommandOptions(result: Record<string, string>): { handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string } | undefined {
-  const fields = ['handoffCommand', 'renameCommand', 'resumeCommand', 'continueCommand'] as const;
+function buildCommandOptions(result: Record<string, string>): { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string } | undefined {
+  const fields = ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
   const opts: Record<string, string> = {};
   let hasAny = false;
   for (const field of fields) {

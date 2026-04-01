@@ -1,4 +1,5 @@
 import { ipcMain, type BrowserWindow } from 'electron';
+import { randomUUID } from 'crypto';
 import type { PtyManager } from '../../session/pty-manager.js';
 import type { StateDetector } from '../../session/state-detector.js';
 import type { SessionManager } from '../../session/manager.js';
@@ -54,31 +55,31 @@ export function setupPtyHandlers(
   ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string, resumeSessionName?: string) => {
     logger.info(`[PTY IPC] pty:spawn called: sessionId=${sessionId}, command=${command}, args=${JSON.stringify(args)}, cwd=${cwd}, cliType=${cliType}, hasContext=${!!contextText}, resume=${resumeSessionName || 'none'}`);
     try {
-      // Resolve actual command: resume > continue > base command
-      let actualCommand = command;
-      let actualArgs = args;
+      // Generate CLI session name (UUID v4) for resume capability
       const isResume = !!resumeSessionName;
+      const cliSessionName = resumeSessionName || randomUUID();
+
+      // Resolve actual command: resume > spawnCommand > base command+args
+      let rawCommand: string | undefined;
 
       if (isResume && cliType && configLoader) {
         const cfg = configLoader.getCliTypeEntry?.(cliType);
         if (cfg?.resumeCommand && resumeSessionName) {
-          // Use resumeCommand template — it's the full command string
-          const fullCmd = cfg.resumeCommand.replace('{cliSessionName}', resumeSessionName);
-          const parts = fullCmd.split(/\s+/);
-          actualCommand = parts[0];
-          actualArgs = parts.slice(1);
-          logger.info(`[PTY IPC] Resuming with: ${actualCommand} ${actualArgs.join(' ')}`);
+          rawCommand = cfg.resumeCommand.replace('{cliSessionName}', resumeSessionName);
+          logger.info(`[PTY IPC] Resuming with: ${rawCommand}`);
         } else if (cfg?.continueCommand) {
-          // Fallback: continueCommand
-          const parts = cfg.continueCommand.split(/\s+/);
-          actualCommand = parts[0];
-          actualArgs = parts.slice(1);
-          logger.info(`[PTY IPC] Continuing with: ${actualCommand} ${actualArgs.join(' ')}`);
+          rawCommand = cfg.continueCommand;
+          logger.info(`[PTY IPC] Continuing with: ${rawCommand}`);
         }
-        // else: use base command/args as-is (fresh spawn)
+      } else if (cliType && configLoader) {
+        const cfg = configLoader.getCliTypeEntry?.(cliType);
+        if (cfg?.spawnCommand) {
+          rawCommand = cfg.spawnCommand.replace('{cliSessionName}', cliSessionName);
+          logger.info(`[PTY IPC] Fresh spawn with spawnCommand: ${rawCommand}`);
+        }
       }
 
-      const pty = ptyManager.spawn({ sessionId, command: actualCommand, args: actualArgs, cwd });
+      const pty = ptyManager.spawn({ sessionId, command: rawCommand ? undefined : command, args: rawCommand ? undefined : args, rawCommand, cwd });
 
       // Register with SessionManager so rename/state/persistence work
       sessionManager.addSession({
@@ -89,8 +90,7 @@ export function setupPtyHandlers(
         ...(cwd ? { workingDir: cwd } : {}),
       });
 
-      // Generate CLI session name for resume capability
-      const cliSessionName = resumeSessionName || `hub-${sessionId}`;
+      // Store CLI session name on the session for persistence
       const session = sessionManager.getSession(sessionId);
       if (session) {
         session.cliSessionName = cliSessionName;
@@ -283,9 +283,8 @@ export function setupPtyHandlers(
       win.webContents.send('pty:activity-change', event);
     }
 
-    // Desktop notification when activity goes inactive while in an active state
-    const currentState = stateDetector.getState(event.sessionId);
-    notificationManager?.handleActivityChange(event, currentState);
+    // Desktop notification when activity transitions from active to non-active
+    notificationManager?.handleActivityChange(event);
   });
 
   // Pipeline queue management

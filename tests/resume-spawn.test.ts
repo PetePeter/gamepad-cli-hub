@@ -93,7 +93,7 @@ describe('pty:spawn resume logic', () => {
     );
   });
 
-  it('uses resumeCommand when resumeSessionName is provided', async () => {
+  it('uses resumeCommand as rawCommand when resumeSessionName is provided', async () => {
     configLoader.getCliTypeEntry.mockReturnValue({
       name: 'Claude Code',
       command: 'claude',
@@ -105,16 +105,17 @@ describe('pty:spawn resume logic', () => {
     const handler = handlers.get('pty:spawn')!;
     await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code', undefined, 'hub-sid-1');
 
-    // Should spawn with resume command
+    // Should spawn with rawCommand — no escaping, no split on whitespace
     expect(ptyManager.spawn).toHaveBeenCalledWith({
       sessionId: 'sid-1',
-      command: 'claude',
-      args: ['--resume', '"hub-sid-1"'],
+      command: undefined,
+      args: undefined,
+      rawCommand: 'claude --resume "hub-sid-1"',
       cwd: '/work',
     });
   });
 
-  it('falls back to continueCommand when no resumeCommand but has continueCommand', async () => {
+  it('falls back to continueCommand as rawCommand when no resumeCommand', async () => {
     configLoader.getCliTypeEntry.mockReturnValue({
       name: 'Claude Code',
       command: 'claude',
@@ -123,13 +124,14 @@ describe('pty:spawn resume logic', () => {
     } as CliTypeConfig);
 
     const handler = handlers.get('pty:spawn')!;
-    // resumeSessionName provided but no resumeCommand → falls back to continueCommand
     await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code', undefined, 'hub-sid-1');
 
+    // continueCommand also uses rawCommand — it's a CLI parameter
     expect(ptyManager.spawn).toHaveBeenCalledWith({
       sessionId: 'sid-1',
-      command: 'claude',
-      args: ['--continue'],
+      command: undefined,
+      args: undefined,
+      rawCommand: 'claude --continue',
       cwd: '/work',
     });
   });
@@ -143,11 +145,12 @@ describe('pty:spawn resume logic', () => {
     const handler = handlers.get('pty:spawn')!;
     await handler({}, 'sid-1', 'bash', ['-l'], '/work', 'generic', undefined, 'hub-sid-1');
 
-    // Should use original command and args
+    // Should use original command and args (no rawCommand)
     expect(ptyManager.spawn).toHaveBeenCalledWith({
       sessionId: 'sid-1',
       command: 'bash',
       args: ['-l'],
+      rawCommand: undefined,
       cwd: '/work',
     });
   });
@@ -215,7 +218,7 @@ describe('pty:spawn resume logic', () => {
     );
   });
 
-  it('sets cliSessionName on session for fresh spawn', async () => {
+  it('sets cliSessionName as UUID on session for fresh spawn', async () => {
     configLoader.getCliTypeEntry.mockReturnValue({
       name: 'Claude Code',
       command: 'claude',
@@ -225,7 +228,8 @@ describe('pty:spawn resume logic', () => {
     await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code');
 
     const session = sessions.get('sid-1');
-    expect(session.cliSessionName).toBe('hub-sid-1');
+    // Should be a valid UUID v4 (not hub-sid-1)
+    expect(session.cliSessionName).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
   });
 
   it('preserves resumeSessionName as cliSessionName on resume', async () => {
@@ -240,5 +244,67 @@ describe('pty:spawn resume logic', () => {
 
     const session = sessions.get('sid-1');
     expect(session.cliSessionName).toBe('hub-original-session');
+  });
+
+  it('uses spawnCommand as rawCommand for fresh spawn when configured', async () => {
+    configLoader.getCliTypeEntry.mockReturnValue({
+      name: 'Claude Code',
+      command: 'claude',
+      spawnCommand: 'claude --session-id {cliSessionName}',
+    } as CliTypeConfig);
+
+    const handler = handlers.get('pty:spawn')!;
+    await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code');
+
+    const session = sessions.get('sid-1');
+    const uuid = session.cliSessionName;
+    // Should be a valid UUID
+    expect(uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    // Should spawn with rawCommand using the UUID
+    expect(ptyManager.spawn).toHaveBeenCalledWith({
+      sessionId: 'sid-1',
+      command: undefined,
+      args: undefined,
+      rawCommand: `claude --session-id ${uuid}`,
+      cwd: '/work',
+    });
+  });
+
+  it('falls back to command+args when no spawnCommand on fresh spawn', async () => {
+    configLoader.getCliTypeEntry.mockReturnValue({
+      name: 'Generic',
+      command: 'bash',
+    } as CliTypeConfig);
+
+    const handler = handlers.get('pty:spawn')!;
+    await handler({}, 'sid-1', 'bash', ['-l'], '/work', 'generic');
+
+    expect(ptyManager.spawn).toHaveBeenCalledWith({
+      sessionId: 'sid-1',
+      command: 'bash',
+      args: ['-l'],
+      rawCommand: undefined,
+      cwd: '/work',
+    });
+  });
+
+  it('prefers resumeCommand over spawnCommand on resume', async () => {
+    configLoader.getCliTypeEntry.mockReturnValue({
+      name: 'Claude Code',
+      command: 'claude',
+      spawnCommand: 'claude --session-id {cliSessionName}',
+      resumeCommand: 'claude --resume={cliSessionName}',
+    } as CliTypeConfig);
+
+    const handler = handlers.get('pty:spawn')!;
+    await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code', undefined, 'abc-123');
+
+    expect(ptyManager.spawn).toHaveBeenCalledWith({
+      sessionId: 'sid-1',
+      command: undefined,
+      args: undefined,
+      rawCommand: 'claude --resume=abc-123',
+      cwd: '/work',
+    });
   });
 });

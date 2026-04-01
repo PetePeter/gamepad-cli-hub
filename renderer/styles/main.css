@@ -373,7 +373,7 @@ button {
 .session-card.focused { background: var(--bg-tertiary); }
 .session-card.active { border-color: var(--accent); background: var(--bg-secondary); }
 
-/* Activity dot (bright = active, dim = inactive) */
+/* Activity dot (green = active, blue = inactive >10s, grey = idle >5min) */
 .session-activity-dot {
   width: 8px;
   height: 8px;
@@ -385,6 +385,9 @@ button {
   box-shadow: 0 0 6px #44cc44;
 }
 .session-activity-dot--inactive {
+  background: #4488ff;
+}
+.session-activity-dot--idle {
   background: #555555;
   opacity: 0.5;
 }

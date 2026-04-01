@@ -1,17 +1,17 @@
 /**
- * Shared state-to-color mapping for session state dots.
- * Used by session cards, overview grid, and tab bar.
+ * Shared activity-level-to-color mapping for session activity dots.
+ * Used by session cards and overview grid.
+ *
+ * Activity level is based purely on output timing — independent of AIAGENT session state.
  */
 
-export const STATE_COLORS: Record<string, string> = {
-  implementing: '#44cc44',
-  waiting: '#ffaa00',
-  planning: '#4488ff',
-  completed: '#ffd700',
-  idle: '#555555',
+export const ACTIVITY_COLORS: Record<string, string> = {
+  active: '#44cc44',    // Green — producing output
+  inactive: '#4488ff',  // Blue — no output for >10s
+  idle: '#555555',      // Grey — no output for >5min
 };
 
-/** Get the color for a session state, defaulting to idle grey */
-export function getStateColor(sessionState: string): string {
-  return STATE_COLORS[sessionState] ?? STATE_COLORS.idle;
+/** Get the color for an activity level, defaulting to idle grey */
+export function getActivityColor(activityLevel: string): string {
+  return ACTIVITY_COLORS[activityLevel] ?? ACTIVITY_COLORS.idle;
 }

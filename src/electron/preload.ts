@@ -183,7 +183,7 @@ const gamepadCliAPI = {
   },
 
   /** Subscribe to activity change events */
-  onPtyActivityChange: (callback: (event: { sessionId: string; isActive: boolean }) => void) => {
+  onPtyActivityChange: (callback: (event: { sessionId: string; level: string }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
     ipcRenderer.on('pty:activity-change', listener);
     return () => ipcRenderer.removeListener('pty:activity-change', listener);

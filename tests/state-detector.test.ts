@@ -207,7 +207,7 @@ describe('StateDetector', () => {
 
       expect(handler).toHaveBeenCalledWith({
         sessionId: 's1',
-        isActive: true,
+        level: 'active',
       } satisfies ActivityChange);
     });
 
@@ -218,12 +218,12 @@ describe('StateDetector', () => {
       detector.processOutput('s1', 'output');
       handler.mockClear();
 
-      // Advance past the 5s default timeout
-      vi.advanceTimersByTime(5_001);
+      // Advance past the 10s default inactive timeout
+      vi.advanceTimersByTime(10_001);
 
       expect(handler).toHaveBeenCalledWith({
         sessionId: 's1',
-        isActive: false,
+        level: 'inactive',
       } satisfies ActivityChange);
     });
 
@@ -234,7 +234,7 @@ describe('StateDetector', () => {
       detector.processOutput('s1', 'output');
       handler.mockClear();
 
-      vi.advanceTimersByTime(4_000);
+      vi.advanceTimersByTime(9_000);
 
       expect(handler).not.toHaveBeenCalled();
     });
@@ -246,23 +246,23 @@ describe('StateDetector', () => {
       detector.processOutput('s1', 'output1');
       handler.mockClear();
 
-      // Output every 2s — timer keeps resetting
-      vi.advanceTimersByTime(2_000);
+      // Output every 5s — timer keeps resetting
+      vi.advanceTimersByTime(5_000);
       detector.processOutput('s1', 'output2');
 
-      vi.advanceTimersByTime(2_000);
+      vi.advanceTimersByTime(5_000);
       detector.processOutput('s1', 'output3');
 
       // No inactive events during rapid output
       expect(handler).not.toHaveBeenCalled();
 
-      // Now go silent for 5s
-      vi.advanceTimersByTime(5_001);
+      // Now go silent for 10s
+      vi.advanceTimersByTime(10_001);
 
       expect(handler).toHaveBeenCalledTimes(1);
       expect(handler).toHaveBeenCalledWith({
         sessionId: 's1',
-        isActive: false,
+        level: 'inactive',
       } satisfies ActivityChange);
     });
 
@@ -274,13 +274,13 @@ describe('StateDetector', () => {
       handler.mockClear();
 
       // Go inactive
-      vi.advanceTimersByTime(5_001);
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', isActive: false });
+      vi.advanceTimersByTime(10_001);
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'inactive' });
       handler.mockClear();
 
       // New output → active again
       detector.processOutput('s1', 'output2');
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', isActive: true });
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
     });
 
     it('does not emit duplicate active events for consecutive output', () => {
@@ -293,7 +293,7 @@ describe('StateDetector', () => {
 
       // Only one active event on the first output
       const activeCalls = handler.mock.calls.filter(
-        ([e]: [ActivityChange]) => e.sessionId === 's1' && e.isActive === true,
+        ([e]: [ActivityChange]) => e.sessionId === 's1' && e.level === 'active',
       );
       expect(activeCalls.length).toBe(1);
     });
@@ -303,21 +303,21 @@ describe('StateDetector', () => {
       detector.on('activity-change', handler);
 
       detector.processOutput('s1', 'output1');
-      vi.advanceTimersByTime(2_500);
+      vi.advanceTimersByTime(5_000);
       detector.processOutput('s2', 'output2');
 
       handler.mockClear();
 
-      // s1 timeout fires at 5s from its last output (2.5s from now)
-      vi.advanceTimersByTime(2_501);
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', isActive: false });
-      expect(handler).not.toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's2', isActive: false }));
+      // s1 timeout fires at 10s from its last output (5s from now)
+      vi.advanceTimersByTime(5_001);
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'inactive' });
+      expect(handler).not.toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's2', level: 'inactive' }));
 
       handler.mockClear();
 
-      // s2 timeout fires at 5s from its last output (2.5s later)
-      vi.advanceTimersByTime(2_500);
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's2', isActive: false });
+      // s2 timeout fires at 10s from its last output (5s later)
+      vi.advanceTimersByTime(5_000);
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's2', level: 'inactive' });
     });
 
     it('removeSession clears the activity timer — no late events', () => {
@@ -363,8 +363,8 @@ describe('StateDetector', () => {
       expect(detector.getLastOutputTime('unknown')).toBe(0);
     });
 
-    it('respects custom activityTimeoutMs via constructor', () => {
-      const custom = new StateDetector(5000);
+    it('respects custom timeout config via constructor', () => {
+      const custom = new StateDetector({ inactiveMs: 5000, idleMs: 60000 });
       const handler = vi.fn();
       custom.on('activity-change', handler);
 
@@ -375,11 +375,53 @@ describe('StateDetector', () => {
       vi.advanceTimersByTime(4_000);
       expect(handler).not.toHaveBeenCalled();
 
-      // Times out at 5s
+      // Times out at 5s → inactive
       vi.advanceTimersByTime(1_001);
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', isActive: false });
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'inactive' });
 
       custom.dispose();
+    });
+
+    it('transitions to idle after idle timeout', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'output');
+      handler.mockClear();
+
+      // At 10s → inactive
+      vi.advanceTimersByTime(10_001);
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'inactive' });
+      handler.mockClear();
+
+      // At 5min → idle
+      vi.advanceTimersByTime(300_000 - 10_001);
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'idle' });
+    });
+
+    it('does not emit idle if output resumes before idle timeout', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'output');
+      handler.mockClear();
+
+      // Go inactive at 10s
+      vi.advanceTimersByTime(10_001);
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'inactive' });
+      handler.mockClear();
+
+      // Resume output at 30s — back to active, idle timer cancelled
+      vi.advanceTimersByTime(20_000);
+      detector.processOutput('s1', 'more output');
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+      handler.mockClear();
+
+      // Original idle timer would have fired, but was cancelled
+      vi.advanceTimersByTime(300_000);
+      // Should see inactive then idle from the new timers, not the old ones
+      const idleCalls = handler.mock.calls.filter(([e]: [ActivityChange]) => e.level === 'idle');
+      expect(idleCalls.length).toBe(1); // only from the new timer
     });
   });
 });

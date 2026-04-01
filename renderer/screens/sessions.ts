@@ -48,8 +48,8 @@ export {
 
 const sessionStates = new Map<string, string>();
 
-/** Track session activity status (active = recent output, inactive = no output for timeout period) */
-const sessionActivity = new Map<string, boolean>();
+/** Track session activity level (active/inactive/idle based on output timing) */
+const sessionActivity = new Map<string, string>();
 
 const ACTIVITY_DEBOUNCE_MS = 300;
 
@@ -67,20 +67,20 @@ export function removeSessionState(sessionId: string): void {
   sessionActivity.delete(sessionId);
 }
 
-/** Get session activity status */
-export function getSessionActivity(sessionId: string): boolean {
-  return sessionActivity.get(sessionId) ?? false;
+/** Get session activity level */
+export function getSessionActivity(sessionId: string): string {
+  return sessionActivity.get(sessionId) ?? 'idle';
 }
 
-/** Set session activity status */
-export function setSessionActivity(sessionId: string, isActive: boolean): void {
-  // Ignore activity-true events right after a session switch (likely focus-induced PTY noise)
-  if (isActive && Date.now() - lastSwitchTime < ACTIVITY_DEBOUNCE_MS) {
+/** Set session activity level */
+export function setSessionActivity(sessionId: string, level: string): void {
+  // Ignore active events right after a session switch (likely focus-induced PTY noise)
+  if (level === 'active' && Date.now() - lastSwitchTime < ACTIVITY_DEBOUNCE_MS) {
     return;
   }
-  const wasActive = sessionActivity.get(sessionId) ?? false;
-  if (wasActive !== isActive) {
-    sessionActivity.set(sessionId, isActive);
+  const previous = sessionActivity.get(sessionId) ?? 'idle';
+  if (previous !== level) {
+    sessionActivity.set(sessionId, level);
     loadSessions();
   }
 }
@@ -481,9 +481,11 @@ function refreshSessions(): void {
 function onKeyDown(e: KeyboardEvent): void {
   if (state.currentScreen !== 'sessions') return;
 
-  // Don't intercept keyboard when xterm.js has DOM focus (user is typing in terminal)
+  // Don't intercept keyboard when xterm.js or an editable element has DOM focus
   const active = document.activeElement;
   if (active && active.closest('.xterm')) return;
+  const tag = active?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
   const keyMap: Record<string, string> = {
     ArrowUp: 'DPadUp', ArrowDown: 'DPadDown', ArrowLeft: 'DPadLeft', ArrowRight: 'DPadRight',

@@ -15,8 +15,11 @@ export interface PtyProcess {
 
 export interface PtySpawnOptions {
   sessionId: string;
-  command: string;
+  /** CLI command to spawn (escaped with args via escapeShellArg). Ignored when rawCommand is set. */
+  command?: string;
   args?: string[];
+  /** Raw command string written to shell stdin as-is (no escaping). Use for resume commands like `copilot --continue`. */
+  rawCommand?: string;
   cwd?: string;
   cols?: number;
   rows?: number;
@@ -76,7 +79,7 @@ export class PtyManager extends EventEmitter {
 
   /** Spawn a new PTY process. */
   spawn(options: PtySpawnOptions): PtyProcess {
-    const { sessionId, command, args = [], cwd, cols = 120, rows = 30, env } = options;
+    const { sessionId, command, args = [], rawCommand, cwd, cols = 120, rows = 30, env } = options;
 
     if (this.ptys.has(sessionId)) {
       throw new Error(`PTY already exists for session: ${sessionId}`);
@@ -112,22 +115,25 @@ export class PtyManager extends EventEmitter {
       this.emit('exit', sessionId, exitCode);
     });
 
-    // If a command was specified (not just shell), write it to the PTY.
-    // Escape individual arguments to prevent shell metacharacter injection.
-    if (command) {
-      const escapedArgs = args.map(arg => escapeShellArg(arg));
-      const escapedCommand = escapeShellArg(command);
-      const fullCommand = escapedArgs.length > 0
-        ? escapedCommand + ' ' + escapedArgs.join(' ')
-        : escapedCommand;
-      try {
+    // Write initial command to shell stdin.
+    // rawCommand: written as-is (for resume commands like `copilot --continue`)
+    // command+args: escaped to prevent metacharacter injection (for fresh spawns)
+    try {
+      if (rawCommand) {
+        ptyProcess.write(rawCommand + '\r');
+      } else if (command) {
+        const escapedArgs = args.map(arg => escapeShellArg(arg));
+        const escapedCommand = escapeShellArg(command);
+        const fullCommand = escapedArgs.length > 0
+          ? escapedCommand + ' ' + escapedArgs.join(' ')
+          : escapedCommand;
         ptyProcess.write(fullCommand + '\r');
-      } catch (error) {
-        logger.error(`[PTY] Initial command write failed for ${sessionId}: ${error}`);
       }
+    } catch (error) {
+      logger.error(`[PTY] Initial command write failed for ${sessionId}: ${error}`);
     }
 
-    logger.info(`[PTY] Spawned session ${sessionId}: ${command} (PID ${ptyProcess.pid})`);
+    logger.info(`[PTY] Spawned session ${sessionId}: ${rawCommand || command} (PID ${ptyProcess.pid})`);
     return ptyProcess;
   }
 

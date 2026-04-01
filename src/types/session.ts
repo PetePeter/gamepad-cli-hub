@@ -8,6 +8,12 @@ export type SessionState = 'implementing' | 'waiting' | 'planning' | 'completed'
 export const VALID_SESSION_STATES: readonly SessionState[] = ['implementing', 'waiting', 'planning', 'completed', 'idle'];
 
 /**
+ * Output-timing based activity level for the visual dot indicator.
+ * Independent of SessionState — purely based on stdout/stderr output timing.
+ */
+export type ActivityLevel = 'active' | 'inactive' | 'idle';
+
+/**
  * CLI session information
  */
 export interface SessionInfo {

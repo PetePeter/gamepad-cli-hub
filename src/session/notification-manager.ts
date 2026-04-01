@@ -43,7 +43,7 @@ function buildContent(
  *
  * Triggers:
  * 1. State change: active → non-active (implementing/planning → completed/idle/waiting)
- * 2. Activity change: active → inactive while session state is implementing/planning
+ * 2. Activity change: active → inactive (output stopped for >10s)
  *
  * Conditions: window not focused + notifications setting enabled.
  * Click action: focuses window + switches to the triggering session.
@@ -68,11 +68,9 @@ export class NotificationManager {
     this.maybeNotify(transition.sessionId, labelInfo);
   }
 
-  /** Call when StateDetector emits 'activity-change'. */
-  handleActivityChange(event: ActivityChange, currentState: SessionState): void {
-    if (event.isActive) return;
-    if (!ACTIVE_STATES.has(currentState)) return;
-
+  /** Call when StateDetector emits 'activity-change'. Notifies on active → non-active. */
+  handleActivityChange(event: ActivityChange): void {
+    if (event.level === 'active') return;
     this.maybeNotify(event.sessionId, INACTIVE_LABEL);
   }
 

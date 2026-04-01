@@ -25,7 +25,7 @@ export class TerminalManager {
   private unsubscribers: Array<() => void> = [];
   private resizeObserver: ResizeObserver | null = null;
   private onEmpty: (() => void) | null = null;
-  private onSwitch: ((sessionId: string) => void) | null = null;
+  private onSwitch: ((sessionId: string | null) => void) | null = null;
   private pendingFitRaf: number | null = null;
   private outputBuffer: PtyOutputBuffer;
 
@@ -46,8 +46,15 @@ export class TerminalManager {
     this.onEmpty = callback;
   }
 
-  setOnSwitch(callback: (sessionId: string) => void): void {
+  setOnSwitch(callback: (sessionId: string | null) => void): void {
     this.onSwitch = callback;
+  }
+
+  /** Deselect the active terminal without destroying it. Keyboard relay stops routing. */
+  deselect(): void {
+    if (!this.activeSessionId) return;
+    this.activeSessionId = null;
+    this.onSwitch?.(null);
   }
 
   /** Create a new terminal and spawn its PTY process */

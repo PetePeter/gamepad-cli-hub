@@ -69,7 +69,11 @@ export interface CliTypeConfig {
   handoffCommand?: string;
   /** Command sent to PTY after spawn to name the session for later resume. Template: {cliSessionName} replaced at runtime. */
   renameCommand?: string;
-  /** CLI command template to resume a named session. Template: {cliSessionName} replaced at runtime. */
+  /** CLI parameter template for fresh spawn with session UUID. Template: {cliSessionName} replaced at runtime.
+   * Example: "claude --session-id {cliSessionName}" or "copilot --resume={cliSessionName}" */
+  spawnCommand?: string;
+  /** CLI parameter template to resume a specific session by UUID. Template: {cliSessionName} replaced at runtime.
+   * Example: "claude --resume={cliSessionName}" or "copilot --resume={cliSessionName}" */
   resumeCommand?: string;
   /** CLI command to resume most recent session (fallback when no cliSessionName). */
   continueCommand?: string;
@@ -663,7 +667,7 @@ export class ConfigLoader {
   addCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string },
+    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string },
   ): void {
     this.ensureLoaded();
     if (this.activeProfile!.tools[key]) {
@@ -672,6 +676,7 @@ export class ConfigLoader {
     const tool: CliTypeConfig = { name, command, initialPrompt: initialPrompt ?? [], initialPromptDelay: initialPromptDelay ?? 0 };
     if (options?.handoffCommand) tool.handoffCommand = options.handoffCommand;
     if (options?.renameCommand) tool.renameCommand = options.renameCommand;
+    if (options?.spawnCommand) tool.spawnCommand = options.spawnCommand;
     if (options?.resumeCommand) tool.resumeCommand = options.resumeCommand;
     if (options?.continueCommand) tool.continueCommand = options.continueCommand;
     this.activeProfile!.tools[key] = tool;
@@ -681,7 +686,7 @@ export class ConfigLoader {
   updateCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string },
+    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string },
   ): void {
     this.ensureLoaded();
     if (!this.activeProfile!.tools[key]) {
@@ -696,7 +701,7 @@ export class ConfigLoader {
 
     // Optional fields: undefined = preserve, empty string = clear, value = set
     if (options) {
-      for (const field of ['handoffCommand', 'renameCommand', 'resumeCommand', 'continueCommand'] as const) {
+      for (const field of ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const) {
         const val = options[field];
         if (val === undefined) continue;
         if (val === '') { delete (existing as any)[field]; }

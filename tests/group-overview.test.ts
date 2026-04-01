@@ -34,6 +34,8 @@ import { PtyOutputBuffer } from '../renderer/terminal/pty-output-buffer.js';
 import {
   setOutputBuffer,
   setSessionStateGetter,
+  setActivityLevelGetter,
+  setTerminalManagerGetter,
   showOverview,
   hideOverview,
   isOverviewVisible,
@@ -68,6 +70,7 @@ describe('GroupOverview', () => {
     buffer = new PtyOutputBuffer(50);
     setOutputBuffer(buffer);
     setSessionStateGetter(() => 'idle');
+    setActivityLevelGetter(() => 'idle');
 
     sessionsState.overviewGroup = null;
     sessionsState.overviewFocusIndex = 0;
@@ -242,6 +245,66 @@ describe('GroupOverview', () => {
       const sessions = getOverviewSessions();
       expect(sessions.length).toBe(2);
       expect(sessions.map(s => s.id)).toEqual(['s1', 's3']);
+    });
+  });
+
+  describe('session deselection on overview', () => {
+    let mockTm: Record<string, ReturnType<typeof vi.fn>>;
+
+    beforeEach(() => {
+      mockTm = {
+        deselect: vi.fn(),
+        switchTo: vi.fn(),
+        getActiveSessionId: vi.fn().mockReturnValue('s1'),
+        hasTerminal: vi.fn().mockReturnValue(true),
+      };
+      setTerminalManagerGetter(() => mockTm as any);
+
+      state.sessions = [
+        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+        { id: 's2', name: 'Copilot-1', cliType: 'copilot-cli', workingDir: '/project', processId: 0 },
+      ];
+    });
+
+    afterEach(() => {
+      setTerminalManagerGetter(() => null);
+    });
+
+    it('showOverview deselects the active terminal', () => {
+      showOverview('/project');
+
+      expect(mockTm.getActiveSessionId).toHaveBeenCalled();
+      expect(mockTm.deselect).toHaveBeenCalled();
+    });
+
+    it('hideOverview restores the previously active terminal', () => {
+      showOverview('/project');
+      mockTm.deselect.mockClear();
+
+      hideOverview();
+
+      expect(mockTm.switchTo).toHaveBeenCalledWith('s1');
+    });
+
+    it('hideOverview does not restore if previous terminal was destroyed', () => {
+      showOverview('/project');
+
+      // Simulate terminal destruction between show and hide
+      mockTm.hasTerminal.mockReturnValue(false);
+
+      hideOverview();
+
+      expect(mockTm.switchTo).not.toHaveBeenCalled();
+    });
+
+    it('showOverview saves and deselects, hideOverview restores', () => {
+      showOverview('/project');
+
+      expect(mockTm.deselect).toHaveBeenCalledTimes(1);
+
+      hideOverview();
+
+      expect(mockTm.switchTo).toHaveBeenCalledWith('s1');
     });
   });
 });
