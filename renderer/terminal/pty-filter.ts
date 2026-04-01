@@ -22,6 +22,23 @@
 // 1016 = SGR pixel mouse mode
 const MOUSE_TRACKING_RE = /\x1b\[\?(?:100[0-7]|101[56])[hl]/g;
 
+// Compound DEC mode sequences (semicolon-separated) that embed tracked modes
+// e.g. \x1b[?1049;1007h → strip just the tracked mode number from the sequence
+const COMPOUND_MODE_RE = /\x1b\[\?([\d;]+)[hl]/g;
+const TRACKED_MODES = new Set(['1000', '1001', '1002', '1003', '1004', '1005', '1006', '1007', '1015', '1016']);
+
 export function stripMouseTracking(data: string): string {
-  return data.replace(MOUSE_TRACKING_RE, '');
+  // First pass: strip single-mode sequences (fast path)
+  let result = data.replace(MOUSE_TRACKING_RE, '');
+
+  // Second pass: handle compound sequences like \x1b[?1049;1007h
+  result = result.replace(COMPOUND_MODE_RE, (match, modes: string, offset: number, str: string) => {
+    const modeList = modes.split(';');
+    const kept = modeList.filter(m => !TRACKED_MODES.has(m));
+    if (kept.length === modeList.length) return match; // nothing to strip
+    if (kept.length === 0) return ''; // all modes stripped
+    return `\x1b[?${kept.join(';')}${match[match.length - 1]}`; // preserve h/l suffix
+  });
+
+  return result;
 }

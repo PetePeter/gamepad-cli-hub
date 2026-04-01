@@ -81,4 +81,29 @@ describe('stripMouseTracking', () => {
     const cursorHide = '\x1b[?25l';
     expect(stripMouseTracking(cursorHide)).toBe(cursorHide);
   });
+
+  // Compound DEC mode sequences
+  it('strips tracked mode from compound sequence \\x1b[?1049;1007h', () => {
+    expect(stripMouseTracking('\x1b[?1049;1007h')).toBe('\x1b[?1049h');
+  });
+
+  it('strips tracked mode from compound sequence \\x1b[?1007;1049h', () => {
+    expect(stripMouseTracking('\x1b[?1007;1049h')).toBe('\x1b[?1049h');
+  });
+
+  it('strips multiple tracked modes from compound sequence', () => {
+    expect(stripMouseTracking('\x1b[?1049;1000;1006h')).toBe('\x1b[?1049h');
+  });
+
+  it('strips entire compound sequence when all modes are tracked', () => {
+    expect(stripMouseTracking('\x1b[?1000;1006;1007h')).toBe('');
+  });
+
+  it('preserves compound sequence with no tracked modes', () => {
+    expect(stripMouseTracking('\x1b[?1049;25h')).toBe('\x1b[?1049;25h');
+  });
+
+  it('handles compound disable sequences (l suffix)', () => {
+    expect(stripMouseTracking('\x1b[?1049;1007l')).toBe('\x1b[?1049l');
+  });
 });

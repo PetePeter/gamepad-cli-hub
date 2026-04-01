@@ -76,6 +76,20 @@ export class TerminalView {
       return true;
     });
 
+    // Force mouse wheel to always scroll the terminal buffer, even in
+    // alternate screen mode (prevents CLIs from receiving arrow keys
+    // when the user scrolls)
+    const viewport = this.container.querySelector('.xterm-viewport');
+    if (viewport) {
+      viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const we = e as WheelEvent;
+        const lines = Math.sign(we.deltaY) * Math.max(1, Math.round(Math.abs(we.deltaY) / 40));
+        this.terminal.scrollLines(lines);
+      }, { passive: false, capture: true });
+    }
+
     this.fit();
 
     if (options.onData) {
