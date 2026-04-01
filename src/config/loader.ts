@@ -75,7 +75,7 @@ export interface CliTypeConfig {
   /** CLI parameter template to resume a specific session by UUID. Template: {cliSessionName} replaced at runtime.
    * Example: "claude --resume={cliSessionName}" or "copilot --resume={cliSessionName}" */
   resumeCommand?: string;
-  /** CLI command to resume most recent session (fallback when no cliSessionName). */
+  /** CLI command to resume most recent session (fallback when resumeCommand is not configured). */
   continueCommand?: string;
 }
 
@@ -394,6 +394,27 @@ export class ConfigLoader {
   getSequenceGroup(cliType: string, groupId: string): SequenceListItem[] | null {
     this.ensureLoaded();
     return this.activeProfile!.tools[cliType]?.sequences?.[groupId] ?? null;
+  }
+
+  /** Create or update a named sequence group for a CLI type */
+  setSequenceGroup(cliType: string, groupId: string, items: SequenceListItem[]): void {
+    this.ensureLoaded();
+    const tool = this.activeProfile!.tools[cliType];
+    if (!tool) throw new Error(`Unknown CLI type: ${cliType}`);
+    if (!tool.sequences) tool.sequences = {};
+    tool.sequences[groupId] = items;
+    this.saveActiveProfile();
+  }
+
+  /** Remove a named sequence group for a CLI type */
+  removeSequenceGroup(cliType: string, groupId: string): void {
+    this.ensureLoaded();
+    const tool = this.activeProfile!.tools[cliType];
+    if (tool?.sequences) {
+      delete tool.sequences[groupId];
+      if (Object.keys(tool.sequences).length === 0) delete tool.sequences;
+    }
+    this.saveActiveProfile();
   }
 
   getStickConfig(stick: 'left' | 'right'): StickConfig {

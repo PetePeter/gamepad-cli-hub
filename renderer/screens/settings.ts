@@ -17,7 +17,7 @@ import {
   createBrowseButton,
   toDirection,
 } from '../utils.js';
-import { renderBindingsDisplay } from './settings-bindings.js';
+import { renderBindingsDisplay, renderSequenceGroups } from './settings-bindings.js';
 import { renderProfilesPanel } from './settings-profiles.js';
 import { renderToolsPanel } from './settings-tools.js';
 
@@ -43,6 +43,7 @@ export async function loadSettingsScreen(): Promise<void> {
       const bindings = state.cliBindingsCache[state.settingsTab]
         || (window.gamepadCli ? await window.gamepadCli.configGetBindings(state.settingsTab) : null);
       await renderBindingsDisplay(bindings || {}, `${getCliDisplayName(state.settingsTab)} Bindings`);
+      await renderSequenceGroups(state.settingsTab);
     }
   } catch (error) {
     console.error('Failed to load settings screen:', error);

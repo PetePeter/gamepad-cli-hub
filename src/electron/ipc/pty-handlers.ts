@@ -65,7 +65,10 @@ export function setupPtyHandlers(
       if (isResume && cliType && configLoader) {
         const cfg = configLoader.getCliTypeEntry?.(cliType);
         if (cfg?.resumeCommand && resumeSessionName) {
-          rawCommand = cfg.resumeCommand.replace('{cliSessionName}', resumeSessionName);
+          rawCommand = cfg.resumeCommand.replaceAll('{cliSessionName}', resumeSessionName);
+          if (rawCommand === cfg.resumeCommand) {
+            logger.warn(`[PTY IPC] resumeCommand has no {cliSessionName} placeholder: ${cfg.resumeCommand}`);
+          }
           logger.info(`[PTY IPC] Resuming with: ${rawCommand}`);
         } else if (cfg?.continueCommand) {
           rawCommand = cfg.continueCommand;
@@ -74,7 +77,10 @@ export function setupPtyHandlers(
       } else if (cliType && configLoader) {
         const cfg = configLoader.getCliTypeEntry?.(cliType);
         if (cfg?.spawnCommand) {
-          rawCommand = cfg.spawnCommand.replace('{cliSessionName}', cliSessionName);
+          rawCommand = cfg.spawnCommand.replaceAll('{cliSessionName}', cliSessionName);
+          if (rawCommand === cfg.spawnCommand) {
+            logger.warn(`[PTY IPC] spawnCommand has no {cliSessionName} placeholder: ${cfg.spawnCommand}`);
+          }
           logger.info(`[PTY IPC] Fresh spawn with spawnCommand: ${rawCommand}`);
         }
       }
@@ -82,19 +88,15 @@ export function setupPtyHandlers(
       const pty = ptyManager.spawn({ sessionId, command: rawCommand ? undefined : command, args: rawCommand ? undefined : args, rawCommand, cwd });
 
       // Register with SessionManager so rename/state/persistence work
+      // Include cliSessionName in addSession() so it's persisted atomically
       sessionManager.addSession({
         id: sessionId,
         name: cliType || 'unknown',
         cliType: cliType || 'unknown',
         processId: pty.pid,
         ...(cwd ? { workingDir: cwd } : {}),
+        cliSessionName,
       });
-
-      // Store CLI session name on the session for persistence
-      const session = sessionManager.getSession(sessionId);
-      if (session) {
-        session.cliSessionName = cliSessionName;
-      }
 
       // On resume: skip context text and initial prompt, only send rename command
       if (isResume) {

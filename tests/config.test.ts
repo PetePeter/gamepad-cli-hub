@@ -385,6 +385,72 @@ describe('ConfigLoader', () => {
       const sequences = fresh.getSequences('copilot-cli');
       expect(sequences['prompts']).toHaveLength(2);
     });
+
+    it('setSequenceGroup creates a new group', () => {
+      loader.load();
+      loader.setSequenceGroup('copilot-cli', 'shortcuts', [
+        { label: 'clear', sequence: '/clear{Enter}' },
+      ]);
+      const group = loader.getSequenceGroup('copilot-cli', 'shortcuts');
+      expect(group).toHaveLength(1);
+      expect(group![0]).toEqual({ label: 'clear', sequence: '/clear{Enter}' });
+    });
+
+    it('setSequenceGroup updates an existing group', () => {
+      loader.load();
+      loader.setSequenceGroup('claude-code', 'prompts', [
+        { label: 'only', sequence: 'one item' },
+      ]);
+      const group = loader.getSequenceGroup('claude-code', 'prompts');
+      expect(group).toHaveLength(1);
+      expect(group![0].label).toBe('only');
+    });
+
+    it('setSequenceGroup persists to disk', () => {
+      loader.load();
+      loader.setSequenceGroup('copilot-cli', 'actions', [
+        { label: 'test', sequence: 'npm test{Enter}' },
+      ]);
+      const fresh = new ConfigLoader(TEST_DIR);
+      fresh.load();
+      expect(fresh.getSequenceGroup('copilot-cli', 'actions')).toHaveLength(1);
+    });
+
+    it('setSequenceGroup throws for unknown CLI type', () => {
+      loader.load();
+      expect(() => loader.setSequenceGroup('nonexistent', 'g', [])).toThrow('Unknown CLI type');
+    });
+
+    it('removeSequenceGroup deletes a group', () => {
+      loader.load();
+      loader.removeSequenceGroup('claude-code', 'prompts');
+      expect(loader.getSequenceGroup('claude-code', 'prompts')).toBeNull();
+      // Other groups preserved
+      expect(loader.getSequenceGroup('claude-code', 'snippets')).toHaveLength(1);
+    });
+
+    it('removeSequenceGroup cleans up empty sequences object', () => {
+      loader.load();
+      loader.removeSequenceGroup('claude-code', 'prompts');
+      loader.removeSequenceGroup('claude-code', 'snippets');
+      expect(loader.getSequences('claude-code')).toEqual({});
+    });
+
+    it('removeSequenceGroup persists to disk', () => {
+      loader.load();
+      loader.removeSequenceGroup('claude-code', 'snippets');
+      const fresh = new ConfigLoader(TEST_DIR);
+      fresh.load();
+      expect(fresh.getSequenceGroup('claude-code', 'snippets')).toBeNull();
+      expect(fresh.getSequenceGroup('claude-code', 'prompts')).toHaveLength(2);
+    });
+
+    it('removeSequenceGroup is a no-op for nonexistent group', () => {
+      loader.load();
+      loader.removeSequenceGroup('claude-code', 'nonexistent');
+      // No throw, sequences unchanged
+      expect(loader.getSequences('claude-code')).toHaveProperty('prompts');
+    });
   });
 
   // =========================================================================

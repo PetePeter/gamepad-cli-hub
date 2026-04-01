@@ -307,4 +307,83 @@ describe('pty:spawn resume logic', () => {
       cwd: '/work',
     });
   });
+
+  it('warns when spawnCommand has no {cliSessionName} placeholder', async () => {
+    const { logger } = await import('../src/utils/logger.js');
+    configLoader.getCliTypeEntry.mockReturnValue({
+      name: 'Claude Code',
+      command: 'claude',
+      spawnCommand: 'claude --no-placeholder',
+    } as CliTypeConfig);
+
+    const handler = handlers.get('pty:spawn')!;
+    await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code');
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('spawnCommand has no {cliSessionName} placeholder'),
+    );
+    // Should still use spawnCommand as rawCommand (even without substitution)
+    expect(ptyManager.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({ rawCommand: 'claude --no-placeholder' }),
+    );
+  });
+
+  it('warns when resumeCommand has no {cliSessionName} placeholder', async () => {
+    const { logger } = await import('../src/utils/logger.js');
+    configLoader.getCliTypeEntry.mockReturnValue({
+      name: 'Claude Code',
+      command: 'claude',
+      resumeCommand: 'claude --resume-latest',
+    } as CliTypeConfig);
+
+    const handler = handlers.get('pty:spawn')!;
+    await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code', undefined, 'abc-uuid');
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('resumeCommand has no {cliSessionName} placeholder'),
+    );
+  });
+
+  it('falls back to command+args when configLoader is undefined', async () => {
+    // Setup without configLoader
+    handlers.clear();
+    setupPtyHandlers(
+      ptyManager as any,
+      new MockStateDetector() as any,
+      sessionManager as any,
+      new MockPipelineQueue() as any,
+      () => null,
+      undefined as any,
+    );
+
+    const handler = handlers.get('pty:spawn')!;
+    await handler({}, 'sid-1', 'claude', ['--flag'], '/work', 'claude-code');
+
+    // Without configLoader, should use command+args directly
+    expect(ptyManager.spawn).toHaveBeenCalledWith({
+      sessionId: 'sid-1',
+      command: 'claude',
+      args: ['--flag'],
+      rawCommand: undefined,
+      cwd: '/work',
+    });
+  });
+
+  it('includes cliSessionName in addSession call atomically', async () => {
+    configLoader.getCliTypeEntry.mockReturnValue({
+      name: 'Claude Code',
+      command: 'claude',
+    } as CliTypeConfig);
+
+    const handler = handlers.get('pty:spawn')!;
+    await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code');
+
+    // cliSessionName should be part of the addSession payload (persisted atomically)
+    expect(sessionManager.addSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'sid-1',
+        cliSessionName: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
+      }),
+    );
+  });
 });

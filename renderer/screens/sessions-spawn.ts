@@ -267,7 +267,7 @@ export function handleSessionsZone(button: string, dir: string | null): void {
     } else if (currentItem?.type === 'group-header') {
       // Past max column on group header → open overview
       import('./group-overview.js').then(({ showOverview }) => {
-        showOverview(currentItem.id);
+        showOverview(currentItem.id, state.activeSessionId ?? undefined);
       });
     }
     return;

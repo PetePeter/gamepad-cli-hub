@@ -188,14 +188,115 @@ function renderActionParams(form: HTMLElement, binding: any): void {
 }
 
 function renderSequenceListParams(form: HTMLElement, binding: any): void {
-  const items: SequenceListItem[] = binding.items || [];
+  const hasGroup = !!binding.sequenceGroup;
+  const cliType = bindingEditorState.editingBinding?.cliType || '';
 
   const container = document.createElement('div');
   container.className = 'binding-editor-field';
   container.id = 'sequenceListContainer';
 
+  // Source toggle: Sequence Group vs Inline Items
+  const toggleField = document.createElement('div');
+  toggleField.className = 'binding-editor-field';
+  const toggleLabel = document.createElement('label');
+  toggleLabel.textContent = 'Source';
+  toggleField.appendChild(toggleLabel);
+
+  const toggleRow = document.createElement('div');
+  toggleRow.style.display = 'flex';
+  toggleRow.style.gap = '12px';
+
+  const groupRadio = document.createElement('input');
+  groupRadio.type = 'radio';
+  groupRadio.name = 'seqListSource';
+  groupRadio.id = 'seqSourceGroup';
+  groupRadio.value = 'group';
+  groupRadio.checked = hasGroup;
+
+  const groupLabel = document.createElement('label');
+  groupLabel.htmlFor = 'seqSourceGroup';
+  groupLabel.textContent = ' Sequence Group';
+  groupLabel.style.cursor = 'pointer';
+
+  const inlineRadio = document.createElement('input');
+  inlineRadio.type = 'radio';
+  inlineRadio.name = 'seqListSource';
+  inlineRadio.id = 'seqSourceInline';
+  inlineRadio.value = 'inline';
+  inlineRadio.checked = !hasGroup;
+
+  const inlineLabel = document.createElement('label');
+  inlineLabel.htmlFor = 'seqSourceInline';
+  inlineLabel.textContent = ' Inline Items';
+  inlineLabel.style.cursor = 'pointer';
+
+  toggleRow.appendChild(groupRadio);
+  toggleRow.appendChild(groupLabel);
+  toggleRow.appendChild(inlineRadio);
+  toggleRow.appendChild(inlineLabel);
+  toggleField.appendChild(toggleRow);
+  form.appendChild(toggleField);
+
+  // Group mode: dropdown of available groups
+  const groupContainer = document.createElement('div');
+  groupContainer.id = 'seqGroupContainer';
+
+  const groupSelectLabel = document.createElement('label');
+  groupSelectLabel.textContent = 'Group';
+  groupContainer.appendChild(groupSelectLabel);
+
+  const groupSelect = document.createElement('select');
+  groupSelect.id = 'seqGroupSelect';
+  groupSelect.className = 'focusable';
+
+  // Populate from cache
+  const sequences = state.cliSequencesCache[cliType] || {};
+  const groupIds = Object.keys(sequences);
+  if (groupIds.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '(no groups configured)';
+    groupSelect.appendChild(opt);
+  } else {
+    groupIds.forEach(gid => {
+      const opt = document.createElement('option');
+      opt.value = gid;
+      opt.textContent = `${gid} (${sequences[gid].length} items)`;
+      opt.selected = gid === binding.sequenceGroup;
+      groupSelect.appendChild(opt);
+    });
+  }
+  groupContainer.appendChild(groupSelect);
+  groupContainer.className = 'binding-editor-field';
+
+  // Inline mode: existing items CRUD
+  const inlineContainer = document.createElement('div');
+  inlineContainer.id = 'seqInlineContainer';
+  inlineContainer.className = 'binding-editor-field';
+
+  renderInlineSequenceItems(inlineContainer, binding);
+
+  container.appendChild(groupContainer);
+  container.appendChild(inlineContainer);
+  form.appendChild(container);
+
+  // Toggle visibility
+  function updateVisibility(): void {
+    const isGroup = groupRadio.checked;
+    groupContainer.style.display = isGroup ? '' : 'none';
+    inlineContainer.style.display = isGroup ? 'none' : '';
+  }
+  updateVisibility();
+
+  groupRadio.addEventListener('change', updateVisibility);
+  inlineRadio.addEventListener('change', updateVisibility);
+}
+
+function renderInlineSequenceItems(container: HTMLElement, binding: any): void {
+  const items: SequenceListItem[] = binding.items || [];
+
   const label = document.createElement('label');
-  label.textContent = `Sequences (${items.length})`;
+  label.textContent = `Inline Items (${items.length})`;
   container.appendChild(label);
 
   const list = document.createElement('div');
@@ -226,8 +327,6 @@ function renderSequenceListParams(form: HTMLElement, binding: any): void {
     }
   });
   container.appendChild(addBtn);
-
-  form.appendChild(container);
 }
 
 function createSequenceListItemRow(item: SequenceListItem, index: number): HTMLElement {
@@ -287,6 +386,12 @@ function escapeHtml(str: string): string {
 
 function collectSequenceListFromForm(): any {
   if (!bindingEditorState.editingBinding) return null;
+  const groupRadio = document.getElementById('seqSourceGroup') as HTMLInputElement;
+  if (groupRadio?.checked) {
+    const groupSelect = document.getElementById('seqGroupSelect') as HTMLSelectElement;
+    const groupId = groupSelect?.value;
+    if (groupId) return { action: 'sequence-list', sequenceGroup: groupId };
+  }
   const items = bindingEditorState.editingBinding.binding.items || [];
   return { action: 'sequence-list', items: [...items] };
 }

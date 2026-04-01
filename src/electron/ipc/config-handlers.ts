@@ -49,6 +49,28 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     }
   });
 
+  ipcMain.handle('config:setSequenceGroup', (_event, cliType: string, groupId: string, items: any[]) => {
+    try {
+      configLoader.setSequenceGroup(cliType, groupId, items);
+      logger.info(`[IPC] Set sequence group: ${groupId} for ${cliType} (${items.length} items)`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to set sequence group: ${groupId} ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('config:removeSequenceGroup', (_event, cliType: string, groupId: string) => {
+    try {
+      configLoader.removeSequenceGroup(cliType, groupId);
+      logger.info(`[IPC] Removed sequence group: ${groupId} from ${cliType}`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to remove sequence group: ${groupId} ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle('config:setBinding', (_event, button: string, cliType: string, binding: any) => {
     try {
       configLoader.setBinding(button, cliType, binding);

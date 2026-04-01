@@ -41,6 +41,8 @@ import {
   isOverviewVisible,
   getOverviewSessions,
   updateOverviewFocus,
+  toggleCollapseCard,
+  isCardCollapsed,
 } from '../renderer/screens/group-overview.js';
 
 describe('GroupOverview', () => {
@@ -130,7 +132,7 @@ describe('GroupOverview', () => {
       expect(cards.length).toBe(2);
     });
 
-    it('shows session name and CLI type', () => {
+    it('shows session name and state', () => {
       state.sessions = [
         { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
       ];
@@ -138,8 +140,9 @@ describe('GroupOverview', () => {
 
       const name = document.querySelector('.overview-card-name');
       expect(name?.textContent).toBe('Claude-1');
+      // CLI type detail label has been removed
       const detail = document.querySelector('.overview-card-detail');
-      expect(detail?.textContent).toBe('claude-code');
+      expect(detail).toBeNull();
     });
 
     it('shows state label from injected getter', () => {
@@ -305,6 +308,131 @@ describe('GroupOverview', () => {
       hideOverview();
 
       expect(mockTm.switchTo).toHaveBeenCalledWith('s1');
+    });
+  });
+
+  describe('initial session pre-selection', () => {
+    beforeEach(() => {
+      state.sessions = [
+        { id: 's1', name: 'Session-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+        { id: 's2', name: 'Session-2', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+        { id: 's3', name: 'Session-3', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+      ];
+    });
+
+    it('pre-selects matching session when initialSessionId provided', () => {
+      showOverview('/project', 's2');
+      expect(sessionsState.overviewFocusIndex).toBe(1);
+    });
+
+    it('defaults to 0 when initialSessionId not in group', () => {
+      showOverview('/project', 'not-in-group');
+      expect(sessionsState.overviewFocusIndex).toBe(0);
+    });
+
+    it('defaults to 0 when no initialSessionId provided', () => {
+      showOverview('/project');
+      expect(sessionsState.overviewFocusIndex).toBe(0);
+    });
+  });
+
+  describe('collapsible cards', () => {
+    beforeEach(() => {
+      state.sessions = [
+        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+        { id: 's2', name: 'Claude-2', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+      ];
+      // Ensure clean collapse state — toggle any leftover collapsed state
+      if (isCardCollapsed('s1')) toggleCollapseCard('s1');
+      if (isCardCollapsed('s2')) toggleCollapseCard('s2');
+    });
+
+    it('toggleCollapseCard adds and removes collapsed state', () => {
+      expect(isCardCollapsed('s1')).toBe(false);
+      toggleCollapseCard('s1');
+      expect(isCardCollapsed('s1')).toBe(true);
+      toggleCollapseCard('s1');
+      expect(isCardCollapsed('s1')).toBe(false);
+    });
+
+    it('collapsed card gets the overview-card--collapsed CSS class', () => {
+      toggleCollapseCard('s1');
+      showOverview('/project');
+
+      const card = document.querySelector('.overview-card[data-session-id="s1"]');
+      expect(card?.classList.contains('overview-card--collapsed')).toBe(true);
+    });
+
+    it('collapsed card does not render a preview div', () => {
+      toggleCollapseCard('s1');
+      showOverview('/project');
+
+      const card = document.querySelector('.overview-card[data-session-id="s1"]');
+      const preview = card?.querySelector('.overview-card-preview');
+      expect(preview).toBeNull();
+    });
+
+    it('collapsed card still renders header (dot, name, state)', () => {
+      toggleCollapseCard('s1');
+      showOverview('/project');
+
+      const card = document.querySelector('.overview-card[data-session-id="s1"]');
+      expect(card?.querySelector('.overview-state-dot')).not.toBeNull();
+      expect(card?.querySelector('.overview-card-name')?.textContent).toBe('Claude-1');
+      expect(card?.querySelector('.overview-card-state')).not.toBeNull();
+    });
+
+    it('expanded card still has a preview div', () => {
+      showOverview('/project');
+
+      const card = document.querySelector('.overview-card[data-session-id="s2"]');
+      expect(card?.classList.contains('overview-card--collapsed')).toBe(false);
+      expect(card?.querySelector('.overview-card-preview')).not.toBeNull();
+    });
+
+    it('live updates still update dot and state on collapsed cards', () => {
+      vi.useFakeTimers();
+      let stateValue = 'idle';
+      let activityValue = 'idle';
+      setSessionStateGetter(() => stateValue);
+      setActivityLevelGetter(() => activityValue);
+
+      toggleCollapseCard('s1');
+      showOverview('/project');
+
+      // Trigger a PTY update for the collapsed card
+      stateValue = 'implementing';
+      activityValue = 'active';
+      buffer.append('s1', 'some output\n');
+
+      // Flush happens on a 500ms timer — advance it
+      vi.advanceTimersByTime(500);
+
+      const card = document.querySelector('.overview-card[data-session-id="s1"]');
+      const stateLabel = card?.querySelector('.overview-card-state');
+      expect(stateLabel?.textContent).toBe('implementing');
+      vi.useRealTimers();
+    });
+
+    it('collapse state persists across overview close and reopen', () => {
+      toggleCollapseCard('s1');
+      showOverview('/project');
+      hideOverview();
+
+      showOverview('/project');
+      const card = document.querySelector('.overview-card[data-session-id="s1"]');
+      expect(card?.classList.contains('overview-card--collapsed')).toBe(true);
+      expect(isCardCollapsed('s1')).toBe(true);
+    });
+
+    it('independent cards — collapsing one does not affect the other', () => {
+      toggleCollapseCard('s1');
+      showOverview('/project');
+
+      const card1 = document.querySelector('.overview-card[data-session-id="s1"]');
+      const card2 = document.querySelector('.overview-card[data-session-id="s2"]');
+      expect(card1?.classList.contains('overview-card--collapsed')).toBe(true);
+      expect(card2?.classList.contains('overview-card--collapsed')).toBe(false);
     });
   });
 });

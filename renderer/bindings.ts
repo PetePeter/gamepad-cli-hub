@@ -10,8 +10,18 @@ import { parseSequence, formatSequencePreview, type SequenceAction } from '../sr
 import type { Binding } from '../src/config/loader.js';
 import { getTerminalManager } from './main.js';
 
-/** Scroll handler for scroll bindings. */
+/** Scroll handler for scroll bindings. Routes to overview grid when visible, otherwise to active terminal. */
 function executeScroll(binding: { direction: string; lines?: number }): void {
+  // When overview grid is visible, scroll the grid container
+  const overviewGrid = document.getElementById('overviewGrid');
+  if (overviewGrid && overviewGrid.style.display !== 'none') {
+    const lineHeight = 18;
+    const amount = (binding.lines ?? 5) * lineHeight;
+    overviewGrid.scrollBy({ top: binding.direction === 'up' ? -amount : amount, behavior: 'smooth' });
+    logEvent(`Scroll overview: ${binding.direction}`);
+    return;
+  }
+
   const tm = getTerminalManager();
   const activeId = tm?.getActiveSessionId();
   if (activeId) {

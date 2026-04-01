@@ -1,0 +1,61 @@
+# Embedded Terminal Architecture
+
+All CLIs run inside the Electron app as embedded PTY terminals. No external windows.
+
+## Stack
+
+node-pty (PTY process management, cmd.exe on Windows) + xterm.js (terminal rendering)
+
+## Data Flow
+
+```
+Gamepad Button Press / Keyboard Input
+  → D-pad/stick: navigate sessions (auto-select terminal)
+  → Keyboard: routes to active terminal (PTY stdin)
+  → Ctrl+V: paste-handler intercepts → clipboard text → ptyWrite() (any DOM focus)
+  → Non-nav buttons: per-CLI configurable bindings
+
+Input Routing (voice + keyboard bindings):
+  Active terminal + target = 'terminal' → keyToPtyEscape() → ptyWrite() (PTY opt-in)
+  No active terminal OR target ≠ 'terminal' → robotjs (OS-level key simulation, default)
+  Hold mode (PTY path): escape sequence sent once on press (no key-up in PTY)
+  Hold mode (OS path): keyboardComboDown() on press, keyboardComboUp() on release
+
+PTY Data Flow:
+  Main Process                           Renderer Process
+  ┌─────────────┐   IPC: pty:data       ┌──────────────────┐
+  │ PtyManager   │ ────────────────────→ │ TerminalManager   │
+  │ (node-pty)   │                       │  → PtyFilter      │
+  │              │ ←──────────────────── │  → TerminalView   │
+  └─────────────┘   IPC: pty:write       │    (xterm.js)     │
+                     ↑                    └──────────────────┘
+  voice/paste ───────┘                    ┌──────────────────┐
+  StateDetector  ←── PTY stdout ──────── │ [●Claude][●Copilot]│
+  PipelineQueue  ←── state changes ───── └──────────────────┘
+```
+
+## Activity Dots
+
+Session cards and overview cards use activity-based coloring (PTY output timing, not AIAGENT state):
+
+- 🟢 active (green `#44cc44` — producing output)
+- 🔵 inactive (blue `#4488ff` — >10s silence)
+- ⚪ idle (grey `#555555` — >5min silence)
+
+Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
+
+## Key Modules
+
+| Module | File | Role |
+|--------|------|------|
+| PtyManager | `src/session/pty-manager.ts` | Spawns node-pty processes (cmd.exe), routes stdin/stdout, handles resize/kill |
+| StateDetector | `src/session/state-detector.ts` | Scans PTY output for `AIAGENT-*` keywords to detect CLI state + tracks output activity (active/inactive/idle levels via `activity-change` events) |
+| PipelineQueue | `src/session/pipeline-queue.ts` | Auto-handoff: routes queued tasks to waiting sessions. Handoff triggers on completed or idle state transitions |
+| InitialPrompt | `src/session/initial-prompt.ts` | Converts sequence parser syntax to PTY escape codes, sends after configurable delay. `onComplete` callback signals when all items are done |
+| SequenceParser | `src/input/sequence-parser.ts` | Parses `{Enter}`, `{Ctrl+C}`, `{Wait 500}` etc. into typed actions |
+| TerminalView | `renderer/terminal/terminal-view.ts` | xterm.js wrapper with fit/search addons |
+| TerminalManager | `renderer/terminal/terminal-manager.ts` | Multi-terminal switching, lifecycle. `deselect()` pauses keyboard relay without destroying terminal. Accepts `contextText` forwarded to main process via `ptySpawn()`. Owns `PtyOutputBuffer` for preview data |
+| PtyFilter | `renderer/terminal/pty-filter.ts` | Strips mouse-tracking and alternate-scroll escape sequences from PTY output so native text selection works |
+| PtyOutputBuffer | `renderer/terminal/pty-output-buffer.ts` | Ring buffer for PTY output per session (ANSI-stripped plain text). Used by group overview for live previews |
+| Bindings | `renderer/bindings.ts` | PTY-aware input routing: voice OS-default (robotjs) with PTY opt-in via `target: 'terminal'` + `keyToPtyEscape()` (F1-F12 VT220 sequences) |
+| PasteHandler | `renderer/paste-handler.ts` | Document-level Ctrl+V interceptor: reads clipboard, writes to active PTY via `ptyWrite()` regardless of DOM focus |

@@ -70,6 +70,18 @@ const gamepadCliAPI = {
   configGetSequences: (cliType: string) => ipcRenderer.invoke('config:getSequences', cliType),
 
   /**
+   * Create or update a named sequence group for a CLI type
+   */
+  configSetSequenceGroup: (cliType: string, groupId: string, items: Array<{ label: string; sequence: string }>) =>
+    ipcRenderer.invoke('config:setSequenceGroup', cliType, groupId, items),
+
+  /**
+   * Remove a named sequence group for a CLI type
+   */
+  configRemoveSequenceGroup: (cliType: string, groupId: string) =>
+    ipcRenderer.invoke('config:removeSequenceGroup', cliType, groupId),
+
+  /**
    * Set a binding (for settings screen)
    */
   configSetBinding: (button: string, cliType: string, binding: any) =>

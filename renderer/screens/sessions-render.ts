@@ -11,8 +11,8 @@ import { logEvent, getCliDisplayName } from '../utils.js';
 import { showCloseConfirm } from '../modals/close-confirm.js';
 import { sortSessions, SESSION_SORT_LABELS, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import { createSortControl, type SortControlHandle } from '../components/sort-control.js';
-import type { SessionGroup } from '../session-groups.js';
-import { showOverview, refreshOverview } from './group-overview.js';
+import { groupSessionsByDirectory, buildFlatNavList, type SessionGroup } from '../session-groups.js';
+import { showOverview, refreshOverview, isOverviewVisible } from './group-overview.js';
 import { getActivityColor } from '../state-colors.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
@@ -55,6 +55,12 @@ export async function initSessionsSortControl(): Promise<void> {
   const container = document.getElementById('sessionsSortBar');
   if (!container) return;
 
+  // Recreate if the cached control was removed from the DOM (e.g., after a screen tear-down)
+  if (sessionsSortControl && !container.contains(sessionsSortControl.element)) {
+    sessionsSortControl.destroy();
+    sessionsSortControl = null;
+  }
+
   // Load saved prefs (only on first call or when no control exists)
   if (!sessionsSortControl) {
     try {
@@ -92,8 +98,12 @@ export async function initSessionsSortControl(): Promise<void> {
           getSessionState,
           getSessionCwd,
         );
+        // Rebuild groups and navList so renderSessions() picks up the new order
+        sessionsState.groups = groupSessionsByDirectory(state.sessions, getSessionCwd, sessionsState.groupPrefs);
+        sessionsState.navList = buildFlatNavList(sessionsState.groups);
         renderSessions();
         updateSessionsFocus();
+        if (isOverviewVisible()) refreshOverview();
         try {
           await window.gamepadCli.configSetSortPrefs('sessions', { field, direction });
         } catch (e) {

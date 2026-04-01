@@ -20,6 +20,7 @@ let updateUnsubscribe: (() => void) | null = null;
 let throttleTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingUpdates = new Set<string>();
 let previousActiveSessionId: string | null = null;
+const collapsedSessions = new Set<string>();
 
 interface TerminalManagerLike {
   deselect(): void;
@@ -51,9 +52,13 @@ export function setActivityLevelGetter(fn: (sessionId: string) => string): void 
 }
 
 /** Show the overview grid for a specific group */
-export function showOverview(groupDirPath: string): void {
+export function showOverview(groupDirPath: string, initialSessionId?: string): void {
   sessionsState.overviewGroup = groupDirPath;
-  sessionsState.overviewFocusIndex = 0;
+
+  // Pre-select the matching session if provided, default to 0
+  const groupSessions = state.sessions.filter(s => s.workingDir === groupDirPath);
+  const matchIdx = initialSessionId ? groupSessions.findIndex(s => s.id === initialSessionId) : -1;
+  sessionsState.overviewFocusIndex = matchIdx >= 0 ? matchIdx : 0;
 
   // Deselect the active terminal — keyboard/paste should not affect any session while overview is open
   const tm = terminalManagerGetter?.();
@@ -170,6 +175,9 @@ function createOverviewCard(session: Session): HTMLElement {
   card.className = 'overview-card';
   card.dataset.sessionId = session.id;
 
+  const collapsed = collapsedSessions.has(session.id);
+  if (collapsed) card.classList.add('overview-card--collapsed');
+
   // Header: state dot + name + state label
   const header = document.createElement('div');
   header.className = 'overview-card-header';
@@ -193,17 +201,13 @@ function createOverviewCard(session: Session): HTMLElement {
 
   card.appendChild(header);
 
-  // Detail: CLI type
-  const detail = document.createElement('div');
-  detail.className = 'overview-card-detail';
-  detail.textContent = session.cliType;
-  card.appendChild(detail);
-
-  // Preview: last 5 lines
-  const preview = document.createElement('div');
-  preview.className = 'overview-card-preview';
-  renderPreviewLines(preview, session.id);
-  card.appendChild(preview);
+  // Preview: last N lines (skip for collapsed cards)
+  if (!collapsed) {
+    const preview = document.createElement('div');
+    preview.className = 'overview-card-preview';
+    renderPreviewLines(preview, session.id);
+    card.appendChild(preview);
+  }
 
   // Click handler — same as A-button
   card.addEventListener('click', () => {
@@ -262,11 +266,14 @@ function flushPendingUpdates(): void {
   for (const sessionId of pendingUpdates) {
     const card = overviewContainer.querySelector(`.overview-card[data-session-id="${sessionId}"]`);
     if (!card) continue;
-    const preview = card.querySelector('.overview-card-preview');
-    if (!preview) continue;
-    renderPreviewLines(preview, sessionId);
 
-    // Also update the state dot color
+    // Update preview only for expanded cards
+    if (!collapsedSessions.has(sessionId)) {
+      const preview = card.querySelector('.overview-card-preview');
+      if (preview) renderPreviewLines(preview, sessionId);
+    }
+
+    // Always update the state dot color and label
     const dot = card.querySelector('.overview-state-dot') as HTMLElement;
     const stateLabel = card.querySelector('.overview-card-state');
     if (dot || stateLabel) {
@@ -287,4 +294,18 @@ function getSessionStateForOverview(sessionId: string): string {
 /** Get activity level via injected getter (avoids circular dep with sessions.ts) */
 function getActivityLevelForOverview(sessionId: string): string {
   return activityLevelGetter?.(sessionId) ?? 'idle';
+}
+
+/** Toggle collapse state for an overview card */
+export function toggleCollapseCard(sessionId: string): void {
+  if (collapsedSessions.has(sessionId)) {
+    collapsedSessions.delete(sessionId);
+  } else {
+    collapsedSessions.add(sessionId);
+  }
+}
+
+/** Check if an overview card is collapsed (exported for tests) */
+export function isCardCollapsed(sessionId: string): boolean {
+  return collapsedSessions.has(sessionId);
 }

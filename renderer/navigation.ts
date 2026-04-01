@@ -22,7 +22,7 @@ import { quickSpawnState, handleQuickSpawnButton } from './modals/quick-spawn.js
 import { formModalVisible } from './utils.js';
 import { getTerminalManager } from './main.js';
 import { sessionsState } from './screens/sessions-state.js';
-import { hideOverview, getOverviewSessions, updateOverviewFocus, setSelectCardCallback } from './screens/group-overview.js';
+import { hideOverview, getOverviewSessions, updateOverviewFocus, setSelectCardCallback, toggleCollapseCard, refreshOverview } from './screens/group-overview.js';
 import { findNavIndexBySessionId } from './session-groups.js';
 import { updateSessionsFocus } from './screens/sessions.js';
 
@@ -256,12 +256,11 @@ function handleOverviewButton(button: string): boolean {
   }
 
   if (button === 'X') {
-    // Close the focused session
+    // Toggle collapse on the focused session card
     const session = sessions[sessionsState.overviewFocusIndex];
     if (session) {
-      import('./modals/close-confirm.js').then(({ showCloseConfirm }) => {
-        showCloseConfirm(session.id, session.name);
-      });
+      toggleCollapseCard(session.id);
+      refreshOverview();
     }
     return true;
   }

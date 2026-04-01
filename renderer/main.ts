@@ -301,20 +301,24 @@ async function init(): Promise<void> {
     const restoredSessions = await window.gamepadCli?.sessionGetAll();
     if (restoredSessions && restoredSessions.length > 0 && terminalManager) {
       const terminalIds = terminalManager.getSessionIds();
+      const { doSpawn } = await import('./screens/sessions-spawn.js');
       for (const session of restoredSessions) {
         // Session in main process but no terminal = restored from disk, needs resume
         if (session.cliSessionName && !terminalIds.includes(session.id)) {
-          console.log(`[AutoResume] Resuming session: ${session.id} (${session.cliType}) with name ${session.cliSessionName}`);
-          // Remove stale session metadata (dead PID from previous run)
-          await window.gamepadCli?.sessionRemove(session.id);
-          // Spawn fresh terminal with CLI resume command
-          const { doSpawn } = await import('./screens/sessions-spawn.js');
-          await doSpawn(session.cliType, session.workingDir, undefined, session.cliSessionName);
+          try {
+            console.log(`[AutoResume] Resuming session: ${session.id} (${session.cliType}) with name ${session.cliSessionName}`);
+            // Spawn fresh terminal with CLI resume command first
+            await doSpawn(session.cliType, session.workingDir, undefined, session.cliSessionName);
+            // Only remove stale session metadata after successful spawn
+            await window.gamepadCli?.sessionRemove(session.id);
+          } catch (err) {
+            console.error(`[AutoResume] Failed to resume session ${session.id}:`, err);
+          }
         }
       }
     }
   } catch (err) {
-    console.error('[AutoResume] Failed to resume sessions:', err);
+    console.error('[AutoResume] Failed to load sessions for resume:', err);
   }
 
   // Setup PTY state change listener
@@ -345,7 +349,7 @@ async function init(): Promise<void> {
         state.activeSessionId = session.id;
         window.gamepadCli?.sessionSetActive(session.id);
         terminalManager.switchTo(session.id);
-        renderSessionList();
+        updateSessionHighlight();
       }
     });
   }

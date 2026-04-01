@@ -21,6 +21,8 @@ const mockConfigGetWorkingDirs = vi.fn<() => Promise<any[]>>().mockResolvedValue
 const mockConfigGetSpawnCommand = vi.fn().mockResolvedValue({ command: 'claude', args: [] });
 const mockConfigGetSessionGroupPrefs = vi.fn().mockResolvedValue({ order: [], collapsed: [] });
 const mockConfigSetSessionGroupPrefs = vi.fn().mockResolvedValue({ success: true });
+const mockConfigGetSortPrefs = vi.fn().mockResolvedValue({ field: 'state', direction: 'asc' });
+const mockConfigSetSortPrefs = vi.fn().mockResolvedValue(undefined);
 const mockCreateTerminal = vi.fn().mockResolvedValue(true);
 
 const mockDestroyTerminal = vi.fn();
@@ -64,6 +66,7 @@ function buildSidebarDom(): void {
 
   document.body.innerHTML = `
     <section id="screen-sessions" class="screen screen--active">
+      <div id="sessionsSortBar"></div>
       <div class="sessions-list" id="sessionsList"></div>
       <div class="sessions-empty" id="sessionsEmpty" style="display:none">
         No active sessions
@@ -167,6 +170,8 @@ describe('Sessions Screen', () => {
       configGetSpawnCommand: mockConfigGetSpawnCommand,
       configGetSessionGroupPrefs: mockConfigGetSessionGroupPrefs,
       configSetSessionGroupPrefs: mockConfigSetSessionGroupPrefs,
+      configGetSortPrefs: mockConfigGetSortPrefs,
+      configSetSortPrefs: mockConfigSetSortPrefs,
     };
 
     state = await getState();
@@ -1920,6 +1925,66 @@ describe('Sessions Screen', () => {
       sessionsState.cardColumn = 0;
       sessions.handleSessionsScreenButton('DPadRight');
       expect(sessionsState.cardColumn).toBe(0);
+    });
+  });
+
+  // ==========================================================================
+  // Sort re-groups sessions within groups
+  // ==========================================================================
+
+  describe('sort onChange re-groups navList', () => {
+    function createMockTMWithCwd(data: Array<{ id: string; cliType: string; name: string; cwd: string }>) {
+      const sessionsMap = new Map(data.map(s => [s.id, { sessionId: s.id, cliType: s.cliType, name: s.name, cwd: s.cwd }]));
+      return {
+        getSessionIds: () => Array.from(sessionsMap.keys()),
+        getSession: (id: string) => sessionsMap.get(id),
+        getActiveSessionId: () => null,
+        hasTerminal: (id: string) => sessionsMap.has(id),
+        switchTo: mockSwitchTo,
+        focusActive: vi.fn(),
+        fitActive: vi.fn(),
+        createTerminal: mockCreateTerminal,
+        destroyTerminal: mockDestroyTerminal,
+        renameSession: vi.fn(),
+      };
+    }
+
+    it('changing sort re-orders session cards in the DOM', async () => {
+      // Two sessions in the same group — default sort is by state (all idle → alphabetical tiebreaker)
+      sessions.setTerminalManagerGetter(() => createMockTMWithCwd([
+        { id: 's-b', cliType: 'claude-code', name: 'Bravo', cwd: '/proj' },
+        { id: 's-a', cliType: 'claude-code', name: 'Alpha', cwd: '/proj' },
+      ]));
+
+      await loadAndFlush(sessions);
+
+      const cards = () => Array.from(document.querySelectorAll('.session-card')).map(
+        c => c.querySelector('.session-name')?.textContent,
+      );
+
+      // Click the sort field button to open the dropdown, then select 'Name'
+      const fieldBtn = document.querySelector('.sort-field-btn') as HTMLElement;
+      expect(fieldBtn).toBeTruthy();
+      fieldBtn.click();
+      await flush();
+
+      const nameOption = Array.from(document.querySelectorAll('.sort-dropdown-option')).find(
+        el => el.textContent?.includes('Name'),
+      ) as HTMLElement;
+      expect(nameOption).toBeTruthy();
+      nameOption.click();
+      await flush();
+
+      // After sorting by name ascending, Alpha should come before Bravo
+      expect(cards()).toEqual(['Alpha', 'Bravo']);
+
+      // Toggle direction to descending
+      const dirBtn = document.querySelector('.sort-direction-btn') as HTMLElement;
+      dirBtn.click();
+      await flush();
+
+      // Cards should now be B → A (descending)
+      expect(cards()).toEqual(['Bravo', 'Alpha']);
     });
   });
 });
