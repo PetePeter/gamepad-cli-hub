@@ -645,27 +645,50 @@ export class ConfigLoader {
 
   // ---------- Tools CRUD -----------------------------------------------
 
-  addCliType(key: string, name: string, command: string, initialPrompt?: SequenceListItem[], initialPromptDelay?: number): void {
+  addCliType(
+    key: string, name: string, command: string,
+    initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
+    options?: { handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string },
+  ): void {
     this.ensureLoaded();
     if (this.activeProfile!.tools[key]) {
       throw new Error(`CLI type already exists: ${key}`);
     }
-    this.activeProfile!.tools[key] = { name, command, initialPrompt: initialPrompt ?? [], initialPromptDelay: initialPromptDelay ?? 0 };
+    const tool: CliTypeConfig = { name, command, initialPrompt: initialPrompt ?? [], initialPromptDelay: initialPromptDelay ?? 0 };
+    if (options?.handoffCommand) tool.handoffCommand = options.handoffCommand;
+    if (options?.renameCommand) tool.renameCommand = options.renameCommand;
+    if (options?.resumeCommand) tool.resumeCommand = options.resumeCommand;
+    if (options?.continueCommand) tool.continueCommand = options.continueCommand;
+    this.activeProfile!.tools[key] = tool;
     this.saveActiveProfile();
   }
 
-  updateCliType(key: string, name: string, command: string, initialPrompt?: SequenceListItem[], initialPromptDelay?: number): void {
+  updateCliType(
+    key: string, name: string, command: string,
+    initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
+    options?: { handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string },
+  ): void {
     this.ensureLoaded();
     if (!this.activeProfile!.tools[key]) {
       throw new Error(`CLI type not found: ${key}`);
     }
     const existing = this.activeProfile!.tools[key];
-    this.activeProfile!.tools[key] = {
-      name,
-      command,
-      initialPrompt: initialPrompt ?? [],
-      initialPromptDelay: initialPromptDelay !== undefined ? initialPromptDelay : existing.initialPromptDelay,
-    };
+    // Merge — preserve fields not provided (sequences, etc.)
+    existing.name = name;
+    existing.command = command;
+    existing.initialPrompt = initialPrompt ?? [];
+    if (initialPromptDelay !== undefined) existing.initialPromptDelay = initialPromptDelay;
+
+    // Optional fields: undefined = preserve, empty string = clear, value = set
+    if (options) {
+      for (const field of ['handoffCommand', 'renameCommand', 'resumeCommand', 'continueCommand'] as const) {
+        const val = options[field];
+        if (val === undefined) continue;
+        if (val === '') { delete (existing as any)[field]; }
+        else { (existing as any)[field] = val; }
+      }
+    }
+
     this.saveActiveProfile();
   }
 

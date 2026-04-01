@@ -233,8 +233,16 @@ const gamepadCliAPI = {
   // ========================================================================
 
   toolsGetAll: () => ipcRenderer.invoke('tools:getAll'),
-  toolsAddCliType: (key: string, name: string, command: string, initialPrompt: Array<{label: string; sequence: string}>, initialPromptDelay: number) => ipcRenderer.invoke('tools:addCliType', key, name, command, initialPrompt, initialPromptDelay),
-  toolsUpdateCliType: (key: string, name: string, command: string, initialPrompt: Array<{label: string; sequence: string}>, initialPromptDelay: number) => ipcRenderer.invoke('tools:updateCliType', key, name, command, initialPrompt, initialPromptDelay),
+  toolsAddCliType: (
+    key: string, name: string, command: string,
+    initialPrompt: Array<{label: string; sequence: string}>, initialPromptDelay: number,
+    options?: { handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string },
+  ) => ipcRenderer.invoke('tools:addCliType', key, name, command, initialPrompt, initialPromptDelay, options),
+  toolsUpdateCliType: (
+    key: string, name: string, command: string,
+    initialPrompt: Array<{label: string; sequence: string}>, initialPromptDelay: number,
+    options?: { handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string },
+  ) => ipcRenderer.invoke('tools:updateCliType', key, name, command, initialPrompt, initialPromptDelay, options),
   toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),
 
   // ========================================================================

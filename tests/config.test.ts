@@ -688,6 +688,107 @@ describe('ConfigLoader', () => {
       expect(onDisk.tools['claude-code'].initialPromptDelay).toBe(7000);
     });
 
+    it('updateCliType preserves sequences and other optional fields', () => {
+      const profileWithExtras = {
+        ...DEFAULT_PROFILE,
+        tools: {
+          ...DEFAULT_PROFILE.tools,
+          'claude-code': {
+            ...DEFAULT_PROFILE.tools['claude-code'],
+            sequences: { prompts: [{ label: 'commit', sequence: 'use skill(commit)' }] },
+            handoffCommand: 'go implement it\r',
+            renameCommand: '/session {cliSessionName}',
+            resumeCommand: 'claude --resume {cliSessionName}',
+            continueCommand: 'claude --continue',
+          },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithExtras);
+      loader = new ConfigLoader(TEST_DIR);
+      loader.load();
+
+      // Edit only name/command — all other fields must survive
+      loader.updateCliType('claude-code', 'CC Renamed', 'cc2');
+      const entry = loader.getCliTypeEntry('claude-code')!;
+      expect(entry.name).toBe('CC Renamed');
+      expect(entry.command).toBe('cc2');
+      expect(entry.sequences).toEqual({ prompts: [{ label: 'commit', sequence: 'use skill(commit)' }] });
+      expect(entry.handoffCommand).toBe('go implement it\r');
+      expect(entry.renameCommand).toBe('/session {cliSessionName}');
+      expect(entry.resumeCommand).toBe('claude --resume {cliSessionName}');
+      expect(entry.continueCommand).toBe('claude --continue');
+    });
+
+    it('updateCliType with options sets optional command fields', () => {
+      loader.load();
+      loader.updateCliType('claude-code', 'CC', 'cc', [], 0, {
+        handoffCommand: 'do it',
+        renameCommand: '/name {cliSessionName}',
+      });
+      const entry = loader.getCliTypeEntry('claude-code')!;
+      expect(entry.handoffCommand).toBe('do it');
+      expect(entry.renameCommand).toBe('/name {cliSessionName}');
+    });
+
+    it('updateCliType with empty string clears optional field', () => {
+      const profileWithHandoff = {
+        ...DEFAULT_PROFILE,
+        tools: {
+          ...DEFAULT_PROFILE.tools,
+          'claude-code': { ...DEFAULT_PROFILE.tools['claude-code'], handoffCommand: 'go' },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithHandoff);
+      loader = new ConfigLoader(TEST_DIR);
+      loader.load();
+
+      loader.updateCliType('claude-code', 'CC', 'cc', [], 0, { handoffCommand: '' });
+      const entry = loader.getCliTypeEntry('claude-code')!;
+      expect(entry.handoffCommand).toBeUndefined();
+    });
+
+    it('addCliType with options stores optional command fields', () => {
+      loader.load();
+      loader.addCliType('new-tool', 'New', 'newtool', [], 0, {
+        handoffCommand: 'build it',
+        resumeCommand: 'newtool --resume {cliSessionName}',
+      });
+      const entry = loader.getCliTypeEntry('new-tool')!;
+      expect(entry.handoffCommand).toBe('build it');
+      expect(entry.resumeCommand).toBe('newtool --resume {cliSessionName}');
+      expect(entry.renameCommand).toBeUndefined();
+    });
+
+    it('updateCliType round-trip preserves all fields on disk', () => {
+      const profileWithAll = {
+        ...DEFAULT_PROFILE,
+        tools: {
+          ...DEFAULT_PROFILE.tools,
+          'claude-code': {
+            ...DEFAULT_PROFILE.tools['claude-code'],
+            sequences: { prompts: [{ label: 'x', sequence: 'y' }] },
+            handoffCommand: 'h',
+            continueCommand: 'c',
+          },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithAll);
+      loader = new ConfigLoader(TEST_DIR);
+      loader.load();
+
+      loader.updateCliType('claude-code', 'New Name', 'new-cmd');
+
+      // Reload from disk
+      const fresh = new ConfigLoader(TEST_DIR);
+      fresh.load();
+      const entry = fresh.getCliTypeEntry('claude-code')!;
+      expect(entry.name).toBe('New Name');
+      expect(entry.command).toBe('new-cmd');
+      expect(entry.sequences).toEqual({ prompts: [{ label: 'x', sequence: 'y' }] });
+      expect(entry.handoffCommand).toBe('h');
+      expect(entry.continueCommand).toBe('c');
+    });
+
     it('auto-migrates string initialPrompt to SequenceListItem array on load', () => {
       const profileWithStringPrompt = {
         ...DEFAULT_PROFILE,

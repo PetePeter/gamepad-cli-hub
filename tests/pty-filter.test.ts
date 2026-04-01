@@ -25,9 +25,22 @@ describe('stripMouseTracking', () => {
     expect(stripMouseTracking('\x1b[?1006l')).toBe('');
   });
 
+  it('strips alternate scroll mode enable \\x1b[?1007h', () => {
+    expect(stripMouseTracking('\x1b[?1007h')).toBe('');
+  });
+
+  it('strips alternate scroll mode disable \\x1b[?1007l', () => {
+    expect(stripMouseTracking('\x1b[?1007l')).toBe('');
+  });
+
+  it('strips alternate scroll mode embedded in PTY output', () => {
+    const input = 'prompt> \x1b[?1007hmore text';
+    expect(stripMouseTracking(input)).toBe('prompt> more text');
+  });
+
   it('strips all known mouse tracking codes', () => {
-    // 1001 = VT200 highlight, 1004 = focus events, 1005 = UTF-8 mode, 1015 = URXVT, 1016 = SGR pixel
-    const codes = ['1001', '1004', '1005', '1015', '1016'];
+    // 1001 = VT200 highlight, 1004 = focus events, 1005 = UTF-8 mode, 1007 = alt scroll, 1015 = URXVT, 1016 = SGR pixel
+    const codes = ['1001', '1004', '1005', '1007', '1015', '1016'];
     for (const code of codes) {
       expect(stripMouseTracking(`\x1b[?${code}h`), `enable ${code}`).toBe('');
       expect(stripMouseTracking(`\x1b[?${code}l`), `disable ${code}`).toBe('');

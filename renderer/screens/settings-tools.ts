@@ -215,6 +215,10 @@ async function showAddCliTypeForm(): Promise<void> {
     { key: 'command', label: 'Command', placeholder: 'e.g. claude, python' },
     { key: '_promptItems', label: 'Initial Prompt Items', type: 'text', defaultValue: '', afterElement: itemsEditor },
     { key: 'initialPromptDelay', label: 'Initial Prompt Delay (ms)', type: 'text', defaultValue: '2000', placeholder: 'e.g. 2000' },
+    { key: 'handoffCommand', label: 'Handoff Command', placeholder: 'Command sent on pipeline handoff (e.g. go implement it\\r)' },
+    { key: 'renameCommand', label: 'Rename Command', placeholder: 'Name session for resume (use {cliSessionName})' },
+    { key: 'resumeCommand', label: 'Resume Command', placeholder: 'Resume named session (use {cliSessionName})' },
+    { key: 'continueCommand', label: 'Continue Command', placeholder: 'Resume most recent session' },
   ]);
 
   if (!result) return;
@@ -229,8 +233,9 @@ async function showAddCliTypeForm(): Promise<void> {
   const command = result.command?.trim() || '';
   const validItems = items.filter(i => i.sequence.trim());
   const initialPromptDelay = parseInt(result.initialPromptDelay || '0', 10) || 0;
+  const options = buildCommandOptions(result);
 
-  const addResult = await window.gamepadCli.toolsAddCliType(key, name, command, validItems, initialPromptDelay);
+  const addResult = await window.gamepadCli.toolsAddCliType(key, name, command, validItems, initialPromptDelay, options);
   if (addResult.success) {
     logEvent(`Added CLI type: ${key}`);
     state.cliTypes = await window.gamepadCli.configGetCliTypes();
@@ -254,6 +259,10 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
     { key: 'command', label: 'Command', defaultValue: value.command || '' },
     { key: '_promptItems', label: 'Initial Prompt Items', type: 'text', defaultValue: '', afterElement: itemsEditor },
     { key: 'initialPromptDelay', label: 'Initial Prompt Delay (ms)', type: 'text', defaultValue: String(value.initialPromptDelay ?? 0), placeholder: 'e.g. 2000' },
+    { key: 'handoffCommand', label: 'Handoff Command', defaultValue: value.handoffCommand || '', placeholder: 'Command sent on pipeline handoff (e.g. go implement it\\r)' },
+    { key: 'renameCommand', label: 'Rename Command', defaultValue: value.renameCommand || '', placeholder: 'Name session for resume (use {cliSessionName})' },
+    { key: 'resumeCommand', label: 'Resume Command', defaultValue: value.resumeCommand || '', placeholder: 'Resume named session (use {cliSessionName})' },
+    { key: 'continueCommand', label: 'Continue Command', defaultValue: value.continueCommand || '', placeholder: 'Resume most recent session' },
   ]);
 
   if (!result) return;
@@ -261,8 +270,9 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
   const command = result.command?.trim() || '';
   const validItems = items.filter(i => i.sequence.trim());
   const initialPromptDelay = parseInt(result.initialPromptDelay || '0', 10) || 0;
+  const options = buildCommandOptions(result);
 
-  const updateResult = await window.gamepadCli.toolsUpdateCliType(key, result.name, command, validItems, initialPromptDelay);
+  const updateResult = await window.gamepadCli.toolsUpdateCliType(key, result.name, command, validItems, initialPromptDelay, options);
   if (updateResult.success) {
     logEvent(`Updated CLI type: ${key}`);
     state.cliTypes = await window.gamepadCli.configGetCliTypes();
@@ -272,4 +282,19 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
   } else {
     logEvent('Failed to update CLI type');
   }
+}
+
+/** Build the optional command fields from form result. Empty string = clear, undefined = no change. */
+function buildCommandOptions(result: Record<string, string>): { handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string } | undefined {
+  const fields = ['handoffCommand', 'renameCommand', 'resumeCommand', 'continueCommand'] as const;
+  const opts: Record<string, string> = {};
+  let hasAny = false;
+  for (const field of fields) {
+    const val = result[field];
+    if (val !== undefined) {
+      opts[field] = val.trim();
+      hasAny = true;
+    }
+  }
+  return hasAny ? opts : undefined;
 }
