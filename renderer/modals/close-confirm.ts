@@ -16,14 +16,14 @@ export interface CloseConfirmState {
   visible: boolean;
   sessionId: string;
   sessionName: string;
-  selectedIndex: number;  // 0 = Close, 1 = Cancel
+  selectedIndex: number;  // 0 = Cancel, 1 = Close
 }
 
 export const closeConfirmState: CloseConfirmState = {
   visible: false,
   sessionId: '',
   sessionName: '',
-  selectedIndex: 1, // Default to Cancel for safety
+  selectedIndex: 0, // Default to Cancel for safety
 };
 
 // Callbacks
@@ -42,7 +42,7 @@ export function showCloseConfirm(
   closeConfirmState.visible = true;
   closeConfirmState.sessionId = sessionId;
   closeConfirmState.sessionName = sessionName;
-  closeConfirmState.selectedIndex = 1; // Default to Cancel
+  closeConfirmState.selectedIndex = 0; // Default to Cancel
   onConfirmCallback = onConfirm;
 
   const overlay = document.getElementById('closeConfirmOverlay');
@@ -89,8 +89,8 @@ function renderCloseConfirm(): void {
 
   const closeBtn = document.getElementById('closeConfirmCloseBtn');
   const cancelBtn = document.getElementById('closeConfirmCancelBtn');
-  if (closeBtn) closeBtn.classList.toggle('btn--focused', closeConfirmState.selectedIndex === 0);
-  if (cancelBtn) cancelBtn.classList.toggle('btn--focused', closeConfirmState.selectedIndex === 1);
+  if (cancelBtn) cancelBtn.classList.toggle('btn--focused', closeConfirmState.selectedIndex === 0);
+  if (closeBtn) closeBtn.classList.toggle('btn--focused', closeConfirmState.selectedIndex === 1);
 }
 
 // ============================================================================
@@ -121,7 +121,7 @@ export function handleCloseConfirmButton(button: string): void {
 // ============================================================================
 
 function executeSelected(): void {
-  if (closeConfirmState.selectedIndex === 0) {
+  if (closeConfirmState.selectedIndex === 1) {
     // Close confirmed — capture callback before hide nulls it
     const sessionId = closeConfirmState.sessionId;
     const cb = onConfirmCallback;
@@ -143,7 +143,7 @@ export function initCloseConfirmClickHandlers(): void {
   const overlay = document.getElementById('closeConfirmOverlay');
 
   closeBtn?.addEventListener('click', () => {
-    closeConfirmState.selectedIndex = 0;
+    closeConfirmState.selectedIndex = 1;
     executeSelected();
   });
 

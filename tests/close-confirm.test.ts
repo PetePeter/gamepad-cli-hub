@@ -43,8 +43,8 @@ function buildCloseConfirmDom(): void {
         <div class="modal-header"><h3 class="modal-title">Close Session</h3></div>
         <div class="close-confirm-body" id="closeConfirmBody">Close this session?</div>
         <div class="modal-footer">
-          <button class="btn btn--danger" id="closeConfirmCloseBtn">Close (A)</button>
           <button class="btn btn--secondary" id="closeConfirmCancelBtn">Cancel (B)</button>
+          <button class="btn btn--danger" id="closeConfirmCloseBtn">Close (A)</button>
         </div>
       </div>
     </div>
@@ -81,7 +81,7 @@ describe('Close Confirm Modal', () => {
       visible: false,
       sessionId: '',
       sessionName: '',
-      selectedIndex: 1,
+      selectedIndex: 0,
     });
   });
 
@@ -100,7 +100,7 @@ describe('Close Confirm Modal', () => {
       expect(s.visible).toBe(false);
       expect(s.sessionId).toBe('');
       expect(s.sessionName).toBe('');
-      expect(s.selectedIndex).toBe(1);
+      expect(s.selectedIndex).toBe(0);
     });
 
     it('showCloseConfirm sets state correctly', () => {
@@ -109,7 +109,7 @@ describe('Close Confirm Modal', () => {
       expect(s.visible).toBe(true);
       expect(s.sessionId).toBe('sess-42');
       expect(s.sessionName).toBe('My Session');
-      expect(s.selectedIndex).toBe(1); // Default to Cancel
+      expect(s.selectedIndex).toBe(0); // Default to Cancel
     });
 
     it('hideCloseConfirm resets visibility', () => {
@@ -179,30 +179,30 @@ describe('Close Confirm Modal', () => {
   describe('Close Confirm Navigation', () => {
     it('DPadLeft toggles selectedIndex', () => {
       mod.showCloseConfirm('sess-1', 'Sess', mockOnConfirm);
-      expect(mod.closeConfirmState.selectedIndex).toBe(1); // Cancel
+      expect(mod.closeConfirmState.selectedIndex).toBe(0); // Cancel
 
       mod.handleCloseConfirmButton('DPadLeft');
-      expect(mod.closeConfirmState.selectedIndex).toBe(0); // Close
+      expect(mod.closeConfirmState.selectedIndex).toBe(1); // Close
 
       mod.handleCloseConfirmButton('DPadLeft');
-      expect(mod.closeConfirmState.selectedIndex).toBe(1); // Cancel
+      expect(mod.closeConfirmState.selectedIndex).toBe(0); // Cancel
     });
 
     it('DPadRight toggles selectedIndex', () => {
       mod.showCloseConfirm('sess-1', 'Sess', mockOnConfirm);
-      expect(mod.closeConfirmState.selectedIndex).toBe(1); // Cancel
+      expect(mod.closeConfirmState.selectedIndex).toBe(0); // Cancel
 
       mod.handleCloseConfirmButton('DPadRight');
-      expect(mod.closeConfirmState.selectedIndex).toBe(0); // Close
+      expect(mod.closeConfirmState.selectedIndex).toBe(1); // Close
 
       mod.handleCloseConfirmButton('DPadRight');
-      expect(mod.closeConfirmState.selectedIndex).toBe(1); // Cancel
+      expect(mod.closeConfirmState.selectedIndex).toBe(0); // Cancel
     });
 
-    it('A on Close (index 0) calls onConfirm callback with sessionId', async () => {
+    it('A on Close (index 1) calls onConfirm callback with sessionId', async () => {
       mod.showCloseConfirm('sess-99', 'Target', mockOnConfirm);
-      mod.handleCloseConfirmButton('DPadLeft'); // Move to Close (index 0)
-      expect(mod.closeConfirmState.selectedIndex).toBe(0);
+      mod.handleCloseConfirmButton('DPadRight'); // Move to Close (index 1)
+      expect(mod.closeConfirmState.selectedIndex).toBe(1);
 
       mod.handleCloseConfirmButton('A');
       await flush();
@@ -211,9 +211,9 @@ describe('Close Confirm Modal', () => {
       expect(mod.closeConfirmState.visible).toBe(false);
     });
 
-    it('A on Cancel (index 1) hides modal', async () => {
+    it('A on Cancel (index 0) hides modal', async () => {
       mod.showCloseConfirm('sess-1', 'Sess', mockOnConfirm);
-      expect(mod.closeConfirmState.selectedIndex).toBe(1); // Cancel
+      expect(mod.closeConfirmState.selectedIndex).toBe(0); // Cancel
 
       mod.handleCloseConfirmButton('A');
       await flush();

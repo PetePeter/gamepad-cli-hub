@@ -1631,7 +1631,6 @@ kbd {
 }
 
 .close-confirm-modal .modal-footer {
-  justify-content: center;
   gap: 12px;
 }
 
