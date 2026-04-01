@@ -206,49 +206,35 @@ function handleOverviewButton(button: string): boolean {
   const count = sessions.length;
   if (count === 0) return false;
 
-  const cols = 2;
   const idx = sessionsState.overviewFocusIndex;
-  const row = Math.floor(idx / cols);
-  const col = idx % cols;
-  const totalRows = Math.ceil(count / cols);
 
   if (dir === 'up') {
-    if (row > 0) {
-      sessionsState.overviewFocusIndex = (row - 1) * cols + col;
+    if (idx > 0) {
+      sessionsState.overviewFocusIndex = idx - 1;
       updateOverviewFocus();
     }
     return true;
   }
   if (dir === 'down') {
-    const newIdx = (row + 1) * cols + col;
-    if (row + 1 < totalRows && newIdx < count) {
-      sessionsState.overviewFocusIndex = newIdx;
+    if (idx + 1 < count) {
+      sessionsState.overviewFocusIndex = idx + 1;
       updateOverviewFocus();
     }
     return true;
   }
   if (dir === 'left') {
-    if (col > 0) {
-      sessionsState.overviewFocusIndex = idx - 1;
-      updateOverviewFocus();
+    // Exit overview, return to session list
+    hideOverview();
+    const tm = getTerminalManager();
+    if (tm && tm.getActiveSessionId()) {
+      showTerminalArea();
     } else {
-      // Column 0, left → exit overview, return to session list
-      hideOverview();
-      // Restore terminal area for active session
-      const tm = getTerminalManager();
-      if (tm && tm.getActiveSessionId()) {
-        showTerminalArea();
-      } else {
-        hideTerminalArea();
-      }
+      hideTerminalArea();
     }
     return true;
   }
   if (dir === 'right') {
-    if (col < cols - 1 && idx + 1 < count) {
-      sessionsState.overviewFocusIndex = idx + 1;
-      updateOverviewFocus();
-    }
+    // Single column — no action
     return true;
   }
 

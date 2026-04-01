@@ -13,6 +13,7 @@ import { sortSessions, SESSION_SORT_LABELS, type SessionSortField, type SortDire
 import { createSortControl, type SortControlHandle } from '../components/sort-control.js';
 import type { SessionGroup } from '../session-groups.js';
 import { showOverview, refreshOverview } from './group-overview.js';
+import { getStateColor } from '../state-colors.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import {
@@ -259,7 +260,8 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   // --- Left side: activity dot + name ---
 
   const activityDot = document.createElement('span');
-  activityDot.className = `session-activity-dot${isActive ? ' session-activity-dot--active' : ' session-activity-dot--inactive'}`;
+  activityDot.className = 'session-activity-dot';
+  activityDot.style.background = getStateColor(sessionState);
 
   const info = document.createElement('div');
   info.className = 'session-info';

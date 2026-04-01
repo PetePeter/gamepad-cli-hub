@@ -158,13 +158,13 @@ describe('GroupOverview', () => {
       showOverview('/project');
 
       const lines = document.querySelectorAll('.overview-card .preview-line');
-      expect(lines.length).toBe(5);
+      expect(lines.length).toBe(10);
       expect(lines[0].textContent).toBe('line1');
       expect(lines[1].textContent).toBe('line2');
       expect(lines[2].textContent).toBe('line3');
     });
 
-    it('pads preview to 5 lines when fewer available', () => {
+    it('pads preview to 10 lines when fewer available', () => {
       buffer.append('s1', 'only one\n');
       state.sessions = [
         { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
@@ -172,7 +172,7 @@ describe('GroupOverview', () => {
       showOverview('/project');
 
       const lines = document.querySelectorAll('.overview-card .preview-line');
-      expect(lines.length).toBe(5);
+      expect(lines.length).toBe(10);
       expect(lines[0].textContent).toBe('only one');
       expect(lines[1].textContent).toBe('\u00A0');
     });

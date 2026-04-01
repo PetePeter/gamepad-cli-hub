@@ -8,15 +8,9 @@
 import { state, type Session } from '../state.js';
 import { sessionsState } from './sessions-state.js';
 import type { PtyOutputBuffer } from '../terminal/pty-output-buffer.js';
+import { getStateColor } from '../state-colors.js';
 
-// State colors — same as tab bar state dots
-const STATE_COLORS: Record<string, string> = {
-  implementing: '#44cc44',
-  waiting: '#ffaa00',
-  planning: '#4488ff',
-  completed: '#44cc44',
-  idle: '#555555',
-};
+const PREVIEW_LINES = 10;
 
 let overviewContainer: HTMLElement | null = null;
 let outputBuffer: PtyOutputBuffer | null = null;
@@ -150,7 +144,7 @@ function createOverviewCard(session: Session): HTMLElement {
   const dot = document.createElement('span');
   dot.className = 'overview-state-dot';
   const sessionState = getSessionStateForOverview(session.id);
-  dot.style.background = STATE_COLORS[sessionState] || STATE_COLORS.idle;
+  dot.style.background = getStateColor(sessionState);
   header.appendChild(dot);
 
   const name = document.createElement('span');
@@ -213,14 +207,14 @@ export function setSelectCardCallback(fn: (sessionId: string) => void): void {
 /** Render preview lines into a container element — shared by createOverviewCard and flushPendingUpdates */
 function renderPreviewLines(preview: Element, sessionId: string): void {
   preview.innerHTML = '';
-  const lines = outputBuffer?.getLastLines(sessionId, 5) ?? [];
+  const lines = outputBuffer?.getLastLines(sessionId, PREVIEW_LINES) ?? [];
   for (const line of lines) {
     const lineEl = document.createElement('div');
     lineEl.className = 'preview-line';
     lineEl.textContent = line || '\u00A0';
     preview.appendChild(lineEl);
   }
-  for (let i = lines.length; i < 5; i++) {
+  for (let i = lines.length; i < PREVIEW_LINES; i++) {
     const lineEl = document.createElement('div');
     lineEl.className = 'preview-line';
     lineEl.textContent = '\u00A0';
@@ -243,7 +237,7 @@ function flushPendingUpdates(): void {
     const stateLabel = card.querySelector('.overview-card-state');
     if (dot || stateLabel) {
       const sessionState = getSessionStateForOverview(sessionId);
-      if (dot) dot.style.background = STATE_COLORS[sessionState] || STATE_COLORS.idle;
+      if (dot) dot.style.background = getStateColor(sessionState);
       if (stateLabel) stateLabel.textContent = sessionState;
     }
   }

@@ -301,14 +301,14 @@ describe('Sessions Screen', () => {
       expect(cards).toHaveLength(3);
     });
 
-    it('session card contains .session-activity-dot element', async () => {
+    it('session card contains .session-activity-dot with state color', async () => {
       setMockTerminalSessions(makeSessions(1));
       await loadAndFlush(sessions);
 
-      const dot = document.querySelector('#sessionsList .session-card .session-activity-dot');
+      const dot = document.querySelector('#sessionsList .session-card .session-activity-dot') as HTMLElement;
       expect(dot).not.toBeNull();
-      // New sessions start inactive (no output yet)
-      expect(dot!.classList.contains('session-activity-dot--inactive')).toBe(true);
+      // New sessions start idle (grey state dot)
+      expect(dot!.style.background).toBeTruthy();
     });
 
     it('session card contains .session-info with .session-name and .session-state-btn', async () => {

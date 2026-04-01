@@ -3,8 +3,8 @@ hapticFeedback: true
 sidebar:
   width: 1929
   height: 1078
-  x: 853
-  y: 1013
+  x: 374
+  y: 745
 sessionGroups:
   order: []
   collapsed: []
