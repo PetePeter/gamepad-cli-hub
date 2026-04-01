@@ -243,6 +243,12 @@ export class TerminalManager {
     return this.terminals.has(sessionId);
   }
 
+  /** Read last N lines from a terminal's xterm.js buffer */
+  getTerminalLines(sessionId: string, count: number): string[] {
+    const session = this.terminals.get(sessionId);
+    return session ? session.view.getBufferLines(count) : [];
+  }
+
   /** Clean up all terminals and listeners */
   dispose(): void {
     for (const unsub of this.unsubscribers) {

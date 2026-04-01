@@ -156,8 +156,16 @@ describe('GroupOverview', () => {
       expect(stateLabel?.textContent).toBe('implementing');
     });
 
-    it('shows preview lines from PtyOutputBuffer', () => {
-      buffer.append('s1', 'line1\nline2\nline3\n');
+    it('shows preview lines from xterm.js buffer', () => {
+      const mockTm = {
+        deselect: vi.fn(),
+        switchTo: vi.fn(),
+        getActiveSessionId: vi.fn().mockReturnValue(null),
+        hasTerminal: vi.fn().mockReturnValue(true),
+        getTerminalLines: vi.fn().mockReturnValue(['line1', 'line2', 'line3']),
+      };
+      setTerminalManagerGetter(() => mockTm as any);
+
       state.sessions = [
         { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
       ];
@@ -168,10 +176,22 @@ describe('GroupOverview', () => {
       expect(lines[0].textContent).toBe('line1');
       expect(lines[1].textContent).toBe('line2');
       expect(lines[2].textContent).toBe('line3');
+      // Remaining 7 lines should be padding
+      expect(lines[3].textContent).toBe('\u00A0');
+
+      setTerminalManagerGetter(() => null);
     });
 
     it('pads preview to 10 lines when fewer available', () => {
-      buffer.append('s1', 'only one\n');
+      const mockTm = {
+        deselect: vi.fn(),
+        switchTo: vi.fn(),
+        getActiveSessionId: vi.fn().mockReturnValue(null),
+        hasTerminal: vi.fn().mockReturnValue(true),
+        getTerminalLines: vi.fn().mockReturnValue(['only one']),
+      };
+      setTerminalManagerGetter(() => mockTm as any);
+
       state.sessions = [
         { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
       ];
@@ -181,6 +201,8 @@ describe('GroupOverview', () => {
       expect(lines.length).toBe(10);
       expect(lines[0].textContent).toBe('only one');
       expect(lines[1].textContent).toBe('\u00A0');
+
+      setTerminalManagerGetter(() => null);
     });
   });
 
@@ -260,6 +282,7 @@ describe('GroupOverview', () => {
         switchTo: vi.fn(),
         getActiveSessionId: vi.fn().mockReturnValue('s1'),
         hasTerminal: vi.fn().mockReturnValue(true),
+        getTerminalLines: vi.fn().mockReturnValue([]),
       };
       setTerminalManagerGetter(() => mockTm as any);
 

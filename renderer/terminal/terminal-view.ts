@@ -174,6 +174,21 @@ export class TerminalView {
     this.terminal.clearSelection();
   }
 
+  /** Read the last N lines from the terminal buffer (ANSI-free, line-wrapped) */
+  getBufferLines(count: number): string[] {
+    if (this.disposed) return [];
+    const buf = this.terminal.buffer.active;
+    // Content ends at the cursor row (baseY accounts for scrolled-off lines)
+    const endRow = buf.baseY + buf.cursorY;
+    const startRow = Math.max(0, endRow - count + 1);
+    const lines: string[] = [];
+    for (let i = startRow; i <= endRow; i++) {
+      const line = buf.getLine(i);
+      lines.push(line ? line.translateToString(true) : '');
+    }
+    return lines;
+  }
+
   /** Dispose terminal and release resources */
   dispose(): void {
     if (this.disposed) return;

@@ -27,6 +27,7 @@ interface TerminalManagerLike {
   switchTo(sessionId: string): void;
   getActiveSessionId(): string | null;
   hasTerminal(sessionId: string): boolean;
+  getTerminalLines(sessionId: string, count: number): string[];
 }
 
 let terminalManagerGetter: (() => TerminalManagerLike | null) | null = null;
@@ -242,10 +243,11 @@ export function setSelectCardCallback(fn: (sessionId: string) => void): void {
   selectCardCallback = fn;
 }
 
-/** Render preview lines into a container element — shared by createOverviewCard and flushPendingUpdates */
+/** Render preview lines into a container element — reads from xterm.js buffer for fidelity */
 function renderPreviewLines(preview: Element, sessionId: string): void {
   preview.innerHTML = '';
-  const lines = outputBuffer?.getLastLines(sessionId, PREVIEW_LINES) ?? [];
+  const tm = terminalManagerGetter?.();
+  const lines = tm?.getTerminalLines(sessionId, PREVIEW_LINES) ?? [];
   for (const line of lines) {
     const lineEl = document.createElement('div');
     lineEl.className = 'preview-line';
