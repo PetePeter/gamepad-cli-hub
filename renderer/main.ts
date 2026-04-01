@@ -335,6 +335,17 @@ async function init(): Promise<void> {
       // Update local activity cache (also triggers re-render)
       setSessionActivity(event.sessionId, event.isActive);
     });
+
+    // Setup notification click listener (focus + switch to session)
+    window.gamepadCli.onNotificationClick((event) => {
+      const session = state.sessions.find(s => s.id === event.sessionId);
+      if (session) {
+        state.activeSessionId = session.id;
+        window.gamepadCli?.sessionSetActive(session.id);
+        terminalManager.switchTo(session.id);
+        renderSessionList();
+      }
+    });
   }
 
   // Log initialization

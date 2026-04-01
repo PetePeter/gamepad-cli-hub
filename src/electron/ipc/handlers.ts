@@ -11,6 +11,7 @@ import { SessionManager } from '../../session/manager.js';
 import { PtyManager } from '../../session/pty-manager.js';
 import { StateDetector } from '../../session/state-detector.js';
 import { PipelineQueue } from '../../session/pipeline-queue.js';
+import { NotificationManager } from '../../session/notification-manager.js';
 import { configLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
 import { logger } from '../../utils/logger.js';
@@ -48,6 +49,7 @@ export function registerIPCHandlers(
   const ptyManager = new PtyManager();
   const stateDetector = new StateDetector();
   const pipelineQueue = new PipelineQueue();
+  const notificationManager = new NotificationManager(getMainWindow, sessionManager, configLoader);
 
   // Restore sessions persisted from previous run and start health check
   const restored = sessionManager.restoreSessions();
@@ -60,7 +62,7 @@ export function registerIPCHandlers(
   setupToolsHandlers(configLoader);
   setupKeyboardHandlers(keyboard);
   setupSystemHandlers();
-  setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader);
+  setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader, notificationManager);
 
   logger.info('[IPC] All handlers registered');
 
@@ -70,6 +72,7 @@ export function registerIPCHandlers(
       cancelAllPrompts();
       sessionManager.stopHealthCheck();
       stateDetector.dispose();
+      notificationManager.dispose();
       ptyManager.killAll();
       logger.info('[IPC] Cleanup complete');
     },

@@ -119,6 +119,7 @@ const DEFAULT_SORTING: SortingConfig = {
 export interface SettingsConfig {
   activeProfile: string;
   hapticFeedback: boolean;
+  notifications: boolean;
   sidebar?: SidebarPrefs;
   sorting?: SortingConfig;
   sessionGroups?: SessionGroupPrefs;
@@ -220,6 +221,9 @@ export class ConfigLoader {
     }
     if (this.settings.hapticFeedback === undefined) {
       this.settings.hapticFeedback = true;
+    }
+    if (this.settings.notifications === undefined) {
+      this.settings.notifications = true;
     }
     this.activeProfileName = this.settings.activeProfile;
   }
@@ -498,6 +502,17 @@ export class ConfigLoader {
   setHapticFeedback(enabled: boolean): void {
     this.ensureLoaded();
     this.settings!.hapticFeedback = enabled;
+    this.saveSettings();
+  }
+
+  getNotifications(): boolean {
+    this.ensureLoaded();
+    return this.settings!.notifications;
+  }
+
+  setNotifications(enabled: boolean): void {
+    this.ensureLoaded();
+    this.settings!.notifications = enabled;
     this.saveSettings();
   }
 

@@ -139,6 +139,26 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     }
   });
 
+  ipcMain.handle('config:getNotifications', () => {
+    try {
+      return configLoader.getNotifications();
+    } catch (error) {
+      logger.error(`[IPC] Failed to get notifications setting: ${error}`);
+      return true;
+    }
+  });
+
+  ipcMain.handle('config:setNotifications', (_event, enabled: boolean) => {
+    try {
+      configLoader.setNotifications(enabled);
+      logger.info(`[IPC] Notifications set to: ${enabled}`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to set notifications: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle('config:getSortPrefs', (_event, area: string) => {
     try {
       return configLoader.getSortPrefs(area as 'sessions' | 'bindings');

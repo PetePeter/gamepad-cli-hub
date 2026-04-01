@@ -140,6 +140,48 @@ export async function renderProfilesPanel(): Promise<void> {
 
   panel.appendChild(list);
   container.appendChild(panel);
+
+  // General Settings section (below profiles)
+  const generalPanel = document.createElement('div');
+  generalPanel.className = 'settings-panel';
+  generalPanel.style.marginTop = 'var(--spacing-md)';
+
+  const generalHeader = document.createElement('div');
+  generalHeader.className = 'settings-panel__header';
+  generalHeader.innerHTML = `<span class="settings-panel__title">General Settings</span>`;
+  generalPanel.appendChild(generalHeader);
+
+  const generalList = document.createElement('div');
+  generalList.className = 'settings-list';
+
+  // Notifications toggle
+  const notifItem = document.createElement('div');
+  notifItem.className = 'settings-list-item';
+  const notifEnabled = await window.gamepadCli.configGetNotifications();
+  notifItem.innerHTML = `
+    <div class="settings-list-item__info">
+      <span class="settings-list-item__name">🔔 Notifications</span>
+      <span class="settings-list-item__detail">Toast notifications when a CLI finishes work</span>
+    </div>
+  `;
+  const notifActions = document.createElement('div');
+  notifActions.className = 'settings-list-item__actions';
+  const notifToggle = document.createElement('button');
+  notifToggle.className = `btn btn--sm focusable ${notifEnabled ? 'btn--primary' : 'btn--secondary'}`;
+  notifToggle.tabIndex = 0;
+  notifToggle.textContent = notifEnabled ? 'ON' : 'OFF';
+  notifToggle.addEventListener('click', async () => {
+    const current = await window.gamepadCli.configGetNotifications();
+    await window.gamepadCli.configSetNotifications(!current);
+    logEvent(`Notifications: ${!current ? 'ON' : 'OFF'}`);
+    loadSettingsScreen();
+  });
+  notifActions.appendChild(notifToggle);
+  notifItem.appendChild(notifActions);
+  generalList.appendChild(notifItem);
+
+  generalPanel.appendChild(generalList);
+  container.appendChild(generalPanel);
 }
 
 async function showCreateProfilePrompt(existingProfiles: string[]): Promise<void> {

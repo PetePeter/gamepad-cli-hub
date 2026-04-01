@@ -92,6 +92,16 @@ const gamepadCliAPI = {
   configSetHapticFeedback: (enabled: boolean) => ipcRenderer.invoke('config:setHapticFeedback', enabled),
 
   /**
+   * Get notifications setting
+   */
+  configGetNotifications: () => ipcRenderer.invoke('config:getNotifications'),
+
+  /**
+   * Set notifications setting
+   */
+  configSetNotifications: (enabled: boolean) => ipcRenderer.invoke('config:setNotifications', enabled),
+
+  /**
    * Get sort preferences for an area (sessions or bindings)
    */
   configGetSortPrefs: (area: string) => ipcRenderer.invoke('config:getSortPrefs', area),
@@ -203,6 +213,13 @@ const gamepadCliAPI = {
     const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
     ipcRenderer.on('pty:handoff', listener);
     return () => ipcRenderer.removeListener('pty:handoff', listener);
+  },
+
+  /** Subscribe to notification click events (focus + switch to session) */
+  onNotificationClick: (callback: (event: { sessionId: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('notification:click', listener);
+    return () => ipcRenderer.removeListener('notification:click', listener);
   },
 
   /**

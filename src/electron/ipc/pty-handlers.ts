@@ -6,6 +6,7 @@ import type { PipelineQueue } from '../../session/pipeline-queue.js';
 import type { ConfigLoader } from '../../config/loader.js';
 import { type SessionState, VALID_SESSION_STATES } from '../../types/session.js';
 import { scheduleInitialPrompt } from '../../session/initial-prompt.js';
+import type { NotificationManager } from '../../session/notification-manager.js';
 import { logger } from '../../utils/logger.js';
 
 // Track cancel functions for initial prompt pre-loading per session
@@ -47,6 +48,7 @@ export function setupPtyHandlers(
   pipelineQueue: PipelineQueue,
   getMainWindow: () => BrowserWindow | null,
   configLoader?: ConfigLoader,
+  notificationManager?: NotificationManager,
 ): void {
   // pty:spawn - Spawn a new PTY process and register as session
   ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string, resumeSessionName?: string) => {
@@ -197,9 +199,10 @@ export function setupPtyHandlers(
     if (win && !win.isDestroyed()) {
       win.webContents.send('pty:exit', sessionId, exitCode);
     }
-    // Clean up: remove from queue, state tracking, and session manager
+    // Clean up: remove from queue, state tracking, notification tracking, and session manager
     pipelineQueue.dequeue(sessionId);
     stateDetector.removeSession(sessionId);
+    notificationManager?.removeSession(sessionId);
     if (sessionManager.hasSession(sessionId)) {
       sessionManager.removeSession(sessionId);
     }
@@ -216,6 +219,9 @@ export function setupPtyHandlers(
     if (session) {
       session.state = transition.newState;
     }
+
+    // Desktop notification when active → non-active
+    notificationManager?.handleStateChange(transition);
 
     // Auto-handoff: when a session completes or goes idle, trigger next in queue
     if (transition.newState === 'idle' || transition.newState === 'completed') {
@@ -276,6 +282,10 @@ export function setupPtyHandlers(
     if (win && !win.isDestroyed()) {
       win.webContents.send('pty:activity-change', event);
     }
+
+    // Desktop notification when activity goes inactive while in an active state
+    const currentState = stateDetector.getState(event.sessionId);
+    notificationManager?.handleActivityChange(event, currentState);
   });
 
   // Pipeline queue management
