@@ -15,6 +15,8 @@ import {
   loadSessions, getSessionState, updateSessionsFocus, updateSpawnFocus, updateAllFocus,
 } from './sessions.js';
 
+import { hideOverview } from './group-overview.js';
+
 // ============================================================================
 // Bridge state (set by main.ts to avoid circular imports)
 // ============================================================================
@@ -134,6 +136,9 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
 // ============================================================================
 
 export function showTerminalArea(): void {
+  // Dismiss overview if it's showing — terminal takes priority
+  hideOverview();
+
   const terminalArea = document.getElementById('terminalArea');
   const splitter = document.getElementById('panelSplitter');
   if (terminalArea) terminalArea.style.display = 'flex';

@@ -12,7 +12,7 @@ import { showCloseConfirm } from '../modals/close-confirm.js';
 import { sortSessions, SESSION_SORT_LABELS, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import { createSortControl, type SortControlHandle } from '../components/sort-control.js';
 import type { SessionGroup } from '../session-groups.js';
-import { showOverview } from './group-overview.js';
+import { showOverview, refreshOverview } from './group-overview.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import {
@@ -145,6 +145,7 @@ async function commitRename(sessionId: string, newName: string): Promise<void> {
       // Reload sessions to get updated data
       await loadSessionsData();
       renderSessions();
+      refreshOverview();
     } else {
       logEvent(`Rename failed: ${result.error}`);
       sessionsState.editingSessionId = null;

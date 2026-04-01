@@ -117,6 +117,13 @@ export function getOverviewSessions(): Session[] {
   return state.sessions.filter(s => s.workingDir === sessionsState.overviewGroup);
 }
 
+/** Re-render overview cards if currently visible (e.g. after rename) */
+export function refreshOverview(): void {
+  if (!sessionsState.overviewGroup || !overviewContainer) return;
+  renderOverviewCards(sessionsState.overviewGroup);
+  updateOverviewFocus();
+}
+
 /** Render all cards for the group */
 function renderOverviewCards(groupDirPath: string): void {
   if (!overviewContainer) return;
