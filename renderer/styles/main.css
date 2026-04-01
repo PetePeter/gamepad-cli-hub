@@ -380,17 +380,6 @@ button {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.session-activity-dot--active {
-  background: #44cc44;
-  box-shadow: 0 0 6px #44cc44;
-}
-.session-activity-dot--inactive {
-  background: #4488ff;
-}
-.session-activity-dot--idle {
-  background: #555555;
-  opacity: 0.5;
-}
 
 /* State icon — removed, state shown via dropdown button only */
 

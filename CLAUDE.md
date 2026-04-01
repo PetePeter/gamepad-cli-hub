@@ -138,7 +138,7 @@ claude-code:
   name: Claude Code
   command: claude
   renameCommand: "/rename {cliSessionName}"   # Optional: rename CLI-internal session (sent to PTY stdin)
-  resumeCommand: "claude --continue"            # CLI parameter for session resume (written as-is to shell stdin)
+  resumeCommand: "claude --resume={cliSessionName}"  # CLI parameter for session resume (written as-is to shell stdin)
   continueCommand: "claude --continue"           # Fallback when no cliSessionName available
   initialPrompt:              # Array of sequence items sent to PTY sequentially after spawn
     - sequence: "/init{Enter}"

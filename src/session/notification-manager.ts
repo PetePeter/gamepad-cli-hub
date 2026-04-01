@@ -10,7 +10,7 @@ import { logger } from '../utils/logger.js';
 const ACTIVE_STATES: ReadonlySet<SessionState> = new Set(['implementing', 'planning']);
 
 /** Dedup guard window — skip duplicate notifications for the same session within this period. */
-const DEDUP_WINDOW_MS = 10_000;
+const DEDUP_WINDOW_MS = 15_000;
 
 interface NotificationContent {
   title: string;

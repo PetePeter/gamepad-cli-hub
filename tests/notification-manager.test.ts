@@ -268,7 +268,7 @@ describe('NotificationManager', () => {
   // ==========================================================================
 
   describe('dedup guard', () => {
-    it('suppresses duplicate notification within 10s window', () => {
+    it('suppresses duplicate notification within 15s window', () => {
       manager.handleStateChange({
         sessionId: 'session-1',
         previousState: 'implementing',
@@ -314,7 +314,7 @@ describe('NotificationManager', () => {
       });
       expect(mockNotificationShow).toHaveBeenCalledTimes(1);
 
-      vi.advanceTimersByTime(10_001);
+      vi.advanceTimersByTime(15_001);
       manager.handleStateChange({
         sessionId: 'session-1',
         previousState: 'implementing',
