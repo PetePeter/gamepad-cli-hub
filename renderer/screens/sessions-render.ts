@@ -12,6 +12,7 @@ import { showCloseConfirm } from '../modals/close-confirm.js';
 import { sortSessions, SESSION_SORT_LABELS, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import { createSortControl, type SortControlHandle } from '../components/sort-control.js';
 import type { SessionGroup } from '../session-groups.js';
+import { showOverview } from './group-overview.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import {
@@ -201,6 +202,12 @@ function createGroupHeader(group: SessionGroup, index: number): HTMLElement {
   const nameSpan = document.createElement('span');
   nameSpan.className = 'group-name';
   nameSpan.textContent = `${group.dirName} (${group.sessions.length})`;
+  nameSpan.style.cursor = 'pointer';
+  nameSpan.title = 'Open group overview';
+  nameSpan.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showOverview(group.dirPath);
+  });
 
   const moveUp = document.createElement('button');
   moveUp.className = 'group-move-up';

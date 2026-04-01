@@ -481,9 +481,9 @@ function refreshSessions(): void {
 function onKeyDown(e: KeyboardEvent): void {
   if (state.currentScreen !== 'sessions') return;
 
-  // Don't intercept keyboard when an embedded terminal is visible
-  const terminalArea = document.getElementById('terminalArea');
-  if (terminalArea && terminalArea.style.display !== 'none') return;
+  // Don't intercept keyboard when xterm.js has DOM focus (user is typing in terminal)
+  const active = document.activeElement;
+  if (active && active.closest('.xterm')) return;
 
   const keyMap: Record<string, string> = {
     ArrowUp: 'DPadUp', ArrowDown: 'DPadDown', ArrowLeft: 'DPadLeft', ArrowRight: 'DPadRight',

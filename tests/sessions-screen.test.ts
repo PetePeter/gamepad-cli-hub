@@ -1010,17 +1010,21 @@ describe('Sessions Screen', () => {
       expect(sessionsState.activeFocus).toBe('sessions');
     });
 
-    it('keyboard fallback is skipped when terminal area is visible', () => {
-      // Simulate terminal area being shown (active terminal session)
-      const terminalArea = document.getElementById('terminalArea')!;
-      terminalArea.style.display = 'flex';
+    it('keyboard fallback is skipped when xterm has DOM focus', () => {
+      // Simulate xterm.js having focus (user is typing in terminal)
+      const xtermEl = document.createElement('div');
+      xtermEl.className = 'xterm';
+      const textarea = document.createElement('textarea');
+      xtermEl.appendChild(textarea);
+      document.body.appendChild(xtermEl);
+      textarea.focus();
 
       const indexBefore = sessionsState.sessionsFocusIndex;
       pressKey('ArrowDown');
       expect(sessionsState.sessionsFocusIndex).toBe(indexBefore);
 
-      // Restore
-      terminalArea.style.display = 'none';
+      // Cleanup
+      document.body.removeChild(xtermEl);
     });
   });
 
