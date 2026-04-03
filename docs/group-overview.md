@@ -55,7 +55,7 @@ Scroll routing is automatic — no special configuration needed. When the overvi
 While the overview is open, the active terminal is **deselected** (hidden, blurred). This prevents keyboard input and paste from accidentally reaching a terminal while browsing the grid. When the overview is closed:
 
 - If a session was selected (A button), the app switches to that session
-- If the overview was dismissed (Left/B), the previously active terminal is restored
+- If the overview was exited via flow-through (Up/Down past edges), the next nav item is auto-selected
 
 ## Live Updates
 
@@ -65,7 +65,7 @@ Preview cards update live as PTY output flows in. Updates are throttled at 500ms
 
 ```mermaid
 graph TB
-    SO[sessions-spawn.ts<br>D-pad Right handler] -->|"showOverview(dirPath, activeSessionId)"| GO[group-overview.ts]
+    SO[sessions-spawn.ts<br>autoSelectFocusedSession] -->|"showOverview(dirPath, activeSessionId)"| GO[group-overview.ts]
     GO --> OB[PtyOutputBuffer<br>ring buffer per session]
     GO --> TM[TerminalManager<br>deselect / restore]
     NAV[navigation.ts<br>handleOverviewButton] --> GO
@@ -77,9 +77,9 @@ graph TB
 | File | Role |
 |------|------|
 | `renderer/screens/group-overview.ts` | Grid rendering, card creation, live update subscription, show/hide lifecycle |
-| `renderer/navigation.ts` | `handleOverviewButton()` — D-pad navigation, A/B/X button routing |
+| `renderer/navigation.ts` | `handleOverviewButton()` — D-pad navigation with flow-through exit, A/X button routing |
 | `renderer/bindings.ts` | `executeScroll()` — routes gamepad scroll to overview grid when visible |
-| `renderer/screens/sessions-spawn.ts` | Entry point — triggers `showOverview()` on D-pad Right past group header |
+| `renderer/screens/sessions-spawn.ts` | `autoSelectFocusedSession()` — triggers `showOverview()` when D-pad Up/Down lands on a group header |
 | `renderer/terminal/pty-output-buffer.ts` | Ring buffer providing preview data |
 | `renderer/styles/main.css` | `.overview-grid`, `.overview-card`, `.overview-card-preview` styles |
 | `tests/group-overview.test.ts` | Card rendering, focus navigation, pre-selection, terminal deselect/restore |
