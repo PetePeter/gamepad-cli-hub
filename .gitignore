@@ -11,3 +11,6 @@ renderer/main.js
 renderer/main.js.map
 src/**/*.js
 src/**/*.js.map
+
+# Release artifacts (large EXEs)
+release/

@@ -1,155 +1,102 @@
 # OSC Title Detection — Implementation Plan
 
+> **Superseded:** Original plan (2026-03-26) used a custom `OscTitleParser` in the main process. This revision uses xterm.js native `onTitleChange` — no custom parser, no IPC, no preload changes.
+
 ## Problem
 
-Terminal programs (shells, AI CLIs) set window titles using **OSC escape sequences**:
+CLI tools (shells, Claude Code, Copilot CLI) set terminal window titles via OSC escape sequences (`ESC]0;title BEL`). Currently:
+- Titles are ignored — session cards show only the user-assigned name
+- `stripAnsi()` in `state-detector.ts` only strips CSI sequences (`ESC[...`), so OSC sequences leak through as garbage in AIAGENT-* keyword detection
 
-```
-ESC ] 0 ; <title> BEL     — set icon name + window title
-ESC ] 2 ; <title> BEL     — set window title only
-```
+## Approach
 
-Currently:
-- `stripAnsi()` in `state-detector.ts` only strips CSI sequences (`ESC[...`), so OSC sequences leak through as garbage in keyword detection
-- Session cards and terminal tabs show the CLI type name but not the dynamic title the CLI sets
-- Windows Terminal and shells actively use OSC titles — we should capture and display them
-
-## Architecture
+Use **xterm.js native `onTitleChange`** event instead of building a custom parser. xterm.js already parses OSC title sequences — we just listen for the event in the renderer and display the title as a subtitle on session cards.
 
 ```mermaid
 sequenceDiagram
-    participant PTY as PtyManager
-    participant PH as pty-handlers.ts
-    participant TP as OscTitleParser
-    participant SD as StateDetector
-    participant IPC as IPC Bridge
-    participant R as Renderer
+    participant PTY as PTY (main)
+    participant XT as xterm.js
+    participant TV as TerminalView
+    participant TM as TerminalManager
+    participant UI as Session Card
 
-    PTY->>PH: data event (sessionId, rawData)
-    PH->>TP: feed(rawData)
-    TP-->>PH: title event (title string)
-    PH->>SD: processOutput(sessionId, rawData)
-    PH->>IPC: pty:data → renderer
-    PH->>IPC: pty:title-change (sessionId, title)
-    IPC->>R: onPtyTitleChange callback
-    R->>R: Update session card + tab bar
-```
-
-```
-PTY Data Flow (with title detection added):
-  PtyManager emits 'data' (sessionId, data)
-    → pty-handlers.ts:
-        1. OscTitleParser.feed(data)  →  emits 'title' if complete OSC found
-        2. stateDetector.processOutput()  (existing — keyword scanning)
-        3. win.webContents.send('pty:data')  (existing — xterm rendering)
-    → 'title' event → pty:title-change IPC → renderer updates session card + tab
+    PTY->>XT: raw data (includes OSC sequences)
+    XT->>XT: parse OSC → extract title
+    XT->>TV: onTitleChange("cmd.exe - claude")
+    TV->>TM: onTitleChange callback
+    TM->>TM: update state.sessions[i].title
+    TM->>UI: trigger card refresh
+    UI->>UI: render subtitle below name
 ```
 
 ## Tasks
 
-### 1. `title-parser` — Create OscTitleParser
-
-**File:** `src/session/title-detector.ts`
-
-Stateful parser for OSC title sequences. Must handle:
-- Complete sequences in a single chunk
-- Sequences split across multiple data events (partial buffer)
-- Buffer overflow protection (max 1024 chars, discard on overflow)
-- Both `ESC]0;` and `ESC]2;` prefixes
-- Both BEL (`\x07`) and ST (`ESC\`) terminators
-- Nested/malformed sequences (discard and reset)
-
-```typescript
-export class OscTitleParser {
-  private buffer: string = '';
-  private inSequence: boolean = false;
-  private onTitle: ((title: string) => void) | null = null;
-
-  constructor(onTitle: (title: string) => void) { ... }
-  
-  /** Feed raw PTY data. Calls onTitle when a complete title is found. */
-  feed(data: string): void { ... }
-  
-  /** Reset parser state (e.g. on session close). */
-  reset(): void { ... }
-}
-```
-
-**Tests:** `tests/title-detector.test.ts`
-- Complete OSC 0 and OSC 2 sequences
-- Split across chunks (prefix in chunk 1, title+BEL in chunk 2)
-- ST terminator (`ESC\`)
-- Buffer overflow → discard
-- Multiple titles in one chunk → last wins (or emits each)
-- Malformed sequences (no terminator, wrong prefix) → discard
-- Reset clears state
-
-### 2. `fix-strip-ansi` — Strip OSC sequences from state detector
+### 1. `fix-strip-ansi` — Strip OSC sequences from StateDetector
 
 **File:** `src/session/state-detector.ts`
 
-Update `stripAnsi()` to also remove OSC sequences:
+Expand `stripAnsi()` regex to also remove OSC sequences (complete + incomplete):
 
 ```typescript
 function stripAnsi(text: string): string {
   return text
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')       // CSI sequences
-    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')  // OSC sequences
-    .replace(/\x1b\][^\x07\x1b]*/g, '');           // Incomplete OSC (strip prefix)
+    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')              // CSI sequences
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')   // Complete OSC sequences
+    .replace(/\x1b\][^\x07\x1b]*/g, '');                  // Incomplete OSC (strip prefix)
 }
 ```
 
-**Tests:** Update `tests/state-detector.test.ts` with OSC stripping cases.
+**Tests:** Add OSC stripping test cases to `tests/state-detector.test.ts`.
 
-### 3. `wire-title-detection` — Integrate into pty-handlers
+### 2. `terminal-title-callback` — Add onTitleChange to TerminalView
 
-**File:** `src/electron/ipc/pty-handlers.ts`
+**File:** `renderer/terminal/terminal-view.ts`
 
-Changes:
-- Import `OscTitleParser`
-- Maintain `Map<string, OscTitleParser>` for per-session parsers
-- In `pty:spawn` handler: create parser for new session
-- In data event handler (line 91): call `parser.feed(data)` before stateDetector
-- Parser's `onTitle` callback: update `SessionInfo.title` via `sessionManager.getSession()`, then forward `pty:title-change` IPC to renderer
-- In exit handler: delete parser from map
-- In kill handler: delete parser from map
+- Add `onTitleChange?: (title: string) => void` to `TerminalViewOptions`
+- Subscribe to `this.terminal.onTitleChange` in constructor (same pattern as `onData`/`onResize`)
+- Forward title string to the callback
 
-### 4. `title-ipc` — Add preload subscription
+### 3. `session-state-title` — Add title to Session type
 
-**File:** `src/electron/preload.ts`
+**File:** `renderer/state.ts`
 
-Add:
-```typescript
-onPtyTitleChange: (callback: (sessionId: string, title: string) => void) => {
-  const listener = (_event, sessionId, title) => callback(sessionId, title);
-  ipcRenderer.on('pty:title-change', listener);
-  return () => ipcRenderer.removeListener('pty:title-change', listener);
-},
-```
+- Add `title?: string` to `Session` interface (keeps user-assigned `name` intact)
 
-### 5. `title-ui` — Display titles in renderer
+### 4. `terminal-manager-propagate` — Propagate title in TerminalManager
 
-**Files:** `renderer/screens/sessions.ts`, `renderer/terminal/terminal-manager.ts`
+**File:** `renderer/terminal/terminal-manager.ts`
 
-- Subscribe to `onPtyTitleChange` in main.ts or sessions.ts init
-- Update session card subtitle text with the detected title
-- Update terminal tab bar label with the title (truncated to ~30 chars)
-- Fall back to CLI type name when no title detected
+- Add `title?: string` to `TerminalSession` interface
+- In `createTerminal()`, pass `onTitleChange` handler that stores the title and fires a callback
+- Add `onTitleChange: ((sessionId: string, title: string) => void)` callback (same pattern as `onSwitch`/`onEmpty`)
+- Expose `getTitle(sessionId): string | undefined` method
 
-## SessionInfo Changes
+### 5. `session-card-subtitle` — Display title in session cards
 
-**File:** `src/types/session.ts`
+**File:** `renderer/screens/sessions-render.ts`
 
-The `SessionInfo` interface already has a `name` field. We can either:
-- **Option A:** Add a new `title?: string` field (separate from user-given name)
-- **Option B:** Reuse `name` and overwrite it with OSC title
+- After the name line in `renderSessionCard()`, add a `.session-meta` span showing `session.title`
+- CSS already exists: `.session-card .session-meta { font-size: 10px; color: var(--text-dim); }`
+- Only render when title is present and different from session name
+- Truncate long titles with CSS ellipsis
 
-**Recommendation:** Option A — add `title?: string` to keep the user-assigned name intact.
+Wire up in `renderer/main.ts` or `renderer/screens/sessions.ts`:
+- Subscribe to `TerminalManager.onTitleChange`
+- Update `state.sessions[i].title` and trigger card re-render
+
+### 6. `overview-card-title` — Display title in overview cards
+
+**File:** `renderer/screens/group-overview.ts`
+
+- Add a subtitle element in the card header showing the OSC title (dim, small font)
+- Same pattern as session cards
 
 ## Notes
 
-- OSC title parsing happens **before** state detection — the parser strips/ignores the OSC sequence, so it won't interfere with AIAGENT-* keyword scanning
-- The `stripAnsi` fix (task 2) also prevents OSC garbage from reaching keyword matching
-- Buffer overflow at 1024 chars is generous — most titles are <100 chars
+- **No custom `OscTitleParser` needed** — xterm.js handles all OSC parsing natively via `terminal.onTitleChange: IEvent<string>`
+- **No IPC changes needed** — title detection is entirely in the renderer process
+- **No preload changes** — no `pty:title-change` event needed
+- `.session-meta` CSS class already exists (unused) — `font-size: 10px; color: var(--text-dim)`
+- The `stripAnsi` fix is defensive — prevents OSC garbage from breaking AIAGENT-* keyword detection in the main process
 - Both Claude Code and Copilot CLI set terminal titles via OSC sequences
-- Windows Terminal respects OSC titles and shows them in its tab bar — we mirror that behavior in our own tab bar
+- `title` is kept separate from `name` — user-assigned session names are never overwritten

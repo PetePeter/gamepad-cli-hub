@@ -5,8 +5,25 @@
 ```bash
 npm run build    # esbuild: electron (dist-electron/main.js) + renderer (dist/renderer/main.js)
 npm run start    # Build and launch
+npm run package  # Build + package portable Windows EXE to release/
+npm run dist     # Build + package + publish to GitHub Releases (needs GH_TOKEN)
 npm test         # Vitest suite
 ```
+
+## Release Workflow (two-step)
+
+```bash
+python prepareDeploy.py patch   # Bump version, build, package EXE → release/YYYYMMDD-vX.Y.Z/
+# ... validate the EXE manually ...
+python sendDeploy.py            # Commit, tag, push, publish to GitHub Releases
+```
+
+| Script | Purpose |
+|--------|---------|
+| `runApp.py` | Dev workflow — install deps, build, launch |
+| `runTests.py` | Run Vitest suite |
+| `prepareDeploy.py` | Release step 1 — bump version, build, package EXE |
+| `sendDeploy.py` | Release step 2 — commit, tag, push, publish |
 
 ## Build Notes
 

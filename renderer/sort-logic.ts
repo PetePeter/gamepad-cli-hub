@@ -9,7 +9,7 @@ import type { Session } from './state.js';
 // Types
 // ============================================================================
 
-export type SessionSortField = 'state' | 'cliType' | 'directory' | 'name';
+export type SessionSortField = 'state' | 'activity' | 'cliType' | 'directory' | 'name';
 export type BindingSortField = 'button' | 'action';
 export type SortDirection = 'asc' | 'desc';
 
@@ -24,6 +24,12 @@ const STATE_PRIORITY: Record<string, number> = {
   idle: 3,
 };
 
+const ACTIVITY_PRIORITY: Record<string, number> = {
+  idle: 1,
+  inactive: 2,
+  active: 3,
+};
+
 /**
  * Sort sessions by a given field and direction.
  * Returns a new sorted array (does not mutate input).
@@ -34,6 +40,7 @@ export function sortSessions(
   direction: SortDirection,
   getSessionState: (id: string) => string,
   getSessionDirectory: (id: string) => string,
+  getSessionActivity?: (id: string) => string,
 ): Session[] {
   const sorted = [...sessions];
   const dir = direction === 'asc' ? 1 : -1;
@@ -45,6 +52,12 @@ export function sortSessions(
         const stateA = STATE_PRIORITY[getSessionState(a.id)] ?? 3;
         const stateB = STATE_PRIORITY[getSessionState(b.id)] ?? 3;
         cmp = stateA - stateB;
+        break;
+      }
+      case 'activity': {
+        const actA = ACTIVITY_PRIORITY[getSessionActivity?.(a.id) ?? 'idle'] ?? 1;
+        const actB = ACTIVITY_PRIORITY[getSessionActivity?.(b.id) ?? 'idle'] ?? 1;
+        cmp = actA - actB;
         break;
       }
       case 'cliType':
@@ -133,6 +146,7 @@ export function sortBindingEntries(
 
 export const SESSION_SORT_LABELS: Record<SessionSortField, string> = {
   state: 'State',
+  activity: 'Activity',
   cliType: 'CLI Type',
   directory: 'Directory',
   name: 'Name',

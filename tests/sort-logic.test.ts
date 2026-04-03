@@ -18,6 +18,7 @@ function makeSession(overrides: Partial<Session> & { id: string }): Session {
 
 const noopState = () => 'idle';
 const noopDir = () => '';
+const noopActivity = () => 'idle';
 
 // ============================================================================
 // sortSessions
@@ -67,6 +68,49 @@ describe('sortSessions', () => {
         id === 'impl' ? 'implementing' : 'some_random_state';
       const result = sortSessions(sessionsWithUnknown, 'state', 'asc', getStateWithUnknown, noopDir);
       expect(result.map((s) => s.id)).toEqual(['impl', 'unknown']);
+    });
+  });
+
+  describe('sort by activity', () => {
+    const sessions = [
+      makeSession({ id: 'green' }),
+      makeSession({ id: 'grey' }),
+      makeSession({ id: 'blue' }),
+    ];
+    const getActivity = (id: string): string => {
+      const map: Record<string, string> = {
+        green: 'active',
+        blue: 'inactive',
+        grey: 'idle',
+      };
+      return map[id] || 'idle';
+    };
+
+    it('ascending: idle (grey) → inactive (blue) → active (green)', () => {
+      const result = sortSessions(sessions, 'activity', 'asc', noopState, noopDir, getActivity);
+      expect(result.map((s) => s.id)).toEqual(['grey', 'blue', 'green']);
+    });
+
+    it('descending: active (green) → inactive (blue) → idle (grey)', () => {
+      const result = sortSessions(sessions, 'activity', 'desc', noopState, noopDir, getActivity);
+      expect(result.map((s) => s.id)).toEqual(['green', 'blue', 'grey']);
+    });
+
+    it('unknown activity levels get same priority as idle', () => {
+      const sessionsWithUnknown = [
+        makeSession({ id: 'unknown' }),
+        makeSession({ id: 'green' }),
+      ];
+      const getActivityWithUnknown = (id: string) =>
+        id === 'green' ? 'active' : 'some_random_level';
+      const result = sortSessions(sessionsWithUnknown, 'activity', 'asc', noopState, noopDir, getActivityWithUnknown);
+      expect(result.map((s) => s.id)).toEqual(['unknown', 'green']);
+    });
+
+    it('falls back to idle when getSessionActivity is not provided', () => {
+      const result = sortSessions(sessions, 'activity', 'asc', noopState, noopDir);
+      // All treated as idle → stable order
+      expect(result).toHaveLength(3);
     });
   });
 
@@ -267,6 +311,7 @@ describe('label exports', () => {
   it('SESSION_SORT_LABELS has all session sort fields', () => {
     expect(SESSION_SORT_LABELS).toEqual({
       state: 'State',
+      activity: 'Activity',
       cliType: 'CLI Type',
       directory: 'Directory',
       name: 'Name',

@@ -285,6 +285,7 @@ export async function loadSessionsData(): Promise<void> {
     sessionsSortDirection,
     getSessionState,
     getSessionCwd,
+    getSessionActivity,
   );
 
   // Build groups and flat navigation list

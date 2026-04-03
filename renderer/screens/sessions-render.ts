@@ -75,6 +75,7 @@ export async function initSessionsSortControl(): Promise<void> {
           sessionsSortDirection,
           getSessionState,
           getSessionCwd,
+          getSessionActivity,
         );
       }
     } catch (e) {
@@ -97,6 +98,7 @@ export async function initSessionsSortControl(): Promise<void> {
           sessionsSortDirection,
           getSessionState,
           getSessionCwd,
+          getSessionActivity,
         );
         // Rebuild groups and navList so renderSessions() picks up the new order
         sessionsState.groups = groupSessionsByDirectory(state.sessions, getSessionCwd, sessionsState.groupPrefs);

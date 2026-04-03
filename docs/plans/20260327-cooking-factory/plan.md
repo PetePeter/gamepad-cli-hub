@@ -1,5 +1,7 @@
 # Cooking Factory — Worker Pool & Plan Queue
 
+> **Last reviewed:** 2026-04-03 · **Status:** 0% implemented · **Prerequisite status:** Session groups ✅, Group overview cards ✅, StateDetector ✅, PipelineQueue ✅
+
 ## Problem
 
 Users want to run multiple AI CLI sessions as autonomous "workers" that chew through a queue of implementation plans. Currently, sessions are individual terminals with no orchestration — no plan queue, no worker lifecycle, no validation phases. The user must manually assign work to each session.
@@ -147,77 +149,147 @@ When done, say AIAGENT-FINISHED. If you have a question, say AIAGENT-QUESTION fo
 
 ---
 
-## Implementation Phases
+## Implementation Status (as of 2026-04-03)
 
-```mermaid
-flowchart LR
-    P1[Phase 1<br>Data Model] --> P2[Phase 2<br>Worker Spawn]
-    P2 --> P3[Phase 3<br>Plan Queue]
-    P3 --> P4[Phase 4<br>Cook Engine]
-    P4 --> P5[Phase 5<br>Group Overview UI]
-    P5 --> P6[Phase 6<br>Kanban UI]
-    P6 --> P7[Phase 7<br>Human Review Flow]
-```
+### ✅ Pre-existing Infrastructure (built for other features)
 
-### Phase 1: Data Model
-- `Plan` type: id, url, status (waiting|cooking|validating|review|done), assignedWorkerId, humanNotes
-- `Worker` type: extends SessionInfo with workerState (idle|cooking|polling|validating|review), branchName, currentPlanId, worktreePath
-- `CookingFactory` module: plan queue, worker registry, state machine
-- Persistence: plans + workers saved alongside sessions
+| Component | File | Cooking Factory Gap |
+|-----------|------|---------------------|
+| Group overview cards | `renderer/screens/group-overview.ts` | Missing kanban top 1/3, worker badges, plan display |
+| PipelineQueue | `src/session/pipeline-queue.ts` | No plan awareness, no worker awareness, no cook phases |
+| StateDetector | `src/session/state-detector.ts` | Has IMPLEMENTING/PLANNING/COMPLETED/IDLE/QUESTION — no FINISHED keyword needed (reuse COMPLETED) |
+| Session persistence | `src/session/persistence.ts` | No worker fields, no plan queue persistence |
+| Pipeline IPC | `src/electron/ipc/pty-handlers.ts` | pipeline:enqueue/dequeue/getQueue — no worker/plan/cook channels |
+| NotificationManager | `src/session/notification-manager.ts` | Could extend for cook lifecycle events |
+| Session resume | `src/electron/ipc/pty-handlers.ts` | cliSessionName UUID + resumeCommand chain — workers can resume after crash |
+| Activity dots | `renderer/state-colors.ts` | Output-timing-based (active/inactive/idle) — NOT state-based |
 
-### Phase 2: Worker Spawn
-- "Add Worker" UI action — prompts for CLI type + branch name
-- Create git worktree (`git worktree add <path> -b <branch>`)
-- Spawn CLI via PtyManager in the worktree directory
-- Register as worker session (special `isWorker` flag)
-- Worker appears in session list with badge, no [x]
+### ❌ Not Started (all 7 planned phases)
 
-### Phase 3: Plan Queue
-- "Add Plan" UI action — prompts for URL/path
-- Plans stored in queue with status tracking
-- Plan queue persisted to YAML/config
-
-### Phase 4: Cook Engine
-- Auto-assignment: idle worker picks first waiting plan
-- Send implementation prompt (template 1) to worker PTY
-- Idle detection: monitor PTY for 1-minute silence
-- Status polling: send structured query, parse response
-- Validation phase: send validation prompt (template 2)
-- State transitions per the lifecycle state machine
-
-### Phase 5: Group Overview UI
-- Group selection → overview panel (replaces terminal)
-- Top 1/3: kanban board placeholder
-- Bottom 2/3: session cards (2×N grid, last 5 lines, live streaming)
-- Card click → full-screen terminal
-
-### Phase 6: Kanban UI
-- 3-column kanban board in top 1/3
-- Plan cards with URL, status, assigned worker
-- Worker cards in "Being Cooked" with [x] dismiss
-- Drag or button to move plans
-
-### Phase 7: Human Review Flow
-- "Waiting Approval" cards show worker's question or completion
-- Approve button → plan disappears, worker goes idle
-- "Send Back" button → input field for new instructions → plan returns to cooking
-- Mandatory review toggle (global or per-plan)
+- Data model (Worker, Plan, CookingFactory types)
+- Worker spawn / git worktree integration
+- Plan queue CRUD and persistence
+- Cook engine (auto-assignment, idle detection, polling, validation)
+- Kanban UI
+- Human review flow
+- Worker differentiation in session list
 
 ---
 
-## Open Questions (for future refinement)
+## Review Assessment
 
-1. Should the prompt templates be configurable in the UI, or hardcoded with `{planUrl}` substitution?
-2. How does "idle for 1 minute" detection work when the CLI produces periodic output (spinners, progress bars)?
-3. Should workers share the same PTY shell (cmd.exe), or should each worker type have its own shell config?
-4. How does the kanban interact with gamepad navigation? (D-pad to move between columns/cards?)
-5. Should the group overview be keyboard-navigable (Tab between kanban and cards)?
+### ✅ Worth Doing — Core Problem Is Real
+
+Automating plan-to-worker assignment is the app's highest-value feature. The manual loop (spawn → navigate → paste plan → monitor → check → repeat) should be automated.
+
+### ⚠️ Plan Needs Updates
+
+1. **Plan predates activity dots** — UI mockups show state-based worker dots (green=cooking, orange=waiting, yellow=approval, grey=idle). The app now uses activity-timing dots (green=active, blue=inactive, grey=idle). **Resolution:** Keep activity dots + add a separate state label/badge on worker cards.
+
+2. **60s idle detection is fragile** — CLIs produce spinners, `npm install` pauses, streaming output. Silence-based detection may never fire or fire prematurely. **Resolution:** Use signal-only detection (`AIAGENT-COMPLETED` / `AIAGENT-QUESTION`), not silence. Drop "Where are you up to?" polling entirely.
+
+3. **Two-phase cook doubles cycle time** — Implement → poll → validate → poll → review adds latency for marginal value. Most AI implementations either work or don't. **Resolution:** Make validation phase optional (off by default).
+
+4. **Scope is too large for 7 sequential phases** — Monolithic feature with many moving parts. **Resolution:** Restructure into 3 shippable milestones.
+
+5. **AIAGENT-FINISHED is unnecessary** — `AIAGENT-COMPLETED` already exists in StateDetector and serves the same purpose. **Resolution:** Reuse COMPLETED, don't add a new keyword.
+
+### Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Done signal | Reuse `AIAGENT-COMPLETED` | Already in StateDetector, already in CLI system prompts |
+| Idle detection | Signal-only (AIAGENT-*) | Silence-based is unreliable with real CLI output |
+| Validation phase | Optional (off by default) | Doubles cycle time for marginal value |
+| Worker dot colors | Activity-based + state label | Consistent with current system, state shown as text badge |
+| Plan URL types | Local files first, GitHub URLs later | Simpler initial scope |
+| Worktree path | `.worktrees/<branch-slug>/` | Per original plan, configurable later |
+
+---
+
+## Revised Implementation: 3 Milestones
+
+The original 7-phase plan is restructured into 3 shippable milestones. Each milestone delivers usable functionality.
+
+```mermaid
+flowchart LR
+    M1[Milestone 1<br>Worker Foundation<br>types + spawn + display] --> M2[Milestone 2<br>Plan Queue + Auto-Cook<br>engine + auto-assignment]
+    M2 --> M3[Milestone 3<br>Kanban + Review UI<br>board + human review]
+```
+
+### Milestone 1: Worker Foundation
+
+**Goal:** Workers exist as a distinct session type with git worktree isolation.
+
+- **Data model:** `Worker` extends `SessionInfo` with `branchName`, `workerState`, `worktreePath`, `currentPlanId`. `Plan` type with id, url, status, assignedWorkerId, humanNotes.
+- **Worker spawn:** "Add Worker" modal (see `02-worker-spawn.html`) — CLI type + branch name → `git worktree add` → PtyManager spawn in worktree dir.
+- **Session list:** Worker badge 🔧, no [x] close button, branch name display (see `05-session-list-workers.html`).
+- **Persistence:** Worker fields saved alongside sessions in sessions.yaml.
+- **Worktree cleanup:** On worker dismiss, `git worktree remove` + warning if branch not merged.
+- **IPC:** worker:spawn, worker:dismiss, worker:list channels.
+
+### Milestone 2: Plan Queue + Auto-Cook
+
+**Goal:** Plans queue up and workers automatically pick and execute them.
+
+- **Plan queue:** "Add Plan" action — URL/path input, FIFO queue, persisted to config.
+- **Auto-assignment:** Idle worker picks first waiting plan → sends implementation prompt to PTY.
+- **Completion detection:** StateDetector emits `AIAGENT-COMPLETED` → worker marks plan as done.
+- **Question detection:** StateDetector emits `AIAGENT-QUESTION` → plan moves to review.
+- **Worker recycling:** After plan completes, worker goes idle → auto-picks next plan.
+- **Notifications:** NotificationManager extended for "plan finished" / "worker has question" events.
+- **IPC:** plan:add, plan:remove, plan:list, cook:start channels.
+- **No validation phase** (optional, off by default).
+
+### Milestone 3: Kanban + Review UI
+
+**Goal:** Visual kanban board and structured human review flow.
+
+- **Kanban board:** 3-column board in group overview top section (see `01-group-overview.html`).
+- **Plan cards:** URL, status badge, assigned worker, action buttons.
+- **Review flow:** Approve / Send Back with editable textarea (see `04-review-flow.html`).
+- **Mandatory review toggle:** Global setting — when on, all plans require approval.
+- **Gamepad navigation:** D-pad between kanban columns + plan cards.
+- **View Terminal button:** Jump from review card to worker's live terminal.
+
+---
+
+## Open Questions
+
+| # | Question | Status |
+|---|----------|--------|
+| 1 | Should prompt templates be configurable in UI or hardcoded? | **Open** — start hardcoded with `{planUrl}` substitution, add UI later |
+| 2 | How does idle detection work with spinners/progress bars? | **Resolved** — use signal-only (AIAGENT-*), not silence detection |
+| 3 | Should workers share the same PTY shell? | **Resolved** — yes, use same shell config as non-worker sessions |
+| 4 | How does kanban interact with gamepad D-pad? | **Open** — deferred to Milestone 3 |
+| 5 | Should group overview be keyboard-navigable? | **Open** — deferred to Milestone 3 |
+| 6 | How to handle CLIs that don't support AIAGENT-* signals? | **Open** — manual monitoring only, no auto-cook |
+| 7 | What happens to worktrees if app crashes mid-cook? | **Open** — resume via session persistence, worktree survives crash |
+| 8 | Should workers share the group directory or always use worktrees? | **Open** — always worktrees for isolation |
 
 ---
 
 ## Dependencies
 
-- **Session groups** — currently being implemented (prerequisite)
-- **StateDetector** — existing AIAGENT-* keyword detection can be extended for AIAGENT-FINISHED/AIAGENT-QUESTION
-- **PipelineQueue** — existing auto-handoff queue may be replaced or extended by the cook engine
-- **Git worktree support** — new capability needed (git CLI commands)
+| Dependency | Status |
+|------------|--------|
+| Session groups (directory-based) | ✅ Implemented |
+| Group overview cards | ✅ Implemented (10-line PTY preview, activity dots, card focus) |
+| StateDetector (AIAGENT-* keywords) | ✅ Implemented (COMPLETED + QUESTION both exist) |
+| PipelineQueue (basic FIFO) | ✅ Implemented (will be extended or replaced by cook engine) |
+| Session persistence | ✅ Implemented (needs schema extension for worker fields) |
+| NotificationManager | ✅ Implemented (needs extension for cook events) |
+| Session resume (cliSessionName) | ✅ Implemented (workers can resume after crash) |
+| Git worktree support | ❌ New capability needed |
+
+---
+
+## HTML Mockups Reference
+
+| File | Content | Used In |
+|------|---------|---------|
+| `01-group-overview.html` | Full group overview: kanban (top 1/3) + session cards (bottom 2/3) | Milestone 3 |
+| `02-worker-spawn.html` | "Add Worker" modal: CLI type + branch name + worktree info | Milestone 1 |
+| `03-cook-lifecycle.html` | 6-step cook lifecycle: queue → implement → poll → validate → review → done | Milestone 2 |
+| `04-review-flow.html` | Human review UI: 3 scenarios (Finished, Question, Send Back) | Milestone 3 |
+| `05-session-list-workers.html` | Session list sidebar: worker badge, no [x], branch info | Milestone 1 |
