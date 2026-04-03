@@ -175,12 +175,19 @@ export class TerminalView {
     this.terminal.clearSelection();
   }
 
-  /** Read the last N lines from the terminal buffer (ANSI-free, line-wrapped) */
+  /** Read the last N non-blank lines from the terminal buffer (ANSI-free) */
   getBufferLines(count: number): string[] {
     if (this.disposed) return [];
     const buf = this.terminal.buffer.active;
-    // Content ends at the cursor row (baseY accounts for scrolled-off lines)
-    const endRow = buf.baseY + buf.cursorY;
+    // Scan backward from buffer end to find last non-blank line
+    // (cursor position may be mid-screen in TUI CLIs like alternate-buffer apps)
+    let endRow = buf.length - 1;
+    while (endRow >= 0) {
+      const line = buf.getLine(endRow);
+      if (line && line.translateToString(true).trim() !== '') break;
+      endRow--;
+    }
+    if (endRow < 0) return [];
     const startRow = Math.max(0, endRow - count + 1);
     const lines: string[] = [];
     for (let i = startRow; i <= endRow; i++) {

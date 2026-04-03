@@ -156,7 +156,7 @@ describe('GroupOverview', () => {
       expect(stateLabel?.textContent).toBe('implementing');
     });
 
-    it('shows preview lines from xterm.js buffer', () => {
+    it('shows preview lines from xterm.js buffer (bottom-aligned)', () => {
       const mockTm = {
         deselect: vi.fn(),
         switchTo: vi.fn(),
@@ -173,16 +173,16 @@ describe('GroupOverview', () => {
 
       const lines = document.querySelectorAll('.overview-card .preview-line');
       expect(lines.length).toBe(10);
-      expect(lines[0].textContent).toBe('line1');
-      expect(lines[1].textContent).toBe('line2');
-      expect(lines[2].textContent).toBe('line3');
-      // Remaining 7 lines should be padding
-      expect(lines[3].textContent).toBe('\u00A0');
+      // 7 padding lines first, then 3 content lines (bottom-aligned)
+      expect(lines[6].textContent).toBe('\u00A0');
+      expect(lines[7].textContent).toBe('line1');
+      expect(lines[8].textContent).toBe('line2');
+      expect(lines[9].textContent).toBe('line3');
 
       setTerminalManagerGetter(() => null);
     });
 
-    it('pads preview to 10 lines when fewer available', () => {
+    it('pads preview at the top when fewer lines available (bottom-aligned)', () => {
       const mockTm = {
         deselect: vi.fn(),
         switchTo: vi.fn(),
@@ -199,8 +199,35 @@ describe('GroupOverview', () => {
 
       const lines = document.querySelectorAll('.overview-card .preview-line');
       expect(lines.length).toBe(10);
-      expect(lines[0].textContent).toBe('only one');
-      expect(lines[1].textContent).toBe('\u00A0');
+      // 9 padding lines first, then 1 content line at the bottom
+      expect(lines[0].textContent).toBe('\u00A0');
+      expect(lines[8].textContent).toBe('\u00A0');
+      expect(lines[9].textContent).toBe('only one');
+
+      setTerminalManagerGetter(() => null);
+    });
+
+    it('trims leading blank lines and bottom-aligns content', () => {
+      const mockTm = {
+        deselect: vi.fn(),
+        switchTo: vi.fn(),
+        getActiveSessionId: vi.fn().mockReturnValue(null),
+        hasTerminal: vi.fn().mockReturnValue(true),
+        getTerminalLines: vi.fn().mockReturnValue(['', '', 'real content', 'more content']),
+      };
+      setTerminalManagerGetter(() => mockTm as any);
+
+      state.sessions = [
+        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+      ];
+      showOverview('/project');
+
+      const lines = document.querySelectorAll('.overview-card .preview-line');
+      expect(lines.length).toBe(10);
+      // 2 leading blanks trimmed → 2 content lines → 8 padding + 2 content
+      expect(lines[7].textContent).toBe('\u00A0');
+      expect(lines[8].textContent).toBe('real content');
+      expect(lines[9].textContent).toBe('more content');
 
       setTerminalManagerGetter(() => null);
     });

@@ -2,7 +2,7 @@
  * Group Overview — 2-column grid of session preview cards.
  *
  * Renders into the terminal area (#terminalArea) as a sibling to #terminalContainer.
- * Each card shows session name, state dot, CLI type, and last 5 lines of PTY output.
+ * Each card shows session name, activity dot, state label, and last 10 lines of PTY output.
  */
 
 import { state, type Session } from '../state.js';
@@ -243,21 +243,31 @@ export function setSelectCardCallback(fn: (sessionId: string) => void): void {
   selectCardCallback = fn;
 }
 
-/** Render preview lines into a container element — reads from xterm.js buffer for fidelity */
+/** Render preview lines into a container element — reads from xterm.js buffer for fidelity.
+ *  Content is bottom-aligned: padding divs first, then real lines, so the latest
+ *  output always sits at the bottom of the preview area (like a real terminal). */
 function renderPreviewLines(preview: Element, sessionId: string): void {
   preview.innerHTML = '';
   const tm = terminalManagerGetter?.();
   const lines = tm?.getTerminalLines(sessionId, PREVIEW_LINES) ?? [];
-  for (const line of lines) {
-    const lineEl = document.createElement('div');
-    lineEl.className = 'preview-line';
-    lineEl.textContent = line || '\u00A0';
-    preview.appendChild(lineEl);
-  }
-  for (let i = lines.length; i < PREVIEW_LINES; i++) {
+
+  // Trim leading blank lines so content is compact
+  let start = 0;
+  while (start < lines.length && (lines[start] ?? '').trim() === '') start++;
+  const trimmedLines = lines.slice(start);
+
+  // Pad at the top so content is bottom-aligned
+  const padCount = PREVIEW_LINES - trimmedLines.length;
+  for (let i = 0; i < padCount; i++) {
     const lineEl = document.createElement('div');
     lineEl.className = 'preview-line';
     lineEl.textContent = '\u00A0';
+    preview.appendChild(lineEl);
+  }
+  for (const line of trimmedLines) {
+    const lineEl = document.createElement('div');
+    lineEl.className = 'preview-line';
+    lineEl.textContent = line || '\u00A0';
     preview.appendChild(lineEl);
   }
 }
