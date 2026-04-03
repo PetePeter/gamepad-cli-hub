@@ -119,6 +119,8 @@ python sendDeploy.py            # Commit, tag, push, publish to GitHub Releases
 | `prepareDeploy.py` | Release step 1 — bump version, build, package EXE |
 | `sendDeploy.py` | Release step 2 — commit, tag, push, publish |
 
+## Tech Stack
+
 | Component | Technology |
 |-----------|-----------|
 | Desktop shell | Electron 41 |
