@@ -79,10 +79,11 @@ export class TerminalView {
     // Prevent xterm.js from converting wheel events to Up/Down arrow key
     // sequences in alternate screen mode. Without this, scrolling sends
     // arrow keys to the PTY — navigating the CLI prompt and triggering
-    // false state changes. Return false → xterm.js skips its internal
-    // wheel-to-arrow conversion; normal buffer scrolling via
-    // SmoothScrollableElement is unaffected.
-    this.terminal.attachCustomWheelEventHandler((_ev: WheelEvent) => false);
+    // false state changes. Only block in alternate mode; allow normal
+    // buffer scrolling otherwise.
+    this.terminal.attachCustomWheelEventHandler((_ev: WheelEvent) => {
+      return this.terminal.buffer.active.type !== 'alternate';
+    });
 
     this.fit();
 

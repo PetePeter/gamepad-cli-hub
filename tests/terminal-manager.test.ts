@@ -41,6 +41,7 @@ function makeMockTerminal() {
     attachCustomWheelEventHandler: vi.fn(),
     onData: vi.fn().mockReturnValue({ dispose: vi.fn() }),
     onResize: vi.fn().mockReturnValue({ dispose: vi.fn() }),
+    buffer: { active: { type: 'normal', baseY: 0, cursorY: 0, getLine: vi.fn() } },
     cols: 120,
     rows: 30,
   };
@@ -647,5 +648,49 @@ describe('TerminalView — custom key handler', () => {
 
     const result = handler({ key: 'a', ctrlKey: false } as KeyboardEvent);
     expect(result).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TerminalView — attachCustomWheelEventHandler
+// ---------------------------------------------------------------------------
+
+describe('TerminalView — custom wheel handler', () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    terminalInstances.length = 0;
+    fitAddonInstances.length = 0;
+    searchAddonInstances.length = 0;
+    container = createContainer();
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('attaches a custom wheel event handler on construction', () => {
+    new TerminalView({ sessionId: 'cwh-1', container });
+    expect(lastTerminal().attachCustomWheelEventHandler).toHaveBeenCalledTimes(1);
+    expect(typeof lastTerminal().attachCustomWheelEventHandler.mock.calls[0][0]).toBe('function');
+  });
+
+  it('returns true in normal buffer mode (allows scroll)', () => {
+    new TerminalView({ sessionId: 'cwh-2', container });
+    const handler = lastTerminal().attachCustomWheelEventHandler.mock.calls[0][0] as (ev: WheelEvent) => boolean;
+    lastTerminal().buffer.active.type = 'normal';
+
+    const result = handler(new WheelEvent('wheel'));
+    expect(result).toBe(true);
+  });
+
+  it('returns false in alternate buffer mode (blocks wheel-to-arrow)', () => {
+    new TerminalView({ sessionId: 'cwh-3', container });
+    const handler = lastTerminal().attachCustomWheelEventHandler.mock.calls[0][0] as (ev: WheelEvent) => boolean;
+    lastTerminal().buffer.active.type = 'alternate';
+
+    const result = handler(new WheelEvent('wheel'));
+    expect(result).toBe(false);
   });
 });
