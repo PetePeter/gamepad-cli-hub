@@ -371,6 +371,12 @@ function handleSessionsZoneButton(button: string): boolean {
         moveGroupDownAction(navItem.id);
         return true;
       }
+      if (sessionsState.cardColumn === 3) {
+        import('./group-overview.js').then(({ showOverview }) => {
+          showOverview(navItem.id, state.activeSessionId ?? undefined);
+        });
+        return true;
+      }
       return true; // consumed
     }
     // session-card
@@ -423,8 +429,10 @@ export function updateSessionsFocus(): void {
     } else if (el.classList.contains('group-header')) {
       const moveUpBtn = el.querySelector('.group-move-up');
       const moveDownBtn = el.querySelector('.group-move-down');
+      const overviewBtn = el.querySelector('.group-overview-btn');
       if (moveUpBtn) moveUpBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 1);
       if (moveDownBtn) moveDownBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 2);
+      if (overviewBtn) overviewBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 3);
     }
   });
   const focused = children[sessionsState.sessionsFocusIndex];

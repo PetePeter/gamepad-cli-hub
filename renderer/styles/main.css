@@ -338,7 +338,8 @@ button {
 }
 
 .group-move-up,
-.group-move-down {
+.group-move-down,
+.group-overview-btn {
   background: none;
   border: none;
   color: var(--text-dim);
@@ -349,9 +350,11 @@ button {
   line-height: 1;
 }
 .group-move-up:hover,
-.group-move-down:hover { color: var(--text-primary); background: var(--bg-secondary); }
+.group-move-down:hover,
+.group-overview-btn:hover { color: var(--text-primary); background: var(--bg-secondary); }
 .group-move-up.card-col-focused,
-.group-move-down.card-col-focused {
+.group-move-down.card-col-focused,
+.group-overview-btn.card-col-focused {
   color: var(--text-primary);
   background: var(--accent);
   outline: 1px solid var(--accent);

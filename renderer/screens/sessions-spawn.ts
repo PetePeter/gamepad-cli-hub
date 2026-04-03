@@ -260,7 +260,7 @@ export function handleSessionsZone(button: string, dir: string | null): void {
   if (dir === 'right') {
     if (count === 0) return;
     const currentItem = navList[sessionsState.sessionsFocusIndex];
-    const maxCol = currentItem?.type === 'group-header' ? 2 : 3;
+    const maxCol = 3;
     if (sessionsState.cardColumn < maxCol) {
       sessionsState.cardColumn = (sessionsState.cardColumn + 1) as 0 | 1 | 2 | 3;
       updateSessionsFocus();
