@@ -1401,7 +1401,7 @@ describe('Sessions Screen', () => {
         .toBeGreaterThan(prefs.order.indexOf('/projects/beta'));
     });
 
-    it('RIGHT on group header maxCol is 3', async () => {
+    it('RIGHT on group header maxCol is 2', async () => {
       const data = makeSessions(2);
       mockSessionGetAll.mockResolvedValue(data);
       state.sessions = data;
@@ -1414,9 +1414,9 @@ describe('Sessions Screen', () => {
 
       sessions.handleSessionsScreenButton('DPadRight'); // 0 → 1
       sessions.handleSessionsScreenButton('DPadRight'); // 1 → 2
-      sessions.handleSessionsScreenButton('DPadRight'); // 2 → 3
+      sessions.handleSessionsScreenButton('DPadRight'); // 2 → 2 (clamped)
 
-      expect(sessionsState.cardColumn).toBe(3);
+      expect(sessionsState.cardColumn).toBe(2);
     });
 
     it('card-col-focused class on ▲ button at col=1', async () => {
@@ -1449,22 +1449,6 @@ describe('Sessions Screen', () => {
       const moveDown = document.querySelector('#sessionsList .group-header .group-move-down');
       expect(moveDown).not.toBeNull();
       expect(moveDown!.classList.contains('card-col-focused')).toBe(true);
-    });
-
-    it('card-col-focused class on ▸ button at col=3', async () => {
-      const data = makeSessions(2);
-      mockSessionGetAll.mockResolvedValue(data);
-      state.sessions = data;
-      setMockTerminalSessions(data);
-
-      sessionsState.activeFocus = 'sessions';
-      sessionsState.sessionsFocusIndex = 0;
-      sessionsState.cardColumn = 3;
-      await loadAndFlush(sessions);
-
-      const overviewBtn = document.querySelector('#sessionsList .group-header .group-overview-btn');
-      expect(overviewBtn).not.toBeNull();
-      expect(overviewBtn!.classList.contains('card-col-focused')).toBe(true);
     });
 
     it('collapse hides session cards', async () => {
@@ -1571,7 +1555,7 @@ describe('Sessions Screen', () => {
       expect(sessionsState.navList.length).toBe(3);
     });
 
-    it('RIGHT on group header maxCol is 3', async () => {
+    it('RIGHT on group header maxCol is 2', async () => {
       setMockTerminalSessions(makeSessions(2));
       await loadAndFlush(sessions);
 
@@ -1583,9 +1567,7 @@ describe('Sessions Screen', () => {
       sessions.handleSessionsScreenButton('DPadRight');
       expect(sessionsState.cardColumn).toBe(2);
       sessions.handleSessionsScreenButton('DPadRight');
-      expect(sessionsState.cardColumn).toBe(3); // overview button
-      sessions.handleSessionsScreenButton('DPadRight');
-      expect(sessionsState.cardColumn).toBe(3); // capped at 3
+      expect(sessionsState.cardColumn).toBe(2); // capped at 2
     });
 
     it('card-col-focused on move-up button at col=1', async () => {
@@ -1608,18 +1590,6 @@ describe('Sessions Screen', () => {
       const header = document.querySelector('.group-header');
       const moveDown = header?.querySelector('.group-move-down');
       expect(moveDown?.classList.contains('card-col-focused')).toBe(true);
-    });
-
-    it('card-col-focused on overview button at col=3', async () => {
-      setMockTerminalSessions(makeSessions(2));
-      sessionsState.sessionsFocusIndex = 0;
-      sessionsState.cardColumn = 3;
-      await loadAndFlush(sessions);
-
-      const header = document.querySelector('.group-header');
-      const overviewBtn = header?.querySelector('.group-overview-btn');
-      expect(overviewBtn).not.toBeNull();
-      expect(overviewBtn?.classList.contains('card-col-focused')).toBe(true);
     });
 
     it('collapse hides session cards from DOM', async () => {

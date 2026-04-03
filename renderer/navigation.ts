@@ -25,6 +25,7 @@ import { sessionsState } from './screens/sessions-state.js';
 import { hideOverview, getOverviewSessions, updateOverviewFocus, setSelectCardCallback, toggleCollapseCard, refreshOverview } from './screens/group-overview.js';
 import { findNavIndexBySessionId } from './session-groups.js';
 import { updateSessionsFocus } from './screens/sessions.js';
+import { autoSelectFocusedSession } from './screens/sessions-spawn.js';
 
 // ============================================================================
 // Unsubscribe handles (exported so main.ts can clean up)
@@ -207,11 +208,19 @@ function handleOverviewButton(button: string): boolean {
   if (count === 0) return false;
 
   const idx = sessionsState.overviewFocusIndex;
+  const navList = sessionsState.navList;
+  const navCount = navList.length;
 
   if (dir === 'up') {
     if (idx > 0) {
       sessionsState.overviewFocusIndex = idx - 1;
       updateOverviewFocus();
+    } else if (sessionsState.sessionsFocusIndex > 0) {
+      // Past first card — exit overview, move to previous nav item
+      sessionsState.sessionsFocusIndex--;
+      sessionsState.cardColumn = 0;
+      updateSessionsFocus();
+      autoSelectFocusedSession();
     }
     return true;
   }
@@ -219,18 +228,17 @@ function handleOverviewButton(button: string): boolean {
     if (idx + 1 < count) {
       sessionsState.overviewFocusIndex = idx + 1;
       updateOverviewFocus();
+    } else if (sessionsState.sessionsFocusIndex < navCount - 1) {
+      // Past last card — exit overview, move to next nav item
+      sessionsState.sessionsFocusIndex++;
+      sessionsState.cardColumn = 0;
+      updateSessionsFocus();
+      autoSelectFocusedSession();
     }
     return true;
   }
   if (dir === 'left') {
-    // Exit overview, return to session list
-    hideOverview();
-    const tm = getTerminalManager();
-    if (tm && tm.getActiveSessionId()) {
-      showTerminalArea();
-    } else {
-      hideTerminalArea();
-    }
+    // No-op — exit overview via Up/Down (flow-through) or A (select session)
     return true;
   }
   if (dir === 'right') {
@@ -266,14 +274,7 @@ function handleOverviewButton(button: string): boolean {
   }
 
   if (button === 'B') {
-    // Exit overview, return to session list (same as D-pad Left)
-    hideOverview();
-    const tm = getTerminalManager();
-    if (tm && tm.getActiveSessionId()) {
-      showTerminalArea();
-    } else {
-      hideTerminalArea();
-    }
+    // No-op — exit overview via Up/Down (flow-through) or A (select session)
     return true;
   }
 

@@ -241,21 +241,10 @@ function createGroupHeader(group: SessionGroup, index: number): HTMLElement {
     moveGroupDownAction(group.dirPath);
   });
 
-  const overviewBtn = document.createElement('button');
-  overviewBtn.className = 'group-overview-btn';
-  if (isFocused && sessionsState.cardColumn === 3) overviewBtn.classList.add('card-col-focused');
-  overviewBtn.textContent = '▸';
-  overviewBtn.title = 'Open group overview';
-  overviewBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    showOverview(group.dirPath);
-  });
-
   header.appendChild(chevron);
   header.appendChild(nameSpan);
   header.appendChild(moveUp);
   header.appendChild(moveDown);
-  header.appendChild(overviewBtn);
 
   header.addEventListener('click', () => toggleGroupCollapse(group.dirPath));
 

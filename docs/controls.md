@@ -6,14 +6,14 @@ Gamepad button and keyboard shortcut mappings.
 
 | Input | Action |
 |-------|--------|
-| D-Pad Up/Down | Switch sessions (auto-selects terminal) |
-| D-Pad Right | Group header: open group overview grid |
-| D-Pad Left | Overview: exit overview → session list |
-| D-Pad directions | Overview grid: navigation between cards |
+| D-Pad Up/Down | Switch sessions (auto-selects terminal) / auto-opens overview on group headers |
+| D-Pad Right | Session card: cycle sub-elements / Group header: cycle reorder buttons |
+| D-Pad Left | Back one sub-element column |
+| D-Pad directions | Overview grid: navigation between cards (Up/Down past edges exits overview) |
 | Left Stick | Same as D-pad |
 | Right Stick | Configurable (default: scroll terminal buffer / overview grid) |
 | A | Configurable per-CLI binding / overview: select session + exit |
-| B | Back to sessions zone / overview: exit overview → restore terminal / configurable per-CLI binding |
+| B | Back to sessions zone / configurable per-CLI binding |
 | X | Configurable per-CLI binding / overview: close focused session |
 | Y | (planned: cycle terminal state) |
 | Left Trigger | Spawn Claude Code |
