@@ -976,10 +976,10 @@ describe('ConfigLoader', () => {
     it('returns defaults when profile has no sticks section', () => {
       loader.load();
       const left = loader.getStickConfig('left');
-      expect(left).toEqual({ mode: 'disabled', deadzone: 0.25, repeatRate: 100 });
+      expect(left).toEqual({ mode: 'disabled', deadzone: 0.25, repeatRate: 50 });
 
       const right = loader.getStickConfig('right');
-      expect(right).toEqual({ mode: 'disabled', deadzone: 0.25, repeatRate: 100 });
+      expect(right).toEqual({ mode: 'disabled', deadzone: 0.25, repeatRate: 50 });
     });
 
     it('returns stick config from profile when present', () => {
@@ -1008,7 +1008,7 @@ describe('ConfigLoader', () => {
       loader.load();
 
       expect(loader.getStickConfig('left')).toEqual({ mode: 'cursor', deadzone: 0.25, repeatRate: 100 });
-      expect(loader.getStickConfig('right')).toEqual({ mode: 'disabled', deadzone: 0.25, repeatRate: 100 });
+      expect(loader.getStickConfig('right')).toEqual({ mode: 'disabled', deadzone: 0.25, repeatRate: 50 });
     });
 
     it('throws when called before load', () => {

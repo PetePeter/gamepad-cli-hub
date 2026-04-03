@@ -419,7 +419,7 @@ export class ConfigLoader {
 
   getStickConfig(stick: 'left' | 'right'): StickConfig {
     this.ensureLoaded();
-    const defaults: StickConfig = { mode: 'disabled', deadzone: 0.25, repeatRate: 100 };
+    const defaults: StickConfig = { mode: 'disabled', deadzone: 0.25, repeatRate: 50 };
     const profileStick = this.activeProfile!.sticks?.[stick];
     if (!profileStick) return defaults;
     return {

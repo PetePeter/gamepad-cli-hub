@@ -35,8 +35,8 @@ class BrowserGamepadPoller {
   private repeatConfig: RepeatConfig = {
     dpad: { initialDelay: 400, repeatRate: 120 },
     sticks: {
-      left: { deadzone: 0.25, repeatRate: 100 },
-      right: { deadzone: 0.25, repeatRate: 150 },
+      left: { deadzone: 0.25, repeatRate: 50 },
+      right: { deadzone: 0.25, repeatRate: 50 },
     },
   };
 
