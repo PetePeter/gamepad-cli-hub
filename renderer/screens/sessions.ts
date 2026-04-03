@@ -20,7 +20,7 @@ import {
 // Sub-module imports — circular at module level, safe because all usages are in function bodies.
 import {
   renderSessions, initSessionsSortControl, updateStatusCounts,
-  startRename, showStateDropdown,
+  startRename, showStateDropdown, commitRename, cancelRename,
   sessionsSortField, sessionsSortDirection,
 } from './sessions-render.js';
 
@@ -196,6 +196,26 @@ export function handleSessionsScreenButton(button: string): boolean {
   if (dropdown) {
     handleStateDropdownButton(button, dropdown as HTMLElement);
     return true; // consumed
+  }
+
+  // Rename mode intercepts all input
+  if (sessionsState.editingSessionId) {
+    const input = document.querySelector('.session-rename-input') as HTMLInputElement;
+    if (button === 'A') {
+      if (input) commitRename(sessionsState.editingSessionId, input.value);
+      return true;
+    }
+    if (button === 'B') {
+      cancelRename();
+      return true;
+    }
+    if (input && (button === 'DPadLeft' || button === 'DPadRight')) {
+      const pos = input.selectionStart ?? 0;
+      const newPos = button === 'DPadLeft' ? Math.max(0, pos - 1) : Math.min(input.value.length, pos + 1);
+      input.setSelectionRange(newPos, newPos);
+      return true;
+    }
+    return true; // consume all other buttons
   }
 
   const dir = toDirection(button);

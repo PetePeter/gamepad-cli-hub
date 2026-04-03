@@ -165,6 +165,7 @@ describe('Sessions Screen', () => {
       sessionGetAll: mockSessionGetAll,
       sessionSetActive: mockSessionSetActive,
       sessionClose: mockSessionClose,
+      sessionRename: vi.fn().mockResolvedValue({ success: true }),
       configGetCliTypes: mockConfigGetCliTypes,
       configGetWorkingDirs: mockConfigGetWorkingDirs,
       configGetSpawnCommand: mockConfigGetSpawnCommand,
@@ -1955,6 +1956,101 @@ describe('Sessions Screen', () => {
       sessionsState.cardColumn = 0;
       sessions.handleSessionsScreenButton('DPadRight');
       expect(sessionsState.cardColumn).toBe(0);
+    });
+  });
+
+  // ==========================================================================
+  // Gamepad rename mode (A=commit, B=cancel, D-pad=caret)
+  // ==========================================================================
+
+  describe('gamepad rename mode', () => {
+    beforeEach(async () => {
+      sessions.setTerminalManagerGetter(() => createMockTerminalManager([
+        { id: 's-0', cliType: 'claude-code', name: 'Alpha' },
+        { id: 's-1', cliType: 'copilot-cli', name: 'Bravo' },
+      ]));
+      await loadAndFlush(sessions);
+      sessionsState.activeFocus = 'sessions';
+      sessionsState.sessionsFocusIndex = 1; // first session card (index 0 is group header)
+    });
+
+    function enterRenameMode(): HTMLInputElement {
+      sessionsState.editingSessionId = 's-0';
+      // Create the input manually since renderSessions is mocked downstream
+      const input = document.createElement('input');
+      input.className = 'session-rename-input';
+      input.type = 'text';
+      input.value = 'Alpha';
+      document.body.appendChild(input);
+      return input;
+    }
+
+    it('A button commits rename when editing', async () => {
+      const input = enterRenameMode();
+      input.value = 'NewName';
+      const result = sessions.handleSessionsScreenButton('A');
+      expect(result).toBe(true);
+      await flush();
+      expect((window as any).gamepadCli.sessionRename).toHaveBeenCalledWith('s-0', 'NewName');
+      input.remove();
+    });
+
+    it('B button cancels rename when editing', () => {
+      const input = enterRenameMode();
+      const result = sessions.handleSessionsScreenButton('B');
+      expect(result).toBe(true);
+      expect(sessionsState.editingSessionId).toBeNull();
+      expect((window as any).gamepadCli.sessionRename).not.toHaveBeenCalled();
+      input.remove();
+    });
+
+    it('D-pad Left moves caret left', () => {
+      const input = enterRenameMode();
+      input.setSelectionRange(3, 3);
+      const result = sessions.handleSessionsScreenButton('DPadLeft');
+      expect(result).toBe(true);
+      expect(input.selectionStart).toBe(2);
+      expect(input.selectionEnd).toBe(2);
+      input.remove();
+    });
+
+    it('D-pad Right moves caret right', () => {
+      const input = enterRenameMode();
+      input.setSelectionRange(2, 2);
+      const result = sessions.handleSessionsScreenButton('DPadRight');
+      expect(result).toBe(true);
+      expect(input.selectionStart).toBe(3);
+      expect(input.selectionEnd).toBe(3);
+      input.remove();
+    });
+
+    it('D-pad Up/Down consumed during rename', () => {
+      const input = enterRenameMode();
+      const indexBefore = sessionsState.sessionsFocusIndex;
+      expect(sessions.handleSessionsScreenButton('DPadUp')).toBe(true);
+      expect(sessions.handleSessionsScreenButton('DPadDown')).toBe(true);
+      expect(sessionsState.sessionsFocusIndex).toBe(indexBefore);
+      input.remove();
+    });
+
+    it('other buttons consumed during rename', () => {
+      const input = enterRenameMode();
+      expect(sessions.handleSessionsScreenButton('X')).toBe(true);
+      expect(sessions.handleSessionsScreenButton('Y')).toBe(true);
+      expect(sessions.handleSessionsScreenButton('LeftBumper')).toBe(true);
+      input.remove();
+    });
+
+    it('rename input auto-selects text on focus', async () => {
+      // Trigger rename via gamepad A at col=2
+      sessionsState.cardColumn = 2;
+      sessions.handleSessionsScreenButton('A');
+      // Advance fake timers to fire the setTimeout(() => { input.focus(); input.select(); }, 0)
+      await flush();
+      const input = document.querySelector('.session-rename-input') as HTMLInputElement;
+      expect(input).toBeTruthy();
+      expect(input.selectionStart).toBe(0);
+      expect(input.selectionEnd).toBe(input.value.length);
     });
   });
 

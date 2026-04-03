@@ -127,13 +127,13 @@ export function startRename(sessionId: string): void {
 }
 
 /** Cancel editing and restore display mode */
-function cancelRename(): void {
+export function cancelRename(): void {
   sessionsState.editingSessionId = null;
   renderSessions();
 }
 
 /** Commit the rename and update the session */
-async function commitRename(sessionId: string, newName: string): Promise<void> {
+export async function commitRename(sessionId: string, newName: string): Promise<void> {
   const trimmed = newName.trim();
   if (!trimmed) {
     logEvent('Name cannot be empty');
@@ -328,7 +328,7 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
       }
     });
 
-    setTimeout(() => input.focus(), 0);
+    setTimeout(() => { input.focus(); input.select(); }, 0);
 
     nameLine.appendChild(input);
     nameLine.appendChild(saveBtn);
