@@ -380,12 +380,14 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
     showCloseConfirm(session.id, displayName, doCloseSession);
   });
 
-  // Append in visual order: dot → name → state → rename → close
+  // Append buttons into name-line (same row as session name)
+  nameLine.appendChild(stateBtn);
+  if (renameBtn) nameLine.appendChild(renameBtn);
+  nameLine.appendChild(closeBtn);
+
+  // Append in visual order: dot → info (name-line + meta)
   card.appendChild(activityDot);
   card.appendChild(info);
-  card.appendChild(stateBtn);
-  if (renameBtn) card.appendChild(renameBtn);
-  card.appendChild(closeBtn);
 
   card.addEventListener('click', () => switchToSession(session.id));
   return card;

@@ -57,6 +57,12 @@ tools:
       prompts:
         - label: commit
           sequence: use skill(commit)
+        - label: Initial propmt
+          sequence: >-
+            /allow-all{Enter}
+
+            Always end your response with the ask question tool. Include
+            multiple choice options and one free text entry field.
   cmd:
     name: cmd
     command: cmd.exe

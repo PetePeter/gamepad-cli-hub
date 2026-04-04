@@ -1,0 +1,19 @@
+activeProfile: default
+hapticFeedback: true
+sidebar:
+  width: 2056
+  height: 1262
+  x: 132
+  y: 582
+sessionGroups:
+  order:
+    - X:\coding\gamepad-cli-hub
+  collapsed: []
+notifications: true
+sorting:
+  sessions:
+    field: state
+    direction: desc
+  bindings:
+    field: button
+    direction: asc

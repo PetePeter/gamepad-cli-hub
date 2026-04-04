@@ -317,6 +317,12 @@ async function init(): Promise<void> {
             console.log(`[AutoResume] Resuming session: ${session.id} (${session.cliType}) with name ${session.cliSessionName}`);
             // Spawn fresh terminal with CLI resume command first
             await doSpawn(session.cliType, session.workingDir, undefined, session.cliSessionName);
+            // Restore custom display name if user had renamed the session
+            const newId = terminalManager.getActiveSessionId();
+            if (newId && session.name && session.name !== session.cliType) {
+              await window.gamepadCli?.sessionRename(newId, session.name);
+              terminalManager.renameSession(newId, session.name);
+            }
             // Only remove stale session metadata after successful spawn
             await window.gamepadCli?.sessionRemove(session.id);
           } catch (err) {

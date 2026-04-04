@@ -90,7 +90,7 @@ export class PtyManager extends EventEmitter {
       name: 'xterm-256color',
       cols,
       rows,
-      cwd: cwd || process.cwd(),
+      cwd: cwd || process.env.USERPROFILE || process.env.HOME || process.cwd(),
       env: { ...process.env, ...env } as Record<string, string>,
     });
 

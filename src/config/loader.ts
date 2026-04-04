@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as YAML from 'yaml';
 import logger from '../utils/logger.js';
+import { getConfigDir, isPackaged, seedConfigIfNeeded } from '../utils/app-paths.js';
+import { fileURLToPath } from 'url';
 
 // ============================================================================
 // Action & Binding Types
@@ -197,7 +199,14 @@ export function stickVirtualButtonName(stick: 'left' | 'right', direction: Stick
 // ConfigLoader
 // ============================================================================
 
-const DEFAULT_CONFIG_DIR = path.join(process.cwd(), 'config');
+const __loader_dirname = path.dirname(fileURLToPath(import.meta.url));
+const DEFAULT_CONFIG_DIR = getConfigDir(__loader_dirname);
+
+// When packaged, seed user-data config from the bundled defaults on first launch
+if (isPackaged(__loader_dirname)) {
+  const bundledConfigDir = path.join(__loader_dirname, '..', '..', 'config');
+  seedConfigIfNeeded(bundledConfigDir, DEFAULT_CONFIG_DIR);
+}
 
 export class ConfigLoader {
   private configDir: string;

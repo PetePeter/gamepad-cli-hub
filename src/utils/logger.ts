@@ -2,11 +2,12 @@ import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getLogDir } from './app-paths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export const logDir = path.join(__dirname, '../../logs');
+export const logDir = getLogDir(__dirname);
 
 // Define log levels
 const levels = {

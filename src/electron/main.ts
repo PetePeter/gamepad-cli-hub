@@ -12,6 +12,7 @@ import { registerIPCHandlers } from './ipc/handlers.js';
 import { setupPowerMonitor } from '../session/power-monitor.js';
 import { configLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
+import { getRendererHtmlPath } from '../utils/app-paths.js';
 
 // Enable Chromium gamepad extensions for Bluetooth controller support
 app.commandLine.appendSwitch('enable-gamepad-extensions');
@@ -75,8 +76,8 @@ function createWindow(): void {
     title: 'Gamepad CLI Hub',
   });
 
-  // Load the renderer HTML
-  const rendererPath = join(process.cwd(), 'renderer', 'index.html');
+  // Load the renderer HTML (__dirname-relative, works inside asar)
+  const rendererPath = getRendererHtmlPath(__dirname);
   mainWindow.loadFile(rendererPath);
 
   // Show window when ready — maximise on first launch

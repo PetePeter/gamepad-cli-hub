@@ -243,6 +243,40 @@ describe('SessionManager persistence integration', () => {
     expect(restored).toEqual([]);
     expect(manager.getSessionCount()).toBe(0);
   });
+
+  it('restoreSessions preserves custom session names', () => {
+    const renamedSession: SessionInfo = {
+      ...mockSession1,
+      name: 'My Custom Name',
+    };
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockReturnValue(
+      YAML.stringify({ sessions: [renamedSession] })
+    );
+
+    manager.restoreSessions();
+
+    const restored = manager.getSession(mockSession1.id);
+    expect(restored?.name).toBe('My Custom Name');
+  });
+
+  it('rename + persist + restore round-trips the custom name', () => {
+    manager.addSession(mockSession1);
+    manager.renameSession(mockSession1.id, 'Renamed Session');
+
+    // Capture what was written to disk
+    const lastWrite = (fs.writeFileSync as any).mock.calls.at(-1);
+    const savedYaml = YAML.parse(lastWrite[1]);
+    expect(savedYaml.sessions[0].name).toBe('Renamed Session');
+
+    // Simulate reload from disk
+    const manager2 = new SessionManager();
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockReturnValue(lastWrite[1]);
+    manager2.restoreSessions();
+
+    expect(manager2.getSession(mockSession1.id)?.name).toBe('Renamed Session');
+  });
 });
 
 describe('SessionManager health check', () => {

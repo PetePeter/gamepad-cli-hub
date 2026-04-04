@@ -1,10 +1,13 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as YAML from 'yaml';
 import { logger } from '../utils/logger.js';
+import { getConfigDir } from '../utils/app-paths.js';
 import type { SessionInfo } from '../types/session.js';
 
-const SESSIONS_FILE = join(process.cwd(), 'config', 'sessions.yaml');
+const __persistence_dirname = dirname(fileURLToPath(import.meta.url));
+const SESSIONS_FILE = join(getConfigDir(__persistence_dirname), 'sessions.yaml');
 
 /** Persist current sessions to disk so they survive restarts. */
 export function saveSessions(sessions: SessionInfo[]): void {

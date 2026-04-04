@@ -386,7 +386,7 @@ button {
 .session-card .session-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; position: relative; }
 .session-card .session-name { font-size: var(--font-size-sm); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .session-card .session-name:hover { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 2px; }
-.session-card .session-meta { font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-card .session-meta { font-size: var(--font-size-sm); color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Session action buttons (rename, state, close) - always visible */
 .session-rename,
@@ -425,13 +425,23 @@ button {
   color: #ff5050;
 }
 
-/* Session rename button */
+/* Session name line — name + action buttons */
 .session-name-line {
   display: flex;
   align-items: center;
   gap: 6px;
   flex: 1;
   min-width: 0;
+}
+.session-name-line .session-state-btn,
+.session-name-line .session-rename,
+.session-name-line .session-close {
+  margin-left: 0;
+  font-size: var(--font-size-sm);
+  padding: 1px 4px;
+}
+.session-name-line .session-state-btn {
+  margin-left: auto;
 }
 
 /* Rename edit mode input and buttons */
