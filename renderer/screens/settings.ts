@@ -40,8 +40,11 @@ export async function loadSettingsScreen(): Promise<void> {
     } else if (state.settingsTab === 'directories') {
       await renderDirectoriesPanel();
     } else {
-      const bindings = state.cliBindingsCache[state.settingsTab]
-        || (window.gamepadCli ? await window.gamepadCli.configGetBindings(state.settingsTab) : null);
+      let bindings = state.cliBindingsCache[state.settingsTab];
+      if (!bindings && window.gamepadCli) {
+        bindings = await window.gamepadCli.configGetBindings(state.settingsTab);
+        if (bindings) state.cliBindingsCache[state.settingsTab] = bindings;
+      }
       await renderBindingsDisplay(bindings || {}, `${getCliDisplayName(state.settingsTab)} Bindings`);
       await renderSequenceGroups(state.settingsTab);
     }

@@ -109,6 +109,8 @@ export async function initConfigCache(): Promise<void> {
       const sequences = await window.gamepadCli.configGetSequences(cliType);
       if (sequences && Object.keys(sequences).length > 0) {
         state.cliSequencesCache[cliType] = sequences;
+      } else {
+        delete state.cliSequencesCache[cliType];
       }
     }
     console.log('[Renderer] Cached CLI bindings for:', Object.keys(state.cliBindingsCache));

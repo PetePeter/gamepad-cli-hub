@@ -15,6 +15,16 @@ import { createSortControl, type SortControlHandle } from '../components/sort-co
 
 // Circular import — safe: all usages are inside event handlers, not at module-evaluation time.
 import { loadSettingsScreen } from './settings.js';
+import { initConfigCache } from '../bindings.js';
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+async function refreshSequencesCache(cliType: string): Promise<void> {
+  const fresh = await window.gamepadCli.configGetSequences(cliType);
+  state.cliSequencesCache[cliType] = (fresh && Object.keys(fresh).length > 0) ? fresh : {};
+}
 
 // ============================================================================
 // Constants
@@ -84,8 +94,7 @@ export async function renderBindingsDisplay(bindings: Record<string, any>, _labe
           const result = await window.gamepadCli?.configCopyCliBindings(source, currentTab);
           if (result?.success) {
             logEvent(`Copied ${result.count} binding(s) from ${getCliDisplayName(source)}`);
-            // Invalidate cache and reload
-            delete state.cliBindingsCache[currentTab];
+            await initConfigCache();
             await loadSettingsScreen();
           } else {
             logEvent(`Copy failed: ${result?.error || 'unknown error'}`);
@@ -189,7 +198,7 @@ export async function renderBindingsDisplay(bindings: Record<string, any>, _labe
           if (state.cliBindingsCache[cliType]) {
             delete state.cliBindingsCache[cliType][button];
           }
-          loadSettingsScreen();
+          await loadSettingsScreen();
         }
       } catch (error) {
         console.error('Remove binding failed:', error);
@@ -346,7 +355,7 @@ function createSequenceGroupCard(
       const result = await window.gamepadCli.configRemoveSequenceGroup(cliType, groupId);
       if (result.success) {
         logEvent(`Removed sequence group: ${groupId}`);
-        delete state.cliSequencesCache[cliType];
+        await refreshSequencesCache(cliType);
         loadSettingsScreen();
       }
     } catch (error) {
@@ -404,7 +413,7 @@ async function showAddSequenceGroupForm(cliType: string): Promise<void> {
     const res = await window.gamepadCli.configSetSequenceGroup(cliType, groupId, validItems);
     if (res.success) {
       logEvent(`Added sequence group: ${groupId}`);
-      delete state.cliSequencesCache[cliType];
+      await refreshSequencesCache(cliType);
       loadSettingsScreen();
     }
   } catch (error) {
@@ -437,7 +446,7 @@ async function showEditSequenceGroupForm(
     const res = await window.gamepadCli.configSetSequenceGroup(cliType, newGroupId, validItems);
     if (res.success) {
       logEvent(`Updated sequence group: ${newGroupId}`);
-      delete state.cliSequencesCache[cliType];
+      await refreshSequencesCache(cliType);
       loadSettingsScreen();
     }
   } catch (error) {

@@ -476,9 +476,10 @@ export async function saveBinding(): Promise<void> {
 
       // Update local cache so dispatch uses new bindings immediately
       if (cliType) {
-        if (state.cliBindingsCache[cliType]) {
-          state.cliBindingsCache[cliType][button] = binding;
+        if (!state.cliBindingsCache[cliType]) {
+          state.cliBindingsCache[cliType] = {};
         }
+        state.cliBindingsCache[cliType][button] = binding;
       }
 
       closeBindingEditor();

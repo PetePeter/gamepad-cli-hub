@@ -60,7 +60,7 @@ describe('isPackaged', () => {
 describe('getLogDir', () => {
   it('returns relative path in dev mode', () => {
     const result = getLogDir(DEV_DIRNAME);
-    expect(result).toBe(path.join(DEV_DIRNAME, '..', '..', 'logs'));
+    expect(result).toBe(path.join(DEV_DIRNAME, '..', 'logs'));
   });
 
   it('returns APPDATA-based path when packaged', () => {
@@ -204,17 +204,17 @@ describe('seedConfigIfNeeded', () => {
 
 describe('getRendererHtmlPath', () => {
   it('returns __dirname-relative path in dev mode', () => {
-    // dist-electron/main.js → ../../renderer/index.html
+    // dist-electron/main.js → ../renderer/index.html
     const result = getRendererHtmlPath(DEV_DIRNAME);
-    const expected = path.join(DEV_DIRNAME, '..', '..', 'renderer', 'index.html');
+    const expected = path.join(DEV_DIRNAME, '..', 'renderer', 'index.html');
     expect(result).toBe(expected);
   });
 
   it('returns asar-relative path when packaged', () => {
-    // resources/app.asar/dist-electron/main.js → ../../renderer/index.html
+    // resources/app.asar/dist-electron/main.js → ../renderer/index.html
     // Same relative traversal — renderer/index.html is bundled inside the asar
     const result = getRendererHtmlPath(PACKAGED_DIRNAME);
-    const expected = path.join(PACKAGED_DIRNAME, '..', '..', 'renderer', 'index.html');
+    const expected = path.join(PACKAGED_DIRNAME, '..', 'renderer', 'index.html');
     expect(result).toBe(expected);
   });
 });
@@ -224,13 +224,13 @@ describe('getRendererHtmlPath', () => {
 // ---------------------------------------------------------------------------
 
 describe('getAppRootDir', () => {
-  it('returns two levels up from dist-electron in dev mode', () => {
+  it('returns one level up from dist-electron in dev mode', () => {
     const result = getAppRootDir(DEV_DIRNAME);
-    expect(result).toBe(path.resolve(DEV_DIRNAME, '..', '..'));
+    expect(result).toBe(path.resolve(DEV_DIRNAME, '..'));
   });
 
-  it('returns two levels up from dist-electron when packaged', () => {
+  it('returns one level up from dist-electron when packaged', () => {
     const result = getAppRootDir(PACKAGED_DIRNAME);
-    expect(result).toBe(path.resolve(PACKAGED_DIRNAME, '..', '..'));
+    expect(result).toBe(path.resolve(PACKAGED_DIRNAME, '..'));
   });
 });

@@ -9,6 +9,7 @@ import {
   createSequenceSyntaxHelp,
 } from '../utils.js';
 import { loadSessions } from './sessions.js';
+import { initConfigCache } from '../bindings.js';
 
 // Circular import — safe: all usages are inside event handlers, not at module-evaluation time.
 import { loadSettingsScreen } from './settings.js';
@@ -121,6 +122,8 @@ function createCliTypeItem(key: string, value: any): HTMLElement {
       const result = await window.gamepadCli.toolsRemoveCliType(key);
       if (result.success) {
         logEvent(`Deleted CLI type: ${key}`);
+        delete state.cliBindingsCache[key];
+        delete state.cliSequencesCache[key];
         state.cliTypes = await window.gamepadCli.configGetCliTypes();
         state.availableSpawnTypes = state.cliTypes;
         loadSessions();
@@ -241,6 +244,7 @@ async function showAddCliTypeForm(): Promise<void> {
     logEvent(`Added CLI type: ${key}`);
     state.cliTypes = await window.gamepadCli.configGetCliTypes();
     state.availableSpawnTypes = state.cliTypes;
+    await initConfigCache();
     loadSessions();
     loadSettingsScreen();
   } else {
@@ -279,6 +283,7 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
     logEvent(`Updated CLI type: ${key}`);
     state.cliTypes = await window.gamepadCli.configGetCliTypes();
     state.availableSpawnTypes = state.cliTypes;
+    await initConfigCache();
     loadSessions();
     loadSettingsScreen();
   } else {

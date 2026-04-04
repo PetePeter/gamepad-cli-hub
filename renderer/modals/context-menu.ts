@@ -1,7 +1,7 @@
 /**
  * Context menu modal — right-click / gamepad context actions for embedded terminals.
  *
- * Provides Copy, Paste, New Session, New Session with Selection, Clear Scrollback, and Cancel.
+ * Provides Copy, Paste, New Session, New Session with Selection, and Cancel.
  * Triggered via right-click on the terminal area or a gamepad context-menu binding.
  */
 
@@ -50,7 +50,6 @@ const MENU_ITEMS: MenuItem[] = [
   { action: 'paste', label: 'Paste', icon: '📥', enabledWhen: () => true },
   { action: 'new-session', label: 'New Session', icon: '➕', enabledWhen: () => true },
   { action: 'new-session-with-selection', label: 'New Session with Selection', icon: '📋➕', enabledWhen: () => contextMenuState.hasSelection },
-  { action: 'clear-scrollback', label: 'Clear Scrollback', icon: '🗑️', enabledWhen: () => true },
   { action: 'sequences', label: 'Prompts', icon: '⏩', enabledWhen: () => hasSequenceItems() },
   { action: 'cancel', label: 'Cancel', icon: '', enabledWhen: () => true },
 ];
@@ -254,16 +253,6 @@ async function executeSelectedItem(): Promise<void> {
     case 'new-session-with-selection': {
       hideContextMenu();
       showSpawnGridFromContext(contextMenuState.selectedText);
-      break;
-    }
-    case 'clear-scrollback': {
-      const tm = getTerminalManager();
-      const view = tm?.getActiveView();
-      if (view) {
-        view.clear();
-        logEvent('Cleared scrollback');
-      }
-      hideContextMenu();
       break;
     }
     case 'sequences': {

@@ -45,10 +45,9 @@ CLI-specific bindings are used. Each profile defines different button behaviours
 
 `{ action: 'context-menu' }` — Opens the context menu overlay. Gamepad binding centers the menu in the viewport (mode: 'gamepad'). Right-click on any terminal pane shows at mouse position (mode: 'mouse').
 
-Menu items: Copy, Paste, New Session, New Session with Selection, Clear Scrollback, Prompts ⏩, Cancel.
+Menu items: Copy, Paste, New Session, New Session with Selection, Prompts ⏩, Cancel.
 
 - Copy and "New Session with Selection" are disabled when no text is selected
-- "Clear Scrollback" clears the active terminal's scrollback buffer
 - "New Session" / "New Session with Selection" open a quick-spawn CLI type picker (pre-selects active session's type), then the directory picker (pre-selects active session's working directory), then spawns
 - "Prompts ⏩" is enabled when the active CLI type has sequences configured — chains to the sequence picker with all groups flattened
 

@@ -39,7 +39,7 @@ export function getLogDir(dirname: string, appData?: string): string {
   if (isPackaged(dirname)) {
     return path.join(getUserDataDir(appData), 'logs');
   }
-  return path.join(dirname, '..', '..', 'logs');
+  return path.join(dirname, '..', 'logs');
 }
 
 /**
@@ -59,15 +59,15 @@ export function getConfigDir(dirname: string, appData?: string): string {
  * Always relative to __dirname (works both in dev and inside asar).
  */
 export function getRendererHtmlPath(dirname: string): string {
-  return path.join(dirname, '..', '..', 'renderer', 'index.html');
+  return path.join(dirname, '..', 'renderer', 'index.html');
 }
 
 /**
- * Return the app root directory (two levels up from dist-electron/).
+ * Return the app root directory (one level up from dist-electron/).
  * Works both in dev and inside asar.
  */
 export function getAppRootDir(dirname: string): string {
-  return path.resolve(dirname, '..', '..');
+  return path.resolve(dirname, '..');
 }
 
 /**
