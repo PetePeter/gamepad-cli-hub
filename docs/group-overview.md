@@ -33,7 +33,7 @@ If the active session doesn't belong to the group (or there is no active session
 ## Card Layout
 
 Each card displays:
-- **Header row**: state dot (colour-coded) + session name + state label (implementing/waiting/planning/idle)
+- **Header row**: state dot (colour-coded) + session name + OSC terminal title subtitle (when set) + state label (implementing/waiting/planning/idle)
 - **Preview area**: last 10 lines of ANSI-stripped PTY output in a monospace font, fixed height
 
 The CLI type label is intentionally omitted — the session name and state provide sufficient context, and the type is visible in the sidebar session card.

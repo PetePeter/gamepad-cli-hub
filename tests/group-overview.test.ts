@@ -231,6 +231,37 @@ describe('GroupOverview', () => {
 
       setTerminalManagerGetter(() => null);
     });
+
+    it('shows .overview-card-subtitle when session has title', () => {
+      state.sessions = [
+        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0, title: 'cmd.exe - claude' },
+      ];
+      showOverview('/project');
+
+      const subtitle = document.querySelector('.overview-card-subtitle');
+      expect(subtitle).not.toBeNull();
+      expect(subtitle!.textContent).toBe('cmd.exe - claude');
+    });
+
+    it('does not show subtitle when title is absent', () => {
+      state.sessions = [
+        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+      ];
+      showOverview('/project');
+
+      const subtitle = document.querySelector('.overview-card-subtitle');
+      expect(subtitle).toBeNull();
+    });
+
+    it('does not show subtitle when title matches session name', () => {
+      state.sessions = [
+        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0, title: 'Claude-1' },
+      ];
+      showOverview('/project');
+
+      const subtitle = document.querySelector('.overview-card-subtitle');
+      expect(subtitle).toBeNull();
+    });
   });
 
   describe('focus management', () => {

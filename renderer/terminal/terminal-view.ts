@@ -15,6 +15,7 @@ export interface TerminalViewOptions {
   container: HTMLElement;
   onData?: (data: string) => void;
   onResize?: (cols: number, rows: number) => void;
+  onTitleChange?: (title: string) => void;
 }
 
 export class TerminalView {
@@ -95,6 +96,10 @@ export class TerminalView {
       this.terminal.onResize(({ cols, rows }) => {
         options.onResize!(cols, rows);
       });
+    }
+
+    if (options.onTitleChange) {
+      this.terminal.onTitleChange(options.onTitleChange);
     }
   }
 

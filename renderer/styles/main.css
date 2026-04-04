@@ -386,7 +386,7 @@ button {
 .session-card .session-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; position: relative; }
 .session-card .session-name { font-size: var(--font-size-sm); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .session-card .session-name:hover { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 2px; }
-.session-card .session-meta { font-size: 10px; color: var(--text-dim); }
+.session-card .session-meta { font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Session action buttons (rename, state, close) - always visible */
 .session-rename,
@@ -1706,6 +1706,19 @@ kbd {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.overview-card-subtitle {
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .overview-card-state {

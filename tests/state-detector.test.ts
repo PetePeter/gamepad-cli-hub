@@ -95,6 +95,34 @@ describe('StateDetector', () => {
       detector.processOutput('s1', '\x1b[1;34mAIAGENT-PLANNING\x1b[0m done');
       expect(detector.getState('s1')).toBe('planning');
     });
+
+    it('strips complete OSC sequences (BEL-terminated)', () => {
+      detector.processOutput('s1', '\x1b]0;My Terminal Title\x07AIAGENT-IMPLEMENTING');
+      expect(detector.getState('s1')).toBe('implementing');
+    });
+
+    it('strips complete OSC sequences (ST-terminated)', () => {
+      detector.processOutput('s1', '\x1b]0;Window Title\x1b\\AIAGENT-PLANNING');
+      expect(detector.getState('s1')).toBe('planning');
+    });
+
+    it('strips incomplete OSC sequences at end of chunk', () => {
+      detector.processOutput('s1', '\x1b]0;partial titleAIAGENT-IMPLEMENTING');
+      // The incomplete OSC eats everything after \x1b] up to end of string,
+      // so AIAGENT-IMPLEMENTING is consumed — no state change
+      expect(detector.getState('s1')).toBe('idle');
+    });
+
+    it('detects keyword after incomplete OSC followed by new output', () => {
+      detector.processOutput('s1', '\x1b]0;partial');
+      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+      expect(detector.getState('s1')).toBe('implementing');
+    });
+
+    it('strips OSC mixed with CSI sequences', () => {
+      detector.processOutput('s1', '\x1b]0;title\x07\x1b[32mAIAGENT-IMPLEMENTING\x1b[0m');
+      expect(detector.getState('s1')).toBe('implementing');
+    });
   });
 
   describe('question detection', () => {

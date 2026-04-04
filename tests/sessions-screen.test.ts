@@ -122,8 +122,8 @@ function makeSessions(count: number) {
 }
 
 /** Mock TerminalManager that returns configured sessions. */
-function createMockTerminalManager(sessionData: Array<{ id: string; cliType: string; name?: string }>) {
-  const sessionsMap = new Map(sessionData.map(s => [s.id, { sessionId: s.id, cliType: s.cliType, name: s.name || s.cliType }]));
+function createMockTerminalManager(sessionData: Array<{ id: string; cliType: string; name?: string; title?: string }>) {
+  const sessionsMap = new Map(sessionData.map(s => [s.id, { sessionId: s.id, cliType: s.cliType, name: s.name || s.cliType, title: s.title }]));
   return {
     getSessionIds: () => Array.from(sessionsMap.keys()),
     getSession: (id: string) => sessionsMap.get(id),
@@ -153,7 +153,7 @@ describe('Sessions Screen', () => {
   /** Set terminal manager sessions for loadAndFlush. */
   function setMockTerminalSessions(sessionsData: ReturnType<typeof makeSessions>): void {
     sessions.setTerminalManagerGetter(() => createMockTerminalManager(
-      sessionsData.map(s => ({ id: s.id, cliType: s.cliType }))
+      sessionsData.map(s => ({ id: s.id, cliType: s.cliType, title: (s as any).title }))
     ));
   }
 
@@ -1290,6 +1290,45 @@ describe('Sessions Screen', () => {
       expect(closeBtn.textContent).toBe('✕');
       expect(mockDestroyTerminal).not.toHaveBeenCalled();
       expect(mockShowCloseConfirm).toHaveBeenCalled();
+    });
+  });
+
+  // ==========================================================================
+  // Session card title subtitle
+  // ==========================================================================
+
+  describe('session card title subtitle', () => {
+    it('renders .session-meta subtitle when session has a title', async () => {
+      const sessionData = makeSessions(1);
+      (sessionData[0] as any).title = 'cmd.exe - claude';
+      setMockTerminalSessions(sessionData);
+      await loadAndFlush(sessions);
+
+      const meta = document.querySelector('.session-card .session-meta');
+      expect(meta).not.toBeNull();
+      expect(meta!.textContent).toBe('cmd.exe - claude');
+    });
+
+    it('does not render .session-meta when title is absent', async () => {
+      setMockTerminalSessions(makeSessions(1));
+      await loadAndFlush(sessions);
+
+      const meta = document.querySelector('.session-card .session-meta');
+      expect(meta).toBeNull();
+    });
+
+    it('does not render .session-meta when title matches display name', async () => {
+      // Reset mock since earlier tests may have changed its behavior
+      mockGetCliDisplayName.mockImplementation((type: string) => type || 'Unknown');
+
+      const sessionData = makeSessions(1);
+      // displayName resolves to getCliDisplayName('claude-code') → 'claude-code'
+      (sessionData[0] as any).title = 'claude-code';
+      setMockTerminalSessions(sessionData);
+      await loadAndFlush(sessions);
+
+      const meta = document.querySelector('.session-card .session-meta');
+      expect(meta).toBeNull();
     });
   });
 

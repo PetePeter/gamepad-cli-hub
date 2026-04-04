@@ -24,7 +24,7 @@ import { initSequencePickerClickHandlers } from './modals/sequence-picker.js';
 import { initCloseConfirmClickHandlers } from './modals/close-confirm.js';
 import { initQuickSpawnClickHandlers, hideQuickSpawn } from './modals/quick-spawn.js';
 import { resolveNextTerminalId } from './tab-cycling.js';
-import { setOutputBuffer, setSessionStateGetter, setActivityLevelGetter, setTerminalManagerGetter as setOverviewTerminalManagerGetter } from './screens/group-overview.js';
+import { setOutputBuffer, setSessionStateGetter, setActivityLevelGetter, setTerminalManagerGetter as setOverviewTerminalManagerGetter, refreshOverview, isOverviewVisible } from './screens/group-overview.js';
 
 // ============================================================================
 // Terminal Manager
@@ -256,6 +256,14 @@ async function init(): Promise<void> {
       });
       terminalManager.setOnSwitch((sessionId) => {
         if (sessionId) syncSessionHighlight(sessionId);
+      });
+      terminalManager.setOnTitleChange((sessionId, title) => {
+        const session = state.sessions.find(s => s.id === sessionId);
+        if (session) {
+          session.title = title;
+          import('./screens/sessions-render.js').then(m => m.renderSessions());
+          if (isOverviewVisible()) refreshOverview();
+        }
       });
       console.log('[Renderer] Terminal manager initialized');
 

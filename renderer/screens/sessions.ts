@@ -274,6 +274,7 @@ export async function loadSessionsData(): Promise<void> {
         cliType,
         processId: 0,
         workingDir: session?.cwd || undefined,
+        title: session?.title,
       } as Session);
     }
   }

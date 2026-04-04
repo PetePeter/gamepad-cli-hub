@@ -13,6 +13,7 @@ export interface TerminalSession {
   sessionId: string;
   cliType: string;
   name: string;
+  title?: string;
   view: TerminalView;
   element: HTMLElement;
   cwd?: string;
@@ -26,6 +27,7 @@ export class TerminalManager {
   private resizeObserver: ResizeObserver | null = null;
   private onEmpty: (() => void) | null = null;
   private onSwitch: ((sessionId: string | null) => void) | null = null;
+  private onTitleChangeCallback: ((sessionId: string, title: string) => void) | null = null;
   private pendingFitRaf: number | null = null;
   private outputBuffer: PtyOutputBuffer;
 
@@ -48,6 +50,11 @@ export class TerminalManager {
 
   setOnSwitch(callback: (sessionId: string | null) => void): void {
     this.onSwitch = callback;
+  }
+
+  /** Register a callback invoked when a terminal's OSC title changes */
+  setOnTitleChange(callback: (sessionId: string, title: string) => void): void {
+    this.onTitleChangeCallback = callback;
   }
 
   /** Deselect the active terminal without destroying it. Keyboard relay stops routing. */
@@ -83,6 +90,13 @@ export class TerminalManager {
       },
       onResize: (cols, rows) => {
         window.gamepadCli?.ptyResize(sessionId, cols, rows);
+      },
+      onTitleChange: (title) => {
+        const sess = this.terminals.get(sessionId);
+        if (sess) {
+          sess.title = title;
+          this.onTitleChangeCallback?.(sessionId, title);
+        }
       },
     });
 
@@ -184,6 +198,11 @@ export class TerminalManager {
     if (session) {
       session.name = newName;
     }
+  }
+
+  /** Get the OSC title for a terminal session */
+  getTitle(sessionId: string): string | undefined {
+    return this.terminals.get(sessionId)?.title;
   }
 
   /** Destroy a terminal and kill its PTY */

@@ -337,6 +337,15 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
 
   info.appendChild(nameLine);
 
+  // Subtitle: OSC terminal title (if set and different from display name)
+  if (session.title && session.title !== displayName) {
+    const meta = document.createElement('span');
+    meta.className = 'session-meta';
+    meta.textContent = session.title;
+    meta.title = session.title;
+    info.appendChild(meta);
+  }
+
   // --- Right side: state → rename → close ---
 
   const stateBtn = document.createElement('button');

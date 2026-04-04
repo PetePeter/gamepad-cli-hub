@@ -194,6 +194,15 @@ function createOverviewCard(session: Session): HTMLElement {
   name.textContent = session.name;
   header.appendChild(name);
 
+  // Subtitle: OSC terminal title
+  if (session.title && session.title !== session.name) {
+    const subtitle = document.createElement('span');
+    subtitle.className = 'overview-card-subtitle';
+    subtitle.textContent = session.title;
+    subtitle.title = session.title;
+    header.appendChild(subtitle);
+  }
+
   const sessionState = getSessionStateForOverview(session.id);
   const stateLabel = document.createElement('span');
   stateLabel.className = 'overview-card-state';

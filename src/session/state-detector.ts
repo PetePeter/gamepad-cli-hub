@@ -29,7 +29,10 @@ interface SessionTracking {
 
 /** Strip ANSI escape sequences so keyword detection works on raw PTY output. */
 function stripAnsi(text: string): string {
-  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+  return text
+    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')              // CSI sequences
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')   // Complete OSC sequences
+    .replace(/\x1b\][^\x07\x1b]*/g, '');                  // Incomplete OSC (strip prefix)
 }
 
 /**

@@ -41,6 +41,7 @@ function makeMockTerminal() {
     attachCustomWheelEventHandler: vi.fn(),
     onData: vi.fn().mockReturnValue({ dispose: vi.fn() }),
     onResize: vi.fn().mockReturnValue({ dispose: vi.fn() }),
+    onTitleChange: vi.fn().mockReturnValue({ dispose: vi.fn() }),
     buffer: { active: { type: 'normal', baseY: 0, cursorY: 0, getLine: vi.fn() } },
     cols: 120,
     rows: 30,
@@ -604,6 +605,57 @@ describe('TerminalManager', () => {
 
       expect(mgr.getSession('s1')!.name).toBe('claude-code');
 
+      mgr.dispose();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // OSC title tracking
+  // -------------------------------------------------------------------------
+
+  describe('title tracking', () => {
+    it('getTitle returns undefined before any title change', async () => {
+      const mgr = new TerminalManager(container);
+      await mgr.createTerminal('s1', 'claude-code', 'claude');
+
+      expect(mgr.getTitle('s1')).toBeUndefined();
+
+      mgr.dispose();
+    });
+
+    it('stores title when onTitleChange fires', async () => {
+      const mgr = new TerminalManager(container);
+      await mgr.createTerminal('s1', 'claude-code', 'claude');
+
+      // Simulate xterm.js onTitleChange firing
+      const lastTerminal = terminalInstances[terminalInstances.length - 1];
+      const titleCallback = lastTerminal.onTitleChange.mock.calls[0][0];
+      titleCallback('My Terminal Title');
+
+      expect(mgr.getTitle('s1')).toBe('My Terminal Title');
+
+      mgr.dispose();
+    });
+
+    it('invokes setOnTitleChange callback when title changes', async () => {
+      const mgr = new TerminalManager(container);
+      const titleHandler = vi.fn();
+      mgr.setOnTitleChange(titleHandler);
+
+      await mgr.createTerminal('s1', 'claude-code', 'claude');
+
+      const lastTerminal = terminalInstances[terminalInstances.length - 1];
+      const titleCallback = lastTerminal.onTitleChange.mock.calls[0][0];
+      titleCallback('Window Title');
+
+      expect(titleHandler).toHaveBeenCalledWith('s1', 'Window Title');
+
+      mgr.dispose();
+    });
+
+    it('getTitle returns undefined for unknown session', () => {
+      const mgr = new TerminalManager(container);
+      expect(mgr.getTitle('nonexistent')).toBeUndefined();
       mgr.dispose();
     });
   });
