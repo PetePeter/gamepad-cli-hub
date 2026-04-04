@@ -5,7 +5,7 @@
  * profile CRUD, working directory CRUD, and tools CRUD.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
 import { ConfigLoader } from '../src/config/loader.js';
 import { stickVirtualButtonName, STICK_VIRTUAL_BUTTONS } from '../src/config/loader.js';
 import * as fs from 'fs';
@@ -85,6 +85,13 @@ describe('ConfigLoader', () => {
 
   afterEach(() => {
     fs.rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  afterAll(() => {
+    // Safety net: clean up if afterEach was skipped (crash / interrupt)
+    if (fs.existsSync(TEST_DIR)) {
+      fs.rmSync(TEST_DIR, { recursive: true, force: true });
+    }
   });
 
   // =========================================================================
