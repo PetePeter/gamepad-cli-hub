@@ -728,21 +728,78 @@ describe('TerminalView — custom wheel handler', () => {
     expect(typeof lastTerminal().attachCustomWheelEventHandler.mock.calls[0][0]).toBe('function');
   });
 
-  it('returns true in normal buffer mode (allows scroll)', () => {
+  it('always returns false (blocks xterm internal wheel handling)', () => {
     new TerminalView({ sessionId: 'cwh-2', container });
     const handler = lastTerminal().attachCustomWheelEventHandler.mock.calls[0][0] as (ev: WheelEvent) => boolean;
-    lastTerminal().buffer.active.type = 'normal';
 
-    const result = handler(new WheelEvent('wheel'));
-    expect(result).toBe(true);
+    lastTerminal().buffer.active.type = 'normal';
+    expect(handler(new WheelEvent('wheel'))).toBe(false);
+
+    lastTerminal().buffer.active.type = 'alternate';
+    expect(handler(new WheelEvent('wheel'))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TerminalView — DOM wheel listener (scrollLines bypass)
+// ---------------------------------------------------------------------------
+
+describe('TerminalView — DOM wheel listener', () => {
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    terminalInstances.length = 0;
+    fitAddonInstances.length = 0;
+    searchAddonInstances.length = 0;
+    container = createContainer();
+    // Add fake .xterm-viewport so the DOM listener is registered
+    const viewport = document.createElement('div');
+    viewport.className = 'xterm-viewport';
+    container.appendChild(viewport);
   });
 
-  it('returns false in alternate buffer mode (blocks wheel-to-arrow)', () => {
-    new TerminalView({ sessionId: 'cwh-3', container });
-    const handler = lastTerminal().attachCustomWheelEventHandler.mock.calls[0][0] as (ev: WheelEvent) => boolean;
-    lastTerminal().buffer.active.type = 'alternate';
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
 
-    const result = handler(new WheelEvent('wheel'));
-    expect(result).toBe(false);
+  it('registers a capture-phase wheel listener on .xterm-viewport', () => {
+    const viewport = container.querySelector('.xterm-viewport')!;
+    const spy = vi.spyOn(viewport, 'addEventListener');
+    new TerminalView({ sessionId: 'dwl-1', container });
+
+    const wheelCalls = spy.mock.calls.filter(c => c[0] === 'wheel');
+    expect(wheelCalls.length).toBe(1);
+    expect(wheelCalls[0][2]).toEqual({ passive: false, capture: true });
+  });
+
+  it('calls scrollLines on wheel down', () => {
+    new TerminalView({ sessionId: 'dwl-2', container });
+    const viewport = container.querySelector('.xterm-viewport')!;
+
+    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true });
+    viewport.dispatchEvent(ev);
+
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(3); // 120/40 = 3
+  });
+
+  it('calls scrollLines with negative lines on wheel up', () => {
+    new TerminalView({ sessionId: 'dwl-3', container });
+    const viewport = container.querySelector('.xterm-viewport')!;
+
+    const ev = new WheelEvent('wheel', { deltaY: -80, cancelable: true });
+    viewport.dispatchEvent(ev);
+
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(-2); // -80/40 = -2
+  });
+
+  it('scrolls at least 1 line for small deltaY', () => {
+    new TerminalView({ sessionId: 'dwl-4', container });
+    const viewport = container.querySelector('.xterm-viewport')!;
+
+    const ev = new WheelEvent('wheel', { deltaY: 10, cancelable: true });
+    viewport.dispatchEvent(ev);
+
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(1); // min 1 line
   });
 });

@@ -77,14 +77,24 @@ export class TerminalView {
       return true;
     });
 
-    // Prevent xterm.js from converting wheel events to Up/Down arrow key
-    // sequences in alternate screen mode. Without this, scrolling sends
-    // arrow keys to the PTY — navigating the CLI prompt and triggering
-    // false state changes. Only block in alternate mode; allow normal
-    // buffer scrolling otherwise.
-    this.terminal.attachCustomWheelEventHandler((_ev: WheelEvent) => {
-      return this.terminal.buffer.active.type !== 'alternate';
-    });
+    // Block xterm.js internal wheel handling entirely — prevents both
+    // wheel-to-arrow conversion (alternate mode) and broken viewport scroll.
+    // All wheel scrolling handled by our DOM listener below.
+    this.terminal.attachCustomWheelEventHandler(() => false);
+
+    // Capture-phase wheel listener on the xterm viewport — calls scrollLines()
+    // directly, bypassing xterm's internal wheel path. This is the same
+    // mechanism used by gamepad scroll bindings (which work reliably).
+    const viewport = this.container.querySelector('.xterm-viewport');
+    if (viewport) {
+      viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const we = e as WheelEvent;
+        const lines = Math.sign(we.deltaY) * Math.max(1, Math.round(Math.abs(we.deltaY) / 40));
+        this.terminal.scrollLines(lines);
+      }, { passive: false, capture: true });
+    }
 
     this.fit();
 
