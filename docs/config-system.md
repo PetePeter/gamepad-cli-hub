@@ -10,9 +10,13 @@ config/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 ```
 
+### Deploy Packaging
+
+Release builds ship sanitised configs. `prepareDeploy.py` creates a transient `config-deploy/` directory with profiles stripped of `workingDirectories`, default-only `settings.yaml`, and empty `sessions.yaml`. This is overlaid onto `config/` by electron-builder during packaging so personal paths never ship.
+
 ## Profiles
 
-**Profiles are self-contained** — each profile YAML includes tools (CLI definitions), working directories, button bindings, stick config, and dpad config. Switching profiles changes everything. Profile switch shows a confirmation dialog when terminals are open (keep sessions / close all). `createProfile(name)` creates an empty profile; `createProfile(name, copyFrom)` clones from an existing profile.
+**Profiles are self-contained**— each profile YAML includes tools (CLI definitions), working directories, button bindings, stick config, and dpad config. Switching profiles changes everything. Profile switch shows a confirmation dialog when terminals are open (keep sessions / close all). `createProfile(name)` creates an empty profile; `createProfile(name, copyFrom)` clones from an existing profile.
 
 **Auto-migration:** On first load, if legacy `config/tools.yaml` and `config/directories.yaml` exist, their contents are merged into all profiles and the old files are deleted.
 

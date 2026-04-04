@@ -13,7 +13,7 @@ npm test         # Vitest suite
 ## Release Workflow (two-step)
 
 ```bash
-python prepareDeploy.py patch   # Bump version, build, package EXE → release/YYYYMMDD-vX.Y.Z/
+python prepareDeploy.py patch   # Bump version, strip configs, build, package EXE → release/YYYYMMDD-vX.Y.Z/
 # ... validate the EXE manually ...
 python sendDeploy.py            # Commit, tag, push, publish to GitHub Releases
 ```
@@ -22,8 +22,17 @@ python sendDeploy.py            # Commit, tag, push, publish to GitHub Releases
 |--------|---------|
 | `runApp.py` | Dev workflow — install deps, build, launch |
 | `runTests.py` | Run Vitest suite |
-| `prepareDeploy.py` | Release step 1 — bump version, build, package EXE |
+| `prepareDeploy.py` | Release step 1 — bump version, strip configs for deploy, build, package EXE |
 | `sendDeploy.py` | Release step 2 — commit, tag, push, publish |
+
+## Deploy Config Stripping
+
+`prepareDeploy.py` creates a `config-deploy/` staging directory containing sanitised config files:
+- **Profile YAMLs** — `workingDirectories` removed (no personal paths)
+- **settings.yaml** — clean defaults only (no window bounds or session groups)
+- **sessions.yaml** — empty (no saved sessions)
+
+`electron-builder` overlays `config-deploy/` onto `config/` during packaging (see `build.files` in `package.json`). The staging directory is automatically cleaned up after the build, and is gitignored.
 
 ## Build Notes
 

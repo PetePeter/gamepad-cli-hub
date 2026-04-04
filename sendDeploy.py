@@ -21,6 +21,8 @@ import os
 import re
 from pathlib import Path
 
+from prepareDeploy import create_deploy_configs, cleanup_deploy_configs
+
 
 def run(cmd, check=True, capture=False):
     """Run shell command."""
@@ -115,9 +117,13 @@ def main():
     run("git push origin main --tags")
     print()
 
-    # 5. Publish to GitHub Releases
+    # 5. Publish to GitHub Releases (with deploy configs for clean packaging)
     print("[5/5] Publishing to GitHub Releases...")
-    run("npm run dist")
+    create_deploy_configs()
+    try:
+        run("npm run dist")
+    finally:
+        cleanup_deploy_configs()
 
     print()
     print("=" * 50)

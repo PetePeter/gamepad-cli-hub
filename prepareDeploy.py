@@ -23,6 +23,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+import yaml
+
 
 def run(cmd, check=True):
     """Run shell command, printing output in real-time."""
@@ -83,6 +85,54 @@ def bump_version(part):
     return current, new_version
 
 
+def create_deploy_configs():
+    """Create stripped config files in config-deploy/ for packaging.
+
+    Original config files are NEVER modified. The staging directory
+    is overlaid on top of config/ by electron-builder during packaging,
+    so deploy builds ship clean defaults instead of personal paths.
+    """
+    deploy_dir = Path("config-deploy")
+    if deploy_dir.exists():
+        shutil.rmtree(deploy_dir)
+
+    # Strip workingDirectories from each profile YAML
+    profiles_src = Path("config/profiles")
+    profiles_dst = deploy_dir / "profiles"
+    profiles_dst.mkdir(parents=True)
+
+    for yaml_file in sorted(profiles_src.glob("*.yaml")):
+        with open(yaml_file, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        data.pop("workingDirectories", None)
+        with open(profiles_dst / yaml_file.name, "w", encoding="utf-8") as f:
+            yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        print(f"    {yaml_file.name} → config-deploy/profiles/{yaml_file.name}")
+
+    # Clean settings.yaml (defaults only — no window bounds or session groups)
+    settings = {
+        "activeProfile": "default",
+        "hapticFeedback": False,
+        "notifications": True,
+    }
+    with open(deploy_dir / "settings.yaml", "w", encoding="utf-8") as f:
+        yaml.dump(settings, f, default_flow_style=False, sort_keys=False)
+    print("    settings.yaml → config-deploy/settings.yaml (defaults)")
+
+    # Empty sessions.yaml (no saved sessions)
+    with open(deploy_dir / "sessions.yaml", "w", encoding="utf-8") as f:
+        yaml.dump([], f)
+    print("    sessions.yaml → config-deploy/sessions.yaml (empty)")
+
+
+def cleanup_deploy_configs():
+    """Remove the config-deploy/ staging directory."""
+    deploy_dir = Path("config-deploy")
+    if deploy_dir.exists():
+        shutil.rmtree(deploy_dir)
+        print("  Cleaned up config-deploy/")
+
+
 def check_git_clean():
     """Abort if working tree is dirty."""
     result = subprocess.run(
@@ -115,7 +165,7 @@ def main():
     print()
 
     # 1. Check git is clean
-    print("[1/5] Checking git status...")
+    print("[1/6] Checking git status...")
     if force:
         print("  ⚠️  Skipping dirty-repo check (--force)")
     else:
@@ -124,15 +174,21 @@ def main():
     print()
 
     # 2. Bump version
-    print("[2/5] Bumping version...")
+    print("[2/6] Bumping version...")
     old_version, new_version = bump_version(part)
     print(f"  ✅ {old_version} → {new_version}")
     print()
 
     # 3. Patch native modules for VS 2026 compatibility, then build + package
-    print("[3/5] Patching native modules for build...")
+    print("[3/6] Patching native modules for build...")
     patch_native_modules()
     print("  ✅ Native modules patched")
+    print()
+
+    # 4. Create deploy-safe config staging directory
+    print("[4/6] Creating deploy configs (stripping personal paths)...")
+    create_deploy_configs()
+    print("  ✅ Deploy configs staged in config-deploy/")
     print()
 
     # Clean release/ before building to avoid leftover artifacts
@@ -141,15 +197,18 @@ def main():
         shutil.rmtree(release_root)
         print("  Cleaned previous release/")
 
-    print("[4/5] Building and packaging...")
-    result = run("npm run package")
-    if result.returncode != 0:
-        print("❌ Build failed. Revert with: git checkout package.json")
-        sys.exit(1)
+    print("[5/6] Building and packaging...")
+    try:
+        result = run("npm run package", check=False)
+        if result.returncode != 0:
+            print("❌ Build failed. Revert with: git checkout package.json")
+            sys.exit(1)
+    finally:
+        cleanup_deploy_configs()
     print()
 
-    # 4. Move installer artifacts to dated folder (skip win-unpacked build dir)
-    print("[5/5] Organizing release artifacts...")
+    # 6. Move installer artifacts to dated folder (skip win-unpacked build dir)
+    print("[6/6] Organizing release artifacts...")
     date_stamp = datetime.now().strftime("%Y%m%d")
     release_dir = release_root / f"{date_stamp}-v{new_version}"
     release_dir.mkdir(parents=True, exist_ok=True)
