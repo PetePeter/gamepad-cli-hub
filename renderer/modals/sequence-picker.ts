@@ -60,6 +60,7 @@ export function showSequencePicker(items: SequenceListItem[], onSelect: (sequenc
   cleanupKeyboard = attachModalKeyboard({
     onAccept: () => executeSelectedItem(),
     onCancel: () => hideSequencePicker(),
+    blockAllKeys: true,
   });
 
   logEvent('Sequence picker opened');

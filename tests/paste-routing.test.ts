@@ -264,6 +264,65 @@ describe('keyboard relay', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Modal overlay guard
+  // ---------------------------------------------------------------------------
+
+  describe('modal overlay guard', () => {
+    let overlay: HTMLDivElement;
+
+    beforeEach(() => {
+      overlay = document.createElement('div');
+      overlay.className = 'modal-overlay modal--visible';
+      document.body.appendChild(overlay);
+    });
+
+    afterEach(() => {
+      document.body.removeChild(overlay);
+    });
+
+    it('blocks Ctrl+V paste when a modal overlay is visible', async () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+
+      fireKey('v', { ctrlKey: true });
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(navigator.clipboard.readText).not.toHaveBeenCalled();
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+    });
+
+    it('blocks printable key relay when a modal overlay is visible', () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+
+      fireKey('a');
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+    });
+
+    it('blocks Ctrl+letter relay when a modal overlay is visible', () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+
+      fireKey('c', { ctrlKey: true });
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+    });
+
+    it('blocks named key relay when a modal overlay is visible', () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+
+      fireKey('Enter');
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+    });
+
+    it('resumes relay when modal overlay is hidden', async () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+      overlay.classList.remove('modal--visible');
+
+      fireKey('v', { ctrlKey: true });
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'pasted text');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Idempotency
   // ---------------------------------------------------------------------------
 

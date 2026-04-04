@@ -58,6 +58,7 @@ export function showCloseConfirm(
   cleanupKeyboard = attachModalKeyboard({
     onAccept: () => executeSelected(),
     onCancel: () => hideCloseConfirm(),
+    blockAllKeys: true,
   });
 
   logEvent('Close confirmation shown');

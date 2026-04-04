@@ -10,6 +10,9 @@ export interface ModalHandlers {
   onCancel: () => void;
   /** Container to search for focusable elements. Defaults to the active modal. */
   container?: HTMLElement;
+  /** When true, ALL unhandled keys are blocked (preventDefault + stopPropagation).
+   *  Use for non-input modals (context menu, close-confirm, sequence-picker). */
+  blockAllKeys?: boolean;
 }
 
 const FOCUSABLE_SELECTOR = 'input, select, textarea, button:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -56,6 +59,9 @@ export function attachModalKeyboard(handlers: ModalHandlers): () => void {
       }
       e.preventDefault();
       focusables[nextIndex]?.focus();
+    } else if (handlers.blockAllKeys) {
+      e.preventDefault();
+      e.stopPropagation();
     }
   }
   document.addEventListener('keydown', onKeyDown, true);

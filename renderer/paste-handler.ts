@@ -41,6 +41,9 @@ export function setupKeyboardRelay(getActiveSessionId: GetActiveSessionId): void
     const sessionId = getActiveSessionId();
     if (!sessionId) return;
 
+    // Block ALL keyboard relay when any modal overlay is visible
+    if (document.querySelector('.modal-overlay.modal--visible')) return;
+
     // Ctrl+V paste — always intercept, even when xterm has focus
     // (xterm.js doesn't reliably handle paste from clipboard)
     if (e.ctrlKey && e.key === 'v') {

@@ -160,6 +160,8 @@ async function init(): Promise<void> {
   // so it fires before xterm.js can swallow the event)
   document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Tab' && e.ctrlKey) {
+      // Skip when any modal overlay is visible — modal keyboard handler owns all keys
+      if (document.querySelector('.modal-overlay.modal--visible')) return;
       e.preventDefault();
       e.stopPropagation();
       const tm = terminalManager;

@@ -60,8 +60,8 @@ Xbox Controller
         → D-pad auto-repeats when held (400ms delay, 120ms rate)
 
 D-pad / Left stick navigates sessions and auto-selects the terminal.
-Keyboard input always routes to the active terminal (PTY stdin).
-Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
+Keyboard input routes to the active terminal (PTY stdin) — blocked when a modal overlay with `blockAllKeys` is visible (context-menu, close-confirm, sequence-picker, quick-spawn).
+Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus, blocked during modal overlays).
 ```
 
 ## Design Decisions
@@ -69,7 +69,7 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus).
 1. **Browser Gamepad API only** — Single input path via Chromium's Gamepad API. Works with both USB and Bluetooth Xbox controllers. XInput/PowerShell path was removed for simplicity.
 2. **Embedded terminals via PTY** — CLIs run inside the Electron app using node-pty + xterm.js. No external terminal windows. PTY spawns cmd.exe on Windows, bash on Unix. All keyboard/sequence input routes through PTY stdin.
 3. **Voice binding OS-default routing** — Voice bindings default to OS-level robotjs simulation. Only route through PTY when `target === 'terminal'` is explicitly set: converts key to terminal escape sequence via `keyToPtyEscape()` → `ptyWrite()`. Falls back to robotjs when no terminal or `target` is not `'terminal'`. Hold mode sends escape sequence once on press (PTY has no key-up). Supports F1-F12 (VT220), navigation keys, combos.
-4. **Clipboard paste via PTY** — Document-level Ctrl+V interceptor (`renderer/paste-handler.ts`) reads clipboard and writes to active PTY via `ptyWrite()`, regardless of DOM focus. Solves paste not reaching terminal when gamepad navigation focuses the sidebar.
+4. **Clipboard paste via PTY** — Document-level Ctrl+V interceptor (`renderer/paste-handler.ts`) reads clipboard and writes to active PTY via `ptyWrite()`, regardless of DOM focus. Blocked when any modal overlay is visible (`.modal-overlay.modal--visible` guard). Solves paste not reaching terminal when gamepad navigation focuses the sidebar.
 5. **D-pad auto-selection** — D-pad navigation automatically selects and activates the terminal for the focused session. No separate focus/unfocus toggle — keyboard always types into the active terminal, D-pad always navigates sessions.
 6. **Activity dots (not state dots)** — Session cards and overview cards show colored activity dots based on PTY output timing: 🟢 active (green `#44cc44` — producing output) · 🔵 inactive (blue `#4488ff` — >10s silence) · ⚪ idle (grey `#555555` — >5min silence). Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
 7. **IPC bridge pattern** — Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers split into 7 domain files + 1 orchestrator (`handlers.ts`) with dependency injection. Renderer never directly accesses Node.js APIs.

@@ -67,6 +67,7 @@ export function showQuickSpawn(
   cleanupKeyboard = attachModalKeyboard({
     onAccept: () => executeSelectedItem(),
     onCancel: () => hideQuickSpawn(),
+    blockAllKeys: true,
   });
 
   logEvent('Quick spawn opened');

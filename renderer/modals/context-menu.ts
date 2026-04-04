@@ -127,6 +127,7 @@ export function showContextMenu(x: number, y: number, sessionId: string, mode: '
   cleanupKeyboard = attachModalKeyboard({
     onAccept: () => executeSelectedItem(),
     onCancel: () => hideContextMenu(),
+    blockAllKeys: true,
   });
 
   logEvent('Context menu opened');

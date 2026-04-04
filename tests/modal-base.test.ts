@@ -67,6 +67,82 @@ describe('modal-base', () => {
     });
   });
 
+  describe('blockAllKeys option', () => {
+    let onAccept: ReturnType<typeof vi.fn>;
+    let onCancel: ReturnType<typeof vi.fn>;
+    let cleanup: () => void;
+
+    beforeEach(() => {
+      onAccept = vi.fn();
+      onCancel = vi.fn();
+      cleanup = attachModalKeyboard({ onAccept, onCancel, blockAllKeys: true });
+    });
+
+    afterEach(() => {
+      cleanup();
+    });
+
+    it('still calls onCancel on Escape', () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(onCancel).toHaveBeenCalledOnce();
+    });
+
+    it('still calls onAccept on Enter', () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      expect(onAccept).toHaveBeenCalledOnce();
+    });
+
+    it('blocks printable keys from propagating', () => {
+      const e = new KeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(e.defaultPrevented).toBe(true);
+      expect(onAccept).not.toHaveBeenCalled();
+      expect(onCancel).not.toHaveBeenCalled();
+    });
+
+    it('blocks Ctrl+key combos from propagating', () => {
+      const e = new KeyboardEvent('keydown', { key: 'c', ctrlKey: true, bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(e.defaultPrevented).toBe(true);
+    });
+
+    it('blocks Tab key from propagating', () => {
+      const e = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(e.defaultPrevented).toBe(true);
+    });
+
+    it('blocks Ctrl+Tab from propagating', () => {
+      const e = new KeyboardEvent('keydown', { key: 'Tab', ctrlKey: true, bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(e.defaultPrevented).toBe(true);
+    });
+
+    it('does NOT block when blockAllKeys is false (default)', () => {
+      cleanup();
+      cleanup = attachModalKeyboard({ onAccept, onCancel }); // default: blockAllKeys = false
+      const e = new KeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(e.defaultPrevented).toBe(false);
+    });
+
+    it('prevents event from reaching child element listeners', () => {
+      // Simulate xterm.js child: listener on a child div should NOT fire
+      const child = document.createElement('div');
+      document.body.appendChild(child);
+      const childHandler = vi.fn();
+      child.addEventListener('keydown', childHandler);
+
+      // Dispatch from child — capture-phase handler on document fires first
+      const e = new KeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true });
+      child.dispatchEvent(e);
+
+      expect(childHandler).not.toHaveBeenCalled();
+      child.removeEventListener('keydown', childHandler);
+      document.body.removeChild(child);
+    });
+  });
+
   describe('arrow key navigation', () => {
     let cleanup: () => void;
     let container: HTMLDivElement;
