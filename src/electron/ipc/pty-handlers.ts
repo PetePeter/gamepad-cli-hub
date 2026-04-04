@@ -147,6 +147,7 @@ export function setupPtyHandlers(
   ipcMain.handle('pty:write', (_event, sessionId: string, data: string) => {
     try {
       ptyManager.write(sessionId, data);
+      stateDetector.markActive(sessionId);
     } catch (error) {
       logger.error(`[PTY IPC] pty:write failed for session=${sessionId}: ${error}`);
     }

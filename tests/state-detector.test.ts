@@ -452,4 +452,95 @@ describe('StateDetector', () => {
       expect(idleCalls.length).toBe(1); // only from the new timer
     });
   });
+
+  describe('markActive (input-triggered activity)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      detector.dispose();
+      vi.useRealTimers();
+    });
+
+    it('transitions idle session to active on markActive', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markActive('s1');
+
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+    });
+
+    it('transitions inactive session to active on markActive', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      // First make it active via output, then let it go inactive
+      detector.processOutput('s1', 'output');
+      vi.advanceTimersByTime(10_001);
+      handler.mockClear();
+
+      detector.markActive('s1');
+
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+    });
+
+    it('does not emit duplicate active when already active', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'output');
+      handler.mockClear();
+
+      detector.markActive('s1');
+
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('resets inactivity timers so session stays active longer', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'output');
+      handler.mockClear();
+
+      // At 8s, mark active (resets timers)
+      vi.advanceTimersByTime(8_000);
+      detector.markActive('s1');
+
+      // Original inactive timer would fire at 10s (2s from now), but was reset
+      vi.advanceTimersByTime(3_000);
+      expect(handler).not.toHaveBeenCalled();
+
+      // New inactive timer fires at 8s + 10s = 18s from start (7s from last advance)
+      vi.advanceTimersByTime(7_001);
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'inactive' });
+    });
+
+    it('does not trigger keyword scanning (no state-change events)', () => {
+      const stateHandler = vi.fn();
+      detector.on('state-change', stateHandler);
+
+      // markActive with text that contains a keyword — should NOT trigger state change
+      detector.markActive('s1');
+
+      expect(stateHandler).not.toHaveBeenCalled();
+    });
+
+    it('works after long idle period (idle → active)', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      // Make active then let go all the way to idle
+      detector.processOutput('s1', 'output');
+      vi.advanceTimersByTime(300_001);
+      handler.mockClear();
+
+      // Now markActive from idle state
+      detector.markActive('s1');
+
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+    });
+  });
 });

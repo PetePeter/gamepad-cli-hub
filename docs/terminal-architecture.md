@@ -39,16 +39,19 @@ PTY Data Flow:
                      ↑                    └──────────────────┘
   voice/paste ───────┘                    ┌──────────────────┐
   StateDetector  ←── PTY stdout ──────── │ [●Claude][●Copilot]│
-  PipelineQueue  ←── state changes ───── └──────────────────┘
+               ←── PTY stdin (markActive)└──────────────────┘
+  PipelineQueue  ←── state changes
 ```
 
 ## Activity Dots
 
-Session cards and overview cards use activity-based coloring (PTY output timing, not AIAGENT state):
+Session cards and overview cards use activity-based coloring (PTY I/O timing, not AIAGENT state):
 
-- 🟢 active (green `#44cc44` — producing output)
+- 🟢 active (green `#44cc44` — producing output or receiving user input)
 - 🔵 inactive (blue `#4488ff` — >10s silence)
 - ⚪ idle (grey `#555555` — >5min silence)
+
+Input tracking: the `pty:write` IPC handler calls `StateDetector.markActive(sessionId)` on every keystroke, so the green dot appears immediately when the user types — not just when the shell echoes back. `markActive()` only resets activity timers; it does NOT scan for AIAGENT-* keywords.
 
 Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
 
@@ -57,7 +60,7 @@ Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
 | Module | File | Role |
 |--------|------|------|
 | PtyManager | `src/session/pty-manager.ts` | Spawns node-pty processes (cmd.exe), routes stdin/stdout, handles resize/kill |
-| StateDetector | `src/session/state-detector.ts` | Scans PTY output for `AIAGENT-*` keywords to detect CLI state + tracks output activity (active/inactive/idle levels via `activity-change` events) |
+| StateDetector | `src/session/state-detector.ts` | Scans PTY output for `AIAGENT-*` keywords to detect CLI state + tracks I/O activity (active/inactive/idle levels via `activity-change` events). `processOutput()` handles PTY stdout (keywords + activity). `markActive()` handles PTY stdin (activity only, no keyword scan) |
 | PipelineQueue | `src/session/pipeline-queue.ts` | Auto-handoff: routes queued tasks to waiting sessions. Handoff triggers on completed or idle state transitions |
 | InitialPrompt | `src/session/initial-prompt.ts` | Converts sequence parser syntax to PTY escape codes, sends after configurable delay. `onComplete` callback signals when all items are done |
 | SequenceParser | `src/input/sequence-parser.ts` | Parses `{Enter}`, `{Ctrl+C}`, `{Wait 500}` etc. into typed actions |

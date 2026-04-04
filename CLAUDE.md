@@ -25,7 +25,7 @@ graph TB
             SM[SessionManager<br/>EventEmitter]
             SP[SessionPersistence<br/>YAML save/load]
             PTY[PtyManager<br/>node-pty spawn/write/resize]
-            SD[StateDetector<br/>AIAGENT-* keywords]
+            SD[StateDetector<br/>AIAGENT-* keywords<br/>+ input/output activity]
             PQ[PipelineQueue<br/>Auto-handoff]
             IP[InitialPrompt<br/>Sequence → PTY]
             CL[ConfigLoader<br/>Profile YAML]
@@ -44,6 +44,7 @@ graph TB
     IPC --> CL
     SM --> SP
     PTY --> SD
+    IPC --> SD
     SD --> PQ
     PTY --> IP
 ```
@@ -71,7 +72,7 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus, block
 3. **Voice binding OS-default routing** — Voice bindings default to OS-level robotjs simulation. Only route through PTY when `target === 'terminal'` is explicitly set: converts key to terminal escape sequence via `keyToPtyEscape()` → `ptyWrite()`. Falls back to robotjs when no terminal or `target` is not `'terminal'`. Hold mode sends escape sequence once on press (PTY has no key-up). Supports F1-F12 (VT220), navigation keys, combos.
 4. **Clipboard paste via PTY** — Document-level Ctrl+V interceptor (`renderer/paste-handler.ts`) reads clipboard and writes to active PTY via `ptyWrite()`, regardless of DOM focus. Blocked when any modal overlay is visible (`.modal-overlay.modal--visible` guard). Solves paste not reaching terminal when gamepad navigation focuses the sidebar.
 5. **D-pad auto-selection** — D-pad navigation automatically selects and activates the terminal for the focused session. No separate focus/unfocus toggle — keyboard always types into the active terminal, D-pad always navigates sessions.
-6. **Activity dots (not state dots)** — Session cards and overview cards show colored activity dots based on PTY output timing: 🟢 active (green `#44cc44` — producing output) · 🔵 inactive (blue `#4488ff` — >10s silence) · ⚪ idle (grey `#555555` — >5min silence). Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
+6. **Activity dots (not state dots)** — Session cards and overview cards show colored activity dots based on PTY I/O timing: 🟢 active (green `#44cc44` — producing output or receiving user input) · 🔵 inactive (blue `#4488ff` — >10s silence) · ⚪ idle (grey `#555555` — >5min silence). Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`. Input tracking: `pty:write` IPC handler calls `StateDetector.markActive()` — green dot appears immediately on user typing, not just on shell echo.
 7. **IPC bridge pattern** — Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers split into 7 domain files + 1 orchestrator (`handlers.ts`) with dependency injection. Renderer never directly accesses Node.js APIs.
 8. **Self-contained profile YAML** — Each profile is a single YAML file containing tools, working directories, bindings, stick config, and dpad config. Switching profiles changes everything. Settings stored separately. Auto-migration merges legacy `tools.yaml`/`directories.yaml` into profiles on first load.
 9. **Per-CLI bindings** — Same button does different things depending on active CLI type.

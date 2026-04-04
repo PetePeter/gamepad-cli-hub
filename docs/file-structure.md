@@ -26,7 +26,7 @@ src/
 │   ├── manager.ts              # Session tracking (EventEmitter), calls persistence on changes
 │   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + health check
 │   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
-│   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection + activity tracking (active/inactive/idle via output timing)
+│   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection + I/O activity tracking (active/inactive/idle via input+output timing)
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
 │   ├── notification-manager.ts # Windows toast notifications (Electron Notification API, state/activity triggers, dedup, click-to-focus)
 │   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay, onComplete callback

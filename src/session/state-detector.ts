@@ -87,6 +87,19 @@ export class StateDetector extends EventEmitter {
     this.idleTimeoutMs = timeouts?.idleMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   }
 
+  /** Mark a session as active due to user input (PTY stdin).
+   *  Unlike processOutput, this does NOT scan for AIAGENT-* keywords. */
+  markActive(sessionId: string): void {
+    const tracking = this.getOrCreate(sessionId);
+
+    if (tracking.activityLevel !== 'active') {
+      tracking.activityLevel = 'active';
+      this.emit('activity-change', { sessionId, level: 'active' } satisfies ActivityChange);
+    }
+
+    this.resetActivityTimers(sessionId);
+  }
+
   /** Feed output data from a session's PTY. */
   processOutput(sessionId: string, data: string): void {
     const tracking = this.getOrCreate(sessionId);
