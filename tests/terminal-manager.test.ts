@@ -773,8 +773,9 @@ describe('TerminalView — DOM wheel listener', () => {
     expect(wheelCalls[0][2]).toEqual({ passive: false, capture: true });
   });
 
-  it('calls scrollLines on wheel down', () => {
+  it('calls scrollLines on wheel down (normal buffer)', () => {
     new TerminalView({ sessionId: 'dwl-2', container });
+    lastTerminal().buffer.active.type = 'normal';
     const viewport = container.querySelector('.xterm-viewport')!;
 
     const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true });
@@ -783,8 +784,9 @@ describe('TerminalView — DOM wheel listener', () => {
     expect(lastTerminal().scrollLines).toHaveBeenCalledWith(3); // 120/40 = 3
   });
 
-  it('calls scrollLines with negative lines on wheel up', () => {
+  it('calls scrollLines with negative lines on wheel up (normal buffer)', () => {
     new TerminalView({ sessionId: 'dwl-3', container });
+    lastTerminal().buffer.active.type = 'normal';
     const viewport = container.querySelector('.xterm-viewport')!;
 
     const ev = new WheelEvent('wheel', { deltaY: -80, cancelable: true });
@@ -793,13 +795,51 @@ describe('TerminalView — DOM wheel listener', () => {
     expect(lastTerminal().scrollLines).toHaveBeenCalledWith(-2); // -80/40 = -2
   });
 
-  it('scrolls at least 1 line for small deltaY', () => {
+  it('scrolls at least 1 line for small deltaY (normal buffer)', () => {
     new TerminalView({ sessionId: 'dwl-4', container });
+    lastTerminal().buffer.active.type = 'normal';
     const viewport = container.querySelector('.xterm-viewport')!;
 
     const ev = new WheelEvent('wheel', { deltaY: 10, cancelable: true });
     viewport.dispatchEvent(ev);
 
     expect(lastTerminal().scrollLines).toHaveBeenCalledWith(1); // min 1 line
+  });
+
+  it('sends PageDown to PTY on wheel down in alternate buffer', () => {
+    const onData = vi.fn();
+    new TerminalView({ sessionId: 'dwl-5', container, onData });
+    lastTerminal().buffer.active.type = 'alternate';
+    const viewport = container.querySelector('.xterm-viewport')!;
+
+    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true });
+    viewport.dispatchEvent(ev);
+
+    expect(onData).toHaveBeenCalledWith('\x1b[6~'); // PageDown
+    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
+  });
+
+  it('sends PageUp to PTY on wheel up in alternate buffer', () => {
+    const onData = vi.fn();
+    new TerminalView({ sessionId: 'dwl-6', container, onData });
+    lastTerminal().buffer.active.type = 'alternate';
+    const viewport = container.querySelector('.xterm-viewport')!;
+
+    const ev = new WheelEvent('wheel', { deltaY: -80, cancelable: true });
+    viewport.dispatchEvent(ev);
+
+    expect(onData).toHaveBeenCalledWith('\x1b[5~'); // PageUp
+    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
+  });
+
+  it('falls back to scrollLines in alternate buffer without onData', () => {
+    new TerminalView({ sessionId: 'dwl-7', container });
+    lastTerminal().buffer.active.type = 'alternate';
+    const viewport = container.querySelector('.xterm-viewport')!;
+
+    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true });
+    viewport.dispatchEvent(ev);
+
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(3);
   });
 });

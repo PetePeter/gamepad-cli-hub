@@ -24,6 +24,7 @@ export class TerminalView {
   private fitAddon: FitAddon;
   private searchAddon: SearchAddon;
   private container: HTMLElement;
+  private writeCallback?: (data: string) => void;
   private disposed = false;
 
   constructor(options: TerminalViewOptions) {
@@ -82,23 +83,31 @@ export class TerminalView {
     // All wheel scrolling handled by our DOM listener below.
     this.terminal.attachCustomWheelEventHandler(() => false);
 
-    // Capture-phase wheel listener on the xterm viewport — calls scrollLines()
-    // directly, bypassing xterm's internal wheel path. This is the same
-    // mechanism used by gamepad scroll bindings (which work reliably).
+    // Capture-phase wheel listener on the xterm viewport — bypasses xterm's
+    // internal wheel path (blocked above). Normal buffer → scrollLines() for
+    // scrollback; alternate buffer → send Page Up/Down to PTY so the CLI app
+    // handles scrolling (same as gamepad left-stick bindings).
     const viewport = this.container.querySelector('.xterm-viewport');
     if (viewport) {
       viewport.addEventListener('wheel', (e) => {
         e.preventDefault();
         e.stopPropagation();
         const we = e as WheelEvent;
-        const lines = Math.sign(we.deltaY) * Math.max(1, Math.round(Math.abs(we.deltaY) / 40));
-        this.terminal.scrollLines(lines);
+
+        if (this.terminal.buffer.active.type === 'alternate' && this.writeCallback) {
+          const key = we.deltaY > 0 ? '\x1b[6~' : '\x1b[5~'; // PageDown : PageUp
+          this.writeCallback(key);
+        } else {
+          const lines = Math.sign(we.deltaY) * Math.max(1, Math.round(Math.abs(we.deltaY) / 40));
+          this.terminal.scrollLines(lines);
+        }
       }, { passive: false, capture: true });
     }
 
     this.fit();
 
     if (options.onData) {
+      this.writeCallback = options.onData;
       this.terminal.onData(options.onData);
     }
 
