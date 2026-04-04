@@ -9,6 +9,7 @@ Does NOT commit, tag, or push. Run sendDeploy.py after validating the EXE.
 
 Usage:
     python prepareDeploy.py <patch|minor|major>
+    python prepareDeploy.py <patch|minor|major> --force   # skip dirty-repo check
 
 Rollback (if unhappy with build):
     git checkout package.json
@@ -98,11 +99,15 @@ def check_git_clean():
 
 
 def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in ("patch", "minor", "major"):
-        print("Usage: python prepareDeploy.py <patch|minor|major>")
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    flags = [a for a in sys.argv[1:] if a.startswith("--")]
+    force = "--force" in flags
+
+    if len(args) != 1 or args[0] not in ("patch", "minor", "major"):
+        print("Usage: python prepareDeploy.py <patch|minor|major> [--force]")
         sys.exit(1)
 
-    part = sys.argv[1]
+    part = args[0]
 
     print("=" * 50)
     print(f"📦 Preparing {part} release...")
@@ -111,8 +116,11 @@ def main():
 
     # 1. Check git is clean
     print("[1/5] Checking git status...")
-    check_git_clean()
-    print("  ✅ Working tree is clean")
+    if force:
+        print("  ⚠️  Skipping dirty-repo check (--force)")
+    else:
+        check_git_clean()
+        print("  ✅ Working tree is clean")
     print()
 
     # 2. Bump version
@@ -127,6 +135,12 @@ def main():
     print("  ✅ Native modules patched")
     print()
 
+    # Clean release/ before building to avoid leftover artifacts
+    release_root = Path("release")
+    if release_root.exists():
+        shutil.rmtree(release_root)
+        print("  Cleaned previous release/")
+
     print("[4/5] Building and packaging...")
     result = run("npm run package")
     if result.returncode != 0:
@@ -134,32 +148,19 @@ def main():
         sys.exit(1)
     print()
 
-    # 4. Move artifacts to dated folder
+    # 4. Move installer artifacts to dated folder (skip win-unpacked build dir)
     print("[5/5] Organizing release artifacts...")
     date_stamp = datetime.now().strftime("%Y%m%d")
-    release_dir = Path("release") / f"{date_stamp}-v{new_version}"
-
-    # electron-builder outputs to release/ — move files into the dated subfolder
-    release_root = Path("release")
-    if not release_root.exists():
-        print("❌ No release output found. Build may have failed.")
-        sys.exit(1)
-
-    # Create dated folder and move all artifacts (except existing dated folders)
+    release_dir = release_root / f"{date_stamp}-v{new_version}"
     release_dir.mkdir(parents=True, exist_ok=True)
+
     for item in release_root.iterdir():
         if item == release_dir or item.name.startswith("."):
             continue
-        # Skip other dated folders from previous builds
-        if item.is_dir() and len(item.name) >= 8 and item.name[:8].isdigit():
+        # Skip the unpacked build directory — only keep distributable files
+        if item.is_dir():
             continue
-        dest = release_dir / item.name
-        if dest.exists():
-            if dest.is_dir():
-                shutil.rmtree(dest)
-            else:
-                dest.unlink()
-        item.rename(dest)
+        item.rename(release_dir / item.name)
 
     # Find the installer EXE
     exes = list(release_dir.glob("*.exe"))
