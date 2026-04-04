@@ -106,6 +106,33 @@ describe('modal-base', () => {
       expect(e.defaultPrevented).toBe(true);
     });
 
+    it('blocks ArrowDown from propagating (no .modal container)', () => {
+      // Context menu uses .context-menu, not .modal — arrows must still be blocked
+      const e = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(e.defaultPrevented).toBe(true);
+    });
+
+    it('blocks ArrowUp from propagating (no .modal container)', () => {
+      const e = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(e.defaultPrevented).toBe(true);
+    });
+
+    it('blocks arrow keys from reaching child element listeners', () => {
+      const child = document.createElement('div');
+      document.body.appendChild(child);
+      const childHandler = vi.fn();
+      child.addEventListener('keydown', childHandler);
+
+      const e = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+      child.dispatchEvent(e);
+
+      expect(childHandler).not.toHaveBeenCalled();
+      child.removeEventListener('keydown', childHandler);
+      document.body.removeChild(child);
+    });
+
     it('blocks Tab key from propagating', () => {
       const e = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
       document.dispatchEvent(e);
