@@ -14,3 +14,5 @@ src/**/*.js.map
 
 # Release artifacts (large EXEs)
 release/
+config/settings.yaml
+config/sessions.yaml
