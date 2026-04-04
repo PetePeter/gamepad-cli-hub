@@ -1,6 +1,6 @@
 {
   "name": "gamepad-cli-hub",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "dist-electron/main.js",
   "type": "module",
   "description": "Xbox controller to multi-CLI session manager with GUI",
@@ -34,6 +34,7 @@
       "dist-electron/**/*",
       "dist/renderer/**/*",
       "renderer/index.html",
+      "renderer/styles/**/*",
       "config/**/*",
       "node_modules/**/*"
     ],
