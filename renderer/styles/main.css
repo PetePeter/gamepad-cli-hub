@@ -1376,6 +1376,37 @@ kbd {
   width: 100%;
 }
 
+/* Browse icon inside input field */
+.settings-form__input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.settings-form__input-wrap input {
+  flex: 1;
+  padding-right: 36px;
+}
+
+.settings-form__browse-btn {
+  position: absolute;
+  right: 4px;
+  padding: 2px 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.settings-form__browse-btn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--text-dim);
+}
+
 /* Read-only card for displaying config */
 .settings-readonly-card {
   padding: var(--spacing-md);

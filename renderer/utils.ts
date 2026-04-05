@@ -207,7 +207,6 @@ export function createBrowseButton(
   btn.textContent = '📁';
   btn.title = 'Browse…';
   btn.type = 'button';
-  btn.style.cssText = 'padding: 4px 8px; background: #3a3a3a; border: 1px solid #555; color: #fff; border-radius: 4px; cursor: pointer; font-size: 14px;';
   btn.addEventListener('click', async () => {
     const selected = await window.gamepadCli.dialogOpenFolder();
     if (selected) {
@@ -271,15 +270,16 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
         if (field.placeholder) input.placeholder = field.placeholder;
 
         if (field.browse) {
-          const browseWrapper = document.createElement('div');
-          browseWrapper.style.display = 'flex';
-          browseWrapper.style.gap = '6px';
-          input.style.flex = '1';
+          const inputWrap = document.createElement('div');
+          inputWrap.className = 'settings-form__input-wrap';
 
           const browseBtn = createBrowseButton(input);
-          browseWrapper.appendChild(input);
-          browseWrapper.appendChild(browseBtn);
-          wrapper.appendChild(browseWrapper);
+          browseBtn.className = 'settings-form__browse-btn focusable';
+          browseBtn.tabIndex = 0;
+
+          inputWrap.appendChild(input);
+          inputWrap.appendChild(browseBtn);
+          wrapper.appendChild(inputWrap);
         } else {
           wrapper.appendChild(input);
         }

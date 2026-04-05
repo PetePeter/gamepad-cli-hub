@@ -243,13 +243,13 @@ function showAddDirectoryForm(panel: HTMLElement): void {
   form.id = 'addDirForm';
   form.innerHTML = `
     <span class="settings-form__title">Add Directory</span>
-    <div class="settings-form__row">
-      <div class="settings-form__field">
-        <label>Name</label>
-        <input type="text" id="newDirName" placeholder="e.g. My Project" class="focusable" tabindex="0" />
-      </div>
-      <div class="settings-form__field">
-        <label>Path</label>
+    <div class="settings-form__field">
+      <label>Name</label>
+      <input type="text" id="newDirName" placeholder="e.g. My Project" class="focusable" tabindex="0" />
+    </div>
+    <div class="settings-form__field">
+      <label>Path</label>
+      <div class="settings-form__input-wrap">
         <input type="text" id="newDirPath" placeholder="e.g. C:\\projects\\my-project" class="focusable" tabindex="0" />
       </div>
     </div>
@@ -269,10 +269,8 @@ function showAddDirectoryForm(panel: HTMLElement): void {
   const pathInput = form.querySelector('#newDirPath') as HTMLInputElement;
   const nameInput = form.querySelector('#newDirName') as HTMLInputElement;
   const browseBtn = createBrowseButton(pathInput, nameInput);
-  browseBtn.style.marginLeft = '6px';
-  pathInput.parentElement!.style.display = 'flex';
-  pathInput.parentElement!.style.gap = '6px';
-  pathInput.style.flex = '1';
+  browseBtn.className = 'settings-form__browse-btn focusable';
+  browseBtn.tabIndex = 0;
   pathInput.parentElement!.appendChild(browseBtn);
 
   document.getElementById('saveNewDirBtn')?.addEventListener('click', async () => {
