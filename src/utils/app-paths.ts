@@ -80,7 +80,6 @@ export function getAppRootDir(dirname: string): string {
 export function seedConfigIfNeeded(sourceDir: string, targetDir: string): void {
   if (!fs.existsSync(sourceDir)) return;
   if (fs.existsSync(targetDir)) return;
-
   copyDirRecursive(sourceDir, targetDir);
 }
 

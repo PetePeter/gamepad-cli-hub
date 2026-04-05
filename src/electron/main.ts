@@ -12,7 +12,7 @@ import { registerIPCHandlers } from './ipc/handlers.js';
 import { setupPowerMonitor } from '../session/power-monitor.js';
 import { configLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
-import { getRendererHtmlPath } from '../utils/app-paths.js';
+import { getRendererHtmlPath, isPackaged, seedConfigIfNeeded, getConfigDir } from '../utils/app-paths.js';
 
 // Enable Chromium gamepad extensions for Bluetooth controller support
 app.commandLine.appendSwitch('enable-gamepad-extensions');
@@ -161,6 +161,13 @@ function createWindow(): void {
 app.whenReady().then(() => {
   logger.info('[Main] App ready');
   logger.info(`[Main] Crash dumps directory: ${app.getPath('crashDumps')}`);
+
+  // Belt-and-suspenders: seed config from main.ts in case module-level seed didn't run
+  if (isPackaged(__dirname)) {
+    const bundled = join(__dirname, '..', 'config');
+    const target = getConfigDir(__dirname);
+    seedConfigIfNeeded(bundled, target);
+  }
 
   // Register IPC handlers
   const ipc = registerIPCHandlers(() => mainWindow);

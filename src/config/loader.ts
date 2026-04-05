@@ -202,7 +202,7 @@ export function stickVirtualButtonName(stick: 'left' | 'right', direction: Stick
 const __loader_dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CONFIG_DIR = getConfigDir(__loader_dirname);
 
-// When packaged, seed user-data config from the bundled defaults on first launch
+// When packaged, seed user-data config from bundled defaults on first launch
 if (isPackaged(__loader_dirname)) {
   const bundledConfigDir = path.join(__loader_dirname, '..', 'config');
   seedConfigIfNeeded(bundledConfigDir, DEFAULT_CONFIG_DIR);
