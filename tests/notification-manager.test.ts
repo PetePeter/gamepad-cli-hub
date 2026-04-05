@@ -427,20 +427,141 @@ describe('NotificationManager', () => {
       expect(mockNotificationShow).toHaveBeenCalledTimes(2);
     });
 
+    it('removeSession clears output buffer', () => {
+      manager.feedOutput('session-1', 'some output\n');
+      expect(manager.getLastLines('session-1', 5)).toHaveLength(1);
+
+      manager.removeSession('session-1');
+      expect(manager.getLastLines('session-1', 5)).toHaveLength(0);
+    });
+
     it('dispose clears all tracking', () => {
       manager.handleStateChange({
         sessionId: 'session-1',
         previousState: 'implementing',
         newState: 'completed',
       });
+      manager.feedOutput('session-1', 'line\n');
       manager.dispose();
 
+      expect(manager.getLastLines('session-1', 5)).toHaveLength(0);
       manager.handleStateChange({
         sessionId: 'session-1',
         previousState: 'implementing',
         newState: 'idle',
       });
       expect(mockNotificationShow).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ==========================================================================
+  // Output buffer (feedOutput / getLastLines)
+  // ==========================================================================
+
+  describe('feedOutput', () => {
+    it('stores completed lines', () => {
+      manager.feedOutput('session-1', 'line one\nline two\n');
+      expect(manager.getLastLines('session-1', 5)).toEqual(['line one', 'line two']);
+    });
+
+    it('handles partial lines across multiple calls', () => {
+      manager.feedOutput('session-1', 'partial');
+      manager.feedOutput('session-1', ' line\n');
+      expect(manager.getLastLines('session-1', 5)).toEqual(['partial line']);
+    });
+
+    it('strips ANSI escape sequences', () => {
+      manager.feedOutput('session-1', '\x1b[32mgreen text\x1b[0m\n');
+      expect(manager.getLastLines('session-1', 5)).toEqual(['green text']);
+    });
+
+    it('skips blank lines', () => {
+      manager.feedOutput('session-1', 'line one\n\n\nline two\n');
+      expect(manager.getLastLines('session-1', 5)).toEqual(['line one', 'line two']);
+    });
+
+    it('respects ring buffer max (10 lines)', () => {
+      for (let i = 0; i < 15; i++) {
+        manager.feedOutput('session-1', `line ${i}\n`);
+      }
+      const lines = manager.getLastLines('session-1', 10);
+      expect(lines).toHaveLength(10);
+      expect(lines[0]).toBe('line 5');
+      expect(lines[9]).toBe('line 14');
+    });
+
+    it('returns last N lines when count < buffer size', () => {
+      for (let i = 0; i < 8; i++) {
+        manager.feedOutput('session-1', `line ${i}\n`);
+      }
+      const lines = manager.getLastLines('session-1', 3);
+      expect(lines).toEqual(['line 5', 'line 6', 'line 7']);
+    });
+
+    it('includes partial line in getLastLines', () => {
+      manager.feedOutput('session-1', 'complete\npartial');
+      const lines = manager.getLastLines('session-1', 5);
+      expect(lines).toEqual(['complete', 'partial']);
+    });
+
+    it('returns empty array for unknown session', () => {
+      expect(manager.getLastLines('unknown', 5)).toEqual([]);
+    });
+
+    it('handles \\r\\n line endings', () => {
+      manager.feedOutput('session-1', 'line one\r\nline two\r\n');
+      expect(manager.getLastLines('session-1', 5)).toEqual(['line one', 'line two']);
+    });
+
+    it('handles \\r carriage return (overwrite)', () => {
+      manager.feedOutput('session-1', 'progress: 50%\rprogress: 100%\n');
+      expect(manager.getLastLines('session-1', 5)).toEqual(['progress: 100%']);
+    });
+  });
+
+  // ==========================================================================
+  // Notification body includes output preview
+  // ==========================================================================
+
+  describe('output in notification body', () => {
+    it('includes recent output lines in notification body', () => {
+      manager.feedOutput('session-1', 'Building project...\nTests passed: 42\nDone!\n');
+      manager.handleStateChange({
+        sessionId: 'session-1',
+        previousState: 'implementing',
+        newState: 'completed',
+      });
+      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
+        body: '"hub-abc123" in my-project is done.\nBuilding project...\nTests passed: 42\nDone!',
+      }));
+    });
+
+    it('notification body has no extra newline when no output buffered', () => {
+      manager.handleStateChange({
+        sessionId: 'session-1',
+        previousState: 'implementing',
+        newState: 'completed',
+      });
+      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
+        body: '"hub-abc123" in my-project is done.',
+      }));
+    });
+
+    it('limits output preview to 5 lines', () => {
+      for (let i = 0; i < 10; i++) {
+        manager.feedOutput('session-1', `output line ${i}\n`);
+      }
+      manager.handleStateChange({
+        sessionId: 'session-1',
+        previousState: 'implementing',
+        newState: 'completed',
+      });
+      const call = mockNotificationShow.mock.calls[0][0];
+      const bodyLines = call.body.split('\n');
+      // 1 status line + 5 output lines = 6
+      expect(bodyLines).toHaveLength(6);
+      expect(bodyLines[1]).toBe('output line 5');
+      expect(bodyLines[5]).toBe('output line 9');
     });
   });
 });

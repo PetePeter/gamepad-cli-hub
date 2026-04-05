@@ -28,6 +28,9 @@ crashReporter.start({
   uploadToServer: false,
 });
 
+// Set app identity so Windows toast notifications show our name, not "Electron"
+app.setAppUserModelId('com.gamepadcli.hub');
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let mainWindow: BrowserWindow | null = null;

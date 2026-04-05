@@ -5,6 +5,7 @@ import type { SessionManager } from './manager.js';
 import type { ConfigLoader } from '../config/loader.js';
 import type { SessionState } from '../types/session.js';
 import { logger } from '../utils/logger.js';
+import { stripAnsi } from '../utils/strip-ansi.js';
 
 /** States considered "active" (CLI is working). */
 const ACTIVE_STATES: ReadonlySet<SessionState> = new Set(['implementing', 'planning']);
@@ -12,9 +13,20 @@ const ACTIVE_STATES: ReadonlySet<SessionState> = new Set(['implementing', 'plann
 /** Dedup guard window — skip duplicate notifications for the same session within this period. */
 const DEDUP_WINDOW_MS = 15_000;
 
+/** Number of recent PTY output lines to include in notification body. */
+const PREVIEW_LINES = 5;
+
+/** Max completed lines kept per session (ring buffer). */
+const MAX_BUFFER_LINES = 10;
+
 interface NotificationContent {
   title: string;
   body: string;
+}
+
+interface OutputBuffer {
+  lines: string[];
+  partial: string;
 }
 
 const STATE_LABELS: Record<string, { emoji: string; label: string; verb: string }> = {
@@ -30,11 +42,16 @@ function buildContent(
   cliTypeName: string,
   workingDir: string | undefined,
   labelInfo: { emoji: string; label: string; verb: string },
+  outputLines: string[] = [],
 ): NotificationContent {
   const dirName = workingDir ? path.basename(workingDir) : 'unknown';
+  let body = `"${sessionName}" in ${dirName} ${labelInfo.verb}.`;
+  if (outputLines.length > 0) {
+    body += '\n' + outputLines.join('\n');
+  }
   return {
     title: `${labelInfo.emoji} ${labelInfo.label} — ${cliTypeName}`,
-    body: `"${sessionName}" in ${dirName} ${labelInfo.verb}.`,
+    body,
   };
 }
 
@@ -50,12 +67,47 @@ function buildContent(
  */
 export class NotificationManager {
   private lastNotificationTime: Map<string, number> = new Map();
+  private outputBuffers: Map<string, OutputBuffer> = new Map();
 
   constructor(
     private getMainWindow: () => BrowserWindow | null,
     private sessionManager: SessionManager,
     private configLoader: ConfigLoader,
   ) {}
+
+  /** Feed raw PTY output to maintain a small ring buffer per session. */
+  feedOutput(sessionId: string, data: string): void {
+    let buf = this.outputBuffers.get(sessionId);
+    if (!buf) {
+      buf = { lines: [], partial: '' };
+      this.outputBuffers.set(sessionId, buf);
+    }
+
+    const clean = stripAnsi(data).replace(/\r\n/g, '\n');
+    const combined = buf.partial + clean;
+    const parts = combined.split('\n');
+    buf.partial = parts.pop() ?? '';
+
+    for (const rawLine of parts) {
+      const crIndex = rawLine.lastIndexOf('\r');
+      const line = crIndex >= 0 ? rawLine.substring(crIndex + 1) : rawLine;
+      if (line.trim()) {
+        buf.lines.push(line);
+      }
+    }
+
+    if (buf.lines.length > MAX_BUFFER_LINES) {
+      buf.lines = buf.lines.slice(-MAX_BUFFER_LINES);
+    }
+  }
+
+  /** Get the last N non-empty lines from the output buffer. */
+  getLastLines(sessionId: string, count: number): string[] {
+    const buf = this.outputBuffers.get(sessionId);
+    if (!buf) return [];
+    const allLines = buf.partial?.trim() ? [...buf.lines, buf.partial] : [...buf.lines];
+    return allLines.slice(-count);
+  }
 
   /** Call when StateDetector emits 'state-change'. */
   handleStateChange(transition: StateTransition): void {
@@ -84,7 +136,8 @@ export class NotificationManager {
     if (!session) return;
 
     const cliTypeName = session.cliType || 'Unknown';
-    const content = buildContent(session.name, cliTypeName, session.workingDir, labelInfo);
+    const outputLines = this.getLastLines(sessionId, PREVIEW_LINES);
+    const content = buildContent(session.name, cliTypeName, session.workingDir, labelInfo, outputLines);
 
     this.showNotification(content, sessionId);
     this.lastNotificationTime.set(sessionId, Date.now());
@@ -132,13 +185,15 @@ export class NotificationManager {
     }
   }
 
-  /** Remove dedup tracking for a session (call on session removal). */
+  /** Remove dedup tracking and output buffer for a session (call on session removal). */
   removeSession(sessionId: string): void {
     this.lastNotificationTime.delete(sessionId);
+    this.outputBuffers.delete(sessionId);
   }
 
   /** Clean up all tracking. */
   dispose(): void {
     this.lastNotificationTime.clear();
+    this.outputBuffers.clear();
   }
 }

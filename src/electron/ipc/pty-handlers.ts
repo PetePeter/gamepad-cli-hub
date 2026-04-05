@@ -182,6 +182,9 @@ export function setupPtyHandlers(
     // Feed to state detector for keyword scanning
     stateDetector.processOutput(sessionId, data);
 
+    // Feed to notification manager for output preview in toasts
+    notificationManager?.feedOutput(sessionId, data);
+
     // Forward to renderer for xterm.js rendering
     const win = getMainWindow();
     if (win && !win.isDestroyed()) {

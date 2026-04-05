@@ -3,12 +3,9 @@
  * as ANSI-stripped plain text for preview display.
  */
 
-// Strip all ANSI escape sequences for clean text preview
-const ANSI_RE = /\x1b(?:\[[0-9;]*[a-zA-Z]|\][^\x07]*\x07|\[[?][0-9;]*[hlsru]|\(B)/g;
+import { stripAnsi } from '../../src/utils/strip-ansi.js';
 
-export function stripAnsi(text: string): string {
-  return text.replace(ANSI_RE, '');
-}
+export { stripAnsi };
 
 interface SessionBuffer {
   lines: string[];
