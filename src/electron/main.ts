@@ -76,12 +76,15 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: false, // Required: preload needs Node.js APIs for contextBridge IPC
     },
-    title: 'Gamepad CLI Hub',
+    title: `Gamepad CLI Hub v${app.getVersion()}`,
   });
 
   // Load the renderer HTML (__dirname-relative, works inside asar)
   const rendererPath = getRendererHtmlPath(__dirname);
   mainWindow.loadFile(rendererPath);
+
+  // Keep our BrowserWindow title (prevents HTML <title> from overriding it)
+  mainWindow.on('page-title-updated', (e) => e.preventDefault());
 
   // Show window when ready — maximise on first launch
   mainWindow.once('ready-to-show', () => {
