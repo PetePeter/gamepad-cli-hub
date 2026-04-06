@@ -57,12 +57,25 @@ vi.mock('../src/session/pipeline-queue.js', () => ({
   }),
 }));
 
+vi.mock('../src/session/notification-manager.js', () => ({
+  NotificationManager: vi.fn(function (this: any) {
+    this.dispose = vi.fn();
+  }),
+}));
+
 vi.mock('../src/config/loader.js', () => ({
   configLoader: {
     load: vi.fn(),
     getCliTypes: vi.fn().mockReturnValue([]),
     getCliTypeEntry: vi.fn(),
     getBindings: vi.fn(),
+    getTelegramConfig: vi.fn().mockReturnValue({
+      enabled: false,
+      botToken: '',
+      chatId: 0,
+      instanceName: 'test',
+      allowedUserIds: [],
+    }),
   },
 }));
 
@@ -96,6 +109,44 @@ vi.mock('../src/electron/ipc/system-handlers.js', () => ({
 vi.mock('../src/electron/ipc/pty-handlers.js', () => ({
   setupPtyHandlers: vi.fn(),
   cancelAllPrompts: vi.fn(),
+}));
+vi.mock('../src/electron/ipc/telegram-handlers.js', () => ({
+  setupTelegramHandlers: vi.fn().mockReturnValue(vi.fn()),
+}));
+
+vi.mock('../src/telegram/bot.js', () => ({
+  TelegramBotCore: vi.fn(function (this: any) {
+    this.start = vi.fn();
+    this.stop = vi.fn();
+    this.isRunning = vi.fn().mockReturnValue(false);
+    this.on = vi.fn();
+    this.removeListener = vi.fn();
+    this.emit = vi.fn();
+  }),
+}));
+vi.mock('../src/telegram/topic-manager.js', () => ({
+  TopicManager: vi.fn(function (this: any) {
+    this.ensureTopic = vi.fn();
+    this.ensureAllTopics = vi.fn().mockResolvedValue(undefined);
+    this.setInstanceName = vi.fn();
+  }),
+}));
+vi.mock('../src/telegram/notifier.js', () => ({
+  TelegramNotifier: vi.fn(function (this: any) {
+    this.handleStateChange = vi.fn();
+    this.dispose = vi.fn();
+  }),
+}));
+
+vi.mock('../src/telegram/orchestrator.js', () => ({
+  initTelegramModules: vi.fn().mockReturnValue({
+    textInput: {},
+    outputSummarizer: {},
+    terminalMirror: {},
+    dashboard: { start: vi.fn().mockResolvedValue(undefined), dispose: vi.fn() },
+    feedPtyOutput: vi.fn(),
+    cleanup: vi.fn(),
+  }),
 }));
 
 vi.mock('electron', () => ({

@@ -315,6 +315,280 @@
     color: var(--tg-text-dim);
     font-size: 24px;
   }
+
+  /* ── Desktop App Frame ── */
+  .desktop-frame {
+    background: #0a0a0a;
+    border-radius: 12px;
+    border: 1px solid #222222;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    max-width: 500px;
+    margin: 0 auto;
+  }
+
+  .desktop-titlebar {
+    background: #111111;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #222222;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .desktop-titlebar .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .desktop-titlebar .dot.red    { background: #e53935; }
+  .desktop-titlebar .dot.yellow { background: #f9a825; }
+  .desktop-titlebar .dot.green  { background: #43a047; }
+
+  .desktop-titlebar .title-text {
+    color: #999;
+    font-size: 13px;
+    margin-left: 8px;
+    font-weight: 500;
+  }
+
+  .settings-tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid #222222;
+    background: #111111;
+    overflow-x: auto;
+  }
+
+  .settings-tab {
+    padding: 10px 16px;
+    font-size: 12px;
+    color: #555;
+    cursor: default;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s;
+  }
+
+  .settings-tab.active {
+    color: #ff6600;
+    border-bottom-color: #ff6600;
+  }
+
+  .settings-body {
+    padding: 20px 24px 24px;
+  }
+
+  .form-section {
+    margin-bottom: 22px;
+  }
+
+  .form-section-title {
+    color: #ff6600;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 12px;
+  }
+
+  .form-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    gap: 12px;
+  }
+
+  .form-row.stacked {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-label {
+    color: #eee;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .form-input {
+    background: #1a1a1a;
+    border: 1px solid #222222;
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: #eee;
+    font-size: 13px;
+    width: 100%;
+    font-family: inherit;
+  }
+
+  .form-input::placeholder {
+    color: #555;
+  }
+
+  .form-input-with-icon {
+    position: relative;
+  }
+
+  .form-input-with-icon .form-input {
+    padding-right: 32px;
+  }
+
+  .form-input-with-icon .input-icon {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #555;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .form-input-with-icon .input-icon:hover {
+    color: #ff6600;
+  }
+
+  .form-toggle {
+    position: relative;
+    width: 40px;
+    min-width: 40px;
+    height: 22px;
+    background: #333;
+    border-radius: 11px;
+    cursor: default;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+
+  .form-toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    background: #888;
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+
+  .form-toggle.on {
+    background: #ff6600;
+  }
+
+  .form-toggle.on::after {
+    left: 21px;
+    background: #fff;
+  }
+
+  .form-helper {
+    color: #555;
+    font-size: 11px;
+    margin-top: 2px;
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+
+  .form-btn {
+    background: #ff6600;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: default;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #555;
+    margin-left: 12px;
+  }
+
+  .status-dot::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #555;
+  }
+
+  .form-section-divider {
+    border-top: 1px solid #222222;
+    margin: 4px 0 22px;
+    height: 0;
+  }
+
+  .setup-guide {
+    background: #111111;
+    border: 1px solid #222222;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .setup-guide-header {
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #999;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: default;
+  }
+
+  .setup-guide-header .chevron {
+    color: #555;
+    font-size: 12px;
+    transition: transform 0.2s;
+  }
+
+  .setup-guide.expanded .chevron {
+    transform: rotate(90deg);
+  }
+
+  .setup-guide-body {
+    padding: 0 14px 14px;
+    font-size: 12px;
+    color: #999;
+    line-height: 1.8;
+  }
+
+  .setup-guide-body ol {
+    padding-left: 20px;
+  }
+
+  .setup-guide-body li {
+    margin-bottom: 2px;
+  }
+
+  .setup-guide-body code {
+    background: #1a1a1a;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+    color: #eee;
+  }
+
+  .notif-toggle-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px 12px;
+    align-items: center;
+  }
+
+  .notif-toggle-grid .form-label {
+    font-size: 13px;
+  }
 </style>
 </head>
 <body>
@@ -330,10 +604,11 @@
   <span class="nav-tab" onclick="scrollToFlow('flow-controls')">Controls</span>
   <span class="nav-tab" onclick="scrollToFlow('flow-commands')">Commands</span>
   <span class="nav-tab" onclick="scrollToFlow('flow-text')">Text Input</span>
-  <span class="nav-tab" onclick="scrollToFlow('flow-output')">Output</span>
+  <span class="nav-tab" onclick="scrollToFlow('flow-output')">Topic Mirror</span>
   <span class="nav-tab" onclick="scrollToFlow('flow-spawn')">Spawn</span>
   <span class="nav-tab" onclick="scrollToFlow('flow-slash')">Slash Cmds</span>
   <span class="nav-tab" onclick="scrollToFlow('flow-confirm')">Confirm</span>
+  <span class="nav-tab" onclick="scrollToFlow('flow-hub-config')">Hub Config</span>
 </nav>
 
 <!-- ═══════════════════════════════════════════════ -->
@@ -366,7 +641,7 @@ Claude Code — finished after 4m 23s
 <span class="dim">Updated just now</span></div>
           <div class="inline-kb">
             <div class="kb-row">
-              <button class="kb-btn">📋 View Output</button>
+              <button class="kb-btn">📌 Go to Topic</button>
               <button class="kb-btn">🚀 Continue</button>
             </div>
             <div class="kb-row">
@@ -393,7 +668,7 @@ Copilot CLI — idle for 2m
           <div class="inline-kb">
             <div class="kb-row">
               <button class="kb-btn">💬 Send Prompt</button>
-              <button class="kb-btn">📋 View Output</button>
+              <button class="kb-btn">📌 Go to Topic</button>
             </div>
             <div class="kb-row">
               <button class="kb-btn">📂 Sessions</button>
@@ -415,7 +690,7 @@ Claude Code — stopped after error
 <span class="red">3 tests failing, build broken</span></div>
           <div class="inline-kb">
             <div class="kb-row">
-              <button class="kb-btn">📋 View Output</button>
+              <button class="kb-btn">📌 Go to Topic</button>
               <button class="kb-btn">💬 Send Fix</button>
             </div>
             <div class="kb-row">
@@ -577,7 +852,7 @@ Session: <span class="bold">"refactor auth"</span>  <span class="green">🔨 Imp
               <button class="kb-btn">✅ Accept</button>
             </div>
             <div class="kb-row">
-              <button class="kb-btn">📋 Output</button>
+              <button class="kb-btn">📌 Topic</button>
               <button class="kb-btn">⚡ Commands</button>
             </div>
             <div class="kb-row">
@@ -617,7 +892,7 @@ Session: <span class="bold">"refactor auth"</span>  <span class="green">🎉 Com
               <button class="kb-btn">💬 Send Prompt</button>
             </div>
             <div class="kb-row">
-              <button class="kb-btn">📋 Output</button>
+              <button class="kb-btn">📌 Topic</button>
               <button class="kb-btn">⚡ Commands</button>
             </div>
             <div class="kb-row">
@@ -755,8 +1030,8 @@ Type your message below. It will be sent to the active terminal after confirmati
 <!-- ═══════════════════════════════════════════════ -->
 
 <div class="flow-section" id="flow-output">
-  <div class="flow-title">Flow 6: Output Viewing</div>
-  <div class="flow-subtitle">P1 smart summary in chat · P2 Mini App for full terminal</div>
+  <div class="flow-title">Flow 6: Topic Terminal Mirror</div>
+  <div class="flow-subtitle">P1 — Output streams as code blocks in each session's forum topic</div>
   <hr class="flow-divider">
 
   <!-- Smart summary -->
@@ -782,7 +1057,7 @@ Type your message below. It will be sent to the active terminal after confirmati
           <div class="inline-kb">
             <div class="kb-row">
               <button class="kb-btn">🔄 Refresh</button>
-              <button class="kb-btn url">🖥 Full Terminal</button>
+              <button class="kb-btn">⏸ Pause Output</button>
             </div>
             <div class="kb-row">
               <button class="kb-btn">💬 Send Prompt</button>
@@ -793,7 +1068,7 @@ Type your message below. It will be sent to the active terminal after confirmati
         </div>
       </div>
 
-      <div class="annotation">↑ Smart 3-5 line summary in chat. "Full Terminal" opens xterm.js Mini App inside Telegram (P2).</div>
+      <div class="annotation">↑ Output summary in the forum topic. Full output streams automatically as code block messages using buffer+edit pattern. "Pause Output" stops live streaming.</div>
 
       <!-- Error output example -->
       <div class="msg">
@@ -810,7 +1085,7 @@ Type your message below. It will be sent to the active terminal after confirmati
           <div class="inline-kb">
             <div class="kb-row">
               <button class="kb-btn">🔄 Refresh</button>
-              <button class="kb-btn url">🖥 Full Terminal</button>
+              <button class="kb-btn">⏸ Pause Output</button>
             </div>
             <div class="kb-row">
               <button class="kb-btn">💬 Yes, fix them</button>
@@ -1067,6 +1342,155 @@ This will terminate the PTY process.
       <div class="annotation">↑ Destructive actions always require explicit confirmation. "Yes, Close" is intentionally styled differently (red).</div>
     </div>
   </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- FLOW 10: HUB CONFIG — Desktop Settings UI -->
+
+<div class="flow-section" id="flow-hub-config" style="max-width: 540px;">
+  <div class="flow-title">Hub Config — Settings UI</div>
+  <div class="flow-subtitle">The "Telegram" tab inside the desktop app's Settings slide-over panel</div>
+  <hr class="flow-divider">
+
+  <div class="desktop-frame">
+    <div class="desktop-titlebar">
+      <span class="dot red"></span>
+      <span class="dot yellow"></span>
+      <span class="dot green"></span>
+      <span class="title-text">Settings</span>
+    </div>
+
+    <div class="settings-tab-bar">
+      <div class="settings-tab">Profiles</div>
+      <div class="settings-tab">Per-CLI Bindings</div>
+      <div class="settings-tab">Tools</div>
+      <div class="settings-tab">Directories</div>
+      <div class="settings-tab active">Telegram</div>
+    </div>
+
+    <div class="settings-body">
+
+      <!-- Section 1: Connection -->
+      <div class="form-section">
+        <div class="form-section-title">Connection</div>
+
+        <div class="form-row">
+          <span class="form-label">Enable Telegram Bot</span>
+          <div class="form-toggle"></div>
+        </div>
+
+        <div class="form-row stacked">
+          <span class="form-label">Bot Token</span>
+          <div class="form-input-with-icon">
+            <div class="form-input" style="color: #555;">Paste token from @BotFather</div>
+            <span class="input-icon" title="How to get a bot token">ℹ️</span>
+          </div>
+        </div>
+
+        <div class="form-row stacked">
+          <span class="form-label">Instance Name</span>
+          <div class="form-input">Home</div>
+          <div class="form-helper">Identifies this hub in topic names, e.g. <strong style="color:#999;">[Home]</strong> session-name</div>
+        </div>
+
+        <div class="form-row" style="gap: 12px; margin-top: 8px;">
+          <div class="form-btn">🔗 Test Connection</div>
+          <span class="status-dot">Not connected</span>
+        </div>
+      </div>
+
+      <div class="form-section-divider"></div>
+
+      <!-- Section 2: Security -->
+      <div class="form-section">
+        <div class="form-section-title">Security</div>
+
+        <div class="form-row stacked">
+          <span class="form-label">Allowed User IDs</span>
+          <div class="form-input" style="color: #555;">Comma-separated Telegram user IDs</div>
+          <div class="form-helper">Send /start to @userinfobot to find your ID</div>
+        </div>
+
+        <div class="form-row">
+          <div>
+            <span class="form-label">Safe Mode</span>
+            <div class="form-helper" style="margin-top: 2px;">Only allow sequence-list commands, block free-text input</div>
+          </div>
+          <div class="form-toggle on"></div>
+        </div>
+      </div>
+
+      <div class="form-section-divider"></div>
+
+      <!-- Section 3: Notifications -->
+      <div class="form-section">
+        <div class="form-section-title">Notifications</div>
+
+        <div class="notif-toggle-grid">
+          <span class="form-label">Session completed</span>
+          <div class="form-toggle on"></div>
+
+          <span class="form-label">Session idle</span>
+          <div class="form-toggle on"></div>
+
+          <span class="form-label">Session error</span>
+          <div class="form-toggle on"></div>
+
+          <span class="form-label">Session crashed</span>
+          <div class="form-toggle on"></div>
+        </div>
+      </div>
+
+      <div class="form-section-divider"></div>
+
+      <!-- Section 4: Forum Topics -->
+      <div class="form-section">
+        <div class="form-section-title">Forum Topics</div>
+
+        <div class="form-row">
+          <div>
+            <span class="form-label">Use Forum Topics</span>
+            <div class="form-helper" style="margin-top: 2px;">One topic per session in a Telegram supergroup. Requires bot to be admin.</div>
+          </div>
+          <div class="form-toggle on"></div>
+        </div>
+
+        <div class="form-row stacked">
+          <span class="form-label">Chat ID</span>
+          <div class="form-input" style="color: #555;">Supergroup ID (starts with -100...)</div>
+          <div class="form-helper">Add bot to group, then send /chatid to get it</div>
+        </div>
+      </div>
+
+      <div class="form-section-divider"></div>
+
+      <!-- Section 5: Setup Guide -->
+      <div class="form-section" style="margin-bottom: 0;">
+        <div class="setup-guide expanded">
+          <div class="setup-guide-header">
+            <span>📖 Setup Guide</span>
+            <span class="chevron">▶</span>
+          </div>
+          <div class="setup-guide-body">
+            <ol>
+              <li>Open Telegram, search <code>@BotFather</code></li>
+              <li>Send <code>/newbot</code>, follow prompts</li>
+              <li>Copy the bot token, paste above</li>
+              <li>Create a supergroup, enable Topics</li>
+              <li>Add bot as admin to the group</li>
+              <li>Send <code>/chatid</code> in the group to get Chat ID</li>
+              <li>Toggle "Enable Telegram Bot" on</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /settings-body -->
+  </div><!-- /desktop-frame -->
+
+  <div class="annotation">↑ Settings panel → Telegram tab. This is the desktop Electron app's configuration UI — not Telegram. Uses the app's dark theme (#0a0a0a bg, #ff6600 accent). Mirrors the same slide-over pattern as Profiles, Per-CLI Bindings, Tools, and Directories tabs.</div>
 </div>
 
 <!-- ═══════════════════════════════════════════════ -->

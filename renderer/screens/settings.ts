@@ -20,6 +20,7 @@ import {
 import { renderBindingsDisplay, renderSequenceGroups } from './settings-bindings.js';
 import { renderProfilesPanel } from './settings-profiles.js';
 import { renderToolsPanel } from './settings-tools.js';
+import { renderTelegramSettings } from './settings-telegram.js';
 
 // ============================================================================
 // Main entry
@@ -37,6 +38,13 @@ export async function loadSettingsScreen(): Promise<void> {
       await renderProfilesPanel();
     } else if (state.settingsTab === 'tools') {
       await renderToolsPanel();
+    } else if (state.settingsTab === 'telegram') {
+      const contentContainer = document.getElementById('bindingsDisplay');
+      if (contentContainer) {
+        const actionBar = document.getElementById('bindingActionBar');
+        if (actionBar) actionBar.innerHTML = '';
+        await renderTelegramSettings(contentContainer);
+      }
     } else if (state.settingsTab === 'directories') {
       await renderDirectoriesPanel();
     } else {
@@ -80,7 +88,7 @@ export function handleSettingsScreenButton(button: string): boolean {
 }
 
 function navigateSettingsTab(direction: number): void {
-  const allTabs = ['profiles', ...state.cliTypes, 'tools', 'directories'];
+  const allTabs = ['profiles', ...state.cliTypes, 'tools', 'directories', 'telegram'];
   const currentIndex = allTabs.indexOf(state.settingsTab);
   let nextIndex = currentIndex + direction;
   if (nextIndex < 0) nextIndex = allTabs.length - 1;
@@ -111,6 +119,7 @@ function renderSettingsTabs(cliTypes: string[]): void {
     ...cliTypes.map(ct => ({ key: ct, label: getCliDisplayName(ct) })),
     { key: 'tools', label: '🔧 Tools' },
     { key: 'directories', label: '📁 Dirs' },
+    { key: 'telegram', label: '📨 Telegram' },
   ];
 
   allTabs.forEach(tab => {

@@ -50,6 +50,7 @@ export function setupPtyHandlers(
   getMainWindow: () => BrowserWindow | null,
   configLoader?: ConfigLoader,
   notificationManager?: NotificationManager,
+  onPtyData?: (sessionId: string, data: string) => void,
 ): void {
   // pty:spawn - Spawn a new PTY process and register as session
   ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string, resumeSessionName?: string) => {
@@ -195,6 +196,9 @@ export function setupPtyHandlers(
 
     // Feed to notification manager for output preview in toasts
     notificationManager?.feedOutput(sessionId, data);
+
+    // Feed to telegram modules (output summarizer + terminal mirror)
+    onPtyData?.(sessionId, data);
 
     // Forward to renderer for xterm.js rendering
     const win = getMainWindow();

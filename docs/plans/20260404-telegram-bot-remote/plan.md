@@ -10,19 +10,18 @@ Users running multiple AI CLI sessions want to monitor and control them from the
 
 ## Vision
 
-A **Telegram bot** running inside the Electron main process that acts as a second controller — not a remote desktop. The bot provides **push notifications with action buttons** and **quick session controls** via inline keyboards. Full terminal output viewing is handled by a **Telegram Mini App** (embedded xterm.js web viewer), not raw text in chat.
+A **Telegram bot** running inside the Electron main process that acts as a second controller — not a remote desktop. The bot provides **push notifications with action buttons**, **quick session controls** via inline keyboards, and **bidirectional terminal mirrors** in forum topics. Each session's topic streams PTY output as monospace code blocks and accepts typed input — no web server, no Mini App.
 
 ```mermaid
 graph TB
     subgraph "Phone (Telegram)"
         N[Push Notifications<br>with action buttons]
         IK[Inline Keyboards<br>session nav + commands]
-        MA[Mini App<br>xterm.js terminal viewer]
+        TM[Topic Terminal Mirror<br>output stream + input]
     end
 
     subgraph "Electron App"
         TB[Telegram Bot Module<br>node-telegram-bot-api]
-        WS[Mini Web Server<br>express + xterm.js + JWT]
         SM[SessionManager]
         PTY[PtyManager]
         SD[StateDetector]
@@ -31,19 +30,18 @@ graph TB
 
     N --> TB
     IK --> TB
-    MA --> WS
+    TM --> TB
     TB --> SM
-    TB --> PTY
+    TB -->|pty write/read| PTY
     TB --> SD
     TB --> CL
-    WS --> PTY
     SD -->|state events| TB
 ```
 
 ### Design Principles
 
 1. **Telegram = notification center + quick actions.** Don't replicate the desktop UI.
-2. **Terminal viewing = web-based Mini App.** Never raw terminal text in chat.
+2. **Terminal mirror in topics.** Each session's forum topic streams PTY output as monospace code blocks and accepts typed input. Buffer+edit pattern keeps topics clean (edit live message, freeze when full, start new).
 3. **Notifications are the #1 value.** Design notification experience first, browsing second.
 4. **Context-aware buttons.** Show Cancel/Accept only when implementing, Send only when idle.
 5. **Destructive actions always require confirmation.** Phone-in-pocket protection.
@@ -59,7 +57,7 @@ graph TB
 |------|--------|---------|---------|
 | Primary | Notifications | "Something happened, act now" | Push (instant) |
 | Secondary | Inline keyboards | Session nav, commands, spawn | 300ms-1.5s per tap |
-| Tertiary | Mini App | Full terminal output viewing | WebSocket (live) |
+| Tertiary | Topic mirror | Full bidirectional terminal I/O | ~1.5s debounce |
 | Power user | Slash commands | Quick typed commands | Instant |
 
 ### Flow 1: Notifications (P0 — Core Value)
@@ -179,50 +177,76 @@ You typed: "git push origin main --force"
 
 **Safe mode option** (configurable): When enabled, only allow sequence-list commands from config, block free-text entirely. Responsible default for unattended use.
 
-### Flow 5: Output Viewing — Hybrid Approach (P1 summary + P2 Mini App)
+### Flow 5: Terminal Mirror in Topics (P1)
 
-**Quick status in Telegram (P1):**
+Each forum topic doubles as a **bidirectional terminal mirror**. PTY output streams into the topic as monospace code blocks; user messages in the topic are forwarded to PTY stdin.
+
+**Output streaming (buffer + edit pattern):**
+
 ```
-📋 Last Activity — 12s ago
-
-> ✅ All 47 tests passed
-> 📁 Modified: src/auth/jwt.ts
-> ⏱ Duration: 23s
-
-[🔄 Refresh]  [🖥 Full View]  [🔙 Back]
+┌─────────────────────────────────────────────┐
+│ [Home] refactor auth                   📌   │
+│─────────────────────────────────────────────│
+│                                             │
+│ 🤖 Gamepad Hub Bot                    14:23 │
+│ ┌─────────────────────────────────────────┐ │
+│ │```                                      │ │
+│ │$ claude                                 │ │
+│ │Claude Code v1.2.3                       │ │
+│ │                                         │ │
+│ │> Analyzing codebase...                  │ │
+│ │> Found 12 files to refactor             │ │
+│ │> Starting with src/auth/jwt.ts          │ │
+│ │```                                      │ │
+│ │ ✏️ Live — updated 2s ago                │ │
+│ └─────────────────────────────────────────┘ │
+│                                             │
+│ 🤖 Gamepad Hub Bot                    14:24 │
+│ ┌─────────────────────────────────────────┐ │
+│ │```                                      │ │
+│ │✅ All 47 tests passed                   │ │
+│ │📁 Modified: src/auth/jwt.ts             │ │
+│ │⏱ Duration: 23s                          │ │
+│ │                                         │ │
+│ │Ready for review. Shall I commit?        │ │
+│ │```                                      │ │
+│ │ 📋 Frozen — 3.4KB                       │ │
+│ └─────────────────────────────────────────┘ │
+│                                             │
+│ 👤 You                                14:25 │
+│ ┌─────────────────────────────────────────┐ │
+│ │ yes, commit with message "refactor jwt" │ │
+│ └─────────────────────────────────────────┘ │
+│                                             │
+│ [✅ Accept] [✋ Cancel] [⚡ Cmds] [📂 List]│
+└─────────────────────────────────────────────┘
 ```
 
-3-5 line smart summary parsed from PTY buffer:
-- Last tool use result (test pass/fail counts)
-- File modification mentions
-- Error/warning lines
-- Completion indicators
+**How the buffer+edit pattern works:**
 
-**Full terminal viewing via Mini App (P2):**
+1. New PTY output arrives → strip ANSI codes → append to buffer
+2. Debounce timer (1.5s) fires → edit the "live" message with current buffer content (wrapped in ``` code block)
+3. Message footer shows "✏️ Live — updated Ns ago"
+4. When buffer exceeds ~3500 chars → freeze message (footer changes to "📋 Frozen — X.XKB"), start new live message
+5. Rate limit: max 20 edits/minute per topic. If exceeded, increase debounce dynamically
 
-The `[🖥 Full View]` button opens a **Telegram Mini App** — a full-screen web view inside Telegram with proper xterm.js rendering:
+**Input forwarding:**
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant TG as Telegram
-    participant Bot as Bot Module
-    participant WS as Mini Web Server
-    participant PTY as PtyManager
+- User types a message in the topic → bot reads it
+- **Safe mode ON**: Bot replies with confirmation ("Send this to PTY?") + ✅/❌ buttons
+- **Safe mode OFF**: Message forwarded directly to PTY stdin via `ptyWrite()`
+- Bot commands (starting with `/`) are NOT forwarded — handled as bot commands
+- Empty messages and media are ignored
 
-    U->>TG: Tap "Full View"
-    TG->>Bot: callback_query
-    Bot->>WS: Generate JWT token for session
-    Bot->>TG: editMessage with web_app button
-    U->>TG: Tap web_app button
-    TG->>WS: Open Mini App (HTTPS + token)
-    WS->>PTY: Subscribe to session output
-    WS-->>TG: WebSocket stream → xterm.js
-    Note over TG: Full-screen terminal with<br>proper fonts, colors, scroll
-    U->>TG: Swipe down to close
-```
+**Telegram API constraints:**
 
-Benefits over raw text: monospace fonts, ANSI colors, scroll, search, pinch-zoom, select+copy. User stays inside Telegram app.
+| Constraint | Limit | Mitigation |
+|-----------|-------|------------|
+| Message length | 4096 chars | Freeze at ~3500, start new message |
+| No ANSI colors | Monospace only | Strip ANSI, use ``` code blocks |
+| Rate limiting | ~30 msg/sec globally | 1.5s debounce, max 20 edits/min/topic |
+| Message edit latency | 300ms-1s | Batch output, don't edit per-line |
+| Rapid output (npm install) | Hundreds of lines/sec | Increase debounce under pressure, truncate middle lines with "... N lines omitted ..." |
 
 ### Flow 6: Spawn New Session (P2)
 
@@ -257,6 +281,141 @@ Power-user shortcuts via Telegram command autocomplete (registered via BotFather
 
 ## Technical Architecture
 
+### Network Architecture — How It Reaches Your Phone
+
+```mermaid
+sequenceDiagram
+    participant Phone as Your Phone<br>(Telegram App)
+    participant Cloud as Telegram<br>Cloud Servers
+    participant Hub as Your PC<br>(Hub + Bot)
+
+    Hub->>Cloud: HTTPS long-poll (getUpdates)
+    Note over Cloud: Connection held open<br>waiting for events
+    Phone->>Cloud: User taps button
+    Cloud-->>Hub: callback_query response
+    Hub->>Cloud: sendMessage / editMessage
+    Cloud-->>Phone: Push notification
+```
+
+The bot does **not** connect to your phone directly. It uses Telegram's cloud infrastructure as a relay:
+
+1. **Bot initiates outbound connection** → `https://api.telegram.org/bot<TOKEN>/getUpdates`
+2. **Telegram queues updates** for your bot (messages, button presses, callback queries)
+3. **Long polling loop**: Bot asks "any new messages?" → Telegram waits with connection open → responds immediately when user interacts → bot processes, sends response
+
+| Concern | Reality |
+|---------|---------|
+| LAN exposure | Not needed — bot calls OUT to Telegram cloud |
+| Port forwarding | Not needed — no inbound connections |
+| Static IP | Not needed — bot initiates all connections |
+| Firewall | Just need outbound HTTPS (port 443) |
+| Works remotely | Yes — hub at home, you anywhere with internet ✅ |
+
+
+### Bot Lifecycle — Embedded in Hub Process
+
+The bot is **not** a standalone service. It runs inside the Electron main process and follows the hub's lifecycle:
+
+```mermaid
+stateDiagram-v2
+    [*] --> HubStarts
+    HubStarts --> CheckConfig: Load settings.yaml
+    CheckConfig --> BotDisabled: telegram.enabled = false
+    CheckConfig --> StartBot: telegram.enabled = true + token exists
+    CheckConfig --> AwaitSetup: No token configured
+
+    StartBot --> BotRunning: Long-poll loop begins
+    BotRunning --> BotStopped: Hub closes / crashes
+    BotStopped --> [*]
+
+    BotRunning --> BotRunning: Hub restarts → bot restarts with same token
+
+    AwaitSetup --> StartBot: User configures token via Settings UI
+    BotDisabled --> StartBot: User enables via Settings UI
+```
+
+**Key behaviors:**
+- Hub starts → bot starts (if enabled and token configured)
+- Hub crashes → bot dies (no orphan processes)
+- Hub restarts → bot reconnects using same token from `settings.yaml`
+- Bot token persists across restarts — no re-authentication needed
+- Telegram topics/messages persist on Telegram's servers regardless of bot uptime
+
+### Forum Topics — Session-to-Topic Mapping
+
+Each hub session maps to a dedicated **forum topic** thread in a Telegram supergroup. This provides per-session notification channels — no flat chat mode.
+
+#### Bot API Capabilities (reality check)
+
+| API Method | What it does | Available? |
+|------------|-------------|------------|
+| `createForumTopic` | Create new topic (name, icon color/emoji) | ✅ Yes |
+| `editForumTopic` | Rename topic, change icon | ✅ Yes |
+| `closeForumTopic` | Close topic (read-only) | ✅ Yes |
+| `reopenForumTopic` | Reopen closed topic | ✅ Yes |
+| `deleteForumTopic` | Permanently delete topic + all messages | ✅ Yes |
+| `getForumTopicIconStickers` | List available emoji icons | ✅ Yes |
+| `sendMessage` with `message_thread_id` | Send message to a specific topic | ✅ Yes |
+| **`getForumTopics` / list topics** | **Enumerate existing topics** | ❌ **Not in Bot API** |
+| **Query topic by ID** | **Check if topic exists** | ❌ **Not in Bot API** |
+| **Search topics by name** | **Find topic by name** | ❌ **Not in Bot API** |
+
+> ⚠️ **Key limitation:** The Bot API has **no way to list or query existing forum topics**. The only way to detect if a topic still exists is to attempt sending a message and catch `TOPIC_DELETED` or `Invalid message thread ID` errors. This means `topicId` stored in `sessions.yaml` is the **sole mapping mechanism** — there is no name-based topic discovery.
+
+**Events the bot DOES receive:**
+- `forum_topic_created` — service message when a topic is created (by anyone)
+- `forum_topic_closed` — service message when a topic is closed
+- `forum_topic_reopened` — service message when a topic is reopened
+
+#### Restart Flow (accounting for API limitations)
+
+```mermaid
+flowchart TD
+    A[Hub Starts] --> B[Load sessions.yaml]
+    B --> C{telegram.enabled?}
+    C -->|No| Z[Skip bot startup]
+    C -->|Yes| D[Start bot with stored token]
+    D --> F{For each session:}
+    F --> G{Has stored topicId?}
+    G -->|Yes| H[Try sending 'Reconnected' to topic]
+    H --> H1{Response?}
+    H1 -->|Success| I[Topic alive — reuse it]
+    H1 -->|TOPIC_DELETED / Invalid ID| J[Create new topic, update topicId]
+    G -->|No| J
+    I --> M[Resume — notifications route to topic]
+    J --> M
+```
+
+> **No name-based fallback.** Unlike the earlier draft, the bot cannot scan existing topics to find matches. If `topicId` is missing from sessions.yaml (e.g. first run, or manual yaml edit), the bot always creates a new topic. This is simpler and more reliable.
+
+#### Session Persistence Changes
+
+`topicId` stored in `sessions.yaml`:
+
+```yaml
+# config/sessions.yaml
+sessions:
+  - id: abc-123
+    name: "refactor auth"
+    topicId: 123            # ← NEW: Telegram forum topic ID
+    cliType: "claude-code"
+    workingDir: "X:/coding/gamepad-cli-hub"
+    pid: 12345
+```
+
+**Topic naming convention:** `[InstanceName] session-name` (e.g. `[Home] refactor auth`). Instance name configured in `settings.yaml` to distinguish multiple hubs sharing the same Telegram group.
+
+#### Edge Cases
+
+| Scenario | Behavior |
+|----------|----------|
+| Topic manually deleted in Telegram | Bot gets `TOPIC_DELETED` on next send → creates new topic, updates `topicId` |
+| Session removed in hub | Bot calls `closeForumTopic` → topic becomes read-only archive |
+| Hub restart, sessions.yaml intact | Bot sends probe to stored `topicId` → reuses if alive, recreates if deleted |
+| Hub restart, sessions.yaml lost | All `topicId` mappings lost → bot creates fresh topics (old ones become orphans) |
+| Duplicate session names | No conflict — mapping is by `topicId` (integer), not by name |
+| Topic closed by user in Telegram | Bot calls `reopenForumTopic` before sending, or creates new topic |
+
 ### New Modules
 
 | Module | File | Responsibility |
@@ -265,7 +424,7 @@ Power-user shortcuts via Telegram command autocomplete (registered via BotFather
 | **TelegramNotifier** | `src/telegram/notifier.ts` | Listens to StateDetector events, formats + sends notification messages with inline keyboards |
 | **TelegramKeyboards** | `src/telegram/keyboards.ts` | Inline keyboard layout builders (session list, controls, commands, spawn wizard) |
 | **TelegramCommands** | `src/telegram/commands.ts` | Slash command handlers (/status, /switch, /send, etc.) |
-| **MiniWebServer** | `src/telegram/web-server.ts` | Express HTTPS server, JWT auth, xterm.js viewer endpoint, WebSocket relay |
+| **TelegramTerminalMirror** | `src/telegram/terminal-mirror.ts` | Bidirectional topic↔PTY bridge: buffer+edit output streaming, ANSI stripping, input forwarding, rate limiting |
 | **OutputSummarizer** | `src/telegram/output-summarizer.ts` | Parses PTY buffer into 3-5 line smart summaries |
 
 ### Integration Points
@@ -285,7 +444,7 @@ graph LR
         TN[TelegramNotifier]
         TK[TelegramKeyboards]
         TC[TelegramCommands]
-        WS[MiniWebServer]
+        TM[TerminalMirror]
         OS[OutputSummarizer]
     end
 
@@ -297,7 +456,7 @@ graph LR
     TC -->|write| PTY
     TK -->|getTools, getDirs, getSequences| CL
     TK -->|getSessions| SM
-    WS -->|subscribe output| PTY
+    TM -->|subscribe output + write| PTY
     OS -->|read buffer| PTY
 ```
 
@@ -306,16 +465,28 @@ graph LR
 New section in `settings.yaml`:
 
 ```yaml
+# settings.yaml
 telegram:
   enabled: false
-  botToken: ""           # From BotFather
-  allowedUserIds: []     # Whitelist of Telegram user IDs
-  safeModeDefault: true  # Block free-text input by default
+  botToken: ""              # From BotFather
+  instanceName: "Home"      # Prefix for topic names, identifies this hub
+  chatId: null              # Target supergroup ID (set during setup)
+  allowedUserIds: []        # Whitelist of Telegram user IDs
+  safeModeDefault: true     # Block free-text input by default
   notifyOnComplete: true
   notifyOnIdle: true
   notifyOnError: true
   notifyOnCrash: true
-  webViewerPort: 0       # 0 = auto-assign, or fixed port
+```
+
+New field in `sessions.yaml` per session:
+
+```yaml
+# sessions.yaml — new field per session
+sessions:
+  - id: abc-123
+    topicId: 123            # Telegram forum topic ID
+    # ... existing fields ...
 ```
 
 ### Security Model
@@ -325,19 +496,17 @@ telegram:
 3. **Messages are NOT end-to-end encrypted** (Telegram servers can read them) — acceptable risk for gamepad commands, but warn user in setup
 4. **Free-text confirmation step** prevents accidental command injection
 5. **Safe mode** disables free-text entirely (only config-defined sequences)
-6. **JWT auth tokens** for Mini App web viewer — 30-minute expiry, session-scoped
+6. **Topic isolation** — each session has its own forum topic; bot only processes messages from allowed user IDs within the correct topic
 7. **No port forwarding needed** — bot uses outbound long-polling to Telegram cloud
-8. **Mini App requires HTTPS** — self-signed cert for localhost or tunnel (Cloudflare/ngrok/tailscale) for remote access
+8. **No exposed ports** — all communication via Telegram's cloud API. No web server, no open ports, no tunnel needed
 
 ### Dependencies
 
 | Package | Purpose | Size |
 |---------|---------|------|
 | `node-telegram-bot-api` | Telegram Bot API client | ~50KB |
-| `express` | Mini App web server (P2) | ~200KB |
-| `jsonwebtoken` | JWT for Mini App auth (P2) | ~30KB |
 
-P0/P1 requires only `node-telegram-bot-api`. Express + JWT added in P2.
+All phases require only `node-telegram-bot-api`. No additional server dependencies needed — terminal output streams natively through Telegram's message API.
 
 ---
 
@@ -379,9 +548,10 @@ P0/P1 requires only `node-telegram-bot-api`. Express + JWT added in P2.
 | Task | Description |
 |------|-------------|
 | `telegram-bot-core` | Bot lifecycle (start/stop), long-polling, user-ID whitelist, message edit queue |
-| `telegram-notifier` | Subscribe to StateDetector events, format + send notifications with inline action buttons |
+| `telegram-topic-manager` | Forum topic lifecycle: create on session spawn, probe on restart, recreate on `TOPIC_DELETED`, close on session remove. Stores `topicId` in sessions.yaml |
+| `telegram-notifier` | Subscribe to StateDetector events, format + send notifications with inline action buttons. Routes to per-session topics via `message_thread_id` |
 | `telegram-session-list` | Two-tier inline keyboard (directory groups → sessions), tap to switch active session |
-| `telegram-config` | Settings UI tab for Telegram config (token, user IDs, notification prefs) |
+| `telegram-config` | Settings UI tab for Telegram config (token, instance name, user IDs, notification prefs). See [Hub Config mockup](mockups.html#flow-hub-config) |
 | `telegram-ipc` | IPC handlers for Telegram settings CRUD, bot start/stop |
 | `telegram-tests-p0` | Unit tests for bot, notifier, session list keyboards, config |
 
@@ -400,19 +570,19 @@ P0/P1 requires only `node-telegram-bot-api`. Express + JWT added in P2.
 | `telegram-slash-commands` | /status, /switch, /send, /close, /spawn, /output |
 | `telegram-tests-p1` | Unit tests for controls, text input, output summarizer, slash commands |
 
-### Phase 2 — Mini App Terminal Viewer + Spawn (High effort)
+### Phase 2 — Terminal Mirror + Spawn (Medium effort)
 
-**Goal:** "Full terminal viewing with proper rendering, inside Telegram."
+**Goal:** "Full bidirectional terminal I/O in each topic, plus remote spawn."
 
 | Task | Description |
 |------|-------------|
-| `web-server-core` | Express HTTPS server with JWT auth, session-scoped tokens |
-| `web-viewer-xterm` | Read-only xterm.js viewer page, WebSocket relay from PtyManager output |
-| `telegram-miniapp` | Telegram Mini App integration (web_app button type, token generation) |
-| `telegram-spawn-wizard` | Tool → directory → spawn wizard via inline keyboards |
-| `telegram-tests-p2` | Unit tests for web server, JWT auth, WebSocket relay, spawn wizard |
+| `telegram-terminal-mirror` | Buffer+edit output streaming: ANSI strip, 1.5s debounce, freeze at 3500 chars, rate limiting (20 edits/min/topic) |
+| `telegram-topic-input` | Input forwarding: user messages in topic → PTY stdin. Safe mode confirmation. Command filtering (ignore `/` prefixed) |
+| `telegram-backpressure` | Dynamic debounce under high output load, middle-line truncation ("... N lines omitted ..."), output pause/resume |
+| `telegram-spawn-wizard` | Tool → directory → spawn wizard via inline keyboards, creates new topic for spawned session |
+| `telegram-tests-p2` | Unit tests for terminal mirror, input forwarding, backpressure, spawn wizard |
 
-**Dependencies:** `express`, `jsonwebtoken`
+**Dependencies:** None beyond P0's `node-telegram-bot-api`
 
 ### Phase 3 — Polish (Low effort)
 
@@ -429,8 +599,8 @@ P0/P1 requires only `node-telegram-bot-api`. Express + JWT added in P2.
 
 ## Open Questions
 
-1. **Tunnel for remote access?** Mini App needs HTTPS. Localhost works when on same network. For true remote access, need Cloudflare Tunnel, ngrok, or tailscale. Which approach?
-2. **Bot token storage?** Currently proposed in `settings.yaml`. Alternative: OS keychain via `keytar` package for better security.
-3. **Multi-user?** Current design is single-user (whitelist). Should the bot support multiple authorized users with different permission levels?
-4. **Notification sound?** Telegram allows silent messages. Should completion notifications be noisy (default) or silent?
-5. **Auto-start bot?** Should the Telegram bot start automatically with the app, or require manual activation?
+1. **Output truncation strategy?** When a session produces massive output (e.g. `npm install`, build logs), should the mirror truncate middle lines ("... 847 lines omitted ...") or split across many messages? Truncation is cleaner but loses history. Splitting preserves everything but floods the topic. Leaning toward truncation with a `/full` command to dump recent buffer.
+2. **Bot token storage?** Currently proposed in `settings.yaml` (already in `.gitignore`). Alternative: OS keychain via `keytar` package. Tradeoff: keytar adds native dependency complexity vs. plain-text token in a local config file. Leaning toward `settings.yaml` for simplicity — the token only grants bot API access, not user account access.
+3. **Multi-user?** Current design is single-user (whitelist). Phase 0 implements user-ID whitelist. Multi-user with permission levels (admin vs. viewer) could be a P3 extension.
+4. **Notification sound?** Telegram allows silent messages (`disable_notification: true`). Default to noisy for completion/error (actionable), silent for idle (informational). Make configurable per-event-type in settings.
+5. **Instance name collisions?**When multiple hubs share a Telegram group, instance names must be unique. Should the bot validate uniqueness on startup, or trust the user? Leaning toward trust + warning if duplicate `[InstanceName]` prefix found in existing topics.

@@ -33,6 +33,8 @@ export interface SessionInfo {
   questionPending?: boolean;
   /** CLI-internal session name used for resume (UUID v4, e.g., 'a1b2c3d4-e5f6-...'). Set after spawn. */
   cliSessionName?: string;
+  /** Telegram forum topic ID for this session's topic thread */
+  topicId?: number;
 }
 
 /**

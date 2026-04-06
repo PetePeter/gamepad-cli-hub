@@ -122,6 +122,32 @@ const DEFAULT_SORTING: SortingConfig = {
   bindings: { field: 'button', direction: 'asc' },
 };
 
+export interface TelegramConfig {
+  enabled: boolean;
+  botToken: string;
+  instanceName: string;
+  chatId: number | null;
+  allowedUserIds: number[];
+  safeModeDefault: boolean;
+  notifyOnComplete: boolean;
+  notifyOnIdle: boolean;
+  notifyOnError: boolean;
+  notifyOnCrash: boolean;
+}
+
+const DEFAULT_TELEGRAM_CONFIG: TelegramConfig = {
+  enabled: false,
+  botToken: '',
+  instanceName: 'Home',
+  chatId: null,
+  allowedUserIds: [],
+  safeModeDefault: true,
+  notifyOnComplete: true,
+  notifyOnIdle: true,
+  notifyOnError: true,
+  notifyOnCrash: true,
+};
+
 export interface SettingsConfig {
   activeProfile: string;
   hapticFeedback: boolean;
@@ -129,6 +155,7 @@ export interface SettingsConfig {
   sidebar?: SidebarPrefs;
   sorting?: SortingConfig;
   sessionGroups?: SessionGroupPrefs;
+  telegram?: TelegramConfig;
 }
 
 export interface SessionGroupPrefs {
@@ -237,6 +264,9 @@ export class ConfigLoader {
     }
     if (this.settings.notifications === undefined) {
       this.settings.notifications = true;
+    }
+    if (!this.settings.telegram) {
+      this.settings.telegram = { ...DEFAULT_TELEGRAM_CONFIG };
     }
     this.activeProfileName = this.settings.activeProfile;
   }
@@ -595,6 +625,21 @@ export class ConfigLoader {
   setSessionGroupPrefs(prefs: SessionGroupPrefs): void {
     this.ensureLoaded();
     this.settings!.sessionGroups = prefs;
+    this.saveSettings();
+  }
+
+  /** Get the current Telegram configuration. */
+  getTelegramConfig(): TelegramConfig {
+    return this.settings?.telegram ?? { ...DEFAULT_TELEGRAM_CONFIG };
+  }
+
+  /** Update the Telegram configuration (partial merge). */
+  setTelegramConfig(updates: Partial<TelegramConfig>): void {
+    if (!this.settings) return;
+    this.settings.telegram = {
+      ...(this.settings.telegram ?? { ...DEFAULT_TELEGRAM_CONFIG }),
+      ...updates,
+    };
     this.saveSettings();
   }
 
