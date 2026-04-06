@@ -8,7 +8,7 @@ tags, pushes to GitHub, and publishes the release with artifacts.
 Prerequisites:
     - Run prepareDeploy.py first
     - Validate the EXE manually
-    - Set GH_TOKEN environment variable for GitHub publishing
+    - Set DEPLOY_GH_TOKEN environment variable for GitHub publishing
 
 Usage:
     python sendDeploy.py
@@ -98,16 +98,18 @@ def main():
     print(f"  ✅ package.json version matches: {version}")
     print()
 
-    # 3. Check GH_TOKEN
+    # 3. Check DEPLOY_GH_TOKEN (kept separate from GH_TOKEN to avoid conflicts with Copilot CLI)
     print("[3/5] Checking GitHub token...")
-    if not os.environ.get("GH_TOKEN"):
-        print("⚠️  GH_TOKEN not set. GitHub publish will fail.")
-        print("   Set it with: set GH_TOKEN=ghp_xxxxxxxxxxxx")
+    deploy_token = os.environ.get("DEPLOY_GH_TOKEN")
+    if not deploy_token:
+        print("⚠️  DEPLOY_GH_TOKEN not set. GitHub publish will fail.")
+        print("   Set it with: set DEPLOY_GH_TOKEN=ghp_xxxxxxxxxxxx")
         response = input("   Continue anyway? (y/N): ").strip().lower()
         if response != "y":
             sys.exit(1)
     else:
-        print("  ✅ GH_TOKEN is set")
+        os.environ["GH_TOKEN"] = deploy_token
+        print("  ✅ DEPLOY_GH_TOKEN is set (forwarded to GH_TOKEN for electron-builder)")
     print()
 
     # 4. Git commit, tag, push

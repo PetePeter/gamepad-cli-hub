@@ -153,6 +153,17 @@ export function setupPtyHandlers(
     }
   });
 
+  // pty:scrollInput - Write scroll keys to PTY without triggering keyword detection.
+  // Screen redraws from scroll contain old AIAGENT-* tags that would cause false state changes.
+  ipcMain.handle('pty:scrollInput', (_event, sessionId: string, data: string) => {
+    try {
+      ptyManager.write(sessionId, data);
+      stateDetector.markScrolling(sessionId);
+    } catch (error) {
+      logger.error(`[PTY IPC] pty:scrollInput failed for session=${sessionId}: ${error}`);
+    }
+  });
+
   // pty:resize - Resize a session's PTY
   ipcMain.handle('pty:resize', (_event, sessionId: string, cols: number, rows: number) => {
     try {

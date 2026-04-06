@@ -25,6 +25,8 @@ interface SessionTracking {
   questionPending: boolean;
   lastOutputAt: number;
   activityLevel: ActivityLevel;
+  /** When true, processOutput skips keyword scanning (scroll redraws). */
+  scrolling: boolean;
 }
 
 /** Strip ANSI escape sequences so keyword detection works on raw PTY output. */
@@ -55,6 +57,9 @@ export const DEFAULT_INACTIVE_TIMEOUT_MS = 10_000;
 /** Default timeout before considering a session idle (no output for 5 minutes) */
 export const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
 
+/** How long after the last scroll input before keyword scanning resumes (2s) */
+export const DEFAULT_SCROLL_CLEAR_MS = 2_000;
+
 export interface ActivityTimeouts {
   inactiveMs: number;
   idleMs: number;
@@ -78,6 +83,7 @@ export class StateDetector extends EventEmitter {
   private sessionStates: Map<string, SessionTracking> = new Map();
   private inactiveTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private idleTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private scrollTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private readonly inactiveTimeoutMs: number;
   private readonly idleTimeoutMs: number;
 
@@ -87,10 +93,34 @@ export class StateDetector extends EventEmitter {
     this.idleTimeoutMs = timeouts?.idleMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   }
 
+  /** Mark a session as scrolling — processOutput skips keyword scanning.
+   *  Auto-clears after 2s of no further scroll input. */
+  markScrolling(sessionId: string): void {
+    const tracking = this.getOrCreate(sessionId);
+    tracking.scrolling = true;
+
+    // Reset the auto-clear timer
+    const existing = this.scrollTimers.get(sessionId);
+    if (existing) clearTimeout(existing);
+    this.scrollTimers.set(sessionId, setTimeout(() => {
+      tracking.scrolling = false;
+      this.scrollTimers.delete(sessionId);
+    }, DEFAULT_SCROLL_CLEAR_MS));
+  }
+
   /** Mark a session as active due to user input (PTY stdin).
-   *  Unlike processOutput, this does NOT scan for AIAGENT-* keywords. */
+   *  Unlike processOutput, this does NOT scan for AIAGENT-* keywords.
+   *  Clears the scrolling flag since this is real user input. */
   markActive(sessionId: string): void {
     const tracking = this.getOrCreate(sessionId);
+
+    // Real user input clears scrolling flag
+    tracking.scrolling = false;
+    const scrollTimer = this.scrollTimers.get(sessionId);
+    if (scrollTimer) {
+      clearTimeout(scrollTimer);
+      this.scrollTimers.delete(sessionId);
+    }
 
     if (tracking.activityLevel !== 'active') {
       tracking.activityLevel = 'active';
@@ -113,6 +143,9 @@ export class StateDetector extends EventEmitter {
 
     // Reset both inactivity timers
     this.resetActivityTimers(sessionId);
+
+    // Skip keyword scanning during scroll — output is a screen redraw, not new CLI content
+    if (tracking.scrolling) return;
 
     const clean = stripAnsi(data);
 
@@ -188,6 +221,11 @@ export class StateDetector extends EventEmitter {
   /** Remove tracking for a session. */
   removeSession(sessionId: string): void {
     this.clearActivityTimers(sessionId);
+    const scrollTimer = this.scrollTimers.get(sessionId);
+    if (scrollTimer) {
+      clearTimeout(scrollTimer);
+      this.scrollTimers.delete(sessionId);
+    }
     this.sessionStates.delete(sessionId);
   }
 
@@ -195,8 +233,10 @@ export class StateDetector extends EventEmitter {
   dispose(): void {
     for (const timer of this.inactiveTimers.values()) clearTimeout(timer);
     for (const timer of this.idleTimers.values()) clearTimeout(timer);
+    for (const timer of this.scrollTimers.values()) clearTimeout(timer);
     this.inactiveTimers.clear();
     this.idleTimers.clear();
+    this.scrollTimers.clear();
     this.sessionStates.clear();
   }
 
@@ -251,7 +291,7 @@ export class StateDetector extends EventEmitter {
   private getOrCreate(sessionId: string): SessionTracking {
     let tracking = this.sessionStates.get(sessionId);
     if (!tracking) {
-      tracking = { state: 'idle', questionPending: false, lastOutputAt: 0, activityLevel: 'idle' };
+      tracking = { state: 'idle', questionPending: false, lastOutputAt: 0, activityLevel: 'idle', scrolling: false };
       this.sessionStates.set(sessionId, tracking);
     }
     return tracking;

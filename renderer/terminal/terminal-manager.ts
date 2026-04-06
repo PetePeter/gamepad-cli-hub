@@ -88,6 +88,9 @@ export class TerminalManager {
       onData: (data) => {
         window.gamepadCli?.ptyWrite(sessionId, data);
       },
+      onScrollInput: (data) => {
+        window.gamepadCli?.ptyScrollInput?.(sessionId, data);
+      },
       onResize: (cols, rows) => {
         window.gamepadCli?.ptyResize(sessionId, cols, rows);
       },

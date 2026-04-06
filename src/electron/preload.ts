@@ -151,6 +151,10 @@ const gamepadCliAPI = {
   ptyWrite: (sessionId: string, data: string) =>
     ipcRenderer.invoke('pty:write', sessionId, data),
 
+  /** Write scroll keys to a PTY without triggering AIAGENT keyword detection */
+  ptyScrollInput: (sessionId: string, data: string) =>
+    ipcRenderer.invoke('pty:scrollInput', sessionId, data),
+
   /** Resize a PTY terminal */
   ptyResize: (sessionId: string, cols: number, rows: number) =>
     ipcRenderer.invoke('pty:resize', sessionId, cols, rows),

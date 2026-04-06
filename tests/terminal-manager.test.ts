@@ -704,10 +704,16 @@ describe('TerminalView — custom key handler', () => {
 });
 
 // ---------------------------------------------------------------------------
-// TerminalView — attachCustomWheelEventHandler
+// TerminalView — container wheel listener (xterm.js v6 compatibility)
+// ---------------------------------------------------------------------------
+// xterm.js v6 replaced the old .xterm-viewport scroll with SmoothScrollableElement
+// (.xterm-scrollable-element). Our capture-phase listener on the container
+// intercepts wheel events BEFORE SmoothScrollableElement for alternate-buffer
+// terminals (sends PageUp/PageDown to PTY). Normal-buffer scroll is handled
+// natively by SmoothScrollableElement.
 // ---------------------------------------------------------------------------
 
-describe('TerminalView — custom wheel handler', () => {
+describe('TerminalView — container wheel listener (v6)', () => {
   let container: HTMLElement;
 
   beforeEach(() => {
@@ -722,50 +728,8 @@ describe('TerminalView — custom wheel handler', () => {
     document.body.innerHTML = '';
   });
 
-  it('attaches a custom wheel event handler on construction', () => {
-    new TerminalView({ sessionId: 'cwh-1', container });
-    expect(lastTerminal().attachCustomWheelEventHandler).toHaveBeenCalledTimes(1);
-    expect(typeof lastTerminal().attachCustomWheelEventHandler.mock.calls[0][0]).toBe('function');
-  });
-
-  it('always returns false (blocks xterm internal wheel handling)', () => {
-    new TerminalView({ sessionId: 'cwh-2', container });
-    const handler = lastTerminal().attachCustomWheelEventHandler.mock.calls[0][0] as (ev: WheelEvent) => boolean;
-
-    lastTerminal().buffer.active.type = 'normal';
-    expect(handler(new WheelEvent('wheel'))).toBe(false);
-
-    lastTerminal().buffer.active.type = 'alternate';
-    expect(handler(new WheelEvent('wheel'))).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// TerminalView — DOM wheel listener (scrollLines bypass)
-// ---------------------------------------------------------------------------
-
-describe('TerminalView — DOM wheel listener', () => {
-  let container: HTMLElement;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    terminalInstances.length = 0;
-    fitAddonInstances.length = 0;
-    searchAddonInstances.length = 0;
-    container = createContainer();
-    // Add fake .xterm-viewport so the DOM listener is registered
-    const viewport = document.createElement('div');
-    viewport.className = 'xterm-viewport';
-    container.appendChild(viewport);
-  });
-
-  afterEach(() => {
-    document.body.innerHTML = '';
-  });
-
-  it('registers a capture-phase wheel listener on .xterm-viewport', () => {
-    const viewport = container.querySelector('.xterm-viewport')!;
-    const spy = vi.spyOn(viewport, 'addEventListener');
+  it('registers a capture-phase wheel listener on the container', () => {
+    const spy = vi.spyOn(container, 'addEventListener');
     new TerminalView({ sessionId: 'dwl-1', container });
 
     const wheelCalls = spy.mock.calls.filter(c => c[0] === 'wheel');
@@ -773,73 +737,79 @@ describe('TerminalView — DOM wheel listener', () => {
     expect(wheelCalls[0][2]).toEqual({ passive: false, capture: true });
   });
 
-  it('calls scrollLines on wheel down (normal buffer)', () => {
+  it('does not intercept wheel in normal buffer (passthrough to SmoothScrollableElement)', () => {
     new TerminalView({ sessionId: 'dwl-2', container });
     lastTerminal().buffer.active.type = 'normal';
-    const viewport = container.querySelector('.xterm-viewport')!;
 
-    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true });
-    viewport.dispatchEvent(ev);
+    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
+    container.dispatchEvent(ev);
 
-    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(3); // 120/40 = 3
-  });
-
-  it('calls scrollLines with negative lines on wheel up (normal buffer)', () => {
-    new TerminalView({ sessionId: 'dwl-3', container });
-    lastTerminal().buffer.active.type = 'normal';
-    const viewport = container.querySelector('.xterm-viewport')!;
-
-    const ev = new WheelEvent('wheel', { deltaY: -80, cancelable: true });
-    viewport.dispatchEvent(ev);
-
-    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(-2); // -80/40 = -2
-  });
-
-  it('scrolls at least 1 line for small deltaY (normal buffer)', () => {
-    new TerminalView({ sessionId: 'dwl-4', container });
-    lastTerminal().buffer.active.type = 'normal';
-    const viewport = container.querySelector('.xterm-viewport')!;
-
-    const ev = new WheelEvent('wheel', { deltaY: 10, cancelable: true });
-    viewport.dispatchEvent(ev);
-
-    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(1); // min 1 line
-  });
-
-  it('sends PageDown to PTY on wheel down in alternate buffer', () => {
-    const onData = vi.fn();
-    new TerminalView({ sessionId: 'dwl-5', container, onData });
-    lastTerminal().buffer.active.type = 'alternate';
-    const viewport = container.querySelector('.xterm-viewport')!;
-
-    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true });
-    viewport.dispatchEvent(ev);
-
-    expect(onData).toHaveBeenCalledWith('\x1b[6~'); // PageDown
+    // Should NOT consume the event — let SmoothScrollableElement handle it
+    expect(ev.defaultPrevented).toBe(false);
     expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
   });
 
-  it('sends PageUp to PTY on wheel up in alternate buffer', () => {
-    const onData = vi.fn();
-    new TerminalView({ sessionId: 'dwl-6', container, onData });
+  it('sends PageDown via onScrollInput on wheel down in alternate buffer', () => {
+    const onScrollInput = vi.fn();
+    new TerminalView({ sessionId: 'dwl-5', container, onScrollInput });
     lastTerminal().buffer.active.type = 'alternate';
-    const viewport = container.querySelector('.xterm-viewport')!;
 
-    const ev = new WheelEvent('wheel', { deltaY: -80, cancelable: true });
-    viewport.dispatchEvent(ev);
+    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
+    container.dispatchEvent(ev);
 
-    expect(onData).toHaveBeenCalledWith('\x1b[5~'); // PageUp
+    // 120/40 = 3 PageDown sequences via scroll callback
+    expect(onScrollInput).toHaveBeenCalledTimes(3);
+    expect(onScrollInput).toHaveBeenCalledWith('\x1b[6~'); // PageDown
     expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
   });
 
-  it('falls back to scrollLines in alternate buffer without onData', () => {
-    new TerminalView({ sessionId: 'dwl-7', container });
+  it('sends PageUp via onScrollInput on wheel up in alternate buffer', () => {
+    const onScrollInput = vi.fn();
+    new TerminalView({ sessionId: 'dwl-6', container, onScrollInput });
     lastTerminal().buffer.active.type = 'alternate';
-    const viewport = container.querySelector('.xterm-viewport')!;
 
-    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true });
-    viewport.dispatchEvent(ev);
+    const ev = new WheelEvent('wheel', { deltaY: -80, cancelable: true, bubbles: true });
+    container.dispatchEvent(ev);
 
-    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(3);
+    // 80/40 = 2 PageUp sequences
+    expect(onScrollInput).toHaveBeenCalledTimes(2);
+    expect(onScrollInput).toHaveBeenCalledWith('\x1b[5~'); // PageUp
+    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
+  });
+
+  it('sends at least 1 PageDown for small deltaY in alternate buffer', () => {
+    const onScrollInput = vi.fn();
+    new TerminalView({ sessionId: 'dwl-7', container, onScrollInput });
+    lastTerminal().buffer.active.type = 'alternate';
+
+    const ev = new WheelEvent('wheel', { deltaY: 10, cancelable: true, bubbles: true });
+    container.dispatchEvent(ev);
+
+    expect(onScrollInput).toHaveBeenCalledTimes(1);
+    expect(onScrollInput).toHaveBeenCalledWith('\x1b[6~');
+  });
+
+  it('falls back to onData when onScrollInput is not provided', () => {
+    const onData = vi.fn();
+    new TerminalView({ sessionId: 'dwl-fb', container, onData });
+    lastTerminal().buffer.active.type = 'alternate';
+
+    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
+    container.dispatchEvent(ev);
+
+    expect(onData).toHaveBeenCalledTimes(3);
+    expect(onData).toHaveBeenCalledWith('\x1b[6~');
+  });
+
+  it('does not intercept in alternate buffer without any callback', () => {
+    new TerminalView({ sessionId: 'dwl-8', container });
+    lastTerminal().buffer.active.type = 'alternate';
+
+    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
+    container.dispatchEvent(ev);
+
+    // No onData → no writeCallback → event not intercepted
+    expect(ev.defaultPrevented).toBe(false);
+    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
   });
 });

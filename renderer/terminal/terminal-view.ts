@@ -14,6 +14,8 @@ export interface TerminalViewOptions {
   sessionId: string;
   container: HTMLElement;
   onData?: (data: string) => void;
+  /** Callback for scroll input — bypasses AIAGENT keyword detection. */
+  onScrollInput?: (data: string) => void;
   onResize?: (cols: number, rows: number) => void;
   onTitleChange?: (title: string) => void;
 }
@@ -25,6 +27,7 @@ export class TerminalView {
   private searchAddon: SearchAddon;
   private container: HTMLElement;
   private writeCallback?: (data: string) => void;
+  private scrollCallback?: (data: string) => void;
   private disposed = false;
 
   constructor(options: TerminalViewOptions) {
@@ -78,37 +81,37 @@ export class TerminalView {
       return true;
     });
 
-    // Block xterm.js internal wheel handling entirely — prevents both
-    // wheel-to-arrow conversion (alternate mode) and broken viewport scroll.
-    // All wheel scrolling handled by our DOM listener below.
-    this.terminal.attachCustomWheelEventHandler(() => false);
-
-    // Capture-phase wheel listener on the xterm viewport — bypasses xterm's
-    // internal wheel path (blocked above). Normal buffer → scrollLines() for
-    // scrollback; alternate buffer → send Page Up/Down to PTY so the CLI app
-    // handles scrolling (same as gamepad left-stick bindings).
-    const viewport = this.container.querySelector('.xterm-viewport');
-    if (viewport) {
-      viewport.addEventListener('wheel', (e) => {
+    // Capture-phase wheel listener on the container — must be higher in the DOM
+    // than xterm.js v6's SmoothScrollableElement (.xterm-scrollable-element)
+    // which swallows wheel events before they reach attachCustomWheelEventHandler.
+    // Normal buffer: let SmoothScrollableElement handle native scrollback scroll.
+    // Alternate buffer: intercept and send PageUp/PageDown to PTY (no scrollback).
+    // Uses scrollCallback (pty:scrollInput) to avoid false AIAGENT state changes
+    // from screen redraws that contain old keyword tags.
+    this.container.addEventListener('wheel', (e) => {
+      const cb = this.scrollCallback || this.writeCallback;
+      if (this.terminal.buffer.active.type === 'alternate' && cb) {
         e.preventDefault();
         e.stopPropagation();
         const we = e as WheelEvent;
-
-        if (this.terminal.buffer.active.type === 'alternate' && this.writeCallback) {
-          const key = we.deltaY > 0 ? '\x1b[6~' : '\x1b[5~'; // PageDown : PageUp
-          this.writeCallback(key);
-        } else {
-          const lines = Math.sign(we.deltaY) * Math.max(1, Math.round(Math.abs(we.deltaY) / 40));
-          this.terminal.scrollLines(lines);
+        const lines = Math.max(1, Math.round(Math.abs(we.deltaY) / 40));
+        const key = we.deltaY > 0 ? '\x1b[6~' : '\x1b[5~'; // PageDown : PageUp
+        for (let i = 0; i < lines; i++) {
+          cb(key);
         }
-      }, { passive: false, capture: true });
-    }
+      }
+      // Normal buffer: event passes through to SmoothScrollableElement
+    }, { passive: false, capture: true });
 
     this.fit();
 
     if (options.onData) {
       this.writeCallback = options.onData;
       this.terminal.onData(options.onData);
+    }
+
+    if (options.onScrollInput) {
+      this.scrollCallback = options.onScrollInput;
     }
 
     if (options.onResize) {

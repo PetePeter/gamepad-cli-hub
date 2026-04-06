@@ -36,10 +36,12 @@ PTY Data Flow:
   │ (node-pty)   │                       │  → PtyFilter      │
   │              │ ←──────────────────── │  → TerminalView   │
   └─────────────┘   IPC: pty:write       │    (xterm.js)     │
+                     IPC: pty:scrollInput │                   │
                      ↑                    └──────────────────┘
   voice/paste ───────┘                    ┌──────────────────┐
   StateDetector  ←── PTY stdout ──────── │ [●Claude][●Copilot]│
                ←── PTY stdin (markActive)└──────────────────┘
+               ←── scroll input (markScrolling)
   PipelineQueue  ←── state changes
 ```
 
@@ -51,7 +53,7 @@ Session cards and overview cards use activity-based coloring (PTY I/O timing, no
 - 🔵 inactive (blue `#4488ff` — >10s silence)
 - ⚪ idle (grey `#555555` — >5min silence)
 
-Input tracking: the `pty:write` IPC handler calls `StateDetector.markActive(sessionId)` on every keystroke, so the green dot appears immediately when the user types — not just when the shell echoes back. `markActive()` only resets activity timers; it does NOT scan for AIAGENT-* keywords.
+Input tracking: the `pty:write` IPC handler calls `StateDetector.markActive(sessionId)` on every keystroke, so the green dot appears immediately when the user types — not just when the shell echoes back. `markActive()` only resets activity timers; it does NOT scan for AIAGENT-* keywords. Scroll input uses a distinct path: `pty:scrollInput` IPC handler calls `StateDetector.markScrolling(sessionId)` instead of `markActive()`, suppressing keyword scanning for 2s to prevent false state changes from screen redraws triggered by PageUp/PageDown.
 
 Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
 
@@ -60,11 +62,11 @@ Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
 | Module | File | Role |
 |--------|------|------|
 | PtyManager | `src/session/pty-manager.ts` | Spawns node-pty processes (cmd.exe), routes stdin/stdout, handles resize/kill |
-| StateDetector | `src/session/state-detector.ts` | Scans PTY output for `AIAGENT-*` keywords to detect CLI state + tracks I/O activity (active/inactive/idle levels via `activity-change` events). `processOutput()` handles PTY stdout (keywords + activity). `markActive()` handles PTY stdin (activity only, no keyword scan) |
+| StateDetector | `src/session/state-detector.ts` | Scans PTY output for `AIAGENT-*` keywords to detect CLI state + tracks I/O activity (active/inactive/idle levels via `activity-change` events). `processOutput()` handles PTY stdout (keywords + activity). `markActive()` handles PTY stdin (activity only, no keyword scan). `markScrolling(sessionId)` handles scroll input — sets per-session flag that makes `processOutput()` skip keyword scanning (still tracks activity); auto-clears after 2s; `markActive()` clears it immediately |
 | PipelineQueue | `src/session/pipeline-queue.ts` | Auto-handoff: routes queued tasks to waiting sessions. Handoff triggers on completed or idle state transitions |
 | InitialPrompt | `src/session/initial-prompt.ts` | Converts sequence parser syntax to PTY escape codes, sends after configurable delay. `onComplete` callback signals when all items are done |
 | SequenceParser | `src/input/sequence-parser.ts` | Parses `{Enter}`, `{Ctrl+C}`, `{Wait 500}` etc. into typed actions |
-| TerminalView | `renderer/terminal/terminal-view.ts` | xterm.js wrapper with fit/search addons, OSC title change callback |
+| TerminalView | `renderer/terminal/terminal-view.ts` | xterm.js wrapper with fit/search addons, OSC title change callback. Optional `onScrollInput` callback for scroll-specific PTY writes. Capture-phase wheel handler on container intercepts alternate-buffer wheel → PageUp/PageDown via `onScrollInput` (falls back to `onData`); normal buffer passes through to SmoothScrollableElement |
 | TerminalManager | `renderer/terminal/terminal-manager.ts` | Multi-terminal switching, lifecycle. `deselect()` pauses keyboard relay without destroying terminal. Accepts `contextText` forwarded to main process via `ptySpawn()`. Owns `PtyOutputBuffer` for preview data. `setOnTitleChange()` routes terminal title events to renderer state |
 | PtyFilter | `renderer/terminal/pty-filter.ts` | Strips mouse-tracking and alternate-scroll escape sequences from PTY output so native text selection works |
 | PtyOutputBuffer | `renderer/terminal/pty-output-buffer.ts` | Ring buffer for PTY output per session (ANSI-stripped plain text). Used by group overview for live previews |

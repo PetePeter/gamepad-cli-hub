@@ -543,4 +543,109 @@ describe('StateDetector', () => {
       expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Scroll suppression — markScrolling prevents keyword detection
+  // -------------------------------------------------------------------------
+
+  describe('scroll suppression', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('skips keyword detection while scrolling', () => {
+      const handler = vi.fn();
+      detector.on('state-change', handler);
+
+      detector.markScrolling('s1');
+      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(detector.getState('s1')).toBe('idle');
+    });
+
+    it('still tracks activity while scrolling', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markScrolling('s1');
+      detector.processOutput('s1', 'some scroll redraw');
+
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+    });
+
+    it('auto-clears scrolling flag after 2 seconds', () => {
+      const handler = vi.fn();
+      detector.on('state-change', handler);
+
+      detector.markScrolling('s1');
+      vi.advanceTimersByTime(2001);
+
+      // Now keyword detection should work again
+      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+
+      expect(handler).toHaveBeenCalledWith({
+        sessionId: 's1',
+        previousState: 'idle',
+        newState: 'implementing',
+      });
+    });
+
+    it('markActive clears the scrolling flag', () => {
+      const handler = vi.fn();
+      detector.on('state-change', handler);
+
+      detector.markScrolling('s1');
+      detector.markActive('s1');
+
+      // Keywords should be detected now
+      detector.processOutput('s1', 'AIAGENT-PLANNING');
+
+      expect(handler).toHaveBeenCalledWith({
+        sessionId: 's1',
+        previousState: 'idle',
+        newState: 'planning',
+      });
+    });
+
+    it('resets auto-clear timer on repeated markScrolling', () => {
+      const handler = vi.fn();
+      detector.on('state-change', handler);
+
+      detector.markScrolling('s1');
+      vi.advanceTimersByTime(1500);
+      detector.markScrolling('s1'); // refresh the timer
+      vi.advanceTimersByTime(1500); // 1500ms since last markScrolling (< 2000ms)
+
+      // Still scrolling — keywords suppressed
+      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+      expect(handler).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(600); // now past the 2s window
+      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+      expect(handler).toHaveBeenCalled();
+    });
+
+    it('removeSession clears scroll timer', () => {
+      detector.markScrolling('s1');
+      detector.removeSession('s1');
+
+      // Should not throw or leave dangling timers
+      vi.advanceTimersByTime(3000);
+      expect(detector.getState('s1')).toBe('idle');
+    });
+
+    it('dispose clears all scroll timers', () => {
+      detector.markScrolling('s1');
+      detector.markScrolling('s2');
+      detector.dispose();
+
+      vi.advanceTimersByTime(3000);
+      // No errors, no state changes
+    });
+  });
 });
