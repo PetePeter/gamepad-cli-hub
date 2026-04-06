@@ -36,6 +36,26 @@ const DEFAULT_CONFIG: TelegramConfig = {
 let currentConfig: TelegramConfig = { ...DEFAULT_CONFIG };
 let botRunning = false;
 
+/** Debounce timer for auto-saving text fields as user types. */
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Save a field after a short debounce (or immediately if flush=true). */
+function debouncedSave(field: string, getValue: () => unknown, flush = false): void {
+  if (saveTimer) clearTimeout(saveTimer);
+  if (flush) {
+    saveField(field, getValue());
+    return;
+  }
+  saveTimer = setTimeout(() => saveField(field, getValue()), 400);
+}
+
+/** Wire a text input to auto-save on typing (debounced) and on blur (immediate). */
+function wireAutoSave(input: HTMLInputElement, field: string, transform?: (v: string) => unknown): void {
+  const getValue = () => transform ? transform(input.value) : input.value;
+  input.addEventListener('input', () => debouncedSave(field, getValue));
+  input.addEventListener('blur', () => debouncedSave(field, getValue, true));
+}
+
 export async function renderTelegramSettings(container: HTMLElement): Promise<void> {
   await loadConfig();
 
@@ -95,7 +115,7 @@ function buildTokenRow(): HTMLElement {
   tokenInput.value = currentConfig.botToken;
   tokenInput.placeholder = 'Paste your bot token from @BotFather';
   tokenInput.tabIndex = 0;
-  tokenInput.addEventListener('change', () => saveField('botToken', tokenInput.value));
+  wireAutoSave(tokenInput, 'botToken');
 
   const showBtn = document.createElement('button');
   showBtn.className = 'btn btn--secondary btn--sm focusable';
@@ -124,7 +144,7 @@ function buildChatIdRow(): HTMLElement {
   input.value = currentConfig.chatId;
   input.placeholder = 'Group chat ID (negative number)';
   input.tabIndex = 0;
-  input.addEventListener('change', () => saveField('chatId', input.value));
+  wireAutoSave(input, 'chatId');
   row.appendChild(input);
 
   return row;
@@ -139,7 +159,7 @@ function buildInstanceNameRow(): HTMLElement {
   input.value = currentConfig.instanceName;
   input.placeholder = 'e.g., Home PC (defaults to hostname)';
   input.tabIndex = 0;
-  input.addEventListener('change', () => saveField('instanceName', input.value));
+  wireAutoSave(input, 'instanceName');
   row.appendChild(input);
 
   return row;
@@ -242,13 +262,9 @@ function buildSecuritySection(): HTMLElement {
   input.value = currentConfig.allowedUserIds.join(', ');
   input.placeholder = 'Comma-separated Telegram user IDs (empty = allow all)';
   input.tabIndex = 0;
-  input.addEventListener('change', () => {
-    const ids = input.value
-      .split(',')
-      .map(s => parseInt(s.trim(), 10))
-      .filter(n => !isNaN(n));
-    saveField('allowedUserIds', ids);
-  });
+  wireAutoSave(input, 'allowedUserIds', (v) =>
+    v.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+  );
   row.appendChild(input);
   section.appendChild(row);
 
