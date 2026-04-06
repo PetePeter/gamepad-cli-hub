@@ -114,7 +114,7 @@ def main():
     print("[4/5] Committing and pushing...")
     run(f'git commit -am "bump: v{version}"')
     run(f'git tag -a v{version} -m "v{version}"')
-    run("git push origin main --tags")
+    run("git push origin HEAD --tags")
     print()
 
     # 5. Publish to GitHub Releases (with deploy configs for clean packaging)
