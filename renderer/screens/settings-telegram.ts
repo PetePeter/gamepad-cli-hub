@@ -53,9 +53,9 @@ export async function renderTelegramSettings(container: HTMLElement): Promise<vo
 
 async function loadConfig(): Promise<void> {
   try {
-    const config = await (window as any).gamepadCliAPI.telegramGetConfig();
+    const config = await (window as any).gamepadCli.telegramGetConfig();
     if (config) currentConfig = { ...DEFAULT_CONFIG, ...config };
-    botRunning = await (window as any).gamepadCliAPI.telegramIsRunning();
+    botRunning = await (window as any).gamepadCli.telegramIsRunning();
   } catch {
     // Use defaults
   }
@@ -64,7 +64,7 @@ async function loadConfig(): Promise<void> {
 async function saveField(field: string, value: unknown): Promise<void> {
   (currentConfig as any)[field] = value;
   try {
-    await (window as any).gamepadCliAPI.telegramSetConfig({ [field]: value });
+    await (window as any).gamepadCli.telegramSetConfig({ [field]: value });
   } catch (err) {
     console.error(`Failed to save telegram config field ${field}:`, err);
   }
@@ -179,7 +179,7 @@ function buildTestButton(): HTMLButtonElement {
     btn.disabled = true;
     btn.textContent = '⏳ Testing...';
     try {
-      const result = await (window as any).gamepadCliAPI.telegramTestConnection();
+      const result = await (window as any).gamepadCli.telegramTestConnection();
       btn.textContent = result.success
         ? `✅ Connected: @${result.botName}`
         : `❌ ${result.error}`;
@@ -204,10 +204,10 @@ function buildStartStopButton(): HTMLButtonElement {
     btn.disabled = true;
     try {
       if (botRunning) {
-        const result = await (window as any).gamepadCliAPI.telegramStop();
+        const result = await (window as any).gamepadCli.telegramStop();
         if (result.success) botRunning = false;
       } else {
-        const result = await (window as any).gamepadCliAPI.telegramStart();
+        const result = await (window as any).gamepadCli.telegramStart();
         if (result.success) botRunning = true;
         else alert(`Failed: ${result.error}`);
       }
