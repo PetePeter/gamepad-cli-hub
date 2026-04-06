@@ -113,7 +113,7 @@ def main():
     # 4. Git commit, tag, push
     print("[4/5] Committing and pushing...")
     run(f'git commit -am "bump: v{version}"')
-    run(f'git tag -a v{version} -m "v{version}"')
+    run(f'git tag -f -a v{version} -m "v{version}"')
     run("git push origin HEAD --tags")
     print()
 
