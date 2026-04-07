@@ -76,10 +76,10 @@ function buildSidebarDom(): void {
         <div class="spawn-grid" id="spawnGrid"></div>
       </div>
     </section>
-    <div id="terminalArea" style="display:none">
+    <div id="terminalArea">
       <div id="terminalContainer"></div>
     </div>
-    <div id="panelSplitter" style="display:none"></div>
+    <div id="panelSplitter"></div>
     <p id="statusTotalSessions">0</p>
     <p id="statusActiveSessions">0</p>
   `;

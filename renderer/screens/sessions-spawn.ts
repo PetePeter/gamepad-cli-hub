@@ -139,10 +139,8 @@ export function showTerminalArea(): void {
   // Dismiss overview if it's showing — terminal takes priority
   hideOverview();
 
-  const terminalArea = document.getElementById('terminalArea');
-  const splitter = document.getElementById('panelSplitter');
-  if (terminalArea) terminalArea.style.display = 'flex';
-  if (splitter) splitter.style.display = 'block';
+  const termContainer = document.getElementById('terminalContainer');
+  if (termContainer) termContainer.style.display = '';
   const tm = getTerminalManager();
   if (tm) {
     requestAnimationFrame(() => {
@@ -153,10 +151,8 @@ export function showTerminalArea(): void {
 }
 
 export function hideTerminalArea(): void {
-  const terminalArea = document.getElementById('terminalArea');
-  const splitter = document.getElementById('panelSplitter');
-  if (terminalArea) terminalArea.style.display = 'none';
-  if (splitter) splitter.style.display = 'none';
+  const termContainer = document.getElementById('terminalContainer');
+  if (termContainer) termContainer.style.display = 'none';
 }
 
 export async function spawnNewSession(cliType?: string, preselectedPath?: string): Promise<void> {

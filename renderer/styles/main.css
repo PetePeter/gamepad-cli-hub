@@ -81,21 +81,13 @@ button {
   flex-shrink: 0;
 }
 
-/* When no terminals, left panel takes full width */
-.panel-left:only-child {
-  width: 100%;
-  max-width: none;
-  border-right: none;
-}
-
-/* Drag splitter between panels */
+/* Drag splitter between panels — always visible */
 .panel-splitter {
   width: 4px;
   cursor: col-resize;
   background: var(--border);
   flex-shrink: 0;
   transition: background 0.15s;
-  display: none;  /* hidden until terminal area is visible */
 }
 
 .panel-splitter:hover,

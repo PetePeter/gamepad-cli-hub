@@ -55,18 +55,16 @@ describe('GroupOverview', () => {
 
     if (!domSetUp) {
       document.body.innerHTML = `
-        <div id="terminalArea" style="display:none">
+        <div id="terminalArea">
           <div id="terminalContainer"></div>
         </div>
-        <div id="panelSplitter" style="display:none"></div>
+        <div id="panelSplitter"></div>
       `;
       domSetUp = true;
     } else {
       // Reset DOM state without clearing innerHTML — clearing it would orphan
       // the module's private overviewContainer ref, breaking subsequent tests.
-      document.getElementById('terminalArea')!.style.display = 'none';
       document.getElementById('terminalContainer')!.style.display = '';
-      document.getElementById('panelSplitter')!.style.display = 'none';
     }
 
     buffer = new PtyOutputBuffer(50);
@@ -112,10 +110,10 @@ describe('GroupOverview', () => {
       expect(tc?.style.display).toBe('');
     });
 
-    it('shows terminal area when opening overview', () => {
+    it('terminal area remains visible when opening overview', () => {
       showOverview('/project');
       const ta = document.getElementById('terminalArea');
-      expect(ta?.style.display).toBe('flex');
+      expect(ta?.style.display).not.toBe('none');
     });
   });
 

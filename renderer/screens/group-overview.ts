@@ -69,10 +69,7 @@ export function showOverview(groupDirPath: string, initialSessionId?: string): v
   const terminalArea = document.getElementById('terminalArea');
   if (!terminalArea) return;
 
-  // Show terminal area if hidden
-  terminalArea.style.display = 'flex';
-  const splitter = document.getElementById('panelSplitter');
-  if (splitter) splitter.style.display = 'block';
+  // Ensure terminal area content is ready for overview
 
   // Hide the terminal container (xterm.js panes)
   const termContainer = document.getElementById('terminalContainer');
