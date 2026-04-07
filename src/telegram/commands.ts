@@ -21,6 +21,7 @@ import type { TopicManager } from './topic-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import { directoryListKeyboard, sessionControlKeyboard, spawnToolKeyboard } from './keyboards.js';
+import { buildReplyKeyboard } from './reply-keyboard.js';
 import { escapeHtml } from './utils.js';
 import type { ConfigLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
@@ -68,7 +69,7 @@ export function setupSlashCommands(deps: SlashCommandDeps): () => void {
     text += `Active sessions: ${count}\n`;
     text += `Use /sessions to browse, /help for commands.`;
 
-    await reply(msg, text, { parse_mode: 'HTML' });
+    await reply(msg, text, { parse_mode: 'HTML', reply_markup: buildReplyKeyboard() });
   }
 
   // ── /help ───────────────────────────────────────────────────────────

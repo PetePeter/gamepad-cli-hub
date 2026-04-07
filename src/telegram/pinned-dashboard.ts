@@ -20,6 +20,7 @@
  */
 
 import type { TelegramBotCore } from './bot.js';
+import type TelegramBot from 'node-telegram-bot-api';
 import type { SessionManager } from '../session/manager.js';
 import type { SessionInfo, SessionState } from '../types/session.js';
 import { escapeHtml } from './utils.js';
@@ -97,6 +98,7 @@ export class PinnedDashboard {
         chat_id: chatId,
         message_id: this.messageId,
         parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: this.buildDashboardKeyboard() },
       });
     } catch (err) {
       this.handleEditError(err);
@@ -115,8 +117,10 @@ export class PinnedDashboard {
 
   private async createOrUpdate(): Promise<void> {
     const text = this.buildDashboardText();
+    const keyboard = this.buildDashboardKeyboard();
     const msg = await this.bot.sendMessage(text, {
       parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: keyboard },
     });
 
     if (msg) {
@@ -151,6 +155,17 @@ export class PinnedDashboard {
     }
 
     logger.error(`[PinnedDashboard] Edit failed: ${err}`);
+  }
+
+  /** Inline keyboard buttons shown on the pinned dashboard message. */
+  private buildDashboardKeyboard(): TelegramBot.InlineKeyboardButton[][] {
+    return [
+      [
+        { text: '📂 Sessions', callback_data: 'sessions:list' },
+        { text: '➕ Spawn', callback_data: 'spawn:start' },
+        { text: '📊 Status', callback_data: 'status:all' },
+      ],
+    ];
   }
 
   private buildDashboardText(): string {

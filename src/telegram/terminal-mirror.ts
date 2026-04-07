@@ -13,7 +13,7 @@
 
 import type { TelegramBotCore } from './bot.js';
 import type { TopicManager } from './topic-manager.js';
-import { escapeHtml, stripAnsi } from './utils.js';
+import { escapeHtml, cleanTerminalOutput } from './utils.js';
 import { logger } from '../utils/logger.js';
 
 /** Max chars in a single Telegram message (leave room for formatting) */
@@ -156,7 +156,7 @@ export class TerminalMirror {
 
     state.flushTimer = null;
 
-    const newText = stripAnsi(state.buffer);
+    const newText = cleanTerminalOutput(state.buffer);
     state.buffer = '';
 
     if (!newText.trim()) return;

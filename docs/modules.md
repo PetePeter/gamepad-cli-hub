@@ -4,7 +4,7 @@ Reference table of all modules in the gamepad-cli-hub application.
 
 | Module | File | Responsibility |
 |--------|------|---------------|
-| **BrowserGamepad** | `renderer/gamepad.ts` | Browser Gamepad API polling (250ms debounce), button-press events via IPC, analog stick events, **D-pad and stick auto-repeat engine**. Sole gamepad input source. |
+| **BrowserGamepad** | `renderer/gamepad.ts` | Browser Gamepad API polling (250ms debounce), button-press events via IPC, analog stick events, **D-pad and stick auto-repeat engine**. Supports standard mapping (Xbox, buttons 12-15) and generic/DirectInput gamepads (axes-based D-pad: dual-axis pairs + hat switch). Sole gamepad input source. |
 | **SessionManager** | `src/session/manager.ts` | Track sessions, switch active, rename sessions, emit session:added/removed/changed. Calls persistence after every state change. `restoreSessions()` reloads saved sessions at startup (skipping duplicates). `startHealthCheck(30000)` prunes dead PIDs every 30s via `process.kill(pid, 0)`. Both called from `handlers.ts` at startup. |
 | **SessionPersistence** | `src/session/persistence.ts` | `saveSessions()`, `loadSessions()`, `clearPersistedSessions()` to `config/sessions.yaml`. File-level I/O used by SessionManager for persist/restore operations. |
 | **PtyManager** | `src/session/pty-manager.ts` | PTY process lifecycle — spawn via node-pty (cmd.exe on Windows, bash on Unix), write to stdin, resize, kill. One PTY per embedded terminal session. |

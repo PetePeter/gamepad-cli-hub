@@ -99,6 +99,7 @@ describe('SessionManager', () => {
       expect(manager.getSession(mockSession1.id)).toBeNull();
       expect(removedEvent).toEqual({
         sessionId: mockSession1.id,
+        session: expect.objectContaining({ id: mockSession1.id }),
         timestamp: expect.any(Number),
       });
     });

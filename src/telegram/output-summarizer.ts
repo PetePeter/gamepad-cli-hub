@@ -10,7 +10,7 @@
  * Maintains a rolling buffer per session, capped at MAX_BUFFER_SIZE.
  */
 
-import { escapeHtml, stripAnsi } from './utils.js';
+import { escapeHtml, cleanTerminalOutput } from './utils.js';
 
 const MAX_BUFFER_SIZE = 50_000;
 const SUMMARY_LINES = 20;
@@ -40,7 +40,7 @@ export class OutputSummarizer {
       buffer.raw = buffer.raw.slice(-MAX_BUFFER_SIZE);
     }
 
-    buffer.lines = stripAnsi(buffer.raw).split('\n');
+    buffer.lines = cleanTerminalOutput(buffer.raw).split('\n');
   }
 
   /**

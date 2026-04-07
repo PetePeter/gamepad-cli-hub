@@ -61,7 +61,8 @@ export class SessionManager extends EventEmitter {
    * @param sessionId - Session ID to remove
    */
   removeSession(sessionId: string): void {
-    if (!this.sessions.has(sessionId)) {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
       throw new Error(`Session with id "${sessionId}" does not exist`);
     }
 
@@ -88,6 +89,7 @@ export class SessionManager extends EventEmitter {
 
     const event: SessionRemovedEvent = {
       sessionId,
+      session: { ...session },
       timestamp: Date.now()
     };
     this.emit('session:removed', event);

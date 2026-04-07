@@ -61,6 +61,8 @@ export interface SessionAddedEvent extends SessionInfo {
  */
 export interface SessionRemovedEvent {
   sessionId: string;
+  /** Snapshot of the session at removal time (for cleanup handlers). */
+  session: SessionInfo;
   timestamp: number;
 }
 

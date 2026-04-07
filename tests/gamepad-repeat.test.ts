@@ -20,10 +20,13 @@ function makeGamepad(
     index?: number;
     buttons?: Partial<Record<number, { pressed: boolean; value?: number }>>;
     axes?: number[];
+    mapping?: GamepadMappingType;
+    numButtons?: number;
   } = {},
 ): Gamepad {
   const idx = overrides.index ?? 0;
-  const buttonsRaw = new Array(16).fill(null).map(() => makeButton(false));
+  const numBtns = overrides.numButtons ?? 16;
+  const buttonsRaw = new Array(numBtns).fill(null).map(() => makeButton(false));
   if (overrides.buttons) {
     for (const [i, b] of Object.entries(overrides.buttons)) {
       buttonsRaw[Number(i)] = makeButton(b!.pressed, b!.value ?? (b!.pressed ? 1 : 0));
@@ -35,7 +38,7 @@ function makeGamepad(
     id: 'Mock Gamepad',
     index: idx,
     connected: true,
-    mapping: 'standard',
+    mapping: overrides.mapping ?? 'standard',
     buttons: buttonsRaw,
     axes,
     hapticActuators: [],
@@ -456,6 +459,411 @@ describe('Gamepad Repeat Engine', () => {
       expect(count).toBeGreaterThanOrEqual(4);
       // But not more than 20 (which would indicate no floor)
       expect(count).toBeLessThanOrEqual(20);
+    });
+  });
+});
+
+// =============================================================================
+// Generic Gamepad D-Pad (axes-based detection)
+// =============================================================================
+
+describe('Generic Gamepad D-Pad (axes-based)', () => {
+  let poller: BrowserGamepadPoller;
+  let events: Array<{ button: string; gamepadIndex: number }>;
+  let releases: Array<{ button: string }>;
+  let unsubscribe: () => void;
+  let unsubRelease: () => void;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    poller = new BrowserGamepadPoller();
+    events = [];
+    releases = [];
+    unsubscribe = poller.onButton((e) => {
+      events.push({ button: e.button, gamepadIndex: e.gamepadIndex });
+    });
+    unsubRelease = poller.onRelease((e) => {
+      releases.push({ button: e.button });
+    });
+    mockGamepads.fill(null);
+  });
+
+  afterEach(() => {
+    unsubscribe();
+    unsubRelease();
+    poller.stop();
+    vi.useRealTimers();
+  });
+
+  function setGamepad(gp: Gamepad | null, index = 0): void {
+    mockGamepads[index] = gp;
+  }
+
+  function tick(ms = 16): void {
+    vi.advanceTimersByTime(ms);
+  }
+
+  function startAndTick(ms = 16): void {
+    poller.start();
+    tick(ms);
+  }
+
+  // -------------------------------------------------------------------------
+  // Standard mapping unchanged
+  // -------------------------------------------------------------------------
+  it('standard mapping still uses buttons 12-15', () => {
+    const gp = makeGamepad({
+      mapping: 'standard',
+      buttons: { 12: { pressed: true } },
+    });
+    setGamepad(gp);
+    startAndTick();
+    expect(events.filter(e => e.button === 'DPadUp').length).toBe(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Dual-axis D-pad (axes 6/7)
+  // -------------------------------------------------------------------------
+  describe('Dual-axis D-pad (axes 6/7)', () => {
+    it('detects up (axis 7 = -1)', () => {
+      // 8 axes: 0-3 sticks, 4-5 triggers, 6-7 D-pad
+      const gp = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0, -1],
+        numButtons: 12,
+      });
+      setGamepad(gp);
+      startAndTick();
+      expect(events.filter(e => e.button === 'DPadUp').length).toBe(1);
+    });
+
+    it('detects down (axis 7 = +1)', () => {
+      const gp = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0, 1],
+        numButtons: 12,
+      });
+      setGamepad(gp);
+      startAndTick();
+      expect(events.filter(e => e.button === 'DPadDown').length).toBe(1);
+    });
+
+    it('detects left (axis 6 = -1)', () => {
+      const gp = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, -1, 0],
+        numButtons: 12,
+      });
+      setGamepad(gp);
+      startAndTick();
+      expect(events.filter(e => e.button === 'DPadLeft').length).toBe(1);
+    });
+
+    it('detects right (axis 6 = +1)', () => {
+      const gp = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 1, 0],
+        numButtons: 12,
+      });
+      setGamepad(gp);
+      startAndTick();
+      expect(events.filter(e => e.button === 'DPadRight').length).toBe(1);
+    });
+
+    it('detects diagonal (up+left)', () => {
+      const gp = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, -1, -1],
+        numButtons: 12,
+      });
+      setGamepad(gp);
+      startAndTick();
+      expect(events.filter(e => e.button === 'DPadUp').length).toBe(1);
+      expect(events.filter(e => e.button === 'DPadLeft').length).toBe(1);
+    });
+
+    it('ignores values below threshold', () => {
+      const gp = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0.3, -0.3],
+        numButtons: 12,
+      });
+      setGamepad(gp);
+      startAndTick();
+      expect(events.filter(e => e.button.startsWith('DPad')).length).toBe(0);
+    });
+
+    it('fires release when returning to center', () => {
+      const gpPressed = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0, -1],
+        numButtons: 12,
+      });
+      const gpReleased = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0, 0],
+        numButtons: 12,
+      });
+
+      setGamepad(gpPressed);
+      startAndTick();
+      expect(events.filter(e => e.button === 'DPadUp').length).toBe(1);
+
+      setGamepad(gpReleased);
+      tick();
+      expect(releases.filter(e => e.button === 'DPadUp').length).toBe(1);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Hat switch axis (axis 9)
+  // -------------------------------------------------------------------------
+  describe('Hat switch axis', () => {
+    // 10 axes: 0-3 sticks, 4-7 other, 8 unknown, 9 hat
+    // Dual-axis on (6,7) would be checked first but they're 0,
+    // so hat on axis 9 is the fallback
+
+    it('detects N (up) at -1.0', () => {
+      const gp = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0, 0, 0, -1.0],
+        numButtons: 12,
+      });
+      setGamepad(gp);
+      startAndTick();
+      expect(events.filter(e => e.button === 'DPadUp').length).toBe(1);
+    });
+
+    it('detects S (down) at ~0.143', () => {
+      const gp = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0.143],
+        numButtons: 12,
+      });
+      setGamepad(gp);
+      startAndTick();
+      expect(events.filter(e => e.button === 'DPadDown').length).toBe(1);
+    });
+
+    it('detects E (right) at ~-0.429', () => {
+      const gp = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0, 0, 0, -0.429],
+        numButtons: 12,
+      });
+      setGamepad(gp);
+      startAndTick();
+      expect(events.filter(e => e.button === 'DPadRight').length).toBe(1);
+    });
+
+    it('detects W (left) at ~0.714', () => {
+      const gp = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0.714],
+        numButtons: 12,
+      });
+      setGamepad(gp);
+      startAndTick();
+      expect(events.filter(e => e.button === 'DPadLeft').length).toBe(1);
+    });
+
+    it('detects NE (diagonal) at ~-0.714', () => {
+      const gp = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0, 0, 0, -0.714],
+        numButtons: 12,
+      });
+      setGamepad(gp);
+      startAndTick();
+      expect(events.filter(e => e.button === 'DPadUp').length).toBe(1);
+      expect(events.filter(e => e.button === 'DPadRight').length).toBe(1);
+    });
+
+    it('neutral value >1.1 fires no events', () => {
+      const gp = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 1.286],
+        numButtons: 12,
+      });
+      setGamepad(gp);
+      startAndTick();
+      expect(events.filter(e => e.button.startsWith('DPad')).length).toBe(0);
+    });
+
+    it('fires release when hat returns to neutral', () => {
+      const gpPressed = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0, 0, 0, -1.0],
+        numButtons: 12,
+      });
+      const gpNeutral = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 1.286],
+        numButtons: 12,
+      });
+
+      setGamepad(gpPressed);
+      startAndTick();
+      expect(events.filter(e => e.button === 'DPadUp').length).toBe(1);
+
+      setGamepad(gpNeutral);
+      tick();
+      expect(releases.filter(e => e.button === 'DPadUp').length).toBe(1);
+    });
+
+    it('value 0.0 does NOT trigger (outside tolerance of known directions)', () => {
+      const gp = makeGamepad({
+        mapping: '' as GamepadMappingType,
+        axes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0],
+        numButtons: 12,
+      });
+      setGamepad(gp);
+      startAndTick();
+      expect(events.filter(e => e.button.startsWith('DPad')).length).toBe(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Dual-axis on smaller axis sets (axes 4/5 when only 6 axes)
+  // -------------------------------------------------------------------------
+  it('uses axes 4/5 when gamepad has 6 axes', () => {
+    const gp = makeGamepad({
+      mapping: '' as GamepadMappingType,
+      axes: [0, 0, 0, 0, -1, 0], // axis 4 = -1 (left)
+      numButtons: 10,
+    });
+    setGamepad(gp);
+    startAndTick();
+    expect(events.filter(e => e.button === 'DPadLeft').length).toBe(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Hat axis fallback on smaller sets (5 axes → last axis = 4)
+  // -------------------------------------------------------------------------
+  it('uses last axis as hat when 5 axes', () => {
+    const gp = makeGamepad({
+      mapping: '' as GamepadMappingType,
+      axes: [0, 0, 0, 0, -1.0], // axis 4 = hat N
+      numButtons: 10,
+    });
+    setGamepad(gp);
+    startAndTick();
+    expect(events.filter(e => e.button === 'DPadUp').length).toBe(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Dual-axis takes priority over hat when both present
+  // -------------------------------------------------------------------------
+  it('dual-axis takes priority when axes 6/7 have values', () => {
+    const gp = makeGamepad({
+      mapping: '' as GamepadMappingType,
+      axes: [0, 0, 0, 0, 0, 0, 1, 0, 0, -1.0], // axis 6=right, axis 9=hat N
+      numButtons: 12,
+    });
+    setGamepad(gp);
+    startAndTick();
+    // Dual-axis detected right; hat should NOT also fire up
+    expect(events.filter(e => e.button === 'DPadRight').length).toBe(1);
+    expect(events.filter(e => e.button === 'DPadUp').length).toBe(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // D-pad repeat works for generic gamepads too
+  // -------------------------------------------------------------------------
+  it('axes-based D-pad repeats like button D-pad', () => {
+    const gp = makeGamepad({
+      mapping: '' as GamepadMappingType,
+      axes: [0, 0, 0, 0, 0, 0, 0, -1],
+      numButtons: 12,
+    });
+    setGamepad(gp);
+    startAndTick();
+    expect(events.filter(e => e.button === 'DPadUp').length).toBe(1);
+
+    // Past initial delay (400ms) repeats should fire
+    tick(416);
+    expect(events.filter(e => e.button === 'DPadUp').length).toBeGreaterThan(1);
+  });
+});
+
+// =============================================================================
+// Static helpers (unit tests)
+// =============================================================================
+
+describe('BrowserGamepadPoller static helpers', () => {
+  describe('decodeHatAxis', () => {
+    it('returns neutral for value > 1.05', () => {
+      const dir = BrowserGamepadPoller.decodeHatAxis(1.286);
+      expect(dir).toEqual({ up: false, down: false, left: false, right: false });
+    });
+
+    it('returns neutral for value < -1.05', () => {
+      const dir = BrowserGamepadPoller.decodeHatAxis(-1.5);
+      expect(dir).toEqual({ up: false, down: false, left: false, right: false });
+    });
+
+    it('returns neutral for 0.0 (between known values)', () => {
+      const dir = BrowserGamepadPoller.decodeHatAxis(0.0);
+      expect(dir).toEqual({ up: false, down: false, left: false, right: false });
+    });
+
+    it('decodes N correctly', () => {
+      expect(BrowserGamepadPoller.decodeHatAxis(-1.0)).toEqual(
+        { up: true, down: false, left: false, right: false },
+      );
+    });
+
+    it('decodes S correctly', () => {
+      expect(BrowserGamepadPoller.decodeHatAxis(0.143)).toEqual(
+        { up: false, down: true, left: false, right: false },
+      );
+    });
+
+    it('decodes NW correctly', () => {
+      expect(BrowserGamepadPoller.decodeHatAxis(1.0)).toEqual(
+        { up: true, down: false, left: true, right: false },
+      );
+    });
+
+    it('handles slightly off values within tolerance', () => {
+      // -0.72 is close to -0.714 (NE)
+      expect(BrowserGamepadPoller.decodeHatAxis(-0.72)).toEqual(
+        { up: true, down: false, left: false, right: true },
+      );
+    });
+  });
+
+  describe('findDualAxisPair', () => {
+    it('returns [6,7] for 8+ axes', () => {
+      expect(BrowserGamepadPoller.findDualAxisPair(8)).toEqual([6, 7]);
+      expect(BrowserGamepadPoller.findDualAxisPair(10)).toEqual([6, 7]);
+    });
+
+    it('returns [4,5] for 6-7 axes', () => {
+      expect(BrowserGamepadPoller.findDualAxisPair(6)).toEqual([4, 5]);
+      expect(BrowserGamepadPoller.findDualAxisPair(7)).toEqual([4, 5]);
+    });
+
+    it('returns null for 4 or fewer axes', () => {
+      expect(BrowserGamepadPoller.findDualAxisPair(4)).toBeNull();
+      expect(BrowserGamepadPoller.findDualAxisPair(2)).toBeNull();
+    });
+  });
+
+  describe('findHatAxisIndex', () => {
+    it('returns 9 for 10+ axes', () => {
+      expect(BrowserGamepadPoller.findHatAxisIndex(10)).toBe(9);
+      expect(BrowserGamepadPoller.findHatAxisIndex(12)).toBe(9);
+    });
+
+    it('returns last axis for 5-9 axes', () => {
+      expect(BrowserGamepadPoller.findHatAxisIndex(5)).toBe(4);
+      expect(BrowserGamepadPoller.findHatAxisIndex(9)).toBe(8);
+    });
+
+    it('returns null for 4 or fewer axes', () => {
+      expect(BrowserGamepadPoller.findHatAxisIndex(4)).toBeNull();
+      expect(BrowserGamepadPoller.findHatAxisIndex(3)).toBeNull();
     });
   });
 });

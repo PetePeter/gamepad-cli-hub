@@ -31,6 +31,16 @@ class BrowserGamepadPoller {
   private releaseCallbacks: Set<ButtonCallback> = new Set();
   private connectedCount = 0;
   private eventsSetup = false;
+  private lastAxesDiagLog = 0;
+
+  /** Tolerance for matching hat switch axis values to known directions */
+  private static readonly HAT_MATCH_TOLERANCE = 0.1;
+
+  /** Threshold for dual-axis D-pad detection */
+  private static readonly DPAD_AXIS_THRESHOLD = 0.5;
+
+  /** How often to log axis diagnostics for generic gamepads (ms) */
+  private static readonly AXIS_LOG_INTERVAL_MS = 2000;
 
   private repeatConfig: RepeatConfig = {
     dpad: { initialDelay: 400, repeatRate: 120 },
@@ -293,35 +303,146 @@ class BrowserGamepadPoller {
   }
 
   private checkDpad(gamepad: Gamepad, index: number, prevState: boolean[]): void {
-    // Some controllers put D-pad on axes 6-7 (as a hat)
-    // Others use buttons 12-15
+    if (gamepad.mapping === 'standard') {
+      this.checkDpadButtons(gamepad, index, prevState);
+    } else {
+      this.logAxesDiagnostic(gamepad, index);
+      this.checkDpadAxes(gamepad, index, prevState);
+    }
+  }
 
-    // Try axes-based D-pad first (common on Xbox)
-    const dpadUpIndex = 12;
-    const dpadDownIndex = 13;
-    const dpadLeftIndex = 14;
-    const dpadRightIndex = 15;
-
-    const dpadMap: Array<{ index: number; name: string }> = [
-      { index: dpadUpIndex, name: 'DPadUp' },
-      { index: dpadDownIndex, name: 'DPadDown' },
-      { index: dpadLeftIndex, name: 'DPadLeft' },
-      { index: dpadRightIndex, name: 'DPadRight' },
+  /** Standard mapping: D-pad is buttons 12-15 */
+  private checkDpadButtons(gamepad: Gamepad, index: number, prevState: boolean[]): void {
+    const dpadMap = [
+      { btnIdx: 12, name: 'DPadUp', stateIdx: 12 },
+      { btnIdx: 13, name: 'DPadDown', stateIdx: 13 },
+      { btnIdx: 14, name: 'DPadLeft', stateIdx: 14 },
+      { btnIdx: 15, name: 'DPadRight', stateIdx: 15 },
     ];
 
-    for (const { index: btnIndex, name } of dpadMap) {
-      const pressed = gamepad.buttons[btnIndex]?.pressed ?? false;
-      const stateIndex = 12 + dpadMap.findIndex(d => d.index === btnIndex);
-
-      if (pressed !== (prevState[stateIndex] ?? false)) {
-        prevState[stateIndex] = pressed;
-        if (pressed) {
-          this.handleButtonPress(name, index);
-        } else {
-          this.handleButtonRelease(name, index);
-        }
+    for (const { btnIdx, name, stateIdx } of dpadMap) {
+      const pressed = gamepad.buttons[btnIdx]?.pressed ?? false;
+      if (pressed !== (prevState[stateIdx] ?? false)) {
+        prevState[stateIdx] = pressed;
+        if (pressed) this.handleButtonPress(name, index);
+        else this.handleButtonRelease(name, index);
       }
     }
+  }
+
+  /**
+   * Generic mapping: detect D-pad from axes.
+   * Tries dual-axis pairs (6/7 or 4/5), then hat switch axis (9 or last).
+   */
+  private checkDpadAxes(gamepad: Gamepad, index: number, prevState: boolean[]): void {
+    let up = false, down = false, left = false, right = false;
+    const threshold = BrowserGamepadPoller.DPAD_AXIS_THRESHOLD;
+
+    // Method 1: Dual-axis D-pad (most common for DirectInput gamepads)
+    const dualPair = BrowserGamepadPoller.findDualAxisPair(gamepad.axes.length);
+    if (dualPair !== null) {
+      const x = gamepad.axes[dualPair[0]] ?? 0;
+      const y = gamepad.axes[dualPair[1]] ?? 0;
+      if (Math.abs(x) > threshold || Math.abs(y) > threshold) {
+        left = x < -threshold;
+        right = x > threshold;
+        up = y < -threshold;
+        down = y > threshold;
+      }
+    }
+
+    // Method 2: Hat switch axis (single axis with discrete direction values)
+    if (!up && !down && !left && !right) {
+      const hatIdx = BrowserGamepadPoller.findHatAxisIndex(gamepad.axes.length);
+      if (hatIdx !== null) {
+        const hatValue = gamepad.axes[hatIdx] ?? 0;
+        const dir = BrowserGamepadPoller.decodeHatAxis(hatValue);
+        up = dir.up; down = dir.down; left = dir.left; right = dir.right;
+      }
+    }
+
+    this.emitDpadDirection(up, 'DPadUp', 12, index, prevState);
+    this.emitDpadDirection(down, 'DPadDown', 13, index, prevState);
+    this.emitDpadDirection(left, 'DPadLeft', 14, index, prevState);
+    this.emitDpadDirection(right, 'DPadRight', 15, index, prevState);
+  }
+
+  /** Emit D-pad direction state change (press or release) */
+  private emitDpadDirection(
+    active: boolean, name: string, stateIdx: number,
+    gamepadIndex: number, prevState: boolean[],
+  ): void {
+    if (active !== (prevState[stateIdx] ?? false)) {
+      prevState[stateIdx] = active;
+      if (active) this.handleButtonPress(name, gamepadIndex);
+      else this.handleButtonRelease(name, gamepadIndex);
+    }
+  }
+
+  /** Find the best dual-axis pair for D-pad beyond stick axes (0-3) */
+  static findDualAxisPair(axesCount: number): [number, number] | null {
+    if (axesCount >= 8) return [6, 7];
+    if (axesCount >= 6) return [4, 5];
+    return null;
+  }
+
+  /** Find the best hat switch axis index beyond stick axes */
+  static findHatAxisIndex(axesCount: number): number | null {
+    if (axesCount >= 10) return 9;
+    if (axesCount > 4) return axesCount - 1;
+    return null;
+  }
+
+  /**
+   * Decode a hat switch axis value into cardinal directions.
+   *
+   * Standard Chromium/DirectInput encoding uses 8 values spaced at 2/7 (~0.286):
+   *   N=-1.000, NE=-0.714, E=-0.429, SE=-0.143,
+   *   S=0.143, SW=0.429, W=0.714, NW=1.000
+   * Neutral is typically >1.1 (e.g. ~1.286).
+   */
+  static decodeHatAxis(value: number): { up: boolean; down: boolean; left: boolean; right: boolean } {
+    const neutral = { up: false, down: false, left: false, right: false };
+
+    // Neutral: value outside the active range [-1.05, 1.05]
+    if (Math.abs(value) > 1.05) return neutral;
+
+    const directions = [
+      { value: -1.000, up: true,  down: false, left: false, right: false }, // N
+      { value: -0.714, up: true,  down: false, left: false, right: true },  // NE
+      { value: -0.429, up: false, down: false, left: false, right: true },  // E
+      { value: -0.143, up: false, down: true,  left: false, right: true },  // SE
+      { value:  0.143, up: false, down: true,  left: false, right: false }, // S
+      { value:  0.429, up: false, down: true,  left: true,  right: false }, // SW
+      { value:  0.714, up: false, down: false, left: true,  right: false }, // W
+      { value:  1.000, up: true,  down: false, left: true,  right: false }, // NW
+    ];
+
+    let closest = neutral;
+    let minDist = BrowserGamepadPoller.HAT_MATCH_TOLERANCE;
+    for (const dir of directions) {
+      const dist = Math.abs(value - dir.value);
+      if (dist < minDist) {
+        minDist = dist;
+        closest = { up: dir.up, down: dir.down, left: dir.left, right: dir.right };
+      }
+    }
+
+    return closest;
+  }
+
+  /** Throttled diagnostic logging of all axis values for generic gamepads */
+  private logAxesDiagnostic(gamepad: Gamepad, index: number): void {
+    const now = Date.now();
+    if (now - this.lastAxesDiagLog < BrowserGamepadPoller.AXIS_LOG_INTERVAL_MS) return;
+    this.lastAxesDiagLog = now;
+
+    const axesValues = Array.from(gamepad.axes).map((v, i) => `${i}:${v.toFixed(3)}`).join(', ');
+    const btnCount = gamepad.buttons.length;
+    console.log(
+      `[BrowserGamepad] Generic gamepad ${index} (${gamepad.id}) ` +
+      `mapping="${gamepad.mapping}" buttons=${btnCount} axes=[${axesValues}]`,
+    );
   }
 
   private handleButtonPress(button: string, gamepadIndex: number): void {

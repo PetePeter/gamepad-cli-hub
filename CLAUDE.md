@@ -9,7 +9,7 @@ DIY Xbox controller → CLI session manager. Control multiple AI coding CLIs (Cl
 ```mermaid
 graph TB
     subgraph Hardware
-        XC[Xbox Controller<br/>USB/Bluetooth]
+        XC[Gamepad<br/>Xbox USB/BT · Generic/DirectInput]
     end
 
     subgraph "Electron App"
@@ -52,7 +52,7 @@ graph TB
 ## Data Flow
 
 ```
-Xbox Controller
+Gamepad (Xbox or generic)
   → Browser Gamepad API (renderer polling, 16ms)
     → IPC gamepad:event → debounce (250ms)
       → Resolve binding (per-CLI type)
@@ -67,7 +67,7 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus, block
 
 ## Design Decisions
 
-1. **Browser Gamepad API only** — Single input path via Chromium's Gamepad API. Works with both USB and Bluetooth Xbox controllers. XInput/PowerShell path was removed for simplicity.
+1. **Browser Gamepad API only** — Single input path via Chromium's Gamepad API. Works with Xbox controllers (USB/Bluetooth, standard mapping → buttons 12-15 for D-pad) and generic/DirectInput gamepads (axes-based D-pad detection: dual-axis pairs then hat switch fallback). XInput/PowerShell path was removed for simplicity.
 2. **Embedded terminals via PTY** — CLIs run inside the Electron app using node-pty + xterm.js. No external terminal windows. PTY spawns cmd.exe on Windows, bash on Unix. All keyboard/sequence input routes through PTY stdin.
 3. **Voice binding OS-default routing** — Voice bindings default to OS-level robotjs simulation. Only route through PTY when `target === 'terminal'` is explicitly set: converts key to terminal escape sequence via `keyToPtyEscape()` → `ptyWrite()`. Falls back to robotjs when no terminal or `target` is not `'terminal'`. Hold mode sends escape sequence once on press (PTY has no key-up). Supports F1-F12 (VT220), navigation keys, combos.
 4. **Clipboard paste via PTY** — Document-level Ctrl+V interceptor (`renderer/paste-handler.ts`) reads clipboard and writes to active PTY via `ptyWrite()`, regardless of DOM focus. Blocked when any modal overlay is visible (`.modal-overlay.modal--visible` guard). Solves paste not reaching terminal when gamepad navigation focuses the sidebar.
