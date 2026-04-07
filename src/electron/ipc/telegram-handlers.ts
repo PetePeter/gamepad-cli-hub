@@ -51,6 +51,9 @@ export function setupTelegramHandlers(
       if (!config.botToken || !config.chatId) {
         return { success: false, error: 'Bot token and chat ID are required' };
       }
+      if (!config.allowedUserIds || config.allowedUserIds.length === 0) {
+        return { success: false, error: 'At least one allowed user ID is required' };
+      }
       botCore.start(config.botToken, config.chatId, config.allowedUserIds);
       topicManager.setInstanceName(config.instanceName);
       await topicManager.ensureAllTopics();

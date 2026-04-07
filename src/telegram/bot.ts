@@ -32,6 +32,9 @@ const EDIT_DEBOUNCE_MS = 1500;
 /** Maximum edits per topic per minute. */
 const MAX_EDITS_PER_MIN = 20;
 
+/** Maximum incoming messages per user per minute before rate limiting. */
+const MAX_RECV_PER_MIN = 30;
+
 /**
  * Core Telegram bot wrapper.
  *
@@ -57,9 +60,15 @@ export class TelegramBotCore extends EventEmitter {
   private editTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   // Rate tracking: key = topicId (message_thread_id), value = timestamps of recent edits
   private editRateLog: Map<number, number[]> = new Map();
+  // Inbound rate tracking: key = userId, value = timestamps of recent messages
+  private recvRateLog: Map<number, number[]> = new Map();
 
   /** Start the bot with the given token and config. */
   start(token: string, chatId: number, allowedUserIds: number[]): void {
+    if (!allowedUserIds || allowedUserIds.length === 0) {
+      throw new Error('allowedUserIds must not be empty — at least one authorized user is required');
+    }
+
     if (this.running) {
       logger.warn('[Telegram] Bot already running, stopping first');
       this.stop();
@@ -94,6 +103,7 @@ export class TelegramBotCore extends EventEmitter {
     this.editTimers.clear();
     this.pendingEdits.clear();
     this.editRateLog.clear();
+    this.recvRateLog.clear();
 
     this.bot.stopPolling();
     this.bot = null;
@@ -278,8 +288,24 @@ export class TelegramBotCore extends EventEmitter {
 
   private isAuthorized(userId: number | undefined): boolean {
     if (!userId) return false;
-    if (this.allowedUserIds.size === 0) return true; // no whitelist = allow all
+    if (this.allowedUserIds.size === 0) return false;
     return this.allowedUserIds.has(userId);
+  }
+
+  /** Check if a user has exceeded the inbound rate limit. */
+  private isRateLimited(userId: number): boolean {
+    const now = Date.now();
+    const timestamps = this.recvRateLog.get(userId) ?? [];
+    const recent = timestamps.filter(t => now - t < 60_000);
+
+    if (recent.length >= MAX_RECV_PER_MIN) {
+      logger.warn(`[Telegram] Rate limit exceeded for user ${userId}`);
+      return true;
+    }
+
+    recent.push(now);
+    this.recvRateLog.set(userId, recent);
+    return false;
   }
 
   private handleMessage(msg: TelegramBot.Message): void {
@@ -287,6 +313,8 @@ export class TelegramBotCore extends EventEmitter {
       logger.warn(`[Telegram] Unauthorized message from user ${msg.from?.id}`);
       return;
     }
+
+    if (this.isRateLimited(msg.from!.id)) return;
 
     // Check for bot commands
     if (msg.text?.startsWith('/')) {
@@ -303,6 +331,11 @@ export class TelegramBotCore extends EventEmitter {
   private handleCallbackQuery(query: TelegramBot.CallbackQuery): void {
     if (!this.isAuthorized(query.from?.id)) {
       logger.warn(`[Telegram] Unauthorized callback from user ${query.from?.id}`);
+      return;
+    }
+
+    if (this.isRateLimited(query.from!.id)) {
+      this.answerCallback(query.id, '⚠️ Rate limited — slow down').catch(() => {});
       return;
     }
 

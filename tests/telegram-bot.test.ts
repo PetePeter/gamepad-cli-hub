@@ -118,16 +118,16 @@ describe('TelegramBotCore', () => {
 
     it('start() with invalid token throws and stays stopped', () => {
       const core = new TelegramBotCore();
-      expect(() => core.start('INVALID-token', CHAT_ID, [])).toThrow('Invalid token');
+      expect(() => core.start('INVALID-token', CHAT_ID, [111])).toThrow('Invalid token');
       expect(core.isRunning()).toBe(false);
     });
 
     it('start() when already running stops first then restarts', () => {
       const core = new TelegramBotCore();
-      core.start(TOKEN, CHAT_ID, []);
+      core.start(TOKEN, CHAT_ID, [111]);
       const firstBot = shared.mockBotInstance;
 
-      core.start(TOKEN, CHAT_ID, []);
+      core.start(TOKEN, CHAT_ID, [111]);
       expect(firstBot!.stopPolling).toHaveBeenCalled();
       expect(core.isRunning()).toBe(true);
     });
@@ -196,21 +196,29 @@ describe('TelegramBotCore', () => {
       expect(handler).toHaveBeenCalledTimes(1);
     });
 
-    it('empty allowedUserIds allows all users', () => {
+    it('start() throws when allowedUserIds is empty', () => {
       const core = new TelegramBotCore();
-      core.start(TOKEN, CHAT_ID, []);
+      expect(() => core.start(TOKEN, CHAT_ID, []))
+        .toThrow('allowedUserIds must not be empty');
+      expect(core.isRunning()).toBe(false);
+    });
+
+    it('unlisted users are denied', () => {
+      const core = new TelegramBotCore();
+      core.start(TOKEN, CHAT_ID, [111]);
       const handler = vi.fn();
       core.on('message', handler);
 
+      // User 999 is not in [111] — should be rejected
       shared.mockBotInstance!._emit('message', {
         message_id: 1,
         chat: { id: CHAT_ID },
-        from: { id: 42 },
+        from: { id: 999 },
         text: 'hi',
         date: Date.now(),
       });
 
-      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler).not.toHaveBeenCalled();
     });
 
     it('rejects callback queries from unauthorized users', () => {
@@ -241,6 +249,165 @@ describe('TelegramBotCore', () => {
       });
 
       expect(handler).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
+  // Rate limiting
+  // =========================================================================
+
+  describe('rate limiting', () => {
+    it('drops messages from a user who exceeds the rate limit', () => {
+      const core = startedBot();
+      const handler = vi.fn();
+      core.on('message', handler);
+
+      // Send 30 messages (at the limit)
+      for (let i = 0; i < 30; i++) {
+        shared.mockBotInstance!._emit('message', {
+          message_id: i,
+          chat: { id: CHAT_ID },
+          from: { id: 111 },
+          text: `msg ${i}`,
+          date: Date.now(),
+        });
+      }
+
+      expect(handler).toHaveBeenCalledTimes(30);
+
+      // 31st message should be dropped
+      shared.mockBotInstance!._emit('message', {
+        message_id: 31,
+        chat: { id: CHAT_ID },
+        from: { id: 111 },
+        text: 'over limit',
+        date: Date.now(),
+      });
+
+      expect(handler).toHaveBeenCalledTimes(30);
+    });
+
+    it('drops callbacks from a rate-limited user', () => {
+      const core = startedBot();
+      const handler = vi.fn();
+      core.on('callback_query', handler);
+
+      // Exhaust rate limit with 30 callbacks
+      for (let i = 0; i < 30; i++) {
+        shared.mockBotInstance!._emit('callback_query', {
+          id: `q${i}`,
+          from: { id: 111 },
+          data: 'sessions:list',
+          chat_instance: '123',
+        });
+      }
+
+      expect(handler).toHaveBeenCalledTimes(30);
+
+      // 31st should be dropped
+      shared.mockBotInstance!._emit('callback_query', {
+        id: 'q31',
+        from: { id: 111 },
+        data: 'sessions:list',
+        chat_instance: '123',
+      });
+
+      expect(handler).toHaveBeenCalledTimes(30);
+    });
+
+    it('rate limit resets after the 1-minute window', () => {
+      const core = startedBot();
+      const handler = vi.fn();
+      core.on('message', handler);
+
+      // Exhaust the limit
+      for (let i = 0; i < 30; i++) {
+        shared.mockBotInstance!._emit('message', {
+          message_id: i,
+          chat: { id: CHAT_ID },
+          from: { id: 111 },
+          text: `msg ${i}`,
+          date: Date.now(),
+        });
+      }
+
+      expect(handler).toHaveBeenCalledTimes(30);
+
+      // Advance time past the 1-minute window
+      vi.advanceTimersByTime(61_000);
+
+      // Should work again
+      shared.mockBotInstance!._emit('message', {
+        message_id: 99,
+        chat: { id: CHAT_ID },
+        from: { id: 111 },
+        text: 'after reset',
+        date: Date.now(),
+      });
+
+      expect(handler).toHaveBeenCalledTimes(31);
+    });
+
+    it('rate limits are per-user — one user exhausted does not affect another', () => {
+      const core = startedBot();
+      const handler = vi.fn();
+      core.on('message', handler);
+
+      // Exhaust user 111's limit
+      for (let i = 0; i < 30; i++) {
+        shared.mockBotInstance!._emit('message', {
+          message_id: i,
+          chat: { id: CHAT_ID },
+          from: { id: 111 },
+          text: `msg ${i}`,
+          date: Date.now(),
+        });
+      }
+
+      // User 222 should still be allowed
+      shared.mockBotInstance!._emit('message', {
+        message_id: 100,
+        chat: { id: CHAT_ID },
+        from: { id: 222 },
+        text: 'from other user',
+        date: Date.now(),
+      });
+
+      expect(handler).toHaveBeenCalledTimes(31);
+    });
+
+    it('stop() clears rate limit state', () => {
+      const core = startedBot();
+      const handler = vi.fn();
+      core.on('message', handler);
+
+      // Exhaust the limit
+      for (let i = 0; i < 30; i++) {
+        shared.mockBotInstance!._emit('message', {
+          message_id: i,
+          chat: { id: CHAT_ID },
+          from: { id: 111 },
+          text: `msg ${i}`,
+          date: Date.now(),
+        });
+      }
+
+      core.stop();
+
+      // Restart and send again — should be allowed (state was cleared)
+      core.start(TOKEN, CHAT_ID, ALLOWED_USERS);
+      const handler2 = vi.fn();
+      core.on('message', handler2);
+
+      shared.mockBotInstance!._emit('message', {
+        message_id: 99,
+        chat: { id: CHAT_ID },
+        from: { id: 111 },
+        text: 'after restart',
+        date: Date.now(),
+      });
+
+      expect(handler2).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -110,13 +110,17 @@ export function registerIPCHandlers(
   // Auto-start Telegram bot if configured
   const telegramConfig = configLoader.getTelegramConfig();
   if (telegramConfig.enabled && telegramConfig.botToken && telegramConfig.chatId) {
-    try {
-      telegramBot.start(telegramConfig.botToken, telegramConfig.chatId, telegramConfig.allowedUserIds);
-      topicManager.ensureAllTopics().catch(err => logger.error(`[Telegram] Failed to ensure topics: ${err}`));
-      telegramModules.dashboard.start().catch(err => logger.error(`[Telegram] Dashboard start failed: ${err}`));
-      logger.info('[IPC] Telegram bot auto-started');
-    } catch (err) {
-      logger.error(`[IPC] Failed to auto-start Telegram bot: ${err}`);
+    if (!telegramConfig.allowedUserIds || telegramConfig.allowedUserIds.length === 0) {
+      logger.warn('[IPC] Telegram auto-start skipped: no allowedUserIds configured');
+    } else {
+      try {
+        telegramBot.start(telegramConfig.botToken, telegramConfig.chatId, telegramConfig.allowedUserIds);
+        topicManager.ensureAllTopics().catch(err => logger.error(`[Telegram] Failed to ensure topics: ${err}`));
+        telegramModules.dashboard.start().catch(err => logger.error(`[Telegram] Dashboard start failed: ${err}`));
+        logger.info('[IPC] Telegram bot auto-started');
+      } catch (err) {
+        logger.error(`[IPC] Failed to auto-start Telegram bot: ${err}`);
+      }
     }
   }
 
