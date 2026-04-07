@@ -5,32 +5,34 @@
  * Allows users to configure bot token, chat ID, security, and notifications.
  */
 
+/**
+ * Mirrors the backend TelegramConfig (src/config/loader.ts).
+ * Field names MUST match exactly — values are saved/loaded via IPC.
+ */
 interface TelegramConfig {
   enabled: boolean;
   botToken: string;
-  chatId: string;
-  allowedUserIds: number[];
   instanceName: string;
-  notifications: {
-    onStateChange: boolean;
-    onCompletion: boolean;
-    onError: boolean;
-    onQuestion: boolean;
-  };
+  chatId: number | null;
+  allowedUserIds: number[];
+  safeModeDefault: boolean;
+  notifyOnComplete: boolean;
+  notifyOnIdle: boolean;
+  notifyOnError: boolean;
+  notifyOnCrash: boolean;
 }
 
 const DEFAULT_CONFIG: TelegramConfig = {
   enabled: false,
   botToken: '',
-  chatId: '',
+  instanceName: 'Home',
+  chatId: null,
   allowedUserIds: [],
-  instanceName: '',
-  notifications: {
-    onStateChange: true,
-    onCompletion: true,
-    onError: true,
-    onQuestion: true,
-  },
+  safeModeDefault: true,
+  notifyOnComplete: true,
+  notifyOnIdle: true,
+  notifyOnError: true,
+  notifyOnCrash: true,
 };
 
 let currentConfig: TelegramConfig = { ...DEFAULT_CONFIG };
@@ -141,10 +143,13 @@ function buildChatIdRow(): HTMLElement {
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'tg-input focusable';
-  input.value = currentConfig.chatId;
+  input.value = currentConfig.chatId != null ? String(currentConfig.chatId) : '';
   input.placeholder = 'Group chat ID (negative number)';
   input.tabIndex = 0;
-  wireAutoSave(input, 'chatId');
+  wireAutoSave(input, 'chatId', (v) => {
+    const n = parseInt(v, 10);
+    return isNaN(n) ? null : n;
+  });
   row.appendChild(input);
 
   return row;
@@ -166,7 +171,7 @@ function buildInstanceNameRow(): HTMLElement {
 }
 
 function buildEnabledRow(): HTMLElement {
-  const row = createFormRow('Enabled');
+  const row = createFormRow('Auto-start on launch');
 
   const toggle = document.createElement('input');
   toggle.type = 'checkbox';
@@ -275,11 +280,11 @@ function buildSecuritySection(): HTMLElement {
 // Notifications section
 // ============================================================================
 
-const NOTIFICATION_OPTIONS: Array<{ key: keyof TelegramConfig['notifications']; label: string }> = [
-  { key: 'onStateChange', label: 'State changes (planning → implementing)' },
-  { key: 'onCompletion', label: 'Session completed' },
-  { key: 'onError', label: 'Errors detected' },
-  { key: 'onQuestion', label: 'AI asking a question' },
+const NOTIFICATION_OPTIONS: Array<{ key: keyof Pick<TelegramConfig, 'notifyOnComplete' | 'notifyOnIdle' | 'notifyOnError' | 'notifyOnCrash'>; label: string }> = [
+  { key: 'notifyOnComplete', label: 'Session completed' },
+  { key: 'notifyOnIdle', label: 'Session idle' },
+  { key: 'notifyOnError', label: 'Errors detected' },
+  { key: 'notifyOnCrash', label: 'Session crashed' },
 ];
 
 function buildNotificationsSection(): HTMLElement {
@@ -290,12 +295,9 @@ function buildNotificationsSection(): HTMLElement {
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.className = 'focusable';
-    cb.checked = currentConfig.notifications[opt.key];
+    cb.checked = currentConfig[opt.key];
     cb.tabIndex = 0;
-    cb.addEventListener('change', () => {
-      currentConfig.notifications = { ...currentConfig.notifications, [opt.key]: cb.checked };
-      saveField('notifications', currentConfig.notifications);
-    });
+    cb.addEventListener('change', () => saveField(opt.key, cb.checked));
     row.appendChild(cb);
     section.appendChild(row);
   }
