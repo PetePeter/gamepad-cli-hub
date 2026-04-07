@@ -174,7 +174,7 @@ export function setupSlashCommands(deps: SlashCommandDeps): () => void {
       const session = topicManager.findSessionByTopicId(msg.message_thread_id);
       if (session) {
         sessionManager.removeSession(session.id);
-        await topicManager.closeSessionTopic(session);
+        // Topic cleanup handled by session:removed event in handlers.ts
         await reply(msg, `🔒 Session "${escapeHtml(session.name)}" closed.`, { parse_mode: 'HTML' });
         return;
       }

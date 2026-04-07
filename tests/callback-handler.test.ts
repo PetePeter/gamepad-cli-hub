@@ -59,12 +59,16 @@ function createMockSessionManager(sessions: Record<string, any> = {}) {
   return {
     getAllSessions: vi.fn(() => Object.values(sessions)),
     getSession: vi.fn((id: string) => sessions[id] ?? null),
+    hasSession: vi.fn((id: string) => id in sessions),
+    removeSession: vi.fn((id: string) => { delete sessions[id]; }),
+    addSession: vi.fn(),
   } as unknown as SessionManager;
 }
 
 function createMockPtyManager() {
   return {
     write: vi.fn(),
+    kill: vi.fn(),
   } as unknown as PtyManager;
 }
 
@@ -411,7 +415,7 @@ describe('setupCallbackHandler', () => {
       expect(mockSessionManager.addSession).toHaveBeenCalledWith(
         expect.objectContaining({ cliType: 'claude', workingDir: '/proj' }),
       );
-      expect(mockTopicManager.ensureTopic).toHaveBeenCalled();
+      // ensureTopic is handled by session:added event in handlers.ts, not by handleSpawnExec
       expect(bot.answerCallback).toHaveBeenCalledWith('q1', '🚀 Spawned claude!');
     });
 
@@ -450,6 +454,55 @@ describe('setupCallbackHandler', () => {
     it('answers with "No active sessions" when empty', async () => {
       await handler(makeQuery('status:all'));
       expect(bot.answerCallback).toHaveBeenCalledWith('q1', 'No active sessions');
+    });
+  });
+
+  describe('closeall', () => {
+    it('kills PTYs and removes all sessions', async () => {
+      const sessions = {
+        s1: { id: 's1', name: 'A', cliType: 'claude', topicId: 10 },
+        s2: { id: 's2', name: 'B', cliType: 'codex', topicId: 20 },
+      };
+      sessionManager = createMockSessionManager(sessions);
+
+      setupCallbackHandler(
+        bot as any, createMockTopicManager(), sessionManager as any,
+        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+      );
+      handler = (bot.on as any).mock.calls.at(-1)[1];
+
+      await handler(makeQuery('closeall'));
+
+      expect(ptyManager.kill).toHaveBeenCalledWith('s1');
+      expect(ptyManager.kill).toHaveBeenCalledWith('s2');
+      expect(sessionManager.removeSession).toHaveBeenCalledWith('s1');
+      expect(sessionManager.removeSession).toHaveBeenCalledWith('s2');
+      expect(bot.answerCallback).toHaveBeenCalledWith('q1', '🗑️ Closed 2 session(s)');
+    });
+
+    it('reports "No sessions to close" when empty', async () => {
+      await handler(makeQuery('closeall'));
+      expect(bot.answerCallback).toHaveBeenCalledWith('q1', 'No sessions to close');
+    });
+
+    it('continues closing remaining sessions when one fails', async () => {
+      const sessions = {
+        s1: { id: 's1', name: 'A', cliType: 'claude' },
+        s2: { id: 's2', name: 'B', cliType: 'codex' },
+      };
+      sessionManager = createMockSessionManager(sessions);
+      (ptyManager.kill as any).mockImplementationOnce(() => { throw new Error('boom'); });
+
+      setupCallbackHandler(
+        bot as any, createMockTopicManager(), sessionManager as any,
+        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+      );
+      handler = (bot.on as any).mock.calls.at(-1)[1];
+
+      await handler(makeQuery('closeall'));
+
+      // First session fails, second succeeds
+      expect(bot.answerCallback).toHaveBeenCalledWith('q1', '🗑️ Closed 1 session(s)');
     });
   });
 

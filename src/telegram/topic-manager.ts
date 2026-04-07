@@ -82,15 +82,14 @@ export class TopicManager {
   }
 
   /**
-   * Close a session's topic (makes it read-only in Telegram).
+   * Delete a session's topic permanently from Telegram.
    * Called when a session is removed from the hub.
    */
   async closeSessionTopic(session: SessionInfo): Promise<void> {
     if (!session.topicId) return;
 
-    await this.bot.sendToTopic(session.topicId, '🔒 Session closed.');
-    await this.bot.closeForumTopic(session.topicId);
-    logger.info(`[TopicManager] Closed topic ${session.topicId} for session ${session.id}`);
+    await this.bot.deleteForumTopic(session.topicId);
+    logger.info(`[TopicManager] Deleted topic ${session.topicId} for session ${session.id}`);
   }
 
   /**

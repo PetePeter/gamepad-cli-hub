@@ -311,7 +311,7 @@ describe('setupSlashCommands', () => {
       await vi.waitFor(() => expect(sessionManager.removeSession).toHaveBeenCalled());
 
       expect(sessionManager.removeSession).toHaveBeenCalledWith('sess-1');
-      expect(topicManager.closeSessionTopic).toHaveBeenCalledWith(session);
+      // Topic cleanup handled by session:removed event in handlers.ts
 
       const text = bot.sendMessage.mock.calls[0][0] as string;
       expect(text).toContain('closed');

@@ -127,6 +127,57 @@ export class TerminalManager {
     return true;
   }
 
+  /**
+   * Adopt an externally-spawned PTY session (e.g. from Telegram).
+   * Creates xterm.js view and registers in the terminal map WITHOUT calling pty:spawn.
+   * PTY data routing works automatically via setupIpcListeners which matches by sessionId.
+   */
+  adoptTerminal(
+    sessionId: string,
+    cliType: string,
+    cwd?: string,
+  ): void {
+    if (this.terminals.has(sessionId)) return;
+
+    const element = document.createElement('div');
+    element.className = 'terminal-pane';
+    element.dataset.sessionId = sessionId;
+    element.style.display = 'none';
+    this.container.appendChild(element);
+
+    const view = new TerminalView({
+      sessionId,
+      container: element,
+      onData: (data) => {
+        window.gamepadCli?.ptyWrite(sessionId, data);
+      },
+      onScrollInput: (data) => {
+        window.gamepadCli?.ptyScrollInput?.(sessionId, data);
+      },
+      onResize: (cols, rows) => {
+        window.gamepadCli?.ptyResize(sessionId, cols, rows);
+      },
+      onTitleChange: (title) => {
+        const sess = this.terminals.get(sessionId);
+        if (sess) {
+          sess.title = title;
+          this.onTitleChangeCallback?.(sessionId, title);
+        }
+      },
+    });
+
+    this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd });
+
+    element.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      import('../modals/context-menu.js').then(({ showContextMenu }) => {
+        showContextMenu(e.clientX, e.clientY, sessionId, 'mouse');
+      });
+    });
+
+    // Don't auto-switch — let the user choose when to look at it
+  }
+
   /** Switch the visible terminal */
   switchTo(sessionId: string): void {
     const session = this.terminals.get(sessionId);

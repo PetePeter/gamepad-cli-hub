@@ -10,14 +10,15 @@ src/
 │   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle, renderer crash recovery, delegates power monitoring to setupPowerMonitor()
 │   ├── preload.ts              # Context bridge (renderer ↔ main IPC)
 │   └── ipc/
-│       ├── handlers.ts         # Orchestrator — imports + wires 7 domain handlers, returns { cleanup, sessionManager, ptyManager }
+│       ├── handlers.ts         # Orchestrator — imports + wires 8 domain handlers, returns { cleanup, sessionManager, ptyManager }
 │       ├── session-handlers.ts
 │       ├── config-handlers.ts
 │       ├── profile-handlers.ts
 │       ├── tools-handlers.ts
 │       ├── keyboard-handlers.ts
 │       ├── pty-handlers.ts
-│       └── system-handlers.ts  # system:openLogsFolder
+│       ├── system-handlers.ts  # system:openLogsFolder
+│       └── telegram-handlers.ts # Telegram bot settings CRUD, bot start/stop IPC
 ├── input/
 │   └── sequence-parser.ts      # {Enter}, {Ctrl+C}, {Wait 500}, {Mod Down/Up}, {{/}} — used by bindings + initialPrompt
 ├── output/
@@ -33,6 +34,21 @@ src/
 │   └── power-monitor.ts        # Suspend/resume/shutdown diagnostics — session counts, PTY IDs, survival status
 ├── config/
 │   └── loader.ts               # Self-contained profile YAML config + CRUD + StickConfig + haptic settings + auto-migration
+├── telegram/
+│   ├── bot.ts                  # TelegramBotCore — bot lifecycle (start/stop), long-polling, user-ID whitelist, message helpers, deleteForumTopic
+│   ├── callback-handler.ts     # Inline keyboard callback routing — session controls, spawn wizard, close all, text input
+│   ├── commands.ts             # Slash command handlers (/status, /switch, /send, /close, /spawn, /output)
+│   ├── keyboards.ts            # Inline keyboard layout builders (session list, controls, commands, spawn wizard)
+│   ├── notifier.ts             # State/activity change → Telegram notification messages with inline keyboards
+│   ├── orchestrator.ts         # Telegram module factory — wires bot, topic manager, notifier, terminal mirror, dashboard
+│   ├── output-summarizer.ts    # PTY buffer → 3-5 line smart summary
+│   ├── pinned-dashboard.ts     # Auto-updating pinned message with all-sessions status + Close All button
+│   ├── reply-keyboard.ts       # Persistent reply keyboard for most-used actions
+│   ├── terminal-mirror.ts      # Bidirectional topic↔PTY bridge: buffer+edit output streaming, ANSI stripping, input forwarding
+│   ├── text-input.ts           # Free-text input with confirmation step
+│   ├── topic-input.ts          # Topic message → PTY stdin forwarding
+│   ├── topic-manager.ts        # Forum topic lifecycle: ensureTopic on session:added, deleteForumTopic on session:removed
+│   └── utils.ts                # Shared Telegram utilities
 ├── types/
 │   └── session.ts              # SessionInfo (includes cliSessionName for resume), SessionChangeEvent, AnalogEvent types
 └── utils/
@@ -71,7 +87,8 @@ renderer/
 │   ├── settings.ts             # Settings slide-over orchestrator: tab bar, directories tab, public API
 │   ├── settings-bindings.ts    # Bindings display, sort state, add-binding picker
 │   ├── settings-profiles.ts    # Profiles panel, create profile prompt
-│   └── settings-tools.ts       # Tools panel, CLI type CRUD (edit form includes handoff/rename/resume/continue commands)
+│   ├── settings-tools.ts       # Tools panel, CLI type CRUD (edit form includes handoff/rename/resume/continue commands)
+│   └── settings-telegram.ts    # Telegram bot settings panel (token, instance name, user IDs, notification prefs)
 ├── modals/
 │   ├── modal-base.ts           # Shared modal foundation (show/hide, backdrop, gamepad focus management)
 │   ├── dir-picker.ts           # Directory picker modal (supports pre-selection via preselectedPath)
@@ -97,39 +114,53 @@ config/
 ## Tests (`tests/`)
 
 ```
-tests/                                  # 971 tests across 34 files
-├── config.test.ts              # Config loading, stick config, haptic, virtual buttons, sequence-list binding persistence, sequences CRUD
-├── session.test.ts             # Session management
-├── persistence.test.ts         # Session persistence
-├── keyboard.test.ts            # Keyboard simulation
-├── sessions-screen.test.ts     # Session cards + group headers + spawn grid navigation + directional buttons
-├── sequence-parser.test.ts     # Sequence format parser tests
-├── pty-manager.test.ts         # PTY process management tests
-├── terminal-manager.test.ts    # Embedded terminal lifecycle tests
+tests/                                  # 1398 tests across 48 files
+├── app-paths.test.ts           # Application path resolution tests
 ├── bindings-pty.test.ts        # PTY escape helpers + routing tests
 ├── bindings-target.test.ts     # Voice binding target routing (PTY vs OS)
-├── paste-routing.test.ts       # Ctrl+V paste → PTY routing tests
-├── state-detector.test.ts      # AIAGENT-* keyword detection tests + activity tracking
-├── pipeline-queue.test.ts      # Auto-handoff queue tests
-├── notification-manager.test.ts # NotificationManager tests
-├── initial-prompt.test.ts      # Initial prompt delivery tests
-├── pty-filter.test.ts          # Mouse-tracking + alternate-scroll escape sequence stripping tests
-├── pty-output-buffer.test.ts   # PtyOutputBuffer ring buffer tests
-├── modal-base.test.ts          # Modal UI base tests
+├── callback-handler.test.ts    # Telegram callback handler tests (session controls, spawn, close all)
+├── close-confirm.test.ts       # Close confirmation modal tests
+├── commands.test.ts            # Telegram slash command handler tests
+├── config.test.ts              # Config loading, stick config, haptic, virtual buttons, sequence-list binding persistence, sequences CRUD
+├── context-menu.test.ts        # Context menu overlay tests
 ├── gamepad-repeat.test.ts      # D-pad/stick key repeat engine tests
 ├── group-overview.test.ts      # Group overview grid tests
-├── context-menu.test.ts        # Context menu overlay tests
-├── close-confirm.test.ts       # Close confirmation modal tests
-├── sequence-picker.test.ts     # Sequence picker overlay tests
-├── quick-spawn.test.ts         # Quick-spawn CLI type picker tests
-├── sort-logic.test.ts          # Session sort order tests
-├── tab-cycling.test.ts         # Terminal tab cycling tests
-├── session-handlers.test.ts    # session:close → PtyManager routing tests
-├── handoff-command.test.ts     # Configurable handoff command tests
-├── navigation.test.ts          # Navigation priority chain tests
-├── power-monitor.test.ts       # Power monitor diagnostics tests
-├── session-groups.test.ts      # Session grouping logic tests
 ├── handlers-restore.test.ts    # Session restore on startup tests
+├── handoff-command.test.ts     # Configurable handoff command tests
+├── initial-prompt.test.ts      # Initial prompt delivery tests
+├── keyboard.test.ts            # Keyboard simulation
+├── modal-base.test.ts          # Modal UI base tests
+├── navigation.test.ts          # Navigation priority chain tests
+├── notification-manager.test.ts # NotificationManager tests
+├── output-summarizer.test.ts   # Telegram output summarizer tests
+├── paste-routing.test.ts       # Ctrl+V paste → PTY routing tests
+├── persistence.test.ts         # Session persistence
+├── pinned-dashboard.test.ts    # Telegram pinned dashboard tests
+├── pipeline-queue.test.ts      # Auto-handoff queue tests
+├── power-monitor.test.ts       # Power monitor diagnostics tests
+├── pty-filter.test.ts          # Mouse-tracking + alternate-scroll escape sequence stripping tests
+├── pty-manager.test.ts         # PTY process management tests
+├── pty-output-buffer.test.ts   # PtyOutputBuffer ring buffer tests
+├── quick-spawn.test.ts         # Quick-spawn CLI type picker tests
+├── reply-keyboard.test.ts      # Telegram reply keyboard tests
 ├── resume-spawn.test.ts        # CLI session resume spawning tests
+├── sequence-parser.test.ts     # Sequence format parser tests
+├── sequence-picker.test.ts     # Sequence picker overlay tests
+├── session-groups.test.ts      # Session grouping logic tests
+├── session-handlers.test.ts    # session:close → PtyManager routing tests
+├── session.test.ts             # Session management
+├── sessions-screen.test.ts     # Session cards + group headers + spawn grid navigation + directional buttons
+├── sort-logic.test.ts          # Session sort order tests
+├── state-detector.test.ts      # AIAGENT-* keyword detection tests + activity tracking
+├── tab-cycling.test.ts         # Terminal tab cycling tests
+├── telegram-bot.test.ts        # TelegramBotCore lifecycle + auth tests
+├── telegram-config.test.ts     # Telegram config loading/saving tests
+├── telegram-keyboards.test.ts  # Telegram inline keyboard layout tests
+├── telegram-notifier.test.ts   # Telegram notification routing tests
+├── telegram-topic-manager.test.ts # Topic manager lifecycle tests (ensure/delete topics)
+├── terminal-manager.test.ts    # Embedded terminal lifecycle tests (including adoptTerminal)
+├── terminal-mirror.test.ts     # Telegram terminal mirror tests
+├── text-input.test.ts          # Telegram text input tests
+├── topic-input.test.ts         # Telegram topic input forwarding tests
 └── utils.test.ts               # Utility function tests
 ```

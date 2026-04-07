@@ -238,6 +238,13 @@ const gamepadCliAPI = {
     return () => ipcRenderer.removeListener('notification:click', listener);
   },
 
+  /** Subscribe to externally-spawned session events (e.g. from Telegram) */
+  onSessionSpawned: (callback: (session: { id: string; name: string; cliType: string; processId: number; workingDir?: string; cliSessionName?: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('session:spawned-externally', listener);
+    return () => ipcRenderer.removeListener('session:spawned-externally', listener);
+  },
+
   /**
    * Get working directory presets from config
    */

@@ -27,6 +27,7 @@ function makeMockBot() {
   return {
     createForumTopic: vi.fn().mockResolvedValue({ message_thread_id: 100, name: 'topic' }),
     closeForumTopic: vi.fn().mockResolvedValue(true),
+    deleteForumTopic: vi.fn().mockResolvedValue(true),
     reopenForumTopic: vi.fn().mockResolvedValue(true),
     editForumTopic: vi.fn().mockResolvedValue(true),
     sendToTopic: vi.fn().mockResolvedValue({ message_id: 1 }),
@@ -171,18 +172,17 @@ describe('TopicManager', () => {
   // =========================================================================
 
   describe('closeSessionTopic', () => {
-    it('sends close message and calls closeForumTopic', async () => {
+    it('deletes the forum topic permanently', async () => {
       session.topicId = 42;
 
       await tm.closeSessionTopic(session);
 
-      expect(bot.sendToTopic).toHaveBeenCalledWith(42, '🔒 Session closed.');
-      expect(bot.closeForumTopic).toHaveBeenCalledWith(42);
+      expect(bot.deleteForumTopic).toHaveBeenCalledWith(42);
     });
 
     it('no-ops when session has no topicId', async () => {
       await tm.closeSessionTopic(session);
-      expect(bot.closeForumTopic).not.toHaveBeenCalled();
+      expect(bot.deleteForumTopic).not.toHaveBeenCalled();
     });
   });
 

@@ -83,6 +83,12 @@ export function registerIPCHandlers(
   // Wire events ONCE (no-ops when bot not running — notifier checks isRunning)
   stateDetector.on('state-change', (transition) => telegramNotifier.handleStateChange(transition));
   sessionManager.on('session:added', async (event) => {
+    // Push to renderer so it can adopt externally-spawned terminals (e.g. Telegram)
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('session:spawned-externally', event);
+    }
+
     if (!telegramBot.isRunning()) return;
     const session = sessionManager.getSession(event.id);
     if (session) await topicManager.ensureTopic(session);

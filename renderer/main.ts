@@ -368,6 +368,16 @@ async function init(): Promise<void> {
         updateSessionHighlight();
       }
     });
+
+    // Adopt externally-spawned sessions (e.g. from Telegram bot)
+    window.gamepadCli.onSessionSpawned(async (session) => {
+      if (!terminalManager || terminalManager.has(session.id)) return;
+      console.log(`[ExternalSpawn] Adopting session: ${session.id} (${session.cliType})`);
+      terminalManager.adoptTerminal(session.id, session.cliType, session.workingDir);
+      const { showTerminalArea } = await import('./screens/sessions-spawn.js');
+      showTerminalArea();
+      await loadSessions();
+    });
   }
 
   // Log initialization

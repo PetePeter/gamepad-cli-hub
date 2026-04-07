@@ -38,6 +38,7 @@ import {
   resolvePathIndex,
 } from './keyboards.js';
 import { escapeHtml } from './utils.js';
+import { scheduleInitialPrompt } from '../session/initial-prompt.js';
 import { logger } from '../utils/logger.js';
 
 /** Generate a random session ID using UUID v4. */
@@ -141,6 +142,9 @@ async function routeCallback(
       break;
     case 'status':
       await handleStatus(bot, sessionManager, query);
+      break;
+    case 'closeall':
+      await handleCloseAll(bot, sessionManager, ptyManager, query);
       break;
     default:
       logger.warn(`[CallbackHandler] Unknown callback: ${data}`);
@@ -474,11 +478,22 @@ async function handleSpawnExec(
       cliSessionName,
     });
 
-    // Create a topic for the new session
-    const session = sessionManager.getSession(sessionId);
-    if (session) {
-      await topicManager.ensureTopic(session);
+    // Schedule initial prompt (rename command, startup sequences)
+    const cliConfig = configLoader.getCliTypeEntry?.(cliType);
+    if (cliConfig) {
+      const renameCommand = cliConfig.renameCommand && cliSessionName
+        ? cliConfig.renameCommand.replace('{cliSessionName}', cliSessionName)
+        : undefined;
+      scheduleInitialPrompt(sessionId, {
+        initialPrompt: cliConfig.initialPrompt,
+        initialPromptDelay: cliConfig.initialPromptDelay,
+        renameCommand,
+      }, (sid, data) => {
+        ptyManager.write(sid, data);
+      });
     }
+
+    // Topic creation handled by session:added event in handlers.ts — no duplicate call here
 
     await bot.answerCallback(query.id, `🚀 Spawned ${cliType}!`);
 
@@ -533,6 +548,39 @@ async function handleStatus(
     });
   }
   await bot.answerCallback(query.id);
+}
+
+// ---------------------------------------------------------------------------
+// Close All
+// ---------------------------------------------------------------------------
+
+async function handleCloseAll(
+  bot: TelegramBotCore,
+  sessionManager: SessionManager,
+  ptyManager: PtyManager,
+  query: TelegramBot.CallbackQuery,
+): Promise<void> {
+  const sessions = sessionManager.getAllSessions();
+  if (sessions.length === 0) {
+    await bot.answerCallback(query.id, 'No sessions to close');
+    return;
+  }
+
+  let closed = 0;
+  for (const session of sessions) {
+    try {
+      ptyManager.kill(session.id);
+      // removeSession triggers session:removed → topic cleanup + notifier/mirror/summarizer cleanup
+      if (sessionManager.hasSession(session.id)) {
+        sessionManager.removeSession(session.id);
+      }
+      closed++;
+    } catch (err) {
+      logger.error(`[CloseAll] Failed to close session ${session.id}: ${err}`);
+    }
+  }
+
+  await bot.answerCallback(query.id, `🗑️ Closed ${closed} session(s)`);
 }
 
 // ---------------------------------------------------------------------------

@@ -165,6 +165,9 @@ export class PinnedDashboard {
         { text: '➕ Spawn', callback_data: 'spawn:start' },
         { text: '📊 Status', callback_data: 'status:all' },
       ],
+      [
+        { text: '🗑️ Close All', callback_data: 'closeall' },
+      ],
     ];
   }
 

@@ -248,6 +248,18 @@ export class TelegramBotCore extends EventEmitter {
     }
   }
 
+  /** Delete a forum topic permanently. */
+  async deleteForumTopic(topicId: number): Promise<boolean> {
+    if (!this.bot || !this.chatId) return false;
+    try {
+      await (this.bot as any).deleteForumTopic(this.chatId, topicId);
+      return true;
+    } catch (err) {
+      logger.error(`[Telegram] deleteForumTopic failed: ${err}`);
+      return false;
+    }
+  }
+
   /** Edit a forum topic name/icon. */
   async editForumTopic(topicId: number, name: string): Promise<boolean> {
     if (!this.bot || !this.chatId) return false;
