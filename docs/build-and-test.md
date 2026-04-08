@@ -14,7 +14,7 @@ npm test         # Vitest suite
 ```bash
 python prepareDeploy.py patch   # Bump version, strip configs, build, package EXE → release/YYYYMMDD-vX.Y.Z/
 # ... validate the EXE manually ...
-python sendDeploy.py            # Commit, tag, push, publish to GitHub Releases
+python sendDeploy.py            # Commit, tag, push, upload installer via gh CLI
 ```
 
 | Script | Purpose |

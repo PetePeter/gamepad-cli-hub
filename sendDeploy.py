@@ -83,11 +83,12 @@ def main():
     print("[2/5] Verifying artifacts...")
     exes = list(release_path.glob("*.exe"))
     if not exes:
-        print("⚠️  No .exe found. Continuing anyway (may be expected for some configs).")
-    else:
-        for exe in exes:
-            size_mb = exe.stat().st_size / (1024 * 1024)
-            print(f"  📄 {exe.name} ({size_mb:.1f} MB)")
+        print("❌ No .exe found in release folder. Cannot publish.")
+        print("   Run prepareDeploy.py first.")
+        sys.exit(1)
+    for exe in exes:
+        size_mb = exe.stat().st_size / (1024 * 1024)
+        print(f"  📄 {exe.name} ({size_mb:.1f} MB)")
 
     # Verify package.json version matches
     pkg = json.loads(Path("package.json").read_text(encoding="utf-8"))
@@ -131,12 +132,6 @@ def main():
 
     # 5. Create GitHub Release and upload installer EXE
     print("[5/5] Publishing to GitHub Releases...")
-    exes = list(release_path.glob("*.exe"))
-    if not exes:
-        print("❌ No .exe found in release folder. Cannot publish.")
-        sys.exit(1)
-
-    # Build the gh release create command
     tag = f"v{version}"
     asset_args = " ".join(f'"{exe}"' for exe in exes)
     run(f'gh release create {tag} --title "{tag}" --notes "Release {tag}" {asset_args}')
