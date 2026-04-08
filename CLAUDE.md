@@ -102,7 +102,6 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus, block
 npm run build    # esbuild: electron (dist-electron/main.js) + renderer (dist/renderer/main.js)
 npm run start    # Build and launch
 npm run package  # Build + package portable Windows EXE to release/
-npm run dist     # Build + package + publish to GitHub Releases (needs GH_TOKEN)
 npm test         # Vitest suite
 ```
 
@@ -119,7 +118,7 @@ python sendDeploy.py            # Commit, tag, push, publish to GitHub Releases
 | `runApp.py` | Dev workflow — install deps, build, launch |
 | `runTests.py` | Run Vitest suite |
 | `prepareDeploy.py` | Release step 1 — bump version, strip configs for deploy, build, package EXE |
-| `sendDeploy.py` | Release step 2 — commit, tag, push, publish |
+| `sendDeploy.py` | Release step 2 — commit, tag, push, upload installer to GitHub Releases via `gh` CLI |
 
 ## Tech Stack
 

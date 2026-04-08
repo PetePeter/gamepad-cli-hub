@@ -213,11 +213,15 @@ def main():
     release_dir = release_root / f"{date_stamp}-v{new_version}"
     release_dir.mkdir(parents=True, exist_ok=True)
 
+    # Only keep the installer EXE — skip directories, blockmap, auto-update manifests, and builder metadata
+    skip_suffixes = {".blockmap", ".yml", ".yaml"}
     for item in release_root.iterdir():
         if item == release_dir or item.name.startswith("."):
             continue
-        # Skip the unpacked build directory — only keep distributable files
         if item.is_dir():
+            continue
+        if item.suffix in skip_suffixes:
+            item.unlink()
             continue
         item.rename(release_dir / item.name)
 

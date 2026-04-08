@@ -12,7 +12,6 @@
     "build:preload": "esbuild src/electron/preload.ts --bundle --platform=node --external:electron --outfile=dist-electron/preload.cjs --format=cjs --sourcemap",
     "build:renderer": "esbuild renderer/main.ts --bundle --sourcemap --outfile=dist/renderer/main.js --format=esm --target=es2022",
     "package": "npm run build && electron-builder --win --x64",
-    "dist": "npm run build && electron-builder --win --x64 --publish always",
     "test": "vitest",
     "test:ui": "vitest --ui"
   },
@@ -62,11 +61,6 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Gamepad CLI Hub"
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "PetePeter",
-      "repo": "gamepad-cli-hub"
     }
   },
   "dependencies": {

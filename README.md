@@ -1,10 +1,10 @@
 # Gamepad CLI Hub
 
-**Your Xbox controller is now a command center for AI coding assistants.**
+**Your game controller is now a command center for AI coding assistants.**
 
 You're running Claude Code in one terminal, Copilot CLI in another, maybe a third session for a side project. Alt-tabbing between them is slow. Finding the right window is annoying. Typing repetitive commands is tedious.
 
-Pick up your controller. One button spawns a new Claude Code session — it opens as an embedded terminal right inside the app. Another fires up Copilot CLI in its own tab. The D-pad flips between tabs instantly, auto-selecting the terminal so you can start typing right away.
+Pick up your controller. One button spawns a new Claude Code session — it opens as an embedded terminal right inside the app. Another fires up Copilot CLI in its own tab. The D-pad flips between sessions instantly, auto-selecting the terminal so you can start typing right away. Step away from your desk? Monitor and control everything from your phone via the Telegram bot.
 
 This is a session manager for people who run multiple AI-assisted terminals at once and got tired of the friction.
 
@@ -12,60 +12,16 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 
 ## What Is This?
 
-Gamepad CLI Hub is an Electron desktop app that lets you control multiple AI coding CLI sessions from a single Xbox controller. Each CLI runs as an embedded terminal (via node-pty + xterm.js) — no external windows to manage.
+Gamepad CLI Hub is an Electron desktop app that lets you control multiple AI coding CLI sessions from a game controller. Each CLI runs as an embedded terminal (via node-pty + xterm.js) — no external windows to manage.
 
 **Why use it?**
 
-- **Multi-CLI workflows** — Run Claude Code, Copilot CLI, and other AI tools side-by-side
+- **Multi-CLI workflows** — Run Claude Code, Copilot CLI, and other AI tools side-by-side in embedded terminals
+- **Physical controls** — D-pad, buttons, and analog sticks replace keyboard shortcuts. Works with Xbox controllers and generic/DirectInput gamepads
+- **Session groups** — Sessions grouped by working directory with collapsible headers and a live preview grid
+- **Telegram bot** — Remote session control, output monitoring, and spawning from your phone
 - **Voice control ready** — Designed to work with OpenWhisper for voice-to-text input
-- **Physical controls** — D-pad, buttons, and analog sticks replace keyboard shortcuts
-- **Always-on sidebar** — Lives as a slim frameless window on your screen edge
-
----
-
-## Voice Control
-
-The app is designed to work with **OpenWhisper** (or any voice-to-text tool that listens for a hotkey). Bind a gamepad button to simulate a keypress, and OpenWhisper starts listening. When it transcribes your speech, the text flows directly into the active terminal.
-
-### How Voice Bindings Work
-
-Voice bindings simulate a keypress that triggers your voice recognition software:
-
-```yaml
-LeftTrigger:
-  action: voice
-  key: F1
-  mode: tap
-```
-
-When you press the button, the app simulates the F1 key. If OpenWhisper is configured to listen on F1, it starts capturing your voice. The transcribed text is then typed into the terminal.
-
-### Routing Modes
-
-Voice bindings support two routing modes:
-
-| Mode | Description |
-|------|-------------|
-| **OS (default)** | Key is simulated at the OS level via robotjs — works with external apps like OpenWhisper |
-| **Terminal** | Key is sent as an escape sequence to the active PTY — for terminal-resident voice tools |
-
-To route to the terminal explicitly:
-
-```yaml
-RightBumper:
-  action: voice
-  key: F2
-  mode: tap
-  target: terminal
-```
-
-### Example OpenWhisper Workflow
-
-1. Configure OpenWhisper to listen for F1
-2. Map your controller's Left Trigger to a `voice` binding with `key: F1`
-3. Press the trigger → F1 is simulated → OpenWhisper starts listening
-4. Speak your command → OpenWhisper transcribes and types the text
-5. The text appears in the active terminal
+- **Session resume** — Sessions survive app crashes and restarts, with per-CLI resume commands
 
 ---
 
@@ -76,37 +32,137 @@ npm install
 npm start
 ```
 
-Plug in a controller (USB or Bluetooth). The app detects it automatically.
+Plug in a controller (USB or Bluetooth). The app detects it automatically — Xbox controllers and generic/DirectInput gamepads are supported.
 
 ---
 
 ## Controls
 
+### Gamepad
+
 | Input | Action |
 |-------|--------|
 | D-Pad Up / Down | Switch sessions (auto-selects terminal) |
-| D-Pad Right | Open group overview (from group header) |
+| D-Pad Right | Open group overview (from group header) / cycle card sub-elements |
+| D-Pad Left | Back one sub-element column |
 | Left Stick | Same as D-pad |
-| Right Stick | Scroll terminal buffer (configurable) |
-| A | Configurable per-CLI binding |
+| Right Stick | Scroll terminal buffer (configurable per-profile) |
+| A | Confirm / configurable per-CLI binding |
 | B | Back / configurable per-CLI binding |
-| X | Configurable per-CLI binding |
-| Y | (planned: cycle terminal state) |
+| X | Close session / configurable per-CLI binding |
+| Y | Configurable per-CLI binding |
 | Left Trigger | Spawn Claude Code (default) |
 | Right Bumper | Spawn Copilot CLI (default) |
-| Left/Right Trigger | Voice activation (configure F1/F2 etc.) |
 | Back / Start | Previous / next profile |
-| Sandwich / Guide | Focus hub + show sessions |
-| Ctrl+Tab | Next terminal tab |
-| Ctrl+Shift+Tab | Previous terminal tab |
+| Sandwich / Guide | Focus hub window + show sessions screen |
 
-Every binding is remappable. Every action is configurable per CLI type.
+### Keyboard
+
+| Input | Action |
+|-------|--------|
+| Ctrl+Tab / Ctrl+Shift+Tab | Next / previous terminal tab |
+| Arrow keys | Navigate sessions (D-pad equivalents) |
+| Enter | Confirm (A button) |
+| Escape | Back (B button) |
+| Delete | Close (X button) |
+| Ctrl+V | Paste clipboard text to active terminal |
+
+Every binding is remappable per CLI type. See [docs/controls.md](docs/controls.md) for the full mapping.
+
+---
+
+## Session Groups & Overview
+
+Sessions are automatically grouped by working directory. Each group has a collapsible header showing the directory name and session count.
+
+**Group Overview** — Press D-pad Right on a group header to open a full-screen preview grid showing all sessions in that directory:
+
+- Each card shows session name, activity dot, and the last 10 lines of terminal output
+- Live-updating previews (500ms throttle)
+- Navigate with D-pad, A to select, X to close
+- Scrollable via right stick or mouse wheel
+
+See [docs/group-overview.md](docs/group-overview.md) for details.
+
+---
+
+## Activity Monitoring
+
+The app tracks PTY I/O timing and shows colored activity dots on session cards and tabs:
+
+- 🟢 **Active** — producing output or receiving user input
+- 🔵 **Inactive** — silent for more than 10 seconds
+- ⚪ **Idle** — silent for more than 5 minutes
+
+The app also watches for `AIAGENT-*` keywords in PTY output to detect CLI state (implementing, planning, completed, idle) — used for auto-handoff pipeline and notifications.
+
+**Windows toast notifications** fire when a session goes inactive while implementing or planning — so you know when a long task finishes without staring at the screen.
+
+---
+
+## Telegram Bot
+
+Control your sessions remotely via a Telegram bot with forum topics. Each session gets its own topic thread.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `/sessions` | Browse directories → sessions with inline buttons |
+| `/status` | Show all session states at a glance |
+| `/spawn` | 3-step wizard: pick CLI tool → pick directory → session created |
+| `/send <text>` | Send text directly to the active session's PTY |
+| `/output` | Smart output summary (tests, errors, modified files, recent lines) |
+| `/close` | Close the current topic's session |
+
+### Features
+
+- **Activity-gated output** — Terminal output streams to Telegram, but batched intelligently: buffers while the session is active, flushes when it goes quiet (>10s silence). No more wall-of-text spam during builds
+- **Prompt echo** — User input sent from the app appears as `📝 typed text` in the topic
+- **Session control** — Continue (Enter), Cancel (Ctrl+C), Send Prompt with confirmation
+- **Command palette** — Execute preconfigured CLI sequences from inline buttons
+- **Pinned dashboard** — Auto-updating message with all sessions grouped by directory
+- **Topic input forwarding** — Type in a session's topic and it goes straight to the PTY
+
+---
+
+## Context Menu
+
+Right-click the terminal area (or bind a button to `context-menu`) for quick actions:
+
+| Item | Description |
+|------|-------------|
+| 📋 Copy | Copy terminal selection to clipboard |
+| 📥 Paste | Paste clipboard to active PTY |
+| ➕ New Session | Quick-spawn picker (pre-selects active CLI type & directory) |
+| 📋➕ New Session with Selection | Spawn with selected text as context |
+| ⏩ Prompts | Open sequence picker with preconfigured commands |
+
+---
+
+## Voice Control
+
+The app works with **OpenWhisper** (or any voice-to-text tool that listens for a hotkey). Bind a gamepad button to simulate a keypress, and OpenWhisper starts listening. When it transcribes your speech, the text flows directly into the active terminal.
+
+```yaml
+LeftTrigger:
+  action: voice
+  key: F1
+  mode: tap
+```
+
+Voice bindings support two routing modes:
+
+| Mode | Description |
+|------|-------------|
+| **OS (default)** | Key simulated at the OS level via robotjs — works with external apps |
+| **Terminal** | Key sent as an escape sequence to the active PTY (`target: terminal`) |
 
 ---
 
 ## Sequence Syntax
 
-Button bindings and initial prompts use a sequence parser for scripting complex input patterns:
+Button bindings and initial prompts use a sequence parser for scripting complex input:
 
 ```yaml
 A:
@@ -148,34 +204,27 @@ tools:
 
 ```mermaid
 graph LR
-    XB[Xbox Controller] --> APP[Gamepad CLI Hub]
+    XB[🎮 Game Controller] --> APP[Gamepad CLI Hub]
+    TG[📱 Telegram Bot] <--> APP
     APP --> T1[Claude Code PTY]
     APP --> T2[Copilot CLI PTY]
-    APP --> T3[OpenCode PTY]
+    APP --> T3[Any CLI PTY]
     APP --> T4[... more sessions]
 
     style APP fill:#4a9eff,color:#fff,stroke:#2d7ad6
 ```
 
-The app sits between your controller and your AI coding assistants. It reads gamepad input via the Browser Gamepad API, resolves bindings, and routes input to embedded terminal sessions via PTY.
+The app sits between your input devices and your AI coding assistants. It reads gamepad input via the Browser Gamepad API, resolves per-CLI bindings, and routes input to embedded terminal sessions via PTY.
 
 **D-pad navigation auto-selects terminals** — press up/down to switch sessions and the terminal activates immediately. Keyboard input always routes to the active terminal.
 
-**State detection:** The app watches PTY output for `AIAGENT-*` keywords and auto-detects whether a CLI is implementing, planning, completed, or idle. Colored dots in the tab bar show the state:
-
-- 🟢 implementing
-- 🟠 waiting
-- 🔵 planning
-- 🟡 completed
-- ⚪ idle
-
-**Session persistence:** Sessions survive crashes and restarts. State is saved to disk after every change.
+**Session persistence** — Sessions are saved to disk after every change and restored on startup. Dead PIDs are pruned automatically. Per-CLI resume commands reconnect to existing CLI sessions.
 
 ---
 
 ## Configuration
 
-Everything is configurable from the in-app settings UI — no YAML editing required. But the config files are there if you prefer hand-editing.
+Everything is configurable from the in-app settings UI — Profiles, per-CLI bindings, Tools, Directories, and Telegram tabs. Config files are there if you prefer hand-editing.
 
 ### Profiles
 
@@ -183,10 +232,10 @@ Profiles are self-contained YAML files storing tools, directories, bindings, sti
 
 ```
 config/
-├── settings.yaml
-├── sessions.yaml
+├── settings.yaml          # Active profile + feature toggles
+├── sessions.yaml          # Persisted session state (auto-managed)
 └── profiles/
-    └── default.yaml
+    └── default.yaml       # Tools + dirs + bindings + sticks + dpad
 ```
 
 ### Binding Actions
@@ -194,10 +243,10 @@ config/
 | Action | Description |
 |--------|-------------|
 | `keyboard` | Send a sequence of keystrokes to the terminal |
-| `voice` | Simulate a keypress for voice recognition (OS or PTY) |
+| `voice` | Simulate a keypress for voice recognition (OS or PTY routing) |
 | `scroll` | Scroll the terminal buffer up/down |
 | `context-menu` | Open the context menu overlay |
-| `sequence-list` | Show a picker of named sequences (via group reference or inline items) |
+| `sequence-list` | Show a picker of named sequences (reference a group or inline items) |
 
 ### Per-CLI Bindings
 
@@ -215,11 +264,70 @@ bindings:
       sequence: "git status{Enter}"
 ```
 
+### Stick Configuration
+
+```yaml
+sticks:
+  left:
+    mode: cursor      # cursor | scroll | disabled
+    deadzone: 8000
+    repeatRate: 60
+  right:
+    mode: scroll
+    deadzone: 0.25
+    repeatRate: 60
+```
+
+---
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Desktop shell | Electron 41 |
+| Language | TypeScript (ESM) |
+| Bundler | esbuild |
+| Tests | Vitest |
+| Gamepad input | Browser Gamepad API |
+| Terminals | node-pty + xterm.js |
+| Remote control | Telegram Bot API (node-telegram-bot-api) |
+| Config | YAML |
+| Logging | Winston (daily rotation) |
+
+---
+
+## Build & Test
+
+```bash
+npm run build      # esbuild: electron + preload + renderer
+npm run start      # Build and launch
+npm run package    # Build + package portable Windows EXE
+npm test           # Vitest suite
+```
+
+See [docs/build-and-test.md](docs/build-and-test.md) for details.
+
+---
+
+## Documentation
+
+Detailed reference docs are in `docs/`:
+
+| Document | Content |
+|----------|---------|
+| [modules.md](docs/modules.md) | Module reference — all modules with files and responsibilities |
+| [config-system.md](docs/config-system.md) | Profile YAML, binding types, sequence parser, stick/dpad config |
+| [controls.md](docs/controls.md) | Gamepad + keyboard mappings, navigation priority chain |
+| [terminal-architecture.md](docs/terminal-architecture.md) | PTY stack, input/output routing, activity dots |
+| [group-overview.md](docs/group-overview.md) | Session preview grid — entry/exit, navigation, live previews |
+| [file-structure.md](docs/file-structure.md) | Complete directory tree with per-file descriptions |
+| [build-and-test.md](docs/build-and-test.md) | Build commands, output paths, tech stack details |
+
 ---
 
 ## Built For
 
 - Developers running multiple AI coding assistants side by side
-- Anyone who uses CLI tools heavily and wants a physical control surface
-- People who think keyboards are great but controllers are faster for switching context
+- Anyone who wants physical controls for terminal workflows
+- People who monitor long-running AI tasks from their phone
 - The kind of person who automates their automation

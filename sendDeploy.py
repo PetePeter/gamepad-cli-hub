@@ -3,12 +3,13 @@
 Release publishing script — Step 2 of 2.
 
 Finds the latest prepared release in release/, commits the version bump,
-tags, pushes to GitHub, and publishes the release with artifacts.
+tags, pushes to GitHub, and publishes the release with the installer EXE
+via the GitHub CLI (gh).
 
 Prerequisites:
     - Run prepareDeploy.py first
     - Validate the EXE manually
-    - Set DEPLOY_GH_TOKEN environment variable for GitHub publishing
+    - Authenticated via `gh auth login` or set DEPLOY_GH_TOKEN env var
 
 Usage:
     python sendDeploy.py
@@ -19,9 +20,8 @@ import sys
 import json
 import os
 import re
+import shutil
 from pathlib import Path
-
-from prepareDeploy import create_deploy_configs, cleanup_deploy_configs
 
 
 def run(cmd, check=True, capture=False):
@@ -98,18 +98,28 @@ def main():
     print(f"  ✅ package.json version matches: {version}")
     print()
 
-    # 3. Check DEPLOY_GH_TOKEN (kept separate from GH_TOKEN to avoid conflicts with Copilot CLI)
-    print("[3/5] Checking GitHub token...")
+    # 3. Check gh CLI is available and authenticated
+    print("[3/5] Checking GitHub CLI...")
+    if not shutil.which("gh"):
+        print("❌ gh CLI not found. Install from https://cli.github.com/")
+        sys.exit(1)
+
     deploy_token = os.environ.get("DEPLOY_GH_TOKEN")
-    if not deploy_token:
-        print("⚠️  DEPLOY_GH_TOKEN not set. GitHub publish will fail.")
-        print("   Set it with: set DEPLOY_GH_TOKEN=ghp_xxxxxxxxxxxx")
-        response = input("   Continue anyway? (y/N): ").strip().lower()
-        if response != "y":
-            sys.exit(1)
-    else:
+    if deploy_token:
         os.environ["GH_TOKEN"] = deploy_token
-        print("  ✅ DEPLOY_GH_TOKEN is set (forwarded to GH_TOKEN for electron-builder)")
+        print("  ✅ DEPLOY_GH_TOKEN set (forwarded to GH_TOKEN for gh CLI)")
+    else:
+        # Fall back to gh's own auth (gh auth login)
+        auth_result = run("gh auth status", check=False, capture=True)
+        if auth_result.returncode != 0:
+            print("⚠️  Not authenticated. Either:")
+            print("   - Set DEPLOY_GH_TOKEN=ghp_xxxxxxxxxxxx")
+            print("   - Or run: gh auth login")
+            response = input("   Continue anyway? (y/N): ").strip().lower()
+            if response != "y":
+                sys.exit(1)
+        else:
+            print("  ✅ gh CLI authenticated")
     print()
 
     # 4. Git commit, tag, push
@@ -119,13 +129,17 @@ def main():
     run("git push origin HEAD --tags")
     print()
 
-    # 5. Publish to GitHub Releases (with deploy configs for clean packaging)
+    # 5. Create GitHub Release and upload installer EXE
     print("[5/5] Publishing to GitHub Releases...")
-    create_deploy_configs()
-    try:
-        run("npm run dist")
-    finally:
-        cleanup_deploy_configs()
+    exes = list(release_path.glob("*.exe"))
+    if not exes:
+        print("❌ No .exe found in release folder. Cannot publish.")
+        sys.exit(1)
+
+    # Build the gh release create command
+    tag = f"v{version}"
+    asset_args = " ".join(f'"{exe}"' for exe in exes)
+    run(f'gh release create {tag} --title "{tag}" --notes "Release {tag}" {asset_args}')
 
     print()
     print("=" * 50)
