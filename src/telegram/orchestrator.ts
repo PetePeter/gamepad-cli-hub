@@ -29,6 +29,10 @@ export interface TelegramModules {
   dashboard: PinnedDashboard;
   /** Feed PTY output — call on every pty:data event */
   feedPtyOutput: (sessionId: string, data: string) => void;
+  /** Forward activity-change events — triggers output flush on inactive/idle */
+  handleActivityChange: (sessionId: string, level: import('../types/session.js').ActivityLevel) => void;
+  /** Track in-app PTY input — echoes prompts to Telegram on Enter */
+  trackInput: (sessionId: string, data: string) => void;
   cleanup: () => void;
 }
 
@@ -81,6 +85,14 @@ export function initTelegramModules(
       if (!bot.isRunning()) return;
       outputSummarizer.feedOutput(sessionId, data);
       terminalMirror.feedOutput(sessionId, data);
+    },
+    handleActivityChange: (sessionId: string, level: import('../types/session.js').ActivityLevel) => {
+      if (!bot.isRunning()) return;
+      terminalMirror.handleActivityChange(sessionId, level);
+    },
+    trackInput: (sessionId: string, data: string) => {
+      if (!bot.isRunning()) return;
+      terminalMirror.trackInput(sessionId, data);
     },
     cleanup: () => {
       cleanupCallbacks();

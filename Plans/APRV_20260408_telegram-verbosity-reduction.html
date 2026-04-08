@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telegram Verbosity Reduction — Activity-Gated Output</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root { --bg: #1a1a2e; --surface: #16213e; --card: #0f3460; --accent: #e94560; --text: #eee; --muted: #aaa; --border: #2a2a4a; --code-bg: #0d1117; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); display: flex; line-height: 1.6; }
+
+  /* --- NAV --- */
+  nav { position: fixed; top: 0; left: 0; width: 260px; height: 100vh; background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; padding: 1.5rem 0; z-index: 10; }
+  nav h2 { padding: 0 1.2rem 1rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); }
+  nav a { display: block; padding: 0.5rem 1.2rem; color: var(--muted); text-decoration: none; font-size: 0.9rem; border-left: 3px solid transparent; transition: all 0.2s; }
+  nav a:hover { color: var(--text); background: rgba(233,69,96,0.08); }
+  nav a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(233,69,96,0.12); font-weight: 600; }
+
+  /* --- MAIN --- */
+  main { margin-left: 260px; max-width: 900px; padding: 2rem 3rem 4rem; }
+  h1 { font-size: 1.9rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  h1:first-child { margin-top: 0; }
+  h2 { font-size: 1.3rem; margin: 1.8rem 0 0.8rem; color: #7ec8e3; }
+  h3 { font-size: 1.1rem; margin: 1.2rem 0 0.5rem; color: #c0c0e0; }
+  p, li { margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; }
+  code { background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 3px; font-size: 0.9em; color: #c9d1d9; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; overflow-x: auto; margin: 1rem 0; }
+  pre code { background: none; padding: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th, td { padding: 0.5rem 0.8rem; border: 1px solid var(--border); text-align: left; }
+  th { background: var(--card); color: var(--accent); }
+  .highlight { background: rgba(233,69,96,0.15); border-left: 3px solid var(--accent); padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+  .pro { color: #44cc44; }
+  .con { color: #e94560; }
+  .badge { display: inline-block; padding: 0.2em 0.6em; border-radius: 4px; font-size: 0.8em; font-weight: 600; }
+  .badge-rec { background: #44cc44; color: #000; }
+  .badge-alt { background: #4488ff; color: #fff; }
+  .badge-exp { background: #ff8844; color: #000; }
+  .mermaid { margin: 1.5rem 0; }
+  section { scroll-margin-top: 1rem; }
+</style>
+</head>
+<body>
+
+<nav>
+  <h2>Navigation</h2>
+  <a href="#title">Overview</a>
+  <a href="#problem">Problem Statement</a>
+  <a href="#files">Relevant Files</a>
+  <a href="#sol1">Solution 1 — Activity-Gated</a>
+  <a href="#sol2">Solution 2 — Quiet Period Timer</a>
+  <a href="#sol3">Solution 3 — Hybrid Mirror</a>
+  <a href="#docs">Documentation Updates</a>
+  <a href="#tests">Suggested Tests</a>
+  <a href="#done">What Has Been Done</a>
+  <a href="#conclusion">Conclusion</a>
+</nav>
+
+<main>
+
+<!-- ============================================================ -->
+<section id="title">
+<h1>Telegram Verbosity Reduction</h1>
+<p><strong>Goal:</strong> Replace real-time terminal mirroring with activity-gated batching — send the LLM's <em>settled</em> output to Telegram only after the session goes quiet (blue activity dot), instead of streaming every chunk in real-time.</p>
+
+<div class="highlight">
+  <strong>User requirements (confirmed via Q&amp;A):</strong>
+  <ul>
+    <li>Wait for the LLM to go idle (blue activity dot, &gt;10s silence) before sending to Telegram</li>
+    <li>Send the final settled terminal content, not intermediate streaming/thinking/progress</li>
+    <li>One global "smart" mode — no per-session toggles needed</li>
+    <li>Fewer, larger messages instead of constant edit-in-place</li>
+    <li>No progress indicators, repeated text, or thinking animations</li>
+    <li>Full stream still visible in-app via xterm.js — Telegram gets the digest</li>
+  </ul>
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="problem">
+<h1>Problem Statement</h1>
+
+<p>The <code>TerminalMirror</code> module currently mirrors <strong>all</strong> PTY output to Telegram in near real-time (1.5s–3s debounced flushes). AI CLIs like Claude Code and Copilot CLI produce extremely verbose streaming output:</p>
+
+<ul>
+  <li><strong>Thinking/progress indicators</strong> — spinners, "thinking..." animations, percentage counters</li>
+  <li><strong>Streaming tokens</strong> — LLM responses arrive character-by-character, causing constant message edits</li>
+  <li><strong>Repeated/overwritten content</strong> — terminal carriage returns cause the same text to appear multiple times in the mirror</li>
+  <li><strong>Tool call output</strong> — verbose build/test/lint output that's useful in-app but noise on Telegram</li>
+</ul>
+
+<h2>Current Data Flow</h2>
+
+<pre class="mermaid">
+flowchart LR
+    PTY["PTY output<br>(every chunk)"]
+    TM["TerminalMirror<br>1.5s/3s flush"]
+    TG["Telegram<br>edit-in-place"]
+    PTY -->|"raw data"| TM
+    TM -->|"every 1.5s"| TG
+    style TM fill:#e94560,color:#fff
+    style TG fill:#e94560,color:#fff
+</pre>
+
+<h2>Desired Data Flow</h2>
+
+<pre class="mermaid">
+flowchart LR
+    INP["User prompt<br>(in-app pty:write)"]
+    PTY["PTY output<br>(every chunk)"]
+    BUF["Buffer<br>(accumulate)"]
+    AD["Activity Detector<br>10s silence = inactive"]
+    TG["Telegram Topic"]
+
+    INP -->|"📝 prompt text<br>(immediate)"| TG
+    PTY -->|"raw data"| BUF
+    AD -->|"inactive trigger"| BUF
+    BUF -->|"flush settled content"| TG
+    style INP fill:#4488ff,color:#fff
+    style BUF fill:#44cc44,color:#000
+    style TG fill:#44cc44,color:#000
+</pre>
+
+<h2>Impact</h2>
+<table>
+  <tr><th>Metric</th><th>Current</th><th>Target</th></tr>
+  <tr><td>Messages per LLM turn</td><td>5–20 edits + 2–5 new messages</td><td>1–2 messages</td></tr>
+  <tr><td>Telegram API calls</td><td>~20/min at rate limit</td><td>&lt;5/min</td></tr>
+  <tr><td>Content quality</td><td>Partial, truncated, duplicated</td><td>Final settled output</td></tr>
+  <tr><td>In-app experience</td><td>Full real-time (unchanged)</td><td>Full real-time (unchanged)</td></tr>
+</table>
+</section>
+
+<!-- ============================================================ -->
+<section id="files">
+<h1>Relevant / Related Files</h1>
+
+<table>
+  <tr><th>File</th><th>Role</th><th>Lines of Interest</th></tr>
+  <tr><td><code>src/telegram/terminal-mirror.ts</code></td><td>Real-time output mirroring — <strong>primary change target</strong></td><td>All (269 lines)</td></tr>
+  <tr><td><code>src/telegram/orchestrator.ts</code></td><td>Wires <code>feedPtyOutput</code> to TerminalMirror — needs activity-change wiring</td><td>80–84</td></tr>
+  <tr><td><code>src/telegram/utils.ts</code></td><td><code>cleanTerminalOutput()</code> + <code>NOISE_PATTERNS</code> — noise filtering</td><td>22–78</td></tr>
+  <tr><td><code>src/session/state-detector.ts</code></td><td>Emits <code>activity-change</code> events (active/inactive/idle)</td><td>54–58, 255–273</td></tr>
+  <tr><td><code>src/electron/ipc/pty-handlers.ts</code></td><td>Wires StateDetector events — needs to forward activity to Telegram</td><td>193–207, 301–309</td></tr>
+  <tr><td><code>src/electron/ipc/handlers.ts</code></td><td>Orchestrator wiring — passes <code>feedPtyOutput</code></td><td>81</td></tr>
+  <tr><td><code>src/telegram/bot.ts</code></td><td>Rate-limiting, <code>editMessageDebounced</code>, <code>sendToTopic</code></td><td>30–33, 312–333</td></tr>
+  <tr><td><code>src/telegram/output-summarizer.ts</code></td><td>Structured extraction (test results, errors, files) — potential reuse</td><td>95–166</td></tr>
+  <tr><td><code>tests/terminal-mirror.test.ts</code></td><td>Existing mirror tests — must be updated</td><td>All (314 lines)</td></tr>
+</table>
+</section>
+
+<!-- ============================================================ -->
+<section id="sol1">
+<h1>Proposed Solution 1 — Activity-Gated Batching <span class="badge badge-rec">RECOMMENDED</span></h1>
+
+<p>Replace TerminalMirror's real-time flushing with activity-gated batching: buffer output while the session is active (green dot), flush only when the session transitions to inactive (blue dot, &gt;10s silence). Additionally, echo user prompts to Telegram immediately when submitted from the in-app terminal.</p>
+
+<h2>Architecture</h2>
+
+<pre class="mermaid">
+sequenceDiagram
+    participant USR as User (in-app)
+    participant PTY as PTY Process
+    participant SD as StateDetector
+    participant TM as TerminalMirror
+    participant TG as Telegram API
+
+    Note over USR,TG: User types prompt in xterm
+    USR->>PTY: pty:write (text + Enter)
+    PTY->>TM: trackInput(text)
+    TM->>TG: 📝 "fix the auth bug"
+
+    Note over USR,TG: LLM starts working
+    PTY->>SD: processOutput(data)
+    SD->>SD: activity = active (green)
+    PTY->>TM: feedOutput(data)
+    TM->>TM: buffer += data (no flush)
+
+    Note over USR,TG: More output arrives...
+    PTY->>TM: feedOutput(data)
+    TM->>TM: buffer += data (still no flush)
+
+    Note over USR,TG: 10s of silence
+    SD->>TM: handleActivityChange(inactive)
+    TM->>TM: cleanTerminalOutput(buffer)
+    TM->>TM: fitToLimit(cleaned)
+    TM->>TG: sendToTopic(settled content)
+    TM->>TM: clear buffer
+</pre>
+
+<h2>Key Changes</h2>
+
+<h3>1. <code>src/telegram/terminal-mirror.ts</code></h3>
+<ul>
+  <li>Remove timer-based <code>scheduleFlush()</code> — no more 1.5s/3s debounced flushes</li>
+  <li><code>feedOutput()</code> only appends to buffer (with safety cap at 100KB)</li>
+  <li>Add <code>handleActivityChange(sessionId, level)</code>:
+    <ul>
+      <li><code>'inactive'</code> → flush buffer as a <strong>new message</strong> (not edit-in-place)</li>
+      <li><code>'idle'</code> → flush if buffer has content (catch stragglers)</li>
+      <li><code>'active'</code> → no-op (just buffering)</li>
+    </ul>
+  </li>
+  <li>Each flush sends a <strong>new message</strong> per activity burst — no edit-in-place pattern</li>
+  <li>Add safety flush: if buffer exceeds <code>MAX_BUFFER_CHARS</code> (e.g., 50KB), flush immediately regardless of activity state (prevents memory pressure during long-running builds)</li>
+  <li>Add <code>trackInput(sessionId, data)</code> — accumulates typed characters per session, sends prompt to Telegram on Enter (<code>\r</code>)</li>
+</ul>
+
+<h4>Prompt Echo — Input Tracking</h4>
+<p>A per-session <code>inputBuffer</code> accumulates text from <code>pty:write</code> events (in-app only — Telegram topic input bypasses IPC). When <code>\r</code> is detected:</p>
+<ol>
+  <li>Extract printable text from the buffer (strip escape sequences, control chars)</li>
+  <li>If text is non-empty → send <code>📝 &lt;text&gt;</code> to the session's Telegram topic</li>
+  <li>Clear the input buffer</li>
+</ol>
+<p>This creates a natural conversation flow: prompt message → (silence while LLM works) → settled response message.</p>
+
+<pre><code>// Input tracking
+trackInput(sessionId: string, data: string): void {
+  const state = this.getOrCreateState(sessionId);
+  state.inputBuffer += data;
+
+  if (data.includes('\r') || data.includes('\n')) {
+    const text = stripControlChars(state.inputBuffer).trim();
+    state.inputBuffer = '';
+    if (text.length === 0) return;  // Enter-only, Ctrl+C, arrows → skip
+
+    const topicId = this.topicManager.getTopicId(sessionId);
+    if (!topicId) return;
+    const formatted = `📝 ${escapeHtml(text)}`;
+    this.bot.sendToTopic(topicId, formatted, { parse_mode: 'HTML' });
+  }
+}
+
+// Output buffering (no immediate flush)
+feedOutput(sessionId: string, data: string): void {
+  const state = this.getOrCreateState(sessionId);
+  state.buffer += data;
+
+  // Safety flush: don't let buffer grow unbounded
+  if (state.buffer.length > MAX_BUFFER_CHARS) {
+    this.flush(sessionId);
+  }
+}
+
+handleActivityChange(sessionId: string, level: ActivityLevel): void {
+  if (level === 'inactive' || level === 'idle') {
+    this.flush(sessionId);
+  }
+}
+
+private async flush(sessionId: string): Promise&lt;void&gt; {
+  const state = this.states.get(sessionId);
+  if (!state || !state.buffer.trim()) return;
+
+  const cleaned = cleanTerminalOutput(state.buffer);
+  state.buffer = '';
+  if (!cleaned.trim()) return;
+
+  const content = fitToLimit(cleaned);
+  const formatted = `&lt;code&gt;${escapeHtml(content)}&lt;/code&gt;`;
+
+  // Always send NEW message — no edit-in-place
+  await this.bot.sendToTopic(state.topicId, formatted, { parse_mode: 'HTML' });
+}</code></pre>
+
+<h3>2. <code>src/telegram/orchestrator.ts</code></h3>
+<ul>
+  <li>Add <code>handleActivityChange</code> to the exported interface — forwards to <code>terminalMirror.handleActivityChange()</code></li>
+  <li>Add <code>trackInput</code> to the exported interface — forwards to <code>terminalMirror.trackInput()</code></li>
+</ul>
+
+<pre><code>// Add to TelegramModules interface
+handleActivityChange: (sessionId: string, level: ActivityLevel) =&gt; {
+  if (!bot.isRunning()) return;
+  terminalMirror.handleActivityChange(sessionId, level);
+},
+trackInput: (sessionId: string, data: string) =&gt; {
+  if (!bot.isRunning()) return;
+  terminalMirror.trackInput(sessionId, data);
+},</code></pre>
+
+<h3>3. <code>src/electron/ipc/pty-handlers.ts</code></h3>
+<ul>
+  <li>In the existing <code>stateDetector.on('activity-change')</code> listener, call the new Telegram callback for activity changes</li>
+  <li>In the <code>pty:write</code> IPC handler, call the new Telegram callback for input tracking</li>
+</ul>
+
+<pre><code>// Activity change → Telegram
+stateDetector.on('activity-change', (event) =&gt; {
+  win.webContents.send('pty:activity-change', event);
+  notificationManager?.handleActivityChange(event);
+  onActivityChange?.(event.sessionId, event.level);  // NEW → Telegram
+});
+
+// pty:write → input tracking
+ipcMain.on('pty:write', (_, sessionId, data) =&gt; {
+  ptyManager.write(sessionId, data);
+  stateDetector.markActive(sessionId);
+  onPtyInput?.(sessionId, data);  // NEW → Telegram prompt echo
+});</code></pre>
+
+<h3>4. <code>src/electron/ipc/handlers.ts</code></h3>
+<ul>
+  <li>Pass <code>telegramModules.handleActivityChange</code> as the new callback parameter to <code>setupPtyHandlers()</code></li>
+</ul>
+
+<h3>5. <code>src/telegram/utils.ts</code> (optional enhancement)</h3>
+<ul>
+  <li>Add more noise patterns for LLM-specific output that survives the carriage-return cleanup:
+    <ul>
+      <li><code>/^\s*\d+\/\d+\s*(tests?|files?|modules?).*$/gim</code> — progress counters</li>
+      <li><code>/^\s*\[?[█░▓▒■□]+\]?\s*\d*%?\s*$/gm</code> — progress bars</li>
+      <li><code>/^.*\b(compiling|bundling|resolving)\b.*\.\.\.\s*$/gim</code> — build progress</li>
+    </ul>
+  </li>
+</ul>
+
+<h2>Pros / Cons</h2>
+<ul>
+  <li class="pro">✅ Leverages existing StateDetector infrastructure — no duplicated timing logic</li>
+  <li class="pro">✅ Naturally produces fewer, larger messages (1–2 per LLM turn)</li>
+  <li class="pro">✅ Content is genuinely settled by the time it's sent</li>
+  <li class="pro">✅ <code>cleanTerminalOutput()</code> collapses carriage-return overwrites, eliminating duplicates</li>
+  <li class="pro">✅ Safety flush prevents memory issues during long builds</li>
+  <li class="pro">✅ Removes the edit-in-place complexity (no more <code>editMessageDebounced</code>)</li>
+  <li class="con">❌ 10s delay before any output appears on Telegram — user sees nothing during active work</li>
+  <li class="con">❌ Requires wiring a new callback through handlers.ts → pty-handlers.ts → orchestrator</li>
+  <li class="con">❌ Very long active periods (e.g., 10min build) may trigger safety flush mid-stream</li>
+</ul>
+
+<h2>Complexity</h2>
+<p><strong>Medium.</strong> ~5 files changed, removes complexity from TerminalMirror (no timers, no edit-in-place), adds one new callback wire. The hardest part is testing the activity-trigger flow.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="sol2">
+<h1>Proposed Solution 2 — Quiet Period Timer <span class="badge badge-alt">ALTERNATIVE</span></h1>
+
+<p>Instead of wiring to StateDetector events, change TerminalMirror's existing flush timer from 1.5s to a configurable quiet period (default 10s). Each new output chunk resets the timer. Content only flushes after N seconds of silence.</p>
+
+<h2>Key Changes</h2>
+
+<h3><code>src/telegram/terminal-mirror.ts</code> only</h3>
+<ul>
+  <li>Change <code>NORMAL_FLUSH_MS</code> from 1500 → 10000 (or configurable)</li>
+  <li>Change <code>scheduleFlush()</code> to <strong>reset</strong> the timer on every new chunk (current code skips if timer exists)</li>
+  <li>Keep edit-in-place pattern OR switch to new-message-per-flush</li>
+</ul>
+
+<pre><code>// Current: scheduleFlush skips if timer exists
+private scheduleFlush(sessionId: string, state: MirrorState): void {
+  if (state.flushTimer) return;  // ← skip
+  state.flushTimer = setTimeout(() =&gt; this.flush(sessionId), interval);
+}
+
+// Changed: reset timer on every new chunk
+private scheduleFlush(sessionId: string, state: MirrorState): void {
+  if (state.flushTimer) clearTimeout(state.flushTimer);  // ← reset
+  state.flushTimer = setTimeout(() =&gt; this.flush(sessionId), QUIET_PERIOD_MS);
+}</code></pre>
+
+<h2>Pros / Cons</h2>
+<ul>
+  <li class="pro">✅ Minimal change — only TerminalMirror modified (1 file)</li>
+  <li class="pro">✅ No new wiring needed — self-contained within existing module</li>
+  <li class="pro">✅ Same effect as Solution 1 for most scenarios</li>
+  <li class="con">❌ Duplicates StateDetector's timing logic — two independent 10s timers</li>
+  <li class="con">❌ If quiet period doesn't match StateDetector threshold, activity dots and Telegram flush can be out of sync</li>
+  <li class="con">❌ Can't distinguish "paused to read user's question" (should flush) from "paused between tool calls" (might resume)</li>
+  <li class="con">❌ Timer reset on every chunk means a slow trickle of output (1 byte/9s) could delay flush indefinitely</li>
+</ul>
+
+<h2>Complexity</h2>
+<p><strong>Low.</strong> ~1 file, ~10 lines changed. But the duplicated timing logic is a maintenance concern.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="sol3">
+<h1>Proposed Solution 3 — Hybrid: Activity Gate + Incremental Digest <span class="badge badge-exp">EXPERIMENTAL</span></h1>
+
+<p>Combines activity-gating (Solution 1) with the OutputSummarizer's structured extraction. On each flush, instead of sending raw terminal content, extract and send a structured digest: errors, test results, modified files, and the last N lines.</p>
+
+<h2>Architecture</h2>
+
+<pre class="mermaid">
+flowchart TB
+    BUF["Raw Buffer<br>(accumulated during active)"]
+    CE["cleanTerminalOutput()"]
+    EX["Structured Extraction<br>errors + tests + files"]
+    RL["Recent Lines<br>(last 25 lines)"]
+    FMT["Format Digest"]
+    TG["Telegram Message"]
+
+    BUF --> CE
+    CE --> EX
+    CE --> RL
+    EX --> FMT
+    RL --> FMT
+    FMT --> TG
+</pre>
+
+<h2>Key Changes</h2>
+<ul>
+  <li>Activity-gated flush (same as Solution 1)</li>
+  <li>On flush, run OutputSummarizer's extraction methods on the buffer:
+    <ul>
+      <li><code>extractTestResults(lines)</code> — scan for pass/fail counts</li>
+      <li><code>extractErrors(lines)</code> — find error messages</li>
+      <li><code>extractModifiedFiles(lines)</code> — find created/modified files</li>
+      <li>Last 25 lines of cleaned output as context</li>
+    </ul>
+  </li>
+  <li>Format as a structured Telegram message with sections</li>
+</ul>
+
+<pre><code>// Example output message format:
+📋 Session: my-feature (Claude Code)
+
+❌ Errors (2):
+  • TypeError: Cannot read property 'x' of undefined
+  • SyntaxError: Unexpected token
+
+✅ Tests: 47 passed, 2 failed
+
+📁 Files: src/auth.ts, src/api.ts, tests/auth.test.ts
+
+📄 Recent output:
+  (last 25 lines in &lt;code&gt; block)</code></pre>
+
+<h2>Pros / Cons</h2>
+<ul>
+  <li class="pro">✅ Most informative format — structured data at a glance</li>
+  <li class="pro">✅ Reuses existing extraction logic from OutputSummarizer</li>
+  <li class="pro">✅ Compact — only sends what matters</li>
+  <li class="con">❌ May lose context the user wants (user said "final settled content", not "summary")</li>
+  <li class="con">❌ Extraction patterns are fragile — may miss important content that doesn't match patterns</li>
+  <li class="con">❌ More complex implementation — needs to refactor extraction methods out of OutputSummarizer or share them</li>
+  <li class="con">❌ Structured format may not suit all CLI types (generic CLIs don't follow AI CLI patterns)</li>
+</ul>
+
+<h2>Complexity</h2>
+<p><strong>High.</strong> Requires refactoring extraction logic into shared utilities, new formatting, more edge cases. Risk of over-filtering useful content.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="docs">
+<h1>Documentation Updates Recommended</h1>
+
+<table>
+  <tr><th>Document</th><th>Update</th></tr>
+  <tr><td><code>CLAUDE.md</code></td><td>Update Telegram section: mention activity-gated output (not real-time mirror), describe the buffering behavior</td></tr>
+  <tr><td><code>docs/modules.md</code></td><td>Update TerminalMirror module description — "activity-gated batching" instead of "live streaming"</td></tr>
+  <tr><td><code>src/telegram/terminal-mirror.ts</code></td><td>Update JSDoc/class-level comment describing the new behavior</td></tr>
+</table>
+</section>
+
+<!-- ============================================================ -->
+<section id="tests">
+<h1>Suggested Functional Tests</h1>
+
+<h2>Updated tests for <code>tests/terminal-mirror.test.ts</code></h2>
+
+<h3>Core activity-gated behavior</h3>
+<ol>
+  <li><code>feedOutput does not flush immediately — only buffers</code></li>
+  <li><code>handleActivityChange('inactive') triggers flush of buffered content</code></li>
+  <li><code>handleActivityChange('idle') triggers flush of buffered content</code></li>
+  <li><code>handleActivityChange('active') does not trigger flush</code></li>
+  <li><code>flush sends a new message (not edit-in-place)</code></li>
+  <li><code>flush cleans content via cleanTerminalOutput before sending</code></li>
+  <li><code>flush does nothing when buffer is empty or whitespace-only</code></li>
+  <li><code>multiple feedOutput calls accumulate in buffer before flush</code></li>
+</ol>
+
+<h3>Safety flush</h3>
+<ol start="9">
+  <li><code>safety flush triggers when buffer exceeds MAX_BUFFER_CHARS</code></li>
+  <li><code>safety flush resets buffer and sends content</code></li>
+</ol>
+
+<h3>Message lifecycle</h3>
+<ol start="11">
+  <li><code>each activity burst produces a separate message (no edit-in-place)</code></li>
+  <li><code>rapid active→inactive→active→inactive sends two messages</code></li>
+  <li><code>content is truncated via fitToLimit when exceeding MAX_MESSAGE_CHARS</code></li>
+</ol>
+
+<h3>Content quality</h3>
+<ol start="14">
+  <li><code>ANSI escape codes are stripped from flushed content</code></li>
+  <li><code>carriage-return overwrites are collapsed (no duplicates)</code></li>
+  <li><code>noise patterns (spinners, AIAGENT tags) are removed</code></li>
+  <li><code>HTML entities are escaped in the Telegram message</code></li>
+</ol>
+
+<h3>Edge cases</h3>
+<ol start="18">
+  <li><code>removeSession clears buffer, inputBuffer, and state</code></li>
+  <li><code>dispose clears all session states and pending flushes</code></li>
+  <li><code>feedOutput with no topic ID is silently ignored</code></li>
+  <li><code>pause/resume still works (buffer during pause, flush on resume+inactive)</code></li>
+</ol>
+
+<h3>Prompt echo (input tracking)</h3>
+<ol start="22">
+  <li><code>trackInput accumulates characters in inputBuffer</code></li>
+  <li><code>trackInput sends prompt to Telegram on carriage return</code></li>
+  <li><code>trackInput strips escape sequences and control chars from prompt</code></li>
+  <li><code>trackInput skips empty prompts (Enter-only, Ctrl+C, arrow keys)</code></li>
+  <li><code>trackInput clears inputBuffer after sending</code></li>
+  <li><code>trackInput does nothing when no topic ID exists</code></li>
+  <li><code>trackInput formats message as "📝 prompt text"</code></li>
+</ol>
+
+<h3>Integration wiring (can be unit tested with mocks)</h3>
+<ol start="29">
+  <li><code>orchestrator.handleActivityChange forwards to terminalMirror</code></li>
+  <li><code>orchestrator.handleActivityChange is no-op when bot not running</code></li>
+  <li><code>orchestrator.trackInput forwards to terminalMirror</code></li>
+  <li><code>orchestrator.trackInput is no-op when bot not running</code></li>
+</ol>
+</section>
+
+<!-- ============================================================ -->
+<section id="done">
+<h1>What Has Been Done</h1>
+<p><em>Placeholder — to be filled after implementation.</em></p>
+</section>
+
+<!-- ============================================================ -->
+<section id="conclusion">
+<h1>Conclusion</h1>
+
+<div class="highlight">
+<p><strong>Recommendation: Solution 1 — Activity-Gated Batching</strong></p>
+</div>
+
+<table>
+  <tr><th></th><th>Solution 1<br>Activity-Gated</th><th>Solution 2<br>Quiet Period</th><th>Solution 3<br>Hybrid Digest</th></tr>
+  <tr><td>Complexity</td><td>Medium (5 files)</td><td>Low (1 file)</td><td>High (7+ files)</td></tr>
+  <tr><td>Message reduction</td><td>~90%</td><td>~85%</td><td>~95%</td></tr>
+  <tr><td>Content fidelity</td><td>High (settled terminal)</td><td>High (settled terminal)</td><td>Medium (extracted summary)</td></tr>
+  <tr><td>Leverages existing infra</td><td>✅ StateDetector</td><td>❌ Duplicates timing</td><td>✅ StateDetector + Summarizer</td></tr>
+  <tr><td>Matches user request</td><td>✅ "Wait for blue dot"</td><td>⚠️ Close but not synced</td><td>❌ Summary, not raw content</td></tr>
+  <tr><td>Maintenance burden</td><td>Low (simpler than current)</td><td>Low</td><td>Medium (extraction patterns)</td></tr>
+</table>
+
+<p>Solution 1 directly implements the user's stated preference: <em>"wait for the LLM to be idle (blue activity dot) before messaging Telegram."</em> It leverages the existing <code>StateDetector</code> activity-change events, produces fewer and cleaner messages, and actually <strong>simplifies</strong> the TerminalMirror code by removing the edit-in-place pattern and debounce timers.</p>
+
+<p>The 10s delay before content appears on Telegram is the <em>desired</em> behavior — the user explicitly doesn't want to see intermediate progress. The safety flush at 50KB provides a reasonable guard for long-running builds.</p>
+
+<h2>Implementation Order</h2>
+<ol>
+  <li>Refactor <code>TerminalMirror</code> — remove timers, add activity-gated flush + input tracking</li>
+  <li>Wire activity-change + input tracking through orchestrator → handlers → pty-handlers</li>
+  <li>Update/rewrite <code>terminal-mirror.test.ts</code> for new behavior (32 tests)</li>
+  <li>Optional: enhance <code>NOISE_PATTERNS</code> in utils.ts</li>
+  <li>Update documentation</li>
+</ol>
+</section>
+
+</main>
+
+<script>
+  mermaid.initialize({ theme: 'dark', startOnLoad: true });
+
+  // Active section highlighting
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('nav a');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        navLinks.forEach(a => a.classList.remove('active'));
+        const active = document.querySelector(`nav a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>

@@ -28,6 +28,8 @@ const NOISE_PATTERNS: RegExp[] = [
   /^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏].*$/gm,              // Braille spinner lines (must start with spinner char)
   /^[-\\|/]\s*$/gm,                            // ASCII spinner frames (single char lines)
   /^AIAGENT-\w+\s*$/gm,                        // State tags (already handled by StateDetector)
+  /^\s*\d+\/\d+\s*(?:tests?|files?|modules?|packages?).*$/gim, // Progress counters (47/100 tests)
+  /^\s*[█░▓▒■□▏▎▍▌▋▊▉]+\s*\d*%?\s*$/gm,      // Progress bars (block chars + optional %)
 ];
 
 /**

@@ -78,7 +78,7 @@ export function registerIPCHandlers(
   setupToolsHandlers(configLoader);
   setupKeyboardHandlers(keyboard);
   setupSystemHandlers();
-  setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader, notificationManager, telegramModules.feedPtyOutput);
+  setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader, notificationManager, telegramModules.feedPtyOutput, telegramModules.handleActivityChange, telegramModules.trackInput);
 
   // Wire events ONCE (no-ops when bot not running — notifier checks isRunning)
   stateDetector.on('state-change', (transition) => telegramNotifier.handleStateChange(transition));

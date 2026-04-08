@@ -51,6 +51,8 @@ export function setupPtyHandlers(
   configLoader?: ConfigLoader,
   notificationManager?: NotificationManager,
   onPtyData?: (sessionId: string, data: string) => void,
+  onActivityChange?: (sessionId: string, level: import('../../types/session.js').ActivityLevel) => void,
+  onPtyInput?: (sessionId: string, data: string) => void,
 ): void {
   // pty:spawn - Spawn a new PTY process and register as session
   ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string, resumeSessionName?: string) => {
@@ -149,6 +151,7 @@ export function setupPtyHandlers(
     try {
       ptyManager.write(sessionId, data);
       stateDetector.markActive(sessionId);
+      onPtyInput?.(sessionId, data);
     } catch (error) {
       logger.error(`[PTY IPC] pty:write failed for session=${sessionId}: ${error}`);
     }
@@ -306,6 +309,9 @@ export function setupPtyHandlers(
 
     // Desktop notification when activity transitions from active to non-active
     notificationManager?.handleActivityChange(event);
+
+    // Telegram: flush buffered output when session goes inactive/idle
+    onActivityChange?.(event.sessionId, event.level);
   });
 
   // Pipeline queue management
