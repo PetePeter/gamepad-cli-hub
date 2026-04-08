@@ -1,13 +1,13 @@
 import { Notification, type BrowserWindow } from 'electron';
 import path from 'path';
-import type { StateTransition, ActivityChange } from './state-detector.js';
+import type { ActivityChange } from './state-detector.js';
 import type { SessionManager } from './manager.js';
 import type { ConfigLoader } from '../config/loader.js';
 import type { SessionState } from '../types/session.js';
 import { logger } from '../utils/logger.js';
 import { stripAnsi } from '../utils/strip-ansi.js';
 
-/** States considered "active" (CLI is working). */
+/** States considered "active" (CLI is working) — only notify for these. */
 const ACTIVE_STATES: ReadonlySet<SessionState> = new Set(['implementing', 'planning']);
 
 /** Dedup guard window — skip duplicate notifications for the same session within this period. */
@@ -29,13 +29,10 @@ interface OutputBuffer {
   partial: string;
 }
 
-const STATE_LABELS: Record<string, { emoji: string; label: string; verb: string }> = {
-  completed: { emoji: '🎉', label: 'Completed', verb: 'is done' },
-  idle: { emoji: '💤', label: 'Idle', verb: 'is idle' },
-  waiting: { emoji: '⏳', label: 'Waiting', verb: 'needs input' },
+const ACTIVITY_LABELS: Record<string, { emoji: string; label: string; verb: string }> = {
+  inactive: { emoji: '🔇', label: 'Inactive', verb: 'went quiet' },
+  idle: { emoji: '💤', label: 'Idle', verb: 'went idle' },
 };
-
-const INACTIVE_LABEL = { emoji: '🔇', label: 'Inactive', verb: 'went quiet' };
 
 function buildContent(
   sessionName: string,
@@ -56,11 +53,10 @@ function buildContent(
 }
 
 /**
- * Manages Windows toast notifications for CLI session state/activity transitions.
+ * Manages Windows toast notifications for CLI session activity transitions.
  *
- * Triggers:
- * 1. State change: active → non-active (implementing/planning → completed/idle/waiting)
- * 2. Activity change: active → inactive (output stopped for >10s)
+ * Triggers: activity change from active → inactive (>10s silence) or idle (>5min silence),
+ * but only when the session's detected state is active (implementing/planning).
  *
  * Conditions: window not focused + notifications setting enabled.
  * Click action: focuses window + switches to the triggering session.
@@ -73,6 +69,7 @@ export class NotificationManager {
     private getMainWindow: () => BrowserWindow | null,
     private sessionManager: SessionManager,
     private configLoader: ConfigLoader,
+    private getSessionState: (sessionId: string) => SessionState,
   ) {}
 
   /** Feed raw PTY output to maintain a small ring buffer per session. */
@@ -109,21 +106,16 @@ export class NotificationManager {
     return allLines.slice(-count);
   }
 
-  /** Call when StateDetector emits 'state-change'. */
-  handleStateChange(transition: StateTransition): void {
-    if (!ACTIVE_STATES.has(transition.previousState)) return;
-    if (ACTIVE_STATES.has(transition.newState)) return;
-
-    const labelInfo = STATE_LABELS[transition.newState];
-    if (!labelInfo) return;
-
-    this.maybeNotify(transition.sessionId, labelInfo);
-  }
-
-  /** Call when StateDetector emits 'activity-change'. Notifies on active → non-active. */
+  /** Call when StateDetector emits 'activity-change'. Notifies on active → non-active
+   *  only when the session is in an active AI state (implementing/planning). */
   handleActivityChange(event: ActivityChange): void {
     if (event.level === 'active') return;
-    this.maybeNotify(event.sessionId, INACTIVE_LABEL);
+
+    const state = this.getSessionState(event.sessionId);
+    if (!ACTIVE_STATES.has(state)) return;
+
+    const labelInfo = ACTIVITY_LABELS[event.level] ?? ACTIVITY_LABELS.inactive;
+    this.maybeNotify(event.sessionId, labelInfo);
   }
 
   private maybeNotify(

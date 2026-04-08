@@ -244,9 +244,6 @@ export function setupPtyHandlers(
       session.state = transition.newState;
     }
 
-    // Desktop notification when active → non-active
-    notificationManager?.handleStateChange(transition);
-
     // Auto-handoff: when a session completes or goes idle, trigger next in queue
     if (transition.newState === 'idle' || transition.newState === 'completed') {
       const handoff = pipelineQueue.triggerHandoff(transition.sessionId);

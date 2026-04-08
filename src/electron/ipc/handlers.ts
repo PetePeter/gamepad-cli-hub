@@ -55,7 +55,10 @@ export function registerIPCHandlers(
   const ptyManager = new PtyManager();
   const stateDetector = new StateDetector();
   const pipelineQueue = new PipelineQueue();
-  const notificationManager = new NotificationManager(getMainWindow, sessionManager, configLoader);
+  const notificationManager = new NotificationManager(
+    getMainWindow, sessionManager, configLoader,
+    (sessionId) => stateDetector.getState(sessionId),
+  );
 
   const telegramBot = new TelegramBotCore();
   const topicManager = new TopicManager(telegramBot, sessionManager, configLoader.getTelegramConfig().instanceName);

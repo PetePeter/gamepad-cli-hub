@@ -29,7 +29,7 @@ src/
 │   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
 │   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection + I/O activity tracking (active/inactive/idle via input+output timing)
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
-│   ├── notification-manager.ts # Windows toast notifications (Electron Notification API, state/activity triggers, dedup, click-to-focus)
+│   ├── notification-manager.ts # Windows toast notifications (Electron Notification API, activity-change triggers for implementing/planning sessions, dedup, click-to-focus)
 │   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay, onComplete callback
 │   └── power-monitor.ts        # Suspend/resume/shutdown diagnostics — session counts, PTY IDs, survival status
 ├── config/
@@ -39,7 +39,7 @@ src/
 │   ├── callback-handler.ts     # Inline keyboard callback routing — session controls, spawn wizard, close all, text input
 │   ├── commands.ts             # Slash command handlers (/status, /switch, /send, /close, /spawn, /output)
 │   ├── keyboards.ts            # Inline keyboard layout builders (session list, controls, commands, spawn wizard)
-│   ├── notifier.ts             # State/activity change → Telegram notification messages with inline keyboards
+│   ├── notifier.ts             # State change → Telegram notification messages with inline keyboards
 │   ├── orchestrator.ts         # Telegram module factory — wires bot, topic manager, notifier, terminal mirror, dashboard
 │   ├── output-summarizer.ts    # PTY buffer → 3-5 line smart summary
 │   ├── pinned-dashboard.ts     # Auto-updating pinned message with all-sessions status + Close All button

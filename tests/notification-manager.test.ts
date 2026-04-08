@@ -23,9 +23,10 @@ vi.mock('../src/utils/logger.js', () => ({
 
 import { NotificationManager } from '../src/session/notification-manager.js';
 import { Notification } from 'electron';
-import type { StateTransition, ActivityChange } from '../src/session/state-detector.js';
+import type { ActivityChange } from '../src/session/state-detector.js';
 import type { SessionManager } from '../src/session/manager.js';
 import type { ConfigLoader } from '../src/config/loader.js';
+import type { SessionState } from '../src/types/session.js';
 
 function createMockSessionManager(sessions: Record<string, any> = {}): SessionManager {
   return {
@@ -54,6 +55,7 @@ describe('NotificationManager', () => {
   let mockWindow: ReturnType<typeof createMockWindow>;
   let mockSessionManager: SessionManager;
   let mockConfigLoader: ConfigLoader;
+  let mockGetSessionState: Mock<(id: string) => SessionState>;
 
   const defaultSession = {
     id: 'session-1',
@@ -65,111 +67,19 @@ describe('NotificationManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Create fresh mocks AFTER clearAllMocks so their call tracking isn't wiped
     mockNotificationShow = vi.fn();
     mockNotificationOn = vi.fn();
-    // Re-establish isSupported after clearAllMocks
     (Notification.isSupported as Mock).mockReturnValue(true);
     mockWindow = createMockWindow(false);
     mockSessionManager = createMockSessionManager({ 'session-1': defaultSession });
     mockConfigLoader = createMockConfigLoader(true);
+    mockGetSessionState = vi.fn(() => 'implementing' as SessionState);
     manager = new NotificationManager(
       () => mockWindow as any,
       mockSessionManager,
       mockConfigLoader,
+      mockGetSessionState,
     );
-  });
-
-  // ==========================================================================
-  // State change trigger
-  // ==========================================================================
-
-  describe('handleStateChange', () => {
-    it('notifies on implementing → completed', () => {
-      const transition: StateTransition = {
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      };
-      manager.handleStateChange(transition);
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        title: '🎉 Completed — claude-code',
-        body: '"hub-abc123" in my-project is done.',
-      }));
-    });
-
-    it('notifies on implementing → idle', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'idle',
-      });
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        title: '💤 Idle — claude-code',
-        body: '"hub-abc123" in my-project is idle.',
-      }));
-    });
-
-    it('notifies on implementing → waiting', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'waiting',
-      });
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        title: '⏳ Waiting — claude-code',
-        body: '"hub-abc123" in my-project needs input.',
-      }));
-    });
-
-    it('notifies on planning → completed', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'planning',
-        newState: 'completed',
-      });
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        title: '🎉 Completed — claude-code',
-      }));
-    });
-
-    it('notifies on planning → idle', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'planning',
-        newState: 'idle',
-      });
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        title: '💤 Idle — claude-code',
-      }));
-    });
-
-    it('does NOT notify on idle → completed (not from active state)', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'idle',
-        newState: 'completed',
-      });
-      expect(mockNotificationShow).not.toHaveBeenCalled();
-    });
-
-    it('does NOT notify on implementing → planning (both active)', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'planning',
-      });
-      expect(mockNotificationShow).not.toHaveBeenCalled();
-    });
-
-    it('does NOT notify on waiting → idle (not from active state)', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'waiting',
-        newState: 'idle',
-      });
-      expect(mockNotificationShow).not.toHaveBeenCalled();
-    });
   });
 
   // ==========================================================================
@@ -177,7 +87,7 @@ describe('NotificationManager', () => {
   // ==========================================================================
 
   describe('handleActivityChange', () => {
-    it('notifies when activity goes inactive', () => {
+    it('notifies when activity goes inactive and session is implementing', () => {
       const event: ActivityChange = { sessionId: 'session-1', level: 'inactive' };
       manager.handleActivityChange(event);
       expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
@@ -186,8 +96,17 @@ describe('NotificationManager', () => {
       }));
     });
 
-    it('notifies when activity goes idle', () => {
+    it('notifies when activity goes idle and session is implementing', () => {
       manager.handleActivityChange({ sessionId: 'session-1', level: 'idle' });
+      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
+        title: '💤 Idle — claude-code',
+        body: '"hub-abc123" in my-project went idle.',
+      }));
+    });
+
+    it('notifies when session is planning', () => {
+      mockGetSessionState.mockReturnValue('planning');
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
         title: '🔇 Inactive — claude-code',
       }));
@@ -195,6 +114,24 @@ describe('NotificationManager', () => {
 
     it('does NOT notify when activity becomes active', () => {
       manager.handleActivityChange({ sessionId: 'session-1', level: 'active' });
+      expect(mockNotificationShow).not.toHaveBeenCalled();
+    });
+
+    it('does NOT notify when session state is idle', () => {
+      mockGetSessionState.mockReturnValue('idle');
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
+      expect(mockNotificationShow).not.toHaveBeenCalled();
+    });
+
+    it('does NOT notify when session state is completed', () => {
+      mockGetSessionState.mockReturnValue('completed');
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
+      expect(mockNotificationShow).not.toHaveBeenCalled();
+    });
+
+    it('does NOT notify when session state is waiting', () => {
+      mockGetSessionState.mockReturnValue('waiting');
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).not.toHaveBeenCalled();
     });
   });
@@ -206,31 +143,19 @@ describe('NotificationManager', () => {
   describe('conditions', () => {
     it('does NOT notify when window is focused', () => {
       mockWindow.isFocused.mockReturnValue(true);
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).not.toHaveBeenCalled();
     });
 
     it('does NOT notify when notifications setting is disabled', () => {
       (mockConfigLoader.getNotifications as Mock).mockReturnValue(false);
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).not.toHaveBeenCalled();
     });
 
     it('does NOT notify when Notification.isSupported() is false', () => {
       (Notification.isSupported as Mock).mockReturnValue(false);
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).not.toHaveBeenCalled();
     });
 
@@ -239,12 +164,9 @@ describe('NotificationManager', () => {
         () => null,
         mockSessionManager,
         mockConfigLoader,
+        mockGetSessionState,
       );
-      mgr.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      mgr.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).toHaveBeenCalled();
     });
 
@@ -253,12 +175,9 @@ describe('NotificationManager', () => {
         () => mockWindow as any,
         createMockSessionManager({}),
         mockConfigLoader,
+        mockGetSessionState,
       );
-      emptyMgr.handleStateChange({
-        sessionId: 'nonexistent',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      emptyMgr.handleActivityChange({ sessionId: 'nonexistent', level: 'inactive' });
       expect(mockNotificationShow).not.toHaveBeenCalled();
     });
   });
@@ -269,15 +188,10 @@ describe('NotificationManager', () => {
 
   describe('dedup guard', () => {
     it('suppresses duplicate notification within 15s window', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).toHaveBeenCalledTimes(1);
 
-      // Second notification for same session within dedup window
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'idle' });
       expect(mockNotificationShow).toHaveBeenCalledTimes(1);
     });
 
@@ -290,36 +204,21 @@ describe('NotificationManager', () => {
         () => mockWindow as any,
         createMockSessionManager(sessions),
         mockConfigLoader,
+        mockGetSessionState,
       );
 
-      mgr.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
-      mgr.handleStateChange({
-        sessionId: 'session-2',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      mgr.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
+      mgr.handleActivityChange({ sessionId: 'session-2', level: 'inactive' });
       expect(mockNotificationShow).toHaveBeenCalledTimes(2);
     });
 
     it('allows notification after dedup window expires', () => {
       vi.useFakeTimers();
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).toHaveBeenCalledTimes(1);
 
       vi.advanceTimersByTime(15_001);
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'idle',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'idle' });
       expect(mockNotificationShow).toHaveBeenCalledTimes(2);
       vi.useRealTimers();
     });
@@ -331,19 +230,13 @@ describe('NotificationManager', () => {
 
   describe('notification click', () => {
     it('registers click handler that focuses window and sends IPC', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
 
-      // Find the 'click' handler registered via notification.on
       const clickCall = mockNotificationOn.mock.calls.find(
         (call: any[]) => call[0] === 'click',
       );
       expect(clickCall).toBeDefined();
 
-      // Execute the click handler
       const clickHandler = clickCall![1];
       clickHandler();
 
@@ -362,11 +255,7 @@ describe('NotificationManager', () => {
 
   describe('content format', () => {
     it('uses path.basename for working directory', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
         body: expect.stringContaining('in my-project'),
       }));
@@ -380,25 +269,34 @@ describe('NotificationManager', () => {
         () => mockWindow as any,
         noDir,
         mockConfigLoader,
+        mockGetSessionState,
       );
-      mgr.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      mgr.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
         body: expect.stringContaining('in unknown'),
       }));
     });
 
     it('creates notification with silent: true', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
         silent: true,
+      }));
+    });
+
+    it('uses different labels for inactive vs idle', () => {
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
+      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
+        title: '🔇 Inactive — claude-code',
+        body: expect.stringContaining('went quiet'),
+      }));
+
+      mockNotificationShow.mockClear();
+      manager.removeSession('session-1');
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'idle' });
+      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
+        title: '💤 Idle — claude-code',
+        body: expect.stringContaining('went idle'),
       }));
     });
   });
@@ -409,21 +307,12 @@ describe('NotificationManager', () => {
 
   describe('cleanup', () => {
     it('removeSession clears dedup tracking', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).toHaveBeenCalledTimes(1);
 
       manager.removeSession('session-1');
 
-      // After removing, should be able to notify again (no dedup)
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'idle',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'idle' });
       expect(mockNotificationShow).toHaveBeenCalledTimes(2);
     });
 
@@ -436,20 +325,12 @@ describe('NotificationManager', () => {
     });
 
     it('dispose clears all tracking', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       manager.feedOutput('session-1', 'line\n');
       manager.dispose();
 
       expect(manager.getLastLines('session-1', 5)).toHaveLength(0);
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'idle',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'idle' });
       expect(mockNotificationShow).toHaveBeenCalledTimes(2);
     });
   });
@@ -526,24 +407,16 @@ describe('NotificationManager', () => {
   describe('output in notification body', () => {
     it('includes recent output lines in notification body', () => {
       manager.feedOutput('session-1', 'Building project...\nTests passed: 42\nDone!\n');
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        body: '"hub-abc123" in my-project is done.\nBuilding project...\nTests passed: 42\nDone!',
+        body: '"hub-abc123" in my-project went quiet.\nBuilding project...\nTests passed: 42\nDone!',
       }));
     });
 
     it('notification body has no extra newline when no output buffered', () => {
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        body: '"hub-abc123" in my-project is done.',
+        body: '"hub-abc123" in my-project went quiet.',
       }));
     });
 
@@ -551,11 +424,7 @@ describe('NotificationManager', () => {
       for (let i = 0; i < 10; i++) {
         manager.feedOutput('session-1', `output line ${i}\n`);
       }
-      manager.handleStateChange({
-        sessionId: 'session-1',
-        previousState: 'implementing',
-        newState: 'completed',
-      });
+      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
       const call = mockNotificationShow.mock.calls[0][0];
       const bodyLines = call.body.split('\n');
       // 1 status line + 5 output lines = 6
