@@ -134,7 +134,12 @@ def main():
     print("[5/5] Publishing to GitHub Releases...")
     tag = f"v{version}"
     asset_args = " ".join(f'"{exe}"' for exe in exes)
-    run(f'gh release create {tag} --title "{tag}" --notes "Release {tag}" {asset_args}')
+    notes_file = release_path / "RELEASE_NOTES.md"
+    if notes_file.exists():
+        print(f"  📝 Using release notes from {notes_file.name}")
+        run(f'gh release create {tag} --title "{tag}" --notes-file "{notes_file}" {asset_args}')
+    else:
+        run(f'gh release create {tag} --title "{tag}" --notes "Release {tag}" {asset_args}')
 
     print()
     print("=" * 50)
