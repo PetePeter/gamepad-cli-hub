@@ -1440,7 +1440,7 @@ describe('Sessions Screen', () => {
         .toBeGreaterThan(prefs.order.indexOf('/projects/beta'));
     });
 
-    it('RIGHT on group header maxCol is 2', async () => {
+    it('RIGHT on group header at col=0 opens overview instead of incrementing col', async () => {
       const data = makeSessions(2);
       mockSessionGetAll.mockResolvedValue(data);
       state.sessions = data;
@@ -1451,10 +1451,25 @@ describe('Sessions Screen', () => {
       sessionsState.sessionsFocusIndex = 0; // group header
       sessionsState.cardColumn = 0;
 
-      sessions.handleSessionsScreenButton('DPadRight'); // 0 → 1
-      sessions.handleSessionsScreenButton('DPadRight'); // 1 → 2
-      sessions.handleSessionsScreenButton('DPadRight'); // 2 → 2 (clamped)
+      sessions.handleSessionsScreenButton('DPadRight');
 
+      expect(sessionsState.cardColumn).toBe(0); // stays at 0 — overview opens instead
+    });
+
+    it('RIGHT on group header at col=1 still increments to col=2', async () => {
+      const data = makeSessions(2);
+      mockSessionGetAll.mockResolvedValue(data);
+      state.sessions = data;
+      setMockTerminalSessions(data);
+      await loadAndFlush(sessions);
+
+      sessionsState.activeFocus = 'sessions';
+      sessionsState.sessionsFocusIndex = 0; // group header
+      sessionsState.cardColumn = 1;
+
+      sessions.handleSessionsScreenButton('DPadRight'); // 1 → 2
+      expect(sessionsState.cardColumn).toBe(2);
+      sessions.handleSessionsScreenButton('DPadRight'); // 2 → 2 (clamped)
       expect(sessionsState.cardColumn).toBe(2);
     });
 
@@ -1594,7 +1609,7 @@ describe('Sessions Screen', () => {
       expect(sessionsState.navList.length).toBe(3);
     });
 
-    it('RIGHT on group header maxCol is 2', async () => {
+    it('RIGHT on group header at col=0 opens overview (does not increment col)', async () => {
       setMockTerminalSessions(makeSessions(2));
       await loadAndFlush(sessions);
 
@@ -1602,7 +1617,16 @@ describe('Sessions Screen', () => {
       sessionsState.cardColumn = 0;
 
       sessions.handleSessionsScreenButton('DPadRight');
-      expect(sessionsState.cardColumn).toBe(1);
+      expect(sessionsState.cardColumn).toBe(0); // stays at 0 — overview opens instead
+    });
+
+    it('RIGHT on group header at col=1 increments to col=2', async () => {
+      setMockTerminalSessions(makeSessions(2));
+      await loadAndFlush(sessions);
+
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.cardColumn = 1;
+
       sessions.handleSessionsScreenButton('DPadRight');
       expect(sessionsState.cardColumn).toBe(2);
       sessions.handleSessionsScreenButton('DPadRight');

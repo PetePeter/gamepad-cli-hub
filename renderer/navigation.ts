@@ -205,7 +205,10 @@ function handleOverviewButton(button: string): boolean {
   const dir = toDirection(button);
   const sessions = getOverviewSessions();
   const count = sessions.length;
-  if (count === 0) return false;
+  if (count === 0) {
+    hideOverview();
+    return true;
+  }
 
   const idx = sessionsState.overviewFocusIndex;
   const navList = sessionsState.navList;
@@ -217,6 +220,7 @@ function handleOverviewButton(button: string): boolean {
       updateOverviewFocus();
     } else if (sessionsState.sessionsFocusIndex > 0) {
       // Past first card — exit overview, move to previous nav item
+      hideOverview();
       sessionsState.sessionsFocusIndex--;
       sessionsState.cardColumn = 0;
       updateSessionsFocus();
@@ -230,6 +234,7 @@ function handleOverviewButton(button: string): boolean {
       updateOverviewFocus();
     } else if (sessionsState.sessionsFocusIndex < navCount - 1) {
       // Past last card — exit overview, move to next nav item
+      hideOverview();
       sessionsState.sessionsFocusIndex++;
       sessionsState.cardColumn = 0;
       updateSessionsFocus();
@@ -238,7 +243,8 @@ function handleOverviewButton(button: string): boolean {
     return true;
   }
   if (dir === 'left') {
-    // No-op — exit overview via Up/Down (flow-through) or A (select session)
+    // Exit overview back to sidebar group header
+    hideOverview();
     return true;
   }
   if (dir === 'right') {
@@ -274,7 +280,8 @@ function handleOverviewButton(button: string): boolean {
   }
 
   if (button === 'B') {
-    // No-op — exit overview via Up/Down (flow-through) or A (select session)
+    // Exit overview back to sidebar group header
+    hideOverview();
     return true;
   }
 

@@ -10,19 +10,21 @@ When managing many concurrent CLI sessions (e.g. multiple Claude Code or Copilot
 
 ```mermaid
 flowchart LR
-    A[Session List] -->|"D-pad Up/Down lands on group header"| B[Overview Grid]
+    A[Session List] -->|"D-pad Right on group header"| B[Overview Grid]
+    B -->|"D-pad Left / B button"| A
     B -->|"D-pad Up/Down past edge"| A
     B -->|"A button on card"| C[Switch to session + exit]
 ```
 
 | Action | Trigger |
 |--------|---------|
-| **Enter overview** | Automatic — D-pad Up/Down navigation lands on a group header |
+| **Enter overview** | D-pad Right on a group header (or click group name) |
+| **Exit overview (back)** | D-pad Left or B button — returns to sidebar group header |
 | **Exit overview (flow-through)** | D-pad Up past first card or Down past last card → continues to next/previous session list item |
 | **Select session** | A button — exits overview and switches to the selected session |
 | **Close session** | X button — opens close confirmation for the focused card |
 
-The overview is a **flow-through navigation zone**: when navigating vertically through the session list, landing on a group header shows the overview. Continuing past the first or last card in the overview exits back to the session list seamlessly. Group-to-group transitions swap overview content directly without flashing the terminal.
+D-pad Up/Down skips through group headers in the sidebar without opening the overview. The overview is a **drill-in zone**: pressing Right on a group header opens it, pressing Left or B exits back to the sidebar.
 
 ## Pre-Selection
 
@@ -65,7 +67,7 @@ Preview cards update live as PTY output flows in. Updates are throttled at 500ms
 
 ```mermaid
 graph TB
-    SO[sessions-spawn.ts<br>autoSelectFocusedSession] -->|"showOverview(dirPath, activeSessionId)"| GO[group-overview.ts]
+    SO[sessions-spawn.ts<br>handleSessionsZone — Right on group header] -->|"showOverview(dirPath, activeSessionId)"| GO[group-overview.ts]
     GO --> OB[PtyOutputBuffer<br>ring buffer per session]
     GO --> TM[TerminalManager<br>deselect / restore]
     NAV[navigation.ts<br>handleOverviewButton] --> GO
@@ -77,9 +79,9 @@ graph TB
 | File | Role |
 |------|------|
 | `renderer/screens/group-overview.ts` | Grid rendering, card creation, live update subscription, show/hide lifecycle |
-| `renderer/navigation.ts` | `handleOverviewButton()` — D-pad navigation with flow-through exit, A/X button routing |
+| `renderer/navigation.ts` | `handleOverviewButton()` — D-pad navigation with flow-through exit, Left/B to close, A/X button routing |
 | `renderer/bindings.ts` | `executeScroll()` — routes gamepad scroll to overview grid when visible |
-| `renderer/screens/sessions-spawn.ts` | `autoSelectFocusedSession()` — triggers `showOverview()` when D-pad Up/Down lands on a group header |
+| `renderer/screens/sessions-spawn.ts` | `handleSessionsZone()` — D-pad Right on group header triggers `showOverview()` |
 | `renderer/terminal/pty-output-buffer.ts` | Ring buffer providing preview data |
 | `renderer/styles/main.css` | `.overview-grid`, `.overview-card`, `.overview-card-preview` styles |
 | `tests/group-overview.test.ts` | Card rendering, focus navigation, pre-selection, terminal deselect/restore |

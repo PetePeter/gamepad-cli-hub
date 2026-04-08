@@ -196,18 +196,13 @@ export async function switchToSession(sessionId: string): Promise<void> {
   logEvent(`Session ${sessionId} is not an embedded terminal`);
 }
 
-/** Auto-switch terminal or overview based on what the D-pad just focused. */
+/** Auto-switch terminal based on what the D-pad just focused. */
 export function autoSelectFocusedSession(): void {
   const navItem = sessionsState.navList[sessionsState.sessionsFocusIndex];
   if (!navItem) return;
 
-  if (navItem.type === 'group-header') {
-    // Auto-open overview for this group
-    import('./group-overview.js').then(({ showOverview }) => {
-      showOverview(navItem.id, state.activeSessionId ?? undefined);
-    });
-    return;
-  }
+  // Group headers are pass-through — D-pad skips over them, Right opens overview
+  if (navItem.type === 'group-header') return;
 
   // Session card — switch terminal (showTerminalArea dismisses overview if open)
   const session = state.sessions.find(s => s.id === navItem.id);
@@ -267,6 +262,13 @@ export function handleSessionsZone(button: string, dir: string | null): void {
   if (dir === 'right') {
     if (count === 0) return;
     const currentItem = navList[sessionsState.sessionsFocusIndex];
+    // Right at col=0 on group header → open overview (drill in)
+    if (currentItem?.type === 'group-header' && sessionsState.cardColumn === 0) {
+      import('./group-overview.js').then(({ showOverview }) => {
+        showOverview(currentItem.id, state.activeSessionId ?? undefined);
+      });
+      return;
+    }
     const maxCol = currentItem?.type === 'group-header' ? 2 : 3;
     if (sessionsState.cardColumn < maxCol) {
       sessionsState.cardColumn = (sessionsState.cardColumn + 1) as 0 | 1 | 2 | 3;
