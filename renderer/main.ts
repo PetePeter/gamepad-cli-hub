@@ -9,7 +9,7 @@ import { browserGamepad } from './gamepad.js';
 import { state } from './state.js';
 import { logEvent, showScreen, setLoadSettingsCallback, updateProfileDisplay } from './utils.js';
 import { initConfigCache } from './bindings.js';
-import { loadSessions, updateSessionHighlight, syncSessionHighlight, setDirPickerBridge, setTerminalManagerGetter, hideTerminalArea, setSessionActivity, setSessionState, getSessionState, getSessionActivity } from './screens/sessions.js';
+import { loadSessions, updateSessionHighlight, syncSessionHighlight, setDirPickerBridge, setTerminalManagerGetter, hideTerminalArea, setSessionActivity, setSessionState, getSessionState, getSessionActivity, getTabCycleSessionIds } from './screens/sessions.js';
 import { loadSettingsScreen } from './screens/settings.js';
 import {
   setupGamepadNavigation,
@@ -166,9 +166,9 @@ async function init(): Promise<void> {
       e.stopPropagation();
       const tm = terminalManager;
       if (!tm) return;
-      // Use sorted display order so Ctrl+Tab matches what the user sees.
+      // Use navList-derived visual order so Ctrl+Tab matches what the user sees.
       const nextId = resolveNextTerminalId(
-        state.sessions.map(s => s.id),
+        getTabCycleSessionIds(),
         tm.getSessionIds(),
         tm.getActiveSessionId(),
         e.shiftKey ? -1 : 1,

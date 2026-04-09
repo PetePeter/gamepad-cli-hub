@@ -254,6 +254,23 @@ export function syncSessionHighlight(sessionId: string): void {
   }
 }
 
+/**
+ * Returns session IDs in visual display order for Ctrl+Tab cycling.
+ * Uses navList (group-aware, sorted) as primary order, then appends any
+ * terminal sessions hidden inside collapsed groups so they're still reachable.
+ */
+export function getTabCycleSessionIds(): string[] {
+  const visibleIds = sessionsState.navList
+    .filter(item => item.type === 'session-card')
+    .map(item => item.id);
+
+  const visibleSet = new Set(visibleIds);
+  const allIds = state.sessions.map(s => s.id);
+  const collapsedIds = allIds.filter(id => !visibleSet.has(id));
+
+  return [...visibleIds, ...collapsedIds];
+}
+
 // ============================================================================
 // Data loading
 // ============================================================================

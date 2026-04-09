@@ -1,8 +1,9 @@
 /**
  * Tab cycling — resolves the next terminal to switch to.
  *
- * Uses the sorted display order (from state.sessions) so Ctrl+Tab matches
- * what the user sees on screen, not insertion/creation order.
+ * Uses the navList-derived visual order (group-aware, sorted) so Ctrl+Tab
+ * matches what the user sees on screen, not insertion/creation order.
+ * Sessions in collapsed groups are appended after visible ones.
  */
 
 /**

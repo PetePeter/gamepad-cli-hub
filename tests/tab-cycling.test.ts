@@ -70,4 +70,40 @@ describe('Tab cycling (Ctrl+Tab order)', () => {
       expect(resolveNextTerminalId(displayed, created, 'Y', 1)).toBe('Z');
     });
   });
+
+  describe('navList-based ordering (group-aware)', () => {
+    it('follows navList visual order across groups', () => {
+      // Group 1: A, B (visible) | Group 2: C, D (visible)
+      // navList order: A, B, C, D
+      const navOrder = ['A', 'B', 'C', 'D'];
+      const terminals = ['D', 'C', 'B', 'A'];
+      expect(resolveNextTerminalId(navOrder, terminals, 'A', 1)).toBe('B');
+      expect(resolveNextTerminalId(navOrder, terminals, 'B', 1)).toBe('C');
+      expect(resolveNextTerminalId(navOrder, terminals, 'D', 1)).toBe('A');
+    });
+
+    it('reaches collapsed-group sessions appended after visible ones', () => {
+      // Visible: A, B | Collapsed group has: C
+      // Tab cycle order: A, B, C
+      const tabCycleOrder = ['A', 'B', 'C'];
+      const terminals = ['C', 'A', 'B'];
+      expect(resolveNextTerminalId(tabCycleOrder, terminals, 'B', 1)).toBe('C');
+      expect(resolveNextTerminalId(tabCycleOrder, terminals, 'C', 1)).toBe('A');
+    });
+
+    it('order is stable regardless of activity changes', () => {
+      // Even if sessions change activity, navList order stays the same
+      // because navList is rebuilt from group prefs + directory grouping
+      const navOrder = ['X', 'Y', 'Z'];
+      const terminals = ['Z', 'X', 'Y'];
+      // Forward cycle is always X → Y → Z → X
+      expect(resolveNextTerminalId(navOrder, terminals, 'X', 1)).toBe('Y');
+      expect(resolveNextTerminalId(navOrder, terminals, 'Y', 1)).toBe('Z');
+      expect(resolveNextTerminalId(navOrder, terminals, 'Z', 1)).toBe('X');
+      // Backward is always Z → Y → X → Z
+      expect(resolveNextTerminalId(navOrder, terminals, 'Z', -1)).toBe('Y');
+      expect(resolveNextTerminalId(navOrder, terminals, 'Y', -1)).toBe('X');
+      expect(resolveNextTerminalId(navOrder, terminals, 'X', -1)).toBe('Z');
+    });
+  });
 });
