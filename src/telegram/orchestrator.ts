@@ -44,9 +44,9 @@ export function initTelegramModules(
   ptyManager: PtyManager,
   configLoader: ConfigLoader,
 ): TelegramModules {
-  const textInput = new TextInputManager(bot, topicManager, ptyManager);
   const outputSummarizer = new OutputSummarizer();
   const terminalMirror = new TerminalMirror(bot, topicManager);
+  const textInput = new TextInputManager(bot, topicManager, ptyManager, terminalMirror);
   const instanceName = configLoader.getTelegramConfig().instanceName;
   const dashboard = new PinnedDashboard(bot, sessionManager, instanceName);
 
@@ -61,7 +61,7 @@ export function initTelegramModules(
   });
 
   const cleanupTopicInput = setupTopicInput(
-    bot, topicManager, ptyManager, textInput,
+    bot, topicManager, ptyManager, textInput, terminalMirror,
   );
 
   // Reply keyboard text → slash command routing

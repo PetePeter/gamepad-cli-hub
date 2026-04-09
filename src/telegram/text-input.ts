@@ -15,6 +15,7 @@ import type TelegramBot from 'node-telegram-bot-api';
 import type { TelegramBotCore } from './bot.js';
 import type { TopicManager } from './topic-manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
+import type { TerminalMirror } from './terminal-mirror.js';
 import { confirmSendKeyboard } from './keyboards.js';
 import { escapeHtml } from './utils.js';
 import { logger } from '../utils/logger.js';
@@ -37,6 +38,7 @@ export class TextInputManager {
     private bot: TelegramBotCore,
     private topicManager: TopicManager,
     private ptyManager: PtyManager,
+    private terminalMirror?: TerminalMirror,
   ) {}
 
   /** Toggle safe mode (confirmation step before sending). */
@@ -90,6 +92,7 @@ export class TextInputManager {
     const pending = this.pendingInputs.get(sessionId);
     if (!pending?.text) return;
 
+    this.terminalMirror?.registerEcho(sessionId, pending.text);
     this.ptyManager.write(sessionId, pending.text + '\r');
     this.pendingInputs.delete(sessionId);
 
@@ -153,6 +156,7 @@ export class TextInputManager {
     sessionId: string,
     text: string,
   ): Promise<void> {
+    this.terminalMirror?.registerEcho(sessionId, text);
     this.ptyManager.write(sessionId, text + '\r');
     this.pendingInputs.delete(sessionId);
 

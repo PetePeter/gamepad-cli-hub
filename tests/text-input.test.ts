@@ -227,4 +227,44 @@ describe('TextInputManager', () => {
       expect(manager.hasPendingInput('s2')).toBe(false);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Echo registration with TerminalMirror
+  // -------------------------------------------------------------------------
+
+  describe('echo registration', () => {
+    it('registers echo with TerminalMirror on confirmInput', async () => {
+      const mockMirror = { registerEcho: vi.fn() };
+      const managerWithMirror = new TextInputManager(
+        bot as any, topicManager as any, ptyManager as any, mockMirror as any,
+      );
+
+      managerWithMirror.startInput('s1', 1000);
+      await managerWithMirror.handleMessage(makeMessage('my prompt', 1000, 10));
+      await managerWithMirror.confirmInput('s1');
+
+      expect(mockMirror.registerEcho).toHaveBeenCalledWith('s1', 'my prompt');
+    });
+
+    it('registers echo with TerminalMirror on sendImmediately (quick mode)', async () => {
+      const mockMirror = { registerEcho: vi.fn() };
+      const managerWithMirror = new TextInputManager(
+        bot as any, topicManager as any, ptyManager as any, mockMirror as any,
+      );
+
+      managerWithMirror.setSafeMode(false);
+      managerWithMirror.startInput('s1', 1000);
+      await managerWithMirror.handleMessage(makeMessage('quick msg', 1000, 10));
+
+      expect(mockMirror.registerEcho).toHaveBeenCalledWith('s1', 'quick msg');
+    });
+
+    it('works without TerminalMirror (optional param)', async () => {
+      // manager constructed without mirror in beforeEach — should not throw
+      manager.startInput('s1', 1000);
+      await manager.handleMessage(makeMessage('test', 1000, 10));
+      await manager.confirmInput('s1');
+      expect(ptyManager.write).toHaveBeenCalled();
+    });
+  });
 });

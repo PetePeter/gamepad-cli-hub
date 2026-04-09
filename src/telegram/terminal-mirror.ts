@@ -27,6 +27,20 @@ const MAX_BUFFER_CHARS = 50_000;
 const TRUNCATE_HEAD_LINES = 10;
 const TRUNCATE_TAIL_LINES = 15;
 
+/** Max lines from the start of content to scan for echo matches */
+const ECHO_SCAN_LINES = 10;
+
+/** How long (ms) to keep registered echoes before they expire */
+const ECHO_EXPIRY_MS = 30_000;
+
+/** Number of recent content hashes to keep for dedup guard */
+const DIGEST_WINDOW = 3;
+
+interface PendingEcho {
+  text: string;
+  registeredAt: number;
+}
+
 interface MirrorState {
   /** Accumulated unflushed PTY output */
   buffer: string;
@@ -36,6 +50,10 @@ interface MirrorState {
   paused: boolean;
   /** Accumulated user input (for prompt echo) */
   inputBuffer: string;
+  /** Recently-inputted text whose shell echo should be stripped from the next flush */
+  pendingEchoes: PendingEcho[];
+  /** Hashes of the last N flushed messages (FIFO) for dedup guard */
+  recentDigests: string[];
 }
 
 export class TerminalMirror {
@@ -101,10 +119,33 @@ export class TerminalMirror {
       state.inputBuffer = '';
       if (!text) return;
 
+      // Register as pending echo so the PTY echo is stripped from the next flush
+      state.pendingEchoes.push({ text, registeredAt: Date.now() });
+
       const formatted = `📝 ${escapeHtml(text)}`;
       this.bot.sendToTopic(topicId, formatted, { parse_mode: 'HTML' }).catch(err =>
         logger.error(`[TerminalMirror] Prompt echo failed for ${sessionId}: ${err}`),
       );
+    }
+  }
+
+  /**
+   * Register text that was sent to PTY from an external source (e.g. Telegram).
+   * The shell echo of this text will be stripped from the next flush.
+   */
+  registerEcho(sessionId: string, text: string): void {
+    const topicId = this.topicManager.getTopicId(sessionId);
+    if (!topicId) return;
+
+    let state = this.mirrors.get(sessionId);
+    if (!state) {
+      state = this.createState(topicId);
+      this.mirrors.set(sessionId, state);
+    }
+
+    const stripped = text.trim();
+    if (stripped) {
+      state.pendingEchoes.push({ text: stripped, registeredAt: Date.now() });
     }
   }
 
@@ -145,6 +186,8 @@ export class TerminalMirror {
       topicId,
       paused: false,
       inputBuffer: '',
+      pendingEchoes: [],
+      recentDigests: [],
     };
   }
 
@@ -155,8 +198,21 @@ export class TerminalMirror {
     const raw = state.buffer;
     state.buffer = '';
 
-    const cleaned = cleanTerminalOutput(raw);
+    let cleaned = cleanTerminalOutput(raw);
     if (!cleaned.trim()) return;
+
+    // Strip shell echoes of recently-inputted commands
+    cleaned = stripEchoes(cleaned, state.pendingEchoes);
+    if (!cleaned.trim()) return;
+
+    // Content fingerprint guard — skip if identical to a recent message
+    const digest = simpleHash(cleaned);
+    if (state.recentDigests.includes(digest)) return;
+
+    state.recentDigests.push(digest);
+    if (state.recentDigests.length > DIGEST_WINDOW) {
+      state.recentDigests.shift();
+    }
 
     const content = fitToLimit(cleaned);
     const formatted = `<code>${escapeHtml(content)}</code>`;
@@ -185,6 +241,53 @@ function stripInputToText(raw: string): string {
 function fitToLimit(text: string): string {
   if (text.length <= MAX_MESSAGE_CHARS) return text;
   return truncateMiddle(text, MAX_MESSAGE_CHARS);
+}
+
+/**
+ * Strip shell echoes of recently-inputted commands from the start of content.
+ * Scans only the first ECHO_SCAN_LINES lines. Removes matched echoes from the
+ * pending list so each echo is only stripped once.
+ */
+function stripEchoes(content: string, echoes: PendingEcho[]): string {
+  if (echoes.length === 0) return content;
+
+  const now = Date.now();
+  // Purge expired echoes
+  for (let i = echoes.length - 1; i >= 0; i--) {
+    if (now - echoes[i].registeredAt > ECHO_EXPIRY_MS) {
+      echoes.splice(i, 1);
+    }
+  }
+
+  if (echoes.length === 0) return content;
+
+  const lines = content.split('\n');
+  const scanLimit = Math.min(lines.length, ECHO_SCAN_LINES);
+
+  for (let i = 0; i < scanLimit; i++) {
+    const trimmedLine = lines[i].trim();
+    if (!trimmedLine) continue;
+
+    const matchIdx = echoes.findIndex(e => trimmedLine === e.text);
+    if (matchIdx !== -1) {
+      lines[i] = '';
+      echoes.splice(matchIdx, 1);
+      if (echoes.length === 0) break;
+    }
+  }
+
+  return lines.join('\n').replace(/^\n+/, '');
+}
+
+/** Simple string hash for content fingerprint guard (not cryptographic). */
+function simpleHash(text: string): string {
+  let hash = 0;
+  const normalized = text.trim();
+  for (let i = 0; i < normalized.length; i++) {
+    const ch = normalized.charCodeAt(i);
+    hash = ((hash << 5) - hash + ch) | 0;
+  }
+  return String(hash);
 }
 
 /**

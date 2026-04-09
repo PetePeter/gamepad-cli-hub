@@ -13,6 +13,7 @@ import type { TelegramBotCore } from './bot.js';
 import type { TopicManager } from './topic-manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { TextInputManager } from './text-input.js';
+import type { TerminalMirror } from './terminal-mirror.js';
 import { escapeHtml } from './utils.js';
 import { logger } from '../utils/logger.js';
 
@@ -26,6 +27,7 @@ export function setupTopicInput(
   topicManager: TopicManager,
   ptyManager: PtyManager,
   textInput: TextInputManager,
+  terminalMirror?: TerminalMirror,
 ): () => void {
   const handler = async (msg: TelegramBot.Message) => {
     if (!isForwardableMessage(msg)) return;
@@ -38,7 +40,7 @@ export function setupTopicInput(
     const consumed = await textInput.handleMessage(msg);
     if (consumed) return;
 
-    await forwardToSession(bot, ptyManager, session.id, topicId, msg.text!);
+    await forwardToSession(bot, ptyManager, session.id, topicId, msg.text!, terminalMirror);
   };
 
   bot.on('message', handler);
@@ -63,7 +65,9 @@ async function forwardToSession(
   sessionId: string,
   topicId: number,
   text: string,
+  terminalMirror?: TerminalMirror,
 ): Promise<void> {
+  terminalMirror?.registerEcho(sessionId, text);
   ptyManager.write(sessionId, text + '\r');
 
   await bot.sendToTopic(topicId, `➡️ <code>${escapeHtml(text)}</code>`, {

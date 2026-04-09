@@ -165,4 +165,33 @@ describe('setupTopicInput', () => {
       expect.objectContaining({ parse_mode: 'HTML' }),
     );
   });
+
+  // -------------------------------------------------------------------------
+  // Echo registration with TerminalMirror
+  // -------------------------------------------------------------------------
+
+  it('registers echo with TerminalMirror when forwarding to PTY', async () => {
+    const mockMirror = { registerEcho: vi.fn() };
+    const cleanupWithMirror = setupTopicInput(
+      bot as any,
+      topicManager as any,
+      ptyManager as any,
+      textInput as any,
+      mockMirror as any,
+    );
+
+    const onCalls = (bot.on as any).mock.calls;
+    const handler = onCalls[onCalls.length - 1][1] as (msg: any) => Promise<void>;
+    await handler({ text: 'hello', message_thread_id: 42 });
+
+    expect(mockMirror.registerEcho).toHaveBeenCalledWith('sess-1', 'hello');
+    cleanupWithMirror();
+  });
+
+  it('works without TerminalMirror (optional param)', async () => {
+    const handler = getMessageHandler(bot);
+    // Should not throw when no mirror is provided
+    await handler({ text: 'hello', message_thread_id: 42 });
+    expect(ptyManager.write).toHaveBeenCalled();
+  });
 });

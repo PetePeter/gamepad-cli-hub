@@ -470,4 +470,202 @@ describe('TerminalMirror', () => {
       expect(bot.sendToTopic).not.toHaveBeenCalled();
     });
   });
+
+  // =========================================================================
+  // Echo stripping — registerEcho
+  // =========================================================================
+
+  describe('echo stripping', () => {
+    it('strips in-app prompt echo from flush content', async () => {
+      // User types "fix the bug" → trackInput sends 📝, PTY echoes it
+      mirror.trackInput('sess-1', 'fix the bug\r');
+      await Promise.resolve();
+      (bot.sendToTopic as any).mockClear();
+
+      // PTY echoes the command then produces real output
+      mirror.feedOutput('sess-1', 'fix the bug\nActual useful output\n');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      const sentHtml = (bot.sendToTopic as any).mock.calls[0][1] as string;
+      expect(sentHtml).toContain('Actual useful output');
+      expect(sentHtml).not.toContain('>fix the bug');
+    });
+
+    it('strips Telegram-originated echo from flush content', async () => {
+      mirror.registerEcho('sess-1', 'hello world');
+
+      mirror.feedOutput('sess-1', 'hello world\nCLI response here\n');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      const sentHtml = (bot.sendToTopic as any).mock.calls[0][1] as string;
+      expect(sentHtml).toContain('CLI response here');
+      expect(sentHtml).not.toContain('hello world');
+    });
+
+    it('strips only first occurrence of echo (not all matching lines)', async () => {
+      mirror.registerEcho('sess-1', 'repeat me');
+
+      mirror.feedOutput('sess-1', 'repeat me\nsome output\nrepeat me\n');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      const sentHtml = (bot.sendToTopic as any).mock.calls[0][1] as string;
+      expect(sentHtml).toContain('some output');
+      // Second occurrence should remain
+      expect(sentHtml).toContain('repeat me');
+    });
+
+    it('strips echo only from start of content (first N lines)', async () => {
+      // Build output where the echo text appears only deep in the content
+      const lines = Array.from({ length: 20 }, (_, i) => `line-${i}`);
+      lines.push('my command');
+      mirror.registerEcho('sess-1', 'my command');
+
+      mirror.feedOutput('sess-1', lines.join('\n') + '\n');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      const sentHtml = (bot.sendToTopic as any).mock.calls[0][1] as string;
+      // Echo appears after first 10 lines, so should NOT be stripped
+      expect(sentHtml).toContain('my command');
+    });
+
+    it('does not strip expired echoes (>30s)', async () => {
+      vi.useFakeTimers();
+      try {
+        mirror.registerEcho('sess-1', 'old echo');
+
+        // Advance past expiry
+        vi.advanceTimersByTime(31_000);
+
+        mirror.feedOutput('sess-1', 'old echo\nfresh output\n');
+        mirror.handleActivityChange('sess-1', 'inactive');
+        await Promise.resolve();
+
+        const sentHtml = (bot.sendToTopic as any).mock.calls[0][1] as string;
+        expect(sentHtml).toContain('old echo');
+        expect(sentHtml).toContain('fresh output');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('leaves non-matching echoes alone', async () => {
+      mirror.registerEcho('sess-1', 'something else');
+
+      mirror.feedOutput('sess-1', 'actual output\nmore output\n');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      const sentHtml = (bot.sendToTopic as any).mock.calls[0][1] as string;
+      expect(sentHtml).toContain('actual output');
+      expect(sentHtml).toContain('more output');
+    });
+
+    it('strips multiple echoes in sequence', async () => {
+      mirror.registerEcho('sess-1', 'cmd1');
+      mirror.registerEcho('sess-1', 'cmd2');
+
+      mirror.feedOutput('sess-1', 'cmd1\ncmd2\nreal output\n');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      const sentHtml = (bot.sendToTopic as any).mock.calls[0][1] as string;
+      expect(sentHtml).toContain('real output');
+      expect(sentHtml).not.toContain('cmd1');
+      expect(sentHtml).not.toContain('cmd2');
+    });
+
+    it('handles echo with special chars (HTML entities)', async () => {
+      mirror.registerEcho('sess-1', 'fix <div> & "quotes"');
+
+      mirror.feedOutput('sess-1', 'fix <div> & "quotes"\nactual output\n');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      const sentHtml = (bot.sendToTopic as any).mock.calls[0][1] as string;
+      expect(sentHtml).toContain('actual output');
+    });
+
+    it('clears matched echoes after flush', async () => {
+      mirror.registerEcho('sess-1', 'one-time');
+
+      mirror.feedOutput('sess-1', 'one-time\nfirst burst\n');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+      (bot.sendToTopic as any).mockClear();
+
+      // Second burst — echo should no longer be registered
+      mirror.feedOutput('sess-1', 'one-time\nsecond burst\n');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      const sentHtml = (bot.sendToTopic as any).mock.calls[0][1] as string;
+      expect(sentHtml).toContain('one-time');
+      expect(sentHtml).toContain('second burst');
+    });
+
+    it('does nothing when no topic ID for registerEcho', () => {
+      // Should not throw
+      mirror.registerEcho('unknown-session', 'test');
+    });
+  });
+
+  // =========================================================================
+  // Content fingerprint guard
+  // =========================================================================
+
+  describe('content fingerprint guard', () => {
+    it('suppresses identical flush content within window', async () => {
+      mirror.feedOutput('sess-1', 'same content');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      expect(bot.sendToTopic).toHaveBeenCalledTimes(1);
+      (bot.sendToTopic as any).mockClear();
+
+      // Feed identical content again
+      mirror.feedOutput('sess-1', 'same content');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      expect(bot.sendToTopic).not.toHaveBeenCalled();
+    });
+
+    it('sends different content normally', async () => {
+      mirror.feedOutput('sess-1', 'content A');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      mirror.feedOutput('sess-1', 'content B');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      expect(bot.sendToTopic).toHaveBeenCalledTimes(2);
+    });
+
+    it('allows same content after window expires (>3 different messages)', async () => {
+      mirror.feedOutput('sess-1', 'original');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      // Send 3 different messages to push original out of window
+      for (let i = 0; i < 3; i++) {
+        mirror.feedOutput('sess-1', `filler ${i}`);
+        mirror.handleActivityChange('sess-1', 'inactive');
+        await Promise.resolve();
+      }
+
+      (bot.sendToTopic as any).mockClear();
+
+      // Now original content should be allowed again
+      mirror.feedOutput('sess-1', 'original');
+      mirror.handleActivityChange('sess-1', 'inactive');
+      await Promise.resolve();
+
+      expect(bot.sendToTopic).toHaveBeenCalledTimes(1);
+    });
+  });
 });
