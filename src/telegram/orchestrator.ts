@@ -31,6 +31,8 @@ export interface TelegramModules {
   feedPtyOutput: (sessionId: string, data: string) => void;
   /** Forward activity-change events — triggers output flush on inactive/idle */
   handleActivityChange: (sessionId: string, level: import('../types/session.js').ActivityLevel) => void;
+  /** Forward state-change events — triggers immediate flush on idle/completed */
+  handleStateChange: (sessionId: string, newState: import('../types/session.js').SessionState) => void;
   /** Track in-app PTY input — echoes prompts to Telegram on Enter */
   trackInput: (sessionId: string, data: string) => void;
   cleanup: () => void;
@@ -61,7 +63,7 @@ export function initTelegramModules(
   });
 
   const cleanupTopicInput = setupTopicInput(
-    bot, topicManager, ptyManager, textInput, terminalMirror,
+    bot, topicManager, ptyManager, textInput, terminalMirror, sessionManager,
   );
 
   // Reply keyboard text → slash command routing
@@ -89,6 +91,10 @@ export function initTelegramModules(
     handleActivityChange: (sessionId: string, level: import('../types/session.js').ActivityLevel) => {
       if (!bot.isRunning()) return;
       terminalMirror.handleActivityChange(sessionId, level);
+    },
+    handleStateChange: (sessionId: string, newState: import('../types/session.js').SessionState) => {
+      if (!bot.isRunning()) return;
+      terminalMirror.handleStateChange(sessionId, newState);
     },
     trackInput: (sessionId: string, data: string) => {
       if (!bot.isRunning()) return;

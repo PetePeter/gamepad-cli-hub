@@ -34,10 +34,12 @@ tools:
     spawnCommand: copilot --resume={cliSessionName}
     resumeCommand: copilot --resume={cliSessionName}
     continueCommand: copilot --continue
-    handoffCommand: "go implement it\r"
+    handoffCommand: go implement it
     initialPrompt:
-      - sequence: /allow-all{Enter}
-      - sequence: >-
+      - label: ""
+        sequence: /allow-all{Enter}
+      - label: ""
+        sequence: >-
           {Wait 3000}<application-prompt>
 
           SYSTEMPROMPT:
@@ -51,8 +53,12 @@ tools:
 
           Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
 
+
+          ALways end each response with an open ended question using the ask
+          question tool, including a free text entry field
+
           </application-prompt>
-    initialPromptDelay: 5000
+    initialPromptDelay: 7000
     sequences:
       prompts:
         - label: commit

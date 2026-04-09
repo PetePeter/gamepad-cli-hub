@@ -13,7 +13,7 @@
 
 import type { TelegramBotCore } from './bot.js';
 import type { TopicManager } from './topic-manager.js';
-import type { ActivityLevel } from '../types/session.js';
+import type { ActivityLevel, SessionState } from '../types/session.js';
 import { escapeHtml, cleanTerminalOutput, stripAnsi } from './utils.js';
 import { logger } from '../utils/logger.js';
 
@@ -93,6 +93,17 @@ export class TerminalMirror {
    */
   handleActivityChange(sessionId: string, level: ActivityLevel): void {
     if (level === 'inactive' || level === 'idle') {
+      this.flush(sessionId);
+    }
+  }
+
+  /**
+   * Handle AIAGENT state change from StateDetector.
+   * Immediately flushes buffered output when CLI enters idle or completed state,
+   * so questions and completion summaries reach Telegram without the 10s activity delay.
+   */
+  handleStateChange(sessionId: string, newState: SessionState): void {
+    if (newState === 'idle' || newState === 'completed') {
       this.flush(sessionId);
     }
   }

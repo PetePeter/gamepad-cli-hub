@@ -668,4 +668,50 @@ describe('TerminalMirror', () => {
       expect(bot.sendToTopic).toHaveBeenCalledTimes(1);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // handleStateChange — immediate flush on idle/completed
+  // ---------------------------------------------------------------------------
+
+  describe('handleStateChange', () => {
+    it('flushes buffer when state changes to idle', async () => {
+      mirror.feedOutput('sess-1', 'Question: what next?\n');
+      mirror.handleStateChange('sess-1', 'idle');
+      await Promise.resolve();
+
+      expect(bot.sendToTopic).toHaveBeenCalledTimes(1);
+      const html = (bot.sendToTopic as any).mock.calls[0][1] as string;
+      expect(html).toContain('what next?');
+    });
+
+    it('flushes buffer when state changes to completed', async () => {
+      mirror.feedOutput('sess-1', 'All done!\n');
+      mirror.handleStateChange('sess-1', 'completed');
+      await Promise.resolve();
+
+      expect(bot.sendToTopic).toHaveBeenCalledTimes(1);
+      const html = (bot.sendToTopic as any).mock.calls[0][1] as string;
+      expect(html).toContain('All done!');
+    });
+
+    it('does not flush on implementing state', () => {
+      mirror.feedOutput('sess-1', 'some output\n');
+      mirror.handleStateChange('sess-1', 'implementing');
+
+      expect(bot.sendToTopic).not.toHaveBeenCalled();
+    });
+
+    it('does not flush on planning state', () => {
+      mirror.feedOutput('sess-1', 'some output\n');
+      mirror.handleStateChange('sess-1', 'planning');
+
+      expect(bot.sendToTopic).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op when buffer is empty', () => {
+      mirror.handleStateChange('sess-1', 'idle');
+
+      expect(bot.sendToTopic).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -9,6 +9,7 @@ import type { TelegramBotCore } from '../src/telegram/bot.js';
 import type { TopicManager } from '../src/telegram/topic-manager.js';
 import type { PtyManager } from '../src/session/pty-manager.js';
 import type { TextInputManager } from '../src/telegram/text-input.js';
+import type { SessionManager } from '../src/session/manager.js';
 
 // ---------------------------------------------------------------------------
 // Mock factories
@@ -19,12 +20,14 @@ function createMockBot() {
     on: vi.fn(),
     removeListener: vi.fn(),
     sendToTopic: vi.fn().mockResolvedValue({ message_id: 1 }),
+    sendMessage: vi.fn().mockResolvedValue({ message_id: 2 }),
   } as unknown as TelegramBotCore;
 }
 
 function createMockTopicManager() {
   return {
     findSessionByTopicId: vi.fn().mockReturnValue({ id: 'sess-1', name: 'test' }),
+    getTopicId: vi.fn().mockReturnValue(null),
   } as unknown as TopicManager;
 }
 
@@ -38,6 +41,12 @@ function createMockTextInput() {
   return {
     handleMessage: vi.fn().mockResolvedValue(false),
   } as unknown as TextInputManager;
+}
+
+function createMockSessionManager(active?: { id: string; name: string }) {
+  return {
+    getActiveSession: vi.fn().mockReturnValue(active ?? null),
+  } as unknown as SessionManager;
 }
 
 /** Extract the message handler registered via bot.on('message', handler). */
@@ -54,6 +63,7 @@ describe('setupTopicInput', () => {
   let topicManager: ReturnType<typeof createMockTopicManager>;
   let ptyManager: ReturnType<typeof createMockPtyManager>;
   let textInput: ReturnType<typeof createMockTextInput>;
+  let sessionManager: ReturnType<typeof createMockSessionManager>;
   let cleanup: () => void;
 
   beforeEach(() => {
@@ -61,11 +71,14 @@ describe('setupTopicInput', () => {
     topicManager = createMockTopicManager();
     ptyManager = createMockPtyManager();
     textInput = createMockTextInput();
+    sessionManager = createMockSessionManager();
     cleanup = setupTopicInput(
       bot as any,
       topicManager as any,
       ptyManager as any,
       textInput as any,
+      undefined,
+      sessionManager as any,
     );
   });
 
@@ -111,22 +124,28 @@ describe('setupTopicInput', () => {
     expect(bot.sendToTopic).not.toHaveBeenCalled();
   });
 
-  it('ignores messages without message_thread_id', async () => {
+  it('sends error when no active session and no topic mapping', async () => {
     const handler = getMessageHandler(bot);
     await handler({ text: 'hello' });
 
     expect(ptyManager.write).not.toHaveBeenCalled();
-    expect(bot.sendToTopic).not.toHaveBeenCalled();
+    expect(bot.sendMessage).toHaveBeenCalledWith(
+      expect.stringContaining('No active session'),
+      expect.any(Object),
+    );
   });
 
-  it('ignores messages for unknown topics', async () => {
+  it('sends error for unknown topics when no active session', async () => {
     (topicManager.findSessionByTopicId as any).mockReturnValue(null);
 
     const handler = getMessageHandler(bot);
     await handler({ text: 'hello', message_thread_id: 999 });
 
     expect(ptyManager.write).not.toHaveBeenCalled();
-    expect(bot.sendToTopic).not.toHaveBeenCalled();
+    expect(bot.sendMessage).toHaveBeenCalledWith(
+      expect.stringContaining('No active session'),
+      expect.objectContaining({ message_thread_id: 999 }),
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -193,5 +212,51 @@ describe('setupTopicInput', () => {
     // Should not throw when no mirror is provided
     await handler({ text: 'hello', message_thread_id: 42 });
     expect(ptyManager.write).toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Active session fallback (direct text routing)
+  // -------------------------------------------------------------------------
+
+  it('falls back to active session when message has no thread_id', async () => {
+    (sessionManager.getActiveSession as any).mockReturnValue({ id: 'active-1', name: 'main' });
+
+    const handler = getMessageHandler(bot);
+    await handler({ text: 'hello' });
+
+    expect(ptyManager.write).toHaveBeenCalledWith('active-1', 'hello\r');
+  });
+
+  it('falls back to active session for unmapped topic', async () => {
+    (topicManager.findSessionByTopicId as any).mockReturnValue(null);
+    (sessionManager.getActiveSession as any).mockReturnValue({ id: 'active-1', name: 'main' });
+
+    const handler = getMessageHandler(bot);
+    await handler({ text: 'pwd', message_thread_id: 999 });
+
+    expect(ptyManager.write).toHaveBeenCalledWith('active-1', 'pwd\r');
+  });
+
+  it('sends echo via sendMessage (not sendToTopic) when no thread_id', async () => {
+    (sessionManager.getActiveSession as any).mockReturnValue({ id: 'active-1', name: 'main' });
+
+    const handler = getMessageHandler(bot);
+    await handler({ text: 'hello' });
+
+    expect(bot.sendMessage).toHaveBeenCalledWith(
+      expect.stringContaining('hello'),
+      expect.objectContaining({ parse_mode: 'HTML' }),
+    );
+    expect(bot.sendToTopic).not.toHaveBeenCalled();
+  });
+
+  it('skips reply keyboard buttons', async () => {
+    (sessionManager.getActiveSession as any).mockReturnValue({ id: 'active-1', name: 'main' });
+
+    const handler = getMessageHandler(bot);
+    // Test with a known reply keyboard label
+    await handler({ text: '📂 Sessions' });
+
+    expect(ptyManager.write).not.toHaveBeenCalled();
   });
 });
