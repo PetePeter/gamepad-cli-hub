@@ -60,6 +60,9 @@ export class TerminalView {
         brightMagenta: '#ff66ff',
         brightCyan: '#66ffff',
         brightWhite: '#ffffff',
+        scrollbarSliderBackground: 'rgba(68, 68, 68, 0.8)',
+        scrollbarSliderHoverBackground: 'rgba(255, 102, 0, 0.6)',
+        scrollbarSliderActiveBackground: 'rgba(255, 102, 0, 0.8)',
       },
       allowProposedApi: true,
     });
