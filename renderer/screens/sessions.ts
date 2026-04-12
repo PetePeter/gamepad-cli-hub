@@ -51,6 +51,17 @@ const sessionStates = new Map<string, string>();
 /** Track session activity level (active/inactive/idle based on output timing) */
 const sessionActivity = new Map<string, string>();
 
+// Draft count cache — updated on session load and draft changes
+const draftCounts = new Map<string, number>();
+
+export function getDraftCountCache(sessionId: string): number {
+  return draftCounts.get(sessionId) ?? 0;
+}
+
+export function setDraftCountCache(sessionId: string, count: number): void {
+  draftCounts.set(sessionId, count);
+}
+
 const ACTIVITY_DEBOUNCE_MS = 300;
 
 export function getSessionState(sessionId: string): string {
@@ -168,7 +179,7 @@ function confirmCloseSession(): void {
     ? session.name
     : getCliDisplayName(session.cliType);
 
-  showCloseConfirm(session.id, displayName, doCloseSession);
+  showCloseConfirm(session.id, displayName, doCloseSession, getDraftCountCache(session.id));
 }
 
 function startRenameForFocused(): void {

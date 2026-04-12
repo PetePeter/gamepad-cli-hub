@@ -17,6 +17,7 @@ export interface CloseConfirmState {
   sessionId: string;
   sessionName: string;
   selectedIndex: number;  // 0 = Cancel, 1 = Close
+  draftCount: number;
 }
 
 export const closeConfirmState: CloseConfirmState = {
@@ -24,6 +25,7 @@ export const closeConfirmState: CloseConfirmState = {
   sessionId: '',
   sessionName: '',
   selectedIndex: 0, // Default to Cancel for safety
+  draftCount: 0,
 };
 
 // Callbacks
@@ -38,11 +40,13 @@ export function showCloseConfirm(
   sessionId: string,
   sessionName: string,
   onConfirm: (sessionId: string) => void,
+  draftCount?: number,
 ): void {
   closeConfirmState.visible = true;
   closeConfirmState.sessionId = sessionId;
   closeConfirmState.sessionName = sessionName;
   closeConfirmState.selectedIndex = 0; // Default to Cancel
+  closeConfirmState.draftCount = draftCount ?? 0;
   onConfirmCallback = onConfirm;
 
   const overlay = document.getElementById('closeConfirmOverlay');
@@ -103,7 +107,17 @@ function renderCloseConfirm(): void {
   const body = document.getElementById('closeConfirmBody');
   if (!body) return;
 
-  body.textContent = `Close "${closeConfirmState.sessionName}"?`;
+  body.innerHTML = '';
+  const mainText = document.createElement('div');
+  mainText.textContent = `Close "${closeConfirmState.sessionName}"?`;
+  body.appendChild(mainText);
+
+  if (closeConfirmState.draftCount > 0) {
+    const warning = document.createElement('div');
+    warning.className = 'close-confirm-draft-warning';
+    warning.textContent = `⚠️ ${closeConfirmState.draftCount} unsent draft(s) will be lost.`;
+    body.appendChild(warning);
+  }
 
   const closeBtn = document.getElementById('closeConfirmCloseBtn');
   const cancelBtn = document.getElementById('closeConfirmCancelBtn');

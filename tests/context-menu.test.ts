@@ -84,6 +84,7 @@ function buildContextMenuDom(): void {
         <div class="context-menu-item" data-action="new-session"></div>
         <div class="context-menu-item" data-action="new-session-with-selection"></div>
         <div class="context-menu-item" data-action="sequences"></div>
+        <div class="context-menu-item" data-action="drafts"></div>
         <div class="context-menu-item context-menu-item--cancel" data-action="cancel"></div>
       </div>
     </div>
@@ -251,14 +252,14 @@ describe('Context Menu', () => {
     });
 
     it('DPadUp moves selection up, wrapping', () => {
-      // No selection → enabled: Paste(1), NewSession(2), Cancel(5)
-      // Disabled: Copy(0), NewSessionWithSelection(3), Prompts(4)
+      // No selection → enabled: Paste(1), NewSession(2), Cancel(6)
+      // Disabled: Copy(0), NewSessionWithSelection(3), Prompts(4), Drafts(5)
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       expect(mod.contextMenuState.selectedIndex).toBe(1); // Paste
 
       mod.handleContextMenuButton('DPadUp');
-      // Wraps around to Cancel(5)
-      expect(mod.contextMenuState.selectedIndex).toBe(5);
+      // Wraps around to Cancel(6)
+      expect(mod.contextMenuState.selectedIndex).toBe(6);
     });
 
     it('skips disabled items when no selection', () => {
@@ -282,7 +283,8 @@ describe('Context Menu', () => {
       mockGetTerminalManager.mockReturnValue(makeMockTerminalManager(viewWithSel));
 
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
-      // With selection, 5 of 6 items are enabled (Prompts still disabled — no sequences cache)
+      // With selection, 5 of 7 items are enabled (Prompts(4) still disabled — no sequences cache,
+      // Drafts(5) disabled — activeSessionId is null)
       const visited: number[] = [mod.contextMenuState.selectedIndex];
       for (let i = 0; i < 6; i++) {
         mod.handleContextMenuButton('DPadDown');
@@ -290,7 +292,7 @@ describe('Context Menu', () => {
       }
       const unique = [...new Set(visited)];
       expect(unique).toHaveLength(5);
-      expect(unique.sort()).toEqual([0, 1, 2, 3, 5]);
+      expect(unique.sort()).toEqual([0, 1, 2, 3, 6]);
     });
 
     it('B button hides menu', () => {
@@ -380,10 +382,10 @@ describe('Context Menu', () => {
 
     it('Cancel hides menu', async () => {
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
-      // Navigate to Cancel (index 5): Paste(1) → NewSession(2) → Cancel(5, skips 3+4)
+      // Navigate to Cancel (index 6): Paste(1) → NewSession(2) → Cancel(6, skips 3+4+5)
       mod.handleContextMenuButton('DPadDown');
       mod.handleContextMenuButton('DPadDown');
-      expect(mod.contextMenuState.selectedIndex).toBe(5);
+      expect(mod.contextMenuState.selectedIndex).toBe(6);
 
       mod.handleContextMenuButton('A');
       await flush();
@@ -486,7 +488,7 @@ describe('Context Menu', () => {
     });
 
     it('renders disabled class on items that fail enabledWhen', () => {
-      // No selection → Copy(0) and NewSessionWithSelection(3) disabled
+      // No selection → Copy(0), NewSessionWithSelection(3), Prompts(4), Drafts(5) disabled
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       const items = document.querySelectorAll('.context-menu-item');
 
@@ -495,7 +497,8 @@ describe('Context Menu', () => {
       expect(items[2].classList.contains('context-menu-item--disabled')).toBe(false); // New Session
       expect(items[3].classList.contains('context-menu-item--disabled')).toBe(true);  // New Session with Selection
       expect(items[4].classList.contains('context-menu-item--disabled')).toBe(true);  // Prompts (no sequences)
-      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(false); // Cancel
+      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(true);  // Drafts (no activeSessionId)
+      expect(items[6].classList.contains('context-menu-item--disabled')).toBe(false); // Cancel
     });
   });
 

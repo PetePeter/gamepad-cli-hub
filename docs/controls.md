@@ -44,10 +44,16 @@ When a button is pressed, the navigation system checks handlers in this order:
 4. Form modal (A/B only)
 5. Close confirmation modal
 6. Quick-spawn picker
-7. Context menu
-8. Sequence picker
-9. Group overview (when visible)
-10. Screen-specific routing (sessions / settings)
-11. Config binding fallback (per-CLI bindings)
+7. Draft action picker (per-draft Apply/Edit/Delete)
+8. Draft submenu (Drafts list from context menu)
+9. Context menu
+10. Sequence picker
+11. Group overview (when visible)
+12. Screen-specific routing (sessions / settings)
+13. Config binding fallback (per-CLI bindings)
 
 The first handler that returns `true` (consumed) stops the chain.
+
+## Draft Prompts
+
+The `new-draft` action type can be bound to any gamepad button to open the draft editor for the active session. Drafts can also be accessed via the **Drafts ►** submenu in the context menu, which provides New Draft, and per-draft Apply (send to PTY) / Edit / Delete actions.

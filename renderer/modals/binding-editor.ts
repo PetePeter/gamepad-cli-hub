@@ -3,6 +3,7 @@
  */
 
 import type { SequenceListItem } from '../../src/config/loader.js';
+import { escapeHtml } from '../utils.js';
 
 /** Binding editor modal state — co-located with its only consumer. */
 export interface BindingEditorState {
@@ -378,10 +379,6 @@ function createSequenceListItemRow(item: SequenceListItem, index: number): HTMLE
   row.appendChild(info);
   row.appendChild(actions);
   return row;
-}
-
-function escapeHtml(str: string): string {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function collectSequenceListFromForm(): any {

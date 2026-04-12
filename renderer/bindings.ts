@@ -252,6 +252,14 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
         showSequencePicker(items, (sequence) => executeSequence(sequence));
         break;
       }
+      case 'new-draft': {
+        const { showDraftEditor } = await import('./drafts/draft-editor.js');
+        if (state.activeSessionId) {
+          showDraftEditor(state.activeSessionId);
+          logEvent('New draft from binding');
+        }
+        break;
+      }
       default:
         console.warn(`[Renderer] Unknown CLI action: ${binding.action}`);
     }

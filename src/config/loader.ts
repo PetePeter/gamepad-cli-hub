@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 // Action & Binding Types
 // ============================================================================
 
-export type ActionType = 'keyboard' | 'voice' | 'scroll' | 'context-menu' | 'sequence-list';
+export type ActionType = 'keyboard' | 'voice' | 'scroll' | 'context-menu' | 'sequence-list' | 'new-draft';
 
 interface BaseBinding {
   action: ActionType;
@@ -49,7 +49,11 @@ interface SequenceListBinding extends BaseBinding {
   sequenceGroup?: string;
 }
 
-export type Binding = KeyboardBinding | VoiceBinding | ScrollBinding | ContextMenuBinding | SequenceListBinding;
+interface NewDraftBinding extends BaseBinding {
+  action: 'new-draft';
+}
+
+export type Binding = KeyboardBinding | VoiceBinding | ScrollBinding | ContextMenuBinding | SequenceListBinding | NewDraftBinding;
 
 // ============================================================================
 // Shared Config Types

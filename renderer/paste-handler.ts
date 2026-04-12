@@ -9,6 +9,7 @@
  */
 
 import { keyToPtyEscape, comboToPtyEscape } from './bindings.js';
+import { isDraftEditorVisible } from './drafts/draft-editor.js';
 
 type GetActiveSessionId = () => string | null;
 
@@ -43,6 +44,9 @@ export function setupKeyboardRelay(getActiveSessionId: GetActiveSessionId): void
 
     // Block ALL keyboard relay when any modal overlay is visible
     if (document.querySelector('.modal-overlay.modal--visible')) return;
+
+    // Block keyboard relay when the draft editor is open
+    if (isDraftEditorVisible()) return;
 
     // Ctrl+V paste — always intercept, even when xterm has focus
     // (xterm.js doesn't reliably handle paste from clipboard)

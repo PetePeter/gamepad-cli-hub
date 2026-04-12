@@ -12,6 +12,7 @@ import { PtyManager } from '../../session/pty-manager.js';
 import { StateDetector } from '../../session/state-detector.js';
 import { PipelineQueue } from '../../session/pipeline-queue.js';
 import { NotificationManager } from '../../session/notification-manager.js';
+import { DraftManager } from '../../session/draft-manager.js';
 import { configLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
 import { logger } from '../../utils/logger.js';
@@ -29,6 +30,8 @@ import { setupKeyboardHandlers } from './keyboard-handlers.js';
 import { setupSystemHandlers } from './system-handlers.js';
 import { setupPtyHandlers, cancelAllPrompts } from './pty-handlers.js';
 import { setupTelegramHandlers } from './telegram-handlers.js';
+import { setupDraftHandlers } from './draft-handlers.js';
+import { loadDrafts } from '../../session/persistence.js';
 
 
 /**
@@ -55,6 +58,7 @@ export function registerIPCHandlers(
   const ptyManager = new PtyManager();
   const stateDetector = new StateDetector();
   const pipelineQueue = new PipelineQueue();
+  const draftManager = new DraftManager();
   const notificationManager = new NotificationManager(
     getMainWindow, sessionManager, configLoader,
     (sessionId) => stateDetector.getState(sessionId),
@@ -75,12 +79,15 @@ export function registerIPCHandlers(
   logger.info(`[IPC] Restored ${restored.length} session(s) from previous run`);
   sessionManager.startHealthCheck(30000);
 
+  draftManager.importAll(loadDrafts());
+
   const cleanupSession = setupSessionHandlers(sessionManager, ptyManager);
   setupConfigHandlers(configLoader);
   setupProfileHandlers(configLoader);
   setupToolsHandlers(configLoader);
   setupKeyboardHandlers(keyboard);
   setupSystemHandlers();
+  setupDraftHandlers(draftManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader, notificationManager, telegramModules.feedPtyOutput, telegramModules.handleActivityChange, telegramModules.trackInput);
 
   // Wire events ONCE (no-ops when bot not running — notifier checks isRunning)
@@ -98,6 +105,7 @@ export function registerIPCHandlers(
     if (session) await topicManager.ensureTopic(session);
   });
   sessionManager.on('session:removed', (event) => {
+    draftManager.clearSession(event.sessionId);
     if (!telegramBot.isRunning()) return;
     telegramNotifier.removeSession(event.sessionId);
     telegramModules.terminalMirror.removeSession(event.sessionId);

@@ -51,6 +51,7 @@ const MENU_ITEMS: MenuItem[] = [
   { action: 'new-session', label: 'New Session', icon: '➕', enabledWhen: () => true },
   { action: 'new-session-with-selection', label: 'New Session with Selection', icon: '📋➕', enabledWhen: () => contextMenuState.hasSelection },
   { action: 'sequences', label: 'Prompts', icon: '⏩', enabledWhen: () => hasSequenceItems() },
+  { action: 'drafts', label: 'Drafts', icon: '📝', enabledWhen: () => !!state.activeSessionId },
   { action: 'cancel', label: 'Cancel', icon: '', enabledWhen: () => true },
 ];
 
@@ -272,6 +273,12 @@ async function executeSelectedItem(): Promise<void> {
         const { executeSequence } = await import('../bindings.js');
         showSequencePicker(items, (sequence) => executeSequence(sequence));
       }
+      break;
+    }
+    case 'drafts': {
+      hideContextMenu();
+      const { showDraftSubmenu } = await import('./draft-submenu.js');
+      await showDraftSubmenu();
       break;
     }
     case 'cancel': {

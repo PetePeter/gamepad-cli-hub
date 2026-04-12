@@ -21,7 +21,7 @@ graph TB
         end
 
         subgraph "Main Process"
-            IPC[IPC Handlers<br/>8 handler groups]
+            IPC[IPC Handlers<br/>9 handler groups]
             SM[SessionManager<br/>EventEmitter]
             SP[SessionPersistence<br/>YAML save/load]
             PTY[PtyManager<br/>node-pty spawn/write/resize]
@@ -29,6 +29,7 @@ graph TB
             PQ[PipelineQueue<br/>Auto-handoff]
             IP[InitialPrompt<br/>Sequence → PTY]
             CL[ConfigLoader<br/>Profile YAML]
+            DM[DraftManager<br/>Per-session draft CRUD]
         end
 
         UI <-->|contextBridge| IPC
@@ -42,6 +43,7 @@ graph TB
     IPC --> SP
     IPC --> PTY
     IPC --> CL
+    IPC --> DM
     SM --> SP
     PTY --> SD
     IPC --> SD
@@ -61,8 +63,8 @@ Gamepad (Xbox or generic)
         → D-pad auto-repeats when held (400ms delay, 120ms rate)
 
 D-pad / Left stick navigates sessions and auto-selects the terminal.
-Keyboard input routes to the active terminal (PTY stdin) — blocked when a modal overlay with `blockAllKeys` is visible (context-menu, close-confirm, sequence-picker, quick-spawn).
-Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus, blocked during modal overlays).
+Keyboard input routes to the active terminal (PTY stdin) — blocked when a modal overlay with `blockAllKeys` is visible (context-menu, close-confirm, sequence-picker, quick-spawn, draft-submenu).
+Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus, blocked during modal overlays and draft editor).
 ```
 
 ## Design Decisions
@@ -73,7 +75,7 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus, block
 4. **Clipboard paste via PTY** — Document-level Ctrl+V interceptor (`renderer/paste-handler.ts`) reads clipboard and writes to active PTY via `ptyWrite()`, regardless of DOM focus. Blocked when any modal overlay is visible (`.modal-overlay.modal--visible` guard). Solves paste not reaching terminal when gamepad navigation focuses the sidebar.
 5. **D-pad auto-selection** — D-pad navigation automatically selects and activates the terminal for the focused session. No separate focus/unfocus toggle — keyboard always types into the active terminal, D-pad always navigates sessions.
 6. **Activity dots (not state dots)** — Session cards and overview cards show colored activity dots based on PTY I/O timing: 🟢 active (green `#44cc44` — producing output or receiving user input) · 🔵 inactive (blue `#4488ff` — >10s silence) · ⚪ idle (grey `#555555` — >5min silence). Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`. Input tracking: `pty:write` IPC handler calls `StateDetector.markActive()` — green dot appears immediately on user typing, not just on shell echo. Scroll input routes through `pty:scrollInput` → `StateDetector.markScrolling()` instead, which suppresses keyword scanning for 2s to prevent false AIAGENT state changes from screen redraws.
-7. **IPC bridge pattern** — Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers split into 8 domain files + 1 orchestrator (`handlers.ts`) with dependency injection. Renderer never directly accesses Node.js APIs.
+7. **IPC bridge pattern** — Electron context isolation enforced. `preload.ts` exposes typed API via `contextBridge`. IPC handlers split into 9 domain files + 1 orchestrator (`handlers.ts`) with dependency injection. Renderer never directly accesses Node.js APIs.
 8. **Self-contained profile YAML** — Each profile is a single YAML file containing tools, working directories, bindings, stick config, and dpad config. Switching profiles changes everything. Settings stored separately. Auto-migration merges legacy `tools.yaml`/`directories.yaml` into profiles on first load.
 9. **Per-CLI bindings** — Same button does different things depending on active CLI type.
 10. **Button pass-through** — Non-navigation buttons (XYAB, bumpers, triggers) return false from session navigation, allowing them to fall through to per-CLI configurable bindings.
@@ -86,6 +88,7 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus, block
 17. **Session groups by working directory** — Sessions grouped by working directory with collapsible headers. Group order + collapse state persist in `settings.yaml`. Navigation uses a flat `navList` of group headers + session cards. Sorting applies within each group.
 18. **Group Overview (session preview grid)** — D-pad Right from a group header opens a scrollable single-column grid showing all sessions in that directory group. Each card shows session name, terminal title subtitle (when set), activity dot, and last 10 lines of ANSI-stripped PTY output in fixed-height cards. Scrollable via mouse wheel and gamepad scroll bindings. Pre-selects the currently active session on entry. See [docs/group-overview.md](docs/group-overview.md) for full documentation.
 19. **Activity-gated Telegram mirror** — `TerminalMirror` buffers PTY output during active periods (green dot) and flushes to Telegram only when the session becomes inactive (blue, >10s silence) or idle (grey, >5min). Each flush sends a NEW message (no edit-in-place). Safety flush at 50KB prevents memory issues during long builds. Content is ANSI-stripped, noise-filtered (spinners, progress bars, AIAGENT tags), and HTML-escaped in `<code>` blocks. Truncation keeps head+tail when exceeding 3500 chars. Prompt echo (`📝 text`) sends user input to Telegram on Enter — skips empty/control-only input and Telegram-originated commands (which bypass renderer IPC).
+20. **Draft prompts** — Per-session draft memos for composing prompts while a CLI is busy. Drafts are managed by `DraftManager` (EventEmitter, CRUD, emits `draft:changed`), persisted to `config/drafts.yaml` (separate from sessions.yaml), and exposed via 5 IPC channels (`draft:create/update/delete/list/count`). UI: draft strip (horizontal 📝 pills above terminal), slide-down editor panel (title + content), Drafts submenu in context menu (New Draft + per-draft Apply/Edit/Delete), 📝 badge count on session cards, close-confirm warns about unsent drafts. `new-draft` action type opens the editor for the active session.
 
 ## Architecture Principles
 
@@ -140,7 +143,7 @@ Detailed reference docs are in `docs/`:
 
 | Document | Content |
 |----------|---------|
-| [docs/modules.md](docs/modules.md) | Module reference table — all 26 modules with files and responsibilities |
+| [docs/modules.md](docs/modules.md) | Module reference table — all 30 modules with files and responsibilities |
 | [docs/config-system.md](docs/config-system.md) | Profile YAML, binding types, sequence parser syntax, stick/dpad config |
 | [docs/controls.md](docs/controls.md) | Gamepad button + keyboard mappings, navigation priority chain |
 | [docs/terminal-architecture.md](docs/terminal-architecture.md) | PTY stack, input/output routing, activity dots, key modules |

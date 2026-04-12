@@ -160,9 +160,26 @@
         <div class="context-menu-item" data-action="sequences" tabindex="-1">
           <span class="item-icon">⏩</span><span class="item-text">Prompts</span>
         </div>
+        <div class="context-menu-item" data-action="drafts" tabindex="-1">
+          <span class="item-icon">📝</span><span class="item-text">Drafts</span>
+        </div>
         <div class="context-menu-item context-menu-item--cancel" data-action="cancel" tabindex="-1">
           <span class="item-text">Cancel</span>
         </div>
+      </div>
+    </div>
+
+    <!-- Draft Submenu -->
+    <div class="modal-overlay" id="draftSubmenuOverlay" aria-hidden="true" role="menu" aria-label="Draft prompts submenu">
+      <div class="context-menu context-menu--centered" id="draftSubmenu">
+        <!-- Items rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Draft Action Picker (Apply/Edit/Delete) -->
+    <div class="modal-overlay" id="draftActionOverlay" aria-hidden="true" role="menu" aria-label="Draft action picker">
+      <div class="context-menu context-menu--centered" id="draftActionMenu">
+        <!-- Items rendered dynamically -->
       </div>
     </div>
 

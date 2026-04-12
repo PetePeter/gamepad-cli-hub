@@ -6,6 +6,7 @@
 config/
 ├── settings.yaml               # Active profile name, hapticFeedback toggle, notifications toggle, sidebar prefs, sorting, sessionGroups (order + collapsed)
 ├── sessions.yaml               # Persisted session state (auto-managed)
+├── drafts.yaml                 # Persisted draft prompts per session (auto-managed)
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 ```
@@ -49,11 +50,12 @@ CLI-specific bindings are used. Each profile defines different button behaviours
 
 `{ action: 'context-menu' }` — Opens the context menu overlay. Gamepad binding centers the menu in the viewport (mode: 'gamepad'). Right-click on any terminal pane shows at mouse position (mode: 'mouse').
 
-Menu items: Copy, Paste, New Session, New Session with Selection, Prompts ⏩, Cancel.
+Menu items: Copy, Paste, New Session, New Session with Selection, Prompts ⏩, Drafts ►, Cancel.
 
 - Copy and "New Session with Selection" are disabled when no text is selected
 - "New Session" / "New Session with Selection" open a quick-spawn CLI type picker (pre-selects active session's type), then the directory picker (pre-selects active session's working directory), then spawns
 - "Prompts ⏩" is enabled when the active CLI type has sequences configured — chains to the sequence picker with all groups flattened
+- "Drafts ►" opens a submenu listing New Draft + existing drafts with per-draft Apply/Edit/Delete actions
 
 ### sequence-list
 
@@ -62,6 +64,10 @@ Menu items: Copy, Paste, New Session, New Session with Selection, Prompts ⏩, C
 Opens a picker overlay listing named sequences. `sequenceGroup` references a named group from `CliTypeConfig.sequences` (preferred); inline `items` is the legacy fallback. `sequenceGroup` takes priority → fallback to inline `items` → empty if neither.
 
 User selects an item (D-pad/gamepad or click), and its `sequence` string is parsed and sent to the active PTY. Each item has a `label` (display name) and `sequence` (sequence parser syntax). The binding editor supports CRUD of items via `showFormModal`.
+
+### new-draft
+
+`{ action: 'new-draft' }` — Opens the draft editor for the active session, allowing the user to compose a draft prompt memo while the CLI is busy. Drafts can later be applied (sent to PTY) via the Drafts submenu in the context menu.
 
 ## Tool Config
 

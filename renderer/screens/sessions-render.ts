@@ -14,6 +14,7 @@ import { createSortControl, type SortControlHandle } from '../components/sort-co
 import { groupSessionsByDirectory, buildFlatNavList, type SessionGroup } from '../session-groups.js';
 import { showOverview, refreshOverview, isOverviewVisible } from './group-overview.js';
 import { getActivityColor } from '../state-colors.js';
+import { createDraftBadge } from '../drafts/draft-strip.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import {
@@ -21,6 +22,7 @@ import {
   loadSessionsData, updateSessionsFocus,
   switchToSession, getSessionCwd, getTerminalManager,
   toggleGroupCollapse, moveGroupUpAction, moveGroupDownAction,
+  getDraftCountCache,
 } from './sessions.js';
 
 // --- Constants ---
@@ -377,7 +379,7 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   closeBtn.title = `Close ${displayName}`;
   closeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    showCloseConfirm(session.id, displayName, doCloseSession);
+    showCloseConfirm(session.id, displayName, doCloseSession, getDraftCountCache(session.id));
   });
 
   // Append buttons into name-line (same row as session name)
@@ -385,8 +387,10 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   if (renameBtn) nameLine.appendChild(renameBtn);
   nameLine.appendChild(closeBtn);
 
-  // Append in visual order: dot → info (name-line + meta)
+  // Append in visual order: dot → draft badge → info (name-line + meta)
   card.appendChild(activityDot);
+  const badge = createDraftBadge(getDraftCountCache(session.id));
+  if (badge) card.appendChild(badge);
   card.appendChild(info);
 
   card.addEventListener('click', () => switchToSession(session.id));

@@ -10,7 +10,7 @@ src/
 │   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle, renderer crash recovery, delegates power monitoring to setupPowerMonitor()
 │   ├── preload.ts              # Context bridge (renderer ↔ main IPC)
 │   └── ipc/
-│       ├── handlers.ts         # Orchestrator — imports + wires 8 domain handlers, returns { cleanup, sessionManager, ptyManager }
+│       ├── handlers.ts         # Orchestrator — imports + wires 9 domain handlers, returns { cleanup, sessionManager, ptyManager }
 │       ├── session-handlers.ts
 │       ├── config-handlers.ts
 │       ├── profile-handlers.ts
@@ -18,19 +18,21 @@ src/
 │       ├── keyboard-handlers.ts
 │       ├── pty-handlers.ts
 │       ├── system-handlers.ts  # system:openLogsFolder
-│       └── telegram-handlers.ts # Telegram bot settings CRUD, bot start/stop IPC
+│       ├── telegram-handlers.ts # Telegram bot settings CRUD, bot start/stop IPC
+│       └── draft-handlers.ts   # 5 IPC channels (draft:create/update/delete/list/count) wired to DraftManager
 ├── input/
 │   └── sequence-parser.ts      # {Enter}, {Ctrl+C}, {Wait 500}, {Mod Down/Up}, {{/}} — used by bindings + initialPrompt
 ├── output/
 │   └── keyboard.ts             # OS-level key simulation via robotjs (voice bindings only)
 ├── session/
 │   ├── manager.ts              # Session tracking (EventEmitter), calls persistence on changes
-│   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + health check
+│   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + saveDrafts/loadDrafts to config/drafts.yaml + health check
 │   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
 │   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection + I/O activity tracking (active/inactive/idle via input+output timing)
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
 │   ├── notification-manager.ts # Windows toast notifications (Electron Notification API, activity-change triggers for implementing/planning sessions, dedup, click-to-focus)
 │   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay, onComplete callback
+│   ├── draft-manager.ts        # Per-session draft prompt CRUD (EventEmitter, emits draft:changed, persisted to config/drafts.yaml)
 │   └── power-monitor.ts        # Suspend/resume/shutdown diagnostics — session counts, PTY IDs, survival status
 ├── config/
 │   └── loader.ts               # Self-contained profile YAML config + CRUD + StickConfig + haptic settings + auto-migration
@@ -50,7 +52,7 @@ src/
 │   ├── topic-manager.ts        # Forum topic lifecycle: ensureTopic on session:added, deleteForumTopic on session:removed
 │   └── utils.ts                # Shared Telegram utilities
 ├── types/
-│   └── session.ts              # SessionInfo (includes cliSessionName for resume), SessionChangeEvent, AnalogEvent types
+│   └── session.ts              # SessionInfo (includes cliSessionName for resume), DraftPrompt, SessionChangeEvent, AnalogEvent types
 └── utils/
     └── logger.ts               # Winston logger (daily rotation, used everywhere)
 ```
@@ -65,7 +67,7 @@ renderer/
 ├── utils.ts                    # DOM helpers, logEvent, showScreen, toDirection
 ├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing, voice OS-default + PTY via target: 'terminal', F1-F12 VT220 escape sequences)
 ├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY
-├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → contextMenu → sequencePicker → quickSpawn → overview → screen routing → configBinding fallback
+├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → quickSpawn → draftAction → draftSubmenu → contextMenu → sequencePicker → overview → screen routing → configBinding fallback
 ├── gamepad.ts                  # Browser Gamepad API wrapper + repeat engine
 ├── session-groups.ts           # Pure session grouping logic (by working directory) — types, grouping, nav list, reorder
 ├── sort-logic.ts               # Pure sort functions for sessions + bindings
@@ -73,6 +75,9 @@ renderer/
 ├── tab-cycling.ts              # Ctrl+Tab / Ctrl+Shift+Tab terminal cycling resolver
 ├── components/
 │   └── sort-control.ts         # Reusable sort dropdown + direction toggle widget
+├── drafts/
+│   ├── draft-strip.ts          # View-only draft pills above terminal (📝 labels + badge count)
+│   └── draft-editor.ts         # Slide-down draft editor panel (title + content fields, smart keyboard routing)
 ├── terminal/
 │   ├── terminal-view.ts        # xterm.js wrapper (fit/search/weblinks addons)
 │   ├── terminal-manager.ts     # Multi-terminal orchestration (create/switch/rename/resize/destroy + tab bar + PtyOutputBuffer)
@@ -93,10 +98,11 @@ renderer/
 │   ├── modal-base.ts           # Shared modal foundation (show/hide, backdrop, gamepad focus management)
 │   ├── dir-picker.ts           # Directory picker modal (supports pre-selection via preselectedPath)
 │   ├── binding-editor.ts       # Binding editor modal
-│   ├── context-menu.ts         # Context menu overlay — Copy/Paste/New Session/New Session with Selection/Prompts ⏩/Cancel
-│   ├── close-confirm.ts        # Close session confirmation popup — centered modal with Close/Cancel, gamepad + keyboard support
+│   ├── context-menu.ts         # Context menu overlay — Copy/Paste/New Session/New Session with Selection/Prompts ⏩/Drafts ►/Cancel
+│   ├── close-confirm.ts        # Close session confirmation popup — centered modal with Close/Cancel, warns about unsent drafts, gamepad + keyboard support
 │   ├── sequence-picker.ts      # Sequence picker overlay — shows list of named sequences for user selection, gamepad + click support
-│   └── quick-spawn.ts          # Quick-spawn CLI type picker — centred modal listing available CLI types with pre-selection, gamepad + click support
+│   ├── quick-spawn.ts          # Quick-spawn CLI type picker — centred modal listing available CLI types with pre-selection, gamepad + click support
+│   └── draft-submenu.ts        # Drafts submenu from context menu — New Draft + per-draft Apply/Edit/Delete action picker
 └── styles/
     └── main.css
 ```
@@ -107,6 +113,7 @@ renderer/
 config/
 ├── settings.yaml               # Active profile + hapticFeedback toggle + notifications toggle + sessionGroups prefs
 ├── sessions.yaml               # Persisted session state (auto-managed)
+├── drafts.yaml                 # Persisted draft prompts per session (auto-managed)
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 ```
@@ -114,7 +121,7 @@ config/
 ## Tests (`tests/`)
 
 ```
-tests/                                  # 1398 tests across 48 files
+tests/                                  # 1594 tests across 54 files
 ├── app-paths.test.ts           # Application path resolution tests
 ├── bindings-pty.test.ts        # PTY escape helpers + routing tests
 ├── bindings-target.test.ts     # Voice binding target routing (PTY vs OS)
@@ -123,6 +130,11 @@ tests/                                  # 1398 tests across 48 files
 ├── commands.test.ts            # Telegram slash command handler tests
 ├── config.test.ts              # Config loading, stick config, haptic, virtual buttons, sequence-list binding persistence, sequences CRUD
 ├── context-menu.test.ts        # Context menu overlay tests
+├── draft-editor.test.ts        # Draft editor panel tests
+├── draft-manager.test.ts       # DraftManager CRUD + events
+├── draft-persistence.test.ts   # Draft save/load persistence
+├── draft-strip.test.ts         # Draft strip pill rendering + badge
+├── draft-submenu.test.ts       # Draft submenu + action picker tests
 ├── gamepad-repeat.test.ts      # D-pad/stick key repeat engine tests
 ├── group-overview.test.ts      # Group overview grid tests
 ├── handlers-restore.test.ts    # Session restore on startup tests

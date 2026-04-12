@@ -25,6 +25,9 @@ import { initCloseConfirmClickHandlers } from './modals/close-confirm.js';
 import { initQuickSpawnClickHandlers, hideQuickSpawn } from './modals/quick-spawn.js';
 import { resolveNextTerminalId } from './tab-cycling.js';
 import { setOutputBuffer, setSessionStateGetter, setActivityLevelGetter, setTerminalManagerGetter as setOverviewTerminalManagerGetter, refreshOverview, isOverviewVisible } from './screens/group-overview.js';
+import { initDraftStrip, refreshDraftStrip } from './drafts/draft-strip.js';
+import { initDraftEditor } from './drafts/draft-editor.js';
+import { initDraftSubmenuClickHandlers, initDraftActionClickHandlers } from './modals/draft-submenu.js';
 
 // ============================================================================
 // Terminal Manager
@@ -258,6 +261,7 @@ async function init(): Promise<void> {
       });
       terminalManager.setOnSwitch((sessionId) => {
         if (sessionId) syncSessionHighlight(sessionId);
+        refreshDraftStrip(sessionId ?? null);
       });
       terminalManager.setOnTitleChange((sessionId, title) => {
         const session = state.sessions.find(s => s.id === sessionId);
@@ -285,6 +289,12 @@ async function init(): Promise<void> {
       document.getElementById('quickSpawnCancelBtn')?.addEventListener('click', () => {
         hideQuickSpawn();
       });
+
+      // Initialize draft strip, editor, and submenu click handlers
+      initDraftStrip();
+      initDraftEditor();
+      initDraftSubmenuClickHandlers();
+      initDraftActionClickHandlers();
 
       // Click on terminal area → focus terminal
       const terminalArea = document.getElementById('terminalArea');

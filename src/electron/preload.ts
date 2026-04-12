@@ -344,6 +344,30 @@ const gamepadCliAPI = {
   /** Test telegram bot connection (validates token) */
   telegramTestConnection: () => ipcRenderer.invoke('telegram:testConnection'),
 
+  // ========================================================================
+  // Draft Prompts
+  // ========================================================================
+
+  /** Create a new draft prompt for a session */
+  draftCreate: (sessionId: string, label: string, text: string) =>
+    ipcRenderer.invoke('draft:create', sessionId, label, text),
+
+  /** Update an existing draft */
+  draftUpdate: (draftId: string, updates: { label?: string; text?: string }) =>
+    ipcRenderer.invoke('draft:update', draftId, updates),
+
+  /** Delete a draft */
+  draftDelete: (draftId: string) =>
+    ipcRenderer.invoke('draft:delete', draftId),
+
+  /** Get all drafts for a session */
+  draftList: (sessionId: string) =>
+    ipcRenderer.invoke('draft:list', sessionId),
+
+  /** Get draft count for a session */
+  draftCount: (sessionId: string) =>
+    ipcRenderer.invoke('draft:count', sessionId),
+
 };
 
 /**

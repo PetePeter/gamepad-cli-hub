@@ -1280,7 +1280,7 @@ describe('Sessions Screen', () => {
       const closeBtn = document.querySelector('.session-card .session-close') as HTMLButtonElement;
       closeBtn.click();
       await flush();
-      expect(mockShowCloseConfirm).toHaveBeenCalledWith('s-0', expect.any(String), expect.any(Function));
+      expect(mockShowCloseConfirm).toHaveBeenCalledWith('s-0', expect.any(String), expect.any(Function), expect.any(Number));
     });
 
     it('clicking close button shows modal without destroying', async () => {
@@ -1905,7 +1905,7 @@ describe('Sessions Screen', () => {
       sessionsState.cardColumn = 3;
       sessions.handleSessionsScreenButton('A');
       await flush();
-      expect(mockShowCloseConfirm).toHaveBeenCalledWith('s-0', expect.any(String), expect.any(Function));
+      expect(mockShowCloseConfirm).toHaveBeenCalledWith('s-0', expect.any(String), expect.any(Function), expect.any(Number));
     });
 
     it('A at col=3 close confirm callback destroys session', async () => {
