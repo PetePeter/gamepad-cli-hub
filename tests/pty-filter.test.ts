@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { stripMouseTracking } from '../renderer/terminal/pty-filter.js';
 
 describe('stripMouseTracking', () => {
@@ -105,5 +105,117 @@ describe('stripMouseTracking', () => {
 
   it('handles compound disable sequences (l suffix)', () => {
     expect(stripMouseTracking('\x1b[?1049;1007l')).toBe('\x1b[?1049l');
+  });
+});
+
+describe('stripAltScreen', () => {
+  let stripAltScreen: typeof import('../renderer/terminal/pty-filter.js').stripAltScreen;
+
+  beforeAll(async () => {
+    const mod = await import('../renderer/terminal/pty-filter.js');
+    stripAltScreen = mod.stripAltScreen;
+  });
+
+  // Mode 1049 — the most common alt screen sequence
+  it('strips \\x1b[?1049h (enable alt screen + save cursor)', () => {
+    expect(stripAltScreen('\x1b[?1049h')).toBe('');
+  });
+
+  it('strips \\x1b[?1049l (disable alt screen + restore cursor)', () => {
+    expect(stripAltScreen('\x1b[?1049l')).toBe('');
+  });
+
+  // Mode 47 — original alt screen
+  it('strips \\x1b[?47h (original alt screen enable)', () => {
+    expect(stripAltScreen('\x1b[?47h')).toBe('');
+  });
+
+  it('strips \\x1b[?47l (original alt screen disable)', () => {
+    expect(stripAltScreen('\x1b[?47l')).toBe('');
+  });
+
+  // Mode 1047 — xterm alt screen
+  it('strips \\x1b[?1047h (xterm alt screen enable)', () => {
+    expect(stripAltScreen('\x1b[?1047h')).toBe('');
+  });
+
+  it('strips \\x1b[?1047l (xterm alt screen disable)', () => {
+    expect(stripAltScreen('\x1b[?1047l')).toBe('');
+  });
+
+  // Mode 1048 — cursor save/restore
+  it('strips \\x1b[?1048h (save cursor)', () => {
+    expect(stripAltScreen('\x1b[?1048h')).toBe('');
+  });
+
+  it('strips \\x1b[?1048l (restore cursor)', () => {
+    expect(stripAltScreen('\x1b[?1048l')).toBe('');
+  });
+
+  // ED 3 — erase scrollback
+  it('strips \\x1b[3J (erase scrollback)', () => {
+    expect(stripAltScreen('\x1b[3J')).toBe('');
+  });
+
+  // Text surrounding sequences
+  it('strips alt screen sequences from mixed content', () => {
+    expect(stripAltScreen('hello\x1b[?1049hworld')).toBe('helloworld');
+  });
+
+  it('strips erase scrollback from mixed content', () => {
+    expect(stripAltScreen('before\x1b[3Jafter')).toBe('beforeafter');
+  });
+
+  it('strips multiple alt screen sequences in one chunk', () => {
+    const input = '\x1b[?1049h\x1b[?1048h\x1b[3J';
+    expect(stripAltScreen(input)).toBe('');
+  });
+
+  // Preserves non-alt-screen sequences
+  it('preserves \\x1b[2J (clear screen)', () => {
+    expect(stripAltScreen('\x1b[2J')).toBe('\x1b[2J');
+  });
+
+  it('preserves cursor movement sequences', () => {
+    const cursor = '\x1b[10;5H';
+    expect(stripAltScreen(cursor)).toBe(cursor);
+  });
+
+  it('preserves SGR (color) sequences', () => {
+    const sgr = '\x1b[31;1m';
+    expect(stripAltScreen(sgr)).toBe(sgr);
+  });
+
+  it('preserves plain text', () => {
+    expect(stripAltScreen('just plain text')).toBe('just plain text');
+  });
+
+  it('returns empty string for empty input', () => {
+    expect(stripAltScreen('')).toBe('');
+  });
+
+  // Compound sequences — strip only alt screen modes, preserve others
+  it('strips alt screen mode from compound sequence', () => {
+    expect(stripAltScreen('\x1b[?1049;1007h')).toBe('\x1b[?1007h');
+  });
+
+  it('strips all alt screen modes from compound sequence', () => {
+    expect(stripAltScreen('\x1b[?1049;47;1048h')).toBe('');
+  });
+
+  it('preserves compound sequence with no alt screen modes', () => {
+    expect(stripAltScreen('\x1b[?25;1007h')).toBe('\x1b[?25;1007h');
+  });
+
+  it('strips alt screen mode from compound disable sequence', () => {
+    expect(stripAltScreen('\x1b[?1049;25l')).toBe('\x1b[?25l');
+  });
+
+  // Realistic scenario: full Copilot CLI alt screen enter + exit
+  it('strips full alt screen enter/exit cycle', () => {
+    const enter = '\x1b[?1049h\x1b[2J\x1b[H';
+    const exit = '\x1b[?1049l';
+    expect(stripAltScreen(enter)).toBe('\x1b[2J\x1b[H');
+    expect(stripAltScreen(exit)).toBe('');
   });
 });

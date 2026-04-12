@@ -184,7 +184,7 @@ export interface FormField {
   label: string;
   defaultValue?: string;
   placeholder?: string;
-  type?: 'text' | 'select' | 'textarea';
+  type?: 'text' | 'select' | 'textarea' | 'checkbox';
   options?: FormFieldOption[];
   /** Optional element appended after the input (e.g. syntax help panel). */
   afterElement?: HTMLElement;
@@ -243,7 +243,20 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
       label.textContent = field.label;
       wrapper.appendChild(label);
 
-      if (field.type === 'select' && field.options) {
+      if (field.type === 'checkbox') {
+        const checkWrap = document.createElement('label');
+        checkWrap.className = 'settings-form__checkbox-wrap';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `formField_${field.key}`;
+        checkbox.checked = field.defaultValue === 'true';
+        checkWrap.appendChild(checkbox);
+        const span = document.createElement('span');
+        span.textContent = field.label;
+        checkWrap.appendChild(span);
+        wrapper.textContent = '';
+        wrapper.appendChild(checkWrap);
+      } else if (field.type === 'select' && field.options) {
         const select = document.createElement('select');
         select.id = `formField_${field.key}`;
         field.options.forEach(opt => {
@@ -320,7 +333,11 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
       const result: Record<string, string> = {};
       fields.forEach(field => {
         const el = document.getElementById(`formField_${field.key}`) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
-        result[field.key] = el?.value?.trim() || '';
+        if (field.type === 'checkbox') {
+          result[field.key] = String((el as HTMLInputElement).checked);
+        } else {
+          result[field.key] = el?.value?.trim() || '';
+        }
       });
       cleanup();
       resolve(result);

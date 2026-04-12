@@ -35,6 +35,7 @@ tools:
     resumeCommand: copilot --resume={cliSessionName}
     continueCommand: copilot --continue
     handoffCommand: go implement it
+    stripAltScreen: true
     initialPrompt:
       - label: ""
         sequence: /allow-all{Enter}

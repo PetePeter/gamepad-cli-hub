@@ -373,7 +373,8 @@ async function init(): Promise<void> {
     window.gamepadCli.onSessionSpawned(async (session) => {
       if (!terminalManager || terminalManager.has(session.id)) return;
       console.log(`[ExternalSpawn] Adopting session: ${session.id} (${session.cliType})`);
-      terminalManager.adoptTerminal(session.id, session.cliType, session.workingDir);
+      const spawnInfo = await window.gamepadCli.configGetSpawnCommand(session.cliType);
+      terminalManager.adoptTerminal(session.id, session.cliType, session.workingDir, spawnInfo?.stripAltScreen);
       const { showTerminalArea } = await import('./screens/sessions-spawn.js');
       showTerminalArea();
       await loadSessions();

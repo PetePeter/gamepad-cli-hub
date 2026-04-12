@@ -1394,6 +1394,26 @@ kbd {
   border-color: var(--text-dim);
 }
 
+.settings-form__checkbox-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  padding: var(--spacing-xs) 0;
+}
+
+.settings-form__checkbox-wrap input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-color, #4488ff);
+  cursor: pointer;
+}
+
+.settings-form__checkbox-wrap span {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
 /* Read-only card for displaying config */
 .settings-readonly-card {
   padding: var(--spacing-md);

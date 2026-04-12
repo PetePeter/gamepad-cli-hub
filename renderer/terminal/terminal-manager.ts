@@ -6,7 +6,7 @@
  */
 
 import { TerminalView } from './terminal-view.js';
-import { stripMouseTracking } from './pty-filter.js';
+import { stripMouseTracking, stripAltScreen } from './pty-filter.js';
 import { PtyOutputBuffer } from './pty-output-buffer.js';
 
 export interface TerminalSession {
@@ -17,6 +17,7 @@ export interface TerminalSession {
   view: TerminalView;
   element: HTMLElement;
   cwd?: string;
+  stripAltScreen?: boolean;
 }
 
 export class TerminalManager {
@@ -73,6 +74,7 @@ export class TerminalManager {
     cwd?: string,
     contextText?: string,
     resumeSessionName?: string,
+    enableStripAltScreen?: boolean,
   ): Promise<boolean> {
     if (this.terminals.has(sessionId)) return false;
 
@@ -103,7 +105,7 @@ export class TerminalManager {
       },
     });
 
-    this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd });
+    this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd, stripAltScreen: enableStripAltScreen });
 
     // Right-click context menu on the terminal pane
     element.addEventListener('contextmenu', (e) => {
@@ -136,6 +138,7 @@ export class TerminalManager {
     sessionId: string,
     cliType: string,
     cwd?: string,
+    enableStripAltScreen?: boolean,
   ): void {
     if (this.terminals.has(sessionId)) return;
 
@@ -166,7 +169,7 @@ export class TerminalManager {
       },
     });
 
-    this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd });
+    this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd, stripAltScreen: enableStripAltScreen });
 
     element.addEventListener('contextmenu', (e) => {
       e.preventDefault();
@@ -288,7 +291,9 @@ export class TerminalManager {
   writeToTerminal(sessionId: string, data: string): void {
     const session = this.terminals.get(sessionId);
     if (session) {
-      session.view.write(stripMouseTracking(data));
+      let filtered = stripMouseTracking(data);
+      if (session.stripAltScreen) filtered = stripAltScreen(filtered);
+      session.view.write(filtered);
     }
   }
 
