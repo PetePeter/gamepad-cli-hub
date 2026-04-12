@@ -58,9 +58,9 @@ export function showSequencePicker(items: SequenceListItem[], onSelect: (sequenc
   // Attach keyboard shortcuts
   cleanupKeyboard?.();
   cleanupKeyboard = attachModalKeyboard({
+    mode: 'selection',
     onAccept: () => executeSelectedItem(),
     onCancel: () => hideSequencePicker(),
-    blockAllKeys: true,
     onArrowUp: () => {
       const count = sequencePickerState.items.length;
       sequencePickerState.selectedIndex = ((sequencePickerState.selectedIndex - 1) % count + count) % count;

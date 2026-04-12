@@ -60,10 +60,9 @@ export function showCloseConfirm(
   // Attach keyboard shortcuts
   cleanupKeyboard?.();
   cleanupKeyboard = attachModalKeyboard({
+    mode: 'selection',
     onAccept: () => executeSelected(),
     onCancel: () => hideCloseConfirm(),
-    blockAllKeys: true,
-    // All arrows toggle for keyboard convenience — gamepad only uses left/right
     onArrowLeft: () => {
       closeConfirmState.selectedIndex = closeConfirmState.selectedIndex === 0 ? 1 : 0;
       renderCloseConfirm();

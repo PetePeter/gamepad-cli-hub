@@ -52,6 +52,7 @@ export function showDirPicker(cliType: string, dirs: Array<{ name: string; path:
   // Attach ESC/Enter keyboard shortcuts
   cleanupKeyboard?.();
   cleanupKeyboard = attachModalKeyboard({
+    mode: 'selection',
     onAccept: () => selectDirAndSpawn(dirPickerState.selectedIndex),
     onCancel: () => { hideDirPicker(); logEvent('Spawn cancelled'); },
     onArrowUp: () => {

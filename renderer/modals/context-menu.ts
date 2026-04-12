@@ -126,9 +126,9 @@ export function showContextMenu(x: number, y: number, sessionId: string, mode: '
   // Attach keyboard shortcuts
   cleanupKeyboard?.();
   cleanupKeyboard = attachModalKeyboard({
+    mode: 'selection',
     onAccept: () => executeSelectedItem(),
     onCancel: () => hideContextMenu(),
-    blockAllKeys: true,
     onArrowUp: () => {
       contextMenuState.selectedIndex = findNextEnabledIndex(contextMenuState.selectedIndex, 'up');
       renderContextMenu();

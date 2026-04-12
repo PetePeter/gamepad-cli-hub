@@ -47,9 +47,9 @@ export async function showDraftSubmenu(): Promise<void> {
 
   cleanupKeyboard?.();
   cleanupKeyboard = attachModalKeyboard({
+    mode: 'selection',
     onAccept: () => executeSubmenuItem(),
     onCancel: () => hideDraftSubmenu(),
-    blockAllKeys: true,
     onArrowUp: () => {
       const total = 1 + draftSubmenuState.drafts.length;
       draftSubmenuState.selectedIndex = (draftSubmenuState.selectedIndex - 1 + total) % total;
@@ -229,9 +229,9 @@ export async function showDraftActionPicker(draft: { id: string; label: string; 
 
   cleanupActionKeyboard?.();
   cleanupActionKeyboard = attachModalKeyboard({
+    mode: 'selection',
     onAccept: () => executeDraftAction(),
     onCancel: () => hideDraftActionPicker(),
-    blockAllKeys: true,
     onArrowUp: () => {
       draftActionState.selectedIndex = (draftActionState.selectedIndex - 1 + DRAFT_ACTIONS.length) % DRAFT_ACTIONS.length;
       renderDraftActions();

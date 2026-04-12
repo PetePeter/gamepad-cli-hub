@@ -65,9 +65,9 @@ export function showQuickSpawn(
   // Attach keyboard shortcuts
   cleanupKeyboard?.();
   cleanupKeyboard = attachModalKeyboard({
+    mode: 'selection',
     onAccept: () => executeSelectedItem(),
     onCancel: () => hideQuickSpawn(),
-    blockAllKeys: true,
     onArrowUp: () => {
       quickSpawnState.selectedIndex = Math.max(0, quickSpawnState.selectedIndex - 1);
       renderQuickSpawn();

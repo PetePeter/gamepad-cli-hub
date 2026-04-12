@@ -63,7 +63,7 @@ Gamepad (Xbox or generic)
         → D-pad auto-repeats when held (400ms delay, 120ms rate)
 
 D-pad / Left stick navigates sessions and auto-selects the terminal.
-Keyboard input routes to the active terminal (PTY stdin) — blocked when a modal overlay with `blockAllKeys` is visible (context-menu, close-confirm, sequence-picker, quick-spawn, draft-submenu).
+Keyboard input routes to the active terminal (PTY stdin) — blocked when a selection-mode modal overlay is visible (context-menu, close-confirm, sequence-picker, quick-spawn, dir-picker, draft-submenu).
 Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus, blocked during modal overlays and draft editor).
 ```
 

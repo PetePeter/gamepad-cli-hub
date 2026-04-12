@@ -31,12 +31,30 @@ describe('modal-base', () => {
       expect(onCancel).not.toHaveBeenCalled();
     });
 
-    it('does NOT call onAccept when Enter is pressed in a textarea', () => {
+    it('does NOT call onAccept when Enter is pressed in a modal-internal textarea', () => {
+      // Create modal structure with textarea inside
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay modal--visible';
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      const textarea = document.createElement('textarea');
+      modal.appendChild(textarea);
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+
+      textarea.focus();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      expect(onAccept).not.toHaveBeenCalled();
+      document.body.removeChild(overlay);
+    });
+
+    it('DOES call onAccept when Enter is pressed with an external textarea focused', () => {
+      // External textarea (e.g. xterm hidden textarea) should NOT block modal Enter
       const textarea = document.createElement('textarea');
       document.body.appendChild(textarea);
       textarea.focus();
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-      expect(onAccept).not.toHaveBeenCalled();
+      expect(onAccept).toHaveBeenCalledOnce();
       document.body.removeChild(textarea);
     });
 
@@ -67,7 +85,7 @@ describe('modal-base', () => {
     });
   });
 
-  describe('blockAllKeys option', () => {
+  describe('selection mode', () => {
     let onAccept: ReturnType<typeof vi.fn>;
     let onCancel: ReturnType<typeof vi.fn>;
     let cleanup: () => void;
@@ -75,7 +93,7 @@ describe('modal-base', () => {
     beforeEach(() => {
       onAccept = vi.fn();
       onCancel = vi.fn();
-      cleanup = attachModalKeyboard({ onAccept, onCancel, blockAllKeys: true });
+      cleanup = attachModalKeyboard({ mode: 'selection', onAccept, onCancel });
     });
 
     afterEach(() => {
@@ -89,6 +107,20 @@ describe('modal-base', () => {
 
     it('still calls onAccept on Enter', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      expect(onAccept).toHaveBeenCalledOnce();
+    });
+
+    it('calls onAccept on Enter even when a textarea is focused (xterm fix)', () => {
+      const textarea = document.createElement('textarea');
+      document.body.appendChild(textarea);
+      textarea.focus();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      expect(onAccept).toHaveBeenCalledOnce();
+      document.body.removeChild(textarea);
+    });
+
+    it('calls onAccept on Ctrl+Enter', () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true }));
       expect(onAccept).toHaveBeenCalledOnce();
     });
 
@@ -107,7 +139,6 @@ describe('modal-base', () => {
     });
 
     it('blocks ArrowDown from propagating (no .modal container)', () => {
-      // Context menu uses .context-menu, not .modal — arrows must still be blocked
       const e = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
       document.dispatchEvent(e);
       expect(e.defaultPrevented).toBe(true);
@@ -145,22 +176,20 @@ describe('modal-base', () => {
       expect(e.defaultPrevented).toBe(true);
     });
 
-    it('does NOT block when blockAllKeys is false (default)', () => {
+    it('does NOT block when in form mode (default)', () => {
       cleanup();
-      cleanup = attachModalKeyboard({ onAccept, onCancel }); // default: blockAllKeys = false
+      cleanup = attachModalKeyboard({ onAccept, onCancel }); // default: form mode
       const e = new KeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true });
       document.dispatchEvent(e);
       expect(e.defaultPrevented).toBe(false);
     });
 
     it('prevents event from reaching child element listeners', () => {
-      // Simulate xterm.js child: listener on a child div should NOT fire
       const child = document.createElement('div');
       document.body.appendChild(child);
       const childHandler = vi.fn();
       child.addEventListener('keydown', childHandler);
 
-      // Dispatch from child — capture-phase handler on document fires first
       const e = new KeyboardEvent('keydown', { key: 'a', bubbles: true, cancelable: true });
       child.dispatchEvent(e);
 
@@ -239,7 +268,7 @@ describe('modal-base', () => {
     });
   });
 
-  describe('custom arrow callbacks', () => {
+  describe('custom arrow callbacks (selection mode)', () => {
     let cleanup: () => void;
     let onArrowUp: ReturnType<typeof vi.fn>;
     let onArrowDown: ReturnType<typeof vi.fn>;
@@ -252,6 +281,7 @@ describe('modal-base', () => {
       onArrowLeft = vi.fn();
       onArrowRight = vi.fn();
       cleanup = attachModalKeyboard({
+        mode: 'selection',
         onAccept: vi.fn(),
         onCancel: vi.fn(),
         onArrowUp,
@@ -265,14 +295,14 @@ describe('modal-base', () => {
       cleanup();
     });
 
-    it('ArrowUp calls onArrowUp instead of default focus cycling', () => {
+    it('ArrowUp calls onArrowUp', () => {
       const e = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true });
       document.dispatchEvent(e);
       expect(onArrowUp).toHaveBeenCalledOnce();
       expect(e.defaultPrevented).toBe(true);
     });
 
-    it('ArrowDown calls onArrowDown instead of default focus cycling', () => {
+    it('ArrowDown calls onArrowDown', () => {
       const e = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
       document.dispatchEvent(e);
       expect(onArrowDown).toHaveBeenCalledOnce();
@@ -293,7 +323,31 @@ describe('modal-base', () => {
       expect(e.defaultPrevented).toBe(true);
     });
 
-    it('ArrowLeft without handler does not preventDefault', () => {
+    it('ArrowLeft without handler still blocks in selection mode', () => {
+      cleanup();
+      cleanup = attachModalKeyboard({
+        mode: 'selection',
+        onAccept: vi.fn(),
+        onCancel: vi.fn(),
+      });
+      const e = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(e.defaultPrevented).toBe(true);
+    });
+
+    it('ArrowRight without handler still blocks in selection mode', () => {
+      cleanup();
+      cleanup = attachModalKeyboard({
+        mode: 'selection',
+        onAccept: vi.fn(),
+        onCancel: vi.fn(),
+      });
+      const e = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(e.defaultPrevented).toBe(true);
+    });
+
+    it('ArrowLeft in form mode does not preventDefault', () => {
       cleanup();
       cleanup = attachModalKeyboard({
         onAccept: vi.fn(),
@@ -304,7 +358,7 @@ describe('modal-base', () => {
       expect(e.defaultPrevented).toBe(false);
     });
 
-    it('ArrowRight without handler does not preventDefault', () => {
+    it('ArrowRight in form mode does not preventDefault', () => {
       cleanup();
       cleanup = attachModalKeyboard({
         onAccept: vi.fn(),
@@ -316,7 +370,6 @@ describe('modal-base', () => {
     });
 
     it('custom onArrowUp suppresses default focus cycling', () => {
-      // Create a modal with focusable elements
       const container = document.createElement('div');
       container.className = 'modal';
       const overlay = document.createElement('div');
@@ -331,10 +384,9 @@ describe('modal-base', () => {
 
       input2.focus();
 
-      // With custom handler, focus should NOT move
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
       expect(onArrowUp).toHaveBeenCalledOnce();
-      // Focus stays on input2 — custom handler doesn't do DOM focus cycling
+      // Focus stays on input2 — selection mode uses callbacks, not DOM cycling
       expect(document.activeElement).toBe(input2);
 
       document.body.removeChild(overlay);
