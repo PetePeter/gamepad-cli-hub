@@ -1,7 +1,7 @@
 /**
- * Draft Strip — view-only pill display above the terminal area.
+ * Draft Strip — pill display above the terminal area.
  * Shows compact pills for each draft in the active session.
- * All actions are via context menu — pills are not interactive.
+ * Clicking a pill (mouse only) opens the action picker (Apply/Edit/Delete).
  */
 
 import { setDraftCountCache } from '../screens/sessions.js';
@@ -65,19 +65,16 @@ export async function refreshDraftStrip(sessionId: string | null): Promise<void>
       : draft.label;
     pill.textContent = `📝 ${truncated}`;
 
+    // Click pill → open action picker (mouse only, no gamepad nav to pills)
+    pill.addEventListener('click', async () => {
+      const { showDraftActionPicker } = await import('../modals/draft-submenu.js');
+      showDraftActionPicker(draft);
+    });
+
     strip.appendChild(pill);
   }
 
   strip.style.display = 'flex';
-}
-
-/** Get the draft count for a session (from IPC). */
-export async function getDraftCount(sessionId: string): Promise<number> {
-  try {
-    return await window.gamepadCli.draftCount(sessionId);
-  } catch {
-    return 0;
-  }
 }
 
 /** Render draft count badge on a session card. Returns the badge element or null. */

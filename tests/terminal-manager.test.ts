@@ -501,6 +501,32 @@ describe('TerminalManager', () => {
     mgr.dispose();
   });
 
+  it('writeToTerminal transforms clear screen when stripAltScreen is enabled', async () => {
+    const mgr = new TerminalManager(container);
+    await mgr.createTerminal('s1', 'copilot-cli', 'copilot', [], undefined, undefined, undefined, true);
+
+    const mockTerm = terminalInstances[terminalInstances.length - 1];
+    mockTerm.write.mockClear();
+
+    mgr.writeToTerminal('s1', '\x1b[2J');
+    expect(mockTerm.write).toHaveBeenCalledWith('\x1b[H\x1b[J');
+
+    mgr.dispose();
+  });
+
+  it('writeToTerminal preserves clear screen when stripAltScreen is not set', async () => {
+    const mgr = new TerminalManager(container);
+    await mgr.createTerminal('s1', 'aider', 'aider');
+
+    const mockTerm = terminalInstances[terminalInstances.length - 1];
+    mockTerm.write.mockClear();
+
+    mgr.writeToTerminal('s1', '\x1b[2J');
+    expect(mockTerm.write).toHaveBeenCalledWith('\x1b[2J');
+
+    mgr.dispose();
+  });
+
   it('writeToTerminal preserves alt screen sequences when stripAltScreen is not set', async () => {
     const mgr = new TerminalManager(container);
     await mgr.createTerminal('s1', 'aider', 'aider');

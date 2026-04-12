@@ -7,6 +7,10 @@
  * converts mouse wheel into Up/Down arrow keys in the alternate screen
  * buffer, preventing scrollback navigation. Since this app is gamepad-driven,
  * we strip them so text selection and mouse wheel scrolling always work natively.
+ *
+ * Alternate screen stripping keeps CLI output in the normal scrollback buffer.
+ * When active, also transforms \x1b[2J (clear screen) to \x1b[H\x1b[J
+ * (cursor home + erase below) to prevent scrollback pollution from TUI redraws.
  */
 
 // DEC private mode codes to strip (both enable 'h' and disable 'l')
@@ -21,11 +25,7 @@
 // 1015 = URXVT mouse mode
 // 1016 = SGR pixel mouse mode
 const MOUSE_TRACKING_RE = /\x1b\[\?(?:100[0-7]|101[56])[hl]/g;
-
-// Compound DEC mode sequences (semicolon-separated) that embed tracked modes
-// e.g. \x1b[?1049;1007h → strip just the tracked mode number from the sequence
-const COMPOUND_MODE_RE = /\x1b\[\?([\d;]+)[hl]/g;
-const TRACKED_MODES = new Set(['1000', '1001', '1002', '1003', '1004', '1005', '1006', '1007', '1015', '1016']);
+const MOUSE_MODES = new Set(['1000', '1001', '1002', '1003', '1004', '1005', '1006', '1007', '1015', '1016']);
 
 // Alternate screen buffer modes to strip (both enable 'h' and disable 'l')
 // 47   = original alternate screen buffer
@@ -33,45 +33,83 @@ const TRACKED_MODES = new Set(['1000', '1001', '1002', '1003', '1004', '1005', '
 // 1048 = save/restore cursor (often paired with 1049)
 // 1049 = alternate screen buffer + save/restore cursor (most common)
 const ALT_SCREEN_RE = /\x1b\[\?(?:47|104[789])[hl]/g;
-
-// ED 3 — erase scrollback buffer. Stripping this prevents CLIs from
-// clearing the scrollback that we're trying to preserve.
-const ERASE_SCROLLBACK_RE = /\x1b\[3J/g;
-
 const ALT_SCREEN_MODES = new Set(['47', '1047', '1048', '1049']);
 
-/**
- * Strip alternate screen buffer sequences and scrollback-clear (ED 3).
- * Keeps CLI output in the normal buffer so xterm.js scrollback works.
- */
-export function stripAltScreen(data: string): string {
-  let result = data.replace(ALT_SCREEN_RE, '');
-  result = result.replace(ERASE_SCROLLBACK_RE, '');
+// ED 3 — erase scrollback buffer
+const ERASE_SCROLLBACK_RE = /\x1b\[3J/g;
 
-  // Handle compound sequences like \x1b[?1049;25h — strip just alt screen modes
-  result = result.replace(COMPOUND_MODE_RE, (match, modes: string) => {
-    const modeList = modes.split(';');
-    const kept = modeList.filter((m: string) => !ALT_SCREEN_MODES.has(m));
-    if (kept.length === modeList.length) return match;
-    if (kept.length === 0) return '';
-    return `\x1b[?${kept.join(';')}${match[match.length - 1]}`;
-  });
+// ED 2 — clear entire screen. When alt screen is stripped, we transform
+// this to cursor-home + erase-below to prevent scrollback pollution.
+const CLEAR_SCREEN_RE = /\x1b\[2J/g;
+
+// Compound DEC mode sequences (semicolon-separated) that may embed
+// modes we need to strip (e.g. \x1b[?1049;1007h)
+const COMPOUND_MODE_RE = /\x1b\[\?([\d;]+)[hl]/g;
+
+// Escape sequence detection for fast-path checks
+const HAS_DEC_PRIVATE = '\x1b[?';
+const HAS_ED3 = '\x1b[3J';
+const HAS_ED2 = '\x1b[2J';
+
+export interface PtyFilterOptions {
+  stripAltScreen?: boolean;
+}
+
+/**
+ * Apply all PTY output filters in a single pass.
+ * Always strips mouse tracking. Conditionally strips alt screen sequences.
+ */
+export function applyPtyFilters(data: string, opts?: PtyFilterOptions): string {
+  const doAltScreen = opts?.stripAltScreen ?? false;
+
+  // Fast path: if no DEC private mode or ED sequences, nothing to filter
+  const hasDec = data.includes(HAS_DEC_PRIVATE);
+  const hasEd3 = doAltScreen && data.includes(HAS_ED3);
+  const hasEd2 = doAltScreen && data.includes(HAS_ED2);
+
+  if (!hasDec && !hasEd3 && !hasEd2) return data;
+
+  let result = data;
+
+  // Strip single-mode mouse tracking sequences
+  if (hasDec) result = result.replace(MOUSE_TRACKING_RE, '');
+
+  // Strip single-mode alt screen sequences
+  if (doAltScreen && hasDec) result = result.replace(ALT_SCREEN_RE, '');
+
+  // Strip ED 3 (erase scrollback)
+  if (hasEd3) result = result.replace(ERASE_SCROLLBACK_RE, '');
+
+  // Transform ED 2 (clear screen) → cursor home + erase below.
+  // Prevents TUI redraws from pushing stale frames into scrollback.
+  if (hasEd2) result = result.replace(CLEAR_SCREEN_RE, '\x1b[H\x1b[J');
+
+  // Single compound-mode pass: strip both mouse AND alt screen modes
+  if (hasDec) {
+    result = result.replace(COMPOUND_MODE_RE, (match, modes: string) => {
+      const modeList = modes.split(';');
+      const kept = modeList.filter(m =>
+        !MOUSE_MODES.has(m) && !(doAltScreen && ALT_SCREEN_MODES.has(m))
+      );
+      if (kept.length === modeList.length) return match;
+      if (kept.length === 0) return '';
+      return `\x1b[?${kept.join(';')}${match[match.length - 1]}`;
+    });
+  }
 
   return result;
 }
 
+/** Strip mouse tracking sequences only. */
 export function stripMouseTracking(data: string): string {
-  // First pass: strip single-mode sequences (fast path)
-  let result = data.replace(MOUSE_TRACKING_RE, '');
+  return applyPtyFilters(data);
+}
 
-  // Second pass: handle compound sequences like \x1b[?1049;1007h
-  result = result.replace(COMPOUND_MODE_RE, (match, modes: string, offset: number, str: string) => {
-    const modeList = modes.split(';');
-    const kept = modeList.filter(m => !TRACKED_MODES.has(m));
-    if (kept.length === modeList.length) return match; // nothing to strip
-    if (kept.length === 0) return ''; // all modes stripped
-    return `\x1b[?${kept.join(';')}${match[match.length - 1]}`; // preserve h/l suffix
-  });
-
-  return result;
+/**
+ * Strip alternate screen buffer, scrollback-clear (ED 3), mouse tracking,
+ * and transform ED 2 clear-screen to cursor-home + erase-below.
+ * Keeps CLI output in the normal buffer so xterm.js scrollback works.
+ */
+export function stripAltScreen(data: string): string {
+  return applyPtyFilters(data, { stripAltScreen: true });
 }

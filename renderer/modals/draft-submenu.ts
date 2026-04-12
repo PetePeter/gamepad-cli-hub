@@ -115,7 +115,7 @@ function renderDraftSubmenu(): void {
     const item = document.createElement('div');
     item.className = 'context-menu-item';
     if (draftSubmenuState.selectedIndex === i + 1) item.classList.add('context-menu-item--selected');
-    const truncLabel = draft.label.length > 30 ? draft.label.substring(0, 27) + '...' : draft.label;
+    const truncLabel = draft.label.length > 30 ? draft.label.substring(0, 27) + '…' : draft.label;
     item.innerHTML = `<span class="item-icon">📝</span><span class="item-text">${escapeHtml(truncLabel)}</span>`;
     item.addEventListener('click', () => {
       draftSubmenuState.selectedIndex = i + 1;

@@ -19,7 +19,6 @@ vi.mock('../renderer/drafts/draft-strip.js', () => ({
   refreshDraftStrip: vi.fn(),
   initDraftStrip: vi.fn(),
   createDraftBadge: vi.fn(),
-  getDraftCount: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -243,6 +242,19 @@ describe('Draft Editor', () => {
       const editor = document.getElementById('draftEditor')!;
       expect(editor.style.display).toBe('none');
       expect(mod.isDraftEditorVisible()).toBe(false);
+    });
+
+    it('does not save when label is empty', async () => {
+      mod.showDraftEditor('session-1');
+
+      const contentInput = document.getElementById('draftContentInput') as HTMLTextAreaElement;
+      contentInput.value = 'some content';
+      // Label is empty
+
+      await mod.saveDraft();
+
+      expect(mockDraftCreate).not.toHaveBeenCalled();
+      expect(mockDraftUpdate).not.toHaveBeenCalled();
     });
   });
 

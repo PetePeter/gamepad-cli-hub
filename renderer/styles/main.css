@@ -1923,8 +1923,14 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 180px;
-  cursor: default;
+  cursor: pointer;
   user-select: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.draft-pill:hover {
+  background: #3a3a4a;
+  border-color: #666;
 }
 
 .draft-badge {

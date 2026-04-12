@@ -185,7 +185,7 @@ describe('Draft Submenu', () => {
       const lastItem = items[items.length - 1];
       const textSpan = lastItem.querySelector('.item-text');
       expect(textSpan!.textContent!.length).toBeLessThanOrEqual(30);
-      expect(textSpan!.textContent).toContain('...');
+      expect(textSpan!.textContent).toContain('…');
     });
   });
 

@@ -12,9 +12,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockDraftList = vi.fn();
 const mockDraftCount = vi.fn();
+const mockShowDraftActionPicker = vi.fn();
 
 vi.mock('../renderer/drafts/draft-editor.js', () => ({
   isDraftEditorVisible: vi.fn(() => false),
+}));
+
+vi.mock('../renderer/modals/draft-submenu.js', () => ({
+  showDraftActionPicker: (...args: unknown[]) => mockShowDraftActionPicker(...args),
 }));
 
 // ---------------------------------------------------------------------------
@@ -57,6 +62,7 @@ describe('Draft Strip', () => {
 
     mockDraftList.mockReset();
     mockDraftCount.mockReset();
+    mockShowDraftActionPicker.mockReset();
 
     mod = await getModule();
   });
@@ -139,6 +145,18 @@ describe('Draft Strip', () => {
       // Text should be truncated (20 chars + ellipsis)
       expect(pill.textContent).toContain('…');
       expect(pill.textContent!.length).toBeLessThan(longLabel.length + 5); // 📝 + space + truncated
+    });
+
+    it('opens action picker when pill is clicked', async () => {
+      const draft = { id: 'd1', label: 'My Draft', text: 'content' };
+      mockDraftList.mockResolvedValue([draft]);
+      await mod.refreshDraftStrip('session-1');
+
+      const pill = document.querySelector('.draft-pill') as HTMLElement;
+      pill.click();
+      await flush();
+
+      expect(mockShowDraftActionPicker).toHaveBeenCalledWith(draft);
     });
   });
 

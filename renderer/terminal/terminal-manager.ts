@@ -6,7 +6,7 @@
  */
 
 import { TerminalView } from './terminal-view.js';
-import { stripMouseTracking, stripAltScreen } from './pty-filter.js';
+import { applyPtyFilters } from './pty-filter.js';
 import { PtyOutputBuffer } from './pty-output-buffer.js';
 
 export interface TerminalSession {
@@ -291,9 +291,7 @@ export class TerminalManager {
   writeToTerminal(sessionId: string, data: string): void {
     const session = this.terminals.get(sessionId);
     if (session) {
-      let filtered = stripMouseTracking(data);
-      if (session.stripAltScreen) filtered = stripAltScreen(filtered);
-      session.view.write(filtered);
+      session.view.write(applyPtyFilters(data, { stripAltScreen: session.stripAltScreen }));
     }
   }
 

@@ -33,12 +33,12 @@ PTY Data Flow:
   Main Process                           Renderer Process
   ┌─────────────┐   IPC: pty:data       ┌──────────────────┐
   │ PtyManager   │ ────────────────────→ │ TerminalManager   │
-  │ (node-pty)   │                       │  → PtyFilter      │
-  │              │ ←──────────────────── │    (mouse strip)  │
-  └─────────────┘   IPC: pty:write       │  → stripAltScreen │
-                     IPC: pty:scrollInput │    (per-session)  │
-                     ↑                    │  → TerminalView   │
-  voice/paste ───────┘                    │    (xterm.js)     │
+  │ (node-pty)   │                       │  → applyPtyFilters│
+  │              │ ←──────────────────── │    (mouse+altscr) │
+  └─────────────┘   IPC: pty:write       │  → TerminalView   │
+                     IPC: pty:scrollInput │    (xterm.js)     │
+                     ↑                    │                    │
+  voice/paste ───────┘                    │                    │
   StateDetector  ←── PTY stdout ──────── └──────────────────┘
                ←── PTY stdin (markActive)┌──────────────────┐
                ←── scroll input (markScrolling)
@@ -68,8 +68,8 @@ Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
 | InitialPrompt | `src/session/initial-prompt.ts` | Converts sequence parser syntax to PTY escape codes, sends after configurable delay. `onComplete` callback signals when all items are done |
 | SequenceParser | `src/input/sequence-parser.ts` | Parses `{Enter}`, `{Ctrl+C}`, `{Wait 500}` etc. into typed actions |
 | TerminalView | `renderer/terminal/terminal-view.ts` | xterm.js wrapper with fit/search addons, OSC title change callback. Optional `onScrollInput` callback for scroll-specific PTY writes. Capture-phase wheel handler on container intercepts alternate-buffer wheel → PageUp/PageDown via `onScrollInput` (falls back to `onData`); normal buffer passes through to SmoothScrollableElement |
-| TerminalManager | `renderer/terminal/terminal-manager.ts` | Multi-terminal switching, lifecycle. `deselect()` pauses keyboard relay without destroying terminal. Accepts `contextText` forwarded to main process via `ptySpawn()`. `adoptTerminal()` creates a TerminalView for externally-spawned PTY sessions without calling `pty:spawn`. Owns `PtyOutputBuffer` for preview data. `setOnTitleChange()` routes terminal title events to renderer state. `writeToTerminal()` applies `stripMouseTracking()` always, then `stripAltScreen()` conditionally per-session |
-| PtyFilter | `renderer/terminal/pty-filter.ts` | Strips mouse-tracking and alternate-scroll escape sequences from PTY output so native text selection works. `stripAltScreen()` strips alternate screen buffer modes (47/1047/1048/1049) and ED 3 (`\x1b[3J`) — applied conditionally per-session based on `stripAltScreen` tool config |
+| TerminalManager | `renderer/terminal/terminal-manager.ts` | Multi-terminal switching, lifecycle. `deselect()` pauses keyboard relay without destroying terminal. Accepts `contextText` forwarded to main process via `ptySpawn()`. `adoptTerminal()` creates a TerminalView for externally-spawned PTY sessions without calling `pty:spawn`. Owns `PtyOutputBuffer` for preview data. `setOnTitleChange()` routes terminal title events to renderer state. `writeToTerminal()` runs PTY output through `applyPtyFilters(data, { stripAltScreen })` before writing to xterm.js |
+| PtyFilter | `renderer/terminal/pty-filter.ts` | Strips mouse-tracking and alternate-screen ANSI escape sequences from PTY output so native text selection works. Unified `applyPtyFilters(data, opts?)` entry point — always strips mouse tracking (DEC modes 1000–1007, 1015–1016), conditionally strips alt screen modes (47/1047/1048/1049), ED 3 (`\x1b[3J`), and transforms ED 2 (`\x1b[2J`) to cursor-home + erase-below to prevent scrollback pollution. `stripMouseTracking()` and `stripAltScreen()` are convenience wrappers. Fast-path skips regex when no escape sequences present |
 | PtyOutputBuffer | `renderer/terminal/pty-output-buffer.ts` | Ring buffer for PTY output per session (ANSI-stripped plain text). Used by group overview for live previews |
 | Bindings | `renderer/bindings.ts` | PTY-aware input routing: voice OS-default (robotjs) with PTY opt-in via `target: 'terminal'` + `keyToPtyEscape()` (F1-F12 VT220 sequences) |
 | PasteHandler | `renderer/paste-handler.ts` | Document-level Ctrl+V interceptor: reads clipboard, writes to active PTY via `ptyWrite()` regardless of DOM focus. Skipped when any modal overlay is visible (`blockAllKeys` modals own all keyboard input) |

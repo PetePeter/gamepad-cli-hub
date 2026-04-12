@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { stripMouseTracking } from '../renderer/terminal/pty-filter.js';
+import { stripMouseTracking, stripAltScreen, applyPtyFilters } from '../renderer/terminal/pty-filter.js';
 
 describe('stripMouseTracking', () => {
   it('strips X10 mouse enable sequence \\x1b[?1000h', () => {
@@ -171,9 +171,9 @@ describe('stripAltScreen', () => {
     expect(stripAltScreen(input)).toBe('');
   });
 
-  // Preserves non-alt-screen sequences
-  it('preserves \\x1b[2J (clear screen)', () => {
-    expect(stripAltScreen('\x1b[2J')).toBe('\x1b[2J');
+  // Transforms clear screen to prevent scrollback pollution
+  it('transforms \\x1b[2J to cursor-home + erase-below', () => {
+    expect(stripAltScreen('\x1b[2J')).toBe('\x1b[H\x1b[J');
   });
 
   it('preserves cursor movement sequences', () => {
@@ -195,16 +195,17 @@ describe('stripAltScreen', () => {
   });
 
   // Compound sequences — strip only alt screen modes, preserve others
+  // Note: stripAltScreen() also strips mouse tracking (via applyPtyFilters)
   it('strips alt screen mode from compound sequence', () => {
-    expect(stripAltScreen('\x1b[?1049;1007h')).toBe('\x1b[?1007h');
+    expect(stripAltScreen('\x1b[?1049;25h')).toBe('\x1b[?25h');
   });
 
   it('strips all alt screen modes from compound sequence', () => {
     expect(stripAltScreen('\x1b[?1049;47;1048h')).toBe('');
   });
 
-  it('preserves compound sequence with no alt screen modes', () => {
-    expect(stripAltScreen('\x1b[?25;1007h')).toBe('\x1b[?25;1007h');
+  it('preserves compound sequence with no tracked modes', () => {
+    expect(stripAltScreen('\x1b[?25;7h')).toBe('\x1b[?25;7h');
   });
 
   it('strips alt screen mode from compound disable sequence', () => {
@@ -215,7 +216,64 @@ describe('stripAltScreen', () => {
   it('strips full alt screen enter/exit cycle', () => {
     const enter = '\x1b[?1049h\x1b[2J\x1b[H';
     const exit = '\x1b[?1049l';
-    expect(stripAltScreen(enter)).toBe('\x1b[2J\x1b[H');
+    // \x1b[2J transformed to \x1b[H\x1b[J — cursor home already present, so two homes
+    expect(stripAltScreen(enter)).toBe('\x1b[H\x1b[J\x1b[H');
     expect(stripAltScreen(exit)).toBe('');
+  });
+});
+
+describe('applyPtyFilters', () => {
+  // Fast path — no escape sequences
+  it('returns plain text unchanged (fast path)', () => {
+    const text = 'Hello world, this is LLM output';
+    expect(applyPtyFilters(text)).toBe(text);
+  });
+
+  it('returns empty string unchanged', () => {
+    expect(applyPtyFilters('')).toBe('');
+  });
+
+  it('fast path ignores non-DEC escape sequences', () => {
+    const sgr = '\x1b[31;1mred text\x1b[0m';
+    expect(applyPtyFilters(sgr)).toBe(sgr);
+  });
+
+  // Mouse-only mode (default)
+  it('strips mouse tracking without alt screen by default', () => {
+    expect(applyPtyFilters('\x1b[?1000h')).toBe('');
+  });
+
+  it('preserves alt screen sequences when stripAltScreen is false', () => {
+    expect(applyPtyFilters('\x1b[?1049h')).toBe('\x1b[?1049h');
+  });
+
+  it('preserves \\x1b[2J when stripAltScreen is false', () => {
+    expect(applyPtyFilters('\x1b[2J')).toBe('\x1b[2J');
+  });
+
+  // Combined mode
+  it('strips both mouse and alt screen in single call', () => {
+    const input = '\x1b[?1000h\x1b[?1049h';
+    expect(applyPtyFilters(input, { stripAltScreen: true })).toBe('');
+  });
+
+  it('strips compound sequence with both mouse and alt screen modes', () => {
+    const input = '\x1b[?1049;1007;25h';
+    expect(applyPtyFilters(input, { stripAltScreen: true })).toBe('\x1b[?25h');
+  });
+
+  it('transforms \\x1b[2J when stripAltScreen is true', () => {
+    expect(applyPtyFilters('\x1b[2J', { stripAltScreen: true })).toBe('\x1b[H\x1b[J');
+  });
+
+  it('handles full TUI redraw cycle', () => {
+    const input = '\x1b[?1049h\x1b[?1000h\x1b[2J\x1b[Hcontent\x1b[3J';
+    const result = applyPtyFilters(input, { stripAltScreen: true });
+    expect(result).toBe('\x1b[H\x1b[J\x1b[Hcontent');
+  });
+
+  it('strips ED 3 only when stripAltScreen is true', () => {
+    expect(applyPtyFilters('a\x1b[3Jb')).toBe('a\x1b[3Jb');
+    expect(applyPtyFilters('a\x1b[3Jb', { stripAltScreen: true })).toBe('ab');
   });
 });
