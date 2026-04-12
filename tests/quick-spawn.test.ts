@@ -295,4 +295,51 @@ describe('Quick Spawn Modal', () => {
       expect(onSelect).toHaveBeenCalledWith('only-type');
     });
   });
+
+  // =========================================================================
+  // Keyboard Navigation Callbacks
+  // =========================================================================
+
+  describe('Keyboard Navigation Callbacks', () => {
+    it('attachModalKeyboard receives onArrowUp and onArrowDown', () => {
+      mod.showQuickSpawn(['claude', 'copilot'], vi.fn());
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      expect(call.onArrowUp).toBeTypeOf('function');
+      expect(call.onArrowDown).toBeTypeOf('function');
+    });
+
+    it('onArrowDown advances selectedIndex', () => {
+      mod.showQuickSpawn(['claude', 'copilot', 'aider'], vi.fn());
+      expect(mod.quickSpawnState.selectedIndex).toBe(0);
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      call.onArrowDown();
+      expect(mod.quickSpawnState.selectedIndex).toBe(1);
+    });
+
+    it('onArrowDown clamps at last item (no wrap)', () => {
+      mod.showQuickSpawn(['claude', 'copilot'], vi.fn());
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      call.onArrowDown();
+      expect(mod.quickSpawnState.selectedIndex).toBe(1);
+      call.onArrowDown();
+      expect(mod.quickSpawnState.selectedIndex).toBe(1); // stays at last
+    });
+
+    it('onArrowUp clamps at first item (no wrap)', () => {
+      mod.showQuickSpawn(['claude', 'copilot'], vi.fn());
+      expect(mod.quickSpawnState.selectedIndex).toBe(0);
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      call.onArrowUp();
+      expect(mod.quickSpawnState.selectedIndex).toBe(0); // stays at first
+    });
+
+    it('onArrowDown updates dir-picker-item--selected class', () => {
+      mod.showQuickSpawn(['claude', 'copilot'], vi.fn());
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      call.onArrowDown();
+      const items = document.querySelectorAll('.dir-picker-item');
+      expect(items[0].classList.contains('dir-picker-item--selected')).toBe(false);
+      expect(items[1].classList.contains('dir-picker-item--selected')).toBe(true);
+    });
+  });
 });

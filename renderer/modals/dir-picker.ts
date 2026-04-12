@@ -54,6 +54,14 @@ export function showDirPicker(cliType: string, dirs: Array<{ name: string; path:
   cleanupKeyboard = attachModalKeyboard({
     onAccept: () => selectDirAndSpawn(dirPickerState.selectedIndex),
     onCancel: () => { hideDirPicker(); logEvent('Spawn cancelled'); },
+    onArrowUp: () => {
+      dirPickerState.selectedIndex = Math.max(0, dirPickerState.selectedIndex - 1);
+      renderDirPickerList();
+    },
+    onArrowDown: () => {
+      dirPickerState.selectedIndex = Math.min(dirPickerState.items.length - 1, dirPickerState.selectedIndex + 1);
+      renderDirPickerList();
+    },
   });
 }
 

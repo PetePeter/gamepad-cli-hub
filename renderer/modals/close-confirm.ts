@@ -59,6 +59,23 @@ export function showCloseConfirm(
     onAccept: () => executeSelected(),
     onCancel: () => hideCloseConfirm(),
     blockAllKeys: true,
+    // All arrows toggle for keyboard convenience — gamepad only uses left/right
+    onArrowLeft: () => {
+      closeConfirmState.selectedIndex = closeConfirmState.selectedIndex === 0 ? 1 : 0;
+      renderCloseConfirm();
+    },
+    onArrowRight: () => {
+      closeConfirmState.selectedIndex = closeConfirmState.selectedIndex === 0 ? 1 : 0;
+      renderCloseConfirm();
+    },
+    onArrowUp: () => {
+      closeConfirmState.selectedIndex = closeConfirmState.selectedIndex === 0 ? 1 : 0;
+      renderCloseConfirm();
+    },
+    onArrowDown: () => {
+      closeConfirmState.selectedIndex = closeConfirmState.selectedIndex === 0 ? 1 : 0;
+      renderCloseConfirm();
+    },
   });
 
   logEvent('Close confirmation shown');

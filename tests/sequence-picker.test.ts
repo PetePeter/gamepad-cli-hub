@@ -248,4 +248,53 @@ describe('Sequence Picker', () => {
       expect(mockAttachModalKeyboard).toHaveBeenCalledTimes(1);
     });
   });
+
+  // =========================================================================
+  // Keyboard Navigation Callbacks
+  // =========================================================================
+
+  describe('Keyboard Navigation Callbacks', () => {
+    it('attachModalKeyboard receives onArrowUp and onArrowDown', () => {
+      mod.showSequencePicker(TEST_ITEMS, vi.fn());
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      expect(call.onArrowUp).toBeTypeOf('function');
+      expect(call.onArrowDown).toBeTypeOf('function');
+    });
+
+    it('onArrowDown advances selectedIndex', () => {
+      mod.showSequencePicker(TEST_ITEMS, vi.fn());
+      expect(mod.sequencePickerState.selectedIndex).toBe(0);
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      call.onArrowDown();
+      expect(mod.sequencePickerState.selectedIndex).toBe(1);
+    });
+
+    it('onArrowUp wraps from first to last', () => {
+      mod.showSequencePicker(TEST_ITEMS, vi.fn());
+      expect(mod.sequencePickerState.selectedIndex).toBe(0);
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      call.onArrowUp();
+      expect(mod.sequencePickerState.selectedIndex).toBe(TEST_ITEMS.length - 1);
+    });
+
+    it('onArrowDown wraps from last to first', () => {
+      mod.showSequencePicker(TEST_ITEMS, vi.fn());
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      // Move to last
+      for (let i = 0; i < TEST_ITEMS.length - 1; i++) call.onArrowDown();
+      expect(mod.sequencePickerState.selectedIndex).toBe(TEST_ITEMS.length - 1);
+      // Wrap
+      call.onArrowDown();
+      expect(mod.sequencePickerState.selectedIndex).toBe(0);
+    });
+
+    it('onArrowDown updates selected CSS class', () => {
+      mod.showSequencePicker(TEST_ITEMS, vi.fn());
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      call.onArrowDown();
+      const items = document.querySelectorAll('.sequence-picker-item');
+      expect(items[0].classList.contains('context-menu-item--selected')).toBe(false);
+      expect(items[1].classList.contains('context-menu-item--selected')).toBe(true);
+    });
+  });
 });

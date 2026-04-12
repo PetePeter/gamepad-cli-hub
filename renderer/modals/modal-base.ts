@@ -13,6 +13,12 @@ export interface ModalHandlers {
   /** When true, ALL unhandled keys are blocked (preventDefault + stopPropagation).
    *  Use for non-input modals (context menu, close-confirm, sequence-picker). */
   blockAllKeys?: boolean;
+  /** Custom arrow key handlers — when provided, override default DOM focus cycling.
+   *  Use for list-based modals that track selection via internal selectedIndex. */
+  onArrowUp?: () => void;
+  onArrowDown?: () => void;
+  onArrowLeft?: () => void;
+  onArrowRight?: () => void;
 }
 
 const FOCUSABLE_SELECTOR = 'input, select, textarea, button:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -49,6 +55,20 @@ export function attachModalKeyboard(handlers: ModalHandlers): () => void {
       e.stopPropagation();
       handlers.onAccept();
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      // Custom arrow handlers override default focus cycling
+      if (e.key === 'ArrowUp' && handlers.onArrowUp) {
+        e.preventDefault();
+        e.stopPropagation();
+        handlers.onArrowUp();
+        return;
+      }
+      if (e.key === 'ArrowDown' && handlers.onArrowDown) {
+        e.preventDefault();
+        e.stopPropagation();
+        handlers.onArrowDown();
+        return;
+      }
+
       // Don't intercept arrows in textareas or select elements
       const active = document.activeElement;
       if (active?.tagName === 'TEXTAREA' || active?.tagName === 'SELECT') return;
@@ -67,6 +87,19 @@ export function attachModalKeyboard(handlers: ModalHandlers): () => void {
       }
       e.preventDefault();
       focusables[nextIndex]?.focus();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (e.key === 'ArrowLeft' && handlers.onArrowLeft) {
+        e.preventDefault();
+        e.stopPropagation();
+        handlers.onArrowLeft();
+        return;
+      }
+      if (e.key === 'ArrowRight' && handlers.onArrowRight) {
+        e.preventDefault();
+        e.stopPropagation();
+        handlers.onArrowRight();
+        return;
+      }
     }
   }
   document.addEventListener('keydown', onKeyDown, true);

@@ -287,4 +287,61 @@ describe('Close Confirm Modal', () => {
       );
     });
   });
+
+  // =========================================================================
+  // Keyboard Navigation Callbacks
+  // =========================================================================
+
+  describe('Keyboard Navigation Callbacks', () => {
+    it('attachModalKeyboard receives arrow callbacks', () => {
+      mod.showCloseConfirm('sess-1', 'Test', mockOnConfirm);
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      expect(call.onArrowLeft).toBeTypeOf('function');
+      expect(call.onArrowRight).toBeTypeOf('function');
+      expect(call.onArrowUp).toBeTypeOf('function');
+      expect(call.onArrowDown).toBeTypeOf('function');
+    });
+
+    it('onArrowLeft toggles selectedIndex', () => {
+      mod.showCloseConfirm('sess-1', 'Test', mockOnConfirm);
+      expect(mod.closeConfirmState.selectedIndex).toBe(0);
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      call.onArrowLeft();
+      expect(mod.closeConfirmState.selectedIndex).toBe(1);
+      call.onArrowLeft();
+      expect(mod.closeConfirmState.selectedIndex).toBe(0);
+    });
+
+    it('onArrowRight toggles selectedIndex', () => {
+      mod.showCloseConfirm('sess-1', 'Test', mockOnConfirm);
+      expect(mod.closeConfirmState.selectedIndex).toBe(0);
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      call.onArrowRight();
+      expect(mod.closeConfirmState.selectedIndex).toBe(1);
+    });
+
+    it('onArrowUp toggles selectedIndex', () => {
+      mod.showCloseConfirm('sess-1', 'Test', mockOnConfirm);
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      call.onArrowUp();
+      expect(mod.closeConfirmState.selectedIndex).toBe(1);
+    });
+
+    it('onArrowDown toggles selectedIndex', () => {
+      mod.showCloseConfirm('sess-1', 'Test', mockOnConfirm);
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      call.onArrowDown();
+      expect(mod.closeConfirmState.selectedIndex).toBe(1);
+    });
+
+    it('arrow callbacks update btn--focused classes', () => {
+      mod.showCloseConfirm('sess-1', 'Test', mockOnConfirm);
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      call.onArrowRight();
+      const closeBtn = document.getElementById('closeConfirmCloseBtn')!;
+      const cancelBtn = document.getElementById('closeConfirmCancelBtn')!;
+      expect(closeBtn.classList.contains('btn--focused')).toBe(true);
+      expect(cancelBtn.classList.contains('btn--focused')).toBe(false);
+    });
+  });
 });

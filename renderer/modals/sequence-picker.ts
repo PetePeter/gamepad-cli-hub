@@ -61,6 +61,16 @@ export function showSequencePicker(items: SequenceListItem[], onSelect: (sequenc
     onAccept: () => executeSelectedItem(),
     onCancel: () => hideSequencePicker(),
     blockAllKeys: true,
+    onArrowUp: () => {
+      const count = sequencePickerState.items.length;
+      sequencePickerState.selectedIndex = ((sequencePickerState.selectedIndex - 1) % count + count) % count;
+      renderSequencePicker();
+    },
+    onArrowDown: () => {
+      const count = sequencePickerState.items.length;
+      sequencePickerState.selectedIndex = (sequencePickerState.selectedIndex + 1) % count;
+      renderSequencePicker();
+    },
   });
 
   logEvent('Sequence picker opened');

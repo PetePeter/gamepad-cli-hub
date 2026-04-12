@@ -239,6 +239,108 @@ describe('modal-base', () => {
     });
   });
 
+  describe('custom arrow callbacks', () => {
+    let cleanup: () => void;
+    let onArrowUp: ReturnType<typeof vi.fn>;
+    let onArrowDown: ReturnType<typeof vi.fn>;
+    let onArrowLeft: ReturnType<typeof vi.fn>;
+    let onArrowRight: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      onArrowUp = vi.fn();
+      onArrowDown = vi.fn();
+      onArrowLeft = vi.fn();
+      onArrowRight = vi.fn();
+      cleanup = attachModalKeyboard({
+        onAccept: vi.fn(),
+        onCancel: vi.fn(),
+        onArrowUp,
+        onArrowDown,
+        onArrowLeft,
+        onArrowRight,
+      });
+    });
+
+    afterEach(() => {
+      cleanup();
+    });
+
+    it('ArrowUp calls onArrowUp instead of default focus cycling', () => {
+      const e = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(onArrowUp).toHaveBeenCalledOnce();
+      expect(e.defaultPrevented).toBe(true);
+    });
+
+    it('ArrowDown calls onArrowDown instead of default focus cycling', () => {
+      const e = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(onArrowDown).toHaveBeenCalledOnce();
+      expect(e.defaultPrevented).toBe(true);
+    });
+
+    it('ArrowLeft calls onArrowLeft', () => {
+      const e = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(onArrowLeft).toHaveBeenCalledOnce();
+      expect(e.defaultPrevented).toBe(true);
+    });
+
+    it('ArrowRight calls onArrowRight', () => {
+      const e = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(onArrowRight).toHaveBeenCalledOnce();
+      expect(e.defaultPrevented).toBe(true);
+    });
+
+    it('ArrowLeft without handler does not preventDefault', () => {
+      cleanup();
+      cleanup = attachModalKeyboard({
+        onAccept: vi.fn(),
+        onCancel: vi.fn(),
+      });
+      const e = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(e.defaultPrevented).toBe(false);
+    });
+
+    it('ArrowRight without handler does not preventDefault', () => {
+      cleanup();
+      cleanup = attachModalKeyboard({
+        onAccept: vi.fn(),
+        onCancel: vi.fn(),
+      });
+      const e = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+      expect(e.defaultPrevented).toBe(false);
+    });
+
+    it('custom onArrowUp suppresses default focus cycling', () => {
+      // Create a modal with focusable elements
+      const container = document.createElement('div');
+      container.className = 'modal';
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay modal--visible';
+      overlay.appendChild(container);
+      document.body.appendChild(overlay);
+
+      const input1 = document.createElement('input');
+      const input2 = document.createElement('input');
+      container.appendChild(input1);
+      container.appendChild(input2);
+
+      input2.focus();
+
+      // With custom handler, focus should NOT move
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+      expect(onArrowUp).toHaveBeenCalledOnce();
+      // Focus stays on input2 — custom handler doesn't do DOM focus cycling
+      expect(document.activeElement).toBe(input2);
+
+      document.body.removeChild(overlay);
+    });
+  });
+
   describe('showFormModal browse button', () => {
     beforeEach(() => {
       const modal = document.createElement('div');

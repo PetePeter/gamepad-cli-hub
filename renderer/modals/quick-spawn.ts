@@ -68,6 +68,15 @@ export function showQuickSpawn(
     onAccept: () => executeSelectedItem(),
     onCancel: () => hideQuickSpawn(),
     blockAllKeys: true,
+    onArrowUp: () => {
+      quickSpawnState.selectedIndex = Math.max(0, quickSpawnState.selectedIndex - 1);
+      renderQuickSpawn();
+    },
+    onArrowDown: () => {
+      const count = quickSpawnState.cliTypes.length;
+      quickSpawnState.selectedIndex = Math.min(count - 1, quickSpawnState.selectedIndex + 1);
+      renderQuickSpawn();
+    },
   });
 
   logEvent('Quick spawn opened');

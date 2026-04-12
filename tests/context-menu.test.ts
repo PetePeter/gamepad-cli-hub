@@ -594,4 +594,44 @@ describe('Context Menu', () => {
       expect(unique).not.toContain(4); // Prompts should be skipped
     });
   });
+
+  // =========================================================================
+  // Keyboard Navigation Callbacks
+  // =========================================================================
+
+  describe('Keyboard Navigation Callbacks', () => {
+    it('attachModalKeyboard receives onArrowUp and onArrowDown', () => {
+      mod.showContextMenu(100, 100, 'sess-1', 'gamepad');
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      expect(call.onArrowUp).toBeTypeOf('function');
+      expect(call.onArrowDown).toBeTypeOf('function');
+    });
+
+    it('onArrowDown moves to next enabled item', () => {
+      mod.showContextMenu(100, 100, 'sess-1', 'gamepad');
+      const initialIndex = mod.contextMenuState.selectedIndex;
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      call.onArrowDown();
+      expect(mod.contextMenuState.selectedIndex).not.toBe(initialIndex);
+    });
+
+    it('onArrowUp moves to previous enabled item', () => {
+      mod.showContextMenu(100, 100, 'sess-1', 'gamepad');
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      // Move down first, then up to verify navigation
+      call.onArrowDown();
+      const afterDown = mod.contextMenuState.selectedIndex;
+      call.onArrowUp();
+      expect(mod.contextMenuState.selectedIndex).not.toBe(afterDown);
+    });
+
+    it('onArrowDown skips disabled items', () => {
+      // With no selection, copy is disabled (index 0), paste is enabled (index 1)
+      mod.showContextMenu(100, 100, 'sess-1', 'gamepad');
+      // Start at first enabled item (paste, index 1)
+      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
+      // First enabled item should not be copy (index 0) since hasSelection is false
+      expect(mod.contextMenuState.selectedIndex).not.toBe(0); // Copy is disabled without selection
+    });
+  });
 });

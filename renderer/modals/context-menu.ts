@@ -128,6 +128,14 @@ export function showContextMenu(x: number, y: number, sessionId: string, mode: '
     onAccept: () => executeSelectedItem(),
     onCancel: () => hideContextMenu(),
     blockAllKeys: true,
+    onArrowUp: () => {
+      contextMenuState.selectedIndex = findNextEnabledIndex(contextMenuState.selectedIndex, 'up');
+      renderContextMenu();
+    },
+    onArrowDown: () => {
+      contextMenuState.selectedIndex = findNextEnabledIndex(contextMenuState.selectedIndex, 'down');
+      renderContextMenu();
+    },
   });
 
   logEvent('Context menu opened');
