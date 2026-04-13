@@ -209,23 +209,25 @@ describe('TerminalView', () => {
     expect(lastTerminal().scrollLines).toHaveBeenCalledWith(-5);
   });
 
-  it('scroll() sends PageDown escape in alternate buffer', () => {
+  it('scroll() sends PageDown AND scrollLines in alternate buffer', () => {
     const onScrollInput = vi.fn();
     const view = new TerminalView({ sessionId: 'scroll-alt-dn', container, onScrollInput });
     lastTerminal().buffer.active.type = 'alternate';
 
     view.scroll('down', 3);
+    // Both: scrollbar update + PTY escape sequence
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(3);
     expect(onScrollInput).toHaveBeenCalledTimes(3);
     expect(onScrollInput).toHaveBeenCalledWith('\x1b[6~');
-    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
   });
 
-  it('scroll() sends PageUp escape in alternate buffer', () => {
+  it('scroll() sends PageUp AND scrollLines in alternate buffer', () => {
     const onScrollInput = vi.fn();
     const view = new TerminalView({ sessionId: 'scroll-alt-up', container, onScrollInput });
     lastTerminal().buffer.active.type = 'alternate';
 
     view.scroll('up', 2);
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(-2);
     expect(onScrollInput).toHaveBeenCalledTimes(2);
     expect(onScrollInput).toHaveBeenCalledWith('\x1b[5~');
   });
@@ -236,6 +238,7 @@ describe('TerminalView', () => {
     lastTerminal().buffer.active.type = 'alternate';
 
     view.scroll('down', 1);
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(1);
     expect(onData).toHaveBeenCalledWith('\x1b[6~');
   });
 
@@ -794,6 +797,46 @@ describe('TerminalView — custom key handler', () => {
     const result = handler({ key: 'a', ctrlKey: false } as KeyboardEvent);
     expect(result).toBe(true);
   });
+
+  it('PageDown in alternate buffer calls scrollLines and returns true', () => {
+    new TerminalView({ sessionId: 'ckh-pgdn', container });
+    lastTerminal().buffer.active.type = 'alternate';
+    lastTerminal().rows = 30;
+    const handler = lastTerminal().attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
+
+    const result = handler({ key: 'PageDown', type: 'keydown', ctrlKey: false } as KeyboardEvent);
+    expect(result).toBe(true); // still let xterm.js send escape to PTY
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(30);
+  });
+
+  it('PageUp in alternate buffer calls scrollLines with negative lines', () => {
+    new TerminalView({ sessionId: 'ckh-pgup', container });
+    lastTerminal().buffer.active.type = 'alternate';
+    const handler = lastTerminal().attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
+
+    const result = handler({ key: 'PageUp', type: 'keydown', ctrlKey: false } as KeyboardEvent);
+    expect(result).toBe(true);
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(-30); // terminal.rows = 30
+  });
+
+  it('PageDown in normal buffer does not call scrollLines (xterm handles it)', () => {
+    new TerminalView({ sessionId: 'ckh-pgdn-norm', container });
+    lastTerminal().buffer.active.type = 'normal';
+    const handler = lastTerminal().attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
+
+    const result = handler({ key: 'PageDown', type: 'keydown', ctrlKey: false } as KeyboardEvent);
+    expect(result).toBe(true);
+    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
+  });
+
+  it('PageUp keyup event does not trigger scrollLines', () => {
+    new TerminalView({ sessionId: 'ckh-pgup-up', container });
+    lastTerminal().buffer.active.type = 'alternate';
+    const handler = lastTerminal().attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
+
+    handler({ key: 'PageUp', type: 'keyup', ctrlKey: false } as KeyboardEvent);
+    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -801,9 +844,9 @@ describe('TerminalView — custom key handler', () => {
 // ---------------------------------------------------------------------------
 // xterm.js v6 replaced the old .xterm-viewport scroll with SmoothScrollableElement
 // (.xterm-scrollable-element). Our capture-phase listener on the container
-// intercepts wheel events BEFORE SmoothScrollableElement for alternate-buffer
-// terminals (sends PageUp/PageDown to PTY). Normal-buffer scroll is handled
-// natively by SmoothScrollableElement.
+// intercepts wheel events BEFORE SmoothScrollableElement and always uses
+// scrollLines() directly. Mouse wheel never sends PageUp/PageDown to PTY —
+// that path is reserved for gamepad scroll via scroll().
 // ---------------------------------------------------------------------------
 
 describe('TerminalView — container wheel listener (v6)', () => {
@@ -842,7 +885,7 @@ describe('TerminalView — container wheel listener (v6)', () => {
     expect(lastTerminal().scrollLines).toHaveBeenCalledWith(3); // 120/40 = 3
   });
 
-  it('sends PageDown via onScrollInput on wheel down in alternate buffer', () => {
+  it('uses scrollLines() even in alternate buffer (mouse always scrolls viewport)', () => {
     const onScrollInput = vi.fn();
     new TerminalView({ sessionId: 'dwl-5', container, onScrollInput });
     lastTerminal().buffer.active.type = 'alternate';
@@ -850,13 +893,13 @@ describe('TerminalView — container wheel listener (v6)', () => {
     const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
     container.dispatchEvent(ev);
 
-    // 120/40 = 3 PageDown sequences via scroll callback
-    expect(onScrollInput).toHaveBeenCalledTimes(3);
-    expect(onScrollInput).toHaveBeenCalledWith('\x1b[6~'); // PageDown
-    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
+    // Mouse wheel always scrolls viewport — no PageUp/Down sent to PTY
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(3);
+    expect(onScrollInput).not.toHaveBeenCalled();
+    expect(ev.defaultPrevented).toBe(true);
   });
 
-  it('sends PageUp via onScrollInput on wheel up in alternate buffer', () => {
+  it('uses scrollLines() for wheel up in alternate buffer', () => {
     const onScrollInput = vi.fn();
     new TerminalView({ sessionId: 'dwl-6', container, onScrollInput });
     lastTerminal().buffer.active.type = 'alternate';
@@ -864,45 +907,7 @@ describe('TerminalView — container wheel listener (v6)', () => {
     const ev = new WheelEvent('wheel', { deltaY: -80, cancelable: true, bubbles: true });
     container.dispatchEvent(ev);
 
-    // 80/40 = 2 PageUp sequences
-    expect(onScrollInput).toHaveBeenCalledTimes(2);
-    expect(onScrollInput).toHaveBeenCalledWith('\x1b[5~'); // PageUp
-    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
-  });
-
-  it('sends at least 1 PageDown for small deltaY in alternate buffer', () => {
-    const onScrollInput = vi.fn();
-    new TerminalView({ sessionId: 'dwl-7', container, onScrollInput });
-    lastTerminal().buffer.active.type = 'alternate';
-
-    const ev = new WheelEvent('wheel', { deltaY: 10, cancelable: true, bubbles: true });
-    container.dispatchEvent(ev);
-
-    expect(onScrollInput).toHaveBeenCalledTimes(1);
-    expect(onScrollInput).toHaveBeenCalledWith('\x1b[6~');
-  });
-
-  it('falls back to onData when onScrollInput is not provided', () => {
-    const onData = vi.fn();
-    new TerminalView({ sessionId: 'dwl-fb', container, onData });
-    lastTerminal().buffer.active.type = 'alternate';
-
-    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
-    container.dispatchEvent(ev);
-
-    expect(onData).toHaveBeenCalledTimes(3);
-    expect(onData).toHaveBeenCalledWith('\x1b[6~');
-  });
-
-  it('still intercepts wheel in alternate buffer without any callback (no scroll, but prevented)', () => {
-    new TerminalView({ sessionId: 'dwl-8', container });
-    lastTerminal().buffer.active.type = 'alternate';
-
-    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
-    container.dispatchEvent(ev);
-
-    // Wheel always intercepted — scroll() is a no-op when no callback
-    expect(ev.defaultPrevented).toBe(true);
-    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(-2);
+    expect(onScrollInput).not.toHaveBeenCalled();
   });
 });

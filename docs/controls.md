@@ -44,16 +44,29 @@ When a button is pressed, the navigation system checks handlers in this order:
 4. Form modal (A/B only)
 5. Close confirmation modal
 6. Quick-spawn picker
-7. Draft action picker (per-draft Apply/Edit/Delete)
-8. Draft submenu (Drafts list from context menu)
-9. Context menu
-10. Sequence picker
-11. Group overview (when visible)
-12. Screen-specific routing (sessions / settings)
-13. Config binding fallback (per-CLI bindings)
+7. Draft editor panel (D-pad/A/B field navigation)
+8. Draft action picker (per-draft Apply/Edit/Delete)
+9. Draft submenu (Drafts list from context menu)
+10. Context menu
+11. Sequence picker
+12. Group overview (when visible)
+13. Screen-specific routing (sessions / settings)
+14. Config binding fallback (per-CLI bindings)
 
 The first handler that returns `true` (consumed) stops the chain.
 
 ## Draft Prompts
 
 The `new-draft` action type can be bound to any gamepad button to open the draft editor for the active session. Drafts can also be accessed via the **Drafts ►** submenu in the context menu, which provides New Draft, and per-draft Apply (send to PTY) / Edit / Delete actions.
+
+### Draft Editor Gamepad Navigation
+
+When the draft editor panel is visible, all gamepad input is captured (like a modal):
+
+| Input | Action |
+|-------|--------|
+| D-Pad Up/Down | Cycle focus: Title → Content → Save → Cancel (wraps) |
+| A | Activate focused element (click Save/Cancel buttons) |
+| B | Cancel and close the editor |
+
+Keyboard input flows through to the focused field normally — only gamepad navigation is intercepted.

@@ -35,7 +35,6 @@ tools:
     resumeCommand: copilot --resume={cliSessionName}
     continueCommand: copilot --continue
     handoffCommand: go implement it
-    stripAltScreen: true
     initialPrompt:
       - label: ""
         sequence: /allow-all{Enter}
@@ -76,6 +75,8 @@ workingDirectories:
     path: X:\homeassistant
   - name: stillhere
     path: X:\coding\stillhere
+  - name: GrapeJourney
+    path: X:\coding\Vitido
 bindings:
   claude-code:
     RightTrigger:
@@ -167,6 +168,10 @@ bindings:
     RightBumper:
       action: sequence-list
       sequenceGroup: prompts
+    Sandwich:
+      action: context-menu
+    Back:
+      action: context-menu
   generic-terminal:
     A:
       action: keyboard

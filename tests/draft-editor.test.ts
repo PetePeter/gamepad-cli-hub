@@ -21,6 +21,15 @@ vi.mock('../renderer/drafts/draft-strip.js', () => ({
   createDraftBadge: vi.fn(),
 }));
 
+vi.mock('../renderer/utils.js', () => ({
+  toDirection: (button: string) => {
+    if (button === 'DPadUp') return 'up';
+    if (button === 'DPadDown') return 'down';
+    return null;
+  },
+  logEvent: vi.fn(),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -275,6 +284,133 @@ describe('Draft Editor', () => {
 
       mod.showDraftEditor('session-1', { id: 'd1', label: 'Test', text: 'body' });
       expect(title.textContent).toContain('Edit Draft');
+    });
+  });
+
+  // =========================================================================
+  // handleDraftEditorButton — gamepad navigation
+  // =========================================================================
+
+  describe('handleDraftEditorButton', () => {
+    beforeEach(() => {
+      mod.initDraftEditor();
+      mod.showDraftEditor('session-1');
+    });
+
+    it('starts with focusIndex 0 (title)', () => {
+      expect(mod.draftEditorState.focusIndex).toBe(0);
+    });
+
+    it('D-pad Down cycles focus: title → content → save → cancel → title', () => {
+      mod.handleDraftEditorButton('DPadDown');
+      expect(mod.draftEditorState.focusIndex).toBe(1); // content
+      expect(document.activeElement?.id).toBe('draftContentInput');
+
+      mod.handleDraftEditorButton('DPadDown');
+      expect(mod.draftEditorState.focusIndex).toBe(2); // save
+      expect(document.activeElement?.id).toBe('draftSaveBtn');
+
+      mod.handleDraftEditorButton('DPadDown');
+      expect(mod.draftEditorState.focusIndex).toBe(3); // cancel
+      expect(document.activeElement?.id).toBe('draftCancelBtn');
+
+      mod.handleDraftEditorButton('DPadDown');
+      expect(mod.draftEditorState.focusIndex).toBe(0); // wraps to title
+      expect(document.activeElement?.id).toBe('draftLabelInput');
+    });
+
+    it('D-pad Up cycles focus in reverse', () => {
+      mod.handleDraftEditorButton('DPadUp');
+      expect(mod.draftEditorState.focusIndex).toBe(3); // wraps to cancel
+      expect(document.activeElement?.id).toBe('draftCancelBtn');
+
+      mod.handleDraftEditorButton('DPadUp');
+      expect(mod.draftEditorState.focusIndex).toBe(2); // save
+    });
+
+    it('A button on Save triggers save', async () => {
+      mockDraftCreate.mockResolvedValue({ id: 'new', sessionId: 'session-1', label: 'Test', text: '', createdAt: Date.now() });
+      const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement;
+      labelInput.value = 'Test';
+
+      // Navigate to Save button (index 2)
+      mod.handleDraftEditorButton('DPadDown'); // content
+      mod.handleDraftEditorButton('DPadDown'); // save
+      expect(mod.draftEditorState.focusIndex).toBe(2);
+
+      mod.handleDraftEditorButton('A');
+      await flush();
+
+      expect(mockDraftCreate).toHaveBeenCalled();
+    });
+
+    it('A button on Cancel closes editor', () => {
+      // Navigate to Cancel button (index 3)
+      mod.handleDraftEditorButton('DPadDown'); // content
+      mod.handleDraftEditorButton('DPadDown'); // save
+      mod.handleDraftEditorButton('DPadDown'); // cancel
+      expect(mod.draftEditorState.focusIndex).toBe(3);
+
+      mod.handleDraftEditorButton('A');
+      expect(mod.isDraftEditorVisible()).toBe(false);
+    });
+
+    it('B button closes editor from any position', () => {
+      mod.handleDraftEditorButton('DPadDown'); // content
+      mod.handleDraftEditorButton('B');
+      expect(mod.isDraftEditorVisible()).toBe(false);
+    });
+
+    it('A button is no-op on text fields', () => {
+      // At title (index 0)
+      mod.handleDraftEditorButton('A');
+      expect(mod.isDraftEditorVisible()).toBe(true);
+      expect(mockDraftCreate).not.toHaveBeenCalled();
+
+      // At content (index 1)
+      mod.handleDraftEditorButton('DPadDown');
+      mod.handleDraftEditorButton('A');
+      expect(mod.isDraftEditorVisible()).toBe(true);
+      expect(mockDraftCreate).not.toHaveBeenCalled();
+    });
+
+    it('highlights Save/Cancel buttons when focused', () => {
+      mod.handleDraftEditorButton('DPadDown'); // content
+      mod.handleDraftEditorButton('DPadDown'); // save
+      const saveBtn = document.getElementById('draftSaveBtn')!;
+      expect(saveBtn.classList.contains('btn--focused')).toBe(true);
+
+      mod.handleDraftEditorButton('DPadDown'); // cancel
+      const cancelBtn = document.getElementById('draftCancelBtn')!;
+      expect(cancelBtn.classList.contains('btn--focused')).toBe(true);
+      expect(saveBtn.classList.contains('btn--focused')).toBe(false);
+    });
+
+    it('removes button highlight when focus returns to inputs', () => {
+      mod.handleDraftEditorButton('DPadDown'); // content
+      mod.handleDraftEditorButton('DPadDown'); // save
+      mod.handleDraftEditorButton('DPadDown'); // cancel
+      mod.handleDraftEditorButton('DPadDown'); // wraps to title
+
+      const saveBtn = document.getElementById('draftSaveBtn')!;
+      const cancelBtn = document.getElementById('draftCancelBtn')!;
+      expect(saveBtn.classList.contains('btn--focused')).toBe(false);
+      expect(cancelBtn.classList.contains('btn--focused')).toBe(false);
+    });
+
+    it('clears stale btn--focused highlight on editor reopen', () => {
+      // Navigate to Save, then close with B
+      mod.handleDraftEditorButton('DPadDown'); // content
+      mod.handleDraftEditorButton('DPadDown'); // save
+      const saveBtn = document.getElementById('draftSaveBtn')!;
+      expect(saveBtn.classList.contains('btn--focused')).toBe(true);
+
+      mod.handleDraftEditorButton('B'); // close
+
+      // Reopen — stale highlight should be cleared
+      mod.showDraftEditor('session-1');
+      expect(saveBtn.classList.contains('btn--focused')).toBe(false);
+      expect(mod.draftEditorState.focusIndex).toBe(0);
     });
   });
 });

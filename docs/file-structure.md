@@ -67,7 +67,7 @@ renderer/
 ├── utils.ts                    # DOM helpers, logEvent, showScreen, toDirection
 ├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing, voice OS-default + PTY via target: 'terminal', F1-F12 VT220 escape sequences)
 ├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY
-├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → quickSpawn → draftAction → draftSubmenu → contextMenu → sequencePicker → overview → screen routing → configBinding fallback
+├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → quickSpawn → draftEditor → draftAction → draftSubmenu → contextMenu → sequencePicker → overview → screen routing → configBinding fallback
 ├── gamepad.ts                  # Browser Gamepad API wrapper + repeat engine
 ├── session-groups.ts           # Pure session grouping logic (by working directory) — types, grouping, nav list, reorder
 ├── sort-logic.ts               # Pure sort functions for sessions + bindings

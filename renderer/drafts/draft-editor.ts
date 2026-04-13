@@ -2,9 +2,11 @@
  * Draft Editor — slide-down panel for composing/editing drafts.
  * Appears between the tab bar/draft strip and the terminal.
  * When open, keyboard input routes here instead of the terminal.
+ * Gamepad D-pad navigates between fields; A activates; B cancels.
  */
 
 import { refreshDraftStrip } from './draft-strip.js';
+import { toDirection } from '../utils.js';
 
 export interface DraftEditorState {
   visible: boolean;
@@ -12,7 +14,10 @@ export interface DraftEditorState {
   draftId: string | null;  // null = creating new draft
   label: string;
   text: string;
+  focusIndex: number;      // 0=title, 1=content, 2=save, 3=cancel
 }
+
+const FOCUS_ELEMENTS = ['draftLabelInput', 'draftContentInput', 'draftSaveBtn', 'draftCancelBtn'] as const;
 
 export const draftEditorState: DraftEditorState = {
   visible: false,
@@ -20,6 +25,7 @@ export const draftEditorState: DraftEditorState = {
   draftId: null,
   label: '',
   text: '',
+  focusIndex: 0,
 };
 
 /** Create the draft editor DOM container once. Called at app startup. */
@@ -96,6 +102,7 @@ export function showDraftEditor(sessionId: string, existingDraft?: { id: string;
 
   draftEditorState.sessionId = sessionId;
   draftEditorState.visible = true;
+  draftEditorState.focusIndex = 0;
 
   const titleEl = editor.querySelector('.draft-editor-title');
   const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement | null;
@@ -118,7 +125,7 @@ export function showDraftEditor(sessionId: string, existingDraft?: { id: string;
   }
 
   editor.style.display = 'flex';
-  labelInput?.focus();
+  applyEditorFocus();
 }
 
 /** Hide the draft editor without saving. */
@@ -130,11 +137,55 @@ export function hideDraftEditor(): void {
   draftEditorState.draftId = null;
   draftEditorState.label = '';
   draftEditorState.text = '';
+  draftEditorState.focusIndex = 0;
 }
 
 /** Check if the draft editor is currently visible */
 export function isDraftEditorVisible(): boolean {
   return draftEditorState.visible;
+}
+
+/** Focus the element at the current focusIndex and update button highlights. */
+function applyEditorFocus(): void {
+  const id = FOCUS_ELEMENTS[draftEditorState.focusIndex];
+  const el = document.getElementById(id);
+  el?.focus();
+
+  // Highlight Save/Cancel buttons when focused via gamepad
+  for (const btnId of ['draftSaveBtn', 'draftCancelBtn']) {
+    document.getElementById(btnId)?.classList.remove('btn--focused');
+  }
+  if (id === 'draftSaveBtn' || id === 'draftCancelBtn') {
+    el?.classList.add('btn--focused');
+  }
+}
+
+/** Handle gamepad button presses while the draft editor is visible. */
+export function handleDraftEditorButton(button: string): void {
+  const dir = toDirection(button);
+
+  if (dir === 'down') {
+    draftEditorState.focusIndex = (draftEditorState.focusIndex + 1) % FOCUS_ELEMENTS.length;
+    applyEditorFocus();
+    return;
+  }
+  if (dir === 'up') {
+    draftEditorState.focusIndex = (draftEditorState.focusIndex - 1 + FOCUS_ELEMENTS.length) % FOCUS_ELEMENTS.length;
+    applyEditorFocus();
+    return;
+  }
+
+  switch (button) {
+    case 'A': {
+      const focused = FOCUS_ELEMENTS[draftEditorState.focusIndex];
+      if (focused === 'draftSaveBtn') saveDraft();
+      else if (focused === 'draftCancelBtn') hideDraftEditor();
+      break;
+    }
+    case 'B':
+      hideDraftEditor();
+      break;
+  }
 }
 
 /** Save the current draft (create or update). Returns the saved draft. */

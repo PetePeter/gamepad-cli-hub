@@ -20,6 +20,7 @@ import { sequencePickerState, handleSequencePickerButton } from './modals/sequen
 import { closeConfirmState, handleCloseConfirmButton } from './modals/close-confirm.js';
 import { quickSpawnState, handleQuickSpawnButton } from './modals/quick-spawn.js';
 import { isDraftSubmenuVisible, handleDraftSubmenuButton, isDraftActionVisible, handleDraftActionButton } from './modals/draft-submenu.js';
+import { isDraftEditorVisible, handleDraftEditorButton } from './drafts/draft-editor.js';
 import { formModalVisible } from './utils.js';
 import { getTerminalManager } from './main.js';
 import { sessionsState } from './screens/sessions-state.js';
@@ -160,6 +161,12 @@ export function handleGamepadEvent(event: ButtonEvent): void {
   // Quick-spawn CLI type picker intercepts all input when visible
   if (quickSpawnState.visible) {
     handleQuickSpawnButton(event.button);
+    return;
+  }
+
+  // Draft editor captures gamepad for field navigation (D-pad/A/B)
+  if (isDraftEditorVisible()) {
+    handleDraftEditorButton(event.button);
     return;
   }
 

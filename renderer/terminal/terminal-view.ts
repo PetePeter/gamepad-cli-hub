@@ -77,23 +77,33 @@ export class TerminalView {
 
     this.terminal.open(this.container);
 
-    // Let Ctrl+Tab/Ctrl+Shift+Tab pass through to the global handler
+    // Let Ctrl+Tab/Ctrl+Shift+Tab pass through to the global handler.
+    // In alternate buffer, also scroll the viewport on PageUp/PageDown so
+    // the scrollbar stays in sync (xterm.js only sends escape to PTY).
     this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
       if (event.key === 'Tab' && event.ctrlKey) {
         return false;
+      }
+      if (event.type === 'keydown' &&
+          (event.key === 'PageUp' || event.key === 'PageDown') &&
+          this.terminal.buffer.active.type === 'alternate') {
+        const pageLines = this.terminal.rows;
+        this.terminal.scrollLines(event.key === 'PageDown' ? pageLines : -pageLines);
       }
       return true;
     });
 
     // Capture-phase wheel listener — intercepts before xterm.js v6's
     // SmoothScrollableElement (.xterm-scrollable-element) swallows events.
-    // Delegates to scroll() which handles both buffer modes.
+    // Always scrolls the xterm.js viewport (scrollbar). In alternate buffer
+    // this is a no-op (no scrollback) — gamepad scroll handles that path
+    // via scroll() which sends PageUp/PageDown to the PTY.
     this.container.addEventListener('wheel', (e) => {
       const we = e as WheelEvent;
       const lines = Math.max(1, Math.round(Math.abs(we.deltaY) / 40));
       e.preventDefault();
       e.stopPropagation();
-      this.scroll(we.deltaY > 0 ? 'down' : 'up', lines);
+      this.terminal.scrollLines(we.deltaY > 0 ? lines : -lines);
     }, { passive: false, capture: true });
 
     this.fit();
@@ -178,18 +188,20 @@ export class TerminalView {
   }
 
   /**
-   * Buffer-aware scroll — handles both normal and alternate modes.
+   * Buffer-aware scroll — always updates scrollbar, sends to PTY in alternate mode.
    *
-   * Normal buffer: scrolls the xterm.js viewport directly (bypasses
-   *   SmoothScrollableElement which has sync issues with scrollback that
-   *   grows via ED 2 — xterm.js #5620).
-   * Alternate buffer: sends PageUp/PageDown escape sequences to the PTY
-   *   (no scrollback exists). Uses scrollCallback (pty:scrollInput) to
-   *   avoid false AIAGENT state changes from screen redraws.
+   * Always calls scrollLines() so the scrollbar stays in sync.
+   * In alternate buffer, also sends PageUp/PageDown escape sequences to the
+   * PTY so the CLI app scrolls its content. Uses scrollCallback (pty:scrollInput)
+   * to avoid false AIAGENT state changes from screen redraws.
    */
   scroll(direction: 'up' | 'down', lines: number): void {
     if (this.disposed) return;
 
+    // Always scroll the viewport (updates scrollbar in normal buffer)
+    this.terminal.scrollLines(direction === 'down' ? lines : -lines);
+
+    // In alternate buffer, also send PageUp/PageDown to the PTY
     if (this.terminal.buffer.active.type === 'alternate') {
       const cb = this.scrollCallback || this.writeCallback;
       if (cb) {
@@ -198,8 +210,6 @@ export class TerminalView {
           cb(key);
         }
       }
-    } else {
-      this.terminal.scrollLines(direction === 'down' ? lines : -lines);
     }
   }
 
