@@ -33,6 +33,8 @@ export interface TelegramModules {
   handleActivityChange: (sessionId: string, level: import('../types/session.js').ActivityLevel) => void;
   /** Forward state-change events — triggers immediate flush on idle/completed */
   handleStateChange: (sessionId: string, newState: import('../types/session.js').SessionState) => void;
+  /** Forward question-detected events — triggers delayed flush to capture question rendering */
+  handleQuestionDetected: (sessionId: string) => void;
   /** Track in-app PTY input — echoes prompts to Telegram on Enter */
   trackInput: (sessionId: string, data: string) => void;
   cleanup: () => void;
@@ -95,6 +97,10 @@ export function initTelegramModules(
     handleStateChange: (sessionId: string, newState: import('../types/session.js').SessionState) => {
       if (!bot.isRunning()) return;
       terminalMirror.handleStateChange(sessionId, newState);
+    },
+    handleQuestionDetected: (sessionId: string) => {
+      if (!bot.isRunning()) return;
+      terminalMirror.handleQuestionDetected(sessionId);
     },
     trackInput: (sessionId: string, data: string) => {
       if (!bot.isRunning()) return;

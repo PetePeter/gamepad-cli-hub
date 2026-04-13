@@ -171,9 +171,9 @@ describe('stripAltScreen', () => {
     expect(stripAltScreen(input)).toBe('');
   });
 
-  // Transforms clear screen to prevent scrollback pollution
-  it('transforms \\x1b[2J to cursor-home + erase-below', () => {
-    expect(stripAltScreen('\x1b[2J')).toBe('\x1b[H\x1b[J');
+  // ED 2 passes through — xterm.js pushes viewport to scrollback on ED 2
+  it('preserves \\x1b[2J (clear screen)', () => {
+    expect(stripAltScreen('\x1b[2J')).toBe('\x1b[2J');
   });
 
   it('preserves cursor movement sequences', () => {
@@ -216,8 +216,8 @@ describe('stripAltScreen', () => {
   it('strips full alt screen enter/exit cycle', () => {
     const enter = '\x1b[?1049h\x1b[2J\x1b[H';
     const exit = '\x1b[?1049l';
-    // \x1b[2J transformed to \x1b[H\x1b[J — cursor home already present, so two homes
-    expect(stripAltScreen(enter)).toBe('\x1b[H\x1b[J\x1b[H');
+    // Alt screen stripped, ED 2 preserved for scrollback
+    expect(stripAltScreen(enter)).toBe('\x1b[2J\x1b[H');
     expect(stripAltScreen(exit)).toBe('');
   });
 });
@@ -247,8 +247,8 @@ describe('applyPtyFilters', () => {
     expect(applyPtyFilters('\x1b[?1049h')).toBe('\x1b[?1049h');
   });
 
-  it('preserves \\x1b[2J when stripAltScreen is false', () => {
-    expect(applyPtyFilters('\x1b[2J')).toBe('\x1b[2J');
+  it('preserves \\x1b[2J when stripAltScreen is true (pushes to scrollback)', () => {
+    expect(applyPtyFilters('\x1b[2J', { stripAltScreen: true })).toBe('\x1b[2J');
   });
 
   // Combined mode
@@ -262,14 +262,15 @@ describe('applyPtyFilters', () => {
     expect(applyPtyFilters(input, { stripAltScreen: true })).toBe('\x1b[?25h');
   });
 
-  it('transforms \\x1b[2J when stripAltScreen is true', () => {
-    expect(applyPtyFilters('\x1b[2J', { stripAltScreen: true })).toBe('\x1b[H\x1b[J');
+  it('preserves \\x1b[2J regardless of stripAltScreen', () => {
+    expect(applyPtyFilters('\x1b[2J')).toBe('\x1b[2J');
+    expect(applyPtyFilters('\x1b[2J', { stripAltScreen: true })).toBe('\x1b[2J');
   });
 
   it('handles full TUI redraw cycle', () => {
     const input = '\x1b[?1049h\x1b[?1000h\x1b[2J\x1b[Hcontent\x1b[3J';
     const result = applyPtyFilters(input, { stripAltScreen: true });
-    expect(result).toBe('\x1b[H\x1b[J\x1b[Hcontent');
+    expect(result).toBe('\x1b[2J\x1b[Hcontent');
   });
 
   it('strips ED 3 only when stripAltScreen is true', () => {

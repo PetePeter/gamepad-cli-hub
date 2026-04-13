@@ -46,7 +46,7 @@ src/
 │   ├── output-summarizer.ts    # PTY buffer → 3-5 line smart summary
 │   ├── pinned-dashboard.ts     # Auto-updating pinned message with all-sessions status + Close All button
 │   ├── reply-keyboard.ts       # Persistent reply keyboard for most-used actions
-│   ├── terminal-mirror.ts      # Bidirectional topic↔PTY bridge: buffer+edit output streaming, ANSI stripping, input forwarding
+│   ├── terminal-mirror.ts      # Activity-gated PTY→Telegram mirror: buffers output, flushes on activity/state/question triggers, ANSI+noise stripping, dedup guard
 │   ├── text-input.ts           # Free-text input with confirmation step
 │   ├── topic-input.ts          # Topic message → PTY stdin forwarding
 │   ├── topic-manager.ts        # Forum topic lifecycle: ensureTopic on session:added, deleteForumTopic on session:removed

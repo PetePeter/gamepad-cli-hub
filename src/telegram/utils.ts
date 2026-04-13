@@ -22,8 +22,7 @@ export function stripAnsi(text: string): string {
 
 /** Noise patterns to remove from terminal output before sending to Telegram. */
 const NOISE_PATTERNS: RegExp[] = [
-  /^.*esc to cancel.*$/gim,
-  /^.*press escape to cancel.*$/gim,
+  /^\s*[│╎┃|]*\s*(?:↑↓[^·]*·\s*)?(?:enter[^·]*·\s*)?(?:press\s+)?esc(?:ape)?\s+to\s+cancel\s*[│╎┃|]*\s*$/gim,
   /^.*\bthinking\b\.{0,3}\s*$/gim,
   /^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏].*$/gm,              // Braille spinner lines (must start with spinner char)
   /^[-\\|/]\s*$/gm,                            // ASCII spinner frames (single char lines)

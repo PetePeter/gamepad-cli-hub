@@ -9,8 +9,10 @@
  * we strip them so text selection and mouse wheel scrolling always work natively.
  *
  * Alternate screen stripping keeps CLI output in the normal scrollback buffer.
- * When active, also transforms \x1b[2J (clear screen) to \x1b[H\x1b[J
- * (cursor home + erase below) to prevent scrollback pollution from TUI redraws.
+ * ED 3 (erase scrollback) is also stripped to preserve the buffer we're building.
+ * ED 2 (clear screen) is intentionally left through — xterm.js pushes viewport
+ * content into scrollback on ED 2, which is the mechanism that makes the
+ * scrollbar work for full-screen TUI CLIs.
  */
 
 // DEC private mode codes to strip (both enable 'h' and disable 'l')
@@ -38,10 +40,6 @@ const ALT_SCREEN_MODES = new Set(['47', '1047', '1048', '1049']);
 // ED 3 — erase scrollback buffer
 const ERASE_SCROLLBACK_RE = /\x1b\[3J/g;
 
-// ED 2 — clear entire screen. When alt screen is stripped, we transform
-// this to cursor-home + erase-below to prevent scrollback pollution.
-const CLEAR_SCREEN_RE = /\x1b\[2J/g;
-
 // Compound DEC mode sequences (semicolon-separated) that may embed
 // modes we need to strip (e.g. \x1b[?1049;1007h)
 const COMPOUND_MODE_RE = /\x1b\[\?([\d;]+)[hl]/g;
@@ -49,7 +47,6 @@ const COMPOUND_MODE_RE = /\x1b\[\?([\d;]+)[hl]/g;
 // Escape sequence detection for fast-path checks
 const HAS_DEC_PRIVATE = '\x1b[?';
 const HAS_ED3 = '\x1b[3J';
-const HAS_ED2 = '\x1b[2J';
 
 export interface PtyFilterOptions {
   stripAltScreen?: boolean;
@@ -65,9 +62,8 @@ export function applyPtyFilters(data: string, opts?: PtyFilterOptions): string {
   // Fast path: if no DEC private mode or ED sequences, nothing to filter
   const hasDec = data.includes(HAS_DEC_PRIVATE);
   const hasEd3 = doAltScreen && data.includes(HAS_ED3);
-  const hasEd2 = doAltScreen && data.includes(HAS_ED2);
 
-  if (!hasDec && !hasEd3 && !hasEd2) return data;
+  if (!hasDec && !hasEd3) return data;
 
   let result = data;
 
@@ -79,10 +75,6 @@ export function applyPtyFilters(data: string, opts?: PtyFilterOptions): string {
 
   // Strip ED 3 (erase scrollback)
   if (hasEd3) result = result.replace(ERASE_SCROLLBACK_RE, '');
-
-  // Transform ED 2 (clear screen) → cursor home + erase below.
-  // Prevents TUI redraws from pushing stale frames into scrollback.
-  if (hasEd2) result = result.replace(CLEAR_SCREEN_RE, '\x1b[H\x1b[J');
 
   // Single compound-mode pass: strip both mouse AND alt screen modes
   if (hasDec) {
@@ -106,8 +98,7 @@ export function stripMouseTracking(data: string): string {
 }
 
 /**
- * Strip alternate screen buffer, scrollback-clear (ED 3), mouse tracking,
- * and transform ED 2 clear-screen to cursor-home + erase-below.
+ * Strip alternate screen buffer, scrollback-clear (ED 3), and mouse tracking.
  * Keeps CLI output in the normal buffer so xterm.js scrollback works.
  */
 export function stripAltScreen(data: string): string {

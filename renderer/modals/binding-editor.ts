@@ -30,7 +30,7 @@ let cleanupKeyboard: (() => void) | null = null;
 // Constants
 // ============================================================================
 
-const ACTION_TYPES = ['keyboard', 'voice', 'scroll', 'sequence-list'] as const;
+const ACTION_TYPES = ['keyboard', 'voice', 'scroll', 'context-menu', 'sequence-list', 'new-draft'] as const;
 
 // ============================================================================
 // Open / Close
@@ -451,7 +451,7 @@ function collectBindingFromForm(): any | null {
       return collectSequenceListFromForm();
     }
     default:
-      return null;
+      return { action };
   }
 }
 

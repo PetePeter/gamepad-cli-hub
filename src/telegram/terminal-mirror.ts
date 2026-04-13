@@ -56,8 +56,15 @@ interface MirrorState {
   recentDigests: string[];
 }
 
+/** Delay (ms) for follow-up flush after state change (captures post-transition content) */
+const FOLLOW_UP_FLUSH_MS = 3000;
+
+/** Delay (ms) for flush after question detection */
+const QUESTION_FLUSH_MS = 2000;
+
 export class TerminalMirror {
   private mirrors: Map<string, MirrorState> = new Map();
+  private followUpTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
   constructor(
     private bot: TelegramBotCore,
@@ -100,12 +107,21 @@ export class TerminalMirror {
   /**
    * Handle AIAGENT state change from StateDetector.
    * Immediately flushes buffered output when CLI enters idle or completed state,
-   * so questions and completion summaries reach Telegram without the 10s activity delay.
+   * then schedules a follow-up flush to capture post-transition content (e.g., questions).
    */
   handleStateChange(sessionId: string, newState: SessionState): void {
     if (newState === 'idle' || newState === 'completed') {
       this.flush(sessionId);
+      this.scheduleFollowUpFlush(sessionId, FOLLOW_UP_FLUSH_MS);
     }
+  }
+
+  /**
+   * Handle question detection from StateDetector.
+   * Schedules a short delayed flush to capture the full question rendering.
+   */
+  handleQuestionDetected(sessionId: string): void {
+    this.scheduleFollowUpFlush(sessionId, QUESTION_FLUSH_MS);
   }
 
   /**
@@ -179,17 +195,43 @@ export class TerminalMirror {
 
   /** Remove a session's mirror state. */
   removeSession(sessionId: string): void {
+    this.cancelFollowUpTimer(sessionId);
     this.mirrors.delete(sessionId);
   }
 
   /** Clean up all mirrors. */
   dispose(): void {
+    for (const timer of this.followUpTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.followUpTimers.clear();
     this.mirrors.clear();
   }
 
   // ==========================================================================
   // Private
   // ==========================================================================
+
+  /**
+   * Schedule a delayed follow-up flush for a session.
+   * Cancels any existing follow-up timer for the same session.
+   */
+  private scheduleFollowUpFlush(sessionId: string, delayMs: number): void {
+    this.cancelFollowUpTimer(sessionId);
+    const timer = setTimeout(() => {
+      this.followUpTimers.delete(sessionId);
+      this.flush(sessionId);
+    }, delayMs);
+    this.followUpTimers.set(sessionId, timer);
+  }
+
+  private cancelFollowUpTimer(sessionId: string): void {
+    const existing = this.followUpTimers.get(sessionId);
+    if (existing) {
+      clearTimeout(existing);
+      this.followUpTimers.delete(sessionId);
+    }
+  }
 
   private createState(topicId: number): MirrorState {
     return {
@@ -209,12 +251,23 @@ export class TerminalMirror {
     const raw = state.buffer;
     state.buffer = '';
 
+    // Diagnostic: log raw buffer sample for debugging question capture
+    const rawSample = raw.slice(-500).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '·');
+    logger.debug(`[TerminalMirror] Flush raw tail (${raw.length} chars): ${rawSample}`);
+
     let cleaned = cleanTerminalOutput(raw);
-    if (!cleaned.trim()) return;
+    if (!cleaned.trim()) {
+      logger.debug(`[TerminalMirror] Flush for ${sessionId}: cleaned content empty, skipping`);
+      return;
+    }
 
     // Strip shell echoes of recently-inputted commands
     cleaned = stripEchoes(cleaned, state.pendingEchoes);
     if (!cleaned.trim()) return;
+
+    // Diagnostic: log cleaned content sample
+    const cleanedSample = cleaned.slice(-500);
+    logger.debug(`[TerminalMirror] Flush cleaned tail (${cleaned.length} chars): ${cleanedSample}`);
 
     // Content fingerprint guard — skip if identical to a recent message
     const digest = simpleHash(cleaned);

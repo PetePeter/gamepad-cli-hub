@@ -501,22 +501,9 @@ describe('TerminalManager', () => {
     mgr.dispose();
   });
 
-  it('writeToTerminal transforms clear screen when stripAltScreen is enabled', async () => {
+  it('writeToTerminal preserves clear screen in both modes (needed for scrollback)', async () => {
     const mgr = new TerminalManager(container);
     await mgr.createTerminal('s1', 'copilot-cli', 'copilot', [], undefined, undefined, undefined, true);
-
-    const mockTerm = terminalInstances[terminalInstances.length - 1];
-    mockTerm.write.mockClear();
-
-    mgr.writeToTerminal('s1', '\x1b[2J');
-    expect(mockTerm.write).toHaveBeenCalledWith('\x1b[H\x1b[J');
-
-    mgr.dispose();
-  });
-
-  it('writeToTerminal preserves clear screen when stripAltScreen is not set', async () => {
-    const mgr = new TerminalManager(container);
-    await mgr.createTerminal('s1', 'aider', 'aider');
 
     const mockTerm = terminalInstances[terminalInstances.length - 1];
     mockTerm.write.mockClear();
@@ -789,16 +776,16 @@ describe('TerminalView — container wheel listener (v6)', () => {
     expect(wheelCalls[0][2]).toEqual({ passive: false, capture: true });
   });
 
-  it('does not intercept wheel in normal buffer (passthrough to SmoothScrollableElement)', () => {
+  it('uses terminal.scrollLines() in normal buffer (bypasses SmoothScrollableElement)', () => {
     new TerminalView({ sessionId: 'dwl-2', container });
     lastTerminal().buffer.active.type = 'normal';
 
     const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
     container.dispatchEvent(ev);
 
-    // Should NOT consume the event — let SmoothScrollableElement handle it
-    expect(ev.defaultPrevented).toBe(false);
-    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
+    // Should intercept and use scrollLines() directly (xterm.js #5620 workaround)
+    expect(ev.defaultPrevented).toBe(true);
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(3); // 120/40 = 3
   });
 
   it('sends PageDown via onScrollInput on wheel down in alternate buffer', () => {
