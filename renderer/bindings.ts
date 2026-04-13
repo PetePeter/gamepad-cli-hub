@@ -27,8 +27,8 @@ function executeScroll(binding: { direction: string; lines?: number }): void {
   if (activeId) {
     const session = tm?.getSession(activeId);
     if (session) {
-      const lines = binding.direction === 'up' ? -(binding.lines ?? 5) : (binding.lines ?? 5);
-      session.view.scrollLines(lines);
+      const dir = binding.direction === 'up' ? 'up' as const : 'down' as const;
+      session.view.scroll(dir, binding.lines ?? 5);
     }
   }
   logEvent(`Scroll: ${binding.direction}`);

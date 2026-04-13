@@ -87,31 +87,13 @@ export class TerminalView {
 
     // Capture-phase wheel listener — intercepts before xterm.js v6's
     // SmoothScrollableElement (.xterm-scrollable-element) swallows events.
-    // Normal buffer: use terminal.scrollLines() directly — bypasses
-    //   SmoothScrollableElement which has sync issues with scrollback that
-    //   grows via ED 2 (xterm.js #5620). PageUp/Down works but wheel doesn't
-    //   because SmoothScrollableElement doesn't know scrollback grew.
-    // Alternate buffer: send PageUp/PageDown to PTY (no scrollback exists).
-    // Uses scrollCallback (pty:scrollInput) to avoid false AIAGENT state changes
-    // from screen redraws that contain old keyword tags.
+    // Delegates to scroll() which handles both buffer modes.
     this.container.addEventListener('wheel', (e) => {
       const we = e as WheelEvent;
       const lines = Math.max(1, Math.round(Math.abs(we.deltaY) / 40));
-      if (this.terminal.buffer.active.type === 'alternate') {
-        const cb = this.scrollCallback || this.writeCallback;
-        if (cb) {
-          e.preventDefault();
-          e.stopPropagation();
-          const key = we.deltaY > 0 ? '\x1b[6~' : '\x1b[5~';
-          for (let i = 0; i < lines; i++) {
-            cb(key);
-          }
-        }
-      } else {
-        e.preventDefault();
-        e.stopPropagation();
-        this.terminal.scrollLines(we.deltaY > 0 ? lines : -lines);
-      }
+      e.preventDefault();
+      e.stopPropagation();
+      this.scroll(we.deltaY > 0 ? 'down' : 'up', lines);
     }, { passive: false, capture: true });
 
     this.fit();
@@ -190,7 +172,35 @@ export class TerminalView {
 
   /** Scroll by the given number of lines */
   scrollLines(lines: number): void {
-    this.terminal.scrollLines(lines);
+    if (!this.disposed) {
+      this.terminal.scrollLines(lines);
+    }
+  }
+
+  /**
+   * Buffer-aware scroll — handles both normal and alternate modes.
+   *
+   * Normal buffer: scrolls the xterm.js viewport directly (bypasses
+   *   SmoothScrollableElement which has sync issues with scrollback that
+   *   grows via ED 2 — xterm.js #5620).
+   * Alternate buffer: sends PageUp/PageDown escape sequences to the PTY
+   *   (no scrollback exists). Uses scrollCallback (pty:scrollInput) to
+   *   avoid false AIAGENT state changes from screen redraws.
+   */
+  scroll(direction: 'up' | 'down', lines: number): void {
+    if (this.disposed) return;
+
+    if (this.terminal.buffer.active.type === 'alternate') {
+      const cb = this.scrollCallback || this.writeCallback;
+      if (cb) {
+        const key = direction === 'down' ? '\x1b[6~' : '\x1b[5~';
+        for (let i = 0; i < lines; i++) {
+          cb(key);
+        }
+      }
+    } else {
+      this.terminal.scrollLines(direction === 'down' ? lines : -lines);
+    }
   }
 
   /** Clear terminal buffer */

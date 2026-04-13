@@ -195,6 +195,60 @@ describe('TerminalView', () => {
     expect(lastTerminal().scrollLines).toHaveBeenCalledWith(5);
   });
 
+  it('scroll() uses scrollLines in normal buffer', () => {
+    const onScrollInput = vi.fn();
+    const view = new TerminalView({ sessionId: 'scroll-norm', container, onScrollInput });
+    lastTerminal().buffer.active.type = 'normal';
+
+    view.scroll('down', 3);
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(3);
+    expect(onScrollInput).not.toHaveBeenCalled();
+
+    lastTerminal().scrollLines.mockClear();
+    view.scroll('up', 5);
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(-5);
+  });
+
+  it('scroll() sends PageDown escape in alternate buffer', () => {
+    const onScrollInput = vi.fn();
+    const view = new TerminalView({ sessionId: 'scroll-alt-dn', container, onScrollInput });
+    lastTerminal().buffer.active.type = 'alternate';
+
+    view.scroll('down', 3);
+    expect(onScrollInput).toHaveBeenCalledTimes(3);
+    expect(onScrollInput).toHaveBeenCalledWith('\x1b[6~');
+    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
+  });
+
+  it('scroll() sends PageUp escape in alternate buffer', () => {
+    const onScrollInput = vi.fn();
+    const view = new TerminalView({ sessionId: 'scroll-alt-up', container, onScrollInput });
+    lastTerminal().buffer.active.type = 'alternate';
+
+    view.scroll('up', 2);
+    expect(onScrollInput).toHaveBeenCalledTimes(2);
+    expect(onScrollInput).toHaveBeenCalledWith('\x1b[5~');
+  });
+
+  it('scroll() falls back to onData when no onScrollInput in alternate buffer', () => {
+    const onData = vi.fn();
+    const view = new TerminalView({ sessionId: 'scroll-alt-fb', container, onData });
+    lastTerminal().buffer.active.type = 'alternate';
+
+    view.scroll('down', 1);
+    expect(onData).toHaveBeenCalledWith('\x1b[6~');
+  });
+
+  it('scroll() is a no-op after dispose', () => {
+    const onScrollInput = vi.fn();
+    const view = new TerminalView({ sessionId: 'scroll-disp', container, onScrollInput });
+    view.dispose();
+
+    view.scroll('down', 3);
+    expect(onScrollInput).not.toHaveBeenCalled();
+    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
+  });
+
   it('findNext() and findPrevious() delegate to search addon', () => {
     const view = new TerminalView({ sessionId: 'tv10', container });
     expect(view.findNext('test')).toBe(true);
@@ -840,15 +894,15 @@ describe('TerminalView — container wheel listener (v6)', () => {
     expect(onData).toHaveBeenCalledWith('\x1b[6~');
   });
 
-  it('does not intercept in alternate buffer without any callback', () => {
+  it('still intercepts wheel in alternate buffer without any callback (no scroll, but prevented)', () => {
     new TerminalView({ sessionId: 'dwl-8', container });
     lastTerminal().buffer.active.type = 'alternate';
 
     const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
     container.dispatchEvent(ev);
 
-    // No onData → no writeCallback → event not intercepted
-    expect(ev.defaultPrevented).toBe(false);
+    // Wheel always intercepted — scroll() is a no-op when no callback
+    expect(ev.defaultPrevented).toBe(true);
     expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
   });
 });
