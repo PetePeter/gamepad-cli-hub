@@ -291,6 +291,10 @@ export class TerminalManager {
   writeToTerminal(sessionId: string, data: string): void {
     const session = this.terminals.get(sessionId);
     if (session) {
+      // Track virtual alt screen state BEFORE stripping alt screen sequences
+      if (session.stripAltScreen) {
+        session.view.updateVirtualAltScreen(data);
+      }
       session.view.write(applyPtyFilters(data, { stripAltScreen: session.stripAltScreen }));
     }
   }

@@ -9,10 +9,10 @@
  * we strip them so text selection and mouse wheel scrolling always work natively.
  *
  * Alternate screen stripping keeps CLI output in the normal scrollback buffer.
- * ED 3 (erase scrollback) is also stripped to preserve the buffer we're building.
- * ED 2 (clear screen) is intentionally left through — xterm.js pushes viewport
- * content into scrollback on ED 2, which is the mechanism that makes the
- * scrollbar work for full-screen TUI CLIs.
+ * ED 3 (erase scrollback) is also stripped to preserve the buffer.
+ * TerminalView tracks alt screen enter/exit BEFORE stripping via
+ * updateVirtualAltScreen() — this lets scroll input route to the CLI
+ * (PageUp/Down) during TUI mode instead of scrolling the viewport.
  */
 
 // DEC private mode codes to strip (both enable 'h' and disable 'l')

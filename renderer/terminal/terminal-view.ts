@@ -10,6 +10,9 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
 
+// Alt screen enter/exit detection — compiled once, reused on every PTY write.
+const VIRTUAL_ALT_SCREEN_RE = /\x1b\[\?(?:47|104[79])[hl]/g;
+
 export interface TerminalViewOptions {
   sessionId: string;
   container: HTMLElement;
@@ -30,13 +33,16 @@ export class TerminalView {
   private scrollCallback?: (data: string) => void;
   private disposed = false;
 
+  // Virtual alt screen — tracks whether CLI entered alternate screen (stripped by pty-filter).
+  // When true, scroll input routes to CLI (PageUp/Down) instead of viewport scrollLines().
+  private virtualAltScreen = false;
+
   constructor(options: TerminalViewOptions) {
     this.sessionId = options.sessionId;
     this.container = options.container;
 
     this.terminal = new Terminal({
       scrollback: 10_000,
-      scrollOnEraseInDisplay: true,
       cursorBlink: true,
       fontSize: 14,
       fontFamily: "'Cascadia Code', 'Consolas', monospace",
@@ -78,32 +84,33 @@ export class TerminalView {
     this.terminal.open(this.container);
 
     // Let Ctrl+Tab/Ctrl+Shift+Tab pass through to the global handler.
-    // In alternate buffer, also scroll the viewport on PageUp/PageDown so
-    // the scrollbar stays in sync (xterm.js only sends escape to PTY).
+    // PageUp/PageDown: in virtual alt screen mode (CLI thinks it's in alt buffer
+    // but pty-filter stripped the sequences), let xterm.js send the escape to the
+    // CLI so it handles its own scrolling. In true normal mode, scroll the viewport.
     this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
       if (event.key === 'Tab' && event.ctrlKey) {
         return false;
       }
-      if (event.type === 'keydown' &&
-          (event.key === 'PageUp' || event.key === 'PageDown') &&
-          this.terminal.buffer.active.type === 'alternate') {
-        const pageLines = this.terminal.rows;
-        this.terminal.scrollLines(event.key === 'PageDown' ? pageLines : -pageLines);
+      if ((event.key === 'PageUp' || event.key === 'PageDown') &&
+          event.type === 'keydown' &&
+          this.terminal.buffer.active.type === 'normal' &&
+          !this.virtualAltScreen) {
+        const lines = this.terminal.rows;
+        this.terminal.scrollLines(event.key === 'PageDown' ? lines : -lines);
+        return false;
       }
       return true;
     });
 
     // Capture-phase wheel listener — intercepts before xterm.js v6's
     // SmoothScrollableElement (.xterm-scrollable-element) swallows events.
-    // Always scrolls the xterm.js viewport (scrollbar). In alternate buffer
-    // this is a no-op (no scrollback) — gamepad scroll handles that path
-    // via scroll() which sends PageUp/PageDown to the PTY.
+    // Routes through scroll() which handles both buffer modes + virtual alt screen.
     this.container.addEventListener('wheel', (e) => {
-      const we = e as WheelEvent;
-      const lines = Math.max(1, Math.round(Math.abs(we.deltaY) / 40));
       e.preventDefault();
       e.stopPropagation();
-      this.terminal.scrollLines(we.deltaY > 0 ? lines : -lines);
+      const we = e as WheelEvent;
+      const lines = Math.max(1, Math.round(Math.abs(we.deltaY) / 40));
+      this.scroll(we.deltaY > 0 ? 'down' : 'up', lines);
     }, { passive: false, capture: true });
 
     this.fit();
@@ -188,21 +195,19 @@ export class TerminalView {
   }
 
   /**
-   * Buffer-aware scroll — always updates scrollbar, sends to PTY in alternate mode.
+   * Buffer-aware scroll — viewport scrollback or PTY input.
    *
-   * Always calls scrollLines() so the scrollbar stays in sync.
-   * In alternate buffer, also sends PageUp/PageDown escape sequences to the
-   * PTY so the CLI app scrolls its content. Uses scrollCallback (pty:scrollInput)
-   * to avoid false AIAGENT state changes from screen redraws.
+   * Normal buffer (no virtual alt screen): scrollLines() to move viewport.
+   * Alternate buffer OR virtual alt screen (stripAltScreen active): sends
+   * PageUp/PageDown escape sequences to the PTY so the CLI app scrolls its
+   * own content. Uses scrollCallback (pty:scrollInput) to avoid false AIAGENT
+   * state changes from screen redraws.
    */
   scroll(direction: 'up' | 'down', lines: number): void {
     if (this.disposed) return;
 
-    // Always scroll the viewport (updates scrollbar in normal buffer)
-    this.terminal.scrollLines(direction === 'down' ? lines : -lines);
-
-    // In alternate buffer, also send PageUp/PageDown to the PTY
-    if (this.terminal.buffer.active.type === 'alternate') {
+    const isAltLike = this.terminal.buffer.active.type === 'alternate' || this.virtualAltScreen;
+    if (isAltLike) {
       const cb = this.scrollCallback || this.writeCallback;
       if (cb) {
         const key = direction === 'down' ? '\x1b[6~' : '\x1b[5~';
@@ -210,6 +215,8 @@ export class TerminalView {
           cb(key);
         }
       }
+    } else {
+      this.terminal.scrollLines(direction === 'down' ? lines : -lines);
     }
   }
 
@@ -253,6 +260,24 @@ export class TerminalView {
       lines.push(line ? line.translateToString(true) : '');
     }
     return lines;
+  }
+
+  /**
+   * Track whether the CLI entered alternate screen mode.
+   * Called with raw PTY data BEFORE pty-filter strips alt screen sequences.
+   * The last alt screen sequence in the chunk wins.
+   */
+  updateVirtualAltScreen(rawData: string): void {
+    VIRTUAL_ALT_SCREEN_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = VIRTUAL_ALT_SCREEN_RE.exec(rawData)) !== null) {
+      this.virtualAltScreen = m[0].endsWith('h');
+    }
+  }
+
+  /** Whether the terminal is in virtual alt screen mode (stripAltScreen active) */
+  isVirtualAltScreen(): boolean {
+    return this.virtualAltScreen;
   }
 
   /** Dispose terminal and release resources */
