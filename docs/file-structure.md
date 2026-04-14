@@ -76,8 +76,8 @@ renderer/
 ├── components/
 │   └── sort-control.ts         # Reusable sort dropdown + direction toggle widget
 ├── drafts/
-│   ├── draft-strip.ts          # View-only draft pills above terminal (📝 labels + badge count)
-│   └── draft-editor.ts         # Slide-down draft editor panel (title + content fields, smart keyboard routing)
+│   ├── draft-strip.ts          # View-only draft pills above terminal (📝 labels + badge count, click opens editor)
+│   └── draft-editor.ts         # Slide-down draft editor panel (title + content, Save/Apply/Delete/Cancel buttons)
 ├── terminal/
 │   ├── terminal-view.ts        # xterm.js wrapper (fit/search/weblinks addons)
 │   ├── terminal-manager.ts     # Multi-terminal orchestration (create/switch/rename/resize/destroy + tab bar + PtyOutputBuffer)

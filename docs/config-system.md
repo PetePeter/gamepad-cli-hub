@@ -67,7 +67,7 @@ User selects an item (D-pad/gamepad or click), and its `sequence` string is pars
 
 ### new-draft
 
-`{ action: 'new-draft' }` — Opens the draft editor for the active session, allowing the user to compose a draft prompt memo while the CLI is busy. Drafts can later be applied (sent to PTY) via the Drafts submenu in the context menu.
+`{ action: 'new-draft' }` — Opens the draft editor for the active session, allowing the user to compose a draft prompt memo while the CLI is busy. Drafts can be applied (sent to PTY) via the Apply button in the editor or through the Drafts submenu in the context menu.
 
 ## Tool Config
 

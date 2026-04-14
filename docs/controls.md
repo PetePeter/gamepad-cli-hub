@@ -45,7 +45,7 @@ When a button is pressed, the navigation system checks handlers in this order:
 5. Close confirmation modal
 6. Quick-spawn picker
 7. Draft editor panel (D-pad/A/B field navigation)
-8. Draft action picker (per-draft Apply/Edit/Delete)
+8. Draft action picker (per-draft Apply/Edit/Delete — accessed via context menu Drafts ► submenu)
 9. Draft submenu (Drafts list from context menu)
 10. Context menu
 11. Sequence picker
@@ -65,8 +65,8 @@ When the draft editor panel is visible, all gamepad input is captured (like a mo
 
 | Input | Action |
 |-------|--------|
-| D-Pad Up/Down | Cycle focus: Title → Content → Save → Cancel (wraps) |
-| A | Activate focused element (click Save/Cancel buttons) |
+| D-Pad Up/Down | Cycle focus: Title → Content → Save → Apply → Delete → Cancel (wraps) |
+| A | Activate focused element (click Save/Apply/Delete/Cancel buttons) |
 | B | Cancel and close the editor |
 
 Keyboard input flows through to the focused field normally — only gamepad navigation is intercepted.

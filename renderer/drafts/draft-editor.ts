@@ -6,7 +6,7 @@
  */
 
 import { refreshDraftStrip } from './draft-strip.js';
-import { toDirection } from '../utils.js';
+import { toDirection, logEvent } from '../utils.js';
 
 export interface DraftEditorState {
   visible: boolean;
@@ -14,10 +14,10 @@ export interface DraftEditorState {
   draftId: string | null;  // null = creating new draft
   label: string;
   text: string;
-  focusIndex: number;      // 0=title, 1=content, 2=save, 3=cancel
+  focusIndex: number;      // 0=title, 1=content, 2=save, 3=apply, 4=delete, 5=cancel
 }
 
-const FOCUS_ELEMENTS = ['draftLabelInput', 'draftContentInput', 'draftSaveBtn', 'draftCancelBtn'] as const;
+const FOCUS_ELEMENTS = ['draftLabelInput', 'draftContentInput', 'draftSaveBtn', 'draftApplyBtn', 'draftDeleteBtn', 'draftCancelBtn'] as const;
 
 export const draftEditorState: DraftEditorState = {
   visible: false,
@@ -43,6 +43,8 @@ export function initDraftEditor(): void {
       <span class="draft-editor-title">📝 New Draft</span>
       <div class="draft-editor-actions">
         <button class="btn btn--primary btn--sm" id="draftSaveBtn">Save</button>
+        <button class="btn btn--primary btn--sm" id="draftApplyBtn">Apply</button>
+        <button class="btn btn--danger btn--sm" id="draftDeleteBtn">Delete</button>
         <button class="btn btn--secondary btn--sm" id="draftCancelBtn">Cancel</button>
       </div>
     </div>
@@ -67,10 +69,14 @@ export function initDraftEditor(): void {
 
   // Wire button event handlers
   const saveBtn = document.getElementById('draftSaveBtn');
+  const applyBtn = document.getElementById('draftApplyBtn');
+  const deleteBtn = document.getElementById('draftDeleteBtn');
   const cancelBtn = document.getElementById('draftCancelBtn');
   const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement | null;
 
   saveBtn?.addEventListener('click', () => { saveDraft(); });
+  applyBtn?.addEventListener('click', () => { applyDraft(); });
+  deleteBtn?.addEventListener('click', () => { deleteDraft(); });
   cancelBtn?.addEventListener('click', () => { hideDraftEditor(); });
 
   // Enter in label → move focus to content; Escape → hide
@@ -151,11 +157,11 @@ function applyEditorFocus(): void {
   const el = document.getElementById(id);
   el?.focus();
 
-  // Highlight Save/Cancel buttons when focused via gamepad
-  for (const btnId of ['draftSaveBtn', 'draftCancelBtn']) {
+  // Highlight buttons when focused via gamepad
+  for (const btnId of ['draftSaveBtn', 'draftApplyBtn', 'draftDeleteBtn', 'draftCancelBtn']) {
     document.getElementById(btnId)?.classList.remove('btn--focused');
   }
-  if (id === 'draftSaveBtn' || id === 'draftCancelBtn') {
+  if (id === 'draftSaveBtn' || id === 'draftApplyBtn' || id === 'draftDeleteBtn' || id === 'draftCancelBtn') {
     el?.classList.add('btn--focused');
   }
 }
@@ -179,6 +185,8 @@ export function handleDraftEditorButton(button: string): void {
     case 'A': {
       const focused = FOCUS_ELEMENTS[draftEditorState.focusIndex];
       if (focused === 'draftSaveBtn') saveDraft();
+      else if (focused === 'draftApplyBtn') applyDraft();
+      else if (focused === 'draftDeleteBtn') deleteDraft();
       else if (focused === 'draftCancelBtn') hideDraftEditor();
       break;
     }
@@ -215,4 +223,53 @@ export async function saveDraft(): Promise<void> {
 
   hideDraftEditor();
   await refreshDraftStrip(sessionId || null);
+}
+
+/** Apply the current draft — send text to PTY and delete the draft. */
+export async function applyDraft(): Promise<void> {
+  const contentInput = document.getElementById('draftContentInput') as HTMLTextAreaElement | null;
+  const text = contentInput?.value || '';
+  const draftId = draftEditorState.draftId;
+  const sessionId = draftEditorState.sessionId;
+
+  hideDraftEditor();
+
+  if (text) {
+    try {
+      const { executeSequence } = await import('../bindings.js');
+      await executeSequence(text);
+    } catch (err) {
+      console.error('[DraftEditor] Failed to apply draft:', err);
+    }
+  }
+
+  if (draftId) {
+    try {
+      await window.gamepadCli?.draftDelete(draftId);
+    } catch (err) {
+      console.error('[DraftEditor] Failed to delete draft after apply:', err);
+    }
+  }
+
+  await refreshDraftStrip(sessionId || null);
+  logEvent(`Draft applied: ${draftId}`);
+}
+
+/** Delete the current draft without sending. */
+export async function deleteDraft(): Promise<void> {
+  const draftId = draftEditorState.draftId;
+  const sessionId = draftEditorState.sessionId;
+
+  hideDraftEditor();
+
+  if (draftId) {
+    try {
+      await window.gamepadCli?.draftDelete(draftId);
+    } catch (err) {
+      console.error('[DraftEditor] Failed to delete draft:', err);
+    }
+  }
+
+  await refreshDraftStrip(sessionId || null);
+  logEvent(`Draft deleted: ${draftId}`);
 }

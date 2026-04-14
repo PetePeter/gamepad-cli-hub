@@ -12,8 +12,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockDraftCreate = vi.fn();
 const mockDraftUpdate = vi.fn();
+const mockDraftDelete = vi.fn();
 const mockDraftList = vi.fn();
 const mockDraftCount = vi.fn();
+const mockExecuteSequence = vi.fn();
 
 vi.mock('../renderer/drafts/draft-strip.js', () => ({
   refreshDraftStrip: vi.fn(),
@@ -28,6 +30,10 @@ vi.mock('../renderer/utils.js', () => ({
     return null;
   },
   logEvent: vi.fn(),
+}));
+
+vi.mock('../renderer/bindings.js', () => ({
+  executeSequence: (...args: unknown[]) => mockExecuteSequence(...args),
 }));
 
 // ---------------------------------------------------------------------------
@@ -67,14 +73,17 @@ describe('Draft Editor', () => {
     (window as any).gamepadCli = {
       draftCreate: mockDraftCreate,
       draftUpdate: mockDraftUpdate,
+      draftDelete: mockDraftDelete,
       draftList: mockDraftList,
       draftCount: mockDraftCount,
     };
 
     mockDraftCreate.mockReset();
     mockDraftUpdate.mockReset();
+    mockDraftDelete.mockReset();
     mockDraftList.mockReset();
     mockDraftCount.mockReset();
+    mockExecuteSequence.mockReset();
 
     mod = await getModule();
 
@@ -103,8 +112,10 @@ describe('Draft Editor', () => {
       const terminalArea = document.getElementById('terminalArea')!;
       expect(terminalArea.contains(editor)).toBe(true);
 
-      // Should have save and cancel buttons
+      // Should have save, apply, delete, and cancel buttons
       expect(document.getElementById('draftSaveBtn')).not.toBeNull();
+      expect(document.getElementById('draftApplyBtn')).not.toBeNull();
+      expect(document.getElementById('draftDeleteBtn')).not.toBeNull();
       expect(document.getElementById('draftCancelBtn')).not.toBeNull();
       expect(document.getElementById('draftLabelInput')).not.toBeNull();
       expect(document.getElementById('draftContentInput')).not.toBeNull();
@@ -301,7 +312,7 @@ describe('Draft Editor', () => {
       expect(mod.draftEditorState.focusIndex).toBe(0);
     });
 
-    it('D-pad Down cycles focus: title → content → save → cancel → title', () => {
+    it('D-pad Down cycles focus: title → content → save → apply → delete → cancel → title', () => {
       mod.handleDraftEditorButton('DPadDown');
       expect(mod.draftEditorState.focusIndex).toBe(1); // content
       expect(document.activeElement?.id).toBe('draftContentInput');
@@ -311,7 +322,15 @@ describe('Draft Editor', () => {
       expect(document.activeElement?.id).toBe('draftSaveBtn');
 
       mod.handleDraftEditorButton('DPadDown');
-      expect(mod.draftEditorState.focusIndex).toBe(3); // cancel
+      expect(mod.draftEditorState.focusIndex).toBe(3); // apply
+      expect(document.activeElement?.id).toBe('draftApplyBtn');
+
+      mod.handleDraftEditorButton('DPadDown');
+      expect(mod.draftEditorState.focusIndex).toBe(4); // delete
+      expect(document.activeElement?.id).toBe('draftDeleteBtn');
+
+      mod.handleDraftEditorButton('DPadDown');
+      expect(mod.draftEditorState.focusIndex).toBe(5); // cancel
       expect(document.activeElement?.id).toBe('draftCancelBtn');
 
       mod.handleDraftEditorButton('DPadDown');
@@ -321,8 +340,14 @@ describe('Draft Editor', () => {
 
     it('D-pad Up cycles focus in reverse', () => {
       mod.handleDraftEditorButton('DPadUp');
-      expect(mod.draftEditorState.focusIndex).toBe(3); // wraps to cancel
+      expect(mod.draftEditorState.focusIndex).toBe(5); // wraps to cancel
       expect(document.activeElement?.id).toBe('draftCancelBtn');
+
+      mod.handleDraftEditorButton('DPadUp');
+      expect(mod.draftEditorState.focusIndex).toBe(4); // delete
+
+      mod.handleDraftEditorButton('DPadUp');
+      expect(mod.draftEditorState.focusIndex).toBe(3); // apply
 
       mod.handleDraftEditorButton('DPadUp');
       expect(mod.draftEditorState.focusIndex).toBe(2); // save
@@ -345,11 +370,13 @@ describe('Draft Editor', () => {
     });
 
     it('A button on Cancel closes editor', () => {
-      // Navigate to Cancel button (index 3)
+      // Navigate to Cancel button (index 5)
       mod.handleDraftEditorButton('DPadDown'); // content
       mod.handleDraftEditorButton('DPadDown'); // save
+      mod.handleDraftEditorButton('DPadDown'); // apply
+      mod.handleDraftEditorButton('DPadDown'); // delete
       mod.handleDraftEditorButton('DPadDown'); // cancel
-      expect(mod.draftEditorState.focusIndex).toBe(3);
+      expect(mod.draftEditorState.focusIndex).toBe(5);
 
       mod.handleDraftEditorButton('A');
       expect(mod.isDraftEditorVisible()).toBe(false);
@@ -374,27 +401,43 @@ describe('Draft Editor', () => {
       expect(mockDraftCreate).not.toHaveBeenCalled();
     });
 
-    it('highlights Save/Cancel buttons when focused', () => {
+    it('highlights buttons when focused', () => {
       mod.handleDraftEditorButton('DPadDown'); // content
       mod.handleDraftEditorButton('DPadDown'); // save
       const saveBtn = document.getElementById('draftSaveBtn')!;
       expect(saveBtn.classList.contains('btn--focused')).toBe(true);
 
+      mod.handleDraftEditorButton('DPadDown'); // apply
+      const applyBtn = document.getElementById('draftApplyBtn')!;
+      expect(applyBtn.classList.contains('btn--focused')).toBe(true);
+      expect(saveBtn.classList.contains('btn--focused')).toBe(false);
+
+      mod.handleDraftEditorButton('DPadDown'); // delete
+      const deleteBtn = document.getElementById('draftDeleteBtn')!;
+      expect(deleteBtn.classList.contains('btn--focused')).toBe(true);
+      expect(applyBtn.classList.contains('btn--focused')).toBe(false);
+
       mod.handleDraftEditorButton('DPadDown'); // cancel
       const cancelBtn = document.getElementById('draftCancelBtn')!;
       expect(cancelBtn.classList.contains('btn--focused')).toBe(true);
-      expect(saveBtn.classList.contains('btn--focused')).toBe(false);
+      expect(deleteBtn.classList.contains('btn--focused')).toBe(false);
     });
 
     it('removes button highlight when focus returns to inputs', () => {
       mod.handleDraftEditorButton('DPadDown'); // content
       mod.handleDraftEditorButton('DPadDown'); // save
+      mod.handleDraftEditorButton('DPadDown'); // apply
+      mod.handleDraftEditorButton('DPadDown'); // delete
       mod.handleDraftEditorButton('DPadDown'); // cancel
       mod.handleDraftEditorButton('DPadDown'); // wraps to title
 
       const saveBtn = document.getElementById('draftSaveBtn')!;
+      const applyBtn = document.getElementById('draftApplyBtn')!;
+      const deleteBtn = document.getElementById('draftDeleteBtn')!;
       const cancelBtn = document.getElementById('draftCancelBtn')!;
       expect(saveBtn.classList.contains('btn--focused')).toBe(false);
+      expect(applyBtn.classList.contains('btn--focused')).toBe(false);
+      expect(deleteBtn.classList.contains('btn--focused')).toBe(false);
       expect(cancelBtn.classList.contains('btn--focused')).toBe(false);
     });
 
@@ -411,6 +454,119 @@ describe('Draft Editor', () => {
       mod.showDraftEditor('session-1');
       expect(saveBtn.classList.contains('btn--focused')).toBe(false);
       expect(mod.draftEditorState.focusIndex).toBe(0);
+    });
+  });
+
+  // =========================================================================
+  // applyDraft
+  // =========================================================================
+
+  describe('applyDraft', () => {
+    beforeEach(() => {
+      mod.initDraftEditor();
+    });
+
+    it('sends text to PTY via executeSequence and deletes draft', async () => {
+      mockExecuteSequence.mockResolvedValue(undefined);
+      mockDraftDelete.mockResolvedValue(undefined);
+
+      mod.showDraftEditor('session-1', { id: 'draft-1', label: 'Test', text: 'hello world' });
+
+      await mod.applyDraft();
+
+      expect(mockExecuteSequence).toHaveBeenCalledWith('hello world');
+      expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
+      expect(mod.isDraftEditorVisible()).toBe(false);
+    });
+
+    it('does not call draftDelete when creating new draft (no draftId)', async () => {
+      mockExecuteSequence.mockResolvedValue(undefined);
+
+      mod.showDraftEditor('session-1');
+      const contentInput = document.getElementById('draftContentInput') as HTMLTextAreaElement;
+      contentInput.value = 'new text';
+
+      await mod.applyDraft();
+
+      expect(mockExecuteSequence).toHaveBeenCalledWith('new text');
+      expect(mockDraftDelete).not.toHaveBeenCalled();
+      expect(mod.isDraftEditorVisible()).toBe(false);
+    });
+
+    it('does not call executeSequence when text is empty', async () => {
+      mod.showDraftEditor('session-1', { id: 'draft-1', label: 'Empty', text: '' });
+
+      await mod.applyDraft();
+
+      expect(mockExecuteSequence).not.toHaveBeenCalled();
+      expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
+    });
+
+    it('A button on Apply triggers applyDraft', async () => {
+      mockExecuteSequence.mockResolvedValue(undefined);
+      mockDraftDelete.mockResolvedValue(undefined);
+
+      mod.showDraftEditor('session-1', { id: 'draft-1', label: 'Test', text: 'apply me' });
+
+      // Navigate to Apply button (index 3)
+      mod.handleDraftEditorButton('DPadDown'); // content
+      mod.handleDraftEditorButton('DPadDown'); // save
+      mod.handleDraftEditorButton('DPadDown'); // apply
+      expect(mod.draftEditorState.focusIndex).toBe(3);
+
+      mod.handleDraftEditorButton('A');
+      await flush();
+
+      expect(mockExecuteSequence).toHaveBeenCalledWith('apply me');
+      expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
+    });
+  });
+
+  // =========================================================================
+  // deleteDraft
+  // =========================================================================
+
+  describe('deleteDraft', () => {
+    beforeEach(() => {
+      mod.initDraftEditor();
+    });
+
+    it('deletes draft and hides editor', async () => {
+      mockDraftDelete.mockResolvedValue(undefined);
+
+      mod.showDraftEditor('session-1', { id: 'draft-1', label: 'Delete me', text: 'content' });
+
+      await mod.deleteDraft();
+
+      expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
+      expect(mod.isDraftEditorVisible()).toBe(false);
+    });
+
+    it('does not call draftDelete when creating new draft (no draftId)', async () => {
+      mod.showDraftEditor('session-1');
+
+      await mod.deleteDraft();
+
+      expect(mockDraftDelete).not.toHaveBeenCalled();
+      expect(mod.isDraftEditorVisible()).toBe(false);
+    });
+
+    it('A button on Delete triggers deleteDraft', async () => {
+      mockDraftDelete.mockResolvedValue(undefined);
+
+      mod.showDraftEditor('session-1', { id: 'draft-1', label: 'Test', text: 'delete me' });
+
+      // Navigate to Delete button (index 4)
+      mod.handleDraftEditorButton('DPadDown'); // content
+      mod.handleDraftEditorButton('DPadDown'); // save
+      mod.handleDraftEditorButton('DPadDown'); // apply
+      mod.handleDraftEditorButton('DPadDown'); // delete
+      expect(mod.draftEditorState.focusIndex).toBe(4);
+
+      mod.handleDraftEditorButton('A');
+      await flush();
+
+      expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
     });
   });
 });

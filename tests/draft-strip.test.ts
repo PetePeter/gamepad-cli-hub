@@ -12,14 +12,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockDraftList = vi.fn();
 const mockDraftCount = vi.fn();
-const mockShowDraftActionPicker = vi.fn();
+const mockShowDraftEditor = vi.fn();
 
 vi.mock('../renderer/drafts/draft-editor.js', () => ({
   isDraftEditorVisible: vi.fn(() => false),
+  showDraftEditor: (...args: unknown[]) => mockShowDraftEditor(...args),
 }));
 
-vi.mock('../renderer/modals/draft-submenu.js', () => ({
-  showDraftActionPicker: (...args: unknown[]) => mockShowDraftActionPicker(...args),
+vi.mock('../renderer/state.js', () => ({
+  state: { activeSessionId: 'session-1' },
 }));
 
 // ---------------------------------------------------------------------------
@@ -62,7 +63,7 @@ describe('Draft Strip', () => {
 
     mockDraftList.mockReset();
     mockDraftCount.mockReset();
-    mockShowDraftActionPicker.mockReset();
+    mockShowDraftEditor.mockReset();
 
     mod = await getModule();
   });
@@ -147,7 +148,7 @@ describe('Draft Strip', () => {
       expect(pill.textContent!.length).toBeLessThan(longLabel.length + 5); // 📝 + space + truncated
     });
 
-    it('opens action picker when pill is clicked', async () => {
+    it('opens draft editor when pill is clicked', async () => {
       const draft = { id: 'd1', label: 'My Draft', text: 'content' };
       mockDraftList.mockResolvedValue([draft]);
       await mod.refreshDraftStrip('session-1');
@@ -156,7 +157,7 @@ describe('Draft Strip', () => {
       pill.click();
       await flush();
 
-      expect(mockShowDraftActionPicker).toHaveBeenCalledWith(draft);
+      expect(mockShowDraftEditor).toHaveBeenCalledWith('session-1', draft);
     });
   });
 

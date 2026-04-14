@@ -28,7 +28,7 @@ Reference table of all modules in the gamepad-cli-hub application.
 | **TabCycling** | `renderer/tab-cycling.ts` | Resolves next/previous terminal for Ctrl+Tab cycling using sorted display order so tab switching matches what the user sees. |
 | **SortControl** | `renderer/components/sort-control.ts` | Reusable sort control widget — dropdown for field selection + direction toggle button. |
 | **DraftManager** | `src/session/draft-manager.ts` | Per-session draft prompt CRUD (create/update/delete/get/count). EventEmitter, emits `draft:changed`. Persisted to `config/drafts.yaml` via SessionPersistence. |
-| **DraftStrip** | `renderer/drafts/draft-strip.ts` | View-only pill display above terminal. Shows draft labels as 📝 pills, badge count on session cards. |
-| **DraftEditor** | `renderer/drafts/draft-editor.ts` | Slide-down editor panel for composing/editing drafts. Title + content fields, smart keyboard routing. |
+| **DraftStrip** | `renderer/drafts/draft-strip.ts` | View-only pill display above terminal. Shows draft labels as 📝 pills (click opens editor directly), badge count on session cards. |
+| **DraftEditor** | `renderer/drafts/draft-editor.ts` | Slide-down editor panel for composing/editing drafts. Title + content fields, Save/Apply/Delete/Cancel buttons, smart keyboard routing. |
 | **DraftSubmenu** | `renderer/modals/draft-submenu.ts` | Drafts submenu from context menu. New Draft + per-draft Apply/Edit/Delete action picker. |
 | **Logger** | `src/utils/logger.ts` | Winston logger with daily rotation. Used across all src/ modules. |

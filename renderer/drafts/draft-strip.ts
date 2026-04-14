@@ -1,10 +1,11 @@
 /**
  * Draft Strip — pill display above the terminal area.
  * Shows compact pills for each draft in the active session.
- * Clicking a pill (mouse only) opens the action picker (Apply/Edit/Delete).
+ * Clicking a pill (mouse only) opens the draft editor directly.
  */
 
 import { setDraftCountCache } from '../screens/sessions.js';
+import { state } from '../state.js';
 
 const MAX_LABEL_LENGTH = 20;
 
@@ -65,10 +66,10 @@ export async function refreshDraftStrip(sessionId: string | null): Promise<void>
       : draft.label;
     pill.textContent = `📝 ${truncated}`;
 
-    // Click pill → open action picker (mouse only, no gamepad nav to pills)
+    // Click pill → open draft editor directly (mouse only, no gamepad nav to pills)
     pill.addEventListener('click', async () => {
-      const { showDraftActionPicker } = await import('../modals/draft-submenu.js');
-      showDraftActionPicker(draft);
+      const { showDraftEditor } = await import('./draft-editor.js');
+      showDraftEditor(state.activeSessionId!, draft);
     });
 
     strip.appendChild(pill);
