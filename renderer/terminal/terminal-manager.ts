@@ -6,7 +6,6 @@
  */
 
 import { TerminalView } from './terminal-view.js';
-import { applyPtyFilters } from './pty-filter.js';
 import { PtyOutputBuffer } from './pty-output-buffer.js';
 
 export interface TerminalSession {
@@ -17,7 +16,6 @@ export interface TerminalSession {
   view: TerminalView;
   element: HTMLElement;
   cwd?: string;
-  stripAltScreen?: boolean;
 }
 
 export class TerminalManager {
@@ -74,7 +72,6 @@ export class TerminalManager {
     cwd?: string,
     contextText?: string,
     resumeSessionName?: string,
-    enableStripAltScreen?: boolean,
   ): Promise<boolean> {
     if (this.terminals.has(sessionId)) return false;
 
@@ -105,7 +102,7 @@ export class TerminalManager {
       },
     });
 
-    this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd, stripAltScreen: enableStripAltScreen });
+    this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd });
 
     // Right-click context menu on the terminal pane
     element.addEventListener('contextmenu', (e) => {
@@ -138,7 +135,6 @@ export class TerminalManager {
     sessionId: string,
     cliType: string,
     cwd?: string,
-    enableStripAltScreen?: boolean,
   ): void {
     if (this.terminals.has(sessionId)) return;
 
@@ -169,7 +165,7 @@ export class TerminalManager {
       },
     });
 
-    this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd, stripAltScreen: enableStripAltScreen });
+    this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd });
 
     element.addEventListener('contextmenu', (e) => {
       e.preventDefault();
@@ -291,11 +287,7 @@ export class TerminalManager {
   writeToTerminal(sessionId: string, data: string): void {
     const session = this.terminals.get(sessionId);
     if (session) {
-      // Track virtual alt screen state BEFORE stripping alt screen sequences
-      if (session.stripAltScreen) {
-        session.view.updateVirtualAltScreen(data);
-      }
-      session.view.write(applyPtyFilters(data, { stripAltScreen: session.stripAltScreen }));
+      session.view.write(data);
     }
   }
 

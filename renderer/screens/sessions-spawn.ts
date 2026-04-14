@@ -98,7 +98,6 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
         workingDir,
         resolvedContextText,
         resumeSessionName,
-        spawnInfo.stripAltScreen,
       );
 
       if (success) {

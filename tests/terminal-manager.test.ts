@@ -546,41 +546,42 @@ describe('TerminalManager', () => {
     mgr.dispose();
   });
 
-  it('writeToTerminal strips alt screen sequences when stripAltScreen is enabled', async () => {
+  it('writeToTerminal passes data directly to terminal view (no filtering)', async () => {
     const mgr = new TerminalManager(container);
-    await mgr.createTerminal('s1', 'copilot-cli', 'copilot', [], undefined, undefined, undefined, true);
+    await mgr.createTerminal('s1', 'copilot-cli', 'copilot');
 
     const mockTerm = terminalInstances[terminalInstances.length - 1];
     mockTerm.write.mockClear();
 
+    // All sequences pass through — xterm.js handles them natively
     mgr.writeToTerminal('s1', 'hello\x1b[?1049hworld');
-    expect(mockTerm.write).toHaveBeenCalledWith('helloworld');
+    expect(mockTerm.write).toHaveBeenCalledWith('hello\x1b[?1049hworld');
 
     mgr.dispose();
   });
 
-  it('writeToTerminal preserves clear screen in both modes (needed for scrollback)', async () => {
+  it('writeToTerminal preserves mouse tracking sequences (xterm.js handles natively)', async () => {
     const mgr = new TerminalManager(container);
-    await mgr.createTerminal('s1', 'copilot-cli', 'copilot', [], undefined, undefined, undefined, true);
+    await mgr.createTerminal('s1', 'copilot-cli', 'copilot');
+
+    const mockTerm = terminalInstances[terminalInstances.length - 1];
+    mockTerm.write.mockClear();
+
+    mgr.writeToTerminal('s1', '\x1b[?1000h\x1b[?1006h');
+    expect(mockTerm.write).toHaveBeenCalledWith('\x1b[?1000h\x1b[?1006h');
+
+    mgr.dispose();
+  });
+
+  it('writeToTerminal preserves clear screen (needed for scrollback)', async () => {
+    const mgr = new TerminalManager(container);
+    await mgr.createTerminal('s1', 'copilot-cli', 'copilot');
 
     const mockTerm = terminalInstances[terminalInstances.length - 1];
     mockTerm.write.mockClear();
 
     mgr.writeToTerminal('s1', '\x1b[2J');
     expect(mockTerm.write).toHaveBeenCalledWith('\x1b[2J');
-
-    mgr.dispose();
-  });
-
-  it('writeToTerminal preserves alt screen sequences when stripAltScreen is not set', async () => {
-    const mgr = new TerminalManager(container);
-    await mgr.createTerminal('s1', 'aider', 'aider');
-
-    const mockTerm = terminalInstances[terminalInstances.length - 1];
-    mockTerm.write.mockClear();
-
-    mgr.writeToTerminal('s1', 'hello\x1b[?1049hworld');
-    expect(mockTerm.write).toHaveBeenCalledWith('hello\x1b[?1049hworld');
 
     mgr.dispose();
   });
@@ -840,15 +841,14 @@ describe('TerminalView — custom key handler', () => {
 });
 
 // ---------------------------------------------------------------------------
-// TerminalView — container wheel listener (xterm.js v6 compatibility)
+// TerminalView — mouse wheel handling (xterm.js v6 native)
 // ---------------------------------------------------------------------------
-// xterm.js v6 replaced the old .xterm-viewport scroll with SmoothScrollableElement
-// (.xterm-scrollable-element). Our capture-phase listener always intercepts wheel
-// events and routes through scroll(): scrollLines() in normal buffer (bypasses
-// SmoothScrollableElement sync issues), PageUp/PageDown to PTY in alternate.
+// After removing the capture-phase wheel listener, xterm.js v6 handles wheel
+// events natively via SmoothScrollableElement. No custom listener needed.
+// The gamepad scroll() method remains for programmatic scroll.
 // ---------------------------------------------------------------------------
 
-describe('TerminalView — container wheel listener (v6)', () => {
+describe('TerminalView — native wheel handling (v6)', () => {
   let container: HTMLElement;
 
   beforeEach(() => {
@@ -863,97 +863,61 @@ describe('TerminalView — container wheel listener (v6)', () => {
     document.body.innerHTML = '';
   });
 
-  it('registers a capture-phase wheel listener on the container', () => {
+  it('does NOT register a capture-phase wheel listener on the container', () => {
     const spy = vi.spyOn(container, 'addEventListener');
-    new TerminalView({ sessionId: 'dwl-1', container });
+    new TerminalView({ sessionId: 'nwl-1', container });
 
     const wheelCalls = spy.mock.calls.filter(c => c[0] === 'wheel');
-    expect(wheelCalls.length).toBe(1);
-    expect(wheelCalls[0][2]).toEqual({ passive: false, capture: true });
+    expect(wheelCalls.length).toBe(0);
   });
 
-  it('scrolls viewport via scrollLines in normal buffer', () => {
-    new TerminalView({ sessionId: 'dwl-2', container });
-    lastTerminal().buffer.active.type = 'normal';
-
-    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
-    container.dispatchEvent(ev);
-
-    expect(ev.defaultPrevented).toBe(true);
-    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(3); // 120/40 = 3
-  });
-
-  it('scrolls up via scrollLines in normal buffer', () => {
-    new TerminalView({ sessionId: 'dwl-2b', container });
-    lastTerminal().buffer.active.type = 'normal';
-
-    const ev = new WheelEvent('wheel', { deltaY: -80, cancelable: true, bubbles: true });
-    container.dispatchEvent(ev);
-
-    expect(ev.defaultPrevented).toBe(true);
-    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(-2); // 80/40 = 2
-  });
-
-  it('sends PageDown to PTY in alternate buffer', () => {
+  it('gamepad scroll() sends PageDown to PTY in alternate buffer', () => {
     const onScrollInput = vi.fn();
-    new TerminalView({ sessionId: 'dwl-5', container, onScrollInput });
+    const view = new TerminalView({ sessionId: 'nwl-2', container, onScrollInput, onData: vi.fn() });
     lastTerminal().buffer.active.type = 'alternate';
 
-    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
-    container.dispatchEvent(ev);
-
-    expect(ev.defaultPrevented).toBe(true);
-    expect(onScrollInput).toHaveBeenCalledTimes(3); // 120/40 = 3
+    view.scroll('down', 1);
     expect(onScrollInput).toHaveBeenCalledWith('\x1b[6~'); // PageDown
     expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
   });
 
-  it('sends PageUp to PTY in alternate buffer', () => {
+  it('gamepad scroll() sends PageUp to PTY in alternate buffer', () => {
     const onScrollInput = vi.fn();
-    new TerminalView({ sessionId: 'dwl-6', container, onScrollInput });
+    const view = new TerminalView({ sessionId: 'nwl-3', container, onScrollInput, onData: vi.fn() });
     lastTerminal().buffer.active.type = 'alternate';
 
-    const ev = new WheelEvent('wheel', { deltaY: -80, cancelable: true, bubbles: true });
-    container.dispatchEvent(ev);
-
-    expect(ev.defaultPrevented).toBe(true);
-    expect(onScrollInput).toHaveBeenCalledTimes(2); // 80/40 = 2
+    view.scroll('up', 1);
     expect(onScrollInput).toHaveBeenCalledWith('\x1b[5~'); // PageUp
   });
 
-  it('falls back to onData in alternate buffer when no onScrollInput', () => {
+  it('gamepad scroll() falls back to onData when no onScrollInput', () => {
     const onData = vi.fn();
-    new TerminalView({ sessionId: 'dwl-7', container, onData });
+    const view = new TerminalView({ sessionId: 'nwl-4', container, onData });
     lastTerminal().buffer.active.type = 'alternate';
 
-    const ev = new WheelEvent('wheel', { deltaY: 40, cancelable: true, bubbles: true });
-    container.dispatchEvent(ev);
-
-    expect(ev.defaultPrevented).toBe(true);
+    view.scroll('down', 1);
     expect(onData).toHaveBeenCalledWith('\x1b[6~');
   });
 
-  it('still prevents default in alternate buffer with no callbacks', () => {
-    new TerminalView({ sessionId: 'dwl-8', container });
-    lastTerminal().buffer.active.type = 'alternate';
+  it('gamepad scroll() calls scrollLines in normal buffer', () => {
+    const view = new TerminalView({ sessionId: 'nwl-5', container, onData: vi.fn() });
+    lastTerminal().buffer.active.type = 'normal';
 
-    const ev = new WheelEvent('wheel', { deltaY: 120, cancelable: true, bubbles: true });
-    container.dispatchEvent(ev);
-
-    // preventDefault always called — no PTY escape sent (no callback), but event is consumed
-    expect(ev.defaultPrevented).toBe(true);
+    view.scroll('down', 3);
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(3);
   });
 });
 
 // ---------------------------------------------------------------------------
-// TerminalView — virtual alt screen tracking
+// TerminalView — scroll handling (native xterm.js + gamepad)
 // ---------------------------------------------------------------------------
-// When stripAltScreen is active, TerminalView tracks alt screen enter/exit
-// sequences from the raw PTY data (before pty-filter strips them).
-// This lets scroll() and PageUp/PageDown route to the CLI during TUI mode.
+// After removing virtual alt screen tracking, scroll behavior is simpler:
+// - Normal buffer: scrollLines() for viewport scrollback
+// - Alternate buffer: xterm.js handles natively (PageUp/PageDown → escape to PTY)
+// - Gamepad scroll: routes through scroll() method
 // ---------------------------------------------------------------------------
 
-describe('TerminalView — virtual alt screen', () => {
+describe('TerminalView — scroll handling', () => {
   let container: HTMLElement;
 
   beforeEach(() => {
@@ -968,92 +932,51 @@ describe('TerminalView — virtual alt screen', () => {
     document.body.innerHTML = '';
   });
 
-  it('starts with virtualAltScreen false', () => {
-    const view = new TerminalView({ sessionId: 'vas-init', container });
-    expect(view.isVirtualAltScreen()).toBe(false);
-  });
-
-  it('sets virtualAltScreen true on alt screen enter (1049h)', () => {
-    const view = new TerminalView({ sessionId: 'vas-enter', container });
-    view.updateVirtualAltScreen('some text\x1b[?1049hmore text');
-    expect(view.isVirtualAltScreen()).toBe(true);
-  });
-
-  it('sets virtualAltScreen false on alt screen exit (1049l)', () => {
-    const view = new TerminalView({ sessionId: 'vas-exit', container });
-    view.updateVirtualAltScreen('\x1b[?1049h');
-    expect(view.isVirtualAltScreen()).toBe(true);
-    view.updateVirtualAltScreen('\x1b[?1049l');
-    expect(view.isVirtualAltScreen()).toBe(false);
-  });
-
-  it('handles mode 47 (original alt screen)', () => {
-    const view = new TerminalView({ sessionId: 'vas-47', container });
-    view.updateVirtualAltScreen('\x1b[?47h');
-    expect(view.isVirtualAltScreen()).toBe(true);
-    view.updateVirtualAltScreen('\x1b[?47l');
-    expect(view.isVirtualAltScreen()).toBe(false);
-  });
-
-  it('handles mode 1047 (xterm alt screen)', () => {
-    const view = new TerminalView({ sessionId: 'vas-1047', container });
-    view.updateVirtualAltScreen('\x1b[?1047h');
-    expect(view.isVirtualAltScreen()).toBe(true);
-    view.updateVirtualAltScreen('\x1b[?1047l');
-    expect(view.isVirtualAltScreen()).toBe(false);
-  });
-
-  it('last sequence wins when multiple in one chunk', () => {
-    const view = new TerminalView({ sessionId: 'vas-multi', container });
-    view.updateVirtualAltScreen('\x1b[?1049h\x1b[?1049l');
-    expect(view.isVirtualAltScreen()).toBe(false);
-
-    view.updateVirtualAltScreen('\x1b[?1049l\x1b[?1049h');
-    expect(view.isVirtualAltScreen()).toBe(true);
-  });
-
-  it('ignores data without alt screen sequences', () => {
-    const view = new TerminalView({ sessionId: 'vas-none', container });
-    view.updateVirtualAltScreen('hello world\x1b[2J');
-    expect(view.isVirtualAltScreen()).toBe(false);
-  });
-
-  it('scroll() sends PageUp/Down to CLI in virtual alt screen', () => {
+  it('scroll() sends PageUp/Down to CLI in alternate buffer', () => {
     const scrollCb = vi.fn();
-    const view = new TerminalView({ sessionId: 'vas-scroll', container, onScrollInput: scrollCb, onData: vi.fn() });
-    view.updateVirtualAltScreen('\x1b[?1049h');
+    const view = new TerminalView({ sessionId: 'scroll-alt', container, onScrollInput: scrollCb, onData: vi.fn() });
+    lastTerminal().buffer.active.type = 'alternate';
 
     view.scroll('up', 1);
     expect(scrollCb).toHaveBeenCalledWith('\x1b[5~'); // PageUp
     expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
   });
 
-  it('scroll() calls scrollLines in normal mode (no virtual alt screen)', () => {
-    const view = new TerminalView({ sessionId: 'vas-normal', container, onData: vi.fn() });
+  it('scroll() calls scrollLines in normal mode', () => {
+    const view = new TerminalView({ sessionId: 'scroll-normal', container, onData: vi.fn() });
     lastTerminal().buffer.active.type = 'normal';
 
     view.scroll('down', 3);
     expect(lastTerminal().scrollLines).toHaveBeenCalledWith(3);
   });
 
-  it('PageUp/PageDown passes through to PTY in virtual alt screen', () => {
-    const view = new TerminalView({ sessionId: 'vas-pgup', container });
-    view.updateVirtualAltScreen('\x1b[?1049h');
-    lastTerminal().buffer.active.type = 'normal';
-    const handler = lastTerminal().attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
-
-    const result = handler({ key: 'PageUp', type: 'keydown', ctrlKey: false } as KeyboardEvent);
-    expect(result).toBe(true); // let xterm.js send to CLI
-    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
-  });
-
-  it('PageDown in normal mode (no virtual alt screen) scrolls viewport', () => {
-    new TerminalView({ sessionId: 'vas-pgdn-norm', container });
+  it('PageDown in normal mode scrolls viewport', () => {
+    new TerminalView({ sessionId: 'pgdn-normal', container });
     lastTerminal().buffer.active.type = 'normal';
     const handler = lastTerminal().attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
 
     const result = handler({ key: 'PageDown', type: 'keydown', ctrlKey: false } as KeyboardEvent);
     expect(result).toBe(false);
     expect(lastTerminal().scrollLines).toHaveBeenCalledWith(30);
+  });
+
+  it('PageUp in normal mode scrolls viewport up', () => {
+    new TerminalView({ sessionId: 'pgup-normal', container });
+    lastTerminal().buffer.active.type = 'normal';
+    const handler = lastTerminal().attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
+
+    const result = handler({ key: 'PageUp', type: 'keydown', ctrlKey: false } as KeyboardEvent);
+    expect(result).toBe(false);
+    expect(lastTerminal().scrollLines).toHaveBeenCalledWith(-30);
+  });
+
+  it('PageUp/PageDown in alternate buffer passes through to xterm.js', () => {
+    new TerminalView({ sessionId: 'pgup-alt', container });
+    lastTerminal().buffer.active.type = 'alternate';
+    const handler = lastTerminal().attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
+
+    const result = handler({ key: 'PageUp', type: 'keydown', ctrlKey: false } as KeyboardEvent);
+    expect(result).toBe(true); // let xterm.js send to CLI
+    expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
   });
 });

@@ -223,7 +223,6 @@ async function showAddCliTypeForm(): Promise<void> {
     { key: 'spawnCommand', label: 'Spawn Command', placeholder: 'Fresh spawn with session UUID (e.g. claude --session-id {cliSessionName})' },
     { key: 'resumeCommand', label: 'Resume Command', placeholder: 'Resume by UUID (e.g. claude --resume={cliSessionName})' },
     { key: 'continueCommand', label: 'Continue Command', placeholder: 'Resume most recent session (e.g. claude --continue)' },
-    { key: 'stripAltScreen', label: 'Strip alternate screen (enables scrollback for fullscreen CLIs)', type: 'checkbox', defaultValue: 'false' },
   ]);
 
   if (!result) return;
@@ -270,7 +269,6 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
     { key: 'spawnCommand', label: 'Spawn Command', defaultValue: value.spawnCommand || '', placeholder: 'Fresh spawn with session UUID (e.g. claude --session-id {cliSessionName})' },
     { key: 'resumeCommand', label: 'Resume Command', defaultValue: value.resumeCommand || '', placeholder: 'Resume by UUID (e.g. claude --resume={cliSessionName})' },
     { key: 'continueCommand', label: 'Continue Command', defaultValue: value.continueCommand || '', placeholder: 'Resume most recent session (e.g. claude --continue)' },
-    { key: 'stripAltScreen', label: 'Strip alternate screen (enables scrollback for fullscreen CLIs)', type: 'checkbox', defaultValue: String(value.stripAltScreen ?? false) },
   ]);
 
   if (!result) return;
@@ -294,9 +292,9 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
 }
 
 /** Build the optional command fields from form result. Empty string = clear, undefined = no change. */
-function buildCommandOptions(result: Record<string, string>): { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; stripAltScreen?: boolean } | undefined {
+function buildCommandOptions(result: Record<string, string>): { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string } | undefined {
   const fields = ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
-  const opts: Record<string, string | boolean> = {};
+  const opts: Record<string, string> = {};
   let hasAny = false;
   for (const field of fields) {
     const val = result[field];
@@ -304,10 +302,6 @@ function buildCommandOptions(result: Record<string, string>): { handoffCommand?:
       opts[field] = val.trim();
       hasAny = true;
     }
-  }
-  if (result.stripAltScreen !== undefined) {
-    opts.stripAltScreen = result.stripAltScreen === 'true';
-    hasAny = true;
   }
   return hasAny ? opts : undefined;
 }

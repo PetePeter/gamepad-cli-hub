@@ -83,8 +83,6 @@ export interface CliTypeConfig {
   resumeCommand?: string;
   /** CLI command to resume most recent session (fallback when resumeCommand is not configured). */
   continueCommand?: string;
-  /** Strip alternate screen buffer sequences so output stays in scrollable normal buffer. */
-  stripAltScreen?: boolean;
 }
 
 export interface ButtonBindings {
@@ -748,7 +746,7 @@ export class ConfigLoader {
   addCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; stripAltScreen?: boolean },
+    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string },
   ): void {
     this.ensureLoaded();
     if (this.activeProfile!.tools[key]) {
@@ -760,7 +758,6 @@ export class ConfigLoader {
     if (options?.spawnCommand) tool.spawnCommand = options.spawnCommand;
     if (options?.resumeCommand) tool.resumeCommand = options.resumeCommand;
     if (options?.continueCommand) tool.continueCommand = options.continueCommand;
-    if (options?.stripAltScreen !== undefined) tool.stripAltScreen = options.stripAltScreen;
     this.activeProfile!.tools[key] = tool;
     this.saveActiveProfile();
   }
@@ -768,7 +765,7 @@ export class ConfigLoader {
   updateCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; stripAltScreen?: boolean },
+    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string },
   ): void {
     this.ensureLoaded();
     if (!this.activeProfile!.tools[key]) {
@@ -789,7 +786,6 @@ export class ConfigLoader {
         if (val === '') { delete (existing as any)[field]; }
         else { (existing as any)[field] = val; }
       }
-      if (options.stripAltScreen !== undefined) existing.stripAltScreen = options.stripAltScreen;
     }
 
     this.saveActiveProfile();

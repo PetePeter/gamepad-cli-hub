@@ -84,7 +84,6 @@ claude-code:
   initialPrompt:              # Array of sequence items sent to PTY sequentially after spawn
     - sequence: "/init{Enter}"
   initialPromptDelay: 2000    # ms to wait before sending first item (default 2000 for AI CLIs, 0 for generic)
-  stripAltScreen: true         # Optional: strip alternate screen buffer sequences so output stays in scrollable normal buffer
   sequences:                  # Optional: named groups of sequence items (referenced by bindings + context menu)
     quick-actions:
       - label: commit
@@ -93,7 +92,7 @@ claude-code:
         sequence: use skill(plan-it)
 ```
 
-No `terminal` field — all CLIs run as embedded PTY sessions (no external window config). `initialPrompt` items are sent in order; use `{Wait N}` within sequences for inter-item timing. `stripAltScreen` prevents fullscreen CLIs from switching to the alternate screen buffer, keeping output in the normal scrollback buffer so scrolling works — enabled by default for copilot-cli in the default profile.
+No `terminal` field — all CLIs run as embedded PTY sessions (no external window config). `initialPrompt` items are sent in order; use `{Wait N}` within sequences for inter-item timing.
 
 ## Sequence Parser Syntax
 

@@ -655,7 +655,6 @@ describe('Sessions Screen', () => {
         undefined,
         undefined,
         undefined,
-        undefined,
       );
     });
 
@@ -739,7 +738,6 @@ describe('Sessions Screen', () => {
         undefined,
         undefined,
         undefined,
-        undefined,
       );
     });
 
@@ -754,7 +752,6 @@ describe('Sessions Screen', () => {
         'claude',
         ['--flag'],
         '/projects/a',
-        undefined,
         undefined,
         undefined,
       );
@@ -819,7 +816,6 @@ describe('Sessions Screen', () => {
         '/work',
         undefined,
         'hub-my-session',
-        undefined,
       );
     });
 
@@ -833,7 +829,6 @@ describe('Sessions Screen', () => {
         'claude-code',
         'claude',
         [],
-        undefined,
         undefined,
         undefined,
         undefined,

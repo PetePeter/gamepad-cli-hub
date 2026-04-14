@@ -63,7 +63,6 @@ tools:
       prompts:
         - label: commit
           sequence: use skill(commit)
-    stripAltScreen: true
   cmd:
     name: cmd
     command: cmd.exe
@@ -78,8 +77,6 @@ workingDirectories:
     path: X:\coding\stillhere
   - name: GrapeJourney
     path: X:\coding\Vitido
-  - name: 3d print
-    path: E:\Other Content\3d printing models\tmp
 bindings:
   claude-code:
     RightTrigger:
