@@ -16,6 +16,7 @@ import {
   moveGroupUp, moveGroupDown, toggleCollapse,
   findNavIndexBySessionId,
 } from '../session-groups.js';
+import { getActivityColor } from '../state-colors.js';
 
 // Sub-module imports — circular at module level, safe because all usages are in function bodies.
 import {
@@ -51,6 +52,9 @@ const sessionStates = new Map<string, string>();
 /** Track session activity level (active/inactive/idle based on output timing) */
 const sessionActivity = new Map<string, string>();
 
+/** Track last output timestamp per session (for timer display) */
+const lastOutputTimes = new Map<string, number>();
+
 // Draft count cache — updated on session load and draft changes
 const draftCounts = new Map<string, number>();
 
@@ -60,6 +64,16 @@ export function getDraftCountCache(sessionId: string): number {
 
 export function setDraftCountCache(sessionId: string, count: number): void {
   draftCounts.set(sessionId, count);
+}
+
+/** Get the last output timestamp for a session */
+export function getLastOutputTime(sessionId: string): number {
+  return lastOutputTimes.get(sessionId) ?? 0;
+}
+
+/** Set the last output timestamp for a session */
+export function setLastOutputTime(sessionId: string, timestamp: number): void {
+  lastOutputTimes.set(sessionId, timestamp);
 }
 
 const ACTIVITY_DEBOUNCE_MS = 300;
@@ -76,6 +90,7 @@ export function setSessionState(sessionId: string, newState: string): void {
 export function removeSessionState(sessionId: string): void {
   sessionStates.delete(sessionId);
   sessionActivity.delete(sessionId);
+  lastOutputTimes.delete(sessionId);
 }
 
 /** Get session activity level */
@@ -84,15 +99,87 @@ export function getSessionActivity(sessionId: string): string {
 }
 
 /** Set session activity level */
-export function setSessionActivity(sessionId: string, level: string): void {
+export function setSessionActivity(sessionId: string, level: string, lastOutputAt?: number): void {
   // Ignore active events right after a session switch (likely focus-induced PTY noise)
   if (level === 'active' && Date.now() - lastSwitchTime < ACTIVITY_DEBOUNCE_MS) {
     return;
   }
+  if (lastOutputAt !== undefined) {
+    lastOutputTimes.set(sessionId, lastOutputAt);
+  }
   const previous = sessionActivity.get(sessionId) ?? 'idle';
   if (previous !== level) {
     sessionActivity.set(sessionId, level);
-    loadSessions();
+    // In-place DOM update: just update the dot color — avoids destroying the rename input
+    updateActivityDotInPlace(sessionId, level);
+  }
+  // Always update the timer display (timestamp changes even if level is unchanged)
+  updateTimerInPlace(sessionId);
+}
+
+/** Update just the activity dot color for a session card without re-rendering. */
+function updateActivityDotInPlace(sessionId: string, level: string): void {
+  const color = getActivityColor(level);
+  // Session card dot
+  const card = document.querySelector(`.session-card[data-session-id="${sessionId}"]`);
+  const dot = card?.querySelector('.session-activity-dot') as HTMLElement | null;
+  if (dot) {
+    dot.style.background = color;
+  }
+  // Overview card dot (if overview is visible)
+  const overviewCard = document.querySelector(`.overview-card[data-session-id="${sessionId}"]`);
+  const overviewDot = overviewCard?.querySelector('.overview-state-dot') as HTMLElement | null;
+  if (overviewDot) {
+    overviewDot.style.background = color;
+  }
+}
+
+/** Update the elapsed-time timer text on a session card. */
+function updateTimerInPlace(sessionId: string): void {
+  const card = document.querySelector(`.session-card[data-session-id="${sessionId}"]`);
+  const timer = card?.querySelector('.session-timer') as HTMLElement | null;
+  if (!timer) return;
+  const ts = lastOutputTimes.get(sessionId);
+  timer.textContent = ts ? formatElapsed(Date.now() - ts) : '';
+}
+
+/** Format milliseconds to human-readable elapsed time. */
+export function formatElapsed(ms: number): string {
+  if (ms < 0) return '';
+  const sec = Math.floor(ms / 1000);
+  if (sec < 5) return 'just now';
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h`;
+  const days = Math.floor(hr / 24);
+  return `${days}d`;
+}
+
+/** Refresh all visible timer spans. Called by setInterval. */
+export function refreshAllTimers(): void {
+  const timers = document.querySelectorAll('.session-timer') as NodeListOf<HTMLElement>;
+  for (const timer of timers) {
+    const card = timer.closest('.session-card') as HTMLElement | null;
+    if (!card?.dataset.sessionId) continue;
+    const ts = lastOutputTimes.get(card.dataset.sessionId);
+    timer.textContent = ts ? formatElapsed(Date.now() - ts) : '';
+  }
+}
+
+// Live timer refresh — update every 10 seconds
+let timerInterval: ReturnType<typeof setInterval> | null = null;
+
+export function startTimerRefresh(): void {
+  if (timerInterval) return;
+  timerInterval = setInterval(refreshAllTimers, 10_000);
+}
+
+export function stopTimerRefresh(): void {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
   }
 }
 

@@ -1,10 +1,14 @@
 /**
  * System IPC Handlers
  *
- * OS-level operations — logs folder access.
+ * OS-level operations — logs folder access, external editor.
  */
 
 import { ipcMain, shell } from 'electron';
+import { spawn } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import { logger, logDir } from '../../utils/logger.js';
 
 export function setupSystemHandlers(): void {
@@ -19,6 +23,31 @@ export function setupSystemHandlers(): void {
     } catch (error) {
       logger.error(`[IPC] Failed to open logs folder: ${error}`);
       return { success: false, error: String(error) };
+    }
+  });
+
+  // editor:openExternal — Ctrl+G: open temp file in Notepad, return contents on close
+  ipcMain.handle('editor:openExternal', async () => {
+    const tmpDir = os.tmpdir();
+    const tmpFile = path.join(tmpDir, `gamepad-cli-prompt-${Date.now()}.md`);
+    try {
+      fs.writeFileSync(tmpFile, '', 'utf-8');
+      logger.info(`[System] Opening external editor: ${tmpFile}`);
+
+      await new Promise<void>((resolve, reject) => {
+        const editor = spawn('notepad.exe', [tmpFile], { stdio: 'ignore' });
+        editor.on('close', () => resolve());
+        editor.on('error', (err) => reject(err));
+      });
+
+      const content = fs.readFileSync(tmpFile, 'utf-8');
+      logger.info(`[System] Editor closed, content length: ${content.length}`);
+      return { success: true, text: content };
+    } catch (error) {
+      logger.error(`[System] External editor failed: ${error}`);
+      return { success: false, error: String(error) };
+    } finally {
+      try { fs.unlinkSync(tmpFile); } catch { /* ignore cleanup errors */ }
     }
   });
 }

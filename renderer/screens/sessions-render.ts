@@ -22,7 +22,7 @@ import {
   loadSessionsData, updateSessionsFocus,
   switchToSession, getSessionCwd, getTerminalManager,
   toggleGroupCollapse, moveGroupUpAction, moveGroupDownAction,
-  getDraftCountCache,
+  getDraftCountCache, getLastOutputTime, formatElapsed,
 } from './sessions.js';
 
 // --- Constants ---
@@ -387,11 +387,18 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   if (renameBtn) nameLine.appendChild(renameBtn);
   nameLine.appendChild(closeBtn);
 
-  // Append in visual order: dot → draft badge → info (name-line + meta)
+  // Timer: elapsed time since last output
+  const timer = document.createElement('span');
+  timer.className = 'session-timer';
+  const lastOutput = getLastOutputTime(session.id);
+  timer.textContent = lastOutput ? formatElapsed(Date.now() - lastOutput) : '';
+
+  // Append in visual order: dot → draft badge → info (name-line + meta) → timer
   card.appendChild(activityDot);
   const badge = createDraftBadge(getDraftCountCache(session.id));
   if (badge) card.appendChild(badge);
   card.appendChild(info);
+  card.appendChild(timer);
 
   card.addEventListener('click', () => switchToSession(session.id));
   return card;

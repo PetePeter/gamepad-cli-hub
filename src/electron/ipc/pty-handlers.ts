@@ -172,6 +172,7 @@ export function setupPtyHandlers(
   ipcMain.handle('pty:resize', (_event, sessionId: string, cols: number, rows: number) => {
     try {
       ptyManager.resize(sessionId, cols, rows);
+      stateDetector.markResizing(sessionId);
     } catch (error) {
       logger.error(`[PTY IPC] pty:resize failed for session=${sessionId}: ${error}`);
     }
@@ -299,9 +300,10 @@ export function setupPtyHandlers(
 
   // Forward activity change events to renderer
   stateDetector.on('activity-change', (event) => {
+    const lastOutputAt = stateDetector.getLastOutputTime(event.sessionId);
     const win = getMainWindow();
     if (win && !win.isDestroyed()) {
-      win.webContents.send('pty:activity-change', event);
+      win.webContents.send('pty:activity-change', { ...event, lastOutputAt });
     }
 
     // Desktop notification when activity transitions from active to non-active

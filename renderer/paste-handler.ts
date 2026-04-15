@@ -15,6 +15,7 @@ type GetActiveSessionId = () => string | null;
 
 let registeredHandler: ((e: KeyboardEvent) => void) | null = null;
 let pasteInFlight = false;
+let editorInFlight = false;
 
 /** Returns true if the focused element is an input field, textarea, or inside a modal. */
 function isEditableOrModalFocused(): boolean {
@@ -64,6 +65,24 @@ export function setupKeyboardRelay(getActiveSessionId: GetActiveSessionId): void
         console.warn('[KeyRelay] clipboard read failed:', err);
       } finally {
         pasteInFlight = false;
+      }
+      return;
+    }
+
+    // Ctrl+G — open external editor for prompt composition
+    if (e.ctrlKey && e.key === 'g') {
+      e.preventDefault();
+      if (editorInFlight) return;
+      editorInFlight = true;
+      try {
+        const result = await window.gamepadCli.editorOpenExternal();
+        if (result.success && result.text && result.text.trim()) {
+          window.gamepadCli.ptyWrite(sessionId, result.text);
+        }
+      } catch (err) {
+        console.warn('[KeyRelay] external editor failed:', err);
+      } finally {
+        editorInFlight = false;
       }
       return;
     }

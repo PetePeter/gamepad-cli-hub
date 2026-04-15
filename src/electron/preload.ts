@@ -199,7 +199,7 @@ const gamepadCliAPI = {
   },
 
   /** Subscribe to activity change events */
-  onPtyActivityChange: (callback: (event: { sessionId: string; level: string }) => void) => {
+  onPtyActivityChange: (callback: (event: { sessionId: string; level: string; lastOutputAt?: number }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
     ipcRenderer.on('pty:activity-change', listener);
     return () => ipcRenderer.removeListener('pty:activity-change', listener);
@@ -314,6 +314,10 @@ const gamepadCliAPI = {
   // ========================================================================
 
   systemOpenLogsFolder: () => ipcRenderer.invoke('system:openLogsFolder'),
+
+  /** Open external editor (Notepad) for prompt composition */
+  editorOpenExternal: (): Promise<{ success: boolean; text?: string; error?: string }> =>
+    ipcRenderer.invoke('editor:openExternal'),
 
   // ========================================================================
   // Dialog

@@ -27,6 +27,8 @@ interface SessionTracking {
   activityLevel: ActivityLevel;
   /** When true, processOutput skips keyword scanning (scroll redraws). */
   scrolling: boolean;
+  /** When true, processOutput skips activity promotion (resize redraws). */
+  resizing: boolean;
 }
 
 /** Strip ANSI escape sequences so keyword detection works on raw PTY output. */
@@ -60,6 +62,9 @@ export const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
 /** How long after the last scroll input before keyword scanning resumes (2s) */
 export const DEFAULT_SCROLL_CLEAR_MS = 2_000;
 
+/** How long after the last resize before activity promotion resumes (1s) */
+export const DEFAULT_RESIZE_CLEAR_MS = 1_000;
+
 export interface ActivityTimeouts {
   inactiveMs: number;
   idleMs: number;
@@ -84,6 +89,7 @@ export class StateDetector extends EventEmitter {
   private inactiveTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private idleTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private scrollTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private resizeTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private readonly inactiveTimeoutMs: number;
   private readonly idleTimeoutMs: number;
 
@@ -108,18 +114,38 @@ export class StateDetector extends EventEmitter {
     }, DEFAULT_SCROLL_CLEAR_MS));
   }
 
+  /** Mark a session as resizing — processOutput skips activity promotion.
+   *  Auto-clears after 1s of no further resize events. */
+  markResizing(sessionId: string): void {
+    const tracking = this.getOrCreate(sessionId);
+    tracking.resizing = true;
+
+    const existing = this.resizeTimers.get(sessionId);
+    if (existing) clearTimeout(existing);
+    this.resizeTimers.set(sessionId, setTimeout(() => {
+      tracking.resizing = false;
+      this.resizeTimers.delete(sessionId);
+    }, DEFAULT_RESIZE_CLEAR_MS));
+  }
+
   /** Mark a session as active due to user input (PTY stdin).
    *  Unlike processOutput, this does NOT scan for AIAGENT-* keywords.
    *  Clears the scrolling flag since this is real user input. */
   markActive(sessionId: string): void {
     const tracking = this.getOrCreate(sessionId);
 
-    // Real user input clears scrolling flag
+    // Real user input clears scrolling and resizing flags
     tracking.scrolling = false;
     const scrollTimer = this.scrollTimers.get(sessionId);
     if (scrollTimer) {
       clearTimeout(scrollTimer);
       this.scrollTimers.delete(sessionId);
+    }
+    tracking.resizing = false;
+    const resizeTimer = this.resizeTimers.get(sessionId);
+    if (resizeTimer) {
+      clearTimeout(resizeTimer);
+      this.resizeTimers.delete(sessionId);
     }
 
     if (tracking.activityLevel !== 'active') {
@@ -135,14 +161,14 @@ export class StateDetector extends EventEmitter {
     const tracking = this.getOrCreate(sessionId);
     tracking.lastOutputAt = Date.now();
 
-    // Emit activity-change if transitioning to active
-    if (tracking.activityLevel !== 'active') {
-      tracking.activityLevel = 'active';
-      this.emit('activity-change', { sessionId, level: 'active' } satisfies ActivityChange);
+    // Skip activity promotion during resize (CLI redraws after resize are not new output)
+    if (!tracking.resizing) {
+      if (tracking.activityLevel !== 'active') {
+        tracking.activityLevel = 'active';
+        this.emit('activity-change', { sessionId, level: 'active' } satisfies ActivityChange);
+      }
+      this.resetActivityTimers(sessionId);
     }
-
-    // Reset both inactivity timers
-    this.resetActivityTimers(sessionId);
 
     // Skip keyword scanning during scroll — output is a screen redraw, not new CLI content
     if (tracking.scrolling) return;
@@ -226,6 +252,11 @@ export class StateDetector extends EventEmitter {
       clearTimeout(scrollTimer);
       this.scrollTimers.delete(sessionId);
     }
+    const resizeTimer = this.resizeTimers.get(sessionId);
+    if (resizeTimer) {
+      clearTimeout(resizeTimer);
+      this.resizeTimers.delete(sessionId);
+    }
     this.sessionStates.delete(sessionId);
   }
 
@@ -234,9 +265,11 @@ export class StateDetector extends EventEmitter {
     for (const timer of this.inactiveTimers.values()) clearTimeout(timer);
     for (const timer of this.idleTimers.values()) clearTimeout(timer);
     for (const timer of this.scrollTimers.values()) clearTimeout(timer);
+    for (const timer of this.resizeTimers.values()) clearTimeout(timer);
     this.inactiveTimers.clear();
     this.idleTimers.clear();
     this.scrollTimers.clear();
+    this.resizeTimers.clear();
     this.sessionStates.clear();
   }
 
@@ -291,7 +324,7 @@ export class StateDetector extends EventEmitter {
   private getOrCreate(sessionId: string): SessionTracking {
     let tracking = this.sessionStates.get(sessionId);
     if (!tracking) {
-      tracking = { state: 'idle', questionPending: false, lastOutputAt: 0, activityLevel: 'idle', scrolling: false };
+      tracking = { state: 'idle', questionPending: false, lastOutputAt: 0, activityLevel: 'idle', scrolling: false, resizing: false };
       this.sessionStates.set(sessionId, tracking);
     }
     return tracking;

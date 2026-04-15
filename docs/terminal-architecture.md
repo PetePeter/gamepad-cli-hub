@@ -13,6 +13,7 @@ Gamepad Button Press / Keyboard Input
   → D-pad/stick: navigate sessions (auto-select terminal)
   → Keyboard: routes to active terminal (PTY stdin)
   → Ctrl+V: paste-handler intercepts → clipboard text → ptyWrite() (any DOM focus)
+  → Ctrl+G: paste-handler intercepts → editor:openExternal → notepad temp .md → content to PTY
   → Non-nav buttons: per-CLI configurable bindings
 
 Modal keyboard capture:
@@ -54,7 +55,9 @@ Session cards and overview cards use activity-based coloring (PTY I/O timing, no
 - 🔵 inactive (blue `#4488ff` — >10s silence)
 - ⚪ idle (grey `#555555` — >5min silence)
 
-Input tracking: the `pty:write` IPC handler calls `StateDetector.markActive(sessionId)` on every keystroke, so the green dot appears immediately when the user types — not just when the shell echoes back. `markActive()` only resets activity timers; it does NOT scan for AIAGENT-* keywords. Scroll input uses a distinct path: `pty:scrollInput` IPC handler calls `StateDetector.markScrolling(sessionId)` instead of `markActive()`, suppressing keyword scanning for 2s to prevent false state changes from screen redraws triggered by PageUp/PageDown.
+Input tracking: the `pty:write` IPC handler calls `StateDetector.markActive(sessionId)` on every keystroke, so the green dot appears immediately when the user types — not just when the shell echoes back. `markActive()` only resets activity timers; it does NOT scan for AIAGENT-* keywords. Scroll input uses a distinct path: `pty:scrollInput` IPC handler calls `StateDetector.markScrolling(sessionId)` instead of `markActive()`, suppressing keyword scanning for 2s to prevent false state changes from screen redraws triggered by PageUp/PageDown. Resize uses an analogous path: `pty:resize` IPC handler calls `StateDetector.markResizing(sessionId)`, which suppresses activity promotion for 1s to prevent false green dots when tab switches trigger resize → CLI redraws → output.
+
+Session cards also display an elapsed timer showing time since last CLI output (e.g. "just now", "5s", "2m"). `formatElapsed()` helper in `sessions.ts`, driven by `lastOutputAt` piggybacked on the `pty:activity-change` event, refreshed every 10s and on each activity-change.
 
 Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
 
@@ -63,7 +66,7 @@ Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
 | Module | File | Role |
 |--------|------|------|
 | PtyManager | `src/session/pty-manager.ts` | Spawns node-pty processes (cmd.exe), routes stdin/stdout, handles resize/kill |
-| StateDetector | `src/session/state-detector.ts` | Scans PTY output for `AIAGENT-*` keywords to detect CLI state + tracks I/O activity (active/inactive/idle levels via `activity-change` events). `processOutput()` handles PTY stdout (keywords + activity). `markActive()` handles PTY stdin (activity only, no keyword scan). `markScrolling(sessionId)` handles scroll input — sets per-session flag that makes `processOutput()` skip keyword scanning (still tracks activity); auto-clears after 2s; `markActive()` clears it immediately |
+| StateDetector | `src/session/state-detector.ts` | Scans PTY output for `AIAGENT-*` keywords to detect CLI state + tracks I/O activity (active/inactive/idle levels via `activity-change` events). `processOutput()` handles PTY stdout (keywords + activity). `markActive()` handles PTY stdin (activity only, no keyword scan). `markScrolling(sessionId)` handles scroll input — sets per-session flag that makes `processOutput()` skip keyword scanning (still tracks activity); auto-clears after 2s; `markActive()` clears it immediately. `markResizing(sessionId)` handles resize — sets per-session flag that makes `processOutput()` skip activity promotion for 1s; prevents false green dots from tab-switch redraws |
 | PipelineQueue | `src/session/pipeline-queue.ts` | Auto-handoff: routes queued tasks to waiting sessions. Handoff triggers on completed or idle state transitions |
 | InitialPrompt | `src/session/initial-prompt.ts` | Converts sequence parser syntax to PTY escape codes, sends after configurable delay. `onComplete` callback signals when all items are done |
 | SequenceParser | `src/input/sequence-parser.ts` | Parses `{Enter}`, `{Ctrl+C}`, `{Wait 500}` etc. into typed actions |
@@ -72,4 +75,4 @@ Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
 | PtyFilter | `renderer/terminal/pty-filter.ts` | Optionally strips alternate-screen ANSI escape sequences from PTY output. `applyPtyFilters(data, opts?)` — conditionally strips alt screen modes (47/1047/1048/1049) and ED 3 (`\x1b[3J`). ED 2 (`\x1b[2J`) intentionally preserved. `stripAltScreen()` convenience wrapper. Fast-path skips regex when no escape sequences present. Mouse tracking sequences pass through to xterm.js for native handling |
 | PtyOutputBuffer | `renderer/terminal/pty-output-buffer.ts` | Ring buffer for PTY output per session (ANSI-stripped plain text). Used by group overview for live previews |
 | Bindings | `renderer/bindings.ts` | PTY-aware input routing: voice OS-default (robotjs) with PTY opt-in via `target: 'terminal'` + `keyToPtyEscape()` (F1-F12 VT220 sequences) |
-| PasteHandler | `renderer/paste-handler.ts` | Document-level Ctrl+V interceptor: reads clipboard, writes to active PTY via `ptyWrite()` regardless of DOM focus. Skipped when any modal overlay is visible (selection-mode modals own all keyboard input) |
+| PasteHandler | `renderer/paste-handler.ts` | Document-level Ctrl+V interceptor: reads clipboard, writes to active PTY via `ptyWrite()` regardless of DOM focus. Ctrl+G interceptor: opens external editor (notepad) via `editor:openExternal` IPC, sends result to active PTY. Skipped when any modal overlay is visible (selection-mode modals own all keyboard input) |

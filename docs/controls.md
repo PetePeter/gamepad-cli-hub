@@ -33,6 +33,7 @@ Gamepad button and keyboard shortcut mappings.
 | Delete | Mapped to X button |
 | F5 | Mapped to Y button |
 | Ctrl+V | Paste clipboard text to active terminal (PTY stdin) |
+| Ctrl+G | Open external editor (notepad) — result sent to active terminal |
 
 ## Navigation Priority Chain
 

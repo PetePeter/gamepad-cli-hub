@@ -545,10 +545,10 @@ describe('StateDetector', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Scroll suppression — markScrolling prevents keyword detection
+  // Resize suppression — markResizing prevents activity promotion
   // -------------------------------------------------------------------------
 
-  describe('scroll suppression', () => {
+  describe('resize suppression', () => {
     beforeEach(() => {
       vi.useFakeTimers();
     });
@@ -557,35 +557,22 @@ describe('StateDetector', () => {
       vi.useRealTimers();
     });
 
-    it('skips keyword detection while scrolling', () => {
-      const handler = vi.fn();
-      detector.on('state-change', handler);
-
-      detector.markScrolling('s1');
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-
-      expect(handler).not.toHaveBeenCalled();
-      expect(detector.getState('s1')).toBe('idle');
-    });
-
-    it('still tracks activity while scrolling', () => {
+    it('skips activity promotion while resizing', () => {
       const handler = vi.fn();
       detector.on('activity-change', handler);
 
-      detector.markScrolling('s1');
-      detector.processOutput('s1', 'some scroll redraw');
+      detector.markResizing('s1');
+      detector.processOutput('s1', 'some resize redraw');
 
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+      // Should NOT promote to active (no activity-change event for level promotion)
+      expect(handler).not.toHaveBeenCalled();
     });
 
-    it('auto-clears scrolling flag after 2 seconds', () => {
+    it('still scans keywords while resizing', () => {
       const handler = vi.fn();
       detector.on('state-change', handler);
 
-      detector.markScrolling('s1');
-      vi.advanceTimersByTime(2001);
-
-      // Now keyword detection should work again
+      detector.markResizing('s1');
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
 
       expect(handler).toHaveBeenCalledWith({
@@ -595,56 +582,74 @@ describe('StateDetector', () => {
       });
     });
 
-    it('markActive clears the scrolling flag', () => {
-      const handler = vi.fn();
-      detector.on('state-change', handler);
+    it('still updates lastOutputAt while resizing', () => {
+      detector.markResizing('s1');
+      detector.processOutput('s1', 'some output');
 
-      detector.markScrolling('s1');
-      detector.markActive('s1');
-
-      // Keywords should be detected now
-      detector.processOutput('s1', 'AIAGENT-PLANNING');
-
-      expect(handler).toHaveBeenCalledWith({
-        sessionId: 's1',
-        previousState: 'idle',
-        newState: 'planning',
-      });
+      const lastOutput = detector.getLastOutputTime('s1');
+      expect(lastOutput).toBeGreaterThan(0);
     });
 
-    it('resets auto-clear timer on repeated markScrolling', () => {
+    it('auto-clears resizing flag after 1 second', () => {
       const handler = vi.fn();
-      detector.on('state-change', handler);
+      detector.on('activity-change', handler);
 
-      detector.markScrolling('s1');
-      vi.advanceTimersByTime(1500);
-      detector.markScrolling('s1'); // refresh the timer
-      vi.advanceTimersByTime(1500); // 1500ms since last markScrolling (< 2000ms)
+      detector.markResizing('s1');
+      vi.advanceTimersByTime(1001);
 
-      // Still scrolling — keywords suppressed
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+      // Now activity promotion should work again
+      detector.processOutput('s1', 'real output');
+
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+    });
+
+    it('markActive clears the resizing flag', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markResizing('s1');
+      detector.processOutput('s1', 'output during resize');
+      // Should NOT promote (resizing suppresses activity promotion)
       expect(handler).not.toHaveBeenCalled();
 
-      vi.advanceTimersByTime(600); // now past the 2s window
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+      // markActive clears resizing flag and promotes to active
+      detector.markActive('s1');
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+    });
+
+    it('resets auto-clear timer on repeated markResizing', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markResizing('s1');
+      vi.advanceTimersByTime(700);
+      detector.markResizing('s1'); // refresh the timer
+      vi.advanceTimersByTime(700); // 700ms since last markResizing (< 1000ms)
+
+      // Still resizing — activity promotion suppressed
+      detector.processOutput('s1', 'redraw output');
+      expect(handler).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(400); // now past the 1s window
+      detector.processOutput('s1', 'real output');
       expect(handler).toHaveBeenCalled();
     });
 
-    it('removeSession clears scroll timer', () => {
-      detector.markScrolling('s1');
+    it('removeSession clears resize timer', () => {
+      detector.markResizing('s1');
       detector.removeSession('s1');
 
       // Should not throw or leave dangling timers
-      vi.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(2000);
       expect(detector.getState('s1')).toBe('idle');
     });
 
-    it('dispose clears all scroll timers', () => {
-      detector.markScrolling('s1');
-      detector.markScrolling('s2');
+    it('dispose clears all resize timers', () => {
+      detector.markResizing('s1');
+      detector.markResizing('s2');
       detector.dispose();
 
-      vi.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(2000);
       // No errors, no state changes
     });
   });

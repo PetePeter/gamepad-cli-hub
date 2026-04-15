@@ -360,6 +360,7 @@ button {
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.15s;
+  position: relative;
 }
 .session-card:hover,
 .session-card.focused { background: var(--bg-tertiary); }
@@ -371,6 +372,16 @@ button {
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.session-timer {
+  position: absolute;
+  bottom: 2px;
+  right: 6px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 /* State icon — removed, state shown via dropdown button only */

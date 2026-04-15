@@ -9,7 +9,7 @@ import { browserGamepad } from './gamepad.js';
 import { state } from './state.js';
 import { logEvent, showScreen, setLoadSettingsCallback, updateProfileDisplay } from './utils.js';
 import { initConfigCache } from './bindings.js';
-import { loadSessions, updateSessionHighlight, syncSessionHighlight, setDirPickerBridge, setTerminalManagerGetter, hideTerminalArea, setSessionActivity, setSessionState, getSessionState, getSessionActivity, getTabCycleSessionIds } from './screens/sessions.js';
+import { loadSessions, updateSessionHighlight, syncSessionHighlight, setDirPickerBridge, setTerminalManagerGetter, hideTerminalArea, setSessionActivity, setSessionState, getSessionState, getSessionActivity, getTabCycleSessionIds, startTimerRefresh, stopTimerRefresh } from './screens/sessions.js';
 import { loadSettingsScreen } from './screens/settings.js';
 import {
   setupGamepadNavigation,
@@ -316,6 +316,9 @@ async function init(): Promise<void> {
   // Load initial data
   await loadSessions();
 
+  // Start live timer refresh (10s interval)
+  startTimerRefresh();
+
   // Auto-resume sessions restored from previous run
   try {
     const restoredSessions = await window.gamepadCli?.sessionGetAll();
@@ -365,7 +368,7 @@ async function init(): Promise<void> {
     // Setup PTY activity change listener
     window.gamepadCli.onPtyActivityChange((event) => {
       // Update local activity cache (also triggers re-render)
-      setSessionActivity(event.sessionId, event.level);
+      setSessionActivity(event.sessionId, event.level, event.lastOutputAt);
     });
 
     // Setup notification click listener (focus + switch to session)
@@ -406,6 +409,7 @@ if (document.readyState === 'loading') {
 
 // Handle cleanup
 window.addEventListener('beforeunload', () => {
+  stopTimerRefresh();
   terminalManager?.dispose();
   browserGamepadUnsubscribe?.();
   browserGamepad.stop();
