@@ -71,17 +71,16 @@ export function registerIPCHandlers(
   // Initialize all telegram modules (Phase 1+2+3)
   const telegramModules = initTelegramModules(
     telegramBot, topicManager, telegramNotifier,
-    sessionManager, ptyManager, configLoader,
+    sessionManager, ptyManager, configLoader, draftManager,
   );
 
-  // Restore sessions persisted from previous run and start health check
+  // Restore sessions persisted from previous run
   const restored = sessionManager.restoreSessions();
   logger.info(`[IPC] Restored ${restored.length} session(s) from previous run`);
-  sessionManager.startHealthCheck(30000);
 
   draftManager.importAll(loadDrafts());
 
-  const cleanupSession = setupSessionHandlers(sessionManager, ptyManager);
+  const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager);
   setupConfigHandlers(configLoader);
   setupProfileHandlers(configLoader);
   setupToolsHandlers(configLoader);
@@ -106,7 +105,6 @@ export function registerIPCHandlers(
     if (session) await topicManager.ensureTopic(session);
   });
   sessionManager.on('session:removed', (event) => {
-    draftManager.clearSession(event.sessionId);
     if (!telegramBot.isRunning()) return;
     telegramNotifier.removeSession(event.sessionId);
     telegramModules.terminalMirror.removeSession(event.sessionId);
@@ -145,7 +143,6 @@ export function registerIPCHandlers(
       telegramModules.cleanup();
       cleanupSession();
       cancelAllPrompts();
-      sessionManager.stopHealthCheck();
       stateDetector.dispose();
       notificationManager.dispose();
       ptyManager.killAll();

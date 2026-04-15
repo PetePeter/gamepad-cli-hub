@@ -1,19 +1,15 @@
 /**
  * Tests for session restore wiring in registerIPCHandlers.
- * Verifies restoreSessions() and startHealthCheck() are called at startup.
+ * Verifies restoreSessions() is called at startup.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // We need to mock the SessionManager class to verify method calls
 const mockRestoreSessions = vi.fn().mockReturnValue([]);
-const mockStartHealthCheck = vi.fn();
-const mockStopHealthCheck = vi.fn();
 
 vi.mock('../src/session/manager.js', () => ({
   SessionManager: vi.fn(function (this: any) {
     this.restoreSessions = mockRestoreSessions;
-    this.startHealthCheck = mockStartHealthCheck;
-    this.stopHealthCheck = mockStopHealthCheck;
     this.on = vi.fn();
     this.getAllSessions = vi.fn().mockReturnValue([]);
     this.getSession = vi.fn();
@@ -166,20 +162,9 @@ describe('registerIPCHandlers restore wiring', () => {
     expect(mockRestoreSessions).toHaveBeenCalledOnce();
   });
 
-  it('calls startHealthCheck with 30s interval', () => {
-    registerIPCHandlers(() => null);
-    expect(mockStartHealthCheck).toHaveBeenCalledWith(30000);
-  });
-
   it('logs restored session count', () => {
     mockRestoreSessions.mockReturnValueOnce([{ id: 's1' }, { id: 's2' }]);
     registerIPCHandlers(() => null);
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Restored 2 session(s)'));
-  });
-
-  it('cleanup stops health check', () => {
-    const { cleanup } = registerIPCHandlers(() => null);
-    cleanup();
-    expect(mockStopHealthCheck).toHaveBeenCalledOnce();
   });
 });

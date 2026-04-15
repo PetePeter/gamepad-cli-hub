@@ -39,6 +39,7 @@ export interface SlashCommandDeps {
   ptyManager: PtyManager;
   configLoader: ConfigLoader;
   outputSummarizer?: OutputSummaryProvider;
+  draftManager?: { clearSession(sessionId: string): void };
 }
 
 /**
@@ -46,7 +47,7 @@ export interface SlashCommandDeps {
  * a cleanup function that removes them.
  */
 export function setupSlashCommands(deps: SlashCommandDeps): () => void {
-  const { bot, topicManager, sessionManager, ptyManager, configLoader, outputSummarizer } = deps;
+  const { bot, topicManager, sessionManager, ptyManager, configLoader, outputSummarizer, draftManager } = deps;
 
   // ── Handler registry ────────────────────────────────────────────────
   const handlers: Array<[string, (msg: TelegramBot.Message, args: string) => Promise<void>]> = [
@@ -174,6 +175,7 @@ export function setupSlashCommands(deps: SlashCommandDeps): () => void {
       const session = topicManager.findSessionByTopicId(msg.message_thread_id);
       if (session) {
         sessionManager.removeSession(session.id);
+        draftManager?.clearSession(session.id);
         // Topic cleanup handled by session:removed event in handlers.ts
         await reply(msg, `🔒 Session "${escapeHtml(session.name)}" closed.`, { parse_mode: 'HTML' });
         return;

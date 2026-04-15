@@ -218,7 +218,7 @@ The app sits between your input devices and your AI coding assistants. It reads 
 
 **D-pad navigation auto-selects terminals** — press up/down to switch sessions and the terminal activates immediately. Keyboard input always routes to the active terminal.
 
-**Session persistence** — Sessions are saved to disk after every change and restored on startup. Dead PIDs are pruned automatically. Per-CLI resume commands reconnect to existing CLI sessions.
+**Session persistence** — Sessions are saved to disk after every change and restored on startup. Dead processes are cleaned up via PTY exit events. Per-CLI resume commands reconnect to existing CLI sessions.
 
 ---
 

@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan: Directory Plans — Connected Diagram (NCN)</title>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#0f3460',
+      primaryTextColor: '#e0e0e0',
+      primaryBorderColor: '#4488ff',
+      lineColor: '#4488ff',
+      secondaryColor: '#16213e',
+      tertiaryColor: '#1a1a2e',
+      fontFamily: 'Segoe UI, system-ui, sans-serif',
+    }
+  });
+</script>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --surface2: #0f3460;
+    --accent: #e94560;
+    --green: #44cc44;
+    --blue: #4488ff;
+    --grey: #555;
+    --text: #e0e0e0;
+    --text-dim: #888;
+    --border: #333;
+    --code-bg: #0d1117;
+    --pending: #555;
+    --startable: #44cc44;
+    --doing: #4488ff;
+    --done: #666;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  h1 { color: var(--accent); font-size: 2rem; margin-bottom: 0.5rem; border-bottom: 2px solid var(--accent); padding-bottom: 0.5rem; }
+  h2 { color: var(--blue); font-size: 1.4rem; margin: 2rem 0 0.75rem; border-left: 4px solid var(--blue); padding-left: 0.75rem; }
+  h3 { color: var(--green); font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+  h4 { color: var(--text-dim); font-size: 1rem; margin: 1rem 0 0.3rem; }
+  p, li { margin-bottom: 0.4rem; }
+  ul, ol { padding-left: 1.5rem; }
+  code {
+    background: var(--code-bg);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.9em;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+  }
+  pre {
+    background: var(--code-bg);
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 0.75rem 0;
+    border: 1px solid var(--border);
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.75rem 0;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+  }
+  th { background: var(--surface2); color: var(--blue); }
+  td { background: var(--surface); }
+  .phase {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin: 1rem 0;
+  }
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+  .phase-number {
+    background: var(--accent);
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+  .tag {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 600;
+  }
+  .tag-data { background: #1a4a1a; color: #44cc44; }
+  .tag-ipc { background: #1a3a5a; color: #4488ff; }
+  .tag-ui { background: #4a1a3a; color: #e94560; }
+  .tag-integration { background: #3a3a1a; color: #cccc44; }
+  .tag-test { background: #2a1a4a; color: #aa88ff; }
+  .mermaid-placeholder {
+    background: var(--code-bg);
+    border: 1px dashed var(--border);
+    padding: 1rem;
+    border-radius: 6px;
+    margin: 0.75rem 0;
+    white-space: pre;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 0.85em;
+    line-height: 1.4;
+  }
+  .status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .dot-pending { background: var(--pending); }
+  .dot-startable { background: var(--startable); }
+  .dot-doing { background: var(--doing); }
+  .dot-done { background: var(--done); text-decoration: line-through; }
+  .summary-box {
+    background: var(--surface2);
+    border: 1px solid var(--blue);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+  }
+  .file-tree {
+    font-family: 'Cascadia Code', monospace;
+    font-size: 0.85em;
+    line-height: 1.5;
+  }
+  .warning {
+    background: #3a2a0a;
+    border: 1px solid #aa8800;
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin: 0.75rem 0;
+  }
+  .decision {
+    background: #0a2a3a;
+    border: 1px solid var(--blue);
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin: 0.75rem 0;
+  }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+  /* ── HTML Mockup Styles ── */
+  .mockup {
+    background: #111;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 0;
+    margin: 1.5rem 0;
+    overflow: hidden;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  .mockup-title {
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-bottom: 1px solid var(--border);
+  }
+  .mockup-body {
+    padding: 1.25rem;
+  }
+
+  /* Plan node mockup */
+  .mock-node {
+    display: inline-flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    width: 200px;
+    padding: 0;
+    margin: 0.5rem;
+    vertical-align: top;
+    position: relative;
+    transition: opacity 0.3s;
+  }
+  .mock-node--done { opacity: 0.45; }
+  .mock-node--selected { border-color: var(--accent); box-shadow: 0 0 12px rgba(233,69,96,0.3); }
+  .mock-node-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px 4px;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .mock-node-header.done-text { text-decoration: line-through; color: var(--text-dim); }
+  .mock-node-desc {
+    padding: 0 10px 8px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mock-connector {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--border);
+    border: 2px solid var(--surface);
+  }
+  .mock-connector--in { left: -7px; top: 50%; transform: translateY(-50%); }
+  .mock-connector--out { right: -7px; top: 50%; transform: translateY(-50%); }
+  .mock-connector:hover { background: var(--accent); cursor: crosshair; }
+  .mock-arrow {
+    display: inline-block;
+    color: var(--blue);
+    font-size: 2rem;
+    vertical-align: middle;
+    margin: 0 -8px;
+    line-height: 90px;
+  }
+
+  /* Group header mockup */
+  .mock-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 4px 0;
+    font-size: 0.9rem;
+  }
+  .mock-group-header .folder-icon { font-size: 1.1rem; }
+  .mock-group-header .group-name { font-weight: 600; flex: 1; }
+  .mock-group-header .group-count { color: var(--text-dim); font-size: 0.8rem; }
+  .mock-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .mock-btn:hover { border-color: var(--blue); background: var(--surface2); }
+  .mock-btn--plans { border-color: var(--green); }
+  .mock-btn--plans:hover { background: rgba(68,204,68,0.1); }
+  .mock-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--green);
+    color: #000;
+    font-size: 0.65rem;
+    font-weight: 700;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-left: 2px;
+  }
+
+  /* Session card mockup */
+  .mock-session-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .mock-session-card .activity-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .mock-session-card .session-name { font-weight: 500; font-size: 0.85rem; }
+  .mock-session-card .session-cli { color: var(--text-dim); font-size: 0.75rem; }
+
+  /* Chip strip mockup */
+  .mock-chip-strip {
+    display: flex;
+    gap: 6px;
+    padding: 6px 0;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .mock-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+  .mock-chip:hover { filter: brightness(1.2); }
+  .mock-chip--draft { background: rgba(68,136,255,0.15); color: var(--blue); border-color: rgba(68,136,255,0.3); }
+  .mock-chip--plan-startable { background: rgba(68,204,68,0.2); color: var(--green); border-color: rgba(68,204,68,0.4); }
+  .mock-chip--plan-doing { background: rgba(68,136,255,0.2); color: var(--blue); border-color: rgba(68,136,255,0.4); }
+
+  /* Plan editor mockup */
+  .mock-editor {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 8px 0;
+  }
+  .mock-editor label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .mock-editor input, .mock-editor textarea {
+    width: 100%;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    margin-bottom: 10px;
+    outline: none;
+  }
+  .mock-editor input:focus, .mock-editor textarea:focus { border-color: var(--blue); }
+  .mock-editor textarea { resize: vertical; min-height: 60px; }
+  .mock-editor-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .mock-editor-btn {
+    padding: 6px 16px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .mock-editor-btn--primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .mock-editor-btn--danger { background: transparent; color: var(--accent); border-color: var(--accent); }
+  .mock-editor-btn--success { background: var(--green); color: #000; border-color: var(--green); }
+
+  /* Plan screen toolbar mockup */
+  .mock-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface2);
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .mock-toolbar .back-btn {
+    color: var(--blue);
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .mock-toolbar .dir-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    flex: 1;
+  }
+
+  /* Canvas area mockup */
+  .mock-canvas {
+    background: #0a0a14;
+    background-image:
+      radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 24px 24px;
+    min-height: 320px;
+    padding: 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .mock-canvas-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: center;
+  }
+  .mock-canvas-arrow-col {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+    padding: 0 4px;
+  }
+  .mock-svg-arrow {
+    position: absolute;
+    pointer-events: none;
+  }
+
+  /* Status legend */
+  .mock-legend {
+    display: flex;
+    gap: 16px;
+    padding: 8px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+  .mock-legend-item { display: flex; align-items: center; gap: 4px; }
+</style>
+</head>
+<body>
+
+<h1>🗺️ Directory Plans — Connected Diagram (NCN)</h1>
+<p><strong>Date:</strong> 2026-04-14 &nbsp;|&nbsp; <strong>Status:</strong> Draft — awaiting approval</p>
+
+<div class="summary-box">
+<strong>Mission:</strong> Add a per-directory DAG of work items ("plans") to the gamepad-cli-hub. Users create plan nodes with title + description, draw dependency arrows between them, and the system tracks a 4-state lifecycle: <span class="status-dot dot-pending"></span>pending → <span class="status-dot dot-startable"></span>startable → <span class="status-dot dot-doing"></span>doing → <span class="status-dot dot-done"></span>done. Startable plans appear as green chips on session cards, allowing users to apply them to terminals. Inspired by WiseTech Global's "NCN" (Network Connected Nodes).
+</div>
+
+<h2>System Architecture</h2>
+
+<pre class="mermaid">
+graph TB
+    subgraph "Main Process"
+        PM["PlanManager\nEventEmitter\nCRUD + DAG validation"]
+        PP["PlanPersistence\nconfig/plans.yaml"]
+        PM -->|"on plan:changed"| PP
+    end
+
+    subgraph "IPC Layer"
+        PH["Plan IPC Handlers\nplan:create/update/delete\nplan:list/get/apply/done\nplan:addDep/removeDep"]
+    end
+
+    subgraph "Renderer Process"
+        PS["Plan Screen\ndag-builder-js canvas\nAuto-layout + pan/zoom"]
+        PC["Plan Chips\nGreen pills on session cards\nStartable plans only"]
+        PE["Plan Editor\nTitle + description\nApply/Save/Delete/Cancel"]
+    end
+
+    PM <--> PH
+    PH <-->|"contextBridge"| PS
+    PH <-->|"contextBridge"| PC
+    PC --> PE
+    PS --> PE
+</pre>
+
+<pre class="mermaid">
+stateDiagram-v2
+    [*] --> pending : Created (has unfinished deps)
+    [*] --> startable : Created (no deps)
+    pending --> startable : All dependencies done
+    startable --> doing : Applied to a session
+    doing --> done : Manually marked complete
+    done --> [*] : Stays visible (greyed out)
+
+    note right of pending : Grey dot · not actionable
+    note right of startable : Green dot · chip on session cards
+    note right of doing : Blue dot · linked to a session
+    note right of done : Strikethrough · dependency lines unblocked
+</pre>
+
+<h2>Data Model</h2>
+
+<h3>PlanItem</h3>
+<pre><code>interface PlanItem {
+  id: string;                // UUID v4
+  dirPath: string;           // working directory this plan belongs to
+  title: string;             // short label (displayed on canvas node)
+  description: string;       // longer body (displayed in editor)
+  status: PlanStatus;        // 'pending' | 'startable' | 'doing' | 'done'
+  sessionId?: string;        // set when status = 'doing' (which session picked it up)
+  createdAt: number;         // timestamp
+  updatedAt: number;         // timestamp
+}
+
+type PlanStatus = 'pending' | 'startable' | 'doing' | 'done';
+</code></pre>
+
+<h3>PlanDependency</h3>
+<pre><code>interface PlanDependency {
+  fromId: string;   // blocker (must be done first)
+  toId: string;     // blocked (cannot start until fromId is done)
+}
+// Arrow: fromId → toId = "fromId blocks toId"
+// A → B means A must finish before B can start
+</code></pre>
+
+<h3>DirectoryPlan (aggregate per directory)</h3>
+<pre><code>interface DirectoryPlan {
+  dirPath: string;
+  items: PlanItem[];
+  dependencies: PlanDependency[];
+}
+</code></pre>
+
+<h3>Persistence: <code>config/plans.yaml</code></h3>
+<pre><code># config/plans.yaml
+plans:
+  "C:\\projects\\backend":
+    items:
+      - id: "a1b2c3d4"
+        title: "Design API schema"
+        description: "Define REST endpoints for user auth..."
+        status: "done"
+        createdAt: 1713100000000
+        updatedAt: 1713100500000
+      - id: "e5f6g7h8"
+        title: "Implement auth middleware"
+        description: "JWT validation, rate limiting..."
+        status: "startable"
+        createdAt: 1713100100000
+        updatedAt: 1713100100000
+    dependencies:
+      - fromId: "a1b2c3d4"
+        toId: "e5f6g7h8"
+  "C:\\projects\\frontend":
+    items: [...]
+    dependencies: [...]
+</code></pre>
+
+<h2>Key Design Decisions</h2>
+
+<div class="decision">
+<strong>📐 dag-builder-js for canvas rendering</strong><br/>
+Lightweight (~70KB) SVG-based DAG library with built-in cycle prevention, pan/zoom, edge drag-creation, and import/export. No React dependency. We'll wrap it with our own auto-layout algorithm since it only provides manual positioning. Nodes are rendered as SVG shapes with HTML overlays for title + status dot.
+</div>
+
+<div class="decision">
+<strong>📐 Auto-layout only (left-to-right)</strong><br/>
+No manual node positioning. We compute a layered DAG layout (topological sort → layer assignment → vertical ordering within layers) and set coordinates. Re-layout triggers on every node/edge add/remove. Direction: roots on left, leaves on right.
+</div>
+
+<div class="decision">
+<strong>📐 Plans are separate from drafts</strong><br/>
+Plans = folder-level strategic work items with dependencies. Drafts = session-level tactical prompt memos. Startable plans appear as chips in the session's draft-chip area but are a distinct concept. A plan chip opens a draft-style editor (not the draft editor itself).
+</div>
+
+<div class="decision">
+<strong>📐 No cross-directory dependencies</strong><br/>
+Each directory's plan graph is independent. Data model uses globally unique IDs (UUID) to allow cross-dir in the future, but the DAG validation and startable computation are scoped per-directory.
+</div>
+
+<div class="decision">
+<strong>📐 Keyboard/mouse only on canvas</strong><br/>
+The plan canvas is not gamepad-navigable. Group header gets a "Plans" button (🗺️) for mouse/keyboard activation. Gamepad users interact with plans only via the session card chips.
+</div>
+
+<div class="decision">
+<strong>📐 Startable auto-computation</strong><br/>
+When a plan item is marked "done", the PlanManager recomputes <code>startable</code> status for all items in that directory. An item becomes startable when ALL its dependencies (incoming edges where it is the <code>toId</code>) have <code>status === 'done'</code>. Items with no dependencies are startable immediately on creation.
+</div>
+
+<h2>Canvas UX Specification</h2>
+
+<h3>Node Visual</h3>
+<table>
+  <tr><th>Element</th><th>Display</th></tr>
+  <tr><td>Title</td><td>Bold text, truncated at ~25 chars with ellipsis</td></tr>
+  <tr><td>Status dot</td><td><span class="status-dot dot-pending"></span> grey (pending), <span class="status-dot dot-startable"></span> green (startable), <span class="status-dot dot-doing"></span> blue (doing), <span class="status-dot dot-done"></span> grey + strikethrough (done)</td></tr>
+  <tr><td>Description preview</td><td>First line, dimmed, truncated</td></tr>
+  <tr><td>Done styling</td><td>Entire node: reduced opacity (0.5), title strikethrough</td></tr>
+</table>
+
+<!-- ═══ MOCKUP: Plan Nodes (all 4 states) ═══ -->
+<div class="mockup">
+  <div class="mockup-title">Mockup — Plan Node States</div>
+  <div class="mockup-body" style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
+    <!-- Pending -->
+    <div class="mock-node">
+      <div class="mock-connector mock-connector--in"></div>
+      <div class="mock-connector mock-connector--out"></div>
+      <div class="mock-node-header">
+        <span class="status-dot dot-pending"></span>
+        Deploy to K8s
+      </div>
+      <div class="mock-node-desc">Helm chart setup for prod...</div>
+    </div>
+    <!-- Startable -->
+    <div class="mock-node" style="border-color: rgba(68,204,68,0.4);">
+      <div class="mock-connector mock-connector--in"></div>
+      <div class="mock-connector mock-connector--out"></div>
+      <div class="mock-node-header">
+        <span class="status-dot dot-startable"></span>
+        Build Auth Middleware
+      </div>
+      <div class="mock-node-desc">JWT validation, rate limiting...</div>
+    </div>
+    <!-- Doing -->
+    <div class="mock-node" style="border-color: rgba(68,136,255,0.4);">
+      <div class="mock-connector mock-connector--in"></div>
+      <div class="mock-connector mock-connector--out"></div>
+      <div class="mock-node-header">
+        <span class="status-dot dot-doing"></span>
+        Write Integration Tests
+      </div>
+      <div class="mock-node-desc">E2E tests for auth flow...</div>
+    </div>
+    <!-- Done -->
+    <div class="mock-node mock-node--done">
+      <div class="mock-connector mock-connector--in"></div>
+      <div class="mock-connector mock-connector--out"></div>
+      <div class="mock-node-header done-text">
+        <span class="status-dot dot-done"></span>
+        Design API Schema
+      </div>
+      <div class="mock-node-desc">REST endpoints for user auth...</div>
+    </div>
+  </div>
+</div>
+
+<h3>Interactions</h3>
+<table>
+  <tr><th>Action</th><th>Behaviour</th></tr>
+  <tr><td>Click node</td><td>Select → open plan editor panel (title + description + status)</td></tr>
+  <tr><td>Drag from output connector</td><td>Draw dependency arrow to another node's input connector. Cycle prevention: rejected with shake animation if cycle detected.</td></tr>
+  <tr><td>Click edge</td><td>Select edge → Delete key removes it</td></tr>
+  <tr><td>"Add Node" button</td><td>Creates new node, opens editor, re-layouts graph</td></tr>
+  <tr><td>Delete key on selected node</td><td>Confirmation → removes node + all its edges, re-layouts</td></tr>
+  <tr><td>Scroll wheel</td><td>Zoom in/out</td></tr>
+  <tr><td>Click-drag empty space</td><td>Pan the canvas</td></tr>
+</table>
+
+<h3>Auto-Layout Algorithm</h3>
+<pre><code>// Left-to-right layered layout
+// 1. Topological sort all nodes
+// 2. Assign each node to a layer (longest path from any root)
+// 3. Within each layer, order nodes to minimise edge crossings (barycenter heuristic)
+// 4. Assign x = layer * LAYER_SPACING, y = position_in_layer * NODE_SPACING
+// 5. Set coordinates on dag-builder-js Vertex instances
+// 6. Call graph.update() to re-render
+
+const LAYER_SPACING = 280;  // horizontal gap between layers
+const NODE_SPACING = 140;   // vertical gap between nodes in same layer
+const NODE_WIDTH = 220;
+const NODE_HEIGHT = 90;
+</code></pre>
+
+<h3>Plan Editor Panel</h3>
+<p>Appears as a panel (right side or bottom) when a node is clicked or created:</p>
+<table>
+  <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+  <tr><td>Title</td><td>Text input</td><td>Max 100 chars</td></tr>
+  <tr><td>Description</td><td>Textarea</td><td>Sequence parser syntax supported (for future Apply)</td></tr>
+  <tr><td>Status</td><td>Read-only display</td><td>Computed, not user-editable (except "Done" button)</td></tr>
+  <tr><td>Actions</td><td>Buttons</td><td>Save, Delete, Mark Done (if doing), Cancel</td></tr>
+</table>
+
+<!-- ═══ MOCKUP: Plan Editor Panel (on canvas) ═══ -->
+<div class="mockup">
+  <div class="mockup-title">Mockup — Plan Editor Panel (appears below canvas on node click)</div>
+  <div class="mockup-body">
+    <div class="mock-editor">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <span class="status-dot dot-doing"></span>
+        <span style="font-size:0.8rem; color:var(--blue); font-weight:600;">DOING</span>
+        <span style="font-size:0.75rem; color:var(--text-dim); margin-left:auto;">Session: Claude Code #3</span>
+      </div>
+      <label>Title</label>
+      <input type="text" value="Write Integration Tests" readonly>
+      <label>Description</label>
+      <textarea readonly rows="3">E2E tests for the auth flow. Cover:
+- Login/logout happy path
+- Token refresh on 401
+- Rate limiting returns 429</textarea>
+      <div class="mock-editor-actions">
+        <button class="mock-editor-btn mock-editor-btn--primary">💾 Save</button>
+        <button class="mock-editor-btn mock-editor-btn--success">✅ Mark Done</button>
+        <button class="mock-editor-btn mock-editor-btn--danger">🗑️ Delete</button>
+        <button class="mock-editor-btn">✕ Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MOCKUP: Plan Editor Modal (from session chip click) ═══ -->
+<div class="mockup">
+  <div class="mockup-title">Mockup — Plan Editor Modal (from session chip click — includes Apply button)</div>
+  <div class="mockup-body" style="display:flex; justify-content:center;">
+    <div class="mock-editor" style="max-width:420px; border:1px solid var(--blue); box-shadow: 0 4px 24px rgba(0,0,0,0.5);">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <span style="font-size:1rem;">🗺️</span>
+        <span style="font-weight:600;">Edit Plan Item</span>
+        <span class="status-dot dot-startable" style="margin-left:auto;"></span>
+        <span style="font-size:0.75rem; color:var(--green); font-weight:600;">STARTABLE</span>
+      </div>
+      <label>Title</label>
+      <input type="text" value="Build Auth Middleware" readonly>
+      <label>Description</label>
+      <textarea readonly rows="4">Implement JWT auth middleware in src/auth/:
+- Validate access tokens on protected routes
+- Auto-refresh expired tokens
+- Rate limit: 100 req/min per user
+{Enter}</textarea>
+      <div class="mock-editor-actions">
+        <button class="mock-editor-btn mock-editor-btn--success">▶️ Apply</button>
+        <button class="mock-editor-btn mock-editor-btn--primary">💾 Save</button>
+        <button class="mock-editor-btn mock-editor-btn--danger">🗑️ Delete</button>
+        <button class="mock-editor-btn">✕ Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>Session Card Integration</h2>
+
+<h3>Startable Plan Chips</h3>
+<p>Plan chips appear in the draft strip area (above terminal), after existing draft pills. Only <code>startable</code> and <code>doing</code> plans are shown.</p>
+
+<!-- ═══ MOCKUP: Draft Strip with Plan Chips ═══ -->
+<div class="mockup">
+  <div class="mockup-title">Mockup — Draft Strip with Plan Chips (above terminal area)</div>
+  <div class="mockup-body">
+    <div class="mock-chip-strip">
+      <span style="font-size:0.7rem; color:var(--text-dim); margin-right:4px;">Drafts:</span>
+      <span class="mock-chip mock-chip--draft">📝 Fix login bug</span>
+      <span class="mock-chip mock-chip--draft">📝 Refactor utils</span>
+      <span style="font-size:0.7rem; color:var(--text-dim); margin-left:8px; margin-right:4px;">Plans:</span>
+      <span class="mock-chip mock-chip--plan-startable">🗺️ Build Auth Middleware</span>
+      <span class="mock-chip mock-chip--plan-startable">🗺️ Setup CI Pipeline</span>
+      <span class="mock-chip mock-chip--plan-doing">🗺️ Write Integration Tests</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MOCKUP: Session Card with Plan Badge ═══ -->
+<div class="mockup">
+  <div class="mockup-title">Mockup — Session Cards with Draft + Plan Badges</div>
+  <div class="mockup-body" style="max-width:350px;">
+    <div class="mock-session-card" style="border-color: rgba(68,204,68,0.3);">
+      <span class="activity-dot" style="background:var(--green);"></span>
+      <span style="font-size:0.8rem;">📝<sup style="font-size:0.6rem;font-weight:700;color:var(--blue);">2</sup></span>
+      <span style="font-size:0.8rem;">🗺️<sup style="font-size:0.6rem;font-weight:700;color:var(--green);">2</sup></span>
+      <div style="flex:1;">
+        <div class="session-name">Claude Code #1</div>
+        <div class="session-cli">claude-code · backend</div>
+      </div>
+      <span style="font-size:0.7rem; color:var(--green);">🔨</span>
+    </div>
+    <div class="mock-session-card">
+      <span class="activity-dot" style="background:var(--blue);"></span>
+      <span style="font-size:0.8rem;">📝<sup style="font-size:0.6rem;font-weight:700;color:var(--blue);">1</sup></span>
+      <div style="flex:1;">
+        <div class="session-name">Copilot CLI #2</div>
+        <div class="session-cli">copilot-cli · backend</div>
+      </div>
+      <span style="font-size:0.7rem; color:var(--text-dim);">💤</span>
+    </div>
+    <div class="mock-session-card">
+      <span class="activity-dot" style="background:var(--grey);"></span>
+      <span style="font-size:0.8rem;">🗺️<sup style="font-size:0.6rem;font-weight:700;color:var(--green);">1</sup></span>
+      <div style="flex:1;">
+        <div class="session-name">Claude Code #3</div>
+        <div class="session-cli">claude-code · frontend</div>
+      </div>
+      <span style="font-size:0.7rem; color:var(--text-dim);">💤</span>
+    </div>
+    <p style="font-size:0.7rem; color:var(--text-dim); margin-top:8px;">
+      📝 = draft count &nbsp;|&nbsp; 🗺️ = startable plan count (for this session's directory)
+    </p>
+  </div>
+</div>
+
+<h3>Chip Click Flow</h3>
+
+<pre class="mermaid">
+sequenceDiagram
+    actor User
+    participant Chip as Plan Chip (session card)
+    participant Editor as Plan Editor Modal
+    participant IPC as IPC Bridge
+    participant PM as PlanManager
+    participant PTY as PTY (terminal)
+
+    User->>Chip: Click green plan chip
+    Chip->>IPC: plan:get(planId)
+    IPC->>PM: getItem(id)
+    PM-->>Editor: PlanItem data
+    Editor->>User: Show editor (title + description)
+
+    alt Apply
+        User->>Editor: Click "▶️ Apply"
+        Editor->>PTY: ptyWrite(description)
+        Editor->>IPC: plan:apply(id, sessionId)
+        IPC->>PM: applyItem(id, sessionId)
+        PM-->>Chip: status → doing (blue chip)
+    else Save
+        User->>Editor: Edit title/desc → Click "💾 Save"
+        Editor->>IPC: plan:update(id, changes)
+        IPC->>PM: updateItem(id, changes)
+    else Mark Done
+        User->>Editor: Click "✅ Mark Done"
+        Editor->>IPC: plan:complete(id)
+        IPC->>PM: completeItem(id)
+        PM->>PM: recomputeStartable(dirPath)
+        PM-->>Chip: status → done (chip removed)
+    end
+</pre>
+
+<h3>Marking Done</h3>
+<p>Two paths to mark a plan "doing" → "done":</p>
+<ol>
+  <li><strong>From session chip:</strong> Blue "doing" chip on session card → click → editor with "Mark Done" button</li>
+  <li><strong>From plan canvas:</strong> Click the node → editor panel → "Mark Done" button</li>
+</ol>
+<p>When marked done:</p>
+<ul>
+  <li>Status set to <code>'done'</code>, <code>sessionId</code> cleared</li>
+  <li>PlanManager recomputes startable status for all dependents</li>
+  <li>Newly startable items appear as green chips on relevant session cards</li>
+  <li>Node on canvas: opacity 0.5, title strikethrough, grey dot</li>
+</ul>
+
+<h2>Navigation & Screen Switching</h2>
+
+<h3>Entry Point — Group Header</h3>
+
+<!-- ═══ MOCKUP: Group Header with Plans Button ═══ -->
+<div class="mockup">
+  <div class="mockup-title">Mockup — Group Header with Plans Button</div>
+  <div class="mockup-body" style="max-width:500px;">
+    <!-- Group with plans -->
+    <div class="mock-group-header">
+      <span class="folder-icon">📁</span>
+      <span class="group-name">backend</span>
+      <span class="group-count">3 sessions</span>
+      <button class="mock-btn mock-btn--plans">🗺️ Plans <span class="mock-badge">2</span></button>
+      <button class="mock-btn">▼</button>
+      <button class="mock-btn">▶</button>
+    </div>
+    <!-- Sessions within -->
+    <div class="mock-session-card" style="margin-left:16px;">
+      <span class="activity-dot" style="background:var(--green);"></span>
+      <span style="font-size:0.8rem;">🗺️<sup style="font-size:0.6rem;font-weight:700;color:var(--green);">2</sup></span>
+      <div style="flex:1;">
+        <div class="session-name">Claude Code #1</div>
+        <div class="session-cli">claude-code</div>
+      </div>
+    </div>
+    <div class="mock-session-card" style="margin-left:16px;">
+      <span class="activity-dot" style="background:var(--blue);"></span>
+      <div style="flex:1;">
+        <div class="session-name">Copilot CLI #2</div>
+        <div class="session-cli">copilot-cli</div>
+      </div>
+    </div>
+    <div class="mock-session-card" style="margin-left:16px;">
+      <span class="activity-dot" style="background:var(--grey);"></span>
+      <div style="flex:1;">
+        <div class="session-name">Claude Code #3</div>
+        <div class="session-cli">claude-code</div>
+      </div>
+    </div>
+    <!-- Another group without plans -->
+    <div class="mock-group-header" style="margin-top:8px;">
+      <span class="folder-icon">📁</span>
+      <span class="group-name">frontend</span>
+      <span class="group-count">1 session</span>
+      <button class="mock-btn mock-btn--plans" style="opacity:0.5;">🗺️ Plans</button>
+      <button class="mock-btn">▼</button>
+      <button class="mock-btn">▶</button>
+    </div>
+    <p style="font-size:0.7rem; color:var(--text-dim); margin-top:12px;">
+      Green badge on Plans button = count of startable items. No badge = no startable plans (button still clickable to view/create).
+    </p>
+  </div>
+</div>
+
+<h3>Plan Screen — Full Layout</h3>
+
+<!-- ═══ MOCKUP: Full Plan Screen ═══ -->
+<div class="mockup">
+  <div class="mockup-title">Mockup — Plan Screen (dedicated view)</div>
+  <!-- Toolbar -->
+  <div class="mock-toolbar">
+    <span class="back-btn">← Back to Sessions</span>
+    <span style="color:var(--text-dim);">|</span>
+    <span class="dir-name">📁 C:\projects\backend</span>
+    <button class="mock-editor-btn mock-editor-btn--primary" style="margin-left:auto; padding:4px 12px; font-size:0.8rem;">+ Add Node</button>
+  </div>
+  <!-- Canvas Area -->
+  <div class="mock-canvas">
+    <!-- Layer 0: Roots -->
+    <div class="mock-canvas-col" style="margin-top:40px;">
+      <div class="mock-node mock-node--done" style="width:180px;">
+        <div class="mock-connector mock-connector--out"></div>
+        <div class="mock-node-header done-text" style="font-size:0.8rem;">
+          <span class="status-dot dot-done"></span>
+          Design API Schema
+        </div>
+        <div class="mock-node-desc">REST endpoints for user...</div>
+      </div>
+    </div>
+    <!-- Arrows L0→L1 -->
+    <div class="mock-canvas-arrow-col">
+      <span class="mock-arrow">→</span>
+    </div>
+    <!-- Layer 1 -->
+    <div class="mock-canvas-col">
+      <div class="mock-node" style="width:180px; border-color:rgba(68,204,68,0.4);">
+        <div class="mock-connector mock-connector--in"></div>
+        <div class="mock-connector mock-connector--out"></div>
+        <div class="mock-node-header" style="font-size:0.8rem;">
+          <span class="status-dot dot-startable"></span>
+          Build Auth Middleware
+        </div>
+        <div class="mock-node-desc">JWT validation, rate...</div>
+      </div>
+      <div class="mock-node" style="width:180px; border-color:rgba(68,136,255,0.4);">
+        <div class="mock-connector mock-connector--in"></div>
+        <div class="mock-connector mock-connector--out"></div>
+        <div class="mock-node-header" style="font-size:0.8rem;">
+          <span class="status-dot dot-doing"></span>
+          Write Unit Tests
+        </div>
+        <div class="mock-node-desc">Unit tests for auth...</div>
+      </div>
+    </div>
+    <!-- Arrows L1→L2 -->
+    <div class="mock-canvas-arrow-col">
+      <span class="mock-arrow">→</span>
+    </div>
+    <!-- Layer 2 -->
+    <div class="mock-canvas-col" style="margin-top:60px;">
+      <div class="mock-node" style="width:180px;">
+        <div class="mock-connector mock-connector--in"></div>
+        <div class="mock-connector mock-connector--out"></div>
+        <div class="mock-node-header" style="font-size:0.8rem;">
+          <span class="status-dot dot-pending"></span>
+          Deploy to K8s
+        </div>
+        <div class="mock-node-desc">Helm chart + ingress...</div>
+      </div>
+    </div>
+    <!-- Arrows L2→L3 -->
+    <div class="mock-canvas-arrow-col">
+      <span class="mock-arrow">→</span>
+    </div>
+    <!-- Layer 3 -->
+    <div class="mock-canvas-col" style="margin-top:60px;">
+      <div class="mock-node" style="width:180px;">
+        <div class="mock-connector mock-connector--in"></div>
+        <div class="mock-node-header" style="font-size:0.8rem;">
+          <span class="status-dot dot-pending"></span>
+          Monitor & Alert Setup
+        </div>
+        <div class="mock-node-desc">Datadog dashboards...</div>
+      </div>
+    </div>
+  </div>
+  <!-- Legend -->
+  <div class="mock-legend">
+    <span class="mock-legend-item"><span class="status-dot dot-pending"></span> Pending</span>
+    <span class="mock-legend-item"><span class="status-dot dot-startable"></span> Startable</span>
+    <span class="mock-legend-item"><span class="status-dot dot-doing"></span> Doing</span>
+    <span class="mock-legend-item"><span class="status-dot dot-done"></span> Done</span>
+    <span style="margin-left:auto; font-size:0.7rem;">Scroll: zoom · Drag empty space: pan · Drag connector: add dependency</span>
+  </div>
+  <!-- Editor panel (appears when node is clicked) -->
+  <div style="padding:0 16px 16px;">
+    <div class="mock-editor" style="border-top:2px solid var(--blue);">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <span class="status-dot dot-startable"></span>
+        <span style="font-size:0.8rem; color:var(--green); font-weight:600;">STARTABLE</span>
+        <span style="font-size:0.75rem; color:var(--text-dim); margin-left:auto;">Click node to edit · Drag connectors to link</span>
+      </div>
+      <label>Title</label>
+      <input type="text" value="Build Auth Middleware" readonly>
+      <label>Description</label>
+      <textarea readonly rows="3">Implement JWT auth middleware in src/auth/:
+- Validate access tokens on protected routes
+- Auto-refresh expired tokens</textarea>
+      <div class="mock-editor-actions">
+        <button class="mock-editor-btn mock-editor-btn--primary">💾 Save</button>
+        <button class="mock-editor-btn mock-editor-btn--danger">🗑️ Delete</button>
+        <button class="mock-editor-btn">✕ Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>File Structure (New & Modified Files)</h2>
+
+<div class="file-tree">
+<pre>
+src/
+├── session/
+│   └── plan-manager.ts          ← NEW — PlanManager EventEmitter, CRUD, DAG validation, startable computation
+├── types/
+│   └── plan.ts                  ← NEW — PlanItem, PlanDependency, DirectoryPlan, PlanStatus types
+├── electron/
+│   └── ipc/
+│       ├── plan-handlers.ts     ← NEW — IPC handlers for plan CRUD + dependency management
+│       └── handlers.ts          ← MODIFIED — wire plan handlers
+│   └── preload.ts               ← MODIFIED — add plan API to contextBridge
+
+renderer/
+├── plans/
+│   ├── plan-screen.ts           ← NEW — Plan canvas screen (dag-builder-js wrapper)
+│   ├── plan-layout.ts           ← NEW — Auto-layout algorithm (topological sort + layered layout)
+│   ├── plan-editor.ts           ← NEW — Plan editor panel (title + description + actions)
+│   └── plan-chips.ts            ← NEW — Startable plan chips on session cards
+├── screens/
+│   ├── sessions.ts              ← MODIFIED — add "Plans" button to group headers
+│   └── sessions-render.ts       ← MODIFIED — render plan chips alongside draft pills
+├── navigation.ts                ← MODIFIED — add plan screen to navigation
+├── main.ts                      ← MODIFIED — wire plan screen
+└── styles/
+    └── main.css                 ← MODIFIED — plan canvas + node + editor styles
+
+config/
+└── plans.yaml                   ← NEW — auto-created on first plan save
+
+tests/
+├── plan-manager.test.ts         ← NEW — PlanManager unit tests
+├── plan-layout.test.ts          ← NEW — Auto-layout algorithm tests
+├── plan-chips.test.ts           ← NEW — Plan chip rendering + interaction tests
+├── plan-persistence.test.ts     ← NEW — Plan save/load tests
+└── plan-screen.test.ts          ← NEW — Plan canvas integration tests
+
+docs/
+└── directory-plans.md           ← NEW — Feature documentation
+</pre>
+</div>
+
+<h2>Implementation Phases</h2>
+
+<div class="phase">
+  <div class="phase-header">
+    <div class="phase-number">1</div>
+    <h3 style="margin:0">Data Layer — PlanManager + Persistence</h3>
+    <span class="tag tag-data">Data</span>
+    <span class="tag tag-test">TDD</span>
+  </div>
+  <p>Build the core data model, CRUD operations, DAG validation, and startable computation.</p>
+  <h4>Deliverables</h4>
+  <ul>
+    <li><code>src/types/plan.ts</code> — Type definitions (PlanItem, PlanDependency, DirectoryPlan, PlanStatus)</li>
+    <li><code>src/session/plan-manager.ts</code> — PlanManager class (EventEmitter):
+      <ul>
+        <li>CRUD: <code>createItem(dirPath, title, description)</code>, <code>updateItem(id, {title?, description?})</code>, <code>deleteItem(id)</code>, <code>getItem(id)</code></li>
+        <li>Query: <code>getItemsForDir(dirPath)</code>, <code>getStartableForDir(dirPath)</code>, <code>getDoingForSession(sessionId)</code></li>
+        <li>Dependencies: <code>addDependency(fromId, toId)</code>, <code>removeDependency(fromId, toId)</code>, <code>getDependencies(dirPath)</code></li>
+        <li>Lifecycle: <code>applyItem(id, sessionId)</code> → startable→doing, <code>completeItem(id)</code> → doing→done</li>
+        <li>DAG validation: <code>wouldCreateCycle(fromId, toId)</code> — DFS/BFS cycle detection</li>
+        <li>Auto-recompute: <code>recomputeStartable(dirPath)</code> — called after every status change</li>
+        <li>Events: <code>'plan:changed'</code> (dirPath)</li>
+        <li>Persistence hooks: <code>exportAll()</code>, <code>importAll(data)</code></li>
+      </ul>
+    </li>
+    <li>Plan persistence functions in <code>src/session/persistence.ts</code>:
+      <ul>
+        <li><code>savePlans(data)</code> → write to <code>config/plans.yaml</code></li>
+        <li><code>loadPlans()</code> → read from <code>config/plans.yaml</code></li>
+      </ul>
+    </li>
+    <li><code>tests/plan-manager.test.ts</code> — Full test coverage:
+      <ul>
+        <li>CRUD operations (create, read, update, delete)</li>
+        <li>Dependency add/remove</li>
+        <li>Cycle detection (direct cycle, transitive cycle, self-loop)</li>
+        <li>Startable computation (no deps → startable, deps done → startable, deps pending → pending)</li>
+        <li>Lifecycle transitions (pending→startable→doing→done)</li>
+        <li>Recompute cascade (completing A makes B startable if B only depended on A)</li>
+        <li>Export/import round-trip</li>
+      </ul>
+    </li>
+    <li><code>tests/plan-persistence.test.ts</code> — Save/load YAML round-trip tests</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-header">
+    <div class="phase-number">2</div>
+    <h3 style="margin:0">IPC Layer — Plan Handlers + Preload API</h3>
+    <span class="tag tag-ipc">IPC</span>
+  </div>
+  <p>Expose PlanManager to the renderer via Electron IPC bridge.</p>
+  <h4>Deliverables</h4>
+  <ul>
+    <li><code>src/electron/ipc/plan-handlers.ts</code> — IPC handler setup:
+      <ul>
+        <li><code>plan:create</code> (dirPath, title, description) → PlanItem</li>
+        <li><code>plan:update</code> (id, {title?, description?}) → PlanItem | null</li>
+        <li><code>plan:delete</code> (id) → boolean</li>
+        <li><code>plan:get</code> (id) → PlanItem | null</li>
+        <li><code>plan:listForDir</code> (dirPath) → PlanItem[]</li>
+        <li><code>plan:startableForDir</code> (dirPath) → PlanItem[]</li>
+        <li><code>plan:doingForSession</code> (sessionId) → PlanItem[]</li>
+        <li><code>plan:addDependency</code> (fromId, toId) → { success: boolean, error?: string }</li>
+        <li><code>plan:removeDependency</code> (fromId, toId) → boolean</li>
+        <li><code>plan:getDependencies</code> (dirPath) → PlanDependency[]</li>
+        <li><code>plan:apply</code> (id, sessionId) → PlanItem (status→doing)</li>
+        <li><code>plan:complete</code> (id) → PlanItem (status→done)</li>
+        <li><code>plan:getDirectoryPlan</code> (dirPath) → DirectoryPlan</li>
+      </ul>
+    </li>
+    <li>Wire <code>plan:changed</code> → <code>savePlans()</code> auto-save</li>
+    <li>Modify <code>src/electron/ipc/handlers.ts</code> — import + call <code>setupPlanHandlers(planManager)</code></li>
+    <li>Modify <code>src/electron/preload.ts</code> — expose plan API via contextBridge</li>
+    <li>Modify <code>src/electron/main.ts</code> — instantiate PlanManager, load plans on startup</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-header">
+    <div class="phase-number">3</div>
+    <h3 style="margin:0">Auto-Layout Algorithm</h3>
+    <span class="tag tag-ui">UI</span>
+    <span class="tag tag-test">TDD</span>
+  </div>
+  <p>Implement the left-to-right layered DAG layout algorithm used to position nodes on the canvas.</p>
+  <h4>Deliverables</h4>
+  <ul>
+    <li><code>renderer/plans/plan-layout.ts</code> — Layout algorithm:
+      <ul>
+        <li><code>computeLayout(items, dependencies)</code> → <code>Map&lt;string, {x, y}&gt;</code></li>
+        <li>Step 1: Topological sort (Kahn's algorithm)</li>
+        <li>Step 2: Layer assignment (longest path from roots)</li>
+        <li>Step 3: Within-layer ordering (barycenter heuristic to minimise edge crossings)</li>
+        <li>Step 4: Coordinate assignment (layer × LAYER_SPACING, position × NODE_SPACING)</li>
+        <li>Constants: LAYER_SPACING=280, NODE_SPACING=140, NODE_WIDTH=220, NODE_HEIGHT=90</li>
+      </ul>
+    </li>
+    <li><code>tests/plan-layout.test.ts</code> — Layout algorithm tests:
+      <ul>
+        <li>Single node → layer 0, position (0,0)</li>
+        <li>Linear chain A→B→C → three layers, left to right</li>
+        <li>Diamond pattern (A→B, A→C, B→D, C→D) → proper layering</li>
+        <li>Multiple roots → all at layer 0</li>
+        <li>Multiple sinks → all at rightmost layer</li>
+        <li>Edge crossing minimisation (verify ordering)</li>
+        <li>Empty graph → empty result</li>
+      </ul>
+    </li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-header">
+    <div class="phase-number">4</div>
+    <h3 style="margin:0">Plan Canvas Screen — dag-builder-js Integration</h3>
+    <span class="tag tag-ui">UI</span>
+  </div>
+  <p>Build the plan canvas screen using dag-builder-js for SVG rendering, wired to our auto-layout.</p>
+  <h4>Deliverables</h4>
+  <ul>
+    <li>Install <code>dag-builder-js</code> npm dependency</li>
+    <li><code>renderer/plans/plan-screen.ts</code> — Plan canvas screen:
+      <ul>
+        <li>Screen lifecycle: <code>showPlanScreen(dirPath)</code>, <code>hidePlanScreen()</code>, <code>isPlanScreenVisible()</code></li>
+        <li>Toolbar: "← Back to Sessions" button, directory name, "+ Add Node" button</li>
+        <li>Initialise <code>new Graph('#plan-canvas')</code> from dag-builder-js</li>
+        <li>Load plan data via IPC → create Vertex instances with auto-layout coordinates</li>
+        <li>Render nodes with status-coloured styling (pending=grey, startable=green, doing=blue, done=dim)</li>
+        <li>Wire dag-builder-js event listeners:
+          <ul>
+            <li><code>onEdgeAdded</code> → IPC <code>plan:addDependency</code> → re-layout</li>
+            <li><code>onEdgeRemoved</code> → IPC <code>plan:removeDependency</code> → re-layout</li>
+            <li><code>onVertexRemoved</code> → IPC <code>plan:delete</code> → re-layout</li>
+          </ul>
+        </li>
+        <li>Node click → open plan editor panel</li>
+        <li>"+ Add Node" → IPC <code>plan:create</code> → add vertex → re-layout → open editor</li>
+        <li>Re-layout: recompute positions via <code>computeLayout()</code>, update all vertex positions, call <code>graph.update()</code></li>
+      </ul>
+    </li>
+    <li><code>renderer/plans/plan-editor.ts</code> — Plan editor panel:
+      <ul>
+        <li>Renders below or beside the canvas</li>
+        <li>Fields: Title (text input), Description (textarea)</li>
+        <li>Buttons: Save, Mark Done (if status=doing), Delete, Cancel</li>
+        <li>Save → IPC <code>plan:update</code></li>
+        <li>Mark Done → IPC <code>plan:complete</code> → re-layout (status changes may cascade)</li>
+        <li>Delete → confirmation → IPC <code>plan:delete</code> → re-layout</li>
+      </ul>
+    </li>
+    <li>CSS styling for plan canvas, nodes, editor panel</li>
+    <li><code>tests/plan-screen.test.ts</code> — Canvas screen tests (DOM-level):
+      <ul>
+        <li>Screen show/hide lifecycle</li>
+        <li>Node creation flow</li>
+        <li>Node click → editor opens</li>
+        <li>Editor save/cancel</li>
+        <li>Back button returns to sessions</li>
+      </ul>
+    </li>
+  </ul>
+  <div class="warning">
+    ⚠️ <strong>dag-builder-js integration risk:</strong> The library uses manual positioning via <code>MouseCoordinate</code>. Our auto-layout sets coordinates programmatically. We need to verify that setting vertex positions after creation triggers proper SVG re-rendering. If not, we may need to destroy and recreate vertices on each layout pass. Spike this early in Phase 4.
+  </div>
+</div>
+
+<div class="phase">
+  <div class="phase-header">
+    <div class="phase-number">5</div>
+    <h3 style="margin:0">Session Card Integration — Plan Chips</h3>
+    <span class="tag tag-integration">Integration</span>
+    <span class="tag tag-test">TDD</span>
+  </div>
+  <p>Show startable plans as green chips on session cards and enable Apply/Done from sessions screen.</p>
+  <h4>Deliverables</h4>
+  <ul>
+    <li><code>renderer/plans/plan-chips.ts</code> — Plan chip rendering:
+      <ul>
+        <li><code>refreshPlanChips(sessionId, dirPath)</code> — fetch startable + doing plans, render chips</li>
+        <li><code>createPlanChip(plan)</code> → green chip for startable, blue chip for doing</li>
+        <li>Chip format: "🗺️ {truncated-title}" with green/blue background</li>
+        <li>Click handler: opens plan editor modal</li>
+      </ul>
+    </li>
+    <li>Modify <code>renderer/drafts/draft-strip.ts</code> — render plan chips after draft pills</li>
+    <li>Modify <code>renderer/screens/sessions-render.ts</code> — trigger plan chip refresh on card render</li>
+    <li>Plan editor modal (reused from plan-editor.ts but in modal overlay mode):
+      <ul>
+        <li>Title + Description editable (saves back to plan on Save)</li>
+        <li>Apply → send description to PTY → mark doing</li>
+        <li>Mark Done (if doing) → mark done → recompute startable → refresh chips</li>
+        <li>Delete → remove plan item</li>
+        <li>Cancel → close</li>
+      </ul>
+    </li>
+    <li><code>tests/plan-chips.test.ts</code> — Chip rendering + interaction tests:
+      <ul>
+        <li>Startable plans render as green chips</li>
+        <li>Doing plans render as blue chips</li>
+        <li>Pending/done plans do not render as chips</li>
+        <li>Click chip → editor opens with correct plan data</li>
+        <li>Apply → PTY write + status change</li>
+        <li>Mark Done → status change + cascade</li>
+        <li>No plans → no chips rendered</li>
+      </ul>
+    </li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-header">
+    <div class="phase-number">6</div>
+    <h3 style="margin:0">Navigation & Group Header Integration</h3>
+    <span class="tag tag-integration">Integration</span>
+  </div>
+  <p>Wire the plan screen into the app navigation and add the entry point on group headers.</p>
+  <h4>Deliverables</h4>
+  <ul>
+    <li>Modify <code>renderer/screens/sessions.ts</code> — add "🗺️ Plans" button to group header:
+      <ul>
+        <li>Button appears after the collapse toggle on each group header</li>
+        <li>Click → <code>showPlanScreen(dirPath)</code></li>
+        <li>Badge count: show number of startable items (if > 0)</li>
+      </ul>
+    </li>
+    <li>Modify <code>renderer/navigation.ts</code> — add plan screen to navigation:
+      <ul>
+        <li>Plan screen is keyboard/mouse only (no gamepad navigation on canvas)</li>
+        <li>ESC or Back button → return to sessions screen</li>
+        <li>Plan screen blocks gamepad button pass-through (non-navigation buttons shouldn't trigger bindings while canvas is visible)</li>
+      </ul>
+    </li>
+    <li>Modify <code>renderer/main.ts</code> — wire plan screen init + IPC listeners:
+      <ul>
+        <li>Listen for <code>plan:changed</code> events from main process → refresh chips on affected sessions</li>
+      </ul>
+    </li>
+    <li>Add plan screen HTML structure to <code>renderer/index.html</code></li>
+  </ul>
+</div>
+
+<div class="phase">
+  <div class="phase-header">
+    <div class="phase-number">7</div>
+    <h3 style="margin:0">Documentation</h3>
+    <span class="tag tag-integration">Docs</span>
+  </div>
+  <ul>
+    <li><code>docs/directory-plans.md</code> — Feature documentation:
+      <ul>
+        <li>Overview and purpose</li>
+        <li>Data model diagrams (mermaid)</li>
+        <li>UX flows (create, connect, apply, complete)</li>
+        <li>State machine diagram</li>
+        <li>Architecture diagram</li>
+      </ul>
+    </li>
+    <li>Update <code>CLAUDE.md</code> — add PlanManager to module reference, add design decision, update file structure</li>
+    <li>Update <code>docs/modules.md</code> — add PlanManager entry</li>
+  </ul>
+</div>
+
+<hr/>
+
+<h2>Dependency Graph (Implementation Order)</h2>
+
+<pre class="mermaid">
+graph LR
+    P1["Phase 1\nData Layer"] --> P2["Phase 2\nIPC Layer"]
+    P1 --> P3["Phase 3\nAuto-Layout"]
+    P2 --> P4["Phase 4\nCanvas Screen"]
+    P3 --> P4
+    P2 --> P5["Phase 5\nSession Chips"]
+    P4 --> P6["Phase 6\nNavigation"]
+    P5 --> P6
+    P6 --> P7["Phase 7\nDocumentation"]
+</pre>
+
+<h2>Risk Register</h2>
+
+<table>
+  <tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr>
+  <tr>
+    <td>dag-builder-js doesn't support programmatic position updates (only drag)</td>
+    <td>High — auto-layout broken</td>
+    <td>Spike in Phase 4: test setting vertex positions via API. Fallback: destroy+recreate vertices on re-layout. Worst case: switch to raw SVG + dagre.</td>
+  </tr>
+  <tr>
+    <td>dag-builder-js lacks TypeScript types</td>
+    <td>Low — inconvenience</td>
+    <td>Write a minimal <code>.d.ts</code> declaration file covering the API surface we use.</td>
+  </tr>
+  <tr>
+    <td>Performance with 50 nodes + re-layout on every change</td>
+    <td>Medium — sluggish UX</td>
+    <td>Debounce re-layout (100ms). Profile with 50 nodes early. DOM-based rendering at this scale should be fine.</td>
+  </tr>
+  <tr>
+    <td>dag-builder-js ESM compatibility with esbuild</td>
+    <td>Medium — build failure</td>
+    <td>Test import in esbuild early. May need to be --external or use a CDN fallback.</td>
+  </tr>
+  <tr>
+    <td>Startable chip refresh latency (IPC round-trip per session card)</td>
+    <td>Low — minor delay</td>
+    <td>Batch IPC: single <code>plan:startableForDir</code> call per directory, distribute to all session cards.</td>
+  </tr>
+</table>
+
+<h2>Out of Scope (v1)</h2>
+<ul>
+  <li>Jira integration (soft map field on nodes — future)</li>
+  <li>Cross-directory dependencies</li>
+  <li>Gamepad navigation on the canvas</li>
+  <li>Manual node positioning / drag to reposition</li>
+  <li>Undo/redo on canvas</li>
+  <li>Plan templates / presets</li>
+  <li>Telegram mirror for plan changes</li>
+</ul>
+
+</body>
+</html>

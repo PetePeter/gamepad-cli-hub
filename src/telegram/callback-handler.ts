@@ -58,6 +58,7 @@ export function setupCallbackHandler(
   configLoader: ConfigLoader,
   textInput: TextInputManager,
   outputSummarizer: OutputSummarizer,
+  draftManager?: { clearSession(sessionId: string): void },
 ): () => void {
   const handler = async (query: TelegramBot.CallbackQuery) => {
     const data = query.data;
@@ -67,7 +68,7 @@ export function setupCallbackHandler(
       await routeCallback(
         data, query, bot, topicManager,
         sessionManager, ptyManager, configLoader,
-        textInput, outputSummarizer,
+        textInput, outputSummarizer, draftManager,
       );
     } catch (err) {
       logger.error(`[CallbackHandler] Error processing ${data}: ${err}`);
@@ -96,6 +97,7 @@ async function routeCallback(
   configLoader: ConfigLoader,
   textInput: TextInputManager,
   outputSummarizer: OutputSummarizer,
+  draftManager?: { clearSession(sessionId: string): void },
 ): Promise<void> {
   const [action, ...rest] = data.split(':');
   const payload = rest.join(':');
@@ -144,7 +146,7 @@ async function routeCallback(
       await handleStatus(bot, sessionManager, query);
       break;
     case 'closeall':
-      await handleCloseAll(bot, sessionManager, ptyManager, query);
+      await handleCloseAll(bot, sessionManager, ptyManager, draftManager, query);
       break;
     default:
       logger.warn(`[CallbackHandler] Unknown callback: ${data}`);
@@ -558,6 +560,7 @@ async function handleCloseAll(
   bot: TelegramBotCore,
   sessionManager: SessionManager,
   ptyManager: PtyManager,
+  draftManager: { clearSession(sessionId: string): void } | undefined,
   query: TelegramBot.CallbackQuery,
 ): Promise<void> {
   const sessions = sessionManager.getAllSessions();
@@ -574,6 +577,7 @@ async function handleCloseAll(
       if (sessionManager.hasSession(session.id)) {
         sessionManager.removeSession(session.id);
       }
+      draftManager?.clearSession(session.id);
       closed++;
     } catch (err) {
       logger.error(`[CloseAll] Failed to close session ${session.id}: ${err}`);

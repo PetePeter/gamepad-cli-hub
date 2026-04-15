@@ -47,6 +47,7 @@ export function initTelegramModules(
   sessionManager: SessionManager,
   ptyManager: PtyManager,
   configLoader: ConfigLoader,
+  draftManager?: { clearSession(sessionId: string): void },
 ): TelegramModules {
   const outputSummarizer = new OutputSummarizer();
   const terminalMirror = new TerminalMirror(bot, topicManager);
@@ -56,12 +57,12 @@ export function initTelegramModules(
 
   const cleanupCallbacks = setupCallbackHandler(
     bot, topicManager, sessionManager, ptyManager,
-    configLoader, textInput, outputSummarizer,
+    configLoader, textInput, outputSummarizer, draftManager,
   );
 
   const cleanupCommands = setupSlashCommands({
     bot, topicManager, sessionManager, ptyManager,
-    configLoader, outputSummarizer,
+    configLoader, outputSummarizer, draftManager,
   });
 
   const cleanupTopicInput = setupTopicInput(

@@ -7,6 +7,7 @@
 import { ipcMain } from 'electron';
 import type { SessionManager } from '../../session/manager.js';
 import type { PtyManager } from '../../session/pty-manager.js';
+import type { DraftManager } from '../../session/draft-manager.js';
 import { logger } from '../../utils/logger.js';
 
 // ============================================================================
@@ -16,6 +17,7 @@ import { logger } from '../../utils/logger.js';
 export function setupSessionHandlers(
   sessionManager: SessionManager,
   ptyManager: PtyManager,
+  draftManager: DraftManager,
 ): () => void {
   // --- CRUD & navigation ---------------------------------------------------
 
@@ -61,6 +63,7 @@ export function setupSessionHandlers(
       }
 
       sessionManager.removeSession(id);
+      draftManager.clearSession(id);
 
       return { success: true };
     } catch (error) {
@@ -70,6 +73,6 @@ export function setupSessionHandlers(
   });
 
   return () => {
-    sessionManager.stopHealthCheck();
+    // no-op — health check removed, PTY exit events handle cleanup
   };
 }

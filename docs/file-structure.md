@@ -26,7 +26,7 @@ src/
 │   └── keyboard.ts             # OS-level key simulation via robotjs (voice bindings only)
 ├── session/
 │   ├── manager.ts              # Session tracking (EventEmitter), calls persistence on changes
-│   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + saveDrafts/loadDrafts to config/drafts.yaml + health check
+│   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + saveDrafts/loadDrafts to config/drafts.yaml
 │   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
 │   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection + I/O activity tracking (active/inactive/idle via input+output timing)
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)

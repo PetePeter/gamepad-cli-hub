@@ -20,7 +20,6 @@ export class SessionManager extends EventEmitter {
   private sessions: Map<string, SessionInfo> = new Map();
   private activeSessionId: string | null = null;
   private sessionOrder: string[] = [];
-  private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     super();
@@ -285,39 +284,8 @@ export class SessionManager extends EventEmitter {
     return saved;
   }
 
-  /**
-   * Start periodic health check that removes sessions whose process has died.
-   */
-  startHealthCheck(intervalMs: number = 5000): void {
-    this.healthCheckInterval = setInterval(() => {
-      for (const session of this.getAllSessions()) {
-        if (session.processId && !this.isProcessAlive(session.processId)) {
-          logger.info(`Session ${session.id} (PID ${session.processId}) is dead, removing`);
-          this.removeSession(session.id);
-        }
-      }
-    }, intervalMs);
-  }
-
-  /** Stop the periodic health check. */
-  stopHealthCheck(): void {
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-      this.healthCheckInterval = null;
-    }
-  }
-
   /** Write current session list to disk. */
   private persistSessions(): void {
     saveSessions(this.getAllSessions());
-  }
-
-  private isProcessAlive(pid: number): boolean {
-    try {
-      process.kill(pid, 0);
-      return true;
-    } catch {
-      return false;
-    }
   }
 }

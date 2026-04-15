@@ -105,7 +105,7 @@ flowchart LR
 | **BrowserGamepad** | `renderer/gamepad.ts` | Browser Gamepad API polling (250ms debounce), button-press events via IPC, analog stick events. Sole gamepad input source — works with both USB and Bluetooth Xbox controllers. |
 | **SequenceParser** | `src/input/sequence-parser.ts` | Parses sequence format strings (`{Enter}`, `{Ctrl+C}`, `{Wait 500}`, `{Mod Down/Up}`, `{{`/`}}` escapes, plain text) into typed SequenceAction arrays. Used by both button bindings and initial prompts. |
 | **SessionManager** | `src/session/manager.ts` | EventEmitter tracking active/inactive sessions. Emits `session:added`, `session:removed`, `session:changed`. Supports `nextSession()`, `previousSession()`. Calls `persistSessions()` after every state change. |
-| **SessionPersistence** | `src/session/persistence.ts` | `saveSessions()`, `loadSessions()`, `clearPersistedSessions()` to `config/sessions.yaml`. `restoreSessions()` on startup loads saved sessions, skips duplicates. `startHealthCheck(intervalMs)` periodically removes dead PIDs. ⚠️ `startHealthCheck()` is never called in production — dead code, tests only. |
+| **SessionPersistence** | `src/session/persistence.ts` | `saveSessions()`, `loadSessions()`, `clearPersistedSessions()` to `config/sessions.yaml`. `restoreSessions()` on startup loads saved sessions, skips duplicates. `startHealthCheck()`/`stopHealthCheck()` methods exist but are dead code — not called in production; dead processes cleaned up via PTY exit events instead. |
 | **ProcessSpawner** | `src/session/spawner.ts` | Spawn detached CLI processes from config, register with SessionManager. Accepts optional `onExit` callback. |
 | **PtyManager** | `src/session/pty-manager.ts` | PTY process lifecycle — spawn via node-pty (cmd.exe on Windows, bash on Unix), write to stdin, resize, kill. One PTY per embedded terminal session. |
 | **StateDetector** | `src/session/state-detector.ts` | Scans PTY output for AIAGENT-* keywords to detect CLI state (waiting, implementing, etc.). |
@@ -228,7 +228,7 @@ src/
 │   └── keyboard.ts             # OS-level key simulation via robotjs (voice bindings only)
 ├── session/
 │   ├── manager.ts              # Session tracking (EventEmitter), calls persistence on changes
-│   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + health check
+│   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml
 │   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
 │   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
@@ -339,7 +339,7 @@ Horizontal tab strip above terminal area. Each tab shows session name + colored 
 Non-navigation buttons (XYAB, bumpers, triggers) return false from session navigation, allowing them to fall through to per-CLI configurable bindings.
 
 ### Session Persistence
-Sessions saved to `config/sessions.yaml` (as YAML) after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skips duplicates). `startHealthCheck(intervalMs)` periodically removes dead PIDs via `process.kill(pid, 0)`. Survives app crashes and restarts. ⚠️ `startHealthCheck()` is never called in production — dead code, used only in tests.
+Sessions saved to `config/sessions.yaml` (as YAML) after every add/remove/change. On startup, `restoreSessions()` reloads saved sessions (skips duplicates). Dead processes are cleaned up via PTY exit events — no periodic health check runs in production. `startHealthCheck()`/`stopHealthCheck()` methods exist on SessionManager but are dead code (tests only). Survives app crashes and restarts.
 
 ### Hibernate Resilience
 Renderer crash recovery via `render-process-gone` auto-reload — Chromium GPU process often crashes on hibernate resume. Safe because session state lives in `SessionManager` (main process), so terminals reconnect after reload. `powerMonitor` logs `suspend`/`resume`/`shutdown` for diagnostics. `unresponsive`/`responsive` events are also logged for visibility.

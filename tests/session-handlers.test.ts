@@ -24,16 +24,16 @@ vi.mock('../src/utils/logger.js', () => ({
 import { setupSessionHandlers } from '../src/electron/ipc/session-handlers.js';
 import type { SessionManager } from '../src/session/manager.js';
 import type { PtyManager } from '../src/session/pty-manager.js';
+import type { DraftManager } from '../src/session/draft-manager.js';
 
 function createMockSessionManager(sessions: Record<string, any> = {}): SessionManager {
-  return {
+   return {
     getSession: vi.fn((id: string) => sessions[id] ?? null),
     removeSession: vi.fn(),
     getAllSessions: vi.fn(() => Object.values(sessions)),
     setActiveSession: vi.fn(),
     getActiveSession: vi.fn(),
     renameSession: vi.fn(),
-    stopHealthCheck: vi.fn(),
     hasSession: vi.fn((id: string) => id in sessions),
   } as unknown as SessionManager;
 }
@@ -48,9 +48,24 @@ function createMockPtyManager(): PtyManager {
   } as unknown as PtyManager;
 }
 
+function createMockDraftManager(): DraftManager {
+  return {
+    clearSession: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    getSessionDrafts: vi.fn(() => []),
+    exportAll: vi.fn(() => ({})),
+    importAll: vi.fn(),
+    on: vi.fn(),
+    emit: vi.fn(),
+  } as unknown as DraftManager;
+}
+
 describe('session:close IPC handler', () => {
   let sessionManager: ReturnType<typeof createMockSessionManager>;
   let ptyManager: ReturnType<typeof createMockPtyManager>;
+  let draftManager: ReturnType<typeof createMockDraftManager>;
 
   beforeEach(() => {
     handlers.clear();
@@ -59,7 +74,8 @@ describe('session:close IPC handler', () => {
   function setup(sessions: Record<string, any> = {}) {
     sessionManager = createMockSessionManager(sessions);
     ptyManager = createMockPtyManager();
-    setupSessionHandlers(sessionManager, ptyManager);
+    draftManager = createMockDraftManager();
+    setupSessionHandlers(sessionManager, ptyManager, draftManager);
   }
 
   it('calls ptyManager.kill() with session id', async () => {
@@ -71,6 +87,7 @@ describe('session:close IPC handler', () => {
     const result = await handler({}, 'sess-1');
 
     expect(ptyManager.kill).toHaveBeenCalledWith('sess-1');
+    expect(draftManager.clearSession).toHaveBeenCalledWith('sess-1');
     expect(result).toEqual({ success: true });
   });
 
@@ -88,6 +105,7 @@ describe('session:close IPC handler', () => {
 
     expect(ptyManager.kill).toHaveBeenCalledWith('sess-1');
     expect(sessionManager.removeSession).toHaveBeenCalledWith('sess-1');
+    expect(draftManager.clearSession).toHaveBeenCalledWith('sess-1');
     expect(result).toEqual({ success: true });
   });
 
