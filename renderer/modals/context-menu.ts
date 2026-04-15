@@ -1,7 +1,8 @@
 /**
  * Context menu modal — right-click / gamepad context actions for embedded terminals.
  *
- * Provides Copy, Paste, New Session, New Session with Selection, and Cancel.
+ * Provides Copy, Paste, Compose in Editor, New Session, New Session with Selection,
+ * Prompts, Drafts, and Cancel.
  * Triggered via right-click on the terminal area or a gamepad context-menu binding.
  */
 
@@ -48,6 +49,7 @@ interface MenuItem {
 const MENU_ITEMS: MenuItem[] = [
   { action: 'copy', label: 'Copy', icon: '📋', enabledWhen: () => contextMenuState.hasSelection },
   { action: 'paste', label: 'Paste', icon: '📥', enabledWhen: () => true },
+  { action: 'editor', label: 'Compose in Editor', icon: '✏️', enabledWhen: () => !!state.activeSessionId },
   { action: 'new-session', label: 'New Session', icon: '➕', enabledWhen: () => true },
   { action: 'new-session-with-selection', label: 'New Session with Selection', icon: '📋➕', enabledWhen: () => contextMenuState.hasSelection },
   { action: 'sequences', label: 'Prompts', icon: '⏩', enabledWhen: () => hasSequenceItems() },
@@ -253,6 +255,22 @@ async function executeSelectedItem(): Promise<void> {
         logEvent('Paste failed');
       }
       hideContextMenu();
+      break;
+    }
+    case 'editor': {
+      hideContextMenu();
+      const sessionId = state.activeSessionId;
+      if (!sessionId) break;
+      try {
+        const result = await window.gamepadCli.editorOpenExternal();
+        if (result.success && result.text && result.text.trim()) {
+          window.gamepadCli.ptyWrite(sessionId, result.text);
+          logEvent('Sent editor text to PTY');
+        }
+      } catch (err) {
+        console.error('[ContextMenu] External editor failed:', err);
+        logEvent('External editor failed');
+      }
       break;
     }
     case 'new-session': {

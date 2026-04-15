@@ -157,7 +157,7 @@ graph LR
 | `profile-switch` | Switch config profile (next/previous) |
 | `close-session` | Close the active terminal session |
 | `scroll` | Scroll terminal buffer. Format: `{ action: 'scroll', direction: 'up'\|'down', lines?: 5 }` |
-| `context-menu` | Open context menu overlay. Format: `{ action: 'context-menu' }`. Gamepad binding centers menu in viewport; right-click shows at mouse position. Items: Copy, Paste, New Session, New Session with Selection, Cancel. Copy and "New Session with Selection" disabled when no text selected. |
+| `context-menu` | Open context menu overlay. Format: `{ action: 'context-menu' }`. Gamepad binding centers menu in viewport; right-click shows at mouse position. Items: Copy, Paste, Compose in Editor, New Session, New Session with Selection, Cancel. Copy and "New Session with Selection" disabled when no text selected. "Compose in Editor" disabled when no active session. |
 | `sequence-list` | Open picker overlay with named sequences. Format: `{ action: 'sequence-list', items: [{ label: 'Clear', sequence: '/clear{Enter}' }, ...] }`. User selects item via D-pad/click, sequence sent to active PTY. |
 
 ### Stick Configuration (per profile)
@@ -259,7 +259,7 @@ renderer/
 ├── modals/
 │   ├── dir-picker.ts           # Directory picker modal
 │   ├── binding-editor.ts       # Binding editor modal
-│   ├── context-menu.ts         # Context menu overlay — Copy/Paste/New Session/New Session with Selection/Cancel. Selection-aware items, gamepad D-pad navigation, mouse + right-click support
+│   ├── context-menu.ts         # Context menu overlay — Copy/Paste/Compose in Editor/New Session/New Session with Selection/Cancel. Selection-aware items, gamepad D-pad navigation, mouse + right-click support
 │   ├── close-confirm.ts        # Close session confirmation popup — centered modal with Close/Cancel, gamepad + keyboard support
 │   └── sequence-picker.ts      # Sequence picker overlay — shows list of named sequences for user selection, gamepad + click support
 └── styles/

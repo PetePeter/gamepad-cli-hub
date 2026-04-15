@@ -98,7 +98,7 @@ renderer/
 │   ├── modal-base.ts           # Shared modal foundation (show/hide, backdrop, gamepad focus management)
 │   ├── dir-picker.ts           # Directory picker modal (supports pre-selection via preselectedPath)
 │   ├── binding-editor.ts       # Binding editor modal
-│   ├── context-menu.ts         # Context menu overlay — Copy/Paste/New Session/New Session with Selection/Prompts ⏩/Drafts ►/Cancel
+│   ├── context-menu.ts         # Context menu overlay — Copy/Paste/Compose in Editor/New Session/New Session with Selection/Prompts ⏩/Drafts ►/Cancel
 │   ├── close-confirm.ts        # Close session confirmation popup — centered modal with Close/Cancel, warns about unsent drafts, gamepad + keyboard support
 │   ├── sequence-picker.ts      # Sequence picker overlay — shows list of named sequences for user selection, gamepad + click support
 │   ├── quick-spawn.ts          # Quick-spawn CLI type picker — centred modal listing available CLI types with pre-selection, gamepad + click support

@@ -1684,6 +1684,13 @@ kbd {
   font-size: 14px;
 }
 
+.item-shortcut {
+  margin-left: auto;
+  font-size: 10px;
+  color: #777;
+  font-family: monospace;
+}
+
 /* =========================================================================
    Sequence Picker (reuses context-menu item styling)
    ========================================================================= */

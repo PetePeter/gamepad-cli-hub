@@ -10,46 +10,63 @@
     startOnLoad: true,
     theme: 'dark',
     themeVariables: {
-      primaryColor: '#0f3460',
-      primaryTextColor: '#e0e0e0',
-      primaryBorderColor: '#4488ff',
-      lineColor: '#4488ff',
-      secondaryColor: '#16213e',
-      tertiaryColor: '#1a1a2e',
-      fontFamily: 'Segoe UI, system-ui, sans-serif',
+      primaryColor: '#1a1a1a',
+      primaryTextColor: '#eee',
+      primaryBorderColor: '#ff6600',
+      lineColor: '#ff6600',
+      secondaryColor: '#111111',
+      tertiaryColor: '#0a0a0a',
+      fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, sans-serif',
     }
   });
 </script>
 <style>
+  /* ── Theme: matches gamepad-cli-hub renderer/styles/main.css ── */
   :root {
-    --bg: #1a1a2e;
-    --surface: #16213e;
-    --surface2: #0f3460;
-    --accent: #e94560;
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #111111;
+    --bg-tertiary: #1a1a1a;
+    --accent: #ff6600;
+    --accent-hover: #ff8833;
+    --text-primary: #eee;
+    --text-secondary: #999;
+    --text-dim: #555;
+    --border: #222222;
+    --focus: rgba(255, 102, 0, 0.3);
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    /* Plan status colours (same activity palette as app) */
     --green: #44cc44;
     --blue: #4488ff;
     --grey: #555;
-    --text: #e0e0e0;
-    --text-dim: #888;
-    --border: #333;
-    --code-bg: #0d1117;
     --pending: #555;
-    --startable: #44cc44;
-    --doing: #4488ff;
+    --startable: #4488ff;
+    --doing: #44cc44;
     --done: #666;
+    --danger: #ff4444;
+    --success: #33aa55;
+    /* Code blocks */
+    --code-bg: #0d1117;
+    /* Draft-style input fields */
+    --input-bg: #252535;
+    --input-border: #444;
+    --editor-bg: #1e1e2e;
+    --pill-bg: #2a2a3a;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.6;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.5;
+    font-size: 14px;
     padding: 2rem;
     max-width: 1200px;
     margin: 0 auto;
   }
   h1 { color: var(--accent); font-size: 2rem; margin-bottom: 0.5rem; border-bottom: 2px solid var(--accent); padding-bottom: 0.5rem; }
-  h2 { color: var(--blue); font-size: 1.4rem; margin: 2rem 0 0.75rem; border-left: 4px solid var(--blue); padding-left: 0.75rem; }
+  h2 { color: var(--accent); font-size: 1.4rem; margin: 2rem 0 0.75rem; border-left: 4px solid var(--accent); padding-left: 0.75rem; }
   h3 { color: var(--green); font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
   h4 { color: var(--text-dim); font-size: 1rem; margin: 1rem 0 0.3rem; }
   p, li { margin-bottom: 0.4rem; }
@@ -59,7 +76,7 @@
     padding: 0.15rem 0.4rem;
     border-radius: 3px;
     font-size: 0.9em;
-    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-family: 'Cascadia Code', 'Consolas', 'Fira Code', monospace;
   }
   pre {
     background: var(--code-bg);
@@ -80,12 +97,12 @@
     padding: 0.5rem 0.75rem;
     text-align: left;
   }
-  th { background: var(--surface2); color: var(--blue); }
-  td { background: var(--surface); }
+  th { background: var(--bg-tertiary); color: var(--accent); }
+  td { background: var(--bg-secondary); }
   .phase {
-    background: var(--surface);
+    background: var(--bg-secondary);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: 1.25rem;
     margin: 1rem 0;
   }
@@ -111,13 +128,13 @@
   .tag {
     display: inline-block;
     padding: 0.15rem 0.5rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     font-size: 0.8em;
     font-weight: 600;
   }
   .tag-data { background: #1a4a1a; color: #44cc44; }
   .tag-ipc { background: #1a3a5a; color: #4488ff; }
-  .tag-ui { background: #4a1a3a; color: #e94560; }
+  .tag-ui { background: #3a1a0a; color: #ff6600; }
   .tag-integration { background: #3a3a1a; color: #cccc44; }
   .tag-test { background: #2a1a4a; color: #aa88ff; }
   .mermaid-placeholder {
@@ -127,7 +144,7 @@
     border-radius: 6px;
     margin: 0.75rem 0;
     white-space: pre;
-    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-family: 'Cascadia Code', 'Consolas', 'Fira Code', monospace;
     font-size: 0.85em;
     line-height: 1.4;
   }
@@ -144,14 +161,14 @@
   .dot-doing { background: var(--doing); }
   .dot-done { background: var(--done); text-decoration: line-through; }
   .summary-box {
-    background: var(--surface2);
-    border: 1px solid var(--blue);
-    border-radius: 8px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
     padding: 1rem;
     margin: 1rem 0;
   }
   .file-tree {
-    font-family: 'Cascadia Code', monospace;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
     font-size: 0.85em;
     line-height: 1.5;
   }
@@ -163,28 +180,31 @@
     margin: 0.75rem 0;
   }
   .decision {
-    background: #0a2a3a;
-    border: 1px solid var(--blue);
+    background: rgba(255,102,0,0.05);
+    border: 1px solid var(--accent);
     border-radius: 6px;
     padding: 0.75rem;
     margin: 0.75rem 0;
   }
   hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 
-  /* ── HTML Mockup Styles ── */
+  /* ══════════════════════════════════════════════════════
+     HTML Mockup Styles — matching real app theme
+     ══════════════════════════════════════════════════════ */
   .mockup {
-    background: #111;
-    border: 2px solid var(--border);
-    border-radius: 10px;
+    background: var(--bg-primary);
+    border: 2px solid var(--accent);
+    border-radius: var(--radius-lg);
     padding: 0;
     margin: 1.5rem 0;
     overflow: hidden;
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    font-size: 14px;
   }
   .mockup-title {
-    background: var(--surface2);
+    background: var(--bg-tertiary);
     color: var(--text-dim);
-    font-size: 0.75rem;
+    font-size: 11px;
     padding: 0.35rem 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -194,35 +214,36 @@
     padding: 1.25rem;
   }
 
-  /* Plan node mockup */
+  /* ── Plan node mockup ── */
   .mock-node {
     display: inline-flex;
     flex-direction: column;
-    background: var(--surface);
+    background: var(--bg-secondary);
     border: 2px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     width: 200px;
     padding: 0;
     margin: 0.5rem;
     vertical-align: top;
     position: relative;
-    transition: opacity 0.3s;
+    transition: opacity 0.3s, border-color 0.15s;
   }
   .mock-node--done { opacity: 0.45; }
-  .mock-node--selected { border-color: var(--accent); box-shadow: 0 0 12px rgba(233,69,96,0.3); }
+  .mock-node--selected { border-color: var(--accent); box-shadow: 0 0 12px var(--focus); }
   .mock-node-header {
     display: flex;
     align-items: center;
     gap: 6px;
     padding: 8px 10px 4px;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 13px;
+    color: var(--text-primary);
   }
   .mock-node-header.done-text { text-decoration: line-through; color: var(--text-dim); }
   .mock-node-desc {
     padding: 0 10px 8px;
-    font-size: 0.75rem;
-    color: var(--text-dim);
+    font-size: 12px;
+    color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -233,57 +254,60 @@
     height: 12px;
     border-radius: 50%;
     background: var(--border);
-    border: 2px solid var(--surface);
+    border: 2px solid var(--bg-secondary);
   }
   .mock-connector--in { left: -7px; top: 50%; transform: translateY(-50%); }
   .mock-connector--out { right: -7px; top: 50%; transform: translateY(-50%); }
   .mock-connector:hover { background: var(--accent); cursor: crosshair; }
   .mock-arrow {
     display: inline-block;
-    color: var(--blue);
+    color: var(--accent);
     font-size: 2rem;
     vertical-align: middle;
     margin: 0 -8px;
     line-height: 90px;
   }
 
-  /* Group header mockup */
+  /* ── Group header mockup (matches .group-header) ── */
   .mock-group-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 12px;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    padding: 6px 12px;
     margin: 4px 0;
-    font-size: 0.9rem;
+    font-size: 14px;
+    user-select: none;
   }
+  .mock-group-header:hover { background: var(--bg-tertiary); }
   .mock-group-header .folder-icon { font-size: 1.1rem; }
-  .mock-group-header .group-name { font-weight: 600; flex: 1; }
-  .mock-group-header .group-count { color: var(--text-dim); font-size: 0.8rem; }
+  .mock-group-header .group-name { font-weight: 600; flex: 1; color: var(--text-primary); }
+  .mock-group-header .group-count { color: var(--text-dim); font-size: 12px; }
   .mock-btn {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     padding: 3px 10px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-    font-size: 0.8rem;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 12px;
     cursor: pointer;
+    transition: background 0.15s, color 0.15s;
   }
-  .mock-btn:hover { border-color: var(--blue); background: var(--surface2); }
-  .mock-btn--plans { border-color: var(--green); }
-  .mock-btn--plans:hover { background: rgba(68,204,68,0.1); }
+  .mock-btn:hover { border-color: var(--accent); color: var(--text-primary); background: var(--border); }
+  .mock-btn--plans { border-color: var(--blue); color: var(--text-primary); }
+  .mock-btn--plans:hover { background: rgba(68,136,255,0.1); border-color: var(--blue); }
   .mock-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: var(--green);
-    color: #000;
-    font-size: 0.65rem;
+    background: var(--blue);
+    color: #fff;
+    font-size: 10px;
     font-weight: 700;
     width: 16px;
     height: 16px;
@@ -291,62 +315,69 @@
     margin-left: 2px;
   }
 
-  /* Session card mockup */
+  /* ── Session card mockup (matches .session-card) ── */
   .mock-session-card {
-    background: var(--surface);
+    background: var(--bg-secondary);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 12px;
-    margin: 4px 0;
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    margin: 6px 0;
+    min-height: 48px;
     display: flex;
     align-items: center;
     gap: 8px;
+    transition: background 0.15s, border-color 0.15s;
   }
+  .mock-session-card:hover { background: var(--bg-tertiary); }
   .mock-session-card .activity-dot {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     flex-shrink: 0;
   }
-  .mock-session-card .session-name { font-weight: 500; font-size: 0.85rem; }
-  .mock-session-card .session-cli { color: var(--text-dim); font-size: 0.75rem; }
+  .mock-session-card .session-name { font-weight: 500; font-size: 14px; color: var(--text-primary); }
+  .mock-session-card .session-cli { color: var(--text-secondary); font-size: 12px; margin-top: 1px; }
 
-  /* Chip strip mockup */
+  /* ── Chip strip mockup (matches .draft-strip + .draft-pill) ── */
   .mock-chip-strip {
     display: flex;
-    gap: 6px;
-    padding: 6px 0;
+    gap: 4px;
+    padding: 4px 8px;
     flex-wrap: wrap;
     align-items: center;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    min-height: 28px;
   }
   .mock-chip {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 10px;
+    padding: 2px 8px;
     border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 500;
+    font-size: 11px;
+    font-weight: 400;
     cursor: pointer;
-    border: 1px solid transparent;
-    transition: all 0.15s;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
   }
   .mock-chip:hover { filter: brightness(1.2); }
-  .mock-chip--draft { background: rgba(68,136,255,0.15); color: var(--blue); border-color: rgba(68,136,255,0.3); }
-  .mock-chip--plan-startable { background: rgba(68,204,68,0.2); color: var(--green); border-color: rgba(68,204,68,0.4); }
-  .mock-chip--plan-doing { background: rgba(68,136,255,0.2); color: var(--blue); border-color: rgba(68,136,255,0.4); }
+  .mock-chip--draft { background: var(--pill-bg); color: #ccc; border: 1px solid var(--input-border); }
+  .mock-chip--draft:hover { background: #3a3a4a; border-color: #666; }
+  .mock-chip--plan-startable { background: rgba(68,136,255,0.15); color: var(--blue); border: 1px solid rgba(68,136,255,0.3); }
+  .mock-chip--plan-doing { background: rgba(68,204,68,0.15); color: var(--green); border: 1px solid rgba(68,204,68,0.3); }
 
-  /* Plan editor mockup */
+  /* ── Plan editor mockup (matches .draft-editor) ── */
   .mock-editor {
-    background: var(--surface);
+    background: var(--editor-bg);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: 16px;
     margin: 8px 0;
   }
   .mock-editor label {
     display: block;
-    font-size: 0.75rem;
+    font-size: 11px;
     color: var(--text-dim);
     margin-bottom: 4px;
     text-transform: uppercase;
@@ -354,18 +385,24 @@
   }
   .mock-editor input, .mock-editor textarea {
     width: 100%;
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--text);
-    padding: 6px 10px;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: 4px 8px;
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: 12px;
     margin-bottom: 10px;
     outline: none;
   }
-  .mock-editor input:focus, .mock-editor textarea:focus { border-color: var(--blue); }
-  .mock-editor textarea { resize: vertical; min-height: 60px; }
+  .mock-editor input:focus, .mock-editor textarea:focus { border-color: var(--accent); }
+  .mock-editor textarea {
+    resize: vertical;
+    min-height: 60px;
+    font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.55;
+  }
   .mock-editor-actions {
     display: flex;
     gap: 8px;
@@ -373,41 +410,51 @@
   }
   .mock-editor-btn {
     padding: 6px 16px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--border);
-    background: var(--surface2);
-    color: var(--text);
-    font-size: 0.8rem;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 12px;
     cursor: pointer;
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
   }
-  .mock-editor-btn--primary { background: var(--blue); color: #fff; border-color: var(--blue); }
-  .mock-editor-btn--danger { background: transparent; color: var(--accent); border-color: var(--accent); }
-  .mock-editor-btn--success { background: var(--green); color: #000; border-color: var(--green); }
+  .mock-editor-btn:hover { background: var(--border); }
+  .mock-editor-btn--primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .mock-editor-btn--primary:hover { background: var(--accent-hover); }
+  .mock-editor-btn--danger { background: rgba(255,68,68,0.15); color: var(--danger); border-color: rgba(255,68,68,0.3); }
+  .mock-editor-btn--danger:hover { background: rgba(255,68,68,0.3); border-color: var(--danger); }
+  .mock-editor-btn--success { background: var(--success); color: #fff; border-color: var(--success); }
+  .mock-editor-btn--success:hover { background: #44bb66; }
 
-  /* Plan screen toolbar mockup */
+  /* ── Plan screen toolbar mockup (matches .sidebar-header) ── */
   .mock-toolbar {
     display: flex;
     align-items: center;
     gap: 12px;
-    background: var(--surface2);
+    background: var(--bg-secondary);
     padding: 8px 16px;
     border-bottom: 1px solid var(--border);
+    min-height: 36px;
   }
   .mock-toolbar .back-btn {
-    color: var(--blue);
-    font-size: 0.85rem;
+    color: var(--accent);
+    font-size: 13px;
     cursor: pointer;
     text-decoration: none;
+    font-weight: 600;
   }
+  .mock-toolbar .back-btn:hover { color: var(--accent-hover); }
   .mock-toolbar .dir-name {
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 13px;
+    color: var(--text-primary);
     flex: 1;
   }
 
-  /* Canvas area mockup */
+  /* ── Canvas area mockup ── */
   .mock-canvas {
-    background: #0a0a14;
+    background: var(--bg-primary);
     background-image:
       radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
     background-size: 24px 24px;
@@ -438,14 +485,14 @@
     pointer-events: none;
   }
 
-  /* Status legend */
+  /* ── Status legend ── */
   .mock-legend {
     display: flex;
     gap: 16px;
     padding: 8px 16px;
     border-top: 1px solid var(--border);
-    background: var(--surface);
-    font-size: 0.75rem;
+    background: var(--bg-secondary);
+    font-size: 11px;
     color: var(--text-dim);
   }
   .mock-legend-item { display: flex; align-items: center; gap: 4px; }
@@ -457,7 +504,7 @@
 <p><strong>Date:</strong> 2026-04-14 &nbsp;|&nbsp; <strong>Status:</strong> Draft — awaiting approval</p>
 
 <div class="summary-box">
-<strong>Mission:</strong> Add a per-directory DAG of work items ("plans") to the gamepad-cli-hub. Users create plan nodes with title + description, draw dependency arrows between them, and the system tracks a 4-state lifecycle: <span class="status-dot dot-pending"></span>pending → <span class="status-dot dot-startable"></span>startable → <span class="status-dot dot-doing"></span>doing → <span class="status-dot dot-done"></span>done. Startable plans appear as green chips on session cards, allowing users to apply them to terminals. Inspired by WiseTech Global's "NCN" (Network Connected Nodes).
+<strong>Mission:</strong> Add a per-directory DAG of work items ("plans") to the gamepad-cli-hub. Users create plan nodes with title + description, draw dependency arrows between them, and the system tracks a 4-state lifecycle: <span class="status-dot dot-pending"></span>pending → <span class="status-dot dot-startable"></span>startable → <span class="status-dot dot-doing"></span>doing → <span class="status-dot dot-done"></span>done. Startable plans appear as blue chips on session cards, allowing users to apply them to terminals. Inspired by WiseTech Global's "NCN" (Network Connected Nodes).
 </div>
 
 <h2>System Architecture</h2>
@@ -476,7 +523,7 @@ graph TB
 
     subgraph "Renderer Process"
         PS["Plan Screen\ndag-builder-js canvas\nAuto-layout + pan/zoom"]
-        PC["Plan Chips\nGreen pills on session cards\nStartable plans only"]
+        PC["Plan Chips\nBlue pills on session cards\nStartable plans only"]
         PE["Plan Editor\nTitle + description\nApply/Save/Delete/Cancel"]
     end
 
@@ -497,8 +544,8 @@ stateDiagram-v2
     done --> [*] : Stays visible (greyed out)
 
     note right of pending : Grey dot · not actionable
-    note right of startable : Green dot · chip on session cards
-    note right of doing : Blue dot · linked to a session
+    note right of startable : Blue dot · chip on session cards
+    note right of doing : Green dot · linked to a session
     note right of done : Strikethrough · dependency lines unblocked
 </pre>
 
@@ -599,7 +646,7 @@ When a plan item is marked "done", the PlanManager recomputes <code>startable</c
 <table>
   <tr><th>Element</th><th>Display</th></tr>
   <tr><td>Title</td><td>Bold text, truncated at ~25 chars with ellipsis</td></tr>
-  <tr><td>Status dot</td><td><span class="status-dot dot-pending"></span> grey (pending), <span class="status-dot dot-startable"></span> green (startable), <span class="status-dot dot-doing"></span> blue (doing), <span class="status-dot dot-done"></span> grey + strikethrough (done)</td></tr>
+  <tr><td>Status dot</td><td><span class="status-dot dot-pending"></span> grey (pending), <span class="status-dot dot-startable"></span> blue (startable), <span class="status-dot dot-doing"></span> green (doing), <span class="status-dot dot-done"></span> grey + strikethrough (done)</td></tr>
   <tr><td>Description preview</td><td>First line, dimmed, truncated</td></tr>
   <tr><td>Done styling</td><td>Entire node: reduced opacity (0.5), title strikethrough</td></tr>
 </table>
@@ -619,7 +666,7 @@ When a plan item is marked "done", the PlanManager recomputes <code>startable</c
       <div class="mock-node-desc">Helm chart setup for prod...</div>
     </div>
     <!-- Startable -->
-    <div class="mock-node" style="border-color: rgba(68,204,68,0.4);">
+    <div class="mock-node" style="border-color: rgba(68,136,255,0.4);">
       <div class="mock-connector mock-connector--in"></div>
       <div class="mock-connector mock-connector--out"></div>
       <div class="mock-node-header">
@@ -629,7 +676,7 @@ When a plan item is marked "done", the PlanManager recomputes <code>startable</c
       <div class="mock-node-desc">JWT validation, rate limiting...</div>
     </div>
     <!-- Doing -->
-    <div class="mock-node" style="border-color: rgba(68,136,255,0.4);">
+    <div class="mock-node" style="border-color: rgba(68,204,68,0.4);">
       <div class="mock-connector mock-connector--in"></div>
       <div class="mock-connector mock-connector--out"></div>
       <div class="mock-node-header">
@@ -695,7 +742,7 @@ const NODE_HEIGHT = 90;
     <div class="mock-editor">
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
         <span class="status-dot dot-doing"></span>
-        <span style="font-size:0.8rem; color:var(--blue); font-weight:600;">DOING</span>
+        <span style="font-size:0.8rem; color:var(--green); font-weight:600;">DOING</span>
         <span style="font-size:0.75rem; color:var(--text-dim); margin-left:auto;">Session: Claude Code #3</span>
       </div>
       <label>Title</label>
@@ -724,7 +771,7 @@ const NODE_HEIGHT = 90;
         <span style="font-size:1rem;">🗺️</span>
         <span style="font-weight:600;">Edit Plan Item</span>
         <span class="status-dot dot-startable" style="margin-left:auto;"></span>
-        <span style="font-size:0.75rem; color:var(--green); font-weight:600;">STARTABLE</span>
+        <span style="font-size:0.75rem; color:var(--blue); font-weight:600;">STARTABLE</span>
       </div>
       <label>Title</label>
       <input type="text" value="Build Auth Middleware" readonly>
@@ -771,31 +818,31 @@ const NODE_HEIGHT = 90;
   <div class="mockup-body" style="max-width:350px;">
     <div class="mock-session-card" style="border-color: rgba(68,204,68,0.3);">
       <span class="activity-dot" style="background:var(--green);"></span>
-      <span style="font-size:0.8rem;">📝<sup style="font-size:0.6rem;font-weight:700;color:var(--blue);">2</sup></span>
-      <span style="font-size:0.8rem;">🗺️<sup style="font-size:0.6rem;font-weight:700;color:var(--green);">2</sup></span>
+      <span style="font-size:0.95rem;">📝<sup style="font-size:0.65rem;font-weight:700;color:var(--blue);">2</sup></span>
+      <span style="font-size:0.95rem;">🗺️<sup style="font-size:0.65rem;font-weight:700;color:var(--blue);">2</sup></span>
       <div style="flex:1;">
         <div class="session-name">Claude Code #1</div>
         <div class="session-cli">claude-code · backend</div>
       </div>
-      <span style="font-size:0.7rem; color:var(--green);">🔨</span>
+      <span style="font-size:0.85rem; color:var(--green);">🔨</span>
     </div>
     <div class="mock-session-card">
       <span class="activity-dot" style="background:var(--blue);"></span>
-      <span style="font-size:0.8rem;">📝<sup style="font-size:0.6rem;font-weight:700;color:var(--blue);">1</sup></span>
+      <span style="font-size:0.95rem;">📝<sup style="font-size:0.65rem;font-weight:700;color:var(--blue);">1</sup></span>
       <div style="flex:1;">
         <div class="session-name">Copilot CLI #2</div>
         <div class="session-cli">copilot-cli · backend</div>
       </div>
-      <span style="font-size:0.7rem; color:var(--text-dim);">💤</span>
+      <span style="font-size:0.85rem; color:var(--text-dim);">💤</span>
     </div>
     <div class="mock-session-card">
       <span class="activity-dot" style="background:var(--grey);"></span>
-      <span style="font-size:0.8rem;">🗺️<sup style="font-size:0.6rem;font-weight:700;color:var(--green);">1</sup></span>
+      <span style="font-size:0.95rem;">🗺️<sup style="font-size:0.65rem;font-weight:700;color:var(--blue);">1</sup></span>
       <div style="flex:1;">
         <div class="session-name">Claude Code #3</div>
         <div class="session-cli">claude-code · frontend</div>
       </div>
-      <span style="font-size:0.7rem; color:var(--text-dim);">💤</span>
+      <span style="font-size:0.85rem; color:var(--text-dim);">💤</span>
     </div>
     <p style="font-size:0.7rem; color:var(--text-dim); margin-top:8px;">
       📝 = draft count &nbsp;|&nbsp; 🗺️ = startable plan count (for this session's directory)
@@ -825,7 +872,7 @@ sequenceDiagram
         Editor->>PTY: ptyWrite(description)
         Editor->>IPC: plan:apply(id, sessionId)
         IPC->>PM: applyItem(id, sessionId)
-        PM-->>Chip: status → doing (blue chip)
+        PM-->>Chip: status → doing (green chip)
     else Save
         User->>Editor: Edit title/desc → Click "💾 Save"
         Editor->>IPC: plan:update(id, changes)
@@ -842,14 +889,14 @@ sequenceDiagram
 <h3>Marking Done</h3>
 <p>Two paths to mark a plan "doing" → "done":</p>
 <ol>
-  <li><strong>From session chip:</strong> Blue "doing" chip on session card → click → editor with "Mark Done" button</li>
+  <li><strong>From session chip:</strong> Green "doing" chip on session card → click → editor with "Mark Done" button</li>
   <li><strong>From plan canvas:</strong> Click the node → editor panel → "Mark Done" button</li>
 </ol>
 <p>When marked done:</p>
 <ul>
   <li>Status set to <code>'done'</code>, <code>sessionId</code> cleared</li>
   <li>PlanManager recomputes startable status for all dependents</li>
-  <li>Newly startable items appear as green chips on relevant session cards</li>
+  <li>Newly startable items appear as blue chips on relevant session cards</li>
   <li>Node on canvas: opacity 0.5, title strikethrough, grey dot</li>
 </ul>
 
@@ -873,7 +920,7 @@ sequenceDiagram
     <!-- Sessions within -->
     <div class="mock-session-card" style="margin-left:16px;">
       <span class="activity-dot" style="background:var(--green);"></span>
-      <span style="font-size:0.8rem;">🗺️<sup style="font-size:0.6rem;font-weight:700;color:var(--green);">2</sup></span>
+      <span style="font-size:0.95rem;">🗺️<sup style="font-size:0.65rem;font-weight:700;color:var(--blue);">2</sup></span>
       <div style="flex:1;">
         <div class="session-name">Claude Code #1</div>
         <div class="session-cli">claude-code</div>
@@ -903,7 +950,7 @@ sequenceDiagram
       <button class="mock-btn">▶</button>
     </div>
     <p style="font-size:0.7rem; color:var(--text-dim); margin-top:12px;">
-      Green badge on Plans button = count of startable items. No badge = no startable plans (button still clickable to view/create).
+      Blue badge on Plans button = count of startable items. No badge = no startable plans (button still clickable to view/create).
     </p>
   </div>
 </div>
@@ -939,7 +986,7 @@ sequenceDiagram
     </div>
     <!-- Layer 1 -->
     <div class="mock-canvas-col">
-      <div class="mock-node" style="width:180px; border-color:rgba(68,204,68,0.4);">
+      <div class="mock-node" style="width:180px; border-color:rgba(68,136,255,0.4);">
         <div class="mock-connector mock-connector--in"></div>
         <div class="mock-connector mock-connector--out"></div>
         <div class="mock-node-header" style="font-size:0.8rem;">
@@ -948,7 +995,7 @@ sequenceDiagram
         </div>
         <div class="mock-node-desc">JWT validation, rate...</div>
       </div>
-      <div class="mock-node" style="width:180px; border-color:rgba(68,136,255,0.4);">
+      <div class="mock-node" style="width:180px; border-color:rgba(68,204,68,0.4);">
         <div class="mock-connector mock-connector--in"></div>
         <div class="mock-connector mock-connector--out"></div>
         <div class="mock-node-header" style="font-size:0.8rem;">
@@ -1003,7 +1050,7 @@ sequenceDiagram
     <div class="mock-editor" style="border-top:2px solid var(--blue);">
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
         <span class="status-dot dot-startable"></span>
-        <span style="font-size:0.8rem; color:var(--green); font-weight:600;">STARTABLE</span>
+        <span style="font-size:0.8rem; color:var(--blue); font-weight:600;">STARTABLE</span>
         <span style="font-size:0.75rem; color:var(--text-dim); margin-left:auto;">Click node to edit · Drag connectors to link</span>
       </div>
       <label>Title</label>
@@ -1194,7 +1241,7 @@ docs/
         <li>Toolbar: "← Back to Sessions" button, directory name, "+ Add Node" button</li>
         <li>Initialise <code>new Graph('#plan-canvas')</code> from dag-builder-js</li>
         <li>Load plan data via IPC → create Vertex instances with auto-layout coordinates</li>
-        <li>Render nodes with status-coloured styling (pending=grey, startable=green, doing=blue, done=dim)</li>
+        <li>Render nodes with status-coloured styling (pending=grey, startable=blue, doing=green, done=dim)</li>
         <li>Wire dag-builder-js event listeners:
           <ul>
             <li><code>onEdgeAdded</code> → IPC <code>plan:addDependency</code> → re-layout</li>
@@ -1240,13 +1287,13 @@ docs/
     <span class="tag tag-integration">Integration</span>
     <span class="tag tag-test">TDD</span>
   </div>
-  <p>Show startable plans as green chips on session cards and enable Apply/Done from sessions screen.</p>
+  <p>Show startable plans as blue chips on session cards and enable Apply/Done from sessions screen.</p>
   <h4>Deliverables</h4>
   <ul>
     <li><code>renderer/plans/plan-chips.ts</code> — Plan chip rendering:
       <ul>
         <li><code>refreshPlanChips(sessionId, dirPath)</code> — fetch startable + doing plans, render chips</li>
-        <li><code>createPlanChip(plan)</code> → green chip for startable, blue chip for doing</li>
+        <li><code>createPlanChip(plan)</code> → blue chip for startable, green chip for doing</li>
         <li>Chip format: "🗺️ {truncated-title}" with green/blue background</li>
         <li>Click handler: opens plan editor modal</li>
       </ul>
@@ -1264,8 +1311,8 @@ docs/
     </li>
     <li><code>tests/plan-chips.test.ts</code> — Chip rendering + interaction tests:
       <ul>
-        <li>Startable plans render as green chips</li>
-        <li>Doing plans render as blue chips</li>
+        <li>Startable plans render as blue chips</li>
+        <li>Doing plans render as green chips</li>
         <li>Pending/done plans do not render as chips</li>
         <li>Click chip → editor opens with correct plan data</li>
         <li>Apply → PTY write + status change</li>

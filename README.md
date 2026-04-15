@@ -66,6 +66,7 @@ Plug in a controller (USB or Bluetooth). The app detects it automatically — Xb
 | Escape | Back (B button) |
 | Delete | Close (X button) |
 | Ctrl+V | Paste clipboard text to active terminal |
+| Ctrl+G | Open external editor (notepad) — result sent to active terminal |
 
 Every binding is remappable per CLI type. See [docs/controls.md](docs/controls.md) for the full mapping.
 
@@ -134,6 +135,7 @@ Right-click the terminal area (or bind a button to `context-menu`) for quick act
 |------|-------------|
 | 📋 Copy | Copy terminal selection to clipboard |
 | 📥 Paste | Paste clipboard to active PTY |
+| ✏️ Compose in Editor | Open external editor (notepad) to compose prompt — sent to active PTY on close |
 | ➕ New Session | Quick-spawn picker (pre-selects active CLI type & directory) |
 | 📋➕ New Session with Selection | Spawn with selected text as context |
 | ⏩ Prompts | Open sequence picker with preconfigured commands |

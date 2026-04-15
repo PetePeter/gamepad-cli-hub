@@ -1,5 +1,5 @@
 /**
- * Context menu overlay — copy, paste, new-session, new-session-with-selection, prompts, cancel.
+ * Context menu overlay — copy, paste, editor, new-session, new-session-with-selection, prompts, drafts, cancel.
  *
  * @vitest-environment jsdom
  */
@@ -81,6 +81,7 @@ function buildContextMenuDom(): void {
       <div class="context-menu" id="contextMenu">
         <div class="context-menu-item" data-action="copy"></div>
         <div class="context-menu-item" data-action="paste"></div>
+        <div class="context-menu-item" data-action="editor"></div>
         <div class="context-menu-item" data-action="new-session"></div>
         <div class="context-menu-item" data-action="new-session-with-selection"></div>
         <div class="context-menu-item" data-action="sequences"></div>
@@ -141,6 +142,7 @@ describe('Context Menu', () => {
     // gamepadCli mock
     (window as any).gamepadCli = {
       ptyWrite: vi.fn(),
+      editorOpenExternal: vi.fn().mockResolvedValue({ success: true, text: 'editor text' }),
     };
 
     // Default mocks — no selection
@@ -242,28 +244,28 @@ describe('Context Menu', () => {
 
   describe('Context Menu Navigation', () => {
     it('DPadDown moves selection down', () => {
-      // No selection → enabled items are Paste(1), NewSession(2), Cancel(4)
+      // No selection → enabled items are Paste(1), NewSession(3), Cancel(7)
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       const startIdx = mod.contextMenuState.selectedIndex;
       expect(startIdx).toBe(1); // Paste = first enabled
 
       mod.handleContextMenuButton('DPadDown');
-      expect(mod.contextMenuState.selectedIndex).toBe(2); // New Session
+      expect(mod.contextMenuState.selectedIndex).toBe(3); // New Session
     });
 
     it('DPadUp moves selection up, wrapping', () => {
-      // No selection → enabled: Paste(1), NewSession(2), Cancel(6)
-      // Disabled: Copy(0), NewSessionWithSelection(3), Prompts(4), Drafts(5)
+      // No selection → enabled: Paste(1), NewSession(3), Cancel(7)
+      // Disabled: Copy(0), Editor(2), NewSessionWithSelection(4), Prompts(5), Drafts(6)
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       expect(mod.contextMenuState.selectedIndex).toBe(1); // Paste
 
       mod.handleContextMenuButton('DPadUp');
-      // Wraps around to Cancel(6)
-      expect(mod.contextMenuState.selectedIndex).toBe(6);
+      // Wraps around to Cancel(7)
+      expect(mod.contextMenuState.selectedIndex).toBe(7);
     });
 
     it('skips disabled items when no selection', () => {
-      // No selection → Copy(0) and NewSessionWithSelection(3) are disabled
+      // No selection → Copy(0), Editor(2), NewSessionWithSelection(4), Prompts(5), Drafts(6) disabled
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       expect(mod.contextMenuState.selectedIndex).toBe(1); // Paste
 
@@ -272,10 +274,11 @@ describe('Context Menu', () => {
         mod.handleContextMenuButton('DPadDown');
         visited.push(mod.contextMenuState.selectedIndex);
       }
-      // Should only visit enabled indices: 1 (Paste), 2 (NewSession), 5 (Cancel)
+      // Should only visit enabled indices: 1 (Paste), 3 (NewSession), 7 (Cancel)
       const unique = [...new Set(visited)];
       expect(unique).not.toContain(0); // Copy — disabled
-      expect(unique).not.toContain(3); // NewSessionWithSelection — disabled
+      expect(unique).not.toContain(2); // Editor — disabled
+      expect(unique).not.toContain(4); // NewSessionWithSelection — disabled
     });
 
     it('all items navigable when selection exists', () => {
@@ -283,8 +286,8 @@ describe('Context Menu', () => {
       mockGetTerminalManager.mockReturnValue(makeMockTerminalManager(viewWithSel));
 
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
-      // With selection, 5 of 7 items are enabled (Prompts(4) still disabled — no sequences cache,
-      // Drafts(5) disabled — activeSessionId is null)
+      // With selection, 5 of 8 items are enabled (Editor(2) disabled — no activeSessionId,
+      // Prompts(5) disabled — no sequences cache, Drafts(6) disabled — no activeSessionId)
       const visited: number[] = [mod.contextMenuState.selectedIndex];
       for (let i = 0; i < 6; i++) {
         mod.handleContextMenuButton('DPadDown');
@@ -292,7 +295,7 @@ describe('Context Menu', () => {
       }
       const unique = [...new Set(visited)];
       expect(unique).toHaveLength(5);
-      expect(unique.sort()).toEqual([0, 1, 2, 3, 6]);
+      expect(unique.sort()).toEqual([0, 1, 3, 4, 7]);
     });
 
     it('B button hides menu', () => {
@@ -347,11 +350,48 @@ describe('Context Menu', () => {
       expect((window as any).gamepadCli.ptyWrite).toHaveBeenCalledWith('session-1', 'clipboard text');
     });
 
+    it('Editor opens external editor and writes result to PTY', async () => {
+      state.activeSessionId = 'sess-1';
+      mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
+      // Navigate to Editor (index 2): Paste(1) → Editor(2)
+      mod.handleContextMenuButton('DPadDown');
+      expect(mod.contextMenuState.selectedIndex).toBe(2);
+
+      mod.handleContextMenuButton('A');
+      await flush();
+
+      expect((window as any).gamepadCli.editorOpenExternal).toHaveBeenCalled();
+      expect((window as any).gamepadCli.ptyWrite).toHaveBeenCalledWith('sess-1', 'editor text');
+      expect(mod.contextMenuState.visible).toBe(false);
+    });
+
+    it('Editor does not write to PTY when result is empty', async () => {
+      state.activeSessionId = 'sess-1';
+      (window as any).gamepadCli.editorOpenExternal.mockResolvedValueOnce({ success: true, text: '' });
+      mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
+      mod.handleContextMenuButton('DPadDown');
+      mod.handleContextMenuButton('A');
+      await flush();
+
+      expect((window as any).gamepadCli.editorOpenExternal).toHaveBeenCalled();
+      expect((window as any).gamepadCli.ptyWrite).not.toHaveBeenCalled();
+    });
+
+    it('Editor does not call editorOpenExternal when no active session', async () => {
+      state.activeSessionId = null;
+      mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
+      mod.contextMenuState.selectedIndex = 2;
+      mod.handleContextMenuButton('A');
+      await flush();
+
+      expect((window as any).gamepadCli.editorOpenExternal).not.toHaveBeenCalled();
+    });
+
     it('New Session opens quick-spawn picker', async () => {
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
-      // Navigate to New Session (index 2)
-      mod.handleContextMenuButton('DPadDown'); // Paste(1) → NewSession(2)
-      expect(mod.contextMenuState.selectedIndex).toBe(2);
+      // Navigate to New Session (index 3)
+      mod.handleContextMenuButton('DPadDown'); // Paste(1) → NewSession(3)
+      expect(mod.contextMenuState.selectedIndex).toBe(3);
 
       mod.handleContextMenuButton('A');
       await flush();
@@ -366,12 +406,12 @@ describe('Context Menu', () => {
       mockGetTerminalManager.mockReturnValue(makeMockTerminalManager(viewWithSel));
 
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
-      // With selection → all items enabled. Navigate to NewSessionWithSelection(3)
-      // Start at Copy(0) → down to Paste(1) → down to NewSession(2) → down to NewSessWithSel(3)
+      // With selection → most items enabled. Navigate to NewSessionWithSelection(4)
+      // Start at Copy(0) → down to Paste(1) → down to NewSession(3, skips Editor(2)) → down to NewSessWithSel(4)
       mod.handleContextMenuButton('DPadDown');
       mod.handleContextMenuButton('DPadDown');
       mod.handleContextMenuButton('DPadDown');
-      expect(mod.contextMenuState.selectedIndex).toBe(3);
+      expect(mod.contextMenuState.selectedIndex).toBe(4);
 
       mod.handleContextMenuButton('A');
       await flush();
@@ -382,10 +422,10 @@ describe('Context Menu', () => {
 
     it('Cancel hides menu', async () => {
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
-      // Navigate to Cancel (index 6): Paste(1) → NewSession(2) → Cancel(6, skips 3+4+5)
+      // Navigate to Cancel (index 7): Paste(1) → NewSession(3) → Cancel(7, skips 4+5+6)
       mod.handleContextMenuButton('DPadDown');
       mod.handleContextMenuButton('DPadDown');
-      expect(mod.contextMenuState.selectedIndex).toBe(6);
+      expect(mod.contextMenuState.selectedIndex).toBe(7);
 
       mod.handleContextMenuButton('A');
       await flush();
@@ -488,17 +528,18 @@ describe('Context Menu', () => {
     });
 
     it('renders disabled class on items that fail enabledWhen', () => {
-      // No selection → Copy(0), NewSessionWithSelection(3), Prompts(4), Drafts(5) disabled
+      // No selection → Copy(0), Editor(2), NewSessionWithSelection(4), Prompts(5), Drafts(6) disabled
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       const items = document.querySelectorAll('.context-menu-item');
 
       expect(items[0].classList.contains('context-menu-item--disabled')).toBe(true);  // Copy
       expect(items[1].classList.contains('context-menu-item--disabled')).toBe(false); // Paste
-      expect(items[2].classList.contains('context-menu-item--disabled')).toBe(false); // New Session
-      expect(items[3].classList.contains('context-menu-item--disabled')).toBe(true);  // New Session with Selection
-      expect(items[4].classList.contains('context-menu-item--disabled')).toBe(true);  // Prompts (no sequences)
-      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(true);  // Drafts (no activeSessionId)
-      expect(items[6].classList.contains('context-menu-item--disabled')).toBe(false); // Cancel
+      expect(items[2].classList.contains('context-menu-item--disabled')).toBe(true);  // Editor (no activeSessionId)
+      expect(items[3].classList.contains('context-menu-item--disabled')).toBe(false); // New Session
+      expect(items[4].classList.contains('context-menu-item--disabled')).toBe(true);  // New Session with Selection
+      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(true);  // Prompts (no sequences)
+      expect(items[6].classList.contains('context-menu-item--disabled')).toBe(true);  // Drafts (no activeSessionId)
+      expect(items[7].classList.contains('context-menu-item--disabled')).toBe(false); // Cancel
     });
   });
 
@@ -520,7 +561,7 @@ describe('Context Menu', () => {
       state.activeSessionId = 'sess-1';
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       const items = document.querySelectorAll('.context-menu-item');
-      expect(items[4].classList.contains('context-menu-item--disabled')).toBe(true);
+      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(true);
     });
 
     it('Prompts is disabled when cache entry exists but all groups are empty', () => {
@@ -529,7 +570,7 @@ describe('Context Menu', () => {
       state.activeSessionId = 'sess-1';
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       const items = document.querySelectorAll('.context-menu-item');
-      expect(items[4].classList.contains('context-menu-item--disabled')).toBe(true);
+      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(true);
     });
 
     it('Prompts is disabled when cache entry is empty object (post-refresh)', () => {
@@ -538,7 +579,7 @@ describe('Context Menu', () => {
       state.activeSessionId = 'sess-1';
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       const items = document.querySelectorAll('.context-menu-item');
-      expect(items[4].classList.contains('context-menu-item--disabled')).toBe(true);
+      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(true);
     });
 
     it('Prompts is enabled when sequences exist for active CLI type', () => {
@@ -547,7 +588,7 @@ describe('Context Menu', () => {
       state.activeSessionId = 'sess-1';
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       const items = document.querySelectorAll('.context-menu-item');
-      expect(items[4].classList.contains('context-menu-item--disabled')).toBe(false);
+      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(false);
     });
 
     it('Prompts is disabled when no active session', () => {
@@ -556,7 +597,7 @@ describe('Context Menu', () => {
       state.activeSessionId = null;
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       const items = document.querySelectorAll('.context-menu-item');
-      expect(items[4].classList.contains('context-menu-item--disabled')).toBe(true);
+      expect(items[5].classList.contains('context-menu-item--disabled')).toBe(true);
     });
 
     it('selecting Prompts hides context menu and opens sequence picker', async () => {
@@ -565,10 +606,11 @@ describe('Context Menu', () => {
       state.activeSessionId = 'sess-1';
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
 
-      // Navigate to Prompts (index 4): Paste(1) → NewSession(2) → Prompts(4)
+      // Navigate to Prompts (index 5): Paste(1) → Editor(2) → NewSession(3) → Prompts(5)
       mod.handleContextMenuButton('DPadDown');
       mod.handleContextMenuButton('DPadDown');
-      expect(mod.contextMenuState.selectedIndex).toBe(4);
+      mod.handleContextMenuButton('DPadDown');
+      expect(mod.contextMenuState.selectedIndex).toBe(5);
 
       mod.handleContextMenuButton('A');
       await flush();
@@ -587,14 +629,14 @@ describe('Context Menu', () => {
       state.activeSessionId = 'sess-1';
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
 
-      // From Paste(1), navigate down: NewSession(2) → Cancel(5) — skips 0,3,4
+      // From Paste(1), navigate down: Editor(2) → NewSession(3) → Drafts(6) → Cancel(7) — skips 0,4,5
       const visited: number[] = [mod.contextMenuState.selectedIndex];
       for (let i = 0; i < 5; i++) {
         mod.handleContextMenuButton('DPadDown');
         visited.push(mod.contextMenuState.selectedIndex);
       }
       const unique = [...new Set(visited)];
-      expect(unique).not.toContain(4); // Prompts should be skipped
+      expect(unique).not.toContain(5); // Prompts should be skipped
     });
   });
 
