@@ -15,6 +15,7 @@ import { groupSessionsByDirectory, buildFlatNavList, type SessionGroup } from '.
 import { showOverview, refreshOverview, isOverviewVisible } from './group-overview.js';
 import { getActivityColor } from '../state-colors.js';
 import { createDraftBadge } from '../drafts/draft-strip.js';
+import { createPlanBadge } from '../plans/plan-chips.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import {
@@ -23,6 +24,7 @@ import {
   switchToSession, getSessionCwd, getTerminalManager,
   toggleGroupCollapse, moveGroupUpAction, moveGroupDownAction,
   getDraftCountCache, getLastOutputTime, formatElapsed,
+  getPlanDoingCountCache, getPlanStartableCountCache,
 } from './sessions.js';
 
 // --- Constants ---
@@ -245,10 +247,34 @@ function createGroupHeader(group: SessionGroup, index: number): HTMLElement {
     moveGroupDownAction(group.dirPath);
   });
 
+  const plansBtn = document.createElement('button');
+  plansBtn.className = 'group-plans-btn';
+  if (isFocused && sessionsState.cardColumn === 3) plansBtn.classList.add('card-col-focused');
+  plansBtn.textContent = '🗺️';
+  plansBtn.title = 'Open plans for this directory';
+
+  // Add startable count badge (async — updates after render)
+  window.gamepadCli.planStartableForDir(group.dirPath).then((items: any[]) => {
+    if (items.length > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'plans-btn-badge';
+      badge.textContent = String(items.length);
+      plansBtn.appendChild(badge);
+    }
+  }).catch(() => {});
+
+  plansBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    import('../plans/plan-screen.js').then(({ showPlanScreen }) => {
+      showPlanScreen(group.dirPath);
+    });
+  });
+
   header.appendChild(chevron);
   header.appendChild(nameSpan);
   header.appendChild(moveUp);
   header.appendChild(moveDown);
+  header.appendChild(plansBtn);
 
   header.addEventListener('click', () => toggleGroupCollapse(group.dirPath));
 
@@ -271,14 +297,71 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
   const isEditing = sessionsState.editingSessionId === session.id;
   const isFocusedCard = index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
 
-  // --- Left side: activity dot + name ---
+  // --- Line 1: top row — dot, state, badges, spacer, timer, rename, close ---
+
+  const topRow = document.createElement('div');
+  topRow.className = 'session-top-row';
 
   const activityDot = document.createElement('span');
   activityDot.className = 'session-activity-dot';
   activityDot.style.background = getActivityColor(activityLevel);
 
-  const info = document.createElement('div');
-  info.className = 'session-info';
+  const stateBtn = document.createElement('button');
+  stateBtn.className = 'session-state-btn';
+  if (isFocusedCard && sessionsState.cardColumn === 1) stateBtn.classList.add('card-col-focused');
+  stateBtn.textContent = getStateLabel(sessionState);
+  stateBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showStateDropdown(stateBtn, session.id, sessionState);
+  });
+
+  topRow.appendChild(activityDot);
+  topRow.appendChild(stateBtn);
+
+  const badge = createDraftBadge(getDraftCountCache(session.id));
+  if (badge) topRow.appendChild(badge);
+  const planBadge = createPlanBadge(
+    getPlanDoingCountCache(session.id),
+    getPlanStartableCountCache(session.id),
+  );
+  if (planBadge) topRow.appendChild(planBadge);
+
+  const spacer = document.createElement('span');
+  spacer.style.flex = '1';
+  topRow.appendChild(spacer);
+
+  const timer = document.createElement('span');
+  timer.className = 'session-timer';
+  const lastOutput = getLastOutputTime(session.id);
+  timer.textContent = lastOutput ? formatElapsed(Date.now() - lastOutput) : '';
+  topRow.appendChild(timer);
+
+  let renameBtn: HTMLButtonElement | null = null;
+  if (!isEditing) {
+    renameBtn = document.createElement('button');
+    renameBtn.className = 'session-rename';
+    if (isFocusedCard && sessionsState.cardColumn === 2) renameBtn.classList.add('card-col-focused');
+    renameBtn.textContent = '✎';
+    renameBtn.title = 'Rename session';
+    renameBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      startRename(session.id);
+    });
+    topRow.appendChild(renameBtn);
+  }
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'session-close';
+  if (isFocusedCard && sessionsState.cardColumn === 3) closeBtn.classList.add('card-col-focused');
+  closeBtn.textContent = '✕';
+  closeBtn.title = `Close ${displayName}`;
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showCloseConfirm(session.id, displayName, doCloseSession, getDraftCountCache(session.id));
+  });
+  topRow.appendChild(closeBtn);
+
+  // --- Line 2: session name (editable) ---
 
   const nameLine = document.createElement('div');
   nameLine.className = 'session-name-line';
@@ -337,68 +420,19 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
     nameLine.appendChild(name);
   }
 
-  info.appendChild(nameLine);
+  // --- Line 3: terminal title (meta) ---
 
-  // Subtitle: OSC terminal title (if set and different from display name)
+  // Assemble card: topRow → nameLine → metaLine
+  card.appendChild(topRow);
+  card.appendChild(nameLine);
+
   if (session.title && session.title !== displayName) {
     const meta = document.createElement('span');
     meta.className = 'session-meta';
     meta.textContent = session.title;
     meta.title = session.title;
-    info.appendChild(meta);
+    card.appendChild(meta);
   }
-
-  // --- Right side: state → rename → close ---
-
-  const stateBtn = document.createElement('button');
-  stateBtn.className = 'session-state-btn';
-  if (isFocusedCard && sessionsState.cardColumn === 1) stateBtn.classList.add('card-col-focused');
-  stateBtn.textContent = getStateLabel(sessionState);
-  stateBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    showStateDropdown(stateBtn, session.id, sessionState);
-  });
-
-  let renameBtn: HTMLButtonElement | null = null;
-  if (!isEditing) {
-    renameBtn = document.createElement('button');
-    renameBtn.className = 'session-rename';
-    if (isFocusedCard && sessionsState.cardColumn === 2) renameBtn.classList.add('card-col-focused');
-    renameBtn.textContent = '✎';
-    renameBtn.title = 'Rename session';
-    renameBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      startRename(session.id);
-    });
-  }
-
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'session-close';
-  if (isFocusedCard && sessionsState.cardColumn === 3) closeBtn.classList.add('card-col-focused');
-  closeBtn.textContent = '✕';
-  closeBtn.title = `Close ${displayName}`;
-  closeBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    showCloseConfirm(session.id, displayName, doCloseSession, getDraftCountCache(session.id));
-  });
-
-  // Append buttons into name-line (same row as session name)
-  nameLine.appendChild(stateBtn);
-  if (renameBtn) nameLine.appendChild(renameBtn);
-  nameLine.appendChild(closeBtn);
-
-  // Timer: elapsed time since last output
-  const timer = document.createElement('span');
-  timer.className = 'session-timer';
-  const lastOutput = getLastOutputTime(session.id);
-  timer.textContent = lastOutput ? formatElapsed(Date.now() - lastOutput) : '';
-
-  // Append in visual order: dot → draft badge → info (name-line + meta) → timer
-  card.appendChild(activityDot);
-  const badge = createDraftBadge(getDraftCountCache(session.id));
-  if (badge) card.appendChild(badge);
-  card.appendChild(info);
-  card.appendChild(timer);
 
   card.addEventListener('click', () => switchToSession(session.id));
   return card;

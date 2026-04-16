@@ -7,7 +7,7 @@ Gamepad button and keyboard shortcut mappings.
 | Input | Action |
 |-------|--------|
 | D-Pad Up/Down | Switch sessions (auto-selects terminal) / auto-opens overview on group headers |
-| D-Pad Right | Session card: cycle sub-elements / Group header: cycle reorder buttons |
+| D-Pad Right | Session card: cycle sub-elements / Group header: cycle reorder buttons + 🗺️ Plans button (column 3) |
 | D-Pad Left | Back one sub-element column |
 | D-Pad directions | Overview grid: navigation between cards (Up/Down past edges exits overview) |
 | Left Stick | Same as D-pad |
@@ -50,9 +50,9 @@ When a button is pressed, the navigation system checks handlers in this order:
 9. Draft submenu (Drafts list from context menu)
 10. Context menu
 11. Sequence picker
-12. Group overview (when visible)
-13. Screen-specific routing (sessions / settings)
-14. Config binding fallback (per-CLI bindings)
+12. Screen-specific routing (sessions / settings)
+    - **Sessions case:** Plan screen overlay (when visible, B exits) → Group overview → Session/spawn navigation
+13. Config binding fallback (per-CLI bindings)
 
 The first handler that returns `true` (consumed) stops the chain.
 
@@ -71,3 +71,20 @@ When the draft editor panel is visible, all gamepad input is captured (like a mo
 | B | Cancel and close the editor |
 
 Keyboard input flows through to the focused field normally — only gamepad navigation is intercepted.
+
+## Directory Plans
+
+The 🗺️ Plans button on group headers (D-pad Right to column 3, or click) opens the plan canvas for that directory. The plan screen is an overlay inside `#terminalArea`, not a separate screen — it's checked via `isPlanScreenVisible()` within the sessions case of the navigation router.
+
+### Plan Screen Controls
+
+| Input | Action |
+|-------|--------|
+| Click on node | Select node → open bottom editor panel |
+| Click on arrow | Remove that dependency edge |
+| Click + drag canvas | Pan (viewBox-based) |
+| Mouse wheel | Zoom in/out |
+| ← Back button | Exit plan screen |
+| B (gamepad) | Exit plan screen |
+
+Keyboard and clipboard paste are blocked while the plan screen is visible (`.plan-screen.visible` guard in paste-handler).

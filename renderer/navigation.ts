@@ -28,6 +28,15 @@ import { hideOverview, getOverviewSessions, updateOverviewFocus, setSelectCardCa
 import { findNavIndexBySessionId } from './session-groups.js';
 import { updateSessionsFocus } from './screens/sessions.js';
 import { autoSelectFocusedSession } from './screens/sessions-spawn.js';
+import { isPlanScreenVisible, hidePlanScreen } from './plans/plan-screen.js';
+
+function handlePlanScreenButton(button: string): boolean {
+  if (button === 'B') {
+    hidePlanScreen();
+    return true;
+  }
+  return false;
+}
 
 // ============================================================================
 // Unsubscribe handles (exported so main.ts can clean up)
@@ -198,6 +207,11 @@ export function handleGamepadEvent(event: ButtonEvent): void {
   let consumed = false;
   switch (state.currentScreen) {
     case 'sessions': {
+      // Plan screen overlay intercepts all input when visible
+      if (isPlanScreenVisible()) {
+        consumed = handlePlanScreenButton(event.button);
+        break;
+      }
       // Check if overview is visible — route to overview handler
       if (sessionsState.overviewGroup) {
         consumed = handleOverviewButton(event.button);

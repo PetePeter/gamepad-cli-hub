@@ -5,10 +5,12 @@ import * as YAML from 'yaml';
 import { logger } from '../utils/logger.js';
 import { getConfigDir } from '../utils/app-paths.js';
 import type { SessionInfo, DraftPrompt } from '../types/session.js';
+import type { DirectoryPlan } from '../types/plan.js';
 
 const __persistence_dirname = dirname(fileURLToPath(import.meta.url));
 const SESSIONS_FILE = join(getConfigDir(__persistence_dirname), 'sessions.yaml');
 const DRAFTS_FILE = join(getConfigDir(__persistence_dirname), 'drafts.yaml');
+const PLANS_FILE = join(getConfigDir(__persistence_dirname), 'plans.yaml');
 
 /** Persist current sessions to disk so they survive restarts. */
 export function saveSessions(sessions: SessionInfo[]): void {
@@ -70,6 +72,28 @@ export function loadDrafts(): Record<string, DraftPrompt[]> {
     return parsed?.drafts ?? {};
   } catch (err) {
     logger.error(`Failed to load drafts: ${err}`);
+    return {};
+  }
+}
+
+/** Persist directory plans to disk. */
+export function savePlans(plans: Record<string, DirectoryPlan>): void {
+  try {
+    writeFileSync(PLANS_FILE, YAML.stringify({ plans }), 'utf8');
+  } catch (err) {
+    logger.error(`Failed to save plans: ${err}`);
+  }
+}
+
+/** Load persisted directory plans from disk. */
+export function loadPlans(): Record<string, DirectoryPlan> {
+  try {
+    if (!existsSync(PLANS_FILE)) return {};
+    const content = readFileSync(PLANS_FILE, 'utf8');
+    const parsed = YAML.parse(content) as { plans?: Record<string, DirectoryPlan> };
+    return parsed?.plans ?? {};
+  } catch (err) {
+    logger.error(`Failed to load plans: ${err}`);
     return {};
   }
 }

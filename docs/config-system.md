@@ -7,6 +7,7 @@ config/
 ├── settings.yaml               # Active profile name, hapticFeedback toggle, notifications toggle, sidebar prefs, sorting, sessionGroups (order + collapsed)
 ├── sessions.yaml               # Persisted session state (auto-managed)
 ├── drafts.yaml                 # Persisted draft prompts per session (auto-managed)
+├── plans.yaml                  # Persisted directory plan items + dependencies (auto-managed, folder-level not per-profile)
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 ```
@@ -126,3 +127,34 @@ dpad:
   initialDelay: 400
   repeatRate: 120
 ```
+
+## Plans YAML
+
+`config/plans.yaml` stores per-directory plan items and their dependency edges. Auto-managed by `PlanManager` — saved on every `plan:changed` event. Not profile-specific (folder-level data, shared across profiles).
+
+```yaml
+plans:
+  "C:/projects/my-app":
+    dirPath: "C:/projects/my-app"
+    items:
+      - id: "a1b2c3d4-..."
+        dirPath: "C:/projects/my-app"
+        title: "Setup auth"
+        description: "Implement JWT authentication"
+        status: startable          # pending | startable | doing | done
+        createdAt: 1700000000000
+        updatedAt: 1700000000000
+      - id: "e5f6g7h8-..."
+        dirPath: "C:/projects/my-app"
+        title: "Build API routes"
+        description: "REST endpoints for user CRUD"
+        status: pending
+        sessionId: null            # Set when status is 'doing'
+        createdAt: 1700000000000
+        updatedAt: 1700000000000
+    dependencies:
+      - fromId: "a1b2c3d4-..."    # Blocker (must be done first)
+        toId: "e5f6g7h8-..."      # Blocked (can't start until blocker is done)
+```
+
+Status transitions: new items start as `startable` (no deps) or `pending` (has unfinished deps). `startable` → `doing` via `plan:apply`. `doing` → `done` via `plan:complete`. Completing an item triggers `recomputeStartable()` which may promote `pending` items to `startable`.

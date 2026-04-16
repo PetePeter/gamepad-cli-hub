@@ -10,7 +10,7 @@ src/
 │   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle, renderer crash recovery, delegates power monitoring to setupPowerMonitor()
 │   ├── preload.ts              # Context bridge (renderer ↔ main IPC)
 │   └── ipc/
-│       ├── handlers.ts         # Orchestrator — imports + wires 9 domain handlers, returns { cleanup, sessionManager, ptyManager }
+│       ├── handlers.ts         # Orchestrator — imports + wires 10 domain handlers, returns { cleanup, sessionManager, ptyManager }
 │       ├── session-handlers.ts
 │       ├── config-handlers.ts
 │       ├── profile-handlers.ts
@@ -19,20 +19,22 @@ src/
 │       ├── pty-handlers.ts
 │       ├── system-handlers.ts  # system:openLogsFolder
 │       ├── telegram-handlers.ts # Telegram bot settings CRUD, bot start/stop IPC
-│       └── draft-handlers.ts   # 5 IPC channels (draft:create/update/delete/list/count) wired to DraftManager
+│       ├── draft-handlers.ts   # 5 IPC channels (draft:create/update/delete/list/count) wired to DraftManager
+│       └── plan-handlers.ts   # 12 IPC channels (plan:list/create/update/delete/addDep/removeDep/apply/complete/startableForDir/doingForSession/deps/getItem) wired to PlanManager
 ├── input/
 │   └── sequence-parser.ts      # {Enter}, {Ctrl+C}, {Wait 500}, {Mod Down/Up}, {{/}} — used by bindings + initialPrompt
 ├── output/
 │   └── keyboard.ts             # OS-level key simulation via robotjs (voice bindings only)
 ├── session/
 │   ├── manager.ts              # Session tracking (EventEmitter), calls persistence on changes
-│   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + saveDrafts/loadDrafts to config/drafts.yaml
+│   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + saveDrafts/loadDrafts to config/drafts.yaml + savePlans/loadPlans to config/plans.yaml
 │   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
 │   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection + I/O activity tracking (active/inactive/idle via input+output timing)
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
 │   ├── notification-manager.ts # Windows toast notifications (Electron Notification API, activity-change triggers for implementing/planning sessions, dedup, click-to-focus)
 │   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay, onComplete callback
 │   ├── draft-manager.ts        # Per-session draft prompt CRUD (EventEmitter, emits draft:changed, persisted to config/drafts.yaml)
+│   ├── plan-manager.ts         # Per-directory plan DAG CRUD (EventEmitter, emits plan:changed, cycle prevention via DFS, startable computation, persisted to config/plans.yaml)
 │   └── power-monitor.ts        # Suspend/resume/shutdown diagnostics — session counts, PTY IDs, survival status
 ├── config/
 │   └── loader.ts               # Self-contained profile YAML config + CRUD + StickConfig + haptic settings + auto-migration
@@ -52,7 +54,8 @@ src/
 │   ├── topic-manager.ts        # Forum topic lifecycle: ensureTopic on session:added, deleteForumTopic on session:removed
 │   └── utils.ts                # Shared Telegram utilities
 ├── types/
-│   └── session.ts              # SessionInfo (includes cliSessionName for resume), DraftPrompt, SessionChangeEvent, AnalogEvent types
+│   ├── session.ts              # SessionInfo (includes cliSessionName for resume), DraftPrompt, SessionChangeEvent, AnalogEvent types
+│   └── plan.ts                 # PlanItem, PlanDependency, PlanStatus ('pending'|'startable'|'doing'|'done'), DirectoryPlan types
 └── utils/
     └── logger.ts               # Winston logger (daily rotation, used everywhere)
 ```
@@ -66,8 +69,8 @@ renderer/
 ├── state.ts                    # Shared AppState type + singleton (currentScreen, sessions, activeSessionId, etc.)
 ├── utils.ts                    # DOM helpers, logEvent, showScreen, toDirection
 ├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing, voice OS-default + PTY via target: 'terminal', F1-F12 VT220 escape sequences)
-├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY
-├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → quickSpawn → draftEditor → draftAction → draftSubmenu → contextMenu → sequencePicker → overview → screen routing → configBinding fallback
+├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY (blocked during plan screen)
+├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → quickSpawn → draftEditor → draftAction → draftSubmenu → contextMenu → sequencePicker → planScreen (within sessions case) → overview → screen routing → configBinding fallback
 ├── gamepad.ts                  # Browser Gamepad API wrapper + repeat engine
 ├── session-groups.ts           # Pure session grouping logic (by working directory) — types, grouping, nav list, reorder
 ├── sort-logic.ts               # Pure sort functions for sessions + bindings
@@ -76,8 +79,13 @@ renderer/
 ├── components/
 │   └── sort-control.ts         # Reusable sort dropdown + direction toggle widget
 ├── drafts/
-│   ├── draft-strip.ts          # View-only draft pills above terminal (📝 labels + badge count, click opens editor)
+│   ├── draft-strip.ts          # View-only draft pills above terminal (📝 labels + badge count, click opens editor) + renders plan chips via renderPlanChips()
 │   └── draft-editor.ts         # Slide-down draft editor panel (title + content, Save/Apply/Delete/Cancel buttons)
+├── plans/
+│   ├── plan-screen.ts          # SVG canvas screen — pan/zoom (viewBox-based), node rendering with status colors, quadratic bezier arrows, click-to-select, Add Node button. Renders inside #terminalArea as .plan-screen overlay
+│   ├── plan-editor.ts          # Bottom editor panel — title input, description textarea, Delete button, conditional Done button (only for 'doing' status). Save on blur
+│   ├── plan-layout.ts          # Sugiyama-style left-to-right layered auto-layout. Exports computeLayout(items, deps) → LayoutResult with nodes (id, x, y, layer, order) and width/height
+│   └── plan-chips.ts           # Plan badges on session cards (createPlanBadge) + plan chips in draft strip (renderPlanChips). Shows doing count (green) and startable count (blue)
 ├── terminal/
 │   ├── terminal-view.ts        # xterm.js wrapper (fit/search/weblinks addons)
 │   ├── terminal-manager.ts     # Multi-terminal orchestration (create/switch/rename/resize/destroy + tab bar + PtyOutputBuffer)
@@ -85,8 +93,8 @@ renderer/
 │   └── pty-output-buffer.ts    # Ring buffer for PTY output — last N lines per session, ANSI-stripped, for preview display
 ├── screens/
 │   ├── sessions.ts             # Sessions screen orchestrator: group init, collapse/reorder actions, navigation, public API. Re-exports from sessions-render + sessions-spawn.
-│   ├── sessions-render.ts      # Session card rendering, group header rendering, spawn grid UI, sort control, rename flow
-│   ├── sessions-spawn.ts       # doSpawn(), PTY creation, terminal area visibility, spawn zone navigation, D-pad Right → group overview entry
+│   ├── sessions-render.ts      # Session card rendering (with plan badges), group header rendering (with 🗺️ Plans button), spawn grid UI, sort control, rename flow
+│   ├── sessions-spawn.ts       # doSpawn(), PTY creation, terminal area visibility, spawn zone navigation, D-pad Right → group overview entry (maxCol 3 for Plans button)
 │   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn zones, overviewGroup + overviewFocusIndex)
 │   ├── group-overview.ts       # Group overview grid — session preview cards with live PTY output, entry/exit/navigation
 │   ├── settings.ts             # Settings slide-over orchestrator: tab bar, directories tab, public API
@@ -114,6 +122,7 @@ config/
 ├── settings.yaml               # Active profile + hapticFeedback toggle + notifications toggle + sessionGroups prefs
 ├── sessions.yaml               # Persisted session state (auto-managed)
 ├── drafts.yaml                 # Persisted draft prompts per session (auto-managed)
+├── plans.yaml                  # Persisted directory plan items + dependencies (auto-managed, folder-level not per-profile)
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 ```
@@ -121,7 +130,7 @@ config/
 ## Tests (`tests/`)
 
 ```
-tests/                                  # 1594 tests across 54 files
+tests/                                  # 1752 tests across 60 files
 ├── app-paths.test.ts           # Application path resolution tests
 ├── bindings-pty.test.ts        # PTY escape helpers + routing tests
 ├── bindings-target.test.ts     # Voice binding target routing (PTY vs OS)
@@ -174,5 +183,11 @@ tests/                                  # 1594 tests across 54 files
 ├── terminal-mirror.test.ts     # Telegram terminal mirror tests
 ├── text-input.test.ts          # Telegram text input tests
 ├── topic-input.test.ts         # Telegram topic input forwarding tests
+├── plan-manager.test.ts        # PlanManager CRUD, DAG validation, cycle prevention, startable computation (42 tests)
+├── plan-handlers.test.ts       # Plan IPC handler tests (23 tests)
+├── plan-layout.test.ts         # Auto-layout algorithm tests — topological sort, layering, barycenter ordering (17 tests)
+├── plan-screen.test.ts         # Plan canvas + editor tests — rendering, pan/zoom, node selection, CRUD (33 tests)
+├── plan-chips.test.ts          # Plan badges + chips rendering tests (11 tests)
+├── plan-navigation.test.ts     # Plan screen navigation integration tests (4 tests)
 └── utils.test.ts               # Utility function tests
 ```

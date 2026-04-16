@@ -1,0 +1,103 @@
+plans:
+  X:\coding\Vitido:
+    dirPath: X:\coding\Vitido
+    items:
+      - id: ee4ecb5c-bb7b-4c04-941f-af39ff2157b8
+        dirPath: X:\coding\Vitido
+        title: potato
+        description: ""
+        status: done
+        createdAt: 1776264719619
+        updatedAt: 1776264861069
+        sessionId: pty-claude-code-1776264715120
+      - id: 52d58817-42c0-40e8-81bc-42cc3a208719
+        dirPath: X:\coding\Vitido
+        title: blah blah
+        description: something something
+        status: done
+        createdAt: 1776264722519
+        updatedAt: 1776264865221
+        sessionId: pty-claude-code-1776264715120
+    dependencies: []
+  X:\coding\stillhere:
+    dirPath: X:\coding\stillhere
+    items:
+      - id: 1bd469b5-5c14-4c45-93f8-48ec5be2645f
+        dirPath: X:\coding\stillhere
+        title: New Plan
+        description: ""
+        status: done
+        createdAt: 1776264927432
+        updatedAt: 1776264946034
+        sessionId: pty-claude-code-1776264923187
+      - id: ae753b1c-e8e7-4998-afbf-ee51c753527e
+        dirPath: X:\coding\stillhere
+        title: New Plan
+        description: ""
+        status: done
+        createdAt: 1776264929192
+        updatedAt: 1776264947381
+        sessionId: pty-claude-code-1776264923187
+      - id: c4c68e83-6408-49ab-aada-18a4ee030967
+        dirPath: X:\coding\stillhere
+        title: AAAAAAAAAAAAAAAA
+        description: asdfasdf asdfasdfa
+        status: done
+        createdAt: 1776265038147
+        updatedAt: 1776265076099
+        sessionId: pty-claude-code-1776265028576
+      - id: c452db2e-afa3-413e-81d3-933b4483c749
+        dirPath: X:\coding\stillhere
+        title: New Plan
+        description: ""
+        status: done
+        createdAt: 1776265116961
+        updatedAt: 1776346291853
+        sessionId: pty-claude-code-1776265845829
+      - id: 16fb4901-1293-4997-b53a-d63a456d245f
+        dirPath: X:\coding\stillhere
+        title: egg
+        description: "golakf ajsd lfk jasdlkfj askdlfj asdf "
+        status: doing
+        createdAt: 1776265934324
+        updatedAt: 1776346314991
+        sessionId: pty-claude-code-1776265845829
+      - id: aafd7c24-4652-443f-8485-ccdfba8e95fe
+        dirPath: X:\coding\stillhere
+        title: carrot
+        description: ""
+        status: pending
+        createdAt: 1776265960369
+        updatedAt: 1776265966178
+    dependencies:
+      - fromId: c452db2e-afa3-413e-81d3-933b4483c749
+        toId: c4c68e83-6408-49ab-aada-18a4ee030967
+      - fromId: c4c68e83-6408-49ab-aada-18a4ee030967
+        toId: 1bd469b5-5c14-4c45-93f8-48ec5be2645f
+      - fromId: c452db2e-afa3-413e-81d3-933b4483c749
+        toId: 16fb4901-1293-4997-b53a-d63a456d245f
+      - fromId: c452db2e-afa3-413e-81d3-933b4483c749
+        toId: aafd7c24-4652-443f-8485-ccdfba8e95fe
+      - fromId: 16fb4901-1293-4997-b53a-d63a456d245f
+        toId: aafd7c24-4652-443f-8485-ccdfba8e95fe
+  O:\OneDrive\Personal\Agnes\Documents\Job Applications and Performance Reviews\2026 Job Applications:
+    dirPath: O:\OneDrive\Personal\Agnes\Documents\Job Applications and Performance
+      Reviews\2026 Job Applications
+    items:
+      - id: 2884fa72-0008-420a-b44b-0c393a70734a
+        dirPath: O:\OneDrive\Personal\Agnes\Documents\Job Applications and Performance
+          Reviews\2026 Job Applications
+        title: New Plan
+        description: ""
+        status: startable
+        createdAt: 1776347011201
+        updatedAt: 1776347011201
+      - id: f0a9e57e-756c-45cd-b7cb-ded10de9a0f1
+        dirPath: O:\OneDrive\Personal\Agnes\Documents\Job Applications and Performance
+          Reviews\2026 Job Applications
+        title: New Plan
+        description: ""
+        status: startable
+        createdAt: 1776347013525
+        updatedAt: 1776347013525
+    dependencies: []

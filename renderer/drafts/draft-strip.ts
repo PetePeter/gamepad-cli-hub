@@ -6,6 +6,7 @@
 
 import { setDraftCountCache } from '../screens/sessions.js';
 import { state } from '../state.js';
+import { renderPlanChips } from '../plans/plan-chips.js';
 
 const MAX_LABEL_LENGTH = 20;
 
@@ -48,13 +49,10 @@ export async function refreshDraftStrip(sessionId: string | null): Promise<void>
   // Update the draft count cache for session card badges
   setDraftCountCache(sessionId, drafts.length);
 
-  if (drafts.length === 0) {
-    strip.style.display = 'none';
-    strip.innerHTML = '';
-    return;
-  }
+  // Clear existing draft pills and labels (keep plan chips separate)
+  strip.querySelectorAll('.strip-section-label:not(.strip-section-label--plans)').forEach(el => el.remove());
+  strip.querySelectorAll('.draft-pill').forEach(el => el.remove());
 
-  strip.innerHTML = '';
   for (const draft of drafts) {
     const pill = document.createElement('span');
     pill.className = 'draft-pill';
@@ -75,7 +73,22 @@ export async function refreshDraftStrip(sessionId: string | null): Promise<void>
     strip.appendChild(pill);
   }
 
-  strip.style.display = 'flex';
+  // Add "Drafts" label if we have drafts
+  if (drafts.length > 0) {
+    const draftsLabel = document.createElement('span');
+    draftsLabel.className = 'strip-section-label';
+    draftsLabel.textContent = 'Drafts';
+    const firstPill = strip.querySelector('.draft-pill');
+    if (firstPill) {
+      strip.insertBefore(draftsLabel, firstPill);
+    }
+  }
+
+  // Render plan chips after draft pills
+  await renderPlanChips(sessionId);
+
+  // Show strip if it has any children, hide if empty
+  strip.style.display = strip.children.length > 0 ? 'flex' : 'none';
 }
 
 /** Render draft count badge on a session card. Returns the badge element or null. */

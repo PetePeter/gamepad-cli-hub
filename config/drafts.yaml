@@ -1,1 +1,7 @@
-drafts: {}
+drafts:
+  pty-claude-code-1776265845829:
+    - id: 1603be09-29c1-4430-a1a0-2c3d3353a1f3
+      sessionId: pty-claude-code-1776265845829
+      label: asz
+      text: ""
+      createdAt: 1776265904135

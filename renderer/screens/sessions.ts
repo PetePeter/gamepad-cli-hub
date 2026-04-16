@@ -66,6 +66,26 @@ export function setDraftCountCache(sessionId: string, count: number): void {
   draftCounts.set(sessionId, count);
 }
 
+// Plan count caches — updated when plan chips refresh
+const planDoingCounts = new Map<string, number>();
+const planStartableCounts = new Map<string, number>();
+
+export function getPlanDoingCountCache(sessionId: string): number {
+  return planDoingCounts.get(sessionId) ?? 0;
+}
+
+export function setPlanDoingCountCache(sessionId: string, count: number): void {
+  planDoingCounts.set(sessionId, count);
+}
+
+export function getPlanStartableCountCache(sessionId: string): number {
+  return planStartableCounts.get(sessionId) ?? 0;
+}
+
+export function setPlanStartableCountCache(sessionId: string, count: number): void {
+  planStartableCounts.set(sessionId, count);
+}
+
 /** Get the last output timestamp for a session */
 export function getLastOutputTime(sessionId: string): number {
   return lastOutputTimes.get(sessionId) ?? 0;
@@ -508,6 +528,12 @@ function handleSessionsZoneButton(button: string): boolean {
         moveGroupDownAction(navItem.id);
         return true;
       }
+      if (sessionsState.cardColumn === 3) {
+        import('../plans/plan-screen.js').then(({ showPlanScreen }) => {
+          showPlanScreen(navItem.id);
+        });
+        return true;
+      }
       return true; // consumed
     }
     // session-card
@@ -560,8 +586,10 @@ export function updateSessionsFocus(): void {
     } else if (el.classList.contains('group-header')) {
       const moveUpBtn = el.querySelector('.group-move-up');
       const moveDownBtn = el.querySelector('.group-move-down');
+      const plansBtn = el.querySelector('.group-plans-btn');
       if (moveUpBtn) moveUpBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 1);
       if (moveDownBtn) moveDownBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 2);
+      if (plansBtn) plansBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 3);
     }
   });
   const focused = children[sessionsState.sessionsFocusIndex];

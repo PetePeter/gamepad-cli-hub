@@ -13,6 +13,7 @@ import { StateDetector } from '../../session/state-detector.js';
 import { PipelineQueue } from '../../session/pipeline-queue.js';
 import { NotificationManager } from '../../session/notification-manager.js';
 import { DraftManager } from '../../session/draft-manager.js';
+import { PlanManager } from '../../session/plan-manager.js';
 import { configLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
 import { logger } from '../../utils/logger.js';
@@ -31,7 +32,9 @@ import { setupSystemHandlers } from './system-handlers.js';
 import { setupPtyHandlers, cancelAllPrompts } from './pty-handlers.js';
 import { setupTelegramHandlers } from './telegram-handlers.js';
 import { setupDraftHandlers } from './draft-handlers.js';
+import { setupPlanHandlers } from './plan-handlers.js';
 import { loadDrafts } from '../../session/persistence.js';
+import { loadPlans } from '../../session/persistence.js';
 
 
 /**
@@ -59,6 +62,7 @@ export function registerIPCHandlers(
   const stateDetector = new StateDetector();
   const pipelineQueue = new PipelineQueue();
   const draftManager = new DraftManager();
+  const planManager = new PlanManager();
   const notificationManager = new NotificationManager(
     getMainWindow, sessionManager, configLoader,
     (sessionId) => stateDetector.getState(sessionId),
@@ -79,6 +83,7 @@ export function registerIPCHandlers(
   logger.info(`[IPC] Restored ${restored.length} session(s) from previous run`);
 
   draftManager.importAll(loadDrafts());
+  planManager.importAll(loadPlans());
 
   const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager);
   setupConfigHandlers(configLoader);
@@ -87,6 +92,7 @@ export function registerIPCHandlers(
   setupKeyboardHandlers(keyboard);
   setupSystemHandlers();
   setupDraftHandlers(draftManager);
+  setupPlanHandlers(planManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader, notificationManager, telegramModules.feedPtyOutput, telegramModules.handleActivityChange, telegramModules.trackInput);
 
   // Wire events ONCE (no-ops when bot not running — notifier checks isRunning)

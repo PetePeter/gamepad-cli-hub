@@ -301,11 +301,18 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 8px 12px;
   cursor: pointer;
   border-radius: var(--radius-md, 8px);
   border: 1px solid transparent;
+  border-top: 2px solid #333;
+  margin-top: 8px;
+  background: #141414;
   user-select: none;
+}
+.group-header:first-child {
+  margin-top: 0;
+  border-top-color: transparent;
 }
 .group-header:hover,
 .group-header.focused { background: var(--bg-tertiary); }
@@ -323,14 +330,15 @@ button {
   min-width: 0;
   font-size: var(--font-size-sm);
   font-weight: 600;
-  color: var(--text-dim);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .group-move-up,
-.group-move-down {
+.group-move-down,
+.group-plans-btn {
   background: none;
   border: none;
   color: var(--text-dim);
@@ -341,9 +349,11 @@ button {
   line-height: 1;
 }
 .group-move-up:hover,
-.group-move-down:hover { color: var(--text-primary); background: var(--bg-secondary); }
+.group-move-down:hover,
+.group-plans-btn:hover { color: var(--text-primary); background: var(--bg-secondary); }
 .group-move-up.card-col-focused,
-.group-move-down.card-col-focused {
+.group-move-down.card-col-focused,
+.group-plans-btn.card-col-focused {
   color: var(--text-primary);
   background: var(--accent);
   outline: 1px solid var(--accent);
@@ -353,14 +363,14 @@ button {
 
 .session-card {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  min-height: 64px;
   border-radius: var(--radius-md, 8px);
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.15s;
-  position: relative;
 }
 .session-card:hover,
 .session-card.focused { background: var(--bg-tertiary); }
@@ -375,21 +385,25 @@ button {
 }
 
 .session-timer {
-  position: absolute;
-  bottom: 2px;
-  right: 6px;
-  font-size: 10px;
-  color: var(--text-secondary);
-  opacity: 0.7;
+  font-size: 11px;
+  color: #bbb;
+  white-space: nowrap;
   pointer-events: none;
+}
+
+/* Top row: dot, state, badges, timer, actions */
+.session-top-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
 }
 
 /* State icon — removed, state shown via dropdown button only */
 
-.session-card .session-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; position: relative; }
-.session-card .session-name { font-size: var(--font-size-sm); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.session-card .session-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .session-card .session-name:hover { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 2px; }
-.session-card .session-meta { font-size: var(--font-size-sm); color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-card .session-meta { font-size: 11px; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Session action buttons (rename, state, close) - always visible */
 .session-rename,
@@ -428,23 +442,18 @@ button {
   color: #ff5050;
 }
 
-/* Session name line — name + action buttons */
+/* Session name line — dedicated row for editable name */
 .session-name-line {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 1;
   min-width: 0;
 }
-.session-name-line .session-state-btn,
-.session-name-line .session-rename,
-.session-name-line .session-close {
-  margin-left: 0;
+.session-top-row .session-state-btn,
+.session-top-row .session-rename,
+.session-top-row .session-close {
   font-size: var(--font-size-sm);
   padding: 1px 4px;
-}
-.session-name-line .session-state-btn {
-  margin-left: auto;
 }
 
 /* Rename edit mode input and buttons */
@@ -1216,13 +1225,20 @@ kbd {
 }
 
 .btn--success {
-  background: #33aa55;
-  color: white;
+  background: rgba(68, 204, 68, 0.15);
+  color: #44cc44;
+  border: 1px solid rgba(68, 204, 68, 0.3);
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.2s, border-color 0.2s;
 }
 
 .btn--success:hover,
 .btn--success:focus {
-  background: #44bb66;
+  background: rgba(68, 204, 68, 0.3);
+  border-color: #44cc44;
 }
 
 /* Settings Panel Styles */
@@ -1760,6 +1776,92 @@ kbd {
   color: #ff5555;
 }
 
+/* =========================================================================
+   Plan Screen (NCN — directory plan canvas)
+   ========================================================================= */
+
+.plan-screen {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  background: #0a0a0a;
+}
+.plan-screen.visible {
+  display: flex;
+}
+
+.plan-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #111111;
+  border-bottom: 1px solid #222;
+}
+.plan-header__title {
+  flex: 1;
+  font-size: 14px;
+  color: #eee;
+  font-weight: 600;
+}
+.plan-header__btn {
+  padding: 4px 12px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 12px;
+}
+.plan-header__btn:hover {
+  background: #252525;
+  border-color: #ff6600;
+  color: #ff6600;
+}
+
+.plan-canvas {
+  flex: 1;
+  overflow: hidden;
+  cursor: grab;
+}
+.plan-canvas:active {
+  cursor: grabbing;
+}
+.plan-canvas svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Plan nodes */
+.plan-node { cursor: pointer; }
+.plan-node:hover rect { stroke-width: 2; }
+.plan-node--selected rect { stroke-width: 2.5; stroke: #ff6600 !important; }
+.plan-node--done { opacity: 0.5; }
+.plan-node--done text.plan-node__title { text-decoration: line-through; }
+
+/* Plan arrows */
+.plan-arrow { cursor: pointer; }
+.plan-arrow:hover { stroke: #888 !important; stroke-width: 2.5; }
+
+/* Plan node connectors */
+.plan-node__connector { cursor: crosshair; }
+.plan-node__connector:hover { fill: #ff6600; stroke: #ff6600; }
+
+/* Shake animation for rejected dependency (cycle) */
+@keyframes plan-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(2px); }
+}
+.plan-node--shake {
+  animation: plan-shake 0.4s ease;
+}
+
+/* Drag line preview */
+.plan-drag-line { pointer-events: none; }
+
 .btn--danger:hover {
   background: rgba(255, 85, 85, 0.15);
 }
@@ -1967,6 +2069,70 @@ kbd {
 }
 
 /* ============================================================================
+   Plan Chips — badges on session cards and pills in draft strip
+   ============================================================================ */
+
+.plan-badge-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.plan-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px;
+  background: #2a2a3a;
+  border: 1px solid #555;
+  border-radius: 8px;
+  font-size: 10px;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.plan-badge--doing {
+  color: #44cc44;
+}
+
+.plan-badge--startable {
+  color: #4488ff;
+}
+
+.plan-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: #2a2a3a;
+  border: 1px solid #444;
+  border-radius: 12px;
+  font-size: 11px;
+  color: #ccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.plan-chip:hover {
+  background: #3a3a4a;
+  border-color: #666;
+}
+
+.plan-chip--doing {
+  border-left: 3px solid #44cc44;
+}
+
+.plan-chip--startable {
+  border-left: 3px solid #4488ff;
+}
+
+/* ============================================================================
    Draft Editor — slide-down panel for composing/editing
    ============================================================================ */
 
@@ -2028,4 +2194,32 @@ kbd {
 
 .draft-editor-content:focus {
   border-color: var(--accent);
+}
+
+/* Strip section labels (Drafts / Plans separator) */
+.strip-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  align-self: center;
+  user-select: none;
+}
+
+/* Plans button badge */
+.plans-btn-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  font-size: 9px;
+  font-weight: 700;
+  color: white;
+  background: #4488ff;
+  border-radius: 7px;
+  padding: 0 3px;
+  margin-left: 2px;
 }

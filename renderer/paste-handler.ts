@@ -46,6 +46,9 @@ export function setupKeyboardRelay(getActiveSessionId: GetActiveSessionId): void
     // Block ALL keyboard relay when any modal overlay is visible
     if (document.querySelector('.modal-overlay.modal--visible')) return;
 
+    // Block keyboard relay when the plan canvas is visible
+    if (document.querySelector('.plan-screen.visible')) return;
+
     // Block keyboard relay when the draft editor is open
     if (isDraftEditorVisible()) return;
 

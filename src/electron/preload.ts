@@ -372,6 +372,56 @@ const gamepadCliAPI = {
   draftCount: (sessionId: string) =>
     ipcRenderer.invoke('draft:count', sessionId),
 
+  // ─── Directory Plans (NCN) ────────────────────────────
+
+  /** Get all plan items for a directory */
+  planList: (dirPath: string) =>
+    ipcRenderer.invoke('plan:list', dirPath),
+
+  /** Create a new plan item */
+  planCreate: (dirPath: string, title: string, description: string) =>
+    ipcRenderer.invoke('plan:create', dirPath, title, description),
+
+  /** Update a plan item's title and/or description */
+  planUpdate: (id: string, updates: { title?: string; description?: string }) =>
+    ipcRenderer.invoke('plan:update', id, updates),
+
+  /** Delete a plan item */
+  planDelete: (id: string) =>
+    ipcRenderer.invoke('plan:delete', id),
+
+  /** Add a dependency edge (fromId must finish before toId can start) */
+  planAddDep: (fromId: string, toId: string) =>
+    ipcRenderer.invoke('plan:addDep', fromId, toId),
+
+  /** Remove a dependency edge */
+  planRemoveDep: (fromId: string, toId: string) =>
+    ipcRenderer.invoke('plan:removeDep', fromId, toId),
+
+  /** Apply a startable plan to a session (startable → doing) */
+  planApply: (id: string, sessionId: string) =>
+    ipcRenderer.invoke('plan:apply', id, sessionId),
+
+  /** Mark a doing plan as complete (doing → done) */
+  planComplete: (id: string) =>
+    ipcRenderer.invoke('plan:complete', id),
+
+  /** Get startable plans for a directory */
+  planStartableForDir: (dirPath: string) =>
+    ipcRenderer.invoke('plan:startableForDir', dirPath),
+
+  /** Get plans currently being worked on by a session */
+  planDoingForSession: (sessionId: string) =>
+    ipcRenderer.invoke('plan:doingForSession', sessionId),
+
+  /** Get all dependencies for a directory */
+  planDeps: (dirPath: string) =>
+    ipcRenderer.invoke('plan:deps', dirPath),
+
+  /** Get a single plan item by ID */
+  planGetItem: (id: string) =>
+    ipcRenderer.invoke('plan:getItem', id),
+
 };
 
 /**
