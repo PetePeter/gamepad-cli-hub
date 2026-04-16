@@ -165,6 +165,8 @@ export interface SettingsConfig {
 export interface SessionGroupPrefs {
   order: string[];
   collapsed: string[];
+  /** Bookmarked directory paths — persist as empty groups even with no sessions. */
+  bookmarked?: string[];
 }
 
 export interface ProfileConfig {
@@ -630,6 +632,30 @@ export class ConfigLoader {
     this.ensureLoaded();
     this.settings!.sessionGroups = prefs;
     this.saveSettings();
+  }
+
+  /** Add a directory to the bookmarked list (no-op if already present). */
+  addBookmarkedDir(dirPath: string): void {
+    this.ensureLoaded();
+    const prefs = this.settings!.sessionGroups ?? { order: [], collapsed: [] };
+    const bookmarked = prefs.bookmarked ?? [];
+    if (!bookmarked.includes(dirPath)) {
+      prefs.bookmarked = [...bookmarked, dirPath];
+      this.settings!.sessionGroups = prefs;
+      this.saveSettings();
+    }
+  }
+
+  /** Remove a directory from the bookmarked list. */
+  removeBookmarkedDir(dirPath: string): void {
+    this.ensureLoaded();
+    const prefs = this.settings!.sessionGroups ?? { order: [], collapsed: [] };
+    const bookmarked = prefs.bookmarked ?? [];
+    if (bookmarked.includes(dirPath)) {
+      prefs.bookmarked = bookmarked.filter(d => d !== dirPath);
+      this.settings!.sessionGroups = prefs;
+      this.saveSettings();
+    }
   }
 
   /** Get the current Telegram configuration. */

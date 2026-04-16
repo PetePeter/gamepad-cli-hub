@@ -22,7 +22,7 @@ import {
   getSessionState, getSessionActivity, setSessionState, doCloseSession,
   loadSessionsData, updateSessionsFocus,
   switchToSession, getSessionCwd, getTerminalManager,
-  toggleGroupCollapse, moveGroupUpAction, moveGroupDownAction,
+  toggleGroupCollapse, moveGroupUpAction, moveGroupDownAction, removeBookmark,
   getDraftCountCache, getLastOutputTime, formatElapsed,
   getPlanDoingCountCache, getPlanStartableCountCache,
 } from './sessions.js';
@@ -183,7 +183,9 @@ export function renderSessions(): void {
   if (!list) return;
   list.innerHTML = '';
 
-  if (state.sessions.length === 0) {
+  const hasBookmarked = (sessionsState.groupPrefs.bookmarked ?? []).length > 0;
+
+  if (state.sessions.length === 0 && !hasBookmarked) {
     list.style.display = 'none';
     if (empty) empty.style.display = '';
     return;
@@ -195,7 +197,13 @@ export function renderSessions(): void {
   sessionsState.navList.forEach((navItem, index) => {
     if (navItem.type === 'group-header') {
       const group = sessionsState.groups[navItem.groupIndex];
-      if (group) list.appendChild(createGroupHeader(group, index));
+      if (group) {
+        list.appendChild(createGroupHeader(group, index));
+        // Empty bookmarked group — show placeholder
+        if (group.sessions.length === 0 && !group.collapsed) {
+          list.appendChild(createEmptyGroupPlaceholder(group.dirPath));
+        }
+      }
     } else {
       const session = state.sessions.find(s => s.id === navItem.id);
       if (session) list.appendChild(createSessionCard(session, index));
@@ -279,6 +287,27 @@ function createGroupHeader(group: SessionGroup, index: number): HTMLElement {
   header.addEventListener('click', () => toggleGroupCollapse(group.dirPath));
 
   return header;
+}
+
+function createEmptyGroupPlaceholder(dirPath: string): HTMLElement {
+  const placeholder = document.createElement('div');
+  placeholder.className = 'group-empty-placeholder';
+
+  const text = document.createElement('span');
+  text.textContent = 'No active sessions';
+
+  const dismissBtn = document.createElement('button');
+  dismissBtn.className = 'group-dismiss-btn';
+  dismissBtn.textContent = '\u00D7';
+  dismissBtn.title = 'Remove bookmark';
+  dismissBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    removeBookmark(dirPath);
+  });
+
+  placeholder.appendChild(text);
+  placeholder.appendChild(dismissBtn);
+  return placeholder;
 }
 
 function createSessionCard(session: typeof state.sessions[0], index: number): HTMLElement {

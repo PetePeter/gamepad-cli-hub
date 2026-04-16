@@ -4,7 +4,7 @@
 
 ```
 config/
-├── settings.yaml               # Active profile name, hapticFeedback toggle, notifications toggle, sidebar prefs, sorting, sessionGroups (order + collapsed)
+├── settings.yaml               # Active profile name, hapticFeedback toggle, notifications toggle, sidebar prefs, sorting, sessionGroups (order + collapsed + bookmarked)
 ├── sessions.yaml               # Persisted session state (auto-managed)
 ├── drafts.yaml                 # Persisted draft prompts per session (auto-managed)
 ├── plans.yaml                  # Persisted directory plan items + dependencies (auto-managed, folder-level not per-profile)

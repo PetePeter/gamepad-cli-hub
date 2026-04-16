@@ -210,12 +210,22 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     }
   });
 
-  ipcMain.handle('config:setSessionGroupPrefs', (_event, prefs: { order: string[]; collapsed: string[] }) => {
+  ipcMain.handle('config:setSessionGroupPrefs', (_event, prefs: { order: string[]; collapsed: string[]; bookmarked?: string[] }) => {
     try {
       configLoader.setSessionGroupPrefs(prefs);
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to set session group prefs: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('config:removeBookmarkedDir', (_event, dirPath: string) => {
+    try {
+      configLoader.removeBookmarkedDir(dirPath);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to remove bookmarked dir: ${error}`);
       return { success: false, error: String(error) };
     }
   });

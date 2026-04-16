@@ -10,7 +10,7 @@ src/
 │   ├── main.ts                 # Electron main: window creation, IPC setup, lifecycle, renderer crash recovery, delegates power monitoring to setupPowerMonitor()
 │   ├── preload.ts              # Context bridge (renderer ↔ main IPC)
 │   └── ipc/
-│       ├── handlers.ts         # Orchestrator — imports + wires 10 domain handlers, returns { cleanup, sessionManager, ptyManager }
+│       ├── handlers.ts         # Orchestrator — imports + wires 10 domain handlers, returns { cleanup, sessionManager, ptyManager }. Auto-bookmarks working dir on session:removed (when cliSessionName present)
 │       ├── session-handlers.ts
 │       ├── config-handlers.ts
 │       ├── profile-handlers.ts
@@ -37,7 +37,7 @@ src/
 │   ├── plan-manager.ts         # Per-directory plan DAG CRUD (EventEmitter, emits plan:changed, cycle prevention via DFS, startable computation, persisted to config/plans.yaml)
 │   └── power-monitor.ts        # Suspend/resume/shutdown diagnostics — session counts, PTY IDs, survival status
 ├── config/
-│   └── loader.ts               # Self-contained profile YAML config + CRUD + StickConfig + haptic settings + auto-migration
+│   └── loader.ts               # Self-contained profile YAML config + CRUD + StickConfig + haptic settings + auto-migration + bookmark CRUD (addBookmarkedDir/removeBookmarkedDir)
 ├── telegram/
 │   ├── bot.ts                  # TelegramBotCore — bot lifecycle (start/stop), long-polling, user-ID whitelist, message helpers, deleteForumTopic
 │   ├── callback-handler.ts     # Inline keyboard callback routing — session controls, spawn wizard, close all, text input
@@ -72,7 +72,7 @@ renderer/
 ├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY (blocked during plan screen)
 ├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → quickSpawn → draftEditor → draftAction → draftSubmenu → contextMenu → sequencePicker → planScreen (within sessions case) → overview → screen routing → configBinding fallback
 ├── gamepad.ts                  # Browser Gamepad API wrapper + repeat engine
-├── session-groups.ts           # Pure session grouping logic (by working directory) — types, grouping, nav list, reorder
+├── session-groups.ts           # Pure session grouping logic (by working directory) — types, grouping, nav list, reorder, bookmarked dirs
 ├── sort-logic.ts               # Pure sort functions for sessions + bindings
 ├── state-colors.ts             # Activity-level-to-color mapping (getActivityColor, ACTIVITY_COLORS). Used by session cards + overview grid.
 ├── tab-cycling.ts              # Ctrl+Tab / Ctrl+Shift+Tab terminal cycling resolver
@@ -92,8 +92,8 @@ renderer/
 │   ├── pty-filter.ts           # Strips mouse-tracking + alternate-scroll escape sequences from PTY output
 │   └── pty-output-buffer.ts    # Ring buffer for PTY output — last N lines per session, ANSI-stripped, for preview display
 ├── screens/
-│   ├── sessions.ts             # Sessions screen orchestrator: group init, collapse/reorder actions, navigation, public API. Re-exports from sessions-render + sessions-spawn.
-│   ├── sessions-render.ts      # Session card rendering (with plan badges), group header rendering (with 🗺️ Plans button), spawn grid UI, sort control, rename flow
+│   ├── sessions.ts             # Sessions screen orchestrator: group init, collapse/reorder actions, removeBookmark action, navigation, public API. Re-exports from sessions-render + sessions-spawn.
+│   ├── sessions-render.ts      # Session card rendering (with plan badges), group header rendering (with 🗺️ Plans button), empty group placeholder (bookmarked dirs with no sessions), spawn grid UI, sort control, rename flow
 │   ├── sessions-spawn.ts       # doSpawn(), PTY creation, terminal area visibility, spawn zone navigation, D-pad Right → group overview entry (maxCol 3 for Plans button)
 │   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn zones, overviewGroup + overviewFocusIndex)
 │   ├── group-overview.ts       # Group overview grid — session preview cards with live PTY output, entry/exit/navigation
@@ -119,7 +119,7 @@ renderer/
 
 ```
 config/
-├── settings.yaml               # Active profile + hapticFeedback toggle + notifications toggle + sessionGroups prefs
+├── settings.yaml               # Active profile + hapticFeedback toggle + notifications toggle + sessionGroups prefs (order + collapsed + bookmarked)
 ├── sessions.yaml               # Persisted session state (auto-managed)
 ├── drafts.yaml                 # Persisted draft prompts per session (auto-managed)
 ├── plans.yaml                  # Persisted directory plan items + dependencies (auto-managed, folder-level not per-profile)
@@ -130,7 +130,7 @@ config/
 ## Tests (`tests/`)
 
 ```
-tests/                                  # 1752 tests across 60 files
+tests/                                  # 1769 tests across 60 files
 ├── app-paths.test.ts           # Application path resolution tests
 ├── bindings-pty.test.ts        # PTY escape helpers + routing tests
 ├── bindings-target.test.ts     # Voice binding target routing (PTY vs OS)
@@ -167,7 +167,7 @@ tests/                                  # 1752 tests across 60 files
 ├── resume-spawn.test.ts        # CLI session resume spawning tests
 ├── sequence-parser.test.ts     # Sequence format parser tests
 ├── sequence-picker.test.ts     # Sequence picker overlay tests
-├── session-groups.test.ts      # Session grouping logic tests
+├── session-groups.test.ts      # Session grouping logic tests + bookmark persistence tests
 ├── session-handlers.test.ts    # session:close → PtyManager routing tests
 ├── session.test.ts             # Session management
 ├── sessions-screen.test.ts     # Session cards + group headers + spawn grid navigation + directional buttons

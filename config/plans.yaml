@@ -22,14 +22,15 @@ plans:
         dirPath: X:\coding\Vitido
         title: Thingy
         description: thing thing thing
-        status: startable
+        status: done
         createdAt: 1776347716030
-        updatedAt: 1776347720962
+        updatedAt: 1776347850803
+        sessionId: pty-claude-code-1776347701267
       - id: 0da832a2-398e-44b8-8248-0c5995f90fc9
         dirPath: X:\coding\Vitido
         title: horse shit
         description: a sdf akjsd;lkfj asldkfj alskd sa
-        status: pending
+        status: startable
         createdAt: 1776347727814
         updatedAt: 1776347740179
       - id: 0a388eed-7acd-4ce3-b870-a4b9e82645f5
@@ -55,7 +56,7 @@ plans:
            as
           f 
           asdf s f
-        status: pending
+        status: startable
         createdAt: 1776347800566
         updatedAt: 1776347818176
     dependencies:

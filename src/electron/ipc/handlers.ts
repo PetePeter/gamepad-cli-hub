@@ -111,6 +111,11 @@ export function registerIPCHandlers(
     if (session) await topicManager.ensureTopic(session);
   });
   sessionManager.on('session:removed', (event) => {
+    // Auto-bookmark directory when a session with cliSessionName is removed
+    if (event.session?.cliSessionName && event.session?.workingDir) {
+      configLoader.addBookmarkedDir(event.session.workingDir);
+    }
+
     if (!telegramBot.isRunning()) return;
     telegramNotifier.removeSession(event.sessionId);
     telegramModules.terminalMirror.removeSession(event.sessionId);

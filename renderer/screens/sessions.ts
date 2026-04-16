@@ -272,6 +272,21 @@ export async function moveGroupDownAction(dirPath: string): Promise<void> {
   await loadSessions();
 }
 
+/** Remove a directory bookmark — empty group header disappears. */
+export async function removeBookmark(dirPath: string): Promise<void> {
+  try {
+    if (window.gamepadCli) await window.gamepadCli.configRemoveBookmarkedDir(dirPath);
+    const bookmarked = sessionsState.groupPrefs.bookmarked ?? [];
+    sessionsState.groupPrefs = {
+      ...sessionsState.groupPrefs,
+      bookmarked: bookmarked.filter(d => d !== dirPath),
+    };
+    await loadSessions();
+  } catch (e) {
+    console.error('[Sessions] Failed to remove bookmark:', e);
+  }
+}
+
 /** Get the session at the current nav focus (only if it's a session-card). */
 function getSessionAtFocus(): Session | undefined {
   const navItem = sessionsState.navList[sessionsState.sessionsFocusIndex];

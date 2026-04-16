@@ -133,6 +133,66 @@ describe('groupSessionsByDirectory', () => {
     const groups = groupSessionsByDirectory(sessions, getDir);
     expect(groups.every(g => !g.collapsed)).toBe(true);
   });
+
+  // ── Bookmarked directories ──
+
+  it('includes bookmarked dirs with no sessions as empty groups', () => {
+    const prefs: SessionGroupPrefs = {
+      order: [],
+      collapsed: [],
+      bookmarked: ['X:\\coding\\bookmarked-dir'],
+    };
+    const groups = groupSessionsByDirectory(sessions, getDir, prefs);
+    const bookmarkedGroup = groups.find(g => g.dirPath === 'X:\\coding\\bookmarked-dir');
+    expect(bookmarkedGroup).toBeDefined();
+    expect(bookmarkedGroup!.sessions).toEqual([]);
+  });
+
+  it('does not duplicate group when bookmarked dir also has active sessions', () => {
+    const prefs: SessionGroupPrefs = {
+      order: [],
+      collapsed: [],
+      bookmarked: ['X:\\coding\\project-a'],
+    };
+    const groups = groupSessionsByDirectory(sessions, getDir, prefs);
+    const matching = groups.filter(g => g.dirPath === 'X:\\coding\\project-a');
+    expect(matching).toHaveLength(1);
+    expect(matching[0].sessions.length).toBeGreaterThan(0);
+  });
+
+  it('bookmarked dirs respect order prefs', () => {
+    const prefs: SessionGroupPrefs = {
+      order: ['X:\\coding\\bookmarked', 'X:\\coding\\project-a'],
+      collapsed: [],
+      bookmarked: ['X:\\coding\\bookmarked'],
+    };
+    const groups = groupSessionsByDirectory(sessions, getDir, prefs);
+    expect(groups[0].dirPath).toBe('X:\\coding\\bookmarked');
+    expect(groups[0].sessions).toEqual([]);
+  });
+
+  it('bookmarked dirs respect collapse state', () => {
+    const prefs: SessionGroupPrefs = {
+      order: [],
+      collapsed: ['X:\\coding\\bookmarked'],
+      bookmarked: ['X:\\coding\\bookmarked'],
+    };
+    const groups = groupSessionsByDirectory([], () => '', prefs);
+    expect(groups[0].collapsed).toBe(true);
+  });
+
+  it('returns bookmarked groups even with zero active sessions', () => {
+    const prefs: SessionGroupPrefs = {
+      order: [],
+      collapsed: [],
+      bookmarked: ['X:\\coding\\empty-project'],
+    };
+    const groups = groupSessionsByDirectory([], () => '', prefs);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].dirPath).toBe('X:\\coding\\empty-project');
+    expect(groups[0].dirName).toBe('empty-project');
+    expect(groups[0].sessions).toEqual([]);
+  });
 });
 
 // ============================================================================

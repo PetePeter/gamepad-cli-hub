@@ -125,10 +125,13 @@ const gamepadCliAPI = {
     ipcRenderer.invoke('config:setSortPrefs', area, prefs),
 
   configGetSessionGroupPrefs: () =>
-    ipcRenderer.invoke('config:getSessionGroupPrefs') as Promise<{ order: string[]; collapsed: string[] }>,
+    ipcRenderer.invoke('config:getSessionGroupPrefs') as Promise<{ order: string[]; collapsed: string[]; bookmarked?: string[] }>,
 
-  configSetSessionGroupPrefs: (prefs: { order: string[]; collapsed: string[] }) =>
+  configSetSessionGroupPrefs: (prefs: { order: string[]; collapsed: string[]; bookmarked?: string[] }) =>
     ipcRenderer.invoke('config:setSessionGroupPrefs', prefs),
+
+  configRemoveBookmarkedDir: (dirPath: string) =>
+    ipcRenderer.invoke('config:removeBookmarkedDir', dirPath),
 
   /**
    * Get the raw spawn command for a CLI type (for embedded PTY — no terminal wrapper)

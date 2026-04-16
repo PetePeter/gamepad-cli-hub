@@ -35,6 +35,8 @@ export interface SessionGroupPrefs {
   order: string[];
   /** Working directory paths that are collapsed. */
   collapsed: string[];
+  /** Bookmarked directory paths — persist as empty groups even with no sessions. */
+  bookmarked?: string[];
 }
 
 // ============================================================================
@@ -76,11 +78,16 @@ export function groupSessionsByDirectory(
     buckets.get(dir)!.push(session);
   }
 
+  // Include bookmarked dirs as empty buckets so they always appear
+  for (const dir of prefs.bookmarked ?? []) {
+    if (!buckets.has(dir)) buckets.set(dir, []);
+  }
+
   // Build ordered list of dirPaths
   const orderedDirs: string[] = [];
   const seen = new Set<string>();
 
-  // First: dirs from prefs.order that have sessions
+  // First: dirs from prefs.order that have sessions or are bookmarked
   for (const dir of prefs.order) {
     if (buckets.has(dir) && !seen.has(dir)) {
       orderedDirs.push(dir);
