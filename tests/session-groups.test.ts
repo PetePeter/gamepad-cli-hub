@@ -240,11 +240,18 @@ describe('buildFlatNavList', () => {
     expect(nav.every(item => item.type === 'group-header')).toBe(true);
   });
 
-  it('handles group with no sessions', () => {
+  it('skips group with no sessions (non-sticky)', () => {
     const groups = [makeGroup('/a', [])];
     const nav = buildFlatNavList(groups);
+    expect(nav).toEqual([]);
+  });
+
+  it('skips empty groups but preserves non-empty siblings', () => {
+    const groups = [makeGroup('/a', []), makeGroup('/b', ['s1'])];
+    const nav = buildFlatNavList(groups);
     expect(nav).toEqual([
-      { type: 'group-header', id: '/a', groupIndex: 0 },
+      { type: 'group-header', id: '/b', groupIndex: 1 },
+      { type: 'session-card', id: 's1', groupIndex: 1 },
     ]);
   });
 });

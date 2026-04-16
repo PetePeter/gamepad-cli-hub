@@ -16,7 +16,7 @@ plans:
         description: something something
         status: done
         createdAt: 1776264722519
-        updatedAt: 1776264865221
+        updatedAt: 1776352521847
         sessionId: pty-claude-code-1776264715120
       - id: d108078e-dd33-46a3-9af4-ef40dba7dc24
         dirPath: X:\coding\Vitido
@@ -24,20 +24,20 @@ plans:
         description: thing thing thing
         status: done
         createdAt: 1776347716030
-        updatedAt: 1776347850803
+        updatedAt: 1776352609388
         sessionId: pty-claude-code-1776347701267
       - id: 0da832a2-398e-44b8-8248-0c5995f90fc9
         dirPath: X:\coding\Vitido
         title: horse shit
         description: a sdf akjsd;lkfj asldkfj alskd sa
-        status: startable
+        status: pending
         createdAt: 1776347727814
         updatedAt: 1776347740179
       - id: 0a388eed-7acd-4ce3-b870-a4b9e82645f5
         dirPath: X:\coding\Vitido
         title: sigmaboi
         description: "67 67 67 67 67 67 67 67 67 67 "
-        status: startable
+        status: pending
         createdAt: 1776347765677
         updatedAt: 1776347781941
       - id: 5a8037e4-7624-459f-bd74-47a3672b49b7
@@ -59,6 +59,20 @@ plans:
         status: startable
         createdAt: 1776347800566
         updatedAt: 1776347818176
+      - id: d00d45fe-5fd9-4e53-bbe6-d9a7811981fd
+        dirPath: X:\coding\Vitido
+        title: New Plan
+        description: ""
+        status: pending
+        createdAt: 1776351502504
+        updatedAt: 1776351545033
+      - id: 3ea0f183-0622-4fb0-a0b8-1b1bcf3ef34f
+        dirPath: X:\coding\Vitido
+        title: XYZ
+        description: ""
+        status: startable
+        createdAt: 1776352529295
+        updatedAt: 1776352553369
     dependencies:
       - fromId: 52d58817-42c0-40e8-81bc-42cc3a208719
         toId: ee4ecb5c-bb7b-4c04-941f-af39ff2157b8
@@ -70,6 +84,14 @@ plans:
         toId: 0a388eed-7acd-4ce3-b870-a4b9e82645f5
       - fromId: d108078e-dd33-46a3-9af4-ef40dba7dc24
         toId: 5a8037e4-7624-459f-bd74-47a3672b49b7
+      - fromId: 0a388eed-7acd-4ce3-b870-a4b9e82645f5
+        toId: d00d45fe-5fd9-4e53-bbe6-d9a7811981fd
+      - fromId: 52d58817-42c0-40e8-81bc-42cc3a208719
+        toId: 3ea0f183-0622-4fb0-a0b8-1b1bcf3ef34f
+      - fromId: 3ea0f183-0622-4fb0-a0b8-1b1bcf3ef34f
+        toId: 0a388eed-7acd-4ce3-b870-a4b9e82645f5
+      - fromId: 3ea0f183-0622-4fb0-a0b8-1b1bcf3ef34f
+        toId: 0da832a2-398e-44b8-8248-0c5995f90fc9
   X:\coding\stillhere:
     dirPath: X:\coding\stillhere
     items:
@@ -87,24 +109,8 @@ plans:
         description: ""
         status: done
         createdAt: 1776264929192
-        updatedAt: 1776264947381
+        updatedAt: 1776352214624
         sessionId: pty-claude-code-1776264923187
-      - id: c4c68e83-6408-49ab-aada-18a4ee030967
-        dirPath: X:\coding\stillhere
-        title: AAAAAAAAAAAAAAAA
-        description: asdfasdf asdfasdfa
-        status: done
-        createdAt: 1776265038147
-        updatedAt: 1776265076099
-        sessionId: pty-claude-code-1776265028576
-      - id: c452db2e-afa3-413e-81d3-933b4483c749
-        dirPath: X:\coding\stillhere
-        title: New Plan
-        description: ""
-        status: done
-        createdAt: 1776265116961
-        updatedAt: 1776346291853
-        sessionId: pty-claude-code-1776265845829
       - id: 16fb4901-1293-4997-b53a-d63a456d245f
         dirPath: X:\coding\stillhere
         title: egg
@@ -120,17 +126,43 @@ plans:
         status: pending
         createdAt: 1776265960369
         updatedAt: 1776265966178
+      - id: 18c5fe49-5345-452f-9f8a-838b39ca60d1
+        dirPath: X:\coding\stillhere
+        title: Poopy
+        description: thinghnt
+        status: startable
+        createdAt: 1776351406273
+        updatedAt: 1776352487717
+      - id: 9d69a188-cc2a-4804-94da-e8a49cfca80c
+        dirPath: X:\coding\stillhere
+        title: New Plan
+        description: ""
+        status: pending
+        createdAt: 1776352194227
+        updatedAt: 1776352194227
+      - id: d1694b01-9393-4ccc-97a6-7bf2ec0f8655
+        dirPath: X:\coding\stillhere
+        title: New Plan
+        description: ""
+        status: startable
+        createdAt: 1776352194451
+        updatedAt: 1776352194451
+      - id: 08b8db1f-2039-4ce0-844a-f7ec2039ee39
+        dirPath: X:\coding\stillhere
+        title: New Plan
+        description: ""
+        status: pending
+        createdAt: 1776352194843
+        updatedAt: 1776352194843
     dependencies:
-      - fromId: c452db2e-afa3-413e-81d3-933b4483c749
-        toId: c4c68e83-6408-49ab-aada-18a4ee030967
-      - fromId: c4c68e83-6408-49ab-aada-18a4ee030967
-        toId: 1bd469b5-5c14-4c45-93f8-48ec5be2645f
-      - fromId: c452db2e-afa3-413e-81d3-933b4483c749
+      - fromId: 18c5fe49-5345-452f-9f8a-838b39ca60d1
         toId: 16fb4901-1293-4997-b53a-d63a456d245f
-      - fromId: c452db2e-afa3-413e-81d3-933b4483c749
-        toId: aafd7c24-4652-443f-8485-ccdfba8e95fe
       - fromId: 16fb4901-1293-4997-b53a-d63a456d245f
+        toId: 9d69a188-cc2a-4804-94da-e8a49cfca80c
+      - fromId: 9d69a188-cc2a-4804-94da-e8a49cfca80c
         toId: aafd7c24-4652-443f-8485-ccdfba8e95fe
+      - fromId: aafd7c24-4652-443f-8485-ccdfba8e95fe
+        toId: 08b8db1f-2039-4ce0-844a-f7ec2039ee39
   O:\OneDrive\Personal\Agnes\Documents\Job Applications and Performance Reviews\2026 Job Applications:
     dirPath: O:\OneDrive\Personal\Agnes\Documents\Job Applications and Performance
       Reviews\2026 Job Applications

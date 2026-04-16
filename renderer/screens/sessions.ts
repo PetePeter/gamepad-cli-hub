@@ -35,6 +35,10 @@ import {
   lastSwitchTime, clamp,
 } from './sessions-spawn.js';
 
+import {
+  handlePlansZone, handlePlansZoneButton, renderPlansGrid, updatePlansFocus,
+} from './sessions-plans.js';
+
 // Re-export public API from sub-modules so all consumers import from sessions.ts only.
 export {
   doSpawn, showTerminalArea, hideTerminalArea,
@@ -320,6 +324,7 @@ export async function loadSessions(): Promise<void> {
   await initSessionsSortControl();
   renderSessions();
   renderSpawnGrid();
+  renderPlansGrid();
   updateStatusCounts();
 }
 
@@ -357,6 +362,8 @@ export function handleSessionsScreenButton(button: string): boolean {
     // D-pad navigation — always consumed
     if (sessionsState.activeFocus === 'sessions') {
       handleSessionsZone(button, dir);
+    } else if (sessionsState.activeFocus === 'plans') {
+      handlePlansZone(button, dir);
     } else {
       handleSpawnZone(button, dir);
     }
@@ -366,6 +373,8 @@ export function handleSessionsScreenButton(button: string): boolean {
   // Non-directional buttons: check specific handlers
   if (sessionsState.activeFocus === 'sessions') {
     return handleSessionsZoneButton(button);
+  } else if (sessionsState.activeFocus === 'plans') {
+    return handlePlansZoneButton(button);
   } else {
     return handleSpawnZoneButton(button);
   }
@@ -586,9 +595,18 @@ function handleSessionsZoneButton(button: string): boolean {
 export function updateSessionsFocus(): void {
   const list = document.getElementById('sessionsList');
   if (!list) return;
-  const children = Array.from(list.children) as HTMLElement[];
-  children.forEach((el, i) => {
-    const isFocused = i === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
+  // DOM walks navList order: a mix of .group-header and .session-card, each
+  // carrying its nav index via dataset.navIndex. Focus styling applies
+  // uniformly across both kinds.
+  const items = Array.from(list.children) as HTMLElement[];
+  items.forEach(el => {
+    if (!el.classList.contains('session-card') && !el.classList.contains('group-header')) {
+      el.classList.remove('focused');
+      return;
+    }
+    const idxStr = el.dataset.navIndex;
+    const idx = idxStr !== undefined ? Number(idxStr) : -1;
+    const isFocused = idx === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
     el.classList.toggle('focused', isFocused);
 
     if (el.classList.contains('session-card')) {
@@ -607,7 +625,7 @@ export function updateSessionsFocus(): void {
       if (plansBtn) plansBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 3);
     }
   });
-  const focused = children[sessionsState.sessionsFocusIndex];
+  const focused = items.find(el => el.classList.contains('focused'));
   focused?.scrollIntoView({ block: 'nearest' });
 }
 
@@ -622,6 +640,7 @@ export function updateSpawnFocus(): void {
 export function updateAllFocus(): void {
   updateSessionsFocus();
   updateSpawnFocus();
+  updatePlansFocus();
 }
 
 // ============================================================================

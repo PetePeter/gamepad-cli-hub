@@ -42,7 +42,7 @@ The CLI type label is intentionally omitted — the session name and state provi
 
 ## Scrolling
 
-The overview grid is scrollable when cards overflow the available space.
+The overview grid is scrollable when cards overflow the available space. A max-height constraint limits the visible area to approximately 5 cards (`calc(5 * 180px + 4 * var(--spacing-md))`), ensuring the grid doesn't expand infinitely and always presents a scrollable view for larger groups.
 
 | Input | Scroll method |
 |-------|---------------|

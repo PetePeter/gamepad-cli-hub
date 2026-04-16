@@ -371,6 +371,7 @@ function savePlan(): void {
   const title = (document.getElementById('draftLabelInput') as HTMLInputElement | null)?.value ?? '';
   const description = (document.getElementById('draftContentInput') as HTMLTextAreaElement | null)?.value ?? '';
   cb.onSave({ title, description });
+  hideDraftEditor();
 }
 
 function applyPlan(): void {

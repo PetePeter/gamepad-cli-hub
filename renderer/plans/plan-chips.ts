@@ -116,7 +116,7 @@ function createPlanChip(plan: { id: string; title: string }, status: 'doing' | '
   const truncated = plan.title.length > MAX_LABEL_LENGTH
     ? plan.title.slice(0, MAX_LABEL_LENGTH) + '…'
     : plan.title;
-  chip.textContent = `🗺️ ${truncated}`;
+  chip.textContent = truncated;
 
   chip.addEventListener('click', () => handleChipClick(plan.id, status));
 

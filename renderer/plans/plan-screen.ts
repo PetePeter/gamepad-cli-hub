@@ -8,7 +8,7 @@
 import type { PlanItem, PlanDependency } from '../../src/types/plan.js';
 import type { LayoutNode, LayoutResult } from './plan-layout.js';
 import { computeLayout } from './plan-layout.js';
-import { showPlanInEditor, hideDraftEditor } from '../drafts/draft-editor.js';
+import { showPlanInEditor, hideDraftEditor, isDraftEditorVisible } from '../drafts/draft-editor.js';
 import { state } from '../state.js';
 
 // ---------------------------------------------------------------------------
@@ -36,12 +36,61 @@ let screenEl: HTMLElement | null = null;
 let visible = false;
 let currentDir = '';
 let selectedId: string | null = null;
+let fitActiveCallback: (() => void) | null = null;
+let closeCallback: (() => void) | null = null;
+
+/** Register a callback to re-fit the active terminal after plan screen closes. */
+export function setPlanScreenFitCallback(fn: () => void): void {
+  fitActiveCallback = fn;
+}
+
+/** Register a callback fired when the plan screen closes (e.g. to restore chip strip). */
+export function setPlanScreenCloseCallback(fn: () => void): void {
+  closeCallback = fn;
+}
+
+/** Cached layout + items for gamepad navigation. */
+let cachedLayout: LayoutResult | null = null;
+let cachedItems: PlanItem[] = [];
 
 /** Pan / zoom state. */
 let viewBox = { x: 0, y: 0, w: 800, h: 600 };
 let isPanning = false;
 let panStart = { x: 0, y: 0, vbx: 0, vby: 0 };
 let dragState: { fromId: string; line: SVGLineElement } | null = null;
+
+// ---------------------------------------------------------------------------
+// Keyboard shortcuts (document-level, gated on visibility)
+// ---------------------------------------------------------------------------
+
+function planScreenKeyHandler(e: KeyboardEvent): void {
+  if (!visible) return;
+
+  // Skip all shortcuts while the draft editor is open — let it handle its own keys
+  if (isDraftEditorVisible()) return;
+
+  // Ctrl+N — add new node
+  if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    handleAddNode();
+    return;
+  }
+
+  // Delete — delete the selected plan node
+  if (e.key === 'Delete' && selectedId) {
+    e.preventDefault();
+    handleDelete(selectedId);
+    return;
+  }
+
+  // Escape — close plan screen
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    hidePlanScreen();
+  }
+}
+
+document.addEventListener('keydown', planScreenKeyHandler);
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -52,23 +101,45 @@ export async function showPlanScreen(dirPath: string): Promise<void> {
   currentDir = dirPath;
   selectedId = null;
 
+  // Hide the chip panel — focus is leaving the active terminal
+  const draftStrip = document.getElementById('draftStrip');
+  if (draftStrip) draftStrip.style.display = 'none';
+
   const [items, deps] = await Promise.all([
     window.gamepadCli.planList(dirPath),
     window.gamepadCli.planDeps(dirPath),
   ]);
 
   const layout = computeLayout(items, deps);
+  cachedLayout = layout;
+  cachedItems = items;
+
   renderScreen(dirPath, items, deps, layout);
   visible = true;
+
+  // Auto-select the first node (layer 0, order 0) when canvas opens
+  if (layout.nodes.length > 0 && !selectedId) {
+    const first = layout.nodes.find(n => n.layer === 0 && n.order === 0) || layout.nodes[0];
+    selectNodeById(first.id);
+  }
 }
 
 /** Hide the plan screen and clean up. */
 export function hidePlanScreen(): void {
   visible = false;
   selectedId = null;
+  cachedLayout = null;
+  cachedItems = [];
   hideDraftEditor();
   if (screenEl) {
     screenEl.classList.remove('visible');
+  }
+  // Re-fit terminal + restore chip strip after overlay removal
+  if (fitActiveCallback) {
+    requestAnimationFrame(fitActiveCallback);
+  }
+  if (closeCallback) {
+    closeCallback();
   }
 }
 
@@ -80,6 +151,97 @@ export function isPlanScreenVisible(): boolean {
 /** Get the directory path of the currently-visible plan screen. */
 export function getCurrentPlanDirPath(): string | null {
   return visible ? currentDir : null;
+}
+
+/** Get the currently selected node ID (for testing). */
+export function getSelectedPlanId(): string | null {
+  return selectedId;
+}
+
+// ---------------------------------------------------------------------------
+// Gamepad D-pad navigation
+// ---------------------------------------------------------------------------
+
+/**
+ * Handle a D-pad direction on the plan canvas.
+ * Left/right moves between layers; up/down moves within a layer.
+ * Always returns true to consume the event when the canvas is visible.
+ */
+export function handlePlanScreenDpad(dir: string): boolean {
+  if (!cachedLayout || cachedLayout.nodes.length === 0) return false;
+
+  // Auto-select first node when nothing is selected
+  if (!selectedId) {
+    const first = cachedLayout.nodes.find(n => n.layer === 0 && n.order === 0) || cachedLayout.nodes[0];
+    selectNodeById(first.id);
+    return true;
+  }
+
+  const current = cachedLayout.nodes.find(n => n.id === selectedId);
+  if (!current) return true;
+
+  if (dir === 'left' || dir === 'right') {
+    const targetLayer = current.layer + (dir === 'right' ? 1 : -1);
+    const candidates = cachedLayout.nodes.filter(n => n.layer === targetLayer);
+    if (candidates.length === 0) return true; // no-op at boundary
+    // Pick candidate with closest Y to current node
+    candidates.sort((a, b) => Math.abs(a.y - current.y) - Math.abs(b.y - current.y));
+    selectNodeById(candidates[0].id);
+  } else {
+    // up / down — within same layer by order
+    const targetOrder = current.order + (dir === 'down' ? 1 : -1);
+    const target = cachedLayout.nodes.find(n => n.layer === current.layer && n.order === targetOrder);
+    if (target) selectNodeById(target.id);
+    // else no-op at boundary
+  }
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Gamepad action buttons (A / X / Y)
+// ---------------------------------------------------------------------------
+
+/**
+ * Handle an action button (A/X/Y) on the plan canvas.
+ * Returns true if consumed, false otherwise.
+ */
+export function handlePlanScreenAction(button: string): boolean {
+  if (button === 'A') {
+    if (selectedId) {
+      const item = cachedItems.find(i => i.id === selectedId);
+      if (item) selectNode(item);
+    } else if (cachedLayout && cachedLayout.nodes.length > 0) {
+      const first = cachedLayout.nodes.find(n => n.layer === 0 && n.order === 0) || cachedLayout.nodes[0];
+      selectNodeById(first.id);
+    }
+    return true;
+  }
+
+  if (button === 'X') {
+    if (selectedId) {
+      const id = selectedId;
+      handleDelete(id); // async fire-and-forget
+    }
+    return true;
+  }
+
+  if (button === 'Y') {
+    handleAddNode(); // async fire-and-forget
+    return true;
+  }
+
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Select a node by ID — finds the matching PlanItem and calls selectNode. */
+function selectNodeById(id: string): void {
+  const item = cachedItems.find(i => i.id === id);
+  if (item) selectNode(item);
 }
 
 // ---------------------------------------------------------------------------
@@ -582,5 +744,7 @@ async function refreshCanvas(): Promise<void> {
     window.gamepadCli.planDeps(currentDir),
   ]);
   const layout = computeLayout(items, deps);
+  cachedLayout = layout;
+  cachedItems = items;
   renderScreen(currentDir, items, deps, layout);
 }

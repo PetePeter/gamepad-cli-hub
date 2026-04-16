@@ -123,6 +123,7 @@ export function buildFlatNavList(groups: SessionGroup[]): NavItem[] {
   const items: NavItem[] = [];
   for (let gi = 0; gi < groups.length; gi++) {
     const group = groups[gi];
+    if (group.sessions.length === 0) continue;
     items.push({ type: 'group-header', id: group.dirPath, groupIndex: gi });
     if (!group.collapsed) {
       for (const session of group.sessions) {

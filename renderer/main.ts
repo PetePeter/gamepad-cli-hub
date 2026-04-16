@@ -28,6 +28,7 @@ import { setOutputBuffer, setSessionStateGetter, setActivityLevelGetter, setTerm
 import { initDraftStrip, refreshDraftStrip } from './drafts/draft-strip.js';
 import { initDraftEditor } from './drafts/draft-editor.js';
 import { initDraftSubmenuClickHandlers, initDraftActionClickHandlers } from './modals/draft-submenu.js';
+import { setPlanScreenFitCallback, setPlanScreenCloseCallback } from './plans/plan-screen.js';
 
 // ============================================================================
 // Terminal Manager
@@ -51,6 +52,15 @@ setDirPickerBridge((cliType, dirs, preselectedPath) => showDirPicker(cliType, di
 
 // Let sessions.doSpawn access the terminal manager without importing main.ts
 setTerminalManagerGetter(() => terminalManager);
+
+// Let plan screen re-fit the terminal when it closes
+setPlanScreenFitCallback(() => terminalManager?.fitActive());
+
+// Restore chip strip when plan screen closes
+setPlanScreenCloseCallback(() => {
+  const activeId = terminalManager?.getActiveSessionId() ?? null;
+  refreshDraftStrip(activeId);
+});
 
 // ============================================================================
 // UI Event Handlers

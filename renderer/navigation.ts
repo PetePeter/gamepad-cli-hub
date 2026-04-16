@@ -28,14 +28,18 @@ import { hideOverview, getOverviewSessions, updateOverviewFocus, setSelectCardCa
 import { findNavIndexBySessionId } from './session-groups.js';
 import { updateSessionsFocus } from './screens/sessions.js';
 import { autoSelectFocusedSession } from './screens/sessions-spawn.js';
-import { isPlanScreenVisible, hidePlanScreen } from './plans/plan-screen.js';
+import { isPlanScreenVisible, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction } from './plans/plan-screen.js';
 
 function handlePlanScreenButton(button: string): boolean {
+  const dir = toDirection(button);
+  if (dir) {
+    return handlePlanScreenDpad(dir);
+  }
   if (button === 'B') {
     hidePlanScreen();
     return true;
   }
-  return false;
+  return handlePlanScreenAction(button);
 }
 
 // ============================================================================

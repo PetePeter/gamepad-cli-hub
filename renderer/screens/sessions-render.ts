@@ -11,7 +11,7 @@ import { logEvent, getCliDisplayName } from '../utils.js';
 import { showCloseConfirm } from '../modals/close-confirm.js';
 import { sortSessions, SESSION_SORT_LABELS, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import { createSortControl, type SortControlHandle } from '../components/sort-control.js';
-import { groupSessionsByDirectory, buildFlatNavList, type SessionGroup } from '../session-groups.js';
+import { groupSessionsByDirectory, buildFlatNavList, findNavIndexBySessionId, type SessionGroup } from '../session-groups.js';
 import { showOverview, refreshOverview, isOverviewVisible } from './group-overview.js';
 import { getActivityColor } from '../state-colors.js';
 import { createDraftBadge } from '../drafts/draft-strip.js';
@@ -22,7 +22,7 @@ import {
   getSessionState, getSessionActivity, setSessionState, doCloseSession,
   loadSessionsData, updateSessionsFocus,
   switchToSession, getSessionCwd, getTerminalManager,
-  toggleGroupCollapse, moveGroupUpAction, moveGroupDownAction, removeBookmark,
+  toggleGroupCollapse, moveGroupUpAction, moveGroupDownAction,
   getDraftCountCache, getLastOutputTime, formatElapsed,
   getPlanDoingCountCache, getPlanStartableCountCache,
 } from './sessions.js';
@@ -183,9 +183,7 @@ export function renderSessions(): void {
   if (!list) return;
   list.innerHTML = '';
 
-  const hasBookmarked = (sessionsState.groupPrefs.bookmarked ?? []).length > 0;
-
-  if (state.sessions.length === 0 && !hasBookmarked) {
+  if (state.sessions.length === 0) {
     list.style.display = 'none';
     if (empty) empty.style.display = '';
     return;
@@ -194,36 +192,34 @@ export function renderSessions(): void {
   list.style.display = '';
   if (empty) empty.style.display = 'none';
 
-  sessionsState.navList.forEach((navItem, index) => {
-    if (navItem.type === 'group-header') {
-      const group = sessionsState.groups[navItem.groupIndex];
-      if (group) {
-        list.appendChild(createGroupHeader(group, index));
-        // Empty bookmarked group — show placeholder
-        if (group.sessions.length === 0 && !group.collapsed) {
-          list.appendChild(createEmptyGroupPlaceholder(group.dirPath));
-        }
-      }
+  // Walk navList so DOM order matches focus indexing. Empty groups are
+  // already excluded from navList (buildFlatNavList skips them), so no
+  // sticky bookmark rows appear. Headers and cards both carry their nav
+  // index — updateSessionsFocus applies focus styling to .focusable elements.
+  for (let i = 0; i < sessionsState.navList.length; i++) {
+    const item = sessionsState.navList[i];
+    if (item.type === 'group-header') {
+      const group = sessionsState.groups[item.groupIndex];
+      if (group) list.appendChild(createGroupHeader(group, i));
     } else {
-      const session = state.sessions.find(s => s.id === navItem.id);
-      if (session) list.appendChild(createSessionCard(session, index));
+      const session = state.sessions.find(s => s.id === item.id);
+      if (session) list.appendChild(createSessionCard(session, i));
     }
-  });
+  }
 }
 
 function createGroupHeader(group: SessionGroup, index: number): HTMLElement {
   const header = document.createElement('div');
   header.className = 'group-header';
+  header.dataset.dirPath = group.dirPath;
+  header.dataset.navIndex = String(index);
   if (index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions') {
     header.classList.add('focused');
   }
-  header.dataset.dirPath = group.dirPath;
-
-  const isFocused = index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
 
   const chevron = document.createElement('span');
   chevron.className = 'group-chevron';
-  chevron.textContent = group.collapsed ? '▸' : '▾';
+  chevron.textContent = group.collapsed ? '\u25B8' : '\u25BE';
 
   const nameSpan = document.createElement('span');
   nameSpan.className = 'group-name';
@@ -237,8 +233,7 @@ function createGroupHeader(group: SessionGroup, index: number): HTMLElement {
 
   const moveUp = document.createElement('button');
   moveUp.className = 'group-move-up';
-  if (isFocused && sessionsState.cardColumn === 1) moveUp.classList.add('card-col-focused');
-  moveUp.textContent = '▲';
+  moveUp.textContent = '\u25B2';
   moveUp.title = 'Move group up';
   moveUp.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -247,8 +242,7 @@ function createGroupHeader(group: SessionGroup, index: number): HTMLElement {
 
   const moveDown = document.createElement('button');
   moveDown.className = 'group-move-down';
-  if (isFocused && sessionsState.cardColumn === 2) moveDown.classList.add('card-col-focused');
-  moveDown.textContent = '▼';
+  moveDown.textContent = '\u25BC';
   moveDown.title = 'Move group down';
   moveDown.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -257,19 +251,20 @@ function createGroupHeader(group: SessionGroup, index: number): HTMLElement {
 
   const plansBtn = document.createElement('button');
   plansBtn.className = 'group-plans-btn';
-  if (isFocused && sessionsState.cardColumn === 3) plansBtn.classList.add('card-col-focused');
-  plansBtn.textContent = '🗺️';
+  plansBtn.textContent = '\uD83D\uDDFA\uFE0F';
   plansBtn.title = 'Open plans for this directory';
 
-  // Add startable count badge (async — updates after render)
-  window.gamepadCli.planStartableForDir(group.dirPath).then((items: any[]) => {
-    if (items.length > 0) {
-      const badge = document.createElement('span');
-      badge.className = 'plans-btn-badge';
-      badge.textContent = String(items.length);
-      plansBtn.appendChild(badge);
-    }
-  }).catch(() => {});
+  // Startable-count badge (async — updates after render)
+  if (window.gamepadCli?.planStartableForDir) {
+    window.gamepadCli.planStartableForDir(group.dirPath).then((items: any[]) => {
+      if (items && items.length > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'plans-btn-badge';
+        badge.textContent = String(items.length);
+        plansBtn.appendChild(badge);
+      }
+    }).catch(() => {});
+  }
 
   plansBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -284,30 +279,14 @@ function createGroupHeader(group: SessionGroup, index: number): HTMLElement {
   header.appendChild(moveDown);
   header.appendChild(plansBtn);
 
+  const isFocused = index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
+  if (isFocused && sessionsState.cardColumn === 1) moveUp.classList.add('card-col-focused');
+  if (isFocused && sessionsState.cardColumn === 2) moveDown.classList.add('card-col-focused');
+  if (isFocused && sessionsState.cardColumn === 3) plansBtn.classList.add('card-col-focused');
+
   header.addEventListener('click', () => toggleGroupCollapse(group.dirPath));
 
   return header;
-}
-
-function createEmptyGroupPlaceholder(dirPath: string): HTMLElement {
-  const placeholder = document.createElement('div');
-  placeholder.className = 'group-empty-placeholder';
-
-  const text = document.createElement('span');
-  text.textContent = 'No active sessions';
-
-  const dismissBtn = document.createElement('button');
-  dismissBtn.className = 'group-dismiss-btn';
-  dismissBtn.textContent = '\u00D7';
-  dismissBtn.title = 'Remove bookmark';
-  dismissBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    removeBookmark(dirPath);
-  });
-
-  placeholder.appendChild(text);
-  placeholder.appendChild(dismissBtn);
-  return placeholder;
 }
 
 function createSessionCard(session: typeof state.sessions[0], index: number): HTMLElement {
@@ -318,6 +297,7 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
     card.classList.add('focused');
   }
   card.dataset.sessionId = session.id;
+  card.dataset.navIndex = String(index);
 
   const sessionState = getSessionState(session.id);
   const activityLevel = getSessionActivity(session.id);

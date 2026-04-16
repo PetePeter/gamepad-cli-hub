@@ -34,6 +34,7 @@ Gamepad button and keyboard shortcut mappings.
 | F5 | Mapped to Y button |
 | Ctrl+V | Paste clipboard text to active terminal (PTY stdin) |
 | Ctrl+G | Open external editor (notepad) — result sent to active terminal |
+| Tab / Shift+Tab | Cycle buttons in selection-mode modals (close-confirm, context-menu, sequence-picker, quick-spawn) |
 
 ## Navigation Priority Chain
 
@@ -43,12 +44,12 @@ When a button is pressed, the navigation system checks handlers in this order:
 2. Directory picker modal
 3. Binding editor modal
 4. Form modal (A/B only)
-5. Close confirmation modal
+5. Close confirmation modal (Arrow keys + Tab/Shift+Tab for button cycling)
 6. Quick-spawn picker
 7. Draft editor panel (D-pad/A/B field navigation)
 8. Draft action picker (per-draft Apply/Edit/Delete — accessed via context menu Drafts ► submenu)
 9. Draft submenu (Drafts list from context menu)
-10. Context menu
+10. Context menu (Arrow keys + Tab/Shift+Tab for button cycling)
 11. Sequence picker
 12. Screen-specific routing (sessions / settings)
     - **Sessions case:** Plan screen overlay (when visible, B exits) → Group overview → Session/spawn navigation
@@ -84,7 +85,14 @@ The 🗺️ Plans button on group headers (D-pad Right to column 3, or click) op
 | Click on arrow | Remove that dependency edge |
 | Click + drag canvas | Pan (viewBox-based) |
 | Mouse wheel | Zoom in/out |
+| Ctrl+N | Add new node |
+| Escape | Close plan screen (when editor is not open) |
 | ← Back button | Exit plan screen |
+| D-Pad Left/Right | Move between layers (closest-Y selection) |
+| D-Pad Up/Down | Move within a layer |
+| A (gamepad) | Open editor for selected node |
+| X (gamepad) | Delete selected node |
+| Y (gamepad) | Add new node |
 | B (gamepad) | Exit plan screen |
 
 Keyboard and clipboard paste are blocked while the plan screen is visible (`.plan-screen.visible` guard in paste-handler).

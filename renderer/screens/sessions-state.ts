@@ -4,7 +4,7 @@
 
 import type { NavItem, SessionGroup, SessionGroupPrefs } from '../session-groups.js';
 
-export type SessionsFocus = 'sessions' | 'spawn';
+export type SessionsFocus = 'sessions' | 'spawn' | 'plans';
 
 export interface SessionsScreenState {
   activeFocus: SessionsFocus;
@@ -24,6 +24,8 @@ export interface SessionsScreenState {
   overviewGroup: string | null;
   /** Focused card index within the overview grid. */
   overviewFocusIndex: number;
+  /** Focused button index within the plans grid. */
+  plansFocusIndex: number;
 }
 
 export const sessionsState: SessionsScreenState = {
@@ -39,4 +41,5 @@ export const sessionsState: SessionsScreenState = {
   groupPrefs: { order: [], collapsed: [] },
   overviewGroup: null,
   overviewFocusIndex: 0,
+  plansFocusIndex: 0,
 };

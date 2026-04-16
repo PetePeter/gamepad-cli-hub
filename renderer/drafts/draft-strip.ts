@@ -62,7 +62,7 @@ export async function refreshDraftStrip(sessionId: string | null): Promise<void>
     const truncated = draft.label.length > MAX_LABEL_LENGTH
       ? draft.label.slice(0, MAX_LABEL_LENGTH) + '…'
       : draft.label;
-    pill.textContent = `📝 ${truncated}`;
+    pill.textContent = truncated;
 
     // Click pill → open draft editor directly (mouse only, no gamepad nav to pills)
     pill.addEventListener('click', async () => {

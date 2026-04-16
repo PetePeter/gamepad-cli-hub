@@ -5,3 +5,15 @@ drafts:
       label: asz
       text: ""
       createdAt: 1776265904135
+  pty-claude-code-1776350702408:
+    - id: d453aded-fc19-4463-ae74-d97c9b0189b8
+      sessionId: pty-claude-code-1776350702408
+      label: asdfasdf
+      text: asdfasfsdf
+      createdAt: 1776350839030
+  pty-claude-code-1776352512921:
+    - id: 617c4edc-1f24-4232-8fdd-772a38c44e2a
+      sessionId: pty-claude-code-1776352512921
+      label: asdas
+      text: asdasd
+      createdAt: 1776352526915

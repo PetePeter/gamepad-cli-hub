@@ -29,7 +29,7 @@ src/
 │   ├── manager.ts              # Session tracking (EventEmitter), calls persistence on changes
 │   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + saveDrafts/loadDrafts to config/drafts.yaml + savePlans/loadPlans to config/plans.yaml
 │   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
-│   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection + I/O activity tracking (active/inactive/idle via input+output timing)
+│   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection + I/O activity tracking (active/inactive/idle via input+output timing) + markRestored() 3s grace period for restored sessions
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
 │   ├── notification-manager.ts # Windows toast notifications (Electron Notification API, activity-change triggers for implementing/planning sessions, dedup, click-to-focus)
 │   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay, onComplete callback
@@ -85,25 +85,26 @@ renderer/
 │   ├── plan-screen.ts          # SVG canvas screen — pan/zoom (viewBox-based), node rendering with status colors, quadratic bezier arrows, click-to-select, Add Node button. Renders inside #terminalArea as .plan-screen overlay
 │   ├── plan-editor.ts          # Bottom editor panel — title input, description textarea, Delete button, conditional Done button (only for 'doing' status). Save on blur
 │   ├── plan-layout.ts          # Sugiyama-style left-to-right layered auto-layout. Exports computeLayout(items, deps) → LayoutResult with nodes (id, x, y, layer, order) and width/height
-│   └── plan-chips.ts           # Plan badges on session cards (createPlanBadge) + plan chips in draft strip (renderPlanChips). Shows doing count (green) and startable count (blue)
+│   └── plan-chips.ts           # Plan badges on session cards (createPlanBadge) + plan chips in draft strip (renderPlanChips with generation counter dedup). Shows doing count (green) and startable count (blue)
 ├── terminal/
 │   ├── terminal-view.ts        # xterm.js wrapper (fit/search/weblinks addons)
-│   ├── terminal-manager.ts     # Multi-terminal orchestration (create/switch/rename/resize/destroy + tab bar + PtyOutputBuffer)
+│   ├── terminal-manager.ts     # Multi-terminal orchestration (create/switch/rename/resize/destroy + tab bar + PtyOutputBuffer + right-click paste prevention + pty:markSwitching before fit)
 │   ├── pty-filter.ts           # Strips mouse-tracking + alternate-scroll escape sequences from PTY output
 │   └── pty-output-buffer.ts    # Ring buffer for PTY output — last N lines per session, ANSI-stripped, for preview display
 ├── screens/
-│   ├── sessions.ts             # Sessions screen orchestrator: group init, collapse/reorder actions, removeBookmark action, navigation, public API. Re-exports from sessions-render + sessions-spawn.
+│   ├── sessions.ts             # Sessions screen orchestrator: group init, collapse/reorder actions, removeBookmark action, navigation, public API. Re-exports from sessions-render + sessions-spawn + sessions-plans.
 │   ├── sessions-render.ts      # Session card rendering (with plan badges), group header rendering (with 🗺️ Plans button), empty group placeholder (bookmarked dirs with no sessions), spawn grid UI, sort control, rename flow
 │   ├── sessions-spawn.ts       # doSpawn(), PTY creation, terminal area visibility, spawn zone navigation, D-pad Right → group overview entry (maxCol 3 for Plans button)
-│   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn zones, overviewGroup + overviewFocusIndex)
-│   ├── group-overview.ts       # Group overview grid — session preview cards with live PTY output, entry/exit/navigation
+│   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn/plans zones, overviewGroup + overviewFocusIndex + plansFocusIndex)
+│   ├── group-overview.ts       # Group overview grid — session preview cards with live PTY output, entry/exit/navigation, max ~5 cards visible
+│   ├── sessions-plans.ts      # Folder planner grid zone (3rd nav zone below spawn) — shows working directories with plan badges, gamepad 2-column grid navigation, click opens plan screen
 │   ├── settings.ts             # Settings slide-over orchestrator: tab bar, directories tab, public API
 │   ├── settings-bindings.ts    # Bindings display, sort state, add-binding picker
 │   ├── settings-profiles.ts    # Profiles panel, create profile prompt
 │   ├── settings-tools.ts       # Tools panel, CLI type CRUD (edit form includes handoff/rename/resume/continue commands)
 │   └── settings-telegram.ts    # Telegram bot settings panel (token, instance name, user IDs, notification prefs)
 ├── modals/
-│   ├── modal-base.ts           # Shared modal foundation (show/hide, backdrop, gamepad focus management)
+│   ├── modal-base.ts           # Shared modal foundation (show/hide, backdrop, gamepad focus management, Tab/Shift+Tab button cycling in selection mode)
 │   ├── dir-picker.ts           # Directory picker modal (supports pre-selection via preselectedPath)
 │   ├── binding-editor.ts       # Binding editor modal
 │   ├── context-menu.ts         # Context menu overlay — Copy/Paste/Compose in Editor/New Session/New Session with Selection/Prompts ⏩/Drafts ►/Cancel
@@ -130,7 +131,7 @@ config/
 ## Tests (`tests/`)
 
 ```
-tests/                                  # 1769 tests across 60 files
+tests/                                  # 61 test files
 ├── app-paths.test.ts           # Application path resolution tests
 ├── bindings-pty.test.ts        # PTY escape helpers + routing tests
 ├── bindings-target.test.ts     # Voice binding target routing (PTY vs OS)
@@ -188,6 +189,7 @@ tests/                                  # 1769 tests across 60 files
 ├── plan-layout.test.ts         # Auto-layout algorithm tests — topological sort, layering, barycenter ordering (17 tests)
 ├── plan-screen.test.ts         # Plan canvas + editor tests — rendering, pan/zoom, node selection, CRUD (33 tests)
 ├── plan-chips.test.ts          # Plan badges + chips rendering tests (11 tests)
-├── plan-navigation.test.ts     # Plan screen navigation integration tests (4 tests)
+├── plan-navigation.test.ts     # Plan screen navigation integration + gamepad D-pad/action-button tests
+├── sessions-plans.test.ts      # Folder planner grid rendering, badge refresh, gamepad navigation tests
 └── utils.test.ts               # Utility function tests
 ```
