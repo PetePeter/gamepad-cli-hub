@@ -131,16 +131,16 @@ function buildHeader(dirPath: string): HTMLElement {
   backBtn.addEventListener('click', hidePlanScreen);
   header.appendChild(backBtn);
 
-  const title = document.createElement('span');
-  title.className = 'plan-header__title';
-  title.textContent = folderName(dirPath) + ' — Plans';
-  header.appendChild(title);
-
   const addBtn = document.createElement('button');
   addBtn.className = 'plan-header__btn plan-header__btn--add';
   addBtn.textContent = '+ Add Node';
   addBtn.addEventListener('click', handleAddNode);
   header.appendChild(addBtn);
+
+  const title = document.createElement('span');
+  title.className = 'plan-header__title';
+  title.textContent = folderName(dirPath) + ' — Plans';
+  header.appendChild(title);
 
   return header;
 }

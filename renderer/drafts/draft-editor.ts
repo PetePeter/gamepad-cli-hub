@@ -110,7 +110,10 @@ export function initDraftEditor(): void {
 
   const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement | null;
   labelInput?.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      saveAndDismiss();
+    } else if (e.key === 'Enter') {
       e.preventDefault();
       (document.getElementById('draftContentInput') as HTMLTextAreaElement | null)?.focus();
     } else if (e.key === 'Escape') {
@@ -121,7 +124,10 @@ export function initDraftEditor(): void {
 
   const contentInput = document.getElementById('draftContentInput') as HTMLTextAreaElement | null;
   contentInput?.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      saveAndDismiss();
+    } else if (e.key === 'Escape') {
       e.preventDefault();
       hideDraftEditor();
     }
@@ -193,9 +199,9 @@ export function showPlanInEditor(
   if (labelInput) labelInput.value = plan.title;
   if (contentInput) contentInput.value = plan.description;
 
-  // Plan mode: Apply (startable), Done (doing), Delete, Cancel (no Save)
+  // Plan mode: Save, Apply (startable), Done (doing), Delete, Cancel
   setButtonVisibility({
-    save: false,
+    save: true,
     apply: plan.status === 'startable' && !!callbacks.onApply,
     done: plan.status === 'doing' && !!callbacks.onDone,
     delete: true,
@@ -257,6 +263,11 @@ export function handleDraftEditorButton(button: string): void {
 // ---------------------------------------------------------------------------
 // Button dispatch (mode-aware)
 // ---------------------------------------------------------------------------
+
+/** Ctrl+Enter shortcut — save current content and close the editor. */
+function saveAndDismiss(): void {
+  handleButtonClick('save');
+}
 
 function handleButtonClick(action: 'save' | 'apply' | 'done' | 'delete'): void {
   if (draftEditorState.mode === 'draft') {

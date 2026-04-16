@@ -97,7 +97,53 @@ plans:
           Reviews\2026 Job Applications
         title: New Plan
         description: ""
-        status: startable
+        status: pending
         createdAt: 1776347013525
         updatedAt: 1776347013525
-    dependencies: []
+      - id: bf59301d-887c-42ad-97c1-746a7fb8bf2f
+        dirPath: O:\OneDrive\Personal\Agnes\Documents\Job Applications and Performance
+          Reviews\2026 Job Applications
+        title: New Plan
+        description: ""
+        status: pending
+        createdAt: 1776347063389
+        updatedAt: 1776347063389
+      - id: 1114ad29-7e4e-44d1-a813-88c7b3bc2dae
+        dirPath: O:\OneDrive\Personal\Agnes\Documents\Job Applications and Performance
+          Reviews\2026 Job Applications
+        title: New Plan
+        description: ""
+        status: pending
+        createdAt: 1776347148177
+        updatedAt: 1776347148177
+      - id: 75c880dd-c3cd-40a7-a7df-8a58324f6496
+        dirPath: O:\OneDrive\Personal\Agnes\Documents\Job Applications and Performance
+          Reviews\2026 Job Applications
+        title: New Plan
+        description: ""
+        status: pending
+        createdAt: 1776347154155
+        updatedAt: 1776347154155
+      - id: 61a94fb6-1ff0-47ec-a600-5d8a8fcf25f1
+        dirPath: O:\OneDrive\Personal\Agnes\Documents\Job Applications and Performance
+          Reviews\2026 Job Applications
+        title: New Plan
+        description: ""
+        status: pending
+        createdAt: 1776347163270
+        updatedAt: 1776347163270
+    dependencies:
+      - fromId: 2884fa72-0008-420a-b44b-0c393a70734a
+        toId: bf59301d-887c-42ad-97c1-746a7fb8bf2f
+      - fromId: 2884fa72-0008-420a-b44b-0c393a70734a
+        toId: f0a9e57e-756c-45cd-b7cb-ded10de9a0f1
+      - fromId: 2884fa72-0008-420a-b44b-0c393a70734a
+        toId: 1114ad29-7e4e-44d1-a813-88c7b3bc2dae
+      - fromId: 1114ad29-7e4e-44d1-a813-88c7b3bc2dae
+        toId: 75c880dd-c3cd-40a7-a7df-8a58324f6496
+      - fromId: bf59301d-887c-42ad-97c1-746a7fb8bf2f
+        toId: 75c880dd-c3cd-40a7-a7df-8a58324f6496
+      - fromId: 2884fa72-0008-420a-b44b-0c393a70734a
+        toId: 61a94fb6-1ff0-47ec-a600-5d8a8fcf25f1
+      - fromId: 75c880dd-c3cd-40a7-a7df-8a58324f6496
+        toId: f0a9e57e-756c-45cd-b7cb-ded10de9a0f1
