@@ -104,6 +104,14 @@ export class TerminalManager {
 
     this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd });
 
+    // Intercept right-click before xterm.js processes it (prevents CLIs with
+    // mouse tracking from interpreting right-click as paste)
+    element.addEventListener('mousedown', (e) => {
+      if (e.button === 2) {
+        e.stopPropagation();
+      }
+    }, true);
+
     // Right-click context menu on the terminal pane
     element.addEventListener('contextmenu', (e) => {
       e.preventDefault();
@@ -167,6 +175,12 @@ export class TerminalManager {
 
     this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd });
 
+    element.addEventListener('mousedown', (e) => {
+      if (e.button === 2) {
+        e.stopPropagation();
+      }
+    }, true);
+
     element.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       import('../modals/context-menu.js').then(({ showContextMenu }) => {
@@ -181,6 +195,9 @@ export class TerminalManager {
   switchTo(sessionId: string): void {
     const session = this.terminals.get(sessionId);
     if (!session) return;
+
+    // Mark switching BEFORE fit/resize to suppress false activity promotion
+    window.gamepadCli?.ptyMarkSwitching?.(sessionId);
 
     // Hide current
     if (this.activeSessionId) {

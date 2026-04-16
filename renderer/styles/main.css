@@ -305,9 +305,10 @@ button {
   cursor: pointer;
   border-radius: var(--radius-md, 8px);
   border: 1px solid transparent;
-  border-top: 2px solid #333;
-  margin-top: 8px;
-  background: #141414;
+  border-top: 3px solid #444;
+  border-left: 3px solid var(--accent);
+  margin-top: 10px;
+  background: #1a1a1a;
   user-select: none;
 }
 .group-header:first-child {
@@ -328,9 +329,9 @@ button {
 .group-name {
   flex: 1;
   min-width: 0;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1928,6 +1929,7 @@ kbd {
   overflow-y: auto;
   align-content: start;
   flex: 1;
+  max-height: calc(5 * 180px + 4 * var(--spacing-md));
 }
 
 .overview-card {

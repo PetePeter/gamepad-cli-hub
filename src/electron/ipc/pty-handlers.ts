@@ -103,6 +103,9 @@ export function setupPtyHandlers(
 
       // On resume: skip context text and initial prompt, only send rename command
       if (isResume) {
+        // Suppress activity promotion during shell startup
+        stateDetector.markRestored(sessionId);
+
         const promptConfig = resolvePromptConfig(cliType, configLoader, cliSessionName);
         // Only send rename command (no initial prompt items)
         if (promptConfig.renameCommand) {
@@ -176,6 +179,11 @@ export function setupPtyHandlers(
     } catch (error) {
       logger.error(`[PTY IPC] pty:resize failed for session=${sessionId}: ${error}`);
     }
+  });
+
+  // pty:markSwitching - Suppress activity promotion before terminal switch
+  ipcMain.handle('pty:markSwitching', (_event, sessionId: string) => {
+    stateDetector.markResizing(sessionId);
   });
 
   // pty:kill - Kill a session's PTY

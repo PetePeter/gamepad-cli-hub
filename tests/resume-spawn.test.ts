@@ -46,6 +46,7 @@ class MockStateDetector extends EventEmitter {
   processOutput = vi.fn();
   dispose = vi.fn();
   removeSession = vi.fn();
+  markRestored = vi.fn();
   on = vi.fn((event: string, listener: Function) => {
     super.on(event, listener);
     return this;

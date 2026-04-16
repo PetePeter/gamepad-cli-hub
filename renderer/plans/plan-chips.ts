@@ -10,6 +10,9 @@ import { showPlanInEditor, hideDraftEditor } from '../drafts/draft-editor.js';
 
 const MAX_LABEL_LENGTH = 20;
 
+/** Generation counter to prevent stale async renders from appending duplicates. */
+let renderGeneration = 0;
+
 /** Render a plan badge on a session card. Returns the badge element or null. */
 export function createPlanBadge(doingCount: number, startableCount: number): HTMLElement | null {
   if (doingCount === 0 && startableCount === 0) return null;
@@ -39,13 +42,22 @@ export async function renderPlanChips(sessionId: string): Promise<void> {
   const strip = document.getElementById('draftStrip');
   if (!strip) return;
 
-  // Remove any existing plan chips and plan label
-  strip.querySelectorAll('.plan-chip').forEach(el => el.remove());
-  strip.querySelectorAll('.strip-section-label--plans').forEach(el => el.remove());
+  const thisGeneration = ++renderGeneration;
 
-  if (!sessionId) return;
+  if (!sessionId) {
+    strip.querySelectorAll('.plan-chip').forEach(el => el.remove());
+    strip.querySelectorAll('.strip-section-label--plans').forEach(el => el.remove());
+    return;
+  }
 
   const [doingPlans, startablePlans] = await fetchPlanData(sessionId);
+
+  // Stale render — a newer call superseded this one during the await
+  if (thisGeneration !== renderGeneration) return;
+
+  // Clear existing chips AFTER async fetch to avoid race condition
+  strip.querySelectorAll('.plan-chip').forEach(el => el.remove());
+  strip.querySelectorAll('.strip-section-label--plans').forEach(el => el.remove());
 
   // Update caches for session card badges
   setPlanDoingCountCache(sessionId, doingPlans.length);
@@ -133,13 +145,15 @@ async function handleChipClick(planId: string, status: 'doing' | 'startable'): P
       if (state.activeSessionId) await renderPlanChips(state.activeSessionId);
     } : undefined;
 
-    const onApply = status === 'startable' ? async () => {
+    const onApply = async () => {
       if (!state.activeSessionId) return;
       await window.gamepadCli.ptyWrite(state.activeSessionId, item.description + '\n');
-      await window.gamepadCli.planApply(planId, state.activeSessionId);
+      if (status === 'startable') {
+        await window.gamepadCli.planApply(planId, state.activeSessionId);
+      }
       hideDraftEditor();
       await renderPlanChips(state.activeSessionId);
-    } : undefined;
+    };
 
     showPlanInEditor(state.activeSessionId || '', item, { onSave, onDelete, onDone, onApply });
   } catch (err) {

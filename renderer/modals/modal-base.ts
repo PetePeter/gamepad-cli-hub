@@ -71,6 +71,13 @@ function handleSelectionKey(e: KeyboardEvent, h: SelectionModalHandlers): void {
     case 'ArrowDown': h.onArrowDown?.(); break;
     case 'ArrowLeft': h.onArrowLeft?.(); break;
     case 'ArrowRight': h.onArrowRight?.(); break;
+    case 'Tab':
+      if (e.shiftKey) {
+        h.onArrowUp?.();
+      } else {
+        h.onArrowDown?.();
+      }
+      break;
   }
 }
 

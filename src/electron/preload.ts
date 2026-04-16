@@ -159,6 +159,10 @@ const gamepadCliAPI = {
   ptyResize: (sessionId: string, cols: number, rows: number) =>
     ipcRenderer.invoke('pty:resize', sessionId, cols, rows),
 
+  /** Suppress activity promotion before terminal switch */
+  ptyMarkSwitching: (sessionId: string) =>
+    ipcRenderer.invoke('pty:markSwitching', sessionId),
+
   /** Kill a PTY terminal */
   ptyKill: (sessionId: string) =>
     ipcRenderer.invoke('pty:kill', sessionId),
