@@ -340,6 +340,9 @@ const gamepadCliAPI = {
 
   systemOpenLogsFolder: () => ipcRenderer.invoke('system:openLogsFolder'),
 
+  /** Get app version from package.json via Electron */
+  appGetVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
+
   /** Open external editor (Notepad) for prompt composition */
   editorOpenExternal: (): Promise<{ success: boolean; text?: string; error?: string }> =>
     ipcRenderer.invoke('editor:openExternal'),

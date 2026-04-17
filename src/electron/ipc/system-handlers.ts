@@ -4,7 +4,7 @@
  * OS-level operations — logs folder access, external editor.
  */
 
-import { ipcMain, shell } from 'electron';
+import { ipcMain, shell, app } from 'electron';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -12,6 +12,8 @@ import { logger, logDir } from '../../utils/logger.js';
 import { getTempDir } from '../../utils/app-paths.js';
 
 export function setupSystemHandlers(): void {
+  ipcMain.handle('app:getVersion', () => app.getVersion());
+
   ipcMain.handle('system:openLogsFolder', async () => {
     try {
       const errorMessage = await shell.openPath(logDir);

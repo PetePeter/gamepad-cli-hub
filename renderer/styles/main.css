@@ -109,6 +109,13 @@ body {
   font-size: var(--font-size-lg);
 }
 
+.splash-screen__version {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  opacity: 0.6;
+  margin-top: var(--spacing-xs);
+}
+
 button {
   font: inherit;
   cursor: pointer;

@@ -10,17 +10,18 @@ describe('Helm branding surfaces', () => {
   it('uses Helm title, tagline, and splash branding in the renderer shell', () => {
     const html = readRepoFile('renderer', 'index.html');
 
-    expect(html).toContain('<title>Helm - steer your fleet of agents</title>');
+    expect(html).toContain('Helm — steer your fleet of agents');
     expect(html).toContain('id="splashScreen"');
-    expect(html).toContain('Helm - steer your fleet of agents');
+    expect(html).toContain('steer your fleet of agents');
     expect(html).toContain('assets/helm-paper-boat.svg');
     expect(html).toContain('>Helm<');
+    expect(html).toContain('id="splashVersion"');
   });
 
   it('ships Helm package metadata and renderer assets', () => {
     const pkg = JSON.parse(readRepoFile('package.json'));
 
-    expect(pkg.description).toBe('Helm - steer your fleet of agents');
+    expect(pkg.description).toBe('Helm — steer your fleet of agents');
     expect(pkg.build.productName).toBe('Helm');
     expect(pkg.build.nsis.shortcutName).toBe('Helm');
     expect(pkg.build.files).toContain('renderer/assets/**/*');

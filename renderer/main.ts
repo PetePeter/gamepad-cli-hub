@@ -199,6 +199,13 @@ async function init(): Promise<void> {
     console.log('[Renderer] Initializing');
     console.log('[Renderer] navigator.gamepad API exists:', typeof navigator.getGamepads === 'function');
 
+    // Populate splash version as early as possible
+    try {
+      const version = await window.gamepadCli?.appGetVersion();
+      const versionEl = document.getElementById('splashVersion');
+      if (versionEl && version) versionEl.textContent = `v${version}`;
+    } catch { /* splash is cosmetic — don't block init */ }
+
     // Global Ctrl+Tab / Ctrl+Shift+Tab to switch terminal tabs (capture phase
     // so it fires before xterm.js can swallow the event)
     document.addEventListener('keydown', (e: KeyboardEvent) => {

@@ -90,7 +90,7 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: false, // Required: preload needs Node.js APIs for contextBridge IPC
     },
-    title: 'Helm - steer your fleet of agents',
+    title: `Helm — steer your fleet of agents v${app.getVersion()}`,
   });
 
   // Load the renderer HTML (__dirname-relative, works inside asar)
