@@ -7,6 +7,7 @@
 
 import { sessionsState } from './sessions-state.js';
 import { showPlanScreen } from '../plans/plan-screen.js';
+import { isSpawnCollapsed } from '../sidebar/section-collapse.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import { updateAllFocus } from './sessions.js';
@@ -96,9 +97,16 @@ export function handlePlansZone(button: string, dir: string | null): void {
   if (dir === 'up') {
     const newIndex = sessionsState.plansFocusIndex - cols;
     if (newIndex < 0) {
-      sessionsState.activeFocus = 'spawn';
-      const spawnCount = sessionsState.cliTypes.length;
-      sessionsState.spawnFocusIndex = Math.max(0, spawnCount - 1);
+      // Skip to sessions if spawn is collapsed
+      if (isSpawnCollapsed()) {
+        sessionsState.activeFocus = 'sessions';
+        sessionsState.sessionsFocusIndex = Math.max(0, sessionsState.navList.length - 1);
+        sessionsState.cardColumn = 0;
+      } else {
+        sessionsState.activeFocus = 'spawn';
+        const spawnCount = sessionsState.cliTypes.length;
+        sessionsState.spawnFocusIndex = Math.max(0, spawnCount - 1);
+      }
       updateAllFocus();
       return;
     }

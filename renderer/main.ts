@@ -23,6 +23,7 @@ import { initContextMenuClickHandlers } from './modals/context-menu.js';
 import { initSequencePickerClickHandlers } from './modals/sequence-picker.js';
 import { initCloseConfirmClickHandlers } from './modals/close-confirm.js';
 import { initPlanDeleteConfirmClickHandlers } from './modals/plan-delete-confirm.js';
+import { initSectionCollapse } from './sidebar/section-collapse.js';
 import { initQuickSpawnClickHandlers, hideQuickSpawn } from './modals/quick-spawn.js';
 import { resolveNextTerminalId } from './tab-cycling.js';
 import { setOutputBuffer, setSessionStateGetter, setActivityLevelGetter, setTerminalManagerGetter as setOverviewTerminalManagerGetter, refreshOverview, isOverviewVisible } from './screens/group-overview.js';
@@ -367,6 +368,9 @@ async function init(): Promise<void> {
 
     // Load initial data
     await loadSessions();
+
+    // Restore collapsible section state (Quick Spawn / Folder Planner)
+    await initSectionCollapse();
 
     // Start live timer refresh (10s interval)
     startTimerRefresh();

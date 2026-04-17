@@ -18,6 +18,7 @@ import {
 import { hideOverview } from './group-overview.js';
 import { registerView } from '../main-view/main-view-manager.js';
 import { hidePlanScreen, isPlanScreenVisible } from '../plans/plan-screen.js';
+import { isSpawnCollapsed, isPlannerCollapsed } from '../sidebar/section-collapse.js';
 
 // Register the terminal view with the main-view manager. mount/unmount are
 // no-ops because sessions-spawn owns the terminal container's display via
@@ -332,10 +333,26 @@ export function handleSessionsZone(button: string, dir: string | null): void {
   if (dir === 'down') {
     if (sessionsState.cardColumn > 0) return; // no-op when on action buttons
     if (count === 0 || sessionsState.sessionsFocusIndex >= count - 1) {
-      sessionsState.activeFocus = 'spawn';
-      sessionsState.spawnFocusIndex = 0;
-      sessionsState.cardColumn = 0;
-      updateAllFocus();
+      // Skip collapsed zones
+      if (!isSpawnCollapsed()) {
+        sessionsState.activeFocus = 'spawn';
+        sessionsState.spawnFocusIndex = 0;
+        sessionsState.cardColumn = 0;
+        updateAllFocus();
+        return;
+      }
+      if (!isPlannerCollapsed()) {
+        const plansGrid = document.getElementById('plansGrid');
+        const hasPlans = plansGrid && plansGrid.querySelectorAll('.plans-grid-btn').length > 0;
+        if (hasPlans) {
+          sessionsState.activeFocus = 'plans';
+          sessionsState.plansFocusIndex = 0;
+          sessionsState.cardColumn = 0;
+          updateAllFocus();
+          return;
+        }
+      }
+      // Both collapsed or no plans — stay put
       return;
     }
     sessionsState.sessionsFocusIndex++;
@@ -347,6 +364,25 @@ export function handleSessionsZone(button: string, dir: string | null): void {
 }
 
 export function handleSpawnZone(button: string, dir: string | null): void {
+  // If spawn is collapsed, redirect to adjacent zones
+  if (isSpawnCollapsed()) {
+    if (dir === 'up') {
+      sessionsState.activeFocus = 'sessions';
+      sessionsState.sessionsFocusIndex = Math.max(0, sessionsState.navList.length - 1);
+      sessionsState.cardColumn = 0;
+      updateAllFocus();
+    } else if (dir === 'down' && !isPlannerCollapsed()) {
+      const plansGrid = document.getElementById('plansGrid');
+      const hasPlans = plansGrid && plansGrid.querySelectorAll('.plans-grid-btn').length > 0;
+      if (hasPlans) {
+        sessionsState.activeFocus = 'plans';
+        sessionsState.plansFocusIndex = 0;
+        updateAllFocus();
+      }
+    }
+    return;
+  }
+
   const count = sessionsState.cliTypes.length;
   const cols = 2;
 
@@ -368,7 +404,7 @@ export function handleSpawnZone(button: string, dir: string | null): void {
     if (newIndex < count) {
       sessionsState.spawnFocusIndex = newIndex;
       updateSpawnFocus();
-    } else {
+    } else if (!isPlannerCollapsed()) {
       const plansGrid = document.getElementById('plansGrid');
       const hasPlans = plansGrid && plansGrid.querySelectorAll('.plans-grid-btn').length > 0;
       if (hasPlans) {
