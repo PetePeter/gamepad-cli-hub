@@ -531,8 +531,12 @@ export function getTabCycleSessionIds(): string[] {
 export async function loadSessionsData(): Promise<void> {
   if (!window.gamepadCli) return;
 
-  // Only show embedded terminal sessions — no external window sessions
-  state.sessions = [];
+  // Build the list in a local array and assign atomically at the end.
+  // Previously we did `state.sessions = []` up-front and pushed after awaits,
+  // which caused a race: concurrent callers (e.g. rapid PTY state changes
+  // each firing loadSessions via setSessionState) would all reset to [] then
+  // push N entries each, yielding N×callers duplicates on the session list.
+  const nextSessions: Session[] = [];
   let persistedSessions: Array<{ id: string; cliSessionName?: string }> = [];
   try {
     persistedSessions = (await window.gamepadCli.sessionGetAll()) || [];
@@ -546,7 +550,7 @@ export async function loadSessionsData(): Promise<void> {
       const session = tm.getSession(id);
       const persisted = persistedById.get(id);
       const cliType = session?.cliType || 'unknown';
-      state.sessions.push({
+      nextSessions.push({
         id,
         name: session?.name || cliType,
         cliType,
@@ -560,7 +564,7 @@ export async function loadSessionsData(): Promise<void> {
 
   // Sort sessions by user preference
   state.sessions = sortSessions(
-    state.sessions,
+    nextSessions,
     sessionsSortField,
     sessionsSortDirection,
     getSessionState,
