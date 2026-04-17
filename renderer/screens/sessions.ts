@@ -507,9 +507,7 @@ export function syncSessionHighlight(sessionId: string): void {
     sessionsState.cardColumn = 0;
     state.activeSessionId = sessionId;
     // Selecting a session is mutually exclusive with the planner screen.
-    import('../plans/plan-screen.js').then(({ isPlanScreenVisible, hidePlanScreen }) => {
-      if (isPlanScreenVisible()) hidePlanScreen();
-    });
+    if (isPlanScreenVisible()) hidePlanScreen();
     renderSessions();
     updateSessionsFocus();
   }
@@ -689,9 +687,7 @@ function handleSessionsZoneButton(button: string): boolean {
         return true;
       }
       if (sessionsState.cardColumn === 3) {
-        import('../plans/plan-screen.js').then(({ showPlanScreen }) => {
-          showPlanScreen(navItem.id);
-        });
+        showPlanScreen(navItem.id);
         return true;
       }
       return true; // consumed

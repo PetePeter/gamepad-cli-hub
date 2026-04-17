@@ -18,6 +18,7 @@ import {
 import { showOverview, refreshOverview, isOverviewVisible } from './group-overview.js';
 import { getActivityColor } from '../state-colors.js';
 import { createDraftBadge } from '../drafts/draft-strip.js';
+import { showPlanScreen } from '../plans/plan-screen.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import {
@@ -295,9 +296,7 @@ function createGroupHeader(group: SessionGroup, index: number): HTMLElement {
 
   plansBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    import('../plans/plan-screen.js').then(({ showPlanScreen }) => {
-      showPlanScreen(group.dirPath);
-    });
+    showPlanScreen(group.dirPath);
   });
 
   header.appendChild(chevron);

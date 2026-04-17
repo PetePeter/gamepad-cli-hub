@@ -6,6 +6,7 @@
  */
 
 import { sessionsState } from './sessions-state.js';
+import { showPlanScreen } from '../plans/plan-screen.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import { updateAllFocus } from './sessions.js';
@@ -74,9 +75,7 @@ function createPlansButton(dir: { name: string; path: string }, index: number): 
   btn.appendChild(doingBadge);
 
   btn.addEventListener('click', () => {
-    import('../plans/plan-screen.js').then(({ showPlanScreen }) => {
-      showPlanScreen(dir.path);
-    });
+    showPlanScreen(dir.path);
   });
 
   return btn;
@@ -140,9 +139,7 @@ export function handlePlansZoneButton(button: string): boolean {
       const focused = btns[sessionsState.plansFocusIndex] as HTMLElement | undefined;
       const dirPath = focused?.dataset.dir;
       if (dirPath) {
-        import('../plans/plan-screen.js').then(({ showPlanScreen }) => {
-          showPlanScreen(dirPath);
-        });
+        showPlanScreen(dirPath);
       }
       return true;
     }

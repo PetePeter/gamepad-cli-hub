@@ -26,7 +26,8 @@ import { initPlanDeleteConfirmClickHandlers } from './modals/plan-delete-confirm
 import { initQuickSpawnClickHandlers, hideQuickSpawn } from './modals/quick-spawn.js';
 import { resolveNextTerminalId } from './tab-cycling.js';
 import { setOutputBuffer, setSessionStateGetter, setActivityLevelGetter, setTerminalManagerGetter as setOverviewTerminalManagerGetter, refreshOverview, isOverviewVisible } from './screens/group-overview.js';
-import { initDraftStrip, refreshDraftStrip } from './drafts/draft-strip.js';
+import { refreshDraftStrip } from './drafts/draft-strip.js';
+import { init as initChipBar } from './components/chip-bar.js';
 import { initDraftEditor } from './drafts/draft-editor.js';
 import { initDraftSubmenuClickHandlers, initDraftActionClickHandlers } from './modals/draft-submenu.js';
 import { setPlanScreenFitCallback, setPlanScreenCloseCallback, setPlanScreenOpenCallback } from './plans/plan-screen.js';
@@ -340,8 +341,8 @@ async function init(): Promise<void> {
           hideQuickSpawn();
         });
 
-        // Initialize draft strip, editor, and submenu click handlers
-        initDraftStrip();
+        // Initialize chip bar (draft strip + plan chips composer), editor, and submenu click handlers
+        initChipBar();
         initDraftEditor();
         initEditorPopup();
         initDraftSubmenuClickHandlers();

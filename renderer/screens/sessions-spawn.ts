@@ -17,6 +17,7 @@ import {
 
 import { hideOverview } from './group-overview.js';
 import { registerView } from '../main-view/main-view-manager.js';
+import { hidePlanScreen, isPlanScreenVisible } from '../plans/plan-screen.js';
 
 // Register the terminal view with the main-view manager. mount/unmount are
 // no-ops because sessions-spawn owns the terminal container's display via
@@ -197,12 +198,10 @@ export async function switchToSession(sessionId: string): Promise<void> {
   const [
     { dismissDraftStrip },
     { hideDraftEditor },
-    { hidePlanScreen, isPlanScreenVisible },
     { hideEditorPopup },
   ] = await Promise.all([
     import('../drafts/draft-strip.js'),
     import('../drafts/draft-editor.js'),
-    import('../plans/plan-screen.js'),
     import('../editor/editor-popup.js'),
   ]);
 
@@ -241,9 +240,7 @@ export function autoSelectFocusedSession(): void {
   const tm = getTerminalManager();
   if (tm && tm.hasTerminal(session.id)) {
     // Selecting a session is mutually exclusive with the planner screen.
-    import('../plans/plan-screen.js').then(({ isPlanScreenVisible, hidePlanScreen }) => {
-      if (isPlanScreenVisible()) hidePlanScreen();
-    });
+    if (isPlanScreenVisible()) hidePlanScreen();
     tm.switchTo(session.id);
     state.activeSessionId = session.id;
     showTerminalArea();

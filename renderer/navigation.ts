@@ -29,6 +29,7 @@ import { handleOverviewInput, isOverviewVisible, setSelectCardCallback } from '.
 import { findNavIndexBySessionId } from './session-groups.js';
 import { updateSessionsFocus } from './screens/sessions.js';
 import { isPlanScreenVisible, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction } from './plans/plan-screen.js';
+import { currentView } from './main-view/main-view-manager.js';
 
 function handlePlanScreenButton(button: string): boolean {
   const dir = toDirection(button);
@@ -217,13 +218,13 @@ export function handleGamepadEvent(event: ButtonEvent): void {
   let consumed = false;
   switch (state.currentScreen) {
     case 'sessions': {
-      // Plan screen overlay intercepts all input when visible
-      if (isPlanScreenVisible()) {
+      // Right-panel view determines input routing.
+      const view = currentView();
+      if (view === 'plan') {
         consumed = handlePlanScreenButton(event.button);
         break;
       }
-      // Check if overview is visible — route to overview handler
-      if (isOverviewVisible()) {
+      if (view === 'overview') {
         consumed = handleOverviewInput(event.button);
       } else {
         consumed = handleSessionsScreenButton(event.button);
