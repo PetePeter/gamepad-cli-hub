@@ -227,6 +227,10 @@ export function autoSelectFocusedSession(): void {
   if (!session) return;
   const tm = getTerminalManager();
   if (tm && tm.hasTerminal(session.id)) {
+    // Selecting a session is mutually exclusive with the planner screen.
+    import('../plans/plan-screen.js').then(({ isPlanScreenVisible, hidePlanScreen }) => {
+      if (isPlanScreenVisible()) hidePlanScreen();
+    });
     tm.switchTo(session.id);
     state.activeSessionId = session.id;
     showTerminalArea();

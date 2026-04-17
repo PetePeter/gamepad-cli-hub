@@ -8,8 +8,8 @@ import { ipcMain, shell } from 'electron';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import { logger, logDir } from '../../utils/logger.js';
+import { getTempDir } from '../../utils/app-paths.js';
 
 export function setupSystemHandlers(): void {
   ipcMain.handle('system:openLogsFolder', async () => {
@@ -28,8 +28,13 @@ export function setupSystemHandlers(): void {
 
   // editor:openExternal — Ctrl+G: open temp file in Notepad, return contents on close
   ipcMain.handle('editor:openExternal', async () => {
-    const tmpDir = os.tmpdir();
-    const tmpFile = path.join(tmpDir, `gamepad-cli-prompt-${Date.now()}.md`);
+    const tmpDir = getTempDir(__dirname);
+    try {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    } catch (err) {
+      logger.warn(`[System] Could not create tmp dir ${tmpDir}: ${err}`);
+    }
+    const tmpFile = path.join(tmpDir, `helm-prompt-${Date.now()}.md`);
     try {
       fs.writeFileSync(tmpFile, '', 'utf-8');
       logger.info(`[System] Opening external editor: ${tmpFile}`);

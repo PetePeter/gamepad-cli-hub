@@ -71,6 +71,19 @@ export function getAppRootDir(dirname: string): string {
 }
 
 /**
+ * Return a writable temp directory for app-specific scratch files
+ * (e.g. Ctrl+G external editor prompts).
+ * Packaged: %APPDATA%/gamepad-cli-hub/tmp
+ * Dev:      <cwd>/tmp
+ */
+export function getTempDir(dirname: string, appData?: string): string {
+  if (isPackaged(dirname)) {
+    return path.join(getUserDataDir(appData), 'tmp');
+  }
+  return path.join(process.cwd(), 'tmp');
+}
+
+/**
  * Copy default config files from the source (inside asar) to the target
  * (user data dir) on first launch. Skips if target already exists.
  *

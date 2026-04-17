@@ -502,6 +502,10 @@ export function syncSessionHighlight(sessionId: string): void {
     sessionsState.sessionsFocusIndex = idx;
     sessionsState.cardColumn = 0;
     state.activeSessionId = sessionId;
+    // Selecting a session is mutually exclusive with the planner screen.
+    import('../plans/plan-screen.js').then(({ isPlanScreenVisible, hidePlanScreen }) => {
+      if (isPlanScreenVisible()) hidePlanScreen();
+    });
     renderSessions();
     updateSessionsFocus();
   }
