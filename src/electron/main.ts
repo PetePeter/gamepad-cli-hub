@@ -8,6 +8,7 @@
 import { app, BrowserWindow, Menu, powerMonitor, crashReporter } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 import { registerIPCHandlers } from './ipc/handlers.js';
 import { setupPowerMonitor } from '../session/power-monitor.js';
 import { configLoader } from '../config/loader.js';
@@ -59,6 +60,18 @@ function createWindow(): void {
     logger.warn('[Main] Could not read window prefs, using defaults');
   }
 
+  // Resolve the window icon — prefer ICO (Windows native), fall back to PNG.
+  // In dev: cwd is the repo root, so build/icon.ico resolves directly.
+  // In the packaged app: electron-builder embeds the icon in the EXE, but we
+  // still pass a path here so it survives in the window/taskbar after startup.
+  const iconCandidates = [
+    join(process.cwd(), 'build', 'icon.ico'),
+    join(process.cwd(), 'build', 'icon.png'),
+    join(__dirname, '..', '..', 'build', 'icon.ico'),
+    join(__dirname, '..', '..', 'build', 'icon.png'),
+  ];
+  const windowIcon = iconCandidates.find(p => existsSync(p));
+
   mainWindow = new BrowserWindow({
     width: windowBounds.width,
     height: windowBounds.height,
@@ -70,6 +83,7 @@ function createWindow(): void {
     resizable: true,
     backgroundColor: '#0a0a0a',
     show: false,
+    icon: windowIcon,
     webPreferences: {
       preload: join(__dirname, 'preload.cjs'),
       contextIsolation: true,
