@@ -16,6 +16,19 @@ import {
 } from './sessions.js';
 
 import { hideOverview } from './group-overview.js';
+import { registerView } from '../main-view/main-view-manager.js';
+
+// Register the terminal view with the main-view manager. mount/unmount are
+// no-ops because sessions-spawn owns the terminal container's display via
+// showTerminalArea/hideTerminalArea; transitions FROM overview/plan trigger
+// their unmount which already restores the terminal container.
+registerView('terminal', {
+  mount: () => {
+    const termContainer = document.getElementById('terminalContainer');
+    if (termContainer) termContainer.style.display = '';
+  },
+  unmount: () => { /* overview/plan mount handlers hide what they need */ },
+});
 
 // ============================================================================
 // Bridge state (set by main.ts to avoid circular imports)

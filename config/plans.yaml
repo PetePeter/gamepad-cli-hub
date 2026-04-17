@@ -56,9 +56,11 @@ plans:
            as
           f 
           asdf s f
-        status: startable
+        status: blocked
         createdAt: 1776347800566
-        updatedAt: 1776347818176
+        updatedAt: 1776466241854
+        sessionId: pty-claude-code-1776466200952
+        stateInfo: googoo
       - id: d00d45fe-5fd9-4e53-bbe6-d9a7811981fd
         dirPath: X:\coding\Vitido
         title: New Plan
@@ -70,9 +72,10 @@ plans:
         dirPath: X:\coding\Vitido
         title: XYZ
         description: ""
-        status: startable
+        status: doing
         createdAt: 1776352529295
-        updatedAt: 1776352553369
+        updatedAt: 1776466279106
+        sessionId: pty-claude-code-1776466269856
       - id: a33b373a-bf0b-4f9c-a392-4d082e387338
         dirPath: X:\coding\Vitido
         title: New Plan

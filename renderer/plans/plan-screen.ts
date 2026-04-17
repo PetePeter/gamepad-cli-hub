@@ -11,6 +11,7 @@ import { computeLayout } from './plan-layout.js';
 import { showPlanInEditor, hideDraftEditor, isDraftEditorVisible } from '../drafts/draft-editor.js';
 import { hidePlanDeleteConfirm, showPlanDeleteConfirm } from '../modals/plan-delete-confirm.js';
 import { state } from '../state.js';
+import { registerView, showView, currentView } from '../main-view/main-view-manager.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -117,8 +118,15 @@ document.addEventListener('keydown', planScreenKeyHandler);
 // Public API
 // ---------------------------------------------------------------------------
 
-/** Show the plan screen for the given directory. */
+/** Show the plan screen for the given directory. Delegates through the main-view manager to ensure mutual exclusion with overview/terminal. */
 export async function showPlanScreen(dirPath: string): Promise<void> {
+  await showView('plan', { dir: dirPath });
+}
+
+/** Internal — mount the plan screen (called by the manager). */
+async function mountPlanScreen(params?: unknown): Promise<void> {
+  const p = (params as { dir?: string } | undefined);
+  const dirPath = p?.dir ?? '';
   currentDir = dirPath;
   selectedId = null;
   hidePlanDeleteConfirm();
@@ -150,8 +158,19 @@ export async function showPlanScreen(dirPath: string): Promise<void> {
   }
 }
 
-/** Hide the plan screen and clean up. */
+/** Hide the plan screen. Delegates through the manager back to the terminal view. */
 export function hidePlanScreen(): void {
+  if (currentView() === 'plan') {
+    void showView('terminal');
+  } else {
+    // Not the current view — unmount in place so callers closing a
+    // stale plan overlay still clean up properly.
+    unmountPlanScreen();
+  }
+}
+
+/** Internal — unmount the plan screen (called by the manager). */
+function unmountPlanScreen(): void {
   visible = false;
   selectedId = null;
   cachedLayout = null;
@@ -169,6 +188,8 @@ export function hidePlanScreen(): void {
     closeCallback();
   }
 }
+
+registerView('plan', { mount: mountPlanScreen, unmount: unmountPlanScreen });
 
 /** Whether the plan screen is currently visible. */
 export function isPlanScreenVisible(): boolean {

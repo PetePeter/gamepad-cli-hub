@@ -20,6 +20,8 @@ import { getActivityColor } from '../state-colors.js';
 import {
   getOverviewSessions, handleOverviewInput, hideOverview, isOverviewVisible, refreshOverview, showOverview,
 } from './group-overview.js';
+import { isPlanScreenVisible, handlePlanScreenDpad, handlePlanScreenAction, hidePlanScreen, getCurrentPlanDirPath } from '../plans/plan-screen.js';
+import { currentView } from '../main-view/main-view-manager.js';
 
 // Sub-module imports — circular at module level, safe because all usages are in function bodies.
 import {
@@ -380,6 +382,8 @@ function getFocusedGroupDirPath(): string | null {
 
 function resolvePlanShortcutDirPath(preferredSessionId?: string): string | null {
   if (preferredSessionId) return getDirPathForSession(preferredSessionId);
+  // When an overview is open, Ctrl+N targets that overview's directory.
+  if (sessionsState.overviewGroup) return sessionsState.overviewGroup;
   return getFocusedGroupDirPath()
     ?? (state.activeSessionId ? getDirPathForSession(state.activeSessionId) : null)
     ?? sessionsState.groups[0]?.dirPath
@@ -819,12 +823,15 @@ function onKeyDown(e: KeyboardEvent): void {
   if (state.currentScreen !== 'sessions') return;
 
   const active = document.activeElement;
+  const view = currentView();
 
   if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
     if (document.querySelector('.modal-overlay.modal--visible')) return;
-    if (document.querySelector('.plan-screen.visible')) return;
     const draftEditor = document.getElementById('draftEditor');
     if (draftEditor && draftEditor.style.display !== 'none') return;
+    // Let the plan screen own Ctrl+N while it's focused (adds a node).
+    if (view === 'plan') return;
+    // On overview, Ctrl+N creates a plan for the currently overviewed directory.
     e.preventDefault();
     e.stopPropagation();
     void triggerNewPlanShortcut();
@@ -842,11 +849,40 @@ function onKeyDown(e: KeyboardEvent): void {
   };
 
   const mapped = keyMap[e.key];
-  if (mapped) {
+  if (!mapped) return;
+
+  // Route through the active main-view so plan/overview handlers run instead
+  // of being bypassed by this capture-phase listener.
+  if (view === 'plan') {
+    // Plan screen has its own bubble-phase key handler for Delete/Escape;
+    // arrow keys + Enter need to be forwarded because nothing else handles them.
+    const dir = toDirection(mapped);
+    if (dir) {
+      e.preventDefault();
+      e.stopPropagation();
+      handlePlanScreenDpad(dir);
+      return;
+    }
+    if (mapped === 'A') {
+      e.preventDefault();
+      e.stopPropagation();
+      handlePlanScreenAction('A');
+      return;
+    }
+    // B/X/Y/Escape/Delete — let the plan-screen's own bubble handler process them.
+    return;
+  }
+
+  if (view === 'overview') {
     e.preventDefault();
     e.stopPropagation();
-    handleSessionsScreenButton(mapped);
+    handleOverviewInput(mapped);
+    return;
   }
+
+  e.preventDefault();
+  e.stopPropagation();
+  handleSessionsScreenButton(mapped);
 }
 
 document.addEventListener('keydown', onKeyDown, true);

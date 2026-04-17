@@ -11,7 +11,7 @@ import type { PtyOutputBuffer } from '../terminal/pty-output-buffer.js';
 import { getActivityColor } from '../state-colors.js';
 import { getVisibleSessions } from '../session-groups.js';
 import { toDirection } from '../utils.js';
-import { hidePlanScreen, isPlanScreenVisible } from '../plans/plan-screen.js';
+import { registerView, showView, currentView } from '../main-view/main-view-manager.js';
 
 const PREVIEW_LINES = 10;
 
@@ -55,10 +55,16 @@ export function setActivityLevelGetter(fn: (sessionId: string) => string): void 
   activityLevelGetter = fn;
 }
 
-/** Show the overview grid for a specific group, or all visible sessions when no group is provided. */
+/** Show the overview grid for a specific group, or all visible sessions when no group is provided. Delegates through the main-view manager. */
 export function showOverview(groupDirPath: string | null = null, initialSessionId?: string): void {
-  // Exit planner mode if it's open — overview owns the terminal area now.
-  if (isPlanScreenVisible()) hidePlanScreen();
+  void showView('overview', { groupDirPath, initialSessionId });
+}
+
+/** Internal — mount the overview view (called by the manager). */
+function mountOverview(params?: unknown): void {
+  const p = (params as { groupDirPath?: string | null; initialSessionId?: string } | undefined);
+  const groupDirPath = p?.groupDirPath ?? null;
+  const initialSessionId = p?.initialSessionId;
 
   sessionsState.overviewGroup = groupDirPath;
   sessionsState.overviewIsGlobal = groupDirPath === null;
@@ -117,8 +123,17 @@ export function showOverview(groupDirPath: string | null = null, initialSessionI
   }
 }
 
-/** Hide the overview grid and restore the terminal container */
+/** Hide the overview grid and restore the terminal container. Delegates through the manager. */
 export function hideOverview(): void {
+  if (currentView() === 'overview') {
+    void showView('terminal');
+  } else {
+    unmountOverview();
+  }
+}
+
+/** Internal — unmount the overview view (called by the manager). */
+function unmountOverview(): void {
   sessionsState.overviewGroup = null;
   sessionsState.overviewIsGlobal = false;
 
@@ -157,6 +172,8 @@ export function hideOverview(): void {
   }
   pendingUpdates.clear();
 }
+
+registerView('overview', { mount: mountOverview, unmount: unmountOverview });
 
 /** Check if overview is currently visible */
 export function isOverviewVisible(): boolean {
