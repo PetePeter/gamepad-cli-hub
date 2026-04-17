@@ -161,6 +161,7 @@ button {
   background: var(--bg-primary);
   overflow: hidden;
   min-width: 0;
+  position: relative;
 }
 
 /* Sidebar Header (custom titlebar + drag region) */
@@ -2165,26 +2166,26 @@ kbd {
 }
 
 /* ── Group Overview Grid ─────────────────────────────── */
-/* Grid lives inside .panel-right (flex column, 100vh). Bound its height so
- * when card content overflows a visible scrollbar appears.
- *  - flex: 1 1 0 + min-height: 0 allows shrinking below content size
- *  - height/max-height: 100% backstop in case flex sizing misbehaves
- *  - overflow-y: scroll forces the scrollbar gutter to always be present
- *    (prevents layout-shift when content crosses the overflow threshold)
- *  - scrollbar-gutter: stable keeps the reserved width even when empty
+/* Absolute overlay inside .panel-right — bypasses flex sizing entirely so
+ * the grid always has a definite height from its containing block.
+ * Content exceeding that height triggers overflow-y scrollbar reliably.
+ * Draft strip/editor are hidden by JS when overview opens (overlay lifecycle).
  */
 .overview-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--spacing-md);
   padding: var(--spacing-md);
-  overflow-y: scroll;
   align-content: start;
-  flex: 1 1 0;
-  min-height: 0;
-  height: 100%;
-  max-height: 100%;
   scrollbar-gutter: stable;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+  z-index: 5;
+  background: var(--bg-primary);
 }
 
 .overview-card {

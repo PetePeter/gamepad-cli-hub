@@ -220,11 +220,12 @@ describe('GroupOverview', () => {
       setTerminalManagerGetter(() => null);
     });
 
-    it('uses scrollable overview grid CSS for reliable scrollbar visibility', () => {
+    it('uses absolute-positioned overview grid CSS for reliable scrollbar visibility', () => {
       const css = readFileSync('renderer/styles/main.css', 'utf8');
       const overviewGridBlock = css.match(/\.overview-grid\s*\{[^}]+\}/)?.[0] ?? '';
 
-      // Accept either `auto` or `scroll` — both scroll when content overflows.
+      // Absolute overlay inside .panel-right — definite height triggers scrollbar
+      expect(overviewGridBlock).toMatch(/position:\s*absolute;/);
       expect(overviewGridBlock).toMatch(/overflow-y:\s*(auto|scroll);/);
     });
 

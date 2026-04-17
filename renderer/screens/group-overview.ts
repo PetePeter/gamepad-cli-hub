@@ -81,6 +81,12 @@ export function showOverview(groupDirPath: string | null = null, initialSessionI
   const termContainer = document.getElementById('terminalContainer');
   if (termContainer) termContainer.style.display = 'none';
 
+  // Hide draft UI — overview is an absolute overlay that would cover them
+  const draftStrip = terminalArea.querySelector('.draft-strip') as HTMLElement | null;
+  if (draftStrip) draftStrip.style.display = 'none';
+  const draftEditor = terminalArea.querySelector('.draft-editor') as HTMLElement | null;
+  if (draftEditor) draftEditor.style.display = 'none';
+
   // Create or reuse overview container
   if (!overviewContainer) {
     overviewContainer = document.createElement('div');
@@ -123,6 +129,15 @@ export function hideOverview(): void {
   // Restore the terminal container
   const termContainer = document.getElementById('terminalContainer');
   if (termContainer) termContainer.style.display = '';
+
+  // Restore draft UI hidden when overview opened
+  const terminalArea = document.getElementById('terminalArea');
+  if (terminalArea) {
+    const draftStrip = terminalArea.querySelector('.draft-strip') as HTMLElement | null;
+    if (draftStrip) draftStrip.style.display = '';
+    const draftEditor = terminalArea.querySelector('.draft-editor') as HTMLElement | null;
+    if (draftEditor) draftEditor.style.display = '';
+  }
 
   // Restore the previously active terminal
   const tm = terminalManagerGetter?.();
