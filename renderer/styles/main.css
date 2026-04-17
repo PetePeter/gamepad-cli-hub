@@ -2259,6 +2259,21 @@ kbd {
   line-height: 1.55;
   color: var(--text-secondary);
   overflow: hidden;
+  /* Fixed height: exactly 10 lines — prevents cards resizing when
+   * content wraps or when preview is refreshed with longer lines. */
+  height: calc(10 * 1.55em);
+  flex-shrink: 0;
+  box-sizing: content-box;
+}
+
+.overview-card-preview .preview-line {
+  /* Each line must stay on one visual row — no wrapping allowed,
+   * otherwise one card would get taller than its siblings. */
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: clip;
+  height: 1.55em;
+  line-height: 1.55em;
 }
 
 .overview-card--collapsed .overview-card-preview {
