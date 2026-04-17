@@ -78,6 +78,18 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
   // Skip all shortcuts while the draft editor is open — let it handle its own keys
   if (isDraftEditorVisible()) return;
 
+  // When focus is on an editable element (title/description inputs in the
+  // plan editor panel), let the element handle its own keys — never swallow
+  // Delete here, otherwise the user can't delete characters in a textarea.
+  const target = e.target as HTMLElement | null;
+  const editable = !!target && (
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'SELECT' ||
+    target.isContentEditable
+  );
+  if (editable) return;
+
   // Ctrl+N — add new node
   if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();

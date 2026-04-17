@@ -11,6 +11,7 @@ import type { PtyOutputBuffer } from '../terminal/pty-output-buffer.js';
 import { getActivityColor } from '../state-colors.js';
 import { getVisibleSessions } from '../session-groups.js';
 import { toDirection } from '../utils.js';
+import { hidePlanScreen, isPlanScreenVisible } from '../plans/plan-screen.js';
 
 const PREVIEW_LINES = 10;
 
@@ -56,6 +57,9 @@ export function setActivityLevelGetter(fn: (sessionId: string) => string): void 
 
 /** Show the overview grid for a specific group, or all visible sessions when no group is provided. */
 export function showOverview(groupDirPath: string | null = null, initialSessionId?: string): void {
+  // Exit planner mode if it's open — overview owns the terminal area now.
+  if (isPlanScreenVisible()) hidePlanScreen();
+
   sessionsState.overviewGroup = groupDirPath;
   sessionsState.overviewIsGlobal = groupDirPath === null;
 

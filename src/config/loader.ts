@@ -83,6 +83,11 @@ export interface CliTypeConfig {
   resumeCommand?: string;
   /** CLI command to resume most recent session (fallback when resumeCommand is not configured). */
   continueCommand?: string;
+  /** How to deliver clipboard paste (Ctrl+V) and bulk text (Ctrl+G editor) to this CLI.
+   *  - 'pty'      — write directly to PTY stdin (default, works for most terminals)
+   *  - 'sendkeys' — simulate OS keystrokes via robotjs (useful for CLIs that
+   *    strip or reformat bracketed-paste input, e.g. some IDE-embedded shells) */
+  pasteMode?: 'pty' | 'sendkeys';
 }
 
 export interface ButtonBindings {
@@ -788,7 +793,7 @@ export class ConfigLoader {
   addCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string },
+    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' },
   ): void {
     this.ensureLoaded();
     if (this.activeProfile!.tools[key]) {
@@ -800,6 +805,7 @@ export class ConfigLoader {
     if (options?.spawnCommand) tool.spawnCommand = options.spawnCommand;
     if (options?.resumeCommand) tool.resumeCommand = options.resumeCommand;
     if (options?.continueCommand) tool.continueCommand = options.continueCommand;
+    if (options?.pasteMode) tool.pasteMode = options.pasteMode;
     this.activeProfile!.tools[key] = tool;
     this.saveActiveProfile();
   }
@@ -807,7 +813,7 @@ export class ConfigLoader {
   updateCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string },
+    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' },
   ): void {
     this.ensureLoaded();
     if (!this.activeProfile!.tools[key]) {
@@ -822,7 +828,7 @@ export class ConfigLoader {
 
     // Optional fields: undefined = preserve, empty string = clear, value = set
     if (options) {
-      for (const field of ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const) {
+      for (const field of ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand', 'pasteMode'] as const) {
         const val = options[field];
         if (val === undefined) continue;
         if (val === '') { delete (existing as any)[field]; }

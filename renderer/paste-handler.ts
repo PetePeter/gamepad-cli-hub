@@ -11,6 +11,7 @@
 import { keyToPtyEscape, comboToPtyEscape } from './bindings.js';
 import { isDraftEditorVisible } from './drafts/draft-editor.js';
 import { showEditorPopup } from './editor/editor-popup.js';
+import { state } from './state.js';
 
 type GetActiveSessionId = () => string | null;
 type HasPendingQuestion = (sessionId: string) => boolean;
@@ -18,6 +19,19 @@ type HasPendingQuestion = (sessionId: string) => boolean;
 let registeredHandler: ((e: KeyboardEvent) => void) | null = null;
 let pasteInFlight = false;
 let editorInFlight = false;
+
+/** Deliver bulk text to the active session — either via PTY write or via
+ *  OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode. */
+async function deliverBulkText(sessionId: string, text: string): Promise<void> {
+  if (!text) return;
+  const session = state.sessions.find(s => s.id === sessionId);
+  const tool = session ? state.cliToolsCache[session.cliType] : undefined;
+  if (tool?.pasteMode === 'sendkeys' && window.gamepadCli?.keyboardTypeString) {
+    await window.gamepadCli.keyboardTypeString(text);
+    return;
+  }
+  window.gamepadCli.ptyWrite(sessionId, text);
+}
 
 /** Returns true if the focused element is an input field, textarea, or inside a modal. */
 function isEditableOrModalFocused(): boolean {
@@ -69,7 +83,7 @@ export function setupKeyboardRelay(
         hasPendingQuestion(sessionId);
         // Use sessionId captured before await — session may have switched during clipboard read
         if (text.length > 0) {
-          window.gamepadCli.ptyWrite(sessionId, text);
+          await deliverBulkText(sessionId, text);
         }
       } catch (err) {
         console.warn('[KeyRelay] clipboard read failed:', err);
@@ -88,7 +102,7 @@ export function setupKeyboardRelay(
       try {
         const text = await showEditorPopup();
         if (text && text.trim()) {
-          window.gamepadCli.ptyWrite(sessionId, text);
+          await deliverBulkText(sessionId, text);
         }
       } catch (err) {
         console.warn('[KeyRelay] editor popup failed:', err);

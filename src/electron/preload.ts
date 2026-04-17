@@ -329,6 +329,11 @@ const gamepadCliAPI = {
    */
   keyboardComboUp: (keys: string[]) => ipcRenderer.invoke('keyboard:comboUp', keys),
 
+  /**
+   * Type a string as OS-level keystrokes (per-CLI sendkeys paste mode)
+   */
+  keyboardTypeString: (text: string) => ipcRenderer.invoke('keyboard:typeString', text),
+
   // ========================================================================
   // System
   // ========================================================================

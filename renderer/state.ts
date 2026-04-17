@@ -30,6 +30,8 @@ export interface AppState {
   availableSpawnTypes: string[];
   cliBindingsCache: Record<string, Record<string, any>>;
   cliSequencesCache: Record<string, Record<string, Array<{ label: string; sequence: string }>>>;
+  /** Per-CLI tool config (paste mode, commands, etc.) — populated by initConfigCache. */
+  cliToolsCache: Record<string, { pasteMode?: 'pty' | 'sendkeys'; [k: string]: any }>;
   settingsTab: string;
   activeProfile: string;
 }
@@ -44,6 +46,7 @@ export const state: AppState = {
   availableSpawnTypes: [],
   cliBindingsCache: {},
   cliSequencesCache: {},
+  cliToolsCache: {},
   settingsTab: 'profiles',
   activeProfile: 'default',
 };

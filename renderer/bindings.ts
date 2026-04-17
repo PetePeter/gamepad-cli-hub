@@ -113,6 +113,15 @@ export async function initConfigCache(): Promise<void> {
         delete state.cliSequencesCache[cliType];
       }
     }
+
+    // Cache per-CLI tool config (for pasteMode lookups etc.)
+    try {
+      const tools = await window.gamepadCli.toolsGetAll();
+      state.cliToolsCache = tools?.cliTypes ?? {};
+    } catch (err) {
+      console.warn('[Renderer] Failed to cache tools:', err);
+    }
+
     console.log('[Renderer] Cached CLI bindings for:', Object.keys(state.cliBindingsCache));
   } catch (error) {
     console.error('[Renderer] Failed to init config cache:', error);

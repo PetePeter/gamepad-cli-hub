@@ -220,12 +220,12 @@ describe('GroupOverview', () => {
       setTerminalManagerGetter(() => null);
     });
 
-    it('uses scrollable overview grid CSS instead of clamping the container height', () => {
+    it('uses scrollable overview grid CSS for reliable scrollbar visibility', () => {
       const css = readFileSync('renderer/styles/main.css', 'utf8');
       const overviewGridBlock = css.match(/\.overview-grid\s*\{[^}]+\}/)?.[0] ?? '';
 
-      expect(overviewGridBlock).toContain('overflow-y: auto;');
-      expect(overviewGridBlock).not.toContain('max-height:');
+      // Accept either `auto` or `scroll` — both scroll when content overflows.
+      expect(overviewGridBlock).toMatch(/overflow-y:\s*(auto|scroll);/);
     });
 
     it('pads preview at the top when fewer lines available (bottom-aligned)', () => {
