@@ -308,10 +308,9 @@ export function setupPtyHandlers(
 
   // Forward activity change events to renderer
   stateDetector.on('activity-change', (event) => {
-    const lastOutputAt = stateDetector.getLastOutputTime(event.sessionId);
     const win = getMainWindow();
     if (win && !win.isDestroyed()) {
-      win.webContents.send('pty:activity-change', { ...event, lastOutputAt });
+      win.webContents.send('pty:activity-change', event);
     }
 
     // Desktop notification when activity transitions from active to non-active

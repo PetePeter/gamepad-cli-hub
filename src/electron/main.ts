@@ -1,7 +1,7 @@
 /**
  * Electron Main Process
  *
- * Entry point for the Gamepad CLI Hub desktop application.
+ * Entry point for the Helm desktop application.
  * Manages window creation, IPC communication, and application lifecycle.
  */
 
@@ -76,7 +76,7 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: false, // Required: preload needs Node.js APIs for contextBridge IPC
     },
-    title: `Gamepad CLI Hub v${app.getVersion()}`,
+    title: 'Helm - steer your fleet of agents',
   });
 
   // Load the renderer HTML (__dirname-relative, works inside asar)

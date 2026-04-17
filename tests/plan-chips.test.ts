@@ -11,11 +11,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ---------------------------------------------------------------------------
 
 const mockPlanDoingForSession = vi.fn<(id: string) => Promise<any[]>>().mockResolvedValue([]);
+const mockPlanGetAllDoingForDir = vi.fn<(dir: string) => Promise<any[]>>().mockResolvedValue([]);
 const mockPlanStartableForDir = vi.fn<(dir: string) => Promise<any[]>>().mockResolvedValue([]);
 const mockPlanApply = vi.fn().mockResolvedValue(null);
 const mockPlanComplete = vi.fn().mockResolvedValue(null);
 const mockPlanGetItem = vi.fn().mockResolvedValue(null);
 const mockPlanUpdate = vi.fn().mockResolvedValue(null);
+const mockPlanSetState = vi.fn().mockResolvedValue(null);
 const mockPlanDelete = vi.fn().mockResolvedValue(null);
 const mockPtyWrite = vi.fn().mockResolvedValue(null);
 const mockDraftList = vi.fn<() => Promise<any[]>>().mockResolvedValue([]);
@@ -54,11 +56,13 @@ vi.mock('../renderer/drafts/draft-editor.js', () => ({
 function setupGamepadCli(): void {
   (window as any).gamepadCli = {
     planDoingForSession: mockPlanDoingForSession,
+    planGetAllDoingForDir: mockPlanGetAllDoingForDir,
     planStartableForDir: mockPlanStartableForDir,
     planApply: mockPlanApply,
     planComplete: mockPlanComplete,
     planGetItem: mockPlanGetItem,
     planUpdate: mockPlanUpdate,
+    planSetState: mockPlanSetState,
     planDelete: mockPlanDelete,
     ptyWrite: mockPtyWrite,
     draftList: mockDraftList,
@@ -160,6 +164,9 @@ describe('Plan Chips', () => {
       mockPlanDoingForSession.mockResolvedValue([
         { id: 'p1', title: 'Fix the bug', status: 'doing' },
       ]);
+      mockPlanGetAllDoingForDir.mockResolvedValue([
+        { id: 'p1', title: 'Fix the bug', status: 'doing', sessionId: 'session-1' },
+      ]);
       mockPlanStartableForDir.mockResolvedValue([]);
 
       await renderPlanChips('session-1');
@@ -172,6 +179,7 @@ describe('Plan Chips', () => {
 
     it('renders startable plan chips with blue border class', async () => {
       mockPlanDoingForSession.mockResolvedValue([]);
+      mockPlanGetAllDoingForDir.mockResolvedValue([]);
       mockPlanStartableForDir.mockResolvedValue([
         { id: 'p2', title: 'Add feature', status: 'startable' },
       ]);
@@ -188,6 +196,9 @@ describe('Plan Chips', () => {
       mockPlanDoingForSession.mockResolvedValue([
         { id: 'p3', title: longTitle, status: 'doing' },
       ]);
+      mockPlanGetAllDoingForDir.mockResolvedValue([
+        { id: 'p3', title: longTitle, status: 'doing', sessionId: 'session-1' },
+      ]);
 
       await renderPlanChips('session-1');
 
@@ -198,6 +209,7 @@ describe('Plan Chips', () => {
 
     it('clicking a startable chip opens the editor instead of directly applying', async () => {
       mockPlanDoingForSession.mockResolvedValue([]);
+      mockPlanGetAllDoingForDir.mockResolvedValue([]);
       mockPlanStartableForDir.mockResolvedValue([
         { id: 'p4', title: 'New task', status: 'startable' },
       ]);
@@ -233,6 +245,9 @@ describe('Plan Chips', () => {
       mockPlanDoingForSession.mockResolvedValue([
         { id: 'p5', title: 'Done task', status: 'doing' },
       ]);
+      mockPlanGetAllDoingForDir.mockResolvedValue([
+        { id: 'p5', title: 'Done task', status: 'doing', sessionId: 'session-1' },
+      ]);
       mockPlanStartableForDir.mockResolvedValue([]);
 
       await renderPlanChips('session-1');
@@ -267,11 +282,15 @@ describe('Plan Chips', () => {
       mockPlanDoingForSession.mockResolvedValue([
         { id: 'p6', title: 'Task', status: 'doing' },
       ]);
+      mockPlanGetAllDoingForDir.mockResolvedValue([
+        { id: 'p6', title: 'Task', status: 'doing', sessionId: 'session-1' },
+      ]);
       await renderPlanChips('session-1');
       expect(document.querySelectorAll('.plan-chip').length).toBe(1);
 
       // Then render with no plans
       mockPlanDoingForSession.mockResolvedValue([]);
+      mockPlanGetAllDoingForDir.mockResolvedValue([]);
       mockPlanStartableForDir.mockResolvedValue([]);
       await renderPlanChips('session-1');
       expect(document.querySelectorAll('.plan-chip').length).toBe(0);
@@ -282,6 +301,10 @@ describe('Plan Chips', () => {
         { id: 'p7', title: 'Task 1', status: 'doing' },
         { id: 'p8', title: 'Task 2', status: 'doing' },
       ]);
+      mockPlanGetAllDoingForDir.mockResolvedValue([
+        { id: 'p7', title: 'Task 1', status: 'doing', sessionId: 'session-1' },
+        { id: 'p8', title: 'Task 2', status: 'blocked', sessionId: 'session-1' },
+      ]);
       mockPlanStartableForDir.mockResolvedValue([
         { id: 'p9', title: 'Task 3', status: 'startable' },
       ]);
@@ -290,6 +313,31 @@ describe('Plan Chips', () => {
 
       expect(mockSetPlanDoingCountCache).toHaveBeenCalledWith('session-1', 2);
       expect(mockSetPlanStartableCountCache).toHaveBeenCalledWith('session-1', 1);
+    });
+
+    it('shows active plans from other sessions in the same directory', async () => {
+      mockPlanGetAllDoingForDir.mockResolvedValue([
+        { id: 'shared-1', title: 'Cross-session plan', status: 'doing', sessionId: 'session-2' },
+      ]);
+      mockPlanStartableForDir.mockResolvedValue([]);
+
+      await renderPlanChips('session-1');
+
+      const chips = document.querySelectorAll('.plan-chip--doing');
+      expect(chips).toHaveLength(1);
+      expect(chips[0].textContent).toContain('Cross-session plan');
+    });
+
+    it('renders blocked and question chips with dedicated classes', async () => {
+      mockPlanGetAllDoingForDir.mockResolvedValue([
+        { id: 'blocked-1', title: 'Waiting on API', status: 'blocked', sessionId: 'session-1' },
+        { id: 'question-1', title: 'Need answer', status: 'question', sessionId: 'session-2' },
+      ]);
+
+      await renderPlanChips('session-1');
+
+      expect(document.querySelectorAll('.plan-chip--blocked')).toHaveLength(1);
+      expect(document.querySelectorAll('.plan-chip--question')).toHaveLength(1);
     });
   });
 });

@@ -210,7 +210,12 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     }
   });
 
-  ipcMain.handle('config:setSessionGroupPrefs', (_event, prefs: { order: string[]; collapsed: string[]; bookmarked?: string[] }) => {
+  ipcMain.handle('config:setSessionGroupPrefs', (_event, prefs: {
+    order: string[];
+    collapsed: string[];
+    bookmarked?: string[];
+    overviewHidden?: string[];
+  }) => {
     try {
       configLoader.setSessionGroupPrefs(prefs);
       return { success: true };

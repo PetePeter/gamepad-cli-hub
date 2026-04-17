@@ -18,6 +18,7 @@ const mockSetPendingContextText = vi.fn();
 const mockSpawnNewSession = vi.fn();
 const mockGetTerminalManager = vi.fn();
 const mockShowQuickSpawn = vi.fn();
+const mockShowEditorPopup = vi.fn();
 
 vi.mock('../renderer/utils.js', () => {
   const dirMap: Record<string, string> = {
@@ -50,6 +51,10 @@ vi.mock('../renderer/screens/sessions.js', () => ({
 
 vi.mock('../renderer/modals/quick-spawn.js', () => ({
   showQuickSpawn: mockShowQuickSpawn,
+}));
+
+vi.mock('../renderer/editor/editor-popup.js', () => ({
+  showEditorPopup: mockShowEditorPopup,
 }));
 
 const mockShowSequencePicker = vi.fn();
@@ -142,8 +147,9 @@ describe('Context Menu', () => {
     // gamepadCli mock
     (window as any).gamepadCli = {
       ptyWrite: vi.fn(),
-      editorOpenExternal: vi.fn().mockResolvedValue({ success: true, text: 'editor text' }),
     };
+    mockShowEditorPopup.mockReset();
+    mockShowEditorPopup.mockResolvedValue('editor text');
 
     // Default mocks — no selection
     mockView = makeMockView();
@@ -350,7 +356,7 @@ describe('Context Menu', () => {
       expect((window as any).gamepadCli.ptyWrite).toHaveBeenCalledWith('session-1', 'clipboard text');
     });
 
-    it('Editor opens external editor and writes result to PTY', async () => {
+    it('Editor opens in-app editor and writes result to PTY', async () => {
       state.activeSessionId = 'sess-1';
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       // Navigate to Editor (index 2): Paste(1) → Editor(2)
@@ -360,31 +366,31 @@ describe('Context Menu', () => {
       mod.handleContextMenuButton('A');
       await flush();
 
-      expect((window as any).gamepadCli.editorOpenExternal).toHaveBeenCalled();
+      expect(mockShowEditorPopup).toHaveBeenCalled();
       expect((window as any).gamepadCli.ptyWrite).toHaveBeenCalledWith('sess-1', 'editor text');
       expect(mod.contextMenuState.visible).toBe(false);
     });
 
     it('Editor does not write to PTY when result is empty', async () => {
       state.activeSessionId = 'sess-1';
-      (window as any).gamepadCli.editorOpenExternal.mockResolvedValueOnce({ success: true, text: '' });
+      mockShowEditorPopup.mockResolvedValueOnce('');
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       mod.handleContextMenuButton('DPadDown');
       mod.handleContextMenuButton('A');
       await flush();
 
-      expect((window as any).gamepadCli.editorOpenExternal).toHaveBeenCalled();
+      expect(mockShowEditorPopup).toHaveBeenCalled();
       expect((window as any).gamepadCli.ptyWrite).not.toHaveBeenCalled();
     });
 
-    it('Editor does not call editorOpenExternal when no active session', async () => {
+    it('Editor does not open when no active session', async () => {
       state.activeSessionId = null;
       mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
       mod.contextMenuState.selectedIndex = 2;
       mod.handleContextMenuButton('A');
       await flush();
 
-      expect((window as any).gamepadCli.editorOpenExternal).not.toHaveBeenCalled();
+      expect(mockShowEditorPopup).not.toHaveBeenCalled();
     });
 
     it('New Session opens quick-spawn picker', async () => {

@@ -4,18 +4,37 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:">
-  <title>Gamepad CLI Hub</title>
+  <title>Helm - steer your fleet of agents</title>
   <link rel="stylesheet" href="styles/main.css">
   <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css">
 </head>
 <body>
+  <div id="splashScreen" class="splash-screen" role="status" aria-live="polite">
+    <div class="splash-screen__card">
+      <img
+        class="splash-screen__logo"
+        src="assets/helm-paper-boat.svg"
+        alt="Helm paper boat logo"
+        width="112"
+        height="112"
+      >
+      <p class="splash-screen__eyebrow">Launching Helm</p>
+      <h1 class="splash-screen__title">Helm</h1>
+      <p class="splash-screen__tagline">Helm - steer your fleet of agents</p>
+    </div>
+  </div>
   <div id="app" class="sidebar app-layout">
     <!-- Left panel: sessions/settings/controls -->
     <div class="panel-left" id="panelLeft">
       <!-- Custom Titlebar -->
       <header class="sidebar-header">
-        <span class="sidebar-logo">🎮</span>
-        <span class="sidebar-title">Gamepad Hub</span>
+        <span class="sidebar-logo">
+          <img src="assets/helm-paper-boat.svg" alt="Helm logo" width="28" height="28">
+        </span>
+        <span class="sidebar-brand">
+          <span class="sidebar-title">Helm</span>
+          <span class="sidebar-tagline">Helm - steer your fleet of agents</span>
+        </span>
         <div class="sidebar-actions">
           <button class="sidebar-btn" id="openLogsBtn" title="Open Logs Folder">🐛</button>
           <button class="sidebar-btn" id="settingsBtn" title="Settings">⚙</button>
@@ -142,6 +161,20 @@
         <div class="modal-footer">
           <button class="btn btn--secondary" id="closeConfirmCancelBtn">Cancel (B)</button>
           <button class="btn btn--danger" id="closeConfirmCloseBtn">Close (A)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Plan Delete Confirmation Modal -->
+    <div class="modal-overlay" id="planDeleteConfirmOverlay" aria-hidden="true" role="dialog" aria-label="Delete plan confirmation">
+      <div class="modal close-confirm-modal">
+        <div class="modal-header">
+          <h3 class="modal-title">Delete Plan Item</h3>
+        </div>
+        <div class="close-confirm-body" id="planDeleteConfirmBody">Delete this plan item?</div>
+        <div class="modal-footer">
+          <button class="btn btn--secondary" id="planDeleteConfirmCancelBtn">Cancel (B)</button>
+          <button class="btn btn--danger" id="planDeleteConfirmDeleteBtn">Delete (A)</button>
         </div>
       </div>
     </div>

@@ -1,12 +1,20 @@
+import type { BrowserWindow } from 'electron';
 import { ipcMain } from 'electron';
 import type { PlanManager } from '../../session/plan-manager.js';
 import { savePlans } from '../../session/persistence.js';
 import { logger } from '../../utils/logger.js';
 
-export function setupPlanHandlers(planManager: PlanManager): void {
+export function setupPlanHandlers(
+  planManager: PlanManager,
+  getMainWindow?: () => BrowserWindow | null,
+): void {
   // Auto-save on any change
-  planManager.on('plan:changed', () => {
+  planManager.on('plan:changed', (dirPath: string) => {
     savePlans(planManager.exportAll());
+    const win = getMainWindow?.();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('plan:changed', dirPath);
+    }
   });
 
   ipcMain.handle('plan:list', (_event, dirPath: string) => {
@@ -41,12 +49,23 @@ export function setupPlanHandlers(planManager: PlanManager): void {
     return planManager.completeItem(id);
   });
 
+  ipcMain.handle(
+    'plan:setState',
+    (_event, id: string, status: 'pending' | 'startable' | 'doing' | 'blocked' | 'question', stateInfo?: string, sessionId?: string) => {
+      return planManager.setState(id, status, stateInfo, sessionId);
+    },
+  );
+
   ipcMain.handle('plan:startableForDir', (_event, dirPath: string) => {
     return planManager.getStartableForDirectory(dirPath);
   });
 
   ipcMain.handle('plan:doingForSession', (_event, sessionId: string) => {
     return planManager.getDoingForSession(sessionId);
+  });
+
+  ipcMain.handle('plan:getAllDoingForDir', (_event, dirPath: string) => {
+    return planManager.getAllDoingForDirectory(dirPath);
   });
 
   ipcMain.handle('plan:deps', (_event, dirPath: string) => {

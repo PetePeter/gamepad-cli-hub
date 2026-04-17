@@ -9,6 +9,7 @@ import { state } from '../state.js';
 import { renderPlanChips } from '../plans/plan-chips.js';
 
 const MAX_LABEL_LENGTH = 20;
+let renderGeneration = 0;
 
 /** Initialize the draft strip — creates the DOM container once. Called at app startup. */
 export function initDraftStrip(): void {
@@ -33,8 +34,10 @@ export function initDraftStrip(): void {
 export async function refreshDraftStrip(sessionId: string | null): Promise<void> {
   const strip = document.getElementById('draftStrip');
   if (!strip) return;
+  const thisGeneration = ++renderGeneration;
 
   if (!sessionId) {
+    strip.replaceChildren();
     strip.style.display = 'none';
     return;
   }
@@ -45,6 +48,7 @@ export async function refreshDraftStrip(sessionId: string | null): Promise<void>
   } catch {
     drafts = [];
   }
+  if (thisGeneration !== renderGeneration) return;
 
   // Update the draft count cache for session card badges
   setDraftCountCache(sessionId, drafts.length);
@@ -86,9 +90,19 @@ export async function refreshDraftStrip(sessionId: string | null): Promise<void>
 
   // Render plan chips after draft pills
   await renderPlanChips(sessionId);
+  if (thisGeneration !== renderGeneration) return;
 
   // Show strip if it has any children, hide if empty
   strip.style.display = strip.children.length > 0 ? 'flex' : 'none';
+}
+
+/** Hide the strip and cancel any in-flight refresh so session switches stay clean. */
+export function dismissDraftStrip(): void {
+  const strip = document.getElementById('draftStrip');
+  renderGeneration++;
+  if (!strip) return;
+  strip.replaceChildren();
+  strip.style.display = 'none';
 }
 
 /** Render draft count badge on a session card. Returns the badge element or null. */

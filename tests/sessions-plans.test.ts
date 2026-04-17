@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const mockConfigGetWorkingDirs = vi.fn<() => Promise<any[]>>().mockResolvedValue([]);
 const mockPlanStartableForDir = vi.fn<(dir: string) => Promise<any[]>>().mockResolvedValue([]);
 const mockPlanList = vi.fn<(dir: string) => Promise<any[]>>().mockResolvedValue([]);
+let planChangedHandler: ((dirPath: string) => void) | null = null;
 const mockShowPlanScreen = vi.fn();
 
 const mockLogEvent = vi.fn();
@@ -128,11 +129,16 @@ describe('Sessions Plans Grid', () => {
       configSetSortPrefs: vi.fn().mockResolvedValue(undefined),
       planStartableForDir: mockPlanStartableForDir,
       planList: mockPlanList,
+      onPlanChanged: vi.fn((callback: (dirPath: string) => void) => {
+        planChangedHandler = callback;
+        return vi.fn();
+      }),
     };
 
     mockConfigGetWorkingDirs.mockResolvedValue(testDirs);
     mockPlanStartableForDir.mockResolvedValue([]);
     mockPlanList.mockResolvedValue([]);
+    planChangedHandler = null;
 
     sessionsState = await getSessionsState();
     plans = await getPlans();
@@ -178,18 +184,18 @@ describe('Sessions Plans Grid', () => {
   // ==========================================================================
 
   describe('renderPlansGrid', () => {
-    it('creates buttons for each configured working directory', async () => {
+    it('creates buttons for each configured working directory', () => {
+      sessionsState.directories = testDirs;
       plans.renderPlansGrid();
-      await flush();
 
       const grid = document.getElementById('plansGrid')!;
       const btns = grid.querySelectorAll('.plans-grid-btn');
       expect(btns.length).toBe(4);
     });
 
-    it('buttons have correct data-dir attributes', async () => {
+    it('buttons have correct data-dir attributes', () => {
+      sessionsState.directories = testDirs;
       plans.renderPlansGrid();
-      await flush();
 
       const grid = document.getElementById('plansGrid')!;
       const btns = grid.querySelectorAll('.plans-grid-btn');
@@ -199,9 +205,9 @@ describe('Sessions Plans Grid', () => {
       expect((btns[3] as HTMLElement).dataset.dir).toBe('/projects/d');
     });
 
-    it('shows folder names in button labels', async () => {
+    it('shows folder names in button labels', () => {
+      sessionsState.directories = testDirs;
       plans.renderPlansGrid();
-      await flush();
 
       const grid = document.getElementById('plansGrid')!;
       const labels = grid.querySelectorAll('.spawn-label');
@@ -209,23 +215,46 @@ describe('Sessions Plans Grid', () => {
       expect(labels[1].textContent).toBe('project-b');
     });
 
-    it('renders empty grid when no directories configured', async () => {
-      mockConfigGetWorkingDirs.mockResolvedValue([]);
+    it('renders empty grid when no directories configured', () => {
+      sessionsState.directories = [];
       plans.renderPlansGrid();
-      await flush();
 
       const grid = document.getElementById('plansGrid')!;
       const btns = grid.querySelectorAll('.plans-grid-btn');
       expect(btns.length).toBe(0);
     });
 
-    it('buttons have spawn-btn class for shared styling', async () => {
+    it('buttons have spawn-btn class for shared styling', () => {
+      sessionsState.directories = testDirs;
       plans.renderPlansGrid();
-      await flush();
 
       const grid = document.getElementById('plansGrid')!;
       const btns = grid.querySelectorAll('.spawn-btn.plans-grid-btn');
       expect(btns.length).toBe(4);
+    });
+
+    it('renders synchronously without calling configGetWorkingDirs', () => {
+      sessionsState.directories = testDirs;
+      plans.renderPlansGrid();
+
+      // renderPlansGrid should NOT trigger an async fetch — it reads from state
+      expect(mockConfigGetWorkingDirs).not.toHaveBeenCalled();
+
+      const grid = document.getElementById('plansGrid')!;
+      const btns = grid.querySelectorAll('.plans-grid-btn');
+      expect(btns.length).toBe(4);
+    });
+
+    it('repeated renders do not blank the grid between frames', () => {
+      sessionsState.directories = testDirs;
+      plans.renderPlansGrid();
+
+      const grid = document.getElementById('plansGrid')!;
+      expect(grid.querySelectorAll('.plans-grid-btn').length).toBe(4);
+
+      // Second render should also produce 4 buttons synchronously
+      plans.renderPlansGrid();
+      expect(grid.querySelectorAll('.plans-grid-btn').length).toBe(4);
     });
   });
 
@@ -242,8 +271,8 @@ describe('Sessions Plans Grid', () => {
         { id: '3', status: 'doing' },
       ]);
 
+      sessionsState.directories = testDirs;
       plans.renderPlansGrid();
-      await flush();
       await plans.refreshPlanBadges();
 
       const grid = document.getElementById('plansGrid')!;
@@ -259,8 +288,8 @@ describe('Sessions Plans Grid', () => {
       mockPlanStartableForDir.mockResolvedValue([]);
       mockPlanList.mockResolvedValue([]);
 
+      sessionsState.directories = testDirs;
       plans.renderPlansGrid();
-      await flush();
       await plans.refreshPlanBadges();
 
       const grid = document.getElementById('plansGrid')!;
@@ -271,6 +300,23 @@ describe('Sessions Plans Grid', () => {
       expect(startableBadge.textContent).toBe('');
       expect(doingBadge.textContent).toBe('');
     });
+
+    it('refreshes when a plan:changed event fires via sessions listener', async () => {
+      mockPlanStartableForDir.mockResolvedValue([{ id: '1' }]);
+      mockPlanList.mockResolvedValue([{ id: '1', status: 'doing' }]);
+
+      // loadSessions sets up the single plan-changed listener in sessions.ts
+      await sessions.loadSessions();
+      await flush();
+      mockPlanStartableForDir.mockClear();
+      mockPlanList.mockClear();
+
+      planChangedHandler?.('/projects/a');
+      await flush();
+
+      expect(mockPlanStartableForDir).toHaveBeenCalledWith('/projects/a');
+      expect(mockPlanList).toHaveBeenCalledWith('/projects/a');
+    });
   });
 
   // ==========================================================================
@@ -278,9 +324,9 @@ describe('Sessions Plans Grid', () => {
   // ==========================================================================
 
   describe('handlePlansZone', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
+      sessionsState.directories = testDirs;
       plans.renderPlansGrid();
-      await flush();
       sessionsState.activeFocus = 'plans';
       sessionsState.plansFocusIndex = 0;
     });
@@ -341,9 +387,9 @@ describe('Sessions Plans Grid', () => {
   // ==========================================================================
 
   describe('handlePlansZoneButton', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
+      sessionsState.directories = testDirs;
       plans.renderPlansGrid();
-      await flush();
       sessionsState.activeFocus = 'plans';
       sessionsState.plansFocusIndex = 0;
     });
@@ -373,9 +419,9 @@ describe('Sessions Plans Grid', () => {
   // ==========================================================================
 
   describe('updatePlansFocus', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
+      sessionsState.directories = testDirs;
       plans.renderPlansGrid();
-      await flush();
     });
 
     it('highlights correct button when plans zone is active', () => {
@@ -421,6 +467,34 @@ describe('Sessions Plans Grid', () => {
       sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.activeFocus).toBe('plans');
       expect(sessionsState.plansFocusIndex).toBe(0);
+    });
+  });
+
+  // ==========================================================================
+  // Listener deduplication — plan:changed is only registered in sessions.ts
+  // ==========================================================================
+
+  describe('plan-change listener ownership', () => {
+    it('renderPlansGrid does not register its own onPlanChanged listener', () => {
+      const onPlanChanged = (window as any).gamepadCli.onPlanChanged;
+      onPlanChanged.mockClear();
+
+      sessionsState.directories = testDirs;
+      plans.renderPlansGrid();
+
+      // renderPlansGrid should NOT call onPlanChanged — that is sessions.ts's job
+      expect(onPlanChanged).not.toHaveBeenCalled();
+    });
+
+    it('loadSessions registers exactly one onPlanChanged listener per call', async () => {
+      const onPlanChanged = (window as any).gamepadCli.onPlanChanged;
+      onPlanChanged.mockClear();
+
+      await sessions.loadSessions();
+      await flush();
+
+      // sessions.ts ensurePlanChangedListener registers exactly one
+      expect(onPlanChanged).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -10,7 +10,7 @@ export interface SessionsScreenState {
   activeFocus: SessionsFocus;
   sessionsFocusIndex: number;
   spawnFocusIndex: number;
-  cardColumn: 0 | 1 | 2 | 3;
+  cardColumn: 0 | 1 | 2 | 3 | 4;
   cliTypes: string[];
   directories: Array<{ name: string; path: string }>;
   editingSessionId: string | null;
@@ -22,6 +22,8 @@ export interface SessionsScreenState {
   groupPrefs: SessionGroupPrefs;
   /** Directory path of the group currently shown in overview (null = hidden). */
   overviewGroup: string | null;
+  /** True when the current overview shows visible sessions across all folders. */
+  overviewIsGlobal: boolean;
   /** Focused card index within the overview grid. */
   overviewFocusIndex: number;
   /** Focused button index within the plans grid. */
@@ -38,8 +40,9 @@ export const sessionsState: SessionsScreenState = {
   editingSessionId: null,
   navList: [],
   groups: [],
-  groupPrefs: { order: [], collapsed: [] },
+  groupPrefs: { order: [], collapsed: [], overviewHidden: [] },
   overviewGroup: null,
+  overviewIsGlobal: false,
   overviewFocusIndex: 0,
   plansFocusIndex: 0,
 };

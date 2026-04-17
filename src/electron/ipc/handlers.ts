@@ -25,6 +25,7 @@ import { initTelegramModules } from '../../telegram/orchestrator.js';
 
 import { setupSessionHandlers } from './session-handlers.js';
 import { setupConfigHandlers } from './config-handlers.js';
+import { setupEditorHandlers } from './editor-handlers.js';
 import { setupProfileHandlers } from './profile-handlers.js';
 import { setupToolsHandlers } from './tools-handlers.js';
 import { setupKeyboardHandlers } from './keyboard-handlers.js';
@@ -87,12 +88,13 @@ export function registerIPCHandlers(
 
   const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager);
   setupConfigHandlers(configLoader);
+  setupEditorHandlers(configLoader);
   setupProfileHandlers(configLoader);
   setupToolsHandlers(configLoader);
   setupKeyboardHandlers(keyboard);
   setupSystemHandlers();
   setupDraftHandlers(draftManager);
-  setupPlanHandlers(planManager);
+  setupPlanHandlers(planManager, getMainWindow);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader, notificationManager, telegramModules.feedPtyOutput, telegramModules.handleActivityChange, telegramModules.trackInput);
 
   // Wire events ONCE (no-ops when bot not running — notifier checks isRunning)

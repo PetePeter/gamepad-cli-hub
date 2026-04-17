@@ -6,7 +6,10 @@
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { logger } from '../utils/logger.js';
-import type { PlanItem, PlanDependency, DirectoryPlan } from '../types/plan.js';
+import type { PlanItem, PlanDependency, DirectoryPlan, PlanStatus } from '../types/plan.js';
+
+const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['doing', 'blocked', 'question']);
+const PAUSED_PLAN_STATUSES = new Set<PlanStatus>(['blocked', 'question']);
 
 export class PlanManager extends EventEmitter {
   private items = new Map<string, PlanItem>();
@@ -75,7 +78,12 @@ export class PlanManager extends EventEmitter {
 
   /** Get items currently being worked on by a specific session. */
   getDoingForSession(sessionId: string): PlanItem[] {
-    return [...this.items.values()].filter(i => i.status === 'doing' && i.sessionId === sessionId);
+    return [...this.items.values()].filter(i => ACTIVE_PLAN_STATUSES.has(i.status) && i.sessionId === sessionId);
+  }
+
+  /** Get all active plan items for a directory across every session. */
+  getAllDoingForDirectory(dirPath: string): PlanItem[] {
+    return this.getForDirectory(dirPath).filter(i => ACTIVE_PLAN_STATUSES.has(i.status));
   }
 
   /** Add a dependency edge. Returns false if rejected (cycle, self-loop, cross-dir). */
@@ -120,6 +128,7 @@ export class PlanManager extends EventEmitter {
 
     item.status = 'doing';
     item.sessionId = sessionId;
+    item.stateInfo = undefined;
     item.updatedAt = Date.now();
 
     this.emit('plan:changed', item.dirPath);
@@ -133,11 +142,41 @@ export class PlanManager extends EventEmitter {
     if (!item || item.status !== 'doing') return null;
 
     item.status = 'done';
+    item.sessionId = undefined;
+    item.stateInfo = undefined;
     item.updatedAt = Date.now();
 
     this.recomputeStartable(item.dirPath);
     this.emit('plan:changed', item.dirPath);
     logger.info(`[PlanManager] Completed plan ${id}`);
+    return item;
+  }
+
+  /** Manually update a plan item's state outside the normal apply/complete flow. */
+  setState(id: string, status: Exclude<PlanStatus, 'done'>, stateInfo = '', sessionId?: string): PlanItem | null {
+    const item = this.items.get(id);
+    if (!item || !this.canSetState(item, status)) return null;
+
+    if (status === 'doing') {
+      const nextSessionId = sessionId ?? item.sessionId;
+      if (!nextSessionId) return null;
+      item.sessionId = nextSessionId;
+    } else if (status === 'pending' || status === 'startable') {
+      item.sessionId = undefined;
+    } else if (sessionId && !item.sessionId) {
+      item.sessionId = sessionId;
+    }
+
+    item.status = status;
+    item.stateInfo = PAUSED_PLAN_STATUSES.has(status) ? stateInfo.trim() : undefined;
+    item.updatedAt = Date.now();
+
+    if (status === 'pending' || status === 'startable') {
+      this.recomputeStartable(item.dirPath);
+    }
+
+    this.emit('plan:changed', item.dirPath);
+    logger.info(`[PlanManager] Set plan ${id} to ${status}`);
     return item;
   }
 
@@ -210,7 +249,7 @@ export class PlanManager extends EventEmitter {
     const items = this.getForDirectory(dirPath);
 
     for (const item of items) {
-      if (item.status === 'doing' || item.status === 'done') continue;
+      if (item.status === 'doing' || item.status === 'done' || PAUSED_PLAN_STATUSES.has(item.status)) continue;
 
       const blockers = this.dependencies
         .filter(d => d.toId === item.id)
@@ -220,5 +259,13 @@ export class PlanManager extends EventEmitter {
       const allDone = blockers.length === 0 || blockers.every(b => b!.status === 'done');
       item.status = allDone ? 'startable' : 'pending';
     }
+  }
+
+  private canSetState(item: PlanItem, next: Exclude<PlanStatus, 'done'>): boolean {
+    if (item.status === 'done') return false;
+    if (next === 'doing') {
+      return item.status === 'doing' || item.status === 'startable' || PAUSED_PLAN_STATUSES.has(item.status);
+    }
+    return true;
   }
 }

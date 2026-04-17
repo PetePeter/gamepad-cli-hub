@@ -14,9 +14,12 @@ import { sortSessions, type SessionSortField, type SortDirection } from '../sort
 import {
   groupSessionsByDirectory, buildFlatNavList,
   moveGroupUp, moveGroupDown, toggleCollapse,
-  findNavIndexBySessionId,
+  findNavIndexBySessionId, getSessionOverviewAliases, getSessionOverviewKey,
 } from '../session-groups.js';
 import { getActivityColor } from '../state-colors.js';
+import {
+  getOverviewSessions, handleOverviewInput, hideOverview, isOverviewVisible, refreshOverview, showOverview,
+} from './group-overview.js';
 
 // Sub-module imports — circular at module level, safe because all usages are in function bodies.
 import {
@@ -36,7 +39,7 @@ import {
 } from './sessions-spawn.js';
 
 import {
-  handlePlansZone, handlePlansZoneButton, renderPlansGrid, updatePlansFocus,
+  handlePlansZone, handlePlansZoneButton, renderPlansGrid, updatePlansFocus, refreshPlanBadges,
 } from './sessions-plans.js';
 
 // Re-export public API from sub-modules so all consumers import from sessions.ts only.
@@ -101,12 +104,15 @@ export function setLastOutputTime(sessionId: string, timestamp: number): void {
 }
 
 const ACTIVITY_DEBOUNCE_MS = 300;
+let removePlanChangedListener: (() => void) | null = null;
 
 export function getSessionState(sessionId: string): string {
   return sessionStates.get(sessionId) || 'idle';
 }
 
 export function setSessionState(sessionId: string, newState: string): void {
+  const previous = sessionStates.get(sessionId);
+  if (previous === newState) return;
   sessionStates.set(sessionId, newState);
   loadSessions();
 }
@@ -226,12 +232,21 @@ async function initSessionGroupPrefs(): Promise<void> {
     if (!window.gamepadCli) return;
     const prefs = await window.gamepadCli.configGetSessionGroupPrefs();
     if (prefs) {
-      sessionsState.groupPrefs = prefs;
+      sessionsState.groupPrefs = normalizeGroupPrefs(prefs);
     }
   } catch (e) {
     console.error('[Sessions] Failed to load group prefs:', e);
   }
   groupPrefsLoaded = true;
+}
+
+function normalizeGroupPrefs(prefs: Partial<typeof sessionsState.groupPrefs>): typeof sessionsState.groupPrefs {
+  return {
+    order: prefs.order ?? [],
+    collapsed: prefs.collapsed ?? [],
+    bookmarked: prefs.bookmarked ?? [],
+    overviewHidden: prefs.overviewHidden ?? [],
+  };
 }
 
 /** Ensure order array contains all current dir paths (appends missing ones). */
@@ -247,6 +262,37 @@ async function saveGroupPrefs(): Promise<void> {
   } catch (e) {
     console.error('[Sessions] Failed to save group prefs:', e);
   }
+}
+
+export async function toggleSessionOverviewVisibility(sessionId: string): Promise<void> {
+  const session = state.sessions.find(item => item.id === sessionId);
+  if (!session) return;
+
+  const hidden = new Set(sessionsState.groupPrefs.overviewHidden ?? []);
+  const aliases = getSessionOverviewAliases(session);
+  const hiddenFromOverview = aliases.some(key => hidden.has(key));
+
+  aliases.forEach(key => hidden.delete(key));
+  if (!hiddenFromOverview) {
+    hidden.add(getSessionOverviewKey(session));
+  }
+
+  sessionsState.groupPrefs = {
+    ...sessionsState.groupPrefs,
+    overviewHidden: [...hidden],
+  };
+  await saveGroupPrefs();
+  renderSessions();
+  if (isOverviewVisible()) {
+    const count = getOverviewSessions().length;
+    if (count === 0) {
+      hideOverview();
+    } else {
+      sessionsState.overviewFocusIndex = clamp(sessionsState.overviewFocusIndex, 0, count - 1);
+      refreshOverview();
+    }
+  }
+  updateSessionsFocus();
 }
 
 export async function toggleGroupCollapse(dirPath: string): Promise<void> {
@@ -314,11 +360,51 @@ function startRenameForFocused(): void {
   startRename(session.id);
 }
 
+function getDirPathForSession(sessionId: string): string | null {
+  const cwd = getSessionCwd(sessionId);
+  if (cwd) return cwd;
+  return state.sessions.find(session => session.id === sessionId)?.workingDir ?? null;
+}
+
+function getFocusedGroupDirPath(): string | null {
+  const navItem = sessionsState.navList[sessionsState.sessionsFocusIndex];
+  if (navItem?.type === 'group-header') return navItem.id;
+  if (navItem?.type === 'session-card') {
+    return getDirPathForSession(navItem.id) ?? sessionsState.groups[navItem.groupIndex]?.dirPath ?? null;
+  }
+  if (sessionsState.activeFocus === 'plans') {
+    return sessionsState.directories[sessionsState.plansFocusIndex]?.path ?? null;
+  }
+  return null;
+}
+
+function resolvePlanShortcutDirPath(preferredSessionId?: string): string | null {
+  if (preferredSessionId) return getDirPathForSession(preferredSessionId);
+  return getFocusedGroupDirPath()
+    ?? (state.activeSessionId ? getDirPathForSession(state.activeSessionId) : null)
+    ?? sessionsState.groups[0]?.dirPath
+    ?? sessionsState.directories[0]?.path
+    ?? null;
+}
+
+export async function triggerNewPlanShortcut(preferredSessionId?: string): Promise<void> {
+  const dirPath = resolvePlanShortcutDirPath(preferredSessionId);
+  if (!dirPath || !window.gamepadCli?.planCreate) return;
+  try {
+    await window.gamepadCli.planCreate(dirPath, 'New Plan', '');
+    await loadSessions();
+    void refreshPlanBadges();
+  } catch (err) {
+    console.error('[Sessions] Ctrl+N plan create failed:', err);
+  }
+}
+
 // ============================================================================
 // Public API
 // ============================================================================
 
 export async function loadSessions(): Promise<void> {
+  ensurePlanChangedListener();
   await initSessionGroupPrefs();
   await loadSessionsData();
   await initSessionsSortControl();
@@ -328,7 +414,30 @@ export async function loadSessions(): Promise<void> {
   updateStatusCounts();
 }
 
+function ensurePlanChangedListener(): void {
+  if (removePlanChangedListener) {
+    removePlanChangedListener();
+    removePlanChangedListener = null;
+  }
+  if (!window.gamepadCli?.onPlanChanged) return;
+  removePlanChangedListener = window.gamepadCli.onPlanChanged((dirPath: string) => {
+    renderSessions();
+    void refreshPlanBadges();
+
+    const activeSessionId = state.activeSessionId;
+    if (!activeSessionId || getSessionCwd(activeSessionId) !== dirPath) return;
+
+    import('../plans/plan-chips.js')
+      .then(({ renderPlanChips }) => renderPlanChips(activeSessionId))
+      .catch(err => console.error('[Sessions] Failed to refresh plan chips:', err));
+  });
+}
+
 export function handleSessionsScreenButton(button: string): boolean {
+  if (isOverviewVisible()) {
+    return handleOverviewInput(button);
+  }
+
   // State dropdown intercepts all input when open
   const dropdown = document.querySelector('.session-state-dropdown');
   if (dropdown) {
@@ -381,6 +490,7 @@ export function handleSessionsScreenButton(button: string): boolean {
 }
 
 export function updateSessionHighlight(): void {
+  sessionsState.cardColumn = 0;
   renderSessions();
   updateSessionsFocus();
 }
@@ -390,6 +500,7 @@ export function syncSessionHighlight(sessionId: string): void {
   const idx = findNavIndexBySessionId(sessionsState.navList, sessionId);
   if (idx >= 0) {
     sessionsState.sessionsFocusIndex = idx;
+    sessionsState.cardColumn = 0;
     state.activeSessionId = sessionId;
     renderSessions();
     updateSessionsFocus();
@@ -422,10 +533,18 @@ export async function loadSessionsData(): Promise<void> {
 
   // Only show embedded terminal sessions — no external window sessions
   state.sessions = [];
+  let persistedSessions: Array<{ id: string; cliSessionName?: string }> = [];
+  try {
+    persistedSessions = (await window.gamepadCli.sessionGetAll()) || [];
+  } catch (e) {
+    console.error('[Sessions] Failed to load persisted sessions:', e);
+  }
+  const persistedById = new Map(persistedSessions.map(session => [session.id, session]));
   const tm = getTerminalManager();
   if (tm) {
     for (const id of tm.getSessionIds()) {
       const session = tm.getSession(id);
+      const persisted = persistedById.get(id);
       const cliType = session?.cliType || 'unknown';
       state.sessions.push({
         id,
@@ -434,6 +553,7 @@ export async function loadSessionsData(): Promise<void> {
         processId: 0,
         workingDir: session?.cwd || '',
         title: session?.title,
+        cliSessionName: persisted?.cliSessionName,
       } as Session);
     }
   }
@@ -539,6 +659,10 @@ function handleSessionsZoneButton(button: string): boolean {
   if (!navItem) return false;
 
   if (button === 'A') {
+    if (navItem.type === 'overview-button') {
+      showOverview(null, state.activeSessionId ?? undefined);
+      return true;
+    }
     if (navItem.type === 'group-header') {
       if (sessionsState.cardColumn === 0) {
         toggleGroupCollapse(navItem.id);
@@ -570,6 +694,10 @@ function handleSessionsZoneButton(button: string): boolean {
       return true;
     }
     if (sessionsState.cardColumn === 3) {
+      toggleSessionOverviewVisibility(navItem.id);
+      return true;
+    }
+    if (sessionsState.cardColumn === 4) {
       confirmCloseSession();
       return true;
     }
@@ -578,7 +706,7 @@ function handleSessionsZoneButton(button: string): boolean {
   }
   if (button === 'B') {
     if (sessionsState.cardColumn > 0) {
-      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2 | 3;
+      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2 | 3 | 4;
       updateSessionsFocus();
       return true;
     }
@@ -612,10 +740,12 @@ export function updateSessionsFocus(): void {
     if (el.classList.contains('session-card')) {
       const stateBtn = el.querySelector('.session-state-btn');
       const renameBtn = el.querySelector('.session-rename');
+      const eyeBtn = el.querySelector('.session-overview-toggle');
       const closeBtn = el.querySelector('.session-close');
       if (stateBtn) stateBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 1);
       if (renameBtn) renameBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 2);
-      if (closeBtn) closeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 3);
+      if (eyeBtn) eyeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 3);
+      if (closeBtn) closeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 4);
     } else if (el.classList.contains('group-header')) {
       const moveUpBtn = el.querySelector('.group-move-up');
       const moveDownBtn = el.querySelector('.group-move-down');
@@ -680,8 +810,20 @@ function refreshSessions(): void {
 function onKeyDown(e: KeyboardEvent): void {
   if (state.currentScreen !== 'sessions') return;
 
-  // Don't intercept keyboard when xterm.js or an editable element has DOM focus
   const active = document.activeElement;
+
+  if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
+    if (document.querySelector('.modal-overlay.modal--visible')) return;
+    if (document.querySelector('.plan-screen.visible')) return;
+    const draftEditor = document.getElementById('draftEditor');
+    if (draftEditor && draftEditor.style.display !== 'none') return;
+    e.preventDefault();
+    e.stopPropagation();
+    void triggerNewPlanShortcut();
+    return;
+  }
+
+  // Don't intercept keyboard when xterm.js or an editable element has DOM focus
   if (active && active.closest('.xterm')) return;
   const tag = active?.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;

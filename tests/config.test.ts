@@ -177,6 +177,53 @@ describe('ConfigLoader', () => {
     });
   });
 
+  describe('session group prefs', () => {
+    it('persists overviewHidden to settings.yaml', () => {
+      loader.load();
+
+      loader.setSessionGroupPrefs({
+        order: ['X:\\coding\\project-a'],
+        collapsed: ['X:\\coding\\project-b'],
+        overviewHidden: ['session-1', 'session-2'],
+      });
+
+      const onDisk = readYaml<any>('settings.yaml');
+      expect(onDisk.sessionGroups.overviewHidden).toEqual(['session-1', 'session-2']);
+    });
+
+    it('roundtrips overviewHidden through save and reload', () => {
+      loader.load();
+
+      loader.setSessionGroupPrefs({
+        order: ['X:\\coding\\project-a'],
+        collapsed: [],
+        overviewHidden: ['session-3'],
+      });
+
+      const loader2 = new ConfigLoader(TEST_DIR);
+      loader2.load();
+      expect(loader2.getSessionGroupPrefs()).toEqual({
+        order: ['X:\\coding\\project-a'],
+        collapsed: [],
+        overviewHidden: ['session-3'],
+      });
+    });
+  });
+
+  describe('editor history', () => {
+    it('persists editor history to settings.yaml and reloads it', () => {
+      loader.load();
+      loader.setEditorHistory(['first prompt', 'second prompt']);
+
+      const onDisk = readYaml<any>('settings.yaml');
+      expect(onDisk.editorHistory).toEqual(['first prompt', 'second prompt']);
+
+      const loader2 = new ConfigLoader(TEST_DIR);
+      loader2.load();
+      expect(loader2.getEditorHistory()).toEqual(['first prompt', 'second prompt']);
+    });
+  });
+
   // =========================================================================
   // setBinding (backward compatible)
   // =========================================================================

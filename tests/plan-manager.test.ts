@@ -317,6 +317,65 @@ describe('PlanManager', () => {
       expect(doing).toHaveLength(1);
       expect(doing[0].id).toBe(a.id);
     });
+
+    it('getAllDoingForDirectory returns active plans across sessions', () => {
+      const a = pm.create('/d', 'A', '');
+      const b = pm.create('/d', 'B', '');
+      const c = pm.create('/other', 'C', '');
+      pm.applyItem(a.id, 'session-1');
+      pm.applyItem(b.id, 'session-2');
+      pm.applyItem(c.id, 'session-3');
+
+      const doing = pm.getAllDoingForDirectory('/d');
+      expect(doing).toHaveLength(2);
+      expect(doing.map(item => item.id)).toEqual(expect.arrayContaining([a.id, b.id]));
+    });
+  });
+
+  describe('setState', () => {
+    it('preserves blocked items during recompute', () => {
+      const a = pm.create('/d', 'A', '');
+      const b = pm.create('/d', 'B', '');
+      pm.addDependency(a.id, b.id);
+      pm.applyItem(a.id, 'session-1');
+      pm.setState(a.id, 'blocked', 'Waiting for review');
+      pm.removeDependency(a.id, b.id);
+
+      expect(pm.getItem(a.id)?.status).toBe('blocked');
+      expect(pm.getItem(a.id)?.stateInfo).toBe('Waiting for review');
+    });
+
+    it('preserves question items during recompute', () => {
+      const a = pm.create('/d', 'A', '');
+      const b = pm.create('/d', 'B', '');
+      pm.addDependency(a.id, b.id);
+      pm.applyItem(a.id, 'session-1');
+      pm.setState(a.id, 'question', 'Need product input');
+      pm.removeDependency(a.id, b.id);
+
+      expect(pm.getItem(a.id)?.status).toBe('question');
+      expect(pm.getItem(a.id)?.stateInfo).toBe('Need product input');
+    });
+
+    it('allows blocked to return to doing', () => {
+      const item = pm.create('/d', 'Task', '');
+      pm.applyItem(item.id, 'session-1');
+      pm.setState(item.id, 'blocked', 'Waiting on CI');
+
+      const updated = pm.setState(item.id, 'doing');
+      expect(updated).not.toBeNull();
+      expect(updated?.status).toBe('doing');
+      expect(updated?.sessionId).toBe('session-1');
+      expect(updated?.stateInfo).toBeUndefined();
+    });
+
+    it('rejects done to pending', () => {
+      const item = pm.create('/d', 'Task', '');
+      pm.applyItem(item.id, 'session-1');
+      pm.completeItem(item.id);
+
+      expect(pm.setState(item.id, 'pending')).toBeNull();
+    });
   });
 
   // ─── Events ────────────────────────────────────────────

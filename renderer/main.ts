@@ -22,22 +22,41 @@ import { setupKeyboardRelay } from './paste-handler.js';
 import { initContextMenuClickHandlers } from './modals/context-menu.js';
 import { initSequencePickerClickHandlers } from './modals/sequence-picker.js';
 import { initCloseConfirmClickHandlers } from './modals/close-confirm.js';
+import { initPlanDeleteConfirmClickHandlers } from './modals/plan-delete-confirm.js';
 import { initQuickSpawnClickHandlers, hideQuickSpawn } from './modals/quick-spawn.js';
 import { resolveNextTerminalId } from './tab-cycling.js';
 import { setOutputBuffer, setSessionStateGetter, setActivityLevelGetter, setTerminalManagerGetter as setOverviewTerminalManagerGetter, refreshOverview, isOverviewVisible } from './screens/group-overview.js';
 import { initDraftStrip, refreshDraftStrip } from './drafts/draft-strip.js';
 import { initDraftEditor } from './drafts/draft-editor.js';
 import { initDraftSubmenuClickHandlers, initDraftActionClickHandlers } from './modals/draft-submenu.js';
-import { setPlanScreenFitCallback, setPlanScreenCloseCallback } from './plans/plan-screen.js';
+import { setPlanScreenFitCallback, setPlanScreenCloseCallback, setPlanScreenOpenCallback } from './plans/plan-screen.js';
+import { initEditorPopup } from './editor/editor-popup.js';
 
 // ============================================================================
 // Terminal Manager
 // ============================================================================
 
 let terminalManager: TerminalManager | null = null;
+const SPLASH_MIN_MS = 450;
+const splashShownAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
 
 export function getTerminalManager(): TerminalManager | null {
   return terminalManager;
+}
+
+async function dismissSplashScreen(): Promise<void> {
+  const splash = document.getElementById('splashScreen');
+  if (!splash) return;
+
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const waitMs = Math.max(0, SPLASH_MIN_MS - (now - splashShownAt));
+  if (waitMs > 0) {
+    await new Promise(resolve => window.setTimeout(resolve, waitMs));
+  }
+
+  splash.classList.add('splash-screen--hidden');
+  await new Promise(resolve => window.setTimeout(resolve, 220));
+  splash.remove();
 }
 
 // ============================================================================
@@ -55,6 +74,13 @@ setTerminalManagerGetter(() => terminalManager);
 
 // Let plan screen re-fit the terminal when it closes
 setPlanScreenFitCallback(() => terminalManager?.fitActive());
+
+// Planner takes over the right panel, so no session should stay selected.
+setPlanScreenOpenCallback(() => {
+  terminalManager?.deselect();
+  state.activeSessionId = null;
+  updateSessionHighlight();
+});
 
 // Restore chip strip when plan screen closes
 setPlanScreenCloseCallback(() => {
@@ -116,7 +142,10 @@ function setupUIHandlers(): void {
   }
 
   // Keyboard relay — routes typed text and paste to active PTY
-  setupKeyboardRelay(() => terminalManager?.getActiveSessionId() ?? null);
+  setupKeyboardRelay(
+    () => terminalManager?.getActiveSessionId() ?? null,
+    (sessionId) => getSessionState(sessionId) === 'question',
+  );
 
   // Panel splitter drag
   setupPanelSplitter();
@@ -166,255 +195,269 @@ function setupPanelSplitter(): void {
 // ============================================================================
 
 async function init(): Promise<void> {
-  console.log('[Renderer] Initializing');
-  console.log('[Renderer] navigator.gamepad API exists:', typeof navigator.getGamepads === 'function');
+  try {
+    console.log('[Renderer] Initializing');
+    console.log('[Renderer] navigator.gamepad API exists:', typeof navigator.getGamepads === 'function');
 
-  // Global Ctrl+Tab / Ctrl+Shift+Tab to switch terminal tabs (capture phase
-  // so it fires before xterm.js can swallow the event)
-  document.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Tab' && e.ctrlKey) {
-      // Skip when any modal overlay is visible — modal keyboard handler owns all keys
-      if (document.querySelector('.modal-overlay.modal--visible')) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const tm = terminalManager;
-      if (!tm) return;
-      // Use navList-derived visual order so Ctrl+Tab matches what the user sees.
-      const nextId = resolveNextTerminalId(
-        getTabCycleSessionIds(),
-        tm.getSessionIds(),
-        tm.getActiveSessionId(),
-        e.shiftKey ? -1 : 1,
-      );
-      if (nextId) tm.switchTo(nextId);
+    // Global Ctrl+Tab / Ctrl+Shift+Tab to switch terminal tabs (capture phase
+    // so it fires before xterm.js can swallow the event)
+    document.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Tab' && e.ctrlKey) {
+        // Skip when any modal overlay is visible — modal keyboard handler owns all keys
+        if (document.querySelector('.modal-overlay.modal--visible')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const tm = terminalManager;
+        if (!tm) return;
+        // Use navList-derived visual order so Ctrl+Tab matches what the user sees.
+        const nextId = resolveNextTerminalId(
+          getTabCycleSessionIds(),
+          tm.getSessionIds(),
+          tm.getActiveSessionId(),
+          e.shiftKey ? -1 : 1,
+        );
+        if (nextId) tm.switchTo(nextId);
+      }
+    }, true);
+
+    // Setup gamepad navigation
+    setupGamepadNavigation();
+    console.log('[Renderer] Gamepad navigation setup complete');
+
+    // Setup UI event handlers
+    setupUIHandlers();
+
+    // Warm up config (must be first — triggers configLoader.load() on main process)
+    try {
+      if (window.gamepadCli) {
+        await window.gamepadCli.configGetAll();
+      }
+    } catch (error) {
+      console.warn('[Renderer] Failed to warm up config:', error);
     }
-  }, true);
 
-  // Setup gamepad navigation
-  setupGamepadNavigation();
-  console.log('[Renderer] Gamepad navigation setup complete');
-
-  // Setup UI event handlers
-  setupUIHandlers();
-
-  // Warm up config (must be first — triggers configLoader.load() on main process)
-  try {
-    if (window.gamepadCli) {
-      await window.gamepadCli.configGetAll();
+    // Load available CLI types for spawning
+    try {
+      if (window.gamepadCli) {
+        state.cliTypes = await window.gamepadCli.configGetCliTypes();
+        state.availableSpawnTypes = state.cliTypes;
+        console.log('[Renderer] Available CLI types:', state.cliTypes);
+      } else {
+        console.warn('[Renderer] gamepadCli not available — skipping CLI type loading');
+      }
+    } catch (error) {
+      console.error('Failed to load CLI types:', error);
     }
-  } catch (error) {
-    console.warn('[Renderer] Failed to warm up config:', error);
-  }
 
-  // Load available CLI types for spawning
-  try {
-    if (window.gamepadCli) {
-      state.cliTypes = await window.gamepadCli.configGetCliTypes();
-      state.availableSpawnTypes = state.cliTypes;
-      console.log('[Renderer] Available CLI types:', state.cliTypes);
-    } else {
-      console.warn('[Renderer] gamepadCli not available — skipping CLI type loading');
+    // Render spawn buttons based on loaded CLI types
+    // (Now handled by the sessions screen launcher panels)
+
+    // Cache config bindings for fast gamepad dispatch
+    try {
+      await initConfigCache();
+    } catch (error) {
+      console.error('[Renderer] Failed to init config cache:', error);
     }
-  } catch (error) {
-    console.error('Failed to load CLI types:', error);
-  }
 
-  // Render spawn buttons based on loaded CLI types
-  // (Now handled by the sessions screen launcher panels)
+    // Load D-pad and stick repeat config into the gamepad poller
+    try {
+      if (window.gamepadCli?.configGetDpadConfig && window.gamepadCli?.configGetStickConfig) {
+        const dpadConfig = await window.gamepadCli.configGetDpadConfig();
+        const leftStick = await window.gamepadCli.configGetStickConfig('left');
+        const rightStick = await window.gamepadCli.configGetStickConfig('right');
 
-  // Cache config bindings for fast gamepad dispatch
-  try {
-    await initConfigCache();
-  } catch (error) {
-    console.error('[Renderer] Failed to init config cache:', error);
-  }
-
-  // Load D-pad and stick repeat config into the gamepad poller
-  try {
-    if (window.gamepadCli?.configGetDpadConfig && window.gamepadCli?.configGetStickConfig) {
-      const dpadConfig = await window.gamepadCli.configGetDpadConfig();
-      const leftStick = await window.gamepadCli.configGetStickConfig('left');
-      const rightStick = await window.gamepadCli.configGetStickConfig('right');
-
-      browserGamepad.setRepeatConfig({
-        dpad: {
-          initialDelay: dpadConfig?.initialDelay ?? 400,
-          repeatRate: dpadConfig?.repeatRate ?? 120,
-        },
-        sticks: {
-          left: {
-            deadzone: leftStick?.deadzone ?? 0.25,
-            repeatRate: leftStick?.repeatRate ?? 100,
+        browserGamepad.setRepeatConfig({
+          dpad: {
+            initialDelay: dpadConfig?.initialDelay ?? 400,
+            repeatRate: dpadConfig?.repeatRate ?? 120,
           },
-          right: {
-            deadzone: rightStick?.deadzone ?? 0.25,
-            repeatRate: rightStick?.repeatRate ?? 150,
+          sticks: {
+            left: {
+              deadzone: leftStick?.deadzone ?? 0.25,
+              repeatRate: leftStick?.repeatRate ?? 100,
+            },
+            right: {
+              deadzone: rightStick?.deadzone ?? 0.25,
+              repeatRate: rightStick?.repeatRate ?? 150,
+            },
           },
-        },
-      });
+        });
+      }
+    } catch (error) {
+      console.error('[Renderer] Failed to load repeat config:', error);
     }
-  } catch (error) {
-    console.error('[Renderer] Failed to load repeat config:', error);
-  }
 
-  // Initialize embedded terminal manager
-  try {
-    const terminalContainer = document.getElementById('terminalContainer');
-    if (terminalContainer) {
-      terminalManager = new TerminalManager(terminalContainer);
-      setOutputBuffer(terminalManager.getOutputBuffer());
-      setSessionStateGetter(getSessionState);
-      setActivityLevelGetter(getSessionActivity);
-      setOverviewTerminalManagerGetter(() => terminalManager);
-      terminalManager.setOnEmpty(() => {
-        hideTerminalArea();
-      });
-      terminalManager.setOnSwitch((sessionId) => {
-        if (sessionId) syncSessionHighlight(sessionId);
-        refreshDraftStrip(sessionId ?? null);
-      });
-      terminalManager.setOnTitleChange((sessionId, title) => {
-        const session = state.sessions.find(s => s.id === sessionId);
-        if (session) {
-          session.title = title;
-          import('./screens/sessions-render.js').then(m => m.renderSessions());
-          if (isOverviewVisible()) refreshOverview();
-        }
-      });
-      console.log('[Renderer] Terminal manager initialized');
+    // Initialize embedded terminal manager
+    try {
+      const terminalContainer = document.getElementById('terminalContainer');
+      if (terminalContainer) {
+        terminalManager = new TerminalManager(terminalContainer);
+        setOutputBuffer(terminalManager.getOutputBuffer());
+        setSessionStateGetter(getSessionState);
+        setActivityLevelGetter(getSessionActivity);
+        setOverviewTerminalManagerGetter(() => terminalManager);
+        terminalManager.setOnEmpty(() => {
+          hideTerminalArea();
+        });
+        terminalManager.setOnSwitch((sessionId) => {
+          if (sessionId) syncSessionHighlight(sessionId);
+          refreshDraftStrip(sessionId ?? null);
+        });
+        terminalManager.setOnTitleChange((sessionId, title) => {
+          const session = state.sessions.find(s => s.id === sessionId);
+          if (session) {
+            session.title = title;
+            import('./screens/sessions-render.js').then(m => m.renderSessions());
+            if (isOverviewVisible()) refreshOverview();
+          }
+        });
+        console.log('[Renderer] Terminal manager initialized');
 
-      // Wire context menu click handlers
-      initContextMenuClickHandlers();
+        // Wire context menu click handlers
+        initContextMenuClickHandlers();
 
-      // Wire sequence picker click handlers
-      initSequencePickerClickHandlers();
+        // Wire sequence picker click handlers
+        initSequencePickerClickHandlers();
 
-      // Wire close confirm modal click handlers
-      initCloseConfirmClickHandlers();
+        // Wire close confirm modal click handlers
+        initCloseConfirmClickHandlers();
 
-      // Wire quick spawn modal click handlers
-      initQuickSpawnClickHandlers();
+        // Wire plan delete confirm modal click handlers
+        initPlanDeleteConfirmClickHandlers();
 
-      // Quick spawn cancel button
-      document.getElementById('quickSpawnCancelBtn')?.addEventListener('click', () => {
-        hideQuickSpawn();
-      });
+        // Wire quick spawn modal click handlers
+        initQuickSpawnClickHandlers();
 
-      // Initialize draft strip, editor, and submenu click handlers
-      initDraftStrip();
-      initDraftEditor();
-      initDraftSubmenuClickHandlers();
-      initDraftActionClickHandlers();
+        // Quick spawn cancel button
+        document.getElementById('quickSpawnCancelBtn')?.addEventListener('click', () => {
+          hideQuickSpawn();
+        });
 
-      // Click on terminal area → focus terminal
-      const terminalArea = document.getElementById('terminalArea');
-      terminalArea?.addEventListener('mousedown', () => {
-        if (terminalManager?.getActiveSessionId()) {
-          terminalManager.focusActive();
-        }
-      });
-    } else {
-      console.error('[Renderer] #terminalContainer not found in DOM');
+        // Initialize draft strip, editor, and submenu click handlers
+        initDraftStrip();
+        initDraftEditor();
+        initEditorPopup();
+        initDraftSubmenuClickHandlers();
+        initDraftActionClickHandlers();
+
+        // Click on terminal area → focus terminal
+        const terminalArea = document.getElementById('terminalArea');
+        terminalArea?.addEventListener('mousedown', () => {
+          if (terminalManager?.getActiveSessionId()) {
+            terminalManager.focusActive();
+          }
+        });
+      } else {
+        console.error('[Renderer] #terminalContainer not found in DOM');
+      }
+    } catch (error) {
+      console.error('[Renderer] Failed to init terminal manager:', error);
     }
-  } catch (error) {
-    console.error('[Renderer] Failed to init terminal manager:', error);
-  }
 
-  // Update profile display
-  await updateProfileDisplay();
+    // Update profile display
+    await updateProfileDisplay();
 
-  // Load initial data
-  await loadSessions();
+    // Load initial data
+    await loadSessions();
 
-  // Start live timer refresh (10s interval)
-  startTimerRefresh();
+    // Start live timer refresh (10s interval)
+    startTimerRefresh();
 
-  // Auto-resume sessions restored from previous run
-  try {
-    const restoredSessions = await window.gamepadCli?.sessionGetAll();
-    if (restoredSessions && restoredSessions.length > 0 && terminalManager) {
-      const terminalIds = terminalManager.getSessionIds();
-      const { doSpawn } = await import('./screens/sessions-spawn.js');
-      for (const session of restoredSessions) {
-        // Session in main process but no terminal = restored from disk, needs resume
-        if (session.cliSessionName && !terminalIds.includes(session.id)) {
-          try {
-            console.log(`[AutoResume] Resuming session: ${session.id} (${session.cliType}) with name ${session.cliSessionName}`);
-            // Spawn fresh terminal with CLI resume command first
-            await doSpawn(session.cliType, session.workingDir, undefined, session.cliSessionName);
-            // Restore custom display name if user had renamed the session
-            const newId = terminalManager.getActiveSessionId();
-            if (newId && session.name && session.name !== session.cliType) {
-              await window.gamepadCli?.sessionRename(newId, session.name);
-              terminalManager.renameSession(newId, session.name);
+    // Auto-resume sessions restored from previous run
+    try {
+      const restoredSessions = await window.gamepadCli?.sessionGetAll();
+      if (restoredSessions && restoredSessions.length > 0 && terminalManager) {
+        const terminalIds = terminalManager.getSessionIds();
+        const { doSpawn } = await import('./screens/sessions-spawn.js');
+        for (const session of restoredSessions) {
+          // Session in main process but no terminal = restored from disk, needs resume
+          if (session.cliSessionName && !terminalIds.includes(session.id)) {
+            try {
+              console.log(`[AutoResume] Resuming session: ${session.id} (${session.cliType}) with name ${session.cliSessionName}`);
+              // Spawn fresh terminal with CLI resume command first
+              await doSpawn(session.cliType, session.workingDir, undefined, session.cliSessionName);
+              // Restore custom display name if user had renamed the session
+              const newId = terminalManager.getActiveSessionId();
+              if (newId && session.name && session.name !== session.cliType) {
+                await window.gamepadCli?.sessionRename(newId, session.name);
+                terminalManager.renameSession(newId, session.name);
+              }
+              // Only remove stale session metadata after successful spawn
+              await window.gamepadCli?.sessionRemove(session.id);
+            } catch (err) {
+              console.error(`[AutoResume] Failed to resume session ${session.id}:`, err);
             }
-            // Only remove stale session metadata after successful spawn
-            await window.gamepadCli?.sessionRemove(session.id);
-          } catch (err) {
-            console.error(`[AutoResume] Failed to resume session ${session.id}:`, err);
           }
         }
       }
+    } catch (err) {
+      console.error('[AutoResume] Failed to load sessions for resume:', err);
     }
-  } catch (err) {
-    console.error('[AutoResume] Failed to load sessions for resume:', err);
+
+    // Setup PTY state change listener
+    if (window.gamepadCli) {
+      window.gamepadCli.onPtyStateChange((transition) => {
+        // Update local session state cache (also triggers re-render)
+        setSessionState(transition.sessionId, transition.newState);
+
+        // Update actual session data
+        const sessionIndex = state.sessions.findIndex(s => s.id === transition.sessionId);
+        if (sessionIndex !== -1) {
+          state.sessions[sessionIndex].state = transition.newState as any;
+        }
+
+        // Auto-handoff is handled by the main process via pty:handoff event
+      });
+
+      // Setup PTY activity change listener
+      window.gamepadCli.onPtyActivityChange((event) => {
+        // Update local activity cache (also triggers re-render)
+        setSessionActivity(event.sessionId, event.level, event.lastOutputAt);
+      });
+
+      // Setup notification click listener (focus + switch to session)
+      window.gamepadCli.onNotificationClick((event) => {
+        const session = state.sessions.find(s => s.id === event.sessionId);
+        if (session) {
+          state.activeSessionId = session.id;
+          window.gamepadCli?.sessionSetActive(session.id);
+          terminalManager.switchTo(session.id);
+          updateSessionHighlight();
+        }
+      });
+
+      // Adopt externally-spawned sessions (e.g. from Telegram bot)
+      window.gamepadCli.onSessionSpawned(async (session) => {
+        if (!terminalManager || terminalManager.has(session.id)) return;
+        console.log(`[ExternalSpawn] Adopting session: ${session.id} (${session.cliType})`);
+        await window.gamepadCli.configGetSpawnCommand(session.cliType);
+        terminalManager.adoptTerminal(session.id, session.cliType, session.workingDir);
+        const { showTerminalArea } = await import('./screens/sessions-spawn.js');
+        showTerminalArea();
+        await loadSessions();
+      });
+    }
+
+    // Log initialization
+    logEvent('Helm ready');
+
+    console.log('[Renderer] Ready');
+  } finally {
+    await dismissSplashScreen();
   }
-
-  // Setup PTY state change listener
-  if (window.gamepadCli) {
-    window.gamepadCli.onPtyStateChange((transition) => {
-      // Update local session state cache (also triggers re-render)
-      setSessionState(transition.sessionId, transition.newState);
-
-      // Update actual session data
-      const sessionIndex = state.sessions.findIndex(s => s.id === transition.sessionId);
-      if (sessionIndex !== -1) {
-        state.sessions[sessionIndex].state = transition.newState as any;
-      }
-
-      // Auto-handoff is handled by the main process via pty:handoff event
-    });
-
-    // Setup PTY activity change listener
-    window.gamepadCli.onPtyActivityChange((event) => {
-      // Update local activity cache (also triggers re-render)
-      setSessionActivity(event.sessionId, event.level, event.lastOutputAt);
-    });
-
-    // Setup notification click listener (focus + switch to session)
-    window.gamepadCli.onNotificationClick((event) => {
-      const session = state.sessions.find(s => s.id === event.sessionId);
-      if (session) {
-        state.activeSessionId = session.id;
-        window.gamepadCli?.sessionSetActive(session.id);
-        terminalManager.switchTo(session.id);
-        updateSessionHighlight();
-      }
-    });
-
-    // Adopt externally-spawned sessions (e.g. from Telegram bot)
-    window.gamepadCli.onSessionSpawned(async (session) => {
-      if (!terminalManager || terminalManager.has(session.id)) return;
-      console.log(`[ExternalSpawn] Adopting session: ${session.id} (${session.cliType})`);
-      const spawnInfo = await window.gamepadCli.configGetSpawnCommand(session.cliType);
-      terminalManager.adoptTerminal(session.id, session.cliType, session.workingDir);
-      const { showTerminalArea } = await import('./screens/sessions-spawn.js');
-      showTerminalArea();
-      await loadSessions();
-    });
-  }
-
-  // Log initialization
-  logEvent('App ready');
-
-  console.log('[Renderer] Ready');
 }
 
 // Start when DOM is ready
+const startApp = () => {
+  void init().catch((error) => {
+    console.error('[Renderer] Failed to initialize app:', error);
+  });
+};
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', startApp);
 } else {
-  init();
+  startApp();
 }
 
 // Handle cleanup

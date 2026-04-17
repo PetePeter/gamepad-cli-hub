@@ -233,10 +233,10 @@ describe('StateDetector', () => {
 
       detector.processOutput('s1', 'output');
 
-      expect(handler).toHaveBeenCalledWith({
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
         sessionId: 's1',
         level: 'active',
-      } satisfies ActivityChange);
+      }));
     });
 
     it('emits activity-change false after timeout expires (active→inactive)', () => {
@@ -249,10 +249,10 @@ describe('StateDetector', () => {
       // Advance past the 10s default inactive timeout
       vi.advanceTimersByTime(10_001);
 
-      expect(handler).toHaveBeenCalledWith({
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
         sessionId: 's1',
         level: 'inactive',
-      } satisfies ActivityChange);
+      }));
     });
 
     it('does not emit inactive before timeout expires', () => {
@@ -288,10 +288,10 @@ describe('StateDetector', () => {
       vi.advanceTimersByTime(10_001);
 
       expect(handler).toHaveBeenCalledTimes(1);
-      expect(handler).toHaveBeenCalledWith({
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
         sessionId: 's1',
         level: 'inactive',
-      } satisfies ActivityChange);
+      }));
     });
 
     it('re-emits active after inactive→active transition', () => {
@@ -303,12 +303,12 @@ describe('StateDetector', () => {
 
       // Go inactive
       vi.advanceTimersByTime(10_001);
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'inactive' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'inactive' }));
       handler.mockClear();
 
       // New output → active again
       detector.processOutput('s1', 'output2');
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
     });
 
     it('does not emit duplicate active events for consecutive output', () => {
@@ -338,14 +338,14 @@ describe('StateDetector', () => {
 
       // s1 timeout fires at 10s from its last output (5s from now)
       vi.advanceTimersByTime(5_001);
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'inactive' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'inactive' }));
       expect(handler).not.toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's2', level: 'inactive' }));
 
       handler.mockClear();
 
       // s2 timeout fires at 10s from its last output (5s later)
       vi.advanceTimersByTime(5_000);
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's2', level: 'inactive' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's2', level: 'inactive' }));
     });
 
     it('removeSession clears the activity timer — no late events', () => {
@@ -405,7 +405,7 @@ describe('StateDetector', () => {
 
       // Times out at 5s → inactive
       vi.advanceTimersByTime(1_001);
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'inactive' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'inactive' }));
 
       custom.dispose();
     });
@@ -419,12 +419,12 @@ describe('StateDetector', () => {
 
       // At 10s → inactive
       vi.advanceTimersByTime(10_001);
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'inactive' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'inactive' }));
       handler.mockClear();
 
       // At 5min → idle
       vi.advanceTimersByTime(300_000 - 10_001);
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'idle' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'idle' }));
     });
 
     it('does not emit idle if output resumes before idle timeout', () => {
@@ -436,13 +436,13 @@ describe('StateDetector', () => {
 
       // Go inactive at 10s
       vi.advanceTimersByTime(10_001);
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'inactive' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'inactive' }));
       handler.mockClear();
 
       // Resume output at 30s — back to active, idle timer cancelled
       vi.advanceTimersByTime(20_000);
       detector.processOutput('s1', 'more output');
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
       handler.mockClear();
 
       // Original idle timer would have fired, but was cancelled
@@ -469,7 +469,7 @@ describe('StateDetector', () => {
 
       detector.markActive('s1');
 
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
     });
 
     it('transitions inactive session to active on markActive', () => {
@@ -483,7 +483,7 @@ describe('StateDetector', () => {
 
       detector.markActive('s1');
 
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
     });
 
     it('does not emit duplicate active when already active', () => {
@@ -515,7 +515,7 @@ describe('StateDetector', () => {
 
       // New inactive timer fires at 8s + 10s = 18s from start (7s from last advance)
       vi.advanceTimersByTime(7_001);
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'inactive' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'inactive' }));
     });
 
     it('does not trigger keyword scanning (no state-change events)', () => {
@@ -540,7 +540,7 @@ describe('StateDetector', () => {
       // Now markActive from idle state
       detector.markActive('s1');
 
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
     });
   });
 
@@ -600,7 +600,7 @@ describe('StateDetector', () => {
       // Now activity promotion should work again
       detector.processOutput('s1', 'real output');
 
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
     });
 
     it('markActive clears the resizing flag', () => {
@@ -614,7 +614,7 @@ describe('StateDetector', () => {
 
       // markActive clears resizing flag and promotes to active
       detector.markActive('s1');
-      expect(handler).toHaveBeenCalledWith({ sessionId: 's1', level: 'active' });
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
     });
 
     it('resets auto-clear timer on repeated markResizing', () => {
@@ -651,6 +651,391 @@ describe('StateDetector', () => {
 
       vi.advanceTimersByTime(2000);
       // No errors, no state changes
+    });
+
+    it('promotes to active when suppression clears and output arrived during resize', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markResizing('s1');
+      detector.processOutput('s1', 'output during resize');
+      // Suppressed — no event
+      expect(handler).not.toHaveBeenCalled();
+
+      // Suppression clears after 1s → promoteIfRecentOutput fires
+      vi.advanceTimersByTime(1001);
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
+    });
+
+    it('does not promote when suppression clears but no output during resize', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markResizing('s1');
+      // No processOutput call — no output arrived
+
+      vi.advanceTimersByTime(1001);
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('resets activity timers when suppression clears with recent output', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markResizing('s1');
+      detector.processOutput('s1', 'output during resize');
+      expect(handler).not.toHaveBeenCalled();
+
+      // Suppression clears at 1s — promotes and resets timers
+      vi.advanceTimersByTime(1001);
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
+      handler.mockClear();
+
+      // Inactive timer should fire 10s after suppression clear (not 10s from original output)
+      vi.advanceTimersByTime(9_000);
+      expect(handler).not.toHaveBeenCalled(); // not yet
+
+      vi.advanceTimersByTime(1_100);
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'inactive' }));
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Scroll suppression — markScrolling prevents keyword scanning
+  // -------------------------------------------------------------------------
+
+  describe('scroll suppression', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      detector.dispose();
+      vi.useRealTimers();
+    });
+
+    it('skips keyword scanning while scrolling', () => {
+      const handler = vi.fn();
+      detector.on('state-change', handler);
+
+      detector.markScrolling('s1');
+      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+
+      // Keyword scanning suppressed — no state change
+      expect(handler).not.toHaveBeenCalled();
+      expect(detector.getState('s1')).toBe('idle');
+    });
+
+    it('still promotes activity while scrolling (only keywords suppressed)', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markScrolling('s1');
+      detector.processOutput('s1', 'some scroll output');
+
+      // Activity promotion is NOT suppressed by scrolling (only resizing suppresses it)
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
+    });
+
+    it('still updates lastOutputAt while scrolling', () => {
+      detector.markScrolling('s1');
+      detector.processOutput('s1', 'scroll output');
+
+      expect(detector.getLastOutputTime('s1')).toBeGreaterThan(0);
+    });
+
+    it('auto-clears scrolling flag after 2 seconds', () => {
+      const handler = vi.fn();
+      detector.on('state-change', handler);
+
+      detector.markScrolling('s1');
+      vi.advanceTimersByTime(2001);
+
+      // Keyword scanning works again
+      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ newState: 'implementing' }));
+    });
+
+    it('markActive clears the scrolling flag', () => {
+      const stateHandler = vi.fn();
+      detector.on('state-change', stateHandler);
+
+      detector.markScrolling('s1');
+      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+      expect(stateHandler).not.toHaveBeenCalled();
+
+      // markActive clears scrolling
+      detector.markActive('s1');
+      detector.processOutput('s1', 'AIAGENT-PLANNING');
+      expect(stateHandler).toHaveBeenCalledWith(expect.objectContaining({ newState: 'planning' }));
+    });
+
+    it('resets auto-clear timer on repeated markScrolling', () => {
+      const stateHandler = vi.fn();
+      detector.on('state-change', stateHandler);
+
+      detector.markScrolling('s1');
+      vi.advanceTimersByTime(1500);
+      detector.markScrolling('s1'); // refresh the timer
+      vi.advanceTimersByTime(1500); // 1.5s since last markScrolling (< 2s)
+
+      // Still scrolling — keyword scanning suppressed
+      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+      expect(stateHandler).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(600); // now past the 2s window
+      detector.processOutput('s1', 'AIAGENT-PLANNING');
+      expect(stateHandler).toHaveBeenCalled();
+    });
+
+    it('removeSession clears scroll timer', () => {
+      detector.markScrolling('s1');
+      detector.removeSession('s1');
+
+      vi.advanceTimersByTime(3000);
+      expect(detector.getState('s1')).toBe('idle');
+    });
+
+    it('dispose clears all scroll timers', () => {
+      detector.markScrolling('s1');
+      detector.markScrolling('s2');
+      detector.dispose();
+
+      vi.advanceTimersByTime(3000);
+      // No errors, no state changes
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Restore suppression — markRestored prevents activity promotion for 3s
+  // -------------------------------------------------------------------------
+
+  describe('restore suppression', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      detector.dispose();
+      vi.useRealTimers();
+    });
+
+    it('skips activity promotion while restoring', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markRestored('s1');
+      detector.processOutput('s1', 'shell startup output');
+
+      // Should NOT promote to active (restoring suppresses activity promotion)
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('still scans keywords while restoring', () => {
+      const handler = vi.fn();
+      detector.on('state-change', handler);
+
+      detector.markRestored('s1');
+      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 's1',
+        newState: 'implementing',
+      }));
+    });
+
+    it('still updates lastOutputAt while restoring', () => {
+      detector.markRestored('s1');
+      detector.processOutput('s1', 'startup output');
+
+      expect(detector.getLastOutputTime('s1')).toBeGreaterThan(0);
+    });
+
+    it('auto-clears restoring flag after 3 seconds', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markRestored('s1');
+      vi.advanceTimersByTime(3001);
+
+      // Activity promotion works again
+      detector.processOutput('s1', 'real output');
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
+    });
+
+    it('markActive clears the restoring flag', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markRestored('s1');
+      detector.processOutput('s1', 'startup output');
+      expect(handler).not.toHaveBeenCalled();
+
+      // markActive clears restoring flag and promotes to active
+      detector.markActive('s1');
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
+    });
+
+    it('promotes to active when restore grace period clears and output arrived', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markRestored('s1');
+      detector.processOutput('s1', 'startup output during restore');
+      expect(handler).not.toHaveBeenCalled();
+
+      // Grace period clears after 3s → promoteIfRecentOutput fires
+      vi.advanceTimersByTime(3001);
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
+    });
+
+    it('does not promote when restore grace clears but no output arrived', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markRestored('s1');
+      // No processOutput call
+
+      vi.advanceTimersByTime(3001);
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('removeSession clears restore timer', () => {
+      detector.markRestored('s1');
+      detector.removeSession('s1');
+
+      vi.advanceTimersByTime(5000);
+      expect(detector.getState('s1')).toBe('idle');
+    });
+
+    it('dispose clears all restore timers', () => {
+      detector.markRestored('s1');
+      detector.markRestored('s2');
+      detector.dispose();
+
+      vi.advanceTimersByTime(5000);
+      // No errors, no state changes
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // lastOutputAt in activity-change events
+  // -------------------------------------------------------------------------
+
+  describe('lastOutputAt in activity-change events', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      detector.dispose();
+      vi.useRealTimers();
+    });
+
+    it('includes lastOutputAt in active event from processOutput', () => {
+      const startTime = Date.now();
+      vi.setSystemTime(startTime);
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'output');
+
+      expect(handler).toHaveBeenCalledWith({
+        sessionId: 's1',
+        level: 'active',
+        lastOutputAt: startTime,
+      });
+    });
+
+    it('includes lastOutputAt in inactive event from timer', () => {
+      const startTime = Date.now();
+      vi.setSystemTime(startTime);
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'output');
+      handler.mockClear();
+
+      vi.advanceTimersByTime(10_001);
+
+      expect(handler).toHaveBeenCalledWith({
+        sessionId: 's1',
+        level: 'inactive',
+        lastOutputAt: startTime,
+      });
+    });
+
+    it('includes lastOutputAt in idle event from timer', () => {
+      const startTime = Date.now();
+      vi.setSystemTime(startTime);
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'output');
+      handler.mockClear();
+
+      vi.advanceTimersByTime(300_001);
+
+      const idleCall = handler.mock.calls.find(([e]: [ActivityChange]) => e.level === 'idle');
+      expect(idleCall).toBeDefined();
+      expect(idleCall![0].lastOutputAt).toBe(startTime);
+    });
+
+    it('includes lastOutputAt in markActive event (preserves previous output time)', () => {
+      const startTime = Date.now();
+      vi.setSystemTime(startTime);
+
+      // Create some output first
+      detector.processOutput('s1', 'output');
+      vi.advanceTimersByTime(10_001); // go inactive
+
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markActive('s1');
+
+      expect(handler).toHaveBeenCalledWith({
+        sessionId: 's1',
+        level: 'active',
+        lastOutputAt: startTime,
+      });
+    });
+
+    it('markActive on fresh session includes lastOutputAt 0', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markActive('s1');
+
+      expect(handler).toHaveBeenCalledWith({
+        sessionId: 's1',
+        level: 'active',
+        lastOutputAt: 0,
+      });
+    });
+
+    it('includes updated lastOutputAt after multiple outputs', () => {
+      const t0 = Date.now();
+      vi.setSystemTime(t0);
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'first output');
+      handler.mockClear();
+
+      // Advance 5s and produce more output
+      const t1 = t0 + 5_000;
+      vi.setSystemTime(t1);
+      vi.advanceTimersByTime(5_000);
+
+      // Go inactive after 10s from last output
+      vi.advanceTimersByTime(10_001);
+
+      expect(handler).toHaveBeenCalledWith({
+        sessionId: 's1',
+        level: 'inactive',
+        lastOutputAt: t0, // no new output happened, lastOutputAt unchanged
+      });
     });
   });
 });

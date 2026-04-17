@@ -20,7 +20,9 @@ const mockPlanAddDep = vi.fn();
 const mockPlanRemoveDep = vi.fn();
 const mockPlanComplete = vi.fn();
 const mockPlanApply = vi.fn();
+const mockPlanSetState = vi.fn();
 const mockPlanDeps = vi.fn();
+const mockPtyWrite = vi.fn();
 
 const mockComputeLayout = vi.fn();
 
@@ -68,6 +70,15 @@ function buildPlanDom(): void {
     <div id="terminalArea" class="panel-right">
       <div class="terminal-container"></div>
     </div>
+    <div class="modal-overlay" id="planDeleteConfirmOverlay" aria-hidden="true">
+      <div class="modal close-confirm-modal">
+        <div class="close-confirm-body" id="planDeleteConfirmBody"></div>
+        <div class="modal-footer">
+          <button id="planDeleteConfirmCancelBtn">Cancel</button>
+          <button id="planDeleteConfirmDeleteBtn">Delete</button>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -94,6 +105,12 @@ async function getEditorModule() {
   return await import('../renderer/drafts/draft-editor.js');
 }
 
+async function getPlanDeleteConfirmModule() {
+  return await import('../renderer/modals/plan-delete-confirm.js');
+}
+
+let screen: Awaited<ReturnType<typeof getScreenModule>>;
+
 /** Flush microtask queue so async fire-and-forget completes. */
 async function flush(): Promise<void> {
   await new Promise(r => setTimeout(r, 0));
@@ -105,8 +122,6 @@ async function flush(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 describe('Plan Screen', () => {
-  let screen: Awaited<ReturnType<typeof getScreenModule>>;
-
   beforeEach(async () => {
     buildPlanDom();
 
@@ -119,7 +134,9 @@ describe('Plan Screen', () => {
       planRemoveDep: mockPlanRemoveDep,
       planComplete: mockPlanComplete,
       planApply: mockPlanApply,
+      planSetState: mockPlanSetState,
       planDeps: mockPlanDeps,
+      ptyWrite: mockPtyWrite,
     };
 
     mockPlanList.mockReset();
@@ -130,7 +147,9 @@ describe('Plan Screen', () => {
     mockPlanRemoveDep.mockReset();
     mockPlanComplete.mockReset();
     mockPlanApply.mockReset();
+    mockPlanSetState.mockReset();
     mockPlanDeps.mockReset();
+    mockPtyWrite.mockReset();
     mockComputeLayout.mockReset();
 
     screen = await getScreenModule();
@@ -138,6 +157,8 @@ describe('Plan Screen', () => {
     // Initialize the unified editor DOM so selectNode can show plan items
     const { initDraftEditor } = await getEditorModule();
     initDraftEditor();
+    const { initPlanDeleteConfirmClickHandlers } = await getPlanDeleteConfirmModule();
+    initPlanDeleteConfirmClickHandlers();
   });
 
   // =========================================================================
@@ -213,6 +234,38 @@ describe('Plan Screen', () => {
       await screen.showPlanScreen('/test/dir');
 
       expect(mockComputeLayout).toHaveBeenCalledWith(items, deps);
+    });
+
+    it('calls the registered open callback when planner opens', async () => {
+      mockPlanList.mockResolvedValue([]);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue({ nodes: [], width: 0, height: 0 });
+      const onOpen = vi.fn();
+      screen.setPlanScreenOpenCallback(onOpen);
+
+      await screen.showPlanScreen('/test/dir');
+
+      expect(onOpen).toHaveBeenCalled();
+    });
+  });
+
+  describe('keyboard shortcuts', () => {
+    it('Ctrl+N still adds a node when the plan screen is visible', async () => {
+      mockPlanList.mockResolvedValue([]);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue({ nodes: [], width: 0, height: 0 });
+
+      await screen.showPlanScreen('/test/dir');
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'n',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockPlanCreate).toHaveBeenCalledWith('/test/dir', 'New Plan', '');
     });
   });
 
@@ -424,6 +477,23 @@ describe('Plan Screen', () => {
       expect(doneBtn!.style.display).not.toBe('none');
     });
 
+    it('shows Apply Again button for doing items', async () => {
+      const items = [makeItem({ id: 'doing-apply', status: 'doing' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+
+      await screen.showPlanScreen('/test/dir');
+
+      const node = document.querySelector('.plan-node')!;
+      (node as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+      const applyBtn = document.getElementById('draftApplyBtn');
+      expect(applyBtn).not.toBeNull();
+      expect(applyBtn!.style.display).not.toBe('none');
+      expect(applyBtn!.textContent).toBe('↻ Apply Again');
+    });
+
     it('hides Done button for non-doing items', async () => {
       const items = [makeItem({ id: 'pend1', status: 'pending' })];
       mockPlanList.mockResolvedValue(items);
@@ -437,6 +507,22 @@ describe('Plan Screen', () => {
 
       const doneBtn = document.getElementById('draftDoneBtn');
       expect(doneBtn!.style.display).toBe('none');
+    });
+
+    it('shows plan state controls for blocked items', async () => {
+      const items = [makeItem({ id: 'blocked-1', status: 'blocked', stateInfo: 'Waiting on API' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+
+      await screen.showPlanScreen('/test/dir');
+
+      const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement;
+      const stateInfo = document.getElementById('draftPlanStateInfo') as HTMLInputElement;
+
+      expect(stateSelect.value).toBe('blocked');
+      expect(stateInfo.style.display).not.toBe('none');
+      expect(stateInfo.value).toBe('Waiting on API');
     });
   });
 
@@ -467,6 +553,54 @@ describe('Plan Screen', () => {
       await flush();
 
       expect(mockPlanCreate).toHaveBeenCalledWith('/test/dir', 'New Plan', '');
+    });
+  });
+
+  describe('delete confirmation', () => {
+    it('does not delete immediately when X is pressed', async () => {
+      const items = [makeItem({ id: 'delete-1' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+
+      await screen.showPlanScreen('/test/dir');
+      screen.handlePlanScreenAction('X');
+
+      expect(mockPlanDelete).not.toHaveBeenCalled();
+      expect(document.getElementById('planDeleteConfirmOverlay')!.classList.contains('modal--visible')).toBe(true);
+    });
+
+    it('deletes after confirmation', async () => {
+      const items = [makeItem({ id: 'delete-2' })];
+      mockPlanList.mockResolvedValueOnce(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+
+      await screen.showPlanScreen('/test/dir');
+
+      mockPlanDelete.mockResolvedValue(true);
+      mockPlanList.mockResolvedValue([]);
+      screen.handlePlanScreenAction('X');
+
+      (document.getElementById('planDeleteConfirmDeleteBtn') as HTMLButtonElement).click();
+      await flush();
+
+      expect(mockPlanDelete).toHaveBeenCalledWith('delete-2');
+    });
+
+    it('hides delete confirmation when plan screen closes', async () => {
+      const items = [makeItem({ id: 'delete-3' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+
+      await screen.showPlanScreen('/test/dir');
+      screen.handlePlanScreenAction('X');
+
+      screen.hidePlanScreen();
+
+      expect(document.getElementById('planDeleteConfirmOverlay')!.classList.contains('modal--visible')).toBe(false);
+      expect(document.getElementById('draftEditor')!.style.display).toBe('none');
     });
   });
 
@@ -645,19 +779,29 @@ describe('Plan Editor (unified)', () => {
     buildPlanDom();
 
     (window as any).gamepadCli = {
+      planList: mockPlanList,
       planUpdate: mockPlanUpdate,
       planDelete: mockPlanDelete,
       planComplete: mockPlanComplete,
       planApply: mockPlanApply,
+      planSetState: mockPlanSetState,
+      planDeps: mockPlanDeps,
+      ptyWrite: mockPtyWrite,
     };
 
+    mockPlanList.mockReset();
     mockPlanUpdate.mockReset();
     mockPlanDelete.mockReset();
     mockPlanComplete.mockReset();
     mockPlanApply.mockReset();
+    mockPlanDeps.mockReset();
+    mockPtyWrite.mockReset();
 
+    screen = await getScreenModule();
     editor = await getEditorModule();
     editor.initDraftEditor();
+    const { initPlanDeleteConfirmClickHandlers } = await getPlanDeleteConfirmModule();
+    initPlanDeleteConfirmClickHandlers();
   });
 
   describe('showPlanInEditor', () => {
@@ -672,9 +816,13 @@ describe('Plan Editor (unified)', () => {
 
       const titleInput = document.getElementById('draftLabelInput') as HTMLInputElement;
       expect(titleInput.value).toBe('Test');
+      expect(titleInput.disabled).toBe(false);
+      expect(titleInput.readOnly).toBe(false);
 
       const descTextarea = document.getElementById('draftContentInput') as HTMLTextAreaElement;
       expect(descTextarea.value).toBe('Desc');
+      expect(descTextarea.disabled).toBe(false);
+      expect(descTextarea.readOnly).toBe(false);
     });
 
     it('shows delete button', () => {
@@ -728,13 +876,14 @@ describe('Plan Editor (unified)', () => {
       expect(applyBtn!.textContent).toBe('▶ Apply');
     });
 
-    it('does not show Apply button for non-startable items', () => {
+    it('shows Apply button for doing items when onApply provided', () => {
       const item = makeItem({ id: 'e7', status: 'doing' });
 
       editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn(), onApply: vi.fn() });
 
       const applyBtn = document.getElementById('draftApplyBtn');
-      expect(applyBtn!.style.display).toBe('none');
+      expect(applyBtn!.style.display).not.toBe('none');
+      expect(applyBtn!.textContent).toBe('↻ Apply Again');
     });
 
     it('does not show Apply button when onApply is not provided', () => {
@@ -744,6 +893,28 @@ describe('Plan Editor (unified)', () => {
 
       const applyBtn = document.getElementById('draftApplyBtn');
       expect(applyBtn!.style.display).toBe('none');
+    });
+
+    it('saves state changes and state info', () => {
+      const item = makeItem({ id: 'e9', status: 'doing' });
+      const onSave = vi.fn();
+
+      editor.showPlanInEditor('session-1', item, { onSave, onDelete: vi.fn() });
+
+      const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement;
+      const stateInfo = document.getElementById('draftPlanStateInfo') as HTMLInputElement;
+      stateSelect.value = 'blocked';
+      stateSelect.dispatchEvent(new Event('change'));
+      stateInfo.value = 'Waiting on backend';
+
+      (document.getElementById('draftSaveBtn') as HTMLElement).click();
+
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+        title: item.title,
+        description: item.description,
+        status: 'blocked',
+        stateInfo: 'Waiting on backend',
+      }));
     });
   });
 
@@ -761,30 +932,39 @@ describe('Plan Editor (unified)', () => {
   });
 
   describe('editor delete', () => {
-    it('calls onDelete when delete button is clicked', () => {
+    it('shows a confirmation modal before deleting', () => {
       const item = makeItem({ id: 'del1' });
       const onDelete = vi.fn();
-
-      vi.spyOn(window, 'confirm').mockReturnValue(true);
 
       editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete });
 
       const deleteBtn = document.getElementById('draftDeleteBtn') as HTMLElement;
       deleteBtn.click();
+
+      expect(onDelete).not.toHaveBeenCalled();
+      expect(document.getElementById('planDeleteConfirmOverlay')!.classList.contains('modal--visible')).toBe(true);
+    });
+
+    it('calls onDelete after confirmation', () => {
+      const item = makeItem({ id: 'del2' });
+      const onDelete = vi.fn();
+
+      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete });
+
+      (document.getElementById('draftDeleteBtn') as HTMLElement).click();
+      (document.getElementById('planDeleteConfirmDeleteBtn') as HTMLElement).click();
 
       expect(onDelete).toHaveBeenCalled();
     });
 
-    it('does not call onDelete when confirm is cancelled', () => {
-      const item = makeItem({ id: 'del2' });
+    it('does not call onDelete when confirmation is cancelled', () => {
+      const item = makeItem({ id: 'del3' });
       const onDelete = vi.fn();
-
-      vi.spyOn(window, 'confirm').mockReturnValue(false);
 
       editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete });
 
-      const deleteBtn = document.getElementById('draftDeleteBtn') as HTMLElement;
-      deleteBtn.click();
+      (document.getElementById('draftDeleteBtn') as HTMLElement).click();
+      (document.getElementById('planDeleteConfirmCancelBtn') as HTMLElement).click();
 
       expect(onDelete).not.toHaveBeenCalled();
     });
@@ -827,6 +1007,46 @@ describe('Plan Editor (unified)', () => {
       applyBtn.click();
 
       expect(onApply).toHaveBeenCalled();
+    });
+  });
+
+  describe('plan canvas apply behavior', () => {
+    it('re-applies doing items without a state transition', async () => {
+      const items = [makeItem({ id: 'apply-doing', status: 'doing', description: 'redo this' })];
+      mockPlanList.mockResolvedValueOnce(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+
+      await screen.showPlanScreen('/test/dir');
+
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      const applyBtn = document.getElementById('draftApplyBtn') as HTMLElement;
+      applyBtn.click();
+      await flush();
+
+      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', 'redo this\n');
+      expect(mockPlanApply).not.toHaveBeenCalled();
+    });
+
+    it('applies startable items by sending text and transitioning state', async () => {
+      const items = [makeItem({ id: 'apply-startable', status: 'startable', description: 'start this' })];
+      mockPlanList.mockResolvedValueOnce(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+
+      await screen.showPlanScreen('/test/dir');
+
+      mockPlanApply.mockResolvedValue({});
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+
+      const applyBtn = document.getElementById('draftApplyBtn') as HTMLElement;
+      applyBtn.click();
+      await flush();
+
+      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', 'start this\n');
+      expect(mockPlanApply).toHaveBeenCalledWith('apply-startable', 'session-1');
     });
   });
 

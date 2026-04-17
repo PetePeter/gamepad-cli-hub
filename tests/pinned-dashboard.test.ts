@@ -170,7 +170,8 @@ describe('PinnedDashboard text rendering', () => {
     await dash.start();
 
     const text: string = bot.sendMessage.mock.calls[0][0];
-    expect(text).toContain('Gamepad CLI Hub');
+    expect(text).toContain('Helm');
+    expect(text).toContain('Helm - steer your fleet of agents');
     expect(text).toContain('Home PC');
   });
 

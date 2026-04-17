@@ -18,16 +18,16 @@ import { bindingEditorState } from './modals/binding-editor.js';
 import { contextMenuState, handleContextMenuButton } from './modals/context-menu.js';
 import { sequencePickerState, handleSequencePickerButton } from './modals/sequence-picker.js';
 import { closeConfirmState, handleCloseConfirmButton } from './modals/close-confirm.js';
+import { planDeleteConfirmState, handlePlanDeleteConfirmButton } from './modals/plan-delete-confirm.js';
 import { quickSpawnState, handleQuickSpawnButton } from './modals/quick-spawn.js';
 import { isDraftSubmenuVisible, handleDraftSubmenuButton, isDraftActionVisible, handleDraftActionButton } from './modals/draft-submenu.js';
 import { isDraftEditorVisible, handleDraftEditorButton } from './drafts/draft-editor.js';
 import { formModalVisible } from './utils.js';
 import { getTerminalManager } from './main.js';
 import { sessionsState } from './screens/sessions-state.js';
-import { hideOverview, getOverviewSessions, updateOverviewFocus, setSelectCardCallback, toggleCollapseCard, refreshOverview } from './screens/group-overview.js';
+import { handleOverviewInput, isOverviewVisible, setSelectCardCallback } from './screens/group-overview.js';
 import { findNavIndexBySessionId } from './session-groups.js';
 import { updateSessionsFocus } from './screens/sessions.js';
-import { autoSelectFocusedSession } from './screens/sessions-spawn.js';
 import { isPlanScreenVisible, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction } from './plans/plan-screen.js';
 
 function handlePlanScreenButton(button: string): boolean {
@@ -171,6 +171,12 @@ export function handleGamepadEvent(event: ButtonEvent): void {
     return;
   }
 
+  // Plan delete confirmation modal intercepts all input when visible
+  if (planDeleteConfirmState.visible) {
+    handlePlanDeleteConfirmButton(event.button);
+    return;
+  }
+
   // Quick-spawn CLI type picker intercepts all input when visible
   if (quickSpawnState.visible) {
     handleQuickSpawnButton(event.button);
@@ -217,8 +223,8 @@ export function handleGamepadEvent(event: ButtonEvent): void {
         break;
       }
       // Check if overview is visible — route to overview handler
-      if (sessionsState.overviewGroup) {
-        consumed = handleOverviewButton(event.button);
+      if (isOverviewVisible()) {
+        consumed = handleOverviewInput(event.button);
       } else {
         consumed = handleSessionsScreenButton(event.button);
       }
@@ -238,92 +244,3 @@ function handleGamepadRelease(event: ButtonEvent): void {
   logEvent(`⬆ ${event.button}`);
   processConfigRelease(event.button);
 }
-
-function handleOverviewButton(button: string): boolean {
-  const dir = toDirection(button);
-  const sessions = getOverviewSessions();
-  const count = sessions.length;
-  if (count === 0) {
-    hideOverview();
-    return true;
-  }
-
-  const idx = sessionsState.overviewFocusIndex;
-  const navList = sessionsState.navList;
-  const navCount = navList.length;
-
-  if (dir === 'up') {
-    if (idx > 0) {
-      sessionsState.overviewFocusIndex = idx - 1;
-      updateOverviewFocus();
-    } else if (sessionsState.sessionsFocusIndex > 0) {
-      // Past first card — exit overview, move to previous nav item
-      hideOverview();
-      sessionsState.sessionsFocusIndex--;
-      sessionsState.cardColumn = 0;
-      updateSessionsFocus();
-      autoSelectFocusedSession();
-    }
-    return true;
-  }
-  if (dir === 'down') {
-    if (idx + 1 < count) {
-      sessionsState.overviewFocusIndex = idx + 1;
-      updateOverviewFocus();
-    } else if (sessionsState.sessionsFocusIndex < navCount - 1) {
-      // Past last card — exit overview, move to next nav item
-      hideOverview();
-      sessionsState.sessionsFocusIndex++;
-      sessionsState.cardColumn = 0;
-      updateSessionsFocus();
-      autoSelectFocusedSession();
-    }
-    return true;
-  }
-  if (dir === 'left') {
-    // Exit overview back to sidebar group header
-    hideOverview();
-    return true;
-  }
-  if (dir === 'right') {
-    // Single column — no action
-    return true;
-  }
-
-  if (button === 'A') {
-    const session = sessions[sessionsState.overviewFocusIndex];
-    if (session) {
-      hideOverview();
-      switchToSession(session.id);
-      // Also select in sidebar
-      const navIdx = findNavIndexBySessionId(sessionsState.navList, session.id);
-      if (navIdx >= 0) {
-        sessionsState.sessionsFocusIndex = navIdx;
-        sessionsState.cardColumn = 0;
-        state.activeSessionId = session.id;
-        updateSessionsFocus();
-      }
-    }
-    return true;
-  }
-
-  if (button === 'X') {
-    // Toggle collapse on the focused session card
-    const session = sessions[sessionsState.overviewFocusIndex];
-    if (session) {
-      toggleCollapseCard(session.id);
-      refreshOverview();
-    }
-    return true;
-  }
-
-  if (button === 'B') {
-    // Exit overview back to sidebar group header
-    hideOverview();
-    return true;
-  }
-
-  return false;
-}
-
-

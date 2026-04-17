@@ -109,6 +109,7 @@ describe('Draft Strip', () => {
       await mod.refreshDraftStrip(null);
       const strip = document.getElementById('draftStrip')!;
       expect(strip.style.display).toBe('none');
+      expect(strip.children).toHaveLength(0);
     });
 
     it('hides strip when no drafts', async () => {
@@ -158,6 +159,19 @@ describe('Draft Strip', () => {
       await flush();
 
       expect(mockShowDraftEditor).toHaveBeenCalledWith('session-1', draft);
+    });
+
+    it('dismissDraftStrip hides and clears the strip', async () => {
+      mockDraftList.mockResolvedValue([
+        { id: 'd1', label: 'Draft One', text: 'text1' },
+      ]);
+      await mod.refreshDraftStrip('session-1');
+
+      mod.dismissDraftStrip();
+
+      const strip = document.getElementById('draftStrip')!;
+      expect(strip.style.display).toBe('none');
+      expect(strip.children).toHaveLength(0);
     });
   });
 

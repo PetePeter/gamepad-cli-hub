@@ -45,7 +45,8 @@ describe('plan IPC handlers', () => {
     const expected = [
       'plan:list', 'plan:create', 'plan:update', 'plan:delete',
       'plan:addDep', 'plan:removeDep', 'plan:apply', 'plan:complete',
-      'plan:startableForDir', 'plan:doingForSession', 'plan:deps', 'plan:getItem',
+      'plan:setState', 'plan:startableForDir', 'plan:doingForSession',
+      'plan:getAllDoingForDir', 'plan:deps', 'plan:getItem',
     ];
     for (const channel of expected) {
       expect(handlers.has(channel), `missing handler for ${channel}`).toBe(true);
@@ -192,6 +193,15 @@ describe('plan IPC handlers', () => {
     expect(result).toBeNull();
   });
 
+  it('plan:setState updates status and stateInfo', async () => {
+    const item = await handlers.get('plan:create')!({}, '/proj', 'Task', '');
+    await handlers.get('plan:apply')!({}, item.id, 'sess-1');
+
+    const updated = await handlers.get('plan:setState')!({}, item.id, 'blocked', 'Waiting on API', 'sess-1');
+    expect(updated.status).toBe('blocked');
+    expect(updated.stateInfo).toBe('Waiting on API');
+  });
+
   // ─── Queries ───────────────────────────────────────────
 
   it('plan:startableForDir returns only startable items', async () => {
@@ -216,6 +226,17 @@ describe('plan IPC handlers', () => {
   it('plan:doingForSession returns empty array for unknown session', async () => {
     const doing = await handlers.get('plan:doingForSession')!({}, 'nobody');
     expect(doing).toHaveLength(0);
+  });
+
+  it('plan:getAllDoingForDir returns active plans across sessions', async () => {
+    const first = await handlers.get('plan:create')!({}, '/proj', 'First', '');
+    const second = await handlers.get('plan:create')!({}, '/proj', 'Second', '');
+    await handlers.get('plan:apply')!({}, first.id, 'sess-1');
+    await handlers.get('plan:apply')!({}, second.id, 'sess-2');
+
+    const doing = await handlers.get('plan:getAllDoingForDir')!({}, '/proj');
+    expect(doing).toHaveLength(2);
+    expect(doing.map((item: any) => item.title)).toEqual(expect.arrayContaining(['First', 'Second']));
   });
 
   // ─── Cascading startable after completion ──────────────

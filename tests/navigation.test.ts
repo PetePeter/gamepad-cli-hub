@@ -20,9 +20,12 @@ const mockHandleBindingEditorButton = vi.fn();
 const mockHandleContextMenuButton = vi.fn();
 const mockHandleSequencePickerButton = vi.fn();
 const mockHandleCloseConfirmButton = vi.fn();
+const mockHandlePlanDeleteConfirmButton = vi.fn();
 const mockHandleQuickSpawnButton = vi.fn();
+const mockHandleDraftEditorButton = vi.fn();
 
 const mockGetTerminalManager = vi.fn();
+let _draftEditorVisible = false;
 
 const mockState = {
   currentScreen: 'sessions',
@@ -42,6 +45,7 @@ const mockBindingEditorState = { visible: false };
 const mockContextMenuState = { visible: false };
 const mockSequencePickerState = { visible: false };
 const mockCloseConfirmState = { visible: false };
+const mockPlanDeleteConfirmState = { visible: false };
 const mockQuickSpawnState = { visible: false };
 
 const mockBrowserGamepad = {
@@ -108,6 +112,11 @@ vi.mock('../renderer/modals/close-confirm.js', () => ({
   handleCloseConfirmButton: mockHandleCloseConfirmButton,
 }));
 
+vi.mock('../renderer/modals/plan-delete-confirm.js', () => ({
+  planDeleteConfirmState: mockPlanDeleteConfirmState,
+  handlePlanDeleteConfirmButton: mockHandlePlanDeleteConfirmButton,
+}));
+
 vi.mock('../renderer/modals/quick-spawn.js', () => ({
   quickSpawnState: mockQuickSpawnState,
   handleQuickSpawnButton: mockHandleQuickSpawnButton,
@@ -115,6 +124,11 @@ vi.mock('../renderer/modals/quick-spawn.js', () => ({
 
 vi.mock('../renderer/main.js', () => ({
   getTerminalManager: mockGetTerminalManager,
+}));
+
+vi.mock('../renderer/drafts/draft-editor.js', () => ({
+  isDraftEditorVisible: () => _draftEditorVisible,
+  handleDraftEditorButton: mockHandleDraftEditorButton,
 }));
 
 // ---------------------------------------------------------------------------
@@ -133,9 +147,11 @@ function resetModalStates(): void {
   mockBindingEditorState.visible = false;
   _formModalVisible = false;
   mockCloseConfirmState.visible = false;
+  mockPlanDeleteConfirmState.visible = false;
   mockQuickSpawnState.visible = false;
   mockContextMenuState.visible = false;
   mockSequencePickerState.visible = false;
+  _draftEditorVisible = false;
 }
 
 function resetState(): void {
@@ -254,6 +270,16 @@ describe('handleGamepadEvent', () => {
 
       expect(mockHandleCloseConfirmButton).toHaveBeenCalledWith('A');
       expect(mockHandleQuickSpawnButton).not.toHaveBeenCalled();
+    });
+
+    it('planDeleteConfirm intercepts before draftEditor', () => {
+      mockPlanDeleteConfirmState.visible = true;
+      _draftEditorVisible = true;
+
+      mod.handleGamepadEvent(makeEvent('A'));
+
+      expect(mockHandlePlanDeleteConfirmButton).toHaveBeenCalledWith('A');
+      expect(mockHandleDraftEditorButton).not.toHaveBeenCalled();
     });
 
     it('quickSpawn intercepts before contextMenu', () => {

@@ -80,11 +80,24 @@ function buildPlanDom(): void {
     <div id="terminalArea" class="panel-right">
       <div class="terminal-container"></div>
     </div>
+    <div class="modal-overlay" id="planDeleteConfirmOverlay" aria-hidden="true">
+      <div class="modal close-confirm-modal">
+        <div class="close-confirm-body" id="planDeleteConfirmBody"></div>
+        <div class="modal-footer">
+          <button id="planDeleteConfirmCancelBtn">Cancel</button>
+          <button id="planDeleteConfirmDeleteBtn">Delete</button>
+        </div>
+      </div>
+    </div>
   `;
 }
 
 async function getModule() {
   return await import('../renderer/plans/plan-screen.js');
+}
+
+async function getPlanDeleteConfirmModule() {
+  return await import('../renderer/modals/plan-delete-confirm.js');
 }
 
 /** Flush microtask queue so async fire-and-forget completes. */
@@ -122,19 +135,22 @@ describe('plan navigation — group header Plans button', () => {
     expect(maxGroupCol).toBe(3);
   });
 
-  it('session card still has 3 action columns (state=1, rename=2, close=3)', () => {
-    const maxSessionCol = 3;
-    expect(maxSessionCol).toBe(3);
+  it('session card now has 4 action columns (state=1, rename=2, eye=3, close=4)', () => {
+    const maxSessionCol = 4;
+    expect(maxSessionCol).toBe(4);
   });
 
-  it('navList includes group headers + session cards', () => {
+  it('navList includes overview button + group headers + session cards', () => {
     const groups = [makeGroup('/proj1', 2), makeGroup('/proj2', 1)];
     const navList = buildFlatNavList(groups);
 
+    // overview button at nav index 0
+    expect(navList[0]).toEqual({ type: 'overview-button', id: 'overview', groupIndex: -1 });
+
     const headers = navList.filter(n => n.type === 'group-header');
     expect(headers).toHaveLength(2);
-    // 2 headers + 3 cards = 5 items
-    expect(navList).toHaveLength(5);
+    // 1 overview + 2 headers + 3 cards = 6 items
+    expect(navList).toHaveLength(6);
   });
 
   it('isPlanScreenVisible returns false by default', async () => {
@@ -192,6 +208,8 @@ describe('Folder Planner canvas gamepad navigation', () => {
     };
 
     mod = await getModule();
+    const { initPlanDeleteConfirmClickHandlers } = await getPlanDeleteConfirmModule();
+    initPlanDeleteConfirmClickHandlers();
     // Ensure hidden state
     mod.hidePlanScreen();
   });
@@ -372,7 +390,7 @@ describe('Folder Planner canvas gamepad navigation', () => {
       expect(mockShowPlanInEditor).toHaveBeenCalled();
     });
 
-    it('X deletes selected node and refreshes', async () => {
+    it('X opens delete confirmation before deleting', async () => {
       await openCanvas();
       expect(mod.getSelectedPlanId()).toBe('a');
 
@@ -384,6 +402,9 @@ describe('Folder Planner canvas gamepad navigation', () => {
 
       const result = mod.handlePlanScreenAction('X');
       expect(result).toBe(true);
+      expect(mockPlanDelete).not.toHaveBeenCalled();
+
+      (document.getElementById('planDeleteConfirmDeleteBtn') as HTMLButtonElement).click();
       await flush();
 
       expect(mockPlanDelete).toHaveBeenCalledWith('a');

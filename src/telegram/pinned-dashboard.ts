@@ -6,9 +6,9 @@
  * periodically to reflect current state.
  *
  * Layout:
- *   🖥️ Gamepad CLI Hub — [Home PC]
+ *   🖥️ Helm — [Home PC]
  *   ━━━━━━━━━━━━━━━━━━━━
- *   📂 gamepad-cli-hub (3 sessions)
+ *   📂 helm (3 sessions)
  *     🔨 refactor-auth — implementing
  *     ⏳ fix-tests — waiting
  *     💤 cleanup — idle
@@ -175,7 +175,8 @@ export class PinnedDashboard {
     const sessions = this.sessionManager.getAllSessions();
     const lines: string[] = [];
 
-    lines.push(`🖥️ <b>Gamepad CLI Hub</b> — ${escapeHtml(this.instanceName)}`);
+    lines.push(`🖥️ <b>Helm</b> — ${escapeHtml(this.instanceName)}`);
+    lines.push(`<i>Helm - steer your fleet of agents</i>`);
     lines.push('━━━━━━━━━━━━━━━━━━━━');
 
     if (sessions.length === 0) {

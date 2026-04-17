@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "main": "dist-electron/main.js",
   "type": "module",
-  "description": "Xbox controller to multi-CLI session manager with GUI",
+  "description": "Helm - steer your fleet of agents",
   "scripts": {
     "start": "npm run build && electron .",
     "dev": "npm run build && electron .",
@@ -25,7 +25,7 @@
   "license": "MIT",
   "build": {
     "appId": "com.gamepadcli.hub",
-    "productName": "gamepad-cli-hub",
+    "productName": "Helm",
     "directories": {
       "output": "release"
     },
@@ -34,6 +34,7 @@
       "dist/renderer/**/*",
       "renderer/index.html",
       "renderer/styles/**/*",
+      "renderer/assets/**/*",
       "config/**/*",
       {
         "from": "config-deploy",
@@ -60,7 +61,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Gamepad CLI Hub"
+      "shortcutName": "Helm"
     }
   },
   "dependencies": {

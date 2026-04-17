@@ -2,6 +2,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+const { mockShowEditorPopup } = vi.hoisted(() => ({
+  mockShowEditorPopup: vi.fn(),
+}));
+
 // Mock bindings module before importing paste-handler
 vi.mock('../renderer/bindings', () => ({
   keyToPtyEscape: (key: string) => {
@@ -22,6 +26,10 @@ vi.mock('../renderer/bindings', () => ({
   },
 }));
 
+vi.mock('../renderer/editor/editor-popup.js', () => ({
+  showEditorPopup: mockShowEditorPopup,
+}));
+
 import { setupKeyboardRelay, teardownKeyboardRelay } from '../renderer/paste-handler';
 
 // ============================================================================
@@ -31,10 +39,14 @@ import { setupKeyboardRelay, teardownKeyboardRelay } from '../renderer/paste-han
 describe('keyboard relay', () => {
   let mockPtyWrite: ReturnType<typeof vi.fn>;
   let getActiveSessionId: ReturnType<typeof vi.fn>;
+  let hasPendingQuestion: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     mockPtyWrite = vi.fn().mockResolvedValue({ success: true });
     getActiveSessionId = vi.fn().mockReturnValue(null);
+    hasPendingQuestion = vi.fn().mockReturnValue(false);
+    mockShowEditorPopup.mockReset();
+    mockShowEditorPopup.mockResolvedValue('editor text');
 
     (window as any).gamepadCli = { ptyWrite: mockPtyWrite };
 
@@ -45,7 +57,7 @@ describe('keyboard relay', () => {
       configurable: true,
     });
 
-    setupKeyboardRelay(getActiveSessionId);
+    setupKeyboardRelay(getActiveSessionId, hasPendingQuestion);
   });
 
   afterEach(() => {
@@ -117,6 +129,24 @@ describe('keyboard relay', () => {
       getActiveSessionId.mockReturnValue('sess-1');
       const e = fireKey('v', { ctrlKey: true });
       expect(e.defaultPrevented).toBe(true);
+    });
+
+    it('still writes clipboard text when a question is pending', async () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+      hasPendingQuestion.mockReturnValue(true);
+
+      fireKey('v', { ctrlKey: true });
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'pasted text');
+    });
+
+    it('does not relay Ctrl+N as a PTY control character', () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+
+      fireKey('n', { ctrlKey: true });
+
+      expect(mockPtyWrite).not.toHaveBeenCalled();
     });
   });
 

@@ -12,6 +12,7 @@ import { attachModalKeyboard } from './modal-base.js';
 import { setPendingContextText, spawnNewSession } from '../screens/sessions.js';
 import { showQuickSpawn } from './quick-spawn.js';
 import { state } from '../state.js';
+import { showEditorPopup } from '../editor/editor-popup.js';
 
 // ============================================================================
 // State
@@ -262,14 +263,14 @@ async function executeSelectedItem(): Promise<void> {
       const sessionId = state.activeSessionId;
       if (!sessionId) break;
       try {
-        const result = await window.gamepadCli.editorOpenExternal();
-        if (result.success && result.text && result.text.trim()) {
-          window.gamepadCli.ptyWrite(sessionId, result.text);
+        const text = await showEditorPopup();
+        if (text && text.trim()) {
+          window.gamepadCli.ptyWrite(sessionId, text);
           logEvent('Sent editor text to PTY');
         }
       } catch (err) {
-        console.error('[ContextMenu] External editor failed:', err);
-        logEvent('External editor failed');
+        console.error('[ContextMenu] Editor popup failed:', err);
+        logEvent('Editor popup failed');
       }
       break;
     }

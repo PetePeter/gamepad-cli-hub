@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Helm Delivery Report</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1720;
+      --panel: #17212b;
+      --panel-2: #1e2a36;
+      --text: #e6edf3;
+      --muted: #9fb0c0;
+      --accent: #44cc44;
+      --border: #2d3b49;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 32px;
+      font-family: Segoe UI, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    h1, h2 { margin: 0 0 12px; }
+    p { margin: 0 0 12px; color: var(--muted); }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .hero {
+      background: linear-gradient(135deg, var(--panel), var(--panel-2));
+    }
+    .tagline {
+      color: var(--accent);
+      font-weight: 700;
+      margin-top: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th { color: var(--text); }
+    td { color: var(--muted); }
+    .done {
+      color: var(--accent);
+      font-weight: 700;
+    }
+    ul {
+      margin: 12px 0 0 20px;
+      padding: 0;
+      color: var(--muted);
+    }
+    code {
+      color: var(--text);
+      background: #101820;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <h1>Helm Delivery Report</h1>
+    <p class="tagline">Helm - steer your fleet of agents</p>
+    <p>This report summarizes the completed work across Groups 1-8, the validation outcome, and the final delivery state for this implementation run.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Validation Outcome</h2>
+    <p><span class="done">GO</span> — precommit validation passed and the implementation was approved for final wrap-up.</p>
+    <ul>
+      <li><code>npm run build</code> passed</li>
+      <li><code>npx vitest run</code> passed with <strong>1909 / 1909</strong> tests</li>
+      <li>All markdown plans from Group 1 through Group 8 were validated as faithfully implemented</li>
+    </ul>
+  </section>
+
+  <section class="panel">
+    <h2>Completed Plan Groups</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Group</th>
+          <th>Status</th>
+          <th>Delivered work</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td class="done">Done</td>
+          <td>Draft/plan editor fixes, doing-plan re-apply, plan delete confirmation, and planner/editor cleanup stability.</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td class="done">Done</td>
+          <td>Cross-session plan visibility, blocked/question states with state info, working-plan text on cards, and live plan badge refresh.</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td class="done">Done</td>
+          <td>Session-card cleanup, planner/session mutual exclusion, strip dismissal on switch, overview scrolling behavior, and keyboard-focus cleanup.</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td class="done">Done</td>
+          <td>Ctrl+N routed to plan creation, in-app Ctrl+G editor with history, context-menu/editor parity, and paste behavior preserved with question prompts.</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td class="done">Done</td>
+          <td>Activity timing synchronization so session timers and activity dots stay aligned.</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td class="done">Done</td>
+          <td>Global overview button, per-session eye toggle persistence, overview grouping across folders, and expanded session-card control layout.</td>
+        </tr>
+        <tr>
+          <td>7</td>
+          <td class="done">Done</td>
+          <td>Helm rebrand, splash screen, paper-boat asset, packaging metadata updates, and visible branding refresh.</td>
+        </tr>
+        <tr>
+          <td>8</td>
+          <td class="done">Done</td>
+          <td>Quickspawn / planner flicker fix through synchronous planner rendering, same-state session guard, and single refresh-listener ownership.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>Final Notes</h2>
+    <ul>
+      <li>Two post-validation fix lanes were completed before the final GO verdict: one for the draft-editor Ctrl+N regression and one for stale Group 6 navigation tests.</li>
+      <li>Branding now uses the Helm identity and updated assets while preserving stable internal app-data identity to avoid unnecessary migration risk.</li>
+      <li>The repository is ready for check-in following this report.</li>
+    </ul>
+  </section>
+</body>
+</html>

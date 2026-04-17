@@ -143,6 +143,10 @@ describe('Draft Editor', () => {
       const contentInput = document.getElementById('draftContentInput') as HTMLTextAreaElement;
       expect(labelInput.value).toBe('');
       expect(contentInput.value).toBe('');
+      expect(labelInput.disabled).toBe(false);
+      expect(labelInput.readOnly).toBe(false);
+      expect(contentInput.disabled).toBe(false);
+      expect(contentInput.readOnly).toBe(false);
 
       const title = editor.querySelector('.draft-editor-title')!;
       expect(title.textContent).toContain('New Draft');
@@ -567,6 +571,36 @@ describe('Draft Editor', () => {
       await flush();
 
       expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
+    });
+  });
+
+  describe('keyboard shortcuts', () => {
+    beforeEach(() => {
+      mod.initDraftEditor();
+    });
+
+    it('Ctrl+N inside the draft editor does not create or open a new draft', async () => {
+      mod.showDraftEditor('session-1');
+      const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement;
+      const contentInput = document.getElementById('draftContentInput') as HTMLTextAreaElement;
+      labelInput.value = 'My Draft';
+      contentInput.value = 'content';
+
+      const event = new KeyboardEvent('keydown', {
+        key: 'n',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+
+      labelInput.dispatchEvent(event);
+      await flush();
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(mockDraftCreate).not.toHaveBeenCalled();
+      expect(mod.isDraftEditorVisible()).toBe(true);
+      expect(labelInput.value).toBe('My Draft');
+      expect(contentInput.value).toBe('content');
     });
   });
 });

@@ -10,7 +10,9 @@
  */
 
 import { refreshDraftStrip } from './draft-strip.js';
+import { showPlanDeleteConfirm } from '../modals/plan-delete-confirm.js';
 import { toDirection, logEvent } from '../utils.js';
+import type { PlanStatus } from '../../src/types/plan.js';
 
 // ---------------------------------------------------------------------------
 // Types & state
@@ -27,18 +29,21 @@ export interface DraftEditorState {
   // Plan-specific
   planId: string | null;
   planCallbacks: PlanCallbacks | null;
+  planStatus: PlanStatus;
+  planStateInfo: string;
   // Shared
   focusIndex: number;
 }
 
 export interface PlanCallbacks {
-  onSave: (updates: { title: string; description: string }) => void;
+  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string }) => void;
   onDelete: () => void;
   onDone?: () => void;
   onApply?: () => void;
 }
 
 const ALL_FOCUS_IDS = [
+  'draftPlanStateSelect', 'draftPlanStateInfo',
   'draftLabelInput', 'draftContentInput',
   'draftSaveBtn', 'draftApplyBtn', 'draftDoneBtn',
   'draftDeleteBtn', 'draftCancelBtn',
@@ -55,6 +60,8 @@ export const draftEditorState: DraftEditorState = {
   text: '',
   planId: null,
   planCallbacks: null,
+  planStatus: 'pending',
+  planStateInfo: '',
   focusIndex: 0,
 };
 
@@ -83,6 +90,23 @@ export function initDraftEditor(): void {
         <button class="btn btn--secondary btn--sm" id="draftCancelBtn">Cancel</button>
       </div>
     </div>
+    <div class="draft-editor-plan-state" id="draftPlanStateRow" style="display:none">
+      <select class="draft-editor-plan-select" id="draftPlanStateSelect">
+        <option value="pending">⏸ Pending</option>
+        <option value="startable">▶ Ready</option>
+        <option value="doing">🔄 In Progress</option>
+        <option value="blocked">⛔ Blocked</option>
+        <option value="question">❓ Question</option>
+      </select>
+      <input
+        type="text"
+        class="draft-editor-plan-info"
+        id="draftPlanStateInfo"
+        placeholder="Add state context..."
+        maxlength="200"
+        style="display:none"
+      />
+    </div>
     <input type="text" class="draft-editor-label" id="draftLabelInput" placeholder="Title..." maxlength="100" />
     <textarea class="draft-editor-content" id="draftContentInput" placeholder="Enter your prompt..." rows="4"></textarea>
   `;
@@ -107,6 +131,7 @@ export function initDraftEditor(): void {
   document.getElementById('draftDoneBtn')?.addEventListener('click', () => handleButtonClick('done'));
   document.getElementById('draftDeleteBtn')?.addEventListener('click', () => handleButtonClick('delete'));
   document.getElementById('draftCancelBtn')?.addEventListener('click', () => hideDraftEditor());
+  document.getElementById('draftPlanStateSelect')?.addEventListener('change', () => syncPlanStateInfoVisibility());
 
   const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement | null;
   labelInput?.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -115,7 +140,6 @@ export function initDraftEditor(): void {
       saveAndDismiss();
     } else if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      saveAndNew();
     } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       saveAndDismiss();
@@ -135,7 +159,6 @@ export function initDraftEditor(): void {
       saveAndDismiss();
     } else if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      saveAndNew();
     } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       saveAndDismiss();
@@ -163,6 +186,8 @@ export function showDraftEditor(sessionId: string, existingDraft?: { id: string;
   const titleEl = editor.querySelector('.draft-editor-title');
   const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement | null;
   const contentInput = document.getElementById('draftContentInput') as HTMLTextAreaElement | null;
+  const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement | null;
+  const stateInfo = document.getElementById('draftPlanStateInfo') as HTMLInputElement | null;
 
   if (existingDraft) {
     draftEditorState.draftId = existingDraft.id;
@@ -177,6 +202,11 @@ export function showDraftEditor(sessionId: string, existingDraft?: { id: string;
     if (contentInput) contentInput.value = '';
   }
 
+  hidePlanStateControls();
+  enableEditorInputs(labelInput, contentInput);
+  setInputEditable(stateSelect);
+  setInputEditable(stateInfo);
+
   // Draft mode: Save, Apply, Delete, Cancel (no Done)
   setButtonVisibility({ save: true, apply: true, done: false, delete: true, cancel: true });
 
@@ -187,7 +217,7 @@ export function showDraftEditor(sessionId: string, existingDraft?: { id: string;
 /** Show the editor in plan mode for a plan item. */
 export function showPlanInEditor(
   sessionId: string,
-  plan: { id: string; title: string; description: string; status: string },
+  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string },
   callbacks: PlanCallbacks,
 ): void {
   const editor = document.getElementById('draftEditor');
@@ -199,22 +229,42 @@ export function showPlanInEditor(
   draftEditorState.visible = true;
   draftEditorState.planId = plan.id;
   draftEditorState.planCallbacks = callbacks;
+  draftEditorState.planStatus = plan.status;
+  draftEditorState.planStateInfo = plan.stateInfo ?? '';
 
   const titleEl = editor.querySelector('.draft-editor-title');
   const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement | null;
   const contentInput = document.getElementById('draftContentInput') as HTMLTextAreaElement | null;
+  const stateRow = document.getElementById('draftPlanStateRow') as HTMLElement | null;
+  const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement | null;
+  const stateInfo = document.getElementById('draftPlanStateInfo') as HTMLInputElement | null;
 
   const statusLabels: Record<string, string> = {
-    pending: '⏸ Pending', startable: '▶ Ready', doing: '🔄 In Progress', done: '✓ Done',
+    pending: '⏸ Pending',
+    startable: '▶ Ready',
+    doing: '🔄 In Progress',
+    blocked: '⛔ Blocked',
+    question: '❓ Question',
+    done: '✓ Done',
   };
   if (titleEl) titleEl.textContent = `🗺️ Edit Plan · ${statusLabels[plan.status] ?? plan.status}`;
   if (labelInput) labelInput.value = plan.title;
   if (contentInput) contentInput.value = plan.description;
+  if (stateRow) stateRow.style.display = '';
+  if (stateSelect) {
+    stateSelect.value = plan.status === 'done' ? 'pending' : plan.status;
+  }
+  if (stateInfo) stateInfo.value = plan.stateInfo ?? '';
+  enableEditorInputs(labelInput, contentInput);
+  setInputEditable(stateSelect);
+  setInputEditable(stateInfo);
+  if (stateSelect) stateSelect.disabled = plan.status === 'done';
+  syncPlanStateInfoVisibility();
 
-  // Plan mode: Save, Apply (startable), Done (doing), Delete, Cancel
+  // Plan mode: Save, Apply (startable/doing), Done (doing), Delete, Cancel
   setButtonVisibility({
     save: true,
-    apply: plan.status === 'startable' && !!callbacks.onApply,
+    apply: (plan.status === 'startable' || plan.status === 'doing') && !!callbacks.onApply,
     done: plan.status === 'doing' && !!callbacks.onDone,
     delete: true,
     cancel: true,
@@ -222,7 +272,9 @@ export function showPlanInEditor(
 
   // Relabel Apply for plan context
   const applyBtn = document.getElementById('draftApplyBtn');
-  if (applyBtn) applyBtn.textContent = draftEditorState.mode === 'plan' ? '▶ Apply' : 'Apply';
+  if (applyBtn) {
+    applyBtn.textContent = plan.status === 'doing' ? '↻ Apply Again' : '▶ Apply';
+  }
 
   editor.style.display = 'flex';
   applyEditorFocus();
@@ -279,13 +331,6 @@ export function handleDraftEditorButton(button: string): void {
 /** Ctrl+Enter / Ctrl+S shortcut — save current content and close the editor. */
 function saveAndDismiss(): void {
   handleButtonClick('save');
-}
-
-/** Ctrl+N shortcut — save current content and open a fresh blank draft. */
-function saveAndNew(): void {
-  const sid = draftEditorState.sessionId;
-  handleButtonClick('save');
-  showDraftEditor(sid);
 }
 
 function handleButtonClick(action: 'save' | 'apply' | 'done' | 'delete'): void {
@@ -370,7 +415,12 @@ function savePlan(): void {
   if (!cb) return;
   const title = (document.getElementById('draftLabelInput') as HTMLInputElement | null)?.value ?? '';
   const description = (document.getElementById('draftContentInput') as HTMLTextAreaElement | null)?.value ?? '';
-  cb.onSave({ title, description });
+  const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement | null;
+  const stateInfo = (document.getElementById('draftPlanStateInfo') as HTMLInputElement | null)?.value ?? '';
+  const status = stateSelect?.disabled
+    ? draftEditorState.planStatus
+    : ((stateSelect?.value as PlanStatus | undefined) ?? draftEditorState.planStatus);
+  cb.onSave({ title, description, status, stateInfo });
   hideDraftEditor();
 }
 
@@ -383,9 +433,8 @@ function donePlan(): void {
 }
 
 function deletePlan(): void {
-  if (window.confirm('Delete this plan item?')) {
-    draftEditorState.planCallbacks?.onDelete();
-  }
+  const title = (document.getElementById('draftLabelInput') as HTMLInputElement | null)?.value.trim() || 'this plan item';
+  showPlanDeleteConfirm(title, () => draftEditorState.planCallbacks?.onDelete());
 }
 
 // ---------------------------------------------------------------------------
@@ -395,8 +444,12 @@ function deletePlan(): void {
 /** Get IDs of focusable elements that are currently visible. */
 function getVisibleFocusIds(): string[] {
   return ALL_FOCUS_IDS.filter(id => {
-    const el = document.getElementById(id);
-    return el && (el as HTMLElement).style.display !== 'none';
+    let el = document.getElementById(id) as HTMLElement | null;
+    while (el) {
+      if (el.style.display === 'none') return false;
+      el = el.parentElement;
+    }
+    return true;
   });
 }
 
@@ -428,7 +481,10 @@ function resetState(): void {
   draftEditorState.text = '';
   draftEditorState.planId = null;
   draftEditorState.planCallbacks = null;
+  draftEditorState.planStatus = 'pending';
+  draftEditorState.planStateInfo = '';
   draftEditorState.focusIndex = 0;
+  hidePlanStateControls();
 }
 
 function setButtonVisibility(vis: { save: boolean; apply: boolean; done: boolean; delete: boolean; cancel: boolean }): void {
@@ -441,4 +497,44 @@ function setButtonVisibility(vis: { save: boolean; apply: boolean; done: boolean
   set('draftDoneBtn', vis.done);
   set('draftDeleteBtn', vis.delete);
   set('draftCancelBtn', vis.cancel);
+}
+
+function enableEditorInputs(
+  labelInput: HTMLInputElement | null,
+  contentInput: HTMLTextAreaElement | null,
+): void {
+  setInputEditable(labelInput);
+  setInputEditable(contentInput);
+}
+
+function setInputEditable(input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null): void {
+  if (!input) return;
+  input.disabled = false;
+  if ('readOnly' in input) {
+    input.readOnly = false;
+  }
+}
+
+function hidePlanStateControls(): void {
+  const stateRow = document.getElementById('draftPlanStateRow') as HTMLElement | null;
+  const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement | null;
+  const stateInfo = document.getElementById('draftPlanStateInfo') as HTMLInputElement | null;
+  if (stateRow) stateRow.style.display = 'none';
+  if (stateSelect) {
+    stateSelect.value = 'pending';
+    stateSelect.disabled = false;
+  }
+  if (stateInfo) {
+    stateInfo.value = '';
+    stateInfo.style.display = 'none';
+  }
+}
+
+function syncPlanStateInfoVisibility(): void {
+  const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement | null;
+  const stateInfo = document.getElementById('draftPlanStateInfo') as HTMLInputElement | null;
+  if (!stateSelect || !stateInfo) return;
+  const needsInfo = stateSelect.value === 'blocked' || stateSelect.value === 'question';
+  stateInfo.style.display = needsInfo ? '' : 'none';
+  if (!needsInfo) stateInfo.value = '';
 }

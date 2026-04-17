@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 // Mock the state module
 vi.mock('../renderer/state.js', () => ({
@@ -14,6 +15,7 @@ vi.mock('../renderer/state.js', () => ({
 vi.mock('../renderer/screens/sessions-state.js', () => ({
   sessionsState: {
     overviewGroup: null as string | null,
+    overviewIsGlobal: false,
     overviewFocusIndex: 0,
     activeFocus: 'sessions' as string,
     sessionsFocusIndex: 0,
@@ -73,8 +75,11 @@ describe('GroupOverview', () => {
     setActivityLevelGetter(() => 'idle');
 
     sessionsState.overviewGroup = null;
+    sessionsState.overviewIsGlobal = false;
     sessionsState.overviewFocusIndex = 0;
     state.sessions = [];
+    sessionsState.groups = [];
+    sessionsState.groupPrefs = { order: [], collapsed: [], overviewHidden: [] };
   });
 
   afterEach(() => {
@@ -89,6 +94,7 @@ describe('GroupOverview', () => {
       showOverview('/project');
 
       expect(sessionsState.overviewGroup).toBe('/project');
+      expect(sessionsState.overviewIsGlobal).toBe(false);
       const grid = document.getElementById('overviewGrid');
       expect(grid).not.toBeNull();
       expect(grid?.style.display).toBe('grid');
@@ -104,6 +110,7 @@ describe('GroupOverview', () => {
       hideOverview();
 
       expect(sessionsState.overviewGroup).toBeNull();
+      expect(sessionsState.overviewIsGlobal).toBe(false);
       const grid = document.getElementById('overviewGrid');
       expect(grid?.style.display).toBe('none');
       const tc = document.getElementById('terminalContainer');
@@ -123,6 +130,10 @@ describe('GroupOverview', () => {
         { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
         { id: 's2', name: 'Copilot-1', cliType: 'copilot-cli', workingDir: '/project', processId: 0 },
         { id: 's3', name: 'Other', cliType: 'generic', workingDir: '/other', processId: 0 },
+      ];
+      sessionsState.groups = [
+        { dirPath: '/project', dirName: 'project', sessions: state.sessions.slice(0, 2) as any, collapsed: false },
+        { dirPath: '/other', dirName: 'other', sessions: state.sessions.slice(2) as any, collapsed: false },
       ];
       showOverview('/project');
 
@@ -178,6 +189,43 @@ describe('GroupOverview', () => {
       expect(lines[9].textContent).toBe('line3');
 
       setTerminalManagerGetter(() => null);
+    });
+
+    it('keeps ten preview lines visible even with more than five overview cards', () => {
+      const mockTm = {
+        deselect: vi.fn(),
+        switchTo: vi.fn(),
+        getActiveSessionId: vi.fn().mockReturnValue(null),
+        hasTerminal: vi.fn().mockReturnValue(true),
+        getTerminalLines: vi.fn().mockReturnValue(['line1', 'line2']),
+      };
+      setTerminalManagerGetter(() => mockTm as any);
+
+      state.sessions = Array.from({ length: 6 }, (_, index) => ({
+        id: `s${index + 1}`,
+        name: `Session ${index + 1}`,
+        cliType: 'claude-code',
+        workingDir: '/project',
+        processId: 0,
+      }));
+
+      showOverview('/project');
+
+      const cards = document.querySelectorAll('.overview-card');
+      expect(cards).toHaveLength(6);
+      for (const card of cards) {
+        expect(card.querySelectorAll('.preview-line')).toHaveLength(10);
+      }
+
+      setTerminalManagerGetter(() => null);
+    });
+
+    it('uses scrollable overview grid CSS instead of clamping the container height', () => {
+      const css = readFileSync('renderer/styles/main.css', 'utf8');
+      const overviewGridBlock = css.match(/\.overview-grid\s*\{[^}]+\}/)?.[0] ?? '';
+
+      expect(overviewGridBlock).toContain('overflow-y: auto;');
+      expect(overviewGridBlock).not.toContain('max-height:');
     });
 
     it('pads preview at the top when fewer lines available (bottom-aligned)', () => {
@@ -259,6 +307,71 @@ describe('GroupOverview', () => {
 
       const subtitle = document.querySelector('.overview-card-subtitle');
       expect(subtitle).toBeNull();
+    });
+
+    it('renders visible sessions from multiple folders in global overview', () => {
+      state.sessions = [
+        { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
+        { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
+        { id: 's3', name: 'Three', cliType: 'claude-code', workingDir: '/project-b', processId: 0 },
+      ];
+      sessionsState.groups = [
+        { dirPath: '/project-a', dirName: 'project-a', sessions: state.sessions.slice(0, 2) as any, collapsed: false },
+        { dirPath: '/project-b', dirName: 'project-b', sessions: state.sessions.slice(2) as any, collapsed: false },
+      ];
+
+      showOverview(null);
+
+      expect(sessionsState.overviewIsGlobal).toBe(true);
+      expect(Array.from(document.querySelectorAll('.overview-card')).map(card => card.getAttribute('data-session-id')))
+        .toEqual(['s1', 's2', 's3']);
+    });
+
+    it('renders break marks between visible folder groups in global overview', () => {
+      state.sessions = [
+        { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
+        { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project-b', processId: 0 },
+      ];
+      sessionsState.groups = [
+        { dirPath: '/project-a', dirName: 'project-a', sessions: [state.sessions[0]] as any, collapsed: false },
+        { dirPath: '/project-b', dirName: 'project-b', sessions: [state.sessions[1]] as any, collapsed: false },
+      ];
+
+      showOverview(null);
+
+      const marks = document.querySelectorAll('.overview-break-mark');
+      expect(marks).toHaveLength(1);
+      expect(marks[0]?.textContent).toContain('/project-b');
+    });
+
+    it('does not render break marks for a single visible folder', () => {
+      state.sessions = [
+        { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
+        { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
+      ];
+      sessionsState.groups = [
+        { dirPath: '/project-a', dirName: 'project-a', sessions: state.sessions as any, collapsed: false },
+      ];
+
+      showOverview(null);
+
+      expect(document.querySelectorAll('.overview-break-mark')).toHaveLength(0);
+    });
+
+    it('does not render break marks between adjacent sessions from the same folder', () => {
+      state.sessions = [
+        { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
+        { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
+        { id: 's3', name: 'Three', cliType: 'claude-code', workingDir: '/project-b', processId: 0 },
+      ];
+      sessionsState.groups = [
+        { dirPath: '/project-a', dirName: 'project-a', sessions: state.sessions.slice(0, 2) as any, collapsed: false },
+        { dirPath: '/project-b', dirName: 'project-b', sessions: state.sessions.slice(2) as any, collapsed: false },
+      ];
+
+      showOverview(null);
+
+      expect(document.querySelectorAll('.overview-break-mark')).toHaveLength(1);
     });
   });
 

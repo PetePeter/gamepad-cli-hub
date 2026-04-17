@@ -4,7 +4,7 @@
  */
 
 /** Lifecycle status of a plan item. */
-export type PlanStatus = 'pending' | 'startable' | 'doing' | 'done';
+export type PlanStatus = 'pending' | 'startable' | 'doing' | 'blocked' | 'question' | 'done';
 
 /** A single plan item (node in the DAG). */
 export interface PlanItem {
@@ -20,6 +20,8 @@ export interface PlanItem {
   status: PlanStatus;
   /** Session ID when status is 'doing' (which session picked it up) */
   sessionId?: string;
+  /** Extra context for blocked/question states */
+  stateInfo?: string;
   /** Creation timestamp */
   createdAt: number;
   /** Last update timestamp */

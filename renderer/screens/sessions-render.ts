@@ -11,11 +11,13 @@ import { logEvent, getCliDisplayName } from '../utils.js';
 import { showCloseConfirm } from '../modals/close-confirm.js';
 import { sortSessions, SESSION_SORT_LABELS, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import { createSortControl, type SortControlHandle } from '../components/sort-control.js';
-import { groupSessionsByDirectory, buildFlatNavList, findNavIndexBySessionId, type SessionGroup } from '../session-groups.js';
+import {
+  groupSessionsByDirectory, buildFlatNavList, findNavIndexBySessionId,
+  getVisibleSessions, isSessionHiddenFromOverview, type SessionGroup,
+} from '../session-groups.js';
 import { showOverview, refreshOverview, isOverviewVisible } from './group-overview.js';
 import { getActivityColor } from '../state-colors.js';
 import { createDraftBadge } from '../drafts/draft-strip.js';
-import { createPlanBadge } from '../plans/plan-chips.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import {
@@ -24,7 +26,7 @@ import {
   switchToSession, getSessionCwd, getTerminalManager,
   toggleGroupCollapse, moveGroupUpAction, moveGroupDownAction,
   getDraftCountCache, getLastOutputTime, formatElapsed,
-  getPlanDoingCountCache, getPlanStartableCountCache,
+  toggleSessionOverviewVisibility,
 } from './sessions.js';
 
 // --- Constants ---
@@ -198,7 +200,9 @@ export function renderSessions(): void {
   // index — updateSessionsFocus applies focus styling to .focusable elements.
   for (let i = 0; i < sessionsState.navList.length; i++) {
     const item = sessionsState.navList[i];
-    if (item.type === 'group-header') {
+    if (item.type === 'overview-button') {
+      list.appendChild(createOverviewButton(i));
+    } else if (item.type === 'group-header') {
       const group = sessionsState.groups[item.groupIndex];
       if (group) list.appendChild(createGroupHeader(group, i));
     } else {
@@ -206,6 +210,29 @@ export function renderSessions(): void {
       if (session) list.appendChild(createSessionCard(session, i));
     }
   }
+}
+
+function createOverviewButton(index: number): HTMLElement {
+  const button = document.createElement('div');
+  button.className = 'group-header overview-nav-button';
+  button.dataset.navIndex = String(index);
+  if (index === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions') {
+    button.classList.add('focused');
+  }
+
+  const label = document.createElement('span');
+  label.className = 'group-name';
+  label.textContent = 'Overview';
+
+  const count = document.createElement('span');
+  count.className = 'overview-visible-count';
+  const visibleCount = getVisibleSessions(sessionsState.groups, sessionsState.groupPrefs).length;
+  count.textContent = `${visibleCount} session${visibleCount === 1 ? '' : 's'}`;
+
+  button.appendChild(label);
+  button.appendChild(count);
+  button.addEventListener('click', () => showOverview(null, state.activeSessionId ?? undefined));
+  return button;
 }
 
 function createGroupHeader(group: SessionGroup, index: number): HTMLElement {
@@ -329,11 +356,6 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
 
   const badge = createDraftBadge(getDraftCountCache(session.id));
   if (badge) topRow.appendChild(badge);
-  const planBadge = createPlanBadge(
-    getPlanDoingCountCache(session.id),
-    getPlanStartableCountCache(session.id),
-  );
-  if (planBadge) topRow.appendChild(planBadge);
 
   const spacer = document.createElement('span');
   spacer.style.flex = '1';
@@ -359,9 +381,21 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
     topRow.appendChild(renameBtn);
   }
 
+  const eyeBtn = document.createElement('button');
+  eyeBtn.className = 'session-overview-toggle';
+  if (isFocusedCard && sessionsState.cardColumn === 3) eyeBtn.classList.add('card-col-focused');
+  const hiddenFromOverview = isSessionHiddenFromOverview(session, sessionsState.groupPrefs);
+  eyeBtn.textContent = hiddenFromOverview ? '👁‍🗨' : '👁';
+  eyeBtn.title = hiddenFromOverview ? 'Show in overview' : 'Hide from overview';
+  eyeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleSessionOverviewVisibility(session.id);
+  });
+  topRow.appendChild(eyeBtn);
+
   const closeBtn = document.createElement('button');
   closeBtn.className = 'session-close';
-  if (isFocusedCard && sessionsState.cardColumn === 3) closeBtn.classList.add('card-col-focused');
+  if (isFocusedCard && sessionsState.cardColumn === 4) closeBtn.classList.add('card-col-focused');
   closeBtn.textContent = '✕';
   closeBtn.title = `Close ${displayName}`;
   closeBtn.addEventListener('click', (e) => {
@@ -427,6 +461,11 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
       startRename(session.id);
     });
     nameLine.appendChild(name);
+
+    const workingPlan = document.createElement('span');
+    workingPlan.className = 'session-working-plan';
+    nameLine.appendChild(workingPlan);
+    void renderWorkingPlan(session.id, workingPlan);
   }
 
   // --- Line 3: terminal title (meta) ---
@@ -445,6 +484,29 @@ function createSessionCard(session: typeof state.sessions[0], index: number): HT
 
   card.addEventListener('click', () => switchToSession(session.id));
   return card;
+}
+
+async function renderWorkingPlan(sessionId: string, target: HTMLElement): Promise<void> {
+  try {
+    const plans = await window.gamepadCli?.planDoingForSession?.(sessionId);
+    if (!target.isConnected) return;
+    const plan = (plans ?? [])[0];
+    if (!plan) {
+      target.textContent = '';
+      target.title = '';
+      return;
+    }
+
+    const prefix = plan.status === 'blocked' ? '⛔' : plan.status === 'question' ? '❓' : '🗺️';
+    const label = `${prefix} ${plan.title}`;
+    target.textContent = label;
+    target.title = plan.stateInfo ? `${plan.title}\n${plan.stateInfo}` : plan.title;
+  } catch {
+    if (target.isConnected) {
+      target.textContent = '';
+      target.title = '';
+    }
+  }
 }
 
 // --- State dropdown ---

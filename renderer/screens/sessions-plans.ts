@@ -14,28 +14,34 @@ import { updateAllFocus } from './sessions.js';
 // Render — plans grid
 // ============================================================================
 
-/** Generation counter to prevent stale async renders from appending duplicates. */
-let plansRenderGeneration = 0;
+const ACTIVE_PLAN_STATUSES = new Set(['doing', 'blocked', 'question']);
 
+/**
+ * Render the plans grid synchronously from already-loaded sessionsState.directories.
+ *
+ * Uses in-memory state populated by loadSessionsData() so the grid never
+ * blanks while waiting on an async fetch — eliminating planner flicker.
+ */
 export function renderPlansGrid(): void {
   const grid = document.getElementById('plansGrid');
   if (!grid) return;
-  grid.innerHTML = '';
 
-  if (!window.gamepadCli) return;
-
-  const thisGeneration = ++plansRenderGeneration;
-
-  window.gamepadCli.configGetWorkingDirs().then((dirs: Array<{ name: string; path: string }>) => {
-    if (thisGeneration !== plansRenderGeneration) return;
-    if (!dirs || dirs.length === 0) return;
+  const dirs = sessionsState.directories;
+  if (!dirs || dirs.length === 0) {
     grid.innerHTML = '';
-    dirs.forEach((dir, index) => {
-      grid.appendChild(createPlansButton(dir, index));
-    });
-    updatePlansFocus();
-    refreshPlanBadges();
+    return;
+  }
+
+  // Build replacement content before touching the DOM to avoid blank frames.
+  const fragment = document.createDocumentFragment();
+  dirs.forEach((dir, index) => {
+    fragment.appendChild(createPlansButton(dir, index));
   });
+  grid.innerHTML = '';
+  grid.appendChild(fragment);
+
+  updatePlansFocus();
+  refreshPlanBadges();
 }
 
 function createPlansButton(dir: { name: string; path: string }, index: number): HTMLElement {
@@ -185,7 +191,7 @@ export async function refreshPlanBadges(): Promise<void> {
       ]);
 
       const startableCount = startableItems?.length ?? 0;
-      const doingCount = (allItems ?? []).filter((p: any) => p.status === 'doing').length;
+      const doingCount = (allItems ?? []).filter((p: any) => ACTIVE_PLAN_STATUSES.has(p.status)).length;
 
       if (startableBadge) {
         startableBadge.textContent = startableCount > 0 ? `🔵${startableCount}` : '';

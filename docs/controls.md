@@ -33,7 +33,7 @@ Gamepad button and keyboard shortcut mappings.
 | Delete | Mapped to X button |
 | F5 | Mapped to Y button |
 | Ctrl+V | Paste clipboard text to active terminal (PTY stdin) |
-| Ctrl+G | Open external editor (notepad) — result sent to active terminal |
+| Ctrl+G | Open in-app Prompt Editor — textarea + recent-prompts sidebar (last 10), Ctrl+Enter sends to active terminal |
 | Tab / Shift+Tab | Cycle buttons in selection-mode modals (close-confirm, context-menu, sequence-picker, quick-spawn) |
 
 ## Navigation Priority Chain

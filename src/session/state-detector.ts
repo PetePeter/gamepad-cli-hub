@@ -18,6 +18,8 @@ export interface QuestionCleared {
 export interface ActivityChange {
   sessionId: string;
   level: ActivityLevel;
+  /** Timestamp of the last PTY output — included so renderer can sync timer display with dot. */
+  lastOutputAt?: number;
 }
 
 interface SessionTracking {
@@ -131,6 +133,9 @@ export class StateDetector extends EventEmitter {
     this.resizeTimers.set(sessionId, setTimeout(() => {
       tracking.resizing = false;
       this.resizeTimers.delete(sessionId);
+      // If output arrived during suppression, realign activity timers so the
+      // inactive countdown starts from the latest output, not from before resize.
+      this.promoteIfRecentOutput(sessionId);
     }, DEFAULT_RESIZE_CLEAR_MS));
   }
 
@@ -145,6 +150,8 @@ export class StateDetector extends EventEmitter {
     this.restoreTimers.set(sessionId, setTimeout(() => {
       tracking.restoring = false;
       this.restoreTimers.delete(sessionId);
+      // If output arrived during the restore grace period, realign activity timers.
+      this.promoteIfRecentOutput(sessionId);
     }, DEFAULT_RESTORE_GRACE_MS));
   }
 
@@ -176,7 +183,7 @@ export class StateDetector extends EventEmitter {
 
     if (tracking.activityLevel !== 'active') {
       tracking.activityLevel = 'active';
-      this.emit('activity-change', { sessionId, level: 'active' } satisfies ActivityChange);
+      this.emit('activity-change', { sessionId, level: 'active', lastOutputAt: tracking.lastOutputAt } satisfies ActivityChange);
     }
 
     this.resetActivityTimers(sessionId);
@@ -191,7 +198,7 @@ export class StateDetector extends EventEmitter {
     if (!tracking.resizing && !tracking.restoring) {
       if (tracking.activityLevel !== 'active') {
         tracking.activityLevel = 'active';
-        this.emit('activity-change', { sessionId, level: 'active' } satisfies ActivityChange);
+        this.emit('activity-change', { sessionId, level: 'active', lastOutputAt: tracking.lastOutputAt } satisfies ActivityChange);
       }
       this.resetActivityTimers(sessionId);
     }
@@ -323,7 +330,7 @@ export class StateDetector extends EventEmitter {
       const tracking = this.sessionStates.get(sessionId);
       if (tracking && tracking.activityLevel === 'active') {
         tracking.activityLevel = 'inactive';
-        this.emit('activity-change', { sessionId, level: 'inactive' } satisfies ActivityChange);
+        this.emit('activity-change', { sessionId, level: 'inactive', lastOutputAt: tracking.lastOutputAt } satisfies ActivityChange);
       }
     }, this.inactiveTimeoutMs);
     this.inactiveTimers.set(sessionId, inactiveTimer);
@@ -334,10 +341,26 @@ export class StateDetector extends EventEmitter {
       const tracking = this.sessionStates.get(sessionId);
       if (tracking && tracking.activityLevel !== 'idle') {
         tracking.activityLevel = 'idle';
-        this.emit('activity-change', { sessionId, level: 'idle' } satisfies ActivityChange);
+        this.emit('activity-change', { sessionId, level: 'idle', lastOutputAt: tracking.lastOutputAt } satisfies ActivityChange);
       }
     }, this.idleTimeoutMs);
     this.idleTimers.set(sessionId, idleTimer);
+  }
+
+  /** After suppression clears, promote to active if output arrived during the
+   *  suppression window. This realigns the activity timers so the inactive
+   *  countdown starts from the actual last output, not from before suppression. */
+  private promoteIfRecentOutput(sessionId: string): void {
+    const tracking = this.sessionStates.get(sessionId);
+    if (!tracking || tracking.lastOutputAt === 0) return;
+    const elapsed = Date.now() - tracking.lastOutputAt;
+    if (elapsed < this.inactiveTimeoutMs) {
+      if (tracking.activityLevel !== 'active') {
+        tracking.activityLevel = 'active';
+        this.emit('activity-change', { sessionId, level: 'active', lastOutputAt: tracking.lastOutputAt } satisfies ActivityChange);
+      }
+      this.resetActivityTimers(sessionId);
+    }
   }
 
   /** Clear both activity timers for a session. */

@@ -125,10 +125,23 @@ const gamepadCliAPI = {
     ipcRenderer.invoke('config:setSortPrefs', area, prefs),
 
   configGetSessionGroupPrefs: () =>
-    ipcRenderer.invoke('config:getSessionGroupPrefs') as Promise<{ order: string[]; collapsed: string[]; bookmarked?: string[] }>,
+    ipcRenderer.invoke('config:getSessionGroupPrefs') as Promise<{
+      order: string[];
+      collapsed: string[];
+      bookmarked?: string[];
+      overviewHidden?: string[];
+    }>,
 
-  configSetSessionGroupPrefs: (prefs: { order: string[]; collapsed: string[]; bookmarked?: string[] }) =>
+  configSetSessionGroupPrefs: (prefs: {
+    order: string[];
+    collapsed: string[];
+    bookmarked?: string[];
+    overviewHidden?: string[];
+  }) =>
     ipcRenderer.invoke('config:setSessionGroupPrefs', prefs),
+
+  editorGetHistory: (): Promise<string[]> => ipcRenderer.invoke('editor:getHistory'),
+  editorSetHistory: (entries: string[]) => ipcRenderer.invoke('editor:setHistory', entries),
 
   configRemoveBookmarkedDir: (dirPath: string) =>
     ipcRenderer.invoke('config:removeBookmarkedDir', dirPath),
@@ -413,6 +426,14 @@ const gamepadCliAPI = {
   planComplete: (id: string) =>
     ipcRenderer.invoke('plan:complete', id),
 
+  /** Manually set a plan state and optional context */
+  planSetState: (
+    id: string,
+    status: 'pending' | 'startable' | 'doing' | 'blocked' | 'question',
+    stateInfo?: string,
+    sessionId?: string,
+  ) => ipcRenderer.invoke('plan:setState', id, status, stateInfo, sessionId),
+
   /** Get startable plans for a directory */
   planStartableForDir: (dirPath: string) =>
     ipcRenderer.invoke('plan:startableForDir', dirPath),
@@ -421,6 +442,10 @@ const gamepadCliAPI = {
   planDoingForSession: (sessionId: string) =>
     ipcRenderer.invoke('plan:doingForSession', sessionId),
 
+  /** Get all active plans for a directory across sessions */
+  planGetAllDoingForDir: (dirPath: string) =>
+    ipcRenderer.invoke('plan:getAllDoingForDir', dirPath),
+
   /** Get all dependencies for a directory */
   planDeps: (dirPath: string) =>
     ipcRenderer.invoke('plan:deps', dirPath),
@@ -428,6 +453,13 @@ const gamepadCliAPI = {
   /** Get a single plan item by ID */
   planGetItem: (id: string) =>
     ipcRenderer.invoke('plan:getItem', id),
+
+  /** Subscribe to plan change events */
+  onPlanChanged: (callback: (dirPath: string) => void) => {
+    const listener = (_event: unknown, dirPath: string) => callback(dirPath);
+    ipcRenderer.on('plan:changed', listener);
+    return () => ipcRenderer.removeListener('plan:changed', listener);
+  },
 
 };
 

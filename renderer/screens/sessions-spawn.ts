@@ -181,13 +181,33 @@ export async function spawnNewSession(cliType?: string, preselectedPath?: string
 // ============================================================================
 
 export async function switchToSession(sessionId: string): Promise<void> {
+  const [
+    { dismissDraftStrip },
+    { hideDraftEditor },
+    { hidePlanScreen, isPlanScreenVisible },
+    { hideEditorPopup },
+  ] = await Promise.all([
+    import('../drafts/draft-strip.js'),
+    import('../drafts/draft-editor.js'),
+    import('../plans/plan-screen.js'),
+    import('../editor/editor-popup.js'),
+  ]);
+
+  if (isPlanScreenVisible()) {
+    hidePlanScreen();
+  }
+
   // Track switch time to debounce false activity from focus-induced PTY responses
   lastSwitchTime = Date.now();
 
   // Check if this is an embedded terminal
   const tm = getTerminalManager();
   if (tm && tm.hasTerminal(sessionId)) {
+    hideDraftEditor();
+    hideEditorPopup();
+    dismissDraftStrip();
     tm.switchTo(sessionId);
+    state.activeSessionId = sessionId;
     showTerminalArea();
     return;
   }
@@ -200,7 +220,7 @@ export async function switchToSession(sessionId: string): Promise<void> {
 export function autoSelectFocusedSession(): void {
   const navItem = sessionsState.navList[sessionsState.sessionsFocusIndex];
   if (!navItem) return;
-  if (navItem.type === 'group-header') return;
+  if (navItem.type !== 'session-card') return;
 
   // Session card — switch terminal (showTerminalArea dismisses overview if open)
   const session = state.sessions.find(s => s.id === navItem.id);
@@ -267,15 +287,20 @@ export function handleSessionsZone(button: string, dir: string | null): void {
       });
       return;
     }
-    if (sessionsState.cardColumn < 3) {
-      sessionsState.cardColumn = (sessionsState.cardColumn + 1) as 0 | 1 | 2 | 3;
+    const maxColumn = currentItem?.type === 'session-card'
+      ? 4
+      : currentItem?.type === 'group-header'
+        ? 3
+        : 0;
+    if (sessionsState.cardColumn < maxColumn) {
+      sessionsState.cardColumn = (sessionsState.cardColumn + 1) as 0 | 1 | 2 | 3 | 4;
       updateSessionsFocus();
     }
     return;
   }
   if (dir === 'left') {
     if (sessionsState.cardColumn > 0) {
-      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2 | 3;
+      sessionsState.cardColumn = (sessionsState.cardColumn - 1) as 0 | 1 | 2 | 3 | 4;
       updateSessionsFocus();
     }
     return;

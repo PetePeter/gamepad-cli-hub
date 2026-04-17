@@ -9,6 +9,7 @@ import type { PlanItem, PlanDependency } from '../../src/types/plan.js';
 import type { LayoutNode, LayoutResult } from './plan-layout.js';
 import { computeLayout } from './plan-layout.js';
 import { showPlanInEditor, hideDraftEditor, isDraftEditorVisible } from '../drafts/draft-editor.js';
+import { hidePlanDeleteConfirm, showPlanDeleteConfirm } from '../modals/plan-delete-confirm.js';
 import { state } from '../state.js';
 
 // ---------------------------------------------------------------------------
@@ -25,6 +26,8 @@ const STATUS_COLORS: Record<string, string> = {
   pending: '#555555',
   startable: '#4488ff',
   doing: '#44cc44',
+  blocked: '#ff9f1a',
+  question: '#d17cff',
   done: '#555555',
 };
 
@@ -38,6 +41,7 @@ let currentDir = '';
 let selectedId: string | null = null;
 let fitActiveCallback: (() => void) | null = null;
 let closeCallback: (() => void) | null = null;
+let openCallback: (() => void) | null = null;
 
 /** Register a callback to re-fit the active terminal after plan screen closes. */
 export function setPlanScreenFitCallback(fn: () => void): void {
@@ -47,6 +51,11 @@ export function setPlanScreenFitCallback(fn: () => void): void {
 /** Register a callback fired when the plan screen closes (e.g. to restore chip strip). */
 export function setPlanScreenCloseCallback(fn: () => void): void {
   closeCallback = fn;
+}
+
+/** Register a callback fired when the plan screen opens (e.g. to clear session selection). */
+export function setPlanScreenOpenCallback(fn: () => void): void {
+  openCallback = fn;
 }
 
 /** Cached layout + items for gamepad navigation. */
@@ -79,7 +88,7 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
   // Delete — delete the selected plan node
   if (e.key === 'Delete' && selectedId) {
     e.preventDefault();
-    handleDelete(selectedId);
+    requestDelete(selectedId);
     return;
   }
 
@@ -100,6 +109,11 @@ document.addEventListener('keydown', planScreenKeyHandler);
 export async function showPlanScreen(dirPath: string): Promise<void> {
   currentDir = dirPath;
   selectedId = null;
+  hidePlanDeleteConfirm();
+  hideDraftEditor();
+  if (openCallback) {
+    openCallback();
+  }
 
   // Hide the chip panel — focus is leaving the active terminal
   const draftStrip = document.getElementById('draftStrip');
@@ -130,6 +144,7 @@ export function hidePlanScreen(): void {
   selectedId = null;
   cachedLayout = null;
   cachedItems = [];
+  hidePlanDeleteConfirm();
   hideDraftEditor();
   if (screenEl) {
     screenEl.classList.remove('visible');
@@ -220,8 +235,7 @@ export function handlePlanScreenAction(button: string): boolean {
 
   if (button === 'X') {
     if (selectedId) {
-      const id = selectedId;
-      handleDelete(id); // async fire-and-forget
+      requestDelete(selectedId);
     }
     return true;
   }
@@ -654,15 +668,34 @@ function selectNode(item: PlanItem): void {
       onSave: handleSave,
       onDelete: () => handleDelete(item.id),
       onDone: item.status === 'doing' ? () => handleComplete(item.id) : undefined,
-      onApply: item.status === 'startable' ? () => handleApplyFromCanvas(item) : undefined,
+      onApply: item.status === 'startable' || item.status === 'doing' ? () => handleApplyFromCanvas(item) : undefined,
     },
   );
 }
 
-async function handleSave(updates: { title: string; description: string }): Promise<void> {
+function requestDelete(id: string): void {
+  const item = cachedItems.find(entry => entry.id === id);
+  if (!item) return;
+  showPlanDeleteConfirm(item.title, () => {
+    void handleDelete(id);
+  });
+}
+
+async function handleSave(
+  updates: { title: string; description: string; status: PlanItem['status']; stateInfo?: string },
+): Promise<void> {
   if (!selectedId) return;
   try {
     await window.gamepadCli.planUpdate(selectedId, updates);
+    const current = cachedItems.find(item => item.id === selectedId);
+    if (current && current.status !== 'done') {
+      await window.gamepadCli.planSetState(
+        selectedId,
+        updates.status,
+        updates.stateInfo,
+        state.activeSessionId || current.sessionId,
+      );
+    }
     await refreshCanvas();
   } catch (err) {
     console.error('[PlanScreen] Save failed:', err);
@@ -694,9 +727,13 @@ async function handleComplete(id: string): Promise<void> {
 async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
   try {
     if (state.activeSessionId) {
-      await window.gamepadCli.planApply(item.id, state.activeSessionId);
+      await window.gamepadCli.ptyWrite(state.activeSessionId, item.description + '\n');
+      if (item.status === 'startable') {
+        await window.gamepadCli.planApply(item.id, state.activeSessionId);
+      }
     }
     selectedId = null;
+    hidePlanDeleteConfirm();
     hideDraftEditor();
     await refreshCanvas();
   } catch (err) {

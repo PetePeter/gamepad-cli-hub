@@ -8,6 +8,8 @@ import {
   dirDisplayName,
   groupSessionsByDirectory,
   buildFlatNavList,
+  getVisibleSessions,
+  isSessionHiddenFromOverview,
   findNavIndexBySessionId,
   moveGroupUp,
   moveGroupDown,
@@ -211,6 +213,7 @@ describe('buildFlatNavList', () => {
     const groups = [makeGroup('/a', ['s1', 's2']), makeGroup('/b', ['s3'])];
     const nav = buildFlatNavList(groups);
     expect(nav).toEqual([
+      { type: 'overview-button', id: 'overview', groupIndex: -1 },
       { type: 'group-header', id: '/a', groupIndex: 0 },
       { type: 'session-card', id: 's1', groupIndex: 0 },
       { type: 'session-card', id: 's2', groupIndex: 0 },
@@ -223,6 +226,7 @@ describe('buildFlatNavList', () => {
     const groups = [makeGroup('/a', ['s1', 's2'], true), makeGroup('/b', ['s3'])];
     const nav = buildFlatNavList(groups);
     expect(nav).toEqual([
+      { type: 'overview-button', id: 'overview', groupIndex: -1 },
       { type: 'group-header', id: '/a', groupIndex: 0 },
       { type: 'group-header', id: '/b', groupIndex: 1 },
       { type: 'session-card', id: 's3', groupIndex: 1 },
@@ -236,8 +240,9 @@ describe('buildFlatNavList', () => {
   it('handles all groups collapsed', () => {
     const groups = [makeGroup('/a', ['s1'], true), makeGroup('/b', ['s2'], true)];
     const nav = buildFlatNavList(groups);
-    expect(nav).toHaveLength(2);
-    expect(nav.every(item => item.type === 'group-header')).toBe(true);
+    expect(nav).toHaveLength(3);
+    expect(nav[0]).toEqual({ type: 'overview-button', id: 'overview', groupIndex: -1 });
+    expect(nav.slice(1).every(item => item.type === 'group-header')).toBe(true);
   });
 
   it('skips group with no sessions (non-sticky)', () => {
@@ -250,9 +255,69 @@ describe('buildFlatNavList', () => {
     const groups = [makeGroup('/a', []), makeGroup('/b', ['s1'])];
     const nav = buildFlatNavList(groups);
     expect(nav).toEqual([
+      { type: 'overview-button', id: 'overview', groupIndex: -1 },
       { type: 'group-header', id: '/b', groupIndex: 1 },
       { type: 'session-card', id: 's1', groupIndex: 1 },
     ]);
+  });
+
+  it('adds the overview button at nav index 0', () => {
+    const groups = [makeGroup('/a', ['s1'])];
+    const nav = buildFlatNavList(groups);
+    expect(nav[0]).toEqual({ type: 'overview-button', id: 'overview', groupIndex: -1 });
+  });
+});
+
+describe('getVisibleSessions', () => {
+  const groups: SessionGroup[] = [
+    {
+      dirPath: '/a',
+      dirName: 'a',
+      collapsed: false,
+      sessions: [makeSession('s1', '/a'), makeSession('s2', '/a')],
+    },
+    {
+      dirPath: '/b',
+      dirName: 'b',
+      collapsed: false,
+      sessions: [makeSession('s3', '/b')],
+    },
+  ];
+
+  it('respects overviewHidden when building visible overview sessions', () => {
+    const visible = getVisibleSessions(groups, {
+      order: [],
+      collapsed: [],
+      overviewHidden: ['s2'],
+    });
+
+    expect(visible.map(session => session.id)).toEqual(['s1', 's3']);
+  });
+
+  it('prefers cliSessionName when filtering overview visibility', () => {
+    const stableGroups: SessionGroup[] = [{
+      dirPath: '/a',
+      dirName: 'a',
+      collapsed: false,
+      sessions: [{ ...makeSession('s1', '/a'), cliSessionName: 'cli-1' }],
+    }];
+
+    const visible = getVisibleSessions(stableGroups, {
+      order: [],
+      collapsed: [],
+      overviewHidden: ['cli-1'],
+    });
+
+    expect(visible).toEqual([]);
+  });
+
+  it('still honors legacy session-id overviewHidden entries', () => {
+    const session = { ...makeSession('s1', '/a'), cliSessionName: 'cli-1' };
+    expect(isSessionHiddenFromOverview(session, {
+      order: [],
+      collapsed: [],
+      overviewHidden: ['s1'],
+    })).toBe(true);
   });
 });
 

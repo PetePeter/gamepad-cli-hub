@@ -9,6 +9,7 @@ import { getSessionCwd } from '../screens/sessions.js';
 import { showPlanInEditor, hideDraftEditor } from '../drafts/draft-editor.js';
 
 const MAX_LABEL_LENGTH = 20;
+const ACTIVE_PLAN_STATUSES = new Set(['doing', 'blocked', 'question']);
 
 /** Generation counter to prevent stale async renders from appending duplicates. */
 let renderGeneration = 0;
@@ -50,7 +51,7 @@ export async function renderPlanChips(sessionId: string): Promise<void> {
     return;
   }
 
-  const [doingPlans, startablePlans] = await fetchPlanData(sessionId);
+  const [activePlans, startablePlans] = await fetchPlanData(sessionId);
 
   // Stale render — a newer call superseded this one during the await
   if (thisGeneration !== renderGeneration) return;
@@ -60,20 +61,20 @@ export async function renderPlanChips(sessionId: string): Promise<void> {
   strip.querySelectorAll('.strip-section-label--plans').forEach(el => el.remove());
 
   // Update caches for session card badges
-  setPlanDoingCountCache(sessionId, doingPlans.length);
+  setPlanDoingCountCache(sessionId, activePlans.filter(plan => plan.sessionId === sessionId).length);
   setPlanStartableCountCache(sessionId, startablePlans.length);
 
   // Add "Plans" label if we have any plans
-  if (doingPlans.length > 0 || startablePlans.length > 0) {
+  if (activePlans.length > 0 || startablePlans.length > 0) {
     const plansLabel = document.createElement('span');
     plansLabel.className = 'strip-section-label strip-section-label--plans';
     plansLabel.textContent = 'Plans';
     strip.appendChild(plansLabel);
   }
 
-  // Render doing chips
-  for (const plan of doingPlans) {
-    strip.appendChild(createPlanChip(plan, 'doing'));
+  // Render active chips
+  for (const plan of activePlans) {
+    strip.appendChild(createPlanChip(plan, toChipStatus(plan.status)));
   }
 
   // Render startable chips
@@ -89,25 +90,32 @@ export async function renderPlanChips(sessionId: string): Promise<void> {
 
 /** Fetch doing and startable plans for a session. */
 async function fetchPlanData(sessionId: string): Promise<[any[], any[]]> {
-  let doingPlans: any[] = [];
+  let activePlans: any[] = [];
   let startablePlans: any[] = [];
+  const cwd = getSessionCwd(sessionId);
 
   try {
-    doingPlans = await window.gamepadCli.planDoingForSession(sessionId);
-  } catch { doingPlans = []; }
+    if (cwd && window.gamepadCli.planGetAllDoingForDir) {
+      activePlans = await window.gamepadCli.planGetAllDoingForDir(cwd);
+    } else {
+      activePlans = await window.gamepadCli.planDoingForSession(sessionId);
+    }
+  } catch { activePlans = []; }
 
   try {
-    const cwd = getSessionCwd(sessionId);
     if (cwd) {
       startablePlans = await window.gamepadCli.planStartableForDir(cwd);
     }
   } catch { startablePlans = []; }
 
-  return [doingPlans, startablePlans];
+  return [activePlans.filter(plan => ACTIVE_PLAN_STATUSES.has(plan.status)), startablePlans];
 }
 
 /** Create a single plan chip element. */
-function createPlanChip(plan: { id: string; title: string }, status: 'doing' | 'startable'): HTMLElement {
+function createPlanChip(
+  plan: { id: string; title: string },
+  status: 'doing' | 'blocked' | 'question' | 'startable',
+): HTMLElement {
   const chip = document.createElement('span');
   chip.className = `plan-chip plan-chip--${status}`;
   chip.dataset.planId = plan.id;
@@ -123,14 +131,25 @@ function createPlanChip(plan: { id: string; title: string }, status: 'doing' | '
   return chip;
 }
 
+function toChipStatus(status: string): 'doing' | 'blocked' | 'question' | 'startable' {
+  if (status === 'blocked' || status === 'question' || status === 'startable') return status;
+  return 'doing';
+}
+
 /** Handle click on a plan chip — open unified editor for the plan item. */
-async function handleChipClick(planId: string, status: 'doing' | 'startable'): Promise<void> {
+async function handleChipClick(
+  planId: string,
+  status: 'doing' | 'blocked' | 'question' | 'startable',
+): Promise<void> {
   try {
     const item = await window.gamepadCli.planGetItem(planId);
     if (!item) return;
 
-    const onSave = async (updates: { title: string; description: string }) => {
+    const onSave = async (updates: { title: string; description: string; status: string; stateInfo?: string }) => {
       await window.gamepadCli.planUpdate(planId, updates);
+      if (item.status !== 'done') {
+        await window.gamepadCli.planSetState(planId, updates.status, updates.stateInfo, state.activeSessionId || item.sessionId);
+      }
     };
 
     const onDelete = async () => {

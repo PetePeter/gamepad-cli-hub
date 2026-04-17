@@ -9,6 +9,8 @@ import { state, type Session } from '../state.js';
 import { sessionsState } from './sessions-state.js';
 import type { PtyOutputBuffer } from '../terminal/pty-output-buffer.js';
 import { getActivityColor } from '../state-colors.js';
+import { getVisibleSessions } from '../session-groups.js';
+import { toDirection } from '../utils.js';
 
 const PREVIEW_LINES = 10;
 
@@ -52,13 +54,13 @@ export function setActivityLevelGetter(fn: (sessionId: string) => string): void 
   activityLevelGetter = fn;
 }
 
-/** Show the overview grid for a specific group */
-export function showOverview(groupDirPath: string, initialSessionId?: string): void {
+/** Show the overview grid for a specific group, or all visible sessions when no group is provided. */
+export function showOverview(groupDirPath: string | null = null, initialSessionId?: string): void {
   sessionsState.overviewGroup = groupDirPath;
+  sessionsState.overviewIsGlobal = groupDirPath === null;
 
-  // Pre-select the matching session if provided, default to 0
-  const groupSessions = state.sessions.filter(s => s.workingDir === groupDirPath);
-  const matchIdx = initialSessionId ? groupSessions.findIndex(s => s.id === initialSessionId) : -1;
+  const overviewSessions = getOverviewSessions();
+  const matchIdx = initialSessionId ? overviewSessions.findIndex(s => s.id === initialSessionId) : -1;
   sessionsState.overviewFocusIndex = matchIdx >= 0 ? matchIdx : 0;
 
   // Deselect the active terminal — keyboard/paste should not affect any session while overview is open
@@ -84,7 +86,7 @@ export function showOverview(groupDirPath: string, initialSessionId?: string): v
   }
   overviewContainer.style.display = 'grid';
 
-  renderOverviewCards(groupDirPath);
+  renderOverviewCards();
   updateOverviewFocus();
 
   // Subscribe to live PTY updates
@@ -108,6 +110,7 @@ export function showOverview(groupDirPath: string, initialSessionId?: string): v
 /** Hide the overview grid and restore the terminal container */
 export function hideOverview(): void {
   sessionsState.overviewGroup = null;
+  sessionsState.overviewIsGlobal = false;
 
   if (overviewContainer) {
     overviewContainer.style.display = 'none';
@@ -138,33 +141,71 @@ export function hideOverview(): void {
 
 /** Check if overview is currently visible */
 export function isOverviewVisible(): boolean {
-  return sessionsState.overviewGroup !== null;
+  return sessionsState.overviewIsGlobal || sessionsState.overviewGroup !== null;
 }
 
-/** Get the sessions for the current overview group */
+/** Get the sessions shown in the current overview. */
 export function getOverviewSessions(): Session[] {
+  if (sessionsState.overviewIsGlobal) {
+    return getVisibleOverviewGroups().flatMap(group => group.sessions);
+  }
   if (!sessionsState.overviewGroup) return [];
-  return state.sessions.filter(s => s.workingDir === sessionsState.overviewGroup);
+  const group = sessionsState.groups.find(item => item.dirPath === sessionsState.overviewGroup);
+  if (!group) {
+    return state.sessions.filter(session => session.workingDir === sessionsState.overviewGroup);
+  }
+  return getVisibleSessions([group], sessionsState.groupPrefs);
 }
 
 /** Re-render overview cards if currently visible (e.g. after rename) */
 export function refreshOverview(): void {
-  if (!sessionsState.overviewGroup || !overviewContainer) return;
-  renderOverviewCards(sessionsState.overviewGroup);
+  if (!isOverviewVisible() || !overviewContainer) return;
+  const sessionCount = getOverviewSessions().length;
+  sessionsState.overviewFocusIndex = sessionCount > 0
+    ? Math.min(sessionsState.overviewFocusIndex, sessionCount - 1)
+    : 0;
+  renderOverviewCards();
   updateOverviewFocus();
 }
 
-/** Render all cards for the group */
-function renderOverviewCards(groupDirPath: string): void {
+/** Render all overview content for the current mode. */
+function renderOverviewCards(): void {
   if (!overviewContainer) return;
   overviewContainer.innerHTML = '';
 
-  const sessions = state.sessions.filter(s => s.workingDir === groupDirPath);
+  if (sessionsState.overviewIsGlobal) {
+    const groups = getVisibleOverviewGroups();
+    groups.forEach((group, index) => {
+      if (index > 0) {
+        overviewContainer!.appendChild(createBreakMark(group.dirPath));
+      }
+      for (const session of group.sessions) {
+        overviewContainer!.appendChild(createOverviewCard(session));
+      }
+    });
+    return;
+  }
 
-  for (const session of sessions) {
+  for (const session of getOverviewSessions()) {
     const card = createOverviewCard(session);
     overviewContainer.appendChild(card);
   }
+}
+
+function getVisibleOverviewGroups(): Array<{ dirPath: string; sessions: Session[] }> {
+  return sessionsState.groups
+    .map(group => ({
+      dirPath: group.dirPath,
+      sessions: getVisibleSessions([group], sessionsState.groupPrefs),
+    }))
+    .filter(group => group.sessions.length > 0);
+}
+
+function createBreakMark(dirPath: string): HTMLElement {
+  const mark = document.createElement('div');
+  mark.className = 'overview-break-mark';
+  mark.textContent = `────────── ${dirPath} ──────────`;
+  return mark;
 }
 
 /** Create a single overview card element */
@@ -243,6 +284,57 @@ export function selectOverviewCard(sessionId: string): void {
   selectCardCallback?.(sessionId);
 }
 
+export function handleOverviewInput(button: string): boolean {
+  const dir = toDirection(button);
+  const sessions = getOverviewSessions();
+  const count = sessions.length;
+
+  if (count === 0) {
+    hideOverview();
+    return true;
+  }
+
+  if (dir === 'up') {
+    sessionsState.overviewFocusIndex = Math.max(0, sessionsState.overviewFocusIndex - 1);
+    updateOverviewFocus();
+    return true;
+  }
+  if (dir === 'down') {
+    sessionsState.overviewFocusIndex = Math.min(count - 1, sessionsState.overviewFocusIndex + 1);
+    updateOverviewFocus();
+    return true;
+  }
+  if (dir === 'left') {
+    hideOverview();
+    return true;
+  }
+  if (dir === 'right') {
+    return true;
+  }
+
+  if (button === 'A') {
+    const session = sessions[sessionsState.overviewFocusIndex];
+    if (session) selectOverviewCard(session.id);
+    return true;
+  }
+
+  if (button === 'X') {
+    const session = sessions[sessionsState.overviewFocusIndex];
+    if (session) {
+      toggleCollapseCard(session.id);
+      refreshOverview();
+    }
+    return true;
+  }
+
+  if (button === 'B') {
+    hideOverview();
+    return true;
+  }
+
+  return false;
+}
+
 /** Callback set by navigation.ts for switching session + sidebar sync */
 let selectCardCallback: ((sessionId: string) => void) | null = null;
 export function setSelectCardCallback(fn: (sessionId: string) => void): void {
@@ -280,7 +372,7 @@ function renderPreviewLines(preview: Element, sessionId: string): void {
 
 /** Flush pending live updates — only re-render affected card previews */
 function flushPendingUpdates(): void {
-  if (!overviewContainer || !sessionsState.overviewGroup) return;
+  if (!overviewContainer || !isOverviewVisible()) return;
   for (const sessionId of pendingUpdates) {
     const card = overviewContainer.querySelector(`.overview-card[data-session-id="${sessionId}"]`);
     if (!card) continue;

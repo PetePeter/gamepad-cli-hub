@@ -1,6 +1,6 @@
-# Gamepad CLI Hub
+# Helm
 
-**Your game controller is now a command center for AI coding assistants.**
+**Helm - steer your fleet of agents**
 
 You're running Claude Code in one terminal, Copilot CLI in another, maybe a third session for a side project. Alt-tabbing between them is slow. Finding the right window is annoying. Typing repetitive commands is tedious.
 
@@ -12,7 +12,7 @@ This is a session manager for people who run multiple AI-assisted terminals at o
 
 ## What Is This?
 
-Gamepad CLI Hub is an Electron desktop app that lets you control multiple AI coding CLI sessions from a game controller. Each CLI runs as an embedded terminal (via node-pty + xterm.js) — no external windows to manage.
+Helm is an Electron desktop app that lets you control multiple AI coding CLI sessions from a game controller. Each CLI runs as an embedded terminal (via node-pty + xterm.js) — no external windows to manage.
 
 **Why use it?**
 
@@ -66,7 +66,7 @@ Plug in a controller (USB or Bluetooth). The app detects it automatically — Xb
 | Escape | Back (B button) |
 | Delete | Close (X button) |
 | Ctrl+V | Paste clipboard text to active terminal |
-| Ctrl+G | Open external editor (notepad) — result sent to active terminal |
+| Ctrl+G | Open in-app Prompt Editor (textarea + recent-prompts history) — Ctrl+Enter sends to active terminal |
 
 Every binding is remappable per CLI type. See [docs/controls.md](docs/controls.md) for the full mapping.
 
@@ -76,12 +76,17 @@ Every binding is remappable per CLI type. See [docs/controls.md](docs/controls.m
 
 Sessions are automatically grouped by working directory. Each group has a collapsible header showing the directory name and session count.
 
-**Group Overview** — Press D-pad Right on a group header to open a full-screen preview grid showing all sessions in that directory:
+**Overview button** — A full-width "Overview" bar sits above all groups in the session list (press A or Enter when focused). Opens a global preview grid of all eye-visible sessions across every folder, with folder break marks between groups.
 
-- Each card shows session name, activity dot, and the last 10 lines of terminal output
+**Group overview** — Press D-pad Right on a group header (or click the group name) to open a per-folder preview grid showing only sessions in that directory.
+
+Both overview modes show:
+- Each card: session name, activity dot, and the last 10 lines of terminal output
 - Live-updating previews (500ms throttle)
 - Navigate with D-pad, A to select, X to close
 - Scrollable via right stick or mouse wheel
+
+**Eye toggle (👁 / 👁‍🗨)** — Each session card has an eye button (D-pad Right to column 3). Toggle it to hide a session from the global overview without closing it. Hidden sessions still appear in the sidebar list and their own group overview.
 
 See [docs/group-overview.md](docs/group-overview.md) for details.
 
@@ -135,7 +140,7 @@ Right-click the terminal area (or bind a button to `context-menu`) for quick act
 |------|-------------|
 | 📋 Copy | Copy terminal selection to clipboard |
 | 📥 Paste | Paste clipboard to active PTY |
-| ✏️ Compose in Editor | Open external editor (notepad) to compose prompt — sent to active PTY on close |
+| ✏️ Compose in Editor | Open in-app Prompt Editor to compose prompt — sent to active PTY on send |
 | ➕ New Session | Quick-spawn picker (pre-selects active CLI type & directory) |
 | 📋➕ New Session with Selection | Spawn with selected text as context |
 | ⏩ Prompts | Open sequence picker with preconfigured commands |
@@ -206,7 +211,7 @@ tools:
 
 ```mermaid
 graph LR
-    XB[🎮 Game Controller] --> APP[Gamepad CLI Hub]
+    XB[🎮 Game Controller] --> APP[Helm]
     TG[📱 Telegram Bot] <--> APP
     APP --> T1[Claude Code PTY]
     APP --> T2[Copilot CLI PTY]
@@ -321,9 +326,10 @@ Detailed reference docs are in `docs/`:
 | [config-system.md](docs/config-system.md) | Profile YAML, binding types, sequence parser, stick/dpad config |
 | [controls.md](docs/controls.md) | Gamepad + keyboard mappings, navigation priority chain |
 | [terminal-architecture.md](docs/terminal-architecture.md) | PTY stack, input/output routing, activity dots |
-| [group-overview.md](docs/group-overview.md) | Session preview grid — entry/exit, navigation, live previews |
-| [file-structure.md](docs/file-structure.md) | Complete directory tree with per-file descriptions |
-| [build-and-test.md](docs/build-and-test.md) | Build commands, output paths, tech stack details |
+ | [group-overview.md](docs/group-overview.md) | Session preview grid — entry/exit, navigation, live previews |
+ | [file-structure.md](docs/file-structure.md) | Complete directory tree with per-file descriptions |
+ | [build-and-test.md](docs/build-and-test.md) | Build commands, output paths, tech stack details |
+ | [Plans/delivery-report.html](Plans/delivery-report.html) | Delivery summary for the Helm implementation batch (Groups 1-8) |
 
 ---
 

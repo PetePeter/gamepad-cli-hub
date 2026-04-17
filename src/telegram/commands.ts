@@ -66,7 +66,8 @@ export function setupSlashCommands(deps: SlashCommandDeps): () => void {
   async function handleStart(msg: TelegramBot.Message): Promise<void> {
     const count = sessionManager.getAllSessions().length;
 
-    let text = `👋 <b>Gamepad CLI Hub</b>\n\n`;
+    let text = `👋 <b>Helm</b>\n\n`;
+    text += 'Helm - steer your fleet of agents\n';
     text += `Active sessions: ${count}\n`;
     text += `Use /sessions to browse, /help for commands.`;
 

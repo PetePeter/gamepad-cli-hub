@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-gamepad-cli-hub Test Runner
+ Helm Test Runner
 Runs TypeScript tests and linting
 
 Usage:
@@ -143,7 +143,7 @@ def run_linting(mode):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="gamepad-cli-hub Test Runner"
+        description="Helm Test Runner"
     )
     parser.add_argument("-v", "--verbose", action="store_true",
                        help="Show all failing test details")

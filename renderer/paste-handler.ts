@@ -10,8 +10,10 @@
 
 import { keyToPtyEscape, comboToPtyEscape } from './bindings.js';
 import { isDraftEditorVisible } from './drafts/draft-editor.js';
+import { showEditorPopup } from './editor/editor-popup.js';
 
 type GetActiveSessionId = () => string | null;
+type HasPendingQuestion = (sessionId: string) => boolean;
 
 let registeredHandler: ((e: KeyboardEvent) => void) | null = null;
 let pasteInFlight = false;
@@ -36,7 +38,10 @@ function isXtermTarget(e: KeyboardEvent): boolean {
   return !!target.closest('.xterm');
 }
 
-export function setupKeyboardRelay(getActiveSessionId: GetActiveSessionId): void {
+export function setupKeyboardRelay(
+  getActiveSessionId: GetActiveSessionId,
+  hasPendingQuestion: HasPendingQuestion = () => false,
+): void {
   if (registeredHandler) return; // idempotent
 
   registeredHandler = async (e: KeyboardEvent) => {
@@ -56,10 +61,12 @@ export function setupKeyboardRelay(getActiveSessionId: GetActiveSessionId): void
     // (xterm.js doesn't reliably handle paste from clipboard)
     if (e.ctrlKey && e.key === 'v') {
       e.preventDefault();
+      e.stopPropagation();
       if (pasteInFlight) return;
       pasteInFlight = true;
       try {
         const text = await navigator.clipboard.readText();
+        hasPendingQuestion(sessionId);
         // Use sessionId captured before await — session may have switched during clipboard read
         if (text.length > 0) {
           window.gamepadCli.ptyWrite(sessionId, text);
@@ -75,15 +82,16 @@ export function setupKeyboardRelay(getActiveSessionId: GetActiveSessionId): void
     // Ctrl+G — open external editor for prompt composition
     if (e.ctrlKey && e.key === 'g') {
       e.preventDefault();
+      e.stopPropagation();
       if (editorInFlight) return;
       editorInFlight = true;
       try {
-        const result = await window.gamepadCli.editorOpenExternal();
-        if (result.success && result.text && result.text.trim()) {
-          window.gamepadCli.ptyWrite(sessionId, result.text);
+        const text = await showEditorPopup();
+        if (text && text.trim()) {
+          window.gamepadCli.ptyWrite(sessionId, text);
         }
       } catch (err) {
-        console.warn('[KeyRelay] external editor failed:', err);
+        console.warn('[KeyRelay] editor popup failed:', err);
       } finally {
         editorInFlight = false;
       }
@@ -100,6 +108,7 @@ export function setupKeyboardRelay(getActiveSessionId: GetActiveSessionId): void
     if (e.metaKey) return;
     if (e.altKey) return;
     if (e.ctrlKey) {
+      if (e.key.toLowerCase() === 'n') return;
       // Ctrl+letter combos → send as control character to PTY
       if (e.key.length === 1) {
         e.preventDefault();

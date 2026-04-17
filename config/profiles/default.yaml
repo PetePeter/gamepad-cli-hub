@@ -69,7 +69,7 @@ tools:
     initialPrompt: []
     initialPromptDelay: 2000
 workingDirectories:
-  - name: Gamepad Hub
+  - name: Helm
     path: X:\coding\gamepad-cli-hub
   - name: HomeAssistant
     path: X:\homeassistant

@@ -159,6 +159,7 @@ export interface SettingsConfig {
   sidebar?: SidebarPrefs;
   sorting?: SortingConfig;
   sessionGroups?: SessionGroupPrefs;
+  editorHistory?: string[];
   telegram?: TelegramConfig;
 }
 
@@ -167,6 +168,8 @@ export interface SessionGroupPrefs {
   collapsed: string[];
   /** Bookmarked directory paths — persist as empty groups even with no sessions. */
   bookmarked?: string[];
+  /** Session IDs hidden from overview. */
+  overviewHidden?: string[];
 }
 
 export interface ProfileConfig {
@@ -631,6 +634,19 @@ export class ConfigLoader {
   setSessionGroupPrefs(prefs: SessionGroupPrefs): void {
     this.ensureLoaded();
     this.settings!.sessionGroups = prefs;
+    this.saveSettings();
+  }
+
+  getEditorHistory(): string[] {
+    this.ensureLoaded();
+    return Array.isArray(this.settings!.editorHistory)
+      ? this.settings!.editorHistory.filter((entry): entry is string => typeof entry === 'string')
+      : [];
+  }
+
+  setEditorHistory(entries: string[]): void {
+    this.ensureLoaded();
+    this.settings!.editorHistory = entries;
     this.saveSettings();
   }
 

@@ -11,6 +11,7 @@ export interface Session {
   processId: number;
   workingDir?: string;
   title?: string;
+  cliSessionName?: string;
 }
 
 export interface ButtonEvent {

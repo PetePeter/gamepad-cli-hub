@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-gamepad-cli-hub Application Runner
-Installs dependencies, starts the gamepad CLI hub controller
+ Helm Application Runner
+ Installs dependencies, starts Helm
 
 Usage:
     python runApp.py
@@ -78,7 +78,7 @@ def _cleanup():
     if app is None:
         return
     print("\n[INFO] Shutting down child processes...")
-    _terminate_proc(app, 'gamepad-cli-hub')
+    _terminate_proc(app, 'Helm')
 
 
 atexit.register(_cleanup)
@@ -104,7 +104,7 @@ def _install_signal_handlers():
 def main():
     start_time = time.time()
 
-    print_header("gamepad-cli-hub Application Runner")
+    print_header("Helm Application Runner")
     print(f"[INFO] Startup initiated at {time.strftime('%H:%M:%S')}")
     print()
 
@@ -134,7 +134,7 @@ def main():
     print()
 
     # Step 3: Start the application
-    print_step(3, "Starting gamepad-cli-hub")
+    print_step(3, "Starting Helm")
 
     print("[INFO] Starting gamepad CLI controller...")
     print("[INFO] Connect your Xbox controller now!")
@@ -153,7 +153,7 @@ def main():
 
     print()
     print("=" * 40)
-    print("gamepad-cli-hub is now running!")
+    print("Helm is now running!")
     print("=" * 40)
     print()
     print("[INFO] Controls:")

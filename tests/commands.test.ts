@@ -133,7 +133,8 @@ describe('setupSlashCommands', () => {
       await vi.waitFor(() => expect(bot.sendMessage).toHaveBeenCalled());
 
       const text = bot.sendMessage.mock.calls[0][0] as string;
-      expect(text).toContain('Gamepad CLI Hub');
+      expect(text).toContain('Helm');
+      expect(text).toContain('Helm - steer your fleet of agents');
       expect(text).toContain('Active sessions: 2');
     });
 
