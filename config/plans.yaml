@@ -73,6 +73,13 @@ plans:
         status: startable
         createdAt: 1776352529295
         updatedAt: 1776352553369
+      - id: a33b373a-bf0b-4f9c-a392-4d082e387338
+        dirPath: X:\coding\Vitido
+        title: New Plan
+        description: ""
+        status: startable
+        createdAt: 1776460460315
+        updatedAt: 1776460460315
     dependencies:
       - fromId: 52d58817-42c0-40e8-81bc-42cc3a208719
         toId: ee4ecb5c-bb7b-4c04-941f-af39ff2157b8
@@ -230,3 +237,23 @@ plans:
         toId: 61a94fb6-1ff0-47ec-a600-5d8a8fcf25f1
       - fromId: 75c880dd-c3cd-40a7-a7df-8a58324f6496
         toId: f0a9e57e-756c-45cd-b7cb-ded10de9a0f1
+  X:\coding\gamepad-cli-hub:
+    dirPath: X:\coding\gamepad-cli-hub
+    items:
+      - id: 8810d3c5-c0ba-4f05-953f-2edf7cff8276
+        dirPath: X:\coding\gamepad-cli-hub
+        title: "New Planv32423423  "
+        description: sdaf sd
+        status: pending
+        createdAt: 1776461352307
+        updatedAt: 1776461369686
+      - id: 43354400-40ab-461c-b22b-99100e0a70ba
+        dirPath: X:\coding\gamepad-cli-hub
+        title: New Planas
+        description: asdasd
+        status: startable
+        createdAt: 1776461353602
+        updatedAt: 1776461363934
+    dependencies:
+      - fromId: 43354400-40ab-461c-b22b-99100e0a70ba
+        toId: 8810d3c5-c0ba-4f05-953f-2edf7cff8276
