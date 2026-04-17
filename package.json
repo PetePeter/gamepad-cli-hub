@@ -1,6 +1,6 @@
 {
   "name": "gamepad-cli-hub",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "main": "dist-electron/main.js",
   "type": "module",
   "description": "Helm \u2014 steer your fleet of agents",
