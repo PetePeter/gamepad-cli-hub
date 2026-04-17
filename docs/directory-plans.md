@@ -197,7 +197,7 @@ interface LayoutResult {
 
 ## SVG Canvas (Plan Screen)
 
-`renderer/plans/plan-screen.ts` renders the plan DAG as an SVG overlay inside `#terminalArea`. It is **not** a separate screen — it's a `.plan-screen` overlay checked via `isPlanScreenVisible()` within the sessions case of the screen router.
+`renderer/plans/plan-screen.ts` renders the plan DAG as an SVG overlay inside `#mainArea`. It is **not** a separate screen — it's a `.plan-screen` overlay checked via `isPlanScreenVisible()` within the sessions case of the screen router.
 
 ### Entry / Exit
 
@@ -270,7 +270,7 @@ Called at the end of `refreshDraftStrip()` in `draft-strip.ts`.
 
 | Class | Purpose |
 |-------|---------|
-| `.plan-screen` | Full overlay container inside `#terminalArea` |
+| `.plan-screen` | Full overlay container inside `#mainArea` |
 | `.plan-header` | Top bar with Back button, title, Add Node button |
 | `.plan-canvas` | SVG canvas wrapper |
 | `.plan-node` | SVG `<g>` for each plan item |

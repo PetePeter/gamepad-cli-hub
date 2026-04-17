@@ -21,12 +21,12 @@ export function initDraftStrip(): void {
   strip.id = 'draftStrip';
   strip.style.display = 'none';
 
-  const terminalArea = document.getElementById('terminalArea');
-  const terminalContainer = terminalArea?.querySelector('.terminal-container');
-  if (terminalArea && terminalContainer) {
-    terminalArea.insertBefore(strip, terminalContainer);
-  } else if (terminalArea) {
-    terminalArea.prepend(strip);
+  const mainArea = document.getElementById('mainArea');
+  const terminalContainer = mainArea?.querySelector('.terminal-container');
+  if (mainArea && terminalContainer) {
+    mainArea.insertBefore(strip, terminalContainer);
+  } else if (mainArea) {
+    mainArea.prepend(strip);
   }
 }
 

@@ -296,12 +296,12 @@ function ensureScreenContainer(): void {
   // Re-create if previously removed (e.g. DOM was rebuilt between test runs)
   if (screenEl && screenEl.isConnected) return;
 
-  const terminalArea = document.getElementById('terminalArea');
-  if (!terminalArea) return;
+  const mainArea = document.getElementById('mainArea');
+  if (!mainArea) return;
 
   screenEl = document.createElement('div');
   screenEl.className = 'plan-screen';
-  terminalArea.appendChild(screenEl);
+  mainArea.appendChild(screenEl);
 }
 
 // ---------------------------------------------------------------------------

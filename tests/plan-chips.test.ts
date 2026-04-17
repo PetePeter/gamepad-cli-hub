@@ -71,7 +71,7 @@ function setupGamepadCli(): void {
 
 function buildDraftStripDom(): void {
   document.body.innerHTML = `
-    <div id="terminalArea" class="panel-right">
+    <div id="mainArea" class="panel-right">
       <div class="terminal-container"></div>
     </div>
   `;
@@ -152,9 +152,9 @@ describe('Plan Chips', () => {
       strip.id = 'draftStrip';
       strip.className = 'draft-strip';
       strip.style.display = 'none';
-      const terminalArea = document.getElementById('terminalArea')!;
-      const terminalContainer = terminalArea.querySelector('.terminal-container')!;
-      terminalArea.insertBefore(strip, terminalContainer);
+      const mainArea = document.getElementById('mainArea')!;
+      const terminalContainer = mainArea.querySelector('.terminal-container')!;
+      mainArea.insertBefore(strip, terminalContainer);
 
       const mod = await import('../renderer/plans/plan-chips.js');
       renderPlanChips = mod.renderPlanChips;

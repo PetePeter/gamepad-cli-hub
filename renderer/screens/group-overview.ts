@@ -1,7 +1,7 @@
 /**
  * Group Overview — 2-column grid of session preview cards.
  *
- * Renders into the terminal area (#terminalArea) as a sibling to #terminalContainer.
+ * Renders into the terminal area (#mainArea) as a sibling to #terminalContainer.
  * Each card shows session name, activity dot, state label, and last 10 lines of PTY output.
  */
 
@@ -72,8 +72,8 @@ export function showOverview(groupDirPath: string | null = null, initialSessionI
   previousActiveSessionId = tm?.getActiveSessionId() ?? null;
   tm?.deselect();
 
-  const terminalArea = document.getElementById('terminalArea');
-  if (!terminalArea) return;
+  const mainArea = document.getElementById('mainArea');
+  if (!mainArea) return;
 
   // Ensure terminal area content is ready for overview
 
@@ -82,9 +82,9 @@ export function showOverview(groupDirPath: string | null = null, initialSessionI
   if (termContainer) termContainer.style.display = 'none';
 
   // Hide draft UI — overview is an absolute overlay that would cover them
-  const draftStrip = terminalArea.querySelector('.draft-strip') as HTMLElement | null;
+  const draftStrip = mainArea.querySelector('.draft-strip') as HTMLElement | null;
   if (draftStrip) draftStrip.style.display = 'none';
-  const draftEditor = terminalArea.querySelector('.draft-editor') as HTMLElement | null;
+  const draftEditor = mainArea.querySelector('.draft-editor') as HTMLElement | null;
   if (draftEditor) draftEditor.style.display = 'none';
 
   // Create or reuse overview container
@@ -92,7 +92,7 @@ export function showOverview(groupDirPath: string | null = null, initialSessionI
     overviewContainer = document.createElement('div');
     overviewContainer.id = 'overviewGrid';
     overviewContainer.className = 'overview-grid';
-    terminalArea.appendChild(overviewContainer);
+    mainArea.appendChild(overviewContainer);
   }
   overviewContainer.style.display = 'grid';
 
@@ -131,11 +131,11 @@ export function hideOverview(): void {
   if (termContainer) termContainer.style.display = '';
 
   // Restore draft UI hidden when overview opened
-  const terminalArea = document.getElementById('terminalArea');
-  if (terminalArea) {
-    const draftStrip = terminalArea.querySelector('.draft-strip') as HTMLElement | null;
+  const mainArea = document.getElementById('mainArea');
+  if (mainArea) {
+    const draftStrip = mainArea.querySelector('.draft-strip') as HTMLElement | null;
     if (draftStrip) draftStrip.style.display = '';
-    const draftEditor = terminalArea.querySelector('.draft-editor') as HTMLElement | null;
+    const draftEditor = mainArea.querySelector('.draft-editor') as HTMLElement | null;
     if (draftEditor) draftEditor.style.display = '';
   }
 

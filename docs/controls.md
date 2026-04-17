@@ -75,7 +75,7 @@ Keyboard input flows through to the focused field normally — only gamepad navi
 
 ## Directory Plans
 
-The 🗺️ Plans button on group headers (D-pad Right to column 3, or click) opens the plan canvas for that directory. The plan screen is an overlay inside `#terminalArea`, not a separate screen — it's checked via `isPlanScreenVisible()` within the sessions case of the navigation router.
+The 🗺️ Plans button on group headers (D-pad Right to column 3, or click) opens the plan canvas for that directory. The plan screen is an overlay inside `#mainArea`, not a separate screen — it's checked via `isPlanScreenVisible()` within the sessions case of the navigation router.
 
 ### Plan Screen Controls
 

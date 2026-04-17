@@ -134,7 +134,7 @@ function setupUIHandlers(): void {
   });
 
   // Restore persisted panel width
-  const panel = document.getElementById('panelLeft');
+  const panel = document.getElementById('sidePanel');
   const saved = localStorage.getItem(PANEL_WIDTH_KEY);
   if (panel && saved) {
     const w = parseInt(saved, 10);
@@ -153,7 +153,7 @@ function setupUIHandlers(): void {
 
 function setupPanelSplitter(): void {
   const splitter = document.getElementById('panelSplitter');
-  const panel = document.getElementById('panelLeft');
+  const panel = document.getElementById('sidePanel');
   if (!splitter || !panel) return;
 
   let dragging = false;
@@ -341,8 +341,8 @@ async function init(): Promise<void> {
         initDraftActionClickHandlers();
 
         // Click on terminal area → focus terminal
-        const terminalArea = document.getElementById('terminalArea');
-        terminalArea?.addEventListener('mousedown', () => {
+        const mainArea = document.getElementById('mainArea');
+        mainArea?.addEventListener('mousedown', () => {
           if (terminalManager?.getActiveSessionId()) {
             terminalManager.focusActive();
           }

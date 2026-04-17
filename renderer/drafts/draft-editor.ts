@@ -111,18 +111,18 @@ export function initDraftEditor(): void {
     <textarea class="draft-editor-content" id="draftContentInput" placeholder="Enter your prompt..." rows="4"></textarea>
   `;
 
-  const terminalArea = document.getElementById('terminalArea');
-  const terminalContainer = terminalArea?.querySelector('.terminal-container');
+  const mainArea = document.getElementById('mainArea');
+  const terminalContainer = mainArea?.querySelector('.terminal-container');
   const draftStrip = document.getElementById('draftStrip');
 
-  if (terminalArea && terminalContainer) {
+  if (mainArea && terminalContainer) {
     if (draftStrip && draftStrip.nextSibling) {
-      terminalArea.insertBefore(editor, draftStrip.nextSibling);
+      mainArea.insertBefore(editor, draftStrip.nextSibling);
     } else {
-      terminalArea.insertBefore(editor, terminalContainer);
+      mainArea.insertBefore(editor, terminalContainer);
     }
-  } else if (terminalArea) {
-    terminalArea.appendChild(editor);
+  } else if (mainArea) {
+    mainArea.appendChild(editor);
   }
 
   // Wire button event handlers — dispatch based on current mode

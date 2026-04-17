@@ -535,7 +535,7 @@ export function showStateDropdown(anchor: HTMLElement, sessionId: string, curren
   }
 
   // Append to sidebar (not session-info) so it's not clipped by overflow
-  const sidebar = document.getElementById('panelLeft') || anchor.parentElement!;
+  const sidebar = document.getElementById('sidePanel') || anchor.parentElement!;
   sidebar.appendChild(dropdown);
 
   // Position relative to anchor, flipping if it would go off-screen

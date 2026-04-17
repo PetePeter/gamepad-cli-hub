@@ -29,7 +29,7 @@ vi.mock('../renderer/state.js', () => ({
 
 function buildDraftStripDom(): void {
   document.body.innerHTML = `
-    <div id="terminalArea" class="panel-right">
+    <div id="mainArea" class="panel-right">
       <div class="terminal-container"></div>
     </div>
   `;
@@ -80,9 +80,9 @@ describe('Draft Strip', () => {
       expect(strip!.className).toBe('draft-strip');
       expect(strip!.style.display).toBe('none');
 
-      // Should be inside terminalArea, before terminal-container
-      const terminalArea = document.getElementById('terminalArea')!;
-      const children = Array.from(terminalArea.children);
+      // Should be inside mainArea, before terminal-container
+      const mainArea = document.getElementById('mainArea')!;
+      const children = Array.from(mainArea.children);
       const stripIndex = children.indexOf(strip!);
       const containerIndex = children.findIndex(c => c.classList.contains('terminal-container'));
       expect(stripIndex).toBeLessThan(containerIndex);

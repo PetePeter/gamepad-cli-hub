@@ -57,7 +57,7 @@ describe('GroupOverview', () => {
 
     if (!domSetUp) {
       document.body.innerHTML = `
-        <div id="terminalArea">
+        <div id="mainArea">
           <div id="terminalContainer"></div>
         </div>
         <div id="panelSplitter"></div>
@@ -119,7 +119,7 @@ describe('GroupOverview', () => {
 
     it('terminal area remains visible when opening overview', () => {
       showOverview('/project');
-      const ta = document.getElementById('terminalArea');
+      const ta = document.getElementById('mainArea');
       expect(ta?.style.display).not.toBe('none');
     });
   });

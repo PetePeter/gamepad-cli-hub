@@ -82,7 +82,7 @@ renderer/
 │   ├── draft-strip.ts          # View-only draft pills above terminal (📝 labels + badge count, click opens editor) + renders plan chips via renderPlanChips()
 │   └── draft-editor.ts         # Slide-down draft editor panel (title + content, Save/Apply/Delete/Cancel buttons)
 ├── plans/
-│   ├── plan-screen.ts          # SVG canvas screen — pan/zoom (viewBox-based), node rendering with status colors, quadratic bezier arrows, click-to-select, Add Node button. Renders inside #terminalArea as .plan-screen overlay
+│   ├── plan-screen.ts          # SVG canvas screen — pan/zoom (viewBox-based), node rendering with status colors, quadratic bezier arrows, click-to-select, Add Node button. Renders inside #mainArea as .plan-screen overlay
 │   ├── plan-editor.ts          # Bottom editor panel — title input, description textarea, Delete button, conditional Done button (only for 'doing' status). Save on blur
 │   ├── plan-layout.ts          # Sugiyama-style left-to-right layered auto-layout. Exports computeLayout(items, deps) → LayoutResult with nodes (id, x, y, layer, order) and width/height
 │   └── plan-chips.ts           # Plan badges on session cards (createPlanBadge) + plan chips in draft strip (renderPlanChips with generation counter dedup). Shows doing count (green) and startable count (blue)

@@ -42,7 +42,7 @@ vi.mock('../renderer/bindings.js', () => ({
 
 function buildDraftEditorDom(): void {
   document.body.innerHTML = `
-    <div id="terminalArea" class="panel-right">
+    <div id="mainArea" class="panel-right">
       <div id="draftStrip" class="draft-strip" style="display: none;"></div>
       <div class="terminal-container"></div>
     </div>
@@ -108,9 +108,9 @@ describe('Draft Editor', () => {
       expect(editor).not.toBeNull();
       expect(editor!.className).toBe('draft-editor');
 
-      // Should be inside terminalArea
-      const terminalArea = document.getElementById('terminalArea')!;
-      expect(terminalArea.contains(editor)).toBe(true);
+      // Should be inside mainArea
+      const mainArea = document.getElementById('mainArea')!;
+      expect(mainArea.contains(editor)).toBe(true);
 
       // Should have save, apply, delete, and cancel buttons
       expect(document.getElementById('draftSaveBtn')).not.toBeNull();

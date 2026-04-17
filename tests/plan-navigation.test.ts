@@ -77,7 +77,7 @@ function makeItem(overrides: Partial<PlanItem> & { id: string }): PlanItem {
 
 function buildPlanDom(): void {
   document.body.innerHTML = `
-    <div id="terminalArea" class="panel-right">
+    <div id="mainArea" class="panel-right">
       <div class="terminal-container"></div>
     </div>
     <div class="modal-overlay" id="planDeleteConfirmOverlay" aria-hidden="true">
