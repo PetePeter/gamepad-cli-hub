@@ -155,6 +155,11 @@ const gamepadCliAPI = {
 
   configGetStickConfig: (stick: string) => ipcRenderer.invoke('config:getStickConfig', stick),
 
+  configGetCollapsePrefs: () => ipcRenderer.invoke('config:getCollapsePrefs') as Promise<{ spawnCollapsed: boolean; plannerCollapsed: boolean }>,
+
+  configSetCollapsePrefs: (prefs: { spawnCollapsed?: boolean; plannerCollapsed?: boolean }) =>
+    ipcRenderer.invoke('config:setCollapsePrefs', prefs),
+
   // ========================================================================
   // PTY Terminal Management
   // ========================================================================

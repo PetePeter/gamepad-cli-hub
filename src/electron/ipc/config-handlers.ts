@@ -274,4 +274,33 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
   });
+
+  ipcMain.handle('config:getCollapsePrefs', () => {
+    try {
+      const prefs = configLoader.getSidebarPrefs();
+      return {
+        spawnCollapsed: prefs.spawnCollapsed ?? false,
+        plannerCollapsed: prefs.plannerCollapsed ?? false,
+      };
+    } catch (error) {
+      logger.error(`[IPC] Failed to get collapse prefs: ${error}`);
+      return { spawnCollapsed: false, plannerCollapsed: false };
+    }
+  });
+
+  ipcMain.handle('config:setCollapsePrefs', (_event, prefs: {
+    spawnCollapsed?: boolean;
+    plannerCollapsed?: boolean;
+  }) => {
+    try {
+      const current = configLoader.getSidebarPrefs();
+      configLoader.setSidebarPrefs({
+        ...current,
+        spawnCollapsed: prefs.spawnCollapsed ?? current.spawnCollapsed,
+        plannerCollapsed: prefs.plannerCollapsed ?? current.plannerCollapsed,
+      });
+    } catch (error) {
+      logger.error(`[IPC] Failed to set collapse prefs: ${error}`);
+    }
+  });
 }

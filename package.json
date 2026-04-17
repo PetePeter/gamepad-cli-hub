@@ -1,9 +1,9 @@
 {
   "name": "gamepad-cli-hub",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "main": "dist-electron/main.js",
   "type": "module",
-  "description": "Helm — steer your fleet of agents",
+  "description": "Helm \u2014 steer your fleet of agents",
   "scripts": {
     "start": "npm run build && electron .",
     "dev": "npm run build && electron .",

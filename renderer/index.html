@@ -34,7 +34,7 @@
         </span>
         <span class="sidebar-brand">
           <span class="sidebar-title">Helm</span>
-          <span class="sidebar-tagline">Helm - steer your fleet of agents</span>
+          <span class="sidebar-tagline">steer your fleet of agents</span>
         </span>
         <div class="sidebar-actions">
           <button class="sidebar-btn" id="openLogsBtn" title="Open Logs Folder">🐛</button>
@@ -62,14 +62,20 @@
           <div class="sessions-empty" id="sessionsEmpty" style="display:none">
             No active sessions
           </div>
-          <div class="spawn-section">
-            <h3 class="section-label">Quick Spawn</h3>
+          <div class="spawn-section" id="spawnSection">
+            <div class="section-label">
+              <span>Quick Spawn</span>
+              <button class="section-toggle" id="spawnToggle" title="Collapse">˅</button>
+            </div>
             <div class="spawn-grid" id="spawnGrid">
               <!-- Spawn buttons rendered dynamically by sessions.ts -->
             </div>
           </div>
           <div id="plansGridSection" class="spawn-section">
-            <div class="section-label">Folder Planner</div>
+            <div class="section-label">
+              <span>Folder Planner</span>
+              <button class="section-toggle" id="plannerToggle" title="Collapse">˅</button>
+            </div>
             <div id="plansGrid" class="spawn-grid"></div>
           </div>
 
