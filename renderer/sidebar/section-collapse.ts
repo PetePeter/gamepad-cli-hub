@@ -1,11 +1,11 @@
 /**
  * Collapsible sidebar sections (Quick Spawn / Folder Planner).
  *
- * Toggle buttons (˅/˄) on section headers collapse/expand the grid.
+ * The entire section label is clickable to toggle collapse/expand.
  * State persists via config:getCollapsePrefs / config:setCollapsePrefs IPC.
  */
 
-const api = (window as any).electronAPI;
+const api = (window as any).gamepadCli;
 
 let spawnCollapsed = false;
 let plannerCollapsed = false;
@@ -54,7 +54,9 @@ export async function initSectionCollapse(): Promise<void> {
   applyCollapse('spawnSection', 'spawnGrid', 'spawnToggle', spawnCollapsed);
   applyCollapse('plansGridSection', 'plansGrid', 'plannerToggle', plannerCollapsed);
 
-  // Wire click handlers
-  document.getElementById('spawnToggle')?.addEventListener('click', toggleSpawn);
-  document.getElementById('plannerToggle')?.addEventListener('click', togglePlanner);
+  // Wire click handlers on entire section-label divs (not just the toggle button)
+  const spawnLabel = document.getElementById('spawnToggle')?.closest('.section-label');
+  const plannerLabel = document.getElementById('plannerToggle')?.closest('.section-label');
+  spawnLabel?.addEventListener('click', toggleSpawn);
+  plannerLabel?.addEventListener('click', togglePlanner);
 }

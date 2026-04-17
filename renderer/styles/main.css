@@ -903,7 +903,10 @@ button {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: var(--spacing-xs);
+  cursor: pointer;
+  user-select: none;
 }
+.section-label:hover { color: var(--text-secondary); }
 
 .section-toggle {
   background: none;
