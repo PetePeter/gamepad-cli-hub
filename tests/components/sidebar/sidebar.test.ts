@@ -265,14 +265,14 @@ describe('SessionGroup', () => {
 
   it('shows expanded chevron when not collapsed', () => {
     const w = mount(SessionGroup, { props: makeGroupProps() });
-    expect(w.find('.group-chevron').text()).toBe('▾');
+    expect(w.find('.group-chevron').text()).toBe('▼');
   });
 
   it('shows collapsed chevron when collapsed', () => {
     const w = mount(SessionGroup, {
       props: makeGroupProps({ group: { dirPath: '/a', dirName: 'a', collapsed: true, sessionCount: 1, planBadgeCount: 0 } }),
     });
-    expect(w.find('.group-chevron').text()).toBe('▸');
+    expect(w.find('.group-chevron').text()).toBe('▲');
   });
 
   it('emits toggleCollapse on header click', async () => {
@@ -281,16 +281,10 @@ describe('SessionGroup', () => {
     expect(w.emitted('toggleCollapse')).toEqual([['/home/user/project']]);
   });
 
-  it('emits moveUp on up button click', async () => {
+  it('does not render move buttons', () => {
     const w = mount(SessionGroup, { props: makeGroupProps() });
-    await w.find('.group-move-up').trigger('click');
-    expect(w.emitted('moveUp')).toEqual([['/home/user/project']]);
-  });
-
-  it('emits moveDown on down button click', async () => {
-    const w = mount(SessionGroup, { props: makeGroupProps() });
-    await w.find('.group-move-down').trigger('click');
-    expect(w.emitted('moveDown')).toEqual([['/home/user/project']]);
+    expect(w.find('.group-move-up').exists()).toBe(false);
+    expect(w.find('.group-move-down').exists()).toBe(false);
   });
 
   it('emits showPlans on plans button click', async () => {
@@ -324,9 +318,9 @@ describe('SessionGroup', () => {
     expect(w.find('.group-header').classes()).toContain('focused');
   });
 
-  it('applies card-col-focused to move buttons', () => {
+  it('applies card-col-focused to plans button at col 1', () => {
     const w = mount(SessionGroup, { props: makeGroupProps({ isFocused: true, cardColumn: 1 }) });
-    expect(w.find('.group-move-up').classes()).toContain('card-col-focused');
+    expect(w.find('.group-plans-btn').classes()).toContain('card-col-focused');
   });
 });
 

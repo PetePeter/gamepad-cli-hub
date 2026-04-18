@@ -12,8 +12,8 @@ import type { Session } from './state.js';
 export interface SessionGroup {
   /** Working directory path (grouping key). */
   dirPath: string;
-  /** Display name for the group header (folder name extracted from path). */
-  dirName: string;
+  /** Display name for the group header (custom config name, or folder name extracted from path). */
+  displayName: string;
   /** Sessions belonging to this group. */
   sessions: Session[];
   /** Whether this group is collapsed. */
@@ -54,6 +54,17 @@ export function dirDisplayName(dirPath: string): string {
   const sep = trimmed.lastIndexOf('\\') !== -1 ? '\\' : '/';
   const last = trimmed.split(sep).pop();
   return last || dirPath;
+}
+
+/**
+ * Resolve the best display name for a directory path.
+ * Prefers a custom name from the loaded config; falls back to the path tail.
+ */
+export function resolveGroupDisplayName(
+  dirPath: string,
+  directories: Array<{ name: string; path: string }>,
+): string {
+  return directories.find(d => d.path === dirPath)?.name ?? dirDisplayName(dirPath);
 }
 
 /**
@@ -107,7 +118,7 @@ export function groupSessionsByDirectory(
 
   return orderedDirs.map(dir => ({
     dirPath: dir,
-    dirName: dirDisplayName(dir),
+    displayName: dirDisplayName(dir),
     sessions: buckets.get(dir) || [],
     collapsed: collapsedSet.has(dir),
   }));

@@ -125,7 +125,7 @@ describe('plan navigation — group header Plans button', () => {
     }));
     return {
       dirPath,
-      dirName: dirPath.split(/[\\/]/).pop() || dirPath,
+      displayName: dirPath.split(/[\\/]/).pop() || dirPath,
       sessions,
       collapsed: false,
     };

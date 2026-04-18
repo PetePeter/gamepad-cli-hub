@@ -13,6 +13,8 @@ import { hidePlanDeleteConfirm, showPlanDeleteConfirm } from '../modals/plan-del
 import { state } from '../state.js';
 import { registerView, showView, currentView } from '../main-view/main-view-manager.js';
 import { showPlanHelpModal, hidePlanHelpModal, isPlanHelpVisible } from './plan-help-modal.js';
+import { sessionsState } from '../screens/sessions-state.js';
+import { resolveGroupDisplayName } from '../session-groups.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -357,17 +359,13 @@ function buildHeader(dirPath: string): HTMLElement {
 
   const title = document.createElement('span');
   title.className = 'plan-header__title';
-  title.textContent = folderName(dirPath) + ' — Plans';
+  title.textContent = resolveGroupDisplayName(dirPath, sessionsState.directories) + ' — Plans';
   header.appendChild(title);
 
   return header;
 }
 
 /** Extract folder name from a path. */
-function folderName(p: string): string {
-  const parts = p.replace(/\\/g, '/').split('/');
-  return parts[parts.length - 1] || parts[parts.length - 2] || p;
-}
 
 // ---------------------------------------------------------------------------
 // SVG Canvas

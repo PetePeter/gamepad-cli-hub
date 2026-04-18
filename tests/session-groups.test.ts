@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import type { Session } from '../renderer/state';
 import {
   dirDisplayName,
+  resolveGroupDisplayName,
   groupSessionsByDirectory,
   buildFlatNavList,
   getVisibleSessions,
@@ -53,8 +54,34 @@ describe('dirDisplayName', () => {
 });
 
 // ============================================================================
-// groupSessionsByDirectory
+// resolveGroupDisplayName
 // ============================================================================
+
+describe('resolveGroupDisplayName', () => {
+  const dirs = [
+    { name: 'My Project', path: 'X:\\coding\\project-a' },
+    { name: 'Work App', path: '/home/user/work' },
+  ];
+
+  it('returns custom name when directory has a matching config entry', () => {
+    expect(resolveGroupDisplayName('X:\\coding\\project-a', dirs)).toBe('My Project');
+    expect(resolveGroupDisplayName('/home/user/work', dirs)).toBe('Work App');
+  });
+
+  it('falls back to path tail when no config entry matches', () => {
+    expect(resolveGroupDisplayName('X:\\coding\\project-b', dirs)).toBe('project-b');
+    expect(resolveGroupDisplayName('/home/user/other', dirs)).toBe('other');
+  });
+
+  it('returns full path when path has no separators and no match', () => {
+    expect(resolveGroupDisplayName('standalone', dirs)).toBe('standalone');
+  });
+
+  it('returns path tail for empty directories list', () => {
+    expect(resolveGroupDisplayName('X:\\coding\\project-a', [])).toBe('project-a');
+  });
+});
+
 
 describe('groupSessionsByDirectory', () => {
   const sessions: Session[] = [
@@ -75,11 +102,11 @@ describe('groupSessionsByDirectory', () => {
     expect(groups[2].sessions.map(s => s.id)).toEqual(['s5']);
   });
 
-  it('sets dirName from directory path', () => {
+  it('sets displayName from directory path', () => {
     const groups = groupSessionsByDirectory(sessions, getDir);
-    expect(groups[0].dirName).toBe('project-a');
-    expect(groups[1].dirName).toBe('project-b');
-    expect(groups[2].dirName).toBe('project-c');
+    expect(groups[0].displayName).toBe('project-a');
+    expect(groups[1].displayName).toBe('project-b');
+    expect(groups[2].displayName).toBe('project-c');
   });
 
   it('respects prefs.order for group ordering', () => {
@@ -88,7 +115,7 @@ describe('groupSessionsByDirectory', () => {
       collapsed: [],
     };
     const groups = groupSessionsByDirectory(sessions, getDir, prefs);
-    expect(groups.map(g => g.dirName)).toEqual(['project-c', 'project-a', 'project-b']);
+    expect(groups.map(g => g.displayName)).toEqual(['project-c', 'project-a', 'project-b']);
   });
 
   it('appends unknown directories alphabetically after ordered ones', () => {
@@ -97,7 +124,7 @@ describe('groupSessionsByDirectory', () => {
       collapsed: [],
     };
     const groups = groupSessionsByDirectory(sessions, getDir, prefs);
-    expect(groups.map(g => g.dirName)).toEqual(['project-b', 'project-a', 'project-c']);
+    expect(groups.map(g => g.displayName)).toEqual(['project-b', 'project-a', 'project-c']);
   });
 
   it('applies collapse state from prefs', () => {
@@ -192,7 +219,7 @@ describe('groupSessionsByDirectory', () => {
     const groups = groupSessionsByDirectory([], () => '', prefs);
     expect(groups).toHaveLength(1);
     expect(groups[0].dirPath).toBe('X:\\coding\\empty-project');
-    expect(groups[0].dirName).toBe('empty-project');
+    expect(groups[0].displayName).toBe('empty-project');
     expect(groups[0].sessions).toEqual([]);
   });
 });
@@ -204,7 +231,7 @@ describe('groupSessionsByDirectory', () => {
 describe('buildFlatNavList', () => {
   const makeGroup = (dir: string, sessionIds: string[], collapsed = false): SessionGroup => ({
     dirPath: dir,
-    dirName: dirDisplayName(dir),
+    displayName: dirDisplayName(dir),
     sessions: sessionIds.map(id => makeSession(id, dir)),
     collapsed,
   });
@@ -272,13 +299,13 @@ describe('getVisibleSessions', () => {
   const groups: SessionGroup[] = [
     {
       dirPath: '/a',
-      dirName: 'a',
+      displayName: 'a',
       collapsed: false,
       sessions: [makeSession('s1', '/a'), makeSession('s2', '/a')],
     },
     {
       dirPath: '/b',
-      dirName: 'b',
+      displayName: 'b',
       collapsed: false,
       sessions: [makeSession('s3', '/b')],
     },
@@ -297,7 +324,7 @@ describe('getVisibleSessions', () => {
   it('prefers cliSessionName when filtering overview visibility', () => {
     const stableGroups: SessionGroup[] = [{
       dirPath: '/a',
-      dirName: 'a',
+      displayName: 'a',
       collapsed: false,
       sessions: [{ ...makeSession('s1', '/a'), cliSessionName: 'cli-1' }],
     }];

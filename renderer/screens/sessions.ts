@@ -13,7 +13,7 @@ import { showCloseConfirm } from '../modals/close-confirm.js';
 import { sortSessions, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import {
   groupSessionsByDirectory, buildFlatNavList,
-  moveGroupUp, moveGroupDown, toggleCollapse,
+  toggleCollapse,
   findNavIndexBySessionId, getSessionOverviewAliases, getSessionOverviewKey,
 } from '../session-groups.js';
 import { getActivityColor } from '../state-colors.js';
@@ -252,11 +252,6 @@ function normalizeGroupPrefs(prefs: Partial<typeof sessionsState.groupPrefs>): t
 }
 
 /** Ensure order array contains all current dir paths (appends missing ones). */
-function ensureCompleteOrder(order: string[], allDirPaths: string[]): string[] {
-  const missing = allDirPaths.filter(d => !order.includes(d));
-  return missing.length > 0 ? [...order, ...missing] : order;
-}
-
 async function saveGroupPrefs(): Promise<void> {
   try {
     if (!window.gamepadCli) return;
@@ -302,24 +297,6 @@ export async function toggleGroupCollapse(dirPath: string): Promise<void> {
     ...sessionsState.groupPrefs,
     collapsed: toggleCollapse(sessionsState.groupPrefs.collapsed, dirPath),
   };
-  await saveGroupPrefs();
-  await loadSessions();
-}
-
-export async function moveGroupUpAction(dirPath: string): Promise<void> {
-  const allDirPaths = sessionsState.groups.map(g => g.dirPath);
-  const fullOrder = ensureCompleteOrder(sessionsState.groupPrefs.order, allDirPaths);
-  const newOrder = moveGroupUp(fullOrder, dirPath);
-  sessionsState.groupPrefs = { ...sessionsState.groupPrefs, order: newOrder };
-  await saveGroupPrefs();
-  await loadSessions();
-}
-
-export async function moveGroupDownAction(dirPath: string): Promise<void> {
-  const allDirPaths = sessionsState.groups.map(g => g.dirPath);
-  const fullOrder = ensureCompleteOrder(sessionsState.groupPrefs.order, allDirPaths);
-  const newOrder = moveGroupDown(fullOrder, dirPath);
-  sessionsState.groupPrefs = { ...sessionsState.groupPrefs, order: newOrder };
   await saveGroupPrefs();
   await loadSessions();
 }
@@ -679,14 +656,6 @@ function handleSessionsZoneButton(button: string): boolean {
         return true;
       }
       if (sessionsState.cardColumn === 1) {
-        moveGroupUpAction(navItem.id);
-        return true;
-      }
-      if (sessionsState.cardColumn === 2) {
-        moveGroupDownAction(navItem.id);
-        return true;
-      }
-      if (sessionsState.cardColumn === 3) {
         showPlanScreen(navItem.id);
         return true;
       }
@@ -755,12 +724,8 @@ export function updateSessionsFocus(): void {
       if (eyeBtn) eyeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 3);
       if (closeBtn) closeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 4);
     } else if (el.classList.contains('group-header')) {
-      const moveUpBtn = el.querySelector('.group-move-up');
-      const moveDownBtn = el.querySelector('.group-move-down');
       const plansBtn = el.querySelector('.group-plans-btn');
-      if (moveUpBtn) moveUpBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 1);
-      if (moveDownBtn) moveDownBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 2);
-      if (plansBtn) plansBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 3);
+      if (plansBtn) plansBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 1);
     }
   });
   const focused = items.find(el => el.classList.contains('focused'));

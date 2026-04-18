@@ -9,7 +9,7 @@ import { state, type Session } from '../state.js';
 import { sessionsState } from './sessions-state.js';
 import type { PtyOutputBuffer } from '../terminal/pty-output-buffer.js';
 import { getActivityColor } from '../state-colors.js';
-import { getVisibleSessions } from '../session-groups.js';
+import { getVisibleSessions, resolveGroupDisplayName } from '../session-groups.js';
 import { toDirection } from '../utils.js';
 import { registerView, showView, currentView } from '../main-view/main-view-manager.js';
 
@@ -240,7 +240,7 @@ function getVisibleOverviewGroups(): Array<{ dirPath: string; sessions: Session[
 function createBreakMark(dirPath: string): HTMLElement {
   const mark = document.createElement('div');
   mark.className = 'overview-break-mark';
-  mark.textContent = `────────── ${dirPath} ──────────`;
+  mark.textContent = `────────── ${resolveGroupDisplayName(dirPath, sessionsState.directories)} ──────────`;
   return mark;
 }
 

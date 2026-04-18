@@ -26,7 +26,7 @@ import { formatElapsed, refreshSessions, doSpawn, switchToSession, doCloseSessio
   setPendingContextText,
 } from './composables/useAppBootstrap.js';
 import type { SessionSortField, SortDirection } from './sort-logic.js';
-import { findNavIndexBySessionId, moveGroupUp, moveGroupDown, toggleCollapse, isSessionHiddenFromOverview } from './session-groups.js';
+import { findNavIndexBySessionId, toggleCollapse, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
 import { showOverview } from './screens/group-overview.js';
 import { showPlanScreen, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction } from './plans/plan-screen.js';
 import { handleSessionsScreenButton, toggleSessionOverviewVisibility } from './screens/sessions.js';
@@ -294,18 +294,6 @@ function onSessionStateChange(sessionId: string, newState: string): void {
 // Group actions
 function onGroupToggleCollapse(dirPath: string): void {
   sessionsState.groupPrefs.collapsed = toggleCollapse(sessionsState.groupPrefs.collapsed, dirPath);
-  void refreshSessions();
-  void saveGroupPrefsToBackend();
-}
-
-function onGroupMoveUp(dirPath: string): void {
-  sessionsState.groupPrefs.order = moveGroupUp(sessionsState.groupPrefs.order, dirPath);
-  void refreshSessions();
-  void saveGroupPrefsToBackend();
-}
-
-function onGroupMoveDown(dirPath: string): void {
-  sessionsState.groupPrefs.order = moveGroupDown(sessionsState.groupPrefs.order, dirPath);
   void refreshSessions();
   void saveGroupPrefsToBackend();
 }
@@ -688,7 +676,7 @@ onUnmounted(() => {
               <SessionGroup
                 :group="{
                   dirPath: group.dirPath,
-                  dirName: group.dirName,
+                  dirName: resolveGroupDisplayName(group.dirPath, sessionsState.directories),
                   collapsed: group.collapsed,
                   sessionCount: group.sessions.length,
                   planBadgeCount: 0,
@@ -699,8 +687,6 @@ onUnmounted(() => {
                   && sessionsState.navList[sessionsState.sessionsFocusIndex]?.id === group.dirPath"
                 :card-column="sessionsState.cardColumn"
                 @toggle-collapse="onGroupToggleCollapse"
-                @move-up="onGroupMoveUp"
-                @move-down="onGroupMoveDown"
                 @show-plans="onShowPlans"
                 @show-overview="onShowOverview"
               />
@@ -760,8 +746,8 @@ onUnmounted(() => {
       <!-- Spawn sections pinned at bottom of sidebar -->
       <div v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': spawnCollapsed }">
         <div class="section-label" @click="toggleSpawnCollapse">
-          <span>Quick Spawn</span>
           <button class="section-toggle">{{ spawnCollapsed ? '˄' : '˅' }}</button>
+          <span>Quick Spawn</span>
         </div>
         <SpawnGrid
           v-show="!spawnCollapsed"
@@ -774,8 +760,8 @@ onUnmounted(() => {
 
       <div v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': plannerCollapsed }">
         <div class="section-label" @click="togglePlannerCollapse">
-          <span>Folder Planner</span>
           <button class="section-toggle">{{ plannerCollapsed ? '˄' : '˅' }}</button>
+          <span>Folder Planner</span>
         </div>
         <PlansGrid
           v-show="!plannerCollapsed"

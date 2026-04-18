@@ -144,7 +144,7 @@ renderer/
 ├── screens/
 │   ├── sessions.ts             # Sessions screen orchestrator: group init, collapse/reorder actions, removeBookmark action, navigation, public API. Re-exports from sessions-render + sessions-spawn + sessions-plans.
 │   ├── sessions-render.ts      # Session card rendering (with plan badges), group header rendering (with 🗺️ Plans button), empty group placeholder (bookmarked dirs with no sessions), spawn grid UI, sort control, rename flow
-│   ├── sessions-spawn.ts       # doSpawn(), PTY creation, terminal area visibility, spawn zone navigation, D-pad Right → group overview entry (maxCol 3 for Plans button)
+│   ├── sessions-spawn.ts       # doSpawn(), PTY creation, terminal area visibility, spawn zone navigation, D-pad Right → group overview entry (col 0 on group-header); Plans button at col 1 (maxCol 1)
 │   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn/plans zones, overviewGroup + overviewFocusIndex + plansFocusIndex)
 │   ├── group-overview.ts       # Group overview grid — session preview cards with live PTY output, entry/exit/navigation, max ~5 cards visible
 │   ├── sessions-plans.ts      # Folder planner grid zone (3rd nav zone below spawn) — shows working directories with plan badges, gamepad 2-column grid navigation, click opens plan screen

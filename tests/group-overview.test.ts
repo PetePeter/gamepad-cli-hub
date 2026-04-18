@@ -134,8 +134,8 @@ describe('GroupOverview', () => {
         { id: 's3', name: 'Other', cliType: 'generic', workingDir: '/other', processId: 0 },
       ];
       sessionsState.groups = [
-        { dirPath: '/project', dirName: 'project', sessions: state.sessions.slice(0, 2) as any, collapsed: false },
-        { dirPath: '/other', dirName: 'other', sessions: state.sessions.slice(2) as any, collapsed: false },
+        { dirPath: '/project', displayName: 'project', sessions: state.sessions.slice(0, 2) as any, collapsed: false },
+        { dirPath: '/other', displayName: 'other', sessions: state.sessions.slice(2) as any, collapsed: false },
       ];
       showOverview('/project');
 
@@ -319,8 +319,8 @@ describe('GroupOverview', () => {
         { id: 's3', name: 'Three', cliType: 'claude-code', workingDir: '/project-b', processId: 0 },
       ];
       sessionsState.groups = [
-        { dirPath: '/project-a', dirName: 'project-a', sessions: state.sessions.slice(0, 2) as any, collapsed: false },
-        { dirPath: '/project-b', dirName: 'project-b', sessions: state.sessions.slice(2) as any, collapsed: false },
+        { dirPath: '/project-a', displayName: 'project-a', sessions: state.sessions.slice(0, 2) as any, collapsed: false },
+        { dirPath: '/project-b', displayName: 'project-b', sessions: state.sessions.slice(2) as any, collapsed: false },
       ];
 
       showOverview(null);
@@ -336,15 +336,15 @@ describe('GroupOverview', () => {
         { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project-b', processId: 0 },
       ];
       sessionsState.groups = [
-        { dirPath: '/project-a', dirName: 'project-a', sessions: [state.sessions[0]] as any, collapsed: false },
-        { dirPath: '/project-b', dirName: 'project-b', sessions: [state.sessions[1]] as any, collapsed: false },
+        { dirPath: '/project-a', displayName: 'project-a', sessions: [state.sessions[0]] as any, collapsed: false },
+        { dirPath: '/project-b', displayName: 'project-b', sessions: [state.sessions[1]] as any, collapsed: false },
       ];
 
       showOverview(null);
 
       const marks = document.querySelectorAll('.overview-break-mark');
       expect(marks).toHaveLength(1);
-      expect(marks[0]?.textContent).toContain('/project-b');
+      expect(marks[0]?.textContent).toContain('project-b');
     });
 
     it('does not render break marks for a single visible folder', () => {
@@ -353,7 +353,7 @@ describe('GroupOverview', () => {
         { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
       ];
       sessionsState.groups = [
-        { dirPath: '/project-a', dirName: 'project-a', sessions: state.sessions as any, collapsed: false },
+        { dirPath: '/project-a', displayName: 'project-a', sessions: state.sessions as any, collapsed: false },
       ];
 
       showOverview(null);
@@ -368,8 +368,8 @@ describe('GroupOverview', () => {
         { id: 's3', name: 'Three', cliType: 'claude-code', workingDir: '/project-b', processId: 0 },
       ];
       sessionsState.groups = [
-        { dirPath: '/project-a', dirName: 'project-a', sessions: state.sessions.slice(0, 2) as any, collapsed: false },
-        { dirPath: '/project-b', dirName: 'project-b', sessions: state.sessions.slice(2) as any, collapsed: false },
+        { dirPath: '/project-a', displayName: 'project-a', sessions: state.sessions.slice(0, 2) as any, collapsed: false },
+        { dirPath: '/project-b', displayName: 'project-b', sessions: state.sessions.slice(2) as any, collapsed: false },
       ];
 
       showOverview(null);

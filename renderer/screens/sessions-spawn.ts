@@ -299,7 +299,7 @@ export function handleSessionsZone(button: string, dir: string | null): void {
     const maxColumn = currentItem?.type === 'session-card'
       ? 4
       : currentItem?.type === 'group-header'
-        ? 3
+        ? 1
         : 0;
     if (sessionsState.cardColumn < maxColumn) {
       sessionsState.cardColumn = (sessionsState.cardColumn + 1) as 0 | 1 | 2 | 3 | 4;

@@ -7,7 +7,7 @@ Gamepad button and keyboard shortcut mappings.
 | Input | Action |
 |-------|--------|
 | D-Pad Up/Down | Switch sessions (auto-selects terminal) / auto-opens overview on group headers |
-| D-Pad Right | Session card: cycle sub-elements / Group header: cycle reorder buttons + 🗺️ Plans button (column 3) |
+| D-Pad Right | Session card: cycle sub-elements / Group header: open group overview (col 0) — 🗺️ Plans button (col 1) is click-only |
 | D-Pad Left | Back one sub-element column |
 | D-Pad directions | Overview grid: navigation between cards (Up/Down past edges exits overview) |
 | Left Stick | Same as D-pad |
@@ -75,7 +75,7 @@ Keyboard input flows through to the focused field normally — only gamepad navi
 
 ## Directory Plans
 
-The 🗺️ Plans button on group headers (D-pad Right to column 3, or click) opens the plan canvas for that directory. The plan screen is an overlay inside `#mainArea`, not a separate screen — it's checked via `isPlanScreenVisible()` within the sessions case of the navigation router.
+The 🗺️ Plans button on group headers (column 1, click only — D-pad Right at col 0 opens the group overview instead) opens the plan canvas for that directory. The plan screen is an overlay inside `#mainArea`, not a separate screen — it's checked via `isPlanScreenVisible()` within the sessions case of the navigation router.
 
 ### Plan Screen Controls
 

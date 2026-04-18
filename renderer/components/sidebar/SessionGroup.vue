@@ -8,7 +8,7 @@
 
 export interface SessionGroupData {
   dirPath: string;
-  dirName: string;
+  displayName: string;
   collapsed: boolean;
   sessionCount: number;
   planBadgeCount: number;
@@ -22,8 +22,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   toggleCollapse: [dirPath: string];
-  moveUp: [dirPath: string];
-  moveDown: [dirPath: string];
   showPlans: [dirPath: string];
   showOverview: [dirPath: string];
 }>();
@@ -40,7 +38,7 @@ function colClass(col: number): string {
     :data-dir-path="group.dirPath"
     @click="emit('toggleCollapse', group.dirPath)"
   >
-    <span class="group-chevron">{{ group.collapsed ? '▸' : '▾' }}</span>
+    <span class="group-chevron">{{ group.collapsed ? '▲' : '▼' }}</span>
 
     <span
       class="group-name"
@@ -52,26 +50,8 @@ function colClass(col: number): string {
     </span>
 
     <button
-      class="group-move-up"
-      :class="colClass(1)"
-      title="Move group up"
-      @click.stop="emit('moveUp', group.dirPath)"
-    >
-      ▲
-    </button>
-
-    <button
-      class="group-move-down"
-      :class="colClass(2)"
-      title="Move group down"
-      @click.stop="emit('moveDown', group.dirPath)"
-    >
-      ▼
-    </button>
-
-    <button
       class="group-plans-btn"
-      :class="colClass(3)"
+      :class="colClass(1)"
       title="Open plans for this directory"
       @click.stop="emit('showPlans', group.dirPath)"
     >

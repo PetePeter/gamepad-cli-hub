@@ -201,7 +201,7 @@ interface LayoutResult {
 
 ### Entry / Exit
 
-- **Entry:** 🗺️ Plans button on group headers (D-pad Right to column 3, or click)
+- **Entry:** 🗺️ Plans button on group headers (column 1, click only — D-pad Right at col 0 opens the group overview)
 - **Exit:** B button (gamepad) or ← Back button in plan header
 
 ### Canvas Features

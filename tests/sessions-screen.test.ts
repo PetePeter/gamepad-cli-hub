@@ -307,7 +307,7 @@ describe('Sessions Screen', () => {
       sessionsState.navList = [{ type: 'group-header', id: '/projects/a', groupIndex: 0 }];
       sessionsState.groups = [{
         dirPath: '/projects/a',
-        dirName: 'a',
+        displayName: 'a',
         sessions: [],
         collapsed: false,
       }];

@@ -615,8 +615,6 @@ button {
   text-overflow: ellipsis;
 }
 
-.group-move-up,
-.group-move-down,
 .group-plans-btn {
   background: none;
   border: none;
@@ -628,8 +626,6 @@ button {
   line-height: 1;
   position: relative;
 }
-.group-move-up:hover,
-.group-move-down:hover,
 .group-plans-btn:hover { color: var(--text-primary); background: var(--bg-secondary); }
 
 .plans-btn-badge {
@@ -955,7 +951,8 @@ button {
 .section-label {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 8px;
   font-size: 10px;
   font-weight: 600;
   color: var(--text-dim);
