@@ -55,11 +55,11 @@ export function getConfigDir(dirname: string, appData?: string): string {
 }
 
 /**
- * Return the path to renderer/index.html.
- * Always relative to __dirname (works both in dev and inside asar).
+ * Return the path to the built renderer index.html.
+ * Vite outputs to dist/renderer/; __dirname is dist-electron/.
  */
 export function getRendererHtmlPath(dirname: string): string {
-  return path.join(dirname, '..', 'renderer', 'index.html');
+  return path.join(dirname, '..', 'dist', 'renderer', 'index.html');
 }
 
 /**

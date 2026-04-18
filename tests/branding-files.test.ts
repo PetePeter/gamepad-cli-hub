@@ -24,7 +24,7 @@ describe('Helm branding surfaces', () => {
     expect(pkg.description).toBe('Helm — steer your fleet of agents');
     expect(pkg.build.productName).toBe('Helm');
     expect(pkg.build.nsis.shortcutName).toBe('Helm');
-    expect(pkg.build.files).toContain('renderer/assets/**/*');
+    expect(pkg.build.files).toContain('dist/renderer/**/*');
   });
 
   it('includes the paper boat mark with the |> sail accent asset', () => {

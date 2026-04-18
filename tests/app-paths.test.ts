@@ -204,17 +204,16 @@ describe('seedConfigIfNeeded', () => {
 
 describe('getRendererHtmlPath', () => {
   it('returns __dirname-relative path in dev mode', () => {
-    // dist-electron/main.js → ../renderer/index.html
+    // dist-electron/main.js → ../dist/renderer/index.html
     const result = getRendererHtmlPath(DEV_DIRNAME);
-    const expected = path.join(DEV_DIRNAME, '..', 'renderer', 'index.html');
+    const expected = path.join(DEV_DIRNAME, '..', 'dist', 'renderer', 'index.html');
     expect(result).toBe(expected);
   });
 
   it('returns asar-relative path when packaged', () => {
-    // resources/app.asar/dist-electron/main.js → ../renderer/index.html
-    // Same relative traversal — renderer/index.html is bundled inside the asar
+    // resources/app.asar/dist-electron/main.js → ../dist/renderer/index.html
     const result = getRendererHtmlPath(PACKAGED_DIRNAME);
-    const expected = path.join(PACKAGED_DIRNAME, '..', 'renderer', 'index.html');
+    const expected = path.join(PACKAGED_DIRNAME, '..', 'dist', 'renderer', 'index.html');
     expect(result).toBe(expected);
   });
 });
