@@ -25,25 +25,8 @@ const ACTIVE_PLAN_STATUSES = new Set(['doing', 'blocked', 'question']);
  * blanks while waiting on an async fetch — eliminating planner flicker.
  */
 export function renderPlansGrid(): void {
-  const grid = document.getElementById('plansGrid');
-  if (!grid) return;
-
-  const dirs = sessionsState.directories;
-  if (!dirs || dirs.length === 0) {
-    grid.innerHTML = '';
-    return;
-  }
-
-  // Build replacement content before touching the DOM to avoid blank frames.
-  const fragment = document.createDocumentFragment();
-  dirs.forEach((dir, index) => {
-    fragment.appendChild(createPlansButton(dir, index));
-  });
-  grid.innerHTML = '';
-  grid.appendChild(fragment);
-
-  updatePlansFocus();
-  refreshPlanBadges();
+  // Vue owns the plans grid — PlansGrid.vue renders reactively from sessionsState.directories.
+  void refreshPlanBadges();
 }
 
 function createPlansButton(dir: { name: string; path: string }, index: number): HTMLElement {
@@ -87,9 +70,8 @@ function createPlansButton(dir: { name: string; path: string }, index: number): 
 // ============================================================================
 
 export function handlePlansZone(button: string, dir: string | null): void {
-  const grid = document.getElementById('plansGrid');
-  if (!grid) return;
-  const total = grid.querySelectorAll('.plans-grid-btn').length;
+  // Read directory count from state — Vue owns the DOM so we can't rely on DOM button count.
+  const total = sessionsState.directories.length;
   if (total === 0) return;
 
   const cols = 2;
@@ -141,13 +123,10 @@ export function handlePlansZone(button: string, dir: string | null): void {
 export function handlePlansZoneButton(button: string): boolean {
   switch (button) {
     case 'A': {
-      const grid = document.getElementById('plansGrid');
-      if (!grid) return true;
-      const btns = grid.querySelectorAll('.plans-grid-btn');
-      const focused = btns[sessionsState.plansFocusIndex] as HTMLElement | undefined;
-      const dirPath = focused?.dataset.dir;
-      if (dirPath) {
-        showPlanScreen(dirPath);
+      // Read from state — Vue owns the DOM, so we can't rely on DOM button order.
+      const dir = sessionsState.directories[sessionsState.plansFocusIndex];
+      if (dir?.path) {
+        showPlanScreen(dir.path);
       }
       return true;
     }

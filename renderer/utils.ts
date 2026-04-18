@@ -184,12 +184,12 @@ export interface FormField {
   label: string;
   defaultValue?: string;
   placeholder?: string;
-  type?: 'text' | 'select' | 'textarea' | 'checkbox';
+  type?: 'text' | 'select' | 'textarea' | 'checkbox' | 'sequence-items';
   options?: FormFieldOption[];
-  /** Optional element appended after the input (e.g. syntax help panel). */
-  afterElement?: HTMLElement;
   /** Show a native OS folder-picker button next to the text input. */
   browse?: boolean;
+  /** Show label inputs for each item in sequence-items fields. Default true. */
+  showLabels?: boolean;
 }
 
 /** Extract folder basename from a path (handles both / and \). */
@@ -233,6 +233,7 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
       type: f.type,
       options: f.options,
       browse: f.browse,
+      showLabels: f.showLabels,
     }));
 
     formModalVisible = true;

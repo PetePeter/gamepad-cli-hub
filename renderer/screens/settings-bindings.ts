@@ -395,20 +395,32 @@ function truncate(s: string, max: number): string {
 
 interface SeqItem { label: string; sequence: string }
 
-async function showAddSequenceGroupForm(cliType: string): Promise<void> {
-  const items: SeqItem[] = [];
-  const itemsEditor = createSequenceItemsEditor(items);
+/** Safely parse sequence items from a JSON string. Returns only items with non-empty sequence. */
+function parseSeqItems(raw: string): SeqItem[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item: any) => ({
+        label: typeof item?.label === 'string' ? item.label : '',
+        sequence: typeof item?.sequence === 'string' ? item.sequence : '',
+      }))
+      .filter((i: SeqItem) => i.sequence.trim());
+  } catch { return []; }
+}
 
+async function showAddSequenceGroupForm(cliType: string): Promise<void> {
   const result = await showFormModal('Add Sequence Group', [
     { key: 'groupId', label: 'Group Name', placeholder: 'e.g. prompts, shortcuts' },
-    { key: '_items', label: 'Sequence Items', type: 'text', defaultValue: '', afterElement: itemsEditor },
+    { key: '_items', label: 'Sequence Items', type: 'sequence-items', defaultValue: '[]', showLabels: true },
   ]);
   if (!result) return;
 
   const groupId = result.groupId?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   if (!groupId) { logEvent('Group name is required'); return; }
 
-  const validItems = items.filter(i => i.sequence.trim());
+  const validItems = parseSeqItems(result._items);
   try {
     const res = await window.gamepadCli.configSetSequenceGroup(cliType, groupId, validItems);
     if (res.success) {
@@ -426,17 +438,14 @@ async function showEditSequenceGroupForm(
   groupId: string,
   existing: Array<{ label: string; sequence: string }>,
 ): Promise<void> {
-  const items: SeqItem[] = existing.map(i => ({ ...i }));
-  const itemsEditor = createSequenceItemsEditor(items);
-
   const result = await showFormModal(`Edit Group: ${groupId}`, [
     { key: 'groupId', label: 'Group Name', defaultValue: groupId },
-    { key: '_items', label: 'Sequence Items', type: 'text', defaultValue: '', afterElement: itemsEditor },
+    { key: '_items', label: 'Sequence Items', type: 'sequence-items', defaultValue: JSON.stringify(existing), showLabels: true },
   ]);
   if (!result) return;
 
   const newGroupId = result.groupId?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || groupId;
-  const validItems = items.filter(i => i.sequence.trim());
+  const validItems = parseSeqItems(result._items);
 
   try {
     // If renamed, remove old group first
@@ -452,80 +461,4 @@ async function showEditSequenceGroupForm(
   } catch (error) {
     logEvent(`Failed to update sequence group: ${error}`);
   }
-}
-
-/** Create an inline CRUD editor for sequence items. Mutates `items` in place. */
-function createSequenceItemsEditor(items: SeqItem[]): HTMLElement {
-  const container = document.createElement('div');
-  container.className = 'prompt-items-editor';
-
-  // Hide the sibling text input that showFormModal creates for this field
-  setTimeout(() => {
-    const input = container.previousElementSibling;
-    if (input instanceof HTMLElement && input.tagName === 'INPUT') input.style.display = 'none';
-  }, 0);
-
-  const list = document.createElement('div');
-  list.className = 'sequence-list-items';
-  container.appendChild(list);
-
-  function renderItems(): void {
-    list.innerHTML = '';
-    items.forEach((item, index) => {
-      const row = document.createElement('div');
-      row.className = 'sequence-list-row';
-      row.style.flexDirection = 'column';
-      row.style.alignItems = 'stretch';
-
-      const headerRow = document.createElement('div');
-      headerRow.style.display = 'flex';
-      headerRow.style.alignItems = 'center';
-      headerRow.style.gap = '6px';
-
-      const labelInput = document.createElement('input');
-      labelInput.type = 'text';
-      labelInput.className = 'settings-input';
-      labelInput.placeholder = 'Label, e.g. commit';
-      labelInput.value = item.label;
-      labelInput.style.flex = '1';
-      labelInput.style.fontSize = '11px';
-      labelInput.addEventListener('input', () => { items[index].label = labelInput.value; });
-
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'btn btn--small btn--danger';
-      removeBtn.textContent = '✕';
-      removeBtn.title = 'Remove';
-      removeBtn.addEventListener('click', () => { items.splice(index, 1); renderItems(); });
-
-      headerRow.appendChild(labelInput);
-      headerRow.appendChild(removeBtn);
-
-      const seqInput = document.createElement('textarea');
-      seqInput.className = 'sequence-textarea';
-      seqInput.placeholder = 'Sequence, e.g. use skill(commit){Enter}';
-      seqInput.value = item.sequence;
-      seqInput.rows = 2;
-      seqInput.style.fontSize = '11px';
-      seqInput.addEventListener('input', () => { items[index].sequence = seqInput.value; });
-
-      row.appendChild(headerRow);
-      row.appendChild(seqInput);
-      list.appendChild(row);
-    });
-  }
-
-  renderItems();
-
-  const addBtn = document.createElement('button');
-  addBtn.type = 'button';
-  addBtn.className = 'btn btn--secondary sequence-list-add';
-  addBtn.textContent = '+ Add Item';
-  addBtn.addEventListener('click', () => {
-    items.push({ label: '', sequence: '' });
-    renderItems();
-  });
-  container.appendChild(addBtn);
-
-  return container;
 }

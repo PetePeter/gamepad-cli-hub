@@ -198,6 +198,15 @@ async function refreshPlanCounts(): Promise<void> {
       try {
         const doing = await window.gamepadCli.planDoingForSession(id);
         if (doing.length > 0) state.planDoingCounts.set(id, doing.length);
+        const plan = doing[0];
+        if (plan) {
+          const prefix = plan.status === 'blocked' ? '⛔' : plan.status === 'question' ? '❓' : '🗺️';
+          state.workingPlanLabels.set(id, `${prefix} ${plan.title}`);
+          state.workingPlanTooltips.set(id, plan.stateInfo ? `${plan.title}\n${plan.stateInfo}` : plan.title);
+        } else {
+          state.workingPlanLabels.delete(id);
+          state.workingPlanTooltips.delete(id);
+        }
       } catch { /* ignore */ }
     }
   }
@@ -372,9 +381,15 @@ function setupIpcListeners(): void {
 
   // Plan change listener
   if (window.gamepadCli.onPlanChanged) {
-    window.gamepadCli.onPlanChanged(() => {
+    window.gamepadCli.onPlanChanged((dirPath: string) => {
       void refreshSessions();
       void refreshPlanCounts();
+      const activeSessionId = state.activeSessionId;
+      if (activeSessionId && getSessionCwd(activeSessionId) === dirPath) {
+        import('../plans/plan-chips.js')
+          .then(({ renderPlanChips }) => renderPlanChips(activeSessionId))
+          .catch((err: unknown) => console.error('[Bootstrap] Failed to refresh plan chips:', err));
+      }
     });
   }
 }

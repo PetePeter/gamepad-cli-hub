@@ -37,6 +37,9 @@ function makeMockTerminal() {
     dispose: vi.fn(),
     scrollToBottom: vi.fn(),
     scrollLines: vi.fn(),
+    hasSelection: vi.fn().mockReturnValue(false),
+    getSelection: vi.fn().mockReturnValue(''),
+    clearSelection: vi.fn(),
     attachCustomKeyEventHandler: vi.fn(),
     attachCustomWheelEventHandler: vi.fn(),
     onData: vi.fn().mockReturnValue({ dispose: vi.fn() }),
@@ -837,6 +840,88 @@ describe('TerminalView — custom key handler', () => {
 
     handler({ key: 'PageUp', type: 'keyup', ctrlKey: false } as KeyboardEvent);
     expect(lastTerminal().scrollLines).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl+C with selection copies to clipboard and returns false', async () => {
+    new TerminalView({ sessionId: 'ckh-copy', container });
+    const term = lastTerminal();
+    term.hasSelection.mockReturnValue(true);
+    term.getSelection.mockReturnValue('selected text');
+    const mockWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: mockWriteText },
+      writable: true, configurable: true,
+    });
+    const handler = term.attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
+
+    const result = handler({ key: 'c', ctrlKey: true, shiftKey: false, altKey: false, type: 'keydown' } as KeyboardEvent);
+    expect(result).toBe(false);
+    expect(mockWriteText).toHaveBeenCalledWith('selected text');
+    // clearSelection called after async clipboard write
+    await vi.waitFor(() => expect(term.clearSelection).toHaveBeenCalled());
+  });
+
+  it('Ctrl+C without selection lets SIGINT through', () => {
+    new TerminalView({ sessionId: 'ckh-sigint', container });
+    const term = lastTerminal();
+    term.hasSelection.mockReturnValue(false);
+    const handler = term.attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
+
+    const result = handler({ key: 'c', ctrlKey: true, shiftKey: false, altKey: false, type: 'keydown' } as KeyboardEvent);
+    expect(result).toBe(true);
+  });
+
+  it('Ctrl+C keyup does not trigger copy', () => {
+    new TerminalView({ sessionId: 'ckh-copy-up', container });
+    const term = lastTerminal();
+    term.hasSelection.mockReturnValue(true);
+    term.getSelection.mockReturnValue('text');
+    const mockWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: mockWriteText },
+      writable: true, configurable: true,
+    });
+    const handler = term.attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
+
+    const result = handler({ key: 'c', ctrlKey: true, shiftKey: false, altKey: false, type: 'keyup' } as KeyboardEvent);
+    expect(result).toBe(true);
+    expect(mockWriteText).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl+C preserves selection if clipboard write fails', async () => {
+    new TerminalView({ sessionId: 'ckh-copy-fail', container });
+    const term = lastTerminal();
+    term.hasSelection.mockReturnValue(true);
+    term.getSelection.mockReturnValue('text');
+    const mockWriteText = vi.fn().mockRejectedValue(new Error('denied'));
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: mockWriteText },
+      writable: true, configurable: true,
+    });
+    const handler = term.attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
+
+    const result = handler({ key: 'c', ctrlKey: true, shiftKey: false, altKey: false, type: 'keydown' } as KeyboardEvent);
+    expect(result).toBe(false);
+    // Wait for the rejected promise to settle
+    await vi.waitFor(() => expect(mockWriteText).toHaveBeenCalled());
+    expect(term.clearSelection).not.toHaveBeenCalled();
+  });
+
+  it('Ctrl+C with uppercase key still copies', async () => {
+    new TerminalView({ sessionId: 'ckh-copy-upper', container });
+    const term = lastTerminal();
+    term.hasSelection.mockReturnValue(true);
+    term.getSelection.mockReturnValue('upper');
+    const mockWriteText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: mockWriteText },
+      writable: true, configurable: true,
+    });
+    const handler = term.attachCustomKeyEventHandler.mock.calls[0][0] as (event: Partial<KeyboardEvent>) => boolean;
+
+    const result = handler({ key: 'C', ctrlKey: true, shiftKey: false, altKey: false, type: 'keydown' } as KeyboardEvent);
+    expect(result).toBe(false);
+    await vi.waitFor(() => expect(mockWriteText).toHaveBeenCalledWith('upper'));
   });
 });
 

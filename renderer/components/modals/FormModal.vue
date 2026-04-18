@@ -8,15 +8,17 @@
  */
 import { ref, watch, computed, nextTick, onUnmounted } from 'vue';
 import { useModalStack } from '../../composables/useModalStack.js';
+import { getSequenceSyntaxHelpText } from '../../utils.js';
 
 export interface FormField {
   key: string;
   label: string;
   defaultValue?: string;
   placeholder?: string;
-  type?: 'text' | 'select' | 'textarea' | 'checkbox';
+  type?: 'text' | 'select' | 'textarea' | 'checkbox' | 'sequence-items';
   options?: Array<{ label: string; value: string }>;
   browse?: boolean;
+  showLabels?: boolean;
 }
 
 const MODAL_ID = 'form-modal';
@@ -35,6 +37,50 @@ const emit = defineEmits<{
 
 const formValues = ref<Record<string, string>>({});
 const modalStack = useModalStack();
+const syntaxHelpExpanded = ref(false);
+const syntaxHelpText = getSequenceSyntaxHelpText();
+
+interface SeqItem { label: string; sequence: string }
+
+function parseSequenceItems(raw: string): SeqItem[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item: any) => ({
+      label: typeof item?.label === 'string' ? item.label : '',
+      sequence: typeof item?.sequence === 'string' ? item.sequence : '',
+    }));
+  } catch { return []; }
+}
+
+function getSequenceItems(fieldKey: string): SeqItem[] {
+  return parseSequenceItems(formValues.value[fieldKey]);
+}
+
+function setSequenceItems(fieldKey: string, items: SeqItem[]): void {
+  formValues.value[fieldKey] = JSON.stringify(items);
+}
+
+function updateSequenceItem(fieldKey: string, index: number, prop: 'label' | 'sequence', value: string): void {
+  const items = getSequenceItems(fieldKey);
+  if (index >= 0 && index < items.length) {
+    items[index][prop] = value;
+    setSequenceItems(fieldKey, items);
+  }
+}
+
+function addSequenceItem(fieldKey: string): void {
+  const items = getSequenceItems(fieldKey);
+  items.push({ label: '', sequence: '' });
+  setSequenceItems(fieldKey, items);
+}
+
+function removeSequenceItem(fieldKey: string, index: number): void {
+  const items = getSequenceItems(fieldKey);
+  items.splice(index, 1);
+  setSequenceItems(fieldKey, items);
+}
 
 watch(() => props.visible, (v) => {
   if (v) {
@@ -144,6 +190,57 @@ defineExpose({ handleButton });
               />
               {{ field.label }}
             </label>
+
+            <!-- Sequence Items (list editor) -->
+            <div v-else-if="field.type === 'sequence-items'" class="prompt-items-editor">
+              <div class="sequence-list-items">
+                <div
+                  v-for="(item, idx) in getSequenceItems(field.key)"
+                  :key="idx"
+                  class="sequence-list-row"
+                  style="flex-direction: column; align-items: stretch;"
+                >
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <input
+                      v-if="field.showLabels !== false"
+                      type="text"
+                      class="settings-input"
+                      placeholder="Label, e.g. commit"
+                      :value="item.label"
+                      style="flex: 1; font-size: 11px;"
+                      @input="updateSequenceItem(field.key, idx, 'label', ($event.target as HTMLInputElement).value)"
+                    />
+                    <button
+                      type="button"
+                      class="btn btn--small btn--danger"
+                      title="Remove"
+                      @click="removeSequenceItem(field.key, idx)"
+                    >✕</button>
+                  </div>
+                  <textarea
+                    class="sequence-textarea"
+                    :placeholder="field.showLabels !== false ? 'Sequence, e.g. use skill(commit){Enter}' : 'Sequence, e.g. /allow-all{Enter}'"
+                    :value="item.sequence"
+                    rows="2"
+                    style="font-size: 11px;"
+                    @input="updateSequenceItem(field.key, idx, 'sequence', ($event.target as HTMLTextAreaElement).value)"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                class="btn btn--secondary sequence-list-add"
+                @click="addSequenceItem(field.key)"
+              >+ Add Item</button>
+              <div class="sequence-help">
+                <button
+                  type="button"
+                  class="sequence-help__toggle"
+                  @click="syntaxHelpExpanded = !syntaxHelpExpanded"
+                >{{ syntaxHelpExpanded ? '▾' : '▸' }} Syntax Reference</button>
+                <pre v-if="syntaxHelpExpanded" class="sequence-help__content">{{ syntaxHelpText }}</pre>
+              </div>
+            </div>
           </div>
         </div>
         <div class="modal-footer">

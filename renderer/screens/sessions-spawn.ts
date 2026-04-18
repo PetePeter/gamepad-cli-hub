@@ -254,13 +254,7 @@ export function autoSelectFocusedSession(): void {
 // ============================================================================
 
 export function renderSpawnGrid(): void {
-  const grid = document.getElementById('spawnGrid');
-  if (!grid) return;
-  grid.innerHTML = '';
-
-  sessionsState.cliTypes.forEach((cliType, index) => {
-    grid.appendChild(createSpawnButton(cliType, index));
-  });
+  // Vue owns the spawn grid — SpawnGrid.vue renders reactively from sessionsState.cliTypes.
 }
 
 function createSpawnButton(cliType: string, index: number): HTMLElement {
@@ -354,16 +348,12 @@ export function handleSessionsZone(button: string, dir: string | null): void {
         updateAllFocus();
         return;
       }
-      if (!isPlannerCollapsed()) {
-        const plansGrid = document.getElementById('plansGrid');
-        const hasPlans = plansGrid && plansGrid.querySelectorAll('.plans-grid-btn').length > 0;
-        if (hasPlans) {
-          sessionsState.activeFocus = 'plans';
-          sessionsState.plansFocusIndex = 0;
-          sessionsState.cardColumn = 0;
-          updateAllFocus();
-          return;
-        }
+      if (!isPlannerCollapsed() && sessionsState.directories.length > 0) {
+        sessionsState.activeFocus = 'plans';
+        sessionsState.plansFocusIndex = 0;
+        sessionsState.cardColumn = 0;
+        updateAllFocus();
+        return;
       }
       // Both collapsed or no plans — stay put
       return;
@@ -384,14 +374,10 @@ export function handleSpawnZone(button: string, dir: string | null): void {
       sessionsState.sessionsFocusIndex = Math.max(0, sessionsState.navList.length - 1);
       sessionsState.cardColumn = 0;
       updateAllFocus();
-    } else if (dir === 'down' && !isPlannerCollapsed()) {
-      const plansGrid = document.getElementById('plansGrid');
-      const hasPlans = plansGrid && plansGrid.querySelectorAll('.plans-grid-btn').length > 0;
-      if (hasPlans) {
-        sessionsState.activeFocus = 'plans';
-        sessionsState.plansFocusIndex = 0;
-        updateAllFocus();
-      }
+    } else if (dir === 'down' && !isPlannerCollapsed() && sessionsState.directories.length > 0) {
+      sessionsState.activeFocus = 'plans';
+      sessionsState.plansFocusIndex = 0;
+      updateAllFocus();
     }
     return;
   }
@@ -417,14 +403,10 @@ export function handleSpawnZone(button: string, dir: string | null): void {
     if (newIndex < count) {
       sessionsState.spawnFocusIndex = newIndex;
       updateSpawnFocus();
-    } else if (!isPlannerCollapsed()) {
-      const plansGrid = document.getElementById('plansGrid');
-      const hasPlans = plansGrid && plansGrid.querySelectorAll('.plans-grid-btn').length > 0;
-      if (hasPlans) {
-        sessionsState.activeFocus = 'plans';
-        sessionsState.plansFocusIndex = 0;
-        updateAllFocus();
-      }
+    } else if (!isPlannerCollapsed() && sessionsState.directories.length > 0) {
+      sessionsState.activeFocus = 'plans';
+      sessionsState.plansFocusIndex = 0;
+      updateAllFocus();
     }
     return;
   }

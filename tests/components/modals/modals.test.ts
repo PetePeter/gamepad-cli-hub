@@ -882,6 +882,162 @@ describe('FormModal.vue', () => {
     expect(modalStack.has('form-modal')).toBe(false);
     w.unmount();
   });
+
+  // ---------- sequence-items field type ----------
+
+  describe('sequence-items field type', () => {
+    const seqFields = [
+      { key: '_items', label: 'Items', type: 'sequence-items' as const, defaultValue: '[]' },
+    ];
+
+    function seqFactory(props: Record<string, any> = {}) {
+      return mount(FormModal, {
+        props: { visible: true, title: 'Seq Test', fields: seqFields, ...props },
+        attachTo: document.body,
+        global: { stubs: GLOBAL_STUBS },
+      });
+    }
+
+    it('renders prompt-items-editor container', () => {
+      const w = seqFactory();
+      expect(w.find('.prompt-items-editor').exists()).toBe(true);
+      w.unmount();
+    });
+
+    it('renders existing items from JSON defaultValue', () => {
+      const items = [{ label: 'Setup', sequence: '/init{Enter}' }];
+      const w = mount(FormModal, {
+        props: {
+          visible: true, title: 'Seq', fields: [
+            { key: '_items', label: 'Items', type: 'sequence-items' as const, defaultValue: JSON.stringify(items) },
+          ],
+        },
+        attachTo: document.body,
+        global: { stubs: GLOBAL_STUBS },
+      });
+      const rows = w.findAll('.sequence-list-row');
+      expect(rows).toHaveLength(1);
+      const textarea = w.find('.sequence-textarea');
+      expect((textarea.element as HTMLTextAreaElement).value).toBe('/init{Enter}');
+      w.unmount();
+    });
+
+    it('shows labels by default', () => {
+      const items = [{ label: 'L1', sequence: 's1' }];
+      const w = mount(FormModal, {
+        props: {
+          visible: true, title: 'Seq', fields: [
+            { key: '_items', label: 'Items', type: 'sequence-items' as const, defaultValue: JSON.stringify(items) },
+          ],
+        },
+        attachTo: document.body,
+        global: { stubs: GLOBAL_STUBS },
+      });
+      const labelInput = w.find('.settings-input');
+      expect(labelInput.exists()).toBe(true);
+      expect((labelInput.element as HTMLInputElement).value).toBe('L1');
+      w.unmount();
+    });
+
+    it('hides labels when showLabels is false', () => {
+      const items = [{ label: 'L1', sequence: 's1' }];
+      const w = mount(FormModal, {
+        props: {
+          visible: true, title: 'Seq', fields: [
+            { key: '_items', label: 'Items', type: 'sequence-items' as const, showLabels: false, defaultValue: JSON.stringify(items) },
+          ],
+        },
+        attachTo: document.body,
+        global: { stubs: GLOBAL_STUBS },
+      });
+      expect(w.find('.settings-input').exists()).toBe(false);
+      w.unmount();
+    });
+
+    it('Add Item button adds a new empty row', async () => {
+      const w = seqFactory();
+      expect(w.findAll('.sequence-list-row')).toHaveLength(0);
+      const addBtn = w.find('.sequence-list-add');
+      await addBtn.trigger('click');
+      expect(w.findAll('.sequence-list-row')).toHaveLength(1);
+      w.unmount();
+    });
+
+    it('Remove button removes an item', async () => {
+      const items = [{ label: 'a', sequence: 'x' }, { label: 'b', sequence: 'y' }];
+      const w = mount(FormModal, {
+        props: {
+          visible: true, title: 'Seq', fields: [
+            { key: '_items', label: 'Items', type: 'sequence-items' as const, defaultValue: JSON.stringify(items) },
+          ],
+        },
+        attachTo: document.body,
+        global: { stubs: GLOBAL_STUBS },
+      });
+      expect(w.findAll('.sequence-list-row')).toHaveLength(2);
+      const removeBtn = w.find('.btn--danger');
+      await removeBtn.trigger('click');
+      expect(w.findAll('.sequence-list-row')).toHaveLength(1);
+      w.unmount();
+    });
+
+    it('Save emits items as JSON string', async () => {
+      const items = [{ label: 'Go', sequence: '/run{Enter}' }];
+      const w = mount(FormModal, {
+        props: {
+          visible: true, title: 'Seq', fields: [
+            { key: '_items', label: 'Items', type: 'sequence-items' as const, defaultValue: JSON.stringify(items) },
+          ],
+        },
+        attachTo: document.body,
+        global: { stubs: GLOBAL_STUBS },
+      });
+      const saveBtn = w.findAll('button').find(b => b.text() === 'Save')!;
+      await saveBtn.trigger('click');
+      const emitted = w.emitted('save')?.[0]?.[0] as Record<string, string>;
+      const parsed = JSON.parse(emitted._items);
+      expect(parsed).toEqual([{ label: 'Go', sequence: '/run{Enter}' }]);
+      w.unmount();
+    });
+
+    it('handles malformed JSON defaultValue gracefully (empty list)', () => {
+      const w = mount(FormModal, {
+        props: {
+          visible: true, title: 'Seq', fields: [
+            { key: '_items', label: 'Items', type: 'sequence-items' as const, defaultValue: 'not-json' },
+          ],
+        },
+        attachTo: document.body,
+        global: { stubs: GLOBAL_STUBS },
+      });
+      expect(w.findAll('.sequence-list-row')).toHaveLength(0);
+      w.unmount();
+    });
+
+    it('handles non-array JSON defaultValue gracefully', () => {
+      const w = mount(FormModal, {
+        props: {
+          visible: true, title: 'Seq', fields: [
+            { key: '_items', label: 'Items', type: 'sequence-items' as const, defaultValue: '{"key":"val"}' },
+          ],
+        },
+        attachTo: document.body,
+        global: { stubs: GLOBAL_STUBS },
+      });
+      expect(w.findAll('.sequence-list-row')).toHaveLength(0);
+      w.unmount();
+    });
+
+    it('renders collapsible syntax help', async () => {
+      const w = seqFactory();
+      const toggle = w.find('.sequence-help__toggle');
+      expect(toggle.exists()).toBe(true);
+      expect(w.find('.sequence-help__content').exists()).toBe(false);
+      await toggle.trigger('click');
+      expect(w.find('.sequence-help__content').exists()).toBe(true);
+      w.unmount();
+    });
+  });
 });
 
 // ============================================================================

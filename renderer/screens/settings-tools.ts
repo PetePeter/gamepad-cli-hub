@@ -6,7 +6,6 @@ import { state } from '../state.js';
 import {
   logEvent,
   showFormModal,
-  createSequenceSyntaxHelp,
 } from '../utils.js';
 import { loadSessions } from './sessions.js';
 import { initConfigCache } from '../bindings.js';
@@ -19,6 +18,21 @@ import { loadSettingsScreen } from './settings.js';
 // ============================================================================
 
 interface PromptItem { label: string; sequence: string }
+
+/** Safely parse prompt items from a JSON string. Returns only items with non-empty sequence. */
+function parsePromptItems(raw: string): PromptItem[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item: any) => ({
+        label: typeof item?.label === 'string' ? item.label : '',
+        sequence: typeof item?.sequence === 'string' ? item.sequence : '',
+      }))
+      .filter((i: PromptItem) => i.sequence.trim());
+  } catch { return []; }
+}
 
 // ============================================================================
 // Tools Panel
@@ -141,82 +155,11 @@ function createCliTypeItem(key: string, value: any): HTMLElement {
   return item;
 }
 
-/** Create an inline CRUD editor for initial prompt items. Mutates `items` in place. */
-function createInitialPromptItemsEditor(items: PromptItem[]): HTMLElement {
-  const container = document.createElement('div');
-  container.className = 'prompt-items-editor';
-
-  // Hide the sibling text input that showFormModal creates for this field
-  setTimeout(() => {
-    const input = container.previousElementSibling;
-    if (input instanceof HTMLElement && input.tagName === 'INPUT') input.style.display = 'none';
-  }, 0);
-
-  const list = document.createElement('div');
-  list.className = 'sequence-list-items';
-  container.appendChild(list);
-
-  function renderItems(): void {
-    list.innerHTML = '';
-    items.forEach((item, index) => {
-      const row = document.createElement('div');
-      row.className = 'sequence-list-row';
-      row.style.flexDirection = 'column';
-      row.style.alignItems = 'stretch';
-
-      const header = document.createElement('div');
-      header.style.display = 'flex';
-      header.style.alignItems = 'flex-start';
-      header.style.gap = '6px';
-
-      const seqInput = document.createElement('textarea');
-      seqInput.className = 'sequence-textarea';
-      seqInput.placeholder = 'Sequence, e.g. /allow-all{Enter}';
-      seqInput.value = item.sequence;
-      seqInput.rows = 2;
-      seqInput.style.flex = '1';
-      seqInput.style.fontSize = '11px';
-      seqInput.addEventListener('input', () => { items[index].sequence = seqInput.value; });
-
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'btn btn--small btn--danger';
-      removeBtn.textContent = '✕';
-      removeBtn.title = 'Remove';
-      removeBtn.addEventListener('click', () => { items.splice(index, 1); renderItems(); });
-
-      header.appendChild(seqInput);
-      header.appendChild(removeBtn);
-      row.appendChild(header);
-      list.appendChild(row);
-    });
-  }
-
-  renderItems();
-
-  const addBtn = document.createElement('button');
-  addBtn.type = 'button';
-  addBtn.className = 'btn btn--secondary sequence-list-add';
-  addBtn.textContent = '+ Add Prompt Item';
-  addBtn.addEventListener('click', () => {
-    items.push({ label: '', sequence: '' });
-    renderItems();
-  });
-  container.appendChild(addBtn);
-
-  container.appendChild(createSequenceSyntaxHelp());
-
-  return container;
-}
-
 async function showAddCliTypeForm(): Promise<void> {
-  const items: PromptItem[] = [];
-  const itemsEditor = createInitialPromptItemsEditor(items);
-
   const result = await showFormModal('Add CLI Type', [
     { key: 'name', label: 'Name', placeholder: 'e.g. Claude Code' },
     { key: 'command', label: 'Command', placeholder: 'e.g. claude, python' },
-    { key: '_promptItems', label: 'Initial Prompt Items', type: 'text', defaultValue: '', afterElement: itemsEditor },
+    { key: '_promptItems', label: 'Initial Prompt Items', type: 'sequence-items', defaultValue: '[]', showLabels: false },
     { key: 'initialPromptDelay', label: 'Initial Prompt Delay (ms)', type: 'text', defaultValue: '2000', placeholder: 'e.g. 2000' },
     { key: 'handoffCommand', label: 'Handoff Command', placeholder: 'Command sent on pipeline handoff (e.g. go implement it\\r)' },
     { key: 'renameCommand', label: 'Rename Command', placeholder: 'Name session for resume (use {cliSessionName})' },
@@ -239,7 +182,7 @@ async function showAddCliTypeForm(): Promise<void> {
 
   const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const command = result.command?.trim() || '';
-  const validItems = items.filter(i => i.sequence.trim());
+  const validItems = parsePromptItems(result._promptItems);
   const initialPromptDelay = parseInt(result.initialPromptDelay || '0', 10) || 0;
   const options = buildCommandOptions(result);
 
@@ -260,13 +203,11 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
   const existingItems: PromptItem[] = Array.isArray(value.initialPrompt)
     ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))
     : [];
-  const items: PromptItem[] = [...existingItems.map(i => ({ ...i }))];
-  const itemsEditor = createInitialPromptItemsEditor(items);
 
   const result = await showFormModal(`Edit CLI Type: ${key}`, [
     { key: 'name', label: 'Name', defaultValue: value.name || key },
     { key: 'command', label: 'Command', defaultValue: value.command || '' },
-    { key: '_promptItems', label: 'Initial Prompt Items', type: 'text', defaultValue: '', afterElement: itemsEditor },
+    { key: '_promptItems', label: 'Initial Prompt Items', type: 'sequence-items', defaultValue: JSON.stringify(existingItems), showLabels: false },
     { key: 'initialPromptDelay', label: 'Initial Prompt Delay (ms)', type: 'text', defaultValue: String(value.initialPromptDelay ?? 0), placeholder: 'e.g. 2000' },
     { key: 'handoffCommand', label: 'Handoff Command', defaultValue: value.handoffCommand || '', placeholder: 'Command sent on pipeline handoff (e.g. go implement it\\r)' },
     { key: 'renameCommand', label: 'Rename Command', defaultValue: value.renameCommand || '', placeholder: 'Name session for resume (use {cliSessionName})' },
@@ -282,7 +223,7 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
   if (!result) return;
 
   const command = result.command?.trim() || '';
-  const validItems = items.filter(i => i.sequence.trim());
+  const validItems = parsePromptItems(result._promptItems);
   const initialPromptDelay = parseInt(result.initialPromptDelay || '0', 10) || 0;
   const options = buildCommandOptions(result);
 

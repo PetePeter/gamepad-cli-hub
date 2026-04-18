@@ -41,6 +41,14 @@ export function openBindingEditor(button: string, cliType: string, binding: any)
   bindingEditorState.visible = true;
   bindingEditorState.focusIndex = 0;
 
+  // Use Vue-based binding editor instead of DOM modal
+  if (typeof (window as any).openLegacyBindingEditor === 'function') {
+    (window as any).openLegacyBindingEditor(button, cliType, binding);
+    logEvent(`Editing binding: ${button}`);
+    return;
+  }
+
+  // Fallback to DOM modal if Vue bridge is not available
   const modal = document.getElementById('bindingEditorModal');
   if (!modal) return;
 
@@ -138,17 +146,18 @@ function renderActionParams(form: HTMLElement, binding: any): void {
       const helpToggle = document.createElement('button');
       helpToggle.type = 'button';
       helpToggle.className = 'sequence-help-toggle focusable';
-      helpToggle.textContent = '? Syntax Help';
+      helpToggle.textContent = '▲ Hide Syntax Help';
       helpToggle.tabIndex = 0;
       seqField.appendChild(helpToggle);
 
       const helpPanel = document.createElement('div');
-      helpPanel.className = 'sequence-help';
+      helpPanel.className = 'sequence-help sequence-help--visible';
       helpPanel.textContent = getSequenceSyntaxHelpText();
       seqField.appendChild(helpPanel);
 
       helpToggle.addEventListener('click', () => {
-        helpPanel.classList.toggle('sequence-help--visible');
+        const visible = helpPanel.classList.toggle('sequence-help--visible');
+        helpToggle.textContent = visible ? '▲ Hide Syntax Help' : '▼ Show Syntax Help';
       });
 
       form.appendChild(seqField);

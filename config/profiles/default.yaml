@@ -69,6 +69,12 @@ tools:
     command: cmd.exe
     initialPrompt: []
     initialPromptDelay: 2000
+  opencode:
+    name: opencode
+    command: opencode
+    initialPrompt: []
+    initialPromptDelay: 10000
+    pasteMode: pty
 workingDirectories:
   - name: Helm
     path: X:\coding\gamepad-cli-hub
@@ -187,6 +193,10 @@ bindings:
     A:
       action: keyboard
       sequence: "{Enter}"
+  opencode:
+    DPadRight:
+      action: keyboard
+      sequence: sd sdf sdf
 sticks:
   left:
     mode: cursor

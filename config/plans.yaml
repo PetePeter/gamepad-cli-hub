@@ -56,18 +56,10 @@ plans:
            as
           f 
           asdf s f
-        status: blocked
+        status: doing
         createdAt: 1776347800566
-        updatedAt: 1776466241854
-        sessionId: pty-claude-code-1776466200952
-        stateInfo: googoo
-      - id: d00d45fe-5fd9-4e53-bbe6-d9a7811981fd
-        dirPath: X:\coding\Vitido
-        title: New Plan
-        description: ""
-        status: pending
-        createdAt: 1776351502504
-        updatedAt: 1776351545033
+        updatedAt: 1776517600637
+        sessionId: pty-claude-code-1776517503053
       - id: 3ea0f183-0622-4fb0-a0b8-1b1bcf3ef34f
         dirPath: X:\coding\Vitido
         title: XYZ
@@ -94,8 +86,6 @@ plans:
         toId: 0a388eed-7acd-4ce3-b870-a4b9e82645f5
       - fromId: d108078e-dd33-46a3-9af4-ef40dba7dc24
         toId: 5a8037e4-7624-459f-bd74-47a3672b49b7
-      - fromId: 0a388eed-7acd-4ce3-b870-a4b9e82645f5
-        toId: d00d45fe-5fd9-4e53-bbe6-d9a7811981fd
       - fromId: 52d58817-42c0-40e8-81bc-42cc3a208719
         toId: 3ea0f183-0622-4fb0-a0b8-1b1bcf3ef34f
       - fromId: 3ea0f183-0622-4fb0-a0b8-1b1bcf3ef34f
@@ -268,9 +258,35 @@ plans:
         dirPath: X:\coding\gamepad-cli-hub
         title: New Planas
         description: asdasd
-        status: startable
+        status: doing
         createdAt: 1776461353602
-        updatedAt: 1776461363934
+        updatedAt: 1776518666674
+        sessionId: pty-opencode-1776518567950
+      - id: b48ddf69-7b5b-49d0-93cc-b1992137f769
+        dirPath: X:\coding\gamepad-cli-hub
+        title: New Plan
+        description: ""
+        status: startable
+        createdAt: 1776521021784
+        updatedAt: 1776521021784
     dependencies:
       - fromId: 43354400-40ab-461c-b22b-99100e0a70ba
         toId: 8810d3c5-c0ba-4f05-953f-2edf7cff8276
+  X:\homeassistant:
+    dirPath: X:\homeassistant
+    items:
+      - id: 67ce0d28-978e-4dff-8b5d-5bc3ec604443
+        dirPath: X:\homeassistant
+        title: ihi
+        description: ""
+        status: startable
+        createdAt: 1776520236880
+        updatedAt: 1776520245081
+      - id: cda6d6ee-8d63-484a-818f-b19b416b32e7
+        dirPath: X:\homeassistant
+        title: New Plan
+        description: ""
+        status: startable
+        createdAt: 1776520237570
+        updatedAt: 1776520237570
+    dependencies: []

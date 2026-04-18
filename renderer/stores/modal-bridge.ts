@@ -110,9 +110,10 @@ export const formModal = reactive({
     label: string;
     defaultValue?: string;
     placeholder?: string;
-    type?: 'text' | 'select' | 'textarea' | 'checkbox';
+    type?: 'text' | 'select' | 'textarea' | 'checkbox' | 'sequence-items';
     options?: Array<{ label: string; value: string }>;
     browse?: boolean;
+    showLabels?: boolean;
   }>,
 });
 
@@ -121,11 +122,32 @@ export function setFormModalResolve(cb: ((values: Record<string, string> | null)
 export function getFormModalResolve(): ((values: Record<string, string> | null) => void) | null { return _formModalResolve; }
 
 // ============================================================================
+// Editor Popup
+// ============================================================================
+
+export const editorPopup = reactive({
+  visible: false,
+  initialText: '',
+});
+
+let _editorPopupOnSend: ((text: string) => void) | null = null;
+let _editorPopupResolve: (() => void) | null = null;
+export function setEditorPopupCallbacks(
+  onSend: ((text: string) => void) | null,
+  resolve: (() => void) | null,
+): void {
+  _editorPopupOnSend = onSend;
+  _editorPopupResolve = resolve;
+}
+export function getEditorPopupOnSend(): ((text: string) => void) | null { return _editorPopupOnSend; }
+export function getEditorPopupResolve(): (() => void) | null { return _editorPopupResolve; }
+
+// ============================================================================
 // Guard helper — check if ANY bridge modal is visible (for race condition guard)
 // ============================================================================
 
 export function isAnyBridgeModalVisible(): boolean {
   return closeConfirm.visible || contextMenu.visible || planDeleteConfirm.visible ||
     sequencePicker.visible || quickSpawn.visible || dirPicker.visible ||
-    draftSubmenu.visible || formModal.visible;
+    draftSubmenu.visible || formModal.visible || editorPopup.visible;
 }

@@ -180,146 +180,6 @@ describe('Sessions Plans Grid', () => {
   });
 
   // ==========================================================================
-  // renderPlansGrid
-  // ==========================================================================
-
-  describe('renderPlansGrid', () => {
-    it('creates buttons for each configured working directory', () => {
-      sessionsState.directories = testDirs;
-      plans.renderPlansGrid();
-
-      const grid = document.getElementById('plansGrid')!;
-      const btns = grid.querySelectorAll('.plans-grid-btn');
-      expect(btns.length).toBe(4);
-    });
-
-    it('buttons have correct data-dir attributes', () => {
-      sessionsState.directories = testDirs;
-      plans.renderPlansGrid();
-
-      const grid = document.getElementById('plansGrid')!;
-      const btns = grid.querySelectorAll('.plans-grid-btn');
-      expect((btns[0] as HTMLElement).dataset.dir).toBe('/projects/a');
-      expect((btns[1] as HTMLElement).dataset.dir).toBe('/projects/b');
-      expect((btns[2] as HTMLElement).dataset.dir).toBe('/projects/c');
-      expect((btns[3] as HTMLElement).dataset.dir).toBe('/projects/d');
-    });
-
-    it('shows folder names in button labels', () => {
-      sessionsState.directories = testDirs;
-      plans.renderPlansGrid();
-
-      const grid = document.getElementById('plansGrid')!;
-      const labels = grid.querySelectorAll('.spawn-label');
-      expect(labels[0].textContent).toBe('project-a');
-      expect(labels[1].textContent).toBe('project-b');
-    });
-
-    it('renders empty grid when no directories configured', () => {
-      sessionsState.directories = [];
-      plans.renderPlansGrid();
-
-      const grid = document.getElementById('plansGrid')!;
-      const btns = grid.querySelectorAll('.plans-grid-btn');
-      expect(btns.length).toBe(0);
-    });
-
-    it('buttons have spawn-btn class for shared styling', () => {
-      sessionsState.directories = testDirs;
-      plans.renderPlansGrid();
-
-      const grid = document.getElementById('plansGrid')!;
-      const btns = grid.querySelectorAll('.spawn-btn.plans-grid-btn');
-      expect(btns.length).toBe(4);
-    });
-
-    it('renders synchronously without calling configGetWorkingDirs', () => {
-      sessionsState.directories = testDirs;
-      plans.renderPlansGrid();
-
-      // renderPlansGrid should NOT trigger an async fetch — it reads from state
-      expect(mockConfigGetWorkingDirs).not.toHaveBeenCalled();
-
-      const grid = document.getElementById('plansGrid')!;
-      const btns = grid.querySelectorAll('.plans-grid-btn');
-      expect(btns.length).toBe(4);
-    });
-
-    it('repeated renders do not blank the grid between frames', () => {
-      sessionsState.directories = testDirs;
-      plans.renderPlansGrid();
-
-      const grid = document.getElementById('plansGrid')!;
-      expect(grid.querySelectorAll('.plans-grid-btn').length).toBe(4);
-
-      // Second render should also produce 4 buttons synchronously
-      plans.renderPlansGrid();
-      expect(grid.querySelectorAll('.plans-grid-btn').length).toBe(4);
-    });
-  });
-
-  // ==========================================================================
-  // Badge counts
-  // ==========================================================================
-
-  describe('refreshPlanBadges', () => {
-    it('shows badge counts for startable and doing plans', async () => {
-      mockPlanStartableForDir.mockResolvedValue([{ id: '1' }, { id: '2' }]);
-      mockPlanList.mockResolvedValue([
-        { id: '1', status: 'doing' },
-        { id: '2', status: 'startable' },
-        { id: '3', status: 'doing' },
-      ]);
-
-      sessionsState.directories = testDirs;
-      plans.renderPlansGrid();
-      await plans.refreshPlanBadges();
-
-      const grid = document.getElementById('plansGrid')!;
-      const btn = grid.querySelector('.plans-grid-btn')!;
-      const startableBadge = btn.querySelector('.plan-badge.startable')!;
-      const doingBadge = btn.querySelector('.plan-badge.doing')!;
-
-      expect(startableBadge.textContent).toBe('🔵2');
-      expect(doingBadge.textContent).toBe('🟢2');
-    });
-
-    it('hides badges when counts are zero', async () => {
-      mockPlanStartableForDir.mockResolvedValue([]);
-      mockPlanList.mockResolvedValue([]);
-
-      sessionsState.directories = testDirs;
-      plans.renderPlansGrid();
-      await plans.refreshPlanBadges();
-
-      const grid = document.getElementById('plansGrid')!;
-      const btn = grid.querySelector('.plans-grid-btn')!;
-      const startableBadge = btn.querySelector('.plan-badge.startable')!;
-      const doingBadge = btn.querySelector('.plan-badge.doing')!;
-
-      expect(startableBadge.textContent).toBe('');
-      expect(doingBadge.textContent).toBe('');
-    });
-
-    it('refreshes when a plan:changed event fires via sessions listener', async () => {
-      mockPlanStartableForDir.mockResolvedValue([{ id: '1' }]);
-      mockPlanList.mockResolvedValue([{ id: '1', status: 'doing' }]);
-
-      // loadSessions sets up the single plan-changed listener in sessions.ts
-      await sessions.loadSessions();
-      await flush();
-      mockPlanStartableForDir.mockClear();
-      mockPlanList.mockClear();
-
-      planChangedHandler?.('/projects/a');
-      await flush();
-
-      expect(mockPlanStartableForDir).toHaveBeenCalledWith('/projects/a');
-      expect(mockPlanList).toHaveBeenCalledWith('/projects/a');
-    });
-  });
-
-  // ==========================================================================
   // D-pad navigation
   // ==========================================================================
 
@@ -421,7 +281,17 @@ describe('Sessions Plans Grid', () => {
   describe('updatePlansFocus', () => {
     beforeEach(() => {
       sessionsState.directories = testDirs;
-      plans.renderPlansGrid();
+      // renderPlansGrid() is a no-op (Vue owns the DOM), so manually create
+      // the buttons that PlansGrid.vue would render, to allow updatePlansFocus()
+      // to toggle .focused classes in tests.
+      const grid = document.getElementById('plansGrid')!;
+      grid.innerHTML = '';
+      testDirs.forEach((dir, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'spawn-btn plans-grid-btn';
+        btn.dataset.dir = dir.path;
+        grid.appendChild(btn);
+      });
     });
 
     it('highlights correct button when plans zone is active', () => {

@@ -133,7 +133,24 @@ defineExpose({ handleButton });
           {{ node.description?.substring(0, 30) }}
         </text>
       </g>
+
+      <!-- Empty state -->
+      <text v-if="nodes.length === 0" class="plan-canvas-empty" x="50%" y="45%" text-anchor="middle">
+        No plan items yet
+      </text>
+      <text v-if="nodes.length === 0" class="plan-canvas-empty-hint" x="50%" y="55%" text-anchor="middle">
+        Click + Add or press Y to create your first item
+      </text>
     </svg>
+
+    <div class="plan-controls-hint">
+      <span>Y add</span>
+      <span>Click select</span>
+      <span>A apply to session</span>
+      <span>X delete</span>
+      <span>B back / deselect</span>
+      <span>Scroll pan canvas</span>
+    </div>
 
     <div v-if="selectedNode" class="plan-node-editor">
       <div class="plan-editor-header">

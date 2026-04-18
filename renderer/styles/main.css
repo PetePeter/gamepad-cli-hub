@@ -336,11 +336,30 @@ button {
   gap: var(--spacing-sm);
 }
 
+.editor-popup__footer {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+}
+
+.editor-popup__footer-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.editor-popup__footer-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
 .editor-popup__body {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
   gap: var(--spacing-md);
-  min-height: 360px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .editor-popup__composer,
@@ -386,9 +405,30 @@ button {
 }
 
 .editor-popup__history-item:hover,
-.editor-popup__history-item:focus {
+.editor-popup__history-item:focus,
+.editor-popup__history-item--selected {
   border-color: var(--accent);
   background: var(--bg-tertiary);
+}
+
+.editor-popup__history-preview {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.editor-popup__history-preview-text {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  max-height: 100px;
+  overflow: auto;
+  word-break: break-word;
 }
 
 .editor-popup__history-index {
@@ -1043,6 +1083,19 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-display {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Ensure nested settings panels take full width */
+.settings-display .settings-panel {
+  width: 100% !important;
+  min-width: 0 !important;
 }
 
 .controller-preview {
@@ -1293,7 +1346,7 @@ kbd {
   border: 2px solid var(--accent);
   border-radius: var(--radius-lg);
   width: calc(100% - 16px);
-  max-width: 480px;
+  max-width: 640px;
   margin: 8px;
   max-height: 80vh;
   overflow: hidden;
@@ -1540,6 +1593,8 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
+  width: 100%;
+  min-width: 0;
 }
 
 .settings-panel__header {
@@ -1573,17 +1628,32 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
+  width: 100%;
 }
 
 .settings-list-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--spacing-md);
   padding: var(--spacing-sm);
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   transition: border-color 0.15s;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Info section expands to fill available space */
+.settings-list-item__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .settings-list-item:hover {
@@ -1592,14 +1662,6 @@ kbd {
 
 .settings-list-item--active {
   border-color: var(--accent);
-}
-
-.settings-list-item__info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
 }
 
 .settings-list-item__name {
@@ -1630,8 +1692,9 @@ kbd {
   display: flex;
   gap: var(--spacing-sm);
   align-items: center;
-  margin-left: var(--spacing-md);
   flex-shrink: 0;
+  min-width: max-content;
+  max-width: 200px;
 }
 
 /* Settings Form */
@@ -1663,7 +1726,8 @@ kbd {
   flex-direction: column;
   gap: var(--spacing-xs);
   flex: 1;
-  min-width: 120px;
+  min-width: 200px;
+  width: 100%;
 }
 
 .settings-form__field label {
@@ -1681,6 +1745,9 @@ kbd {
   color: var(--text-primary);
   font-size: var(--font-size-md);
   font-family: inherit;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .settings-form__field input:focus,
@@ -2128,6 +2195,37 @@ kbd {
   color: #ff6600;
 }
 
+.plan-screen-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #111111;
+  border-bottom: 1px solid #222;
+}
+.plan-screen-title {
+  flex: 1;
+  font-size: 14px;
+  color: #eee;
+  font-weight: 600;
+}
+.plan-back-btn,
+.plan-add-btn {
+  padding: 4px 12px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 12px;
+}
+.plan-back-btn:hover,
+.plan-add-btn:hover {
+  background: #252525;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .plan-canvas {
   flex: 1;
   overflow: hidden;
@@ -2151,6 +2249,35 @@ kbd {
 /* Plan arrows */
 .plan-arrow { cursor: pointer; }
 .plan-arrow:hover { stroke: #888 !important; stroke-width: 2.5; }
+
+/* Plan empty state */
+.plan-canvas-empty {
+  font-size: 16px;
+  fill: #666;
+  pointer-events: none;
+}
+.plan-canvas-empty-hint {
+  font-size: 12px;
+  fill: #444;
+  pointer-events: none;
+}
+
+/* Plan controls hint strip */
+.plan-controls-hint {
+  display: flex;
+  gap: 16px;
+  padding: 6px 16px;
+  background: #0d0d0d;
+  border-top: 1px solid #1a1a1a;
+  font-size: 11px;
+  color: #444;
+  flex-wrap: wrap;
+}
+.plan-controls-hint span::before {
+  content: '·';
+  margin-right: 4px;
+  color: #2a2a2a;
+}
 
 /* Plan node connectors */
 .plan-node__connector { cursor: crosshair; }

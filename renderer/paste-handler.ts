@@ -22,7 +22,7 @@ let editorInFlight = false;
 
 /** Deliver bulk text to the active session — either via PTY write or via
  *  OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode. */
-async function deliverBulkText(sessionId: string, text: string): Promise<void> {
+export async function deliverBulkText(sessionId: string, text: string): Promise<void> {
   if (!text) return;
   const session = state.sessions.find(s => s.id === sessionId);
   const tool = session ? state.cliToolsCache[session.cliType] : undefined;
@@ -100,10 +100,11 @@ export function setupKeyboardRelay(
       if (editorInFlight) return;
       editorInFlight = true;
       try {
-        const text = await showEditorPopup();
-        if (text && text.trim()) {
-          await deliverBulkText(sessionId, text);
-        }
+        await showEditorPopup(async (t) => {
+          if (t && t.trim()) {
+            await deliverBulkText(sessionId, t);
+          }
+        });
       } catch (err) {
         console.warn('[KeyRelay] editor popup failed:', err);
       } finally {

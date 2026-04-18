@@ -6,6 +6,13 @@
  * Composables handle bootstrap, navigation, and gamepad input.
  * Components are presentational — they receive props and emit events.
  */
+
+declare global {
+  interface Window {
+    openLegacyBindingEditor?: (button: string, cliType: string, binding: any) => void;
+  }
+}
+
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive } from 'vue';
 import { state } from './state.js';
 import { sessionsState } from './screens/sessions-state.js';
@@ -38,6 +45,7 @@ import {
   dirPicker,
   draftSubmenu,
   formModal, getFormModalResolve,
+  editorPopup, getEditorPopupOnSend, getEditorPopupResolve, setEditorPopupCallbacks,
   isAnyBridgeModalVisible,
 } from './stores/modal-bridge.js';
 import { collectSequenceItems } from './modals/context-menu.js';
@@ -46,6 +54,7 @@ import { showQuickSpawn } from './modals/quick-spawn.js';
 import { showDraftSubmenu } from './modals/draft-submenu.js';
 import { showEditorPopup } from './editor/editor-popup.js';
 import { showDraftEditor } from './drafts/draft-editor.js';
+import { deliverBulkText } from './paste-handler.js';
 
 // Sidebar components
 import StatusStrip from './components/sidebar/StatusStrip.vue';
@@ -57,6 +66,7 @@ import PlansGrid from './components/sidebar/PlansGrid.vue';
 
 // Panel components
 import MainView from './components/panels/MainView.vue';
+import SettingsPanel from './components/sidebar/SettingsPanel.vue';
 
 // Modal components
 import CloseConfirmModal from './components/modals/CloseConfirmModal.vue';
@@ -67,6 +77,7 @@ import ContextMenu from './components/modals/ContextMenu.vue';
 import DraftSubmenu from './components/modals/DraftSubmenu.vue';
 import DirPickerModal from './components/modals/DirPickerModal.vue';
 import FormModal from './components/modals/FormModal.vue';
+import EditorPopup from './components/modals/EditorPopup.vue';
 import BindingEditorModal from './components/modals/BindingEditorModal.vue';
 
 // ============================================================================
@@ -136,10 +147,7 @@ const plansDirItems = computed(() =>
   })
 );
 
-const hasActiveSession = computed(() => {
-  const tm = getTerminalManager();
-  return !!tm?.getActiveSessionId();
-});
+const hasActiveSession = computed(() => !!state.activeSessionId);
 
 const hasSequences = computed(() => {
   if (!state.activeSessionId) return false;
@@ -279,7 +287,7 @@ function onConfirmClose(): void {
 }
 
 function onSessionStateChange(sessionId: string, newState: string): void {
-  window.gamepadCli?.ptySetState(sessionId, newState);
+  window.gamepadCli?.sessionSetState(sessionId, newState);
   state.sessionStates.set(sessionId, newState);
 }
 
@@ -385,7 +393,6 @@ function onSortChange(field: string, direction: 'asc' | 'desc'): void {
 // Context menu
 function onContextMenuAction(action: string): void {
   contextMenu.visible = false;
-  const tm = getTerminalManager();
   switch (action) {
     case 'copy': {
       const text = contextMenu.selectedText;
@@ -394,12 +401,14 @@ function onContextMenuAction(action: string): void {
     }
     case 'paste':
       navigator.clipboard.readText().then(text => {
-        if (text && tm) tm.writeToActive(text);
+        if (text && state.activeSessionId) {
+          void deliverBulkText(state.activeSessionId, text);
+        }
       });
       break;
     case 'editor':
-      showEditorPopup().then(text => {
-        if (text && tm) tm.writeToActive(text);
+      void showEditorPopup((text) => {
+        if (state.activeSessionId) void deliverBulkText(state.activeSessionId, text);
       });
       break;
     case 'new-session':
@@ -420,8 +429,9 @@ function onContextMenuAction(action: string): void {
       const items = collectSequenceItems();
       if (items.length > 0) {
         showSequencePicker(items, (seq) => {
-          const tm2 = getTerminalManager();
-          if (tm2) tm2.writeToActive(seq);
+          if (state.activeSessionId) {
+            window.gamepadCli.ptyWrite(state.activeSessionId, seq);
+          }
         });
       }
       break;
@@ -454,13 +464,14 @@ function onCloseSettings(): void {
 function onDraftNewDraft(): void {
   draftSubmenu.visible = false;
   if (!state.activeSessionId) return;
-  window.gamepadCli?.draftCreate(state.activeSessionId, 'New Draft', '');
+  showDraftEditor(state.activeSessionId);
 }
 
 async function onDraftApply(draft: { id: string; text: string }): Promise<void> {
   draftSubmenu.visible = false;
-  const tm = getTerminalManager();
-  if (tm && draft.text) tm.writeToActive(draft.text);
+  if (state.activeSessionId && draft.text) {
+    void deliverBulkText(state.activeSessionId, draft.text);
+  }
   await window.gamepadCli?.draftDelete(draft.id);
 }
 
@@ -488,6 +499,19 @@ function onFormModalCancel(): void {
   if (resolve) resolve(null);
 }
 
+// Editor popup callbacks
+function onEditorSend(text: string): void {
+  const cb = getEditorPopupOnSend();
+  cb?.(text);
+}
+
+function onEditorClose(): void {
+  const resolve = getEditorPopupResolve();
+  setEditorPopupCallbacks(null, null);
+  resolve?.();
+}
+
+
 // Plan delete confirm
 function onPlanDeleteConfirm(): void {
   planDeleteConfirm.visible = false;
@@ -507,6 +531,43 @@ function onQuickSpawnSelect(cliType: string): void {
   quickSpawn.visible = false;
   const cb = getQuickSpawnCallback();
   if (cb) cb(cliType);
+}
+
+// Binding editor handlers
+function onEditBinding(button: string, cliType: string): void {
+  bindingEditorButton.value = button;
+  bindingEditorCliType.value = cliType;
+  bindingEditorBinding.value = { action: 'keyboard', sequence: '' };
+  bindingEditorVisible.value = true;
+}
+
+// Bridge function for legacy binding editor
+function openLegacyBindingEditor(button: string, cliType: string, binding: any): void {
+  onEditBinding(button, cliType);
+}
+
+// Make this function available globally for legacy code
+window.openLegacyBindingEditor = openLegacyBindingEditor;
+
+// Binding editor save
+async function onBindingEditorSave(binding: any): Promise<void> {
+  try {
+    const result = await window.gamepadCli.configSetBinding(
+      bindingEditorButton.value,
+      bindingEditorCliType.value,
+      binding
+    );
+    if (result.success) {
+      // Refresh bindings cache to reflect the changes
+      await initConfigCache();
+      // Refresh the settings display to show updated bindings
+      void loadSettingsScreen();
+    }
+    bindingEditorVisible.value = false;
+  } catch (error) {
+    console.error('Failed to save binding:', error);
+    // Keep modal open if save fails
+  }
 }
 
 // ============================================================================
@@ -649,12 +710,12 @@ onUnmounted(() => {
                   :session="{ id: session.id, name: session.name, cliType: session.cliType, title: session.title }"
                   :session-state="state.sessionStates.get(session.id) || 'idle'"
                   :activity-level="state.sessionActivityLevels.get(session.id) || 'idle'"
-                  :display-name="getCliDisplayName(session.cliType)"
+                  :display-name="session.name !== session.cliType ? session.name : getCliDisplayName(session.cliType)"
                   :draft-count="state.draftCounts.get(session.id) ?? 0"
                   :last-output-time="state.lastOutputTimes.get(session.id) ?? null"
                   :elapsed-text="sessionElapsedText(session.id)"
-                  working-plan-label=""
-                  working-plan-tooltip=""
+                  :working-plan-label="state.workingPlanLabels?.get(session.id) || ''"
+                  :working-plan-tooltip="state.workingPlanTooltips?.get(session.id) || ''"
                   :is-active="state.activeSessionId === session.id"
                   :is-focused="sessionsState.activeFocus === 'sessions'
                     && sessionsState.navList[sessionsState.sessionsFocusIndex]?.type === 'session-card'
@@ -805,12 +866,19 @@ onUnmounted(() => {
       @cancel="onFormModalCancel"
     />
 
+    <EditorPopup
+      v-model:visible="editorPopup.visible"
+      :initial-text="editorPopup.initialText"
+      @send="onEditorSend"
+      @close="onEditorClose"
+    />
+
     <BindingEditorModal
       v-model:visible="bindingEditorVisible"
       :button-name="bindingEditorButton"
       :cli-type="bindingEditorCliType"
       :binding="bindingEditorBinding"
-      @save="(b: any) => { bindingEditorVisible = false; }"
+      @save="onBindingEditorSave"
       @cancel="bindingEditorVisible = false"
     />
 </template>

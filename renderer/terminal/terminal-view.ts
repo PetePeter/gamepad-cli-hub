@@ -77,10 +77,19 @@ export class TerminalView {
     this.terminal.open(this.container);
 
     // Let Ctrl+Tab/Ctrl+Shift+Tab pass through to the global handler.
+    // Ctrl+C with selection → copy to clipboard instead of sending SIGINT.
     // PageUp/PageDown in normal buffer: scroll viewport (plain shells like cmd.exe).
     // In alternate buffer (TUI CLIs): xterm.js sends escape to PTY natively.
     this.terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
       if (event.key === 'Tab' && event.ctrlKey) {
+        return false;
+      }
+      if (event.key.toLowerCase() === 'c' && event.ctrlKey && !event.shiftKey && !event.altKey &&
+          event.type === 'keydown' && this.terminal.hasSelection()) {
+        const text = this.terminal.getSelection();
+        void navigator.clipboard.writeText(text)
+          .then(() => this.terminal.clearSelection())
+          .catch((err: unknown) => console.warn('[TerminalView] copy failed:', err));
         return false;
       }
       if ((event.key === 'PageUp' || event.key === 'PageDown') &&

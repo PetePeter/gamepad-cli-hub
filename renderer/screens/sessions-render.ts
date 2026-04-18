@@ -181,10 +181,9 @@ export async function commitRename(sessionId: string, newName: string): Promise<
 
 // --- Render — sessions list (grouped by directory) ---
 export function renderSessions(): void {
-  const list = document.getElementById('sessionsList');
-  const empty = document.getElementById('sessionsEmpty');
-  if (!list) return;
-  list.innerHTML = '';
+  // Vue owns #sessionsList — DOM manipulation here would clobber the virtual DOM.
+  // SessionCard.vue / SessionGroup.vue render reactively from sessionsState.groups.
+  return;
 
   if (state.sessions.length === 0) {
     list.style.display = 'none';

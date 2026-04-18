@@ -51,6 +51,10 @@ export interface AppState {
   planStartableCounts: Map<string, number>;
   /** Per-directory plan startable count (for dirs without active sessions) */
   planDirStartableCounts: Map<string, number>;
+  /** Per-session working plan label (e.g. "🗺️ Auth refactor") */
+  workingPlanLabels: Map<string, string>;
+  /** Per-session working plan tooltip */
+  workingPlanTooltips: Map<string, string>;
 }
 
 export const state: AppState = reactive({
@@ -73,4 +77,6 @@ export const state: AppState = reactive({
   planDoingCounts: new Map(),
   planStartableCounts: new Map(),
   planDirStartableCounts: new Map(),
+  workingPlanLabels: new Map(),
+  workingPlanTooltips: new Map(),
 });
