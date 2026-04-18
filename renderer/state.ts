@@ -37,6 +37,18 @@ export interface AppState {
   cliToolsCache: Record<string, { pasteMode?: 'pty' | 'sendkeys'; [k: string]: any }>;
   settingsTab: string;
   activeProfile: string;
+  /** Per-session AIAGENT state (idle, waiting, implementing, etc.) */
+  sessionStates: Map<string, string>;
+  /** Per-session activity level (active, inactive, idle) */
+  sessionActivityLevels: Map<string, string>;
+  /** Per-session last output timestamp (for elapsed timer) */
+  lastOutputTimes: Map<string, number>;
+  /** Per-session draft count cache */
+  draftCounts: Map<string, number>;
+  /** Per-session plan doing count cache */
+  planDoingCounts: Map<string, number>;
+  /** Per-session plan startable count cache */
+  planStartableCounts: Map<string, number>;
 }
 
 export const state: AppState = reactive({
@@ -52,4 +64,10 @@ export const state: AppState = reactive({
   cliToolsCache: {},
   settingsTab: 'profiles',
   activeProfile: 'default',
+  sessionStates: new Map(),
+  sessionActivityLevels: new Map(),
+  lastOutputTimes: new Map(),
+  draftCounts: new Map(),
+  planDoingCounts: new Map(),
+  planStartableCounts: new Map(),
 });

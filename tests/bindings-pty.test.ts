@@ -21,7 +21,7 @@ class MockResizeObserver {
 // Mock main.ts to prevent side effects (init, gamepad setup, etc.)
 // ---------------------------------------------------------------------------
 
-vi.mock('../renderer/main', () => ({
+vi.mock('../renderer/runtime/terminal-provider', () => ({
   getTerminalManager: vi.fn().mockReturnValue(null),
 }));
 

@@ -23,7 +23,7 @@ import { quickSpawnState, handleQuickSpawnButton } from './modals/quick-spawn.js
 import { isDraftSubmenuVisible, handleDraftSubmenuButton, isDraftActionVisible, handleDraftActionButton } from './modals/draft-submenu.js';
 import { isDraftEditorVisible, handleDraftEditorButton } from './drafts/draft-editor.js';
 import { formModalVisible } from './utils.js';
-import { getTerminalManager } from './main.js';
+import { getTerminalManager } from './runtime/terminal-provider.js';
 import { sessionsState } from './screens/sessions-state.js';
 import { handleOverviewInput, isOverviewVisible, setSelectCardCallback } from './screens/group-overview.js';
 import { findNavIndexBySessionId } from './session-groups.js';

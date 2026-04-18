@@ -39,7 +39,7 @@ const mockGamepadCli = {
 // Mock dependencies
 // ---------------------------------------------------------------------------
 
-vi.mock('../renderer/main', () => ({
+vi.mock('../renderer/runtime/terminal-provider', () => ({
   getTerminalManager: (...args: any[]) => mockGetTerminalManager(...args),
 }));
 

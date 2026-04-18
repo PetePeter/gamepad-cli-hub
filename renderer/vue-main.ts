@@ -1,23 +1,17 @@
 /**
- * Vue entry point — mounts the Vue app alongside existing legacy code.
+ * Vue entry point — creates and mounts the Vue app.
  *
- * Phase 0: Vue app is empty; all existing functionality preserved via
- * the legacy main.ts import. Future phases progressively move logic
- * into Vue components and Pinia stores.
+ * This is the sole renderer entry point. The legacy main.ts import is removed;
+ * all startup logic now lives in the useAppBootstrap composable, called from
+ * App.vue's onMounted hook.
  */
 
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 
-// Legacy entry — keeps all existing init, IPC wiring, and event handlers
-import './main.js';
-
 const app = createApp(App);
 app.use(createPinia());
 
-// Mount into a dedicated element (avoids conflicting with legacy DOM)
-const vueRoot = document.createElement('div');
-vueRoot.id = 'vue-root';
-document.body.appendChild(vueRoot);
-app.mount(vueRoot);
+// Mount into the #app div (replaces the static layout that was in index.html)
+app.mount('#app');

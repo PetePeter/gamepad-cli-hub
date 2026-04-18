@@ -10,7 +10,7 @@ import {
 } from '../utils.js';
 import { initConfigCache } from '../bindings.js';
 import { loadSessions } from './sessions.js';
-import { getTerminalManager } from '../main.js';
+import { getTerminalManager } from '../runtime/terminal-provider.js';
 
 // Circular import — safe: all usages are inside event handlers, not at module-evaluation time.
 import { loadSettingsScreen } from './settings.js';

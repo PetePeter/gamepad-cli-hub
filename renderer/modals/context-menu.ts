@@ -7,7 +7,7 @@
  */
 
 import { logEvent, toDirection } from '../utils.js';
-import { getTerminalManager } from '../main.js';
+import { getTerminalManager } from '../runtime/terminal-provider.js';
 import { attachModalKeyboard } from './modal-base.js';
 import { setPendingContextText, spawnNewSession } from '../screens/sessions.js';
 import { showQuickSpawn } from './quick-spawn.js';

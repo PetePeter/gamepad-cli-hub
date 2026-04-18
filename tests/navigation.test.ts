@@ -122,7 +122,7 @@ vi.mock('../renderer/modals/quick-spawn.js', () => ({
   handleQuickSpawnButton: mockHandleQuickSpawnButton,
 }));
 
-vi.mock('../renderer/main.js', () => ({
+vi.mock('../renderer/runtime/terminal-provider.js', () => ({
   getTerminalManager: mockGetTerminalManager,
 }));
 

@@ -36,7 +36,7 @@ vi.mock('../renderer/utils.js', () => {
   };
 });
 
-vi.mock('../renderer/main.js', () => ({
+vi.mock('../renderer/runtime/terminal-provider.js', () => ({
   getTerminalManager: mockGetTerminalManager,
 }));
 

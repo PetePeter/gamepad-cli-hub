@@ -8,7 +8,7 @@ import { state } from './state.js';
 import { logEvent } from './utils.js';
 import { parseSequence, formatSequencePreview, type SequenceAction } from '../src/input/sequence-parser.js';
 import type { Binding } from '../src/config/loader.js';
-import { getTerminalManager } from './main.js';
+import { getTerminalManager } from './runtime/terminal-provider.js';
 
 /** Scroll handler for scroll bindings. Routes to overview grid when visible, otherwise to active terminal. */
 function executeScroll(binding: { direction: string; lines?: number }): void {
