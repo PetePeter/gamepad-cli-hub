@@ -33,6 +33,10 @@ import {
   setPlanScreenFitCallback, setPlanScreenCloseCallback, setPlanScreenOpenCallback,
 } from '../plans/plan-screen.js';
 
+// Draft editor + chip bar init
+import { initDraftEditor } from '../drafts/draft-editor.js';
+import { init as initChipBar } from '../components/chip-bar.js';
+
 // Sort preferences (module-level state to match legacy behaviour)
 let sortField: SessionSortField = 'name';
 let sortDirection: SortDirection = 'asc';
@@ -549,6 +553,10 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
   setPlanScreenCloseCallback(() => {
     // Chip strip refresh handled by Vue reactivity
   });
+
+  // Draft editor + chip bar
+  initChipBar();
+  initDraftEditor();
 
   // Tab cycling
   setupTabCycling();

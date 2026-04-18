@@ -22,6 +22,7 @@ import type { SessionSortField, SortDirection } from './sort-logic.js';
 import { findNavIndexBySessionId, moveGroupUp, moveGroupDown, toggleCollapse } from './session-groups.js';
 import { showOverview } from './screens/group-overview.js';
 import { showPlanScreen } from './plans/plan-screen.js';
+import { loadSettingsScreen, handleSettingsScreenButton } from './screens/settings.js';
 import { onViewChange, type MainView as ViewName } from './main-view/main-view-manager.js';
 
 // Sidebar components
@@ -31,7 +32,6 @@ import SessionGroup from './components/sidebar/SessionGroup.vue';
 import SessionCard from './components/sidebar/SessionCard.vue';
 import SpawnGrid from './components/sidebar/SpawnGrid.vue';
 import PlansGrid from './components/sidebar/PlansGrid.vue';
-import SettingsPanel from './components/sidebar/SettingsPanel.vue';
 
 // Panel components
 import MainView from './components/panels/MainView.vue';
@@ -53,7 +53,6 @@ import BindingEditorModal from './components/modals/BindingEditorModal.vue';
 
 const activeView = ref<'terminal' | 'overview' | 'plan'>('terminal');
 const settingsVisible = ref(false);
-const settingsTab = ref('profiles');
 const terminalContainerRef = ref<HTMLElement | null>(null);
 
 // Modal visibility
@@ -110,13 +109,6 @@ const sortOptions = [
   { value: 'cliType', label: 'CLI Type' },
   { value: 'state', label: 'State' },
   { value: 'activity', label: 'Activity' },
-];
-
-const settingsTabs = [
-  { id: 'profiles', label: 'Profiles' },
-  { id: 'bindings', label: 'Bindings' },
-  { id: 'tools', label: 'Tools' },
-  { id: 'telegram', label: 'Telegram' },
 ];
 
 const spawnItems = computed(() =>
@@ -195,7 +187,12 @@ function handleButton(button: string): void {
 
   // Settings screen
   if (settingsVisible.value) {
-    if (button === 'B') settingsVisible.value = false;
+    if (button === 'B') {
+      settingsVisible.value = false;
+      state.currentScreen = 'sessions';
+    } else {
+      handleSettingsScreenButton(button);
+    }
     return;
   }
 
@@ -373,6 +370,7 @@ function onContextMenuAction(action: string): void {
 function onOpenSettings(): void {
   settingsVisible.value = true;
   state.currentScreen = 'settings';
+  void loadSettingsScreen();
 }
 
 function onCloseSettings(): void {
@@ -458,7 +456,7 @@ onUnmounted(() => {
           />
           <div class="sessions-list" id="sessionsList">
             <template v-for="(group, gi) in sessionsState.groups" :key="group.dirPath">
-              <template v-if="group.sessions.length > 0 || (sessionsState.groupPrefs.bookmarked ?? []).includes(group.dirPath)">
+              <template v-if="group.sessions.length > 0">
               <SessionGroup
                 :group="{
                   dirPath: group.dirPath,
@@ -509,44 +507,51 @@ onUnmounted(() => {
               No active sessions
             </div>
           </div>
-
-          <div class="spawn-section" :class="{ 'spawn-section--collapsed': spawnCollapsed }">
-            <div class="section-label" @click="toggleSpawnCollapse">
-              <span>Quick Spawn</span>
-              <button class="section-toggle">{{ spawnCollapsed ? '˄' : '˅' }}</button>
-            </div>
-            <SpawnGrid
-              v-show="!spawnCollapsed"
-              :items="spawnItems"
-              :focus-index="sessionsState.spawnFocusIndex"
-              :is-active="sessionsState.activeFocus === 'spawn'"
-              @spawn="onSpawn"
-            />
-          </div>
-
-          <div class="spawn-section" :class="{ 'spawn-section--collapsed': plannerCollapsed }">
-            <div class="section-label" @click="togglePlannerCollapse">
-              <span>Folder Planner</span>
-              <button class="section-toggle">{{ plannerCollapsed ? '˄' : '˅' }}</button>
-            </div>
-            <PlansGrid
-              v-show="!plannerCollapsed"
-              :directories="plansDirItems"
-              :focus-index="0"
-              :is-active="false"
-              @show-plans="onShowPlans"
-            />
-          </div>
         </section>
 
-        <SettingsPanel
-          :visible="settingsVisible"
-          :tabs="settingsTabs"
-          :active-tab="settingsTab"
-          @update:active-tab="settingsTab = $event"
-          @close="onCloseSettings"
-        />
+        <!-- Settings screen (legacy DOM rendering) -->
+        <div v-show="settingsVisible" class="settings-panel">
+          <div class="settings-panel__header">
+            <button class="settings-back-btn" @click="onCloseSettings" title="Back (B)">← Back</button>
+          </div>
+          <div class="settings-tabs" id="settingsTabs" role="tablist">
+            <!-- Legacy renderSettingsTabs() populates this -->
+          </div>
+          <div class="settings-content">
+            <div class="settings-action-bar" id="bindingActionBar"></div>
+            <div class="settings-display" id="bindingsDisplay"></div>
+          </div>
+        </div>
       </main>
+
+      <!-- Spawn sections pinned at bottom of sidebar -->
+      <div v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': spawnCollapsed }">
+        <div class="section-label" @click="toggleSpawnCollapse">
+          <span>Quick Spawn</span>
+          <button class="section-toggle">{{ spawnCollapsed ? '˄' : '˅' }}</button>
+        </div>
+        <SpawnGrid
+          v-show="!spawnCollapsed"
+          :items="spawnItems"
+          :focus-index="sessionsState.spawnFocusIndex"
+          :is-active="sessionsState.activeFocus === 'spawn'"
+          @spawn="onSpawn"
+        />
+      </div>
+
+      <div v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': plannerCollapsed }">
+        <div class="section-label" @click="togglePlannerCollapse">
+          <span>Folder Planner</span>
+          <button class="section-toggle">{{ plannerCollapsed ? '˄' : '˅' }}</button>
+        </div>
+        <PlansGrid
+          v-show="!plannerCollapsed"
+          :directories="plansDirItems"
+          :focus-index="0"
+          :is-active="false"
+          @show-plans="onShowPlans"
+        />
+      </div>
     </div>
 
     <!-- Resize handle -->

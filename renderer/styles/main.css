@@ -1526,6 +1526,21 @@ kbd {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: var(--spacing-sm);
+}
+
+.settings-back-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+}
+
+.settings-back-btn:hover {
+  background: var(--bg-hover);
 }
 
 .settings-panel__title {
