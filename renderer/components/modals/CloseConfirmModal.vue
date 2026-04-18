@@ -43,6 +43,10 @@ function handleButton(button: string): boolean {
     selectedIndex.value = selectedIndex.value === 0 ? 1 : 0;
     return true;
   }
+  if (button === 'Tab' || button === 'ShiftTab') {
+    selectedIndex.value = selectedIndex.value === 0 ? 1 : 0;
+    return true;
+  }
   if (button === 'A') {
     if (selectedIndex.value === 1) {
       emit('confirm');

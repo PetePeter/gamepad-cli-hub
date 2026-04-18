@@ -49,6 +49,8 @@ export interface AppState {
   planDoingCounts: Map<string, number>;
   /** Per-session plan startable count cache */
   planStartableCounts: Map<string, number>;
+  /** Per-directory plan startable count (for dirs without active sessions) */
+  planDirStartableCounts: Map<string, number>;
 }
 
 export const state: AppState = reactive({
@@ -70,4 +72,5 @@ export const state: AppState = reactive({
   draftCounts: new Map(),
   planDoingCounts: new Map(),
   planStartableCounts: new Map(),
+  planDirStartableCounts: new Map(),
 });

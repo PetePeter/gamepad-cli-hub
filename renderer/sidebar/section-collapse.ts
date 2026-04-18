@@ -12,6 +12,8 @@ let plannerCollapsed = false;
 
 export function isSpawnCollapsed(): boolean { return spawnCollapsed; }
 export function isPlannerCollapsed(): boolean { return plannerCollapsed; }
+export function setSpawnCollapsed(v: boolean): void { spawnCollapsed = v; }
+export function setPlannerCollapsed(v: boolean): void { plannerCollapsed = v; }
 
 function applyCollapse(sectionId: string, gridId: string, toggleId: string, collapsed: boolean): void {
   const section = document.getElementById(sectionId);

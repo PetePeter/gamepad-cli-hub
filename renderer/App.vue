@@ -11,7 +11,7 @@ import { state } from './state.js';
 import { sessionsState } from './screens/sessions-state.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { getActivityColor } from './state-colors.js';
-import { getCliDisplayName, getCliIcon } from './utils.js';
+import { getCliDisplayName, getCliIcon, toDirection } from './utils.js';
 import { processConfigBinding, processConfigRelease, initConfigCache } from './bindings.js';
 import { formatElapsed, refreshSessions, doSpawn, switchToSession, doCloseSession,
   bootstrap, teardown, startTimerRefresh, stopTimerRefresh,
@@ -19,9 +19,13 @@ import { formatElapsed, refreshSessions, doSpawn, switchToSession, doCloseSessio
   setPendingContextText,
 } from './composables/useAppBootstrap.js';
 import type { SessionSortField, SortDirection } from './sort-logic.js';
-import { findNavIndexBySessionId, moveGroupUp, moveGroupDown, toggleCollapse } from './session-groups.js';
+import { findNavIndexBySessionId, moveGroupUp, moveGroupDown, toggleCollapse, isSessionHiddenFromOverview } from './session-groups.js';
 import { showOverview } from './screens/group-overview.js';
-import { showPlanScreen } from './plans/plan-screen.js';
+import { showPlanScreen, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction } from './plans/plan-screen.js';
+import { handleSessionsScreenButton, toggleSessionOverviewVisibility } from './screens/sessions.js';
+import { usePanelResize } from './composables/usePanelResize.js';
+import { setSpawnCollapsed, setPlannerCollapsed } from './sidebar/section-collapse.js';
+import { setDirPickerBridge } from './screens/sessions-spawn.js';
 import { loadSettingsScreen, handleSettingsScreenButton } from './screens/settings.js';
 import { onViewChange, type MainView as ViewName } from './main-view/main-view-manager.js';
 import { useModalStack } from './composables/useModalStack.js';
@@ -86,6 +90,11 @@ const plannerCollapsed = ref(false);
 // Rename state
 const editingSessionId = ref<string | null>(null);
 
+// Panel resize
+const { splitterRef, panelRef } = usePanelResize({
+  onResized: () => { getTerminalManager()?.fitActive(); },
+});
+
 // ============================================================================
 // Computed props for components
 // ============================================================================
@@ -106,12 +115,25 @@ const spawnItems = computed(() =>
 );
 
 const plansDirItems = computed(() =>
-  sessionsState.directories.map(d => ({
-    name: d.name,
-    path: d.path,
-    startableCount: 0,
-    doingCount: 0,
-  })),
+  sessionsState.directories.map(d => {
+    const group = sessionsState.groups.find(g => g.dirPath === d.path);
+    const sessionIds = group?.sessions.map(s => s.id) ?? [];
+    // Startable is directory-level — same for all sessions in dir, use first found
+    let startableCount = 0;
+    for (const id of sessionIds) {
+      const v = state.planStartableCounts.get(id);
+      if (v !== undefined) { startableCount = v; break; }
+    }
+    // Fallback: dir-level count for directories with no active sessions
+    if (startableCount === 0 && sessionIds.length === 0) {
+      startableCount = state.planDirStartableCounts.get(d.path) ?? 0;
+    }
+    // Doing is per-session — sum across sessions in this dir
+    const doingCount = sessionIds.reduce(
+      (sum, id) => sum + (state.planDoingCounts.get(id) ?? 0), 0,
+    );
+    return { name: d.name, path: d.path, startableCount, doingCount };
+  })
 );
 
 const hasActiveSession = computed(() => {
@@ -130,6 +152,14 @@ const hasSequences = computed(() => {
 const hasDrafts = computed(() => {
   if (!state.activeSessionId) return false;
   return (state.draftCounts.get(state.activeSessionId) ?? 0) > 0;
+});
+
+// Maps each navList item's id → its index — fed to session cards/group headers as
+// data-nav-index so the legacy updateSessionsFocus() can find focused elements.
+const navIndexMap = computed(() => {
+  const map = new Map<string, number>();
+  sessionsState.navList.forEach((item, i) => { map.set(item.id, i); });
+  return map;
 });
 
 // Per-session computed helpers
@@ -175,6 +205,17 @@ function handleButton(button: string): void {
     return;
   }
 
+  // Plan screen — routes before session navigation so B closes plan, not session
+  if (activeView.value === 'plan') {
+    const dir = toDirection(button);
+    if (dir) { handlePlanScreenDpad(dir); return; }
+    if (button === 'B') { void hidePlanScreen(); return; }
+    if (handlePlanScreenAction(button)) return;
+  }
+
+  // Session navigation — D-pad, A to select, overview-button, spawn/plans zones
+  if (handleSessionsScreenButton(button)) return;
+
   // Config binding fallback
   const tm = getTerminalManager();
   const activeSession = tm?.getActiveSessionId();
@@ -199,6 +240,7 @@ function handleRelease(button: string): void {
 // ============================================================================
 
 function onSessionClick(sessionId: string): void {
+  if (activeView.value === 'plan') void hidePlanScreen();
   switchToSession(sessionId);
   activeView.value = 'terminal';
 }
@@ -274,6 +316,15 @@ function onShowOverview(dirPath: string): void {
   showOverview(dirPath, state.activeSessionId ?? undefined);
 }
 
+function onShowGlobalOverview(): void {
+  // null = show all sessions across all groups
+  showOverview(null, state.activeSessionId ?? undefined);
+}
+
+function onToggleOverview(sessionId: string): void {
+  void toggleSessionOverviewVisibility(sessionId);
+}
+
 // Section collapse
 async function loadCollapsePrefs(): Promise<void> {
   try {
@@ -281,12 +332,16 @@ async function loadCollapsePrefs(): Promise<void> {
     if (prefs) {
       spawnCollapsed.value = prefs.spawnCollapsed ?? false;
       plannerCollapsed.value = prefs.plannerCollapsed ?? false;
+      // Keep navigation module in sync (used by handleSessionsZone bounds checks)
+      setSpawnCollapsed(spawnCollapsed.value);
+      setPlannerCollapsed(plannerCollapsed.value);
     }
   } catch { /* first run — defaults are fine */ }
 }
 
 function toggleSpawnCollapse(): void {
   spawnCollapsed.value = !spawnCollapsed.value;
+  setSpawnCollapsed(spawnCollapsed.value);
   window.gamepadCli.configSetCollapsePrefs({
     spawnCollapsed: spawnCollapsed.value,
     plannerCollapsed: plannerCollapsed.value,
@@ -295,6 +350,7 @@ function toggleSpawnCollapse(): void {
 
 function togglePlannerCollapse(): void {
   plannerCollapsed.value = !plannerCollapsed.value;
+  setPlannerCollapsed(plannerCollapsed.value);
   window.gamepadCli.configSetCollapsePrefs({
     spawnCollapsed: spawnCollapsed.value,
     plannerCollapsed: plannerCollapsed.value,
@@ -379,6 +435,10 @@ function onContextMenuAction(action: string): void {
 }
 
 // Settings
+function onOpenLogsFolder(): void {
+  window.gamepadCli?.openLogsFolder();
+}
+
 function onOpenSettings(): void {
   settingsVisible.value = true;
   state.currentScreen = 'settings';
@@ -475,6 +535,30 @@ onMounted(async () => {
     },
   });
 
+  // Wire sessions-spawn dir picker to Vue DirPickerModal
+  setDirPickerBridge((cliType, dirs, preselectedPath) => {
+    dirPicker.cliType = cliType;
+    dirPicker.items = dirs;
+    dirPicker.preselectedPath = preselectedPath;
+    dirPicker.visible = true;
+  });
+
+  // Keyboard → modal stack bridge (Tab/Enter/Escape reach modals even in terminal focus)
+  document.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (!isAnyBridgeModalVisible()) return;
+    const { handleInput } = useModalStack();
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      handleInput(e.shiftKey ? 'ShiftTab' : 'Tab');
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      handleInput('A');
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      handleInput('B');
+    }
+  }, true);
+
   // Wire view-change listener so activeView stays in sync with legacy MainViewManager
   onViewChange((view: ViewName) => {
     activeView.value = view;
@@ -494,7 +578,7 @@ onUnmounted(() => {
 
 <template>
     <!-- Left panel: sessions/settings -->
-    <div class="panel-left" id="sidePanel">
+    <div class="panel-left" id="sidePanel" ref="panelRef">
       <header class="sidebar-header">
         <span class="sidebar-logo">
           <img src="./assets/helm-paper-boat.svg" alt="Helm logo" width="28" height="28">
@@ -504,7 +588,7 @@ onUnmounted(() => {
           <span class="sidebar-tagline">steer your fleet of agents</span>
         </span>
         <div class="sidebar-actions">
-          <button class="sidebar-btn" title="Open Logs Folder" @click="window.gamepadCli?.openLogsFolder()">🐛</button>
+          <button class="sidebar-btn" title="Open Logs Folder" @click="onOpenLogsFolder">🐛</button>
           <button class="sidebar-btn" title="Settings" @click="onOpenSettings">⚙</button>
         </div>
       </header>
@@ -526,6 +610,16 @@ onUnmounted(() => {
             @change="onSortChange"
           />
           <div class="sessions-list" id="sessionsList">
+            <!-- Persistent global overview button — always visible when sessions exist -->
+            <button
+              v-if="state.sessions.length > 0"
+              class="overview-nav-button"
+              :class="{ focused: sessionsState.activeFocus === 'sessions' && sessionsState.navList[sessionsState.sessionsFocusIndex]?.type === 'overview-button' }"
+              title="Overview — all sessions"
+              @click="onShowGlobalOverview"
+            >
+              Overview
+            </button>
             <template v-for="(group, gi) in sessionsState.groups" :key="group.dirPath">
               <template v-if="group.sessions.length > 0">
               <SessionGroup
@@ -536,7 +630,9 @@ onUnmounted(() => {
                   sessionCount: group.sessions.length,
                   planBadgeCount: 0,
                 }"
-                :is-focused="sessionsState.navList[sessionsState.sessionsFocusIndex]?.type === 'group-header'
+                :data-nav-index="navIndexMap.get(group.dirPath) ?? -1"
+                :is-focused="sessionsState.activeFocus === 'sessions'
+                  && sessionsState.navList[sessionsState.sessionsFocusIndex]?.type === 'group-header'
                   && sessionsState.navList[sessionsState.sessionsFocusIndex]?.id === group.dirPath"
                 :card-column="sessionsState.cardColumn"
                 @toggle-collapse="onGroupToggleCollapse"
@@ -549,6 +645,7 @@ onUnmounted(() => {
                 <SessionCard
                   v-for="session in group.sessions"
                   :key="session.id"
+                  :data-nav-index="navIndexMap.get(session.id) ?? -1"
                   :session="{ id: session.id, name: session.name, cliType: session.cliType, title: session.title }"
                   :session-state="state.sessionStates.get(session.id) || 'idle'"
                   :activity-level="state.sessionActivityLevels.get(session.id) || 'idle'"
@@ -559,17 +656,19 @@ onUnmounted(() => {
                   working-plan-label=""
                   working-plan-tooltip=""
                   :is-active="state.activeSessionId === session.id"
-                  :is-focused="sessionsState.navList[sessionsState.sessionsFocusIndex]?.type === 'session-card'
+                  :is-focused="sessionsState.activeFocus === 'sessions'
+                    && sessionsState.navList[sessionsState.sessionsFocusIndex]?.type === 'session-card'
                     && sessionsState.navList[sessionsState.sessionsFocusIndex]?.id === session.id"
                   :card-column="sessionsState.cardColumn"
                   :is-editing="editingSessionId === session.id"
-                  :is-hidden-from-overview="false"
+                  :is-hidden-from-overview="isSessionHiddenFromOverview(session, sessionsState.groupPrefs)"
                   @click="onSessionClick"
                   @rename="onSessionRename"
                   @commit-rename="onCommitRename"
                   @cancel-rename="onCancelRename"
                   @close="onRequestClose"
                   @state-change="onSessionStateChange"
+                  @toggle-overview="onToggleOverview"
                 />
               </template>
               </template>
@@ -618,15 +717,15 @@ onUnmounted(() => {
         <PlansGrid
           v-show="!plannerCollapsed"
           :directories="plansDirItems"
-          :focus-index="0"
-          :is-active="false"
+          :focus-index="sessionsState.plansFocusIndex"
+          :is-active="sessionsState.activeFocus === 'plans'"
           @show-plans="onShowPlans"
         />
       </div>
     </div>
 
     <!-- Resize handle -->
-    <div class="panel-splitter" id="panelSplitter"></div>
+    <div class="panel-splitter" id="panelSplitter" ref="splitterRef"></div>
 
     <!-- Right panel: terminal / overview / plan -->
     <div class="panel-right" id="mainArea">

@@ -44,7 +44,7 @@ const menuItems = computed<MenuItem[]>(() => [
   { id: 'new-session', label: '🆕 New Session', enabled: true },
   { id: 'new-session-with-selection', label: '📌 New Session with Selection', enabled: props.hasSelection },
   { id: 'sequences', label: '⚡ Sequences…', enabled: props.hasSequences },
-  { id: 'drafts', label: '📝 Drafts…', enabled: props.hasDrafts },
+  { id: 'drafts', label: '📝 Drafts…', enabled: props.hasActiveSession },
   { id: 'cancel', label: '✖ Cancel', enabled: true },
 ]);
 

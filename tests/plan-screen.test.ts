@@ -518,6 +518,9 @@ describe('Plan Screen', () => {
       mockComputeLayout.mockReturnValue(fakeLayout(items));
 
       await screen.showPlanScreen('/test/dir');
+      // Node is auto-selected; click it to open the editor (click-on-selected opens editor)
+      const node = document.querySelector('.plan-node')!;
+      (node as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
       const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement;
       const stateInfo = document.getElementById('draftPlanStateInfo') as HTMLInputElement;
@@ -1032,6 +1035,9 @@ describe('Plan Editor (unified)', () => {
       mockComputeLayout.mockReturnValue(fakeLayout(items));
 
       await screen.showPlanScreen('/test/dir');
+      // Node is auto-selected; click to open editor
+      const node = document.querySelector('.plan-node')!;
+      (node as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
       mockPlanList.mockResolvedValue(items);
       mockPlanDeps.mockResolvedValue([]);
@@ -1050,6 +1056,9 @@ describe('Plan Editor (unified)', () => {
       mockComputeLayout.mockReturnValue(fakeLayout(items));
 
       await screen.showPlanScreen('/test/dir');
+      // Node is auto-selected; click to open editor
+      const node = document.querySelector('.plan-node')!;
+      (node as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
       mockPlanApply.mockResolvedValue({});
       mockPlanList.mockResolvedValue(items);

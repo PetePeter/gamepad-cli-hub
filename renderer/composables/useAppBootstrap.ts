@@ -23,6 +23,7 @@ import {
 import '../screens/group-overview.js';
 import '../plans/plan-screen.js';
 import '../screens/sessions-spawn.js';
+import { setTerminalManagerGetter as setSpawnTerminalManagerGetter } from '../screens/sessions-spawn.js';
 
 // Overview/plan setup functions
 import {
@@ -36,6 +37,7 @@ import {
 // Draft editor + chip bar init
 import { initDraftEditor } from '../drafts/draft-editor.js';
 import { init as initChipBar } from '../components/chip-bar.js';
+import { refreshDraftStrip } from '../drafts/draft-strip.js';
 
 // Sort preferences (module-level state to match legacy behaviour)
 let sortField: SessionSortField = 'name';
@@ -122,6 +124,12 @@ export async function refreshSessions(): Promise<void> {
         title: session?.title,
         cliSessionName: persisted?.cliSessionName,
       } as Session);
+      // Pre-populate so that the reactive Map key exists before the first activity event fires.
+      // Vue 3's Map proxy only triggers GET-tracked effects on SET (existing key), not on ADD
+      // (new key). Without this, the first activity-change event would not update the dot.
+      if (!state.sessionActivityLevels.has(id)) {
+        state.sessionActivityLevels.set(id, 'idle');
+      }
     }
   }
 
@@ -171,22 +179,35 @@ async function refreshPlanCounts(): Promise<void> {
   if (!window.gamepadCli?.planStartableForDir) return;
   state.planDoingCounts.clear();
   state.planStartableCounts.clear();
+  state.planDirStartableCounts.clear();
 
   const tm = getTerminalManager();
-  if (!tm) return;
+  const activeDirs = new Set<string>();
 
-  for (const id of tm.getSessionIds()) {
-    const cwd = getSessionCwd(id);
-    if (!cwd) continue;
+  if (tm) {
+    for (const id of tm.getSessionIds()) {
+      const cwd = getSessionCwd(id);
+      if (!cwd) continue;
+      activeDirs.add(cwd);
 
+      try {
+        const startable = await window.gamepadCli.planStartableForDir(cwd);
+        if (startable.length > 0) state.planStartableCounts.set(id, startable.length);
+      } catch { /* ignore */ }
+
+      try {
+        const doing = await window.gamepadCli.planDoingForSession(id);
+        if (doing.length > 0) state.planDoingCounts.set(id, doing.length);
+      } catch { /* ignore */ }
+    }
+  }
+
+  // Also query directories that have no active terminal sessions
+  for (const dir of sessionsState.directories) {
+    if (activeDirs.has(dir.path)) continue;
     try {
-      const startable = await window.gamepadCli.planStartableForDir(cwd);
-      if (startable.length > 0) state.planStartableCounts.set(id, startable.length);
-    } catch { /* ignore */ }
-
-    try {
-      const doing = await window.gamepadCli.planDoingForSession(id);
-      if (doing.length > 0) state.planDoingCounts.set(id, doing.length);
+      const startable = await window.gamepadCli.planStartableForDir(dir.path);
+      state.planDirStartableCounts.set(dir.path, startable.length);
     } catch { /* ignore */ }
   }
 }
@@ -511,6 +532,7 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
   // Terminal manager
   const tm = new TerminalManager(terminalContainer);
   setTerminalManager(tm);
+  setSpawnTerminalManagerGetter(() => tm); // wire sessions-spawn.ts getTerminalManager()
 
   if (onTerminalEmpty) tm.setOnEmpty(onTerminalEmpty);
   if (onTerminalSwitch) {
@@ -524,6 +546,7 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
         }
       }
       onTerminalSwitch(sessionId ?? null);
+      void refreshDraftStrip(sessionId ?? null);
     });
   }
   if (onTerminalTitleChange) {
@@ -551,7 +574,8 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
     state.activeSessionId = null;
   });
   setPlanScreenCloseCallback(() => {
-    // Chip strip refresh handled by Vue reactivity
+    const activeId = getTerminalManager()?.getActiveSessionId() ?? null;
+    void refreshDraftStrip(activeId);
   });
 
   // Draft editor + chip bar

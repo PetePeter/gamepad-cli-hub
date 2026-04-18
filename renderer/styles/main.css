@@ -522,8 +522,27 @@ button {
 }
 
 .overview-nav-button {
-  border-top-color: var(--accent);
-  margin-top: 0;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  background: #1a1a1a;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 8px);
+  color: var(--accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  user-select: none;
+}
+.overview-nav-button:hover,
+.overview-nav-button.focused {
+  background: var(--bg-tertiary);
+  border-color: var(--accent);
 }
 
 .overview-visible-count {
@@ -947,6 +966,7 @@ button {
 .spawn-btn .spawn-icon { font-size: 16px; flex-shrink: 0; }
 .spawn-btn .spawn-label { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
 
+.plans-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .plans-grid-btn { text-align: left; }
 .plans-grid-btn .plan-badge { font-size: 0.75em; margin-left: 4px; padding: 0; background: none; border: none; flex-shrink: 0; }
 .plans-grid-btn .plan-badge.startable { color: #4488ff; }
@@ -1273,7 +1293,7 @@ kbd {
   border: 2px solid var(--accent);
   border-radius: var(--radius-lg);
   width: calc(100% - 16px);
-  max-width: none;
+  max-width: 480px;
   margin: 8px;
   max-height: 80vh;
   overflow: hidden;

@@ -40,6 +40,7 @@ let screenEl: HTMLElement | null = null;
 let visible = false;
 let currentDir = '';
 let selectedId: string | null = null;
+let editingId: string | null = null; // tracks whether the editor panel is open
 let fitActiveCallback: (() => void) | null = null;
 let closeCallback: (() => void) | null = null;
 let openCallback: (() => void) | null = null;
@@ -112,7 +113,7 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
   }
 }
 
-document.addEventListener('keydown', planScreenKeyHandler);
+document.addEventListener('keydown', planScreenKeyHandler, true); // capture: xterm.js swallows bubble
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -173,6 +174,7 @@ export function hidePlanScreen(): void {
 function unmountPlanScreen(): void {
   visible = false;
   selectedId = null;
+  editingId = null;
   cachedLayout = null;
   cachedItems = [];
   hidePlanDeleteConfirm();
@@ -258,7 +260,7 @@ export function handlePlanScreenAction(button: string): boolean {
   if (button === 'A') {
     if (selectedId) {
       const item = cachedItems.find(i => i.id === selectedId);
-      if (item) selectNode(item);
+      if (item) openNodeEditor(item);
     } else if (cachedLayout && cachedLayout.nodes.length > 0) {
       const first = cachedLayout.nodes.find(n => n.layer === 0 && n.order === 0) || cachedLayout.nodes[0];
       selectNodeById(first.id);
@@ -470,7 +472,16 @@ function buildNode(item: PlanItem, pos: LayoutNode): SVGGElement {
 
   g.addEventListener('click', (e) => {
     e.stopPropagation();
-    selectNode(item);
+    if (selectedId === item.id) {
+      openNodeEditor(item);
+    } else {
+      selectNode(item);
+    }
+  });
+
+  g.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    openNodeEditor(item);
   });
 
   return g;
@@ -686,14 +697,22 @@ function svgPoint(svg: SVGSVGElement, clientX: number, clientY: number): { x: nu
 // Interaction handlers
 // ---------------------------------------------------------------------------
 
-/** Select a node and show the editor panel. */
+/** Highlight a node without opening the editor. Closes editor if navigating to a different node. */
 function selectNode(item: PlanItem): void {
+  if (selectedId !== item.id && editingId) {
+    hideDraftEditor();
+    editingId = null;
+  }
   selectedId = item.id;
-
   document.querySelectorAll('.plan-node').forEach(n => {
     n.classList.toggle('plan-node--selected', (n as HTMLElement).dataset.id === item.id);
   });
+}
 
+/** Open the editor panel for the selected node. */
+function openNodeEditor(item: PlanItem): void {
+  selectNode(item); // ensure highlight is up-to-date
+  editingId = item.id;
   showPlanInEditor(
     state.activeSessionId || '',
     item,
@@ -739,6 +758,7 @@ async function handleDelete(id: string): Promise<void> {
   try {
     await window.gamepadCli.planDelete(id);
     selectedId = null;
+    editingId = null;
     hideDraftEditor();
     await refreshCanvas();
   } catch (err) {
@@ -750,6 +770,7 @@ async function handleComplete(id: string): Promise<void> {
   try {
     await window.gamepadCli.planComplete(id);
     selectedId = null;
+    editingId = null;
     hideDraftEditor();
     await refreshCanvas();
   } catch (err) {
@@ -766,6 +787,7 @@ async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
       }
     }
     selectedId = null;
+    editingId = null;
     hidePlanDeleteConfirm();
     hideDraftEditor();
     await refreshCanvas();

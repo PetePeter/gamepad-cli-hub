@@ -688,10 +688,11 @@ describe('Sessions Screen', () => {
       expect(sessionsState.sessionsFocusIndex).toBe(1);
     });
 
-    it('DPadDown again advances to index 2', () => {
+    it('DPadDown on session card advances to next card', () => {
+      sessionsState.sessionsFocusIndex = 2; // first session card (skip overview+header)
       sessions.handleSessionsScreenButton('DPadDown');
       sessions.handleSessionsScreenButton('DPadDown');
-      expect(sessionsState.sessionsFocusIndex).toBe(2);
+      expect(sessionsState.sessionsFocusIndex).toBe(4);
     });
 
     it('DPadUp moves sessionsFocusIndex backward', () => {
@@ -700,11 +701,15 @@ describe('Sessions Screen', () => {
       expect(sessionsState.sessionsFocusIndex).toBe(1);
     });
 
-    it('DPadUp stops at 0 (no wrap)', () => {
-      sessionsState.sessionsFocusIndex = 1;
+    it('DPadUp on session card navigates up, stops at overview (no wrap)', () => {
+      sessionsState.sessionsFocusIndex = 2; // first session card
+      sessions.handleSessionsScreenButton('DPadUp'); // → group header (index 1)
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      expect(sessionsState.activeFocus).toBe('sessions');
+      // From overview (index 0), DPadUp is a no-op
+      sessionsState.sessionsFocusIndex = 0;
       sessions.handleSessionsScreenButton('DPadUp');
       expect(sessionsState.sessionsFocusIndex).toBe(0);
-      expect(sessionsState.activeFocus).toBe('sessions');
     });
 
     it('DPadDown past last session switches to spawn zone', () => {
@@ -734,9 +739,9 @@ describe('Sessions Screen', () => {
 
     it('.focused class moves with sessionsFocusIndex', () => {
       const cards = () => document.querySelectorAll('#sessionsList .session-card');
-      // After load, focus is on overview (index 0), then group header (index 1).
-      sessions.handleSessionsScreenButton('DPadDown'); // → index 1 (group header)
-      sessions.handleSessionsScreenButton('DPadDown'); // → index 2 (first card)
+      // Start on first session card (index 2), bypassing group-header reorder
+      sessionsState.sessionsFocusIndex = 2;
+      sessions.updateSessionsFocus();
       expect(cards()[0]!.classList.contains('focused')).toBe(true);
 
       sessions.handleSessionsScreenButton('DPadDown'); // → index 3 (second card)
@@ -760,10 +765,10 @@ describe('Sessions Screen', () => {
     });
 
     it('D-pad down auto-selects the focused session', () => {
-      sessions.handleSessionsScreenButton('DPadDown');
+      sessionsState.sessionsFocusIndex = 2; // first session card
       sessions.handleSessionsScreenButton('DPadDown');
 
-      expect(mockSwitchTo).toHaveBeenCalledWith('s-0');
+      expect(mockSwitchTo).toHaveBeenCalledWith('s-1');
     });
 
     it('X falls through to config bindings (not consumed)', () => {
@@ -1842,7 +1847,7 @@ describe('Sessions Screen', () => {
       expect(document.querySelectorAll('#sessionsList .group-header')).toHaveLength(2);
     });
 
-    it('auto-select skips group headers', async () => {
+    it('DPad down/up on group header triggers reorder, not navigation', async () => {
       const data = makeSessions(2);
       mockSessionGetAll.mockResolvedValue(data);
       state.sessions = data;
@@ -1853,16 +1858,21 @@ describe('Sessions Screen', () => {
       sessionsState.sessionsFocusIndex = sessionsState.navList.findIndex(item => item.type === 'group-header');
       sessionsState.cardColumn = 0;
 
-      // Navigate down to session card
+      // DPadDown on group header triggers group reorder, focus stays on header
+      mockConfigSetSessionGroupPrefs.mockClear();
       sessions.handleSessionsScreenButton('DPadDown');
-      expect(sessionsState.sessionsFocusIndex).toBe(2);
-      expect(mockSwitchTo).toHaveBeenCalled();
-
-      // Navigate back up to group header
-      mockSwitchTo.mockClear();
-      sessions.handleSessionsScreenButton('DPadUp');
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
+      await flush();
+      expect(sessionsState.sessionsFocusIndex).toBe(1); // stays on group header
       expect(mockSwitchTo).not.toHaveBeenCalled();
+      expect(mockConfigSetSessionGroupPrefs).toHaveBeenCalled();
+
+      // DPadUp on group header also triggers group reorder, stays on header
+      mockConfigSetSessionGroupPrefs.mockClear();
+      sessions.handleSessionsScreenButton('DPadUp');
+      await flush();
+      expect(sessionsState.sessionsFocusIndex).toBe(1); // stays on group header
+      expect(mockSwitchTo).not.toHaveBeenCalled();
+      expect(mockConfigSetSessionGroupPrefs).toHaveBeenCalled();
     });
   });
 
@@ -1995,17 +2005,19 @@ describe('Sessions Screen', () => {
       expect(document.querySelectorAll('.group-header').length).toBe(2);
     });
 
-    it('auto-select skips group headers', async () => {
+    it('DPadDown on group header triggers reorder not navigation', async () => {
       setMockTerminalSessions(makeSessions(2));
       await loadAndFlush(sessions);
 
-      // Focus on group header — switchTo should NOT be called
+      // Focus on group header — DPadDown should reorder (not navigate to session card)
       sessionsState.sessionsFocusIndex = sessionsState.navList.findIndex(item => item.type === 'group-header');
       mockSwitchTo.mockClear();
-      sessions.handleSessionsScreenButton('DPadDown'); // no-op at col=0 moves to card
-      // After DPadDown, we should be on the first session card
-      expect(sessionsState.sessionsFocusIndex).toBe(2);
-      expect(mockSwitchTo).toHaveBeenCalledWith('s-0');
+      mockConfigSetSessionGroupPrefs.mockClear();
+      sessions.handleSessionsScreenButton('DPadDown');
+      await flush();
+      expect(sessionsState.sessionsFocusIndex).toBe(1); // stays on group header
+      expect(mockSwitchTo).not.toHaveBeenCalled();
+      expect(mockConfigSetSessionGroupPrefs).toHaveBeenCalled();
     });
 
     it('A at col=1 on group header triggers moveGroupUp', async () => {

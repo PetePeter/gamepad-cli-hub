@@ -13,6 +13,7 @@ import { findNavIndexBySessionId } from '../session-groups.js';
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import {
   loadSessions, getSessionState, updateSessionsFocus, updateSpawnFocus, updateAllFocus,
+  moveGroupUpAction, moveGroupDownAction,
 } from './sessions.js';
 
 import { hideOverview } from './group-overview.js';
@@ -324,6 +325,12 @@ export function handleSessionsZone(button: string, dir: string | null): void {
   if (dir === 'up') {
     if (count === 0) return;
     if (sessionsState.cardColumn > 0) return; // no-op when on action buttons
+    const currentItem = navList[sessionsState.sessionsFocusIndex];
+    if (currentItem?.type === 'group-header') {
+      // Reorder the whole group upward
+      void moveGroupUpAction(currentItem.id);
+      return;
+    }
     sessionsState.sessionsFocusIndex = Math.max(0, sessionsState.sessionsFocusIndex - 1);
     sessionsState.cardColumn = 0;
     updateSessionsFocus();
@@ -332,6 +339,12 @@ export function handleSessionsZone(button: string, dir: string | null): void {
   }
   if (dir === 'down') {
     if (sessionsState.cardColumn > 0) return; // no-op when on action buttons
+    const currentItemDown = navList[sessionsState.sessionsFocusIndex];
+    if (currentItemDown?.type === 'group-header') {
+      // Reorder the whole group downward
+      void moveGroupDownAction(currentItemDown.id);
+      return;
+    }
     if (count === 0 || sessionsState.sessionsFocusIndex >= count - 1) {
       // Skip collapsed zones
       if (!isSpawnCollapsed()) {
