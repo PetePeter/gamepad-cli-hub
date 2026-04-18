@@ -107,6 +107,11 @@ describe('Plan Chips', () => {
       expect(badge).toBeNull();
     });
 
+    it('returns null when all 4 counts are 0', () => {
+      const badge = createPlanBadge(0, 0, 0, 0);
+      expect(badge).toBeNull();
+    });
+
     it('shows doing count with green class', () => {
       const badge = createPlanBadge(3, 0);
       expect(badge).not.toBeNull();
@@ -136,6 +141,31 @@ describe('Plan Chips', () => {
       expect(startableBadge).not.toBeNull();
       expect(doingBadge!.textContent).toContain('2');
       expect(startableBadge!.textContent).toContain('4');
+    });
+
+    it('shows blocked count with orange class', () => {
+      const badge = createPlanBadge(0, 0, 2, 0);
+      expect(badge).not.toBeNull();
+      const blockedBadge = badge!.querySelector('.plan-badge--blocked');
+      expect(blockedBadge).not.toBeNull();
+      expect(blockedBadge!.textContent).toContain('2');
+    });
+
+    it('shows question count with purple class', () => {
+      const badge = createPlanBadge(0, 0, 0, 3);
+      expect(badge).not.toBeNull();
+      const questionBadge = badge!.querySelector('.plan-badge--question');
+      expect(questionBadge).not.toBeNull();
+      expect(questionBadge!.textContent).toContain('3');
+    });
+
+    it('shows all 4 badges when all counts non-zero', () => {
+      const badge = createPlanBadge(1, 2, 3, 4);
+      expect(badge).not.toBeNull();
+      expect(badge!.querySelector('.plan-badge--doing')!.textContent).toContain('1');
+      expect(badge!.querySelector('.plan-badge--startable')!.textContent).toContain('2');
+      expect(badge!.querySelector('.plan-badge--blocked')!.textContent).toContain('3');
+      expect(badge!.querySelector('.plan-badge--question')!.textContent).toContain('4');
     });
   });
 

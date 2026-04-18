@@ -246,10 +246,9 @@ function makeGroupProps(overrides: Record<string, any> = {}) {
   return {
     group: {
       dirPath: '/home/user/project',
-      dirName: 'project',
+      displayName: 'project',
       collapsed: false,
       sessionCount: 3,
-      planBadgeCount: 0,
     },
     isFocused: false,
     cardColumn: 0,
@@ -270,7 +269,7 @@ describe('SessionGroup', () => {
 
   it('shows collapsed chevron when collapsed', () => {
     const w = mount(SessionGroup, {
-      props: makeGroupProps({ group: { dirPath: '/a', dirName: 'a', collapsed: true, sessionCount: 1, planBadgeCount: 0 } }),
+      props: makeGroupProps({ group: { dirPath: '/a', displayName: 'a', collapsed: true, sessionCount: 1 } }),
     });
     expect(w.find('.group-chevron').text()).toBe('▲');
   });
@@ -287,40 +286,15 @@ describe('SessionGroup', () => {
     expect(w.find('.group-move-down').exists()).toBe(false);
   });
 
-  it('emits showPlans on plans button click', async () => {
-    const w = mount(SessionGroup, { props: makeGroupProps() });
-    await w.find('.group-plans-btn').trigger('click');
-    expect(w.emitted('showPlans')).toEqual([['/home/user/project']]);
-  });
-
   it('emits showOverview on group name click', async () => {
     const w = mount(SessionGroup, { props: makeGroupProps() });
     await w.find('.group-name').trigger('click');
     expect(w.emitted('showOverview')).toEqual([['/home/user/project']]);
   });
 
-  it('shows plan badge when count > 0', () => {
-    const w = mount(SessionGroup, {
-      props: makeGroupProps({
-        group: { dirPath: '/a', dirName: 'a', collapsed: false, sessionCount: 2, planBadgeCount: 5 },
-      }),
-    });
-    expect(w.find('.plans-btn-badge').text()).toBe('5');
-  });
-
-  it('hides plan badge when count is 0', () => {
-    const w = mount(SessionGroup, { props: makeGroupProps() });
-    expect(w.find('.plans-btn-badge').exists()).toBe(false);
-  });
-
   it('applies focused class when isFocused', () => {
     const w = mount(SessionGroup, { props: makeGroupProps({ isFocused: true }) });
     expect(w.find('.group-header').classes()).toContain('focused');
-  });
-
-  it('applies card-col-focused to plans button at col 1', () => {
-    const w = mount(SessionGroup, { props: makeGroupProps({ isFocused: true, cardColumn: 1 }) });
-    expect(w.find('.group-plans-btn').classes()).toContain('card-col-focused');
   });
 });
 
@@ -455,8 +429,8 @@ import PlansGrid from '../../../renderer/components/sidebar/PlansGrid.vue';
 
 describe('PlansGrid', () => {
   const dirs = [
-    { name: 'project-a', path: '/a', startableCount: 2, doingCount: 1 },
-    { name: 'project-b', path: '/b', startableCount: 0, doingCount: 0 },
+    { name: 'project-a', path: '/a', startableCount: 2, doingCount: 1, blockedCount: 0, questionCount: 0, pendingCount: 0 },
+    { name: 'project-b', path: '/b', startableCount: 0, doingCount: 0, blockedCount: 0, questionCount: 0, pendingCount: 0 },
   ];
 
   it('renders buttons for each directory', () => {
@@ -467,26 +441,33 @@ describe('PlansGrid', () => {
     expect(btns[1].find('.spawn-label').text()).toBe('project-b');
   });
 
-  it('shows startable badge when count > 0', () => {
+  it('shows startable dot when count > 0', () => {
     const w = mount(PlansGrid, { props: { directories: dirs, focusIndex: 0, isActive: false } });
-    const badges = w.findAll('.plan-badge.startable');
-    expect(badges.length).toBe(1);
-    expect(badges[0].text()).toContain('2');
+    const dots = w.findAll('.plan-dot--startable');
+    expect(dots.length).toBe(1);
+    expect(dots[0].text()).toContain('2');
   });
 
-  it('shows doing badge when count > 0', () => {
+  it('shows doing dot when count > 0', () => {
     const w = mount(PlansGrid, { props: { directories: dirs, focusIndex: 0, isActive: false } });
-    const badges = w.findAll('.plan-badge.doing');
-    expect(badges.length).toBe(1);
-    expect(badges[0].text()).toContain('1');
+    const dots = w.findAll('.plan-dot--doing');
+    expect(dots.length).toBe(1);
+    expect(dots[0].text()).toContain('1');
   });
 
-  it('hides badges when counts are 0', () => {
+  it('hides dots when all counts are 0', () => {
     const w = mount(PlansGrid, {
-      props: { directories: [{ name: 'x', path: '/x', startableCount: 0, doingCount: 0 }], focusIndex: 0, isActive: false },
+      props: { directories: [{ name: 'x', path: '/x', startableCount: 0, doingCount: 0, blockedCount: 0, questionCount: 0, pendingCount: 0 }], focusIndex: 0, isActive: false },
     });
-    expect(w.find('.plan-badge.startable').exists()).toBe(false);
-    expect(w.find('.plan-badge.doing').exists()).toBe(false);
+    expect(w.find('.plans-btn-dots').exists()).toBe(false);
+  });
+
+  it('shows blocked and question dots', () => {
+    const dir = { name: 'p', path: '/p', startableCount: 0, doingCount: 0, blockedCount: 3, questionCount: 2, pendingCount: 1 };
+    const w = mount(PlansGrid, { props: { directories: [dir], focusIndex: 0, isActive: false } });
+    expect(w.find('.plan-dot--blocked').text()).toContain('3');
+    expect(w.find('.plan-dot--question').text()).toContain('2');
+    expect(w.find('.plan-dot--pending').text()).toContain('1');
   });
 
   it('emits showPlans on button click', async () => {

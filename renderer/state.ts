@@ -51,6 +51,14 @@ export interface AppState {
   planStartableCounts: Map<string, number>;
   /** Per-directory plan startable count (for dirs without active sessions) */
   planDirStartableCounts: Map<string, number>;
+  /** Per-directory plan doing count */
+  planDirDoingCounts: Map<string, number>;
+  /** Per-directory plan blocked count */
+  planDirBlockedCounts: Map<string, number>;
+  /** Per-directory plan question count */
+  planDirQuestionCounts: Map<string, number>;
+  /** Per-directory plan pending count */
+  planDirPendingCounts: Map<string, number>;
   /** Per-session working plan label (e.g. "🗺️ Auth refactor") */
   workingPlanLabels: Map<string, string>;
   /** Per-session working plan tooltip */
@@ -77,6 +85,10 @@ export const state: AppState = reactive({
   planDoingCounts: new Map(),
   planStartableCounts: new Map(),
   planDirStartableCounts: new Map(),
+  planDirDoingCounts: new Map(),
+  planDirBlockedCounts: new Map(),
+  planDirQuestionCounts: new Map(),
+  planDirPendingCounts: new Map(),
   workingPlanLabels: new Map(),
   workingPlanTooltips: new Map(),
 });

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
- * PlansGrid.vue — 2-column grid of per-directory plan buttons with badge counts.
+ * PlansGrid.vue — 2-column grid of per-directory plan buttons with status dot counts.
  *
- * Replaces renderPlansGrid() + createPlansButton() in sessions-plans.ts.
+ * Shows up to 5 status dots (startable, doing, blocked, question, pending),
+ * skipping any with a zero count. Replaces renderPlansGrid() + createPlansButton().
  */
 
 export interface PlansDirItem {
@@ -10,6 +11,9 @@ export interface PlansDirItem {
   path: string;
   startableCount: number;
   doingCount: number;
+  blockedCount: number;
+  questionCount: number;
+  pendingCount: number;
 }
 
 const props = defineProps<{
@@ -33,20 +37,20 @@ const emit = defineEmits<{
       :data-dir="dir.path"
       @click="emit('showPlans', dir.path)"
     >
-      <span class="spawn-icon">📁</span>
-      <span class="spawn-label">{{ dir.name }}</span>
-      <span
-        v-if="dir.startableCount > 0"
-        class="plan-badge startable"
+      <div class="plans-btn-top">
+        <span class="spawn-icon">📁</span>
+        <span class="spawn-label">{{ dir.name }}</span>
+      </div>
+      <div
+        v-if="dir.startableCount > 0 || dir.doingCount > 0 || dir.blockedCount > 0 || dir.questionCount > 0 || dir.pendingCount > 0"
+        class="plans-btn-dots"
       >
-        🔵{{ dir.startableCount }}
-      </span>
-      <span
-        v-if="dir.doingCount > 0"
-        class="plan-badge doing"
-      >
-        🟢{{ dir.doingCount }}
-      </span>
+        <span v-if="dir.startableCount > 0" class="plan-dot plan-dot--startable">🔵{{ dir.startableCount }}</span>
+        <span v-if="dir.doingCount > 0" class="plan-dot plan-dot--doing">🟢{{ dir.doingCount }}</span>
+        <span v-if="dir.blockedCount > 0" class="plan-dot plan-dot--blocked">🟠{{ dir.blockedCount }}</span>
+        <span v-if="dir.questionCount > 0" class="plan-dot plan-dot--question">🟣{{ dir.questionCount }}</span>
+        <span v-if="dir.pendingCount > 0" class="plan-dot plan-dot--pending">⚪{{ dir.pendingCount }}</span>
+      </div>
     </button>
   </div>
 </template>

@@ -655,10 +655,6 @@ function handleSessionsZoneButton(button: string): boolean {
         toggleGroupCollapse(navItem.id);
         return true;
       }
-      if (sessionsState.cardColumn === 1) {
-        showPlanScreen(navItem.id);
-        return true;
-      }
       return true; // consumed
     }
     // session-card
@@ -724,8 +720,7 @@ export function updateSessionsFocus(): void {
       if (eyeBtn) eyeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 3);
       if (closeBtn) closeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 4);
     } else if (el.classList.contains('group-header')) {
-      const plansBtn = el.querySelector('.group-plans-btn');
-      if (plansBtn) plansBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 1);
+      // No sub-buttons on group headers
     }
   });
   const focused = items.find(el => el.classList.contains('focused'));

@@ -8,6 +8,7 @@
 import { sessionsState } from './sessions-state.js';
 import { showPlanScreen } from '../plans/plan-screen.js';
 import { isSpawnCollapsed } from '../sidebar/section-collapse.js';
+import { state } from '../state.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import { updateAllFocus } from './sessions.js';
@@ -16,53 +17,9 @@ import { updateAllFocus } from './sessions.js';
 // Render — plans grid
 // ============================================================================
 
-const ACTIVE_PLAN_STATUSES = new Set(['doing', 'blocked', 'question']);
-
-/**
- * Render the plans grid synchronously from already-loaded sessionsState.directories.
- *
- * Uses in-memory state populated by loadSessionsData() so the grid never
- * blanks while waiting on an async fetch — eliminating planner flicker.
- */
 export function renderPlansGrid(): void {
-  // Vue owns the plans grid — PlansGrid.vue renders reactively from sessionsState.directories.
+  // Vue owns the plans grid — PlansGrid.vue renders reactively from state.planDir* maps.
   void refreshPlanBadges();
-}
-
-function createPlansButton(dir: { name: string; path: string }, index: number): HTMLElement {
-  const btn = document.createElement('button');
-  btn.className = 'spawn-btn plans-grid-btn';
-  btn.dataset.dir = dir.path;
-  if (index === sessionsState.plansFocusIndex && sessionsState.activeFocus === 'plans') {
-    btn.classList.add('focused');
-  }
-
-  const icon = document.createElement('span');
-  icon.className = 'spawn-icon';
-  icon.textContent = '📁';
-
-  const label = document.createElement('span');
-  label.className = 'spawn-label';
-  label.textContent = dir.name;
-
-  const startableBadge = document.createElement('span');
-  startableBadge.className = 'plan-badge startable';
-  startableBadge.style.display = 'none';
-
-  const doingBadge = document.createElement('span');
-  doingBadge.className = 'plan-badge doing';
-  doingBadge.style.display = 'none';
-
-  btn.appendChild(icon);
-  btn.appendChild(label);
-  btn.appendChild(startableBadge);
-  btn.appendChild(doingBadge);
-
-  btn.addEventListener('click', () => {
-    showPlanScreen(dir.path);
-  });
-
-  return btn;
 }
 
 // ============================================================================
@@ -157,34 +114,20 @@ export function updatePlansFocus(): void {
 
 export async function refreshPlanBadges(): Promise<void> {
   if (!window.gamepadCli) return;
-  const grid = document.getElementById('plansGrid');
-  if (!grid) return;
 
-  const btns = grid.querySelectorAll('.plans-grid-btn');
-  for (const btn of btns) {
-    const dirPath = (btn as HTMLElement).dataset.dir;
-    if (!dirPath) continue;
-
-    const startableBadge = btn.querySelector('.plan-badge.startable');
-    const doingBadge = btn.querySelector('.plan-badge.doing');
-
+  for (const dir of sessionsState.directories) {
     try {
       const [startableItems, allItems] = await Promise.all([
-        window.gamepadCli.planStartableForDir(dirPath),
-        window.gamepadCli.planList(dirPath),
+        window.gamepadCli.planStartableForDir(dir.path),
+        window.gamepadCli.planList(dir.path),
       ]);
 
-      const startableCount = startableItems?.length ?? 0;
-      const doingCount = (allItems ?? []).filter((p: any) => ACTIVE_PLAN_STATUSES.has(p.status)).length;
-
-      if (startableBadge) {
-        startableBadge.textContent = startableCount > 0 ? `🔵${startableCount}` : '';
-        (startableBadge as HTMLElement).style.display = startableCount > 0 ? '' : 'none';
-      }
-      if (doingBadge) {
-        doingBadge.textContent = doingCount > 0 ? `🟢${doingCount}` : '';
-        (doingBadge as HTMLElement).style.display = doingCount > 0 ? '' : 'none';
-      }
+      const items: Array<{ status: string }> = allItems ?? [];
+      state.planDirStartableCounts.set(dir.path, (startableItems ?? []).length);
+      state.planDirDoingCounts.set(dir.path, items.filter(p => p.status === 'doing').length);
+      state.planDirBlockedCounts.set(dir.path, items.filter(p => p.status === 'blocked').length);
+      state.planDirQuestionCounts.set(dir.path, items.filter(p => p.status === 'question').length);
+      state.planDirPendingCounts.set(dir.path, items.filter(p => p.status === 'pending').length);
     } catch {
       // Silently ignore badge fetch errors
     }

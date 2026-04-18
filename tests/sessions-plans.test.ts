@@ -44,6 +44,22 @@ vi.mock('../renderer/plans/plan-screen.js', () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// State mock for refreshPlanBadges tests
+// ---------------------------------------------------------------------------
+
+const mockState = {
+  planDirStartableCounts: new Map<string, number>(),
+  planDirDoingCounts: new Map<string, number>(),
+  planDirBlockedCounts: new Map<string, number>(),
+  planDirQuestionCounts: new Map<string, number>(),
+  planDirPendingCounts: new Map<string, number>(),
+};
+
+vi.mock('../renderer/state.js', () => ({
+  state: mockState,
+}));
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -365,6 +381,87 @@ describe('Sessions Plans Grid', () => {
 
       // sessions.ts ensurePlanChangedListener registers exactly one
       expect(onPlanChanged).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ==========================================================================
+  // refreshPlanBadges — reactive state updates
+  // ==========================================================================
+
+  describe('refreshPlanBadges', () => {
+    beforeEach(() => {
+      mockState.planDirStartableCounts.clear();
+      mockState.planDirDoingCounts.clear();
+      mockState.planDirBlockedCounts.clear();
+      mockState.planDirQuestionCounts.clear();
+      mockState.planDirPendingCounts.clear();
+    });
+
+    it('populates all 5 counts from planList and planStartableForDir', async () => {
+      sessionsState.directories = [{ name: 'proj', path: '/proj' }];
+      mockPlanStartableForDir.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
+      mockPlanList.mockResolvedValue([
+        { status: 'doing' },
+        { status: 'doing' },
+        { status: 'blocked' },
+        { status: 'question' },
+        { status: 'pending' },
+        { status: 'pending' },
+        { status: 'pending' },
+      ]);
+
+      await plans.refreshPlanBadges();
+
+      expect(mockState.planDirStartableCounts.get('/proj')).toBe(2);
+      expect(mockState.planDirDoingCounts.get('/proj')).toBe(2);
+      expect(mockState.planDirBlockedCounts.get('/proj')).toBe(1);
+      expect(mockState.planDirQuestionCounts.get('/proj')).toBe(1);
+      expect(mockState.planDirPendingCounts.get('/proj')).toBe(3);
+    });
+
+    it('sets all counts to 0 when planList returns empty', async () => {
+      sessionsState.directories = [{ name: 'proj', path: '/proj' }];
+      mockPlanStartableForDir.mockResolvedValue([]);
+      mockPlanList.mockResolvedValue([]);
+
+      await plans.refreshPlanBadges();
+
+      expect(mockState.planDirStartableCounts.get('/proj')).toBe(0);
+      expect(mockState.planDirDoingCounts.get('/proj')).toBe(0);
+      expect(mockState.planDirBlockedCounts.get('/proj')).toBe(0);
+      expect(mockState.planDirQuestionCounts.get('/proj')).toBe(0);
+      expect(mockState.planDirPendingCounts.get('/proj')).toBe(0);
+    });
+
+    it('populates counts for each directory independently', async () => {
+      sessionsState.directories = [
+        { name: 'a', path: '/a' },
+        { name: 'b', path: '/b' },
+      ];
+      mockPlanStartableForDir.mockImplementation(async (dir: string) =>
+        dir === '/a' ? [{ id: '1' }] : []
+      );
+      mockPlanList.mockImplementation(async (dir: string) =>
+        dir === '/a' ? [{ status: 'doing' }] : [{ status: 'blocked' }, { status: 'blocked' }]
+      );
+
+      await plans.refreshPlanBadges();
+
+      expect(mockState.planDirStartableCounts.get('/a')).toBe(1);
+      expect(mockState.planDirDoingCounts.get('/a')).toBe(1);
+      expect(mockState.planDirStartableCounts.get('/b')).toBe(0);
+      expect(mockState.planDirBlockedCounts.get('/b')).toBe(2);
+    });
+
+    it('skips silently when gamepadCli is unavailable', async () => {
+      sessionsState.directories = [{ name: 'proj', path: '/proj' }];
+      const saved = (window as any).gamepadCli;
+      (window as any).gamepadCli = undefined;
+
+      await expect(plans.refreshPlanBadges()).resolves.toBeUndefined();
+      expect(mockState.planDirStartableCounts.size).toBe(0);
+
+      (window as any).gamepadCli = saved;
     });
   });
 });

@@ -519,7 +519,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-xs);
   overflow-y: auto;
   flex: 1;
   min-height: 0;
@@ -615,33 +615,6 @@ button {
   text-overflow: ellipsis;
 }
 
-.group-plans-btn {
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-size: 11px;
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 3px;
-  line-height: 1;
-  position: relative;
-}
-.group-plans-btn:hover { color: var(--text-primary); background: var(--bg-secondary); }
-
-.plans-btn-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 14px;
-  height: 14px;
-  font-size: 9px;
-  font-weight: 700;
-  color: white;
-  background: #4488ff;
-  border-radius: 7px;
-  padding: 0 3px;
-  margin-left: 2px;
-}
 
 /* ── Session cards ────────────────────────────────────────── */
 
@@ -1004,10 +977,15 @@ button {
 .spawn-btn .spawn-label { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
 
 .plans-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.plans-grid-btn { text-align: left; }
-.plans-grid-btn .plan-badge { font-size: 0.75em; margin-left: 4px; padding: 0; background: none; border: none; flex-shrink: 0; }
-.plans-grid-btn .plan-badge.startable { color: #4488ff; }
-.plans-grid-btn .plan-badge.doing { color: #44cc44; }
+.plans-grid-btn { text-align: left; flex-direction: column; align-items: flex-start; }
+.plans-btn-top { display: flex; align-items: center; gap: 6px; flex: 1; }
+.plans-btn-dots { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 2px; }
+.plan-dot { font-size: 0.7em; }
+.plan-dot--startable { color: #4488ff; }
+.plan-dot--doing { color: #44cc44; }
+.plan-dot--blocked { color: #ff9f1a; }
+.plan-dot--question { color: #d17cff; }
+.plan-dot--pending { color: #555555; }
 
 /* Buttons */
 .btn {
@@ -2671,6 +2649,14 @@ kbd {
   color: #4488ff;
 }
 
+.plan-badge--blocked {
+  color: #ff9f1a;
+}
+
+.plan-badge--question {
+  color: #d17cff;
+}
+
 .plan-chip {
   display: inline-flex;
   align-items: center;
@@ -2817,18 +2803,4 @@ kbd {
   user-select: none;
 }
 
-/* Plans button badge */
-.plans-btn-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 14px;
-  height: 14px;
-  font-size: 9px;
-  font-weight: 700;
-  color: white;
-  background: #4488ff;
-  border-radius: 7px;
-  padding: 0 3px;
-  margin-left: 2px;
-}
+

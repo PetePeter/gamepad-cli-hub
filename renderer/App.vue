@@ -139,11 +139,15 @@ const plansDirItems = computed(() =>
     if (startableCount === 0 && sessionIds.length === 0) {
       startableCount = state.planDirStartableCounts.get(d.path) ?? 0;
     }
-    // Doing is per-session — sum across sessions in this dir
-    const doingCount = sessionIds.reduce(
-      (sum, id) => sum + (state.planDoingCounts.get(id) ?? 0), 0,
-    );
-    return { name: d.name, path: d.path, startableCount, doingCount };
+    return {
+      name: d.name,
+      path: d.path,
+      startableCount,
+      doingCount: state.planDirDoingCounts.get(d.path) ?? 0,
+      blockedCount: state.planDirBlockedCounts.get(d.path) ?? 0,
+      questionCount: state.planDirQuestionCounts.get(d.path) ?? 0,
+      pendingCount: state.planDirPendingCounts.get(d.path) ?? 0,
+    };
   })
 );
 
@@ -676,10 +680,9 @@ onUnmounted(() => {
               <SessionGroup
                 :group="{
                   dirPath: group.dirPath,
-                  dirName: resolveGroupDisplayName(group.dirPath, sessionsState.directories),
+                  displayName: resolveGroupDisplayName(group.dirPath, sessionsState.directories),
                   collapsed: group.collapsed,
                   sessionCount: group.sessions.length,
-                  planBadgeCount: 0,
                 }"
                 :data-nav-index="navIndexMap.get(group.dirPath) ?? -1"
                 :is-focused="sessionsState.activeFocus === 'sessions'
@@ -687,7 +690,6 @@ onUnmounted(() => {
                   && sessionsState.navList[sessionsState.sessionsFocusIndex]?.id === group.dirPath"
                 :card-column="sessionsState.cardColumn"
                 @toggle-collapse="onGroupToggleCollapse"
-                @show-plans="onShowPlans"
                 @show-overview="onShowOverview"
               />
               <template v-if="!group.collapsed">

@@ -15,8 +15,13 @@ const ACTIVE_PLAN_STATUSES = new Set(['doing', 'blocked', 'question']);
 let renderGeneration = 0;
 
 /** Render a plan badge on a session card. Returns the badge element or null. */
-export function createPlanBadge(doingCount: number, startableCount: number): HTMLElement | null {
-  if (doingCount === 0 && startableCount === 0) return null;
+export function createPlanBadge(
+  doingCount: number,
+  startableCount: number,
+  blockedCount = 0,
+  questionCount = 0,
+): HTMLElement | null {
+  if (doingCount === 0 && startableCount === 0 && blockedCount === 0 && questionCount === 0) return null;
 
   const wrapper = document.createElement('span');
   wrapper.className = 'plan-badge-group';
@@ -32,6 +37,20 @@ export function createPlanBadge(doingCount: number, startableCount: number): HTM
     const badge = document.createElement('span');
     badge.className = 'plan-badge plan-badge--startable';
     badge.textContent = `🗺️ ${startableCount}`;
+    wrapper.appendChild(badge);
+  }
+
+  if (blockedCount > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'plan-badge plan-badge--blocked';
+    badge.textContent = `🗺️ ${blockedCount}`;
+    wrapper.appendChild(badge);
+  }
+
+  if (questionCount > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'plan-badge plan-badge--question';
+    badge.textContent = `🗺️ ${questionCount}`;
     wrapper.appendChild(badge);
   }
 
