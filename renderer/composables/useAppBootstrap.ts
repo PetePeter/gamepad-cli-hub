@@ -24,11 +24,13 @@ import '../screens/group-overview.js';
 import '../plans/plan-screen.js';
 import '../screens/sessions-spawn.js';
 import { setTerminalManagerGetter as setSpawnTerminalManagerGetter } from '../screens/sessions-spawn.js';
+import { updateSessionsFocus } from '../screens/sessions.js';
 
 // Overview/plan setup functions
 import {
   setOutputBuffer, setSessionStateGetter, setActivityLevelGetter,
   setTerminalManagerGetter as setOverviewTerminalManagerGetter,
+  setSelectCardCallback, setOverviewDismissCallback,
 } from '../screens/group-overview.js';
 import {
   setPlanScreenFitCallback, setPlanScreenCloseCallback, setPlanScreenOpenCallback,
@@ -583,6 +585,12 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
   setOutputBuffer(tm.getOutputBuffer());
   setSessionStateGetter(getSessionState);
   setActivityLevelGetter(getSessionActivity);
+  setSelectCardCallback((sessionId) => { void switchToSession(sessionId); });
+  // Note: uses the local switchToSession (tm.switchTo + state update only) rather than the
+  // sessions-spawn full version, which also dismisses draft/editor panels. If a user selects
+  // an overview card while a draft editor is open, those panels will remain visible. Acceptable
+  // for now — the full version has side-effect coupling that's harder to inject here.
+  setOverviewDismissCallback(() => updateSessionsFocus());
   setPlanScreenFitCallback(() => tm.fitActive());
   setPlanScreenOpenCallback(() => {
     tm.deselect();

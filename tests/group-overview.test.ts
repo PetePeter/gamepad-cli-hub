@@ -47,6 +47,8 @@ import {
   isCardCollapsed,
   handleOverviewInput,
   setSelectCardCallback,
+  selectOverviewCard,
+  setOverviewDismissCallback,
 } from '../renderer/screens/group-overview.js';
 
 describe('GroupOverview', () => {
@@ -503,6 +505,103 @@ describe('GroupOverview', () => {
       hideOverview();
 
       expect(mockTm.switchTo).toHaveBeenCalledWith('s1');
+    });
+
+    it('selectOverviewCard does not restore the previous terminal (race fix)', () => {
+      const cardCb = vi.fn();
+      setSelectCardCallback(cardCb);
+
+      showOverview('/project');
+      selectOverviewCard('s2');
+
+      // Should not restore s1 — the card callback handles the switch
+      expect(mockTm.switchTo).not.toHaveBeenCalledWith('s1');
+      expect(cardCb).toHaveBeenCalledWith('s2');
+    });
+
+    it('hideOverview skips restore when terminal already switched (autoSelectFocusedSession path)', () => {
+      showOverview('/project');
+
+      // Simulate terminal already switched to s2 before unmount
+      mockTm.getActiveSessionId.mockReturnValue('s2');
+
+      hideOverview();
+
+      expect(mockTm.switchTo).not.toHaveBeenCalled();
+    });
+
+    it('hideOverview fires dismiss callback even when terminal already switched (autoSelectFocusedSession path)', () => {
+      // The dismiss callback (updateSessionsFocus) should always fire on non-selection exit
+      // so the sidebar scrolls to the focused item — it is idempotent and safe to call twice.
+      const dismissCb = vi.fn();
+      setOverviewDismissCallback(dismissCb);
+
+      showOverview('/project');
+
+      // Simulate auto-switch before unmount
+      mockTm.getActiveSessionId.mockReturnValue('s2');
+
+      hideOverview();
+
+      expect(dismissCb).toHaveBeenCalledTimes(1);
+    });
+
+    it('hideOverview fires dismiss callback on non-select exit', () => {
+      const dismissCb = vi.fn();
+      setOverviewDismissCallback(dismissCb);
+
+      showOverview('/project');
+      hideOverview();
+
+      expect(dismissCb).toHaveBeenCalledTimes(1);
+    });
+
+    it('selectOverviewCard does not fire dismiss callback', () => {
+      const dismissCb = vi.fn();
+      setOverviewDismissCallback(dismissCb);
+      setSelectCardCallback(vi.fn());
+
+      showOverview('/project');
+      selectOverviewCard('s2');
+
+      expect(dismissCb).not.toHaveBeenCalled();
+    });
+
+    it('hideOverview restores sessionsFocusIndex to the nav item that opened the overview', () => {
+      sessionsState.navList = [
+        { type: 'group-header', id: '/other', groupIndex: 0 },
+        { type: 'group-header', id: '/project', groupIndex: 1 },
+        { type: 'session-card', id: 's1', groupIndex: 1 },
+      ];
+      sessionsState.sessionsFocusIndex = 1; // pointing at /project group-header
+
+      showOverview('/project');
+
+      // Navigate away in the sidebar while overview is open
+      sessionsState.sessionsFocusIndex = 2;
+
+      hideOverview();
+
+      // Should snap back to the group header that opened the overview
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
+    });
+
+    it('selectOverviewCard does not restore sessionsFocusIndex', () => {
+      sessionsState.navList = [
+        { type: 'group-header', id: '/project', groupIndex: 0 },
+        { type: 'session-card', id: 's1', groupIndex: 0 },
+        { type: 'session-card', id: 's2', groupIndex: 0 },
+      ];
+      sessionsState.sessionsFocusIndex = 0; // pointing at group-header
+
+      showOverview('/project');
+      sessionsState.sessionsFocusIndex = 1;
+
+      setSelectCardCallback(vi.fn());
+      selectOverviewCard('s2');
+
+      // Should not restore to 0 — caller manages focus after card selection
+      expect(sessionsState.sessionsFocusIndex).toBe(1);
     });
   });
 

@@ -9,7 +9,7 @@ import { state, type Session } from '../state.js';
 import { sessionsState } from './sessions-state.js';
 import type { PtyOutputBuffer } from '../terminal/pty-output-buffer.js';
 import { getActivityColor } from '../state-colors.js';
-import { getVisibleSessions, resolveGroupDisplayName } from '../session-groups.js';
+import { getVisibleSessions, resolveGroupDisplayName, type NavItem } from '../session-groups.js';
 import { toDirection } from '../utils.js';
 import { registerView, showView, currentView } from '../main-view/main-view-manager.js';
 
@@ -23,6 +23,10 @@ let updateUnsubscribe: (() => void) | null = null;
 let throttleTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingUpdates = new Set<string>();
 let previousActiveSessionId: string | null = null;
+let selectedOnExit = false;
+/** NavItem that had focus when overview opened — restored on dismiss, looked up by identity. */
+let parentNavItem: NavItem | null = null;
+let overviewDismissCallback: (() => void) | null = null;
 const collapsedSessions = new Set<string>();
 
 interface TerminalManagerLike {
@@ -76,6 +80,8 @@ function mountOverview(params?: unknown): void {
   // Deselect the active terminal — keyboard/paste should not affect any session while overview is open
   const tm = terminalManagerGetter?.();
   previousActiveSessionId = tm?.getActiveSessionId() ?? null;
+  parentNavItem = sessionsState.navList[sessionsState.sessionsFocusIndex] ?? null;
+  selectedOnExit = false;
   tm?.deselect();
 
   const mainArea = document.getElementById('mainArea');
@@ -154,11 +160,33 @@ function unmountOverview(): void {
     if (draftEditor) draftEditor.style.display = '';
   }
 
-  // Restore the previously active terminal
+  // Restore the previously active terminal unless the exit already switched to a new session.
+  // sessionAlreadySwitched covers autoSelectFocusedSession (tm.switchTo ran before unmount).
+  // selectedOnExit covers selectOverviewCard (callback switches after unmount).
   const tm = terminalManagerGetter?.();
-  if (tm && previousActiveSessionId && tm.hasTerminal(previousActiveSessionId)) {
+  const currentActive = tm?.getActiveSessionId() ?? null;
+  const sessionAlreadySwitched = currentActive !== null && currentActive !== previousActiveSessionId;
+  const shouldRestore = !selectedOnExit && !sessionAlreadySwitched;
+
+  if (shouldRestore && tm && previousActiveSessionId && tm.hasTerminal(previousActiveSessionId)) {
     tm.switchTo(previousActiveSessionId);
   }
+
+  // Restore sidebar focus to the nav item that opened the overview (look up by identity
+  // to handle navList churn while overview was open).
+  if (!selectedOnExit) {
+    if (parentNavItem) {
+      const restoredIndex = sessionsState.navList.findIndex(
+        item => item.type === parentNavItem!.type && item.id === parentNavItem!.id
+      );
+      if (restoredIndex >= 0) sessionsState.sessionsFocusIndex = restoredIndex;
+    }
+    overviewDismissCallback?.();
+  }
+
+  // Reset per-open state
+  selectedOnExit = false;
+  parentNavItem = null;
   previousActiveSessionId = null;
 
   // Unsubscribe from live updates
@@ -315,8 +343,8 @@ export function updateOverviewFocus(): void {
 
 /** Select a card — exit overview and switch to the session */
 export function selectOverviewCard(sessionId: string): void {
+  selectedOnExit = true;
   hideOverview();
-  // Defer session switch to avoid circular import — navigation.ts wires this
   selectCardCallback?.(sessionId);
 }
 
@@ -361,10 +389,15 @@ export function handleOverviewInput(button: string): boolean {
   return false;
 }
 
-/** Callback set by navigation.ts for switching session + sidebar sync */
+/** Callback wired by useAppBootstrap.ts for switching session on card selection */
 let selectCardCallback: ((sessionId: string) => void) | null = null;
 export function setSelectCardCallback(fn: (sessionId: string) => void): void {
   selectCardCallback = fn;
+}
+
+/** Callback fired when overview is dismissed without a card selection (B/Left). Used to sync sidebar scroll. */
+export function setOverviewDismissCallback(fn: () => void): void {
+  overviewDismissCallback = fn;
 }
 
 /** Render preview lines into a container element — reads from xterm.js buffer for fidelity.

@@ -26,7 +26,7 @@ flowchart LR
 | **Enter global overview** | A / Enter on the Overview button (top of session list) |
 | **Enter group overview** | D-pad Right on a group header (or click group name) |
 | **Exit overview (back)** | D-pad Left or B button — returns to sidebar |
-| **Exit overview (flow-through)** | D-pad Up past first card or Down past last card → continues to next/previous session list item |
+| **Sidebar navigation while open** | D-pad Up/Down — passes through to sidebar navigation; overview stays open |
 | **Select session** | A button — exits overview and switches to the selected session |
 | **Close session** | X button — opens close confirmation for the focused card |
 
@@ -78,7 +78,7 @@ Scroll routing is automatic — no special configuration needed. When the overvi
 While the overview is open, the active terminal is **deselected** (hidden, blurred). This prevents keyboard input and paste from accidentally reaching a terminal while browsing the grid. When the overview is closed:
 
 - If a session was selected (A button), the app switches to that session
-- If the overview was exited via flow-through (Up/Down past edges), the next nav item is auto-selected
+- If dismissed via B or Left, sidebar focus is restored to the nav item that opened the overview (stored by identity at open time)
 
 ## Live Updates
 
@@ -91,7 +91,7 @@ graph TB
     SO[sessions-spawn.ts<br>handleSessionsZone — Right on group header] -->|"showOverview(dirPath, activeSessionId)"| GO[group-overview.ts]
     GO --> OB[PtyOutputBuffer<br>ring buffer per session]
     GO --> TM[TerminalManager<br>deselect / restore]
-    NAV[navigation.ts<br>handleOverviewButton] --> GO
+    BOOT[useAppBootstrap.ts<br>setSelectCardCallback / setOverviewDismissCallback] -->|wires callbacks| GO
     BIND[bindings.ts<br>executeScroll] -->|"scrollBy on #overviewGrid"| GO
 ```
 
@@ -100,7 +100,9 @@ graph TB
 | File | Role |
 |------|------|
 | `renderer/screens/group-overview.ts` | Grid rendering, card creation, live update subscription, show/hide lifecycle |
-| `renderer/navigation.ts` | `handleOverviewButton()` — D-pad navigation with flow-through exit, Left/B to close, A/X button routing |
+| `renderer/composables/useAppBootstrap.ts` | Wires `setSelectCardCallback` (session switch on A/click) and `setOverviewDismissCallback` (sidebar focus restore on B/Left dismiss) |
+| `renderer/composables/useNavigation.ts` | Routes gamepad input: `handleOverviewInput` first; falls through to sessions screen handler when it returns false (e.g. Up/Down) |
+| `renderer/screens/sessions.ts` | Keyboard `keydown` handler: overview view routes through `handleOverviewInput` with fallthrough to `handleSessionsScreenButton` for unconsumed buttons |
 | `renderer/bindings.ts` | `executeScroll()` — routes gamepad scroll to overview grid when visible |
 | `renderer/screens/sessions-spawn.ts` | `handleSessionsZone()` — D-pad Right on group header triggers `showOverview()` |
 | `renderer/terminal/pty-output-buffer.ts` | Ring buffer providing preview data |

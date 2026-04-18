@@ -415,10 +415,6 @@ function ensurePlanChangedListener(): void {
 }
 
 export function handleSessionsScreenButton(button: string): boolean {
-  if (isOverviewVisible()) {
-    return handleOverviewInput(button);
-  }
-
   // State dropdown intercepts all input when open
   const dropdown = document.querySelector('.session-state-dropdown');
   if (dropdown) {
@@ -832,7 +828,7 @@ function onKeyDown(e: KeyboardEvent): void {
   if (view === 'overview') {
     e.preventDefault();
     e.stopPropagation();
-    handleOverviewInput(mapped);
+    if (!handleOverviewInput(mapped)) handleSessionsScreenButton(mapped);
     return;
   }
 

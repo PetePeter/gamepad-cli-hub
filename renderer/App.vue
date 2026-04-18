@@ -27,14 +27,14 @@ import { formatElapsed, refreshSessions, doSpawn, switchToSession, doCloseSessio
 } from './composables/useAppBootstrap.js';
 import type { SessionSortField, SortDirection } from './sort-logic.js';
 import { findNavIndexBySessionId, toggleCollapse, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
-import { showOverview } from './screens/group-overview.js';
+import { showOverview, handleOverviewInput } from './screens/group-overview.js';
 import { showPlanScreen, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction } from './plans/plan-screen.js';
 import { handleSessionsScreenButton, toggleSessionOverviewVisibility } from './screens/sessions.js';
 import { usePanelResize } from './composables/usePanelResize.js';
 import { setSpawnCollapsed, setPlannerCollapsed } from './sidebar/section-collapse.js';
 import { setDirPickerBridge } from './screens/sessions-spawn.js';
 import { loadSettingsScreen, handleSettingsScreenButton } from './screens/settings.js';
-import { onViewChange, type MainView as ViewName } from './main-view/main-view-manager.js';
+import { onViewChange, currentView, type MainView as ViewName } from './main-view/main-view-manager.js';
 import { useModalStack } from './composables/useModalStack.js';
 import {
   closeConfirm, getCloseConfirmCallback,
@@ -218,11 +218,16 @@ function handleButton(button: string): void {
   }
 
   // Plan screen — routes before session navigation so B closes plan, not session
-  if (activeView.value === 'plan') {
+  if (currentView() === 'plan') {
     const dir = toDirection(button);
     if (dir) { handlePlanScreenDpad(dir); return; }
     if (button === 'B') { void hidePlanScreen(); return; }
     if (handlePlanScreenAction(button)) return;
+  }
+
+  // Overview grid — routes before session navigation so A/B/Left/Right act on the grid
+  if (currentView() === 'overview') {
+    if (handleOverviewInput(button)) return;
   }
 
   // Session navigation — D-pad, A to select, overview-button, spawn/plans zones
