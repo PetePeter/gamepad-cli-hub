@@ -94,6 +94,8 @@ Ctrl+G opens external editor (notepad with temp .md file) — on close, content 
 20. **Draft prompts** — Per-session draft memos for composing prompts while a CLI is busy. Drafts are managed by `DraftManager` (EventEmitter, CRUD, emits `draft:changed`), persisted to `config/drafts.yaml` (separate from sessions.yaml), and exposed via 5 IPC channels (`draft:create/update/delete/list/count`). UI: draft strip (horizontal 📝 pills above terminal), slide-down editor panel (title + content), Drafts submenu in context menu (New Draft + per-draft Apply/Edit/Delete), 📝 badge count on session cards, close-confirm warns about unsent drafts. `new-draft` action type opens the editor for the active session. Draft editor has 4 buttons: Save, Apply (send to PTY + delete), Delete, Cancel. Gamepad D-pad Up/Down cycles Title → Content → Save → Apply → Delete → Cancel, A activates, B cancels. Clicking a pill opens the draft editor directly.
 21. **Directory Plans (NCN)** — Per-directory DAG of work items with dependency arrows and a 4-state lifecycle: pending (grey `#555` — blocked by dependencies), startable (blue `#4488ff` — all deps done), doing (green `#44cc44` — actively worked on), done (grey + strikethrough). Managed by `PlanManager` (EventEmitter, CRUD, DAG validation via DFS cycle prevention, startable computation). Persisted to `config/plans.yaml` (folder-level, not per-profile). Exposed via 12 IPC channels (`plan:list/create/update/delete/addDep/removeDep/apply/complete/startableForDir/doingForSession/deps/getItem`). UI: SVG canvas overlay inside `#mainArea` with Sugiyama-style left-to-right layered auto-layout, pan/zoom (viewBox-based), quadratic bezier dependency arrows with arrowhead markers, click-to-select nodes, bottom editor panel (title + description + Delete + conditional Done). Entry: 🗺️ Plans button on group headers (column 3). Exit: B button or ← Back. Session cards show plan badges (doing + startable counts). Draft strips show plan chips (generation-counter dedup for async renders; startable click → send description to PTY + transition to doing; doing click → re-send description to PTY without status change).
 
+22. **Vue 3 migration (in progress)** — Renderer migrating from manual DOM manipulation to Vue 3 Composition API + Pinia. Incremental: Vue components coexist with legacy TS modules during transition. Vite builds the renderer (replaces esbuild for renderer only). Key patterns: `reactive()` wraps state singletons (Pinia stores are thin wrappers on top), `useModalStack` composable replaces the 11-deep if-chain, `<Teleport>` for modals, `useNavigation` composable for input routing. xterm.js stays imperative (TerminalManager class). Main process (`src/`) and preload are unchanged.
+
 ## Architecture Principles
 
 - DRY, YAGNI, KISS
@@ -106,7 +108,7 @@ Ctrl+G opens external editor (notepad with temp .md file) — on close, content 
 ## Build & Test
 
 ```bash
-npm run build    # esbuild: electron (dist-electron/main.js) + renderer (dist/renderer/main.js)
+npm run build    # Vite: renderer (dist/renderer/) + esbuild: electron (dist-electron/main.js) + preload
 npm run start    # Build and launch
 npm run package  # Build + package portable Windows EXE to release/
 npm test         # Vitest suite
@@ -133,8 +135,9 @@ python sendDeploy.py            # Commit, tag, push, upload installer via gh CLI
 |-----------|-----------|
 | Desktop shell | Electron 41 |
 | Language | TypeScript (ESM) |
-| Bundler | esbuild |
-| Tests | Vitest |
+| UI framework | Vue 3 (Composition API) + Pinia stores |
+| Bundler | Vite (renderer) + esbuild (electron main/preload) |
+| Tests | Vitest + @vue/test-utils |
 | Gamepad input | Browser Gamepad API (sole input source) |
 | Embedded terminals | node-pty (PTY) + @xterm/xterm (xterm.js) |
 | PTY shell | cmd.exe (Windows), bash (Unix) |
@@ -147,7 +150,7 @@ Detailed reference docs are in `docs/`:
 
 | Document | Content |
 |----------|---------|
-| [docs/modules.md](docs/modules.md) | Module reference table — all 34 modules with files and responsibilities |
+| [docs/modules.md](docs/modules.md) | Module reference table — all modules including Vue stores, composables, and SFC components |
 | [docs/config-system.md](docs/config-system.md) | Profile YAML, binding types, sequence parser syntax, stick/dpad config |
 | [docs/controls.md](docs/controls.md) | Gamepad button + keyboard mappings, navigation priority chain |
 | [docs/terminal-architecture.md](docs/terminal-architecture.md) | PTY stack, input/output routing, activity dots, key modules |

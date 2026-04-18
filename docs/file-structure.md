@@ -77,7 +77,57 @@ renderer/
 ├── state-colors.ts             # Activity-level-to-color mapping (getActivityColor, ACTIVITY_COLORS). Used by session cards + overview grid.
 ├── tab-cycling.ts              # Ctrl+Tab / Ctrl+Shift+Tab terminal cycling resolver
 ├── components/
-│   └── sort-control.ts         # Reusable sort dropdown + direction toggle widget
+│   ├── index.ts                # Barrel export of all Vue SFC components
+│   ├── sort-control.ts         # Reusable sort dropdown + direction toggle widget
+│   ├── chip-bar.ts             # Thin wrapper composing draft-strip + plan-chips
+│   ├── modals/
+│   │   ├── index.ts
+│   │   ├── CloseConfirmModal.vue
+│   │   ├── PlanDeleteConfirmModal.vue
+│   │   ├── SequencePickerModal.vue
+│   │   ├── QuickSpawnModal.vue
+│   │   ├── DirPickerModal.vue
+│   │   ├── ContextMenu.vue
+│   │   ├── DraftSubmenu.vue
+│   │   ├── FormModal.vue
+│   │   └── BindingEditorModal.vue
+│   ├── sidebar/
+│   │   ├── index.ts
+│   │   ├── SessionCard.vue     # Session card (activity dot, badges, timer, rename, close)
+│   │   ├── SessionGroup.vue    # Collapsible directory group header
+│   │   ├── SpawnGrid.vue       # 2-column CLI spawn button grid
+│   │   ├── SortBar.vue         # Sort field dropdown + direction toggle
+│   │   ├── PlansGrid.vue       # Per-directory plan buttons with badges
+│   │   ├── StatusStrip.vue     # Gamepad dot, count, profile badge
+│   │   ├── SettingsPanel.vue   # Settings slide-over with tab switching
+│   │   ├── ProfilesTab.vue     # Profile list CRUD
+│   │   ├── BindingsTab.vue     # Per-CLI binding list
+│   │   ├── ToolsTab.vue        # CLI type management
+│   │   └── TelegramTab.vue     # Telegram bot configuration
+│   └── panels/
+│       ├── index.ts
+│       ├── TerminalPane.vue    # xterm.js lifecycle wrapper
+│       ├── OverviewCard.vue    # Session preview card
+│       ├── OverviewGrid.vue    # Scrollable preview grid
+│       ├── PlanScreen.vue      # SVG DAG canvas + editor
+│       ├── MainView.vue        # Right panel view switcher
+│       └── ChipBar.vue         # Draft pills + plan chips strip
+├── stores/
+│   ├── index.ts                # Barrel export of all Pinia stores
+│   ├── app.ts                  # useAppStore — currentScreen, gamepadCount, eventLog, activeProfile
+│   ├── sessions-screen.ts      # useSessionsScreenStore — zone, focusIndex, cardColumn, overviewGroup
+│   ├── config.ts               # useConfigStore — cliBindingsCache, cliSequencesCache, cliToolsCache, cliTypes
+│   ├── drafts.ts               # useDraftsStore — draftCounts, activeDraft, editorVisible
+│   └── plans.ts                # usePlansStore — planDoingCounts, planStartableCounts
+├── composables/
+│   ├── index.ts                # Barrel export of all composables
+│   ├── useModalStack.ts        # Reactive push/pop modal stack replacing 11-deep if-chain
+│   ├── useIpc.ts               # Typed IPC wrappers with auto-cleanup on unmount
+│   ├── useGamepad.ts           # Gamepad polling setup + connection events
+│   ├── usePanelResize.ts       # Splitter drag resize via template refs
+│   ├── useKeyboardRelay.ts     # Ctrl+V → PTY, Ctrl+G → editor intercepts
+│   ├── useTerminals.ts         # Terminal create/switch/destroy lifecycle
+│   └── useNavigation.ts        # Navigation routing: sandwich → modal stack → view → screen → config binding
 ├── drafts/
 │   ├── draft-strip.ts          # View-only draft pills above terminal (📝 labels + badge count, click opens editor) + renders plan chips via renderPlanChips()
 │   └── draft-editor.ts         # Slide-down draft editor panel (title + content, Save/Apply/Delete/Cancel buttons)
@@ -191,5 +241,18 @@ tests/                                  # 61 test files
 ├── plan-chips.test.ts          # Plan badges + chips rendering tests (11 tests)
 ├── plan-navigation.test.ts     # Plan screen navigation integration + gamepad D-pad/action-button tests
 ├── sessions-plans.test.ts      # Folder planner grid rendering, badge refresh, gamepad navigation tests
-└── utils.test.ts               # Utility function tests
+├── utils.test.ts               # Utility function tests
+├── pinia-setup.ts              # Global Vitest setup — creates fresh Pinia for each test
+├── stores/
+│   └── stores.test.ts          # Pinia store tests (app, sessions-screen, config, drafts, plans — 20 tests)
+├── composables/
+│   ├── composables.test.ts     # Composable unit tests (modal stack, IPC, gamepad, panel resize, keyboard relay, terminals — 21 tests)
+│   └── navigation.test.ts     # Navigation composable tests (routing, modal interception, view/screen dispatch — 31 tests)
+└── components/
+    ├── modals/
+    │   └── modals.test.ts      # Vue SFC modal tests (@vue/test-utils — 90 tests)
+    ├── sidebar/
+    │   └── sidebar.test.ts     # Vue SFC sidebar tests (@vue/test-utils — 106 tests)
+    └── panels/
+        └── panels.test.ts      # Vue SFC panel tests (@vue/test-utils — 79 tests)
 ```

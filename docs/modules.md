@@ -39,3 +39,19 @@ Reference table of all modules in the Helm application.
 | **SessionsPlans** | `renderer/screens/sessions-plans.ts` | Folder planner grid — 3rd navigation zone below spawn grid. Shows configured working directories as compact buttons with plan badge counts (startable 🔵 + doing 🟢). `renderPlansGrid()` renders buttons from `configGetWorkingDirs()` with generation-counter dedup. `handlePlansZone(button, dir)` handles 2-column grid D-pad navigation. `handlePlansZoneButton(button)` handles A (open plan screen) and B (back to sessions zone). `updatePlansFocus()` manages focus highlight. `refreshPlanBadges()` async-fetches badge counts per directory. |
 | **EditorPopup** | `renderer/editor/editor-popup.ts` | In-app Prompt Editor modal (Ctrl+G). Textarea for new prompt + sidebar of last 10 recent prompts (click to insert). Submit via Ctrl+Enter or Send button — returns text to paste-handler for PTY write. History action bar offers Clear & Insert / Insert at Caret / Cancel when a history item is selected. `initEditorPopup()` builds the DOM once; `showEditorPopup()` returns a Promise resolving to the entered text or null. |
 | **EditorHistory** | `renderer/editor/editor-history.ts` | Persistent storage for Ctrl+G prompt history (max 10 entries). Primary: IPC `editorGetHistory`/`editorSetHistory` channels. Fallback: `localStorage` key `gamepad-cli-editor-history`. `loadEditorHistory()`, `saveEditorHistory()`, `addEditorHistoryEntry()`, `getEditorHistoryPreview()` (first line, truncated). |
+| — | — | **Vue Layer (renderer/stores/, composables/, components/)** |
+| **AppStore** | `renderer/stores/app.ts` | Pinia store wrapping `state.ts` reactive singleton — currentScreen, gamepadCount, eventLog, activeProfile. |
+| **SessionsScreenStore** | `renderer/stores/sessions-screen.ts` | Pinia store wrapping `sessions-state.ts` — zone, focusIndex, cardColumn, overviewGroup, plansFocusIndex. |
+| **ConfigStore** | `renderer/stores/config.ts` | Pinia store — CLI types, bindings, sequences, tools caches. |
+| **DraftsStore** | `renderer/stores/drafts.ts` | Pinia store — draft counts, active draft, editor visibility. |
+| **PlansStore** | `renderer/stores/plans.ts` | Pinia store — plan doing/startable counts per directory. |
+| **useModalStack** | `renderer/composables/useModalStack.ts` | Reactive push/pop modal stack replacing 11-deep if-chain. Module-level singleton shared across all callers. |
+| **useIpc** | `renderer/composables/useIpc.ts` | Typed IPC wrappers with auto-cleanup on `onUnmounted`. |
+| **useGamepad** | `renderer/composables/useGamepad.ts` | Gamepad polling setup + connection events. |
+| **usePanelResize** | `renderer/composables/usePanelResize.ts` | Splitter drag resize via Vue template refs + lifecycle hooks. |
+| **useKeyboardRelay** | `renderer/composables/useKeyboardRelay.ts` | Ctrl+V → PTY, Ctrl+G → editor document-level intercepts. |
+| **useTerminals** | `renderer/composables/useTerminals.ts` | Terminal create/switch/destroy lifecycle composable. |
+| **useNavigation** | `renderer/composables/useNavigation.ts` | Navigation routing: sandwich → modal stack → view → screen → config binding fallback. |
+| **Vue Modal SFCs** | `renderer/components/modals/*.vue` | 9 modal Vue components (CloseConfirm, PlanDeleteConfirm, SequencePicker, QuickSpawn, DirPicker, ContextMenu, DraftSubmenu, FormModal, BindingEditor) — Teleport + modal stack. |
+| **Vue Sidebar SFCs** | `renderer/components/sidebar/*.vue` | 11 sidebar components (SessionCard, SessionGroup, SpawnGrid, SortBar, PlansGrid, StatusStrip, SettingsPanel, ProfilesTab, BindingsTab, ToolsTab, TelegramTab). |
+| **Vue Panel SFCs** | `renderer/components/panels/*.vue` | 6 right-panel components (TerminalPane, OverviewCard, OverviewGrid, PlanScreen, MainView, ChipBar). |
