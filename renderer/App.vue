@@ -612,6 +612,8 @@ onMounted(async () => {
       e.preventDefault();
       handleInput(e.shiftKey ? 'ShiftTab' : 'Tab');
     } else if (e.key === 'Enter') {
+      // Allow plain Enter in any textarea (for newlines)
+      if (document.activeElement?.tagName === 'TEXTAREA') return;
       e.preventDefault();
       handleInput('A');
     } else if (e.key === 'Escape') {

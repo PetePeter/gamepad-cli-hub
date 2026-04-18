@@ -1360,6 +1360,13 @@ kbd {
   align-items: center;
   padding: var(--spacing-md) var(--spacing-lg);
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-md) var(--spacing-lg);
 }
 
 .modal-title {
@@ -1550,6 +1557,7 @@ kbd {
   display: flex;
   justify-content: flex-end;
   gap: var(--spacing-sm);
+  flex-shrink: 0;
 }
 
 
@@ -2150,6 +2158,94 @@ kbd {
 
 .btn--danger {
   color: #ff5555;
+}
+
+/* =========================================================================
+   Plan Help Modal
+   ========================================================================= */
+
+.plan-help-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.65);
+  align-items: center;
+  justify-content: center;
+}
+
+.plan-help-overlay.visible {
+  display: flex;
+}
+
+.plan-help-modal {
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-lg);
+  padding: 28px 32px;
+  max-width: 420px;
+  width: calc(100% - 48px);
+  color: var(--text-primary);
+}
+
+.plan-help-title {
+  margin: 0 0 12px;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+
+.plan-help-desc {
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.plan-help-states {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.plan-help-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.plan-help-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.plan-help-hint {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.plan-help-hint kbd {
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+}
+
+.plan-help-dismiss {
+  margin: 0;
+  font-size: 12px;
+  color: #555;
+  text-align: center;
+}
+
+.plan-help-mouse-only {
+  color: #ffaa44;
+  margin-top: 0;
 }
 
 /* =========================================================================

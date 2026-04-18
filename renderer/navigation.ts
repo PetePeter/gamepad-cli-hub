@@ -29,6 +29,7 @@ import { handleOverviewInput, isOverviewVisible, setSelectCardCallback } from '.
 import { findNavIndexBySessionId } from './session-groups.js';
 import { updateSessionsFocus } from './screens/sessions.js';
 import { isPlanScreenVisible, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction } from './plans/plan-screen.js';
+import { isPlanHelpVisible, hidePlanHelpModal } from './plans/plan-help-modal.js';
 import { currentView } from './main-view/main-view-manager.js';
 
 function handlePlanScreenButton(button: string): boolean {
@@ -37,6 +38,7 @@ function handlePlanScreenButton(button: string): boolean {
     return handlePlanScreenDpad(dir);
   }
   if (button === 'B') {
+    if (isPlanHelpVisible()) { hidePlanHelpModal(); return true; }
     hidePlanScreen();
     return true;
   }
@@ -226,6 +228,10 @@ export function handleGamepadEvent(event: ButtonEvent): void {
       }
       if (view === 'overview') {
         consumed = handleOverviewInput(event.button);
+        // Up/Down fall through to sidebar navigation so the user can navigate
+        // sessions while the overview panel stays open. Selecting any session
+        // via D-pad or auto-select will call showTerminalArea() → hideOverview().
+        if (!consumed) consumed = handleSessionsScreenButton(event.button);
       } else {
         consumed = handleSessionsScreenButton(event.button);
       }

@@ -330,16 +330,6 @@ export function handleOverviewInput(button: string): boolean {
     return true;
   }
 
-  if (dir === 'up') {
-    sessionsState.overviewFocusIndex = Math.max(0, sessionsState.overviewFocusIndex - 1);
-    updateOverviewFocus();
-    return true;
-  }
-  if (dir === 'down') {
-    sessionsState.overviewFocusIndex = Math.min(count - 1, sessionsState.overviewFocusIndex + 1);
-    updateOverviewFocus();
-    return true;
-  }
   if (dir === 'left') {
     hideOverview();
     return true;

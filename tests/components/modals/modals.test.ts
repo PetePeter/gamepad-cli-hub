@@ -1166,3 +1166,85 @@ describe('BindingEditorModal.vue', () => {
     w.unmount();
   });
 });
+
+// ============================================================================
+// EditorPopup — Enter/Ctrl+Enter textarea tests
+// ============================================================================
+
+vi.mock('../../../renderer/editor/editor-history.js', () => ({
+  loadEditorHistory: vi.fn().mockResolvedValue([]),
+  addEditorHistoryEntry: vi.fn().mockResolvedValue(undefined),
+  getEditorHistoryPreview: (s: string) => s.slice(0, 40),
+}));
+
+import EditorPopup from '../../../renderer/components/modals/EditorPopup.vue';
+
+describe('EditorPopup.vue', () => {
+  let modalStack: ReturnType<typeof useModalStack>;
+
+  beforeEach(() => {
+    modalStack = useModalStack();
+    modalStack.clear();
+  });
+
+  function factory(props: Record<string, any> = {}) {
+    return mount(EditorPopup, {
+      props: { visible: true, ...props },
+      attachTo: document.body,
+      global: { stubs: GLOBAL_STUBS },
+    });
+  }
+
+  it('renders when visible', async () => {
+    const w = factory();
+    await flushPromises();
+    expect(w.find('.editor-popup').exists()).toBe(true);
+    w.unmount();
+  });
+
+  it('Ctrl+Enter in textarea emits send', async () => {
+    const w = factory({ initialText: 'hello' });
+    await flushPromises();
+    const textarea = w.find('.editor-popup__textarea');
+    await textarea.trigger('keydown', { key: 'Enter', ctrlKey: true });
+    await flushPromises();
+    expect(w.emitted('send')?.[0]?.[0]).toBe('hello');
+    w.unmount();
+  });
+
+  it('plain Enter in textarea does NOT emit send (allows newline)', async () => {
+    const w = factory({ initialText: 'hello' });
+    await flushPromises();
+    const textarea = w.find('.editor-popup__textarea');
+    await textarea.trigger('keydown', { key: 'Enter' });
+    expect(w.emitted('send')).toBeUndefined();
+    w.unmount();
+  });
+
+  it('Escape in textarea emits close', async () => {
+    const w = factory();
+    await flushPromises();
+    const textarea = w.find('.editor-popup__textarea');
+    await textarea.trigger('keydown', { key: 'Escape' });
+    expect(w.emitted('close')).toHaveLength(1);
+    w.unmount();
+  });
+
+  it('gamepad B closes editor', async () => {
+    const w = factory();
+    await flushPromises();
+    const vm = w.vm as any;
+    vm.handleButton('B');
+    expect(w.emitted('close')).toHaveLength(1);
+    w.unmount();
+  });
+
+  it('pushes/pops modal stack', async () => {
+    const w = factory();
+    await flushPromises();
+    expect(modalStack.has('editor-popup')).toBe(true);
+    await w.setProps({ visible: false });
+    expect(modalStack.has('editor-popup')).toBe(false);
+    w.unmount();
+  });
+});

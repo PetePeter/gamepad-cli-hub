@@ -45,6 +45,8 @@ import {
   updateOverviewFocus,
   toggleCollapseCard,
   isCardCollapsed,
+  handleOverviewInput,
+  setSelectCardCallback,
 } from '../renderer/screens/group-overview.js';
 
 describe('GroupOverview', () => {
@@ -626,6 +628,66 @@ describe('GroupOverview', () => {
       const card2 = document.querySelector('.overview-card[data-session-id="s2"]');
       expect(card1?.classList.contains('overview-card--collapsed')).toBe(true);
       expect(card2?.classList.contains('overview-card--collapsed')).toBe(false);
+    });
+  });
+
+  describe('handleOverviewInput — passive D-pad (overview is not a focus trap)', () => {
+    beforeEach(() => {
+      state.sessions = [
+        { id: 's1', name: 'A', cliType: 'cc', workingDir: '/p', processId: 0 },
+        { id: 's2', name: 'B', cliType: 'cc', workingDir: '/p', processId: 0 },
+      ];
+      sessionsState.overviewFocusIndex = 0;
+      showOverview('/p');
+    });
+
+    it('DPadUp is NOT consumed — falls through to sidebar navigation', () => {
+      const consumed = handleOverviewInput('DPadUp');
+      expect(consumed).toBe(false);
+    });
+
+    it('DPadDown is NOT consumed — falls through to sidebar navigation', () => {
+      const consumed = handleOverviewInput('DPadDown');
+      expect(consumed).toBe(false);
+    });
+
+    it('A selects the focused card and is consumed', () => {
+      let selected: string | null = null;
+      setSelectCardCallback((id) => { selected = id; });
+
+      const consumed = handleOverviewInput('A');
+      expect(consumed).toBe(true);
+      expect(selected).toBe('s1');
+    });
+
+    it('B hides the overview and is consumed', () => {
+      expect(isOverviewVisible()).toBe(true);
+      const consumed = handleOverviewInput('B');
+      expect(consumed).toBe(true);
+      expect(isOverviewVisible()).toBe(false);
+    });
+
+    it('DPadLeft hides the overview and is consumed', () => {
+      expect(isOverviewVisible()).toBe(true);
+      const consumed = handleOverviewInput('DPadLeft');
+      expect(consumed).toBe(true);
+      expect(isOverviewVisible()).toBe(false);
+    });
+
+    it('DPadRight is consumed (no-op — stays in overview)', () => {
+      const consumed = handleOverviewInput('DPadRight');
+      expect(consumed).toBe(true);
+      expect(isOverviewVisible()).toBe(true);
+    });
+
+    it('when zero sessions in group, any input hides the overview and is consumed', () => {
+      // Reopen with no sessions in the group
+      hideOverview();
+      state.sessions = [];
+      showOverview('/p');
+      const consumed = handleOverviewInput('DPadUp');
+      expect(consumed).toBe(true);
+      expect(isOverviewVisible()).toBe(false);
     });
   });
 });

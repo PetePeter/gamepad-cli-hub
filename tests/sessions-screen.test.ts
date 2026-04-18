@@ -443,6 +443,24 @@ describe('Sessions Screen', () => {
       expect(sessions.handleSessionsScreenButton('RightStickUp')).toBe(false);
       expect(sessionsState.sessionsFocusIndex).toBe(before);
     });
+
+    it('DPadUp on group-header navigates to previous nav item (no reorder)', () => {
+      // nav list: [overview(0), group-header(1), session(2), session(3), session(4)]
+      sessionsState.sessionsFocusIndex = 1; // group-header
+      sessionsState.cardColumn = 0;
+      sessions.handleSessionsScreenButton('DPadUp');
+      // Should navigate up to index 0 — NOT trigger group reorder
+      expect(sessionsState.sessionsFocusIndex).toBe(0);
+    });
+
+    it('DPadDown on group-header navigates to next nav item (no reorder)', () => {
+      // nav list: [overview(0), group-header(1), session(2), session(3), session(4)]
+      sessionsState.sessionsFocusIndex = 1; // group-header
+      sessionsState.cardColumn = 0;
+      sessions.handleSessionsScreenButton('DPadDown');
+      // Should navigate down to index 2 — NOT trigger group reorder
+      expect(sessionsState.sessionsFocusIndex).toBe(2);
+    });
   });
 
   // ==========================================================================

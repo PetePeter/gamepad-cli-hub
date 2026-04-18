@@ -17,4 +17,5 @@ src/**/*.js.map
 release/
 config/settings.yaml
 config/sessions.yaml
+config/plans.yaml
 config-deploy/

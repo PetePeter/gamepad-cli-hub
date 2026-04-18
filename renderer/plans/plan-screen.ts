@@ -12,6 +12,7 @@ import { showPlanInEditor, hideDraftEditor, isDraftEditorVisible } from '../draf
 import { hidePlanDeleteConfirm, showPlanDeleteConfirm } from '../modals/plan-delete-confirm.js';
 import { state } from '../state.js';
 import { registerView, showView, currentView } from '../main-view/main-view-manager.js';
+import { showPlanHelpModal, hidePlanHelpModal, isPlanHelpVisible } from './plan-help-modal.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -106,9 +107,10 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
     return;
   }
 
-  // Escape — close plan screen
+  // Escape — close plan screen (or dismiss help modal if visible)
   if (e.key === 'Escape') {
     e.preventDefault();
+    if (isPlanHelpVisible()) { hidePlanHelpModal(); return; }
     hidePlanScreen();
   }
 }
@@ -151,6 +153,11 @@ async function mountPlanScreen(params?: unknown): Promise<void> {
 
   renderScreen(dirPath, items, deps, layout);
   visible = true;
+
+  // Show help on first visit to an empty plan
+  if (items.length === 0) {
+    showPlanHelpModal(dirPath);
+  }
 
   // Auto-select the first node (layer 0, order 0) when canvas opens
   if (layout.nodes.length > 0 && !selectedId) {
