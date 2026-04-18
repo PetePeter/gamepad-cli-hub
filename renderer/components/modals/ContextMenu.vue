@@ -42,7 +42,7 @@ const menuItems = computed<MenuItem[]>(() => [
   { id: 'paste', label: '📎 Paste', enabled: props.hasActiveSession },
   { id: 'editor', label: '📝 Compose in Editor', enabled: props.hasActiveSession },
   { id: 'new-session', label: '🆕 New Session', enabled: true },
-  { id: 'new-session-selection', label: '📌 New Session with Selection', enabled: props.hasSelection },
+  { id: 'new-session-with-selection', label: '📌 New Session with Selection', enabled: props.hasSelection },
   { id: 'sequences', label: '⚡ Sequences…', enabled: props.hasSequences },
   { id: 'drafts', label: '📝 Drafts…', enabled: props.hasDrafts },
   { id: 'cancel', label: '✖ Cancel', enabled: true },

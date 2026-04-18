@@ -164,6 +164,20 @@ plans:
         status: pending
         createdAt: 1776352194843
         updatedAt: 1776352194843
+      - id: 387a7cf6-6ee8-427c-bee8-9eeb0ee46255
+        dirPath: X:\coding\stillhere
+        title: New Plan
+        description: ""
+        status: startable
+        createdAt: 1776491083337
+        updatedAt: 1776491083337
+      - id: 1e9d5012-854e-4c55-948f-fd962d352a69
+        dirPath: X:\coding\stillhere
+        title: New Plan
+        description: ""
+        status: startable
+        createdAt: 1776491085281
+        updatedAt: 1776491085281
     dependencies:
       - fromId: 18c5fe49-5345-452f-9f8a-838b39ca60d1
         toId: 16fb4901-1293-4997-b53a-d63a456d245f

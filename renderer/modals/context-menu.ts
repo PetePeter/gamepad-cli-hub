@@ -1,21 +1,18 @@
 /**
- * Context menu modal — right-click / gamepad context actions for embedded terminals.
+ * Context menu modal — bridge to Vue ContextMenu.vue.
  *
- * Provides Copy, Paste, Compose in Editor, New Session, New Session with Selection,
- * Prompts, Drafts, and Cancel.
- * Triggered via right-click on the terminal area or a gamepad context-menu binding.
+ * Legacy callers still use showContextMenu() / hideContextMenu().
+ * These now set reactive bridge state that App.vue's ContextMenu observes.
+ * Action dispatch logic lives in App.vue's onContextMenuAction handler.
  */
 
-import { logEvent, toDirection } from '../utils.js';
+import { logEvent } from '../utils.js';
 import { getTerminalManager } from '../runtime/terminal-provider.js';
-import { attachModalKeyboard } from './modal-base.js';
-import { setPendingContextText, spawnNewSession } from '../screens/sessions.js';
-import { showQuickSpawn } from './quick-spawn.js';
+import { contextMenu } from '../stores/modal-bridge.js';
 import { state } from '../state.js';
-import { showEditorPopup } from '../editor/editor-popup.js';
 
 // ============================================================================
-// State
+// State — kept for legacy readers
 // ============================================================================
 
 export interface ContextMenuState {
@@ -37,29 +34,11 @@ export const contextMenuState: ContextMenuState = {
 };
 
 // ============================================================================
-// Menu items definition
+// Helpers still needed by App.vue's onContextMenuAction
 // ============================================================================
 
-interface MenuItem {
-  action: string;
-  label: string;
-  icon: string;
-  enabledWhen: () => boolean;
-}
-
-const MENU_ITEMS: MenuItem[] = [
-  { action: 'copy', label: 'Copy', icon: '📋', enabledWhen: () => contextMenuState.hasSelection },
-  { action: 'paste', label: 'Paste', icon: '📥', enabledWhen: () => true },
-  { action: 'editor', label: 'Compose in Editor', icon: '✏️', enabledWhen: () => !!state.activeSessionId },
-  { action: 'new-session', label: 'New Session', icon: '➕', enabledWhen: () => true },
-  { action: 'new-session-with-selection', label: 'New Session with Selection', icon: '📋➕', enabledWhen: () => contextMenuState.hasSelection },
-  { action: 'sequences', label: 'Prompts', icon: '⏩', enabledWhen: () => hasSequenceItems() },
-  { action: 'drafts', label: 'Drafts', icon: '📝', enabledWhen: () => !!state.activeSessionId },
-  { action: 'cancel', label: 'Cancel', icon: '', enabledWhen: () => true },
-];
-
 /** Returns true if the active session's CLI type has any configured sequence groups */
-function hasSequenceItems(): boolean {
+export function hasSequenceItems(): boolean {
   if (!state.activeSessionId) return false;
   const activeSession = state.sessions.find(s => s.id === state.activeSessionId);
   if (!activeSession) return false;
@@ -69,7 +48,7 @@ function hasSequenceItems(): boolean {
 }
 
 /** Collect all sequence items from all groups for the active session's CLI type */
-function collectSequenceItems(): Array<{ label: string; sequence: string }> {
+export function collectSequenceItems(): Array<{ label: string; sequence: string }> {
   if (!state.activeSessionId) return [];
   const activeSession = state.sessions.find(s => s.id === state.activeSessionId);
   if (!activeSession) return [];
@@ -78,11 +57,8 @@ function collectSequenceItems(): Array<{ label: string; sequence: string }> {
   return Object.values(sequences).flat();
 }
 
-// Keyboard shortcut cleanup
-let cleanupKeyboard: (() => void) | null = null;
-
 // ============================================================================
-// Show / Hide
+// Show / Hide — bridge to Vue
 // ============================================================================
 
 export function showContextMenu(x: number, y: number, sessionId: string, mode: 'mouse' | 'gamepad'): void {
@@ -92,268 +68,39 @@ export function showContextMenu(x: number, y: number, sessionId: string, mode: '
   const selectedText = view?.getSelection() ?? '';
   const hasSelection = view?.hasSelection() ?? false;
 
+  // Sync legacy state for remaining external readers
   contextMenuState.visible = true;
   contextMenuState.selectedText = selectedText;
   contextMenuState.hasSelection = hasSelection;
   contextMenuState.sourceSessionId = sessionId;
   contextMenuState.mode = mode;
+  contextMenuState.selectedIndex = 0;
 
-  // Start on the first enabled item
-  contextMenuState.selectedIndex = findNextEnabledIndex(-1, 'down');
-
-  const overlay = document.getElementById('contextMenuOverlay');
-  const menu = document.getElementById('contextMenu');
-  if (!overlay || !menu) return;
-
-  renderContextMenu();
-
-  // Position the menu
-  if (mode === 'gamepad') {
-    menu.classList.add('context-menu--centered');
-    menu.style.left = '';
-    menu.style.top = '';
-  } else {
-    menu.classList.remove('context-menu--centered');
-    // Clamp to viewport
-    const menuWidth = 260;
-    const menuHeight = 200;
-    const clampedX = Math.min(x, window.innerWidth - menuWidth);
-    const clampedY = Math.min(y, window.innerHeight - menuHeight);
-    menu.style.left = `${clampedX}px`;
-    menu.style.top = `${clampedY}px`;
-  }
-
-  overlay.classList.add('modal--visible');
-  overlay.setAttribute('aria-hidden', 'false');
-
-  // Attach keyboard shortcuts
-  cleanupKeyboard?.();
-  cleanupKeyboard = attachModalKeyboard({
-    mode: 'selection',
-    onAccept: () => executeSelectedItem(),
-    onCancel: () => hideContextMenu(),
-    onArrowUp: () => {
-      contextMenuState.selectedIndex = findNextEnabledIndex(contextMenuState.selectedIndex, 'up');
-      renderContextMenu();
-    },
-    onArrowDown: () => {
-      contextMenuState.selectedIndex = findNextEnabledIndex(contextMenuState.selectedIndex, 'down');
-      renderContextMenu();
-    },
-  });
+  // Set bridge state — Vue ContextMenu reacts to this
+  contextMenu.visible = true;
+  contextMenu.mode = mode;
+  contextMenu.mouseX = x;
+  contextMenu.mouseY = y;
+  contextMenu.selectedText = selectedText;
+  contextMenu.hasSelection = hasSelection;
+  contextMenu.sourceSessionId = sessionId;
 
   logEvent('Context menu opened');
 }
 
 export function hideContextMenu(): void {
   contextMenuState.visible = false;
-
-  cleanupKeyboard?.();
-  cleanupKeyboard = null;
-
-  const overlay = document.getElementById('contextMenuOverlay');
-  if (overlay) {
-    overlay.classList.remove('modal--visible');
-    overlay.setAttribute('aria-hidden', 'true');
-  }
+  contextMenu.visible = false;
 }
 
 // ============================================================================
-// Render
+// Gamepad handler — kept for legacy navigation.ts callers (no-ops now, Vue handles)
 // ============================================================================
 
-function renderContextMenu(): void {
-  const menu = document.getElementById('contextMenu');
-  if (!menu) return;
-
-  const items = menu.querySelectorAll('.context-menu-item');
-  items.forEach((el, index) => {
-    const htmlEl = el as HTMLElement;
-    const menuItem = MENU_ITEMS[index];
-    if (!menuItem) return;
-
-    const enabled = menuItem.enabledWhen();
-    htmlEl.classList.toggle('context-menu-item--selected', index === contextMenuState.selectedIndex);
-    htmlEl.classList.toggle('context-menu-item--disabled', !enabled);
-  });
+export function handleContextMenuButton(_button: string): void {
+  // Vue ContextMenu handles gamepad via useModalStack
 }
-
-// ============================================================================
-// Navigation helpers
-// ============================================================================
-
-/** Find the next enabled menu item index in a given direction, wrapping around. */
-function findNextEnabledIndex(fromIndex: number, direction: 'up' | 'down'): number {
-  const step = direction === 'down' ? 1 : -1;
-  const count = MENU_ITEMS.length;
-  let idx = fromIndex;
-
-  for (let i = 0; i < count; i++) {
-    idx = ((idx + step) % count + count) % count;
-    if (MENU_ITEMS[idx].enabledWhen()) return idx;
-  }
-  return fromIndex; // all disabled — stay put
-}
-
-// ============================================================================
-// Gamepad button handler
-// ============================================================================
-
-export function handleContextMenuButton(button: string): void {
-  const dir = toDirection(button);
-
-  if (dir === 'up') {
-    contextMenuState.selectedIndex = findNextEnabledIndex(contextMenuState.selectedIndex, 'up');
-    renderContextMenu();
-    return;
-  }
-  if (dir === 'down') {
-    contextMenuState.selectedIndex = findNextEnabledIndex(contextMenuState.selectedIndex, 'down');
-    renderContextMenu();
-    return;
-  }
-
-  switch (button) {
-    case 'A':
-      executeSelectedItem();
-      break;
-    case 'B':
-      hideContextMenu();
-      break;
-  }
-}
-
-// ============================================================================
-// Execute selected menu action
-// ============================================================================
-
-async function executeSelectedItem(): Promise<void> {
-  const item = MENU_ITEMS[contextMenuState.selectedIndex];
-  if (!item || !item.enabledWhen()) return;
-
-  switch (item.action) {
-    case 'copy': {
-      if (contextMenuState.selectedText) {
-        await navigator.clipboard.writeText(contextMenuState.selectedText);
-        logEvent('Copied to clipboard');
-      }
-      hideContextMenu();
-      break;
-    }
-    case 'paste': {
-      try {
-        const text = await navigator.clipboard.readText();
-        if (text) {
-          const tm = getTerminalManager();
-          const activeId = tm?.getActiveSessionId();
-          if (activeId) {
-            window.gamepadCli?.ptyWrite(activeId, text);
-            logEvent('Pasted from clipboard');
-          }
-        }
-      } catch (err) {
-        console.error('[ContextMenu] Paste failed:', err);
-        logEvent('Paste failed');
-      }
-      hideContextMenu();
-      break;
-    }
-    case 'editor': {
-      hideContextMenu();
-      const sessionId = state.activeSessionId;
-      if (!sessionId) break;
-      try {
-        const text = await showEditorPopup();
-        if (text && text.trim()) {
-          window.gamepadCli.ptyWrite(sessionId, text);
-          logEvent('Sent editor text to PTY');
-        }
-      } catch (err) {
-        console.error('[ContextMenu] Editor popup failed:', err);
-        logEvent('Editor popup failed');
-      }
-      break;
-    }
-    case 'new-session': {
-      hideContextMenu();
-      showSpawnGridFromContext();
-      break;
-    }
-    case 'new-session-with-selection': {
-      hideContextMenu();
-      showSpawnGridFromContext(contextMenuState.selectedText);
-      break;
-    }
-    case 'sequences': {
-      const items = collectSequenceItems();
-      hideContextMenu();
-      if (items.length > 0) {
-        const { showSequencePicker } = await import('./sequence-picker.js');
-        const { executeSequence } = await import('../bindings.js');
-        showSequencePicker(items, (sequence) => executeSequence(sequence));
-      }
-      break;
-    }
-    case 'drafts': {
-      hideContextMenu();
-      const { showDraftSubmenu } = await import('./draft-submenu.js');
-      await showDraftSubmenu();
-      break;
-    }
-    case 'cancel': {
-      hideContextMenu();
-      break;
-    }
-  }
-}
-
-// ============================================================================
-// Spawn helper — open quick-spawn CLI type picker
-// ============================================================================
-
-function showSpawnGridFromContext(contextText?: string): void {
-  setPendingContextText(contextText ?? null);
-
-  // Resolve defaults from the active session
-  const activeSession = state.sessions.find(s => s.id === state.activeSessionId);
-  const preselectedCliType = activeSession?.cliType;
-  const preselectedPath = activeSession?.workingDir;
-
-  const cliTypes = state.availableSpawnTypes;
-  if (cliTypes.length === 0) {
-    logEvent('Quick spawn: no CLI types configured');
-    return;
-  }
-
-  showQuickSpawn(cliTypes, (selectedCliType) => {
-    spawnNewSession(selectedCliType, preselectedPath);
-    logEvent(contextText ? 'New session with selection' : 'New session from context menu');
-  }, preselectedCliType);
-}
-
-// ============================================================================
-// Click handlers — wired once at init
-// ============================================================================
 
 export function initContextMenuClickHandlers(): void {
-  const menu = document.getElementById('contextMenu');
-  if (!menu) return;
-
-  const items = menu.querySelectorAll('.context-menu-item');
-  items.forEach((el, index) => {
-    el.addEventListener('click', () => {
-      const menuItem = MENU_ITEMS[index];
-      if (!menuItem || !menuItem.enabledWhen()) return;
-      contextMenuState.selectedIndex = index;
-      executeSelectedItem();
-    });
-  });
-
-  // Close on overlay click (outside menu)
-  const overlay = document.getElementById('contextMenuOverlay');
-  overlay?.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      hideContextMenu();
-    }
-  });
+  // No-op — Vue component handles click events
 }

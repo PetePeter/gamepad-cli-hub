@@ -3,7 +3,7 @@
  */
 
 import { state } from './state.js';
-import { attachModalKeyboard } from './modals/modal-base.js';
+import { formModal as formModalBridge, setFormModalResolve } from './stores/modal-bridge.js';
 
 /** Whether the generic form modal is currently visible (used by navigation.ts for gamepad interception). */
 export let formModalVisible = false;
@@ -223,133 +223,24 @@ export function createBrowseButton(
 
 export function showFormModal(title: string, fields: FormField[]): Promise<Record<string, string> | null> {
   return new Promise((resolve) => {
-    const modal = document.getElementById('formModal');
-    const titleEl = document.getElementById('formModalTitle');
-    const fieldsEl = document.getElementById('formModalFields');
-    const saveBtn = document.getElementById('formModalSaveBtn');
-    const cancelBtn = document.getElementById('formModalCancelBtn');
-    if (!modal || !titleEl || !fieldsEl || !saveBtn || !cancelBtn) {
-      resolve(null);
-      return;
-    }
-
-    titleEl.textContent = title;
-    fieldsEl.innerHTML = '';
-
-    fields.forEach(field => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'binding-editor-field';
-      const label = document.createElement('label');
-      label.textContent = field.label;
-      wrapper.appendChild(label);
-
-      if (field.type === 'checkbox') {
-        const checkWrap = document.createElement('label');
-        checkWrap.className = 'settings-form__checkbox-wrap';
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.id = `formField_${field.key}`;
-        checkbox.checked = field.defaultValue === 'true';
-        checkWrap.appendChild(checkbox);
-        const span = document.createElement('span');
-        span.textContent = field.label;
-        checkWrap.appendChild(span);
-        wrapper.textContent = '';
-        wrapper.appendChild(checkWrap);
-      } else if (field.type === 'select' && field.options) {
-        const select = document.createElement('select');
-        select.id = `formField_${field.key}`;
-        field.options.forEach(opt => {
-          const option = document.createElement('option');
-          option.value = opt.value;
-          option.textContent = opt.label;
-          if (opt.value === (field.defaultValue ?? '')) option.selected = true;
-          select.appendChild(option);
-        });
-        wrapper.appendChild(select);
-      } else if (field.type === 'textarea') {
-        const textarea = document.createElement('textarea');
-        textarea.id = `formField_${field.key}`;
-        textarea.className = 'sequence-textarea';
-        textarea.value = field.defaultValue || '';
-        textarea.rows = 4;
-        if (field.placeholder) textarea.placeholder = field.placeholder;
-        wrapper.appendChild(textarea);
-      } else {
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.id = `formField_${field.key}`;
-        input.value = field.defaultValue || '';
-        if (field.placeholder) input.placeholder = field.placeholder;
-
-        if (field.browse) {
-          const inputWrap = document.createElement('div');
-          inputWrap.className = 'settings-form__input-wrap';
-
-          const browseBtn = createBrowseButton(input);
-          browseBtn.className = 'settings-form__browse-btn focusable';
-          browseBtn.tabIndex = 0;
-
-          inputWrap.appendChild(input);
-          inputWrap.appendChild(browseBtn);
-          wrapper.appendChild(inputWrap);
-        } else {
-          wrapper.appendChild(input);
-        }
-      }
-
-      if (field.afterElement) {
-        wrapper.appendChild(field.afterElement);
-      }
-
-      fieldsEl.appendChild(wrapper);
-    });
-
-    modal.classList.add('modal--visible');
-    modal.setAttribute('aria-hidden', 'false');
+    formModalBridge.visible = true;
+    formModalBridge.title = title;
+    formModalBridge.fields = fields.map(f => ({
+      key: f.key,
+      label: f.label,
+      defaultValue: f.defaultValue,
+      placeholder: f.placeholder,
+      type: f.type,
+      options: f.options,
+      browse: f.browse,
+    }));
 
     formModalVisible = true;
-
-    // Attach ESC/Enter keyboard shortcuts
-    const cleanupKb = attachModalKeyboard({
-      onAccept: onSave,
-      onCancel: onCancel,
-    });
-
-    // Focus first input
-    const firstInput = fieldsEl.querySelector('input, select, textarea') as HTMLElement;
-    if (firstInput) firstInput.focus();
-
-    function cleanup() {
+    setFormModalResolve((values: Record<string, string> | null) => {
       formModalVisible = false;
-      modal.classList.remove('modal--visible');
-      modal.setAttribute('aria-hidden', 'true');
-      saveBtn.removeEventListener('click', onSave);
-      cancelBtn.removeEventListener('click', onCancel);
-      cleanupKb();
-    }
-
-    function onSave() {
-      const result: Record<string, string> = {};
-      fields.forEach(field => {
-        const el = document.getElementById(`formField_${field.key}`) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
-        if (field.type === 'checkbox') {
-          result[field.key] = String((el as HTMLInputElement).checked);
-        } else {
-          result[field.key] = el?.value?.trim() || '';
-        }
-      });
-      cleanup();
-      resolve(result);
-    }
-
-    function onCancel() {
-      cleanup();
-      resolve(null);
-    }
-
-    saveBtn.addEventListener('click', onSave);
-    cancelBtn.addEventListener('click', onCancel);
+      formModalBridge.visible = false;
+      resolve(values);
+    });
   });
 }
 

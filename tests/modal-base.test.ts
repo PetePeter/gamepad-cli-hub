@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
+vi.mock('vue', () => ({ reactive: (obj: any) => obj }));
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { attachModalKeyboard } from '../renderer/modals/modal-base.js';
 import { showFormModal } from '../renderer/utils.js';
+import { formModal } from '../renderer/stores/modal-bridge.js';
 
 describe('modal-base', () => {
   describe('attachModalKeyboard', () => {
@@ -395,88 +398,19 @@ describe('modal-base', () => {
 
   describe('showFormModal browse button', () => {
     beforeEach(() => {
-      const modal = document.createElement('div');
-      modal.id = 'formModal';
-      const title = document.createElement('div');
-      title.id = 'formModalTitle';
-      const fields = document.createElement('div');
-      fields.id = 'formModalFields';
-      const saveBtn = document.createElement('button');
-      saveBtn.id = 'formModalSaveBtn';
-      const cancelBtn = document.createElement('button');
-      cancelBtn.id = 'formModalCancelBtn';
-      document.body.append(modal, title, fields, saveBtn, cancelBtn);
-
-      (window as any).gamepadCli = { dialogOpenFolder: vi.fn() };
+      formModal.visible = false;
+      formModal.title = '';
+      formModal.fields = [];
     });
 
-    afterEach(() => {
-      document.body.innerHTML = '';
-      delete (window as any).gamepadCli;
-    });
-
-    it('renders browse button when browse: true on text field', () => {
+    it('sets browse flag on field when browse: true', () => {
       showFormModal('Test', [{ key: 'path', label: 'Path', browse: true }]);
-      const btn = document.querySelector('#formModalFields button[title="Browse…"]');
-      expect(btn).not.toBeNull();
-      expect(btn!.textContent).toBe('📁');
+      expect(formModal.fields[0].browse).toBe(true);
     });
 
-    it('does not render browse button when browse is not set', () => {
+    it('does not set browse flag when browse is not provided', () => {
       showFormModal('Test', [{ key: 'path', label: 'Path' }]);
-      const btn = document.querySelector('#formModalFields button[title="Browse…"]');
-      expect(btn).toBeNull();
-    });
-
-    it('calls dialogOpenFolder when browse button clicked', async () => {
-      (window as any).gamepadCli.dialogOpenFolder.mockResolvedValue(null);
-      showFormModal('Test', [{ key: 'path', label: 'Path', browse: true }]);
-      const btn = document.querySelector('#formModalFields button[title="Browse…"]') as HTMLButtonElement;
-      btn.click();
-      await new Promise(r => setTimeout(r, 0));
-      expect((window as any).gamepadCli.dialogOpenFolder).toHaveBeenCalledOnce();
-    });
-
-    it('fills input with selected path', async () => {
-      (window as any).gamepadCli.dialogOpenFolder.mockResolvedValue('C:\\projects\\my-app');
-      showFormModal('Test', [{ key: 'path', label: 'Path', browse: true }]);
-      const btn = document.querySelector('#formModalFields button[title="Browse…"]') as HTMLButtonElement;
-      btn.click();
-      await new Promise(r => setTimeout(r, 0));
-      expect((document.getElementById('formField_path') as HTMLInputElement).value).toBe('C:\\projects\\my-app');
-    });
-
-    it('auto-fills name field from folder basename when name is empty', async () => {
-      (window as any).gamepadCli.dialogOpenFolder.mockResolvedValue('C:\\projects\\my-app');
-      showFormModal('Test', [
-        { key: 'name', label: 'Name' },
-        { key: 'path', label: 'Path', browse: true },
-      ]);
-      const btn = document.querySelector('#formModalFields button[title="Browse…"]') as HTMLButtonElement;
-      btn.click();
-      await new Promise(r => setTimeout(r, 0));
-      expect((document.getElementById('formField_name') as HTMLInputElement).value).toBe('my-app');
-    });
-
-    it('does not overwrite existing name when auto-filling', async () => {
-      (window as any).gamepadCli.dialogOpenFolder.mockResolvedValue('C:\\projects\\my-app');
-      showFormModal('Test', [
-        { key: 'name', label: 'Name', defaultValue: 'Custom Name' },
-        { key: 'path', label: 'Path', browse: true },
-      ]);
-      const btn = document.querySelector('#formModalFields button[title="Browse…"]') as HTMLButtonElement;
-      btn.click();
-      await new Promise(r => setTimeout(r, 0));
-      expect((document.getElementById('formField_name') as HTMLInputElement).value).toBe('Custom Name');
-    });
-
-    it('does nothing when dialog is cancelled (returns null)', async () => {
-      (window as any).gamepadCli.dialogOpenFolder.mockResolvedValue(null);
-      showFormModal('Test', [{ key: 'path', label: 'Path', browse: true, defaultValue: 'original' }]);
-      const btn = document.querySelector('#formModalFields button[title="Browse…"]') as HTMLButtonElement;
-      btn.click();
-      await new Promise(r => setTimeout(r, 0));
-      expect((document.getElementById('formField_path') as HTMLInputElement).value).toBe('original');
+      expect(formModal.fields[0].browse).toBeFalsy();
     });
   });
 });

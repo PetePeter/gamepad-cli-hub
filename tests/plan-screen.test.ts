@@ -26,6 +26,8 @@ const mockPtyWrite = vi.fn();
 
 const mockComputeLayout = vi.fn();
 
+vi.mock('vue', () => ({ reactive: (obj: any) => obj }));
+
 vi.mock('../renderer/plans/plan-layout.js', () => ({
   computeLayout: (...args: unknown[]) => mockComputeLayout(...args),
 }));
@@ -567,7 +569,8 @@ describe('Plan Screen', () => {
       screen.handlePlanScreenAction('X');
 
       expect(mockPlanDelete).not.toHaveBeenCalled();
-      expect(document.getElementById('planDeleteConfirmOverlay')!.classList.contains('modal--visible')).toBe(true);
+      const { planDeleteConfirmState } = await import('../renderer/modals/plan-delete-confirm.js');
+      expect(planDeleteConfirmState.visible).toBe(true);
     });
 
     it('deletes after confirmation', async () => {
@@ -582,7 +585,10 @@ describe('Plan Screen', () => {
       mockPlanList.mockResolvedValue([]);
       screen.handlePlanScreenAction('X');
 
-      (document.getElementById('planDeleteConfirmDeleteBtn') as HTMLButtonElement).click();
+      const { getPlanDeleteCallback } = await import('../renderer/stores/modal-bridge.js');
+      const cb = getPlanDeleteCallback();
+      expect(cb).not.toBeNull();
+      cb!();
       await flush();
 
       expect(mockPlanDelete).toHaveBeenCalledWith('delete-2');
@@ -599,7 +605,8 @@ describe('Plan Screen', () => {
 
       screen.hidePlanScreen();
 
-      expect(document.getElementById('planDeleteConfirmOverlay')!.classList.contains('modal--visible')).toBe(false);
+      const { planDeleteConfirmState } = await import('../renderer/modals/plan-delete-confirm.js');
+      expect(planDeleteConfirmState.visible).toBe(false);
       expect(document.getElementById('draftEditor')!.style.display).toBe('none');
     });
   });
@@ -932,7 +939,7 @@ describe('Plan Editor (unified)', () => {
   });
 
   describe('editor delete', () => {
-    it('shows a confirmation modal before deleting', () => {
+    it('shows a confirmation modal before deleting', async () => {
       const item = makeItem({ id: 'del1' });
       const onDelete = vi.fn();
 
@@ -942,29 +949,36 @@ describe('Plan Editor (unified)', () => {
       deleteBtn.click();
 
       expect(onDelete).not.toHaveBeenCalled();
-      expect(document.getElementById('planDeleteConfirmOverlay')!.classList.contains('modal--visible')).toBe(true);
+      const { planDeleteConfirmState } = await import('../renderer/modals/plan-delete-confirm.js');
+      expect(planDeleteConfirmState.visible).toBe(true);
     });
 
-    it('calls onDelete after confirmation', () => {
+    it('calls onDelete after confirmation', async () => {
       const item = makeItem({ id: 'del2' });
       const onDelete = vi.fn();
 
       editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete });
 
       (document.getElementById('draftDeleteBtn') as HTMLElement).click();
-      (document.getElementById('planDeleteConfirmDeleteBtn') as HTMLElement).click();
+
+      const { getPlanDeleteCallback } = await import('../renderer/stores/modal-bridge.js');
+      const cb = getPlanDeleteCallback();
+      expect(cb).not.toBeNull();
+      cb!();
 
       expect(onDelete).toHaveBeenCalled();
     });
 
-    it('does not call onDelete when confirmation is cancelled', () => {
+    it('does not call onDelete when confirmation is cancelled', async () => {
       const item = makeItem({ id: 'del3' });
       const onDelete = vi.fn();
 
       editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete });
 
       (document.getElementById('draftDeleteBtn') as HTMLElement).click();
-      (document.getElementById('planDeleteConfirmCancelBtn') as HTMLElement).click();
+
+      const { hidePlanDeleteConfirm } = await import('../renderer/modals/plan-delete-confirm.js');
+      hidePlanDeleteConfirm();
 
       expect(onDelete).not.toHaveBeenCalled();
     });

@@ -1,16 +1,17 @@
 /**
- * Quick-spawn modal — CLI type picker triggered from the context menu.
+ * Quick-spawn modal — bridge to Vue QuickSpawnModal.vue.
  *
- * Shows a centred list of available CLI types. Pre-selects the active
- * session's CLI type. On selection, triggers the spawn flow (which opens
- * the dir-picker if working directories are configured).
+ * Legacy callers still use showQuickSpawn() / hideQuickSpawn().
+ * These now set reactive bridge state that App.vue's QuickSpawnModal observes.
  */
 
-import { logEvent, toDirection, getCliDisplayName } from '../utils.js';
-import { attachModalKeyboard } from './modal-base.js';
+import { logEvent } from '../utils.js';
+import {
+  quickSpawn, setQuickSpawnCallback,
+} from '../stores/modal-bridge.js';
 
 // ============================================================================
-// State
+// State — kept for legacy readers
 // ============================================================================
 
 export interface QuickSpawnState {
@@ -27,11 +28,8 @@ export const quickSpawnState: QuickSpawnState = {
   onSelect: null,
 };
 
-// Keyboard shortcut cleanup
-let cleanupKeyboard: (() => void) | null = null;
-
 // ============================================================================
-// Show / Hide
+// Show / Hide — bridge to Vue
 // ============================================================================
 
 export function showQuickSpawn(
@@ -47,149 +45,34 @@ export function showQuickSpawn(
   quickSpawnState.visible = true;
   quickSpawnState.cliTypes = [...cliTypes];
   quickSpawnState.onSelect = onSelect;
-
-  // Pre-select CLI type matching the active session
-  const matchIdx = preselectedCliType
-    ? cliTypes.indexOf(preselectedCliType)
-    : -1;
+  const matchIdx = preselectedCliType ? cliTypes.indexOf(preselectedCliType) : -1;
   quickSpawnState.selectedIndex = matchIdx >= 0 ? matchIdx : 0;
 
-  const overlay = document.getElementById('quickSpawnOverlay');
-  if (!overlay) return;
-
-  renderQuickSpawn();
-
-  overlay.classList.add('modal--visible');
-  overlay.setAttribute('aria-hidden', 'false');
-
-  // Attach keyboard shortcuts
-  cleanupKeyboard?.();
-  cleanupKeyboard = attachModalKeyboard({
-    mode: 'selection',
-    onAccept: () => executeSelectedItem(),
-    onCancel: () => hideQuickSpawn(),
-    onArrowUp: () => {
-      quickSpawnState.selectedIndex = Math.max(0, quickSpawnState.selectedIndex - 1);
-      renderQuickSpawn();
-    },
-    onArrowDown: () => {
-      const count = quickSpawnState.cliTypes.length;
-      quickSpawnState.selectedIndex = Math.min(count - 1, quickSpawnState.selectedIndex + 1);
-      renderQuickSpawn();
-    },
-  });
+  quickSpawn.visible = true;
+  quickSpawn.preselectedCliType = preselectedCliType;
+  setQuickSpawnCallback(onSelect);
 
   logEvent('Quick spawn opened');
 }
 
 export function hideQuickSpawn(): void {
   quickSpawnState.visible = false;
-
-  cleanupKeyboard?.();
-  cleanupKeyboard = null;
-
-  const overlay = document.getElementById('quickSpawnOverlay');
-  if (overlay) {
-    overlay.classList.remove('modal--visible');
-    overlay.setAttribute('aria-hidden', 'true');
-  }
+  quickSpawn.visible = false;
+  setQuickSpawnCallback(null);
 }
 
 // ============================================================================
-// Render
+// Gamepad handler — kept for legacy callers (no-ops now, Vue handles)
 // ============================================================================
+
+export function handleQuickSpawnButton(_button: string): void {
+  // Vue QuickSpawnModal handles gamepad via useModalStack
+}
 
 export function renderQuickSpawn(): void {
-  const list = document.getElementById('quickSpawnList');
-  if (!list) return;
-
-  list.innerHTML = '';
-
-  quickSpawnState.cliTypes.forEach((cliType, index) => {
-    const item = document.createElement('div');
-    item.className = 'dir-picker-item focusable';
-    item.dataset.index = String(index);
-
-    if (index === quickSpawnState.selectedIndex) {
-      item.classList.add('dir-picker-item--selected');
-    }
-
-    item.tabIndex = 0;
-    item.innerHTML = `
-      <span class="dir-picker-item__name">${getCliDisplayName(cliType)}</span>
-      <span class="dir-picker-item__path">${cliType}</span>
-    `;
-
-    item.addEventListener('click', () => {
-      quickSpawnState.selectedIndex = index;
-      executeSelectedItem();
-    });
-
-    list.appendChild(item);
-  });
-
-  // Focus + scroll the selected item into view
-  const selected = list.children[quickSpawnState.selectedIndex] as HTMLElement;
-  selected?.focus();
-  selected?.scrollIntoView?.({ block: 'nearest' });
+  // No-op — Vue component renders
 }
-
-// ============================================================================
-// Gamepad button handler
-// ============================================================================
-
-export function handleQuickSpawnButton(button: string): void {
-  const dir = toDirection(button);
-  const count = quickSpawnState.cliTypes.length;
-
-  if (dir === 'up') {
-    quickSpawnState.selectedIndex = Math.max(0, quickSpawnState.selectedIndex - 1);
-    renderQuickSpawn();
-    return;
-  }
-  if (dir === 'down') {
-    quickSpawnState.selectedIndex = Math.min(count - 1, quickSpawnState.selectedIndex + 1);
-    renderQuickSpawn();
-    return;
-  }
-
-  switch (button) {
-    case 'A':
-      executeSelectedItem();
-      break;
-    case 'B':
-      hideQuickSpawn();
-      break;
-  }
-}
-
-// ============================================================================
-// Click handlers — overlay wired once at init
-// ============================================================================
 
 export function initQuickSpawnClickHandlers(): void {
-  const overlay = document.getElementById('quickSpawnOverlay');
-  overlay?.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      hideQuickSpawn();
-    }
-  });
-}
-
-// ============================================================================
-// Execute selected CLI type
-// ============================================================================
-
-function executeSelectedItem(): void {
-  const cliType = quickSpawnState.cliTypes[quickSpawnState.selectedIndex];
-  if (!cliType) return;
-
-  const { onSelect } = quickSpawnState;
-  hideQuickSpawn();
-
-  if (onSelect) {
-    onSelect(cliType);
-  }
-
-  logEvent(`Quick spawn selected: ${cliType}`);
+  // No-op — Vue component handles click events
 }

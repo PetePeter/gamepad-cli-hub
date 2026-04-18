@@ -1,22 +1,24 @@
 /**
- * Close confirmation modal — centered popup asking "Close this session?"
+ * Close confirmation modal — bridge to Vue CloseConfirmModal.
  *
- * Replaces the inline ×→? double-click-to-confirm pattern.
- * Triggered from session card ? button or gamepad A on close column.
+ * Legacy callers still use showCloseConfirm() / hideCloseConfirm().
+ * These now set reactive bridge state that App.vue's CloseConfirmModal observes.
  */
 
-import { logEvent, toDirection } from '../utils.js';
-import { attachModalKeyboard } from './modal-base.js';
+import { logEvent } from '../utils.js';
+import {
+  closeConfirm, setCloseConfirmCallback,
+} from '../stores/modal-bridge.js';
 
 // ============================================================================
-// State
+// State — kept for legacy readers (navigation.ts, etc.)
 // ============================================================================
 
 export interface CloseConfirmState {
   visible: boolean;
   sessionId: string;
   sessionName: string;
-  selectedIndex: number;  // 0 = Cancel, 1 = Close
+  selectedIndex: number;
   draftCount: number;
 }
 
@@ -24,16 +26,12 @@ export const closeConfirmState: CloseConfirmState = {
   visible: false,
   sessionId: '',
   sessionName: '',
-  selectedIndex: 0, // Default to Cancel for safety
+  selectedIndex: 0,
   draftCount: 0,
 };
 
-// Callbacks
-let onConfirmCallback: ((sessionId: string) => void) | null = null;
-let cleanupKeyboard: (() => void) | null = null;
-
 // ============================================================================
-// Show / Hide
+// Show / Hide — bridge to Vue
 // ============================================================================
 
 export function showCloseConfirm(
@@ -42,149 +40,37 @@ export function showCloseConfirm(
   onConfirm: (sessionId: string) => void,
   draftCount?: number,
 ): void {
+  // Sync legacy state for any remaining external readers
   closeConfirmState.visible = true;
   closeConfirmState.sessionId = sessionId;
   closeConfirmState.sessionName = sessionName;
-  closeConfirmState.selectedIndex = 0; // Default to Cancel
+  closeConfirmState.selectedIndex = 0;
   closeConfirmState.draftCount = draftCount ?? 0;
-  onConfirmCallback = onConfirm;
 
-  const overlay = document.getElementById('closeConfirmOverlay');
-  if (!overlay) return;
+  // Set bridge state — Vue CloseConfirmModal reacts to this
+  closeConfirm.visible = true;
+  closeConfirm.sessionId = sessionId;
+  closeConfirm.sessionName = sessionName;
+  closeConfirm.draftCount = draftCount ?? 0;
+  setCloseConfirmCallback(onConfirm);
 
-  renderCloseConfirm();
-
-  overlay.classList.add('modal--visible');
-  overlay.setAttribute('aria-hidden', 'false');
-
-  // Attach keyboard shortcuts
-  cleanupKeyboard?.();
-  cleanupKeyboard = attachModalKeyboard({
-    mode: 'selection',
-    onAccept: () => executeSelected(),
-    onCancel: () => hideCloseConfirm(),
-    onArrowLeft: () => {
-      closeConfirmState.selectedIndex = closeConfirmState.selectedIndex === 0 ? 1 : 0;
-      renderCloseConfirm();
-    },
-    onArrowRight: () => {
-      closeConfirmState.selectedIndex = closeConfirmState.selectedIndex === 0 ? 1 : 0;
-      renderCloseConfirm();
-    },
-    onArrowUp: () => {
-      closeConfirmState.selectedIndex = closeConfirmState.selectedIndex === 0 ? 1 : 0;
-      renderCloseConfirm();
-    },
-    onArrowDown: () => {
-      closeConfirmState.selectedIndex = closeConfirmState.selectedIndex === 0 ? 1 : 0;
-      renderCloseConfirm();
-    },
-  });
-
-  logEvent('Close confirmation shown');
+  logEvent('Close confirm opened');
 }
 
 export function hideCloseConfirm(): void {
   closeConfirmState.visible = false;
-  onConfirmCallback = null;
-
-  cleanupKeyboard?.();
-  cleanupKeyboard = null;
-
-  const overlay = document.getElementById('closeConfirmOverlay');
-  if (overlay) {
-    overlay.classList.remove('modal--visible');
-    overlay.setAttribute('aria-hidden', 'true');
-  }
+  closeConfirm.visible = false;
+  setCloseConfirmCallback(null);
 }
 
 // ============================================================================
-// Render
+// Gamepad handler — kept for legacy navigation.ts callers (no-ops now, Vue handles)
 // ============================================================================
 
-function renderCloseConfirm(): void {
-  const body = document.getElementById('closeConfirmBody');
-  if (!body) return;
-
-  body.innerHTML = '';
-  const mainText = document.createElement('div');
-  mainText.textContent = `Close "${closeConfirmState.sessionName}"?`;
-  body.appendChild(mainText);
-
-  if (closeConfirmState.draftCount > 0) {
-    const warning = document.createElement('div');
-    warning.className = 'close-confirm-draft-warning';
-    warning.textContent = `⚠️ ${closeConfirmState.draftCount} unsent draft(s) will be lost.`;
-    body.appendChild(warning);
-  }
-
-  const closeBtn = document.getElementById('closeConfirmCloseBtn');
-  const cancelBtn = document.getElementById('closeConfirmCancelBtn');
-  if (cancelBtn) cancelBtn.classList.toggle('btn--focused', closeConfirmState.selectedIndex === 0);
-  if (closeBtn) closeBtn.classList.toggle('btn--focused', closeConfirmState.selectedIndex === 1);
+export function handleCloseConfirmButton(_button: string): void {
+  // Vue CloseConfirmModal handles gamepad via useModalStack
 }
-
-// ============================================================================
-// Gamepad button handler
-// ============================================================================
-
-export function handleCloseConfirmButton(button: string): void {
-  const dir = toDirection(button);
-
-  if (dir === 'left' || dir === 'right') {
-    closeConfirmState.selectedIndex = closeConfirmState.selectedIndex === 0 ? 1 : 0;
-    renderCloseConfirm();
-    return;
-  }
-
-  switch (button) {
-    case 'A':
-      executeSelected();
-      break;
-    case 'B':
-      hideCloseConfirm();
-      break;
-  }
-}
-
-// ============================================================================
-// Execute
-// ============================================================================
-
-function executeSelected(): void {
-  if (closeConfirmState.selectedIndex === 1) {
-    // Close confirmed — capture callback before hide nulls it
-    const sessionId = closeConfirmState.sessionId;
-    const cb = onConfirmCallback;
-    hideCloseConfirm();
-    cb?.(sessionId);
-  } else {
-    // Cancel
-    hideCloseConfirm();
-  }
-}
-
-// ============================================================================
-// Click handlers — wired once at init
-// ============================================================================
 
 export function initCloseConfirmClickHandlers(): void {
-  const closeBtn = document.getElementById('closeConfirmCloseBtn');
-  const cancelBtn = document.getElementById('closeConfirmCancelBtn');
-  const overlay = document.getElementById('closeConfirmOverlay');
-
-  closeBtn?.addEventListener('click', () => {
-    closeConfirmState.selectedIndex = 1;
-    executeSelected();
-  });
-
-  cancelBtn?.addEventListener('click', () => {
-    hideCloseConfirm();
-  });
-
-  overlay?.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      hideCloseConfirm();
-    }
-  });
+  // No-op — Vue component handles click events
 }

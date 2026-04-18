@@ -24,6 +24,24 @@ import { showOverview } from './screens/group-overview.js';
 import { showPlanScreen } from './plans/plan-screen.js';
 import { loadSettingsScreen, handleSettingsScreenButton } from './screens/settings.js';
 import { onViewChange, type MainView as ViewName } from './main-view/main-view-manager.js';
+import { useModalStack } from './composables/useModalStack.js';
+import {
+  closeConfirm, getCloseConfirmCallback,
+  contextMenu,
+  planDeleteConfirm, getPlanDeleteCallback,
+  sequencePicker, getSequencePickerCallback,
+  quickSpawn, getQuickSpawnCallback,
+  dirPicker,
+  draftSubmenu,
+  formModal, getFormModalResolve,
+  isAnyBridgeModalVisible,
+} from './stores/modal-bridge.js';
+import { collectSequenceItems } from './modals/context-menu.js';
+import { showSequencePicker } from './modals/sequence-picker.js';
+import { showQuickSpawn } from './modals/quick-spawn.js';
+import { showDraftSubmenu } from './modals/draft-submenu.js';
+import { showEditorPopup } from './editor/editor-popup.js';
+import { showDraftEditor } from './drafts/draft-editor.js';
 
 // Sidebar components
 import StatusStrip from './components/sidebar/StatusStrip.vue';
@@ -55,43 +73,11 @@ const activeView = ref<'terminal' | 'overview' | 'plan'>('terminal');
 const settingsVisible = ref(false);
 const terminalContainerRef = ref<HTMLElement | null>(null);
 
-// Modal visibility
-const closeConfirmVisible = ref(false);
-const closeConfirmSessionName = ref('');
-const closeConfirmDraftCount = ref(0);
-const closeConfirmSessionId = ref('');
-
-const dirPickerVisible = ref(false);
-const dirPickerCliType = ref('');
-const dirPickerItems = ref<Array<{ name: string; path: string }>>([]);
-const dirPickerPreselected = ref<string | undefined>();
-
-const contextMenuVisible = ref(false);
-const contextMenuMode = ref<'mouse' | 'gamepad'>('gamepad');
-const contextMenuX = ref(0);
-const contextMenuY = ref(0);
-
-const sequencePickerVisible = ref(false);
-const sequencePickerItems = ref<Array<{ label: string; sequence: string }>>([]);
-
-const quickSpawnVisible = ref(false);
-const quickSpawnPreselected = ref<string | undefined>();
-
-const draftSubmenuVisible = ref(false);
-const draftSubmenuItems = ref<Array<{ id: string; label: string; text: string }>>([]);
-
-const formModalVisible = ref(false);
-const formModalTitle = ref('');
-const formModalFields = ref<any[]>([]);
-let formModalResolve: ((values: Record<string, string> | null) => void) | null = null;
-
+// Non-modal local state
 const bindingEditorVisible = ref(false);
 const bindingEditorButton = ref('');
 const bindingEditorCliType = ref('');
 const bindingEditorBinding = ref<any>(null);
-
-const planDeleteVisible = ref(false);
-const planDeleteTitle = ref('');
 
 // Section collapse
 const spawnCollapsed = ref(false);
@@ -133,12 +119,6 @@ const hasActiveSession = computed(() => {
   return !!tm?.getActiveSessionId();
 });
 
-const hasSelection = computed(() => {
-  const tm = getTerminalManager();
-  const view = tm?.getActiveView?.();
-  return !!view?.hasSelection();
-});
-
 const hasSequences = computed(() => {
   if (!state.activeSessionId) return false;
   const session = state.sessions.find(s => s.id === state.activeSessionId);
@@ -174,15 +154,14 @@ function handleButton(button: string): void {
     return;
   }
 
-  // Modal stack — top modal gets input
-  if (closeConfirmVisible.value) { /* handled by component */ return; }
-  if (planDeleteVisible.value) return;
-  if (sequencePickerVisible.value) return;
-  if (quickSpawnVisible.value) return;
-  if (contextMenuVisible.value) return;
-  if (draftSubmenuVisible.value) return;
-  if (dirPickerVisible.value) return;
-  if (formModalVisible.value) return;
+  // Modal stack — top modal gets input (Vue modals push/pop themselves)
+  const { handleInput } = useModalStack();
+  if (handleInput(button)) return;
+
+  // Race guard — bridge state set but Vue component not yet rendered/stacked
+  if (isAnyBridgeModalVisible()) return;
+
+  // Binding editor uses local refs (not bridged)
   if (bindingEditorVisible.value) return;
 
   // Settings screen
@@ -241,15 +220,20 @@ function onCancelRename(): void {
 }
 
 function onRequestClose(sessionId: string, displayName: string): void {
-  closeConfirmSessionId.value = sessionId;
-  closeConfirmSessionName.value = displayName;
-  closeConfirmDraftCount.value = state.draftCounts.get(sessionId) ?? 0;
-  closeConfirmVisible.value = true;
+  closeConfirm.sessionId = sessionId;
+  closeConfirm.sessionName = displayName;
+  closeConfirm.draftCount = state.draftCounts.get(sessionId) ?? 0;
+  closeConfirm.visible = true;
 }
 
 function onConfirmClose(): void {
-  closeConfirmVisible.value = false;
-  doCloseSession(closeConfirmSessionId.value);
+  closeConfirm.visible = false;
+  const cb = getCloseConfirmCallback();
+  if (cb) {
+    cb(closeConfirm.sessionId);
+  } else {
+    doCloseSession(closeConfirm.sessionId);
+  }
 }
 
 function onSessionStateChange(sessionId: string, newState: string): void {
@@ -321,18 +305,18 @@ function togglePlannerCollapse(): void {
 function onSpawn(cliType: string): void {
   const dirs = sessionsState.directories;
   if (dirs && dirs.length > 0) {
-    dirPickerCliType.value = cliType;
-    dirPickerItems.value = dirs.map(d => ({ name: d.name, path: d.path }));
-    dirPickerPreselected.value = undefined;
-    dirPickerVisible.value = true;
+    dirPicker.cliType = cliType;
+    dirPicker.items = dirs.map(d => ({ name: d.name, path: d.path }));
+    dirPicker.preselectedPath = undefined;
+    dirPicker.visible = true;
   } else {
     doSpawn(cliType);
   }
 }
 
 function onDirPickerSelect(path: string): void {
-  dirPickerVisible.value = false;
-  doSpawn(dirPickerCliType.value, path);
+  dirPicker.visible = false;
+  doSpawn(dirPicker.cliType, path);
 }
 
 // Sort
@@ -344,12 +328,11 @@ function onSortChange(field: string, direction: 'asc' | 'desc'): void {
 
 // Context menu
 function onContextMenuAction(action: string): void {
-  contextMenuVisible.value = false;
+  contextMenu.visible = false;
   const tm = getTerminalManager();
   switch (action) {
     case 'copy': {
-      const view = tm?.getActiveView?.();
-      const text = view?.getSelection();
+      const text = contextMenu.selectedText;
       if (text) navigator.clipboard.writeText(text);
       break;
     }
@@ -358,8 +341,37 @@ function onContextMenuAction(action: string): void {
         if (text && tm) tm.writeToActive(text);
       });
       break;
+    case 'editor':
+      showEditorPopup().then(text => {
+        if (text && tm) tm.writeToActive(text);
+      });
+      break;
     case 'new-session':
-      onSpawn(state.cliTypes[0] || 'generic-terminal');
+      setPendingContextText(null);
+      showQuickSpawn(state.cliTypes, (cliType) => {
+        onSpawn(cliType);
+      });
+      break;
+    case 'new-session-with-selection': {
+      const selText = contextMenu.selectedText;
+      setPendingContextText(selText || null);
+      showQuickSpawn(state.cliTypes, (cliType) => {
+        onSpawn(cliType);
+      });
+      break;
+    }
+    case 'sequences': {
+      const items = collectSequenceItems();
+      if (items.length > 0) {
+        showSequencePicker(items, (seq) => {
+          const tm2 = getTerminalManager();
+          if (tm2) tm2.writeToActive(seq);
+        });
+      }
+      break;
+    }
+    case 'drafts':
+      void showDraftSubmenu();
       break;
     case 'cancel':
       break;
@@ -376,6 +388,65 @@ function onOpenSettings(): void {
 function onCloseSettings(): void {
   settingsVisible.value = false;
   state.currentScreen = 'sessions';
+}
+
+// Draft submenu actions
+function onDraftNewDraft(): void {
+  draftSubmenu.visible = false;
+  if (!state.activeSessionId) return;
+  window.gamepadCli?.draftCreate(state.activeSessionId, 'New Draft', '');
+}
+
+async function onDraftApply(draft: { id: string; text: string }): Promise<void> {
+  draftSubmenu.visible = false;
+  const tm = getTerminalManager();
+  if (tm && draft.text) tm.writeToActive(draft.text);
+  await window.gamepadCli?.draftDelete(draft.id);
+}
+
+function onDraftEdit(draft: { id: string; label: string; text: string }): void {
+  draftSubmenu.visible = false;
+  if (!state.activeSessionId) return;
+  showDraftEditor(state.activeSessionId, draft);
+}
+
+async function onDraftDelete(draft: { id: string }): Promise<void> {
+  draftSubmenu.visible = false;
+  await window.gamepadCli?.draftDelete(draft.id);
+}
+
+// Form modal callbacks
+function onFormModalSave(values: Record<string, string>): void {
+  formModal.visible = false;
+  const resolve = getFormModalResolve();
+  if (resolve) resolve(values);
+}
+
+function onFormModalCancel(): void {
+  formModal.visible = false;
+  const resolve = getFormModalResolve();
+  if (resolve) resolve(null);
+}
+
+// Plan delete confirm
+function onPlanDeleteConfirm(): void {
+  planDeleteConfirm.visible = false;
+  const cb = getPlanDeleteCallback();
+  if (cb) cb();
+}
+
+// Sequence picker select
+function onSequencePickerSelect(seq: string): void {
+  sequencePicker.visible = false;
+  const cb = getSequencePickerCallback();
+  if (cb) cb(seq);
+}
+
+// Quick spawn select
+function onQuickSpawnSelect(cliType: string): void {
+  quickSpawn.visible = false;
+  const cb = getQuickSpawnCallback();
+  if (cb) cb(cliType);
 }
 
 // ============================================================================
@@ -566,69 +637,73 @@ onUnmounted(() => {
 
     <!-- Modals (teleported to body by each component) -->
     <CloseConfirmModal
-      v-model:visible="closeConfirmVisible"
-      :session-name="closeConfirmSessionName"
-      :draft-count="closeConfirmDraftCount"
+      v-model:visible="closeConfirm.visible"
+      :session-name="closeConfirm.sessionName"
+      :draft-count="closeConfirm.draftCount"
       @confirm="onConfirmClose"
-      @cancel="closeConfirmVisible = false"
+      @cancel="closeConfirm.visible = false"
     />
 
     <PlanDeleteConfirmModal
-      v-model:visible="planDeleteVisible"
-      :plan-title="planDeleteTitle"
-      @confirm="planDeleteVisible = false"
-      @cancel="planDeleteVisible = false"
+      v-model:visible="planDeleteConfirm.visible"
+      :plan-title="planDeleteConfirm.planTitle"
+      @confirm="onPlanDeleteConfirm"
+      @cancel="planDeleteConfirm.visible = false"
     />
 
     <SequencePickerModal
-      v-model:visible="sequencePickerVisible"
-      :items="sequencePickerItems"
-      @select="(seq: string) => { sequencePickerVisible = false; getTerminalManager()?.writeToActive(seq); }"
-      @cancel="sequencePickerVisible = false"
+      v-model:visible="sequencePicker.visible"
+      :items="sequencePicker.items"
+      @select="onSequencePickerSelect"
+      @cancel="sequencePicker.visible = false"
     />
 
     <QuickSpawnModal
-      v-model:visible="quickSpawnVisible"
+      v-model:visible="quickSpawn.visible"
       :cli-types="state.cliTypes"
-      :preselected-cli-type="quickSpawnPreselected"
-      @select="(ct: string) => { quickSpawnVisible = false; onSpawn(ct); }"
-      @cancel="quickSpawnVisible = false"
+      :preselected-cli-type="quickSpawn.preselectedCliType"
+      @select="onQuickSpawnSelect"
+      @cancel="quickSpawn.visible = false"
     />
 
     <ContextMenu
-      v-model:visible="contextMenuVisible"
-      :has-selection="hasSelection"
+      v-model:visible="contextMenu.visible"
+      :has-selection="contextMenu.hasSelection"
       :has-active-session="hasActiveSession"
       :has-sequences="hasSequences"
       :has-drafts="hasDrafts"
-      :mode="contextMenuMode"
-      :mouse-x="contextMenuX"
-      :mouse-y="contextMenuY"
+      :mode="contextMenu.mode"
+      :mouse-x="contextMenu.mouseX"
+      :mouse-y="contextMenu.mouseY"
       @action="onContextMenuAction"
-      @cancel="contextMenuVisible = false"
+      @cancel="contextMenu.visible = false"
     />
 
     <DraftSubmenu
-      v-model:visible="draftSubmenuVisible"
-      :drafts="draftSubmenuItems"
-      @cancel="draftSubmenuVisible = false"
+      v-model:visible="draftSubmenu.visible"
+      :drafts="draftSubmenu.items"
+      @new-draft="onDraftNewDraft"
+      @apply="onDraftApply"
+      @edit="onDraftEdit"
+      @delete="onDraftDelete"
+      @cancel="draftSubmenu.visible = false"
     />
 
     <DirPickerModal
-      v-model:visible="dirPickerVisible"
-      :cli-type="dirPickerCliType"
-      :items="dirPickerItems"
-      :preselected-path="dirPickerPreselected"
+      v-model:visible="dirPicker.visible"
+      :cli-type="dirPicker.cliType"
+      :items="dirPicker.items"
+      :preselected-path="dirPicker.preselectedPath"
       @select="onDirPickerSelect"
-      @cancel="dirPickerVisible = false"
+      @cancel="dirPicker.visible = false"
     />
 
     <FormModal
-      v-model:visible="formModalVisible"
-      :title="formModalTitle"
-      :fields="formModalFields"
-      @save="(v: Record<string, string>) => { formModalVisible = false; formModalResolve?.(v); }"
-      @cancel="formModalVisible = false; formModalResolve?.(null)"
+      v-model:visible="formModal.visible"
+      :title="formModal.title"
+      :fields="formModal.fields"
+      @save="onFormModalSave"
+      @cancel="onFormModalCancel"
     />
 
     <BindingEditorModal

@@ -1,5 +1,5 @@
 /**
- * Quick-spawn modal — CLI type picker overlay tests.
+ * Quick-spawn modal — CLI type picker state and bridge tests.
  *
  * @vitest-environment jsdom
  */
@@ -11,48 +11,28 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // ---------------------------------------------------------------------------
 
 const mockLogEvent = vi.fn();
-const mockAttachModalKeyboard = vi.fn(() => vi.fn());
 
-vi.mock('../renderer/utils.js', () => {
-  const dirMap: Record<string, string> = {
-    DPadUp: 'up',
-    DPadDown: 'down',
-    DPadLeft: 'left',
-    DPadRight: 'right',
-    LeftStickUp: 'up',
-    LeftStickDown: 'down',
-  };
-  return {
-    logEvent: mockLogEvent,
-    toDirection: (button: string) => dirMap[button] ?? null,
-    getCliDisplayName: (cliType: string) => cliType.replace(/-/g, ' '),
-  };
-});
+vi.mock('vue', () => ({ reactive: (obj: any) => obj }));
+
+vi.mock('../renderer/utils.js', () => ({
+  logEvent: mockLogEvent,
+  getCliDisplayName: (cliType: string) => cliType.replace(/-/g, ' '),
+}));
 
 vi.mock('../renderer/modals/modal-base.js', () => ({
-  attachModalKeyboard: mockAttachModalKeyboard,
+  attachModalKeyboard: vi.fn(() => vi.fn()),
 }));
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function buildDom(): void {
-  document.body.innerHTML = `
-    <div class="modal-overlay" id="quickSpawnOverlay" aria-hidden="true">
-      <div class="modal">
-        <div class="modal-title">Select CLI type</div>
-        <div class="dir-picker-list" id="quickSpawnList"></div>
-        <div class="modal-footer">
-          <button class="btn btn--secondary" id="quickSpawnCancelBtn">Cancel (B)</button>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
 async function getModule() {
   return await import('../renderer/modals/quick-spawn.js');
+}
+
+async function getBridge() {
+  return await import('../renderer/stores/modal-bridge.js');
 }
 
 // ---------------------------------------------------------------------------
@@ -61,19 +41,27 @@ async function getModule() {
 
 describe('Quick Spawn Modal', () => {
   let mod: Awaited<ReturnType<typeof getModule>>;
+  let bridge: Awaited<ReturnType<typeof getBridge>>;
   const CLI_TYPES = ['claude-code', 'copilot-cli', 'generic-terminal'];
 
   beforeEach(async () => {
-    buildDom();
     mod = await getModule();
+    bridge = await getBridge();
 
-    // Reset state between tests
+    // Reset legacy state
     Object.assign(mod.quickSpawnState, {
       visible: false,
       selectedIndex: 0,
       cliTypes: [],
       onSelect: null,
     });
+
+    // Reset bridge state
+    Object.assign(bridge.quickSpawn, {
+      visible: false,
+      preselectedCliType: undefined,
+    });
+    bridge.setQuickSpawnCallback(null);
   });
 
   afterEach(() => {
@@ -100,7 +88,7 @@ describe('Quick Spawn Modal', () => {
   // =========================================================================
 
   describe('Show / Hide', () => {
-    it('shows the modal overlay', () => {
+    it('shows the modal and sets state', () => {
       const onSelect = vi.fn();
       mod.showQuickSpawn(CLI_TYPES, onSelect);
 
@@ -108,41 +96,24 @@ describe('Quick Spawn Modal', () => {
       expect(mod.quickSpawnState.cliTypes).toEqual(CLI_TYPES);
       expect(mod.quickSpawnState.onSelect).toBe(onSelect);
 
-      const overlay = document.getElementById('quickSpawnOverlay')!;
-      expect(overlay.classList.contains('modal--visible')).toBe(true);
-      expect(overlay.getAttribute('aria-hidden')).toBe('false');
+      // Bridge state
+      expect(bridge.quickSpawn.visible).toBe(true);
+      expect(bridge.getQuickSpawnCallback()).toBe(onSelect);
     });
 
-    it('hides the modal overlay', () => {
+    it('hides the modal and resets state', () => {
       mod.showQuickSpawn(CLI_TYPES, vi.fn());
       mod.hideQuickSpawn();
 
       expect(mod.quickSpawnState.visible).toBe(false);
-
-      const overlay = document.getElementById('quickSpawnOverlay')!;
-      expect(overlay.classList.contains('modal--visible')).toBe(false);
-      expect(overlay.getAttribute('aria-hidden')).toBe('true');
+      expect(bridge.quickSpawn.visible).toBe(false);
+      expect(bridge.getQuickSpawnCallback()).toBeNull();
     });
 
     it('does nothing when no CLI types available', () => {
       mod.showQuickSpawn([], vi.fn());
       expect(mod.quickSpawnState.visible).toBe(false);
       expect(mockLogEvent).toHaveBeenCalledWith('Quick spawn: no CLI types available');
-    });
-
-    it('attaches keyboard shortcuts on show', () => {
-      mod.showQuickSpawn(CLI_TYPES, vi.fn());
-      expect(mockAttachModalKeyboard).toHaveBeenCalled();
-    });
-
-    it('cleans up keyboard shortcuts on hide', () => {
-      const cleanup = vi.fn();
-      mockAttachModalKeyboard.mockReturnValue(cleanup);
-
-      mod.showQuickSpawn(CLI_TYPES, vi.fn());
-      mod.hideQuickSpawn();
-
-      expect(cleanup).toHaveBeenCalled();
     });
   });
 
@@ -164,182 +135,6 @@ describe('Quick Spawn Modal', () => {
     it('defaults to index 0 when no preselection given', () => {
       mod.showQuickSpawn(CLI_TYPES, vi.fn());
       expect(mod.quickSpawnState.selectedIndex).toBe(0);
-    });
-  });
-
-  // =========================================================================
-  // Render
-  // =========================================================================
-
-  describe('Render', () => {
-    it('renders all CLI types as list items', () => {
-      mod.showQuickSpawn(CLI_TYPES, vi.fn());
-
-      const list = document.getElementById('quickSpawnList')!;
-      expect(list.children.length).toBe(3);
-    });
-
-    it('marks the selected item', () => {
-      mod.showQuickSpawn(CLI_TYPES, vi.fn(), 'copilot-cli');
-
-      const list = document.getElementById('quickSpawnList')!;
-      const items = list.querySelectorAll('.dir-picker-item');
-      expect(items[1].classList.contains('dir-picker-item--selected')).toBe(true);
-      expect(items[0].classList.contains('dir-picker-item--selected')).toBe(false);
-    });
-  });
-
-  // =========================================================================
-  // Gamepad Navigation
-  // =========================================================================
-
-  describe('Gamepad Navigation', () => {
-    it('DPadDown moves selection down', () => {
-      mod.showQuickSpawn(CLI_TYPES, vi.fn());
-      expect(mod.quickSpawnState.selectedIndex).toBe(0);
-
-      mod.handleQuickSpawnButton('DPadDown');
-      expect(mod.quickSpawnState.selectedIndex).toBe(1);
-
-      mod.handleQuickSpawnButton('DPadDown');
-      expect(mod.quickSpawnState.selectedIndex).toBe(2);
-    });
-
-    it('DPadUp moves selection up', () => {
-      mod.showQuickSpawn(CLI_TYPES, vi.fn(), 'generic-terminal');
-      expect(mod.quickSpawnState.selectedIndex).toBe(2);
-
-      mod.handleQuickSpawnButton('DPadUp');
-      expect(mod.quickSpawnState.selectedIndex).toBe(1);
-    });
-
-    it('clamps at top boundary', () => {
-      mod.showQuickSpawn(CLI_TYPES, vi.fn());
-      mod.handleQuickSpawnButton('DPadUp');
-      expect(mod.quickSpawnState.selectedIndex).toBe(0);
-    });
-
-    it('clamps at bottom boundary', () => {
-      mod.showQuickSpawn(CLI_TYPES, vi.fn(), 'generic-terminal');
-      mod.handleQuickSpawnButton('DPadDown');
-      expect(mod.quickSpawnState.selectedIndex).toBe(2);
-    });
-
-    it('LeftStick directions work like DPad', () => {
-      mod.showQuickSpawn(CLI_TYPES, vi.fn());
-      mod.handleQuickSpawnButton('LeftStickDown');
-      expect(mod.quickSpawnState.selectedIndex).toBe(1);
-
-      mod.handleQuickSpawnButton('LeftStickUp');
-      expect(mod.quickSpawnState.selectedIndex).toBe(0);
-    });
-
-    it('A button selects and calls onSelect', () => {
-      const onSelect = vi.fn();
-      mod.showQuickSpawn(CLI_TYPES, onSelect, 'copilot-cli');
-
-      mod.handleQuickSpawnButton('A');
-
-      expect(onSelect).toHaveBeenCalledWith('copilot-cli');
-      expect(mod.quickSpawnState.visible).toBe(false);
-    });
-
-    it('B button cancels and hides', () => {
-      mod.showQuickSpawn(CLI_TYPES, vi.fn());
-
-      mod.handleQuickSpawnButton('B');
-
-      expect(mod.quickSpawnState.visible).toBe(false);
-    });
-  });
-
-  // =========================================================================
-  // Click Handlers
-  // =========================================================================
-
-  describe('Click Handlers', () => {
-    it('clicking an item selects it', () => {
-      const onSelect = vi.fn();
-      mod.showQuickSpawn(CLI_TYPES, onSelect);
-
-      const list = document.getElementById('quickSpawnList')!;
-      const items = list.querySelectorAll('.dir-picker-item');
-      (items[2] as HTMLElement).click();
-
-      expect(onSelect).toHaveBeenCalledWith('generic-terminal');
-      expect(mod.quickSpawnState.visible).toBe(false);
-    });
-
-    it('overlay click closes modal', () => {
-      mod.initQuickSpawnClickHandlers();
-      mod.showQuickSpawn(CLI_TYPES, vi.fn());
-
-      const overlay = document.getElementById('quickSpawnOverlay')!;
-      overlay.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-
-      expect(mod.quickSpawnState.visible).toBe(false);
-    });
-  });
-
-  // =========================================================================
-  // Single CLI type shortcut
-  // =========================================================================
-
-  describe('Context Menu Integration', () => {
-    it('onSelect callback receives the selected CLI type string', () => {
-      const onSelect = vi.fn();
-      mod.showQuickSpawn(['only-type'], onSelect);
-
-      mod.handleQuickSpawnButton('A');
-
-      expect(onSelect).toHaveBeenCalledWith('only-type');
-    });
-  });
-
-  // =========================================================================
-  // Keyboard Navigation Callbacks
-  // =========================================================================
-
-  describe('Keyboard Navigation Callbacks', () => {
-    it('attachModalKeyboard receives onArrowUp and onArrowDown', () => {
-      mod.showQuickSpawn(['claude', 'copilot'], vi.fn());
-      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
-      expect(call.onArrowUp).toBeTypeOf('function');
-      expect(call.onArrowDown).toBeTypeOf('function');
-    });
-
-    it('onArrowDown advances selectedIndex', () => {
-      mod.showQuickSpawn(['claude', 'copilot', 'aider'], vi.fn());
-      expect(mod.quickSpawnState.selectedIndex).toBe(0);
-      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
-      call.onArrowDown();
-      expect(mod.quickSpawnState.selectedIndex).toBe(1);
-    });
-
-    it('onArrowDown clamps at last item (no wrap)', () => {
-      mod.showQuickSpawn(['claude', 'copilot'], vi.fn());
-      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
-      call.onArrowDown();
-      expect(mod.quickSpawnState.selectedIndex).toBe(1);
-      call.onArrowDown();
-      expect(mod.quickSpawnState.selectedIndex).toBe(1); // stays at last
-    });
-
-    it('onArrowUp clamps at first item (no wrap)', () => {
-      mod.showQuickSpawn(['claude', 'copilot'], vi.fn());
-      expect(mod.quickSpawnState.selectedIndex).toBe(0);
-      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
-      call.onArrowUp();
-      expect(mod.quickSpawnState.selectedIndex).toBe(0); // stays at first
-    });
-
-    it('onArrowDown updates dir-picker-item--selected class', () => {
-      mod.showQuickSpawn(['claude', 'copilot'], vi.fn());
-      const call = mockAttachModalKeyboard.mock.calls[mockAttachModalKeyboard.mock.calls.length - 1][0];
-      call.onArrowDown();
-      const items = document.querySelectorAll('.dir-picker-item');
-      expect(items[0].classList.contains('dir-picker-item--selected')).toBe(false);
-      expect(items[1].classList.contains('dir-picker-item--selected')).toBe(true);
     });
   });
 });

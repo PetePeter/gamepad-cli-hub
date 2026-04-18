@@ -23,6 +23,8 @@ const mockComputeLayout = vi.fn();
 const mockShowPlanInEditor = vi.fn();
 const mockHideDraftEditor = vi.fn();
 
+vi.mock('vue', () => ({ reactive: (obj: any) => obj }));
+
 vi.mock('electron', () => ({
   ipcRenderer: { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn() },
 }));
@@ -404,7 +406,10 @@ describe('Folder Planner canvas gamepad navigation', () => {
       expect(result).toBe(true);
       expect(mockPlanDelete).not.toHaveBeenCalled();
 
-      (document.getElementById('planDeleteConfirmDeleteBtn') as HTMLButtonElement).click();
+      const { getPlanDeleteCallback } = await import('../renderer/stores/modal-bridge.js');
+      const cb = getPlanDeleteCallback();
+      expect(cb).not.toBeNull();
+      cb!();
       await flush();
 
       expect(mockPlanDelete).toHaveBeenCalledWith('a');
