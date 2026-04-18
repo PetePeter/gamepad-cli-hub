@@ -2,7 +2,10 @@
  * Shared application state — single source of truth for the renderer.
  *
  * Every module imports `state` from here instead of holding local copies.
+ * Wrapped in Vue's reactive() so Vue components automatically track changes.
  */
+
+import { reactive } from 'vue';
 
 export interface Session {
   id: string;
@@ -36,7 +39,7 @@ export interface AppState {
   activeProfile: string;
 }
 
-export const state: AppState = {
+export const state: AppState = reactive({
   currentScreen: 'sessions',
   sessions: [],
   activeSessionId: null,
@@ -49,4 +52,4 @@ export const state: AppState = {
   cliToolsCache: {},
   settingsTab: 'profiles',
   activeProfile: 'default',
-};
+});

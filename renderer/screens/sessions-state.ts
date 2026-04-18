@@ -1,7 +1,9 @@
 /**
  * Sessions screen state — grouped session list + spawn grid navigation.
+ * Wrapped in Vue's reactive() so Vue components automatically track changes.
  */
 
+import { reactive } from 'vue';
 import type { NavItem, SessionGroup, SessionGroupPrefs } from '../session-groups.js';
 
 export type SessionsFocus = 'sessions' | 'spawn' | 'plans';
@@ -30,7 +32,7 @@ export interface SessionsScreenState {
   plansFocusIndex: number;
 }
 
-export const sessionsState: SessionsScreenState = {
+export const sessionsState: SessionsScreenState = reactive({
   activeFocus: 'sessions',
   sessionsFocusIndex: 0,
   spawnFocusIndex: 0,
@@ -45,4 +47,4 @@ export const sessionsState: SessionsScreenState = {
   overviewIsGlobal: false,
   overviewFocusIndex: 0,
   plansFocusIndex: 0,
-};
+});
