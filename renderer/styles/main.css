@@ -2642,23 +2642,23 @@ kbd {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  background: #2a2a3a;
-  border: 2px solid #cc8844;
+  background: var(--bg-tertiary);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
   border-radius: 12px;
   font-size: 11px;
-  color: #ccc;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 180px;
   cursor: pointer;
   user-select: none;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .draft-pill:hover {
-  background: #3a3a4a;
-  border-color: #666;
+  background: color-mix(in srgb, var(--bg-tertiary) 80%, var(--accent) 20%);
+  border-color: var(--accent);
 }
 
 .draft-badge {
@@ -2721,23 +2721,23 @@ kbd {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  background: #2a2a3a;
-  border: 1px solid #444;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
   border-radius: 12px;
   font-size: 11px;
-  color: #ccc;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 180px;
   cursor: pointer;
   user-select: none;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .plan-chip:hover {
-  background: #3a3a4a;
-  border-color: #666;
+  background: color-mix(in srgb, var(--bg-tertiary) 82%, white 18%);
+  border-color: var(--text-secondary);
 }
 
 .plan-chip--doing {
@@ -2854,7 +2854,7 @@ kbd {
 .strip-section-label {
   font-size: 10px;
   font-weight: 600;
-  color: #666;
+  color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 2px 6px;
@@ -2869,25 +2869,43 @@ kbd {
   align-items: center;
   margin-left: auto;
   padding-left: 8px;
-  border-left: 1px solid #333;
+  border-left: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .chip-action-btn {
-  background: transparent;
-  border: 1px solid #4488ff;
-  color: #4488ff;
-  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  color: var(--text-primary);
+  border-radius: 999px;
   padding: 2px 8px;
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.12s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
   user-select: none;
 }
 
 .chip-action-btn:hover {
-  background: rgba(68, 136, 255, 0.15);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: var(--accent);
+}
+
+.chip-action-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.settings-help {
+  margin: 8px 16px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.settings-help__list {
+  margin: 4px 0 8px;
+  padding-left: 16px;
+  color: var(--text-secondary);
 }
 
 

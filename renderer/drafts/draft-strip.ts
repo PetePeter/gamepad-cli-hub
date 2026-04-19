@@ -7,32 +7,20 @@
 import { setDraftCountCache } from '../screens/sessions.js';
 import { state } from '../state.js';
 import { renderPlanChips } from '../plans/plan-chips.js';
+import { resolveChipbarTemplates } from './chipbar-templates.js';
 
 const MAX_LABEL_LENGTH = 20;
 let renderGeneration = 0;
 
 interface ChipbarActionsResult {
   actions: Array<{ label: string; sequence: string }>;
-  plansDir: string;
+  inboxDir: string;
 }
 
 let cachedChipbarData: ChipbarActionsResult | null = null;
 
 export function invalidateChipActionCache(): void {
   cachedChipbarData = null;
-}
-
-function resolveTemplates(sequence: string, ctx: {
-  cwd: string;
-  cliType: string;
-  sessionName: string;
-  plansDir: string;
-}): string {
-  return sequence
-    .replace(/\{cwd\}/g, ctx.cwd)
-    .replace(/\{cliType\}/g, ctx.cliType)
-    .replace(/\{sessionName\}/g, ctx.sessionName)
-    .replace(/\{plansDir\}/g, ctx.plansDir);
 }
 
 async function renderActionButtons(sessionId: string): Promise<void> {
@@ -49,7 +37,7 @@ async function renderActionButtons(sessionId: string): Promise<void> {
     }
   }
 
-  const { actions, plansDir } = cachedChipbarData;
+  const { actions, inboxDir } = cachedChipbarData;
   if (actions.length === 0) return;
 
   const session = state.sessions.find(s => s.id === sessionId);
@@ -57,7 +45,7 @@ async function renderActionButtons(sessionId: string): Promise<void> {
     cwd: session?.workingDir ?? '',
     cliType: session?.cliType ?? '',
     sessionName: session?.name ?? '',
-    plansDir,
+    inboxDir,
   };
 
   const bar = document.createElement('div');
@@ -67,7 +55,7 @@ async function renderActionButtons(sessionId: string): Promise<void> {
     const btn = document.createElement('button');
     btn.className = 'chip-action-btn';
     btn.textContent = action.label;
-    const preview = resolveTemplates(action.sequence, ctx);
+    const preview = resolveChipbarTemplates(action.sequence, ctx);
     btn.title = preview.length > 120 ? preview.slice(0, 119) + '…' : preview;
     btn.addEventListener('click', async () => {
       const currentSession = state.sessions.find(s => s.id === sessionId);
@@ -75,10 +63,10 @@ async function renderActionButtons(sessionId: string): Promise<void> {
         cwd: currentSession?.workingDir ?? '',
         cliType: currentSession?.cliType ?? '',
         sessionName: currentSession?.name ?? '',
-        plansDir,
+        inboxDir,
       };
       const { executeSequence } = await import('../bindings.js');
-      await executeSequence(resolveTemplates(action.sequence, currentCtx));
+      await executeSequence(resolveChipbarTemplates(action.sequence, currentCtx));
     });
     bar.appendChild(btn);
   }

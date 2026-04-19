@@ -548,11 +548,11 @@ export class ConfigLoader {
     this.saveActiveProfile();
   }
 
-  getChipbarActions(): { actions: ChipbarAction[]; plansDir: string } {
+  getChipbarActions(): { actions: ChipbarAction[]; inboxDir: string } {
     this.ensureLoaded();
     return {
       actions: this.activeProfile!.chipActions ?? [],
-      plansDir: path.join(this.configDir, 'plans'),
+      inboxDir: path.join(this.configDir, 'plans', 'incoming'),
     };
   }
 

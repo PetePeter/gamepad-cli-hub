@@ -80,6 +80,7 @@
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
     "@types/node": "^25.5.0",
+    "@types/node-telegram-bot-api": "^0.64.14",
     "@vitest/ui": "^4.1.0",
     "@vue/test-utils": "^2.4.6",
     "electron": "^41.0.3",

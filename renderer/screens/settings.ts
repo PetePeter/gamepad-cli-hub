@@ -21,6 +21,7 @@ import { renderBindingsDisplay, renderSequenceGroups } from './settings-bindings
 import { renderProfilesPanel } from './settings-profiles.js';
 import { renderToolsPanel } from './settings-tools.js';
 import { renderTelegramSettings } from './settings-telegram.js';
+import { renderChipbarActionsPanel } from './settings-chipbar-actions.js';
 
 // ============================================================================
 // Main entry
@@ -38,6 +39,8 @@ export async function loadSettingsScreen(): Promise<void> {
       await renderProfilesPanel();
     } else if (state.settingsTab === 'tools') {
       await renderToolsPanel();
+    } else if (state.settingsTab === 'chipbar-actions') {
+      await renderChipbarActionsPanel();
     } else if (state.settingsTab === 'telegram') {
       const contentContainer = document.getElementById('bindingsDisplay');
       if (contentContainer) {
@@ -118,6 +121,7 @@ function renderSettingsTabs(cliTypes: string[]): void {
     { key: 'profiles', label: '👤 Profiles' },
     ...cliTypes.map(ct => ({ key: ct, label: getCliDisplayName(ct) })),
     { key: 'tools', label: '🔧 Tools' },
+    { key: 'chipbar-actions', label: '⚡ Quick Actions' },
     { key: 'directories', label: '📁 Dirs' },
     { key: 'telegram', label: '📨 Telegram' },
   ];

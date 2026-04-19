@@ -87,7 +87,7 @@ describe('Chip-bar action buttons', () => {
     it('renders action buttons when chipActions are configured', async () => {
       mockGetChipbarActions.mockResolvedValue({
         actions: [{ label: '💾 Save Plan', sequence: 'save plan for {cwd}{Enter}' }],
-        plansDir: '/config/plans',
+        inboxDir: '/config/plans/incoming',
       });
 
       mod.initDraftStrip();
@@ -102,7 +102,7 @@ describe('Chip-bar action buttons', () => {
     });
 
     it('renders nothing when chipActions array is empty', async () => {
-      mockGetChipbarActions.mockResolvedValue({ actions: [], plansDir: '' });
+      mockGetChipbarActions.mockResolvedValue({ actions: [], inboxDir: '' });
 
       mod.initDraftStrip();
       await mod.refreshDraftStrip('session-1');
@@ -111,10 +111,10 @@ describe('Chip-bar action buttons', () => {
       expect(document.querySelector('.chip-action-bar')).toBeNull();
     });
 
-    it('resolves {plansDir} template variable', async () => {
+    it('resolves {plansDir} template variable to the incoming inbox path', async () => {
       mockGetChipbarActions.mockResolvedValue({
         actions: [{ label: 'Plans', sequence: 'open {plansDir}{Enter}' }],
-        plansDir: 'C:\\config\\plans',
+        inboxDir: 'C:\\config\\plans\\incoming',
       });
 
       mod.initDraftStrip();
@@ -122,7 +122,21 @@ describe('Chip-bar action buttons', () => {
       await flush();
 
       const btn = document.querySelector('.chip-action-btn') as HTMLButtonElement;
-      expect(btn.title).toContain('C:\\config\\plans');
+      expect(btn.title).toContain('C:\\config\\plans\\incoming');
+    });
+
+    it('resolves {inboxDir} template variable', async () => {
+      mockGetChipbarActions.mockResolvedValue({
+        actions: [{ label: 'Inbox', sequence: 'open {inboxDir}{Enter}' }],
+        inboxDir: 'C:\\config\\plans\\incoming',
+      });
+
+      mod.initDraftStrip();
+      await mod.refreshDraftStrip('session-1');
+      await flush();
+
+      const btn = document.querySelector('.chip-action-btn') as HTMLButtonElement;
+      expect(btn.title).toContain('C:\\config\\plans\\incoming');
     });
 
     it('renders multiple action buttons', async () => {
@@ -131,7 +145,7 @@ describe('Chip-bar action buttons', () => {
           { label: '💾 Save', sequence: 'save{Enter}' },
           { label: '🚀 Deploy', sequence: 'deploy{Enter}' },
         ],
-        plansDir: '',
+        inboxDir: '',
       });
 
       mod.initDraftStrip();
@@ -145,7 +159,7 @@ describe('Chip-bar action buttons', () => {
     });
 
     it('caches chipbar actions and only calls IPC once', async () => {
-      mockGetChipbarActions.mockResolvedValue({ actions: [], plansDir: '' });
+      mockGetChipbarActions.mockResolvedValue({ actions: [], inboxDir: '' });
 
       mod.initDraftStrip();
       await mod.refreshDraftStrip('session-1');
@@ -156,7 +170,7 @@ describe('Chip-bar action buttons', () => {
     });
 
     it('invalidateChipActionCache forces re-fetch on next render', async () => {
-      mockGetChipbarActions.mockResolvedValue({ actions: [], plansDir: '' });
+      mockGetChipbarActions.mockResolvedValue({ actions: [], inboxDir: '' });
 
       mod.initDraftStrip();
       await mod.refreshDraftStrip('session-1');
@@ -180,7 +194,7 @@ describe('Chip-bar action buttons', () => {
     it('retries IPC after a transient error', async () => {
       mockGetChipbarActions
         .mockRejectedValueOnce(new Error('transient failure'))
-        .mockResolvedValue({ actions: [{ label: '💾 Save', sequence: 'save{Enter}' }], plansDir: '' });
+        .mockResolvedValue({ actions: [{ label: '💾 Save', sequence: 'save{Enter}' }], inboxDir: '' });
 
       mod.initDraftStrip();
       await mod.refreshDraftStrip('session-1');
@@ -200,7 +214,7 @@ describe('Chip-bar action buttons', () => {
     it('removes previous .chip-action-bar on re-render', async () => {
       mockGetChipbarActions.mockResolvedValue({
         actions: [{ label: 'A', sequence: 'a{Enter}' }],
-        plansDir: '',
+        inboxDir: '',
       });
       // Prepopulate a stale bar
       const strip = document.getElementById('draftStrip') || (() => {
@@ -226,7 +240,7 @@ describe('Chip-bar action buttons', () => {
     it('replaces {cwd} with session workingDir', async () => {
       mockGetChipbarActions.mockResolvedValue({
         actions: [{ label: 'Go', sequence: 'cd {cwd}{Enter}' }],
-        plansDir: '',
+        inboxDir: '',
       });
 
       mod.initDraftStrip();

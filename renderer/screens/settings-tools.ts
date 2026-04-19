@@ -292,7 +292,7 @@ const PATTERN_HELP_HTML = `
   </div>
 `;
 
-async function showPatternsPanel(cliType: string, cliName: string): Promise<void> {
+export async function showPatternsPanel(cliType: string, cliName: string): Promise<void> {
   const container = document.getElementById('bindingsDisplay');
   if (!container || !window.gamepadCli) return;
 
@@ -414,8 +414,17 @@ function createPatternItem(cliType: string, rule: any, index: number, refresh: (
       return;
     }
     confirmPending = false;
-    await window.gamepadCli.toolsRemovePattern(cliType, index);
-    refresh();
+    try {
+      const result = await window.gamepadCli.toolsRemovePattern(cliType, index);
+      if (result.success) {
+        logEvent(`Deleted pattern at index ${index}`);
+        refresh();
+      } else {
+        logEvent(`Failed to delete pattern: ${result.error || 'unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Delete pattern failed:', error);
+    }
   });
   actions.appendChild(deleteBtn);
 

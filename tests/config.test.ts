@@ -177,6 +177,23 @@ describe('ConfigLoader', () => {
     });
   });
 
+  describe('getChipbarActions', () => {
+    it('returns the incoming inbox path, not the plans root', () => {
+      const profile = {
+        ...DEFAULT_PROFILE,
+        chipActions: [{ label: '💾 Save Plan', sequence: 'save to {plansDir}{Enter}' }],
+      };
+      writeYaml('profiles/default.yaml', profile);
+
+      loader.load();
+
+      expect(loader.getChipbarActions()).toEqual({
+        actions: [{ label: '💾 Save Plan', sequence: 'save to {plansDir}{Enter}' }],
+        inboxDir: path.join(TEST_DIR, 'plans', 'incoming'),
+      });
+    });
+  });
+
   describe('session group prefs', () => {
     it('persists overviewHidden to settings.yaml', () => {
       loader.load();

@@ -190,6 +190,20 @@ A:
 | `{Ctrl Down}`, `{Ctrl Up}` | Hold/release modifier |
 | `{{`, `}}` | Literal `{` and `}` |
 
+### Chip Bar Template Expansions
+
+Chip bar quick actions also support these `{...}` template expansions inside their sequence text:
+
+| Template | Expands to |
+|----------|------------|
+| `{cwd}` | Active session working directory |
+| `{cliType}` | Active session CLI type key |
+| `{sessionName}` | Active session display name |
+| `{inboxDir}` | Writable planner inbox path at `config/plans/incoming` |
+| `{plansDir}` | Alias for `{inboxDir}` for backward compatibility |
+
+In packaged installs, `{inboxDir}` and `{plansDir}` resolve from the app's writable config directory under the user's app-data folder, not the read-only install directory.
+
 ### Initial Prompts
 
 Automatically send commands when a session spawns:

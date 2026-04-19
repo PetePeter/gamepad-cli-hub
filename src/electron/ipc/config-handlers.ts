@@ -54,7 +54,7 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
       return configLoader.getChipbarActions();
     } catch (error) {
       logger.error(`[IPC] Failed to get chipbar actions: ${error}`);
-      return { actions: [], plansDir: '' };
+      return { actions: [], inboxDir: '' };
     }
   });
 
@@ -199,7 +199,7 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     }
   });
 
-  ipcMain.handle('config:setSortPrefs', (_event, area: string, prefs: { field?: string; direction?: string }) => {
+  ipcMain.handle('config:setSortPrefs', (_event, area: string, prefs: { field?: string; direction?: 'asc' | 'desc' }) => {
     try {
       configLoader.setSortPrefs(area as 'sessions' | 'bindings', prefs);
       logger.info(`[IPC] Sort prefs for ${area} set to: ${JSON.stringify(prefs)}`);
@@ -339,5 +339,22 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
       : await dialog.showSaveDialog(options);
     if (result.canceled || !result.filePath) return null;
     return result.filePath;
+  });
+
+  ipcMain.handle('config:setChipbarActions', (_event, actions: Array<{ label: string; sequence: string }>) => {
+    try {
+      // Update the active profile with new chipbar actions
+      const profile = configLoader['activeProfile'];
+      if (!profile) {
+        throw new Error('No active profile loaded');
+      }
+      profile.chipActions = actions;
+      configLoader['saveActiveProfile']();
+      logger.info(`[IPC] Updated chipbar actions: ${actions.length} actions`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to set chipbar actions: ${error}`);
+      return { success: false, error: String(error) };
+    }
   });
 }

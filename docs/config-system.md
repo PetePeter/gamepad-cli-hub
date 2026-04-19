@@ -93,10 +93,11 @@ Each entry: `{ label: string, sequence: string }`.
 | `{cwd}` | Active session's working directory |
 | `{cliType}` | Active session's CLI type key |
 | `{sessionName}` | Active session's display name |
-| `{plansDir}` | `config/plans/` absolute path |
+| `{plansDir}` | `config/plans/incoming/` absolute path |
+| `{inboxDir}` | `config/plans/incoming/` absolute path |
 
 - Actions are cached per page load. `invalidateChipActionCache()` (exported from `draft-strip.ts`) forces a re-fetch on the next strip render.
-- IPC: `configGetChipbarActions` bridge → `config:getChipbarActions` handler → `ConfigLoader.getChipbarActions()` → returns `{ actions, plansDir }`.
+- IPC: `configGetChipbarActions` bridge → `config:getChipbarActions` handler → `ConfigLoader.getChipbarActions()` → returns `{ actions, inboxDir }`.
 - Omit `chipActions` (or leave it empty) to show no action buttons.
 
 ## Tool Config
