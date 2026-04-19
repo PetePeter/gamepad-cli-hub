@@ -63,6 +63,10 @@ function ensureOverlay(): void {
           <span><strong>Doing</strong> — actively worked on</span>
         </div>
         <div class="plan-help-state">
+          <span class="plan-help-dot" style="background:#44ccff"></span>
+          <span><strong>Wait Tests</strong> — waiting for tests to pass</span>
+        </div>
+        <div class="plan-help-state">
           <span class="plan-help-dot" style="background:#555555; opacity:0.5"></span>
           <span><strong>Done</strong> — completed</span>
         </div>

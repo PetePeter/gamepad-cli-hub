@@ -72,7 +72,7 @@ export function setupPlanHandlers(
 
   ipcMain.handle(
     'plan:setState',
-    (_event, id: string, status: 'pending' | 'startable' | 'doing' | 'blocked' | 'question', stateInfo?: string, sessionId?: string) => {
+    (_event, id: string, status: 'pending' | 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question', stateInfo?: string, sessionId?: string) => {
       return planManager.setState(id, status, stateInfo, sessionId);
     },
   );

@@ -1012,6 +1012,7 @@ button {
 .plan-dot { font-size: 0.7em; }
 .plan-dot--startable { color: #4488ff; }
 .plan-dot--doing { color: #44cc44; }
+.plan-dot--wait-tests { color: #44ccff; }
 .plan-dot--blocked { color: #ff9f1a; }
 .plan-dot--question { color: #d17cff; }
 .plan-dot--pending { color: #555555; }
@@ -2708,6 +2709,10 @@ kbd {
   color: #4488ff;
 }
 
+.plan-badge--wait-tests {
+  color: #44ccff;
+}
+
 .plan-badge--blocked {
   color: #ff9f1a;
 }
@@ -2746,6 +2751,10 @@ kbd {
 
 .plan-chip--startable {
   border: 2px solid #4488ff;
+}
+
+.plan-chip--wait-tests {
+  border: 2px solid #44ccff;
 }
 
 .plan-chip--blocked {

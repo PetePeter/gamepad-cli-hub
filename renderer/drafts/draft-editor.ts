@@ -95,6 +95,7 @@ export function initDraftEditor(): void {
         <option value="pending">⏸ Pending</option>
         <option value="startable">▶ Ready</option>
         <option value="doing">🔄 In Progress</option>
+        <option value="wait-tests">⏳ Wait Tests</option>
         <option value="blocked">⛔ Blocked</option>
         <option value="question">❓ Question</option>
       </select>
@@ -243,6 +244,7 @@ export function showPlanInEditor(
     pending: '⏸ Pending',
     startable: '▶ Ready',
     doing: '🔄 In Progress',
+    'wait-tests': '⏳ Wait Tests',
     blocked: '⛔ Blocked',
     question: '❓ Question',
     done: '✓ Done',
@@ -261,11 +263,11 @@ export function showPlanInEditor(
   if (stateSelect) stateSelect.disabled = plan.status === 'done';
   syncPlanStateInfoVisibility();
 
-  // Plan mode: Save, Apply (startable/doing), Done (doing), Delete, Cancel
+  // Plan mode: Save, Apply (startable/doing/wait-tests), Done (doing/wait-tests), Delete, Cancel
   setButtonVisibility({
     save: true,
-    apply: (plan.status === 'startable' || plan.status === 'doing') && !!callbacks.onApply,
-    done: plan.status === 'doing' && !!callbacks.onDone,
+    apply: (plan.status === 'startable' || plan.status === 'doing' || plan.status === 'wait-tests') && !!callbacks.onApply,
+    done: (plan.status === 'doing' || plan.status === 'wait-tests') && !!callbacks.onDone,
     delete: true,
     cancel: true,
   });
@@ -273,7 +275,7 @@ export function showPlanInEditor(
   // Relabel Apply for plan context
   const applyBtn = document.getElementById('draftApplyBtn');
   if (applyBtn) {
-    applyBtn.textContent = plan.status === 'doing' ? '↻ Apply Again' : '▶ Apply';
+    applyBtn.textContent = plan.status === 'doing' || plan.status === 'wait-tests' ? '↻ Apply Again' : '▶ Apply';
   }
 
   editor.style.display = 'flex';

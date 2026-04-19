@@ -52,6 +52,7 @@ const mockState = {
   planDirDoingCounts: new Map<string, number>(),
   planDirBlockedCounts: new Map<string, number>(),
   planDirQuestionCounts: new Map<string, number>(),
+  planDirWaitTestsCounts: new Map<string, number>(),
   planDirPendingCounts: new Map<string, number>(),
 };
 
@@ -394,6 +395,7 @@ describe('Sessions Plans Grid', () => {
       mockState.planDirDoingCounts.clear();
       mockState.planDirBlockedCounts.clear();
       mockState.planDirQuestionCounts.clear();
+      mockState.planDirWaitTestsCounts.clear();
       mockState.planDirPendingCounts.clear();
     });
 

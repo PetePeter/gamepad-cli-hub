@@ -57,6 +57,8 @@ export interface AppState {
   planDirBlockedCounts: Map<string, number>;
   /** Per-directory plan question count */
   planDirQuestionCounts: Map<string, number>;
+  /** Per-directory plan wait-tests count */
+  planDirWaitTestsCounts: Map<string, number>;
   /** Per-directory plan pending count */
   planDirPendingCounts: Map<string, number>;
   /** Per-session working plan label (e.g. "🗺️ Auth refactor") */
@@ -90,6 +92,7 @@ export const state: AppState = reactive({
   planDirDoingCounts: new Map(),
   planDirBlockedCounts: new Map(),
   planDirQuestionCounts: new Map(),
+  planDirWaitTestsCounts: new Map(),
   planDirPendingCounts: new Map(),
   workingPlanLabels: new Map(),
   workingPlanTooltips: new Map(),

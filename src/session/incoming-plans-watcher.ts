@@ -22,7 +22,7 @@ import { dirname } from 'node:path';
 
 const __watcher_dirname = dirname(fileURLToPath(import.meta.url));
 
-const VALID_STATUSES = new Set(['pending', 'startable', 'doing', 'blocked', 'question', 'done']);
+const VALID_STATUSES = new Set(['pending', 'startable', 'doing', 'wait-tests', 'blocked', 'question', 'done']);
 
 export interface IncomingImportedEvent {
   filename: string;

@@ -15,7 +15,7 @@ export interface DraftPill {
 export interface PlanChip {
   id: string;
   title: string;
-  status: 'startable' | 'doing' | 'blocked' | 'question';
+  status: 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question';
 }
 
 const props = defineProps<{
@@ -33,6 +33,7 @@ const emit = defineEmits<{
 const STATUS_ICONS: Record<string, string> = {
   startable: '🔵',
   doing: '🟢',
+  'wait-tests': '⏳',
   blocked: '⛔',
   question: '❓',
 };

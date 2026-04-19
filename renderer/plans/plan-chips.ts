@@ -9,7 +9,7 @@ import { getSessionCwd } from '../screens/sessions.js';
 import { showPlanInEditor, hideDraftEditor } from '../drafts/draft-editor.js';
 
 const MAX_LABEL_LENGTH = 20;
-const ACTIVE_PLAN_STATUSES = new Set(['doing', 'blocked', 'question']);
+const ACTIVE_PLAN_STATUSES = new Set(['doing', 'wait-tests', 'blocked', 'question']);
 
 /** Generation counter to prevent stale async renders from appending duplicates. */
 let renderGeneration = 0;
@@ -133,7 +133,7 @@ async function fetchPlanData(sessionId: string): Promise<[any[], any[]]> {
 /** Create a single plan chip element. */
 function createPlanChip(
   plan: { id: string; title: string },
-  status: 'doing' | 'blocked' | 'question' | 'startable',
+  status: 'doing' | 'wait-tests' | 'blocked' | 'question' | 'startable',
 ): HTMLElement {
   const chip = document.createElement('span');
   chip.className = `plan-chip plan-chip--${status}`;
@@ -150,15 +150,15 @@ function createPlanChip(
   return chip;
 }
 
-function toChipStatus(status: string): 'doing' | 'blocked' | 'question' | 'startable' {
-  if (status === 'blocked' || status === 'question' || status === 'startable') return status;
+function toChipStatus(status: string): 'doing' | 'wait-tests' | 'blocked' | 'question' | 'startable' {
+  if (status === 'blocked' || status === 'question' || status === 'startable' || status === 'wait-tests') return status as any;
   return 'doing';
 }
 
 /** Handle click on a plan chip — open unified editor for the plan item. */
 async function handleChipClick(
   planId: string,
-  status: 'doing' | 'blocked' | 'question' | 'startable',
+  status: 'doing' | 'wait-tests' | 'blocked' | 'question' | 'startable',
 ): Promise<void> {
   try {
     const item = await window.gamepadCli.planGetItem(planId);
@@ -177,7 +177,7 @@ async function handleChipClick(
       if (state.activeSessionId) await renderPlanChips(state.activeSessionId);
     };
 
-    const onDone = status === 'doing' ? async () => {
+    const onDone = status === 'doing' || status === 'wait-tests' ? async () => {
       await window.gamepadCli.planComplete(planId);
       hideDraftEditor();
       if (state.activeSessionId) await renderPlanChips(state.activeSessionId);

@@ -18,7 +18,7 @@ import {
 } from './persistence.js';
 import type { PlanItem, PlanDependency, DirectoryPlan, PlanStatus } from '../types/plan.js';
 
-const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['doing', 'blocked', 'question']);
+const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['doing', 'wait-tests', 'blocked', 'question']);
 const PAUSED_PLAN_STATUSES = new Set<PlanStatus>(['blocked', 'question']);
 
 export class PlanManager extends EventEmitter {
@@ -185,10 +185,10 @@ export class PlanManager extends EventEmitter {
     return item;
   }
 
-  /** Complete a doing plan (doing → done). Cascades startable recompute. */
+  /** Complete a doing or wait-tests plan (→ done). Cascades startable recompute. */
   completeItem(id: string): PlanItem | null {
     const item = this.items.get(id);
-    if (!item || item.status !== 'doing') return null;
+    if (!item || (item.status !== 'doing' && item.status !== 'wait-tests')) return null;
 
     item.status = 'done';
     item.sessionId = undefined;
@@ -207,7 +207,7 @@ export class PlanManager extends EventEmitter {
     const item = this.items.get(id);
     if (!item || !this.canSetState(item, status)) return null;
 
-    if (status === 'doing') {
+    if (status === 'doing' || status === 'wait-tests') {
       const nextSessionId = sessionId ?? item.sessionId;
       if (!nextSessionId) return null;
       item.sessionId = nextSessionId;
@@ -381,7 +381,7 @@ export class PlanManager extends EventEmitter {
     const items = this.getForDirectory(dirPath);
 
     for (const item of items) {
-      if (item.status === 'doing' || item.status === 'done' || PAUSED_PLAN_STATUSES.has(item.status)) continue;
+      if (ACTIVE_PLAN_STATUSES.has(item.status) || item.status === 'done') continue;
 
       const blockers = this.dependencies
         .filter(d => d.toId === item.id)
@@ -396,7 +396,7 @@ export class PlanManager extends EventEmitter {
   private canSetState(item: PlanItem, next: Exclude<PlanStatus, 'done'>): boolean {
     if (item.status === 'done') return false;
     if (next === 'doing') {
-      return item.status === 'doing' || item.status === 'startable' || PAUSED_PLAN_STATUSES.has(item.status);
+      return item.status === 'doing' || item.status === 'startable' || item.status === 'wait-tests' || PAUSED_PLAN_STATUSES.has(item.status);
     }
     return true;
   }

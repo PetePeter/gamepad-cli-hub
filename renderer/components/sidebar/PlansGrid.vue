@@ -13,6 +13,7 @@ export interface PlansDirItem {
   doingCount: number;
   blockedCount: number;
   questionCount: number;
+  waitTestsCount: number;
   pendingCount: number;
 }
 
@@ -42,11 +43,12 @@ const emit = defineEmits<{
         <span class="spawn-label">{{ dir.name }}</span>
       </div>
       <div
-        v-if="dir.startableCount > 0 || dir.doingCount > 0 || dir.blockedCount > 0 || dir.questionCount > 0 || dir.pendingCount > 0"
+        v-if="dir.startableCount > 0 || dir.doingCount > 0 || dir.blockedCount > 0 || dir.questionCount > 0 || dir.waitTestsCount > 0 || dir.pendingCount > 0"
         class="plans-btn-dots"
       >
         <span v-if="dir.startableCount > 0" class="plan-dot plan-dot--startable">🔵{{ dir.startableCount }}</span>
         <span v-if="dir.doingCount > 0" class="plan-dot plan-dot--doing">🟢{{ dir.doingCount }}</span>
+        <span v-if="dir.waitTestsCount > 0" class="plan-dot plan-dot--wait-tests">⏳{{ dir.waitTestsCount }}</span>
         <span v-if="dir.blockedCount > 0" class="plan-dot plan-dot--blocked">🟠{{ dir.blockedCount }}</span>
         <span v-if="dir.questionCount > 0" class="plan-dot plan-dot--question">🟣{{ dir.questionCount }}</span>
         <span v-if="dir.pendingCount > 0" class="plan-dot plan-dot--pending">⚪{{ dir.pendingCount }}</span>

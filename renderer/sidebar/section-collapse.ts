@@ -22,7 +22,7 @@ function applyCollapse(sectionId: string, gridId: string, toggleId: string, coll
   if (section) section.classList.toggle('spawn-section--collapsed', collapsed);
   if (grid) grid.classList.toggle('spawn-grid--collapsed', collapsed);
   if (toggle) {
-    toggle.textContent = collapsed ? '˄' : '˅';
+    toggle.textContent = collapsed ? '▲' : '▼';
     toggle.title = collapsed ? 'Expand' : 'Collapse';
   }
 }

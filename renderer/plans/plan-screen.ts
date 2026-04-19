@@ -30,6 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: '#555555',
   startable: '#4488ff',
   doing: '#44cc44',
+  'wait-tests': '#44ccff',
   blocked: '#ff9f1a',
   question: '#d17cff',
   done: '#555555',
@@ -754,8 +755,8 @@ function openNodeEditor(item: PlanItem): void {
     {
       onSave: handleSave,
       onDelete: () => handleDelete(item.id),
-      onDone: item.status === 'doing' ? () => handleComplete(item.id) : undefined,
-      onApply: item.status === 'startable' || item.status === 'doing' ? () => handleApplyFromCanvas(item) : undefined,
+      onDone: item.status === 'doing' || item.status === 'wait-tests' ? () => handleComplete(item.id) : undefined,
+      onApply: item.status === 'startable' || item.status === 'doing' || item.status === 'wait-tests' ? () => handleApplyFromCanvas(item) : undefined,
     },
   );
 }

@@ -127,6 +127,7 @@ export async function refreshPlanBadges(): Promise<void> {
       state.planDirDoingCounts.set(dir.path, items.filter(p => p.status === 'doing').length);
       state.planDirBlockedCounts.set(dir.path, items.filter(p => p.status === 'blocked').length);
       state.planDirQuestionCounts.set(dir.path, items.filter(p => p.status === 'question').length);
+      state.planDirWaitTestsCounts.set(dir.path, items.filter(p => p.status === 'wait-tests').length);
       state.planDirPendingCounts.set(dir.path, items.filter(p => p.status === 'pending').length);
     } catch {
       // Silently ignore badge fetch errors

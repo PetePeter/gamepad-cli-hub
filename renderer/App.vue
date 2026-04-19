@@ -134,6 +134,7 @@ const plansDirItems = computed(() =>
     doingCount: state.planDirDoingCounts.get(d.path) ?? 0,
     blockedCount: state.planDirBlockedCounts.get(d.path) ?? 0,
     questionCount: state.planDirQuestionCounts.get(d.path) ?? 0,
+    waitTestsCount: state.planDirWaitTestsCounts.get(d.path) ?? 0,
     pendingCount: state.planDirPendingCounts.get(d.path) ?? 0,
   }))
 );
@@ -748,7 +749,7 @@ onUnmounted(() => {
       <!-- Spawn sections pinned at bottom of sidebar -->
       <div v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': spawnCollapsed }">
         <div class="section-label" @click="toggleSpawnCollapse">
-          <button class="section-toggle">{{ spawnCollapsed ? '˄' : '˅' }}</button>
+          <button class="section-toggle">{{ spawnCollapsed ? '▲' : '▼' }}</button>
           <span>Quick Spawn</span>
         </div>
         <SpawnGrid

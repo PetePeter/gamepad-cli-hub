@@ -469,7 +469,7 @@ const gamepadCliAPI = {
   /** Manually set a plan state and optional context */
   planSetState: (
     id: string,
-    status: 'pending' | 'startable' | 'doing' | 'blocked' | 'question',
+    status: 'pending' | 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question',
     stateInfo?: string,
     sessionId?: string,
   ) => ipcRenderer.invoke('plan:setState', id, status, stateInfo, sessionId),
