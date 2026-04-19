@@ -113,6 +113,12 @@ describe('modal-base', () => {
       expect(onAccept).toHaveBeenCalledOnce();
     });
 
+    it('calls onAccept when Space is pressed', () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+      expect(onAccept).toHaveBeenCalledOnce();
+      expect(onCancel).not.toHaveBeenCalled();
+    });
+
     it('calls onAccept on Enter even when a textarea is focused (xterm fix)', () => {
       const textarea = document.createElement('textarea');
       document.body.appendChild(textarea);

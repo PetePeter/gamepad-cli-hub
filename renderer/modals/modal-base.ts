@@ -66,7 +66,8 @@ function handleSelectionKey(e: KeyboardEvent, h: SelectionModalHandlers): void {
 
   switch (e.key) {
     case 'Escape':  h.onCancel(); break;
-    case 'Enter':   h.onAccept(); break;
+    case 'Enter':
+    case ' ':       h.onAccept(); break;
     case 'ArrowUp': h.onArrowUp?.(); break;
     case 'ArrowDown': h.onArrowDown?.(); break;
     case 'ArrowLeft': h.onArrowLeft?.(); break;
