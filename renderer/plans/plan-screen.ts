@@ -94,6 +94,16 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
     target.tagName === 'SELECT' ||
     target.isContentEditable
   );
+
+  // Escape while the plan text editor is open should dismiss the editor,
+  // matching the Cancel button, even if focus is inside an input/textarea.
+  if (e.key === 'Escape' && editingId) {
+    e.preventDefault();
+    hideDraftEditor();
+    editingId = null;
+    return;
+  }
+
   if (editable) return;
 
   // Ctrl+N — add new node

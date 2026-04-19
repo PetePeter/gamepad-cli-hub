@@ -1178,5 +1178,26 @@ describe('Plan Editor (unified)', () => {
 
       expect(document.getElementById('draftEditor')!.style.display).toBe('none');
     });
+
+    it('Escape in the description textarea hides the editor like Cancel without closing the plan screen', async () => {
+      const items = [makeItem({ id: 'cancel-esc' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+      mockPlanIncomingList.mockResolvedValue([]);
+
+      await screen.showPlanScreen('/test/dir');
+
+      const node = document.querySelector('.plan-node') as HTMLElement;
+      node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+      const textarea = document.getElementById('draftContentInput') as HTMLTextAreaElement;
+      textarea.focus();
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+
+      expect(document.getElementById('draftEditor')!.style.display).toBe('none');
+      expect(document.querySelector('.plan-screen')!.classList.contains('visible')).toBe(true);
+    });
   });
 });
