@@ -2,7 +2,7 @@
  * Tests for plan IPC handlers.
  *
  * Verifies plan:* channels route correctly to PlanManager methods
- * and auto-save fires on plan:changed events.
+ * and plan:changed events forward to the renderer window.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -21,9 +21,15 @@ vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-let savedData: unknown = null;
+// PlanManager now self-saves — mock persistence so no disk I/O occurs
 vi.mock('../src/session/persistence.js', () => ({
-  savePlans: vi.fn((data: unknown) => { savedData = data; }),
+  savePlanFile: vi.fn(),
+  deletePlanFile: vi.fn(),
+  listPlanFiles: vi.fn(() => []),
+  loadPlanFile: vi.fn(() => null),
+  loadDependencies: vi.fn(() => []),
+  saveDependencies: vi.fn(),
+  cleanupOrphanDependencies: vi.fn(() => ({ removed: 0, deps: [] })),
 }));
 
 import { setupPlanHandlers } from '../src/electron/ipc/plan-handlers.js';
@@ -34,7 +40,6 @@ describe('plan IPC handlers', () => {
 
   beforeEach(() => {
     handlers.clear();
-    savedData = null;
     planManager = new PlanManager();
     setupPlanHandlers(planManager);
   });
@@ -51,13 +56,6 @@ describe('plan IPC handlers', () => {
     for (const channel of expected) {
       expect(handlers.has(channel), `missing handler for ${channel}`).toBe(true);
     }
-  });
-
-  // ─── Auto-save ─────────────────────────────────────────
-
-  it('auto-saves on plan:changed event', async () => {
-    await handlers.get('plan:create')!({}, '/proj', 'Task', 'Desc');
-    expect(savedData).not.toBeNull();
   });
 
   // ─── CRUD ──────────────────────────────────────────────

@@ -1,16 +1,18 @@
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
+import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as YAML from 'yaml';
 import { logger } from '../utils/logger.js';
 import { getConfigDir } from '../utils/app-paths.js';
 import type { SessionInfo, DraftPrompt } from '../types/session.js';
-import type { DirectoryPlan } from '../types/plan.js';
+import type { PlanItem, PlanDependency, DirectoryPlan } from '../types/plan.js';
 
 const __persistence_dirname = dirname(fileURLToPath(import.meta.url));
 const SESSIONS_FILE = join(getConfigDir(__persistence_dirname), 'sessions.yaml');
 const DRAFTS_FILE = join(getConfigDir(__persistence_dirname), 'drafts.yaml');
 const PLANS_FILE = join(getConfigDir(__persistence_dirname), 'plans.yaml');
+const DEFAULT_PLANS_DIR = join(getConfigDir(__persistence_dirname), 'plans');
+const DEFAULT_PLAN_DEPS_FILE = join(getConfigDir(__persistence_dirname), 'plan-dependencies.json');
 
 /** Persist current sessions to disk so they survive restarts. */
 export function saveSessions(sessions: SessionInfo[]): void {
@@ -76,7 +78,7 @@ export function loadDrafts(): Record<string, DraftPrompt[]> {
   }
 }
 
-/** Persist directory plans to disk. */
+/** Persist directory plans to disk (legacy — used only by migration and tests). */
 export function savePlans(plans: Record<string, DirectoryPlan>): void {
   try {
     writeFileSync(PLANS_FILE, YAML.stringify({ plans }), 'utf8');
@@ -86,14 +88,136 @@ export function savePlans(plans: Record<string, DirectoryPlan>): void {
 }
 
 /** Load persisted directory plans from disk. */
-export function loadPlans(): Record<string, DirectoryPlan> {
+export function loadPlans(plansFile?: string): Record<string, DirectoryPlan> {
+  const file = plansFile ?? PLANS_FILE;
   try {
-    if (!existsSync(PLANS_FILE)) return {};
-    const content = readFileSync(PLANS_FILE, 'utf8');
+    if (!existsSync(file)) return {};
+    const content = readFileSync(file, 'utf8');
     const parsed = YAML.parse(content) as { plans?: Record<string, DirectoryPlan> };
     return parsed?.plans ?? {};
   } catch (err) {
     logger.error(`Failed to load plans: ${err}`);
     return {};
   }
+}
+
+// ─── Individual plan file persistence ──────────────────────────────────────
+
+const FILE_VERSION = 1;
+
+/**
+ * Encode a dirPath + planId into a safe filename.
+ * URL-encodes dirPath (so any @ becomes %40) then appends @ + first 8 chars of planId.
+ */
+export function encodeFilename(dirPath: string, planId: string): string {
+  return `${encodeURIComponent(dirPath)}@${planId}.json`;
+}
+
+/** Decode a plan filename back to dirPath and planId. */
+export function decodeFilename(filename: string): { dirPath: string; planId: string } {
+  const name = basename(filename, '.json');
+  const atIdx = name.lastIndexOf('@');
+  return {
+    dirPath: decodeURIComponent(name.slice(0, atIdx)),
+    planId: name.slice(atIdx + 1),
+  };
+}
+
+/** Write a single plan item as an individual JSON file. Creates the plans/ dir if needed. */
+export function savePlanFile(item: PlanItem, plansDir = DEFAULT_PLANS_DIR): void {
+  try {
+    mkdirSync(plansDir, { recursive: true });
+    const filename = encodeFilename(item.dirPath, item.id);
+    const data = { ...item, _fileVersion: FILE_VERSION };
+    writeFileSync(join(plansDir, filename), JSON.stringify(data, null, 2), 'utf8');
+  } catch (err) {
+    logger.error(`Failed to save plan file ${item.id}: ${err}`);
+  }
+}
+
+/** Load a single plan item from disk. Returns null if not found or invalid. */
+export function loadPlanFile(filename: string, plansDir = DEFAULT_PLANS_DIR): PlanItem | null {
+  try {
+    const filePath = join(plansDir, filename);
+    if (!existsSync(filePath)) return null;
+    const raw = JSON.parse(readFileSync(filePath, 'utf8'));
+    // Strip file-level metadata before returning as PlanItem
+    const { _fileVersion: _v, ...item } = raw;
+    return item as PlanItem;
+  } catch (err) {
+    logger.error(`Failed to load plan file ${filename}: ${err}`);
+    return null;
+  }
+}
+
+/** Delete the plan file matching the given plan ID. Returns true if deleted. */
+export function deletePlanFile(planId: string, plansDir = DEFAULT_PLANS_DIR): boolean {
+  try {
+    if (!existsSync(plansDir)) return false;
+    const files = readdirSync(plansDir, { withFileTypes: true });
+    for (const f of files) {
+      if (!f.isFile() || !f.name.endsWith('.json')) continue;
+      const { planId: decodedId } = decodeFilename(f.name);
+      if (planId === decodedId) {
+        unlinkSync(join(plansDir, f.name));
+        return true;
+      }
+    }
+    return false;
+  } catch (err) {
+    logger.error(`Failed to delete plan file for ${planId}: ${err}`);
+    return false;
+  }
+}
+
+/** List all .json filenames directly in the plans directory (excludes subdirs). */
+export function listPlanFiles(plansDir = DEFAULT_PLANS_DIR): string[] {
+  try {
+    if (!existsSync(plansDir)) return [];
+    return readdirSync(plansDir, { withFileTypes: true })
+      .filter(f => f.isFile() && f.name.endsWith('.json'))
+      .map(f => f.name);
+  } catch (err) {
+    logger.error(`Failed to list plan files: ${err}`);
+    return [];
+  }
+}
+
+/** Write the global dependency registry to disk. */
+export function saveDependencies(deps: PlanDependency[], depsFile = DEFAULT_PLAN_DEPS_FILE): void {
+  try {
+    writeFileSync(depsFile, JSON.stringify({ version: 1, dependencies: deps }, null, 2), 'utf8');
+  } catch (err) {
+    logger.error(`Failed to save plan dependencies: ${err}`);
+  }
+}
+
+/** Load the global dependency registry from disk. Returns [] if not found. */
+export function loadDependencies(depsFile = DEFAULT_PLAN_DEPS_FILE): PlanDependency[] {
+  try {
+    if (!existsSync(depsFile)) return [];
+    const raw = JSON.parse(readFileSync(depsFile, 'utf8'));
+    return raw?.dependencies ?? [];
+  } catch (err) {
+    logger.error(`Failed to load plan dependencies: ${err}`);
+    return [];
+  }
+}
+
+/**
+ * Remove dependency edges whose fromId or toId no longer exist in validPlanIds.
+ * Saves the cleaned dependency list.
+ */
+export function cleanupOrphanDependencies(
+  validPlanIds: Set<string>,
+  depsFile = DEFAULT_PLAN_DEPS_FILE,
+): { removed: number; deps: PlanDependency[] } {
+  const deps = loadDependencies(depsFile);
+  const cleaned = deps.filter(d => validPlanIds.has(d.fromId) && validPlanIds.has(d.toId));
+  const removed = deps.length - cleaned.length;
+  if (removed > 0) {
+    saveDependencies(cleaned, depsFile);
+    logger.info(`[Persistence] Cleaned up ${removed} orphan dependency edge(s)`);
+  }
+  return { removed, deps: cleaned };
 }

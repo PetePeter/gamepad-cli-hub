@@ -40,6 +40,7 @@ import {
 import { initDraftEditor } from '../drafts/draft-editor.js';
 import { init as initChipBar } from '../components/chip-bar.js';
 import { refreshDraftStrip } from '../drafts/draft-strip.js';
+import { refreshPlanBadges } from '../screens/sessions-plans.js';
 
 // Sort preferences (module-level state to match legacy behaviour)
 let sortField: SessionSortField = 'name';
@@ -182,15 +183,17 @@ async function refreshPlanCounts(): Promise<void> {
   state.planDoingCounts.clear();
   state.planStartableCounts.clear();
   state.planDirStartableCounts.clear();
+  state.planDirDoingCounts.clear();
+  state.planDirBlockedCounts.clear();
+  state.planDirQuestionCounts.clear();
+  state.planDirPendingCounts.clear();
 
   const tm = getTerminalManager();
-  const activeDirs = new Set<string>();
 
   if (tm) {
     for (const id of tm.getSessionIds()) {
       const cwd = getSessionCwd(id);
       if (!cwd) continue;
-      activeDirs.add(cwd);
 
       try {
         const startable = await window.gamepadCli.planStartableForDir(cwd);
@@ -213,14 +216,8 @@ async function refreshPlanCounts(): Promise<void> {
     }
   }
 
-  // Also query directories that have no active terminal sessions
-  for (const dir of sessionsState.directories) {
-    if (activeDirs.has(dir.path)) continue;
-    try {
-      const startable = await window.gamepadCli.planStartableForDir(dir.path);
-      state.planDirStartableCounts.set(dir.path, startable.length);
-    } catch { /* ignore */ }
-  }
+  // Populate all 5 planDir* Maps for every configured directory (active or not).
+  await refreshPlanBadges();
 }
 
 // Group prefs

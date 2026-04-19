@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 import { registerIPCHandlers } from './ipc/handlers.js';
 import { setupPowerMonitor } from '../session/power-monitor.js';
+import { migrateOldPlans } from '../session/plan-migration.js';
 import { configLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
 import { getRendererHtmlPath, isPackaged, seedConfigIfNeeded, getConfigDir } from '../utils/app-paths.js';
@@ -178,7 +179,7 @@ function createWindow(): void {
 /**
  * Application lifecycle - Ready
  */
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   logger.info('[Main] App ready');
   logger.info(`[Main] Crash dumps directory: ${app.getPath('crashDumps')}`);
 
@@ -187,6 +188,16 @@ app.whenReady().then(() => {
     const bundled = join(__dirname, '..', 'config');
     const target = getConfigDir(__dirname);
     seedConfigIfNeeded(bundled, target);
+  }
+
+  // Migrate monolithic plans.yaml → individual files if still present
+  try {
+    const r = migrateOldPlans();
+    if (r.migratedPlans > 0 || r.migratedDeps > 0) {
+      logger.info(`[Main] Plan migration: ${r.migratedPlans} plan(s), ${r.migratedDeps} dep(s)`);
+    }
+  } catch (err) {
+    logger.error(`[Main] Plan migration failed: ${err}`);
   }
 
   // Register IPC handlers

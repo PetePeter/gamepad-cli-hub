@@ -35,7 +35,6 @@ import { setupTelegramHandlers } from './telegram-handlers.js';
 import { setupDraftHandlers } from './draft-handlers.js';
 import { setupPlanHandlers } from './plan-handlers.js';
 import { loadDrafts } from '../../session/persistence.js';
-import { loadPlans } from '../../session/persistence.js';
 
 
 /**
@@ -84,7 +83,7 @@ export function registerIPCHandlers(
   logger.info(`[IPC] Restored ${restored.length} session(s) from previous run`);
 
   draftManager.importAll(loadDrafts());
-  planManager.importAll(loadPlans());
+  // PlanManager loads from disk in its constructor — no explicit importAll needed
 
   const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager);
   setupConfigHandlers(configLoader);

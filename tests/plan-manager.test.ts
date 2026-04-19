@@ -9,6 +9,17 @@ vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+// PlanManager constructor does file I/O — mock all persistence functions
+vi.mock('../src/session/persistence.js', () => ({
+  savePlanFile: vi.fn(),
+  deletePlanFile: vi.fn(),
+  listPlanFiles: vi.fn(() => []),
+  loadPlanFile: vi.fn(() => null),
+  loadDependencies: vi.fn(() => []),
+  saveDependencies: vi.fn(),
+  cleanupOrphanDependencies: vi.fn(() => ({ removed: 0, deps: [] })),
+}));
+
 import { PlanManager } from '../src/session/plan-manager.js';
 
 describe('PlanManager', () => {

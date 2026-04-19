@@ -126,29 +126,15 @@ const spawnItems = computed(() =>
 );
 
 const plansDirItems = computed(() =>
-  sessionsState.directories.map(d => {
-    const group = sessionsState.groups.find(g => g.dirPath === d.path);
-    const sessionIds = group?.sessions.map(s => s.id) ?? [];
-    // Startable is directory-level — same for all sessions in dir, use first found
-    let startableCount = 0;
-    for (const id of sessionIds) {
-      const v = state.planStartableCounts.get(id);
-      if (v !== undefined) { startableCount = v; break; }
-    }
-    // Fallback: dir-level count for directories with no active sessions
-    if (startableCount === 0 && sessionIds.length === 0) {
-      startableCount = state.planDirStartableCounts.get(d.path) ?? 0;
-    }
-    return {
-      name: d.name,
-      path: d.path,
-      startableCount,
-      doingCount: state.planDirDoingCounts.get(d.path) ?? 0,
-      blockedCount: state.planDirBlockedCounts.get(d.path) ?? 0,
-      questionCount: state.planDirQuestionCounts.get(d.path) ?? 0,
-      pendingCount: state.planDirPendingCounts.get(d.path) ?? 0,
-    };
-  })
+  sessionsState.directories.map(d => ({
+    name: d.name,
+    path: d.path,
+    startableCount: state.planDirStartableCounts.get(d.path) ?? 0,
+    doingCount: state.planDirDoingCounts.get(d.path) ?? 0,
+    blockedCount: state.planDirBlockedCounts.get(d.path) ?? 0,
+    questionCount: state.planDirQuestionCounts.get(d.path) ?? 0,
+    pendingCount: state.planDirPendingCounts.get(d.path) ?? 0,
+  }))
 );
 
 const hasActiveSession = computed(() => !!state.activeSessionId);

@@ -1,16 +1,14 @@
 import type { BrowserWindow } from 'electron';
 import { ipcMain } from 'electron';
 import type { PlanManager } from '../../session/plan-manager.js';
-import { savePlans } from '../../session/persistence.js';
 import { logger } from '../../utils/logger.js';
 
 export function setupPlanHandlers(
   planManager: PlanManager,
   getMainWindow?: () => BrowserWindow | null,
 ): void {
-  // Auto-save on any change
+  // Forward plan:changed events to renderer (PlanManager self-saves to disk)
   planManager.on('plan:changed', (dirPath: string) => {
-    savePlans(planManager.exportAll());
     const win = getMainWindow?.();
     if (win && !win.isDestroyed()) {
       win.webContents.send('plan:changed', dirPath);

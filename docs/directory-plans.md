@@ -1,6 +1,6 @@
 # Directory Plans (NCN — Network Connected Nodes)
 
-Per-directory DAG of work items with dependency arrows and a 4-state lifecycle. Plans are folder-level (not session-level like drafts) and persist to `config/plans.yaml` (not per-profile).
+Per-directory DAG of work items with dependency arrows and a 4-state lifecycle. Plans are folder-level (not session-level like drafts) and persist to individual JSON files under `config/plans/` (not per-profile).
 
 ## Overview
 
@@ -35,8 +35,8 @@ graph TB
     subgraph "Main Process"
         PM[PlanManager<br/>EventEmitter]
         PH[plan-handlers.ts<br/>12 IPC channels]
-        SP[persistence.ts<br/>savePlans/loadPlans]
-        PY[config/plans.yaml]
+        SP[persistence.ts<br/>plan file I/O]
+        PY[config/plans/*.json]
     end
 
     subgraph "Renderer Process"
@@ -133,7 +133,7 @@ Cycle prevention uses DFS: before adding edge `fromId → toId`, checks whether 
 
 ### Events
 
-Emits `plan:changed` with `dirPath` on every mutation. The plan handlers listen to this event and auto-save via `savePlans()`.
+Emits `plan:changed` with `dirPath` on every mutation. PlanManager self-saves to disk on every mutation — no external save listener needed.
 
 ## IPC Channels
 
@@ -288,7 +288,7 @@ Called at the end of `refreshDraftStrip()` in `draft-strip.ts`.
 
 ## Persistence
 
-Plans persist to `config/plans.yaml` via `savePlans()`/`loadPlans()` in `src/session/persistence.ts`. Auto-save fires on every `plan:changed` event. On startup, `handlers.ts` calls `planManager.importAll(loadPlans())` to restore state.
+Plans persist to individual JSON files under `config/plans/` (one file per plan item) with a global dependency registry at `config/plan-dependencies.json`. PlanManager self-saves on every mutation. On startup, `PlanManager` loads all files from disk in its constructor. See [plans-file-structure.md](plans-file-structure.md) for the full schema and file layout.
 
 Plans are folder-level data (not per-profile) — switching profiles does not affect plans.
 

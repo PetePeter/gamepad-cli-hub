@@ -18,4 +18,7 @@ release/
 config/settings.yaml
 config/sessions.yaml
 config/plans.yaml
+config/plans.yaml.bak
+config/plans/
+config/plan-dependencies.json
 config-deploy/

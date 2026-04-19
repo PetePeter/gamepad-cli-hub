@@ -1,11 +1,21 @@
 /**
  * PlanManager — Per-directory DAG of work items (NCN).
  * CRUD, dependency management, cycle prevention, startable computation.
+ * Persists to individual config/plans/*.json files + config/plan-dependencies.json.
  */
 
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { logger } from '../utils/logger.js';
+import {
+  savePlanFile,
+  deletePlanFile,
+  listPlanFiles,
+  loadPlanFile,
+  loadDependencies,
+  saveDependencies,
+  cleanupOrphanDependencies,
+} from './persistence.js';
 import type { PlanItem, PlanDependency, DirectoryPlan, PlanStatus } from '../types/plan.js';
 
 const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['doing', 'blocked', 'question']);
@@ -14,6 +24,38 @@ const PAUSED_PLAN_STATUSES = new Set<PlanStatus>(['blocked', 'question']);
 export class PlanManager extends EventEmitter {
   private items = new Map<string, PlanItem>();
   private dependencies: PlanDependency[] = [];
+
+  constructor() {
+    super();
+    this.loadFromDisk();
+  }
+
+  /** Load all plan items and dependencies from disk on startup. */
+  private loadFromDisk(): void {
+    const filenames = listPlanFiles();
+    for (const filename of filenames) {
+      const item = loadPlanFile(filename);
+      if (item) this.items.set(item.id, item);
+    }
+
+    const validIds = new Set(this.items.keys());
+    const { deps: cleanedDeps } = cleanupOrphanDependencies(validIds);
+    this.dependencies = cleanedDeps;
+
+    const dirs = new Set<string>();
+    for (const item of this.items.values()) dirs.add(item.dirPath);
+    for (const dirPath of dirs) this.recomputeStartable(dirPath);
+
+    logger.info(`[PlanManager] Loaded ${this.items.size} plan(s) from disk`);
+  }
+
+  /** Save all items for a directory + the dependency list. */
+  private saveDir(dirPath: string): void {
+    for (const item of this.items.values()) {
+      if (item.dirPath === dirPath) savePlanFile(item);
+    }
+    saveDependencies(this.dependencies);
+  }
 
   /** Create a new plan item. No-dep items start as 'startable'. */
   create(dirPath: string, title: string, description: string): PlanItem {
@@ -28,6 +70,7 @@ export class PlanManager extends EventEmitter {
       updatedAt: now,
     };
     this.items.set(item.id, item);
+    savePlanFile(item);
     this.emit('plan:changed', dirPath);
     logger.info(`[PlanManager] Created plan "${title}" in ${dirPath}`);
     return item;
@@ -42,6 +85,7 @@ export class PlanManager extends EventEmitter {
     if (updates.description !== undefined) item.description = updates.description;
     item.updatedAt = Date.now();
 
+    savePlanFile(item);
     this.emit('plan:changed', item.dirPath);
     logger.info(`[PlanManager] Updated plan ${id}`);
     return item;
@@ -53,9 +97,11 @@ export class PlanManager extends EventEmitter {
     if (!item) return false;
 
     const dirPath = item.dirPath;
+    deletePlanFile(id);
     this.items.delete(id);
     this.dependencies = this.dependencies.filter(d => d.fromId !== id && d.toId !== id);
     this.recomputeStartable(dirPath);
+    this.saveDir(dirPath);
     this.emit('plan:changed', dirPath);
     logger.info(`[PlanManager] Deleted plan ${id}`);
     return true;
@@ -99,6 +145,7 @@ export class PlanManager extends EventEmitter {
 
     this.dependencies.push({ fromId, toId });
     this.recomputeStartable(from.dirPath);
+    this.saveDir(from.dirPath);
     this.emit('plan:changed', from.dirPath);
     logger.info(`[PlanManager] Added dependency ${fromId} → ${toId}`);
     return true;
@@ -115,6 +162,7 @@ export class PlanManager extends EventEmitter {
     const dirPath = from?.dirPath ?? this.items.get(toId)?.dirPath;
     if (dirPath) {
       this.recomputeStartable(dirPath);
+      this.saveDir(dirPath);
       this.emit('plan:changed', dirPath);
     }
     logger.info(`[PlanManager] Removed dependency ${fromId} → ${toId}`);
@@ -131,6 +179,7 @@ export class PlanManager extends EventEmitter {
     item.stateInfo = undefined;
     item.updatedAt = Date.now();
 
+    savePlanFile(item);
     this.emit('plan:changed', item.dirPath);
     logger.info(`[PlanManager] Applied plan ${id} to session ${sessionId}`);
     return item;
@@ -147,6 +196,7 @@ export class PlanManager extends EventEmitter {
     item.updatedAt = Date.now();
 
     this.recomputeStartable(item.dirPath);
+    this.saveDir(item.dirPath);
     this.emit('plan:changed', item.dirPath);
     logger.info(`[PlanManager] Completed plan ${id}`);
     return item;
@@ -173,6 +223,9 @@ export class PlanManager extends EventEmitter {
 
     if (status === 'pending' || status === 'startable') {
       this.recomputeStartable(item.dirPath);
+      this.saveDir(item.dirPath);
+    } else {
+      savePlanFile(item);
     }
 
     this.emit('plan:changed', item.dirPath);
