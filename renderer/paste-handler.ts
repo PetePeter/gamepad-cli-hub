@@ -20,12 +20,21 @@ let registeredHandler: ((e: KeyboardEvent) => void) | null = null;
 let pasteInFlight = false;
 let editorInFlight = false;
 
+const SENDKEYS_INDIVIDUAL_DELAY_MS = 20;
+
 /** Deliver bulk text to the active session — either via PTY write or via
  *  OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode. */
 export async function deliverBulkText(sessionId: string, text: string): Promise<void> {
   if (!text) return;
   const session = state.sessions.find(s => s.id === sessionId);
   const tool = session ? state.cliToolsCache[session.cliType] : undefined;
+  if (tool?.pasteMode === 'sendkeysindividual' && window.gamepadCli?.keyboardTypeString) {
+    for (const char of text) {
+      await window.gamepadCli.keyboardTypeString(char);
+      await new Promise(resolve => setTimeout(resolve, SENDKEYS_INDIVIDUAL_DELAY_MS));
+    }
+    return;
+  }
   if (tool?.pasteMode === 'sendkeys' && window.gamepadCli?.keyboardTypeString) {
     await window.gamepadCli.keyboardTypeString(text);
     return;

@@ -274,6 +274,85 @@ export class PlanManager extends EventEmitter {
     logger.info(`[PlanManager] Imported plans for ${dirs.size} directory(s)`);
   }
 
+  /**
+   * Import a single plan item from an external source (e.g. CLI-generated incoming file).
+   * - Rejects duplicate IDs (returns null).
+   * - Auto-renames on title collision: appends ` (2)`, ` (3)`, etc.
+   * - Incoming `status` is normalised to `startable` if unrecognised.
+   * - Optional `deps` are filtered to only include edges that reference known IDs after import.
+   */
+  importItem(item: PlanItem, deps: PlanDependency[] = []): PlanItem | null {
+    if (this.items.has(item.id)) {
+      logger.warn(`[PlanManager] importItem rejected: duplicate ID ${item.id}`);
+      return null;
+    }
+
+    const uniqueTitle = this.resolveUniqueTitle(item.dirPath, item.title);
+    const now = Date.now();
+    const imported: PlanItem = {
+      ...item,
+      title: uniqueTitle,
+      status: 'startable',
+      createdAt: item.createdAt ?? now,
+      updatedAt: now,
+    };
+
+    this.items.set(imported.id, imported);
+    savePlanFile(imported);
+
+    // Only add deps whose both ends are known
+    const validDeps = deps.filter(d => this.items.has(d.fromId) && this.items.has(d.toId));
+    if (validDeps.length > 0) {
+      this.dependencies.push(...validDeps);
+      saveDependencies(this.dependencies);
+    }
+
+    this.recomputeStartable(imported.dirPath);
+    this.emit('plan:changed', imported.dirPath);
+    logger.info(`[PlanManager] Imported plan "${uniqueTitle}" (${imported.id}) into ${imported.dirPath}`);
+    return imported;
+  }
+
+  /**
+   * Export a single plan item with the dependency edges that touch it.
+   * Returns null if the item does not exist.
+   */
+  exportItem(id: string): { item: PlanItem; dependencies: PlanDependency[] } | null {
+    const item = this.items.get(id);
+    if (!item) return null;
+    const dependencies = this.dependencies.filter(d => d.fromId === id || d.toId === id);
+    return { item, dependencies };
+  }
+
+  /**
+   * Export all plan items for a directory, including their dependency edges.
+   * Returns null if the directory has no plans.
+   */
+  exportDirectory(dirPath: string): { dirPath: string; items: PlanItem[]; dependencies: PlanDependency[] } | null {
+    const items = this.getForDirectory(dirPath);
+    if (items.length === 0) return null;
+    const itemIds = new Set(items.map(i => i.id));
+    const dependencies = this.dependencies.filter(d => itemIds.has(d.fromId) && itemIds.has(d.toId));
+    return { dirPath, items, dependencies };
+  }
+
+  /**
+   * Check if an ID is already in use.
+   * Used by the watcher before attempting importItem.
+   */
+  hasItem(id: string): boolean {
+    return this.items.has(id);
+  }
+
+  /** Find a unique title in a directory — appends (2), (3), etc. if a collision exists. */
+  private resolveUniqueTitle(dirPath: string, title: string): string {
+    const existing = new Set(this.getForDirectory(dirPath).map(i => i.title));
+    if (!existing.has(title)) return title;
+    let n = 2;
+    while (existing.has(`${title} (${n})`)) n++;
+    return `${title} (${n})`;
+  }
+
   /** Check if adding fromId→toId would create a cycle via DFS. */
   private wouldCreateCycle(fromId: string, toId: string): boolean {
     // Adding fromId→toId means "fromId must finish before toId".

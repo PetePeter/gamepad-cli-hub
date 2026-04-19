@@ -204,6 +204,8 @@ app.whenReady().then(async () => {
   const ipc = registerIPCHandlers(() => mainWindow);
   cleanupIPC = ipc.cleanup;
 
+  // Start watching for incoming plan files from CLIs
+  ipc.incomingWatcher.start();
   // Power monitor with full session/PTY diagnostics
   setupPowerMonitor(powerMonitor, {
     sessionManager: ipc.sessionManager,

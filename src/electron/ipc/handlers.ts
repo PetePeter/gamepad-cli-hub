@@ -35,6 +35,7 @@ import { setupTelegramHandlers } from './telegram-handlers.js';
 import { setupDraftHandlers } from './draft-handlers.js';
 import { setupPlanHandlers } from './plan-handlers.js';
 import { loadDrafts } from '../../session/persistence.js';
+import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
 
 
 /**
@@ -45,7 +46,7 @@ import { loadDrafts } from '../../session/persistence.js';
  */
 export function registerIPCHandlers(
   getMainWindow: () => BrowserWindow | null,
-): { cleanup: () => void; sessionManager: SessionManager; ptyManager: PtyManager } {
+): { cleanup: () => void; sessionManager: SessionManager; ptyManager: PtyManager; incomingWatcher: IncomingPlansWatcher } {
   logger.info('[IPC] Registering handlers');
 
   // Load config eagerly so individual handlers don't need to call load()
@@ -85,6 +86,8 @@ export function registerIPCHandlers(
   draftManager.importAll(loadDrafts());
   // PlanManager loads from disk in its constructor — no explicit importAll needed
 
+  const incomingWatcher = new IncomingPlansWatcher(planManager);
+
   const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager);
   setupConfigHandlers(configLoader);
   setupEditorHandlers(configLoader);
@@ -93,7 +96,7 @@ export function registerIPCHandlers(
   setupKeyboardHandlers(keyboard);
   setupSystemHandlers();
   setupDraftHandlers(draftManager);
-  setupPlanHandlers(planManager, getMainWindow);
+  setupPlanHandlers(planManager, getMainWindow, incomingWatcher);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader, notificationManager, telegramModules.feedPtyOutput, telegramModules.handleActivityChange, telegramModules.trackInput);
 
   // Wire events ONCE (no-ops when bot not running — notifier checks isRunning)
@@ -158,9 +161,11 @@ export function registerIPCHandlers(
       stateDetector.dispose();
       notificationManager.dispose();
       ptyManager.killAll();
+      incomingWatcher.close();
       logger.info('[IPC] Cleanup complete');
     },
     sessionManager,
     ptyManager,
+    incomingWatcher,
   };
 }

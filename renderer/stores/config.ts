@@ -30,7 +30,7 @@ export const useConfigStore = defineStore('config', () => {
   }
 
   /** Get tool config for a specific CLI type. */
-  function getToolConfig(cliType: string): { pasteMode?: 'pty' | 'sendkeys'; [k: string]: any } {
+  function getToolConfig(cliType: string): { pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual'; [k: string]: any } {
     return state.cliToolsCache[cliType] ?? {};
   }
 
@@ -43,7 +43,7 @@ export const useConfigStore = defineStore('config', () => {
     state.cliSequencesCache = cache;
   }
 
-  function setToolsCache(cache: Record<string, { pasteMode?: 'pty' | 'sendkeys'; [k: string]: any }>) {
+  function setToolsCache(cache: Record<string, { pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual'; [k: string]: any }>) {
     state.cliToolsCache = cache;
   }
 

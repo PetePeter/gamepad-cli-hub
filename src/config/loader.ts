@@ -84,10 +84,12 @@ export interface CliTypeConfig {
   /** CLI command to resume most recent session (fallback when resumeCommand is not configured). */
   continueCommand?: string;
   /** How to deliver clipboard paste (Ctrl+V) and bulk text (Ctrl+G editor) to this CLI.
-   *  - 'pty'      — write directly to PTY stdin (default, works for most terminals)
-   *  - 'sendkeys' — simulate OS keystrokes via robotjs (useful for CLIs that
-   *    strip or reformat bracketed-paste input, e.g. some IDE-embedded shells) */
-  pasteMode?: 'pty' | 'sendkeys';
+   *  - 'pty'                — write directly to PTY stdin (default, works for most terminals)
+   *  - 'sendkeys'           — simulate OS keystrokes via robotjs (useful for CLIs that
+   *    strip or reformat bracketed-paste input, e.g. some IDE-embedded shells)
+   *  - 'sendkeysindividual' — send one character at a time via robotjs with 20ms delay
+   *    (for interactive CLIs like GitHub Copilot that don't accept bulk paste) */
+  pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual';
 }
 
 export interface ButtonBindings {
@@ -797,7 +799,7 @@ export class ConfigLoader {
   addCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' },
+    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual' },
   ): void {
     this.ensureLoaded();
     if (this.activeProfile!.tools[key]) {
@@ -817,7 +819,7 @@ export class ConfigLoader {
   updateCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' },
+    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual' },
   ): void {
     this.ensureLoaded();
     if (!this.activeProfile!.tools[key]) {

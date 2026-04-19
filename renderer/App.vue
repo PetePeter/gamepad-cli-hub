@@ -46,6 +46,7 @@ import {
   draftSubmenu,
   formModal, getFormModalResolve,
   editorPopup, getEditorPopupOnSend, getEditorPopupResolve, setEditorPopupCallbacks,
+  incomingPlans,
   isAnyBridgeModalVisible,
 } from './stores/modal-bridge.js';
 import { collectSequenceItems } from './modals/context-menu.js';
@@ -79,6 +80,8 @@ import DirPickerModal from './components/modals/DirPickerModal.vue';
 import FormModal from './components/modals/FormModal.vue';
 import EditorPopup from './components/modals/EditorPopup.vue';
 import BindingEditorModal from './components/modals/BindingEditorModal.vue';
+import IncomingPlansModal from './components/modals/IncomingPlansModal.vue';
+import ToastNotification from './components/ToastNotification.vue';
 
 // ============================================================================
 // Reactive view state
@@ -554,6 +557,15 @@ async function onBindingEditorSave(binding: any): Promise<void> {
 }
 
 // ============================================================================
+// Incoming Plans Modal
+// ============================================================================
+
+function onIncomingPlanImported(): void {
+  // The plan screen will auto-refresh when it detects the plan:changed event.
+  // No extra work needed here.
+}
+
+// ============================================================================
 // Lifecycle
 // ============================================================================
 
@@ -648,7 +660,7 @@ onUnmounted(() => {
 
       <!-- Sessions screen -->
       <main class="sidebar-content">
-        <section v-show="!settingsVisible" class="screen screen--active">
+        <section v-show="!settingsVisible" class="sessions-screen-section">
           <SortBar
             :options="sortOptions"
             :field="getSortField()"
@@ -862,4 +874,12 @@ onUnmounted(() => {
       @save="onBindingEditorSave"
       @cancel="bindingEditorVisible = false"
     />
+
+    <IncomingPlansModal
+      v-model:visible="incomingPlans.visible"
+      :target-dir-path="incomingPlans.targetDirPath"
+      @imported="onIncomingPlanImported"
+    />
+
+    <ToastNotification />
 </template>

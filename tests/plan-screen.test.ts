@@ -195,9 +195,10 @@ describe('Plan Screen', () => {
       const buttons = header!.querySelectorAll('.plan-header__btn');
       expect(buttons.length).toBeGreaterThanOrEqual(2);
 
-      // First button is back, last is add
+      // First button is back; verify Back and Add are both present
       expect(buttons[0].textContent).toContain('Back');
-      expect(buttons[buttons.length - 1].textContent).toContain('Add');
+      const buttonTexts = Array.from(buttons).map(b => b.textContent ?? '');
+      expect(buttonTexts.some(t => t.includes('Add'))).toBe(true);
     });
 
     it('creates SVG canvas with nodes', async () => {

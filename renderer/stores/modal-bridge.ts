@@ -149,5 +149,22 @@ export function getEditorPopupResolve(): (() => void) | null { return _editorPop
 export function isAnyBridgeModalVisible(): boolean {
   return closeConfirm.visible || contextMenu.visible || planDeleteConfirm.visible ||
     sequencePicker.visible || quickSpawn.visible || dirPicker.visible ||
-    draftSubmenu.visible || formModal.visible || editorPopup.visible;
+    draftSubmenu.visible || formModal.visible || editorPopup.visible ||
+    incomingPlans.visible;
 }
+
+// ============================================================================
+// Incoming Plans Modal
+// ============================================================================
+
+export const incomingPlans = reactive({
+  visible: false,
+  targetDirPath: '',
+});
+
+/** Open the incoming plans modal, targeting the given directory for import. */
+export function showIncomingPlans(targetDirPath: string): void {
+  incomingPlans.targetDirPath = targetDirPath;
+  incomingPlans.visible = true;
+}
+

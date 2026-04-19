@@ -15,6 +15,7 @@ import { registerView, showView, currentView } from '../main-view/main-view-mana
 import { showPlanHelpModal, hidePlanHelpModal, isPlanHelpVisible } from './plan-help-modal.js';
 import { sessionsState } from '../screens/sessions-state.js';
 import { resolveGroupDisplayName } from '../session-groups.js';
+import { showIncomingPlans } from '../stores/modal-bridge.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -340,7 +341,7 @@ function ensureScreenContainer(): void {
 // Header
 // ---------------------------------------------------------------------------
 
-/** Build the header bar with back and add buttons. */
+/** Build the header bar with back, add, and export/import buttons. */
 function buildHeader(dirPath: string): HTMLElement {
   const header = document.createElement('div');
   header.className = 'plan-header';
@@ -361,6 +362,34 @@ function buildHeader(dirPath: string): HTMLElement {
   title.className = 'plan-header__title';
   title.textContent = resolveGroupDisplayName(dirPath, sessionsState.directories) + ' — Plans';
   header.appendChild(title);
+
+  // Export / Import controls (right-aligned group)
+  const controls = document.createElement('div');
+  controls.className = 'plan-header__controls';
+
+  const exportDirBtn = document.createElement('button');
+  exportDirBtn.className = 'plan-header__btn plan-header__btn--secondary';
+  exportDirBtn.title = 'Export all plans in this directory as JSON';
+  exportDirBtn.textContent = '⬆ Export Dir';
+  exportDirBtn.addEventListener('click', () => handleExportDirectory(dirPath));
+  controls.appendChild(exportDirBtn);
+
+  const importBtn = document.createElement('button');
+  importBtn.className = 'plan-header__btn plan-header__btn--secondary';
+  importBtn.title = 'Import plans from a JSON file';
+  importBtn.textContent = '⬇ Import';
+  importBtn.addEventListener('click', () => handleImport(dirPath));
+  controls.appendChild(importBtn);
+
+  const incomingBtn = document.createElement('button');
+  incomingBtn.className = 'plan-header__btn plan-header__btn--secondary plan-header__btn--incoming';
+  incomingBtn.id = 'plan-incoming-btn';
+  incomingBtn.title = 'View incoming plans queued by CLI tools';
+  incomingBtn.textContent = '📥 Incoming';
+  incomingBtn.addEventListener('click', () => showIncomingPlans(dirPath));
+  controls.appendChild(incomingBtn);
+
+  header.appendChild(controls);
 
   return header;
 }
@@ -844,4 +873,85 @@ async function refreshCanvas(): Promise<void> {
   cachedLayout = layout;
   cachedItems = items;
   renderScreen(currentDir, items, deps, layout);
+  void refreshIncomingBadge();
 }
+
+/** Update the incoming plans badge count on the header button. */
+async function refreshIncomingBadge(): Promise<void> {
+  try {
+    const files = await window.gamepadCli.planIncomingList();
+    const btn = screenEl?.querySelector<HTMLElement>('.plan-header__btn--incoming');
+    if (!btn) return;
+    btn.textContent = files.length > 0 ? `📥 Incoming (${files.length})` : '📥 Incoming';
+  } catch {
+    // Non-critical — ignore
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Export / Import
+// ---------------------------------------------------------------------------
+
+/** Export all plans in the current directory to a JSON file (save dialog). */
+async function handleExportDirectory(dirPath: string): Promise<void> {
+  try {
+    const json = await window.gamepadCli.planExportDirectory(dirPath);
+    if (!json) {
+      console.warn('[PlanScreen] No data to export for:', dirPath);
+      return;
+    }
+
+    const folderName = dirPath.split(/[/\\]/).filter(Boolean).pop() ?? 'plans';
+    const defaultName = `${folderName}-plans.json`;
+
+    const savePath = await window.gamepadCli.dialogShowSaveFile(defaultName);
+    if (!savePath) return; // User cancelled
+
+    const ok = await window.gamepadCli.planWriteFile(savePath, json);
+    if (ok) {
+      showBriefNotice('Plans exported ✓');
+    }
+  } catch (err) {
+    console.error('[PlanScreen] Export directory failed:', err);
+  }
+}
+
+/** Import plans from a JSON file (open dialog). */
+async function handleImport(targetDirPath: string): Promise<void> {
+  try {
+    const filePath = await window.gamepadCli.dialogShowOpenFile();
+    if (!filePath) return; // User cancelled
+
+    const content = await window.gamepadCli.planReadFile(filePath);
+    if (!content) {
+      console.warn('[PlanScreen] Could not read file:', filePath);
+      return;
+    }
+
+    const result = await window.gamepadCli.planImportFile(content, targetDirPath);
+    if (result) {
+      await refreshCanvas();
+      const count = Array.isArray(result) ? result.length : 1;
+      showBriefNotice(`Imported ${count} plan item${count === 1 ? '' : 's'} ✓`);
+    } else {
+      showBriefNotice('Import failed — invalid JSON or duplicate item');
+    }
+  } catch (err) {
+    console.error('[PlanScreen] Import failed:', err);
+  }
+}
+
+/** Show a short transient notice in the plan header (auto-dismisses after 3s). */
+function showBriefNotice(message: string): void {
+  if (!screenEl) return;
+  let notice = screenEl.querySelector<HTMLElement>('.plan-notice');
+  if (!notice) {
+    notice = document.createElement('span');
+    notice.className = 'plan-notice';
+    screenEl.querySelector('.plan-header')?.appendChild(notice);
+  }
+  notice.textContent = message;
+  notice.classList.add('plan-notice--visible');
+  setTimeout(() => notice?.classList.remove('plan-notice--visible'), 3000);
+}
+

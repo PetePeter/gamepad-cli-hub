@@ -169,6 +169,7 @@ async function showAddCliTypeForm(): Promise<void> {
     { key: 'pasteMode', label: 'Paste Mode', type: 'select', defaultValue: 'pty', options: [
         { value: 'pty', label: 'PTY (default)' },
         { value: 'sendkeys', label: 'SendKeys (OS keystrokes)' },
+        { value: 'sendkeysindividual', label: 'SendKeys Individual (interactive CLIs)' },
       ] },
   ]);
 
@@ -217,6 +218,7 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
     { key: 'pasteMode', label: 'Paste Mode', type: 'select', defaultValue: value.pasteMode || 'pty', options: [
         { value: 'pty', label: 'PTY (default)' },
         { value: 'sendkeys', label: 'SendKeys (OS keystrokes)' },
+        { value: 'sendkeysindividual', label: 'SendKeys Individual (interactive CLIs)' },
       ] },
   ]);
 
@@ -241,7 +243,7 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
 }
 
 /** Build the optional command fields from form result. Empty string = clear, undefined = no change. */
-function buildCommandOptions(result: Record<string, string>): { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' } | undefined {
+function buildCommandOptions(result: Record<string, string>): { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual' } | undefined {
   const fields = ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
   const opts: Record<string, string> = {};
   let hasAny = false;
@@ -252,7 +254,7 @@ function buildCommandOptions(result: Record<string, string>): { handoffCommand?:
       hasAny = true;
     }
   }
-  if (result.pasteMode === 'pty' || result.pasteMode === 'sendkeys') {
+  if (result.pasteMode === 'pty' || result.pasteMode === 'sendkeys' || result.pasteMode === 'sendkeysindividual') {
     (opts as any).pasteMode = result.pasteMode;
     hasAny = true;
   }

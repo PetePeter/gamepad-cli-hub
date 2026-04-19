@@ -303,4 +303,32 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
       logger.error(`[IPC] Failed to set collapse prefs: ${error}`);
     }
   });
+
+  ipcMain.handle('dialog:showOpenFile', async (_event, filters?: Electron.FileFilter[]) => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const options: Electron.OpenDialogOptions = {
+      properties: ['openFile'],
+      title: 'Open Plan File',
+      filters: filters ?? [{ name: 'JSON', extensions: ['json'] }, { name: 'All Files', extensions: ['*'] }],
+    };
+    const result = focusedWindow
+      ? await dialog.showOpenDialog(focusedWindow, options)
+      : await dialog.showOpenDialog(options);
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
+
+  ipcMain.handle('dialog:showSaveFile', async (_event, defaultFilename?: string, filters?: Electron.FileFilter[]) => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const options: Electron.SaveDialogOptions = {
+      title: 'Save Plan File',
+      defaultPath: defaultFilename,
+      filters: filters ?? [{ name: 'JSON', extensions: ['json'] }, { name: 'All Files', extensions: ['*'] }],
+    };
+    const result = focusedWindow
+      ? await dialog.showSaveDialog(focusedWindow, options)
+      : await dialog.showSaveDialog(options);
+    if (result.canceled || !result.filePath) return null;
+    return result.filePath;
+  });
 }

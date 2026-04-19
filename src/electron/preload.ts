@@ -467,11 +467,61 @@ const gamepadCliAPI = {
   planGetItem: (id: string) =>
     ipcRenderer.invoke('plan:getItem', id),
 
+  /** List files in the incoming plans folder */
+  planIncomingList: (): Promise<string[]> =>
+    ipcRenderer.invoke('plan:incoming-list'),
+
+  /** Delete a file from the incoming plans folder */
+  planIncomingDelete: (filename: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:incoming-delete', filename),
+
+  /** Export a single plan item as JSON string */
+  planExportItem: (planId: string): Promise<string | null> =>
+    ipcRenderer.invoke('plan:export-item', planId),
+
+  /** Export an entire directory's plans as JSON string */
+  planExportDirectory: (dirPath: string): Promise<string | null> =>
+    ipcRenderer.invoke('plan:export-directory', dirPath),
+
+  /** Import a JSON string (single item or directory batch) into a target directory */
+  planImportFile: (jsonString: string, targetDirPath: string): Promise<unknown> =>
+    ipcRenderer.invoke('plan:import-file', jsonString, targetDirPath),
+
+  /** Read a local file and return its content as a string */
+  planReadFile: (filePath: string): Promise<string | null> =>
+    ipcRenderer.invoke('plan:read-file', filePath),
+
+  /** Write content to a local file (creates parent directories) */
+  planWriteFile: (filePath: string, content: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:write-file', filePath, content),
+
+  /** Open a file picker dialog and return the chosen path */
+  dialogShowOpenFile: (filters?: { name: string; extensions: string[] }[]): Promise<string | null> =>
+    ipcRenderer.invoke('dialog:showOpenFile', filters),
+
+  /** Open a save dialog and return the chosen path */
+  dialogShowSaveFile: (defaultFilename?: string, filters?: { name: string; extensions: string[] }[]): Promise<string | null> =>
+    ipcRenderer.invoke('dialog:showSaveFile', defaultFilename, filters),
+
   /** Subscribe to plan change events */
   onPlanChanged: (callback: (dirPath: string) => void) => {
     const listener = (_event: unknown, dirPath: string) => callback(dirPath);
     ipcRenderer.on('plan:changed', listener);
     return () => ipcRenderer.removeListener('plan:changed', listener);
+  },
+
+  /** Subscribe to successful incoming plan import notifications */
+  onPlanIncomingImported: (callback: (event: { filename: string; title: string; dirPath: string }) => void) => {
+    const listener = (_event: unknown, data: { filename: string; title: string; dirPath: string }) => callback(data);
+    ipcRenderer.on('plan:incoming-imported', listener);
+    return () => ipcRenderer.removeListener('plan:incoming-imported', listener);
+  },
+
+  /** Subscribe to incoming plan import error notifications */
+  onPlanIncomingError: (callback: (event: { filename: string; error: string }) => void) => {
+    const listener = (_event: unknown, data: { filename: string; error: string }) => callback(data);
+    ipcRenderer.on('plan:incoming-error', listener);
+    return () => ipcRenderer.removeListener('plan:incoming-error', listener);
   },
 
 };

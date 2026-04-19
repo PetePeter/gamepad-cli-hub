@@ -2,8 +2,12 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const { mockShowEditorPopup } = vi.hoisted(() => ({
+const { mockShowEditorPopup, mockState } = vi.hoisted(() => ({
   mockShowEditorPopup: vi.fn(),
+  mockState: {
+    sessions: [] as Array<{ id: string; cliType: string }>,
+    cliToolsCache: {} as Record<string, { pasteMode?: string }>,
+  },
 }));
 
 // Mock bindings module before importing paste-handler
@@ -30,7 +34,11 @@ vi.mock('../renderer/editor/editor-popup.js', () => ({
   showEditorPopup: mockShowEditorPopup,
 }));
 
-import { setupKeyboardRelay, teardownKeyboardRelay } from '../renderer/paste-handler';
+vi.mock('../renderer/state.js', () => ({
+  state: mockState,
+}));
+
+import { setupKeyboardRelay, teardownKeyboardRelay, deliverBulkText } from '../renderer/paste-handler';
 
 // ============================================================================
 // Tests
@@ -365,5 +373,98 @@ describe('keyboard relay', () => {
 
       expect(mockPtyWrite).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+// ============================================================================
+// deliverBulkText — paste mode routing
+// ============================================================================
+
+describe('deliverBulkText', () => {
+  let mockPtyWrite: ReturnType<typeof vi.fn>;
+  let mockKeyboardTypeString: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockPtyWrite = vi.fn();
+    mockKeyboardTypeString = vi.fn().mockResolvedValue(undefined);
+
+    (window as any).gamepadCli = {
+      ptyWrite: mockPtyWrite,
+      keyboardTypeString: mockKeyboardTypeString,
+    };
+
+    // Reset shared mockState between tests
+    mockState.sessions = [];
+    mockState.cliToolsCache = {};
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('pasteMode pty — calls ptyWrite once with full text, never keyboardTypeString', async () => {
+    mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
+    mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
+
+    const promise = deliverBulkText('sess-1', 'hello');
+    await promise;
+
+    expect(mockPtyWrite).toHaveBeenCalledOnce();
+    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello');
+    expect(mockKeyboardTypeString).not.toHaveBeenCalled();
+  });
+
+  it('pasteMode sendkeys — calls keyboardTypeString once with full text, never ptyWrite', async () => {
+    mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+    mockState.cliToolsCache = { copilot: { pasteMode: 'sendkeys' } };
+
+    const promise = deliverBulkText('sess-1', 'hello');
+    await promise;
+
+    expect(mockKeyboardTypeString).toHaveBeenCalledOnce();
+    expect(mockKeyboardTypeString).toHaveBeenCalledWith('hello');
+    expect(mockPtyWrite).not.toHaveBeenCalled();
+  });
+
+  it('pasteMode sendkeysindividual — calls keyboardTypeString once per char, never ptyWrite', async () => {
+    mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+    mockState.cliToolsCache = { copilot: { pasteMode: 'sendkeysindividual' } };
+
+    // Run the async loop; advance timers to unblock each 20ms delay
+    const promise = deliverBulkText('sess-1', 'abc');
+    // Advance past all three 20ms delays (3 chars × 20ms = 60ms)
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(mockKeyboardTypeString).toHaveBeenCalledTimes(3);
+    expect(mockKeyboardTypeString).toHaveBeenNthCalledWith(1, 'a');
+    expect(mockKeyboardTypeString).toHaveBeenNthCalledWith(2, 'b');
+    expect(mockKeyboardTypeString).toHaveBeenNthCalledWith(3, 'c');
+    expect(mockPtyWrite).not.toHaveBeenCalled();
+  });
+
+  it('no session found — falls back to ptyWrite', async () => {
+    // sessions is empty — no match for 'unknown'
+    mockState.sessions = [];
+    mockState.cliToolsCache = {};
+
+    const promise = deliverBulkText('unknown', 'hello');
+    await promise;
+
+    expect(mockPtyWrite).toHaveBeenCalledOnce();
+    expect(mockPtyWrite).toHaveBeenCalledWith('unknown', 'hello');
+    expect(mockKeyboardTypeString).not.toHaveBeenCalled();
+  });
+
+  it('empty text — does nothing', async () => {
+    mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+    mockState.cliToolsCache = { copilot: { pasteMode: 'sendkeysindividual' } };
+
+    await deliverBulkText('sess-1', '');
+
+    expect(mockPtyWrite).not.toHaveBeenCalled();
+    expect(mockKeyboardTypeString).not.toHaveBeenCalled();
   });
 });

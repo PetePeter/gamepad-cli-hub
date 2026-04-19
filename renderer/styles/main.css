@@ -310,6 +310,15 @@ button {
   padding: 0;
 }
 
+/* Sessions screen Vue section */
+.sessions-screen-section {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
 .screen--active {
   opacity: 1;
   visibility: visible;
@@ -2264,6 +2273,36 @@ kbd {
   background: #252525;
   border-color: #ff6600;
   color: #ff6600;
+}
+
+.plan-header__btn--secondary {
+  border-color: #444;
+  color: #aaa;
+}
+
+.plan-header__btn--secondary:hover {
+  border-color: #4488ff;
+  color: #4488ff;
+}
+
+.plan-header__controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* Brief transient notice (export/import feedback) */
+.plan-notice {
+  font-size: 12px;
+  color: #4fd08b;
+  opacity: 0;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+
+.plan-notice--visible {
+  opacity: 1;
 }
 
 .plan-screen-toolbar {
