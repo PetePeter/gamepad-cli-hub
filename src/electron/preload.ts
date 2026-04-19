@@ -70,6 +70,14 @@ const gamepadCliAPI = {
   configGetSequences: (cliType: string) => ipcRenderer.invoke('config:getSequences', cliType),
 
   /**
+   * Get chipbar quick-action buttons for the current profile
+   */
+  configGetChipbarActions: () => ipcRenderer.invoke('config:getChipbarActions') as Promise<{
+    actions: Array<{ label: string; sequence: string }>;
+    plansDir: string;
+  }>,
+
+  /**
    * Create or update a named sequence group for a CLI type
    */
   configSetSequenceGroup: (cliType: string, groupId: string, items: Array<{ label: string; sequence: string }>) =>

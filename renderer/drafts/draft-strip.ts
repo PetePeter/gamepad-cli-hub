@@ -11,6 +11,82 @@ import { renderPlanChips } from '../plans/plan-chips.js';
 const MAX_LABEL_LENGTH = 20;
 let renderGeneration = 0;
 
+interface ChipbarActionsResult {
+  actions: Array<{ label: string; sequence: string }>;
+  plansDir: string;
+}
+
+let cachedChipbarData: ChipbarActionsResult | null = null;
+
+export function invalidateChipActionCache(): void {
+  cachedChipbarData = null;
+}
+
+function resolveTemplates(sequence: string, ctx: {
+  cwd: string;
+  cliType: string;
+  sessionName: string;
+  plansDir: string;
+}): string {
+  return sequence
+    .replace(/\{cwd\}/g, ctx.cwd)
+    .replace(/\{cliType\}/g, ctx.cliType)
+    .replace(/\{sessionName\}/g, ctx.sessionName)
+    .replace(/\{plansDir\}/g, ctx.plansDir);
+}
+
+async function renderActionButtons(sessionId: string): Promise<void> {
+  const strip = document.getElementById('draftStrip');
+  if (!strip) return;
+
+  strip.querySelector('.chip-action-bar')?.remove();
+
+  if (!cachedChipbarData) {
+    try {
+      cachedChipbarData = await window.gamepadCli.configGetChipbarActions();
+    } catch {
+      return; // transient failure — don't cache, retry on next render
+    }
+  }
+
+  const { actions, plansDir } = cachedChipbarData;
+  if (actions.length === 0) return;
+
+  const session = state.sessions.find(s => s.id === sessionId);
+  const ctx = {
+    cwd: session?.workingDir ?? '',
+    cliType: session?.cliType ?? '',
+    sessionName: session?.name ?? '',
+    plansDir,
+  };
+
+  const bar = document.createElement('div');
+  bar.className = 'chip-action-bar';
+
+  for (const action of actions) {
+    const btn = document.createElement('button');
+    btn.className = 'chip-action-btn';
+    btn.textContent = action.label;
+    const preview = resolveTemplates(action.sequence, ctx);
+    btn.title = preview.length > 120 ? preview.slice(0, 119) + '…' : preview;
+    btn.addEventListener('click', async () => {
+      const currentSession = state.sessions.find(s => s.id === sessionId);
+      const currentCtx = {
+        cwd: currentSession?.workingDir ?? '',
+        cliType: currentSession?.cliType ?? '',
+        sessionName: currentSession?.name ?? '',
+        plansDir,
+      };
+      const { executeSequence } = await import('../bindings.js');
+      await executeSequence(resolveTemplates(action.sequence, currentCtx));
+    });
+    bar.appendChild(btn);
+  }
+
+  strip.appendChild(bar);
+  strip.style.display = 'flex';
+}
+
 /** Initialize the draft strip — creates the DOM container once. Called at app startup. */
 export function initDraftStrip(): void {
   const existing = document.getElementById('draftStrip');
@@ -90,6 +166,10 @@ export async function refreshDraftStrip(sessionId: string | null): Promise<void>
 
   // Render plan chips after draft pills
   await renderPlanChips(sessionId);
+  if (thisGeneration !== renderGeneration) return;
+
+  // Render chipbar action buttons (right-aligned quick actions)
+  await renderActionButtons(sessionId);
   if (thisGeneration !== renderGeneration) return;
 
   // Show strip if it has any children, hide if empty

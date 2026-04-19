@@ -2842,4 +2842,32 @@ kbd {
   user-select: none;
 }
 
+/* Chip action bar — right-aligned quick-action buttons in the draft strip */
+.chip-action-bar {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: auto;
+  padding-left: 8px;
+  border-left: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.chip-action-btn {
+  background: transparent;
+  border: 1px solid #4488ff;
+  color: #4488ff;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s;
+  user-select: none;
+}
+
+.chip-action-btn:hover {
+  background: rgba(68, 136, 255, 0.15);
+}
+
 

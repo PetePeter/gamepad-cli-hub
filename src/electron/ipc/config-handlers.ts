@@ -49,6 +49,15 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     }
   });
 
+  ipcMain.handle('config:getChipbarActions', () => {
+    try {
+      return configLoader.getChipbarActions();
+    } catch (error) {
+      logger.error(`[IPC] Failed to get chipbar actions: ${error}`);
+      return { actions: [], plansDir: '' };
+    }
+  });
+
   ipcMain.handle('config:setSequenceGroup', (_event, cliType: string, groupId: string, items: any[]) => {
     try {
       configLoader.setSequenceGroup(cliType, groupId, items);

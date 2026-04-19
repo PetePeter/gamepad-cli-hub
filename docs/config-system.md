@@ -70,6 +70,35 @@ User selects an item (D-pad/gamepad or click), and its `sequence` string is pars
 
 `{ action: 'new-draft' }` — Opens the draft editor for the active session, allowing the user to compose a draft prompt memo while the CLI is busy. Drafts can be applied (sent to PTY) via the Apply button in the editor or through the Drafts submenu in the context menu.
 
+## Chip-Bar Action Buttons
+
+Quick-action buttons configured at the **profile root** (not per-CLI-type — same buttons appear regardless of which CLI is active).
+
+```yaml
+chipActions:
+  - label: "💾 Save Plan"
+    sequence: >-
+      Create a plan item for what you just described...{Enter}
+  - label: "📋 My Action"
+    sequence: some text to send to PTY {Enter}
+```
+
+Each entry: `{ label: string, sequence: string }`.
+
+- Buttons render right-aligned in the draft strip (same horizontal bar as draft pills and plan chips), via `margin-left: auto` on `.chip-action-bar`.
+- `sequence` uses the same [Sequence Parser Syntax](#sequence-parser-syntax) as bindings, plus four template variables resolved at click time from the active session:
+
+| Variable | Resolves to |
+|----------|-------------|
+| `{cwd}` | Active session's working directory |
+| `{cliType}` | Active session's CLI type key |
+| `{sessionName}` | Active session's display name |
+| `{plansDir}` | `config/plans/` absolute path |
+
+- Actions are cached per page load. `invalidateChipActionCache()` (exported from `draft-strip.ts`) forces a re-fetch on the next strip render.
+- IPC: `configGetChipbarActions` bridge → `config:getChipbarActions` handler → `ConfigLoader.getChipbarActions()` → returns `{ actions, plansDir }`.
+- Omit `chipActions` (or leave it empty) to show no action buttons.
+
 ## Tool Config
 
 In profile YAML `tools` section:

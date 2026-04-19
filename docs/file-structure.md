@@ -37,7 +37,7 @@ src/
 │   ├── plan-manager.ts         # Per-directory plan DAG CRUD (EventEmitter, emits plan:changed, cycle prevention via DFS, startable computation, persisted to config/plans.yaml)
 │   └── power-monitor.ts        # Suspend/resume/shutdown diagnostics — session counts, PTY IDs, survival status
 ├── config/
-│   └── loader.ts               # Self-contained profile YAML config + CRUD + StickConfig + haptic settings + auto-migration + bookmark CRUD (addBookmarkedDir/removeBookmarkedDir)
+│   └── loader.ts               # Self-contained profile YAML config + CRUD + StickConfig + haptic settings + auto-migration + bookmark CRUD (addBookmarkedDir/removeBookmarkedDir) + ChipbarAction interface + chipActions profile field + getChipbarActions()
 ├── telegram/
 │   ├── bot.ts                  # TelegramBotCore — bot lifecycle (start/stop), long-polling, user-ID whitelist, message helpers, deleteForumTopic
 │   ├── callback-handler.ts     # Inline keyboard callback routing — session controls, spawn wizard, close all, text input
@@ -129,7 +129,7 @@ renderer/
 │   ├── useTerminals.ts         # Terminal create/switch/destroy lifecycle
 │   └── useNavigation.ts        # Navigation routing: sandwich → modal stack → view → screen → config binding
 ├── drafts/
-│   ├── draft-strip.ts          # View-only draft pills above terminal (📝 labels + badge count, click opens editor) + renders plan chips via renderPlanChips()
+│   ├── draft-strip.ts          # Draft strip above terminal — draft pills (click opens editor) + plan chips + right-aligned chip-bar action buttons (renderActionButtons, invalidateChipActionCache, resolveTemplates)
 │   └── draft-editor.ts         # Slide-down draft editor panel (title + content, Save/Apply/Delete/Cancel buttons)
 ├── plans/
 │   ├── plan-screen.ts          # SVG canvas screen — pan/zoom (viewBox-based), node rendering with status colors, quadratic bezier arrows, click-to-select, Add Node button. Renders inside #mainArea as .plan-screen overlay

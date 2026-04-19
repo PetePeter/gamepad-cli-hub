@@ -84,6 +84,13 @@ workingDirectories:
     path: X:\coding\stillhere
   - name: GrapeJourney
     path: X:\coding\Vitido
+chipActions:
+  - label: "💾 Save Plan"
+    sequence: >-
+      Create a plan item for what you just described. Save it as a JSON file in
+      {plansDir}/ named <encodeURIComponent("{cwd}")>@<uuid-v4>.json with fields: id
+      (uuid-v4), dirPath ("{cwd}"), title (brief), description (detailed), status
+      ("startable"), createdAt and updatedAt (Date.now()){Enter}
 bindings:
   claude-code:
     RightTrigger:

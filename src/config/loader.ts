@@ -181,6 +181,11 @@ export interface SessionGroupPrefs {
   overviewHidden?: string[];
 }
 
+export interface ChipbarAction {
+  label: string;
+  sequence: string;
+}
+
 export interface ProfileConfig {
   name: string;
   tools: { [key: string]: CliTypeConfig };
@@ -189,6 +194,7 @@ export interface ProfileConfig {
   sticks?: StickConfigs;
   dpad?: DpadConfig;
   activity?: ActivityConfig;
+  chipActions?: ChipbarAction[];
 }
 
 // ============================================================================
@@ -507,6 +513,14 @@ export class ConfigLoader {
       this.activeProfile!.activity.timeoutMs = timeoutMs;
     }
     this.saveActiveProfile();
+  }
+
+  getChipbarActions(): { actions: ChipbarAction[]; plansDir: string } {
+    this.ensureLoaded();
+    return {
+      actions: this.activeProfile!.chipActions ?? [],
+      plansDir: path.join(this.configDir, 'plans'),
+    };
   }
 
   getWorkingDirectories(): WorkingDirectory[] {
