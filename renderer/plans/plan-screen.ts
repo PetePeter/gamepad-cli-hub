@@ -864,6 +864,11 @@ async function handleAddDep(fromId: string, toId: string): Promise<void> {
 }
 
 /** Re-fetch data and re-render the canvas. */
+/** Refresh the plan canvas if the plan screen is currently visible. */
+export async function refreshCanvasIfVisible(): Promise<void> {
+  if (isPlanScreenVisible()) await refreshCanvas();
+}
+
 async function refreshCanvas(): Promise<void> {
   const [items, deps] = await Promise.all([
     window.gamepadCli.planList(currentDir),

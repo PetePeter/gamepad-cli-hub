@@ -213,17 +213,21 @@ describe('IncomingPlansWatcher', () => {
     });
 
     it('forces imported item status to startable', () => {
-      // Even if file says 'doing', imported item must be startable
+      // Even if file says 'doing', importItem must normalise to 'startable'
       mockReadFileSync.mockReturnValue(makeValidJson({ status: 'doing' }));
       watcher.start();
 
+      const importSpy = vi.spyOn(planManager, 'importItem');
       const onImported = vi.fn();
       watcher.on('incoming-imported', onImported);
       getAddCallback()('/config/plans/incoming/plan.json');
 
-      const importSpy = vi.spyOn(planManager, 'importItem');
-      // Check status normalisation in the manager (importItem always sets startable)
-      // Verify the event was emitted — normalisation tested in PlanManager tests
+      // Spy was set up before processFile ran — verify status was normalised
+      expect(importSpy).toHaveBeenCalledOnce();
+      const passedItem = importSpy.mock.calls[0][0];
+      // File sent 'doing' but importItem must receive the item and force 'startable' internally
+      // (PlanManager.importItem always sets status='startable'; watcher passes item as-is)
+      expect(passedItem.status).toBe('doing'); // watcher passes raw status; manager normalises
       expect(onImported).toHaveBeenCalled();
     });
 

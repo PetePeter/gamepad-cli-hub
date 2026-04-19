@@ -24,6 +24,15 @@ const mockPlanSetState = vi.fn();
 const mockPlanDeps = vi.fn();
 const mockPtyWrite = vi.fn();
 
+// Exchange / IO mocks
+const mockPlanExportDirectory = vi.fn();
+const mockPlanImportFile = vi.fn();
+const mockPlanReadFile = vi.fn();
+const mockPlanWriteFile = vi.fn();
+const mockPlanIncomingList = vi.fn();
+const mockDialogShowSaveFile = vi.fn();
+const mockDialogShowOpenFile = vi.fn();
+
 const mockComputeLayout = vi.fn();
 
 vi.mock('vue', () => ({ reactive: (obj: any) => obj }));
@@ -139,6 +148,13 @@ describe('Plan Screen', () => {
       planSetState: mockPlanSetState,
       planDeps: mockPlanDeps,
       ptyWrite: mockPtyWrite,
+      planExportDirectory: mockPlanExportDirectory,
+      planImportFile: mockPlanImportFile,
+      planReadFile: mockPlanReadFile,
+      planWriteFile: mockPlanWriteFile,
+      planIncomingList: mockPlanIncomingList,
+      dialogShowSaveFile: mockDialogShowSaveFile,
+      dialogShowOpenFile: mockDialogShowOpenFile,
     };
 
     mockPlanList.mockReset();
@@ -153,6 +169,13 @@ describe('Plan Screen', () => {
     mockPlanDeps.mockReset();
     mockPtyWrite.mockReset();
     mockComputeLayout.mockReset();
+    mockPlanExportDirectory.mockReset();
+    mockPlanImportFile.mockReset();
+    mockPlanReadFile.mockReset();
+    mockPlanWriteFile.mockReset();
+    mockPlanIncomingList.mockReset();
+    mockDialogShowSaveFile.mockReset();
+    mockDialogShowOpenFile.mockReset();
 
     screen = await getScreenModule();
 
@@ -186,6 +209,7 @@ describe('Plan Screen', () => {
       mockPlanList.mockResolvedValue(items);
       mockPlanDeps.mockResolvedValue([]);
       mockComputeLayout.mockReturnValue(fakeLayout(items));
+      mockPlanIncomingList.mockResolvedValue([]);
 
       await screen.showPlanScreen('/test/dir');
 
@@ -199,6 +223,73 @@ describe('Plan Screen', () => {
       expect(buttons[0].textContent).toContain('Back');
       const buttonTexts = Array.from(buttons).map(b => b.textContent ?? '');
       expect(buttonTexts.some(t => t.includes('Add'))).toBe(true);
+    });
+
+    it('renders Export Dir, Import, and Incoming buttons in the header', async () => {
+      const items = [makeItem({ id: 'a' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+      mockPlanIncomingList.mockResolvedValue([]);
+
+      await screen.showPlanScreen('/test/dir');
+
+      const buttonTexts = Array.from(
+        document.querySelectorAll('.plan-header__btn'),
+      ).map(b => b.textContent ?? '');
+
+      expect(buttonTexts.some(t => t.includes('Export Dir'))).toBe(true);
+      expect(buttonTexts.some(t => t.includes('Import'))).toBe(true);
+      expect(buttonTexts.some(t => t.includes('Incoming'))).toBe(true);
+    });
+
+    it('Export Dir button calls planExportDirectory then dialogShowSaveFile', async () => {
+      const items = [makeItem({ id: 'a' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+      mockPlanIncomingList.mockResolvedValue([]);
+      mockPlanExportDirectory.mockResolvedValue('{"items":[]}');
+      mockDialogShowSaveFile.mockResolvedValue(null); // user cancelled
+
+      await screen.showPlanScreen('/test/dir');
+
+      const exportBtn = Array.from(document.querySelectorAll('.plan-header__btn')).find(
+        b => b.textContent?.includes('Export Dir'),
+      ) as HTMLElement | undefined;
+      expect(exportBtn).toBeDefined();
+
+      exportBtn!.click();
+      await flush();
+
+      expect(mockPlanExportDirectory).toHaveBeenCalledWith('/test/dir');
+      expect(mockDialogShowSaveFile).toHaveBeenCalled();
+    });
+
+    it('Import button calls dialogShowOpenFile then planImportFile on success', async () => {
+      const items = [makeItem({ id: 'a' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+      mockPlanIncomingList.mockResolvedValue([]);
+      mockDialogShowOpenFile.mockResolvedValue('/chosen/file.json');
+      mockPlanReadFile.mockResolvedValue('{"id":"x","dirPath":"/test/dir","title":"T","description":"D"}');
+      mockPlanImportFile.mockResolvedValue({ id: 'x', title: 'T' });
+      mockPlanList.mockResolvedValue([...items, makeItem({ id: 'x', title: 'T' })]);
+
+      await screen.showPlanScreen('/test/dir');
+
+      const importBtn = Array.from(document.querySelectorAll('.plan-header__btn')).find(
+        b => b.textContent?.includes('Import') && !b.textContent?.includes('Incoming'),
+      ) as HTMLElement | undefined;
+      expect(importBtn).toBeDefined();
+
+      importBtn!.click();
+      await flush();
+
+      expect(mockDialogShowOpenFile).toHaveBeenCalled();
+      expect(mockPlanReadFile).toHaveBeenCalledWith('/chosen/file.json');
+      expect(mockPlanImportFile).toHaveBeenCalled();
     });
 
     it('creates SVG canvas with nodes', async () => {

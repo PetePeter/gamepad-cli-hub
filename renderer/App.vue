@@ -28,7 +28,7 @@ import { formatElapsed, refreshSessions, doSpawn, switchToSession, doCloseSessio
 import type { SessionSortField, SortDirection } from './sort-logic.js';
 import { findNavIndexBySessionId, toggleCollapse, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
 import { showOverview, handleOverviewInput } from './screens/group-overview.js';
-import { showPlanScreen, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction } from './plans/plan-screen.js';
+import { showPlanScreen, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction, refreshCanvasIfVisible } from './plans/plan-screen.js';
 import { handleSessionsScreenButton, toggleSessionOverviewVisibility } from './screens/sessions.js';
 import { usePanelResize } from './composables/usePanelResize.js';
 import { setSpawnCollapsed, setPlannerCollapsed } from './sidebar/section-collapse.js';
@@ -561,8 +561,7 @@ async function onBindingEditorSave(binding: any): Promise<void> {
 // ============================================================================
 
 function onIncomingPlanImported(): void {
-  // The plan screen will auto-refresh when it detects the plan:changed event.
-  // No extra work needed here.
+  void refreshCanvasIfVisible();
 }
 
 // ============================================================================

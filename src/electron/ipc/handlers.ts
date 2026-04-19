@@ -161,7 +161,7 @@ export function registerIPCHandlers(
       stateDetector.dispose();
       notificationManager.dispose();
       ptyManager.killAll();
-      incomingWatcher.close();
+      void incomingWatcher.close();
       logger.info('[IPC] Cleanup complete');
     },
     sessionManager,
