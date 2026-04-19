@@ -30,7 +30,7 @@ import { setupEditorHandlers } from './editor-handlers.js';
 import { setupProfileHandlers } from './profile-handlers.js';
 import { setupToolsHandlers } from './tools-handlers.js';
 import { setupKeyboardHandlers } from './keyboard-handlers.js';
-import { setupSystemHandlers } from './system-handlers.js';
+import { setupSystemHandlers, cleanupWorkTempFiles } from './system-handlers.js';
 import { setupPtyHandlers, cancelAllPrompts } from './pty-handlers.js';
 import { setupTelegramHandlers } from './telegram-handlers.js';
 import { setupDraftHandlers } from './draft-handlers.js';
@@ -47,8 +47,14 @@ import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
  */
 export function registerIPCHandlers(
   getMainWindow: () => BrowserWindow | null,
+  dirname?: string,
 ): { cleanup: () => void; sessionManager: SessionManager; ptyManager: PtyManager; incomingWatcher: IncomingPlansWatcher } {
   logger.info('[IPC] Registering handlers');
+
+  // Clean up stale temp files from previous sessions
+  if (dirname) {
+    cleanupWorkTempFiles(dirname);
+  }
 
   // Load config eagerly so individual handlers don't need to call load()
   try {

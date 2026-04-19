@@ -371,6 +371,14 @@ const gamepadCliAPI = {
   editorOpenExternal: (): Promise<{ success: boolean; text?: string; error?: string }> =>
     ipcRenderer.invoke('editor:openExternal'),
 
+  /** Write text to a temp file for draft/plan apply — returns file path on success */
+  writeTempContent: (content: string): Promise<{ success: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke('temp:writeContent', content),
+
+  /** Delete a temp file (best-effort cleanup after apply) */
+  deleteTemp: (filePath: string): Promise<void> =>
+    ipcRenderer.invoke('temp:deleteContent', filePath),
+
   // ========================================================================
   // Dialog
   // ========================================================================

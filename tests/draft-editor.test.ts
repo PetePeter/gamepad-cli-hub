@@ -16,6 +16,9 @@ const mockDraftDelete = vi.fn();
 const mockDraftList = vi.fn();
 const mockDraftCount = vi.fn();
 const mockExecuteSequence = vi.fn();
+const mockWriteTempContent = vi.fn();
+const mockPtyWrite = vi.fn();
+const mockDeleteTemp = vi.fn();
 
 vi.mock('../renderer/drafts/draft-strip.js', () => ({
   refreshDraftStrip: vi.fn(),
@@ -76,6 +79,9 @@ describe('Draft Editor', () => {
       draftDelete: mockDraftDelete,
       draftList: mockDraftList,
       draftCount: mockDraftCount,
+      writeTempContent: mockWriteTempContent,
+      ptyWrite: mockPtyWrite,
+      deleteTemp: mockDeleteTemp,
     };
 
     mockDraftCreate.mockReset();
@@ -84,6 +90,9 @@ describe('Draft Editor', () => {
     mockDraftList.mockReset();
     mockDraftCount.mockReset();
     mockExecuteSequence.mockReset();
+    mockWriteTempContent.mockReset();
+    mockPtyWrite.mockReset();
+    mockDeleteTemp.mockReset();
 
     mod = await getModule();
 
@@ -470,21 +479,25 @@ describe('Draft Editor', () => {
       mod.initDraftEditor();
     });
 
-    it('sends text to PTY via executeSequence and deletes draft', async () => {
-      mockExecuteSequence.mockResolvedValue(undefined);
+    it('sends text to PTY via writeTempContent and ptyWrite', async () => {
+      mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-123.md' });
+      mockPtyWrite.mockResolvedValue(undefined);
+      mockDeleteTemp.mockResolvedValue(undefined);
       mockDraftDelete.mockResolvedValue(undefined);
 
       mod.showDraftEditor('session-1', { id: 'draft-1', label: 'Test', text: 'hello world' });
 
       await mod.applyDraft();
 
-      expect(mockExecuteSequence).toHaveBeenCalledWith('hello world');
+      expect(mockWriteTempContent).toHaveBeenCalledWith('hello world');
+      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', '</tmp/helm-work-123.md');
+      expect(mockDeleteTemp).toHaveBeenCalledWith('/tmp/helm-work-123.md');
       expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
       expect(mod.isDraftEditorVisible()).toBe(false);
     });
 
-    it('does not call draftDelete when creating new draft (no draftId)', async () => {
-      mockExecuteSequence.mockResolvedValue(undefined);
+    it('does not call ptyWrite when creating new draft (no draftId) if text is empty', async () => {
+      mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-456.md' });
 
       mod.showDraftEditor('session-1');
       const contentInput = document.getElementById('draftContentInput') as HTMLTextAreaElement;
@@ -492,22 +505,26 @@ describe('Draft Editor', () => {
 
       await mod.applyDraft();
 
-      expect(mockExecuteSequence).toHaveBeenCalledWith('new text');
+      expect(mockWriteTempContent).toHaveBeenCalledWith('new text');
+      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', '</tmp/helm-work-456.md');
       expect(mockDraftDelete).not.toHaveBeenCalled();
       expect(mod.isDraftEditorVisible()).toBe(false);
     });
 
-    it('does not call executeSequence when text is empty', async () => {
+    it('does not call ptyWrite when text is empty', async () => {
       mod.showDraftEditor('session-1', { id: 'draft-1', label: 'Empty', text: '' });
 
       await mod.applyDraft();
 
-      expect(mockExecuteSequence).not.toHaveBeenCalled();
+      expect(mockWriteTempContent).not.toHaveBeenCalled();
+      expect(mockPtyWrite).not.toHaveBeenCalled();
       expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
     });
 
     it('A button on Apply triggers applyDraft', async () => {
-      mockExecuteSequence.mockResolvedValue(undefined);
+      mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-789.md' });
+      mockPtyWrite.mockResolvedValue(undefined);
+      mockDeleteTemp.mockResolvedValue(undefined);
       mockDraftDelete.mockResolvedValue(undefined);
 
       mod.showDraftEditor('session-1', { id: 'draft-1', label: 'Test', text: 'apply me' });
@@ -521,7 +538,9 @@ describe('Draft Editor', () => {
       mod.handleDraftEditorButton('A');
       await flush();
 
-      expect(mockExecuteSequence).toHaveBeenCalledWith('apply me');
+      expect(mockWriteTempContent).toHaveBeenCalledWith('apply me');
+      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', '</tmp/helm-work-789.md');
+      expect(mockDeleteTemp).toHaveBeenCalledWith('/tmp/helm-work-789.md');
       expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
     });
   });

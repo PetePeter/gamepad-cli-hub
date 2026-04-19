@@ -372,13 +372,28 @@ export async function saveDraft(): Promise<void> {
 
 export async function applyDraft(): Promise<void> {
   const text = (document.getElementById('draftContentInput') as HTMLTextAreaElement | null)?.value || '';
+  const sessId = draftEditorState.sessionId;  // Capture sessionId before async operations
   const { draftId, sessionId } = draftEditorState;
   hideDraftEditor();
 
-  if (text) {
+  if (text && sessId) {
     try {
-      const { executeSequence } = await import('../bindings.js');
-      await executeSequence(text);
+      // Write content to temp file for draft apply
+      const result = await window.gamepadCli?.writeTempContent(text);
+      if (!result?.success) {
+        console.error('[Editor] Failed to write temp file:', result?.error);
+        return;
+      }
+
+      const filePath = result.path;
+      // Route through ptyWrite to the active session
+      await window.gamepadCli?.ptyWrite(sessId, `<${filePath}`);
+
+      // Clean up temp file after apply
+      if (filePath) {
+        try { await window.gamepadCli?.deleteTemp(filePath); }
+        catch (err) { console.debug('[Editor] Could not delete temp file:', err); }
+      }
     } catch (err) {
       console.error('[Editor] Failed to apply draft:', err);
     }

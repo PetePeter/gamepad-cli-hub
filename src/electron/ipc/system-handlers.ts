@@ -1,7 +1,7 @@
 /**
  * System IPC Handlers
  *
- * OS-level operations — logs folder access, external editor.
+ * OS-level operations — logs folder access, external editor, temp file cleanup.
  */
 
 import { ipcMain, shell, app } from 'electron';
@@ -57,4 +57,61 @@ export function setupSystemHandlers(): void {
       try { fs.unlinkSync(tmpFile); } catch { /* ignore cleanup errors */ }
     }
   });
+
+  // temp:writeContent — write text to a temp file for draft/plan apply
+  // Returns the file path on success, or { success: false, error } on failure
+  ipcMain.handle('temp:writeContent', async (_, content: string): Promise<{ success: boolean; path?: string; error?: string }> => {
+    const tmpDir = getTempDir(__dirname);
+    try {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    } catch (err) {
+      logger.warn(`[System] Could not create tmp dir ${tmpDir}: ${err}`);
+    }
+
+    const tmpFile = path.join(tmpDir, `helm-work-${Date.now()}.md`);
+    try {
+      fs.writeFileSync(tmpFile, content, 'utf-8');
+      logger.info(`[System] Wrote temp file: ${tmpFile} (${content.length} bytes)`);
+      return { success: true, path: tmpFile };
+    } catch (error) {
+      logger.error(`[System] Failed to write temp file: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // temp:deleteContent — delete a temp file (best-effort, non-critical)
+  ipcMain.handle('temp:deleteContent', async (_, filePath: string): Promise<void> => {
+    try {
+      fs.unlinkSync(filePath);
+      logger.debug(`[System] Deleted temp file: ${filePath}`);
+    } catch (error) {
+      logger.debug(`[System] Could not delete temp file ${filePath}: ${error}`);
+      /* best-effort cleanup — ignore errors */
+    }
+  });
+}
+
+/**
+ * Clean up stale temp files (helm-work-* and helm-prompt-*) from previous sessions.
+ * Called on startup to prevent accumulation. Best-effort — errors are logged but not fatal.
+ */
+export function cleanupWorkTempFiles(dirname: string): void {
+  const tmpDir = getTempDir(dirname);
+  try {
+    if (!fs.existsSync(tmpDir)) return;
+    const files = fs.readdirSync(tmpDir);
+    for (const file of files) {
+      if (file.startsWith('helm-work-') || file.startsWith('helm-prompt-')) {
+        const filePath = path.join(tmpDir, file);
+        try {
+          fs.unlinkSync(filePath);
+          logger.debug(`[System] Cleaned up temp file: ${filePath}`);
+        } catch (err) {
+          logger.debug(`[System] Could not delete temp file ${filePath}: ${err}`);
+        }
+      }
+    }
+  } catch (error) {
+    logger.warn(`[System] Failed to cleanup temp directory: ${error}`);
+  }
 }

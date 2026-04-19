@@ -816,10 +816,18 @@ async function handleComplete(id: string): Promise<void> {
 async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
   try {
     if (state.activeSessionId) {
-      const path = await window.gamepadCli.writeTempContent(item.description);
-      await window.gamepadCli.ptyWrite(state.activeSessionId, `work for you to do is here: ${path}\n`);
-      if (item.status === 'startable') {
-        await window.gamepadCli.planApply(item.id, state.activeSessionId);
+      const result = await window.gamepadCli.writeTempContent(item.description);
+      if (result?.success && result.path) {
+        const filePath = result.path;
+        await window.gamepadCli.ptyWrite(state.activeSessionId, `work for you to do is here: ${filePath}\n`);
+        if (item.status === 'startable') {
+          await window.gamepadCli.planApply(item.id, state.activeSessionId);
+        }
+        // Clean up temp file after ptyWrite succeeds
+        try { await window.gamepadCli.deleteTemp(filePath); }
+        catch (err) { console.debug('[PlanScreen] Could not delete temp file:', err); }
+      } else {
+        console.error('[PlanScreen] Failed to write temp file:', result?.error);
       }
     }
     selectedId = null;

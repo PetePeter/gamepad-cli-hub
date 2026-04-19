@@ -200,8 +200,8 @@ app.whenReady().then(async () => {
     logger.error(`[Main] Plan migration failed: ${err}`);
   }
 
-  // Register IPC handlers
-  const ipc = registerIPCHandlers(() => mainWindow);
+  // Register IPC handlers (passes __dirname for temp file cleanup on startup)
+  const ipc = registerIPCHandlers(() => mainWindow, __dirname);
   cleanupIPC = ipc.cleanup;
 
   // Start watching for incoming plan files from CLIs

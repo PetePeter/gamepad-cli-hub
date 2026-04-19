@@ -185,9 +185,18 @@ async function handleChipClick(
 
     const onApply = async () => {
       if (!state.activeSessionId) return;
-      await window.gamepadCli.ptyWrite(state.activeSessionId, item.description + '\n');
-      if (status === 'startable') {
-        await window.gamepadCli.planApply(planId, state.activeSessionId);
+      const result = await window.gamepadCli.writeTempContent(item.description);
+      if (result?.success && result.path) {
+        const filePath = result.path;
+        await window.gamepadCli.ptyWrite(state.activeSessionId, `${filePath}\n`);
+        if (status === 'startable') {
+          await window.gamepadCli.planApply(planId, state.activeSessionId);
+        }
+        // Clean up temp file after ptyWrite succeeds
+        try { await window.gamepadCli.deleteTemp(filePath); }
+        catch (err) { console.debug('[PlanChips] Could not delete temp file:', err); }
+      } else {
+        console.error('[PlanChips] Failed to write temp file:', result?.error);
       }
       hideDraftEditor();
       await renderPlanChips(state.activeSessionId);
