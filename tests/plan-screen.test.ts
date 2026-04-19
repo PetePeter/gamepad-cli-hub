@@ -23,6 +23,7 @@ const mockPlanApply = vi.fn();
 const mockPlanSetState = vi.fn();
 const mockPlanDeps = vi.fn();
 const mockPtyWrite = vi.fn();
+const mockWriteTempContent = vi.fn();
 
 // Exchange / IO mocks
 const mockPlanExportDirectory = vi.fn();
@@ -148,6 +149,7 @@ describe('Plan Screen', () => {
       planSetState: mockPlanSetState,
       planDeps: mockPlanDeps,
       ptyWrite: mockPtyWrite,
+      writeTempContent: mockWriteTempContent,
       planExportDirectory: mockPlanExportDirectory,
       planImportFile: mockPlanImportFile,
       planReadFile: mockPlanReadFile,
@@ -168,6 +170,7 @@ describe('Plan Screen', () => {
     mockPlanSetState.mockReset();
     mockPlanDeps.mockReset();
     mockPtyWrite.mockReset();
+    mockWriteTempContent.mockReset();
     mockComputeLayout.mockReset();
     mockPlanExportDirectory.mockReset();
     mockPlanImportFile.mockReset();
@@ -240,7 +243,6 @@ describe('Plan Screen', () => {
 
       expect(buttonTexts.some(t => t.includes('Export Dir'))).toBe(true);
       expect(buttonTexts.some(t => t.includes('Import'))).toBe(true);
-      expect(buttonTexts.some(t => t.includes('Incoming'))).toBe(true);
     });
 
     it('Export Dir button calls planExportDirectory then dialogShowSaveFile', async () => {
@@ -889,6 +891,7 @@ describe('Plan Editor (unified)', () => {
       planSetState: mockPlanSetState,
       planDeps: mockPlanDeps,
       ptyWrite: mockPtyWrite,
+      writeTempContent: mockWriteTempContent,
     };
 
     mockPlanList.mockReset();
@@ -898,6 +901,7 @@ describe('Plan Editor (unified)', () => {
     mockPlanApply.mockReset();
     mockPlanDeps.mockReset();
     mockPtyWrite.mockReset();
+    mockWriteTempContent.mockReset();
 
     screen = await getScreenModule();
     editor = await getEditorModule();
@@ -1133,11 +1137,13 @@ describe('Plan Editor (unified)', () => {
 
       mockPlanList.mockResolvedValue(items);
       mockPlanDeps.mockResolvedValue([]);
+      mockWriteTempContent.mockResolvedValue('/tmp/helm-work-test.txt');
       const applyBtn = document.getElementById('draftApplyBtn') as HTMLElement;
       applyBtn.click();
       await flush();
 
-      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', 'redo this\n');
+      expect(mockWriteTempContent).toHaveBeenCalledWith('redo this');
+      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', 'work for you to do is here: /tmp/helm-work-test.txt\n');
       expect(mockPlanApply).not.toHaveBeenCalled();
     });
 
@@ -1155,12 +1161,14 @@ describe('Plan Editor (unified)', () => {
       mockPlanApply.mockResolvedValue({});
       mockPlanList.mockResolvedValue(items);
       mockPlanDeps.mockResolvedValue([]);
+      mockWriteTempContent.mockResolvedValue('/tmp/helm-work-test.txt');
 
       const applyBtn = document.getElementById('draftApplyBtn') as HTMLElement;
       applyBtn.click();
       await flush();
 
-      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', 'start this\n');
+      expect(mockWriteTempContent).toHaveBeenCalledWith('start this');
+      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', 'work for you to do is here: /tmp/helm-work-test.txt\n');
       expect(mockPlanApply).toHaveBeenCalledWith('apply-startable', 'session-1');
     });
   });

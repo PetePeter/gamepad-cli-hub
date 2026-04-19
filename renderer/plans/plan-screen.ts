@@ -15,7 +15,6 @@ import { registerView, showView, currentView } from '../main-view/main-view-mana
 import { showPlanHelpModal, hidePlanHelpModal, isPlanHelpVisible } from './plan-help-modal.js';
 import { sessionsState } from '../screens/sessions-state.js';
 import { resolveGroupDisplayName } from '../session-groups.js';
-import { showIncomingPlans } from '../stores/modal-bridge.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -390,14 +389,6 @@ function buildHeader(dirPath: string): HTMLElement {
   importBtn.textContent = '⬇ Import';
   importBtn.addEventListener('click', () => handleImport(dirPath));
   controls.appendChild(importBtn);
-
-  const incomingBtn = document.createElement('button');
-  incomingBtn.className = 'plan-header__btn plan-header__btn--secondary plan-header__btn--incoming';
-  incomingBtn.id = 'plan-incoming-btn';
-  incomingBtn.title = 'View incoming plans queued by CLI tools';
-  incomingBtn.textContent = '📥 Incoming';
-  incomingBtn.addEventListener('click', () => showIncomingPlans(dirPath));
-  controls.appendChild(incomingBtn);
 
   header.appendChild(controls);
 
@@ -825,7 +816,8 @@ async function handleComplete(id: string): Promise<void> {
 async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
   try {
     if (state.activeSessionId) {
-      await window.gamepadCli.ptyWrite(state.activeSessionId, item.description + '\n');
+      const path = await window.gamepadCli.writeTempContent(item.description);
+      await window.gamepadCli.ptyWrite(state.activeSessionId, `work for you to do is here: ${path}\n`);
       if (item.status === 'startable') {
         await window.gamepadCli.planApply(item.id, state.activeSessionId);
       }
@@ -888,19 +880,6 @@ async function refreshCanvas(): Promise<void> {
   cachedLayout = layout;
   cachedItems = items;
   renderScreen(currentDir, items, deps, layout);
-  void refreshIncomingBadge();
-}
-
-/** Update the incoming plans badge count on the header button. */
-async function refreshIncomingBadge(): Promise<void> {
-  try {
-    const files = await window.gamepadCli.planIncomingList();
-    const btn = screenEl?.querySelector<HTMLElement>('.plan-header__btn--incoming');
-    if (!btn) return;
-    btn.textContent = files.length > 0 ? `📥 Incoming (${files.length})` : '📥 Incoming';
-  } catch {
-    // Non-critical — ignore
-  }
 }
 
 // ---------------------------------------------------------------------------

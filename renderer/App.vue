@@ -46,7 +46,6 @@ import {
   draftSubmenu,
   formModal, getFormModalResolve,
   editorPopup, getEditorPopupOnSend, getEditorPopupResolve, setEditorPopupCallbacks,
-  incomingPlans,
   isAnyBridgeModalVisible,
 } from './stores/modal-bridge.js';
 import { collectSequenceItems } from './modals/context-menu.js';
@@ -80,7 +79,6 @@ import DirPickerModal from './components/modals/DirPickerModal.vue';
 import FormModal from './components/modals/FormModal.vue';
 import EditorPopup from './components/modals/EditorPopup.vue';
 import BindingEditorModal from './components/modals/BindingEditorModal.vue';
-import IncomingPlansModal from './components/modals/IncomingPlansModal.vue';
 import ToastNotification from './components/ToastNotification.vue';
 
 // ============================================================================
@@ -563,14 +561,6 @@ async function onBindingEditorSave(binding: any): Promise<void> {
 }
 
 // ============================================================================
-// Incoming Plans Modal
-// ============================================================================
-
-function onIncomingPlanImported(): void {
-  void refreshCanvasIfVisible();
-}
-
-// ============================================================================
 // Lifecycle
 // ============================================================================
 
@@ -880,12 +870,6 @@ onUnmounted(() => {
       :binding="bindingEditorBinding"
       @save="onBindingEditorSave"
       @cancel="bindingEditorVisible = false"
-    />
-
-    <IncomingPlansModal
-      v-model:visible="incomingPlans.visible"
-      :target-dir-path="incomingPlans.targetDirPath"
-      @imported="onIncomingPlanImported"
     />
 
     <ToastNotification />
