@@ -317,6 +317,11 @@ const gamepadCliAPI = {
     options?: { handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string },
   ) => ipcRenderer.invoke('tools:updateCliType', key, name, command, initialPrompt, initialPromptDelay, options),
   toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),
+  toolsGetPatterns: (cliType: string) => ipcRenderer.invoke('tools:getPatterns', cliType),
+  toolsAddPattern: (cliType: string, rule: object) => ipcRenderer.invoke('tools:addPattern', cliType, rule),
+  toolsUpdatePattern: (cliType: string, index: number, rule: object) => ipcRenderer.invoke('tools:updatePattern', cliType, index, rule),
+  toolsRemovePattern: (cliType: string, index: number) => ipcRenderer.invoke('tools:removePattern', cliType, index),
+  patternCancelSchedule: (sessionId: string) => ipcRenderer.invoke('pattern:cancelSchedule', sessionId),
 
   // ========================================================================
   // Voice Keyboard (OS-level key events for voice bindings)
@@ -530,6 +535,24 @@ const gamepadCliAPI = {
     const listener = (_event: unknown, data: { filename: string; error: string }) => callback(data);
     ipcRenderer.on('plan:incoming-error', listener);
     return () => ipcRenderer.removeListener('plan:incoming-error', listener);
+  },
+
+  onPatternScheduleCreated: (callback: (event: { sessionId: string; scheduledAt: string; ruleIndex: number }) => void) => {
+    const listener = (_e: unknown, event: { sessionId: string; scheduledAt: string; ruleIndex: number }) => callback(event);
+    ipcRenderer.on('pattern:schedule-created', listener);
+    return () => ipcRenderer.removeListener('pattern:schedule-created', listener);
+  },
+
+  onPatternScheduleFired: (callback: (event: { sessionId: string }) => void) => {
+    const listener = (_e: unknown, event: { sessionId: string }) => callback(event);
+    ipcRenderer.on('pattern:schedule-fired', listener);
+    return () => ipcRenderer.removeListener('pattern:schedule-fired', listener);
+  },
+
+  onPatternScheduleCancelled: (callback: (event: { sessionId: string }) => void) => {
+    const listener = (_e: unknown, event: { sessionId: string }) => callback(event);
+    ipcRenderer.on('pattern:schedule-cancelled', listener);
+    return () => ipcRenderer.removeListener('pattern:schedule-cancelled', listener);
   },
 
 };

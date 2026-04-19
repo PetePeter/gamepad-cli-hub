@@ -7,9 +7,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // ---------------------------------------------------------------------------
 
 class MockResizeObserver {
+  static lastInstance: MockResizeObserver | null = null;
   callback: ResizeObserverCallback;
   constructor(callback: ResizeObserverCallback) {
     this.callback = callback;
+    MockResizeObserver.lastInstance = this;
   }
   observe() {}
   unobserve() {}
@@ -598,6 +600,46 @@ describe('TerminalManager', () => {
 
     expect(mgr.getCount()).toBe(0);
     expect(mgr.getActiveSessionId()).toBeNull();
+  });
+
+  it('dispose cancels fitWatchdog interval', () => {
+    vi.useFakeTimers();
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+
+    const mgr = new TerminalManager(container);
+    mgr.dispose();
+
+    expect(clearIntervalSpy).toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
+
+  it('fitActive() is a no-op when no session is active', () => {
+    const mgr = new TerminalManager(container);
+    expect(() => mgr.fitActive()).not.toThrow();
+    mgr.dispose();
+  });
+
+  it('ResizeObserver debounce coalesces rapid callbacks into one fitAll()', () => {
+    vi.useFakeTimers();
+
+    const mgr = new TerminalManager(container);
+    const fitAllSpy = vi.spyOn(mgr, 'fitAll');
+
+    // Grab the ResizeObserver instance created by setupResizeObserver
+    const observer = (MockResizeObserver as any).lastInstance as MockResizeObserver;
+    if (!observer) { mgr.dispose(); vi.useRealTimers(); return; }
+
+    observer.callback([], observer as unknown as ResizeObserver);
+    observer.callback([], observer as unknown as ResizeObserver);
+    observer.callback([], observer as unknown as ResizeObserver);
+
+    expect(fitAllSpy).not.toHaveBeenCalled(); // debounce not yet fired
+    vi.advanceTimersByTime(50);
+    expect(fitAllSpy).toHaveBeenCalledTimes(1); // exactly once after settle
+
+    mgr.dispose();
+    vi.useRealTimers();
   });
 
   it('handles missing window.gamepadCli gracefully', () => {

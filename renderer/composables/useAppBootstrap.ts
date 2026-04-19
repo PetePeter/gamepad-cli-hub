@@ -391,6 +391,24 @@ function setupIpcListeners(): void {
       }
     });
   }
+
+  // Pattern schedule listeners
+  if (window.gamepadCli.onPatternScheduleCreated) {
+    window.gamepadCli.onPatternScheduleCreated(({ sessionId, scheduledAt }) => {
+      const formatted = new Date(scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      state.pendingSchedules.set(sessionId, formatted);
+    });
+  }
+  if (window.gamepadCli.onPatternScheduleFired) {
+    window.gamepadCli.onPatternScheduleFired(({ sessionId }) => {
+      state.pendingSchedules.delete(sessionId);
+    });
+  }
+  if (window.gamepadCli.onPatternScheduleCancelled) {
+    window.gamepadCli.onPatternScheduleCancelled(({ sessionId }) => {
+      state.pendingSchedules.delete(sessionId);
+    });
+  }
 }
 
 // ============================================================================

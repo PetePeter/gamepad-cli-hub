@@ -124,6 +124,51 @@ claude-code:
 
 No `terminal` field — all CLIs run as embedded PTY sessions (no external window config). `initialPrompt` items are sent in order; use `{Wait N}` within sequences for inter-item timing.
 
+## Pattern Rules (`patterns`)
+
+Per-CLI array of regex rules stored under each CLI type in the profile YAML. `PatternMatcher` scans every PTY output chunk against all rules for that CLI type.
+
+```yaml
+claude-code:
+  patterns:
+    - regex: "try again at (\\d{1,2}(?::\\d{2})?(?:am|pm))"
+      action: wait-until
+      timeGroup: 1          # Capture group index whose text is parsed as a time
+      onResume: "{Enter}"   # Sequence sent to PTY when the scheduled time arrives
+      cooldownMs: 300000    # 5 min — suppresses re-triggering for same session
+    - regex: "Are you sure"
+      action: send-text
+      sequence: "y{Enter}"  # Sequence sent to PTY immediately on match
+      cooldownMs: 10000
+```
+
+### Action Types
+
+| Action | Trigger | Required fields | Optional fields |
+|--------|---------|-----------------|-----------------|
+| `wait-until` | Parses a time from the matched capture group (or uses `waitMs` as fixed delay), then sends `onResume` to PTY at that time | `onResume` | `timeGroup` (default 0), `waitMs` (fallback fixed delay) |
+| `send-text` | Sends `sequence` to PTY immediately on match | `sequence` | — |
+
+Both action types use `sequence` / `onResume` strings in [Sequence Parser Syntax](#sequence-parser-syntax).
+
+### Cooldown & Dedup
+
+Each rule carries an optional `cooldownMs`. After a rule fires for a session, it is suppressed for that session for `cooldownMs` milliseconds — preventing rapid re-triggering from repeated output lines. Cooldown is tracked **per session per rule** (not globally), so two concurrent sessions can each trigger the same rule independently.
+
+### Schedule Chip
+
+When a `wait-until` fires and a scheduled send is pending, the session card shows a ⏰ `HH:mm [×]` chip. Clicking `×` cancels the pending send via the `pattern:cancelSchedule` IPC channel.
+
+### IPC Channels
+
+| Channel | Purpose |
+|---------|---------|
+| `tools:addPattern(cliType, rule)` | Append a pattern rule to a CLI type |
+| `tools:updatePattern(cliType, index, rule)` | Replace pattern rule at index |
+| `tools:removePattern(cliType, index)` | Delete pattern rule at index |
+| `tools:getPatterns(cliType)` | Return all pattern rules for a CLI type |
+| `pattern:cancelSchedule(sessionId)` | Cancel the pending `wait-until` for a session |
+
 ## Sequence Parser Syntax
 
 Used by both `sequence` bindings and `initialPrompt`:

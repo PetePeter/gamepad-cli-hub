@@ -56,6 +56,37 @@ interface NewDraftBinding extends BaseBinding {
 export type Binding = KeyboardBinding | VoiceBinding | ScrollBinding | ContextMenuBinding | SequenceListBinding | NewDraftBinding;
 
 // ============================================================================
+// Pattern Rules
+// ============================================================================
+
+/**
+ * A user-defined regex pattern that fires an automated action when matched
+ * against PTY output for a specific CLI type.
+ */
+export interface PatternRule {
+  /** JavaScript regex string (without delimiters). Case-insensitive matching is applied automatically. */
+  regex: string;
+  /** Action to take when the regex matches. */
+  action: 'wait-until' | 'send-text';
+  /**
+   * wait-until only: 1-based capture group index containing the scheduled time string.
+   * If omitted (or group not found), falls back to waitMs.
+   */
+  timeGroup?: number;
+  /**
+   * wait-until only: fixed delay in ms to wait before sending onResume.
+   * Used when timeGroup is absent or fails to parse.
+   */
+  waitMs?: number;
+  /** wait-until only: sequence sent to PTY after the wait period. */
+  onResume?: string;
+  /** send-text only: sequence sent immediately when match fires. */
+  sequence?: string;
+  /** Cooldown in ms before this rule can fire again for the same session. Default: 300000 (5 min). */
+  cooldownMs?: number;
+}
+
+// ============================================================================
 // Shared Config Types
 // ============================================================================
 
@@ -90,6 +121,8 @@ export interface CliTypeConfig {
    *  - 'sendkeysindividual' — send one character at a time via robotjs with 20ms delay
    *    (for interactive CLIs like GitHub Copilot that don't accept bulk paste) */
   pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual';
+  /** User-defined regex patterns that trigger automated actions when matched against PTY output. */
+  patterns?: PatternRule[];
 }
 
 export interface ButtonBindings {
@@ -868,7 +901,43 @@ export class ConfigLoader {
     this.saveActiveProfile();
   }
 
-  // ---------- Spawn config builder ----------------------------------------
+  // ---------- Pattern rule CRUD -------------------------------------------
+
+  getPatterns(cliType: string): PatternRule[] {
+    this.ensureLoaded();
+    return this.activeProfile!.tools[cliType]?.patterns ?? [];
+  }
+
+  addPattern(cliType: string, rule: PatternRule): void {
+    this.ensureLoaded();
+    const entry = this.activeProfile!.tools[cliType];
+    if (!entry) throw new Error(`CLI type not found: ${cliType}`);
+    if (!entry.patterns) entry.patterns = [];
+    entry.patterns.push(rule);
+    this.saveActiveProfile();
+  }
+
+  updatePattern(cliType: string, index: number, rule: PatternRule): void {
+    this.ensureLoaded();
+    const patterns = this.activeProfile!.tools[cliType]?.patterns;
+    if (!patterns || index < 0 || index >= patterns.length) {
+      throw new Error(`Pattern index ${index} out of range for CLI type: ${cliType}`);
+    }
+    patterns[index] = rule;
+    this.saveActiveProfile();
+  }
+
+  removePattern(cliType: string, index: number): void {
+    this.ensureLoaded();
+    const patterns = this.activeProfile!.tools[cliType]?.patterns;
+    if (!patterns || index < 0 || index >= patterns.length) {
+      throw new Error(`Pattern index ${index} out of range for CLI type: ${cliType}`);
+    }
+    patterns.splice(index, 1);
+    this.saveActiveProfile();
+  }
+
+
 
   private buildSpawnConfig(config: CliTypeConfig): SpawnConfig {
     const cmd = config.command || '';

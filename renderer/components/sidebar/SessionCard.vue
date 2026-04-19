@@ -32,6 +32,7 @@ export interface SessionCardProps {
   cardColumn: number;
   isEditing: boolean;
   isHiddenFromOverview: boolean;
+  scheduledAt?: string | null;
 }
 
 // --- Constants ---
@@ -58,6 +59,7 @@ const emit = defineEmits<{
   close: [sessionId: string, displayName: string];
   stateChange: [sessionId: string, newState: string];
   toggleOverview: [sessionId: string];
+  cancelSchedule: [sessionId: string];
 }>();
 
 // --- Local state ---
@@ -223,5 +225,15 @@ defineExpose({ handleButton });
     <span v-if="hasMeta" class="session-meta" :title="session.title">
       {{ session.title }}
     </span>
+
+    <!-- Line 4: pending schedule chip -->
+    <div v-if="scheduledAt" class="session-schedule-chip">
+      <span>⏰ {{ scheduledAt }}</span>
+      <button
+        class="session-schedule-cancel"
+        title="Cancel scheduled resume"
+        @click.stop="emit('cancelSchedule', session.id)"
+      >×</button>
+    </div>
   </div>
 </template>

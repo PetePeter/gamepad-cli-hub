@@ -14,6 +14,7 @@ import { PipelineQueue } from '../../session/pipeline-queue.js';
 import { NotificationManager } from '../../session/notification-manager.js';
 import { DraftManager } from '../../session/draft-manager.js';
 import { PlanManager } from '../../session/plan-manager.js';
+import { PatternMatcher } from '../../session/pattern-matcher.js';
 import { configLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
 import { logger } from '../../utils/logger.js';
@@ -88,6 +89,11 @@ export function registerIPCHandlers(
 
   const incomingWatcher = new IncomingPlansWatcher(planManager);
 
+  const patternMatcher = new PatternMatcher(
+    (sessionId, data) => ptyManager.write(sessionId, data),
+    (cliType) => configLoader.getPatterns(cliType),
+  );
+
   const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager);
   setupConfigHandlers(configLoader);
   setupEditorHandlers(configLoader);
@@ -97,7 +103,7 @@ export function registerIPCHandlers(
   setupSystemHandlers();
   setupDraftHandlers(draftManager);
   setupPlanHandlers(planManager, getMainWindow, incomingWatcher);
-  setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader, notificationManager, telegramModules.feedPtyOutput, telegramModules.handleActivityChange, telegramModules.trackInput);
+  setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader, notificationManager, telegramModules.feedPtyOutput, telegramModules.handleActivityChange, telegramModules.trackInput, patternMatcher);
 
   // Wire events ONCE (no-ops when bot not running — notifier checks isRunning)
   stateDetector.on('state-change', (transition) => telegramNotifier.handleStateChange(transition));
@@ -159,6 +165,7 @@ export function registerIPCHandlers(
       cleanupSession();
       cancelAllPrompts();
       stateDetector.dispose();
+      patternMatcher.dispose();
       notificationManager.dispose();
       ptyManager.killAll();
       void incomingWatcher.close();

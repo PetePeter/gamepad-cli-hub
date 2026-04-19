@@ -671,6 +671,26 @@ button {
 .session-card .session-name:hover { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 2px; }
 .session-card .session-meta { font-size: 11px; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Pending schedule chip */
+.session-schedule-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #ffa040;
+}
+.session-schedule-cancel {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 12px;
+  line-height: 1;
+}
+.session-schedule-cancel:hover { color: #ff6060; }
+
 /* Session action buttons (rename, state, close) - always visible */
 .session-rename,
 .session-state-btn,

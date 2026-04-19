@@ -5,7 +5,7 @@
  */
 
 import { ipcMain } from 'electron';
-import type { ConfigLoader, SequenceListItem } from '../../config/loader.js';
+import type { ConfigLoader, PatternRule, SequenceListItem } from '../../config/loader.js';
 import { logger } from '../../utils/logger.js';
 
 export function setupToolsHandlers(configLoader: ConfigLoader): void {
@@ -56,6 +56,47 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to remove CLI type: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // ---------- Pattern rule CRUD -------------------------------------------
+
+  ipcMain.handle('tools:getPatterns', (_event, cliType: string) => {
+    try {
+      return { patterns: configLoader.getPatterns(cliType) };
+    } catch (error) {
+      logger.error(`[IPC] Failed to get patterns: ${error}`);
+      return { patterns: [] };
+    }
+  });
+
+  ipcMain.handle('tools:addPattern', (_event, cliType: string, rule: PatternRule) => {
+    try {
+      configLoader.addPattern(cliType, rule);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to add pattern: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('tools:updatePattern', (_event, cliType: string, index: number, rule: PatternRule) => {
+    try {
+      configLoader.updatePattern(cliType, index, rule);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to update pattern: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('tools:removePattern', (_event, cliType: string, index: number) => {
+    try {
+      configLoader.removePattern(cliType, index);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to remove pattern: ${error}`);
       return { success: false, error: String(error) };
     }
   });

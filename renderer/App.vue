@@ -319,6 +319,12 @@ function onToggleOverview(sessionId: string): void {
   void toggleSessionOverviewVisibility(sessionId);
 }
 
+async function onCancelSchedule(sessionId: string): Promise<void> {
+  try {
+    await window.gamepadCli.patternCancelSchedule(sessionId);
+  } catch { /* ignore */ }
+}
+
 // Section collapse
 async function loadCollapsePrefs(): Promise<void> {
   try {
@@ -715,6 +721,7 @@ onUnmounted(() => {
                   :card-column="sessionsState.cardColumn"
                   :is-editing="editingSessionId === session.id"
                   :is-hidden-from-overview="isSessionHiddenFromOverview(session, sessionsState.groupPrefs)"
+                  :scheduled-at="state.pendingSchedules.get(session.id) ?? null"
                   @click="onSessionClick"
                   @rename="onSessionRename"
                   @commit-rename="onCommitRename"
@@ -722,6 +729,7 @@ onUnmounted(() => {
                   @close="onRequestClose"
                   @state-change="onSessionStateChange"
                   @toggle-overview="onToggleOverview"
+                  @cancel-schedule="onCancelSchedule"
                 />
               </template>
               </template>

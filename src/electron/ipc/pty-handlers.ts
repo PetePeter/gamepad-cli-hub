@@ -2,6 +2,7 @@ import { ipcMain, type BrowserWindow } from 'electron';
 import { randomUUID } from 'crypto';
 import type { PtyManager } from '../../session/pty-manager.js';
 import type { StateDetector } from '../../session/state-detector.js';
+import type { PatternMatcher } from '../../session/pattern-matcher.js';
 import type { SessionManager } from '../../session/manager.js';
 import type { PipelineQueue } from '../../session/pipeline-queue.js';
 import type { ConfigLoader } from '../../config/loader.js';
@@ -53,6 +54,7 @@ export function setupPtyHandlers(
   onPtyData?: (sessionId: string, data: string) => void,
   onActivityChange?: (sessionId: string, level: import('../../types/session.js').ActivityLevel) => void,
   onPtyInput?: (sessionId: string, data: string) => void,
+  patternMatcher?: PatternMatcher,
 ): void {
   // pty:spawn - Spawn a new PTY process and register as session
   ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string, resumeSessionName?: string) => {
@@ -206,6 +208,12 @@ export function setupPtyHandlers(
     // Feed to state detector for keyword scanning
     stateDetector.processOutput(sessionId, data);
 
+    // Feed to pattern matcher for regex-triggered actions
+    if (patternMatcher) {
+      const cliType = sessionManager.getSession(sessionId)?.cliType;
+      if (cliType) patternMatcher.processOutput(sessionId, cliType, data);
+    }
+
     // Feed to notification manager for output preview in toasts
     notificationManager?.feedOutput(sessionId, data);
 
@@ -235,6 +243,7 @@ export function setupPtyHandlers(
     // Clean up: remove from queue, state tracking, notification tracking, and session manager
     pipelineQueue.dequeue(sessionId);
     stateDetector.removeSession(sessionId);
+    patternMatcher?.removeSession(sessionId);
     notificationManager?.removeSession(sessionId);
     if (sessionManager.hasSession(sessionId)) {
       sessionManager.removeSession(sessionId);
@@ -370,6 +379,34 @@ export function setupPtyHandlers(
 
     return { success: true };
   });
+
+  // Pattern matcher — cancel schedule
+  ipcMain.handle('pattern:cancelSchedule', (_event, sessionId: string) => {
+    patternMatcher?.cancelSchedule(sessionId);
+    return { success: true };
+  });
+
+  // Pattern matcher — forward events to renderer
+  if (patternMatcher) {
+    patternMatcher.on('schedule-created', (event) => {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('pattern:schedule-created', event);
+      }
+    });
+    patternMatcher.on('schedule-fired', (event) => {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('pattern:schedule-fired', event);
+      }
+    });
+    patternMatcher.on('schedule-cancelled', (event) => {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('pattern:schedule-cancelled', event);
+      }
+    });
+  }
 
   logger.info('[PTY IPC] Handlers registered');
 }

@@ -63,6 +63,8 @@ export interface AppState {
   workingPlanLabels: Map<string, string>;
   /** Per-session working plan tooltip */
   workingPlanTooltips: Map<string, string>;
+  /** Per-session pending pattern schedule time string (e.g. "9:00 PM") */
+  pendingSchedules: Map<string, string>;
 }
 
 export const state: AppState = reactive({
@@ -91,4 +93,5 @@ export const state: AppState = reactive({
   planDirPendingCounts: new Map(),
   workingPlanLabels: new Map(),
   workingPlanTooltips: new Map(),
+  pendingSchedules: new Map(),
 });

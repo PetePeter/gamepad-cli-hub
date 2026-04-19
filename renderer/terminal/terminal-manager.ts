@@ -28,6 +28,8 @@ export class TerminalManager {
   private onSwitch: ((sessionId: string | null) => void) | null = null;
   private onTitleChangeCallback: ((sessionId: string, title: string) => void) | null = null;
   private pendingFitRaf: number | null = null;
+  private fitDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private fitWatchdog: ReturnType<typeof setInterval> | null = null;
   private outputBuffer: PtyOutputBuffer;
 
   constructor(container: HTMLElement) {
@@ -35,6 +37,7 @@ export class TerminalManager {
     this.outputBuffer = new PtyOutputBuffer(50);
     this.setupIpcListeners();
     this.setupResizeObserver();
+    this.fitWatchdog = setInterval(() => this.fitActive(), 60_000);
   }
 
   /** Get the shared PTY output buffer for preview display */
@@ -212,14 +215,18 @@ export class TerminalManager {
     session.element.style.display = 'block';
     this.activeSessionId = sessionId;
 
-    // Fit and focus after layout — cancel pending rAF to avoid stacking on rapid switches
+    // Fit and focus after layout — double-RAF so the display:block reflow is
+    // measured by FitAddon. Cancel pending rAF to avoid stacking on rapid switches.
     if (this.pendingFitRaf !== null) {
       cancelAnimationFrame(this.pendingFitRaf);
     }
     this.pendingFitRaf = requestAnimationFrame(() => {
-      this.pendingFitRaf = null;
-      session.view.fit();
-      session.view.focus();
+      requestAnimationFrame(() => {
+        this.pendingFitRaf = null;
+        if (this.activeSessionId !== sessionId) return;
+        session.view.fit();
+        session.view.focus();
+      });
     });
 
     this.onSwitch?.(sessionId);
@@ -244,12 +251,19 @@ export class TerminalManager {
     }
   }
 
-  /** Refit the active terminal after layout changes (e.g. panel resize) */
+  /** Refit the active terminal after layout changes (e.g. panel resize).
+   *  Double-RAF ensures the DOM has fully reflowed before FitAddon measures.
+   *  Snapshots the sessionId so a rapid switch between call and execution
+   *  doesn't fit the wrong (hidden) terminal. */
   fitActive(): void {
-    if (this.activeSessionId) {
-      const session = this.terminals.get(this.activeSessionId);
-      session?.view.fit();
-    }
+    const sessionId = this.activeSessionId;
+    if (!sessionId) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (this.activeSessionId !== sessionId) return;
+        this.terminals.get(sessionId)?.view.fit();
+      });
+    });
   }
 
   /** Get all terminal session IDs */
@@ -349,9 +363,21 @@ export class TerminalManager {
       this.destroyTerminal(id);
     }
 
+    if (this.pendingFitRaf !== null) {
+      cancelAnimationFrame(this.pendingFitRaf);
+      this.pendingFitRaf = null;
+    }
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
+    }
+    if (this.fitDebounceTimer !== null) {
+      clearTimeout(this.fitDebounceTimer);
+      this.fitDebounceTimer = null;
+    }
+    if (this.fitWatchdog !== null) {
+      clearInterval(this.fitWatchdog);
+      this.fitWatchdog = null;
     }
   }
 
@@ -374,10 +400,15 @@ export class TerminalManager {
     this.unsubscribers.push(unsubExit);
   }
 
-  /** Observe container resize to re-fit terminals */
+  /** Observe container resize to re-fit terminals.
+   *  Debounced at 50ms so CSS transitions settle before FitAddon measures. */
   private setupResizeObserver(): void {
     this.resizeObserver = new ResizeObserver(() => {
-      this.fitAll();
+      if (this.fitDebounceTimer !== null) clearTimeout(this.fitDebounceTimer);
+      this.fitDebounceTimer = setTimeout(() => {
+        this.fitDebounceTimer = null;
+        this.fitAll();
+      }, 50);
     });
     this.resizeObserver.observe(this.container);
   }
