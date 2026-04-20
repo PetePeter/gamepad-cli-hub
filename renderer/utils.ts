@@ -110,6 +110,7 @@ export function getCliIcon(cliType: string): string {
   const icons: Record<string, string> = {
     'claude-code': '🤖',
     'copilot-cli': '💬',
+    'codex': '🧠',
     'generic-terminal': '📟',
   };
   return icons[cliType] || '📟';
@@ -119,6 +120,7 @@ export function getCliDisplayName(cliType: string): string {
   const names: Record<string, string> = {
     'claude-code': 'Claude',
     'copilot-cli': 'Copilot',
+    'codex': 'Codex',
     'generic-terminal': 'Terminal',
   };
   return names[cliType] || cliType;

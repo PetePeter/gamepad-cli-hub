@@ -6,7 +6,7 @@
  */
 
 import { ipcMain, dialog, BrowserWindow } from 'electron';
-import type { ConfigLoader } from '../../config/loader.js';
+import { parseCliArgs, type ConfigLoader } from '../../config/loader.js';
 import { logger } from '../../utils/logger.js';
 
 export function setupConfigHandlers(configLoader: ConfigLoader): void {
@@ -249,8 +249,7 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
       const entry = configLoader.getCliTypeEntry(cliType);
       if (!entry) return null;
       // For embedded PTY, use the raw command directly — no terminal wrapper
-      // Parse args string into array if present
-      const args = entry.args ? entry.args.split(/\s+/).filter(Boolean) : [];
+      const args = parseCliArgs(entry.args);
       return { command: entry.command || cliType, args };
     } catch (error) {
       logger.error(`[IPC] Failed to get spawn command for ${cliType}: ${error}`);

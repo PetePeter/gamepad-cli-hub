@@ -95,6 +95,58 @@ export interface SpawnConfig {
   args: string[];
 }
 
+export function parseCliArgs(argsText?: string): string[] {
+  if (!argsText) return [];
+
+  const args: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | null = null;
+  let escaping = false;
+
+  for (let i = 0; i < argsText.length; i++) {
+    const ch = argsText[i];
+
+    if (escaping) {
+      current += ch;
+      escaping = false;
+      continue;
+    }
+
+    if (ch === '\\') {
+      escaping = true;
+      continue;
+    }
+
+    if (quote) {
+      if (ch === quote) {
+        quote = null;
+      } else {
+        current += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"' || ch === '\'') {
+      quote = ch;
+      continue;
+    }
+
+    if (/\s/.test(ch)) {
+      if (current) {
+        args.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += ch;
+  }
+
+  if (escaping) current += '\\';
+  if (current) args.push(current);
+  return args;
+}
+
 export interface CliTypeConfig {
   name: string;
   command: string;
@@ -944,7 +996,7 @@ export class ConfigLoader {
 
   private buildSpawnConfig(config: CliTypeConfig): SpawnConfig {
     const cmd = config.command || '';
-    return { command: cmd, args: [] };
+    return { command: cmd, args: parseCliArgs(config.args) };
   }
 
   // ---------- Save helpers ---------------------------------------------

@@ -903,6 +903,10 @@ describe('ConfigLoader', () => {
       });
       const entry = loader.getCliTypeEntry('arg-tool')!;
       expect(entry.args).toBe('--model opus --verbose');
+      expect(loader.getSpawnConfig('arg-tool')).toEqual({
+        command: 'mytool',
+        args: ['--model', 'opus', '--verbose'],
+      });
     });
 
     it('updateCliType with args stores args field', () => {
@@ -938,6 +942,22 @@ describe('ConfigLoader', () => {
       const fresh = new ConfigLoader(TEST_DIR);
       fresh.load();
       expect(fresh.getCliTypeEntry('rt-tool')!.args).toBe('--flag value');
+      expect(fresh.getSpawnConfig('rt-tool')).toEqual({
+        command: 'rt',
+        args: ['--flag', 'value'],
+      });
+    });
+
+    it('getSpawnConfig preserves quoted args for complex CLI options', () => {
+      loader.load();
+      loader.addCliType('codex', 'Codex CLI', 'codex', [], 0, {
+        args: '--full-auto -c \'model="gpt-5"\' --cd "X:\\coding\\My Project"',
+      });
+
+      expect(loader.getSpawnConfig('codex')).toEqual({
+        command: 'codex',
+        args: ['--full-auto', '-c', 'model="gpt-5"', '--cd', 'X:\\coding\\My Project'],
+      });
     });
 
     it('updateCliType round-trip preserves all fields on disk', () => {

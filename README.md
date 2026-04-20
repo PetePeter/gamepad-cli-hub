@@ -2,9 +2,9 @@
 
 **Helm - steer your fleet of agents**
 
-You're running Claude Code in one terminal, Copilot CLI in another, maybe a third session for a side project. Alt-tabbing between them is slow. Finding the right window is annoying. Typing repetitive commands is tedious.
+You're running Claude Code in one terminal, Copilot CLI in another, Codex CLI in a third, maybe a fourth session for a side project. Alt-tabbing between them is slow. Finding the right window is annoying. Typing repetitive commands is tedious.
 
-Pick up your controller. One button spawns a new Claude Code session — it opens as an embedded terminal right inside the app. Another fires up Copilot CLI in its own tab. The D-pad flips between sessions instantly, auto-selecting the terminal so you can start typing right away. Step away from your desk? Monitor and control everything from your phone via the Telegram bot.
+Pick up your controller. One button spawns a new Claude Code session — it opens as an embedded terminal right inside the app. Another fires up Copilot CLI or Codex CLI in its own tab. The D-pad flips between sessions instantly, auto-selecting the terminal so you can start typing right away. Step away from your desk? Monitor and control everything from your phone via the Telegram bot.
 
 This is a session manager for people who run multiple AI-assisted terminals at once and got tired of the friction.
 
@@ -16,7 +16,7 @@ Helm is an Electron desktop app that lets you control multiple AI coding CLI ses
 
 **Why use it?**
 
-- **Multi-CLI workflows** — Run Claude Code, Copilot CLI, and other AI tools side-by-side in embedded terminals
+- **Multi-CLI workflows** — Run Claude Code, Copilot CLI, Codex CLI, and other AI tools side-by-side in embedded terminals
 - **Physical controls** — D-pad, buttons, and analog sticks replace keyboard shortcuts. Works with Xbox controllers and generic/DirectInput gamepads
 - **Session groups** — Sessions grouped by working directory with collapsible headers and a live preview grid
 - **Telegram bot** — Remote session control, output monitoring, and spawning from your phone
@@ -229,7 +229,7 @@ graph LR
     TG[📱 Telegram Bot] <--> APP
     APP --> T1[Claude Code PTY]
     APP --> T2[Copilot CLI PTY]
-    APP --> T3[Any CLI PTY]
+    APP --> T3[Codex CLI PTY]
     APP --> T4[... more sessions]
 
     style APP fill:#4a9eff,color:#fff,stroke:#2d7ad6
