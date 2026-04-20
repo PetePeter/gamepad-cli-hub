@@ -780,8 +780,10 @@ function onKeyDown(e: KeyboardEvent): void {
   const active = document.activeElement;
   const view = currentView();
 
+  // Bridge/Vue modals own keyboard navigation while visible.
+  if (document.querySelector('.modal-overlay.modal--visible')) return;
+
   if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
-    if (document.querySelector('.modal-overlay.modal--visible')) return;
     const draftEditor = document.getElementById('draftEditor');
     if (draftEditor && draftEditor.style.display !== 'none') return;
     // Let the plan screen own Ctrl+N while it's focused (adds a node).

@@ -856,6 +856,17 @@ describe('Sessions Screen', () => {
       expect(mockSwitchTo).not.toHaveBeenCalled();
     });
 
+    it('stands down when a modal overlay is visible', () => {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay modal--visible';
+      document.body.appendChild(overlay);
+
+      pressKey('ArrowDown');
+      expect(sessionsState.sessionsFocusIndex).toBe(0);
+
+      overlay.remove();
+    });
+
     it('Escape maps to B (no-op on sessions zone)', () => {
       pressKey('Escape');
       expect(sessionsState.activeFocus).toBe('sessions');

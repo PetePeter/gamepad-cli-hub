@@ -91,6 +91,19 @@ export const quickSpawn = reactive({
 let _quickSpawnOnSelect: ((cliType: string) => void) | null = null;
 export function setQuickSpawnCallback(cb: ((cliType: string) => void) | null): void { _quickSpawnOnSelect = cb; }
 export function getQuickSpawnCallback(): ((cliType: string) => void) | null { return _quickSpawnOnSelect; }
+export function openQuickSpawn(
+  onSelect: (cliType: string) => void,
+  preselectedCliType?: string,
+): void {
+  quickSpawn.visible = true;
+  quickSpawn.preselectedCliType = preselectedCliType;
+  setQuickSpawnCallback(onSelect);
+}
+export function closeQuickSpawn(): void {
+  quickSpawn.visible = false;
+  quickSpawn.preselectedCliType = undefined;
+  setQuickSpawnCallback(null);
+}
 
 // ============================================================================
 // Dir Picker
@@ -102,6 +115,22 @@ export const dirPicker = reactive({
   items: [] as Array<{ name: string; path: string }>,
   preselectedPath: undefined as string | undefined,
 });
+export function openDirPicker(
+  cliType: string,
+  items: Array<{ name: string; path: string }>,
+  preselectedPath?: string,
+): void {
+  dirPicker.visible = true;
+  dirPicker.cliType = cliType;
+  dirPicker.items = [...items];
+  dirPicker.preselectedPath = preselectedPath;
+}
+export function closeDirPicker(): void {
+  dirPicker.visible = false;
+  dirPicker.cliType = '';
+  dirPicker.items = [];
+  dirPicker.preselectedPath = undefined;
+}
 
 // ============================================================================
 // Draft Submenu

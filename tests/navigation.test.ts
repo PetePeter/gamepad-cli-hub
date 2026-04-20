@@ -15,14 +15,13 @@ const mockProcessConfigRelease = vi.fn();
 const mockHandleSessionsScreenButton = vi.fn(() => false);
 const mockHandleSettingsScreenButton = vi.fn(() => false);
 
-const mockHandleDirPickerButton = vi.fn();
 const mockHandleBindingEditorButton = vi.fn();
 const mockHandleContextMenuButton = vi.fn();
 const mockHandleSequencePickerButton = vi.fn();
 const mockHandleCloseConfirmButton = vi.fn();
 const mockHandlePlanDeleteConfirmButton = vi.fn();
-const mockHandleQuickSpawnButton = vi.fn();
 const mockHandleDraftEditorButton = vi.fn();
+const mockModalStackHandleInput = vi.fn();
 
 const mockGetTerminalManager = vi.fn();
 let _draftEditorVisible = false;
@@ -40,13 +39,13 @@ const mockState = {
   activeProfile: 'default',
 };
 
-const mockDirPickerState = { visible: false };
 const mockBindingEditorState = { visible: false };
 const mockContextMenuState = { visible: false };
 const mockSequencePickerState = { visible: false };
 const mockCloseConfirmState = { visible: false };
 const mockPlanDeleteConfirmState = { visible: false };
-const mockQuickSpawnState = { visible: false };
+const mockDirPicker = { visible: false };
+const mockQuickSpawn = { visible: false };
 
 const mockBrowserGamepad = {
   start: vi.fn(),
@@ -87,11 +86,6 @@ vi.mock('../renderer/screens/settings.js', () => ({
   handleSettingsScreenButton: mockHandleSettingsScreenButton,
 }));
 
-vi.mock('../renderer/modals/dir-picker.js', () => ({
-  dirPickerState: mockDirPickerState,
-  handleDirPickerButton: mockHandleDirPickerButton,
-}));
-
 vi.mock('../renderer/modals/binding-editor.js', () => ({
   bindingEditorState: mockBindingEditorState,
   handleBindingEditorButton: mockHandleBindingEditorButton,
@@ -117,9 +111,15 @@ vi.mock('../renderer/modals/plan-delete-confirm.js', () => ({
   handlePlanDeleteConfirmButton: mockHandlePlanDeleteConfirmButton,
 }));
 
-vi.mock('../renderer/modals/quick-spawn.js', () => ({
-  quickSpawnState: mockQuickSpawnState,
-  handleQuickSpawnButton: mockHandleQuickSpawnButton,
+vi.mock('../renderer/stores/modal-bridge.js', () => ({
+  dirPicker: mockDirPicker,
+  quickSpawn: mockQuickSpawn,
+}));
+
+vi.mock('../renderer/composables/useModalStack.js', () => ({
+  useModalStack: () => ({
+    handleInput: mockModalStackHandleInput,
+  }),
 }));
 
 vi.mock('../renderer/runtime/terminal-provider.js', () => ({
@@ -143,12 +143,12 @@ async function getModule() {
 }
 
 function resetModalStates(): void {
-  mockDirPickerState.visible = false;
+  mockDirPicker.visible = false;
   mockBindingEditorState.visible = false;
   _formModalVisible = false;
   mockCloseConfirmState.visible = false;
   mockPlanDeleteConfirmState.visible = false;
-  mockQuickSpawnState.visible = false;
+  mockQuickSpawn.visible = false;
   mockContextMenuState.visible = false;
   mockSequencePickerState.visible = false;
   _draftEditorVisible = false;
@@ -201,11 +201,11 @@ describe('handleGamepadEvent', () => {
     });
 
     it('takes priority over all modals', () => {
-      mockDirPickerState.visible = true;
+      mockDirPicker.visible = true;
       mockBindingEditorState.visible = true;
       _formModalVisible = true;
       mockCloseConfirmState.visible = true;
-      mockQuickSpawnState.visible = true;
+      mockQuickSpawn.visible = true;
       mockContextMenuState.visible = true;
       mockSequencePickerState.visible = true;
       mockState.currentScreen = 'settings';
@@ -213,10 +213,9 @@ describe('handleGamepadEvent', () => {
       mod.handleGamepadEvent(makeEvent('Sandwich'));
 
       expect(mockShowScreen).toHaveBeenCalledWith('sessions');
-      expect(mockHandleDirPickerButton).not.toHaveBeenCalled();
+      expect(mockModalStackHandleInput).not.toHaveBeenCalled();
       expect(mockHandleBindingEditorButton).not.toHaveBeenCalled();
       expect(mockHandleCloseConfirmButton).not.toHaveBeenCalled();
-      expect(mockHandleQuickSpawnButton).not.toHaveBeenCalled();
       expect(mockHandleContextMenuButton).not.toHaveBeenCalled();
       expect(mockHandleSequencePickerButton).not.toHaveBeenCalled();
     });
@@ -227,12 +226,12 @@ describe('handleGamepadEvent', () => {
   // -----------------------------------------------------------------------
   describe('Modal priority order', () => {
     it('dirPicker intercepts before bindingEditor', () => {
-      mockDirPickerState.visible = true;
+      mockDirPicker.visible = true;
       mockBindingEditorState.visible = true;
 
       mod.handleGamepadEvent(makeEvent('A'));
 
-      expect(mockHandleDirPickerButton).toHaveBeenCalledWith('A');
+      expect(mockModalStackHandleInput).toHaveBeenCalledWith('A');
       expect(mockHandleBindingEditorButton).not.toHaveBeenCalled();
     });
 
@@ -262,14 +261,14 @@ describe('handleGamepadEvent', () => {
       expect(mockHandleCloseConfirmButton).not.toHaveBeenCalled();
     });
 
-    it('closeConfirm intercepts before quickSpawn', () => {
+    it('quickSpawn routes through the shared modal stack before legacy modal handlers', () => {
       mockCloseConfirmState.visible = true;
-      mockQuickSpawnState.visible = true;
+      mockQuickSpawn.visible = true;
 
       mod.handleGamepadEvent(makeEvent('A'));
 
-      expect(mockHandleCloseConfirmButton).toHaveBeenCalledWith('A');
-      expect(mockHandleQuickSpawnButton).not.toHaveBeenCalled();
+      expect(mockModalStackHandleInput).toHaveBeenCalledWith('A');
+      expect(mockHandleCloseConfirmButton).not.toHaveBeenCalled();
     });
 
     it('planDeleteConfirm intercepts before draftEditor', () => {
@@ -283,12 +282,12 @@ describe('handleGamepadEvent', () => {
     });
 
     it('quickSpawn intercepts before contextMenu', () => {
-      mockQuickSpawnState.visible = true;
+      mockQuickSpawn.visible = true;
       mockContextMenuState.visible = true;
 
       mod.handleGamepadEvent(makeEvent('A'));
 
-      expect(mockHandleQuickSpawnButton).toHaveBeenCalledWith('A');
+      expect(mockModalStackHandleInput).toHaveBeenCalledWith('A');
       expect(mockHandleContextMenuButton).not.toHaveBeenCalled();
     });
 
@@ -308,12 +307,12 @@ describe('handleGamepadEvent', () => {
   // -----------------------------------------------------------------------
   describe('Modal intercepts screen handlers', () => {
     it('dirPicker visible prevents handleSessionsScreenButton', () => {
-      mockDirPickerState.visible = true;
+      mockDirPicker.visible = true;
       mockState.currentScreen = 'sessions';
 
       mod.handleGamepadEvent(makeEvent('A'));
 
-      expect(mockHandleDirPickerButton).toHaveBeenCalledWith('A');
+      expect(mockModalStackHandleInput).toHaveBeenCalledWith('A');
       expect(mockHandleSessionsScreenButton).not.toHaveBeenCalled();
     });
 

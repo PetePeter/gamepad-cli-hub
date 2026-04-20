@@ -41,8 +41,8 @@ import {
   planDeleteConfirm, getPlanDeleteCallback,
   clearDonePlans, getClearDonePlansCallback,
   sequencePicker, getSequencePickerCallback,
-  quickSpawn, getQuickSpawnCallback,
-  dirPicker,
+  quickSpawn, getQuickSpawnCallback, openQuickSpawn, closeQuickSpawn,
+  dirPicker, openDirPicker, closeDirPicker,
   draftSubmenu,
   formModal, getFormModalResolve,
   editorPopup, getEditorPopupOnSend, getEditorPopupResolve, setEditorPopupCallbacks,
@@ -51,7 +51,6 @@ import {
 } from './stores/modal-bridge.js';
 import { collectSequenceItems } from './modals/context-menu.js';
 import { showSequencePicker } from './modals/sequence-picker.js';
-import { showQuickSpawn } from './modals/quick-spawn.js';
 import { showDraftSubmenu } from './modals/draft-submenu.js';
 import { showEditorPopup } from './editor/editor-popup.js';
 import { showDraftEditor } from './drafts/draft-editor.js';
@@ -384,18 +383,16 @@ function togglePlannerCollapse(): void {
 function onSpawn(cliType: string): void {
   const dirs = sessionsState.directories;
   if (dirs && dirs.length > 0) {
-    dirPicker.cliType = cliType;
-    dirPicker.items = dirs.map(d => ({ name: d.name, path: d.path }));
-    dirPicker.preselectedPath = undefined;
-    dirPicker.visible = true;
+    openDirPicker(cliType, dirs.map(d => ({ name: d.name, path: d.path })));
   } else {
     doSpawn(cliType);
   }
 }
 
 function onDirPickerSelect(path: string): void {
-  dirPicker.visible = false;
-  doSpawn(dirPicker.cliType, path);
+  const cliType = dirPicker.cliType;
+  closeDirPicker();
+  doSpawn(cliType, path);
 }
 
 // Sort
@@ -428,14 +425,14 @@ function onContextMenuAction(action: string): void {
       break;
     case 'new-session':
       setPendingContextText(null);
-      showQuickSpawn(state.cliTypes, (cliType) => {
+      openQuickSpawn((cliType) => {
         onSpawn(cliType);
       });
       break;
     case 'new-session-with-selection': {
       const selText = contextMenu.selectedText;
       setPendingContextText(selText || null);
-      showQuickSpawn(state.cliTypes, (cliType) => {
+      openQuickSpawn((cliType) => {
         onSpawn(cliType);
       });
       break;
@@ -575,8 +572,8 @@ function onSequencePickerSelect(seq: string): void {
 
 // Quick spawn select
 function onQuickSpawnSelect(cliType: string): void {
-  quickSpawn.visible = false;
   const cb = getQuickSpawnCallback();
+  closeQuickSpawn();
   if (cb) cb(cliType);
 }
 
@@ -655,10 +652,7 @@ onMounted(async () => {
 
   // Wire sessions-spawn dir picker to Vue DirPickerModal
   setDirPickerBridge((cliType, dirs, preselectedPath) => {
-    dirPicker.cliType = cliType;
-    dirPicker.items = dirs;
-    dirPicker.preselectedPath = preselectedPath;
-    dirPicker.visible = true;
+    openDirPicker(cliType, dirs, preselectedPath);
   });
 
   // Keyboard → modal stack bridge (all navigation keys reach modals via unified path)
@@ -936,7 +930,7 @@ onUnmounted(() => {
       :cli-types="state.cliTypes"
       :preselected-cli-type="quickSpawn.preselectedCliType"
       @select="onQuickSpawnSelect"
-      @cancel="quickSpawn.visible = false"
+      @cancel="closeQuickSpawn()"
     />
 
     <ContextMenu
@@ -968,7 +962,7 @@ onUnmounted(() => {
       :items="dirPicker.items"
       :preselected-path="dirPicker.preselectedPath"
       @select="onDirPickerSelect"
-      @cancel="dirPicker.visible = false"
+      @cancel="closeDirPicker()"
     />
 
     <FormModal

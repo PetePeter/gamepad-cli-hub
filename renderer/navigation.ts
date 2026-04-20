@@ -11,15 +11,12 @@ import { logEvent, showScreen, toDirection } from './utils.js';
 import { processConfigBinding, processConfigRelease } from './bindings.js';
 import { handleSessionsScreenButton, switchToSession, showTerminalArea, hideTerminalArea, getSessionState } from './screens/sessions.js';
 import { handleSettingsScreenButton } from './screens/settings.js';
-import { handleDirPickerButton } from './modals/dir-picker.js';
-import { dirPickerState } from './modals/dir-picker.js';
 import { handleBindingEditorButton } from './modals/binding-editor.js';
 import { bindingEditorState } from './modals/binding-editor.js';
 import { contextMenuState, handleContextMenuButton } from './modals/context-menu.js';
 import { sequencePickerState, handleSequencePickerButton } from './modals/sequence-picker.js';
 import { closeConfirmState, handleCloseConfirmButton } from './modals/close-confirm.js';
 import { planDeleteConfirmState, handlePlanDeleteConfirmButton } from './modals/plan-delete-confirm.js';
-import { quickSpawnState, handleQuickSpawnButton } from './modals/quick-spawn.js';
 import { isDraftSubmenuVisible, handleDraftSubmenuButton, isDraftActionVisible, handleDraftActionButton } from './modals/draft-submenu.js';
 import { isDraftEditorVisible, handleDraftEditorButton } from './drafts/draft-editor.js';
 import { formModalVisible } from './utils.js';
@@ -31,6 +28,8 @@ import { updateSessionsFocus } from './screens/sessions.js';
 import { isPlanScreenVisible, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction } from './plans/plan-screen.js';
 import { isPlanHelpVisible, hidePlanHelpModal } from './plans/plan-help-modal.js';
 import { currentView } from './main-view/main-view-manager.js';
+import { dirPicker, quickSpawn } from './stores/modal-bridge.js';
+import { useModalStack } from './composables/useModalStack.js';
 
 function handlePlanScreenButton(button: string): boolean {
   const dir = toDirection(button);
@@ -145,9 +144,9 @@ export function handleGamepadEvent(event: ButtonEvent): void {
     return;
   }
 
-  // Directory picker modal intercepts all input when visible
-  if (dirPickerState.visible) {
-    handleDirPickerButton(event.button);
+  // Vue quick-spawn / dir-picker route through the shared modal stack.
+  if (dirPicker.visible || quickSpawn.visible) {
+    useModalStack().handleInput(event.button);
     return;
   }
 
@@ -177,12 +176,6 @@ export function handleGamepadEvent(event: ButtonEvent): void {
   // Plan delete confirmation modal intercepts all input when visible
   if (planDeleteConfirmState.visible) {
     handlePlanDeleteConfirmButton(event.button);
-    return;
-  }
-
-  // Quick-spawn CLI type picker intercepts all input when visible
-  if (quickSpawnState.visible) {
-    handleQuickSpawnButton(event.button);
     return;
   }
 
