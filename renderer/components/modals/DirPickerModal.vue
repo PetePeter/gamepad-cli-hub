@@ -3,9 +3,9 @@
  * Directory picker modal — select a working directory to spawn a CLI in.
  *
  * Gamepad D-pad up/down navigates (clamped), A selects, B cancels.
- * Keyboard: arrow keys navigate, Tab/Shift+Tab cycle, Space/Enter select, Escape cancel.
+ * Keyboard routed via App.vue bridge → useModalStack → handleButton.
  */
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { ref, watch } from 'vue';
 import { useModalStack } from '../../composables/useModalStack.js';
 import { toDirection, getCliDisplayName } from '../../utils.js';
 
@@ -46,11 +46,11 @@ watch(() => props.visible, (v) => {
 
 function handleButton(button: string): boolean {
   const dir = toDirection(button);
-  if (dir === 'up') {
+  if (dir === 'up' || button === 'ShiftTab') {
     selectedIndex.value = Math.max(0, selectedIndex.value - 1);
     return true;
   }
-  if (dir === 'down') {
+  if (dir === 'down' || button === 'Tab') {
     selectedIndex.value = Math.min(props.items.length - 1, selectedIndex.value + 1);
     return true;
   }
@@ -79,62 +79,6 @@ function suppressActivationKey(e: KeyboardEvent): void {
     e.preventDefault();
   }
 }
-
-function handleKeyDown(e: KeyboardEvent): void {
-  if (!props.visible) return;
-
-  switch (e.key) {
-    case 'ArrowUp':
-      e.preventDefault();
-      e.stopPropagation();
-      selectedIndex.value = Math.max(0, selectedIndex.value - 1);
-      break;
-    case 'ArrowDown':
-      e.preventDefault();
-      e.stopPropagation();
-      selectedIndex.value = Math.min(props.items.length - 1, selectedIndex.value + 1);
-      break;
-    case 'Enter':
-    case ' ':
-      e.preventDefault();
-      e.stopPropagation();
-      selectDir(selectedIndex.value);
-      break;
-    case 'Escape':
-      e.preventDefault();
-      e.stopPropagation();
-      emit('cancel');
-      emit('update:visible', false);
-      break;
-    case 'Tab':
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.shiftKey) {
-        selectedIndex.value = Math.max(0, selectedIndex.value - 1);
-      } else {
-        selectedIndex.value = Math.min(props.items.length - 1, selectedIndex.value + 1);
-      }
-      break;
-  }
-}
-
-onMounted(() => {
-  if (props.visible) {
-    document.addEventListener('keydown', handleKeyDown, true);
-  }
-});
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeyDown, true);
-});
-
-watch(() => props.visible, (v) => {
-  if (v) {
-    document.addEventListener('keydown', handleKeyDown, true);
-  } else {
-    document.removeEventListener('keydown', handleKeyDown, true);
-  }
-});
 
 defineExpose({ handleButton });
 </script>

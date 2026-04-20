@@ -549,6 +549,34 @@ describe('QuickSpawnModal.vue', () => {
     w.unmount();
   });
 
+  it('Tab moves selection down', () => {
+    const w = factory();
+    const vm = w.vm as any;
+    expect(vm.selectedIndex).toBe(0);
+    vm.handleButton('Tab');
+    expect(vm.selectedIndex).toBe(1);
+    vm.handleButton('Tab');
+    expect(vm.selectedIndex).toBe(2);
+    vm.handleButton('Tab');
+    expect(vm.selectedIndex).toBe(2); // clamped
+    w.unmount();
+  });
+
+  it('ShiftTab moves selection up', () => {
+    const w = factory();
+    const vm = w.vm as any;
+    vm.handleButton('DPadDown');
+    vm.handleButton('DPadDown');
+    expect(vm.selectedIndex).toBe(2);
+    vm.handleButton('ShiftTab');
+    expect(vm.selectedIndex).toBe(1);
+    vm.handleButton('ShiftTab');
+    expect(vm.selectedIndex).toBe(0);
+    vm.handleButton('ShiftTab');
+    expect(vm.selectedIndex).toBe(0); // clamped
+    w.unmount();
+  });
+
   it('pushes/pops modal stack', async () => {
     const w = factory();
     expect(modalStack.has('quick-spawn')).toBe(true);
@@ -650,6 +678,34 @@ describe('DirPickerModal.vue', () => {
     const items = w.findAll('.dir-picker-item');
     await items[2].trigger('click');
     expect(w.emitted('select')?.[0]).toEqual(['C:\\dev\\project-c']);
+    w.unmount();
+  });
+
+  it('Tab moves selection down', () => {
+    const w = factory();
+    const vm = w.vm as any;
+    expect(vm.selectedIndex).toBe(0);
+    vm.handleButton('Tab');
+    expect(vm.selectedIndex).toBe(1);
+    vm.handleButton('Tab');
+    expect(vm.selectedIndex).toBe(2);
+    vm.handleButton('Tab');
+    expect(vm.selectedIndex).toBe(2); // clamped
+    w.unmount();
+  });
+
+  it('ShiftTab moves selection up', () => {
+    const w = factory();
+    const vm = w.vm as any;
+    vm.handleButton('DPadDown');
+    vm.handleButton('DPadDown');
+    expect(vm.selectedIndex).toBe(2);
+    vm.handleButton('ShiftTab');
+    expect(vm.selectedIndex).toBe(1);
+    vm.handleButton('ShiftTab');
+    expect(vm.selectedIndex).toBe(0);
+    vm.handleButton('ShiftTab');
+    expect(vm.selectedIndex).toBe(0); // clamped
     w.unmount();
   });
 

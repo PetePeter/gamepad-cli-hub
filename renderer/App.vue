@@ -661,7 +661,7 @@ onMounted(async () => {
     dirPicker.visible = true;
   });
 
-  // Keyboard → modal stack bridge (Tab/Enter/Escape reach modals even in terminal focus)
+  // Keyboard → modal stack bridge (all navigation keys reach modals via unified path)
   document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (!isAnyBridgeModalVisible()) return;
     const { handleInput } = useModalStack();
@@ -672,11 +672,26 @@ onMounted(async () => {
       active.tagName === 'SELECT' ||
       active.isContentEditable
     );
-    if (e.key === 'Tab') {
+    if (e.key === 'ArrowUp') {
+      if (editable) return;
+      e.preventDefault();
+      handleInput('DPadUp');
+    } else if (e.key === 'ArrowDown') {
+      if (editable) return;
+      e.preventDefault();
+      handleInput('DPadDown');
+    } else if (e.key === 'ArrowLeft') {
+      if (editable) return;
+      e.preventDefault();
+      handleInput('DPadLeft');
+    } else if (e.key === 'ArrowRight') {
+      if (editable) return;
+      e.preventDefault();
+      handleInput('DPadRight');
+    } else if (e.key === 'Tab') {
       e.preventDefault();
       handleInput(e.shiftKey ? 'ShiftTab' : 'Tab');
     } else if (e.key === 'Enter') {
-      // Allow plain Enter in any textarea (for newlines)
       if (document.activeElement?.tagName === 'TEXTAREA') return;
       e.preventDefault();
       handleInput('A');
