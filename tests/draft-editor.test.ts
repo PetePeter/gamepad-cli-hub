@@ -26,6 +26,13 @@ vi.mock('../renderer/drafts/draft-strip.js', () => ({
   createDraftBadge: vi.fn(),
 }));
 
+vi.mock('../renderer/stores/chip-bar.js', () => ({
+  useChipBarStore: () => ({
+    refresh: vi.fn().mockResolvedValue(undefined),
+    invalidateActions: vi.fn(),
+  }),
+}));
+
 vi.mock('../renderer/utils.js', () => ({
   toDirection: (button: string) => {
     if (button === 'DPadUp') return 'up';

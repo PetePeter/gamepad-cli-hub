@@ -12,7 +12,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mockConfigGetChipbarActions = vi.fn();
 const mockConfigSetChipbarActions = vi.fn();
-const mockInvalidateChipActionCache = vi.fn();
+const mockInvalidateActions = vi.fn();
+const mockChipBarRefresh = vi.fn().mockResolvedValue(undefined);
 const mockShowFormModal = vi.fn();
 const mockLogEvent = vi.fn();
 const mockLoadSettingsScreen = vi.fn();
@@ -23,6 +24,9 @@ vi.mock('../renderer/state.js', () => ({
     sessions: [
       { id: 'session-1', name: 'My Session', cliType: 'claude-code', workingDir: 'C:\\myproject' },
     ],
+    draftCounts: new Map(),
+    planDoingCounts: new Map(),
+    planStartableCounts: new Map(),
   },
 }));
 
@@ -31,8 +35,11 @@ vi.mock('../renderer/utils.js', () => ({
   showFormModal: (...args: unknown[]) => mockShowFormModal(...args),
 }));
 
-vi.mock('../renderer/drafts/draft-strip.js', () => ({
-  invalidateChipActionCache: (...args: unknown[]) => mockInvalidateChipActionCache(...args),
+vi.mock('../renderer/stores/chip-bar.js', () => ({
+  useChipBarStore: () => ({
+    invalidateActions: (...args: unknown[]) => mockInvalidateActions(...args),
+    refresh: (...args: unknown[]) => mockChipBarRefresh(...args),
+  }),
 }));
 
 vi.mock('../renderer/screens/settings.js', () => ({
@@ -90,7 +97,8 @@ describe('Chipbar Actions Settings', () => {
     // Reset all mocks
     mockConfigGetChipbarActions.mockReset();
     mockConfigSetChipbarActions.mockReset();
-    mockInvalidateChipActionCache.mockReset();
+    mockInvalidateActions.mockReset();
+    mockChipBarRefresh.mockReset().mockResolvedValue(undefined);
     mockShowFormModal.mockReset();
     mockLogEvent.mockReset();
     mockLoadSettingsScreen.mockReset();
@@ -289,7 +297,7 @@ describe('Chipbar Actions Settings', () => {
           { label: '🆕 New Action', sequence: 'new sequence{Enter}' },
         ])
       );
-      expect(mockInvalidateChipActionCache).toHaveBeenCalledTimes(1);
+      expect(mockInvalidateActions).toHaveBeenCalledTimes(1);
       expect(mockLoadSettingsScreen).toHaveBeenCalledTimes(1);
     });
 
@@ -375,7 +383,7 @@ describe('Chipbar Actions Settings', () => {
           ...SAMPLE_ACTIONS.slice(1),
         ])
       );
-      expect(mockInvalidateChipActionCache).toHaveBeenCalledTimes(1);
+      expect(mockInvalidateActions).toHaveBeenCalledTimes(1);
       expect(mockLoadSettingsScreen).toHaveBeenCalledTimes(1);
     });
   });
@@ -415,7 +423,7 @@ describe('Chipbar Actions Settings', () => {
       expect(mockConfigSetChipbarActions).toHaveBeenCalledWith(
         SAMPLE_ACTIONS.slice(1) // Remove first action
       );
-      expect(mockInvalidateChipActionCache).toHaveBeenCalledTimes(1);
+      expect(mockInvalidateActions).toHaveBeenCalledTimes(1);
       expect(mockLoadSettingsScreen).toHaveBeenCalledTimes(1);
       expect(mockLogEvent).toHaveBeenCalledWith('Deleted chip bar action: 💾 Save Plan');
     });
@@ -527,7 +535,7 @@ describe('Chipbar Actions Settings', () => {
       await new Promise(resolve => setTimeout(resolve, 0));
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(mockInvalidateChipActionCache).toHaveBeenCalledTimes(1);
+      expect(mockInvalidateActions).toHaveBeenCalledTimes(1);
     });
 
     it('invalidates chip action cache after update', async () => {
@@ -542,7 +550,7 @@ describe('Chipbar Actions Settings', () => {
       await new Promise(resolve => setTimeout(resolve, 0));
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(mockInvalidateChipActionCache).toHaveBeenCalledTimes(1);
+      expect(mockInvalidateActions).toHaveBeenCalledTimes(1);
     });
 
     it('invalidates chip action cache after delete', async () => {
@@ -554,7 +562,7 @@ describe('Chipbar Actions Settings', () => {
       await new Promise(resolve => setTimeout(resolve, 0));
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(mockInvalidateChipActionCache).toHaveBeenCalledTimes(1);
+      expect(mockInvalidateActions).toHaveBeenCalledTimes(1);
     });
 
     it('invalidates chip action cache after reorder', async () => {
@@ -565,7 +573,7 @@ describe('Chipbar Actions Settings', () => {
       await new Promise(resolve => setTimeout(resolve, 0));
       await new Promise(resolve => setTimeout(resolve, 0));
 
-      expect(mockInvalidateChipActionCache).toHaveBeenCalledTimes(1);
+      expect(mockInvalidateActions).toHaveBeenCalledTimes(1);
     });
   });
 

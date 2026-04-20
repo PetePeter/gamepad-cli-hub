@@ -44,7 +44,15 @@ vi.mock('../renderer/drafts/draft-editor.js', () => ({
 }));
 
 vi.mock('../renderer/state.js', () => ({
-  state: { activeSessionId: 'session-1' },
+  state: {
+    activeSessionId: 'session-1',
+    sessions: [
+      { id: 'session-1', name: 'Test Session', cliType: 'claude-code', processId: 1, workingDir: '/test/dir' },
+    ],
+    draftCounts: new Map(),
+    planDoingCounts: new Map(),
+    planStartableCounts: new Map(),
+  },
 }));
 
 vi.mock('../renderer/drafts/draft-strip.js', () => ({

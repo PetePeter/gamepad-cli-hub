@@ -112,17 +112,17 @@ export function parseCliArgs(argsText?: string): string[] {
       continue;
     }
 
-    if (ch === '\\') {
-      escaping = true;
-      continue;
-    }
-
     if (quote) {
       if (ch === quote) {
         quote = null;
       } else {
         current += ch;
       }
+      continue;
+    }
+
+    if (ch === '\\') {
+      escaping = true;
       continue;
     }
 
