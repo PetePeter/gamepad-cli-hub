@@ -322,7 +322,7 @@ const gamepadCliAPI = {
       spawnCommand?: string;
       resumeCommand?: string;
       continueCommand?: string;
-      pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual';
+      pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
     },
   ) => ipcRenderer.invoke('tools:addCliType', key, name, command, initialPrompt, initialPromptDelay, options),
   toolsUpdateCliType: (
@@ -335,7 +335,7 @@ const gamepadCliAPI = {
       spawnCommand?: string;
       resumeCommand?: string;
       continueCommand?: string;
-      pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual';
+      pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
     },
   ) => ipcRenderer.invoke('tools:updateCliType', key, name, command, initialPrompt, initialPromptDelay, options),
   toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),
@@ -465,6 +465,10 @@ const gamepadCliAPI = {
   /** Delete a plan item */
   planDelete: (id: string) =>
     ipcRenderer.invoke('plan:delete', id),
+
+  /** Delete all completed (done) plan items for a directory */
+  planClearCompleted: (dirPath: string): Promise<number> =>
+    ipcRenderer.invoke('plan:clearCompleted', dirPath),
 
   /** Add a dependency edge (fromId must finish before toId can start) */
   planAddDep: (fromId: string, toId: string) =>

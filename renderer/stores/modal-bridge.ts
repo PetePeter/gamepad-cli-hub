@@ -53,6 +53,20 @@ export function setPlanDeleteCallback(cb: (() => void) | null): void { _planDele
 export function getPlanDeleteCallback(): (() => void) | null { return _planDeleteOnConfirm; }
 
 // ============================================================================
+// Clear Done Plans Confirm
+// ============================================================================
+
+export const clearDonePlans = reactive({
+  visible: false,
+  count: 0,
+  dirName: '',
+});
+
+let _clearDonePlansOnConfirm: (() => void) | null = null;
+export function setClearDonePlansCallback(cb: (() => void) | null): void { _clearDonePlansOnConfirm = cb; }
+export function getClearDonePlansCallback(): (() => void) | null { return _clearDonePlansOnConfirm; }
+
+// ============================================================================
 // Sequence Picker
 // ============================================================================
 
@@ -151,7 +165,7 @@ export interface ToolEditorBridgeData {
   command: string;
   args: string;
   initialPromptDelay: number;
-  pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual';
+  pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   spawnCommand: string;
   resumeCommand: string;
   continueCommand: string;
@@ -185,7 +199,7 @@ export function resetToolEditorData(): ToolEditorBridgeData { return { ...EMPTY_
 
 export function isAnyBridgeModalVisible(): boolean {
   return closeConfirm.visible || contextMenu.visible || planDeleteConfirm.visible ||
-    sequencePicker.visible || quickSpawn.visible || dirPicker.visible ||
+    clearDonePlans.visible || sequencePicker.visible || quickSpawn.visible || dirPicker.visible ||
     draftSubmenu.visible || formModal.visible || editorPopup.visible || toolEditor.visible;
 }
 

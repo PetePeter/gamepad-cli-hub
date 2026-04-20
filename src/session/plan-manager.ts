@@ -107,6 +107,16 @@ export class PlanManager extends EventEmitter {
     return true;
   }
 
+  /** Delete all completed (done) plan items for a directory. Returns count deleted. */
+  deleteCompletedForDirectory(dirPath: string): number {
+    const doneItems = this.getForDirectory(dirPath).filter(i => i.status === 'done');
+    for (const item of doneItems) this.delete(item.id);
+    if (doneItems.length > 0) {
+      logger.info(`[PlanManager] Cleared ${doneItems.length} completed plan(s) in ${dirPath}`);
+    }
+    return doneItems.length;
+  }
+
   /** Get a single plan item by ID. */
   getItem(id: string): PlanItem | null {
     return this.items.get(id) ?? null;

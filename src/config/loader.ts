@@ -175,8 +175,10 @@ export interface CliTypeConfig {
    *  - 'sendkeys'           — simulate OS keystrokes via robotjs (useful for CLIs that
    *    strip or reformat bracketed-paste input, e.g. some IDE-embedded shells)
    *  - 'sendkeysindividual' — send one character at a time via robotjs with 20ms delay
-   *    (for interactive CLIs that don't accept bulk paste via OS keystrokes) */
-  pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual';
+   *    (for interactive CLIs that don't accept bulk paste via OS keystrokes)
+   *  - 'clippaste'          — use xterm.js terminal paste handling (Ctrl+V-style paste
+   *    semantics routed through the embedded terminal/PTTY path, not OS-level keys) */
+  pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   /** User-defined regex patterns that trigger automated actions when matched against PTY output. */
   patterns?: PatternRule[];
 }

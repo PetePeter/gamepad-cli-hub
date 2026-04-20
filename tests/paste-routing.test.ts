@@ -665,4 +665,78 @@ describe('deliverBulkText', () => {
       expect(mockPtyWrite.mock.calls.length).toBeLessThan(6);
     });
   });
+
+  describe('clippaste mode', () => {
+    let mockPaste: ReturnType<typeof vi.fn>;
+    let mockFocus: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      mockPaste = vi.fn();
+      mockFocus = vi.fn();
+
+      const mockSession = {
+        id: 'sess-1',
+        view: {
+          focus: mockFocus,
+          paste: mockPaste,
+          isBracketedPasteEnabled: vi.fn().mockReturnValue(false),
+        }
+      };
+
+      const mockTerminalManager = {
+        getSession: vi.fn().mockReturnValue(mockSession)
+      };
+
+      mockGetTerminalManager.mockReturnValue(mockTerminalManager);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('pasteMode clippaste — focuses terminal and pastes through xterm/PTTY path', async () => {
+      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+      mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
+
+      await deliverBulkText('sess-1', 'test123');
+
+      expect(mockFocus).toHaveBeenCalledOnce();
+      expect(mockPaste).toHaveBeenCalledWith('test123');
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+      expect(mockKeyboardTypeString).not.toHaveBeenCalled();
+    });
+
+    it('pasteMode clippaste — does nothing when session is not found', async () => {
+      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+      mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
+      mockGetTerminalManager.mockReturnValue({ getSession: vi.fn().mockReturnValue(undefined) });
+
+      await deliverBulkText('sess-1', 'test123');
+
+      expect(mockFocus).not.toHaveBeenCalled();
+      expect(mockPaste).not.toHaveBeenCalled();
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+      expect(mockKeyboardTypeString).not.toHaveBeenCalled();
+    });
+
+    it('pasteMode clippaste — works with special characters', async () => {
+      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+      mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
+
+      const specialText = 'Hello\nWorld\t"Special" & chars 🚀';
+      await deliverBulkText('sess-1', specialText);
+
+      expect(mockPaste).toHaveBeenCalledWith(specialText);
+    });
+
+    it('pasteMode clippaste — does nothing with empty text', async () => {
+      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+      mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
+
+      await deliverBulkText('sess-1', '');
+
+      expect(mockFocus).not.toHaveBeenCalled();
+      expect(mockPaste).not.toHaveBeenCalled();
+    });
+  });
 });

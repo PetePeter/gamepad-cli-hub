@@ -576,4 +576,86 @@ describe('PlanManager', () => {
       expect(pm.getItem(z.id)!.status).toBe('startable');
     });
   });
+
+  // ─── deleteCompletedForDirectory ──────────────────────
+
+  describe('deleteCompletedForDirectory', () => {
+    let pm: PlanManager;
+
+    beforeEach(() => {
+      pm = new PlanManager();
+    });
+
+    it('deletes only done items, leaves non-done items', () => {
+      const done1 = pm.create('/proj', 'Done1', '');
+      pm.applyItem(done1.id, 's1');
+      pm.completeItem(done1.id);
+
+      const doing1 = pm.create('/proj', 'Doing1', '');
+      pm.applyItem(doing1.id, 's2');
+
+      const startable1 = pm.create('/proj', 'Startable1', '');
+
+      pm.deleteCompletedForDirectory('/proj');
+
+      expect(pm.getItem(done1.id)).toBeNull();
+      expect(pm.getItem(doing1.id)).not.toBeNull();
+      expect(pm.getItem(startable1.id)).not.toBeNull();
+    });
+
+    it('returns count of deleted items', () => {
+      const a = pm.create('/proj', 'A', '');
+      pm.applyItem(a.id, 's1');
+      pm.completeItem(a.id);
+
+      const b = pm.create('/proj', 'B', '');
+      pm.applyItem(b.id, 's2');
+      pm.completeItem(b.id);
+
+      pm.create('/proj', 'C', '');
+
+      expect(pm.deleteCompletedForDirectory('/proj')).toBe(2);
+    });
+
+    it('returns 0 when no done items exist', () => {
+      pm.create('/proj', 'Active', '');
+      const doing = pm.create('/proj', 'Doing', '');
+      pm.applyItem(doing.id, 's1');
+
+      expect(pm.deleteCompletedForDirectory('/proj')).toBe(0);
+    });
+
+    it('returns 0 for empty directory', () => {
+      expect(pm.deleteCompletedForDirectory('/empty')).toBe(0);
+    });
+
+    it('emits plan:changed event', () => {
+      const item = pm.create('/proj', 'Task', '');
+      pm.applyItem(item.id, 's1');
+      pm.completeItem(item.id);
+
+      const handler = vi.fn();
+      pm.on('plan:changed', handler);
+
+      pm.deleteCompletedForDirectory('/proj');
+
+      expect(handler).toHaveBeenCalledWith('/proj');
+    });
+
+    it('does not delete done items in other directories', () => {
+      const inTarget = pm.create('/proj', 'Target', '');
+      pm.applyItem(inTarget.id, 's1');
+      pm.completeItem(inTarget.id);
+
+      const inOther = pm.create('/other', 'Other', '');
+      pm.applyItem(inOther.id, 's2');
+      pm.completeItem(inOther.id);
+
+      pm.deleteCompletedForDirectory('/proj');
+
+      expect(pm.getItem(inTarget.id)).toBeNull();
+      expect(pm.getItem(inOther.id)).not.toBeNull();
+      expect(pm.getItem(inOther.id)!.status).toBe('done');
+    });
+  });
 });

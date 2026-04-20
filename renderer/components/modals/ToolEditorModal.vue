@@ -15,7 +15,7 @@ export interface ToolEditorData {
   command: string;
   args: string;
   initialPromptDelay: number;
-  pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual';
+  pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   spawnCommand: string;
   resumeCommand: string;
   continueCommand: string;
@@ -55,7 +55,7 @@ const name = ref('');
 const command = ref('');
 const args = ref('');
 const initialPromptDelay = ref(2000);
-const pasteMode = ref<'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual'>('pty');
+const pasteMode = ref<'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'>('pty');
 const spawnCommand = ref('');
 const resumeCommand = ref('');
 const continueCommand = ref('');
@@ -145,7 +145,7 @@ function onSave(): void {
     continueCommand: continueCommand.value,
     renameCommand: renameCommand.value,
     handoffCommand: handoffCommand.value,
-    _promptItems: [...promptItems.value],
+    _promptItems: promptItems.value.map(i => ({ label: i.label, sequence: i.sequence })),
   });
   emit('update:visible', false);
 }
@@ -311,6 +311,7 @@ defineExpose({ handleButton });
                   <option value="ptyindividual">PTY Individual — char-by-char to stdin (for Ink/Copilot CLI)</option>
                   <option value="sendkeys">SendKeys — OS-level batch keystrokes (robotjs)</option>
                   <option value="sendkeysindividual">SendKeys Individual — OS-level char-by-char (robotjs)</option>
+                  <option value="clippaste">Terminal Paste — xterm/PTTY Ctrl+V-style paste (for Copilot CLI)</option>
                 </select>
               </div>
               <div class="te-field">

@@ -257,7 +257,11 @@ function normalizeGroupPrefs(prefs: Partial<typeof sessionsState.groupPrefs>): t
 async function saveGroupPrefs(): Promise<void> {
   try {
     if (!window.gamepadCli) return;
-    await window.gamepadCli.configSetSessionGroupPrefs(sessionsState.groupPrefs);
+    await window.gamepadCli.configSetSessionGroupPrefs({
+      order: [...sessionsState.groupPrefs.order],
+      collapsed: [...sessionsState.groupPrefs.collapsed],
+      overviewHidden: [...sessionsState.groupPrefs.overviewHidden],
+    });
   } catch (e) {
     console.error('[Sessions] Failed to save group prefs:', e);
   }

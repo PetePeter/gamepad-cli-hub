@@ -240,7 +240,7 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
 }
 
 /** Build the optional command fields from tool editor result. Empty string = clear. */
-function buildCommandOptionsFromToolEditor(values: any): { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' } | undefined {
+function buildCommandOptionsFromToolEditor(values: any): { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' } | undefined {
   const fields = ['args', 'handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
   const opts: Record<string, string> = {};
   let hasAny = false;
@@ -250,7 +250,7 @@ function buildCommandOptionsFromToolEditor(values: any): { args?: string; handof
     hasAny = true;
   }
   const pm = values.pasteMode;
-  if (pm === 'pty' || pm === 'ptyindividual' || pm === 'sendkeys' || pm === 'sendkeysindividual') {
+  if (pm === 'pty' || pm === 'ptyindividual' || pm === 'sendkeys' || pm === 'sendkeysindividual' || pm === 'clippaste') {
     (opts as any).pasteMode = pm;
     hasAny = true;
   }

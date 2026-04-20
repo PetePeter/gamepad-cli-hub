@@ -154,6 +154,13 @@ export class TerminalView {
     }
   }
 
+  /** Paste text through xterm.js so it flows via terminal input handling to the PTY. */
+  paste(data: string): void {
+    if (!this.disposed && data) {
+      this.terminal.paste(data);
+    }
+  }
+
   /** Blur the terminal */
   blur(): void {
     if (!this.disposed) {

@@ -237,6 +237,121 @@ describe('PlanDeleteConfirmModal.vue', () => {
 });
 
 // ============================================================================
+// ClearDonePlansModal
+// ============================================================================
+
+import ClearDonePlansModal from '../../../renderer/components/modals/ClearDonePlansModal.vue';
+
+describe('ClearDonePlansModal.vue', () => {
+  let modalStack: ReturnType<typeof useModalStack>;
+
+  beforeEach(() => {
+    modalStack = useModalStack();
+    modalStack.clear();
+  });
+
+  function factory(props: Partial<InstanceType<typeof ClearDonePlansModal>['$props']> = {}) {
+    return mount(ClearDonePlansModal, {
+      props: { visible: true, count: 3, dirName: 'my-project', ...props },
+      attachTo: document.body,
+      global: { stubs: GLOBAL_STUBS },
+    });
+  }
+
+  it('renders title text', () => {
+    const w = factory();
+    expect(w.text()).toContain('Clear Completed Plans');
+    expect(w.text()).toContain('my-project');
+    w.unmount();
+  });
+
+  it('renders count and dirName in body text', () => {
+    const w = factory({ count: 5, dirName: 'backend' });
+    expect(w.text()).toContain('5');
+    expect(w.text()).toContain('backend');
+    w.unmount();
+  });
+
+  it('does not render when not visible', () => {
+    const w = factory({ visible: false });
+    expect(w.find('.close-confirm-modal').exists()).toBe(false);
+    w.unmount();
+  });
+
+  it('pushes/pops modal stack', async () => {
+    const w = factory();
+    expect(modalStack.has('clear-done-plans-confirm')).toBe(true);
+    await w.setProps({ visible: false });
+    expect(modalStack.has('clear-done-plans-confirm')).toBe(false);
+    w.unmount();
+  });
+
+  it('Clear button emits confirm', async () => {
+    const w = factory();
+    const clearBtn = w.findAll('button').find(b => b.text() === 'Clear')!;
+    expect(clearBtn.attributes('tabindex')).toBe('-1');
+    await clearBtn.trigger('click');
+    expect(w.emitted('confirm')).toHaveLength(1);
+    w.unmount();
+  });
+
+  it('Cancel button emits cancel', async () => {
+    const w = factory();
+    const cancelBtn = w.findAll('button').find(b => b.text() === 'Cancel')!;
+    expect(cancelBtn.attributes('tabindex')).toBe('-1');
+    await cancelBtn.trigger('click');
+    expect(w.emitted('cancel')).toHaveLength(1);
+    w.unmount();
+  });
+
+  it('gamepad D-pad toggles selection', () => {
+    const w = factory();
+    const vm = w.vm as any;
+    expect(vm.selectedIndex).toBe(0);
+    vm.handleButton('DPadDown');
+    expect(vm.selectedIndex).toBe(1);
+    vm.handleButton('DPadUp');
+    expect(vm.selectedIndex).toBe(0);
+    w.unmount();
+  });
+
+  it('gamepad A on Clear emits confirm', () => {
+    const w = factory();
+    const vm = w.vm as any;
+    vm.selectedIndex = 1;
+    vm.handleButton('A');
+    expect(w.emitted('confirm')).toHaveLength(1);
+    w.unmount();
+  });
+
+  it('gamepad B emits cancel', () => {
+    const w = factory();
+    const vm = w.vm as any;
+    vm.handleButton('B');
+    expect(w.emitted('cancel')).toHaveLength(1);
+    w.unmount();
+  });
+
+  it('Tab toggles selection', () => {
+    const w = factory();
+    const vm = w.vm as any;
+    expect(vm.selectedIndex).toBe(0);
+    vm.handleButton('Tab');
+    expect(vm.selectedIndex).toBe(1);
+    vm.handleButton('Tab');
+    expect(vm.selectedIndex).toBe(0);
+    w.unmount();
+  });
+
+  it('renders singular "plan" when count is 1', () => {
+    const w = factory({ count: 1 });
+    expect(w.text()).toContain('1');
+    expect(w.text()).not.toContain('plans');
+    w.unmount();
+  });
+});
+
+// ============================================================================
 // SequencePickerModal
 // ============================================================================
 

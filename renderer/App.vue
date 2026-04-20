@@ -39,6 +39,7 @@ import {
   closeConfirm, getCloseConfirmCallback,
   contextMenu,
   planDeleteConfirm, getPlanDeleteCallback,
+  clearDonePlans, getClearDonePlansCallback,
   sequencePicker, getSequencePickerCallback,
   quickSpawn, getQuickSpawnCallback,
   dirPicker,
@@ -81,6 +82,7 @@ import ToolEditorModal from './components/modals/ToolEditorModal.vue';
 import EditorPopup from './components/modals/EditorPopup.vue';
 import BindingEditorModal from './components/modals/BindingEditorModal.vue';
 import ToastNotification from './components/ToastNotification.vue';
+import ClearDonePlansModal from './components/modals/ClearDonePlansModal.vue';
 import ChipBar from './components/chips/ChipBar.vue';
 import { useChipBarStore } from './stores/chip-bar.js';
 import { useNavigationStore } from './stores/navigation.js';
@@ -315,7 +317,11 @@ function onGroupToggleCollapse(dirPath: string): void {
 
 async function saveGroupPrefsToBackend(): Promise<void> {
   try {
-    await window.gamepadCli?.configSetSessionGroupPrefs(sessionsState.groupPrefs);
+    await window.gamepadCli?.configSetSessionGroupPrefs({
+      order: [...sessionsState.groupPrefs.order],
+      collapsed: [...sessionsState.groupPrefs.collapsed],
+      overviewHidden: [...sessionsState.groupPrefs.overviewHidden],
+    });
   } catch { /* ignore */ }
 }
 
@@ -551,6 +557,13 @@ function onEditorClose(): void {
 function onPlanDeleteConfirm(): void {
   planDeleteConfirm.visible = false;
   const cb = getPlanDeleteCallback();
+  if (cb) cb();
+}
+
+// Clear done plans confirm
+function onClearDonePlansConfirm(): void {
+  clearDonePlans.visible = false;
+  const cb = getClearDonePlansCallback();
   if (cb) cb();
 }
 
@@ -866,6 +879,14 @@ onUnmounted(() => {
       :plan-title="planDeleteConfirm.planTitle"
       @confirm="onPlanDeleteConfirm"
       @cancel="planDeleteConfirm.visible = false"
+    />
+
+    <ClearDonePlansModal
+      v-model:visible="clearDonePlans.visible"
+      :count="clearDonePlans.count"
+      :dir-name="clearDonePlans.dirName"
+      @confirm="onClearDonePlansConfirm"
+      @cancel="clearDonePlans.visible = false"
     />
 
     <SequencePickerModal

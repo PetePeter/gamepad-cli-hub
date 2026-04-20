@@ -5,6 +5,7 @@ import { showDraftEditor, showPlanInEditor, hideDraftEditor } from '../drafts/dr
 import { resolveChipbarTemplates } from '../drafts/chipbar-templates.js';
 import { executeSequence } from '../bindings.js';
 import type { PlanStatus } from '../../src/types/plan.js';
+import { deliverBulkText } from '../paste-handler.js';
 
 export interface ChipBarDraft {
   id: string;
@@ -160,7 +161,7 @@ export const useChipBarStore = defineStore('chip-bar', () => {
           console.error('[ChipBarStore] Failed to write temp file:', result?.error);
           return;
         }
-        await window.gamepadCli.ptyWrite(state.activeSessionId, `${result.path}\n`);
+        await deliverBulkText(state.activeSessionId, `${result.path}\n`);
         if (plan.status === 'startable') {
           await window.gamepadCli.planApply(planId, state.activeSessionId);
         }

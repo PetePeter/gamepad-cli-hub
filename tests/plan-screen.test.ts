@@ -31,6 +31,7 @@ const mockPlanExportDirectory = vi.fn();
 const mockPlanImportFile = vi.fn();
 const mockPlanReadFile = vi.fn();
 const mockPlanWriteFile = vi.fn();
+const mockPlanClearCompleted = vi.fn();
 const mockPlanIncomingList = vi.fn();
 const mockDialogShowSaveFile = vi.fn();
 const mockDialogShowOpenFile = vi.fn();
@@ -179,6 +180,7 @@ describe('Plan Screen', () => {
       planImportFile: mockPlanImportFile,
       planReadFile: mockPlanReadFile,
       planWriteFile: mockPlanWriteFile,
+      planClearCompleted: mockPlanClearCompleted,
       planIncomingList: mockPlanIncomingList,
       dialogShowSaveFile: mockDialogShowSaveFile,
       dialogShowOpenFile: mockDialogShowOpenFile,
@@ -201,6 +203,7 @@ describe('Plan Screen', () => {
     mockPlanImportFile.mockReset();
     mockPlanReadFile.mockReset();
     mockPlanWriteFile.mockReset();
+    mockPlanClearCompleted.mockReset();
     mockPlanIncomingList.mockReset();
     mockDialogShowSaveFile.mockReset();
     mockDialogShowOpenFile.mockReset();
@@ -268,6 +271,43 @@ describe('Plan Screen', () => {
 
       expect(buttonTexts.some(t => t.includes('Export Dir'))).toBe(true);
       expect(buttonTexts.some(t => t.includes('Import'))).toBe(true);
+      expect(buttonTexts.some(t => t.includes('Clear Done'))).toBe(true);
+    });
+
+    it('Clear Done button opens confirmation and clears done plans on confirm', async () => {
+      const items = [
+        makeItem({ id: 'todo', status: 'pending' }),
+        makeItem({ id: 'done-1', status: 'done' }),
+        makeItem({ id: 'done-2', status: 'done' }),
+      ];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+      mockPlanIncomingList.mockResolvedValue([]);
+
+      await screen.showPlanScreen('/test/dir');
+
+      const modalBridge = await import('../renderer/stores/modal-bridge.js');
+      const clearBtn = Array.from(document.querySelectorAll('.plan-header__btn')).find(
+        b => b.textContent?.includes('Clear Done'),
+      ) as HTMLElement | undefined;
+      expect(clearBtn).toBeDefined();
+
+      clearBtn!.click();
+      await flush();
+
+      expect(modalBridge.clearDonePlans.visible).toBe(true);
+      expect(modalBridge.clearDonePlans.count).toBe(2);
+      expect(modalBridge.clearDonePlans.dirName).toBe('dir');
+
+      mockPlanList.mockResolvedValue([makeItem({ id: 'todo', status: 'pending' })]);
+
+      const onConfirm = modalBridge.getClearDonePlansCallback();
+      expect(onConfirm).not.toBeNull();
+      await onConfirm?.();
+
+      expect(mockPlanClearCompleted).toHaveBeenCalledWith('/test/dir');
+      expect(mockPlanList).toHaveBeenLastCalledWith('/test/dir');
     });
 
     it('Export Dir button calls planExportDirectory then dialogShowSaveFile', async () => {

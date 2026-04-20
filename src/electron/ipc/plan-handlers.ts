@@ -60,6 +60,10 @@ export function setupPlanHandlers(
     return planManager.delete(id);
   });
 
+  ipcMain.handle('plan:clearCompleted', (_event, dirPath: string) => {
+    return planManager.deleteCompletedForDirectory(dirPath);
+  });
+
   ipcMain.handle('plan:addDep', (_event, fromId: string, toId: string) => {
     return planManager.addDependency(fromId, toId);
   });

@@ -34,7 +34,7 @@ export interface AppState {
   cliBindingsCache: Record<string, Record<string, any>>;
   cliSequencesCache: Record<string, Record<string, Array<{ label: string; sequence: string }>>>;
   /** Per-CLI tool config (paste mode, commands, etc.) — populated by initConfigCache. */
-  cliToolsCache: Record<string, { pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual'; [k: string]: any }>;
+  cliToolsCache: Record<string, { pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'; [k: string]: any }>;
   settingsTab: string;
   activeProfile: string;
   /** Per-session AIAGENT state (idle, waiting, implementing, etc.) */

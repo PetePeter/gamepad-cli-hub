@@ -26,14 +26,16 @@ const ptyIndividualLock = new Set<string>();
 const SENDKEYS_INDIVIDUAL_DELAY_MS = 20;
 const PTY_INDIVIDUAL_DELAY_MS = 30;
 
-/** Deliver bulk text to the active session — either via PTY write or via
- *  OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode.
+/** Deliver bulk text to the active session — either via PTY write, xterm paste,
+ *  or OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode.
  *  When using PTY mode, wraps text in bracketed paste markers if the terminal
  *  has enabled bracketed paste mode (DEC private mode 2004). */
 export async function deliverBulkText(sessionId: string, text: string): Promise<void> {
   if (!text) return;
   const session = state.sessions.find(s => s.id === sessionId);
   const tool = session ? state.cliToolsCache[session.cliType] : undefined;
+
+  console.log(`[Paste] mode=${tool?.pasteMode ?? 'pty(default)'} cliType=${session?.cliType} chars=${text.length}`);
 
   // PTY individual — write each character with delay to mimic real typing (for Ink-based CLIs)
   if (tool?.pasteMode === 'ptyindividual') {
@@ -45,6 +47,7 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
         await window.gamepadCli.ptyWrite(sessionId, char);
         await new Promise(resolve => setTimeout(resolve, PTY_INDIVIDUAL_DELAY_MS));
       }
+      console.log(`[Paste] ptyindividual complete: ${text.length} chars sent`);
     } finally {
       ptyIndividualLock.delete(sessionId);
     }
@@ -62,6 +65,21 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
     await window.gamepadCli.keyboardTypeString(text);
     return;
   }
+
+  // Clippaste mode — route through xterm.js paste handling so the embedded
+  // terminal delivers the paste to the PTY path instead of using OS-level keys.
+  if (tool?.pasteMode === 'clippaste') {
+    const tm = getTerminalManager();
+    const session = tm?.getSession(sessionId);
+
+    if (!session) return;
+
+    // Focus first so xterm's hidden textarea is the active terminal input sink.
+    session.view.focus();
+    session.view.paste(text);
+    return;
+  }
+
   // PTY mode — wrap in bracketed paste markers if the terminal requests it
   const tm = getTerminalManager();
   const view = tm?.getSession(sessionId)?.view;

@@ -12,6 +12,7 @@
 import { showPlanDeleteConfirm } from '../modals/plan-delete-confirm.js';
 import { toDirection, logEvent } from '../utils.js';
 import type { PlanStatus } from '../../src/types/plan.js';
+import { deliverBulkText } from '../paste-handler.js';
 
 // ---------------------------------------------------------------------------
 // Types & state
@@ -427,8 +428,8 @@ export async function applyDraft(): Promise<void> {
       }
 
       const filePath = result.path;
-      // Route through ptyWrite to the active session
-      await window.gamepadCli?.ptyWrite(sessId, `<${filePath}`);
+      // Route through the active CLI's configured bulk-text path.
+      await deliverBulkText(sessId, `<${filePath}`);
     } catch (err) {
       console.error('[Editor] Failed to apply draft:', err);
     }
