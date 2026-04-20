@@ -206,7 +206,7 @@ async function refreshPlanCounts(): Promise<void> {
         if (doing.length > 0) state.planDoingCounts.set(id, doing.length);
         const plan = doing[0];
         if (plan) {
-          const prefix = plan.status === 'blocked' ? '⛔' : plan.status === 'question' ? '❓' : '🗺️';
+          const prefix = plan.status === 'blocked' ? '⛔' : plan.status === 'question' ? '❓' : plan.status === 'wait-tests' ? '⏳' : '🗺️';
           state.workingPlanLabels.set(id, `${prefix} ${plan.title}`);
           state.workingPlanTooltips.set(id, plan.stateInfo ? `${plan.title}\n${plan.stateInfo}` : plan.title);
         } else {
@@ -382,8 +382,7 @@ function setupIpcListeners(): void {
   // Plan change listener
   if (window.gamepadCli.onPlanChanged) {
     window.gamepadCli.onPlanChanged((dirPath: string) => {
-      void refreshSessions();
-      void refreshPlanCounts();
+      void refreshSessions();  // Calls refreshPlanCounts() internally
       const activeSessionId = state.activeSessionId;
       if (activeSessionId && getSessionCwd(activeSessionId) === dirPath) {
         import('../plans/plan-chips.js')

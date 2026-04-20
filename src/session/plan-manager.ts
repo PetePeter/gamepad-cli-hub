@@ -19,7 +19,7 @@ import {
 import type { PlanItem, PlanDependency, DirectoryPlan, PlanStatus } from '../types/plan.js';
 
 const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['doing', 'wait-tests', 'blocked', 'question']);
-const PAUSED_PLAN_STATUSES = new Set<PlanStatus>(['blocked', 'question']);
+const PAUSED_PLAN_STATUSES = new Set<PlanStatus>(['wait-tests', 'blocked', 'question']);
 
 export class PlanManager extends EventEmitter {
   private items = new Map<string, PlanItem>();
@@ -207,14 +207,12 @@ export class PlanManager extends EventEmitter {
     const item = this.items.get(id);
     if (!item || !this.canSetState(item, status)) return null;
 
-    if (status === 'doing' || status === 'wait-tests') {
+    if (status === 'doing') {
       const nextSessionId = sessionId ?? item.sessionId;
       if (!nextSessionId) return null;
       item.sessionId = nextSessionId;
-    } else if (status === 'pending' || status === 'startable') {
-      item.sessionId = undefined;
-    } else if (sessionId && !item.sessionId) {
-      item.sessionId = sessionId;
+    } else if (status === 'pending' || status === 'startable' || status === 'wait-tests' || status === 'blocked' || status === 'question') {
+      item.sessionId = sessionId ?? item.sessionId;
     }
 
     item.status = status;
