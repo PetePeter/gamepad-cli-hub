@@ -4,21 +4,33 @@
  *
  * Mount once in App.vue. Each toast auto-dismisses (managed by useToast composable).
  * Listens for incoming plan IPC events and shows success/error toasts.
+ * Error toasts are persistent — click to open the file, × to dismiss.
  */
 import { onMounted, onUnmounted } from 'vue';
 import { useToast } from '../composables/useToast.js';
 
-const { toasts, removeToast, addToast } = useToast();
+const { toasts, removeToast, addToast, removeByKey } = useToast();
 
 const cleanups: (() => void)[] = [];
 
 onMounted(() => {
   cleanups.push(
-    window.gamepadCli.onPlanIncomingImported(({ title }) => {
+    window.gamepadCli.onPlanIncomingImported(({ title, filename }) => {
+      // Auto-clear any previous error toast for this file
+      removeByKey(filename);
       addToast({ message: `📥 Plan imported: "${title}"`, type: 'success' });
     }),
     window.gamepadCli.onPlanIncomingError(({ filename, error }) => {
-      addToast({ message: `⚠️ Plan import failed: ${filename} — ${error}`, type: 'error', duration: 8000 });
+      addToast({
+        message: `⚠️ Import failed: ${filename} — ${error}`,
+        type: 'error',
+        persistent: true,
+        key: filename,
+        onClick: () => { window.gamepadCli.planIncomingOpen(filename); },
+      });
+    }),
+    window.gamepadCli.onPlanIncomingErrorCleared(({ filename }) => {
+      removeByKey(filename);
     }),
   );
 });
@@ -26,6 +38,14 @@ onMounted(() => {
 onUnmounted(() => {
   cleanups.forEach(fn => fn());
 });
+
+function handleToastClick(toast: { id: number; onClick?: () => void }): void {
+  if (toast.onClick) {
+    toast.onClick();
+  } else {
+    removeToast(toast.id);
+  }
+}
 </script>
 
 <template>
@@ -35,10 +55,16 @@ onUnmounted(() => {
         <div
           v-for="toast in toasts"
           :key="toast.id"
-          :class="['toast', `toast--${toast.type}`]"
-          @click="removeToast(toast.id)"
+          :class="['toast', `toast--${toast.type}`, { 'toast--persistent': toast.persistent }]"
+          @click="handleToastClick(toast)"
         >
-          {{ toast.message }}
+          <span class="toast-message">{{ toast.message }}</span>
+          <button
+            v-if="toast.persistent"
+            class="toast-close"
+            aria-label="Dismiss"
+            @click.stop="removeToast(toast.id)"
+          >×</button>
         </div>
       </TransitionGroup>
     </div>
@@ -69,7 +95,27 @@ onUnmounted(() => {
   pointer-events: all;
   cursor: pointer;
   word-break: break-word;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
 }
+
+.toast-message { flex: 1; }
+
+.toast-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+.toast-close:hover { opacity: 1; }
+
+.toast--persistent { border-left: 3px solid #ff6b6b; }
 
 .toast--success { background: #2a6f2a; }
 .toast--error   { background: #7a2020; }

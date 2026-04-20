@@ -518,6 +518,10 @@ const gamepadCliAPI = {
   planIncomingDelete: (filename: string): Promise<boolean> =>
     ipcRenderer.invoke('plan:incoming-delete', filename),
 
+  /** Open an incoming plan file with the OS default handler */
+  planIncomingOpen: (filename: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:incoming-open', filename),
+
   /** Export a single plan item as JSON string */
   planExportItem: (planId: string): Promise<string | null> =>
     ipcRenderer.invoke('plan:export-item', planId),
@@ -561,10 +565,17 @@ const gamepadCliAPI = {
   },
 
   /** Subscribe to incoming plan import error notifications */
-  onPlanIncomingError: (callback: (event: { filename: string; error: string }) => void) => {
-    const listener = (_event: unknown, data: { filename: string; error: string }) => callback(data);
+  onPlanIncomingError: (callback: (event: { filename: string; error: string; filePath: string }) => void) => {
+    const listener = (_event: unknown, data: { filename: string; error: string; filePath: string }) => callback(data);
     ipcRenderer.on('plan:incoming-error', listener);
     return () => ipcRenderer.removeListener('plan:incoming-error', listener);
+  },
+
+  /** Subscribe to incoming plan error cleared notifications (file fixed or removed) */
+  onPlanIncomingErrorCleared: (callback: (event: { filename: string }) => void) => {
+    const listener = (_event: unknown, data: { filename: string }) => callback(data);
+    ipcRenderer.on('plan:incoming-error-cleared', listener);
+    return () => ipcRenderer.removeListener('plan:incoming-error-cleared', listener);
   },
 
   onPatternScheduleCreated: (callback: (event: { sessionId: string; scheduledAt: string; ruleIndex: number }) => void) => {

@@ -84,6 +84,22 @@ function getAddCallback(): (filePath: string) => void {
   return addCall[1] as (filePath: string) => void;
 }
 
+/** Capture the chokidar 'change' callback. */
+function getChangeCallback(): (filePath: string) => void {
+  const calls = mockWatcherOn.mock.calls;
+  const changeCall = calls.find(c => c[0] === 'change');
+  if (!changeCall) throw new Error('No "change" handler registered on watcher');
+  return changeCall[1] as (filePath: string) => void;
+}
+
+/** Capture the chokidar 'unlink' callback. */
+function getUnlinkCallback(): (filePath: string) => void {
+  const calls = mockWatcherOn.mock.calls;
+  const unlinkCall = calls.find(c => c[0] === 'unlink');
+  if (!unlinkCall) throw new Error('No "unlink" handler registered on watcher');
+  return unlinkCall[1] as (filePath: string) => void;
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('IncomingPlansWatcher', () => {
@@ -117,10 +133,12 @@ describe('IncomingPlansWatcher', () => {
       );
     });
 
-    it('registers add and error handlers on the chokidar watcher', () => {
+    it('registers add, change, unlink, and error handlers on the chokidar watcher', () => {
       watcher.start();
       const channels = mockWatcherOn.mock.calls.map(c => c[0]);
       expect(channels).toContain('add');
+      expect(channels).toContain('change');
+      expect(channels).toContain('unlink');
       expect(channels).toContain('error');
     });
   });
@@ -245,7 +263,7 @@ describe('IncomingPlansWatcher', () => {
   // ─── processFile — invalid JSON ────────────────────────────────────────────
 
   describe('processFile() — invalid JSON', () => {
-    it('emits incoming-error and deletes file on malformed JSON', () => {
+    it('emits incoming-error and keeps file on malformed JSON', () => {
       mockReadFileSync.mockReturnValue('not json!!!');
       watcher.start();
 
@@ -258,7 +276,11 @@ describe('IncomingPlansWatcher', () => {
       const evt = onError.mock.calls[0][0];
       expect(evt.filename).toBe('bad.json');
       expect(evt.error).toMatch(/Invalid JSON/);
-      expect(mockUnlinkSync).toHaveBeenCalledWith('/config/plans/incoming/bad.json');
+      expect(evt.filePath).toMatch(/bad\.json$/);
+      // File is NOT deleted — kept for user to fix and retry
+      expect(mockUnlinkSync).not.toHaveBeenCalled();
+      // Error is tracked in failedFiles
+      expect(watcher.getFailedFiles().get('bad.json')).toMatch(/Invalid JSON/);
     });
 
     it('emits incoming-error for missing required id field', () => {
@@ -319,7 +341,7 @@ describe('IncomingPlansWatcher', () => {
   // ─── processFile — duplicate ID ────────────────────────────────────────────
 
   describe('processFile() — duplicate ID', () => {
-    it('emits incoming-error and deletes file when ID already exists', () => {
+    it('emits incoming-error and keeps file when ID already exists', () => {
       // Pre-populate planManager with the same ID
       const json = makeValidJson({ id: 'existing-id' });
       mockReadFileSync.mockReturnValue(json);
@@ -344,7 +366,8 @@ describe('IncomingPlansWatcher', () => {
       expect(onError).toHaveBeenCalledOnce();
       expect(onError.mock.calls[0][0].error).toMatch(/[Dd]uplicate/);
       expect(onImported).not.toHaveBeenCalled();
-      expect(mockUnlinkSync).toHaveBeenCalled();
+      // File is NOT deleted — kept for user to fix and retry
+      expect(watcher.getFailedFiles().get('dup.json')).toMatch(/[Dd]uplicate/);
     });
   });
 
@@ -369,6 +392,176 @@ describe('IncomingPlansWatcher', () => {
 
       // PlanManager.importItem renames to 'Implement Auth (2)'
       expect(importedTitles[1]).toBe('Implement Auth (2)');
+    });
+  });
+
+  // ─── failedFiles tracking ──────────────────────────────────────────────────
+
+  describe('failedFiles tracking', () => {
+    it('tracks rejected files in getFailedFiles()', () => {
+      mockReadFileSync.mockReturnValue('not json');
+      watcher.start();
+      getAddCallback()('/config/plans/incoming/bad.json');
+
+      const failed = watcher.getFailedFiles();
+      expect(failed.size).toBe(1);
+      expect(failed.get('bad.json')).toMatch(/Invalid JSON/);
+    });
+
+    it('returns a defensive copy from getFailedFiles()', () => {
+      mockReadFileSync.mockReturnValue('not json');
+      watcher.start();
+      getAddCallback()('/config/plans/incoming/bad.json');
+
+      const copy = watcher.getFailedFiles();
+      copy.delete('bad.json');
+      expect(watcher.getFailedFiles().size).toBe(1);
+    });
+
+    it('clears failedFiles on close()', async () => {
+      mockReadFileSync.mockReturnValue('not json');
+      watcher.start();
+      getAddCallback()('/config/plans/incoming/bad.json');
+      expect(watcher.getFailedFiles().size).toBe(1);
+
+      await watcher.close();
+      expect(watcher.getFailedFiles().size).toBe(0);
+    });
+
+    it('deleteFile() clears the error and emits incoming-error-cleared', () => {
+      mockReadFileSync.mockReturnValue('not json');
+      watcher.start();
+      getAddCallback()('/config/plans/incoming/bad.json');
+      expect(watcher.getFailedFiles().has('bad.json')).toBe(true);
+
+      const onCleared = vi.fn();
+      watcher.on('incoming-error-cleared', onCleared);
+
+      mockExistsSync.mockReturnValue(true);
+      watcher.deleteFile('bad.json');
+
+      expect(watcher.getFailedFiles().has('bad.json')).toBe(false);
+      expect(onCleared).toHaveBeenCalledOnce();
+      expect(onCleared.mock.calls[0][0].filename).toBe('bad.json');
+    });
+  });
+
+  // ─── chokidar change handler ──────────────────────────────────────────────
+
+  describe('change event handler', () => {
+    it('re-processes a file on change event', () => {
+      watcher.start();
+
+      // First add with bad JSON
+      mockReadFileSync.mockReturnValue('not json');
+      getAddCallback()('/config/plans/incoming/fix-me.json');
+      expect(watcher.getFailedFiles().has('fix-me.json')).toBe(true);
+
+      // Fix file and trigger change
+      mockReadFileSync.mockReturnValue(makeValidJson({ id: 'fixed-id' }));
+      const onCleared = vi.fn();
+      const onImported = vi.fn();
+      watcher.on('incoming-error-cleared', onCleared);
+      watcher.on('incoming-imported', onImported);
+
+      getChangeCallback()('/config/plans/incoming/fix-me.json');
+
+      expect(onCleared).toHaveBeenCalledOnce();
+      expect(onImported).toHaveBeenCalledOnce();
+      expect(watcher.getFailedFiles().has('fix-me.json')).toBe(false);
+    });
+
+    it('updates failedFiles when change still has errors', () => {
+      watcher.start();
+
+      mockReadFileSync.mockReturnValue('bad json 1');
+      getAddCallback()('/config/plans/incoming/broken.json');
+      expect(watcher.getFailedFiles().get('broken.json')).toMatch(/Invalid JSON/);
+
+      mockReadFileSync.mockReturnValue(JSON.stringify({ id: 'x' }));
+      getChangeCallback()('/config/plans/incoming/broken.json');
+      // Now error should be different (missing dirPath, not Invalid JSON)
+      expect(watcher.getFailedFiles().get('broken.json')).toMatch(/dirPath/);
+    });
+
+    it('ignores non-.json files on change', () => {
+      watcher.start();
+      getChangeCallback()('/config/plans/incoming/readme.txt');
+      expect(mockReadFileSync).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── chokidar unlink handler ──────────────────────────────────────────────
+
+  describe('unlink event handler', () => {
+    it('clears failedFiles and emits incoming-error-cleared on unlink', () => {
+      watcher.start();
+
+      mockReadFileSync.mockReturnValue('not json');
+      getAddCallback()('/config/plans/incoming/gone.json');
+      expect(watcher.getFailedFiles().has('gone.json')).toBe(true);
+
+      const onCleared = vi.fn();
+      watcher.on('incoming-error-cleared', onCleared);
+
+      getUnlinkCallback()('/config/plans/incoming/gone.json');
+
+      expect(watcher.getFailedFiles().has('gone.json')).toBe(false);
+      expect(onCleared).toHaveBeenCalledOnce();
+      expect(onCleared.mock.calls[0][0].filename).toBe('gone.json');
+    });
+
+    it('does nothing for unlink of non-failed file', () => {
+      watcher.start();
+
+      const onCleared = vi.fn();
+      watcher.on('incoming-error-cleared', onCleared);
+
+      getUnlinkCallback()('/config/plans/incoming/unknown.json');
+
+      expect(onCleared).not.toHaveBeenCalled();
+    });
+
+    it('ignores non-.json files on unlink', () => {
+      watcher.start();
+
+      const onCleared = vi.fn();
+      watcher.on('incoming-error-cleared', onCleared);
+
+      getUnlinkCallback()('/config/plans/incoming/readme.txt');
+      expect(onCleared).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── ENOENT guard ─────────────────────────────────────────────────────────
+
+  describe('ENOENT guard', () => {
+    it('skips processing when file is gone before read', () => {
+      watcher.start();
+
+      mockExistsSync.mockReturnValue(false);
+      const onError = vi.fn();
+      const onImported = vi.fn();
+      watcher.on('incoming-error', onError);
+      watcher.on('incoming-imported', onImported);
+
+      getAddCallback()('/config/plans/incoming/vanished.json');
+
+      expect(mockReadFileSync).not.toHaveBeenCalled();
+      expect(onError).not.toHaveBeenCalled();
+      expect(onImported).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── accessors ─────────────────────────────────────────────────────────────
+
+  describe('accessors', () => {
+    it('getIncomingDir() returns the correct path', () => {
+      expect(watcher.getIncomingDir()).toMatch(/incoming$/);
+    });
+
+    it('getFailedFiles() returns empty map initially', () => {
+      expect(watcher.getFailedFiles().size).toBe(0);
     });
   });
 });

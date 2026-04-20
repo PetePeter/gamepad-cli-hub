@@ -33,11 +33,17 @@ export interface IncomingImportedEvent {
 export interface IncomingErrorEvent {
   filename: string;
   error: string;
+  filePath: string;
+}
+
+export interface IncomingErrorClearedEvent {
+  filename: string;
 }
 
 export class IncomingPlansWatcher extends EventEmitter {
   private watcher: FSWatcher | null = null;
   private readonly incomingDir: string;
+  private readonly failedFiles = new Map<string, string>();
 
   constructor(
     private readonly planManager: PlanManager,
@@ -64,6 +70,22 @@ export class IncomingPlansWatcher extends EventEmitter {
       this.processFile(filePath);
     });
 
+    this.watcher.on('change', (filePath: string) => {
+      if (!filePath.endsWith('.json')) return;
+      this.processFile(filePath);
+    });
+
+    this.watcher.on('unlink', (filePath: string) => {
+      if (!filePath.endsWith('.json')) return;
+      const filename = basename(filePath);
+      if (this.failedFiles.has(filename)) {
+        this.failedFiles.delete(filename);
+        const event: IncomingErrorClearedEvent = { filename };
+        this.emit('incoming-error-cleared', event);
+        logger.info(`[IncomingPlansWatcher] Cleared error for deleted file ${filename}`);
+      }
+    });
+
     this.watcher.on('error', (err: unknown) => {
       logger.error(`[IncomingPlansWatcher] Watcher error: ${err}`);
     });
@@ -76,6 +98,7 @@ export class IncomingPlansWatcher extends EventEmitter {
     if (this.watcher) {
       await this.watcher.close();
       this.watcher = null;
+      this.failedFiles.clear();
       logger.info('[IncomingPlansWatcher] Stopped');
     }
   }
@@ -95,9 +118,15 @@ export class IncomingPlansWatcher extends EventEmitter {
   /** Delete a file from the incoming directory by filename (not full path). */
   deleteFile(filename: string): boolean {
     try {
-      const filePath = join(this.incomingDir, basename(filename));
+      const safeName = basename(filename);
+      const filePath = join(this.incomingDir, safeName);
       if (!existsSync(filePath)) return false;
       unlinkSync(filePath);
+      if (this.failedFiles.has(safeName)) {
+        this.failedFiles.delete(safeName);
+        const event: IncomingErrorClearedEvent = { filename: safeName };
+        this.emit('incoming-error-cleared', event);
+      }
       return true;
     } catch (err) {
       logger.error(`[IncomingPlansWatcher] Failed to delete ${filename}: ${err}`);
@@ -105,10 +134,26 @@ export class IncomingPlansWatcher extends EventEmitter {
     }
   }
 
-  /** Process a newly detected file. */
+  /** Get all currently tracked failed files (filename → error message). */
+  getFailedFiles(): Map<string, string> {
+    return new Map(this.failedFiles);
+  }
+
+  /** Get the path to the incoming directory. */
+  getIncomingDir(): string {
+    return this.incomingDir;
+  }
+
+  /** Process a newly detected or changed file. */
   private processFile(filePath: string): void {
     const filename = basename(filePath);
     logger.info(`[IncomingPlansWatcher] Processing ${filename}`);
+
+    // ENOENT guard — file may have been removed between detection and read
+    if (!existsSync(filePath)) {
+      logger.warn(`[IncomingPlansWatcher] File gone before read: ${filename}`);
+      return;
+    }
 
     let parsed: Record<string, unknown>;
     try {
@@ -116,13 +161,13 @@ export class IncomingPlansWatcher extends EventEmitter {
       parsed = JSON.parse(raw) as Record<string, unknown>;
     } catch (err) {
       logger.error(`[IncomingPlansWatcher] Invalid JSON in ${filename}: ${err}`);
-      this.rejectFile(filePath, filename, `Invalid JSON: ${err}`);
+      this.rejectFile(filename, `Invalid JSON: ${err}`);
       return;
     }
 
     const validation = this.validate(parsed);
     if (!validation.ok) {
-      this.rejectFile(filePath, filename, validation.error!);
+      this.rejectFile(filename, validation.error!);
       return;
     }
 
@@ -131,8 +176,16 @@ export class IncomingPlansWatcher extends EventEmitter {
 
     const imported = this.planManager.importItem(item, deps);
     if (!imported) {
-      this.rejectFile(filePath, filename, `Duplicate plan ID: ${item.id}`);
+      this.rejectFile(filename, `Duplicate plan ID: ${item.id}`);
       return;
+    }
+
+    // Successful import — clear any previous error tracking
+    const wasFailed = this.failedFiles.has(filename);
+    if (wasFailed) {
+      this.failedFiles.delete(filename);
+      const clearedEvent: IncomingErrorClearedEvent = { filename };
+      this.emit('incoming-error-cleared', clearedEvent);
     }
 
     // Delete source file only after successful import
@@ -147,9 +200,9 @@ export class IncomingPlansWatcher extends EventEmitter {
     logger.info(`[IncomingPlansWatcher] Imported "${imported.title}" from ${filename}`);
   }
 
-  private rejectFile(filePath: string, filename: string, error: string): void {
-    try { unlinkSync(filePath); } catch { /* already gone */ }
-    const event: IncomingErrorEvent = { filename, error };
+  private rejectFile(filename: string, error: string): void {
+    this.failedFiles.set(filename, error);
+    const event: IncomingErrorEvent = { filename, error, filePath: join(this.incomingDir, filename) };
     this.emit('incoming-error', event);
     logger.warn(`[IncomingPlansWatcher] Rejected ${filename}: ${error}`);
   }

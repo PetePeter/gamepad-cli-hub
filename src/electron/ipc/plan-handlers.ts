@@ -1,7 +1,7 @@
 import type { BrowserWindow } from 'electron';
-import { ipcMain } from 'electron';
+import { ipcMain, shell } from 'electron';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join, basename } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import type { PlanManager } from '../../session/plan-manager.js';
 import type { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
@@ -34,6 +34,12 @@ export function setupPlanHandlers(
       const win = getMainWindow?.();
       if (win && !win.isDestroyed()) {
         win.webContents.send('plan:incoming-error', event);
+      }
+    });
+    incomingWatcher.on('incoming-error-cleared', (event) => {
+      const win = getMainWindow?.();
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('plan:incoming-error-cleared', event);
       }
     });
   }
@@ -106,6 +112,18 @@ export function setupPlanHandlers(
 
   ipcMain.handle('plan:incoming-delete', (_event, filename: string) => {
     return incomingWatcher?.deleteFile(filename) ?? false;
+  });
+
+  ipcMain.handle('plan:incoming-open', async (_event, filename: string) => {
+    if (!incomingWatcher) return false;
+    const safeName = basename(filename);
+    const filePath = join(incomingWatcher.getIncomingDir(), safeName);
+    const errorMessage = await shell.openPath(filePath);
+    if (errorMessage) {
+      logger.warn(`[plan:incoming-open] Failed to open ${safeName}: ${errorMessage}`);
+      return false;
+    }
+    return true;
   });
 
   // ─── Export ───────────────────────────────────────────────────────────────
