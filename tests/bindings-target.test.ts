@@ -150,6 +150,18 @@ describe('binding action routing', () => {
       expect(mockGamepadCli.ptyWrite).toHaveBeenCalledWith('session-1', 'hello');
     });
 
+    it('coalesces text plus Enter into one bulk PTY insertion', async () => {
+      state.cliBindingsCache['claude-code'] = {
+        B: { action: 'keyboard', sequence: 'hello{Enter}world' },
+      };
+
+      processConfigBinding('B');
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(mockGamepadCli.ptyWrite).toHaveBeenCalledTimes(1);
+      expect(mockGamepadCli.ptyWrite).toHaveBeenCalledWith('session-1', 'hello\rworld');
+    });
+
     it('does not call any voice/OS-level key methods', async () => {
       state.cliBindingsCache['claude-code'] = {
         A: { action: 'keyboard', sequence: '{Escape}' },

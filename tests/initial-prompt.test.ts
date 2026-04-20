@@ -195,9 +195,8 @@ describe('scheduleInitialPrompt', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(writeFn).toHaveBeenCalledTimes(2);
-    expect(writeFn.mock.calls[0]).toEqual(['s1', 'hello']);
-    expect(writeFn.mock.calls[1]).toEqual(['s1', '\r']);
+    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', 'hello\r']);
   });
 
   it('cancel function prevents writing', async () => {
@@ -269,9 +268,8 @@ describe('scheduleInitialPrompt', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(writeFn).toHaveBeenCalledTimes(2);
-    expect(writeFn.mock.calls[0]).toEqual(['s1', '\r']);
-    expect(writeFn.mock.calls[1]).toEqual(['s1', '\r']);
+    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', '\r\r']);
   });
 
   it('handles Wait actions with delay between writes', async () => {
@@ -349,10 +347,9 @@ describe('scheduleInitialPrompt', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(writeFn).toHaveBeenCalledTimes(3);
-    expect(writeFn.mock.calls[0]).toEqual(['s1', '/allow-all']);
-    expect(writeFn.mock.calls[1]).toEqual(['s1', '\r']);
-    expect(writeFn.mock.calls[2]).toEqual(['s1', 'hello world']);
+    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', '/allow-all\r']);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', 'hello world']);
   });
 
   it('handles Wait between items', async () => {

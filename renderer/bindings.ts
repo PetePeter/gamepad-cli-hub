@@ -281,15 +281,36 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
 export async function executeSequence(input: string): Promise<void> {
   const actions = parseSequence(input);
   logEvent(`Seq: ${formatSequencePreview(actions)}`);
+  let bufferedText = '';
+
+  const flushBufferedText = async () => {
+    if (!bufferedText) return;
+    const text = bufferedText;
+    bufferedText = '';
+    await executeSequenceAction({ type: 'text', value: text });
+  };
 
   for (const action of actions) {
+    if (action.type === 'text') {
+      bufferedText += action.value;
+      continue;
+    }
+
+    if (action.type === 'key' && action.key === 'Enter') {
+      bufferedText += '\r';
+      continue;
+    }
+
     try {
+      await flushBufferedText();
       await executeSequenceAction(action);
     } catch (error) {
       console.error(`[Renderer] Sequence action failed at ${action.type}:`, error);
       throw error;
     }
   }
+
+  await flushBufferedText();
 }
 
 async function executeSequenceAction(action: SequenceAction): Promise<void> {

@@ -98,25 +98,43 @@ export function scheduleInitialPrompt(
     if (cancelled || !item.sequence || item.sequence.trim() === '') return;
 
     const actions = parseSequence(item.sequence);
+    let bufferedText = '';
+
+    const flushBufferedText = async () => {
+      if (!bufferedText) return;
+      const text = bufferedText;
+      bufferedText = '';
+      await deliver(sessionId, text);
+    };
 
     for (const action of actions) {
       if (cancelled) break;
 
       if (action.type === 'wait') {
+        await flushBufferedText();
         await new Promise(resolve => setTimeout(resolve, action.ms));
         continue;
       }
 
       if (action.type === 'text') {
-        await deliver(sessionId, action.value);
+        bufferedText += action.value;
         continue;
       }
+
+      if (action.type === 'key' && action.key === 'Enter') {
+        bufferedText += '\r';
+        continue;
+      }
+
+      await flushBufferedText();
 
       const data = actionToPtyData(action);
       if (data !== null) {
         writeToPty(sessionId, data);
       }
     }
+
+    await flushBufferedText();
   };
 
   const execute = async () => {
