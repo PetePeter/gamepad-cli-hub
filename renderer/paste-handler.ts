@@ -24,7 +24,7 @@ let editorInFlight = false;
 const ptyIndividualLock = new Set<string>();
 
 const SENDKEYS_INDIVIDUAL_DELAY_MS = 20;
-const PTY_INDIVIDUAL_DELAY_MS = 10;
+const PTY_INDIVIDUAL_DELAY_MS = 30;
 
 /** Deliver bulk text to the active session — either via PTY write or via
  *  OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode.
@@ -42,7 +42,7 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
     try {
       for (const char of text) {
         if (!state.sessions.find(s => s.id === sessionId)) break; // session closed
-        window.gamepadCli.ptyWrite(sessionId, char);
+        await window.gamepadCli.ptyWrite(sessionId, char);
         await new Promise(resolve => setTimeout(resolve, PTY_INDIVIDUAL_DELAY_MS));
       }
     } finally {
