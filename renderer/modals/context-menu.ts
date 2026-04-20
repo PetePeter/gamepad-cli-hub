@@ -61,12 +61,23 @@ export function collectSequenceItems(): Array<{ label: string; sequence: string 
 // Show / Hide — bridge to Vue
 // ============================================================================
 
-export function showContextMenu(x: number, y: number, sessionId: string, mode: 'mouse' | 'gamepad'): void {
-  const tm = getTerminalManager();
-  const view = tm?.getActiveView() ?? null;
-
-  const selectedText = view?.getSelection() ?? '';
-  const hasSelection = view?.hasSelection() ?? false;
+export function showContextMenu(
+  x: number, y: number, sessionId: string, mode: 'mouse' | 'gamepad',
+  preCapturedText?: string, preCapturedHasSelection?: boolean,
+): void {
+  // Use pre-captured selection when available (synchronous capture in contextmenu handler),
+  // fall back to live query for gamepad / other callers.
+  let selectedText: string;
+  let hasSelection: boolean;
+  if (preCapturedText !== undefined && preCapturedHasSelection !== undefined) {
+    selectedText = preCapturedText;
+    hasSelection = preCapturedHasSelection;
+  } else {
+    const tm = getTerminalManager();
+    const view = tm?.getActiveView() ?? null;
+    selectedText = view?.getSelection() ?? '';
+    hasSelection = view?.hasSelection() ?? false;
+  }
 
   // Sync legacy state for remaining external readers
   contextMenuState.visible = true;

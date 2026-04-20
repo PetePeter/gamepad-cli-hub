@@ -55,7 +55,7 @@ const name = ref('');
 const command = ref('');
 const args = ref('');
 const initialPromptDelay = ref(2000);
-const pasteMode = ref<'pty' | 'sendkeys' | 'sendkeysindividual'>('pty');
+const pasteMode = ref<'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual'>('pty');
 const spawnCommand = ref('');
 const resumeCommand = ref('');
 const continueCommand = ref('');
@@ -307,9 +307,10 @@ defineExpose({ handleButton });
               <div class="te-field">
                 <label for="te-paste-mode">Paste Mode</label>
                 <select id="te-paste-mode" v-model="pasteMode" class="te-select">
-                  <option value="pty">PTY (direct write)</option>
-                  <option value="sendkeys">SendKeys (batch)</option>
-                  <option value="sendkeysindividual">SendKeys (individual)</option>
+                  <option value="pty">PTY — bulk write to stdin</option>
+                  <option value="ptyindividual">PTY Individual — char-by-char to stdin (for Ink/Copilot CLI)</option>
+                  <option value="sendkeys">SendKeys — OS-level batch keystrokes (robotjs)</option>
+                  <option value="sendkeysindividual">SendKeys Individual — OS-level char-by-char (robotjs)</option>
                 </select>
               </div>
               <div class="te-field">

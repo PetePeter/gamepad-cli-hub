@@ -118,8 +118,12 @@ export class TerminalManager {
     // Right-click context menu on the terminal pane
     element.addEventListener('contextmenu', (e) => {
       e.preventDefault();
+      // Capture selection synchronously before the async import clears it
+      const sess = this.terminals.get(sessionId);
+      const selectedText = sess?.view?.getSelection() ?? '';
+      const hasSelection = sess?.view?.hasSelection() ?? false;
       import('../modals/context-menu.js').then(({ showContextMenu }) => {
-        showContextMenu(e.clientX, e.clientY, sessionId, 'mouse');
+        showContextMenu(e.clientX, e.clientY, sessionId, 'mouse', selectedText, hasSelection);
       });
     });
 
@@ -186,8 +190,12 @@ export class TerminalManager {
 
     element.addEventListener('contextmenu', (e) => {
       e.preventDefault();
+      // Capture selection synchronously before the async import clears it
+      const sess = this.terminals.get(sessionId);
+      const selectedText = sess?.view?.getSelection() ?? '';
+      const hasSelection = sess?.view?.hasSelection() ?? false;
       import('../modals/context-menu.js').then(({ showContextMenu }) => {
-        showContextMenu(e.clientX, e.clientY, sessionId, 'mouse');
+        showContextMenu(e.clientX, e.clientY, sessionId, 'mouse', selectedText, hasSelection);
       });
     });
 

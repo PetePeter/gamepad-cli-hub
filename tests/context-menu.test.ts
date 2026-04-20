@@ -240,6 +240,14 @@ describe('Context Menu', () => {
       expect(bridge.sourceSessionId).toBe('sess-42');
       expect(mod.contextMenuState.sourceSessionId).toBe('sess-42');
     });
+
+    it('show sets bridge selection from pre-captured values', () => {
+      mockGetTerminalManager.mockReturnValue(null);
+
+      mod.showContextMenu(0, 0, 'sess-1', 'mouse', 'pre-captured', true);
+      expect(bridge.selectedText).toBe('pre-captured');
+      expect(bridge.hasSelection).toBe(true);
+    });
   });
 
   // =========================================================================
@@ -296,6 +304,40 @@ describe('Context Menu', () => {
 
       expect(mod.contextMenuState.selectedText).toBe('');
       expect(mod.contextMenuState.hasSelection).toBe(false);
+    });
+
+    it('uses pre-captured selection when provided (mouse right-click path)', () => {
+      // Terminal manager returns no selection (simulates async clearing)
+      mockGetTerminalManager.mockReturnValue({ getActiveView: () => null });
+
+      mod.showContextMenu(100, 200, 'sess-1', 'mouse', 'pre-captured text', true);
+
+      expect(mod.contextMenuState.selectedText).toBe('pre-captured text');
+      expect(mod.contextMenuState.hasSelection).toBe(true);
+    });
+
+    it('pre-captured selection overrides terminal manager view', () => {
+      // Terminal manager has different selection, but pre-captured takes priority
+      const viewWithSel = makeMockView('stale selection', true);
+      mockGetTerminalManager.mockReturnValue(makeMockTerminalManager(viewWithSel));
+
+      mod.showContextMenu(0, 0, 'sess-1', 'mouse', 'fresh selection', true);
+
+      expect(mod.contextMenuState.selectedText).toBe('fresh selection');
+      expect(mod.contextMenuState.hasSelection).toBe(true);
+      // Should NOT query terminal manager when pre-captured values provided
+      expect(viewWithSel.getSelection).not.toHaveBeenCalled();
+    });
+
+    it('falls back to terminal manager when pre-captured values are undefined', () => {
+      const viewWithSel = makeMockView('from terminal', true);
+      mockGetTerminalManager.mockReturnValue(makeMockTerminalManager(viewWithSel));
+
+      mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
+
+      expect(viewWithSel.getSelection).toHaveBeenCalled();
+      expect(mod.contextMenuState.selectedText).toBe('from terminal');
+      expect(mod.contextMenuState.hasSelection).toBe(true);
     });
   });
 

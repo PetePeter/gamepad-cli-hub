@@ -322,7 +322,7 @@ const gamepadCliAPI = {
       spawnCommand?: string;
       resumeCommand?: string;
       continueCommand?: string;
-      pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual';
+      pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual';
     },
   ) => ipcRenderer.invoke('tools:addCliType', key, name, command, initialPrompt, initialPromptDelay, options),
   toolsUpdateCliType: (
@@ -335,7 +335,7 @@ const gamepadCliAPI = {
       spawnCommand?: string;
       resumeCommand?: string;
       continueCommand?: string;
-      pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual';
+      pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual';
     },
   ) => ipcRenderer.invoke('tools:updateCliType', key, name, command, initialPrompt, initialPromptDelay, options),
   toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),

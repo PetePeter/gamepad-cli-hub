@@ -20,8 +20,11 @@ type HasPendingQuestion = (sessionId: string) => boolean;
 let registeredHandler: ((e: KeyboardEvent) => void) | null = null;
 let pasteInFlight = false;
 let editorInFlight = false;
+/** Per-session lock to prevent interleaved character-by-character paste */
+const ptyIndividualLock = new Set<string>();
 
 const SENDKEYS_INDIVIDUAL_DELAY_MS = 20;
+const PTY_INDIVIDUAL_DELAY_MS = 10;
 
 /** Deliver bulk text to the active session — either via PTY write or via
  *  OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode.
@@ -31,6 +34,23 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
   if (!text) return;
   const session = state.sessions.find(s => s.id === sessionId);
   const tool = session ? state.cliToolsCache[session.cliType] : undefined;
+
+  // PTY individual — write each character with delay to mimic real typing (for Ink-based CLIs)
+  if (tool?.pasteMode === 'ptyindividual') {
+    if (ptyIndividualLock.has(sessionId)) return; // paste already in progress
+    ptyIndividualLock.add(sessionId);
+    try {
+      for (const char of text) {
+        if (!state.sessions.find(s => s.id === sessionId)) break; // session closed
+        window.gamepadCli.ptyWrite(sessionId, char);
+        await new Promise(resolve => setTimeout(resolve, PTY_INDIVIDUAL_DELAY_MS));
+      }
+    } finally {
+      ptyIndividualLock.delete(sessionId);
+    }
+    return;
+  }
+
   if (tool?.pasteMode === 'sendkeysindividual' && window.gamepadCli?.keyboardTypeString) {
     for (const char of text) {
       await window.gamepadCli.keyboardTypeString(char);

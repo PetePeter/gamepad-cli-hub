@@ -581,4 +581,88 @@ describe('deliverBulkText', () => {
       expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\x1b[200~line1\nline2\nline3\x1b[201~');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // PTY individual mode (char-by-char PTY writes for Ink-based CLIs)
+  // ---------------------------------------------------------------------------
+
+  describe('ptyindividual mode', () => {
+    it('writes each character individually to ptyWrite with delay', async () => {
+      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+      mockState.cliToolsCache = { copilot: { pasteMode: 'ptyindividual' } };
+
+      const promise = deliverBulkText('sess-1', 'abc');
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(mockPtyWrite).toHaveBeenCalledTimes(3);
+      expect(mockPtyWrite).toHaveBeenNthCalledWith(1, 'sess-1', 'a');
+      expect(mockPtyWrite).toHaveBeenNthCalledWith(2, 'sess-1', 'b');
+      expect(mockPtyWrite).toHaveBeenNthCalledWith(3, 'sess-1', 'c');
+      expect(mockKeyboardTypeString).not.toHaveBeenCalled();
+    });
+
+    it('never uses keyboardTypeString', async () => {
+      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+      mockState.cliToolsCache = { copilot: { pasteMode: 'ptyindividual' } };
+
+      const promise = deliverBulkText('sess-1', 'xy');
+      await vi.runAllTimersAsync();
+      await promise;
+
+      expect(mockKeyboardTypeString).not.toHaveBeenCalled();
+    });
+
+    it('per-session lock prevents interleaved pastes', async () => {
+      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+      mockState.cliToolsCache = { copilot: { pasteMode: 'ptyindividual' } };
+
+      const p1 = deliverBulkText('sess-1', 'ab');
+      const p2 = deliverBulkText('sess-1', 'xy');
+
+      await vi.runAllTimersAsync();
+      await Promise.all([p1, p2]);
+
+      // Only the first paste should have written (lock blocks second)
+      expect(mockPtyWrite).toHaveBeenCalledTimes(2);
+      expect(mockPtyWrite).toHaveBeenNthCalledWith(1, 'sess-1', 'a');
+      expect(mockPtyWrite).toHaveBeenNthCalledWith(2, 'sess-1', 'b');
+    });
+
+    it('different sessions can paste concurrently', async () => {
+      mockState.sessions = [
+        { id: 'sess-1', cliType: 'copilot' },
+        { id: 'sess-2', cliType: 'copilot' },
+      ];
+      mockState.cliToolsCache = { copilot: { pasteMode: 'ptyindividual' } };
+
+      const p1 = deliverBulkText('sess-1', 'ab');
+      const p2 = deliverBulkText('sess-2', 'xy');
+
+      await vi.runAllTimersAsync();
+      await Promise.all([p1, p2]);
+
+      // Both sessions should have received their characters
+      const calls = mockPtyWrite.mock.calls;
+      const sess1Calls = calls.filter((c: any[]) => c[0] === 'sess-1');
+      const sess2Calls = calls.filter((c: any[]) => c[0] === 'sess-2');
+      expect(sess1Calls).toHaveLength(2);
+      expect(sess2Calls).toHaveLength(2);
+    });
+
+    it('stops writing if session is removed mid-paste', async () => {
+      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+      mockState.cliToolsCache = { copilot: { pasteMode: 'ptyindividual' } };
+
+      const promise = deliverBulkText('sess-1', 'abcdef');
+      // Let 2 chars write, then remove the session
+      await vi.advanceTimersByTimeAsync(25);
+      mockState.sessions = [];
+      await vi.runAllTimersAsync();
+      await promise;
+
+      // Should have written fewer than 6 characters
+      expect(mockPtyWrite.mock.calls.length).toBeLessThan(6);
+    });
+  });
 });

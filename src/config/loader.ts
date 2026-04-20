@@ -170,11 +170,13 @@ export interface CliTypeConfig {
   continueCommand?: string;
   /** How to deliver clipboard paste (Ctrl+V) and bulk text (Ctrl+G editor) to this CLI.
    *  - 'pty'                — write directly to PTY stdin (default, works for most terminals)
+   *  - 'ptyindividual'      — write one character at a time to PTY stdin with 10ms delay
+   *    (for Ink-based CLIs like GitHub Copilot whose form inputs need per-char delivery)
    *  - 'sendkeys'           — simulate OS keystrokes via robotjs (useful for CLIs that
    *    strip or reformat bracketed-paste input, e.g. some IDE-embedded shells)
    *  - 'sendkeysindividual' — send one character at a time via robotjs with 20ms delay
-   *    (for interactive CLIs like GitHub Copilot that don't accept bulk paste) */
-  pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual';
+   *    (for interactive CLIs that don't accept bulk paste via OS keystrokes) */
+  pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual';
   /** User-defined regex patterns that trigger automated actions when matched against PTY output. */
   patterns?: PatternRule[];
 }
