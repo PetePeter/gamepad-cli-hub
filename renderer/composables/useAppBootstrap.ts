@@ -293,6 +293,10 @@ export async function doSpawn(
       setTimeout(async () => {
         try {
           await refreshSessions();
+          // Re-refresh chip bar now that state.sessions has the new session
+          if (state.activeSessionId === sessionId) {
+            void useChipBarStore().refresh(sessionId);
+          }
           const newIndex = findNavIndexBySessionId(sessionsState.navList, sessionId);
           if (newIndex >= 0) {
             sessionsState.sessionsFocusIndex = newIndex;
