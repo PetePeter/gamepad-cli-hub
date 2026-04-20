@@ -155,15 +155,29 @@ export function deletePlanFile(planId: string, plansDir = DEFAULT_PLANS_DIR): bo
   try {
     if (!existsSync(plansDir)) return false;
     const files = readdirSync(plansDir, { withFileTypes: true });
+    let deleted = false;
     for (const f of files) {
       if (!f.isFile() || !f.name.endsWith('.json')) continue;
+      const filePath = join(plansDir, f.name);
       const { planId: decodedId } = decodeFilename(f.name);
-      if (planId === decodedId) {
-        unlinkSync(join(plansDir, f.name));
-        return true;
+      const matchesFilename = planId === decodedId;
+
+      let matchesContent = false;
+      if (!matchesFilename) {
+        try {
+          const raw = JSON.parse(readFileSync(filePath, 'utf8')) as { id?: string };
+          matchesContent = raw?.id === planId;
+        } catch (err) {
+          logger.warn(`Failed to inspect plan file ${f.name} while deleting ${planId}: ${err}`);
+        }
+      }
+
+      if (matchesFilename || matchesContent) {
+        unlinkSync(filePath);
+        deleted = true;
       }
     }
-    return false;
+    return deleted;
   } catch (err) {
     logger.error(`Failed to delete plan file for ${planId}: ${err}`);
     return false;

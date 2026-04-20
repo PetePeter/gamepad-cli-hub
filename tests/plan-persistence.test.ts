@@ -216,6 +216,49 @@ describe('plan file persistence (real I/O)', () => {
       const result = deletePlanFile('any-id', plansDir);
       expect(result).toBe(false);
     });
+
+    it('deletes a legacy short-named file when the JSON body stores the full ID', () => {
+      fs.mkdirSync(plansDir, { recursive: true });
+      const item = makePlanItem();
+      const legacyFilename = `${encodeURIComponent(item.dirPath)}@${item.id.slice(0, 8)}.json`;
+      fs.writeFileSync(
+        path.join(plansDir, legacyFilename),
+        JSON.stringify({ ...item, _fileVersion: 1 }, null, 2),
+        'utf8',
+      );
+
+      const deleted = deletePlanFile(item.id, plansDir);
+
+      expect(deleted).toBe(true);
+      expect(listPlanFiles(plansDir)).toHaveLength(0);
+    });
+
+    it('deletes all stale file variants for the same plan ID', () => {
+      fs.mkdirSync(plansDir, { recursive: true });
+      const item = makePlanItem();
+      const currentFilename = encodeFilename(item.dirPath, item.id);
+      const legacyFilename = `${encodeURIComponent(item.dirPath)}@${item.id.slice(0, 8)}.json`;
+      const otherItem = makePlanItem({ id: 'bbbbbbbb-1234-5678-90ab-cdef12345678', title: 'Keep me' });
+
+      fs.writeFileSync(
+        path.join(plansDir, currentFilename),
+        JSON.stringify({ ...item, _fileVersion: 1 }, null, 2),
+        'utf8',
+      );
+      fs.writeFileSync(
+        path.join(plansDir, legacyFilename),
+        JSON.stringify({ ...item, _fileVersion: 1 }, null, 2),
+        'utf8',
+      );
+      savePlanFile(otherItem, plansDir);
+
+      const deleted = deletePlanFile(item.id, plansDir);
+      const remaining = listPlanFiles(plansDir);
+
+      expect(deleted).toBe(true);
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0]).toContain(otherItem.id);
+    });
   });
 
   // ─── saveDependencies / loadDependencies ─────────────────────────────────
