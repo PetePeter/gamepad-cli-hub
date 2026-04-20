@@ -4,8 +4,9 @@
  *
  * Shows a list of available CLI types. Gamepad D-pad up/down navigates
  * (clamped, not wrapping), A selects, B cancels.
+ * Keyboard: arrow keys navigate, Tab/Shift+Tab cycle, Space/Enter select, Escape cancel.
  */
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useModalStack } from '../../composables/useModalStack.js';
 import { toDirection, getCliDisplayName } from '../../utils.js';
 
@@ -74,6 +75,62 @@ function suppressActivationKey(e: KeyboardEvent): void {
     e.preventDefault();
   }
 }
+
+function handleKeyDown(e: KeyboardEvent): void {
+  if (!props.visible) return;
+
+  switch (e.key) {
+    case 'ArrowUp':
+      e.preventDefault();
+      e.stopPropagation();
+      selectedIndex.value = Math.max(0, selectedIndex.value - 1);
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      e.stopPropagation();
+      selectedIndex.value = Math.min(props.cliTypes.length - 1, selectedIndex.value + 1);
+      break;
+    case 'Enter':
+    case ' ':
+      e.preventDefault();
+      e.stopPropagation();
+      selectItem(selectedIndex.value);
+      break;
+    case 'Escape':
+      e.preventDefault();
+      e.stopPropagation();
+      emit('cancel');
+      emit('update:visible', false);
+      break;
+    case 'Tab':
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.shiftKey) {
+        selectedIndex.value = Math.max(0, selectedIndex.value - 1);
+      } else {
+        selectedIndex.value = Math.min(props.cliTypes.length - 1, selectedIndex.value + 1);
+      }
+      break;
+  }
+}
+
+onMounted(() => {
+  if (props.visible) {
+    document.addEventListener('keydown', handleKeyDown, true);
+  }
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeyDown, true);
+});
+
+watch(() => props.visible, (v) => {
+  if (v) {
+    document.addEventListener('keydown', handleKeyDown, true);
+  } else {
+    document.removeEventListener('keydown', handleKeyDown, true);
+  }
+});
 
 defineExpose({ handleButton });
 </script>
