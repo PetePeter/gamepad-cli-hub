@@ -12,8 +12,9 @@ import { findNavIndexBySessionId } from '../session-groups.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import {
-  loadSessions, getSessionState, updateSessionsFocus, updateSpawnFocus, updateAllFocus,
+  loadSessions, refreshSessions, getSessionState, updateSessionsFocus, updateSpawnFocus, updateAllFocus,
 } from './sessions.js';
+import { refreshPlanBadges } from './sessions-plans.js';
 
 import { hideOverview } from './group-overview.js';
 import { registerView } from '../main-view/main-view-manager.js';
@@ -125,6 +126,7 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
         setTimeout(async () => {
           try {
             await loadSessions();
+            await refreshPlanBadges();
             // Focus the newly spawned session in the navList
             const newIndex = findNavIndexBySessionId(sessionsState.navList, sessionId);
             if (newIndex >= 0) {

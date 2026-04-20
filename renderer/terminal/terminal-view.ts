@@ -228,6 +228,12 @@ export class TerminalView {
     this.terminal.clearSelection();
   }
 
+  /** Whether the CLI has enabled bracketed paste mode (DEC private mode 2004).
+   *  When true, pasted text should be wrapped in \x1b[200~ ... \x1b[201~ markers. */
+  isBracketedPasteEnabled(): boolean {
+    return this.terminal.modes.bracketedPasteMode;
+  }
+
   /** Read the last N non-blank lines from the terminal buffer (ANSI-free) */
   getBufferLines(count: number): string[] {
     if (this.disposed) return [];

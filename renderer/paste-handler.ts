@@ -11,6 +11,7 @@
 import { keyToPtyEscape, comboToPtyEscape } from './bindings.js';
 import { isDraftEditorVisible } from './drafts/draft-editor.js';
 import { showEditorPopup } from './editor/editor-popup.js';
+import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
 
 type GetActiveSessionId = () => string | null;
@@ -23,7 +24,9 @@ let editorInFlight = false;
 const SENDKEYS_INDIVIDUAL_DELAY_MS = 20;
 
 /** Deliver bulk text to the active session — either via PTY write or via
- *  OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode. */
+ *  OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode.
+ *  When using PTY mode, wraps text in bracketed paste markers if the terminal
+ *  has enabled bracketed paste mode (DEC private mode 2004). */
 export async function deliverBulkText(sessionId: string, text: string): Promise<void> {
   if (!text) return;
   const session = state.sessions.find(s => s.id === sessionId);
@@ -39,7 +42,13 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
     await window.gamepadCli.keyboardTypeString(text);
     return;
   }
-  window.gamepadCli.ptyWrite(sessionId, text);
+  // PTY mode — wrap in bracketed paste markers if the terminal requests it
+  const tm = getTerminalManager();
+  const view = tm?.getSession(sessionId)?.view;
+  const payload = view?.isBracketedPasteEnabled()
+    ? `\x1b[200~${text}\x1b[201~`
+    : text;
+  window.gamepadCli.ptyWrite(sessionId, payload);
 }
 
 /** Returns true if the focused element is an input field, textarea, or inside a modal. */

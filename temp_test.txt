@@ -1,6 +1,0 @@
-
-    it('calls onAccept when Space is pressed', () => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
-      expect(onAccept).toHaveBeenCalledOnce();
-      expect(onCancel).not.toHaveBeenCalled();
-    });

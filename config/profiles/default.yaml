@@ -63,11 +63,11 @@ tools:
       prompts:
         - label: commit
           sequence: use skill(commit)
-    pasteMode: sendkeys
+    pasteMode: pty
   codex:
     name: Codex CLI
     command: codex
-    args: -a never -s workspace-write
+    args: --full-auto
     handoffCommand: go implement it
     initialPrompt:
       - label: ""
@@ -118,7 +118,7 @@ tools:
 
           </application-prompt>
     initialPromptDelay: 10000
-    pasteMode: sendkeys
+    pasteMode: pty
     sequences:
       prompts:
         - label: commit

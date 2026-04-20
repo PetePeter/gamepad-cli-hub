@@ -760,7 +760,7 @@ async function deleteSession(sessionId: string): Promise<void> {
   }
 }
 
-function refreshSessions(): void {
+export function refreshSessions(): void {
   loadSessions().catch(e => console.error('[Sessions] Refresh failed:', e));
   logEvent('Sessions refreshed');
 }
