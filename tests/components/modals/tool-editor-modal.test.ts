@@ -16,7 +16,7 @@ interface ToolEditorData {
   command: string;
   args: string;
   initialPromptDelay: number;
-  pasteMode: 'pty' | 'sendkeys' | 'sendkeysindividual';
+  pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual';
   spawnCommand: string;
   resumeCommand: string;
   continueCommand: string;
