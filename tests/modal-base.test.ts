@@ -402,6 +402,107 @@ describe('modal-base', () => {
     });
   });
 
+  describe('Tab cycling in form mode', () => {
+    let cleanup: () => void;
+
+    afterEach(() => { cleanup(); });
+
+    function createFormWithInputs(count: number): { overlay: HTMLElement; inputs: HTMLInputElement[] } {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay modal--visible';
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      overlay.appendChild(modal);
+      const inputs: HTMLInputElement[] = [];
+      for (let i = 0; i < count; i++) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        modal.appendChild(input);
+        inputs.push(input);
+      }
+      document.body.appendChild(overlay);
+      return { overlay, inputs };
+    }
+
+    it('Tab moves focus to next input', () => {
+      const { overlay, inputs } = createFormWithInputs(3);
+      inputs[0].focus();
+      cleanup = attachModalKeyboard({ onAccept: vi.fn(), onCancel: vi.fn() });
+
+      const e = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+
+      expect(document.activeElement).toBe(inputs[1]);
+      expect(e.defaultPrevented).toBe(true);
+      document.body.removeChild(overlay);
+    });
+
+    it('Shift+Tab moves focus to previous input', () => {
+      const { overlay, inputs } = createFormWithInputs(3);
+      inputs[2].focus();
+      cleanup = attachModalKeyboard({ onAccept: vi.fn(), onCancel: vi.fn() });
+
+      const e = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+
+      expect(document.activeElement).toBe(inputs[1]);
+      expect(e.defaultPrevented).toBe(true);
+      document.body.removeChild(overlay);
+    });
+
+    it('Tab wraps from last to first', () => {
+      const { overlay, inputs } = createFormWithInputs(3);
+      inputs[2].focus();
+      cleanup = attachModalKeyboard({ onAccept: vi.fn(), onCancel: vi.fn() });
+
+      const e = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+
+      expect(document.activeElement).toBe(inputs[0]);
+      document.body.removeChild(overlay);
+    });
+
+    it('Shift+Tab wraps from first to last', () => {
+      const { overlay, inputs } = createFormWithInputs(3);
+      inputs[0].focus();
+      cleanup = attachModalKeyboard({ onAccept: vi.fn(), onCancel: vi.fn() });
+
+      const e = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
+      document.dispatchEvent(e);
+
+      expect(document.activeElement).toBe(inputs[2]);
+      document.body.removeChild(overlay);
+    });
+
+    it('Tab cycles even when textarea is focused (unlike ArrowDown)', () => {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay modal--visible';
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      overlay.appendChild(modal);
+      const textarea = document.createElement('textarea');
+      const input = document.createElement('input');
+      modal.appendChild(textarea);
+      modal.appendChild(input);
+      document.body.appendChild(overlay);
+
+      textarea.focus();
+      cleanup = attachModalKeyboard({ onAccept: vi.fn(), onCancel: vi.fn() });
+
+      // ArrowDown should NOT cycle when in textarea
+      const arrowE = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+      document.dispatchEvent(arrowE);
+      expect(document.activeElement).toBe(textarea); // stays in textarea
+
+      // Tab SHOULD cycle even from textarea
+      const tabE = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      document.dispatchEvent(tabE);
+      expect(document.activeElement).toBe(input);
+
+      document.body.removeChild(overlay);
+    });
+  });
+
   describe('showFormModal browse button', () => {
     beforeEach(() => {
       formModal.visible = false;

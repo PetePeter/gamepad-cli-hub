@@ -104,9 +104,10 @@ function handleFormKey(e: KeyboardEvent, h: FormModalHandlers): void {
     e.preventDefault();
     e.stopPropagation();
     h.onAccept();
-  } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+  } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab') {
     const active = document.activeElement;
-    if (active?.tagName === 'TEXTAREA' || active?.tagName === 'SELECT') return;
+    // Arrows skip textarea/select; Tab always cycles (browser default Tab is suppressed)
+    if (e.key !== 'Tab' && (active?.tagName === 'TEXTAREA' || active?.tagName === 'SELECT')) return;
 
     const container = h.container || document.querySelector('.modal-overlay.modal--visible .modal');
     if (!container) return;
@@ -114,13 +115,15 @@ function handleFormKey(e: KeyboardEvent, h: FormModalHandlers): void {
     if (focusables.length === 0) return;
 
     const currentIndex = focusables.indexOf(active as HTMLElement);
+    const forward = e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey);
     let nextIndex: number;
-    if (e.key === 'ArrowDown') {
+    if (forward) {
       nextIndex = currentIndex < focusables.length - 1 ? currentIndex + 1 : 0;
     } else {
       nextIndex = currentIndex > 0 ? currentIndex - 1 : focusables.length - 1;
     }
     e.preventDefault();
+    e.stopPropagation();
     focusables[nextIndex]?.focus();
   }
 }

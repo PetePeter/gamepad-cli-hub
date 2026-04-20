@@ -896,6 +896,50 @@ describe('ConfigLoader', () => {
       expect(entry.renameCommand).toBeUndefined();
     });
 
+    it('addCliType with args stores args field', () => {
+      loader.load();
+      loader.addCliType('arg-tool', 'Arg Tool', 'mytool', [], 0, {
+        args: '--model opus --verbose',
+      });
+      const entry = loader.getCliTypeEntry('arg-tool')!;
+      expect(entry.args).toBe('--model opus --verbose');
+    });
+
+    it('updateCliType with args stores args field', () => {
+      loader.load();
+      loader.updateCliType('claude-code', 'CC', 'cc', [], 0, {
+        args: '--debug --timeout 30',
+      });
+      const entry = loader.getCliTypeEntry('claude-code')!;
+      expect(entry.args).toBe('--debug --timeout 30');
+    });
+
+    it('updateCliType with empty args clears args field', () => {
+      const profileWithArgs = {
+        ...DEFAULT_PROFILE,
+        tools: {
+          ...DEFAULT_PROFILE.tools,
+          'claude-code': { ...DEFAULT_PROFILE.tools['claude-code'], args: '--verbose' },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithArgs);
+      loader = new ConfigLoader(TEST_DIR);
+      loader.load();
+
+      loader.updateCliType('claude-code', 'CC', 'cc', [], 0, { args: '' });
+      const entry = loader.getCliTypeEntry('claude-code')!;
+      expect(entry.args).toBeUndefined();
+    });
+
+    it('args round-trip preserves on disk', () => {
+      loader.load();
+      loader.addCliType('rt-tool', 'RT', 'rt', [], 0, { args: '--flag value' });
+
+      const fresh = new ConfigLoader(TEST_DIR);
+      fresh.load();
+      expect(fresh.getCliTypeEntry('rt-tool')!.args).toBe('--flag value');
+    });
+
     it('updateCliType round-trip preserves all fields on disk', () => {
       const profileWithAll = {
         ...DEFAULT_PROFILE,

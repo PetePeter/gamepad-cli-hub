@@ -9,6 +9,11 @@ import {
 } from '../utils.js';
 import { loadSessions } from './sessions.js';
 import { initConfigCache } from '../bindings.js';
+import {
+  toolEditor,
+  setToolEditorCallback,
+  resetToolEditorData,
+} from '../stores/modal-bridge.js';
 
 // Circular import — safe: all usages are inside event handlers, not at module-evaluation time.
 import { loadSettingsScreen } from './settings.js';
@@ -96,11 +101,13 @@ function createCliTypeItem(key: string, value: any): HTMLElement {
   item.dataset.cliKey = key;
 
   const command = value.command || '';
+  const args = value.args || '';
+  const commandDisplay = args ? `${command} ${args}` : command;
 
   item.innerHTML = `
     <div class="settings-list-item__info">
       <span class="settings-list-item__name">${value.name || key}</span>
-      <span class="settings-list-item__detail">${command ? `→ ${command}` : '(no command)'}</span>
+      <span class="settings-list-item__detail">${commandDisplay ? `→ ${commandDisplay}` : '(no command)'}</span>
     </div>
   `;
 
@@ -163,106 +170,88 @@ function createCliTypeItem(key: string, value: any): HTMLElement {
 }
 
 async function showAddCliTypeForm(): Promise<void> {
-  const result = await showFormModal('Add CLI Type', [
-    { key: 'name', label: 'Name', placeholder: 'e.g. Claude Code' },
-    { key: 'command', label: 'Command', placeholder: 'e.g. claude, python' },
-    { key: '_promptItems', label: 'Initial Prompt Items', type: 'sequence-items', defaultValue: '[]', showLabels: false },
-    { key: 'initialPromptDelay', label: 'Initial Prompt Delay (ms)', type: 'text', defaultValue: '2000', placeholder: 'e.g. 2000' },
-    { key: 'handoffCommand', label: 'Handoff Command', placeholder: 'Command sent on pipeline handoff (e.g. go implement it\\r)' },
-    { key: 'renameCommand', label: 'Rename Command', placeholder: 'Name session for resume (use {cliSessionName})' },
-    { key: 'spawnCommand', label: 'Spawn Command', placeholder: 'Fresh spawn with session UUID (e.g. claude --session-id {cliSessionName})' },
-    { key: 'resumeCommand', label: 'Resume Command', placeholder: 'Resume by UUID (e.g. claude --resume={cliSessionName})' },
-    { key: 'continueCommand', label: 'Continue Command', placeholder: 'Resume most recent session (e.g. claude --continue)' },
-    { key: 'pasteMode', label: 'Paste Mode', type: 'select', defaultValue: 'pty', options: [
-        { value: 'pty', label: 'PTY (default)' },
-        { value: 'sendkeys', label: 'SendKeys (OS keystrokes)' },
-        { value: 'sendkeysindividual', label: 'SendKeys Individual (interactive CLIs)' },
-      ] },
-  ]);
+  toolEditor.mode = 'add';
+  toolEditor.editKey = '';
+  toolEditor.initialData = resetToolEditorData();
+  toolEditor.visible = true;
 
-  if (!result) return;
+  setToolEditorCallback(async (values) => {
+    const name = values.name?.trim();
+    if (!name) { logEvent('Add CLI type: name is required'); return; }
 
-  const name = result.name?.trim();
-  if (!name) {
-    logEvent('Add CLI type: name is required');
-    return;
-  }
+    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const command = values.command?.trim() || '';
+    const validItems = (values._promptItems || []).filter((i: PromptItem) => i.sequence.trim());
+    const initialPromptDelay = values.initialPromptDelay || 0;
+    const options = buildCommandOptionsFromToolEditor(values);
 
-  const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const command = result.command?.trim() || '';
-  const validItems = parsePromptItems(result._promptItems);
-  const initialPromptDelay = parseInt(result.initialPromptDelay || '0', 10) || 0;
-  const options = buildCommandOptions(result);
-
-  const addResult = await window.gamepadCli.toolsAddCliType(key, name, command, validItems, initialPromptDelay, options);
-  if (addResult.success) {
-    logEvent(`Added CLI type: ${key}`);
-    state.cliTypes = await window.gamepadCli.configGetCliTypes();
-    state.availableSpawnTypes = state.cliTypes;
-    await initConfigCache();
-    loadSessions();
-    loadSettingsScreen();
-  } else {
-    logEvent('Failed to add CLI type');
-  }
+    const addResult = await window.gamepadCli.toolsAddCliType(key, name, command, validItems, initialPromptDelay, options);
+    if (addResult.success) {
+      logEvent(`Added CLI type: ${key}`);
+      state.cliTypes = await window.gamepadCli.configGetCliTypes();
+      state.availableSpawnTypes = state.cliTypes;
+      await initConfigCache();
+      loadSessions();
+      loadSettingsScreen();
+    } else {
+      logEvent('Failed to add CLI type');
+    }
+  });
 }
 
 async function showEditCliTypeForm(key: string, value: any): Promise<void> {
-  const existingItems: PromptItem[] = Array.isArray(value.initialPrompt)
-    ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))
-    : [];
+  toolEditor.mode = 'edit';
+  toolEditor.editKey = key;
+  toolEditor.initialData = {
+    name: value.name || key,
+    command: value.command || '',
+    args: value.args || '',
+    initialPromptDelay: value.initialPromptDelay ?? 0,
+    pasteMode: value.pasteMode || 'pty',
+    spawnCommand: value.spawnCommand || '',
+    resumeCommand: value.resumeCommand || '',
+    continueCommand: value.continueCommand || '',
+    renameCommand: value.renameCommand || '',
+    handoffCommand: value.handoffCommand || '',
+    initialPrompt: Array.isArray(value.initialPrompt)
+      ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))
+      : [],
+  };
+  toolEditor.visible = true;
 
-  const result = await showFormModal(`Edit CLI Type: ${key}`, [
-    { key: 'name', label: 'Name', defaultValue: value.name || key },
-    { key: 'command', label: 'Command', defaultValue: value.command || '' },
-    { key: '_promptItems', label: 'Initial Prompt Items', type: 'sequence-items', defaultValue: JSON.stringify(existingItems), showLabels: false },
-    { key: 'initialPromptDelay', label: 'Initial Prompt Delay (ms)', type: 'text', defaultValue: String(value.initialPromptDelay ?? 0), placeholder: 'e.g. 2000' },
-    { key: 'handoffCommand', label: 'Handoff Command', defaultValue: value.handoffCommand || '', placeholder: 'Command sent on pipeline handoff (e.g. go implement it\\r)' },
-    { key: 'renameCommand', label: 'Rename Command', defaultValue: value.renameCommand || '', placeholder: 'Name session for resume (use {cliSessionName})' },
-    { key: 'spawnCommand', label: 'Spawn Command', defaultValue: value.spawnCommand || '', placeholder: 'Fresh spawn with session UUID (e.g. claude --session-id {cliSessionName})' },
-    { key: 'resumeCommand', label: 'Resume Command', defaultValue: value.resumeCommand || '', placeholder: 'Resume by UUID (e.g. claude --resume={cliSessionName})' },
-    { key: 'continueCommand', label: 'Continue Command', defaultValue: value.continueCommand || '', placeholder: 'Resume most recent session (e.g. claude --continue)' },
-    { key: 'pasteMode', label: 'Paste Mode', type: 'select', defaultValue: value.pasteMode || 'pty', options: [
-        { value: 'pty', label: 'PTY (default)' },
-        { value: 'sendkeys', label: 'SendKeys (OS keystrokes)' },
-        { value: 'sendkeysindividual', label: 'SendKeys Individual (interactive CLIs)' },
-      ] },
-  ]);
+  setToolEditorCallback(async (values) => {
+    const command = values.command?.trim() || '';
+    const validItems = (values._promptItems || []).filter((i: PromptItem) => i.sequence.trim());
+    const initialPromptDelay = values.initialPromptDelay || 0;
+    const options = buildCommandOptionsFromToolEditor(values);
 
-  if (!result) return;
-
-  const command = result.command?.trim() || '';
-  const validItems = parsePromptItems(result._promptItems);
-  const initialPromptDelay = parseInt(result.initialPromptDelay || '0', 10) || 0;
-  const options = buildCommandOptions(result);
-
-  const updateResult = await window.gamepadCli.toolsUpdateCliType(key, result.name, command, validItems, initialPromptDelay, options);
-  if (updateResult.success) {
-    logEvent(`Updated CLI type: ${key}`);
-    state.cliTypes = await window.gamepadCli.configGetCliTypes();
-    state.availableSpawnTypes = state.cliTypes;
-    await initConfigCache();
-    loadSessions();
-    loadSettingsScreen();
-  } else {
-    logEvent('Failed to update CLI type');
-  }
+    const updateResult = await window.gamepadCli.toolsUpdateCliType(key, values.name, command, validItems, initialPromptDelay, options);
+    if (updateResult.success) {
+      logEvent(`Updated CLI type: ${key}`);
+      state.cliTypes = await window.gamepadCli.configGetCliTypes();
+      state.availableSpawnTypes = state.cliTypes;
+      await initConfigCache();
+      loadSessions();
+      loadSettingsScreen();
+    } else {
+      logEvent('Failed to update CLI type');
+    }
+  });
 }
 
-/** Build the optional command fields from form result. Empty string = clear, undefined = no change. */
-function buildCommandOptions(result: Record<string, string>): { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual' } | undefined {
-  const fields = ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
+/** Build the optional command fields from tool editor result. Empty string = clear. */
+function buildCommandOptionsFromToolEditor(values: any): { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual' } | undefined {
+  const fields = ['args', 'handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
   const opts: Record<string, string> = {};
   let hasAny = false;
   for (const field of fields) {
-    const val = result[field];
-    if (val !== undefined) {
-      opts[field] = val.trim();
-      hasAny = true;
-    }
+    const val = typeof values[field] === 'string' ? values[field] : '';
+    opts[field] = val.trim();
+    hasAny = true;
   }
-  if (result.pasteMode === 'pty' || result.pasteMode === 'sendkeys' || result.pasteMode === 'sendkeysindividual') {
-    (opts as any).pasteMode = result.pasteMode;
+  const pm = values.pasteMode;
+  if (pm === 'pty' || pm === 'sendkeys' || pm === 'sendkeysindividual') {
+    (opts as any).pasteMode = pm;
     hasAny = true;
   }
   return hasAny ? opts as any : undefined;

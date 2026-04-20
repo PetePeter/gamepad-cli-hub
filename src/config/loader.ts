@@ -98,6 +98,8 @@ export interface SpawnConfig {
 export interface CliTypeConfig {
   name: string;
   command: string;
+  /** Persistent command-line arguments appended to `command` at spawn time. Space-separated string. */
+  args?: string;
   initialPrompt?: SequenceListItem[];
   initialPromptDelay?: number;
   /** Named sequence groups — accessible via gamepad bindings and context menu */
@@ -846,13 +848,14 @@ export class ConfigLoader {
   addCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual' },
+    options?: { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual' },
   ): void {
     this.ensureLoaded();
     if (this.activeProfile!.tools[key]) {
       throw new Error(`CLI type already exists: ${key}`);
     }
     const tool: CliTypeConfig = { name, command, initialPrompt: initialPrompt ?? [], initialPromptDelay: initialPromptDelay ?? 0 };
+    if (options?.args) tool.args = options.args;
     if (options?.handoffCommand) tool.handoffCommand = options.handoffCommand;
     if (options?.renameCommand) tool.renameCommand = options.renameCommand;
     if (options?.spawnCommand) tool.spawnCommand = options.spawnCommand;
@@ -866,7 +869,7 @@ export class ConfigLoader {
   updateCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual' },
+    options?: { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual' },
   ): void {
     this.ensureLoaded();
     if (!this.activeProfile!.tools[key]) {
@@ -881,7 +884,7 @@ export class ConfigLoader {
 
     // Optional fields: undefined = preserve, empty string = clear, value = set
     if (options) {
-      for (const field of ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand', 'pasteMode'] as const) {
+      for (const field of ['args', 'handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand', 'pasteMode'] as const) {
         const val = options[field];
         if (val === undefined) continue;
         if (val === '') { delete (existing as any)[field]; }

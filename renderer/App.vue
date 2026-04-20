@@ -46,6 +46,7 @@ import {
   draftSubmenu,
   formModal, getFormModalResolve,
   editorPopup, getEditorPopupOnSend, getEditorPopupResolve, setEditorPopupCallbacks,
+  toolEditor, getToolEditorCallback,
   isAnyBridgeModalVisible,
 } from './stores/modal-bridge.js';
 import { collectSequenceItems } from './modals/context-menu.js';
@@ -77,6 +78,7 @@ import ContextMenu from './components/modals/ContextMenu.vue';
 import DraftSubmenu from './components/modals/DraftSubmenu.vue';
 import DirPickerModal from './components/modals/DirPickerModal.vue';
 import FormModal from './components/modals/FormModal.vue';
+import ToolEditorModal from './components/modals/ToolEditorModal.vue';
 import EditorPopup from './components/modals/EditorPopup.vue';
 import BindingEditorModal from './components/modals/BindingEditorModal.vue';
 import ToastNotification from './components/ToastNotification.vue';
@@ -490,6 +492,17 @@ function onFormModalCancel(): void {
   if (resolve) resolve(null);
 }
 
+// Tool editor modal callbacks
+function onToolEditorSave(values: any): void {
+  toolEditor.visible = false;
+  const cb = getToolEditorCallback();
+  cb?.(values);
+}
+
+function onToolEditorCancel(): void {
+  toolEditor.visible = false;
+}
+
 // Editor popup callbacks
 function onEditorSend(text: string): void {
   const cb = getEditorPopupOnSend();
@@ -855,6 +868,15 @@ onUnmounted(() => {
       :fields="formModal.fields"
       @save="onFormModalSave"
       @cancel="onFormModalCancel"
+    />
+
+    <ToolEditorModal
+      v-model:visible="toolEditor.visible"
+      :mode="toolEditor.mode"
+      :edit-key="toolEditor.editKey"
+      :initial-data="toolEditor.initialData"
+      @save="onToolEditorSave"
+      @cancel="onToolEditorCancel"
     />
 
     <EditorPopup

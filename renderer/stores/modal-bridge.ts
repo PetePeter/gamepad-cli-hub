@@ -143,12 +143,49 @@ export function getEditorPopupOnSend(): ((text: string) => void) | null { return
 export function getEditorPopupResolve(): (() => void) | null { return _editorPopupResolve; }
 
 // ============================================================================
+// Tool Editor
+// ============================================================================
+
+export interface ToolEditorBridgeData {
+  name: string;
+  command: string;
+  args: string;
+  initialPromptDelay: number;
+  pasteMode: 'pty' | 'sendkeys' | 'sendkeysindividual';
+  spawnCommand: string;
+  resumeCommand: string;
+  continueCommand: string;
+  renameCommand: string;
+  handoffCommand: string;
+  initialPrompt: Array<{ label: string; sequence: string }>;
+}
+
+const EMPTY_TOOL_DATA: ToolEditorBridgeData = {
+  name: '', command: '', args: '', initialPromptDelay: 2000,
+  pasteMode: 'pty', spawnCommand: '', resumeCommand: '', continueCommand: '',
+  renameCommand: '', handoffCommand: '', initialPrompt: [],
+};
+
+export const toolEditor = reactive({
+  visible: false,
+  mode: 'add' as 'add' | 'edit',
+  editKey: '',
+  initialData: { ...EMPTY_TOOL_DATA } as ToolEditorBridgeData,
+});
+
+let _toolEditorOnSave: ((values: any) => void) | null = null;
+export function setToolEditorCallback(cb: ((values: any) => void) | null): void { _toolEditorOnSave = cb; }
+export function getToolEditorCallback(): ((values: any) => void) | null { return _toolEditorOnSave; }
+
+export function resetToolEditorData(): ToolEditorBridgeData { return { ...EMPTY_TOOL_DATA }; }
+
+// ============================================================================
 // Guard helper — check if ANY bridge modal is visible (for race condition guard)
 // ============================================================================
 
 export function isAnyBridgeModalVisible(): boolean {
   return closeConfirm.visible || contextMenu.visible || planDeleteConfirm.visible ||
     sequencePicker.visible || quickSpawn.visible || dirPicker.visible ||
-    draftSubmenu.visible || formModal.visible || editorPopup.visible;
+    draftSubmenu.visible || formModal.visible || editorPopup.visible || toolEditor.visible;
 }
 

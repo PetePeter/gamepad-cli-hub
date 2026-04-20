@@ -249,7 +249,9 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
       const entry = configLoader.getCliTypeEntry(cliType);
       if (!entry) return null;
       // For embedded PTY, use the raw command directly — no terminal wrapper
-      return { command: entry.command || cliType, args: [] };
+      // Parse args string into array if present
+      const args = entry.args ? entry.args.split(/\s+/).filter(Boolean) : [];
+      return { command: entry.command || cliType, args };
     } catch (error) {
       logger.error(`[IPC] Failed to get spawn command for ${cliType}: ${error}`);
       return null;

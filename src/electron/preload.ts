@@ -315,12 +315,12 @@ const gamepadCliAPI = {
   toolsAddCliType: (
     key: string, name: string, command: string,
     initialPrompt: Array<{label: string; sequence: string}>, initialPromptDelay: number,
-    options?: { handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string },
+    options?: { args?: string; handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string },
   ) => ipcRenderer.invoke('tools:addCliType', key, name, command, initialPrompt, initialPromptDelay, options),
   toolsUpdateCliType: (
     key: string, name: string, command: string,
     initialPrompt: Array<{label: string; sequence: string}>, initialPromptDelay: number,
-    options?: { handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string },
+    options?: { args?: string; handoffCommand?: string; renameCommand?: string; resumeCommand?: string; continueCommand?: string },
   ) => ipcRenderer.invoke('tools:updateCliType', key, name, command, initialPrompt, initialPromptDelay, options),
   toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),
   toolsGetPatterns: (cliType: string) => ipcRenderer.invoke('tools:getPatterns', cliType),
