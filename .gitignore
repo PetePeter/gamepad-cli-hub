@@ -22,3 +22,4 @@ config/plans.yaml.bak
 config/plans/
 config/plan-dependencies.json
 config-deploy/
+tmp/helm-work*
