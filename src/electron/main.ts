@@ -5,11 +5,12 @@
  * Manages window creation, IPC communication, and application lifecycle.
  */
 
-import { app, BrowserWindow, Menu, powerMonitor, crashReporter } from 'electron';
+import { app, BrowserWindow, Menu, powerMonitor, crashReporter, ipcMain } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 import { registerIPCHandlers } from './ipc/handlers.js';
+import { buildSplashHtml } from './splash-html.js';
 import { setupPowerMonitor } from '../session/power-monitor.js';
 import { migrateOldPlans } from '../session/plan-migration.js';
 import { configLoader } from '../config/loader.js';
@@ -36,7 +37,93 @@ app.setAppUserModelId('com.gamepadcli.hub');
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let mainWindow: BrowserWindow | null = null;
+let splashWindow: BrowserWindow | null = null;
 let cleanupIPC: (() => void) | null = null;
+let windowBounds = { width: 1280, height: 800, x: undefined as number | undefined, y: undefined as number | undefined };
+let mainWindowReadyToShow = false;
+let rendererStartupReady = false;
+let startupFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+function readWindowBounds(): void {
+  windowBounds = { width: 1280, height: 800, x: undefined as number | undefined, y: undefined as number | undefined };
+  try {
+    const prefs = configLoader.getSidebarPrefs();
+    if (prefs.width) windowBounds.width = Math.max(prefs.width, 800);
+    if (prefs.height) windowBounds.height = prefs.height;
+    if (prefs.x !== undefined) windowBounds.x = prefs.x;
+    if (prefs.y !== undefined) windowBounds.y = prefs.y;
+  } catch {
+    logger.warn('[Main] Could not read window prefs, using defaults');
+  }
+}
+
+function resolveWindowIcon(): string | undefined {
+  const iconCandidates = [
+    join(process.cwd(), 'build', 'icon.ico'),
+    join(process.cwd(), 'build', 'icon.png'),
+    join(__dirname, '..', '..', 'build', 'icon.ico'),
+    join(__dirname, '..', '..', 'build', 'icon.png'),
+  ];
+  return iconCandidates.find(p => existsSync(p));
+}
+
+function clearStartupFallbackTimer(): void {
+  if (!startupFallbackTimer) return;
+  clearTimeout(startupFallbackTimer);
+  startupFallbackTimer = null;
+}
+
+function closeSplashWindow(): void {
+  clearStartupFallbackTimer();
+  if (!splashWindow || splashWindow.isDestroyed()) {
+    splashWindow = null;
+    return;
+  }
+  splashWindow.close();
+  splashWindow = null;
+}
+
+function maybeShowMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (!mainWindowReadyToShow || !rendererStartupReady) return;
+
+  if (!windowBounds.x && !windowBounds.y) {
+    mainWindow.maximize();
+  }
+  if (!mainWindow.isVisible()) {
+    mainWindow.show();
+    logger.info('[Main] Window shown');
+  }
+  mainWindow.focus();
+  closeSplashWindow();
+}
+
+function createSplashWindow(): void {
+  closeSplashWindow();
+
+  splashWindow = new BrowserWindow({
+    width: 460,
+    height: 320,
+    frame: false,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    movable: false,
+    fullscreenable: false,
+    show: false,
+    center: true,
+    skipTaskbar: true,
+    backgroundColor: '#0a0a0a',
+    alwaysOnTop: true,
+  });
+
+  splashWindow.setMenuBarVisibility(false);
+  void splashWindow.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(buildSplashHtml(app.getVersion()))}`);
+  splashWindow.once('ready-to-show', () => splashWindow?.show());
+  splashWindow.on('closed', () => {
+    splashWindow = null;
+  });
+}
 
 /**
  * Create the main application window.
@@ -49,29 +136,12 @@ function createWindow(): void {
   const preloadPath = join(__dirname, 'preload.cjs');
   logger.debug(`[Main] Preload path: ${preloadPath}`);
 
-  // Read persisted window bounds (falls back to sensible defaults)
-  let windowBounds = { width: 1280, height: 800, x: undefined as number | undefined, y: undefined as number | undefined };
-  try {
-    const prefs = configLoader.getSidebarPrefs();
-    if (prefs.width) windowBounds.width = Math.max(prefs.width, 800);
-    if (prefs.height) windowBounds.height = prefs.height;
-    if (prefs.x !== undefined) windowBounds.x = prefs.x;
-    if (prefs.y !== undefined) windowBounds.y = prefs.y;
-  } catch {
-    logger.warn('[Main] Could not read window prefs, using defaults');
-  }
+  readWindowBounds();
+  mainWindowReadyToShow = false;
+  rendererStartupReady = false;
 
-  // Resolve the window icon — prefer ICO (Windows native), fall back to PNG.
-  // In dev: cwd is the repo root, so build/icon.ico resolves directly.
-  // In the packaged app: electron-builder embeds the icon in the EXE, but we
-  // still pass a path here so it survives in the window/taskbar after startup.
-  const iconCandidates = [
-    join(process.cwd(), 'build', 'icon.ico'),
-    join(process.cwd(), 'build', 'icon.png'),
-    join(__dirname, '..', '..', 'build', 'icon.ico'),
-    join(__dirname, '..', '..', 'build', 'icon.png'),
-  ];
-  const windowIcon = iconCandidates.find(p => existsSync(p));
+  const windowIcon = resolveWindowIcon();
+  createSplashWindow();
 
   mainWindow = new BrowserWindow({
     width: windowBounds.width,
@@ -101,13 +171,10 @@ function createWindow(): void {
   // Keep our BrowserWindow title (prevents HTML <title> from overriding it)
   mainWindow.on('page-title-updated', (e) => e.preventDefault());
 
-  // Show window when ready — maximise on first launch
+  // Wait for both Chromium paint readiness and renderer bootstrap readiness.
   mainWindow.once('ready-to-show', () => {
-    if (!windowBounds.x && !windowBounds.y) {
-      mainWindow?.maximize();
-    }
-    mainWindow?.show();
-    logger.info('[Main] Window shown');
+    mainWindowReadyToShow = true;
+    maybeShowMainWindow();
   });
 
   // Preload check
@@ -135,6 +202,9 @@ function createWindow(): void {
       }
       lastReloadTime = now;
       logger.info('[Main] Attempting renderer reload after crash');
+      mainWindowReadyToShow = false;
+      rendererStartupReady = false;
+      createSplashWindow();
       mainWindow.webContents.reload();
     }
   });
@@ -169,9 +239,20 @@ function createWindow(): void {
   mainWindow.on('move', persistBounds);
 
   mainWindow.on('closed', () => {
+    clearStartupFallbackTimer();
+    closeSplashWindow();
     mainWindow = null;
+    mainWindowReadyToShow = false;
+    rendererStartupReady = false;
     logger.info('[Main] Window closed');
   });
+
+  clearStartupFallbackTimer();
+  startupFallbackTimer = setTimeout(() => {
+    logger.warn('[Main] Renderer startup-ready signal timed out; showing main window anyway');
+    rendererStartupReady = true;
+    maybeShowMainWindow();
+  }, 15000);
 
   logger.info(`[Main] Window created (${windowBounds.width}x${windowBounds.height})`);
 }
@@ -226,6 +307,15 @@ app.whenReady().then(async () => {
   });
 });
 
+ipcMain.on('app:startupReady', (event) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (event.sender.id !== mainWindow.webContents.id) return;
+
+  rendererStartupReady = true;
+  logger.info('[Main] Renderer signaled startup ready');
+  maybeShowMainWindow();
+});
+
 /**
  * Application lifecycle - All windows closed
  */
@@ -243,6 +333,8 @@ app.on('window-all-closed', () => {
  */
 app.on('before-quit', () => {
   logger.info('[Main] App quitting');
+
+  closeSplashWindow();
 
   if (cleanupIPC) {
     cleanupIPC();

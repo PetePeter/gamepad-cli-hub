@@ -5,3 +5,12 @@ declare module '*.vue' {
   const component: DefineComponent<{}, {}, any>;
   export default component;
 }
+
+declare global {
+  interface Window {
+    gamepadCli: {
+      appVersion: string;
+      appStartupReady: () => Promise<void>;
+    };
+  }
+}

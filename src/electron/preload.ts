@@ -7,6 +7,8 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
+const appVersion = ipcRenderer.sendSync('app:getVersionSync') as string;
+
 /**
  * API exposed to the renderer process
  */
@@ -394,8 +396,17 @@ const gamepadCliAPI = {
 
   systemOpenLogsFolder: () => ipcRenderer.invoke('system:openLogsFolder'),
 
+  /** App version made available synchronously for first-paint UI. */
+  appVersion,
+
   /** Get app version from package.json via Electron */
   appGetVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
+
+  /** Notify the main process that the renderer has finished startup. */
+  appStartupReady: (): Promise<void> => {
+    ipcRenderer.send('app:startupReady');
+    return Promise.resolve();
+  },
 
   /** Open external editor (Notepad) for prompt composition */
   editorOpenExternal: (): Promise<{ success: boolean; text?: string; error?: string }> =>

@@ -528,13 +528,6 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
     onTerminalSwitch, onTerminalEmpty, onTerminalTitleChange,
   } = opts;
 
-  // Populate splash version
-  try {
-    const version = await window.gamepadCli?.appGetVersion();
-    const versionEl = document.getElementById('splashVersion');
-    if (versionEl && version) versionEl.textContent = `v${version}`;
-  } catch { /* cosmetic */ }
-
   // Config warmup
   try {
     await window.gamepadCli?.configGetAll();

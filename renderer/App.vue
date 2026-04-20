@@ -675,63 +675,64 @@ function handleModalKeyboardBridge(e: KeyboardEvent): void {
 // ============================================================================
 
 onMounted(async () => {
-  if (!terminalContainerRef.value) return;
+  if (!terminalContainerRef.value) {
+    await window.gamepadCli.appStartupReady();
+    return;
+  }
 
-  offTextDeliver = window.gamepadCli.onTextDeliverRequest(async ({ requestId, sessionId, text }) => {
+  try {
+    offTextDeliver = window.gamepadCli.onTextDeliverRequest(async ({ requestId, sessionId, text }) => {
+      try {
+        await deliverBulkText(sessionId, text);
+        await window.gamepadCli.textDeliverResponse(requestId, true);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await window.gamepadCli.textDeliverResponse(requestId, false, message);
+      }
+    });
+    await window.gamepadCli.textDeliverReady();
+
+    await bootstrap({
+      terminalContainer: terminalContainerRef.value,
+      handleButton,
+      handleRelease,
+      onTerminalSwitch(sessionId) {
+        void navStore.reconcileTerminalSwitch(sessionId ?? null);
+        if (sessionId) activeView.value = 'terminal';
+      },
+      onTerminalEmpty() {
+        state.activeSessionId = null;
+        chipBarStore.clear();
+      },
+      onTerminalTitleChange(sessionId, title) {
+        const s = state.sessions.find(s => s.id === sessionId);
+        if (s) s.title = title;
+      },
+    });
+
+    // Wire sessions-spawn dir picker to Vue DirPickerModal
+    setDirPickerBridge((cliType, dirs, preselectedPath) => {
+      openDirPicker(cliType, dirs, preselectedPath);
+    });
+
+    // Keyboard → modal stack bridge (all navigation keys reach modals via unified path)
+    window.addEventListener('keydown', handleModalKeyboardBridge, true);
+
+    // Wire view-change listener so activeView stays in sync with legacy MainViewManager
+    onViewChange((view: ViewName) => {
+      activeView.value = view;
+    });
+
+    await loadCollapsePrefs();
+    await chipBarStore.refresh(state.activeSessionId ?? null);
+  } catch (error) {
+    console.error('[App] Startup failed:', error);
+  } finally {
     try {
-      await deliverBulkText(sessionId, text);
-      await window.gamepadCli.textDeliverResponse(requestId, true);
+      await window.gamepadCli.appStartupReady();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      await window.gamepadCli.textDeliverResponse(requestId, false, message);
+      console.error('[App] Failed to notify main process that startup completed:', error);
     }
-  });
-  await window.gamepadCli.textDeliverReady();
-
-  await bootstrap({
-    terminalContainer: terminalContainerRef.value,
-    handleButton,
-    handleRelease,
-    onTerminalSwitch(sessionId) {
-      void navStore.reconcileTerminalSwitch(sessionId ?? null);
-      if (sessionId) activeView.value = 'terminal';
-    },
-    onTerminalEmpty() {
-      state.activeSessionId = null;
-      chipBarStore.clear();
-    },
-    onTerminalTitleChange(sessionId, title) {
-      const s = state.sessions.find(s => s.id === sessionId);
-      if (s) s.title = title;
-    },
-  });
-
-  // Wire sessions-spawn dir picker to Vue DirPickerModal
-  setDirPickerBridge((cliType, dirs, preselectedPath) => {
-    openDirPicker(cliType, dirs, preselectedPath);
-  });
-
-  // Keyboard → modal stack bridge (all navigation keys reach modals via unified path)
-  window.addEventListener('keydown', handleModalKeyboardBridge, true);
-
-  // Wire view-change listener so activeView stays in sync with legacy MainViewManager
-  onViewChange((view: ViewName) => {
-    activeView.value = view;
-  });
-
-  await loadCollapsePrefs();
-  await chipBarStore.refresh(state.activeSessionId ?? null);
-
-  // Dismiss splash after 3 seconds
-  const splash = document.getElementById('splashScreen');
-  if (splash) {
-    setTimeout(() => {
-      splash.classList.add('splash-screen--hidden');
-      // Remove from DOM after transition completes
-      setTimeout(() => {
-        splash.style.display = 'none';
-      }, 220); // Match CSS transition duration (0.22s)
-    }, 3000);
   }
 });
 

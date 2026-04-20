@@ -7,15 +7,12 @@ function readRepoFile(...segments: string[]): string {
 }
 
 describe('Helm branding surfaces', () => {
-  it('uses Helm title, tagline, and splash branding in the renderer shell', () => {
+  it('uses Helm title and app mount in the renderer shell', () => {
     const html = readRepoFile('renderer', 'index.html');
 
     expect(html).toContain('Helm — steer your fleet of agents');
-    expect(html).toContain('id="splashScreen"');
-    expect(html).toContain('steer your fleet of agents');
-    expect(html).toContain('assets/helm-paper-boat.svg');
-    expect(html).toContain('>Helm<');
-    expect(html).toContain('id="splashVersion"');
+    expect(html).toContain('id="app"');
+    expect(html).not.toContain('id="splashScreen"');
   });
 
   it('ships Helm package metadata and renderer assets', () => {
