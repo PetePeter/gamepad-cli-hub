@@ -763,7 +763,7 @@ onUnmounted(() => {
 
       <div v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': plannerCollapsed }">
         <div class="section-label" @click="togglePlannerCollapse">
-          <button class="section-toggle">{{ plannerCollapsed ? '˄' : '˅' }}</button>
+          <button class="section-toggle">{{ plannerCollapsed ? '▲' : '▼' }}</button>
           <span>Folder Planner</span>
         </div>
         <PlansGrid

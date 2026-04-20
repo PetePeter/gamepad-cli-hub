@@ -186,6 +186,7 @@ async function refreshPlanCounts(): Promise<void> {
   state.planDirDoingCounts.clear();
   state.planDirBlockedCounts.clear();
   state.planDirQuestionCounts.clear();
+  state.planDirWaitTestsCounts.clear();
   state.planDirPendingCounts.clear();
 
   const tm = getTerminalManager();
