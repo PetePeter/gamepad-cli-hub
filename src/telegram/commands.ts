@@ -27,6 +27,15 @@ import type { ConfigLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
 import path from 'path';
 
+function deliverViaManager(ptyManager: PtyManager, sessionId: string, text: string): Promise<void> {
+  const maybeDeliver = (ptyManager as Partial<PtyManager>).deliverText;
+  if (typeof maybeDeliver === 'function') {
+    return maybeDeliver.call(ptyManager, sessionId, text);
+  }
+  ptyManager.write(sessionId, text);
+  return Promise.resolve();
+}
+
 /** Minimal contract for output summarization — module may not exist yet. */
 export interface OutputSummaryProvider {
   getSummary(sessionId: string): string;
@@ -166,7 +175,7 @@ export function setupSlashCommands(deps: SlashCommandDeps): () => void {
       return;
     }
 
-    ptyManager.write(sessionId, args.trim() + '\r');
+    await deliverViaManager(ptyManager, sessionId, args.trim() + '\r');
     await reply(msg, `✅ Sent: <code>${escapeHtml(args.trim())}</code>`, { parse_mode: 'HTML' });
   }
 

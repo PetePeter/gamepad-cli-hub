@@ -56,6 +56,15 @@ export function setupPtyHandlers(
   onPtyInput?: (sessionId: string, data: string) => void,
   patternMatcher?: PatternMatcher,
 ): void {
+  const deliverText = (sessionId: string, text: string): Promise<void> => {
+    const maybeDeliver = (ptyManager as Partial<PtyManager>).deliverText;
+    if (typeof maybeDeliver === 'function') {
+      return maybeDeliver.call(ptyManager, sessionId, text);
+    }
+    ptyManager.write(sessionId, text);
+    return Promise.resolve();
+  };
+
   // pty:spawn - Spawn a new PTY process and register as session
   ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string, resumeSessionName?: string) => {
     logger.info(`[PTY IPC] pty:spawn called: sessionId=${sessionId}, command=${command}, args=${JSON.stringify(args)}, cwd=${cwd}, cliType=${cliType}, hasContext=${!!contextText}, resume=${resumeSessionName || 'none'}`);
@@ -116,6 +125,8 @@ export function setupPtyHandlers(
             renameCommand: promptConfig.renameCommand,
           }, (sid, data) => {
             ptyManager.write(sid, data);
+          }, (sid, text) => {
+            return deliverText(sid, text);
           });
           if (cancel) {
             promptCancellers.set(sessionId, cancel);
@@ -125,7 +136,7 @@ export function setupPtyHandlers(
         // Fresh spawn: normal initial prompt + context text flow
         const writeContextText = () => {
           if (contextText && contextText.trim()) {
-            ptyManager.write(sessionId, contextText);
+            void deliverText(sessionId, contextText);
             logger.info(`[PTY IPC] Context text written to ${sessionId} (${contextText.length} chars)`);
           }
         };
@@ -133,6 +144,8 @@ export function setupPtyHandlers(
         const promptConfig = resolvePromptConfig(cliType, configLoader, cliSessionName);
         const cancel = scheduleInitialPrompt(sessionId, promptConfig, (sid, data) => {
           ptyManager.write(sid, data);
+        }, (sid, text) => {
+          return deliverText(sid, text);
         }, writeContextText);
         if (cancel) {
           promptCancellers.set(sessionId, cancel);
@@ -275,7 +288,7 @@ export function setupPtyHandlers(
           const targetCliType = targetSession?.cliType;
           const targetConfig = targetCliType && configLoader ? configLoader.getCliTypeEntry(targetCliType) : null;
           if (targetConfig?.handoffCommand) {
-            ptyManager.write(handoff.toSessionId, targetConfig.handoffCommand);
+            void deliverText(handoff.toSessionId, targetConfig.handoffCommand);
           } else {
             logger.debug(`[PTY IPC] No handoffCommand configured for CLI type '${targetCliType}', skipping command write`);
           }

@@ -26,6 +26,10 @@ const ptyIndividualLock = new Set<string>();
 const SENDKEYS_INDIVIDUAL_DELAY_MS = 20;
 const PTY_INDIVIDUAL_DELAY_MS = 30;
 
+function nextFrame(): Promise<void> {
+  return new Promise(resolve => requestAnimationFrame(() => resolve()));
+}
+
 /** Deliver bulk text to the active session — either via PTY write, xterm paste,
  *  or OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode.
  *  When using PTY mode, wraps text in bracketed paste markers if the terminal
@@ -33,7 +37,7 @@ const PTY_INDIVIDUAL_DELAY_MS = 30;
 export async function deliverBulkText(sessionId: string, text: string): Promise<void> {
   if (!text) return;
   const session = state.sessions.find(s => s.id === sessionId);
-  const tool = session ? state.cliToolsCache[session.cliType] : undefined;
+  const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
 
   console.log(`[Paste] mode=${tool?.pasteMode ?? 'pty(default)'} cliType=${session?.cliType} chars=${text.length}`);
 
@@ -70,19 +74,22 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
   // terminal delivers the paste to the PTY path instead of using OS-level keys.
   if (tool?.pasteMode === 'clippaste') {
     const tm = getTerminalManager();
-    const session = tm?.getSession(sessionId);
+    const session = tm?.getSession?.(sessionId);
 
     if (!session) return;
 
     // Focus first so xterm's hidden textarea is the active terminal input sink.
     session.view.focus();
+    // Wait for overlay teardown / focus restoration to settle before pasting.
+    await nextFrame();
+    await nextFrame();
     session.view.paste(text);
     return;
   }
 
   // PTY mode — wrap in bracketed paste markers if the terminal requests it
   const tm = getTerminalManager();
-  const view = tm?.getSession(sessionId)?.view;
+  const view = tm?.getSession?.(sessionId)?.view;
   const payload = view?.isBracketedPasteEnabled()
     ? `\x1b[200~${text}\x1b[201~`
     : text;

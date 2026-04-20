@@ -53,6 +53,7 @@ describe('keyboard relay', () => {
   let mockPtyWrite: ReturnType<typeof vi.fn>;
   let getActiveSessionId: ReturnType<typeof vi.fn>;
   let hasPendingQuestion: ReturnType<typeof vi.fn>;
+  let restoreRequestAnimationFrame: (() => void) | null = null;
 
   beforeEach(() => {
     mockPtyWrite = vi.fn().mockResolvedValue({ success: true });
@@ -70,11 +71,22 @@ describe('keyboard relay', () => {
       configurable: true,
     });
 
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      callback(0);
+      return 1;
+    }) as typeof requestAnimationFrame;
+    restoreRequestAnimationFrame = () => {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+    };
+
     setupKeyboardRelay(getActiveSessionId, hasPendingQuestion);
   });
 
   afterEach(() => {
     teardownKeyboardRelay();
+    restoreRequestAnimationFrame?.();
+    restoreRequestAnimationFrame = null;
     vi.restoreAllMocks();
   });
 
@@ -388,6 +400,7 @@ describe('keyboard relay', () => {
 describe('deliverBulkText', () => {
   let mockPtyWrite: ReturnType<typeof vi.fn>;
   let mockKeyboardTypeString: ReturnType<typeof vi.fn>;
+  let restoreRequestAnimationFrame: (() => void) | null = null;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -403,10 +416,21 @@ describe('deliverBulkText', () => {
     mockState.sessions = [];
     mockState.cliToolsCache = {};
     mockGetTerminalManager.mockReturnValue(null);
+
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      callback(0);
+      return 1;
+    }) as typeof requestAnimationFrame;
+    restoreRequestAnimationFrame = () => {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+    };
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    restoreRequestAnimationFrame?.();
+    restoreRequestAnimationFrame = null;
     vi.restoreAllMocks();
   });
 

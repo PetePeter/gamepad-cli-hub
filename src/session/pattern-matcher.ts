@@ -65,14 +65,14 @@ const DEFAULT_COOLDOWN_MS = 300_000; // 5 minutes
  *  - 'schedule-cancelled' (ScheduleCancelledEvent) — timer cancelled
  */
 export class PatternMatcher extends EventEmitter {
-  private readonly ptyWriteFn: (sessionId: string, data: string) => void;
+  private readonly ptyWriteFn: (sessionId: string, data: string) => void | Promise<void>;
   private readonly getPatternsFn: (cliType: string) => PatternRule[];
 
   private pendingSchedules: Map<string, PendingSchedule> = new Map();
   private lastFired: LastFiredMap = new Map();
 
   constructor(
-    ptyWriteFn: (sessionId: string, data: string) => void,
+    ptyWriteFn: (sessionId: string, data: string) => void | Promise<void>,
     getPatternsFn: (cliType: string) => PatternRule[],
   ) {
     super();
@@ -178,11 +178,9 @@ export class PatternMatcher extends EventEmitter {
       logger.warn(`[PatternMatcher] send-text rule has no sequence`);
       return;
     }
-    try {
-      this.ptyWriteFn(sessionId, seq);
-    } catch (err) {
+    Promise.resolve(this.ptyWriteFn(sessionId, seq)).catch((err) => {
       logger.error(`[PatternMatcher] ptyWriteFn failed:`, err);
-    }
+    });
   }
 
   private executeWaitUntil(
@@ -226,11 +224,9 @@ export class PatternMatcher extends EventEmitter {
       this.pendingSchedules.delete(sessionId);
       const seq = rule.onResume ?? '';
       if (seq) {
-        try {
-          this.ptyWriteFn(sessionId, seq);
-        } catch (err) {
+        Promise.resolve(this.ptyWriteFn(sessionId, seq)).catch((err) => {
           logger.error(`[PatternMatcher] scheduled ptyWriteFn failed:`, err);
-        }
+        });
       }
       this.emit('schedule-fired', { sessionId } satisfies ScheduleFiredEvent);
       logger.info(`[PatternMatcher] Schedule fired for session ${sessionId}`);

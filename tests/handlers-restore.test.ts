@@ -25,12 +25,14 @@ vi.mock('../src/session/pty-manager.js', () => ({
     this.on = vi.fn();
     this.spawn = vi.fn();
     this.write = vi.fn();
+    this.deliverText = vi.fn();
     this.kill = vi.fn();
     this.killAll = vi.fn();
     this.resize = vi.fn();
     this.has = vi.fn();
     this.getPid = vi.fn();
     this.getSessionIds = vi.fn(() => []);
+    this.setTextDeliveryHandler = vi.fn();
   }),
 }));
 

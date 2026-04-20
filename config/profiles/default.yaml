@@ -67,7 +67,7 @@ tools:
   codex:
     name: Codex CLI
     command: codex
-    args: --full-auto
+    args: --dangerously-bypass-approvals-and-sandbox
     handoffCommand: go implement it
     initialPrompt:
       - label: ""

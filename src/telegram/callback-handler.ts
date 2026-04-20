@@ -41,6 +41,15 @@ import { escapeHtml } from './utils.js';
 import { scheduleInitialPrompt } from '../session/initial-prompt.js';
 import { logger } from '../utils/logger.js';
 
+function deliverViaManager(ptyManager: PtyManager, sessionId: string, text: string): Promise<void> {
+  const maybeDeliver = (ptyManager as Partial<PtyManager>).deliverText;
+  if (typeof maybeDeliver === 'function') {
+    return maybeDeliver.call(ptyManager, sessionId, text);
+  }
+  ptyManager.write(sessionId, text);
+  return Promise.resolve();
+}
+
 /** Generate a random session ID using UUID v4. */
 function randomId(): string {
   return randomUUID();
@@ -368,7 +377,7 @@ async function handleCommandExec(
   }
 
   const ptyText = expandSequence(sequence);
-  ptyManager.write(sessionId, ptyText);
+  await deliverViaManager(ptyManager, sessionId, ptyText);
   await bot.answerCallback(query.id, `⚡ Sent: ${label}`);
 }
 
@@ -492,6 +501,8 @@ async function handleSpawnExec(
         renameCommand,
       }, (sid, data) => {
         ptyManager.write(sid, data);
+      }, (sid, text) => {
+        return deliverViaManager(ptyManager, sid, text);
       });
     }
 

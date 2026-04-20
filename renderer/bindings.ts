@@ -9,6 +9,7 @@ import { logEvent } from './utils.js';
 import { parseSequence, formatSequencePreview, type SequenceAction } from '../src/input/sequence-parser.js';
 import type { Binding } from '../src/config/loader.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
+import { deliverBulkText } from './paste-handler.js';
 
 /** Scroll handler for scroll bindings. Routes to overview grid when visible, otherwise to active terminal. */
 function executeScroll(binding: { direction: string; lines?: number }): void {
@@ -299,7 +300,7 @@ async function executeSequenceAction(action: SequenceAction): Promise<void> {
   if (activeId && window.gamepadCli?.ptyWrite) {
     switch (action.type) {
       case 'text':
-        await window.gamepadCli.ptyWrite(activeId, action.value);
+        await deliverBulkText(activeId, action.value);
         break;
       case 'key':
         await window.gamepadCli.ptyWrite(activeId, keyToPtyEscape(action.key));

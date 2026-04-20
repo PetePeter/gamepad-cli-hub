@@ -18,7 +18,7 @@ import { state } from './state.js';
 import { sessionsState } from './screens/sessions-state.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { getCliDisplayName, getCliIcon, toDirection } from './utils.js';
-import { processConfigBinding, processConfigRelease, initConfigCache } from './bindings.js';
+import { processConfigBinding, processConfigRelease, initConfigCache, executeSequence } from './bindings.js';
 import { formatElapsed, refreshSessions, doSpawn, switchToSession, doCloseSession,
   bootstrap, teardown, startTimerRefresh, stopTimerRefresh,
   getSortField, getSortDirection, setSortField, setSortDirection,
@@ -96,6 +96,7 @@ const settingsVisible = ref(false);
 const terminalContainerRef = ref<HTMLElement | null>(null);
 const chipBarStore = useChipBarStore();
 const navStore = useNavigationStore();
+let offTextDeliver: (() => void) | null = null;
 
 // Non-modal local state
 const bindingEditorVisible = ref(false);
@@ -443,9 +444,7 @@ function onContextMenuAction(action: string): void {
       const items = collectSequenceItems();
       if (items.length > 0) {
         showSequencePicker(items, (seq) => {
-          if (state.activeSessionId) {
-            window.gamepadCli.ptyWrite(state.activeSessionId, seq);
-          }
+          if (state.activeSessionId) void executeSequence(seq);
         });
       }
       break;
@@ -625,6 +624,17 @@ async function onBindingEditorSave(binding: any): Promise<void> {
 onMounted(async () => {
   if (!terminalContainerRef.value) return;
 
+  offTextDeliver = window.gamepadCli.onTextDeliverRequest(async ({ requestId, sessionId, text }) => {
+    try {
+      await deliverBulkText(sessionId, text);
+      await window.gamepadCli.textDeliverResponse(requestId, true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await window.gamepadCli.textDeliverResponse(requestId, false, message);
+    }
+  });
+  await window.gamepadCli.textDeliverReady();
+
   await bootstrap({
     terminalContainer: terminalContainerRef.value,
     handleButton,
@@ -694,6 +704,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  offTextDeliver?.();
+  offTextDeliver = null;
   teardown();
 });
 </script>

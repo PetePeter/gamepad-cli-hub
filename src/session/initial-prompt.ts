@@ -77,9 +77,15 @@ export function scheduleInitialPrompt(
   sessionId: string,
   config: InitialPromptConfig,
   writeToPty: (sessionId: string, data: string) => void,
+  deliverTextOrOnComplete?: ((sessionId: string, text: string) => Promise<void>) | (() => void),
   onComplete?: () => void,
 ): (() => void) | null {
   const { initialPrompt, initialPromptDelay = 2000 } = config;
+  const deliverText = onComplete
+    ? (deliverTextOrOnComplete as ((sessionId: string, text: string) => Promise<void>) | undefined)
+    : undefined;
+  const complete = onComplete ?? (deliverTextOrOnComplete as (() => void) | undefined);
+  const deliver = deliverText ?? (async (sid: string, text: string) => { writeToPty(sid, text); });
 
   if ((!initialPrompt || initialPrompt.length === 0) && !config.renameCommand) {
     return null;
@@ -98,6 +104,11 @@ export function scheduleInitialPrompt(
 
       if (action.type === 'wait') {
         await new Promise(resolve => setTimeout(resolve, action.ms));
+        continue;
+      }
+
+      if (action.type === 'text') {
+        await deliver(sessionId, action.value);
         continue;
       }
 
@@ -124,12 +135,12 @@ export function scheduleInitialPrompt(
     // Send rename command after initial prompt items (if configured)
     if (!cancelled && config.renameCommand) {
       logger.info(`[InitialPrompt] Sending rename command for session ${sessionId}`);
-      writeToPty(sessionId, config.renameCommand + '\r');
+      await deliver(sessionId, config.renameCommand + '\r');
     }
 
     if (!cancelled) {
       logger.info(`[InitialPrompt] Complete for session ${sessionId}`);
-      onComplete?.();
+      complete?.();
     }
   };
 

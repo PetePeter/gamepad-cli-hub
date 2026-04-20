@@ -61,6 +61,7 @@ function escapeShellArg(arg: string): string {
 export class PtyManager extends EventEmitter {
   private ptys: Map<string, PtyProcess> = new Map();
   private factory: PtyFactory;
+  private textDeliveryHandler?: (sessionId: string, text: string) => Promise<void>;
 
   constructor(factory?: PtyFactory) {
     super();
@@ -149,6 +150,25 @@ export class PtyManager extends EventEmitter {
     } catch (error) {
       logger.error(`[PTY] Write failed for session=${sessionId}: ${error}`);
     }
+  }
+
+  /** Configure a higher-level text delivery path that can honor per-CLI insertion modes. */
+  setTextDeliveryHandler(handler: ((sessionId: string, text: string) => Promise<void>) | undefined): void {
+    this.textDeliveryHandler = handler;
+  }
+
+  /** Deliver bulk text using the preferred insertion mode when available. */
+  async deliverText(sessionId: string, text: string): Promise<void> {
+    if (!text) return;
+    if (this.textDeliveryHandler) {
+      try {
+        await this.textDeliveryHandler(sessionId, text);
+        return;
+      } catch (error) {
+        logger.warn(`[PTY] Preferred text delivery failed for ${sessionId}, falling back to PTY write: ${error}`);
+      }
+    }
+    this.write(sessionId, text);
   }
 
   /** Resize a session's PTY. */

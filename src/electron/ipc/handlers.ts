@@ -35,6 +35,7 @@ import { setupPtyHandlers, cancelAllPrompts } from './pty-handlers.js';
 import { setupTelegramHandlers } from './telegram-handlers.js';
 import { setupDraftHandlers } from './draft-handlers.js';
 import { setupPlanHandlers } from './plan-handlers.js';
+import { RendererTextDeliverer } from './text-delivery.js';
 import { loadDrafts } from '../../session/persistence.js';
 import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
 
@@ -94,9 +95,11 @@ export function registerIPCHandlers(
   // PlanManager loads from disk in its constructor — no explicit importAll needed
 
   const incomingWatcher = new IncomingPlansWatcher(planManager);
+  const textDeliverer = new RendererTextDeliverer(getMainWindow, sessionManager, configLoader);
+  ptyManager.setTextDeliveryHandler((sessionId, text) => textDeliverer.deliver(sessionId, text));
 
   const patternMatcher = new PatternMatcher(
-    (sessionId, data) => ptyManager.write(sessionId, data),
+    (sessionId, data) => ptyManager.deliverText(sessionId, data),
     (cliType) => configLoader.getPatterns(cliType),
   );
 
@@ -172,6 +175,7 @@ export function registerIPCHandlers(
       cancelAllPrompts();
       stateDetector.dispose();
       patternMatcher.dispose();
+      textDeliverer.dispose();
       notificationManager.dispose();
       ptyManager.killAll();
       void incomingWatcher.close();

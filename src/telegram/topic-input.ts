@@ -20,6 +20,15 @@ import { isReplyKeyboardPress } from './reply-keyboard.js';
 import { escapeHtml } from './utils.js';
 import { logger } from '../utils/logger.js';
 
+function deliverViaManager(ptyManager: PtyManager, sessionId: string, text: string): Promise<void> {
+  const maybeDeliver = (ptyManager as Partial<PtyManager>).deliverText;
+  if (typeof maybeDeliver === 'function') {
+    return maybeDeliver.call(ptyManager, sessionId, text);
+  }
+  ptyManager.write(sessionId, text);
+  return Promise.resolve();
+}
+
 /**
  * Set up topic input forwarding.
  * Listens for messages and routes them to PTY — first by topic mapping,
@@ -84,7 +93,7 @@ async function forwardToSession(
   terminalMirror?: TerminalMirror,
 ): Promise<void> {
   terminalMirror?.registerEcho(sessionId, text);
-  ptyManager.write(sessionId, text + '\r');
+  await deliverViaManager(ptyManager, sessionId, text + '\r');
 
   const echoText = `➡️ <code>${escapeHtml(text)}</code>`;
   if (replyTopicId) {

@@ -176,6 +176,7 @@ describe('pty:spawn resume logic', () => {
         renameCommand: '/rename hub-sid-1',
       }),
       expect.any(Function),
+      expect.any(Function),
     );
     // The config passed should NOT have initialPrompt
     const config = mockScheduleInitialPrompt.mock.calls[0][1];
@@ -215,6 +216,7 @@ describe('pty:spawn resume logic', () => {
         renameCommand: '/rename hub-sid-1',
         initialPromptDelay: 2000,
       }),
+      expect.any(Function),
       expect.any(Function),
     );
   });

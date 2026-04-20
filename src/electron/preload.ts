@@ -244,6 +244,20 @@ const gamepadCliAPI = {
     return () => ipcRenderer.removeListener('pty:activity-change', listener);
   },
 
+  /** Subscribe to main-process requests to deliver text through the renderer terminal path. */
+  onTextDeliverRequest: (callback: (event: { requestId: string; sessionId: string; text: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: { requestId: string; sessionId: string; text: string }) => callback(data);
+    ipcRenderer.on('text:deliver-request', listener);
+    return () => ipcRenderer.removeListener('text:deliver-request', listener);
+  },
+
+  /** Acknowledge a main-process text delivery request. */
+  textDeliverResponse: (requestId: string, success: boolean, error?: string) =>
+    ipcRenderer.invoke('text:deliver-response', requestId, success, error),
+
+  /** Notify the main process that the renderer is ready to service text delivery requests. */
+  textDeliverReady: () => ipcRenderer.invoke('text:deliver-ready'),
+
   // ========================================================================
   // Pipeline Queue
   // ========================================================================

@@ -30,6 +30,15 @@ interface PendingInput {
 /** Pending inputs expire after 5 minutes of inactivity. */
 const INPUT_TIMEOUT_MS = 5 * 60 * 1000;
 
+function deliverViaManager(ptyManager: PtyManager, sessionId: string, text: string): Promise<void> {
+  const maybeDeliver = (ptyManager as Partial<PtyManager>).deliverText;
+  if (typeof maybeDeliver === 'function') {
+    return maybeDeliver.call(ptyManager, sessionId, text);
+  }
+  ptyManager.write(sessionId, text);
+  return Promise.resolve();
+}
+
 export class TextInputManager {
   private pendingInputs = new Map<string, PendingInput>();
   private safeMode = true;
@@ -40,6 +49,10 @@ export class TextInputManager {
     private ptyManager: PtyManager,
     private terminalMirror?: TerminalMirror,
   ) {}
+
+  private async deliverText(sessionId: string, text: string): Promise<void> {
+    await deliverViaManager(this.ptyManager, sessionId, text);
+  }
 
   /** Toggle safe mode (confirmation step before sending). */
   setSafeMode(enabled: boolean): void {
@@ -93,7 +106,7 @@ export class TextInputManager {
     if (!pending?.text) return;
 
     this.terminalMirror?.registerEcho(sessionId, pending.text);
-    this.ptyManager.write(sessionId, pending.text + '\r');
+    await this.deliverText(sessionId, pending.text + '\r');
     this.pendingInputs.delete(sessionId);
 
     const topicId = this.topicManager.getTopicId(sessionId);
@@ -157,7 +170,7 @@ export class TextInputManager {
     text: string,
   ): Promise<void> {
     this.terminalMirror?.registerEcho(sessionId, text);
-    this.ptyManager.write(sessionId, text + '\r');
+    await this.deliverText(sessionId, text + '\r');
     this.pendingInputs.delete(sessionId);
 
     await this.bot.sendToTopic(
