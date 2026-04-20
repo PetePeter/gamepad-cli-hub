@@ -297,6 +297,7 @@ export async function doSpawn(
           const navStore = useNavigationStore();
           navStore.syncSidebarToSession(sessionId);
           sessionsState.activeFocus = 'sessions';
+          await useChipBarStore().refresh(sessionId);
         } catch (e) { console.error('[Bootstrap] Post-spawn refresh failed:', e); }
       }, 300);
     } else {

@@ -698,9 +698,17 @@ onMounted(async () => {
   await loadCollapsePrefs();
   await chipBarStore.refresh(state.activeSessionId ?? null);
 
-  // Dismiss splash
+  // Dismiss splash after 3 seconds
   const splash = document.getElementById('splashScreen');
-  if (splash) splash.style.display = 'none';
+  if (splash) {
+    setTimeout(() => {
+      splash.classList.add('splash-screen--hidden');
+      // Remove from DOM after transition completes
+      setTimeout(() => {
+        splash.style.display = 'none';
+      }, 220); // Match CSS transition duration (0.22s)
+    }, 3000);
+  }
 });
 
 onUnmounted(() => {

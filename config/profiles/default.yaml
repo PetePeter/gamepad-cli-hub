@@ -6,10 +6,11 @@ tools:
     spawnCommand: claude --session-id {cliSessionName}
     resumeCommand: claude --resume={cliSessionName}
     continueCommand: claude --continue
-    handoffCommand: "go implement it\r"
-    initialPromptDelay: 1000
+    handoffCommand: go implement it
+    initialPromptDelay: 5000
     initialPrompt:
-      - sequence: >-
+      - label: ""
+        sequence: >-
           <application-prompt>
 
           SYSTEMPROMPT:
@@ -28,6 +29,7 @@ tools:
       prompts:
         - label: commit
           sequence: use skill(commit)
+    pasteMode: pty
   copilot-cli:
     name: GitHub Copilot CLI
     command: copilot

@@ -346,6 +346,12 @@ describe('useNavigationStore', () => {
       expect(state.activeSessionId).toBe('sess-1');
     });
 
+    it('refreshes chip bar for the activated session', () => {
+      store.activateSession('sess-1');
+
+      expect(mockChipBarRefresh).toHaveBeenCalledWith('sess-1');
+    });
+
     it('does NOT clean up drafts or chip bar', () => {
       store.activateSession('sess-1');
 
@@ -374,6 +380,7 @@ describe('useNavigationStore', () => {
 
       expect(mockTm.switchTo).not.toHaveBeenCalled();
       expect(state.activeSessionId).toBeNull();
+      expect(mockChipBarRefresh).not.toHaveBeenCalled();
     });
   });
 

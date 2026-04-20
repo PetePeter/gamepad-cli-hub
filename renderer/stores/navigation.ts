@@ -27,6 +27,7 @@ import {
 } from '../main-view/main-view-manager.js';
 import { findNavIndexBySessionId } from '../session-groups.js';
 import { getTerminalManager } from '../runtime/terminal-provider.js';
+import { useChipBarStore } from './chip-bar.js';
 
 export const useNavigationStore = defineStore('navigation', () => {
   // ── Panel view (mirrors main-view-manager) ───────────────────────────
@@ -159,6 +160,7 @@ export const useNavigationStore = defineStore('navigation', () => {
     if (tm?.hasTerminal(sessionId)) {
       tm.switchTo(sessionId);
       state.activeSessionId = sessionId;
+      void useChipBarStore().refresh(sessionId);
     }
   }
 
