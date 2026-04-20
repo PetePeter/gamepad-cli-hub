@@ -6,8 +6,9 @@
  * (clamped, not wrapping), A selects, B cancels.
  * Keyboard routed via App.vue bridge → useModalStack → handleButton.
  */
-import { ref, watch } from 'vue';
-import { useModalStack } from '../../composables/useModalStack.js';
+import { ref, watch, nextTick } from 'vue';
+import { SELECTION_KEYS, useModalStack } from '../../composables/useModalStack.js';
+import { useModalAutofocus } from '../../composables/useModalAutofocus.js';
 import { toDirection, getCliDisplayName } from '../../utils.js';
 
 const MODAL_ID = 'quick-spawn';
@@ -26,6 +27,14 @@ const emit = defineEmits<{
 
 const selectedIndex = ref(0);
 const modalStack = useModalStack();
+const overlayRef = ref<HTMLElement | null>(null);
+const { focusIntoModal } = useModalAutofocus(overlayRef, '.dir-picker-item--focused');
+
+async function focusCurrentItem(): Promise<void> {
+  await nextTick();
+  const target = overlayRef.value?.querySelector<HTMLElement>(`#quick-spawn-option-${selectedIndex.value}`);
+  target?.focus();
+}
 
 watch(() => props.visible, (v) => {
   if (v) {
@@ -34,7 +43,9 @@ watch(() => props.visible, (v) => {
       ? props.cliTypes.indexOf(props.preselectedCliType)
       : -1;
     selectedIndex.value = preIdx >= 0 ? preIdx : 0;
-    modalStack.push({ id: MODAL_ID, handler: handleButton });
+    modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: SELECTION_KEYS });
+    void focusIntoModal();
+    void focusCurrentItem();
   } else {
     modalStack.pop(MODAL_ID);
   }
@@ -44,10 +55,12 @@ function handleButton(button: string): boolean {
   const dir = toDirection(button);
   if (dir === 'up' || button === 'ShiftTab') {
     selectedIndex.value = Math.max(0, selectedIndex.value - 1);
+    void focusCurrentItem();
     return true;
   }
   if (dir === 'down' || button === 'Tab') {
     selectedIndex.value = Math.min(props.cliTypes.length - 1, selectedIndex.value + 1);
+    void focusCurrentItem();
     return true;
   }
   if (button === 'A') {
@@ -83,19 +96,30 @@ defineExpose({ handleButton });
   <Teleport to="body">
     <div
       v-if="visible"
+      ref="overlayRef"
       class="modal-overlay modal--visible"
       role="dialog"
       aria-label="Quick spawn CLI type picker"
+      tabindex="-1"
     >
       <div class="modal">
         <div class="modal-title">Select CLI type</div>
-        <div class="dir-picker-list" id="quickSpawnList">
+        <div
+          class="dir-picker-list"
+          id="quickSpawnList"
+          role="listbox"
+          aria-label="CLI types"
+          :aria-activedescendant="cliTypes[selectedIndex] ? `quick-spawn-option-${selectedIndex}` : undefined"
+        >
           <div
             v-for="(cliType, i) in cliTypes"
+            :id="`quick-spawn-option-${i}`"
             :key="cliType"
             class="dir-picker-item focusable"
             :class="{ 'dir-picker-item--focused': i === selectedIndex }"
             tabindex="-1"
+            role="option"
+            :aria-selected="i === selectedIndex"
             @keydown="suppressActivationKey"
             @click="selectItem(i)"
           >

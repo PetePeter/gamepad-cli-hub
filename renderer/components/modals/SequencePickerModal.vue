@@ -5,7 +5,7 @@
  * Gamepad D-pad up/down cycles items (wrapping), A selects, B cancels.
  */
 import { ref, watch, nextTick } from 'vue';
-import { useModalStack } from '../../composables/useModalStack.js';
+import { SELECTION_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { toDirection } from '../../utils.js';
 
 interface SequenceItem {
@@ -33,7 +33,7 @@ const modalStack = useModalStack();
 watch(() => props.visible, (v) => {
   if (v) {
     selectedIndex.value = 0;
-    modalStack.push({ id: MODAL_ID, handler: handleButton });
+    modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: SELECTION_KEYS });
   } else {
     modalStack.pop(MODAL_ID);
   }

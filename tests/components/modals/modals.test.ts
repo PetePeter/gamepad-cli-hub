@@ -1062,6 +1062,22 @@ describe('FormModal.vue', () => {
     w.unmount();
   });
 
+  it('Tab focus trap wraps within form fields', async () => {
+    const w = factory();
+    const overlay = w.find('.modal-overlay');
+    const nameInput = w.find('#form-name').element as HTMLInputElement;
+    const saveButton = w.findAll('button').find(b => b.text() === 'Save')!.element as HTMLButtonElement;
+
+    saveButton.focus();
+    await overlay.trigger('keydown', { key: 'Tab' });
+    expect(document.activeElement).toBe(nameInput);
+
+    nameInput.focus();
+    await overlay.trigger('keydown', { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(saveButton);
+    w.unmount();
+  });
+
   // ---------- sequence-items field type ----------
 
   describe('sequence-items field type', () => {
@@ -1342,6 +1358,22 @@ describe('BindingEditorModal.vue', () => {
     expect(modalStack.has('binding-editor')).toBe(true);
     await w.setProps({ visible: false });
     expect(modalStack.has('binding-editor')).toBe(false);
+    w.unmount();
+  });
+
+  it('Tab focus trap wraps within binding editor fields', async () => {
+    const w = factory();
+    const overlay = w.find('.modal-overlay');
+    const buttonInput = w.find('input[readonly]').element as HTMLInputElement;
+    const saveButton = w.findAll('button').find(b => b.text() === 'Save')!.element as HTMLButtonElement;
+
+    saveButton.focus();
+    await overlay.trigger('keydown', { key: 'Tab' });
+    expect(document.activeElement).toBe(buttonInput);
+
+    buttonInput.focus();
+    await overlay.trigger('keydown', { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(saveButton);
     w.unmount();
   });
 });

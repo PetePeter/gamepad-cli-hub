@@ -614,6 +614,62 @@ async function onBindingEditorSave(binding: any): Promise<void> {
   }
 }
 
+function isEditableElement(element: Element | null): element is HTMLElement {
+  return !!element && (
+    element.tagName === 'INPUT' ||
+    element.tagName === 'TEXTAREA' ||
+    element.tagName === 'SELECT' ||
+    (element as HTMLElement).isContentEditable
+  );
+}
+
+function isEditableElementInsideModal(element: Element | null): element is HTMLElement {
+  return isEditableElement(element) && !!element.closest('.modal-overlay.modal--visible');
+}
+
+function handleModalKeyboardBridge(e: KeyboardEvent): void {
+  const stack = useModalStack();
+  if (!stack.isOpen.value) return;
+
+  const active = document.activeElement;
+  const editableInModal = isEditableElementInsideModal(active);
+  const interceptKeys = stack.topInterceptKeys.value;
+
+  if (e.key === 'ArrowUp') {
+    if (!interceptKeys.has('arrows') || editableInModal) return;
+    e.preventDefault();
+    stack.handleInput('DPadUp');
+  } else if (e.key === 'ArrowDown') {
+    if (!interceptKeys.has('arrows') || editableInModal) return;
+    e.preventDefault();
+    stack.handleInput('DPadDown');
+  } else if (e.key === 'ArrowLeft') {
+    if (!interceptKeys.has('arrows') || editableInModal) return;
+    e.preventDefault();
+    stack.handleInput('DPadLeft');
+  } else if (e.key === 'ArrowRight') {
+    if (!interceptKeys.has('arrows') || editableInModal) return;
+    e.preventDefault();
+    stack.handleInput('DPadRight');
+  } else if (e.key === 'Tab') {
+    if (!interceptKeys.has('tab')) return;
+    e.preventDefault();
+    stack.handleInput(e.shiftKey ? 'ShiftTab' : 'Tab');
+  } else if (e.key === 'Enter') {
+    if (!interceptKeys.has('enter') || (editableInModal && document.activeElement?.tagName === 'TEXTAREA')) return;
+    e.preventDefault();
+    stack.handleInput('A');
+  } else if (e.key === ' ' || e.key === 'Spacebar') {
+    if (!interceptKeys.has('space') || editableInModal) return;
+    e.preventDefault();
+    stack.handleInput('A');
+  } else if (e.key === 'Escape') {
+    if (!interceptKeys.has('escape')) return;
+    e.preventDefault();
+    stack.handleInput('B');
+  }
+}
+
 // ============================================================================
 // Lifecycle
 // ============================================================================
@@ -656,48 +712,7 @@ onMounted(async () => {
   });
 
   // Keyboard → modal stack bridge (all navigation keys reach modals via unified path)
-  document.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (!isAnyBridgeModalVisible()) return;
-    const { handleInput } = useModalStack();
-    const active = document.activeElement as HTMLElement | null;
-    const editable = !!active && (
-      active.tagName === 'INPUT' ||
-      active.tagName === 'TEXTAREA' ||
-      active.tagName === 'SELECT' ||
-      active.isContentEditable
-    );
-    if (e.key === 'ArrowUp') {
-      if (editable) return;
-      e.preventDefault();
-      handleInput('DPadUp');
-    } else if (e.key === 'ArrowDown') {
-      if (editable) return;
-      e.preventDefault();
-      handleInput('DPadDown');
-    } else if (e.key === 'ArrowLeft') {
-      if (editable) return;
-      e.preventDefault();
-      handleInput('DPadLeft');
-    } else if (e.key === 'ArrowRight') {
-      if (editable) return;
-      e.preventDefault();
-      handleInput('DPadRight');
-    } else if (e.key === 'Tab') {
-      e.preventDefault();
-      handleInput(e.shiftKey ? 'ShiftTab' : 'Tab');
-    } else if (e.key === 'Enter') {
-      if (document.activeElement?.tagName === 'TEXTAREA') return;
-      e.preventDefault();
-      handleInput('A');
-    } else if (e.key === ' ' || e.key === 'Spacebar') {
-      if (editable) return;
-      e.preventDefault();
-      handleInput('A');
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      handleInput('B');
-    }
-  }, true);
+  window.addEventListener('keydown', handleModalKeyboardBridge, true);
 
   // Wire view-change listener so activeView stays in sync with legacy MainViewManager
   onViewChange((view: ViewName) => {
@@ -721,6 +736,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', handleModalKeyboardBridge, true);
   offTextDeliver?.();
   offTextDeliver = null;
   teardown();

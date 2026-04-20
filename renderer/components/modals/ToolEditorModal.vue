@@ -5,7 +5,8 @@
  * featuring grouped sections and two-column fields.
  */
 import { ref, watch, computed } from 'vue';
-import { useModalStack } from '../../composables/useModalStack.js';
+import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
+import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import { getSequenceSyntaxHelpText } from '../../utils.js';
 
 const MODAL_ID = 'tool-editor-modal';
@@ -70,6 +71,8 @@ const promptItems = ref<SeqItem[]>([]);
 const sessionExpanded = ref(false);
 const syntaxHelpExpanded = ref(false);
 const syntaxHelpText = getSequenceSyntaxHelpText();
+const overlayRef = ref<HTMLElement | null>(null);
+const { onKeydown } = useFocusTrap(overlayRef);
 
 /* ── Modal title ────────────────────────────────────────────────────────── */
 
@@ -84,7 +87,7 @@ const modalStack = useModalStack();
 watch(() => props.visible, (v) => {
   if (v) {
     initForm();
-    modalStack.push({ id: MODAL_ID, handler: handleButton });
+    modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: FORM_KEYS });
   } else {
     modalStack.pop(MODAL_ID);
   }
@@ -155,31 +158,6 @@ function onCancel(): void {
   emit('update:visible', false);
 }
 
-/* ── Tab trapping — cycle focus within the modal ───────────────────────── */
-
-const FOCUSABLE = 'input, select, textarea, button, [tabindex]:not([tabindex="-1"])';
-
-function onKeydown(e: KeyboardEvent): void {
-  if (e.key !== 'Tab') return;
-  const modal = document.querySelector('.tool-editor-modal');
-  if (!modal) return;
-  const els = Array.from(modal.querySelectorAll(FOCUSABLE)) as HTMLElement[];
-  if (els.length === 0) return;
-
-  e.preventDefault();
-  e.stopPropagation();
-
-  const active = document.activeElement as HTMLElement | null;
-  const idx = active ? els.indexOf(active) : -1;
-  let next: number;
-  if (e.shiftKey) {
-    next = idx <= 0 ? els.length - 1 : idx - 1;
-  } else {
-    next = idx >= els.length - 1 ? 0 : idx + 1;
-  }
-  els[next]?.focus();
-}
-
 defineExpose({ handleButton });
 </script>
 
@@ -187,6 +165,7 @@ defineExpose({ handleButton });
   <Teleport to="body">
     <div
       v-if="visible"
+      ref="overlayRef"
       class="modal-overlay modal--visible"
       role="dialog"
       :aria-label="title"

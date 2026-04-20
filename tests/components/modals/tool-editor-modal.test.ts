@@ -216,4 +216,20 @@ describe('ToolEditorModal.vue', () => {
     expect(w.find('#te-handoff').exists()).toBe(true);
     w.unmount();
   });
+
+  it('Tab focus trap wraps within the modal', async () => {
+    const w = factory();
+    const overlay = w.find('.modal-overlay');
+    const nameInput = w.find('#te-name').element as HTMLInputElement;
+    const closeButton = w.find('.te-close-btn').element as HTMLButtonElement;
+
+    closeButton.focus();
+    await overlay.trigger('keydown', { key: 'Tab' });
+    expect(document.activeElement).toBe(nameInput);
+
+    nameInput.focus();
+    await overlay.trigger('keydown', { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(closeButton);
+    w.unmount();
+  });
 });

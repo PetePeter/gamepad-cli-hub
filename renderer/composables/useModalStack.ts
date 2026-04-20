@@ -11,11 +11,18 @@
 
 import { ref, computed, readonly, type Ref, type DeepReadonly } from 'vue';
 
+export type InterceptKey = 'arrows' | 'tab' | 'enter' | 'escape' | 'space';
+
+export const SELECTION_KEYS = new Set<InterceptKey>(['arrows', 'tab', 'enter', 'escape', 'space']);
+export const FORM_KEYS = new Set<InterceptKey>(['escape']);
+
 export interface ModalEntry {
   /** Unique identifier for this modal (e.g. 'close-confirm', 'context-menu') */
   id: string;
   /** Gamepad button handler — returns true if the button was consumed */
   handler: (button: string) => boolean;
+  /** Keyboard bridge keys this modal wants App.vue to intercept */
+  interceptKeys: Set<InterceptKey>;
 }
 
 const stack = ref<ModalEntry[]>([]);
@@ -50,6 +57,11 @@ export function useModalStack() {
     stack.value.length > 0 ? stack.value[stack.value.length - 1].id : null,
   );
 
+  /** Keyboard bridge policy for the topmost modal */
+  const topInterceptKeys = computed<Set<InterceptKey>>(() =>
+    stack.value.length > 0 ? stack.value[stack.value.length - 1].interceptKeys : new Set(),
+  );
+
   /** Number of modals on the stack */
   const depth = computed(() => stack.value.length);
 
@@ -67,6 +79,7 @@ export function useModalStack() {
     stack: readonly(stack) as DeepReadonly<Ref<ModalEntry[]>>,
     isOpen,
     topId,
+    topInterceptKeys,
     depth,
     push,
     pop,

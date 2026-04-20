@@ -6,7 +6,7 @@
  * Gamepad D-pad up/down navigates (skipping disabled items), A executes, B cancels.
  */
 import { ref, watch, computed } from 'vue';
-import { useModalStack } from '../../composables/useModalStack.js';
+import { SELECTION_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { toDirection } from '../../utils.js';
 
 interface MenuItem {
@@ -56,7 +56,7 @@ watch(() => props.visible, (v) => {
   if (v) {
     // Select first enabled item
     selectedIndex.value = enabledIndices.value[0] ?? 0;
-    modalStack.push({ id: MODAL_ID, handler: handleButton });
+    modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: SELECTION_KEYS });
   } else {
     modalStack.pop(MODAL_ID);
   }

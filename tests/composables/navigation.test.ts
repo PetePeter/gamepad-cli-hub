@@ -19,7 +19,7 @@ vi.mock('vue', async () => {
 });
 
 import { useNavigation } from '../../renderer/composables/useNavigation.js';
-import { useModalStack } from '../../renderer/composables/useModalStack.js';
+import { SELECTION_KEYS, useModalStack } from '../../renderer/composables/useModalStack.js';
 
 describe('useNavigation', () => {
   let nav: ReturnType<typeof useNavigation>;
@@ -95,7 +95,7 @@ describe('useNavigation', () => {
 
   it('routes to modal stack when modals are open', () => {
     const handler = vi.fn(() => true);
-    nav.modalStack.push({ id: 'test-modal', handler });
+    nav.modalStack.push({ id: 'test-modal', handler, interceptKeys: SELECTION_KEYS });
     nav.handleButton('A');
     expect(handler).toHaveBeenCalledWith('A');
   });
@@ -104,7 +104,7 @@ describe('useNavigation', () => {
     const screenHandler = { handleButton: vi.fn(() => true) };
     nav.registerScreen('sessions', screenHandler);
     const modalHandler = vi.fn(() => true);
-    nav.modalStack.push({ id: 'blocker', handler: modalHandler });
+    nav.modalStack.push({ id: 'blocker', handler: modalHandler, interceptKeys: SELECTION_KEYS });
     nav.handleButton('A');
     expect(modalHandler).toHaveBeenCalledWith('A');
     expect(screenHandler.handleButton).not.toHaveBeenCalled();
@@ -113,7 +113,7 @@ describe('useNavigation', () => {
   it('modal stack prevents config binding fallback', () => {
     const configFn = vi.fn();
     nav.setConfigBindingHandler(configFn);
-    nav.modalStack.push({ id: 'blocker', handler: () => true });
+    nav.modalStack.push({ id: 'blocker', handler: () => true, interceptKeys: SELECTION_KEYS });
     nav.handleButton('A');
     expect(configFn).not.toHaveBeenCalled();
   });
@@ -248,8 +248,8 @@ describe('useNavigation', () => {
   it('nested modals: only topmost gets input', () => {
     const bottom = vi.fn(() => true);
     const top = vi.fn(() => true);
-    nav.modalStack.push({ id: 'bottom', handler: bottom });
-    nav.modalStack.push({ id: 'top', handler: top });
+    nav.modalStack.push({ id: 'bottom', handler: bottom, interceptKeys: SELECTION_KEYS });
+    nav.modalStack.push({ id: 'top', handler: top, interceptKeys: SELECTION_KEYS });
     nav.handleButton('A');
     expect(top).toHaveBeenCalledWith('A');
     expect(bottom).not.toHaveBeenCalled();
@@ -258,8 +258,8 @@ describe('useNavigation', () => {
   it('popping top modal exposes next modal', () => {
     const bottom = vi.fn(() => true);
     const top = vi.fn(() => true);
-    nav.modalStack.push({ id: 'bottom', handler: bottom });
-    nav.modalStack.push({ id: 'top', handler: top });
+    nav.modalStack.push({ id: 'bottom', handler: bottom, interceptKeys: SELECTION_KEYS });
+    nav.modalStack.push({ id: 'top', handler: top, interceptKeys: SELECTION_KEYS });
     nav.modalStack.pop('top');
     nav.handleButton('A');
     expect(bottom).toHaveBeenCalledWith('A');
@@ -268,7 +268,7 @@ describe('useNavigation', () => {
   it('popping all modals restores screen routing', () => {
     const screenHandler = { handleButton: vi.fn(() => true) };
     nav.registerScreen('sessions', screenHandler);
-    nav.modalStack.push({ id: 'modal', handler: vi.fn(() => true) });
+    nav.modalStack.push({ id: 'modal', handler: vi.fn(() => true), interceptKeys: SELECTION_KEYS });
     nav.modalStack.pop('modal');
     nav.handleButton('A');
     expect(screenHandler.handleButton).toHaveBeenCalledWith('A');
@@ -287,7 +287,7 @@ describe('useNavigation', () => {
   it('Sandwich still works when modal is open', () => {
     const sandwichFn = vi.fn();
     nav.setSandwichHandler(sandwichFn);
-    nav.modalStack.push({ id: 'blocker', handler: vi.fn(() => true) });
+    nav.modalStack.push({ id: 'blocker', handler: vi.fn(() => true), interceptKeys: SELECTION_KEYS });
     nav.handleButton('Sandwich');
     expect(sandwichFn).toHaveBeenCalledOnce();
   });

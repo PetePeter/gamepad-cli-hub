@@ -8,7 +8,7 @@
  * History: single click = preview below list; double-click or Insert = insert at caret.
  */
 import { ref, computed, watch, nextTick } from 'vue';
-import { useModalStack } from '../../composables/useModalStack.js';
+import { type InterceptKey, useModalStack } from '../../composables/useModalStack.js';
 import { toDirection } from '../../utils.js';
 import {
   addEditorHistoryEntry,
@@ -38,6 +38,7 @@ const selectedHistory = ref<string | null>(null);
 const focusTarget = ref<FocusTarget>('textarea');
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const modalStack = useModalStack();
+const EDITOR_POPUP_KEYS = new Set<InterceptKey>(['arrows', 'escape']);
 
 const isEmpty = computed(() => !text.value.trim());
 
@@ -47,7 +48,7 @@ watch(() => props.visible, async (v) => {
     selectedHistory.value = null;
     focusTarget.value = 'textarea';
     history.value = await loadEditorHistory();
-    modalStack.push({ id: MODAL_ID, handler: handleButton });
+    modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: EDITOR_POPUP_KEYS });
     await nextTick();
     focusTextareaEnd();
   } else {

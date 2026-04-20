@@ -5,8 +5,9 @@
  * Gamepad D-pad up/down navigates (clamped), A selects, B cancels.
  * Keyboard routed via App.vue bridge → useModalStack → handleButton.
  */
-import { ref, watch } from 'vue';
-import { useModalStack } from '../../composables/useModalStack.js';
+import { ref, watch, nextTick } from 'vue';
+import { SELECTION_KEYS, useModalStack } from '../../composables/useModalStack.js';
+import { useModalAutofocus } from '../../composables/useModalAutofocus.js';
 import { toDirection, getCliDisplayName } from '../../utils.js';
 
 interface DirItem {
@@ -31,6 +32,14 @@ const emit = defineEmits<{
 
 const selectedIndex = ref(0);
 const modalStack = useModalStack();
+const overlayRef = ref<HTMLElement | null>(null);
+const { focusIntoModal } = useModalAutofocus(overlayRef, '.dir-picker-item--focused');
+
+async function focusCurrentItem(): Promise<void> {
+  await nextTick();
+  const target = overlayRef.value?.querySelector<HTMLElement>(`#dir-picker-option-${selectedIndex.value}`);
+  target?.focus();
+}
 
 watch(() => props.visible, (v) => {
   if (v) {
@@ -38,7 +47,9 @@ watch(() => props.visible, (v) => {
       ? props.items.findIndex(d => d.path === props.preselectedPath)
       : -1;
     selectedIndex.value = preIdx >= 0 ? preIdx : 0;
-    modalStack.push({ id: MODAL_ID, handler: handleButton });
+    modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: SELECTION_KEYS });
+    void focusIntoModal();
+    void focusCurrentItem();
   } else {
     modalStack.pop(MODAL_ID);
   }
@@ -48,10 +59,12 @@ function handleButton(button: string): boolean {
   const dir = toDirection(button);
   if (dir === 'up' || button === 'ShiftTab') {
     selectedIndex.value = Math.max(0, selectedIndex.value - 1);
+    void focusCurrentItem();
     return true;
   }
   if (dir === 'down' || button === 'Tab') {
     selectedIndex.value = Math.min(props.items.length - 1, selectedIndex.value + 1);
+    void focusCurrentItem();
     return true;
   }
   if (button === 'A') {
@@ -87,21 +100,32 @@ defineExpose({ handleButton });
   <Teleport to="body">
     <div
       v-if="visible"
+      ref="overlayRef"
       class="modal-overlay modal--visible dir-picker-overlay"
       role="dialog"
       aria-label="Select working directory"
+      tabindex="-1"
     >
       <div class="modal">
         <div class="modal-header">
           <h3 class="modal-title">{{ getCliDisplayName(cliType) }} — Select Directory</h3>
         </div>
-        <div class="dir-picker-list" id="dirPickerList">
+        <div
+          class="dir-picker-list"
+          id="dirPickerList"
+          role="listbox"
+          aria-label="Directories"
+          :aria-activedescendant="items[selectedIndex] ? `dir-picker-option-${selectedIndex}` : undefined"
+        >
           <div
             v-for="(item, i) in items"
+            :id="`dir-picker-option-${i}`"
             :key="item.path"
             class="dir-picker-item focusable"
             :class="{ 'dir-picker-item--focused': i === selectedIndex }"
             tabindex="-1"
+            role="option"
+            :aria-selected="i === selectedIndex"
             @keydown="suppressActivationKey"
             @click="selectDir(i)"
           >

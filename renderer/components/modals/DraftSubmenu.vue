@@ -6,7 +6,7 @@
  * Gamepad D-pad up/down navigates, A selects, B goes back or closes.
  */
 import { ref, watch, computed } from 'vue';
-import { useModalStack } from '../../composables/useModalStack.js';
+import { SELECTION_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { toDirection } from '../../utils.js';
 
 interface DraftItem {
@@ -48,7 +48,7 @@ watch(() => props.visible, (v) => {
     selectedIndex.value = 0;
     showActions.value = false;
     activeDraft.value = null;
-    modalStack.push({ id: MODAL_ID, handler: handleSubmenuButton });
+    modalStack.push({ id: MODAL_ID, handler: handleSubmenuButton, interceptKeys: SELECTION_KEYS });
   } else {
     modalStack.pop(MODAL_ID);
     modalStack.pop(ACTION_MODAL_ID);
@@ -76,7 +76,7 @@ function handleSubmenuButton(button: string): boolean {
         activeDraft.value = draft;
         actionIndex.value = 0;
         showActions.value = true;
-        modalStack.push({ id: ACTION_MODAL_ID, handler: handleActionButton });
+        modalStack.push({ id: ACTION_MODAL_ID, handler: handleActionButton, interceptKeys: SELECTION_KEYS });
       }
     }
     return true;

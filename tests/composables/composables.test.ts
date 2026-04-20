@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { useModalStack, type ModalEntry } from '../../renderer/composables/useModalStack.js';
+import { SELECTION_KEYS, useModalStack, type ModalEntry } from '../../renderer/composables/useModalStack.js';
 
 // Hoist the vue mock — onMounted runs immediately, onUnmounted is a no-op.
 // This lets us test composables outside a Vue component lifecycle.
@@ -42,15 +42,15 @@ describe('useModalStack', () => {
 
   it('push adds modal to stack', () => {
     const handler = vi.fn(() => true);
-    modalStack.push({ id: 'close-confirm', handler });
+    modalStack.push({ id: 'close-confirm', handler, interceptKeys: SELECTION_KEYS });
     expect(modalStack.isOpen.value).toBe(true);
     expect(modalStack.topId.value).toBe('close-confirm');
     expect(modalStack.depth.value).toBe(1);
   });
 
   it('pop removes top modal', () => {
-    modalStack.push({ id: 'a', handler: () => true });
-    modalStack.push({ id: 'b', handler: () => true });
+    modalStack.push({ id: 'a', handler: () => true, interceptKeys: SELECTION_KEYS });
+    modalStack.push({ id: 'b', handler: () => true, interceptKeys: SELECTION_KEYS });
     expect(modalStack.depth.value).toBe(2);
     expect(modalStack.topId.value).toBe('b');
 
@@ -60,9 +60,9 @@ describe('useModalStack', () => {
   });
 
   it('pop with id removes specific modal', () => {
-    modalStack.push({ id: 'a', handler: () => true });
-    modalStack.push({ id: 'b', handler: () => true });
-    modalStack.push({ id: 'c', handler: () => true });
+    modalStack.push({ id: 'a', handler: () => true, interceptKeys: SELECTION_KEYS });
+    modalStack.push({ id: 'b', handler: () => true, interceptKeys: SELECTION_KEYS });
+    modalStack.push({ id: 'c', handler: () => true, interceptKeys: SELECTION_KEYS });
 
     modalStack.pop('b');
     expect(modalStack.depth.value).toBe(2);
@@ -73,10 +73,10 @@ describe('useModalStack', () => {
   });
 
   it('push with duplicate id replaces and moves to top', () => {
-    modalStack.push({ id: 'a', handler: () => true });
-    modalStack.push({ id: 'b', handler: () => true });
+    modalStack.push({ id: 'a', handler: () => true, interceptKeys: SELECTION_KEYS });
+    modalStack.push({ id: 'b', handler: () => true, interceptKeys: SELECTION_KEYS });
     const newHandler = vi.fn(() => false);
-    modalStack.push({ id: 'a', handler: newHandler });
+    modalStack.push({ id: 'a', handler: newHandler, interceptKeys: SELECTION_KEYS });
 
     expect(modalStack.depth.value).toBe(2);
     expect(modalStack.topId.value).toBe('a');
@@ -89,8 +89,8 @@ describe('useModalStack', () => {
   it('handleInput routes to topmost modal', () => {
     const handlerA = vi.fn(() => true);
     const handlerB = vi.fn(() => true);
-    modalStack.push({ id: 'a', handler: handlerA });
-    modalStack.push({ id: 'b', handler: handlerB });
+    modalStack.push({ id: 'a', handler: handlerA, interceptKeys: SELECTION_KEYS });
+    modalStack.push({ id: 'b', handler: handlerB, interceptKeys: SELECTION_KEYS });
 
     const consumed = modalStack.handleInput('DPadUp');
     expect(consumed).toBe(true);
@@ -103,20 +103,20 @@ describe('useModalStack', () => {
   });
 
   it('handleInput returns handler result', () => {
-    modalStack.push({ id: 'x', handler: () => false });
+    modalStack.push({ id: 'x', handler: () => false, interceptKeys: SELECTION_KEYS });
     expect(modalStack.handleInput('A')).toBe(false);
   });
 
   it('has() checks specific modal', () => {
     expect(modalStack.has('foo')).toBe(false);
-    modalStack.push({ id: 'foo', handler: () => true });
+    modalStack.push({ id: 'foo', handler: () => true, interceptKeys: SELECTION_KEYS });
     expect(modalStack.has('foo')).toBe(true);
     expect(modalStack.has('bar')).toBe(false);
   });
 
   it('clear resets the stack', () => {
-    modalStack.push({ id: 'a', handler: () => true });
-    modalStack.push({ id: 'b', handler: () => true });
+    modalStack.push({ id: 'a', handler: () => true, interceptKeys: SELECTION_KEYS });
+    modalStack.push({ id: 'b', handler: () => true, interceptKeys: SELECTION_KEYS });
     modalStack.clear();
     expect(modalStack.depth.value).toBe(0);
     expect(modalStack.isOpen.value).toBe(false);
@@ -125,16 +125,16 @@ describe('useModalStack', () => {
   it('shared singleton — multiple useModalStack() calls share state', () => {
     const stack1 = useModalStack();
     const stack2 = useModalStack();
-    stack1.push({ id: 'shared', handler: () => true });
+    stack1.push({ id: 'shared', handler: () => true, interceptKeys: SELECTION_KEYS });
     expect(stack2.has('shared')).toBe(true);
     expect(stack2.depth.value).toBe(1);
   });
 
   it('stack order determines input priority (LIFO)', () => {
     const results: string[] = [];
-    modalStack.push({ id: 'bottom', handler: (b) => { results.push(`bottom:${b}`); return true; } });
-    modalStack.push({ id: 'middle', handler: (b) => { results.push(`middle:${b}`); return true; } });
-    modalStack.push({ id: 'top', handler: (b) => { results.push(`top:${b}`); return true; } });
+    modalStack.push({ id: 'bottom', handler: (b) => { results.push(`bottom:${b}`); return true; }, interceptKeys: SELECTION_KEYS });
+    modalStack.push({ id: 'middle', handler: (b) => { results.push(`middle:${b}`); return true; }, interceptKeys: SELECTION_KEYS });
+    modalStack.push({ id: 'top', handler: (b) => { results.push(`top:${b}`); return true; }, interceptKeys: SELECTION_KEYS });
 
     modalStack.handleInput('A');
     expect(results).toEqual(['top:A']);
@@ -150,7 +150,7 @@ describe('useModalStack', () => {
   });
 
   it('pop with non-existent id is a no-op', () => {
-    modalStack.push({ id: 'a', handler: () => true });
+    modalStack.push({ id: 'a', handler: () => true, interceptKeys: SELECTION_KEYS });
     modalStack.pop('nonexistent');
     expect(modalStack.depth.value).toBe(1);
   });

@@ -6,8 +6,9 @@
  * Browse button integration for directory fields.
  * Gamepad: Escape/B cancels, Enter/Ctrl+Enter saves.
  */
-import { ref, watch, computed, nextTick, onUnmounted } from 'vue';
-import { useModalStack } from '../../composables/useModalStack.js';
+import { ref, watch } from 'vue';
+import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
+import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import { getSequenceSyntaxHelpText } from '../../utils.js';
 
 export interface FormField {
@@ -39,6 +40,8 @@ const formValues = ref<Record<string, string>>({});
 const modalStack = useModalStack();
 const syntaxHelpExpanded = ref(false);
 const syntaxHelpText = getSequenceSyntaxHelpText();
+const overlayRef = ref<HTMLElement | null>(null);
+const { onKeydown } = useFocusTrap(overlayRef);
 
 interface SeqItem { label: string; sequence: string }
 
@@ -90,7 +93,7 @@ watch(() => props.visible, (v) => {
       vals[field.key] = field.defaultValue ?? '';
     }
     formValues.value = vals;
-    modalStack.push({ id: MODAL_ID, handler: handleButton });
+    modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: FORM_KEYS });
   } else {
     modalStack.pop(MODAL_ID);
   }
@@ -134,9 +137,11 @@ defineExpose({ handleButton });
   <Teleport to="body">
     <div
       v-if="visible"
+      ref="overlayRef"
       class="modal-overlay modal--visible"
       role="dialog"
       aria-label="Form"
+      @keydown="onKeydown"
     >
       <div class="modal">
         <div class="modal-header">

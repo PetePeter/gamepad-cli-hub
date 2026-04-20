@@ -5,9 +5,10 @@
  * Action types: keyboard, voice, scroll, context-menu, sequence-list, new-draft.
  * Each action type renders different parameter fields.
  */
-import { ref, watch, computed, nextTick } from 'vue';
-import { useModalStack } from '../../composables/useModalStack.js';
-import { toDirection, getCliDisplayName } from '../../utils.js';
+import { ref, watch, computed } from 'vue';
+import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
+import { useFocusTrap } from '../../composables/useFocusTrap.js';
+import { getCliDisplayName } from '../../utils.js';
 
 const MODAL_ID = 'binding-editor';
 
@@ -54,6 +55,8 @@ const voiceTarget = ref('');
 const scrollDirection = ref('up');
 const scrollLines = ref(5);
 const modalStack = useModalStack();
+const overlayRef = ref<HTMLElement | null>(null);
+const { onKeydown } = useFocusTrap(overlayRef);
 
 watch(() => props.visible, (v) => {
   if (v) {
@@ -66,7 +69,7 @@ watch(() => props.visible, (v) => {
     voiceTarget.value = b?.target ?? '';
     scrollDirection.value = b?.direction ?? 'up';
     scrollLines.value = b?.lines ?? 5;
-    modalStack.push({ id: MODAL_ID, handler: handleButton });
+    modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: FORM_KEYS });
   } else {
     modalStack.pop(MODAL_ID);
   }
@@ -121,9 +124,11 @@ defineExpose({ handleButton });
   <Teleport to="body">
     <div
       v-if="visible"
+      ref="overlayRef"
       class="modal-overlay modal--visible"
       role="dialog"
       aria-label="Edit binding"
+      @keydown="onKeydown"
     >
       <div class="modal">
         <div class="modal-header">

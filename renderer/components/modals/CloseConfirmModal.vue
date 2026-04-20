@@ -6,7 +6,7 @@
  * Gamepad D-pad left/right toggles selection, A confirms, B cancels.
  */
 import { ref, watch, computed } from 'vue';
-import { useModalStack } from '../../composables/useModalStack.js';
+import { SELECTION_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { toDirection } from '../../utils.js';
 
 const MODAL_ID = 'close-confirm';
@@ -31,7 +31,7 @@ const hasDrafts = computed(() => (props.draftCount ?? 0) > 0);
 watch(() => props.visible, (v) => {
   if (v) {
     selectedIndex.value = 0;
-    modalStack.push({ id: MODAL_ID, handler: handleButton });
+    modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: SELECTION_KEYS });
   } else {
     modalStack.pop(MODAL_ID);
   }
