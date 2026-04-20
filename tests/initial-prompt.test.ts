@@ -333,6 +333,58 @@ describe('scheduleInitialPrompt', () => {
     expect(writeFn).toHaveBeenCalledWith('s1', 'x');
   });
 
+  // ---- {Send} tests ----
+
+  it('{Send} flushes text then sends \\r via writeToPty', async () => {
+    const writeFn = vi.fn();
+    const deliverFn = vi.fn().mockResolvedValue(undefined);
+    const onComplete = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: [{ label: 'Test', sequence: 'hello{Send}' }],
+      initialPromptDelay: 0,
+    }, writeFn, deliverFn, onComplete);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(deliverFn).toHaveBeenCalledTimes(1);
+    expect(deliverFn).toHaveBeenCalledWith('s1', 'hello');
+    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn).toHaveBeenCalledWith('s1', '\r');
+  });
+
+  it('{Send}-only sequence sends \\r via writeToPty', async () => {
+    const writeFn = vi.fn();
+    const deliverFn = vi.fn().mockResolvedValue(undefined);
+    const onComplete = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: [{ label: 'Test', sequence: '{Send}' }],
+      initialPromptDelay: 0,
+    }, writeFn, deliverFn, onComplete);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(deliverFn).not.toHaveBeenCalled();
+    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn).toHaveBeenCalledWith('s1', '\r');
+  });
+
+  it('mixed {Enter} and {Send} — Enter coalesces, Send flushes separately', async () => {
+    const writeFn = vi.fn();
+    const deliverFn = vi.fn().mockResolvedValue(undefined);
+    const onComplete = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: [{ label: 'Test', sequence: 'hello{Enter}world{Send}' }],
+      initialPromptDelay: 0,
+    }, writeFn, deliverFn, onComplete);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(deliverFn).toHaveBeenCalledTimes(1);
+    expect(deliverFn).toHaveBeenCalledWith('s1', 'hello\rworld');
+    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn).toHaveBeenCalledWith('s1', '\r');
+  });
+
   // ---- Multi-item tests ----
 
   it('sends multiple items in order', async () => {

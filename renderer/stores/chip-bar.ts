@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { state } from '../state.js';
 import { showDraftEditor, showPlanInEditor, hideDraftEditor } from '../drafts/draft-editor.js';
 import { resolveChipbarTemplates } from '../drafts/chipbar-templates.js';
-import { executeSequence } from '../bindings.js';
+import { executeSequenceForSession } from '../bindings.js';
 import type { PlanStatus } from '../../src/types/plan.js';
 import { deliverBulkText } from '../paste-handler.js';
 
@@ -110,7 +110,7 @@ export const useChipBarStore = defineStore('chip-bar', () => {
     const sessionId = activeSessionId.value;
     if (!sessionId) return;
     const resolved = resolveChipbarTemplates(sequence, buildTemplateContext(sessionId, inboxDir.value));
-    await executeSequence(resolved);
+    await executeSequenceForSession(sessionId, resolved);
   }
 
   async function openPlan(planId: string): Promise<void> {

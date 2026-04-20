@@ -39,7 +39,7 @@ tools:
     handoffCommand: go implement it
     initialPrompt:
       - label: ""
-        sequence: /allow-all{Enter}
+        sequence: /allow-all{Send}
       - label: ""
         sequence: >-
           {Wait 3000}<application-prompt>

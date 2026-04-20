@@ -256,7 +256,8 @@ export function getSequenceSyntaxHelpText(): string {
   return `SYNTAX REFERENCE
 
 Plain text     \u2192 Typed literally
-{Enter}        \u2192 Tap special key
+{Enter}        \u2192 Newline (stays in prompt)
+{Send}         \u2192 Submit / send prompt
 {Ctrl+S}       \u2192 Key combo
 {Ctrl+Shift+P} \u2192 Multi-modifier combo
 {Ctrl Down}    \u2192 Press & hold modifier
@@ -267,12 +268,12 @@ Newline        \u2192 Enter key press
 
 MODIFIERS: Ctrl, Alt, Shift, Win
 
-SPECIAL KEYS: Enter, Tab, Esc, Space, Backspace, Delete,
+SPECIAL KEYS: Enter, Send, Tab, Esc, Space, Backspace, Delete,
   Insert, Home, End, PageUp, PageDown, Up, Down, Left,
   Right, F1\u2013F12, CapsLock, PrintScreen
 
 EXAMPLE:
-  /clear{Enter}{Wait 500}yes{Enter}{Ctrl+S}`;
+  /allow-all{Send}{Wait 3000}prompt text here`;
 }
 
 /**

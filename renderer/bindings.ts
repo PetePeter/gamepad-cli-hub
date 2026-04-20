@@ -278,16 +278,21 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
   }
 }
 
-export async function executeSequence(input: string): Promise<void> {
+export async function executeSequenceForSession(sessionId: string, input: string): Promise<void> {
+  if (!window.gamepadCli?.ptyWrite) {
+    console.warn('[Renderer] executeSequenceForSession — ptyWrite not available');
+    return;
+  }
+
   const actions = parseSequence(input);
-  logEvent(`Seq: ${formatSequencePreview(actions)}`);
+  logEvent(`Seq[${sessionId.slice(0, 8)}]: ${formatSequencePreview(actions)}`);
   let bufferedText = '';
 
   const flushBufferedText = async () => {
     if (!bufferedText) return;
     const text = bufferedText;
     bufferedText = '';
-    await executeSequenceAction({ type: 'text', value: text });
+    await deliverBulkText(sessionId, text);
   };
 
   for (const action of actions) {
@@ -301,9 +306,29 @@ export async function executeSequence(input: string): Promise<void> {
       continue;
     }
 
+    if (action.type === 'key' && action.key === 'Send') {
+      await flushBufferedText();
+      await window.gamepadCli.ptyWrite(sessionId, '\r');
+      continue;
+    }
+
     try {
       await flushBufferedText();
-      await executeSequenceAction(action);
+      switch (action.type) {
+        case 'key':
+          await window.gamepadCli.ptyWrite(sessionId, keyToPtyEscape(action.key));
+          break;
+        case 'combo':
+          await window.gamepadCli.ptyWrite(sessionId, comboToPtyEscape(action.keys));
+          break;
+        case 'wait':
+          await new Promise(resolve => setTimeout(resolve, action.ms));
+          break;
+        case 'modDown':
+        case 'modUp':
+          // Modifier holds don't make sense for PTY — no-op
+          break;
+      }
     } catch (error) {
       console.error(`[Renderer] Sequence action failed at ${action.type}:`, error);
       throw error;
@@ -313,34 +338,12 @@ export async function executeSequence(input: string): Promise<void> {
   await flushBufferedText();
 }
 
-async function executeSequenceAction(action: SequenceAction): Promise<void> {
+export async function executeSequence(input: string): Promise<void> {
   const tm = getTerminalManager();
   const activeId = tm?.getActiveSessionId();
-
-  // Route to embedded PTY terminal if one is active
-  if (activeId && window.gamepadCli?.ptyWrite) {
-    switch (action.type) {
-      case 'text':
-        await deliverBulkText(activeId, action.value);
-        break;
-      case 'key':
-        await window.gamepadCli.ptyWrite(activeId, keyToPtyEscape(action.key));
-        break;
-      case 'combo':
-        await window.gamepadCli.ptyWrite(activeId, comboToPtyEscape(action.keys));
-        break;
-      case 'modDown':
-        // Modifier holds don't make sense for PTY — no-op
-        break;
-      case 'modUp':
-        break;
-      case 'wait':
-        await new Promise(resolve => setTimeout(resolve, action.ms));
-        break;
-    }
+  if (!activeId || !window.gamepadCli?.ptyWrite) {
+    console.warn('[Renderer] executeSequence — no active terminal');
     return;
   }
-
-  // No active terminal — log warning
-  console.warn('[Renderer] Sequence action skipped — no active terminal');
+  await executeSequenceForSession(activeId, input);
 }

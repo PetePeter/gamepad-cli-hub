@@ -48,6 +48,19 @@ describe('parseSequence', () => {
     });
   });
 
+  describe('{Send} token', () => {
+    it('parses {Send} as key action', () => {
+      expect(parseSequence('{Send}')).toEqual([{ type: 'key', key: 'Send' }]);
+    });
+
+    it('parses text{Send} as text + key', () => {
+      expect(parseSequence('hello{Send}')).toEqual([
+        { type: 'text', value: 'hello' },
+        { type: 'key', key: 'Send' },
+      ]);
+    });
+  });
+
   describe('combos', () => {
     it('parses {Ctrl+S}', () => {
       expect(parseSequence('{Ctrl+S}')).toEqual([{ type: 'combo', keys: ['Ctrl', 'S'] }]);

@@ -153,7 +153,7 @@ defineExpose({ handleButton });
               <textarea
                 id="be-sequence"
                 v-model="sequence"
-                placeholder="{Enter}, text, {Ctrl+C}"
+                placeholder="{Send}, text, {Ctrl+C}"
                 class="form-textarea"
                 rows="3"
               />

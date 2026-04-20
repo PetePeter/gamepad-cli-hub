@@ -9,7 +9,7 @@ import ChipActionBar from '../renderer/components/chips/ChipActionBar.vue';
 import ChipBar from '../renderer/components/chips/ChipBar.vue';
 import { state } from '../renderer/state.js';
 import { useChipBarStore } from '../renderer/stores/chip-bar.js';
-import { executeSequence } from '../renderer/bindings.js';
+import { executeSequenceForSession } from '../renderer/bindings.js';
 
 vi.mock('../renderer/drafts/draft-editor.js', () => ({
   showDraftEditor: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('../renderer/drafts/draft-editor.js', () => ({
 }));
 
 vi.mock('../renderer/bindings.js', () => ({
-  executeSequence: vi.fn(),
+  executeSequenceForSession: vi.fn(),
 }));
 
 describe('Chip components', () => {
@@ -109,6 +109,6 @@ describe('useChipBarStore', () => {
     await store.triggerAction('echo {inboxDir}');
 
     expect(window.gamepadCli.configGetChipbarActions).toHaveBeenCalledTimes(1);
-    expect(executeSequence).toHaveBeenCalledWith('echo /inbox');
+    expect(executeSequenceForSession).toHaveBeenCalledWith('s1', 'echo /inbox');
   });
 });

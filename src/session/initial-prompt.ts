@@ -126,6 +126,12 @@ export function scheduleInitialPrompt(
         continue;
       }
 
+      if (action.type === 'key' && action.key === 'Send') {
+        await flushBufferedText();
+        writeToPty(sessionId, '\r');
+        continue;
+      }
+
       await flushBufferedText();
 
       const data = actionToPtyData(action);
