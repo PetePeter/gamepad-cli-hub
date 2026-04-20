@@ -845,14 +845,17 @@ function selectNode(item: PlanItem): void {
 function openNodeEditor(item: PlanItem): void {
   selectNode(item); // ensure highlight is up-to-date
   editingId = item.id;
+  const targetSessionId = resolvePlanTargetSessionId(item);
   showPlanInEditor(
-    state.activeSessionId || '',
+    targetSessionId ?? '',
     item,
     {
       onSave: handleSave,
       onDelete: () => handleDelete(item.id),
       onDone: item.status === 'doing' || item.status === 'wait-tests' ? () => handleComplete(item.id) : undefined,
-      onApply: item.status === 'startable' || item.status === 'doing' || item.status === 'wait-tests' ? () => handleApplyFromCanvas(item) : undefined,
+      onApply: targetSessionId && (item.status === 'startable' || item.status === 'doing' || item.status === 'wait-tests')
+        ? () => handleApplyFromCanvas(item)
+        : undefined,
       onClose: () => { editingId = null; },
     },
   );
@@ -874,11 +877,16 @@ async function handleSave(
     await window.gamepadCli.planUpdate(selectedId, updates);
     const current = cachedItems.find(item => item.id === selectedId);
     if (current && current.status !== 'done') {
+      const targetSessionId = resolvePlanTargetSessionId(current);
+      if (updates.status === 'doing' && !targetSessionId) {
+        showBriefNotice('Select or open a session in this directory before marking a plan as doing');
+        return;
+      }
       await window.gamepadCli.planSetState(
         selectedId,
         updates.status,
         updates.stateInfo,
-        state.activeSessionId || current.sessionId,
+        targetSessionId ?? current.sessionId,
       );
     }
     await refreshCanvas();
@@ -913,20 +921,22 @@ async function handleComplete(id: string): Promise<void> {
 
 async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
   try {
-    if (state.activeSessionId) {
-      const result = await window.gamepadCli.writeTempContent(item.description);
-      if (result?.success && result.path) {
-        const filePath = result.path;
-        await window.gamepadCli.ptyWrite(state.activeSessionId, `work for you to do is here: ${filePath}\n`);
-        if (item.status === 'startable') {
-          await window.gamepadCli.planApply(item.id, state.activeSessionId);
-        }
-        // Clean up temp file after ptyWrite succeeds
-        try { await window.gamepadCli.deleteTemp(filePath); }
-        catch (err) { console.debug('[PlanScreen] Could not delete temp file:', err); }
-      } else {
-        console.error('[PlanScreen] Failed to write temp file:', result?.error);
+    const targetSessionId = resolvePlanTargetSessionId(item);
+    if (!targetSessionId) {
+      showBriefNotice('Open a session in this directory before applying a plan');
+      return;
+    }
+
+    const result = await window.gamepadCli.writeTempContent(item.description);
+    if (result?.success && result.path) {
+      const filePath = result.path;
+      await window.gamepadCli.ptyWrite(targetSessionId, `work for you to do is here: ${filePath}\n`);
+      if (item.status === 'startable') {
+        await window.gamepadCli.planApply(item.id, targetSessionId);
       }
+    } else {
+      console.error('[PlanScreen] Failed to write temp file:', result?.error);
+      return;
     }
     selectedId = null;
     editingId = null;
@@ -1067,5 +1077,21 @@ function showBriefNotice(message: string): void {
   notice.textContent = message;
   notice.classList.add('plan-notice--visible');
   setTimeout(() => notice?.classList.remove('plan-notice--visible'), 3000);
+}
+
+function resolvePlanTargetSessionId(item: PlanItem): string | null {
+  const activeSession = state.activeSessionId
+    ? state.sessions.find(session => session.id === state.activeSessionId)
+    : null;
+  if (activeSession?.workingDir === item.dirPath) {
+    return activeSession.id;
+  }
+
+  if (item.sessionId && state.sessions.some(session => session.id === item.sessionId)) {
+    return item.sessionId;
+  }
+
+  const dirSession = state.sessions.find(session => session.workingDir === item.dirPath);
+  return dirSession?.id ?? null;
 }
 

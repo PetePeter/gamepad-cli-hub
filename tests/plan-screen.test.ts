@@ -53,7 +53,13 @@ vi.mock('../renderer/utils.js', () => ({
 }));
 
 vi.mock('../renderer/state.js', () => ({
-  state: { activeSessionId: 'session-1' },
+  state: {
+    activeSessionId: 'session-1',
+    sessions: [
+      { id: 'session-1', workingDir: '/test/dir' },
+      { id: 'session-2', workingDir: '/other/dir' },
+    ],
+  },
 }));
 
 vi.mock('../renderer/drafts/draft-strip.js', () => ({
@@ -148,6 +154,12 @@ async function flush(): Promise<void> {
 describe('Plan Screen', () => {
   beforeEach(async () => {
     buildPlanDom();
+    const { state } = await import('../renderer/state.js');
+    state.activeSessionId = 'session-1';
+    state.sessions = [
+      { id: 'session-1', workingDir: '/test/dir' },
+      { id: 'session-2', workingDir: '/other/dir' },
+    ] as any;
 
     (window as any).gamepadCli = {
       planList: mockPlanList,
@@ -1432,14 +1444,13 @@ describe('Plan Editor (unified)', () => {
       mockPlanDeps.mockResolvedValue([]);
       mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-test.txt' });
       mockPtyWrite.mockResolvedValue(undefined);
-      mockDeleteTemp.mockResolvedValue(undefined);
       const applyBtn = document.getElementById('draftApplyBtn') as HTMLElement;
       applyBtn.click();
       await flush();
 
       expect(mockWriteTempContent).toHaveBeenCalledWith('redo this');
       expect(mockPtyWrite).toHaveBeenCalledWith('session-1', 'work for you to do is here: /tmp/helm-work-test.txt\n');
-      expect(mockDeleteTemp).toHaveBeenCalledWith('/tmp/helm-work-test.txt');
+      expect(mockDeleteTemp).not.toHaveBeenCalled();
       expect(mockPlanApply).not.toHaveBeenCalled();
     });
 
@@ -1459,7 +1470,6 @@ describe('Plan Editor (unified)', () => {
       mockPlanDeps.mockResolvedValue([]);
       mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-test.txt' });
       mockPtyWrite.mockResolvedValue(undefined);
-      mockDeleteTemp.mockResolvedValue(undefined);
 
       const applyBtn = document.getElementById('draftApplyBtn') as HTMLElement;
       applyBtn.click();
@@ -1467,8 +1477,38 @@ describe('Plan Editor (unified)', () => {
 
       expect(mockWriteTempContent).toHaveBeenCalledWith('start this');
       expect(mockPtyWrite).toHaveBeenCalledWith('session-1', 'work for you to do is here: /tmp/helm-work-test.txt\n');
-      expect(mockDeleteTemp).toHaveBeenCalledWith('/tmp/helm-work-test.txt');
+      expect(mockDeleteTemp).not.toHaveBeenCalled();
       expect(mockPlanApply).toHaveBeenCalledWith('apply-startable', 'session-1');
+    });
+
+    it('applies from the directory session when the planner has cleared activeSessionId', async () => {
+      const { state } = await import('../renderer/state.js');
+      state.activeSessionId = null;
+      state.sessions = [
+        { id: 'session-dir', workingDir: '/test/dir' },
+      ] as any;
+
+      const items = [makeItem({ id: 'apply-dir-session', status: 'startable', description: 'dir task' })];
+      mockPlanList.mockResolvedValueOnce(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+
+      await screen.showPlanScreen('/test/dir');
+      const node = document.querySelector('.plan-node')!;
+      (node as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+      mockPlanApply.mockResolvedValue({});
+      mockPlanList.mockResolvedValue(items);
+      mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-dir.txt' });
+      mockPtyWrite.mockResolvedValue(undefined);
+
+      const applyBtn = document.getElementById('draftApplyBtn') as HTMLElement;
+      expect(applyBtn.style.display).not.toBe('none');
+      applyBtn.click();
+      await flush();
+
+      expect(mockPtyWrite).toHaveBeenCalledWith('session-dir', 'work for you to do is here: /tmp/helm-work-dir.txt\n');
+      expect(mockPlanApply).toHaveBeenCalledWith('apply-dir-session', 'session-dir');
     });
   });
 

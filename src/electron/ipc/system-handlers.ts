@@ -11,7 +11,7 @@ import * as path from 'path';
 import { logger, logDir } from '../../utils/logger.js';
 import { getTempDir } from '../../utils/app-paths.js';
 
-export function setupSystemHandlers(): void {
+export function setupSystemHandlers(dirname: string): void {
   ipcMain.handle('app:getVersion', () => app.getVersion());
 
   ipcMain.handle('system:openLogsFolder', async () => {
@@ -30,7 +30,7 @@ export function setupSystemHandlers(): void {
 
   // editor:openExternal — Ctrl+G: open temp file in Notepad, return contents on close
   ipcMain.handle('editor:openExternal', async () => {
-    const tmpDir = getTempDir(__dirname);
+    const tmpDir = getTempDir(dirname);
     try {
       fs.mkdirSync(tmpDir, { recursive: true });
     } catch (err) {
@@ -61,7 +61,7 @@ export function setupSystemHandlers(): void {
   // temp:writeContent — write text to a temp file for draft/plan apply
   // Returns the file path on success, or { success: false, error } on failure
   ipcMain.handle('temp:writeContent', async (_, content: string): Promise<{ success: boolean; path?: string; error?: string }> => {
-    const tmpDir = getTempDir(__dirname);
+    const tmpDir = getTempDir(dirname);
     try {
       fs.mkdirSync(tmpDir, { recursive: true });
     } catch (err) {

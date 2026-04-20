@@ -106,7 +106,7 @@ export function registerIPCHandlers(
   setupProfileHandlers(configLoader);
   setupToolsHandlers(configLoader);
   setupKeyboardHandlers(keyboard);
-  setupSystemHandlers();
+  setupSystemHandlers(dirname ?? process.cwd());
   setupDraftHandlers(draftManager);
   setupPlanHandlers(planManager, getMainWindow, incomingWatcher);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader, notificationManager, telegramModules.feedPtyOutput, telegramModules.handleActivityChange, telegramModules.trackInput, patternMatcher);

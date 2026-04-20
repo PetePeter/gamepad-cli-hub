@@ -430,12 +430,6 @@ export async function applyDraft(): Promise<void> {
       const filePath = result.path;
       // Route through ptyWrite to the active session
       await window.gamepadCli?.ptyWrite(sessId, `<${filePath}`);
-
-      // Clean up temp file after apply
-      if (filePath) {
-        try { await window.gamepadCli?.deleteTemp(filePath); }
-        catch (err) { console.debug('[Editor] Could not delete temp file:', err); }
-      }
     } catch (err) {
       console.error('[Editor] Failed to apply draft:', err);
     }

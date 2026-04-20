@@ -482,7 +482,6 @@ describe('Draft Editor', () => {
     it('sends text to PTY via writeTempContent and ptyWrite', async () => {
       mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-123.md' });
       mockPtyWrite.mockResolvedValue(undefined);
-      mockDeleteTemp.mockResolvedValue(undefined);
       mockDraftDelete.mockResolvedValue(undefined);
 
       mod.showDraftEditor('session-1', { id: 'draft-1', label: 'Test', text: 'hello world' });
@@ -491,7 +490,7 @@ describe('Draft Editor', () => {
 
       expect(mockWriteTempContent).toHaveBeenCalledWith('hello world');
       expect(mockPtyWrite).toHaveBeenCalledWith('session-1', '</tmp/helm-work-123.md');
-      expect(mockDeleteTemp).toHaveBeenCalledWith('/tmp/helm-work-123.md');
+      expect(mockDeleteTemp).not.toHaveBeenCalled();
       expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
       expect(mod.isDraftEditorVisible()).toBe(false);
     });
@@ -524,7 +523,6 @@ describe('Draft Editor', () => {
     it('A button on Apply triggers applyDraft', async () => {
       mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-789.md' });
       mockPtyWrite.mockResolvedValue(undefined);
-      mockDeleteTemp.mockResolvedValue(undefined);
       mockDraftDelete.mockResolvedValue(undefined);
 
       mod.showDraftEditor('session-1', { id: 'draft-1', label: 'Test', text: 'apply me' });
@@ -540,7 +538,7 @@ describe('Draft Editor', () => {
 
       expect(mockWriteTempContent).toHaveBeenCalledWith('apply me');
       expect(mockPtyWrite).toHaveBeenCalledWith('session-1', '</tmp/helm-work-789.md');
-      expect(mockDeleteTemp).toHaveBeenCalledWith('/tmp/helm-work-789.md');
+      expect(mockDeleteTemp).not.toHaveBeenCalled();
       expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
     });
   });
