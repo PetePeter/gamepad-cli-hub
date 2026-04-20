@@ -6,7 +6,7 @@
  */
 
 import { sessionsState } from './sessions-state.js';
-import { showPlanScreen } from '../plans/plan-screen.js';
+import { useNavigationStore } from '../stores/navigation.js';
 import { isSpawnCollapsed } from '../sidebar/section-collapse.js';
 import { state } from '../state.js';
 
@@ -83,7 +83,7 @@ export function handlePlansZoneButton(button: string): boolean {
       // Read from state — Vue owns the DOM, so we can't rely on DOM button order.
       const dir = sessionsState.directories[sessionsState.plansFocusIndex];
       if (dir?.path) {
-        showPlanScreen(dir.path);
+        void useNavigationStore().openPlan(dir.path);
       }
       return true;
     }

@@ -18,8 +18,9 @@ import {
 } from '../session-groups.js';
 import { getActivityColor } from '../state-colors.js';
 import {
-  getOverviewSessions, handleOverviewInput, hideOverview, isOverviewVisible, refreshOverview, showOverview,
+  getOverviewSessions, handleOverviewInput, hideOverview, isOverviewVisible, refreshOverview,
 } from './group-overview.js';
+import { useNavigationStore } from '../stores/navigation.js';
 import { isPlanScreenVisible, handlePlanScreenDpad, handlePlanScreenAction, hidePlanScreen, getCurrentPlanDirPath } from '../plans/plan-screen.js';
 import { currentView } from '../main-view/main-view-manager.js';
 
@@ -641,7 +642,7 @@ function handleSessionsZoneButton(button: string): boolean {
 
   if (button === 'A') {
     if (navItem.type === 'overview-button') {
-      showOverview(null, state.activeSessionId ?? undefined);
+      void useNavigationStore().openOverview(null, state.activeSessionId ?? undefined);
       return true;
     }
     if (navItem.type === 'group-header') {

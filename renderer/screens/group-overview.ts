@@ -27,6 +27,11 @@ let selectedOnExit = false;
 /** NavItem that had focus when overview opened — restored on dismiss, looked up by identity. */
 let parentNavItem: NavItem | null = null;
 let overviewDismissCallback: (() => void) | null = null;
+
+/** Allow the navigation store to skip restore when navigating away. */
+export function setSelectedOnExit(value: boolean): void {
+  selectedOnExit = value;
+}
 const collapsedSessions = new Set<string>();
 
 interface TerminalManagerLike {

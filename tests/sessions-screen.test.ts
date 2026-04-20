@@ -40,6 +40,19 @@ const mockHidePlanScreen = vi.fn();
 const mockShowPlanScreen = vi.fn();
 let mockPlanScreenVisible = false;
 
+const mockActivateSession = vi.fn();
+const mockOpenOverview = vi.fn();
+
+vi.mock('../renderer/stores/navigation.js', () => ({
+  useNavigationStore: () => ({
+    activateSession: mockActivateSession,
+    openOverview: mockOpenOverview,
+    navigateToSession: vi.fn(),
+    syncSidebarToSession: vi.fn(),
+    onNavListRebuilt: vi.fn(),
+  }),
+}));
+
 vi.mock('../renderer/utils.js', () => {
   const dirMap: Record<string, string> = {
     DPadUp: 'up',
@@ -406,7 +419,7 @@ describe('Sessions Screen', () => {
       sessionsState.sessionsFocusIndex = 2; // first session card
       sessions.handleSessionsScreenButton('DPadDown');
 
-      expect(mockSwitchTo).toHaveBeenCalledWith('s-1');
+      expect(mockActivateSession).toHaveBeenCalledWith('s-1');
     });
 
     it('X falls through to config bindings (not consumed)', () => {

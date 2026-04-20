@@ -19,6 +19,7 @@ import { refreshPlanBadges } from './sessions-plans.js';
 import { hideOverview } from './group-overview.js';
 import { registerView } from '../main-view/main-view-manager.js';
 import { hidePlanScreen, isPlanScreenVisible } from '../plans/plan-screen.js';
+import { useNavigationStore } from '../stores/navigation.js';
 import { isSpawnCollapsed, isPlannerCollapsed } from '../sidebar/section-collapse.js';
 
 // Register the terminal view with the main-view manager. mount/unmount are
@@ -120,8 +121,7 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
         logEvent(`Spawned embedded terminal: ${cliType}`);
         showTerminalArea();
         // Auto-select the new session
-        tm.switchTo(sessionId);
-        state.activeSessionId = sessionId;
+        useNavigationStore().activateSession(sessionId);
 
         setTimeout(async () => {
           try {
@@ -198,37 +198,8 @@ export async function spawnNewSession(cliType?: string, preselectedPath?: string
 // ============================================================================
 
 export async function switchToSession(sessionId: string): Promise<void> {
-  const [
-    { hideDraftEditor },
-    { hideEditorPopup },
-    { useChipBarStore },
-  ] = await Promise.all([
-    import('../drafts/draft-editor.js'),
-    import('../editor/editor-popup.js'),
-    import('../stores/chip-bar.js'),
-  ]);
-
-  if (isPlanScreenVisible()) {
-    hidePlanScreen();
-  }
-
-  // Track switch time to debounce false activity from focus-induced PTY responses
-  lastSwitchTime = Date.now();
-
-  // Check if this is an embedded terminal
-  const tm = getTerminalManager();
-  if (tm && tm.hasTerminal(sessionId)) {
-    hideDraftEditor();
-    hideEditorPopup();
-    useChipBarStore().clear();
-    tm.switchTo(sessionId);
-    state.activeSessionId = sessionId;
-    showTerminalArea();
-    return;
-  }
-
-  // Non-embedded session — shouldn't happen
-  logEvent(`Session ${sessionId} is not an embedded terminal`);
+  // Route through the navigation store for consistent state management
+  await useNavigationStore().navigateToSession(sessionId);
 }
 
 /** Auto-switch terminal based on what the D-pad just focused. */
@@ -237,15 +208,12 @@ export function autoSelectFocusedSession(): void {
   if (!navItem) return;
   if (navItem.type !== 'session-card') return;
 
-  // Session card — switch terminal (showTerminalArea dismisses overview if open)
   const session = state.sessions.find(s => s.id === navItem.id);
   if (!session) return;
   const tm = getTerminalManager();
   if (tm && tm.hasTerminal(session.id)) {
-    // Selecting a session is mutually exclusive with the planner screen.
-    if (isPlanScreenVisible()) hidePlanScreen();
-    tm.switchTo(session.id);
-    state.activeSessionId = session.id;
+    const navStore = useNavigationStore();
+    navStore.activateSession(session.id);
     showTerminalArea();
   }
 }
@@ -293,9 +261,7 @@ export function handleSessionsZone(button: string, dir: string | null): void {
     const currentItem = navList[sessionsState.sessionsFocusIndex];
     // Right at col=0 on a group-header → drill into its overview
     if (currentItem?.type === 'group-header' && sessionsState.cardColumn === 0) {
-      import('./group-overview.js').then(({ showOverview }) => {
-        showOverview(currentItem.id, state.activeSessionId ?? undefined);
-      });
+      void useNavigationStore().openOverview(currentItem.id, state.activeSessionId ?? undefined);
       return;
     }
     const maxColumn = currentItem?.type === 'session-card'

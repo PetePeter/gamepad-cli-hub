@@ -118,7 +118,9 @@ renderer/
 │   ├── sessions-screen.ts      # useSessionsScreenStore — zone, focusIndex, cardColumn, overviewGroup
 │   ├── config.ts               # useConfigStore — cliBindingsCache, cliSequencesCache, cliToolsCache, cliTypes
 │   ├── drafts.ts               # useDraftsStore — draftCounts, activeDraft, editorVisible
-│   └── plans.ts                # usePlansStore — planDoingCounts, planStartableCounts
+│   ├── plans.ts                # usePlansStore — planDoingCounts, planStartableCounts
+│   ├── chip-bar.ts             # useChipBarStore — chip bar action state + refresh for active session
+│   └── navigation.ts           # useNavigationStore — centralized view routing, active session, sidebar focus, overlay lifecycle
 ├── composables/
 │   ├── index.ts                # Barrel export of all composables
 │   ├── useModalStack.ts        # Reactive push/pop modal stack replacing 11-deep if-chain
@@ -203,6 +205,7 @@ tests/                                  # 61 test files
 ├── keyboard.test.ts            # Keyboard simulation
 ├── modal-base.test.ts          # Modal UI base tests
 ├── navigation.test.ts          # Navigation priority chain tests
+├── navigation-store.test.ts    # Navigation store tests — view routing, session switching, overlay lifecycle, sidebar focus (61 tests)
 ├── notification-manager.test.ts # NotificationManager tests
 ├── output-summarizer.test.ts   # Telegram output summarizer tests
 ├── paste-routing.test.ts       # Ctrl+V paste → PTY routing tests

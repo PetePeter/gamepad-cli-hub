@@ -40,6 +40,7 @@ import {
 import { initDraftEditor } from '../drafts/draft-editor.js';
 import { refreshPlanBadges } from '../screens/sessions-plans.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
+import { useNavigationStore } from '../stores/navigation.js';
 
 // Sort preferences (module-level state to match legacy behaviour)
 let sortField: SessionSortField = 'name';
@@ -141,6 +142,7 @@ export async function refreshSessions(): Promise<void> {
 
   sessionsState.groups = groupSessionsByDirectory(state.sessions, getSessionCwd, sessionsState.groupPrefs);
   sessionsState.navList = buildFlatNavList(sessionsState.groups);
+  try { useNavigationStore().onNavListRebuilt(); } catch { /* store may not be initialized yet */ }
 
   try {
     sessionsState.cliTypes = await window.gamepadCli.configGetCliTypes();
@@ -287,22 +289,14 @@ export async function doSpawn(
 
     if (success) {
       logEvent(`Spawned embedded terminal: ${cliType}`);
-      tm.switchTo(sessionId);
-      state.activeSessionId = sessionId;
+      useNavigationStore().activateSession(sessionId);
 
       setTimeout(async () => {
         try {
           await refreshSessions();
-          // Re-refresh chip bar now that state.sessions has the new session
-          if (state.activeSessionId === sessionId) {
-            void useChipBarStore().refresh(sessionId);
-          }
-          const newIndex = findNavIndexBySessionId(sessionsState.navList, sessionId);
-          if (newIndex >= 0) {
-            sessionsState.sessionsFocusIndex = newIndex;
-            sessionsState.activeFocus = 'sessions';
-            sessionsState.cardColumn = 0;
-          }
+          const navStore = useNavigationStore();
+          navStore.syncSidebarToSession(sessionId);
+          sessionsState.activeFocus = 'sessions';
         } catch (e) { console.error('[Bootstrap] Post-spawn refresh failed:', e); }
       }, 300);
     } else {
@@ -317,8 +311,7 @@ export async function doSpawn(
 export async function switchToSession(sessionId: string): Promise<void> {
   const tm = getTerminalManager();
   if (tm && tm.hasTerminal(sessionId)) {
-    tm.switchTo(sessionId);
-    state.activeSessionId = sessionId;
+    useNavigationStore().activateSession(sessionId);
     return;
   }
   logEvent(`Session ${sessionId} is not an embedded terminal`);
@@ -366,10 +359,8 @@ function setupIpcListeners(): void {
   window.gamepadCli.onNotificationClick((event) => {
     const session = state.sessions.find(s => s.id === event.sessionId);
     if (session) {
-      state.activeSessionId = session.id;
       window.gamepadCli?.sessionSetActive(session.id);
-      const tm = getTerminalManager();
-      if (tm) tm.switchTo(session.id);
+      void useNavigationStore().navigateToSession(session.id);
     }
   });
 
@@ -489,7 +480,11 @@ function setupTabCycling(): void {
       const nextId = resolveNextTerminalId(
         tabCycleIds, tm.getSessionIds(), tm.getActiveSessionId(), e.shiftKey ? -1 : 1,
       );
-      if (nextId) tm.switchTo(nextId);
+      if (nextId) {
+        const navStore = useNavigationStore();
+        navStore.activateSession(nextId);
+        navStore.syncSidebarToSession(nextId);
+      }
     }
   }, true);
 }
@@ -571,14 +566,8 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
   if (onTerminalEmpty) tm.setOnEmpty(onTerminalEmpty);
   if (onTerminalSwitch) {
     tm.setOnSwitch((sessionId) => {
-      if (sessionId) {
-        const idx = findNavIndexBySessionId(sessionsState.navList, sessionId);
-        if (idx >= 0) {
-          sessionsState.sessionsFocusIndex = idx;
-          sessionsState.cardColumn = 0;
-          state.activeSessionId = sessionId;
-        }
-      }
+      // Reconciliation only — don't call tm.switchTo (avoids re-entrancy).
+      // state/sidebar/chipbar sync handled by the navigation store.
       onTerminalSwitch(sessionId ?? null);
     });
   }
@@ -601,11 +590,7 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
   setOutputBuffer(tm.getOutputBuffer());
   setSessionStateGetter(getSessionState);
   setActivityLevelGetter(getSessionActivity);
-  setSelectCardCallback((sessionId) => { void switchToSession(sessionId); });
-  // Note: uses the local switchToSession (tm.switchTo + state update only) rather than the
-  // sessions-spawn full version, which also dismisses draft/editor panels. If a user selects
-  // an overview card while a draft editor is open, those panels will remain visible. Acceptable
-  // for now — the full version has side-effect coupling that's harder to inject here.
+  setSelectCardCallback((sessionId) => { void useNavigationStore().navigateToSession(sessionId); });
   setOverviewDismissCallback(() => updateSessionsFocus());
   setPlanScreenFitCallback(() => tm.fitActive());
   setPlanScreenOpenCallback(() => {

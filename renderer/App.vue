@@ -83,6 +83,7 @@ import BindingEditorModal from './components/modals/BindingEditorModal.vue';
 import ToastNotification from './components/ToastNotification.vue';
 import ChipBar from './components/chips/ChipBar.vue';
 import { useChipBarStore } from './stores/chip-bar.js';
+import { useNavigationStore } from './stores/navigation.js';
 
 // ============================================================================
 // Reactive view state
@@ -92,6 +93,7 @@ const activeView = ref<'terminal' | 'overview' | 'plan'>('terminal');
 const settingsVisible = ref(false);
 const terminalContainerRef = ref<HTMLElement | null>(null);
 const chipBarStore = useChipBarStore();
+const navStore = useNavigationStore();
 
 // Non-modal local state
 const bindingEditorVisible = ref(false);
@@ -198,8 +200,7 @@ function handleButton(button: string): void {
   // Sandwich / Guide button — always bring to sessions
   if (button === 'Sandwich' || button === 'Guide') {
     settingsVisible.value = false;
-    activeView.value = 'terminal';
-    state.currentScreen = 'sessions';
+    navStore.closeSettings();
     return;
   }
 
@@ -217,7 +218,7 @@ function handleButton(button: string): void {
   if (settingsVisible.value) {
     if (button === 'B') {
       settingsVisible.value = false;
-      state.currentScreen = 'sessions';
+      navStore.closeSettings();
     } else {
       handleSettingsScreenButton(button);
     }
@@ -228,7 +229,7 @@ function handleButton(button: string): void {
   if (currentView() === 'plan') {
     const dir = toDirection(button);
     if (dir) { handlePlanScreenDpad(dir); return; }
-    if (button === 'B') { void hidePlanScreen(); return; }
+    if (button === 'B') { void navStore.closePlan(); return; }
     if (handlePlanScreenAction(button)) return;
   }
 
@@ -264,9 +265,7 @@ function handleRelease(button: string): void {
 // ============================================================================
 
 function onSessionClick(sessionId: string): void {
-  if (activeView.value === 'plan') void hidePlanScreen();
-  switchToSession(sessionId);
-  activeView.value = 'terminal';
+  void navStore.navigateToSession(sessionId);
 }
 
 function onSessionRename(sessionId: string): void {
@@ -321,16 +320,15 @@ async function saveGroupPrefsToBackend(): Promise<void> {
 }
 
 function onShowPlans(dirPath: string): void {
-  void showPlanScreen(dirPath);
+  void navStore.openPlan(dirPath);
 }
 
 function onShowOverview(dirPath: string): void {
-  showOverview(dirPath, state.activeSessionId ?? undefined);
+  void navStore.openOverview(dirPath, state.activeSessionId ?? undefined);
 }
 
 function onShowGlobalOverview(): void {
-  // null = show all sessions across all groups
-  showOverview(null, state.activeSessionId ?? undefined);
+  void navStore.openOverview(null, state.activeSessionId ?? undefined);
 }
 
 function onToggleOverview(sessionId: string): void {
@@ -461,13 +459,13 @@ function onOpenLogsFolder(): void {
 
 function onOpenSettings(): void {
   settingsVisible.value = true;
-  state.currentScreen = 'settings';
+  navStore.openSettings();
   void loadSettingsScreen();
 }
 
 function onCloseSettings(): void {
   settingsVisible.value = false;
-  state.currentScreen = 'sessions';
+  navStore.closeSettings();
 }
 
 // Draft submenu actions
@@ -619,11 +617,8 @@ onMounted(async () => {
     handleButton,
     handleRelease,
     onTerminalSwitch(sessionId) {
-      if (sessionId) {
-        state.activeSessionId = sessionId;
-        activeView.value = 'terminal';
-      }
-      void chipBarStore.refresh(sessionId ?? null);
+      void navStore.reconcileTerminalSwitch(sessionId ?? null);
+      if (sessionId) activeView.value = 'terminal';
     },
     onTerminalEmpty() {
       state.activeSessionId = null;

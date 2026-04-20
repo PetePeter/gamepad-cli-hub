@@ -15,6 +15,7 @@ const mockPlanStartableForDir = vi.fn<(dir: string) => Promise<any[]>>().mockRes
 const mockPlanList = vi.fn<(dir: string) => Promise<any[]>>().mockResolvedValue([]);
 let planChangedHandler: ((dirPath: string) => void) | null = null;
 const mockShowPlanScreen = vi.fn();
+const mockOpenPlan = vi.fn();
 
 const mockLogEvent = vi.fn();
 const mockGetCliIcon = vi.fn((_type: string) => '🤖');
@@ -41,6 +42,12 @@ vi.mock('../renderer/modals/close-confirm.js', () => ({
 
 vi.mock('../renderer/plans/plan-screen.js', () => ({
   showPlanScreen: mockShowPlanScreen,
+}));
+
+vi.mock('../renderer/stores/navigation.js', () => ({
+  useNavigationStore: () => ({
+    openPlan: mockOpenPlan,
+  }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -276,7 +283,7 @@ describe('Sessions Plans Grid', () => {
       expect(consumed).toBe(true);
       // Wait for dynamic import to resolve
       await flush();
-      expect(mockShowPlanScreen).toHaveBeenCalledWith('/projects/a');
+      expect(mockOpenPlan).toHaveBeenCalledWith('/projects/a');
     });
 
     it('B button returns to sessions zone', () => {

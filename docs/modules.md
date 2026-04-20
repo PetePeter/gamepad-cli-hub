@@ -47,6 +47,8 @@ Reference table of all modules in the Helm application.
 | **ConfigStore** | `renderer/stores/config.ts` | Pinia store — CLI types, bindings, sequences, tools caches. |
 | **DraftsStore** | `renderer/stores/drafts.ts` | Pinia store — draft counts, active draft, editor visibility. |
 | **PlansStore** | `renderer/stores/plans.ts` | Pinia store — plan doing/startable counts per directory. |
+| **NavigationStore** | `renderer/stores/navigation.ts` | Pinia store — centralized view routing (terminal/overview/plan), active session switching, identity-based sidebar focus, overlay open/close lifecycle with restore context. Sole write authority for panel view + sidebar focus. |
+| **ChipBarStore** | `renderer/stores/chip-bar.ts` | Pinia store — chip bar action state and refresh for the active session. |
 | **useModalStack** | `renderer/composables/useModalStack.ts` | Reactive push/pop modal stack replacing 11-deep if-chain. Module-level singleton shared across all callers. |
 | **useIpc** | `renderer/composables/useIpc.ts` | Typed IPC wrappers with auto-cleanup on `onUnmounted`. |
 | **useGamepad** | `renderer/composables/useGamepad.ts` | Gamepad polling setup + connection events. |

@@ -902,7 +902,7 @@ export class ConfigLoader {
   addCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual' },
+    options?: { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' },
   ): void {
     this.ensureLoaded();
     if (this.activeProfile!.tools[key]) {
@@ -923,7 +923,7 @@ export class ConfigLoader {
   updateCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'sendkeys' | 'sendkeysindividual' },
+    options?: { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' },
   ): void {
     this.ensureLoaded();
     if (!this.activeProfile!.tools[key]) {
