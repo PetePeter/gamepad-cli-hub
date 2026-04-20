@@ -8,7 +8,7 @@
 import type { PlanItem, PlanDependency } from '../../src/types/plan.js';
 import type { LayoutNode, LayoutResult } from './plan-layout.js';
 import { computeLayout } from './plan-layout.js';
-import { showPlanInEditor, hideDraftEditor, isDraftEditorVisible } from '../drafts/draft-editor.js';
+import { showPlanInEditor, hideDraftEditor, isDraftEditorVisible, closeEditor, hasUnsavedPlanChanges } from '../drafts/draft-editor.js';
 import { hidePlanDeleteConfirm, showPlanDeleteConfirm } from '../modals/plan-delete-confirm.js';
 import { state } from '../state.js';
 import { registerView, showView, currentView } from '../main-view/main-view-manager.js';
@@ -25,6 +25,7 @@ const NODE_H = 80;
 const CONNECTOR_R = 6;
 const MAX_DESC_LEN = 30;
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const CONNECTOR_SNAP_TOLERANCE_PX = 16;
 
 const STATUS_COLORS: Record<string, string> = {
   pending: '#555555',
@@ -72,7 +73,7 @@ let cachedItems: PlanItem[] = [];
 let viewBox = { x: 0, y: 0, w: 800, h: 600 };
 let isPanning = false;
 let panStart = { x: 0, y: 0, vbx: 0, vby: 0 };
-let dragState: { fromId: string; line: SVGLineElement } | null = null;
+let dragState: { fromId: string; line: SVGLineElement; snappedToId: string | null } | null = null;
 
 // ---------------------------------------------------------------------------
 // Keyboard shortcuts (document-level, gated on visibility)
@@ -80,9 +81,6 @@ let dragState: { fromId: string; line: SVGLineElement } | null = null;
 
 function planScreenKeyHandler(e: KeyboardEvent): void {
   if (!visible) return;
-
-  // Skip all shortcuts while the draft editor is open — let it handle its own keys
-  if (isDraftEditorVisible()) return;
 
   // When focus is on an editable element (title/description inputs in the
   // plan editor panel), let the element handle its own keys — never swallow
@@ -95,36 +93,42 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
     target.isContentEditable
   );
 
-  // Escape while the plan text editor is open should dismiss the editor,
-  // matching the Cancel button, even if focus is inside an input/textarea.
-  if (e.key === 'Escape' && editingId) {
+  // Escape always unwinds planner state first: help modal, editor, then node
+  // selection. It should still work when a select/input owns focus.
+  if (e.key === 'Escape') {
     e.preventDefault();
-    hideDraftEditor();
-    editingId = null;
+    if (isPlanHelpVisible()) {
+      hidePlanHelpModal();
+      return;
+    }
+    if (editingId) {
+      closeEditor();
+      clearSelection();
+      return;
+    }
+    if (selectedId) {
+      clearSelection();
+    }
     return;
   }
-
-  if (editable) return;
 
   // Ctrl+N — add new node
   if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
-    handleAddNode();
+    void handleAddNode({ fromShortcut: true });
     return;
   }
 
-  // Delete — delete the selected plan node
+  // Skip all other planner shortcuts while the draft editor is open.
+  if (isDraftEditorVisible()) return;
+
+  if (editable) return;
+
+  // Delete — delete the selected plan node only when not editing
   if (e.key === 'Delete' && selectedId) {
     e.preventDefault();
     requestDelete(selectedId);
     return;
-  }
-
-  // Escape — close plan screen (or dismiss help modal if visible)
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    if (isPlanHelpVisible()) { hidePlanHelpModal(); return; }
-    hidePlanScreen();
   }
 }
 
@@ -154,6 +158,8 @@ async function mountPlanScreen(params?: unknown): Promise<void> {
   // Hide the chip panel — focus is leaving the active terminal
   const draftStrip = document.getElementById('draftStrip');
   if (draftStrip) draftStrip.style.display = 'none';
+  const termContainer = document.getElementById('terminalContainer');
+  if (termContainer) termContainer.style.display = 'none';
 
   const [items, deps] = await Promise.all([
     window.gamepadCli.planList(dirPath),
@@ -296,7 +302,7 @@ export function handlePlanScreenAction(button: string): boolean {
   }
 
   if (button === 'Y') {
-    handleAddNode(); // async fire-and-forget
+    void handleAddNode(); // async fire-and-forget
     return true;
   }
 
@@ -311,6 +317,13 @@ export function handlePlanScreenAction(button: string): boolean {
 function selectNodeById(id: string): void {
   const item = cachedItems.find(i => i.id === id);
   if (item) selectNode(item);
+}
+
+function clearSelection(): void {
+  selectedId = null;
+  document.querySelectorAll('.plan-node').forEach(node => {
+    node.classList.remove('plan-node--selected');
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -644,7 +657,11 @@ function attachPanZoom(svg: SVGSVGElement, wrapper: HTMLElement): void {
 
   wrapper.addEventListener('mousemove', (e) => {
     if (dragState) {
-      const pt = svgPoint(svg, e.clientX, e.clientY);
+      const snapTarget = findSnapTarget(svg, wrapper, e.clientX, e.clientY, dragState.fromId);
+      const pt = snapTarget
+        ? { x: snapTarget.x, y: snapTarget.y }
+        : svgPoint(svg, wrapper, e.clientX, e.clientY);
+      dragState.snappedToId = snapTarget?.id ?? null;
       dragState.line.setAttribute('x2', String(pt.x));
       dragState.line.setAttribute('y2', String(pt.y));
       return;
@@ -660,8 +677,9 @@ function attachPanZoom(svg: SVGSVGElement, wrapper: HTMLElement): void {
 
   wrapper.addEventListener('mouseup', (e) => {
     if (dragState) {
+      const snapTarget = findSnapTarget(svg, wrapper, e.clientX, e.clientY, dragState.fromId);
       const targetNode = (e.target as Element).closest('.plan-node');
-      const toId = targetNode?.getAttribute('data-id') ?? null;
+      const toId = snapTarget?.id ?? dragState.snappedToId ?? targetNode?.getAttribute('data-id') ?? null;
       const fromId = dragState.fromId;
       dragState.line.remove();
       dragState = null;
@@ -702,9 +720,13 @@ function attachPanZoom(svg: SVGSVGElement, wrapper: HTMLElement): void {
 /** Start dragging a connection from the given node's output connector. */
 function startDragConnection(fromId: string, e: MouseEvent): void {
   const svg = screenEl?.querySelector('svg');
-  if (!svg) return;
+  const wrapper = screenEl?.querySelector('.plan-canvas') as HTMLElement | null;
+  if (!svg || !wrapper) return;
 
-  const startPt = svgPoint(svg, e.clientX, e.clientY);
+  const fromNode = cachedLayout?.nodes.find(node => node.id === fromId);
+  const startPt = fromNode
+    ? { x: fromNode.x + NODE_W, y: fromNode.y + NODE_H / 2 }
+    : svgPoint(svg, wrapper, e.clientX, e.clientY);
 
   const line = document.createElementNS(SVG_NS, 'line');
   line.classList.add('plan-drag-line');
@@ -717,16 +739,90 @@ function startDragConnection(fromId: string, e: MouseEvent): void {
   line.setAttribute('stroke-dasharray', '6 3');
   svg.appendChild(line);
 
-  dragState = { fromId, line };
+  dragState = { fromId, line, snappedToId: null };
 }
 
-/** Convert client coords to SVG viewBox coords. */
-function svgPoint(svg: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } {
-  const rect = svg.getBoundingClientRect();
+type MatrixLike = { a: number; b: number; c: number; d: number; e: number; f: number };
+
+function applyMatrix(matrix: MatrixLike, x: number, y: number): { x: number; y: number } {
+  return {
+    x: matrix.a * x + matrix.c * y + matrix.e,
+    y: matrix.b * x + matrix.d * y + matrix.f,
+  };
+}
+
+function invertMatrix(matrix: MatrixLike): MatrixLike | null {
+  const det = matrix.a * matrix.d - matrix.b * matrix.c;
+  if (!det) return null;
+  return {
+    a: matrix.d / det,
+    b: -matrix.b / det,
+    c: -matrix.c / det,
+    d: matrix.a / det,
+    e: (matrix.c * matrix.f - matrix.d * matrix.e) / det,
+    f: (matrix.b * matrix.e - matrix.a * matrix.f) / det,
+  };
+}
+
+function wrapperPoint(wrapper: HTMLElement, clientX: number, clientY: number): { x: number; y: number } {
+  const rect = wrapper.getBoundingClientRect();
   return {
     x: ((clientX - rect.left) / (rect.width || 1)) * viewBox.w + viewBox.x,
     y: ((clientY - rect.top) / (rect.height || 1)) * viewBox.h + viewBox.y,
   };
+}
+
+/** Convert client coords to SVG coords using the rendered SVG screen transform. */
+function svgPoint(
+  svg: SVGSVGElement,
+  wrapper: HTMLElement,
+  clientX: number,
+  clientY: number,
+): { x: number; y: number } {
+  const ctm = typeof svg.getScreenCTM === 'function' ? svg.getScreenCTM() : null;
+  const inv = ctm ? invertMatrix(ctm) : null;
+  return inv ? applyMatrix(inv, clientX, clientY) : wrapperPoint(wrapper, clientX, clientY);
+}
+
+function connectorClientPoint(
+  svg: SVGSVGElement,
+  wrapper: HTMLElement,
+  x: number,
+  y: number,
+): { x: number; y: number } {
+  const ctm = typeof svg.getScreenCTM === 'function' ? svg.getScreenCTM() : null;
+  if (ctm) return applyMatrix(ctm, x, y);
+
+  const rect = wrapper.getBoundingClientRect();
+  return {
+    x: ((x - viewBox.x) / viewBox.w) * (rect.width || 1) + rect.left,
+    y: ((y - viewBox.y) / viewBox.h) * (rect.height || 1) + rect.top,
+  };
+}
+
+function findSnapTarget(
+  svg: SVGSVGElement,
+  wrapper: HTMLElement,
+  clientX: number,
+  clientY: number,
+  fromId: string,
+): { id: string; x: number; y: number } | null {
+  if (!cachedLayout) return null;
+
+  let best: { id: string; x: number; y: number; distance: number } | null = null;
+  for (const node of cachedLayout.nodes) {
+    if (node.id === fromId) continue;
+    const x = node.x;
+    const y = node.y + NODE_H / 2;
+    const clientPt = connectorClientPoint(svg, wrapper, x, y);
+    const distance = Math.hypot(clientX - clientPt.x, clientY - clientPt.y);
+    if (distance > CONNECTOR_SNAP_TOLERANCE_PX) continue;
+    if (!best || distance < best.distance) {
+      best = { id: node.id, x, y, distance };
+    }
+  }
+
+  return best ? { id: best.id, x: best.x, y: best.y } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -757,6 +853,7 @@ function openNodeEditor(item: PlanItem): void {
       onDelete: () => handleDelete(item.id),
       onDone: item.status === 'doing' || item.status === 'wait-tests' ? () => handleComplete(item.id) : undefined,
       onApply: item.status === 'startable' || item.status === 'doing' || item.status === 'wait-tests' ? () => handleApplyFromCanvas(item) : undefined,
+      onClose: () => { editingId = null; },
     },
   );
 }
@@ -841,10 +938,24 @@ async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
   }
 }
 
-async function handleAddNode(): Promise<void> {
+async function handleAddNode(options?: { fromShortcut?: boolean }): Promise<void> {
+  if (editingId && options?.fromShortcut && hasUnsavedPlanChanges()) {
+    showBriefNotice('Finish or cancel current edits before creating a new plan');
+    return;
+  }
+
   try {
-    await window.gamepadCli.planCreate(currentDir, 'New Plan', '');
+    const created = await window.gamepadCli.planCreate(currentDir, 'New Plan', '');
+    if (editingId) {
+      closeEditor();
+      editingId = null;
+    }
     await refreshCanvas();
+    const createdId = created && typeof created === 'object' && 'id' in created ? String(created.id) : null;
+    const createdItem = createdId ? cachedItems.find(item => item.id === createdId) : null;
+    if (createdItem) {
+      openNodeEditor(createdItem);
+    }
   } catch (err) {
     console.error('[PlanScreen] Add failed:', err);
   }

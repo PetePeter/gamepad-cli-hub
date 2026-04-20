@@ -31,6 +31,10 @@ export interface DraftEditorState {
   planCallbacks: PlanCallbacks | null;
   planStatus: PlanStatus;
   planStateInfo: string;
+  planOriginalTitle: string;
+  planOriginalDescription: string;
+  planOriginalStatus: PlanStatus;
+  planOriginalStateInfo: string;
   // Shared
   focusIndex: number;
 }
@@ -40,6 +44,7 @@ export interface PlanCallbacks {
   onDelete: () => void;
   onDone?: () => void;
   onApply?: () => void;
+  onClose?: () => void;
 }
 
 const ALL_FOCUS_IDS = [
@@ -62,6 +67,10 @@ export const draftEditorState: DraftEditorState = {
   planCallbacks: null,
   planStatus: 'pending',
   planStateInfo: '',
+  planOriginalTitle: '',
+  planOriginalDescription: '',
+  planOriginalStatus: 'pending',
+  planOriginalStateInfo: '',
   focusIndex: 0,
 };
 
@@ -131,7 +140,7 @@ export function initDraftEditor(): void {
   document.getElementById('draftApplyBtn')?.addEventListener('click', () => handleButtonClick('apply'));
   document.getElementById('draftDoneBtn')?.addEventListener('click', () => handleButtonClick('done'));
   document.getElementById('draftDeleteBtn')?.addEventListener('click', () => handleButtonClick('delete'));
-  document.getElementById('draftCancelBtn')?.addEventListener('click', () => hideDraftEditor());
+  document.getElementById('draftCancelBtn')?.addEventListener('click', () => closeEditor());
   document.getElementById('draftPlanStateSelect')?.addEventListener('change', () => syncPlanStateInfoVisibility());
 
   const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement | null;
@@ -149,7 +158,7 @@ export function initDraftEditor(): void {
       (document.getElementById('draftContentInput') as HTMLTextAreaElement | null)?.focus();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      hideDraftEditor();
+      closeEditor();
     }
   });
 
@@ -165,7 +174,7 @@ export function initDraftEditor(): void {
       saveAndDismiss();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      hideDraftEditor();
+      closeEditor();
     }
   });
 }
@@ -232,6 +241,10 @@ export function showPlanInEditor(
   draftEditorState.planCallbacks = callbacks;
   draftEditorState.planStatus = plan.status;
   draftEditorState.planStateInfo = plan.stateInfo ?? '';
+  draftEditorState.planOriginalTitle = plan.title;
+  draftEditorState.planOriginalDescription = plan.description;
+  draftEditorState.planOriginalStatus = plan.status;
+  draftEditorState.planOriginalStateInfo = plan.stateInfo ?? '';
 
   const titleEl = editor.querySelector('.draft-editor-title');
   const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement | null;
@@ -289,9 +302,36 @@ export function hideDraftEditor(): void {
   resetState();
 }
 
+/** Close the editor as a user dismissal and notify plan-mode owners. */
+export function closeEditor(): void {
+  draftEditorState.planCallbacks?.onClose?.();
+  hideDraftEditor();
+}
+
 /** Check if the editor is currently visible (either mode). */
 export function isDraftEditorVisible(): boolean {
   return draftEditorState.visible;
+}
+
+/** Whether the currently visible plan editor has unsaved field changes. */
+export function hasUnsavedPlanChanges(): boolean {
+  if (!draftEditorState.visible || draftEditorState.mode !== 'plan') return false;
+
+  const title = (document.getElementById('draftLabelInput') as HTMLInputElement | null)?.value ?? '';
+  const description = (document.getElementById('draftContentInput') as HTMLTextAreaElement | null)?.value ?? '';
+  const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement | null;
+  const stateInfoInput = document.getElementById('draftPlanStateInfo') as HTMLInputElement | null;
+  const status = stateSelect?.disabled
+    ? draftEditorState.planStatus
+    : ((stateSelect?.value as PlanStatus | undefined) ?? draftEditorState.planStatus);
+  const stateInfo = status === 'blocked' || status === 'question'
+    ? (stateInfoInput?.value ?? '')
+    : '';
+
+  return title !== draftEditorState.planOriginalTitle ||
+    description !== draftEditorState.planOriginalDescription ||
+    status !== draftEditorState.planOriginalStatus ||
+    stateInfo !== draftEditorState.planOriginalStateInfo;
 }
 
 // ---------------------------------------------------------------------------
@@ -321,7 +361,7 @@ export function handleDraftEditorButton(button: string): void {
       break;
     }
     case 'B':
-      hideDraftEditor();
+      closeEditor();
       break;
   }
 }
@@ -438,7 +478,7 @@ function savePlan(): void {
     ? draftEditorState.planStatus
     : ((stateSelect?.value as PlanStatus | undefined) ?? draftEditorState.planStatus);
   cb.onSave({ title, description, status, stateInfo });
-  hideDraftEditor();
+  closeEditor();
 }
 
 function applyPlan(): void {
@@ -500,6 +540,10 @@ function resetState(): void {
   draftEditorState.planCallbacks = null;
   draftEditorState.planStatus = 'pending';
   draftEditorState.planStateInfo = '';
+  draftEditorState.planOriginalTitle = '';
+  draftEditorState.planOriginalDescription = '';
+  draftEditorState.planOriginalStatus = 'pending';
+  draftEditorState.planOriginalStateInfo = '';
   draftEditorState.focusIndex = 0;
   hidePlanStateControls();
 }

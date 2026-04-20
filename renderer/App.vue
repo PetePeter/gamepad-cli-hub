@@ -612,12 +612,23 @@ onMounted(async () => {
   document.addEventListener('keydown', (e: KeyboardEvent) => {
     if (!isAnyBridgeModalVisible()) return;
     const { handleInput } = useModalStack();
+    const active = document.activeElement as HTMLElement | null;
+    const editable = !!active && (
+      active.tagName === 'INPUT' ||
+      active.tagName === 'TEXTAREA' ||
+      active.tagName === 'SELECT' ||
+      active.isContentEditable
+    );
     if (e.key === 'Tab') {
       e.preventDefault();
       handleInput(e.shiftKey ? 'ShiftTab' : 'Tab');
     } else if (e.key === 'Enter') {
       // Allow plain Enter in any textarea (for newlines)
       if (document.activeElement?.tagName === 'TEXTAREA') return;
+      e.preventDefault();
+      handleInput('A');
+    } else if (e.key === ' ' || e.key === 'Spacebar') {
+      if (editable) return;
       e.preventDefault();
       handleInput('A');
     } else if (e.key === 'Escape') {

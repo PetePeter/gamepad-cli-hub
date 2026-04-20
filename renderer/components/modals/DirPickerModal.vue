@@ -73,6 +73,12 @@ function selectDir(index: number): void {
   }
 }
 
+function suppressActivationKey(e: KeyboardEvent): void {
+  if (e.key === ' ' || e.key === 'Spacebar') {
+    e.preventDefault();
+  }
+}
+
 defineExpose({ handleButton });
 </script>
 
@@ -94,7 +100,8 @@ defineExpose({ handleButton });
             :key="item.path"
             class="dir-picker-item focusable"
             :class="{ 'dir-picker-item--focused': i === selectedIndex }"
-            tabindex="0"
+            tabindex="-1"
+            @keydown="suppressActivationKey"
             @click="selectDir(i)"
           >
             <span class="dir-picker-item__name">{{ item.name }}</span>
@@ -102,7 +109,7 @@ defineExpose({ handleButton });
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn" @click="emit('cancel'); emit('update:visible', false)">Cancel</button>
+          <button class="btn" tabindex="-1" @keydown="suppressActivationKey" @click="emit('cancel'); emit('update:visible', false)">Cancel</button>
         </div>
       </div>
     </div>

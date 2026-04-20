@@ -84,6 +84,7 @@ describe('CloseConfirmModal.vue', () => {
   it('Cancel button emits cancel + update:visible', async () => {
     const w = factory();
     const cancelBtn = w.findAll('button').find(b => b.text() === 'Cancel')!;
+    expect(cancelBtn.attributes('tabindex')).toBe('-1');
     await cancelBtn.trigger('click');
     expect(w.emitted('cancel')).toHaveLength(1);
     expect(w.emitted('update:visible')?.[0]).toEqual([false]);
@@ -93,6 +94,7 @@ describe('CloseConfirmModal.vue', () => {
   it('Close button emits confirm + update:visible', async () => {
     const w = factory();
     const closeBtn = w.findAll('button').find(b => b.text() === 'Close')!;
+    expect(closeBtn.attributes('tabindex')).toBe('-1');
     await closeBtn.trigger('click');
     expect(w.emitted('confirm')).toHaveLength(1);
     expect(w.emitted('update:visible')?.[0]).toEqual([false]);
@@ -190,6 +192,7 @@ describe('PlanDeleteConfirmModal.vue', () => {
   it('Delete button emits confirm', async () => {
     const w = factory();
     const delBtn = w.findAll('button').find(b => b.text() === 'Delete')!;
+    expect(delBtn.attributes('tabindex')).toBe('-1');
     await delBtn.trigger('click');
     expect(w.emitted('confirm')).toHaveLength(1);
     w.unmount();
@@ -198,6 +201,7 @@ describe('PlanDeleteConfirmModal.vue', () => {
   it('Cancel button emits cancel', async () => {
     const w = factory();
     const cancelBtn = w.findAll('button').find(b => b.text() === 'Cancel')!;
+    expect(cancelBtn.attributes('tabindex')).toBe('-1');
     await cancelBtn.trigger('click');
     expect(w.emitted('cancel')).toHaveLength(1);
     w.unmount();
@@ -366,6 +370,8 @@ describe('QuickSpawnModal.vue', () => {
     const w = factory();
     const items = w.findAll('.dir-picker-item');
     expect(items).toHaveLength(3);
+    expect(items[0].attributes('tabindex')).toBe('-1');
+    expect(w.find('button').attributes('tabindex')).toBe('-1');
     w.unmount();
   });
 
@@ -470,6 +476,8 @@ describe('DirPickerModal.vue', () => {
     const items = w.findAll('.dir-picker-item');
     expect(items).toHaveLength(3);
     expect(items[0].text()).toContain('project-a');
+    expect(items[0].attributes('tabindex')).toBe('-1');
+    expect(w.find('button').attributes('tabindex')).toBe('-1');
     w.unmount();
   });
 

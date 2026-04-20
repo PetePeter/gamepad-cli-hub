@@ -74,6 +74,12 @@ function onClose(): void {
   emit('update:visible', false);
 }
 
+function suppressActivationKey(e: KeyboardEvent): void {
+  if (e.key === ' ' || e.key === 'Spacebar') {
+    e.preventDefault();
+  }
+}
+
 defineExpose({ handleButton });
 </script>
 
@@ -99,11 +105,15 @@ defineExpose({ handleButton });
           <button
             class="btn"
             :class="{ 'btn--focused': selectedIndex === 0 }"
+            tabindex="-1"
+            @keydown="suppressActivationKey"
             @click="onCancel"
           >Cancel</button>
           <button
             class="btn btn--danger"
             :class="{ 'btn--focused': selectedIndex === 1 }"
+            tabindex="-1"
+            @keydown="suppressActivationKey"
             @click="onClose"
           >Close</button>
         </div>

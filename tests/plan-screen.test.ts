@@ -81,7 +81,7 @@ function makeItem(overrides: Partial<PlanItem> & { id: string }): PlanItem {
 function buildPlanDom(): void {
   document.body.innerHTML = `
     <div id="mainArea" class="panel-right">
-      <div class="terminal-container"></div>
+      <div id="terminalContainer" class="terminal-container"></div>
     </div>
     <div class="modal-overlay" id="planDeleteConfirmOverlay" aria-hidden="true">
       <div class="modal close-confirm-modal">
@@ -108,6 +108,17 @@ function fakeLayout(items: PlanItem[]): LayoutResult {
     width: 60 + items.length * 280 + 60,
     height: 200,
   };
+}
+
+function makeMatrix(a: number, d: number, e = 0, f = 0) {
+  return { a, b: 0, c: 0, d, e, f };
+}
+
+function setScreenCTM(el: SVGSVGElement, matrix: ReturnType<typeof makeMatrix>): void {
+  Object.defineProperty(el, 'getScreenCTM', {
+    configurable: true,
+    value: vi.fn(() => matrix),
+  });
 }
 
 async function getScreenModule() {
@@ -345,6 +356,16 @@ describe('Plan Screen', () => {
 
       expect(onOpen).toHaveBeenCalled();
     });
+
+    it('hides the terminal container when the planner opens', async () => {
+      mockPlanList.mockResolvedValue([]);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue({ nodes: [], width: 0, height: 0 });
+
+      await screen.showPlanScreen('/test/dir');
+
+      expect(document.getElementById('terminalContainer')?.style.display).toBe('none');
+    });
   });
 
   describe('keyboard shortcuts', () => {
@@ -364,6 +385,146 @@ describe('Plan Screen', () => {
       await flush();
 
       expect(mockPlanCreate).toHaveBeenCalledWith('/test/dir', 'New Plan', '');
+    });
+
+    it('Escape clears the selected plan when not editing', async () => {
+      const items = [makeItem({ id: 'esc-1' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+
+      await screen.showPlanScreen('/test/dir');
+      expect(screen.getSelectedPlanId()).toBe('esc-1');
+
+      const { hidePlanHelpModal } = await import('../renderer/plans/plan-help-modal.js');
+      hidePlanHelpModal();
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      }));
+
+      expect(screen.getSelectedPlanId()).toBeNull();
+      expect(document.querySelector('.plan-node')?.classList.contains('plan-node--selected')).toBe(false);
+    });
+
+    it('Escape closes the editor and clears selection even when the status dropdown is focused', async () => {
+      const items = [makeItem({ id: 'esc-edit-1', status: 'blocked', stateInfo: 'Waiting' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+      mockPlanIncomingList.mockResolvedValue([]);
+
+      await screen.showPlanScreen('/test/dir');
+
+      const node = document.querySelector('.plan-node') as HTMLElement;
+      node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+      const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement;
+      stateSelect.focus();
+      stateSelect.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Escape',
+        bubbles: true,
+        cancelable: true,
+      }));
+
+      expect(document.getElementById('draftEditor')!.style.display).toBe('none');
+      expect(screen.getSelectedPlanId()).toBeNull();
+    });
+
+    it('Ctrl+N refuses to switch when the current plan has unsaved changes', async () => {
+      const items = [makeItem({ id: 'dirty-1', title: 'Existing' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+      mockPlanIncomingList.mockResolvedValue([]);
+
+      await screen.showPlanScreen('/test/dir');
+
+      const node = document.querySelector('.plan-node') as HTMLElement;
+      node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+      const titleInput = document.getElementById('draftLabelInput') as HTMLInputElement;
+      titleInput.value = 'Changed title';
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'n',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockPlanCreate).not.toHaveBeenCalled();
+      expect(document.querySelector('.plan-notice')?.textContent).toContain('Finish or cancel current edits');
+      expect(screen.getSelectedPlanId()).toBe('dirty-1');
+    });
+
+    it('Ctrl+N creates, selects, and opens the new plan when there are no unsaved changes', async () => {
+      const items = [makeItem({ id: 'existing-1', title: 'Existing' })];
+      const newItem = makeItem({ id: 'new-shortcut-1', title: 'New Plan' });
+      mockPlanList.mockResolvedValueOnce(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+      mockPlanCreate.mockResolvedValue(newItem);
+      mockPlanIncomingList.mockResolvedValue([]);
+
+      await screen.showPlanScreen('/test/dir');
+
+      const updated = [items[0], newItem];
+      mockPlanList.mockResolvedValue(updated);
+      mockComputeLayout.mockReturnValue(fakeLayout(updated));
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'n',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockPlanCreate).toHaveBeenCalledWith('/test/dir', 'New Plan', '');
+      expect(screen.getSelectedPlanId()).toBe('new-shortcut-1');
+      expect(document.getElementById('draftEditor')!.style.display).not.toBe('none');
+      expect((document.getElementById('draftLabelInput') as HTMLInputElement).value).toBe('New Plan');
+    });
+
+    it('Delete only opens confirmation when a node is selected outside edit mode', async () => {
+      const items = [makeItem({ id: 'delete-edit-1' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+      mockPlanIncomingList.mockResolvedValue([]);
+
+      await screen.showPlanScreen('/test/dir');
+
+      const node = document.querySelector('.plan-node') as HTMLElement;
+      node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Delete',
+        bubbles: true,
+        cancelable: true,
+      }));
+
+      const { planDeleteConfirmState, hidePlanDeleteConfirm } = await import('../renderer/modals/plan-delete-confirm.js');
+      expect(planDeleteConfirmState.visible).toBe(false);
+
+      const cancelBtn = document.getElementById('draftCancelBtn') as HTMLElement;
+      cancelBtn.click();
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Delete',
+        bubbles: true,
+        cancelable: true,
+      }));
+
+      expect(planDeleteConfirmState.visible).toBe(true);
+      hidePlanDeleteConfirm();
     });
   });
 
@@ -796,6 +957,63 @@ describe('Plan Screen', () => {
       expect(mockPlanAddDep).toHaveBeenCalledWith('from1', 'to1');
     });
 
+    it('snaps the preview endpoint to a nearby input connector', async () => {
+      const items = [makeItem({ id: 'from1' }), makeItem({ id: 'to1' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+
+      await screen.showPlanScreen('/test/dir');
+
+      const wrapper = document.querySelector('.plan-canvas') as HTMLElement;
+      const svg = wrapper.querySelector('svg') as SVGSVGElement;
+      setScreenCTM(svg, makeMatrix(1, 1, 0, 0));
+
+      const outConn = document.querySelector('.plan-node[data-id="from1"] .plan-node__connector--out')!;
+      outConn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 260, clientY: 100 }));
+
+      wrapper.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        clientX: 344,
+        clientY: 103,
+      }));
+
+      const dragLine = document.querySelector('.plan-drag-line') as SVGLineElement;
+      expect(dragLine.getAttribute('x2')).toBe('340');
+      expect(dragLine.getAttribute('y2')).toBe('100');
+    });
+
+    it('mouseup on wrapper still creates dep when cursor is snapped to an input connector', async () => {
+      const items = [makeItem({ id: 'from1' }), makeItem({ id: 'to1' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+      mockPlanAddDep.mockResolvedValue(undefined);
+
+      await screen.showPlanScreen('/test/dir');
+
+      const wrapper = document.querySelector('.plan-canvas') as HTMLElement;
+      const svg = wrapper.querySelector('svg') as SVGSVGElement;
+      setScreenCTM(svg, makeMatrix(1, 1, 0, 0));
+
+      const outConn = document.querySelector('.plan-node[data-id="from1"] .plan-node__connector--out')!;
+      outConn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: 260, clientY: 100 }));
+
+      wrapper.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        clientX: 344,
+        clientY: 103,
+      }));
+      wrapper.dispatchEvent(new MouseEvent('mouseup', {
+        bubbles: true,
+        clientX: 344,
+        clientY: 103,
+      }));
+      await flush();
+
+      expect(mockPlanAddDep).toHaveBeenCalledWith('from1', 'to1');
+    });
+
     it('mouseup on empty area cancels drag without creating dep', async () => {
       const items = [makeItem({ id: 'lone1' })];
       mockPlanList.mockResolvedValue(items);
@@ -834,6 +1052,77 @@ describe('Plan Screen', () => {
       wrapper.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
 
       expect(document.querySelector('.plan-drag-line')).toBeNull();
+    });
+
+    it('anchors drag origin to the source connector and follows the SVG screen transform for movement', async () => {
+      const items = [makeItem({ id: 'offset1' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+
+      await screen.showPlanScreen('/test/dir');
+
+      const wrapper = document.querySelector('.plan-canvas') as HTMLElement;
+      const svg = wrapper.querySelector('svg') as SVGSVGElement;
+
+      vi.spyOn(wrapper, 'getBoundingClientRect').mockReturnValue({
+        x: 10, y: 20, left: 10, top: 20, right: 410, bottom: 320, width: 400, height: 300,
+        toJSON: () => ({}),
+      } as DOMRect);
+      setScreenCTM(svg, makeMatrix(0.5, 0.5, 40, 60));
+
+      const outConn = document.querySelector('.plan-node__connector--out')!;
+      outConn.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true,
+        clientX: 210,
+        clientY: 170,
+      }));
+
+      const dragLine = document.querySelector('.plan-drag-line') as SVGLineElement;
+      expect(dragLine).not.toBeNull();
+      expect(dragLine.getAttribute('x1')).toBe('260');
+      expect(dragLine.getAttribute('y1')).toBe('100');
+      expect(dragLine.getAttribute('x2')).toBe('260');
+      expect(dragLine.getAttribute('y2')).toBe('100');
+
+      wrapper.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        clientX: 110,
+        clientY: 70,
+      }));
+
+      expect(dragLine.getAttribute('x2')).toBe('140');
+      expect(dragLine.getAttribute('y2')).toBe('20');
+    });
+
+    it('does not accumulate drift over long distances when the svg is letterboxed', async () => {
+      const items = [makeItem({ id: 'from1' }), makeItem({ id: 'to1' })];
+      mockPlanList.mockResolvedValue(items);
+      mockPlanDeps.mockResolvedValue([]);
+      mockComputeLayout.mockReturnValue(fakeLayout(items));
+
+      await screen.showPlanScreen('/test/dir');
+
+      const wrapper = document.querySelector('.plan-canvas') as HTMLElement;
+      const svg = wrapper.querySelector('svg') as SVGSVGElement;
+      setScreenCTM(svg, makeMatrix(0.5, 0.5, 40, 60));
+
+      const outConn = document.querySelector('.plan-node[data-id="from1"] .plan-node__connector--out')!;
+      outConn.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true,
+        clientX: 170,
+        clientY: 110,
+      }));
+
+      wrapper.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        clientX: 390,
+        clientY: 160,
+      }));
+
+      const dragLine = document.querySelector('.plan-drag-line') as SVGLineElement;
+      expect(dragLine.getAttribute('x2')).toBe('700');
+      expect(dragLine.getAttribute('y2')).toBe('200');
     });
   });
 
@@ -1197,8 +1486,21 @@ describe('Plan Editor (unified)', () => {
       expect(document.getElementById('draftEditor')!.style.display).toBe('none');
     });
 
+    it('Cancel notifies the planner owner through onClose', () => {
+      const item = makeItem({ id: 'cancel-close' });
+      const onClose = vi.fn();
+
+      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn(), onClose });
+
+      const cancelBtn = document.getElementById('draftCancelBtn') as HTMLElement;
+      cancelBtn.click();
+
+      expect(onClose).toHaveBeenCalledOnce();
+    });
+
     it('Escape in the description textarea hides the editor like Cancel without closing the plan screen', async () => {
       const items = [makeItem({ id: 'cancel-esc' })];
+      const onClose = vi.fn();
       mockPlanList.mockResolvedValue(items);
       mockPlanDeps.mockResolvedValue([]);
       mockComputeLayout.mockReturnValue(fakeLayout(items));
@@ -1210,11 +1512,15 @@ describe('Plan Editor (unified)', () => {
       node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
+      editor.hideDraftEditor();
+      editor.showPlanInEditor('session-1', items[0], { onSave: vi.fn(), onDelete: vi.fn(), onClose });
+
       const textarea = document.getElementById('draftContentInput') as HTMLTextAreaElement;
       textarea.focus();
       textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
 
       expect(document.getElementById('draftEditor')!.style.display).toBe('none');
+      expect(onClose).toHaveBeenCalledOnce();
       expect(document.querySelector('.plan-screen')!.classList.contains('visible')).toBe(true);
     });
   });
