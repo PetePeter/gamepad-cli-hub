@@ -1,5 +1,7 @@
 # v1.2.2 — Helm
 
+> ⚠️ **This version may be unstable.** The renderer has been migrated from manual DOM manipulation to Vue 3. While all automated tests pass, there may be edge cases not yet covered. Please report any issues you encounter.
+
 ## Highlights
 
 - **Vue UI migration completed** — Helm's main panels, sidebar, modal stack, and shared state now run through the Vue-based renderer architecture for more consistent navigation and screen updates.
