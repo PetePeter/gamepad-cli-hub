@@ -11,7 +11,7 @@ import { computeLayout } from './plan-layout.js';
 import { showPlanInEditor, hideDraftEditor, isDraftEditorVisible, closeEditor, hasUnsavedPlanChanges } from '../drafts/draft-editor.js';
 import { hidePlanDeleteConfirm, showPlanDeleteConfirm } from '../modals/plan-delete-confirm.js';
 import { state } from '../state.js';
-import { registerView, showView, currentView } from '../main-view/main-view-manager.js';
+import { registerView, showView, currentView, type ViewMountContext } from '../main-view/main-view-manager.js';
 import { showPlanHelpModal, hidePlanHelpModal, isPlanHelpVisible } from './plan-help-modal.js';
 import { sessionsState } from '../screens/sessions-state.js';
 import { resolveGroupDisplayName } from '../session-groups.js';
@@ -144,7 +144,7 @@ export async function showPlanScreen(dirPath: string): Promise<void> {
 }
 
 /** Internal — mount the plan screen (called by the manager). */
-async function mountPlanScreen(params?: unknown): Promise<void> {
+async function mountPlanScreen(params?: unknown, context?: ViewMountContext): Promise<void> {
   const p = (params as { dir?: string } | undefined);
   const dirPath = p?.dir ?? '';
   currentDir = dirPath;
@@ -165,6 +165,7 @@ async function mountPlanScreen(params?: unknown): Promise<void> {
     window.gamepadCli.planList(dirPath),
     window.gamepadCli.planDeps(dirPath),
   ]);
+  if (context && !context.isActive()) return;
 
   const layout = computeLayout(items, deps);
   cachedLayout = layout;

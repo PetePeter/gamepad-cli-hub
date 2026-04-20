@@ -17,9 +17,14 @@
 
 export type MainView = 'terminal' | 'overview' | 'plan';
 
+export interface ViewMountContext {
+  transitionId: number;
+  isActive: () => boolean;
+}
+
 export interface ViewHandlers {
   /** Called when this view becomes current. Receives params from show(). */
-  mount: (params?: unknown) => void | Promise<void>;
+  mount: (params?: unknown, context?: ViewMountContext) => void | Promise<void>;
   /** Called when another view is about to take over. Must clean up DOM + listeners. */
   unmount: () => void;
 }
@@ -29,6 +34,7 @@ type ChangeListener = (view: MainView) => void;
 const handlers = new Map<MainView, ViewHandlers>();
 const listeners = new Set<ChangeListener>();
 let current: MainView = 'terminal';
+let transitionCounter = 0;
 
 /** Register handlers for a view. Idempotent — last registration wins. */
 export function registerView(view: MainView, h: ViewHandlers): void {
@@ -46,6 +52,7 @@ export function currentView(): MainView {
  * skipped but mount runs so callers can pass fresh params.
  */
 export async function showView(view: MainView, params?: unknown): Promise<void> {
+  const transitionId = ++transitionCounter;
   const prev = current;
   const prevHandlers = handlers.get(prev);
   if (prevHandlers && prev !== view) {
@@ -54,7 +61,17 @@ export async function showView(view: MainView, params?: unknown): Promise<void> 
   current = view;
   const next = handlers.get(view);
   if (next) {
-    try { await next.mount(params); } catch (err) { console.error('[MainView] mount failed:', err); }
+    const context: ViewMountContext = {
+      transitionId,
+      isActive: () => transitionCounter === transitionId && current === view,
+    };
+    try {
+      await next.mount(params, context);
+      if (!context.isActive()) return;
+    } catch (err) {
+      console.error('[MainView] mount failed:', err);
+      if (!context.isActive()) return;
+    }
   }
   if (prev !== view) {
     for (const cb of listeners) {
@@ -74,4 +91,5 @@ export function __resetMainViewManager(): void {
   handlers.clear();
   listeners.clear();
   current = 'terminal';
+  transitionCounter = 0;
 }

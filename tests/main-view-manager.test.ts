@@ -27,7 +27,13 @@ describe('MainViewManager', () => {
     const mount = vi.fn();
     registerView('plan', { mount, unmount: () => {} });
     await showView('plan', { dir: '/home' });
-    expect(mount).toHaveBeenCalledWith({ dir: '/home' });
+    expect(mount).toHaveBeenCalledWith(
+      { dir: '/home' },
+      expect.objectContaining({
+        transitionId: expect.any(Number),
+        isActive: expect.any(Function),
+      }),
+    );
   });
 
   it('fires onChange listeners on transition', async () => {
@@ -85,5 +91,43 @@ describe('MainViewManager', () => {
 
     expect(currentView()).toBe('terminal');
     expect(order).toEqual(['T:u', 'O:m', 'O:u', 'P:m', 'P:u', 'T:m']);
+  });
+
+  it('ignores stale async mounts after a newer transition wins', async () => {
+    let releasePlanMount: (() => void) | null = null;
+    const calls: string[] = [];
+
+    registerView('terminal', {
+      mount: () => { calls.push('terminal:mount'); },
+      unmount: () => { calls.push('terminal:unmount'); },
+    });
+    registerView('plan', {
+      mount: async (_params, ctx) => {
+        calls.push('plan:mount:start');
+        await new Promise<void>((resolve) => {
+          releasePlanMount = resolve;
+        });
+        if (ctx?.isActive()) calls.push('plan:mount:commit');
+      },
+      unmount: () => { calls.push('plan:unmount'); },
+    });
+    registerView('overview', {
+      mount: () => { calls.push('overview:mount'); },
+      unmount: () => { calls.push('overview:unmount'); },
+    });
+
+    const pendingPlan = showView('plan');
+    await Promise.resolve();
+    await showView('overview');
+    releasePlanMount?.();
+    await pendingPlan;
+
+    expect(currentView()).toBe('overview');
+    expect(calls).toEqual([
+      'terminal:unmount',
+      'plan:mount:start',
+      'plan:unmount',
+      'overview:mount',
+    ]);
   });
 });
