@@ -197,13 +197,13 @@ export async function spawnNewSession(cliType?: string, preselectedPath?: string
 
 export async function switchToSession(sessionId: string): Promise<void> {
   const [
-    { dismissDraftStrip },
     { hideDraftEditor },
     { hideEditorPopup },
+    { useChipBarStore },
   ] = await Promise.all([
-    import('../drafts/draft-strip.js'),
     import('../drafts/draft-editor.js'),
     import('../editor/editor-popup.js'),
+    import('../stores/chip-bar.js'),
   ]);
 
   if (isPlanScreenVisible()) {
@@ -218,7 +218,7 @@ export async function switchToSession(sessionId: string): Promise<void> {
   if (tm && tm.hasTerminal(sessionId)) {
     hideDraftEditor();
     hideEditorPopup();
-    dismissDraftStrip();
+    useChipBarStore().clear();
     tm.switchTo(sessionId);
     state.activeSessionId = sessionId;
     showTerminalArea();

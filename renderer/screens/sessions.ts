@@ -43,6 +43,7 @@ import {
 import {
   handlePlansZone, handlePlansZoneButton, renderPlansGrid, updatePlansFocus, refreshPlanBadges,
 } from './sessions-plans.js';
+import { useChipBarStore } from '../stores/chip-bar.js';
 
 // Re-export public API from sub-modules so all consumers import from sessions.ts only.
 export {
@@ -407,10 +408,7 @@ function ensurePlanChangedListener(): void {
 
     const activeSessionId = state.activeSessionId;
     if (!activeSessionId || getSessionCwd(activeSessionId) !== dirPath) return;
-
-    import('../plans/plan-chips.js')
-      .then(({ renderPlanChips }) => renderPlanChips(activeSessionId))
-      .catch(err => console.error('[Sessions] Failed to refresh plan chips:', err));
+    void useChipBarStore().refresh(activeSessionId);
   });
 }
 

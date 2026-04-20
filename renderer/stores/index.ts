@@ -7,3 +7,4 @@ export { useSessionsScreenStore } from './sessions-screen.js';
 export { useConfigStore } from './config.js';
 export { useDraftsStore } from './drafts.js';
 export { usePlansStore } from './plans.js';
+export { useChipBarStore } from './chip-bar.js';

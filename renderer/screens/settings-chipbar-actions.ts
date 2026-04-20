@@ -7,10 +7,10 @@ import {
   logEvent,
   showFormModal,
 } from '../utils.js';
+import { useChipBarStore } from '../stores/chip-bar.js';
 
 // Circular import — safe: all usages are inside event handlers, not at module-evaluation time.
 import { loadSettingsScreen } from './settings.js';
-import { invalidateChipActionCache } from '../drafts/draft-strip.js';
 import { CHIPBAR_TEMPLATE_DEFINITIONS } from '../drafts/chipbar-templates.js';
 
 // ============================================================================
@@ -248,7 +248,8 @@ async function addChipbarAction(action: { label: string; sequence: string }): Pr
   }
   
   // Invalidate cache to ensure chipbar refreshes with new actions
-  invalidateChipActionCache();
+  useChipBarStore().invalidateActions();
+  void useChipBarStore().refresh();
 }
 
 async function updateChipbarAction(index: number, action: { label: string; sequence: string }): Promise<void> {
@@ -261,8 +262,8 @@ async function updateChipbarAction(index: number, action: { label: string; seque
   }
   
   // Invalidate cache to ensure chipbar refreshes with updated actions
-  const { invalidateChipActionCache } = await import('../drafts/draft-strip.js');
-  invalidateChipActionCache();
+  useChipBarStore().invalidateActions();
+  void useChipBarStore().refresh();
 }
 
 async function deleteChipbarAction(index: number): Promise<void> {
@@ -274,8 +275,8 @@ async function deleteChipbarAction(index: number): Promise<void> {
   }
   
   // Invalidate cache to ensure chipbar refreshes without deleted action
-  const { invalidateChipActionCache } = await import('../drafts/draft-strip.js');
-  invalidateChipActionCache();
+  useChipBarStore().invalidateActions();
+  void useChipBarStore().refresh();
 }
 
 async function moveChipbarAction(fromIndex: number, toIndex: number): Promise<void> {
@@ -295,6 +296,6 @@ async function moveChipbarAction(fromIndex: number, toIndex: number): Promise<vo
   loadSettingsScreen();
   
   // Invalidate cache to ensure chipbar refreshes with new order
-  const { invalidateChipActionCache } = await import('../drafts/draft-strip.js');
-  invalidateChipActionCache();
+  useChipBarStore().invalidateActions();
+  void useChipBarStore().refresh();
 }

@@ -1,47 +1,114 @@
-import { describe, it, expect, vi } from 'vitest';
+// @vitest-environment jsdom
 
-vi.mock('../renderer/drafts/draft-strip.js', () => ({
-  initDraftStrip: vi.fn(),
-  dismissDraftStrip: vi.fn(),
-}));
-vi.mock('../renderer/plans/plan-chips.js', () => ({
-  renderPlanChips: vi.fn().mockResolvedValue(undefined),
-}));
-vi.mock('../renderer/state.js', () => ({
-  state: { activeSessionId: null },
-}));
-
-import * as chipBar from '../renderer/components/chip-bar.js';
-import * as draftStrip from '../renderer/drafts/draft-strip.js';
-import * as planChips from '../renderer/plans/plan-chips.js';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
+import DraftChip from '../renderer/components/chips/DraftChip.vue';
+import PlanChip from '../renderer/components/chips/PlanChip.vue';
+import ChipActionBar from '../renderer/components/chips/ChipActionBar.vue';
+import ChipBar from '../renderer/components/chips/ChipBar.vue';
 import { state } from '../renderer/state.js';
+import { useChipBarStore } from '../renderer/stores/chip-bar.js';
+import { executeSequence } from '../renderer/bindings.js';
 
-describe('ChipBar component', () => {
-  it('init delegates to initDraftStrip', () => {
-    chipBar.init();
-    expect(draftStrip.initDraftStrip).toHaveBeenCalled();
+vi.mock('../renderer/drafts/draft-editor.js', () => ({
+  showDraftEditor: vi.fn(),
+  showPlanInEditor: vi.fn(),
+  hideDraftEditor: vi.fn(),
+}));
+
+vi.mock('../renderer/bindings.js', () => ({
+  executeSequence: vi.fn(),
+}));
+
+describe('Chip components', () => {
+  it('truncates draft chip labels to the legacy 20 char limit', () => {
+    const wrapper = mount(DraftChip, {
+      props: { title: '1234567890123456789012345' },
+    });
+    expect(wrapper.text()).toContain('12345678901234567890…');
+    expect(wrapper.attributes('title')).toBe('1234567890123456789012345');
   });
 
-  it('refresh with explicit sessionId calls renderPlanChips with that id', async () => {
-    await chipBar.refresh('session-123');
-    expect(planChips.renderPlanChips).toHaveBeenCalledWith('session-123');
+  it('truncates plan chip labels to the legacy 20 char limit', () => {
+    const wrapper = mount(PlanChip, {
+      props: { title: 'abcdefghijklmnopqrstuvwxyz', status: 'doing' },
+    });
+    expect(wrapper.text()).toContain('abcdefghijklmnopqrst…');
+    expect(wrapper.attributes('title')).toBe('abcdefghijklmnopqrstuvwxyz');
   });
 
-  it('refresh with no sessionId falls back to state.activeSessionId', async () => {
-    (state as { activeSessionId: string | null }).activeSessionId = 'active-1';
-    await chipBar.refresh();
-    expect(planChips.renderPlanChips).toHaveBeenCalledWith('active-1');
+  it('renders action button previews as tooltips', () => {
+    const wrapper = mount(ChipActionBar, {
+      props: {
+        showNewDraft: true,
+        actions: [{ label: 'Apply', sequence: 'run', preview: 'resolved preview' }],
+      },
+    });
+    const buttons = wrapper.findAll('button');
+    expect(buttons[1]?.attributes('title')).toBe('resolved preview');
   });
 
-  it('refresh is a no-op when no active session', async () => {
-    (planChips.renderPlanChips as ReturnType<typeof vi.fn>).mockClear();
-    (state as { activeSessionId: string | null }).activeSessionId = null;
-    await chipBar.refresh();
-    expect(planChips.renderPlanChips).not.toHaveBeenCalled();
+  it('hides the chip bar when only the new-draft affordance exists', () => {
+    const wrapper = mount(ChipBar, {
+      props: {
+        drafts: [],
+        planChips: [],
+        actions: [],
+        visible: true,
+        showNewDraft: true,
+      },
+    });
+    expect(wrapper.find('.draft-strip').exists()).toBe(false);
+  });
+});
+
+describe('useChipBarStore', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.clearAllMocks();
+    state.sessions = [
+      {
+        id: 's1',
+        name: 'Session One',
+        cliType: 'claude-code',
+        processId: 1,
+        workingDir: '/repo',
+      },
+    ];
+    state.activeSessionId = 's1';
+    state.draftCounts.clear();
+    state.planDoingCounts.clear();
+    state.planStartableCounts.clear();
+    (globalThis as typeof globalThis & { window: any }).window = {
+      gamepadCli: {
+        draftList: vi.fn().mockResolvedValue([]),
+        planDoingForSession: vi.fn().mockResolvedValue([]),
+        planStartableForDir: vi.fn().mockResolvedValue([]),
+        configGetChipbarActions: vi.fn().mockResolvedValue({
+          actions: [{ label: 'Quick', sequence: 'echo {inboxDir}' }],
+          inboxDir: '/inbox',
+        }),
+      },
+    };
   });
 
-  it('dismiss delegates to dismissDraftStrip', () => {
-    chipBar.dismiss();
-    expect(draftStrip.dismissDraftStrip).toHaveBeenCalled();
+  it('caches action config during refresh and reuses inboxDir on click', async () => {
+    const store = useChipBarStore();
+
+    await store.refresh('s1');
+    expect(window.gamepadCli.configGetChipbarActions).toHaveBeenCalledTimes(1);
+    expect(store.actions).toEqual([
+      {
+        label: 'Quick',
+        sequence: 'echo {inboxDir}',
+        preview: 'echo /inbox',
+      },
+    ]);
+
+    await store.triggerAction('echo {inboxDir}');
+
+    expect(window.gamepadCli.configGetChipbarActions).toHaveBeenCalledTimes(1);
+    expect(executeSequence).toHaveBeenCalledWith('echo /inbox');
   });
 });

@@ -36,11 +36,10 @@ import {
   setPlanScreenFitCallback, setPlanScreenCloseCallback, setPlanScreenOpenCallback,
 } from '../plans/plan-screen.js';
 
-// Draft editor + chip bar init
+// Draft editor init
 import { initDraftEditor } from '../drafts/draft-editor.js';
-import { init as initChipBar } from '../components/chip-bar.js';
-import { refreshDraftStrip } from '../drafts/draft-strip.js';
 import { refreshPlanBadges } from '../screens/sessions-plans.js';
+import { useChipBarStore } from '../stores/chip-bar.js';
 
 // Sort preferences (module-level state to match legacy behaviour)
 let sortField: SessionSortField = 'name';
@@ -382,12 +381,11 @@ function setupIpcListeners(): void {
   // Plan change listener
   if (window.gamepadCli.onPlanChanged) {
     window.gamepadCli.onPlanChanged((dirPath: string) => {
+      const chipBarStore = useChipBarStore();
       void refreshSessions();  // Calls refreshPlanCounts() internally
       const activeSessionId = state.activeSessionId;
       if (activeSessionId && getSessionCwd(activeSessionId) === dirPath) {
-        import('../plans/plan-chips.js')
-          .then(({ renderPlanChips }) => renderPlanChips(activeSessionId))
-          .catch((err: unknown) => console.error('[Bootstrap] Failed to refresh plan chips:', err));
+        void chipBarStore.refresh(activeSessionId);
       }
     });
   }
@@ -578,7 +576,6 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
         }
       }
       onTerminalSwitch(sessionId ?? null);
-      void refreshDraftStrip(sessionId ?? null);
     });
   }
   if (onTerminalTitleChange) {
@@ -613,11 +610,10 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
   });
   setPlanScreenCloseCallback(() => {
     const activeId = getTerminalManager()?.getActiveSessionId() ?? null;
-    void refreshDraftStrip(activeId);
+    void useChipBarStore().refresh(activeId);
   });
 
-  // Draft editor + chip bar
-  initChipBar();
+  // Draft editor
   initDraftEditor();
 
   // Tab cycling

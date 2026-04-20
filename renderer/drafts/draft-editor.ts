@@ -9,7 +9,6 @@
  *   - 'plan'  — per-directory plan items (Apply/Done/Delete/Cancel)
  */
 
-import { refreshDraftStrip } from './draft-strip.js';
 import { showPlanDeleteConfirm } from '../modals/plan-delete-confirm.js';
 import { toDirection, logEvent } from '../utils.js';
 import type { PlanStatus } from '../../src/types/plan.js';
@@ -409,7 +408,7 @@ export async function saveDraft(): Promise<void> {
   }
 
   hideDraftEditor();
-  await refreshDraftStrip(sessionId || null);
+  await refreshChipBar(sessionId || null);
 }
 
 export async function applyDraft(): Promise<void> {
@@ -440,7 +439,7 @@ export async function applyDraft(): Promise<void> {
     catch (err) { console.error('[Editor] Failed to delete draft after apply:', err); }
   }
 
-  await refreshDraftStrip(sessionId || null);
+  await refreshChipBar(sessionId || null);
   logEvent(`Draft applied: ${draftId}`);
 }
 
@@ -453,7 +452,7 @@ export async function deleteDraft(): Promise<void> {
     catch (err) { console.error('[Editor] Failed to delete draft:', err); }
   }
 
-  await refreshDraftStrip(sessionId || null);
+  await refreshChipBar(sessionId || null);
   logEvent(`Draft deleted: ${draftId}`);
 }
 
@@ -592,4 +591,9 @@ function syncPlanStateInfoVisibility(): void {
   const needsInfo = stateSelect.value === 'blocked' || stateSelect.value === 'question';
   stateInfo.style.display = needsInfo ? '' : 'none';
   if (!needsInfo) stateInfo.value = '';
+}
+
+async function refreshChipBar(sessionId: string | null): Promise<void> {
+  const { useChipBarStore } = await import('../stores/chip-bar.js');
+  await useChipBarStore().refresh(sessionId);
 }

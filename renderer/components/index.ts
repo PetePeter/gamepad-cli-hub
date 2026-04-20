@@ -9,3 +9,4 @@
 export * from './modals/index.js';
 export * from './sidebar/index.js';
 export * from './panels/index.js';
+export * from './chips/index.js';

@@ -13,11 +13,10 @@ declare global {
   }
 }
 
-import { ref, computed, onMounted, onUnmounted, watch, nextTick, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { state } from './state.js';
 import { sessionsState } from './screens/sessions-state.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
-import { getActivityColor } from './state-colors.js';
 import { getCliDisplayName, getCliIcon, toDirection } from './utils.js';
 import { processConfigBinding, processConfigRelease, initConfigCache } from './bindings.js';
 import { formatElapsed, refreshSessions, doSpawn, switchToSession, doCloseSession,
@@ -82,6 +81,8 @@ import ToolEditorModal from './components/modals/ToolEditorModal.vue';
 import EditorPopup from './components/modals/EditorPopup.vue';
 import BindingEditorModal from './components/modals/BindingEditorModal.vue';
 import ToastNotification from './components/ToastNotification.vue';
+import ChipBar from './components/chips/ChipBar.vue';
+import { useChipBarStore } from './stores/chip-bar.js';
 
 // ============================================================================
 // Reactive view state
@@ -90,6 +91,7 @@ import ToastNotification from './components/ToastNotification.vue';
 const activeView = ref<'terminal' | 'overview' | 'plan'>('terminal');
 const settingsVisible = ref(false);
 const terminalContainerRef = ref<HTMLElement | null>(null);
+const chipBarStore = useChipBarStore();
 
 // Non-modal local state
 const bindingEditorVisible = ref(false);
@@ -155,6 +157,21 @@ const hasDrafts = computed(() => {
   if (!state.activeSessionId) return false;
   return (state.draftCounts.get(state.activeSessionId) ?? 0) > 0;
 });
+
+const chipBarVisible = computed(() =>
+  !settingsVisible.value &&
+  activeView.value === 'terminal' &&
+  !!state.activeSessionId,
+);
+
+const chipBarDrafts = computed(() =>
+  chipBarStore.drafts.map((draft) => ({
+    id: draft.id,
+    title: draft.label,
+  })),
+);
+
+const chipBarPlans = computed(() => chipBarStore.plans);
 
 // Maps each navList item's id → its index — fed to session cards/group headers as
 // data-nav-index so the legacy updateSessionsFocus() can find focused elements.
@@ -460,6 +477,22 @@ function onDraftNewDraft(): void {
   showDraftEditor(state.activeSessionId);
 }
 
+function onChipBarDraftClick(draftId: string): void {
+  chipBarStore.openDraft(draftId);
+}
+
+function onChipBarPlanClick(planId: string): void {
+  void chipBarStore.openPlan(planId);
+}
+
+function onChipBarNewDraft(): void {
+  chipBarStore.openNewDraft();
+}
+
+function onChipBarAction(sequence: string): void {
+  void chipBarStore.triggerAction(sequence);
+}
+
 async function onDraftApply(draft: { id: string; text: string }): Promise<void> {
   draftSubmenu.visible = false;
   if (state.activeSessionId && draft.text) {
@@ -590,9 +623,11 @@ onMounted(async () => {
         state.activeSessionId = sessionId;
         activeView.value = 'terminal';
       }
+      void chipBarStore.refresh(sessionId ?? null);
     },
     onTerminalEmpty() {
       state.activeSessionId = null;
+      chipBarStore.clear();
     },
     onTerminalTitleChange(sessionId, title) {
       const s = state.sessions.find(s => s.id === sessionId);
@@ -643,6 +678,7 @@ onMounted(async () => {
   });
 
   await loadCollapsePrefs();
+  await chipBarStore.refresh(state.activeSessionId ?? null);
 
   // Dismiss splash
   const splash = document.getElementById('splashScreen');
@@ -805,6 +841,17 @@ onUnmounted(() => {
 
     <!-- Right panel: terminal / overview / plan -->
     <div class="panel-right" id="mainArea">
+      <ChipBar
+        :drafts="chipBarDrafts"
+        :plan-chips="chipBarPlans"
+        :actions="chipBarStore.actions"
+        :visible="chipBarVisible"
+        :show-new-draft="true"
+        @draft-click="onChipBarDraftClick"
+        @plan-chip-click="onChipBarPlanClick"
+        @new-draft="onChipBarNewDraft"
+        @action-click="onChipBarAction"
+      />
       <div class="terminal-container" id="terminalContainer" ref="terminalContainerRef">
         <!-- xterm.js terminals rendered by TerminalManager -->
       </div>
