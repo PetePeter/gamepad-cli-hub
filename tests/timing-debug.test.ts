@@ -9,7 +9,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockConfigGetChipbarActions = vi.fn();
 const mockConfigSetChipbarActions = vi.fn();
 const mockShowFormModal = vi.fn();
-const mockInvalidateChipActionCache = vi.fn();
 const mockLoadSettingsScreen = vi.fn();
 
 vi.mock('../renderer/utils.js', () => ({
@@ -21,8 +20,11 @@ vi.mock('../renderer/screens/settings.js', () => ({
   loadSettingsScreen: (...args: unknown[]) => mockLoadSettingsScreen(...args),
 }));
 
-vi.mock('../renderer/drafts/draft-strip.js', () => ({
-  invalidateChipActionCache: (...args: unknown[]) => mockInvalidateChipActionCache(...args),
+vi.mock('../renderer/stores/chip-bar.js', () => ({
+  useChipBarStore: () => ({
+    invalidateActions: vi.fn(),
+    refresh: vi.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 const SAMPLE_ACTIONS = [
@@ -41,7 +43,6 @@ describe('Timing Issue Reproduction and Fix', () => {
     mockConfigGetChipbarActions.mockReset();
     mockConfigSetChipbarActions.mockReset();
     mockShowFormModal.mockReset();
-    mockInvalidateChipActionCache.mockReset();
     mockLoadSettingsScreen.mockReset();
 
     // Set up the same mock return values as the failing test

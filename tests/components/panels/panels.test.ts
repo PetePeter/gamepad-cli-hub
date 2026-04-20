@@ -19,7 +19,7 @@ import OverviewCard from '../../../renderer/components/panels/OverviewCard.vue';
 import OverviewGrid from '../../../renderer/components/panels/OverviewGrid.vue';
 import PlanScreen from '../../../renderer/components/panels/PlanScreen.vue';
 import MainView from '../../../renderer/components/panels/MainView.vue';
-import ChipBar from '../../../renderer/components/panels/ChipBar.vue';
+import ChipBar from '../../../renderer/components/chips/ChipBar.vue';
 
 // ---------------------------------------------------------------------------
 // TerminalPane
@@ -550,7 +550,7 @@ describe('ChipBar', () => {
 
   it('renders drafts and plan chips when visible', () => {
     const w = mount(ChipBar, {
-      props: { drafts: baseDrafts, planChips: basePlanChips, visible: true },
+      props: { drafts: baseDrafts, planChips: basePlanChips, actions: [], visible: true },
     });
     expect(w.findAll('.draft-pill')).toHaveLength(2);
     expect(w.findAll('.plan-chip')).toHaveLength(2);
@@ -558,21 +558,21 @@ describe('ChipBar', () => {
 
   it('hides when not visible', () => {
     const w = mount(ChipBar, {
-      props: { drafts: baseDrafts, planChips: basePlanChips, visible: false },
+      props: { drafts: baseDrafts, planChips: basePlanChips, actions: [], visible: false },
     });
     expect(w.find('.chip-bar').exists()).toBe(false);
   });
 
   it('hides when no content', () => {
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: [], visible: true },
+      props: { drafts: [], planChips: [], actions: [], visible: true },
     });
     expect(w.find('.chip-bar').exists()).toBe(false);
   });
 
   it('shows only drafts when no plan chips', () => {
     const w = mount(ChipBar, {
-      props: { drafts: baseDrafts, planChips: [], visible: true },
+      props: { drafts: baseDrafts, planChips: [], actions: [], visible: true },
     });
     expect(w.findAll('.draft-pill')).toHaveLength(2);
     expect(w.findAll('.plan-chip')).toHaveLength(0);
@@ -580,7 +580,7 @@ describe('ChipBar', () => {
 
   it('shows only plan chips when no drafts', () => {
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: basePlanChips, visible: true },
+      props: { drafts: [], planChips: basePlanChips, actions: [], visible: true },
     });
     expect(w.findAll('.draft-pill')).toHaveLength(0);
     expect(w.findAll('.plan-chip')).toHaveLength(2);
@@ -588,7 +588,7 @@ describe('ChipBar', () => {
 
   it('renders draft titles', () => {
     const w = mount(ChipBar, {
-      props: { drafts: baseDrafts, planChips: [], visible: true },
+      props: { drafts: baseDrafts, planChips: [], actions: [], visible: true },
     });
     const pills = w.findAll('.draft-pill');
     expect(pills[0].text()).toContain('Fix bug');
@@ -597,7 +597,7 @@ describe('ChipBar', () => {
 
   it('renders plan chip titles with status icons', () => {
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: basePlanChips, visible: true },
+      props: { drafts: [], planChips: basePlanChips, actions: [], visible: true },
     });
     const chips = w.findAll('.plan-chip');
     expect(chips[0].text()).toContain('🔵');
@@ -608,21 +608,21 @@ describe('ChipBar', () => {
 
   it('renders plan chip with blocked status icon', () => {
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: [{ id: 'p3', title: 'Blocked', status: 'blocked' as const }], visible: true },
+      props: { drafts: [], planChips: [{ id: 'p3', title: 'Blocked', status: 'blocked' as const }], actions: [], visible: true },
     });
     expect(w.find('.plan-chip').text()).toContain('⛔');
   });
 
   it('renders plan chip with question status icon', () => {
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: [{ id: 'p4', title: 'Question', status: 'question' as const }], visible: true },
+      props: { drafts: [], planChips: [{ id: 'p4', title: 'Question', status: 'question' as const }], actions: [], visible: true },
     });
     expect(w.find('.plan-chip').text()).toContain('❓');
   });
 
   it('emits draftClick when draft pill clicked', async () => {
     const w = mount(ChipBar, {
-      props: { drafts: baseDrafts, planChips: [], visible: true },
+      props: { drafts: baseDrafts, planChips: [], actions: [], visible: true },
     });
     await w.findAll('.draft-pill')[0].trigger('click');
     expect(w.emitted('draftClick')).toEqual([['d1']]);
@@ -630,7 +630,7 @@ describe('ChipBar', () => {
 
   it('emits planChipClick when plan chip clicked', async () => {
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: basePlanChips, visible: true },
+      props: { drafts: [], planChips: basePlanChips, actions: [], visible: true },
     });
     await w.findAll('.plan-chip')[1].trigger('click');
     expect(w.emitted('planChipClick')).toEqual([['p2']]);
@@ -638,7 +638,7 @@ describe('ChipBar', () => {
 
   it('applies status-specific CSS class on plan chips', () => {
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: basePlanChips, visible: true },
+      props: { drafts: [], planChips: basePlanChips, actions: [], visible: true },
     });
     const chips = w.findAll('.plan-chip');
     expect(chips[0].classes()).toContain('plan-chip--startable');

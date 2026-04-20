@@ -21,6 +21,9 @@ vi.mock('../renderer/state.js', () => ({
     sessions: [
       { id: 'session-1', name: 'My Session', cliType: 'claude-code', workingDir: 'C:\\myproject' },
     ],
+    draftCounts: new Map(),
+    planDoingCounts: new Map(),
+    planStartableCounts: new Map(),
   },
 }));
 
@@ -33,8 +36,11 @@ vi.mock('../renderer/screens/settings.js', () => ({
   loadSettingsScreen: vi.fn(),
 }));
 
-vi.mock('../renderer/drafts/draft-strip.js', () => ({
-  invalidateChipActionCache: vi.fn(),
+vi.mock('../renderer/stores/chip-bar.js', () => ({
+  useChipBarStore: () => ({
+    invalidateActions: vi.fn(),
+    refresh: vi.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 function buildSettingsDom(): void {

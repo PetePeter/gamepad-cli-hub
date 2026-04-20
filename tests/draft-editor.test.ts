@@ -20,12 +20,6 @@ const mockWriteTempContent = vi.fn();
 const mockPtyWrite = vi.fn();
 const mockDeleteTemp = vi.fn();
 
-vi.mock('../renderer/drafts/draft-strip.js', () => ({
-  refreshDraftStrip: vi.fn(),
-  initDraftStrip: vi.fn(),
-  createDraftBadge: vi.fn(),
-}));
-
 vi.mock('../renderer/stores/chip-bar.js', () => ({
   useChipBarStore: () => ({
     refresh: vi.fn().mockResolvedValue(undefined),

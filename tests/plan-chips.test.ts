@@ -1,373 +1,132 @@
 /**
- * Plan Chips — badge display on session cards and chip display in draft strip.
+ * Plan chips — current component and store behavior.
  *
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
+import PlanChip from '../renderer/components/chips/PlanChip.vue';
+import ChipBar from '../renderer/components/chips/ChipBar.vue';
+import { useChipBarStore } from '../renderer/stores/chip-bar.js';
+import { state } from '../renderer/state.js';
 
-// ---------------------------------------------------------------------------
-// Mocks — declared BEFORE vi.mock() calls so hoisted references resolve
-// ---------------------------------------------------------------------------
-
-const mockPlanDoingForSession = vi.fn<(id: string) => Promise<any[]>>().mockResolvedValue([]);
-const mockPlanGetAllDoingForDir = vi.fn<(dir: string) => Promise<any[]>>().mockResolvedValue([]);
-const mockPlanStartableForDir = vi.fn<(dir: string) => Promise<any[]>>().mockResolvedValue([]);
-const mockPlanApply = vi.fn().mockResolvedValue(null);
-const mockPlanComplete = vi.fn().mockResolvedValue(null);
-const mockPlanGetItem = vi.fn().mockResolvedValue(null);
-const mockPlanUpdate = vi.fn().mockResolvedValue(null);
-const mockPlanSetState = vi.fn().mockResolvedValue(null);
-const mockPlanDelete = vi.fn().mockResolvedValue(null);
-const mockPtyWrite = vi.fn().mockResolvedValue(null);
-const mockDraftList = vi.fn<() => Promise<any[]>>().mockResolvedValue([]);
-
-const mockSetPlanDoingCountCache = vi.fn();
-const mockSetPlanStartableCountCache = vi.fn();
-const mockSetDraftCountCache = vi.fn();
-const mockGetSessionCwd = vi.fn().mockReturnValue('/test/dir');
-
-vi.mock('../renderer/screens/sessions.js', () => ({
-  setPlanDoingCountCache: (...args: unknown[]) => mockSetPlanDoingCountCache(...args),
-  setPlanStartableCountCache: (...args: unknown[]) => mockSetPlanStartableCountCache(...args),
-  setDraftCountCache: (...args: unknown[]) => mockSetDraftCountCache(...args),
-  getSessionCwd: (...args: unknown[]) => mockGetSessionCwd(...args),
-  getDraftCountCache: vi.fn().mockReturnValue(0),
-  getPlanDoingCountCache: vi.fn().mockReturnValue(0),
-  getPlanStartableCountCache: vi.fn().mockReturnValue(0),
-}));
-
-vi.mock('../renderer/state.js', () => ({
-  state: { activeSessionId: 'session-1' },
-}));
+const mockShowPlanInEditor = vi.fn();
+const mockHideDraftEditor = vi.fn();
+const mockDeliverBulkText = vi.fn();
 
 vi.mock('../renderer/drafts/draft-editor.js', () => ({
-  isDraftEditorVisible: vi.fn(() => false),
   showDraftEditor: vi.fn(),
-  showPlanInEditor: vi.fn(),
-  hideDraftEditor: vi.fn(),
-  initDraftEditor: vi.fn(),
+  showPlanInEditor: (...args: unknown[]) => mockShowPlanInEditor(...args),
+  hideDraftEditor: (...args: unknown[]) => mockHideDraftEditor(...args),
 }));
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+vi.mock('../renderer/paste-handler.js', () => ({
+  deliverBulkText: (...args: unknown[]) => mockDeliverBulkText(...args),
+}));
 
-function setupGamepadCli(): void {
-  (window as any).gamepadCli = {
-    planDoingForSession: mockPlanDoingForSession,
-    planGetAllDoingForDir: mockPlanGetAllDoingForDir,
-    planStartableForDir: mockPlanStartableForDir,
-    planApply: mockPlanApply,
-    planComplete: mockPlanComplete,
-    planGetItem: mockPlanGetItem,
-    planUpdate: mockPlanUpdate,
-    planSetState: mockPlanSetState,
-    planDelete: mockPlanDelete,
-    ptyWrite: mockPtyWrite,
-    draftList: mockDraftList,
-  };
-}
+describe('Plan chip components', () => {
+  it('renders the correct status icons', () => {
+    const blocked = mount(PlanChip, { props: { title: 'Blocked task', status: 'blocked' } });
+    const question = mount(PlanChip, { props: { title: 'Question task', status: 'question' } });
 
-function buildDraftStripDom(): void {
-  document.body.innerHTML = `
-    <div id="mainArea" class="panel-right">
-      <div class="terminal-container"></div>
-    </div>
-  `;
-}
+    expect(blocked.text()).toContain('⛔');
+    expect(question.text()).toContain('❓');
+  });
 
-/** Flush microtask queue so async fire-and-forget completes. */
-async function flush(): Promise<void> {
-  await new Promise(r => setTimeout(r, 0));
-  await new Promise(r => setTimeout(r, 0));
-}
+  it('renders plan chips through ChipBar and emits planChipClick', async () => {
+    const wrapper = mount(ChipBar, {
+      props: {
+        drafts: [],
+        planChips: [
+          { id: 'p1', title: 'Setup DB', status: 'startable' },
+          { id: 'p2', title: 'Write API', status: 'doing' },
+        ],
+        actions: [],
+        visible: true,
+      },
+    });
 
-// ---------------------------------------------------------------------------
-// Test Suite — createPlanBadge
-// ---------------------------------------------------------------------------
+    const chips = wrapper.findAll('.plan-chip');
+    expect(chips).toHaveLength(2);
 
-describe('Plan Chips', () => {
+    await chips[1].trigger('click');
+    expect(wrapper.emitted('planChipClick')).toEqual([['p2']]);
+  });
+});
+
+describe('Plan chip store integration', () => {
   beforeEach(() => {
+    setActivePinia(createPinia());
     vi.clearAllMocks();
-    setupGamepadCli();
-    buildDraftStripDom();
+    state.sessions = [
+      {
+        id: 'session-1',
+        name: 'My Session',
+        cliType: 'claude-code',
+        processId: 1,
+        workingDir: '/test/dir',
+      },
+    ];
+    state.activeSessionId = 'session-1';
+    state.draftCounts.clear();
+    state.planDoingCounts.clear();
+    state.planStartableCounts.clear();
+
+    (globalThis as typeof globalThis & { window: any }).window = {
+      gamepadCli: {
+        draftList: vi.fn().mockResolvedValue([]),
+        planDoingForSession: vi.fn().mockResolvedValue([]),
+        planGetAllDoingForDir: vi.fn().mockResolvedValue([
+          { id: 'blocked-1', title: 'Waiting on API', status: 'blocked', sessionId: 'session-1' },
+          { id: 'question-1', title: 'Need answer', status: 'question', sessionId: 'session-2' },
+        ]),
+        planStartableForDir: vi.fn().mockResolvedValue([
+          { id: 'start-1', title: 'Ready to start', status: 'startable' },
+        ]),
+        configGetChipbarActions: vi.fn().mockResolvedValue({ actions: [], inboxDir: '' }),
+        planGetItem: vi.fn().mockResolvedValue({
+          id: 'start-1',
+          title: 'Ready to start',
+          description: 'Task desc',
+          status: 'startable',
+          sessionId: 'session-1',
+        }),
+        planUpdate: vi.fn().mockResolvedValue(undefined),
+        planSetState: vi.fn().mockResolvedValue(undefined),
+        planDelete: vi.fn().mockResolvedValue(undefined),
+        planComplete: vi.fn().mockResolvedValue(undefined),
+        planApply: vi.fn().mockResolvedValue(undefined),
+        writeTempContent: vi.fn().mockResolvedValue({ success: true, path: '/tmp/task.txt' }),
+      },
+    };
   });
 
-  describe('createPlanBadge', () => {
-    let createPlanBadge: typeof import('../renderer/plans/plan-chips.js').createPlanBadge;
+  it('refresh includes active and startable plans and updates counts', async () => {
+    const store = useChipBarStore();
 
-    beforeEach(async () => {
-      const mod = await import('../renderer/plans/plan-chips.js');
-      createPlanBadge = mod.createPlanBadge;
-    });
+    await store.refresh('session-1');
 
-    it('returns null when both counts are 0', () => {
-      const badge = createPlanBadge(0, 0);
-      expect(badge).toBeNull();
-    });
-
-    it('returns null when all 4 counts are 0', () => {
-      const badge = createPlanBadge(0, 0, 0, 0);
-      expect(badge).toBeNull();
-    });
-
-    it('shows doing count with green class', () => {
-      const badge = createPlanBadge(3, 0);
-      expect(badge).not.toBeNull();
-      const doingBadge = badge!.querySelector('.plan-badge--doing');
-      expect(doingBadge).not.toBeNull();
-      expect(doingBadge!.textContent).toContain('3');
-      // No startable badge
-      expect(badge!.querySelector('.plan-badge--startable')).toBeNull();
-    });
-
-    it('shows startable count with blue class', () => {
-      const badge = createPlanBadge(0, 5);
-      expect(badge).not.toBeNull();
-      const startableBadge = badge!.querySelector('.plan-badge--startable');
-      expect(startableBadge).not.toBeNull();
-      expect(startableBadge!.textContent).toContain('5');
-      // No doing badge
-      expect(badge!.querySelector('.plan-badge--doing')).toBeNull();
-    });
-
-    it('shows both when both exist', () => {
-      const badge = createPlanBadge(2, 4);
-      expect(badge).not.toBeNull();
-      const doingBadge = badge!.querySelector('.plan-badge--doing');
-      const startableBadge = badge!.querySelector('.plan-badge--startable');
-      expect(doingBadge).not.toBeNull();
-      expect(startableBadge).not.toBeNull();
-      expect(doingBadge!.textContent).toContain('2');
-      expect(startableBadge!.textContent).toContain('4');
-    });
-
-    it('shows blocked count with orange class', () => {
-      const badge = createPlanBadge(0, 0, 2, 0);
-      expect(badge).not.toBeNull();
-      const blockedBadge = badge!.querySelector('.plan-badge--blocked');
-      expect(blockedBadge).not.toBeNull();
-      expect(blockedBadge!.textContent).toContain('2');
-    });
-
-    it('shows question count with purple class', () => {
-      const badge = createPlanBadge(0, 0, 0, 3);
-      expect(badge).not.toBeNull();
-      const questionBadge = badge!.querySelector('.plan-badge--question');
-      expect(questionBadge).not.toBeNull();
-      expect(questionBadge!.textContent).toContain('3');
-    });
-
-    it('shows all 4 badges when all counts non-zero', () => {
-      const badge = createPlanBadge(1, 2, 3, 4);
-      expect(badge).not.toBeNull();
-      expect(badge!.querySelector('.plan-badge--doing')!.textContent).toContain('1');
-      expect(badge!.querySelector('.plan-badge--startable')!.textContent).toContain('2');
-      expect(badge!.querySelector('.plan-badge--blocked')!.textContent).toContain('3');
-      expect(badge!.querySelector('.plan-badge--question')!.textContent).toContain('4');
-    });
+    expect(store.plans.map((plan) => plan.status)).toEqual(['blocked', 'question', 'startable']);
+    expect(state.planDoingCounts.get('session-1')).toBe(2);
+    expect(state.planStartableCounts.get('session-1')).toBe(1);
   });
 
-  // =========================================================================
-  // renderPlanChips — chips in draft strip
-  // =========================================================================
+  it('openPlan exposes apply/save callbacks for a startable plan', async () => {
+    const store = useChipBarStore();
+    window.gamepadCli.planGetAllDoingForDir.mockResolvedValue([]);
+    window.gamepadCli.planStartableForDir.mockResolvedValue([
+      { id: 'start-1', title: 'Ready to start', status: 'startable' },
+    ]);
 
-  describe('renderPlanChips', () => {
-    let renderPlanChips: typeof import('../renderer/plans/plan-chips.js').renderPlanChips;
+    await store.refresh('session-1');
+    await store.openPlan('start-1');
 
-    beforeEach(async () => {
-      // Create the draft strip element
-      const strip = document.createElement('div');
-      strip.id = 'draftStrip';
-      strip.className = 'draft-strip';
-      strip.style.display = 'none';
-      const mainArea = document.getElementById('mainArea')!;
-      const terminalContainer = mainArea.querySelector('.terminal-container')!;
-      mainArea.insertBefore(strip, terminalContainer);
-
-      const mod = await import('../renderer/plans/plan-chips.js');
-      renderPlanChips = mod.renderPlanChips;
-    });
-
-    it('renders doing plan chips with green border class', async () => {
-      mockPlanDoingForSession.mockResolvedValue([
-        { id: 'p1', title: 'Fix the bug', status: 'doing' },
-      ]);
-      mockPlanGetAllDoingForDir.mockResolvedValue([
-        { id: 'p1', title: 'Fix the bug', status: 'doing', sessionId: 'session-1' },
-      ]);
-      mockPlanStartableForDir.mockResolvedValue([]);
-
-      await renderPlanChips('session-1');
-
-      const chips = document.querySelectorAll('.plan-chip--doing');
-      expect(chips.length).toBe(1);
-      expect(chips[0].textContent).toContain('Fix the bug');
-      expect((chips[0] as HTMLElement).dataset.planId).toBe('p1');
-    });
-
-    it('renders startable plan chips with blue border class', async () => {
-      mockPlanDoingForSession.mockResolvedValue([]);
-      mockPlanGetAllDoingForDir.mockResolvedValue([]);
-      mockPlanStartableForDir.mockResolvedValue([
-        { id: 'p2', title: 'Add feature', status: 'startable' },
-      ]);
-
-      await renderPlanChips('session-1');
-
-      const chips = document.querySelectorAll('.plan-chip--startable');
-      expect(chips.length).toBe(1);
-      expect(chips[0].textContent).toContain('Add feature');
-    });
-
-    it('truncates long plan titles with ellipsis', async () => {
-      const longTitle = 'This is a very long plan title that exceeds twenty chars';
-      mockPlanDoingForSession.mockResolvedValue([
-        { id: 'p3', title: longTitle, status: 'doing' },
-      ]);
-      mockPlanGetAllDoingForDir.mockResolvedValue([
-        { id: 'p3', title: longTitle, status: 'doing', sessionId: 'session-1' },
-      ]);
-
-      await renderPlanChips('session-1');
-
-      const chip = document.querySelector('.plan-chip') as HTMLElement;
-      expect(chip.title).toBe(longTitle);
-      expect(chip.textContent).toContain('…');
-    });
-
-    it('clicking a startable chip opens the editor instead of directly applying', async () => {
-      mockPlanDoingForSession.mockResolvedValue([]);
-      mockPlanGetAllDoingForDir.mockResolvedValue([]);
-      mockPlanStartableForDir.mockResolvedValue([
-        { id: 'p4', title: 'New task', status: 'startable' },
-      ]);
-
-      await renderPlanChips('session-1');
-
-      // Mock planGetItem to return the item
-      mockPlanGetItem.mockResolvedValue({
-        id: 'p4', title: 'New task', description: 'Task desc', status: 'startable',
-        dirPath: '/test/dir', createdAt: Date.now(), updatedAt: Date.now(),
-      });
-
-      const chip = document.querySelector('.plan-chip--startable') as HTMLElement;
-      chip.click();
-      await flush();
-
-      // Should NOT directly call planApply — should open editor instead
-      expect(mockPlanApply).not.toHaveBeenCalled();
-
-      // Should have called planGetItem to fetch the full item
-      expect(mockPlanGetItem).toHaveBeenCalledWith('p4');
-
-      // Editor should have been opened via showPlanInEditor
-      const { showPlanInEditor } = await import('../renderer/drafts/draft-editor.js');
-      expect(showPlanInEditor).toHaveBeenCalledWith(
-        'session-1',
-        expect.objectContaining({ id: 'p4', status: 'startable' }),
-        expect.objectContaining({ onSave: expect.any(Function), onApply: expect.any(Function) }),
-      );
-    });
-
-    it('clicking a doing chip opens the editor instead of directly completing', async () => {
-      mockPlanDoingForSession.mockResolvedValue([
-        { id: 'p5', title: 'Done task', status: 'doing' },
-      ]);
-      mockPlanGetAllDoingForDir.mockResolvedValue([
-        { id: 'p5', title: 'Done task', status: 'doing', sessionId: 'session-1' },
-      ]);
-      mockPlanStartableForDir.mockResolvedValue([]);
-
-      await renderPlanChips('session-1');
-
-      // Mock planGetItem to return the item
-      mockPlanGetItem.mockResolvedValue({
-        id: 'p5', title: 'Done task', description: 'Done desc', status: 'doing',
-        dirPath: '/test/dir', createdAt: Date.now(), updatedAt: Date.now(),
-      });
-
-      const chip = document.querySelector('.plan-chip--doing') as HTMLElement;
-      chip.click();
-      await flush();
-
-      // Should NOT directly call planComplete — should open editor instead
-      expect(mockPlanComplete).not.toHaveBeenCalled();
-
-      // Should have called planGetItem to fetch the full item
-      expect(mockPlanGetItem).toHaveBeenCalledWith('p5');
-
-      // Editor should have been opened via showPlanInEditor
-      const { showPlanInEditor } = await import('../renderer/drafts/draft-editor.js');
-      expect(showPlanInEditor).toHaveBeenCalledWith(
-        'session-1',
-        expect.objectContaining({ id: 'p5', status: 'doing' }),
-        expect.objectContaining({ onSave: expect.any(Function), onDone: expect.any(Function) }),
-      );
-    });
-
-    it('clears chips when session has no plans', async () => {
-      // First render with plans
-      mockPlanDoingForSession.mockResolvedValue([
-        { id: 'p6', title: 'Task', status: 'doing' },
-      ]);
-      mockPlanGetAllDoingForDir.mockResolvedValue([
-        { id: 'p6', title: 'Task', status: 'doing', sessionId: 'session-1' },
-      ]);
-      await renderPlanChips('session-1');
-      expect(document.querySelectorAll('.plan-chip').length).toBe(1);
-
-      // Then render with no plans
-      mockPlanDoingForSession.mockResolvedValue([]);
-      mockPlanGetAllDoingForDir.mockResolvedValue([]);
-      mockPlanStartableForDir.mockResolvedValue([]);
-      await renderPlanChips('session-1');
-      expect(document.querySelectorAll('.plan-chip').length).toBe(0);
-    });
-
-    it('updates plan count caches', async () => {
-      mockPlanDoingForSession.mockResolvedValue([
-        { id: 'p7', title: 'Task 1', status: 'doing' },
-        { id: 'p8', title: 'Task 2', status: 'doing' },
-      ]);
-      mockPlanGetAllDoingForDir.mockResolvedValue([
-        { id: 'p7', title: 'Task 1', status: 'doing', sessionId: 'session-1' },
-        { id: 'p8', title: 'Task 2', status: 'blocked', sessionId: 'session-1' },
-      ]);
-      mockPlanStartableForDir.mockResolvedValue([
-        { id: 'p9', title: 'Task 3', status: 'startable' },
-      ]);
-
-      await renderPlanChips('session-1');
-
-      expect(mockSetPlanDoingCountCache).toHaveBeenCalledWith('session-1', 2);
-      expect(mockSetPlanStartableCountCache).toHaveBeenCalledWith('session-1', 1);
-    });
-
-    it('shows active plans from other sessions in the same directory', async () => {
-      mockPlanGetAllDoingForDir.mockResolvedValue([
-        { id: 'shared-1', title: 'Cross-session plan', status: 'doing', sessionId: 'session-2' },
-      ]);
-      mockPlanStartableForDir.mockResolvedValue([]);
-
-      await renderPlanChips('session-1');
-
-      const chips = document.querySelectorAll('.plan-chip--doing');
-      expect(chips).toHaveLength(1);
-      expect(chips[0].textContent).toContain('Cross-session plan');
-    });
-
-    it('renders blocked and question chips with dedicated classes', async () => {
-      mockPlanGetAllDoingForDir.mockResolvedValue([
-        { id: 'blocked-1', title: 'Waiting on API', status: 'blocked', sessionId: 'session-1' },
-        { id: 'question-1', title: 'Need answer', status: 'question', sessionId: 'session-2' },
-      ]);
-
-      await renderPlanChips('session-1');
-
-      expect(document.querySelectorAll('.plan-chip--blocked')).toHaveLength(1);
-      expect(document.querySelectorAll('.plan-chip--question')).toHaveLength(1);
-    });
+    expect(mockShowPlanInEditor).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({ id: 'start-1', status: 'startable' }),
+      expect.objectContaining({ onSave: expect.any(Function), onApply: expect.any(Function) }),
+    );
   });
 });

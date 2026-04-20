@@ -19,8 +19,11 @@ vi.mock('../renderer/screens/settings.js', () => ({
   loadSettingsScreen: vi.fn(),
 }));
 
-vi.mock('../renderer/drafts/draft-strip.js', () => ({
-  invalidateChipActionCache: vi.fn(),
+vi.mock('../renderer/stores/chip-bar.js', () => ({
+  useChipBarStore: () => ({
+    invalidateActions: vi.fn(),
+    refresh: vi.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 describe('Simple Chipbar Button Click Test', () => {

@@ -55,11 +55,6 @@ vi.mock('../renderer/state.js', () => ({
   },
 }));
 
-vi.mock('../renderer/drafts/draft-strip.js', () => ({
-  initDraftStrip: vi.fn(),
-  refreshDraftStrip: vi.fn(),
-}));
-
 vi.mock('../renderer/utils.js', () => ({
   escapeHtml: (t: string) => t,
   logEvent: vi.fn(),
