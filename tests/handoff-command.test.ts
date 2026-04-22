@@ -120,12 +120,17 @@ describe('Handoff command configuration', () => {
     sessionManager = createMockSessionManager(sessions);
     configLoader = createMockConfigLoader(tools);
 
+    const mockWindowManager = {
+      getWindowForSession: vi.fn(() => mockWindow as any),
+      getMainWindow: vi.fn(() => mockWindow as any),
+    };
+
     setupPtyHandlers(
       ptyManager as any,
       stateDetector as any,
       sessionManager,
       pipelineQueue as any,
-      () => mockWindow as any,
+      mockWindowManager as any,
       configLoader,
     );
   }

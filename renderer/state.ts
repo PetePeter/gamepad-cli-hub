@@ -15,6 +15,7 @@ export interface Session {
   workingDir?: string;
   title?: string;
   cliSessionName?: string;
+  windowId?: number;
 }
 
 export interface ButtonEvent {
@@ -67,6 +68,8 @@ export interface AppState {
   workingPlanTooltips: Map<string, string>;
   /** Per-session pending pattern schedule time string (e.g. "9:00 PM") */
   pendingSchedules: Map<string, string>;
+  /** Set of session IDs that are currently snapped out to child windows */
+  snappedOutSessions: Set<string>;
 }
 
 export const state: AppState = reactive({
@@ -97,4 +100,5 @@ export const state: AppState = reactive({
   workingPlanLabels: new Map(),
   workingPlanTooltips: new Map(),
   pendingSchedules: new Map(),
+  snappedOutSessions: new Set(),
 });

@@ -1,4 +1,4 @@
-import { Notification, type BrowserWindow } from 'electron';
+import { Notification, BrowserWindow } from 'electron';
 import path from 'path';
 import type { ActivityChange } from './state-detector.js';
 import type { SessionManager } from './manager.js';
@@ -6,6 +6,7 @@ import type { ConfigLoader } from '../config/loader.js';
 import type { SessionState } from '../types/session.js';
 import { logger } from '../utils/logger.js';
 import { stripAnsi } from '../utils/strip-ansi.js';
+import type { WindowManager } from '../electron/window-manager.js';
 
 /** States considered "active" (CLI is working) — only notify for these. */
 const ACTIVE_STATES: ReadonlySet<SessionState> = new Set(['implementing', 'planning']);
@@ -66,7 +67,7 @@ export class NotificationManager {
   private outputBuffers: Map<string, OutputBuffer> = new Map();
 
   constructor(
-    private getMainWindow: () => BrowserWindow | null,
+    private windowManager: WindowManager,
     private sessionManager: SessionManager,
     private configLoader: ConfigLoader,
     private getSessionState: (sessionId: string) => SessionState,
@@ -144,8 +145,8 @@ export class NotificationManager {
       return false;
     }
 
-    const win = this.getMainWindow();
-    if (win && !win.isDestroyed() && win.isFocused()) return false;
+    const focusedWin = BrowserWindow.getAllWindows().find(w => w.isFocused());
+    if (focusedWin && !focusedWin.isDestroyed()) return false;
 
     const lastTime = this.lastNotificationTime.get(sessionId) ?? 0;
     if (Date.now() - lastTime < DEDUP_WINDOW_MS) return false;
@@ -162,7 +163,7 @@ export class NotificationManager {
       });
 
       notification.on('click', () => {
-        const win = this.getMainWindow();
+        const win = this.windowManager.getWindowForSession(sessionId);
         if (win && !win.isDestroyed()) {
           win.show();
           win.focus();

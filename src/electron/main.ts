@@ -10,6 +10,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { existsSync, readFileSync } from 'fs';
 import { registerIPCHandlers } from './ipc/handlers.js';
+import { WindowManager } from './window-manager.js';
 import { buildSplashHtml } from './splash-html.js';
 import { setupPowerMonitor } from '../session/power-monitor.js';
 import { migrateOldPlans } from '../session/plan-migration.js';
@@ -309,8 +310,9 @@ app.whenReady().then(async () => {
   }
 
   // Register IPC handlers (passes __dirname for temp file cleanup on startup)
-  const ipc = registerIPCHandlers(() => mainWindow, __dirname);
+  const ipc = registerIPCHandlers(__dirname);
   cleanupIPC = ipc.cleanup;
+  const windowManager = ipc.windowManager;
 
   // Start watching for incoming plan files from CLIs
   ipc.incomingWatcher.start();
@@ -326,6 +328,11 @@ app.whenReady().then(async () => {
   // Create main window
   createWindow();
 
+  // Register main window with WindowManager
+  if (mainWindow) {
+    windowManager.setMainWindow(mainWindow);
+  }
+
   // Handle macOS dock behavior
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -335,8 +342,8 @@ app.whenReady().then(async () => {
 });
 
 ipcMain.on('app:startupReady', (event) => {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  if (event.sender.id !== mainWindow.webContents.id) return;
+  const senderWin = BrowserWindow.fromWebContents(event.sender);
+  if (!senderWin || senderWin.isDestroyed()) return;
 
   rendererStartupReady = true;
   logger.info('[Main] Renderer signaled startup ready');

@@ -1,4 +1,4 @@
-import { ipcMain, type BrowserWindow } from 'electron';
+import { ipcMain } from 'electron';
 import { randomUUID } from 'crypto';
 import type { PtyManager } from '../../session/pty-manager.js';
 import type { StateDetector } from '../../session/state-detector.js';
@@ -10,6 +10,7 @@ import { type SessionState, VALID_SESSION_STATES } from '../../types/session.js'
 import { scheduleInitialPrompt } from '../../session/initial-prompt.js';
 import type { NotificationManager } from '../../session/notification-manager.js';
 import { logger } from '../../utils/logger.js';
+import type { WindowManager } from '../window-manager.js';
 
 // Track cancel functions for initial prompt pre-loading per session
 const promptCancellers: Map<string, () => void> = new Map();
@@ -48,7 +49,7 @@ export function setupPtyHandlers(
   stateDetector: StateDetector,
   sessionManager: SessionManager,
   pipelineQueue: PipelineQueue,
-  getMainWindow: () => BrowserWindow | null,
+  windowManager: WindowManager,
   configLoader?: ConfigLoader,
   notificationManager?: NotificationManager,
   onPtyData?: (sessionId: string, data: string) => void,
@@ -234,7 +235,7 @@ export function setupPtyHandlers(
     onPtyData?.(sessionId, data);
 
     // Forward to renderer for xterm.js rendering
-    const win = getMainWindow();
+    const win = windowManager.getWindowForSession(sessionId);
     if (win && !win.isDestroyed()) {
       win.webContents.send('pty:data', sessionId, data);
     }
@@ -242,6 +243,8 @@ export function setupPtyHandlers(
 
   // Forward PTY exit events to renderer
   ptyManager.on('exit', (sessionId: string, exitCode: number) => {
+    const snappedWindowId = windowManager.getWindowIdForSession(sessionId);
+
     // Cancel any pending initial prompt
     const cancelPrompt = promptCancellers.get(sessionId);
     if (cancelPrompt) {
@@ -249,7 +252,7 @@ export function setupPtyHandlers(
       promptCancellers.delete(sessionId);
     }
 
-    const win = getMainWindow();
+    const win = windowManager.getWindowForSession(sessionId);
     if (win && !win.isDestroyed()) {
       win.webContents.send('pty:exit', sessionId, exitCode);
     }
@@ -261,11 +264,20 @@ export function setupPtyHandlers(
     if (sessionManager.hasSession(sessionId)) {
       sessionManager.removeSession(sessionId);
     }
+
+    if (snappedWindowId !== undefined) {
+      const snappedWin = windowManager.getWindow(snappedWindowId);
+      if (snappedWin && !snappedWin.isDestroyed()) {
+        snappedWin.close();
+      } else {
+        windowManager.unassignSession(sessionId);
+      }
+    }
   });
 
   // Forward state detector events to renderer
   stateDetector.on('state-change', (transition) => {
-    const win = getMainWindow();
+    const win = windowManager.getWindowForSession(transition.sessionId);
     if (win && !win.isDestroyed()) {
       win.webContents.send('pty:state-change', transition);
     }
@@ -297,7 +309,7 @@ export function setupPtyHandlers(
             targetSession.state = 'implementing';
           }
 
-          const handoffWin = getMainWindow();
+          const handoffWin = windowManager.getWindowForSession(handoff.toSessionId);
           if (handoffWin && !handoffWin.isDestroyed()) {
             handoffWin.webContents.send('pty:handoff', handoff);
           }
@@ -307,7 +319,7 @@ export function setupPtyHandlers(
   });
 
   stateDetector.on('question-detected', (event) => {
-    const win = getMainWindow();
+    const win = windowManager.getWindowForSession(event.sessionId);
     if (win && !win.isDestroyed()) {
       win.webContents.send('pty:question-detected', event);
     }
@@ -318,7 +330,7 @@ export function setupPtyHandlers(
   });
 
   stateDetector.on('question-cleared', (event) => {
-    const win = getMainWindow();
+    const win = windowManager.getWindowForSession(event.sessionId);
     if (win && !win.isDestroyed()) {
       win.webContents.send('pty:question-cleared', event);
     }
@@ -330,7 +342,7 @@ export function setupPtyHandlers(
 
   // Forward activity change events to renderer
   stateDetector.on('activity-change', (event) => {
-    const win = getMainWindow();
+    const win = windowManager.getWindowForSession(event.sessionId);
     if (win && !win.isDestroyed()) {
       win.webContents.send('pty:activity-change', event);
     }
@@ -381,7 +393,7 @@ export function setupPtyHandlers(
 
     session.state = state as SessionState;
 
-    const win = getMainWindow();
+    const win = windowManager.getWindowForSession(sessionId);
     if (win && !win.isDestroyed()) {
       win.webContents.send('pty:state-change', {
         sessionId,
@@ -402,19 +414,19 @@ export function setupPtyHandlers(
   // Pattern matcher — forward events to renderer
   if (patternMatcher) {
     patternMatcher.on('schedule-created', (event) => {
-      const win = getMainWindow();
+      const win = windowManager.getWindowForSession(event.sessionId);
       if (win && !win.isDestroyed()) {
         win.webContents.send('pattern:schedule-created', event);
       }
     });
     patternMatcher.on('schedule-fired', (event) => {
-      const win = getMainWindow();
+      const win = windowManager.getWindowForSession(event.sessionId);
       if (win && !win.isDestroyed()) {
         win.webContents.send('pattern:schedule-fired', event);
       }
     });
     patternMatcher.on('schedule-cancelled', (event) => {
-      const win = getMainWindow();
+      const win = windowManager.getWindowForSession(event.sessionId);
       if (win && !win.isDestroyed()) {
         win.webContents.send('pattern:schedule-cancelled', event);
       }

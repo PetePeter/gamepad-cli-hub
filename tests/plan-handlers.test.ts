@@ -15,6 +15,9 @@ vi.mock('electron', () => ({
       handlers.set(channel, handler);
     }),
   },
+  BrowserWindow: {
+    getAllWindows: vi.fn(() => []),
+  },
 }));
 
 vi.mock('../src/utils/logger.js', () => ({

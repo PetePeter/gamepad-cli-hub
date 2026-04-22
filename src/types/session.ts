@@ -35,6 +35,8 @@ export interface SessionInfo {
   cliSessionName?: string;
   /** Telegram forum topic ID for this session's topic thread */
   topicId?: number;
+  /** BrowserWindow ID if this session is snapped out to a child window. Undefined/null means main window. */
+  windowId?: number;
 }
 
 /**

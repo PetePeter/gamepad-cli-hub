@@ -319,7 +319,29 @@ export class TerminalManager {
         this.onEmpty();
       }
     }
+  }
 
+  /** Detach a terminal from this manager without killing the PTY.
+   *  Used when a session is snapped out to a child window. */
+  detachTerminal(sessionId: string): void {
+    const session = this.terminals.get(sessionId);
+    if (!session) return;
+
+    session.view.dispose();
+    session.element.remove();
+    this.terminals.delete(sessionId);
+    this.outputBuffer.clear(sessionId);
+
+    // Switch to another terminal if active one was detached
+    if (this.activeSessionId === sessionId) {
+      this.activeSessionId = null;
+      const remaining = Array.from(this.terminals.keys());
+      if (remaining.length > 0) {
+        this.switchTo(remaining[0]);
+      } else if (this.onEmpty) {
+        this.onEmpty();
+      }
+    }
   }
 
   /** Write data to a terminal's display (from PTY output) */

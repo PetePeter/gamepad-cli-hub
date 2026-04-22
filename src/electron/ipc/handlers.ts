@@ -6,7 +6,7 @@
  * are never imported directly by the application.
  */
 
-import type { BrowserWindow } from 'electron';
+import { BrowserWindow } from 'electron';
 import { SessionManager } from '../../session/manager.js';
 import { PtyManager } from '../../session/pty-manager.js';
 import { StateDetector } from '../../session/state-detector.js';
@@ -38,6 +38,7 @@ import { setupPlanHandlers } from './plan-handlers.js';
 import { RendererTextDeliverer } from './text-delivery.js';
 import { loadDrafts } from '../../session/persistence.js';
 import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
+import { WindowManager } from '../window-manager.js';
 
 
 /**
@@ -47,10 +48,11 @@ import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
  * so handler files never import singletons directly.
  */
 export function registerIPCHandlers(
-  getMainWindow: () => BrowserWindow | null,
   dirname?: string,
-): { cleanup: () => void; sessionManager: SessionManager; ptyManager: PtyManager; incomingWatcher: IncomingPlansWatcher } {
+): { cleanup: () => void; sessionManager: SessionManager; ptyManager: PtyManager; incomingWatcher: IncomingPlansWatcher; windowManager: WindowManager } {
   logger.info('[IPC] Registering handlers');
+
+  const windowManager = new WindowManager();
 
   // Clean up stale temp files from previous sessions
   if (dirname) {
@@ -73,7 +75,7 @@ export function registerIPCHandlers(
   const draftManager = new DraftManager();
   const planManager = new PlanManager();
   const notificationManager = new NotificationManager(
-    getMainWindow, sessionManager, configLoader,
+    windowManager, sessionManager, configLoader,
     (sessionId) => stateDetector.getState(sessionId),
   );
 
@@ -95,7 +97,7 @@ export function registerIPCHandlers(
   // PlanManager loads from disk in its constructor — no explicit importAll needed
 
   const incomingWatcher = new IncomingPlansWatcher(planManager);
-  const textDeliverer = new RendererTextDeliverer(getMainWindow, sessionManager, configLoader);
+  const textDeliverer = new RendererTextDeliverer(windowManager, sessionManager, configLoader);
   ptyManager.setTextDeliveryHandler((sessionId, text) => textDeliverer.deliver(sessionId, text));
 
   const patternMatcher = new PatternMatcher(
@@ -103,7 +105,7 @@ export function registerIPCHandlers(
     (cliType) => configLoader.getPatterns(cliType),
   );
 
-  const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager);
+  const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager, windowManager, configLoader);
   setupConfigHandlers(configLoader);
   setupEditorHandlers(configLoader);
   setupProfileHandlers(configLoader);
@@ -111,8 +113,8 @@ export function registerIPCHandlers(
   setupKeyboardHandlers(keyboard);
   setupSystemHandlers(dirname ?? process.cwd());
   setupDraftHandlers(draftManager);
-  setupPlanHandlers(planManager, getMainWindow, incomingWatcher);
-  setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, getMainWindow, configLoader, notificationManager, telegramModules.feedPtyOutput, telegramModules.handleActivityChange, telegramModules.trackInput, patternMatcher);
+  setupPlanHandlers(planManager, windowManager, incomingWatcher);
+  setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, telegramModules.feedPtyOutput, telegramModules.handleActivityChange, telegramModules.trackInput, patternMatcher);
 
   // Wire events ONCE (no-ops when bot not running — notifier checks isRunning)
   stateDetector.on('state-change', (transition) => telegramNotifier.handleStateChange(transition));
@@ -120,7 +122,7 @@ export function registerIPCHandlers(
   stateDetector.on('question-detected', (event) => telegramModules.handleQuestionDetected(event.sessionId));
   sessionManager.on('session:added', async (event) => {
     // Push to renderer so it can adopt externally-spawned terminals (e.g. Telegram)
-    const win = getMainWindow();
+    const win = windowManager.getMainWindow();
     if (win && !win.isDestroyed()) {
       win.webContents.send('session:spawned-externally', event);
     }
@@ -184,5 +186,6 @@ export function registerIPCHandlers(
     sessionManager,
     ptyManager,
     incomingWatcher,
+    windowManager,
   };
 }

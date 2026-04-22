@@ -33,6 +33,7 @@ export interface SessionCardProps {
   isEditing: boolean;
   isHiddenFromOverview: boolean;
   scheduledAt?: string | null;
+  isSnappedOut?: boolean;
 }
 
 // --- Constants ---
@@ -60,6 +61,8 @@ const emit = defineEmits<{
   stateChange: [sessionId: string, newState: string];
   toggleOverview: [sessionId: string];
   cancelSchedule: [sessionId: string];
+  snapOut: [sessionId: string];
+  snapBack: [sessionId: string];
 }>();
 
 // --- Local state ---
@@ -126,13 +129,14 @@ defineExpose({ handleButton });
 <template>
   <div
     class="session-card"
-    :class="{ active: isActive, focused: isFocused }"
+    :class="{ active: isActive, focused: isFocused, 'snapped-out': isSnappedOut }"
     :data-session-id="session.id"
     @click="emit('click', session.id)"
   >
     <!-- Line 1: top row -->
     <div class="session-top-row">
       <span class="session-activity-dot" :style="{ background: dotColor }" />
+      <span v-if="isSnappedOut" class="snap-indicator" title="Snapped out">📤</span>
 
       <button
         class="session-state-btn"

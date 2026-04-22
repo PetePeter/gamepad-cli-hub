@@ -576,6 +576,22 @@ button {
 .session-card:hover,
 .session-card.focused { background: var(--bg-tertiary); }
 .session-card.active { border-color: var(--accent); background: var(--bg-secondary); }
+.session-card.snapped-out {
+  opacity: 0.6;
+  filter: grayscale(0.5);
+  border-style: dashed;
+  border-color: #555;
+}
+.session-card.snapped-out:hover,
+.session-card.snapped-out.focused {
+  opacity: 0.8;
+  background: var(--bg-tertiary);
+}
+
+.snap-indicator {
+  font-size: 10px;
+  margin-left: 2px;
+}
 
 /* Activity dot (green = active, blue = inactive >10s, grey = idle >5min) */
 .session-activity-dot {
@@ -1911,6 +1927,7 @@ kbd {
   flex: 1;
   position: relative;
   overflow: hidden;
+  z-index: 1;
 }
 
 .terminal-pane {
@@ -2757,6 +2774,8 @@ kbd {
   background: #1e1e2e;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  position: relative;
+  z-index: 20;
 }
 
 .draft-editor-header {
@@ -2892,6 +2911,8 @@ kbd {
   background: var(--bg-secondary);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+  position: relative;
+  z-index: 10;
 }
 
 .chip-action-bar {

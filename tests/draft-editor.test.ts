@@ -51,6 +51,7 @@ function buildDraftEditorDom(): void {
     <div id="mainArea" class="panel-right">
       <div id="draftStrip" class="draft-strip" style="display: none;"></div>
       <div class="terminal-container"></div>
+      <div class="chip-action-dock"></div>
     </div>
   `;
 }
@@ -135,6 +136,17 @@ describe('Draft Editor', () => {
       expect(document.getElementById('draftCancelBtn')).not.toBeNull();
       expect(document.getElementById('draftLabelInput')).not.toBeNull();
       expect(document.getElementById('draftContentInput')).not.toBeNull();
+    });
+
+    it('inserts the editor above the chip action dock at the bottom of mainArea', () => {
+      mod.initDraftEditor();
+
+      const mainArea = document.getElementById('mainArea')!;
+      const editor = document.getElementById('draftEditor')!;
+      const actionDock = mainArea.querySelector('.chip-action-dock');
+
+      expect(mainArea.children[2]).toBe(editor);
+      expect(mainArea.children[3]).toBe(actionDock);
     });
   });
 

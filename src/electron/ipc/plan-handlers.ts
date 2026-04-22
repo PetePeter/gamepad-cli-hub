@@ -1,5 +1,4 @@
-import type { BrowserWindow } from 'electron';
-import { ipcMain, shell } from 'electron';
+import { ipcMain, shell, BrowserWindow } from 'electron';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
 import { mkdirSync } from 'node:fs';
@@ -7,39 +6,46 @@ import type { PlanManager } from '../../session/plan-manager.js';
 import type { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
 import { logger } from '../../utils/logger.js';
 import type { PlanItem, PlanDependency } from '../../types/plan.js';
+import type { WindowManager } from '../window-manager.js';
 
 
 export function setupPlanHandlers(
   planManager: PlanManager,
-  getMainWindow?: () => BrowserWindow | null,
+  windowManager?: WindowManager,
   incomingWatcher?: IncomingPlansWatcher,
 ): void {
-  // Forward plan:changed events to renderer (PlanManager self-saves to disk)
+  const getTargetWindows = () => windowManager?.getAllWindows() ?? BrowserWindow.getAllWindows();
+
+  // Forward plan:changed events to all windows (PlanManager self-saves to disk)
   planManager.on('plan:changed', (dirPath: string) => {
-    const win = getMainWindow?.();
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('plan:changed', dirPath);
+    for (const win of getTargetWindows()) {
+      if (!win.isDestroyed()) {
+        win.webContents.send('plan:changed', dirPath);
+      }
     }
   });
 
-  // Forward incoming-watcher events to renderer
+  // Forward incoming-watcher events to all windows
   if (incomingWatcher) {
     incomingWatcher.on('incoming-imported', (event) => {
-      const win = getMainWindow?.();
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('plan:incoming-imported', event);
+      for (const win of getTargetWindows()) {
+        if (!win.isDestroyed()) {
+          win.webContents.send('plan:incoming-imported', event);
+        }
       }
     });
     incomingWatcher.on('incoming-error', (event) => {
-      const win = getMainWindow?.();
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('plan:incoming-error', event);
+      for (const win of getTargetWindows()) {
+        if (!win.isDestroyed()) {
+          win.webContents.send('plan:incoming-error', event);
+        }
       }
     });
     incomingWatcher.on('incoming-error-cleared', (event) => {
-      const win = getMainWindow?.();
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('plan:incoming-error-cleared', event);
+      for (const win of getTargetWindows()) {
+        if (!win.isDestroyed()) {
+          win.webContents.send('plan:incoming-error-cleared', event);
+        }
       }
     });
   }

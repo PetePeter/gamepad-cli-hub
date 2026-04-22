@@ -799,7 +799,7 @@ describe('ContextMenu.vue', () => {
   it('gamepad A on Cancel emits cancel', () => {
     const w = factory();
     const vm = w.vm as any;
-    vm.selectedIndex = 7; // Cancel item
+    vm.selectedIndex = 9; // Cancel item
     vm.handleButton('A');
     expect(w.emitted('cancel')).toHaveLength(1);
     w.unmount();

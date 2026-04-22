@@ -14,6 +14,9 @@ vi.mock('electron', () => {
     Notification: Object.assign(MockNotification, {
       isSupported: vi.fn(() => true),
     }),
+    BrowserWindow: {
+      getAllWindows: vi.fn(() => []),
+    },
   };
 });
 
@@ -22,7 +25,7 @@ vi.mock('../src/utils/logger.js', () => ({
 }));
 
 import { NotificationManager } from '../src/session/notification-manager.js';
-import { Notification } from 'electron';
+import { Notification, BrowserWindow } from 'electron';
 import type { ActivityChange } from '../src/session/state-detector.js';
 import type { SessionManager } from '../src/session/manager.js';
 import type { ConfigLoader } from '../src/config/loader.js';
@@ -74,8 +77,13 @@ describe('NotificationManager', () => {
     mockSessionManager = createMockSessionManager({ 'session-1': defaultSession });
     mockConfigLoader = createMockConfigLoader(true);
     mockGetSessionState = vi.fn(() => 'implementing' as SessionState);
+    (BrowserWindow.getAllWindows as Mock).mockReturnValue([mockWindow]);
+    const mockWindowManager = {
+      getWindowForSession: vi.fn(() => mockWindow as any),
+      getMainWindow: vi.fn(() => mockWindow as any),
+    };
     manager = new NotificationManager(
-      () => mockWindow as any,
+      mockWindowManager as any,
       mockSessionManager,
       mockConfigLoader,
       mockGetSessionState,

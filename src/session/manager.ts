@@ -178,6 +178,20 @@ export class SessionManager extends EventEmitter {
   }
 
   /**
+   * Update a session's fields in-place.
+   * @param sessionId - Session ID
+   * @param updates - Partial fields to update
+   */
+  updateSession(sessionId: string, updates: Partial<SessionInfo>): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session with id "${sessionId}" does not exist`);
+    }
+    Object.assign(session, updates);
+    this.persistSessions();
+  }
+
+  /**
    * Get all sessions
    * @returns Array of all sessions in order
    */

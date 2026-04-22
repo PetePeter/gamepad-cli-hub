@@ -203,6 +203,13 @@ export interface SidebarPrefs {
 
 const DEFAULT_SIDEBAR_PREFS: SidebarPrefs = { width: 1280 };
 
+export interface SnapOutWindowPrefs {
+  width: number;
+  height: number;
+  x?: number;
+  y?: number;
+}
+
 // ============================================================================
 // Sorting Config Types
 // ============================================================================
@@ -257,6 +264,7 @@ export interface SettingsConfig {
   hapticFeedback: boolean;
   notifications: boolean;
   sidebar?: SidebarPrefs;
+  snapOutWindows?: Record<string, SnapOutWindowPrefs>;
   sorting?: SortingConfig;
   sessionGroups?: SessionGroupPrefs;
   editorHistory?: string[];
@@ -721,6 +729,36 @@ export class ConfigLoader {
     this.ensureLoaded();
     const current = this.getSidebarPrefs();
     this.settings!.sidebar = { ...current, ...prefs };
+    this.saveSettings();
+  }
+
+  getSnapOutWindowPrefs(sessionId: string): SnapOutWindowPrefs | null {
+    this.ensureLoaded();
+    const prefs = this.settings!.snapOutWindows?.[sessionId];
+    if (!prefs) return null;
+    return {
+      width: prefs.width,
+      height: prefs.height,
+      x: prefs.x,
+      y: prefs.y,
+    };
+  }
+
+  setSnapOutWindowPrefs(sessionId: string, prefs: SnapOutWindowPrefs): void {
+    this.ensureLoaded();
+    this.settings!.snapOutWindows = {
+      ...(this.settings!.snapOutWindows ?? {}),
+      [sessionId]: prefs,
+    };
+    this.saveSettings();
+  }
+
+  clearSnapOutWindowPrefs(sessionId: string): void {
+    this.ensureLoaded();
+    if (!this.settings!.snapOutWindows?.[sessionId]) return;
+    const next = { ...this.settings!.snapOutWindows };
+    delete next[sessionId];
+    this.settings!.snapOutWindows = next;
     this.saveSettings();
   }
 

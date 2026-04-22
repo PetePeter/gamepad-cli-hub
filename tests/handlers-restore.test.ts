@@ -103,6 +103,7 @@ vi.mock('../src/electron/ipc/keyboard-handlers.js', () => ({
 }));
 vi.mock('../src/electron/ipc/system-handlers.js', () => ({
   setupSystemHandlers: vi.fn(),
+  cleanupWorkTempFiles: vi.fn(),
 }));
 vi.mock('../src/electron/ipc/pty-handlers.js', () => ({
   setupPtyHandlers: vi.fn(),

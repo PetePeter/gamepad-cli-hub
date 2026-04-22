@@ -1,8 +1,9 @@
-import { ipcMain, type BrowserWindow } from 'electron';
+import { ipcMain } from 'electron';
 import { randomUUID } from 'crypto';
 import type { SessionManager } from '../../session/manager.js';
 import type { ConfigLoader } from '../../config/loader.js';
 import { logger } from '../../utils/logger.js';
+import type { WindowManager } from '../window-manager.js';
 
 interface PendingRequest {
   resolve: () => void;
@@ -17,7 +18,7 @@ export class RendererTextDeliverer {
   private rendererReady = false;
 
   constructor(
-    private getMainWindow: () => BrowserWindow | null,
+    private windowManager: WindowManager,
     private sessionManager: SessionManager,
     private configLoader: ConfigLoader,
   ) {
@@ -45,7 +46,7 @@ export class RendererTextDeliverer {
       ? this.configLoader.getCliTypeEntry(session.cliType)?.pasteMode
       : undefined;
 
-    const win = this.getMainWindow();
+    const win = this.windowManager.getWindowForSession(sessionId);
     if (!this.rendererReady || !win || win.isDestroyed()) {
       if (pasteMode === 'clippaste' || pasteMode === 'sendkeys' || pasteMode === 'sendkeysindividual') {
         throw new Error(`Renderer delivery unavailable for pasteMode=${pasteMode}`);

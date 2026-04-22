@@ -14,13 +14,20 @@ import { EventEmitter } from 'node:events';
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
 const handlers = new Map<string, Function>();
-vi.mock('electron', () => ({
-  ipcMain: {
-    handle: vi.fn((channel: string, handler: Function) => {
-      handlers.set(channel, handler);
-    }),
-  },
-}));
+
+vi.mock('electron', () => {
+  const mockGetAllWindows = vi.fn(() => []);
+  return {
+    ipcMain: {
+      handle: vi.fn((channel: string, handler: Function) => {
+        handlers.set(channel, handler);
+      }),
+    },
+    BrowserWindow: {
+      getAllWindows: mockGetAllWindows,
+    },
+  };
+});
 
 vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -49,6 +56,7 @@ vi.mock('node:fs', () => ({
 
 import { setupPlanHandlers } from '../src/electron/ipc/plan-handlers.js';
 import { PlanManager } from '../src/session/plan-manager.js';
+import { BrowserWindow } from 'electron';
 
 // ─── Fake IncomingPlansWatcher ────────────────────────────────────────────────
 
@@ -77,14 +85,13 @@ function makeItem(overrides = {}) {
 describe('plan exchange IPC channels', () => {
   let planManager: PlanManager;
   let fakeWatcher: FakeWatcher;
-  const mockGetWindow = vi.fn();
 
   beforeEach(() => {
     handlers.clear();
     vi.clearAllMocks();
     planManager = new PlanManager();
     fakeWatcher = new FakeWatcher();
-    setupPlanHandlers(planManager, mockGetWindow, fakeWatcher as any);
+    setupPlanHandlers(planManager, undefined as any, fakeWatcher as any);
   });
 
   // ─── Registration ──────────────────────────────────────────────────────────
@@ -353,7 +360,7 @@ describe('plan exchange IPC channels', () => {
   describe('incoming watcher event forwarding', () => {
     it('forwards incoming-imported event to renderer window', () => {
       const mockSend = vi.fn();
-      mockGetWindow.mockReturnValue({ isDestroyed: () => false, webContents: { send: mockSend } });
+      (BrowserWindow.getAllWindows as any).mockReturnValue([{ isDestroyed: () => false, webContents: { send: mockSend } }]);
 
       fakeWatcher.emit('incoming-imported', { filename: 'x.json', title: 'Task', dirPath: '/proj' });
 
@@ -362,7 +369,7 @@ describe('plan exchange IPC channels', () => {
 
     it('forwards incoming-error event to renderer window', () => {
       const mockSend = vi.fn();
-      mockGetWindow.mockReturnValue({ isDestroyed: () => false, webContents: { send: mockSend } });
+      (BrowserWindow.getAllWindows as any).mockReturnValue([{ isDestroyed: () => false, webContents: { send: mockSend } }]);
 
       fakeWatcher.emit('incoming-error', { filename: 'bad.json', error: 'Invalid JSON' });
 
@@ -371,7 +378,7 @@ describe('plan exchange IPC channels', () => {
 
     it('does not forward if window is destroyed', () => {
       const mockSend = vi.fn();
-      mockGetWindow.mockReturnValue({ isDestroyed: () => true, webContents: { send: mockSend } });
+      (BrowserWindow.getAllWindows as any).mockReturnValue([{ isDestroyed: () => true, webContents: { send: mockSend } }]);
 
       fakeWatcher.emit('incoming-imported', { filename: 'x.json', title: 'T', dirPath: '/proj' });
 
@@ -379,7 +386,7 @@ describe('plan exchange IPC channels', () => {
     });
 
     it('does not forward if no window returned', () => {
-      mockGetWindow.mockReturnValue(null);
+      (BrowserWindow.getAllWindows as any).mockReturnValue([]);
       // Should not throw
       expect(() => fakeWatcher.emit('incoming-imported', { filename: 'x.json', title: 'T', dirPath: '/proj' })).not.toThrow();
     });

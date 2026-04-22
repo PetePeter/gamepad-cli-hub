@@ -66,9 +66,9 @@ function getSessionActivity(sessionId: string): string {
 
 function getSessionCwd(sessionId: string): string {
   const tm = getTerminalManager();
-  if (!tm) return '';
-  const session = tm.getSession(sessionId);
-  return session?.cwd || '';
+  const terminalSession = tm?.getSession(sessionId);
+  if (terminalSession?.cwd) return terminalSession.cwd;
+  return state.sessions.find(session => session.id === sessionId)?.workingDir || '';
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -92,7 +92,7 @@ export async function refreshSessions(): Promise<void> {
   await initGroupPrefs();
 
   const nextSessions: Session[] = [];
-  let persistedSessions: Array<{ id: string; cliSessionName?: string }> = [];
+  let persistedSessions: Session[] = [];
   try {
     persistedSessions = (await window.gamepadCli.sessionGetAll()) || [];
   } catch (e) {
@@ -101,10 +101,29 @@ export async function refreshSessions(): Promise<void> {
   const persistedById = new Map(persistedSessions.map(s => [s.id, s]));
 
   const tm = getTerminalManager();
+
+  for (const persisted of persistedSessions) {
+    const terminalSession = tm?.getSession(persisted.id);
+    nextSessions.push({
+      id: persisted.id,
+      name: terminalSession?.name || persisted.name || persisted.cliType,
+      cliType: terminalSession?.cliType || persisted.cliType,
+      processId: persisted.processId ?? 0,
+      workingDir: terminalSession?.cwd || persisted.workingDir || '',
+      title: terminalSession?.title || persisted.title,
+      cliSessionName: persisted.cliSessionName,
+      windowId: persisted.windowId,
+    } as Session);
+
+    if (!state.sessionActivityLevels.has(persisted.id)) {
+      state.sessionActivityLevels.set(persisted.id, 'idle');
+    }
+  }
+
   if (tm) {
     for (const id of tm.getSessionIds()) {
+      if (persistedById.has(id)) continue;
       const session = tm.getSession(id);
-      const persisted = persistedById.get(id);
       const cliType = session?.cliType || 'unknown';
       nextSessions.push({
         id,
@@ -113,14 +132,18 @@ export async function refreshSessions(): Promise<void> {
         processId: 0,
         workingDir: session?.cwd || '',
         title: session?.title,
-        cliSessionName: persisted?.cliSessionName,
       } as Session);
-      // Pre-populate so that the reactive Map key exists before the first activity event fires.
-      // Vue 3's Map proxy only triggers GET-tracked effects on SET (existing key), not on ADD
-      // (new key). Without this, the first activity-change event would not update the dot.
       if (!state.sessionActivityLevels.has(id)) {
         state.sessionActivityLevels.set(id, 'idle');
       }
+    }
+  }
+
+  // Update snapped-out tracking based on session windowId
+  state.snappedOutSessions.clear();
+  for (const session of nextSessions) {
+    if (session.windowId !== undefined) {
+      state.snappedOutSessions.add(session.id);
     }
   }
 
@@ -618,11 +641,16 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
 
 async function autoResumeSessions(tm: TerminalManager): Promise<void> {
   try {
-    const restoredSessions = await window.gamepadCli?.sessionGetAll();
-    if (!restoredSessions || restoredSessions.length === 0) return;
+  const restoredSessions = await window.gamepadCli?.sessionGetAll();
+  if (!restoredSessions || restoredSessions.length === 0) return;
 
     const terminalIds = tm.getSessionIds();
     for (const session of restoredSessions) {
+      // Skip sessions that are snapped out to child windows
+      if (session.windowId !== undefined) {
+        state.snappedOutSessions.add(session.id);
+        continue;
+      }
       if (session.cliSessionName && !terminalIds.includes(session.id)) {
         try {
           console.log(`[AutoResume] Resuming session: ${session.id} (${session.cliType}) with name ${session.cliSessionName}`);

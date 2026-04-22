@@ -15,6 +15,7 @@ declare global {
 
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { state } from './state.js';
+import SnapOutWindow from './components/SnapOutWindow.vue';
 import { sessionsState } from './screens/sessions-state.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { getCliDisplayName, getCliIcon, toDirection } from './utils.js';
@@ -98,6 +99,19 @@ const terminalContainerRef = ref<HTMLElement | null>(null);
 const chipBarStore = useChipBarStore();
 const navStore = useNavigationStore();
 let offTextDeliver: (() => void) | null = null;
+let unsubSnapOut: (() => void) | null = null;
+let unsubSnapBack: (() => void) | null = null;
+
+// Snap-out mode detection
+const isSnapOut = computed(() => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('snapOut') === '1';
+});
+
+const snapOutSessionId = computed(() => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('sessionId') || '';
+});
 
 // Non-modal local state
 const bindingEditorVisible = ref(false);
@@ -276,7 +290,14 @@ function handleRelease(button: string): void {
 // Session actions
 // ============================================================================
 
-function onSessionClick(sessionId: string): void {
+async function onSessionClick(sessionId: string): Promise<void> {
+  if (state.snappedOutSessions.has(sessionId)) {
+    // Focus the snapped-out window
+    try {
+      await window.gamepadCli.sessionSetActive(sessionId);
+    } catch { /* ignore */ }
+    return;
+  }
   void navStore.navigateToSession(sessionId);
 }
 
@@ -355,6 +376,22 @@ async function onCancelSchedule(sessionId: string): Promise<void> {
   try {
     await window.gamepadCli.patternCancelSchedule(sessionId);
   } catch { /* ignore */ }
+}
+
+async function onSessionSnapOut(sessionId: string): Promise<void> {
+  try {
+    await window.gamepadCli.sessionSnapOut(sessionId);
+  } catch (error) {
+    console.error('Failed to snap out session:', error);
+  }
+}
+
+async function onSessionSnapBack(sessionId: string): Promise<void> {
+  try {
+    await window.gamepadCli.sessionSnapBack(sessionId);
+  } catch (error) {
+    console.error('Failed to snap back session:', error);
+  }
 }
 
 // Section collapse
@@ -458,6 +495,12 @@ function onContextMenuAction(action: string): void {
     }
     case 'drafts':
       void showDraftSubmenu();
+      break;
+    case 'snap-out':
+      if (state.activeSessionId) void onSessionSnapOut(state.activeSessionId);
+      break;
+    case 'snap-back':
+      if (state.activeSessionId) void onSessionSnapBack(state.activeSessionId);
       break;
     case 'cancel':
       break;
@@ -728,7 +771,28 @@ onMounted(async () => {
     // Keyboard → modal stack bridge (all navigation keys reach modals via unified path)
     window.addEventListener('keydown', handleModalKeyboardBridge, true);
 
-    // Wire view-change listener so activeView stays in sync with legacy MainViewManager
+    // Snap-out / snap-back IPC listeners
+    unsubSnapOut = window.gamepadCli?.onSnapOut
+      ? window.gamepadCli.onSnapOut((sessionId: string) => {
+          state.snappedOutSessions.add(sessionId);
+          const tm = getTerminalManager();
+          if (tm) tm.detachTerminal(sessionId);
+        })
+      : null;
+    unsubSnapBack = window.gamepadCli?.onSnapBack
+      ? window.gamepadCli.onSnapBack((sessionId: string) => {
+          state.snappedOutSessions.delete(sessionId);
+          // Re-adopt terminal in main window
+          const session = state.sessions.find(s => s.id === sessionId);
+          if (session) {
+            const tm = getTerminalManager();
+            if (tm && !tm.has(sessionId)) {
+              tm.adoptTerminal(sessionId, session.cliType, session.workingDir);
+              tm.switchTo(sessionId);
+            }
+          }
+        })
+      : null;
     onViewChange((view: ViewName) => {
       activeView.value = view;
     });
@@ -750,11 +814,20 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleModalKeyboardBridge, true);
   offTextDeliver?.();
   offTextDeliver = null;
+  unsubSnapOut?.();
+  unsubSnapOut = null;
+  unsubSnapBack?.();
+  unsubSnapBack = null;
   teardown();
 });
 </script>
 
 <template>
+  <SnapOutWindow
+    v-if="isSnapOut"
+    :session-id="snapOutSessionId"
+  />
+  <template v-else>
     <!-- Left panel: sessions/settings -->
     <div class="panel-left" id="sidePanel" ref="panelRef">
       <header class="sidebar-header">
@@ -837,6 +910,7 @@ onUnmounted(() => {
                   :is-editing="editingSessionId === session.id"
                   :is-hidden-from-overview="isSessionHiddenFromOverview(session, sessionsState.groupPrefs)"
                   :scheduled-at="state.pendingSchedules.get(session.id) ?? null"
+                  :is-snapped-out="state.snappedOutSessions.has(session.id)"
                   @click="onSessionClick"
                   @rename="onSessionRename"
                   @commit-rename="onCommitRename"
@@ -845,6 +919,8 @@ onUnmounted(() => {
                   @state-change="onSessionStateChange"
                   @toggle-overview="onToggleOverview"
                   @cancel-schedule="onCancelSchedule"
+                  @snap-out="onSessionSnapOut"
+                  @snap-back="onSessionSnapBack"
                 />
               </template>
               </template>
@@ -976,6 +1052,7 @@ onUnmounted(() => {
       :has-active-session="hasActiveSession"
       :has-sequences="hasSequences"
       :has-drafts="hasDrafts"
+      :is-snapped-out="state.activeSessionId ? state.snappedOutSessions.has(state.activeSessionId) : false"
       :mode="contextMenu.mode"
       :mouse-x="contextMenu.mouseX"
       :mouse-y="contextMenu.mouseY"
@@ -1036,4 +1113,5 @@ onUnmounted(() => {
     />
 
     <ToastNotification />
+  </template>
 </template>

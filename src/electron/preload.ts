@@ -43,6 +43,16 @@ const gamepadCliAPI = {
   sessionClose: (id: string) => ipcRenderer.invoke('session:close', id),
 
   /**
+   * Snap out a session to a child window
+   */
+  sessionSnapOut: (id: string) => ipcRenderer.invoke('session:snapOut', id),
+
+  /**
+   * Snap back a session to the main window
+   */
+  sessionSnapBack: (id: string) => ipcRenderer.invoke('session:snapBack', id),
+
+  /**
    * Rename a session
    */
   sessionRename: (id: string, newName: string) => ipcRenderer.invoke('session:rename', id, newName),
@@ -298,6 +308,27 @@ const gamepadCliAPI = {
     const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
     ipcRenderer.on('session:spawned-externally', listener);
     return () => ipcRenderer.removeListener('session:spawned-externally', listener);
+  },
+
+  /** Subscribe to session metadata updates such as renames. */
+  onSessionUpdated: (callback: (session: { id: string; name: string; cliType: string; workingDir?: string; title?: string; windowId?: number }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('session:updated', listener);
+    return () => ipcRenderer.removeListener('session:updated', listener);
+  },
+
+  /** Subscribe to snap-out events */
+  onSnapOut: (callback: (sessionId: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, sessionId: string) => callback(sessionId);
+    ipcRenderer.on('session:snapOut', listener);
+    return () => ipcRenderer.removeListener('session:snapOut', listener);
+  },
+
+  /** Subscribe to snap-back events */
+  onSnapBack: (callback: (sessionId: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, sessionId: string) => callback(sessionId);
+    ipcRenderer.on('session:snapBack', listener);
+    return () => ipcRenderer.removeListener('session:snapBack', listener);
   },
 
   /**
