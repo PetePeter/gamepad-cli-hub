@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { existsSync, readFileSync } from 'fs';
 import { registerIPCHandlers } from './ipc/handlers.js';
 import { WindowManager } from './window-manager.js';
+import { resolveWindowIconPath } from './window-icon.js';
 import { buildSplashHtml } from './splash-html.js';
 import { setupPowerMonitor } from '../session/power-monitor.js';
 import { migrateOldPlans } from '../session/plan-migration.js';
@@ -56,18 +57,6 @@ function readWindowBounds(): void {
   } catch {
     logger.warn('[Main] Could not read window prefs, using defaults');
   }
-}
-
-function resolveWindowIcon(): string | undefined {
-  const iconCandidates = [
-    join(process.resourcesPath, 'build', 'icon.ico'),
-    join(process.resourcesPath, 'build', 'icon.png'),
-    join(process.cwd(), 'build', 'icon.ico'),
-    join(process.cwd(), 'build', 'icon.png'),
-    join(__dirname, '..', '..', 'build', 'icon.ico'),
-    join(__dirname, '..', '..', 'build', 'icon.png'),
-  ];
-  return iconCandidates.find(p => existsSync(p));
 }
 
 function resolveSplashLogoUrl(): string | undefined {
@@ -168,7 +157,7 @@ function createWindow(): void {
   mainWindowReadyToShow = false;
   rendererStartupReady = false;
 
-  const windowIcon = resolveWindowIcon();
+  const windowIcon = resolveWindowIconPath(__dirname);
   createSplashWindow(windowIcon);
 
   mainWindow = new BrowserWindow({

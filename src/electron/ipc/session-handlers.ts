@@ -11,6 +11,7 @@ import type { DraftManager } from '../../session/draft-manager.js';
 import type { WindowManager } from '../window-manager.js';
 import type { ConfigLoader } from '../../config/loader.js';
 import type { SessionInfo } from '../../types/session.js';
+import { resolveWindowIconPath } from '../window-icon.js';
 import { logger } from '../../utils/logger.js';
 
 // ============================================================================
@@ -153,6 +154,7 @@ export function setupSessionHandlers(
       const preloadPath = join(__dirname, 'preload.cjs');
       const rendererPath = getRendererHtmlPath(__dirname);
       const savedBounds = configLoader?.getSnapOutWindowPrefs(sessionId);
+      const windowIcon = resolveWindowIconPath(__dirname);
       const childWindow = new BrowserWindow({
         width: savedBounds?.width ?? 800,
         height: savedBounds?.height ?? 600,
@@ -161,6 +163,7 @@ export function setupSessionHandlers(
         minWidth: 400,
         minHeight: 300,
         title: formatSnapOutWindowTitle(session),
+        icon: windowIcon,
         webPreferences: {
           preload: preloadPath,
           contextIsolation: true,
