@@ -875,6 +875,7 @@ onUnmounted(() => {
         <div class="section-label" @click="toggleSpawnCollapse">
           <button class="section-toggle">{{ spawnCollapsed ? '▲' : '▼' }}</button>
           <span>Quick Spawn</span>
+          <span class="section-hint">Ctrl+N / Ctrl+W</span>
         </div>
         <SpawnGrid
           v-show="!spawnCollapsed"

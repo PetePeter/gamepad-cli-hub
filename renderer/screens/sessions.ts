@@ -46,6 +46,7 @@ import {
   handlePlansZone, handlePlansZoneButton, renderPlansGrid, updatePlansFocus, refreshPlanBadges,
 } from './sessions-plans.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
+import { openQuickSpawn } from '../stores/modal-bridge.js';
 
 // Re-export public API from sub-modules so all consumers import from sessions.ts only.
 export {
@@ -318,6 +319,12 @@ function getSessionAtFocus(): Session | undefined {
 
 function confirmCloseSession(): void {
   const session = getSessionAtFocus();
+  if (!session) return;
+  confirmCloseSessionById(session.id);
+}
+
+function confirmCloseSessionById(sessionId: string): void {
+  const session = state.sessions.find(s => s.id === sessionId);
   if (!session) return;
   const displayName = session.name !== session.cliType
     ? session.name
@@ -775,11 +782,37 @@ function onKeyDown(e: KeyboardEvent): void {
     if (draftEditor && draftEditor.style.display !== 'none') return;
     // Let the plan screen own Ctrl+N while it's focused (adds a node).
     if (view === 'plan') return;
+    // When in terminal view, Ctrl+N opens the CLI picker then folder picker.
+    if (view === 'terminal') {
+      e.preventDefault();
+      e.stopPropagation();
+      openQuickSpawn((cliType) => {
+        void spawnNewSession(cliType);
+      });
+      return;
+    }
     // On overview, Ctrl+N creates a plan for the currently overviewed directory.
+    if (view === 'overview') {
+      e.preventDefault();
+      e.stopPropagation();
+      void triggerNewPlanShortcut();
+      return;
+    }
+    // Default: create a plan for the focused directory group (sidebar focus).
     e.preventDefault();
     e.stopPropagation();
     void triggerNewPlanShortcut();
     return;
+  }
+
+  if (e.key === 'w' && (e.ctrlKey || e.metaKey)) {
+    // Close the active session when in terminal view.
+    if (view === 'terminal' && state.activeSessionId) {
+      e.preventDefault();
+      e.stopPropagation();
+      confirmCloseSessionById(state.activeSessionId);
+      return;
+    }
   }
 
   // Don't intercept keyboard when xterm.js or an editable element has DOM focus

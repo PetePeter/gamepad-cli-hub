@@ -72,6 +72,22 @@ export const DEFAULT_RESIZE_CLEAR_MS = 1_000;
 /** Grace period after session restore — shell startup output is suppressed (3s) */
 export const DEFAULT_RESTORE_GRACE_MS = 3_000;
 
+/**
+ * Minimum data size (in chars) that immediately promotes a session to active.
+ * Smaller chunks are debounced to filter out TUI redraw noise (cursor blink,
+ * spinner ticks, etc.) from Ink-based CLIs like Copilot.
+ */
+export const DEFAULT_ACTIVITY_PROMOTE_THRESHOLD = 32;
+
+/**
+ * Debounce window for small output chunks. If multiple small chunks arrive
+ * within this window, activity promotion is delayed until the window passes
+ * without new output. This prevents continuous TUI redraws from keeping the
+ * dot green indefinitely while still allowing genuine small output to promote
+ * after a brief pause.
+ */
+export const DEFAULT_ACTIVITY_DEBOUNCE_MS = 150;
+
 export interface ActivityTimeouts {
   inactiveMs: number;
   idleMs: number;
@@ -98,13 +114,21 @@ export class StateDetector extends EventEmitter {
   private scrollTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private resizeTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private restoreTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  /** Per-session debounce timers for small output chunks (TUI noise filtering). */
+  private activityDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private readonly inactiveTimeoutMs: number;
   private readonly idleTimeoutMs: number;
+  /** Threshold for immediate activity promotion (larger chunks bypass debounce). */
+  private readonly activityPromoteThreshold: number;
+  /** Debounce window for small output chunks. */
+  private readonly activityDebounceMs: number;
 
   constructor(timeouts?: Partial<ActivityTimeouts>) {
     super();
     this.inactiveTimeoutMs = timeouts?.inactiveMs ?? DEFAULT_INACTIVE_TIMEOUT_MS;
     this.idleTimeoutMs = timeouts?.idleMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+    this.activityPromoteThreshold = DEFAULT_ACTIVITY_PROMOTE_THRESHOLD;
+    this.activityDebounceMs = DEFAULT_ACTIVITY_DEBOUNCE_MS;
   }
 
   /** Mark a session as scrolling — processOutput skips keyword scanning.
@@ -196,11 +220,33 @@ export class StateDetector extends EventEmitter {
 
     // Skip activity promotion during resize or restore (shell startup output is not new user activity)
     if (!tracking.resizing && !tracking.restoring) {
-      if (tracking.activityLevel !== 'active') {
-        tracking.activityLevel = 'active';
-        this.emit('activity-change', { sessionId, level: 'active', lastOutputAt: tracking.lastOutputAt } satisfies ActivityChange);
+      // Large output chunks immediately promote to active (genuine content)
+      if (data.length >= this.activityPromoteThreshold) {
+        if (tracking.activityLevel !== 'active') {
+          tracking.activityLevel = 'active';
+          this.emit('activity-change', { sessionId, level: 'active', lastOutputAt: tracking.lastOutputAt } satisfies ActivityChange);
+        }
+        this.resetActivityTimers(sessionId);
+      } else {
+        // Small chunks are debounced to filter out TUI noise (cursor blink, spinner ticks, etc.)
+        // If already active, just reset timers (genuine activity continues)
+        if (tracking.activityLevel === 'active') {
+          this.resetActivityTimers(sessionId);
+        } else {
+          // Debounce: wait for a pause in small chunks before promoting
+          const existing = this.activityDebounceTimers.get(sessionId);
+          if (existing) clearTimeout(existing);
+          this.activityDebounceTimers.set(sessionId, setTimeout(() => {
+            this.activityDebounceTimers.delete(sessionId);
+            const current = this.sessionStates.get(sessionId);
+            if (current && current.activityLevel !== 'active') {
+              current.activityLevel = 'active';
+              this.emit('activity-change', { sessionId, level: 'active', lastOutputAt: current.lastOutputAt } satisfies ActivityChange);
+            }
+            this.resetActivityTimers(sessionId);
+          }, this.activityDebounceMs));
+        }
       }
-      this.resetActivityTimers(sessionId);
     }
 
     // Skip keyword scanning during scroll — output is a screen redraw, not new CLI content
@@ -295,6 +341,11 @@ export class StateDetector extends EventEmitter {
       clearTimeout(restoreTimer);
       this.restoreTimers.delete(sessionId);
     }
+    const debounceTimer = this.activityDebounceTimers.get(sessionId);
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      this.activityDebounceTimers.delete(sessionId);
+    }
     this.sessionStates.delete(sessionId);
   }
 
@@ -305,11 +356,13 @@ export class StateDetector extends EventEmitter {
     for (const timer of this.scrollTimers.values()) clearTimeout(timer);
     for (const timer of this.resizeTimers.values()) clearTimeout(timer);
     for (const timer of this.restoreTimers.values()) clearTimeout(timer);
+    for (const timer of this.activityDebounceTimers.values()) clearTimeout(timer);
     this.inactiveTimers.clear();
     this.idleTimers.clear();
     this.scrollTimers.clear();
     this.resizeTimers.clear();
     this.restoreTimers.clear();
+    this.activityDebounceTimers.clear();
     this.sessionStates.clear();
   }
 

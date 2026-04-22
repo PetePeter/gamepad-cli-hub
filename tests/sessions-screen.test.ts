@@ -86,6 +86,14 @@ vi.mock('../renderer/plans/plan-screen.js', () => ({
   isPlanScreenVisible: () => mockPlanScreenVisible,
 }));
 
+let mockCurrentView = 'terminal';
+vi.mock('../renderer/main-view/main-view-manager.js', () => ({
+  currentView: vi.fn(() => mockCurrentView),
+  showView: vi.fn(),
+  registerView: vi.fn(),
+  onViewChange: vi.fn(() => () => {}),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -317,6 +325,7 @@ describe('Sessions Screen', () => {
 
   describe('keyboard shortcuts', () => {
     it('Ctrl+N creates a plan for the focused directory group', async () => {
+      mockCurrentView = 'overview';
       sessionsState.navList = [{ type: 'group-header', id: '/projects/a', groupIndex: 0 }];
       sessionsState.groups = [{
         dirPath: '/projects/a',
@@ -326,11 +335,6 @@ describe('Sessions Screen', () => {
       }];
       sessionsState.sessionsFocusIndex = 0;
       sessionsState.activeFocus = 'sessions';
-      const xterm = document.createElement('div');
-      xterm.className = 'xterm';
-      xterm.tabIndex = 0;
-      document.body.appendChild(xterm);
-      xterm.focus();
 
       document.dispatchEvent(new KeyboardEvent('keydown', {
         key: 'n',
@@ -341,7 +345,7 @@ describe('Sessions Screen', () => {
       await flush();
 
       expect(mockPlanCreate).toHaveBeenCalledWith('/projects/a', 'New Plan', '');
-      xterm.remove();
+      mockCurrentView = 'terminal';
     });
   });
 

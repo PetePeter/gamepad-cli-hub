@@ -901,6 +901,16 @@ button {
 }
 .section-label:hover { color: var(--text-secondary); }
 
+.section-hint {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-dim);
+  opacity: 0.6;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .section-toggle {
   background: none;
   border: none;
