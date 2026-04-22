@@ -11,6 +11,7 @@ import { sessionsState } from '../screens/sessions-state.js';
 import { initConfigCache } from '../bindings.js';
 import { browserGamepad } from '../gamepad.js';
 import { TerminalManager } from '../terminal/terminal-manager.js';
+import { formatElapsed } from '../../src/utils/time-parser.js';
 import { setTerminalManager, getTerminalManager } from '../runtime/terminal-provider.js';
 import { setupKeyboardRelay } from '../paste-handler.js';
 import { resolveNextTerminalId } from '../tab-cycling.js';
@@ -68,19 +69,6 @@ function getSessionCwd(sessionId: string): string {
   if (!tm) return '';
   const session = tm.getSession(sessionId);
   return session?.cwd || '';
-}
-
-export function formatElapsed(ms: number): string {
-  if (ms < 0) return '';
-  const sec = Math.floor(ms / 1000);
-  if (sec < 5) return 'just now';
-  if (sec < 60) return `${sec}s`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h`;
-  const days = Math.floor(hr / 24);
-  return `${days}d`;
 }
 
 function clamp(value: number, min: number, max: number): number {

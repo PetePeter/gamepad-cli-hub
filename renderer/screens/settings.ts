@@ -8,6 +8,7 @@
  */
 
 import { state } from '../state.js';
+import { sessionsState } from './sessions-state.js';
 import {
   logEvent,
   showScreen,
@@ -15,6 +16,7 @@ import {
   getCliDisplayName,
   showFormModal,
   createBrowseButton,
+  getRequiredFormFieldError,
   toDirection,
 } from '../utils.js';
 import { renderBindingsDisplay, renderSequenceGroups } from './settings-bindings.js';
@@ -107,6 +109,19 @@ function activateSettingsFocused(): void {
   }
 }
 
+function applyWorkingDirectories(dirs: Array<{ name: string; path: string }>): void {
+  sessionsState.directories = dirs;
+  sessionsState.plansFocusIndex = dirs.length === 0
+    ? 0
+    : Math.min(sessionsState.plansFocusIndex, dirs.length - 1);
+}
+
+async function refreshWorkingDirectoriesState(): Promise<Array<{ name: string; path: string }>> {
+  const dirs = (await window.gamepadCli.configGetWorkingDirs()) || [];
+  applyWorkingDirectories(dirs);
+  return dirs;
+}
+
 // ============================================================================
 // Tab Bar
 // ============================================================================
@@ -159,7 +174,7 @@ async function renderDirectoriesPanel(): Promise<void> {
 
   let dirs: Array<{ name: string; path: string }>;
   try {
-    dirs = await window.gamepadCli.configGetWorkingDirs();
+    dirs = await refreshWorkingDirectoriesState();
   } catch {
     container.innerHTML = '<p style="color: var(--text-dim);">Failed to load directories</p>';
     return;
@@ -235,8 +250,9 @@ function createDirectoryItem(dir: { name: string; path: string }, index: number)
     try {
       const result = await window.gamepadCli.configRemoveWorkingDir(index);
       if (result.success) {
+        await refreshWorkingDirectoriesState();
         logEvent(`Deleted directory: ${dir.name}`);
-        loadSettingsScreen();
+        await loadSettingsScreen();
       }
     } catch (error) {
       console.error('Delete directory failed:', error);
@@ -259,12 +275,14 @@ function showAddDirectoryForm(panel: HTMLElement): void {
     <div class="settings-form__field">
       <label>Name</label>
       <input type="text" id="newDirName" placeholder="e.g. My Project" class="focusable" tabindex="0" />
+      <p class="settings-form__error" id="newDirNameError" role="alert" hidden></p>
     </div>
     <div class="settings-form__field">
       <label>Path</label>
       <div class="settings-form__input-wrap">
         <input type="text" id="newDirPath" placeholder="e.g. C:\\projects\\my-project" class="focusable" tabindex="0" />
       </div>
+      <p class="settings-form__error" id="newDirPathError" role="alert" hidden></p>
     </div>
     <div class="settings-form__row">
       <button class="btn btn--primary btn--sm focusable" tabindex="0" id="saveNewDirBtn">Save</button>
@@ -281,25 +299,73 @@ function showAddDirectoryForm(panel: HTMLElement): void {
 
   const pathInput = form.querySelector('#newDirPath') as HTMLInputElement;
   const nameInput = form.querySelector('#newDirName') as HTMLInputElement;
+  const nameErrorEl = form.querySelector('#newDirNameError') as HTMLElement;
+  const pathErrorEl = form.querySelector('#newDirPathError') as HTMLElement;
   const browseBtn = createBrowseButton(pathInput, nameInput);
   browseBtn.className = 'settings-form__browse-btn focusable';
   browseBtn.tabIndex = 0;
   pathInput.parentElement!.appendChild(browseBtn);
 
-  document.getElementById('saveNewDirBtn')?.addEventListener('click', async () => {
-    const name = (document.getElementById('newDirName') as HTMLInputElement).value.trim();
-    const dirPath = (document.getElementById('newDirPath') as HTMLInputElement).value.trim();
+  function setFieldError(input: HTMLInputElement, errorEl: HTMLElement, error: string | null): void {
+    if (error) {
+      input.setAttribute('aria-invalid', 'true');
+      input.setAttribute('aria-describedby', errorEl.id);
+      errorEl.textContent = error;
+      errorEl.hidden = false;
+      return;
+    }
+    input.removeAttribute('aria-invalid');
+    input.removeAttribute('aria-describedby');
+    errorEl.textContent = '';
+    errorEl.hidden = true;
+  }
 
-    if (!name || !dirPath) {
-      logEvent('Add directory: name and path are required');
+  function validateField(input: HTMLInputElement, label: string, errorEl: HTMLElement): boolean {
+    const error = getRequiredFormFieldError({ label, required: true, type: 'text' }, input.value);
+    setFieldError(input, errorEl, error);
+    return !error;
+  }
+
+  function validateAddDirectoryForm(): boolean {
+    const nameValid = validateField(nameInput, 'Name', nameErrorEl);
+    const pathValid = validateField(pathInput, 'Path', pathErrorEl);
+    if (!nameValid) {
+      nameInput.focus();
+      return false;
+    }
+    if (!pathValid) {
+      pathInput.focus();
+      return false;
+    }
+    return true;
+  }
+
+  nameInput.addEventListener('input', () => {
+    validateField(nameInput, 'Name', nameErrorEl);
+  });
+  pathInput.addEventListener('input', () => {
+    validateField(pathInput, 'Path', pathErrorEl);
+  });
+
+  document.getElementById('saveNewDirBtn')?.addEventListener('click', async () => {
+    if (!validateAddDirectoryForm()) {
       return;
     }
 
-    const result = await window.gamepadCli.configAddWorkingDir(name, dirPath);
-    if (result.success) {
-      logEvent(`Added directory: ${name}`);
-      loadSettingsScreen();
-    } else {
+    const name = nameInput.value.trim();
+    const dirPath = pathInput.value.trim();
+
+    try {
+      const result = await window.gamepadCli.configAddWorkingDir(name, dirPath);
+      if (result.success) {
+        await refreshWorkingDirectoriesState();
+        logEvent(`Added directory: ${name}`);
+        await loadSettingsScreen();
+      } else {
+        logEvent('Failed to add directory');
+      }
+    } catch (error) {
+      console.error('Add directory failed:', error);
       logEvent('Failed to add directory');
     }
   });
@@ -313,16 +379,17 @@ function showAddDirectoryForm(panel: HTMLElement): void {
 
 async function showEditDirectoryPrompt(dir: { name: string; path: string }, index: number): Promise<void> {
   const result = await showFormModal('Edit Directory', [
-    { key: 'name', label: 'Name', defaultValue: dir.name },
-    { key: 'path', label: 'Path', defaultValue: dir.path, browse: true },
+    { key: 'name', label: 'Name', required: true, defaultValue: dir.name },
+    { key: 'path', label: 'Path', required: true, defaultValue: dir.path, browse: true },
   ]);
 
   if (!result) return;
 
   const updateResult = await window.gamepadCli.configUpdateWorkingDir(index, result.name, result.path);
   if (updateResult.success) {
+    await refreshWorkingDirectoriesState();
     logEvent(`Updated directory: ${result.name}`);
-    loadSettingsScreen();
+    await loadSettingsScreen();
   } else {
     logEvent('Failed to update directory');
   }

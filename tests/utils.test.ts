@@ -4,8 +4,44 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect } from 'vitest';
-import { getSequenceSyntaxHelpText } from '../renderer/utils.js';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { getSequenceSyntaxHelpText, navigateFocus } from '../renderer/utils.js';
+
+describe('navigateFocus', () => {
+  const scrollIntoView = vi.fn();
+
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <button class="focusable" id="first">First</button>
+      <button class="focusable" id="second">Second</button>
+      <button class="focusable" id="third">Third</button>
+    `;
+    Element.prototype.scrollIntoView = scrollIntoView;
+    scrollIntoView.mockClear();
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('moves focus to the next element and scrolls it into view', () => {
+    (document.getElementById('first') as HTMLButtonElement).focus();
+
+    navigateFocus(1);
+
+    expect(document.activeElement).toBe(document.getElementById('second'));
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
+  });
+
+  it('wraps focus and keeps the wrapped element in view', () => {
+    (document.getElementById('first') as HTMLButtonElement).focus();
+
+    navigateFocus(-1);
+
+    expect(document.activeElement).toBe(document.getElementById('third'));
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
+  });
+});
 
 describe('getSequenceSyntaxHelpText', () => {
   it('returns a non-empty string', () => {

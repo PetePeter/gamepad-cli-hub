@@ -6,6 +6,7 @@
  */
 
 import { state } from '../state.js';
+import { formatElapsed } from '../../src/utils/time-parser.js';
 import { sessionsState } from './sessions-state.js';
 import { logEvent, getCliDisplayName, toDirection } from '../utils.js';
 import type { Session } from '../state.js';
@@ -175,20 +176,6 @@ function updateTimerInPlace(sessionId: string): void {
   if (!timer) return;
   const ts = lastOutputTimes.get(sessionId);
   timer.textContent = ts ? formatElapsed(Date.now() - ts) : '';
-}
-
-/** Format milliseconds to human-readable elapsed time. */
-export function formatElapsed(ms: number): string {
-  if (ms < 0) return '';
-  const sec = Math.floor(ms / 1000);
-  if (sec < 5) return 'just now';
-  if (sec < 60) return `${sec}s`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h`;
-  const days = Math.floor(hr / 24);
-  return `${days}d`;
 }
 
 /** Refresh all visible timer spans. Called by setInterval. */

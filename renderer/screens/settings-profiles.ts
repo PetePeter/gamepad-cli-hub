@@ -189,7 +189,7 @@ export async function renderProfilesPanel(): Promise<void> {
 
 async function showCreateProfilePrompt(existingProfiles: string[]): Promise<void> {
   const result = await showFormModal('Create Profile', [
-    { key: 'name', label: 'Profile Name', placeholder: 'e.g. my-profile' },
+    { key: 'name', label: 'Profile Name', required: true, placeholder: 'e.g. my-profile' },
     { key: 'copyFrom', label: 'Copy from', type: 'select', options: [
       { value: '', label: '(None — start empty)' },
       ...existingProfiles.map(p => ({ value: p, label: p })),

@@ -412,8 +412,8 @@ function parseSeqItems(raw: string): SeqItem[] {
 
 async function showAddSequenceGroupForm(cliType: string): Promise<void> {
   const result = await showFormModal('Add Sequence Group', [
-    { key: 'groupId', label: 'Group Name', placeholder: 'e.g. prompts, shortcuts' },
-    { key: '_items', label: 'Sequence Items', type: 'sequence-items', defaultValue: '[]', showLabels: true },
+    { key: 'groupId', label: 'Group Name', required: true, placeholder: 'e.g. prompts, shortcuts' },
+    { key: '_items', label: 'Sequence Items', type: 'sequence-items', required: true, defaultValue: '[]', showLabels: true },
   ]);
   if (!result) return;
 
@@ -439,8 +439,8 @@ async function showEditSequenceGroupForm(
   existing: Array<{ label: string; sequence: string }>,
 ): Promise<void> {
   const result = await showFormModal(`Edit Group: ${groupId}`, [
-    { key: 'groupId', label: 'Group Name', defaultValue: groupId },
-    { key: '_items', label: 'Sequence Items', type: 'sequence-items', defaultValue: JSON.stringify(existing), showLabels: true },
+    { key: 'groupId', label: 'Group Name', required: true, defaultValue: groupId },
+    { key: '_items', label: 'Sequence Items', type: 'sequence-items', required: true, defaultValue: JSON.stringify(existing), showLabels: true },
   ]);
   if (!result) return;
 

@@ -145,7 +145,9 @@ export function navigateFocus(direction: number): void {
   if (nextIndex < 0) nextIndex = focusable.length - 1;
   if (nextIndex >= focusable.length) nextIndex = 0;
 
-  focusable[nextIndex].focus();
+  const target = focusable[nextIndex];
+  target.focus();
+  target.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
 }
 
 // ============================================================================
@@ -188,10 +190,36 @@ export interface FormField {
   placeholder?: string;
   type?: 'text' | 'select' | 'textarea' | 'checkbox' | 'sequence-items';
   options?: FormFieldOption[];
+  /** Block save when the value is empty/unchecked and show inline validation. */
+  required?: boolean;
   /** Show a native OS folder-picker button next to the text input. */
   browse?: boolean;
   /** Show label inputs for each item in sequence-items fields. Default true. */
   showLabels?: boolean;
+}
+
+export function getRequiredFormFieldError(field: Pick<FormField, 'label' | 'required' | 'type'>, value?: string): string | null {
+  if (!field.required) return null;
+
+  if (field.type === 'checkbox') {
+    return value === 'true' ? null : `${field.label} is required.`;
+  }
+
+  if (field.type === 'sequence-items') {
+    if (!value) return `${field.label} is required.`;
+    try {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) return `${field.label} is required.`;
+      const hasContent = parsed.some((item: any) =>
+        typeof item?.sequence === 'string' && item.sequence.trim().length > 0,
+      );
+      return hasContent ? null : `${field.label} is required.`;
+    } catch {
+      return `${field.label} is required.`;
+    }
+  }
+
+  return value?.trim() ? null : `${field.label} is required.`;
 }
 
 /** Extract folder basename from a path (handles both / and \). */
@@ -234,6 +262,7 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
       placeholder: f.placeholder,
       type: f.type,
       options: f.options,
+      required: f.required,
       browse: f.browse,
       showLabels: f.showLabels,
     }));

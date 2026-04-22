@@ -6,10 +6,10 @@
  * Browse button integration for directory fields.
  * Gamepad: Escape/B cancels, Enter/Ctrl+Enter saves.
  */
-import { ref, watch } from 'vue';
+import { nextTick, ref, watch } from 'vue';
 import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
-import { getSequenceSyntaxHelpText } from '../../utils.js';
+import { getRequiredFormFieldError, getSequenceSyntaxHelpText } from '../../utils.js';
 
 export interface FormField {
   key: string;
@@ -18,6 +18,7 @@ export interface FormField {
   placeholder?: string;
   type?: 'text' | 'select' | 'textarea' | 'checkbox' | 'sequence-items';
   options?: Array<{ label: string; value: string }>;
+  required?: boolean;
   browse?: boolean;
   showLabels?: boolean;
 }
@@ -41,6 +42,7 @@ const modalStack = useModalStack();
 const syntaxHelpExpanded = ref(false);
 const syntaxHelpText = getSequenceSyntaxHelpText();
 const overlayRef = ref<HTMLElement | null>(null);
+const validationErrors = ref<Record<string, string>>({});
 const { onKeydown } = useFocusTrap(overlayRef);
 
 interface SeqItem { label: string; sequence: string }
@@ -63,6 +65,7 @@ function getSequenceItems(fieldKey: string): SeqItem[] {
 
 function setSequenceItems(fieldKey: string, items: SeqItem[]): void {
   formValues.value[fieldKey] = JSON.stringify(items);
+  revalidateFieldByKey(fieldKey);
 }
 
 function updateSequenceItem(fieldKey: string, index: number, prop: 'label' | 'sequence', value: string): void {
@@ -93,8 +96,11 @@ watch(() => props.visible, (v) => {
       vals[field.key] = field.defaultValue ?? '';
     }
     formValues.value = vals;
+    validationErrors.value = {};
+    syntaxHelpExpanded.value = false;
     modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: FORM_KEYS });
   } else {
+    validationErrors.value = {};
     modalStack.pop(MODAL_ID);
   }
 }, { immediate: true });
@@ -109,6 +115,7 @@ function handleButton(button: string): boolean {
 }
 
 function onSave(): void {
+  if (!validateForm()) return;
   emit('save', { ...formValues.value });
   emit('update:visible', false);
 }
@@ -122,12 +129,72 @@ async function onBrowse(fieldKey: string): Promise<void> {
   const path = await window.gamepadCli?.dialogOpenFolder?.();
   if (path) {
     formValues.value[fieldKey] = path;
+    revalidateFieldByKey(fieldKey);
     // Also set name field if it exists and is empty
     if (formValues.value['name'] === '' || formValues.value['name'] === undefined) {
       const parts = path.replace(/\\/g, '/').split('/');
       formValues.value['name'] = parts[parts.length - 1] || '';
+      revalidateFieldByKey('name');
     }
   }
+}
+
+function getFieldByKey(fieldKey: string): FormField | undefined {
+  return props.fields.find(field => field.key === fieldKey);
+}
+
+function getFieldErrorId(fieldKey: string): string {
+  return `form-${fieldKey}-error`;
+}
+
+function setFieldValue(fieldKey: string, value: string): void {
+  formValues.value[fieldKey] = value;
+  revalidateFieldByKey(fieldKey);
+}
+
+function getFieldError(field: FormField): string | null {
+  return getRequiredFormFieldError(field, formValues.value[field.key]);
+}
+
+function revalidateField(field: FormField): void {
+  const error = getFieldError(field);
+  if (error) {
+    validationErrors.value[field.key] = error;
+    return;
+  }
+  delete validationErrors.value[field.key];
+}
+
+function revalidateFieldByKey(fieldKey: string): void {
+  const field = getFieldByKey(fieldKey);
+  if (field) revalidateField(field);
+}
+
+function focusFirstInvalidField(): void {
+  const firstInvalidField = props.fields.find(field => validationErrors.value[field.key]);
+  if (!firstInvalidField) return;
+
+  nextTick(() => {
+    const el = document.getElementById(`form-${firstInvalidField.key}`) as HTMLElement | null;
+    el?.focus();
+  });
+}
+
+function validateForm(): boolean {
+  const nextErrors: Record<string, string> = {};
+
+  for (const field of props.fields) {
+    const error = getFieldError(field);
+    if (error) nextErrors[field.key] = error;
+  }
+
+  validationErrors.value = nextErrors;
+  if (Object.keys(nextErrors).length > 0) {
+    focusFirstInvalidField();
+    return false;
+  }
+
+  return true;
 }
 
 defineExpose({ handleButton });
@@ -149,16 +216,22 @@ defineExpose({ handleButton });
         </div>
         <div class="modal-body" id="formModalFields">
           <div v-for="field in fields" :key="field.key" class="binding-editor-field">
-            <label :for="`form-${field.key}`">{{ field.label }}</label>
+            <label :for="`form-${field.key}`">
+              {{ field.label }}
+              <span v-if="field.required" aria-hidden="true" style="color: #c33;"> *</span>
+            </label>
 
             <!-- Text input -->
             <div v-if="!field.type || field.type === 'text'" class="form-field-row">
               <input
                 :id="`form-${field.key}`"
-                v-model="formValues[field.key]"
+                :value="formValues[field.key]"
                 type="text"
                 :placeholder="field.placeholder"
                 class="form-input"
+                :aria-invalid="validationErrors[field.key] ? 'true' : undefined"
+                :aria-describedby="validationErrors[field.key] ? getFieldErrorId(field.key) : undefined"
+                @input="setFieldValue(field.key, ($event.target as HTMLInputElement).value)"
               />
               <button v-if="field.browse" class="btn btn--small" @click="onBrowse(field.key)">📁</button>
             </div>
@@ -167,8 +240,11 @@ defineExpose({ handleButton });
             <select
               v-else-if="field.type === 'select'"
               :id="`form-${field.key}`"
-              v-model="formValues[field.key]"
+              :value="formValues[field.key]"
               class="form-select"
+              :aria-invalid="validationErrors[field.key] ? 'true' : undefined"
+              :aria-describedby="validationErrors[field.key] ? getFieldErrorId(field.key) : undefined"
+              @change="setFieldValue(field.key, ($event.target as HTMLSelectElement).value)"
             >
               <option v-for="opt in field.options" :key="opt.value" :value="opt.value">
                 {{ opt.label }}
@@ -179,10 +255,13 @@ defineExpose({ handleButton });
             <textarea
               v-else-if="field.type === 'textarea'"
               :id="`form-${field.key}`"
-              v-model="formValues[field.key]"
+              :value="formValues[field.key]"
               :placeholder="field.placeholder"
               class="form-textarea"
               rows="4"
+              :aria-invalid="validationErrors[field.key] ? 'true' : undefined"
+              :aria-describedby="validationErrors[field.key] ? getFieldErrorId(field.key) : undefined"
+              @input="setFieldValue(field.key, ($event.target as HTMLTextAreaElement).value)"
             />
 
             <!-- Checkbox -->
@@ -191,7 +270,9 @@ defineExpose({ handleButton });
                 :id="`form-${field.key}`"
                 type="checkbox"
                 :checked="formValues[field.key] === 'true'"
-                @change="formValues[field.key] = ($event.target as HTMLInputElement).checked ? 'true' : 'false'"
+                :aria-invalid="validationErrors[field.key] ? 'true' : undefined"
+                :aria-describedby="validationErrors[field.key] ? getFieldErrorId(field.key) : undefined"
+                @change="setFieldValue(field.key, ($event.target as HTMLInputElement).checked ? 'true' : 'false')"
               />
               {{ field.label }}
             </label>
@@ -232,11 +313,11 @@ defineExpose({ handleButton });
                   />
                 </div>
               </div>
-              <button
-                type="button"
-                class="btn btn--secondary sequence-list-add"
-                @click="addSequenceItem(field.key)"
-              >+ Add Item</button>
+                <button
+                  type="button"
+                  class="btn btn--secondary sequence-list-add"
+                  @click="addSequenceItem(field.key)"
+                >+ Add Item</button>
               <div class="sequence-help">
                 <button
                   type="button"
@@ -246,6 +327,12 @@ defineExpose({ handleButton });
                 <pre v-if="syntaxHelpExpanded" class="sequence-help__content">{{ syntaxHelpText }}</pre>
               </div>
             </div>
+            <p
+              v-if="validationErrors[field.key]"
+              :id="getFieldErrorId(field.key)"
+              role="alert"
+              style="color: #c33; font-size: 12px; margin: 4px 0 0;"
+            >{{ validationErrors[field.key] }}</p>
           </div>
         </div>
         <div class="modal-footer">

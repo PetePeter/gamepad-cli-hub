@@ -1015,6 +1015,60 @@ describe('FormModal.vue', () => {
     w.unmount();
   });
 
+  it('shows inline validation errors and stays open on invalid save', async () => {
+    const w = mount(FormModal, {
+      props: {
+        visible: true,
+        title: 'Add Action',
+        fields: [
+          { key: 'title', label: 'Title', required: true, defaultValue: '' },
+          { key: 'description', label: 'Description', type: 'textarea' as const },
+        ],
+      },
+      attachTo: document.body,
+      global: { stubs: GLOBAL_STUBS },
+    });
+
+    const saveBtn = w.findAll('button').find(b => b.text() === 'Save')!;
+    await saveBtn.trigger('click');
+
+    expect(w.emitted('save')).toBeUndefined();
+    expect(w.emitted('update:visible')).toBeUndefined();
+    expect(w.find('#form-title').attributes('aria-invalid')).toBe('true');
+    expect(w.find('[role="alert"]').text()).toBe('Title is required.');
+    expect(w.find('.modal').exists()).toBe(true);
+    w.unmount();
+  });
+
+  it('clears required-field errors after valid input and then saves', async () => {
+    const w = mount(FormModal, {
+      props: {
+        visible: true,
+        title: 'Add Action',
+        fields: [
+          { key: 'title', label: 'Title', required: true, defaultValue: '' },
+        ],
+      },
+      attachTo: document.body,
+      global: { stubs: GLOBAL_STUBS },
+    });
+
+    const saveBtn = w.findAll('button').find(b => b.text() === 'Save')!;
+    await saveBtn.trigger('click');
+    expect(w.find('[role="alert"]').text()).toBe('Title is required.');
+
+    const titleInput = w.find('#form-title');
+    await titleInput.setValue('Ship it');
+    expect(w.find('[role="alert"]').exists()).toBe(false);
+    await w.vm.$nextTick();
+    expect(w.find('#form-title').attributes('aria-invalid')).toBeUndefined();
+
+    await saveBtn.trigger('click');
+    expect(w.emitted('save')?.[0]?.[0]).toEqual({ title: 'Ship it' });
+    expect(w.emitted('update:visible')?.[0]).toEqual([false]);
+    w.unmount();
+  });
+
   it('Cancel button emits cancel', async () => {
     const w = factory();
     const cancelBtn = w.findAll('button').find(b => b.text() === 'Cancel')!;
@@ -1155,6 +1209,39 @@ describe('FormModal.vue', () => {
       const addBtn = w.find('.sequence-list-add');
       await addBtn.trigger('click');
       expect(w.findAll('.sequence-list-row')).toHaveLength(1);
+      w.unmount();
+    });
+
+    it('requires at least one non-empty sequence item when marked required', async () => {
+      const w = mount(FormModal, {
+        props: {
+          visible: true,
+          title: 'Seq',
+          fields: [
+            { key: '_items', label: 'Items', type: 'sequence-items' as const, required: true, defaultValue: '[]' },
+          ],
+        },
+        attachTo: document.body,
+        global: { stubs: GLOBAL_STUBS },
+      });
+
+      const saveBtn = w.findAll('button').find(b => b.text() === 'Save')!;
+      await saveBtn.trigger('click');
+      expect(w.emitted('save')).toBeUndefined();
+      expect(w.find('[role="alert"]').text()).toBe('Items is required.');
+
+      await w.find('.sequence-list-add').trigger('click');
+      await w.find('.settings-input').setValue('Label only');
+      expect(w.find('[role="alert"]').text()).toBe('Items is required.');
+
+      await w.find('.sequence-textarea').setValue('   ');
+      expect(w.find('[role="alert"]').text()).toBe('Items is required.');
+
+      await w.find('.sequence-textarea').setValue('/help{Enter}');
+      expect(w.find('[role="alert"]').exists()).toBe(false);
+
+      await saveBtn.trigger('click');
+      expect(w.emitted('save')).toHaveLength(1);
       w.unmount();
     });
 

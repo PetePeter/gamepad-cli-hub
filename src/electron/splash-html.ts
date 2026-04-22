@@ -7,8 +7,9 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
-export function buildSplashHtml(version: string): string {
+export function buildSplashHtml(version: string, logoUrl?: string): string {
   const safeVersion = escapeHtml(version);
+  const safeLogoUrl = logoUrl ? escapeHtml(logoUrl) : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -69,6 +70,12 @@ export function buildSplashHtml(version: string): string {
       letter-spacing: -0.08em;
     }
 
+    .mark img {
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+    }
+
     .eyebrow {
       margin: 0 0 8px;
       color: var(--accent);
@@ -100,7 +107,7 @@ export function buildSplashHtml(version: string): string {
 </head>
 <body>
   <main class="card" role="status" aria-live="polite" aria-label="Launching Helm">
-    <div class="mark" aria-hidden="true">|&gt;</div>
+    <div class="mark" aria-hidden="true">${safeLogoUrl ? `<img src="${safeLogoUrl}" alt="">` : '|&gt;'}</div>
     <p class="eyebrow">Launching Helm</p>
     <h1>Helm</h1>
     <p class="tagline">steer your fleet of agents</p>

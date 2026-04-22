@@ -326,7 +326,7 @@ function renderInlineSequenceItems(container: HTMLElement, binding: any): void {
   addBtn.addEventListener('click', async () => {
     const result = await showFormModal('Add Sequence Item', [
       { key: 'label', label: 'Label', placeholder: 'e.g. Clear screen' },
-      { key: 'sequence', label: 'Sequence', type: 'textarea', placeholder: '/clear{Enter}' },
+      { key: 'sequence', label: 'Sequence', type: 'textarea', required: true, placeholder: '/clear{Enter}' },
     ]);
     if (result) {
       if (!bindingEditorState.editingBinding) return;
@@ -359,7 +359,7 @@ function createSequenceListItemRow(item: SequenceListItem, index: number): HTMLE
   editBtn.addEventListener('click', async () => {
     const result = await showFormModal('Edit Sequence Item', [
       { key: 'label', label: 'Label', defaultValue: item.label },
-      { key: 'sequence', label: 'Sequence', type: 'textarea', defaultValue: item.sequence },
+      { key: 'sequence', label: 'Sequence', type: 'textarea', required: true, defaultValue: item.sequence },
     ]);
     if (result && bindingEditorState.editingBinding) {
       const items = bindingEditorState.editingBinding.binding.items || [];

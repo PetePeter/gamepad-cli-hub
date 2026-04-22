@@ -19,11 +19,12 @@ import { sessionsState } from './screens/sessions-state.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { getCliDisplayName, getCliIcon, toDirection } from './utils.js';
 import { processConfigBinding, processConfigRelease, initConfigCache, executeSequence } from './bindings.js';
-import { formatElapsed, refreshSessions, doSpawn, switchToSession, doCloseSession,
+import { refreshSessions, doSpawn, switchToSession, doCloseSession,
   bootstrap, teardown, startTimerRefresh, stopTimerRefresh,
   getSortField, getSortDirection, setSortField, setSortDirection,
   setPendingContextText,
 } from './composables/useAppBootstrap.js';
+import { formatElapsed } from '../src/utils/time-parser.js';
 import type { SessionSortField, SortDirection } from './sort-logic.js';
 import { findNavIndexBySessionId, toggleCollapse, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
 import { showOverview, handleOverviewInput } from './screens/group-overview.js';
@@ -846,16 +847,16 @@ onUnmounted(() => {
         </section>
 
         <!-- Settings screen (legacy DOM rendering) -->
-        <div v-show="settingsVisible" class="settings-panel">
+        <div v-show="settingsVisible" class="settings-panel settings-panel--shell">
           <div class="settings-panel__header">
             <button class="settings-back-btn" @click="onCloseSettings" title="Back (B)">← Back</button>
           </div>
           <div class="settings-tabs" id="settingsTabs" role="tablist">
             <!-- Legacy renderSettingsTabs() populates this -->
           </div>
-          <div class="settings-content">
+          <div class="settings-content settings-content--shell">
             <div class="settings-action-bar" id="bindingActionBar"></div>
-            <div class="settings-display" id="bindingsDisplay"></div>
+            <div class="settings-display settings-display--shell" id="bindingsDisplay"></div>
           </div>
         </div>
       </main>

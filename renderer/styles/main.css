@@ -1022,14 +1022,37 @@ kbd {
 .settings-content {
   display: flex;
   flex-direction: column;
+  flex: 1;
   gap: var(--spacing-lg);
   width: 100%;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .settings-display {
+  flex: 1;
   width: 100%;
   min-width: 0;
+  min-height: 0;
+}
+
+.settings-panel--shell {
+  position: absolute;
+  inset: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.settings-action-bar {
+  flex-shrink: 0;
+}
+
+.settings-display--shell {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 /* Ensure nested settings panels take full width */
@@ -1702,6 +1725,16 @@ kbd {
 .settings-form__field select:focus {
   border-color: var(--accent);
   outline: none;
+}
+
+.settings-form__field input[aria-invalid="true"],
+.settings-form__field select[aria-invalid="true"] {
+  border-color: #c33;
+}
+
+.settings-form__error {
+  color: #c33;
+  font-size: var(--font-size-sm);
 }
 
 /* Inline edit form overrides */

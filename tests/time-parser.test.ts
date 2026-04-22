@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { parseScheduledTime } from '../src/utils/time-parser.js';
+import { parseScheduledTime, formatElapsed } from '../src/utils/time-parser.js';
 
 describe('parseScheduledTime', () => {
   const NOW = new Date('2024-01-15T14:00:00.000Z').getTime(); // 14:00 UTC
@@ -112,5 +112,40 @@ describe('parseScheduledTime', () => {
       const result = parseScheduledTime('at 9pm');
       expect(result!.getHours()).toBe(21);
     });
+  });
+});
+
+describe('formatElapsed', () => {
+  it('returns empty string for negative values', () => {
+    expect(formatElapsed(-1)).toBe('');
+  });
+
+  it('formats very recent times as just now', () => {
+    expect(formatElapsed(0)).toBe('just now');
+    expect(formatElapsed(4_000)).toBe('just now');
+  });
+
+  it('formats seconds', () => {
+    expect(formatElapsed(45_000)).toBe('45s');
+  });
+
+  it('formats minutes', () => {
+    expect(formatElapsed(5 * 60_000)).toBe('5m');
+  });
+
+  it('formats hours with remaining minutes', () => {
+    expect(formatElapsed((1 * 60 + 23) * 60_000)).toBe('1h 23m');
+  });
+
+  it('formats whole hours without trailing minutes', () => {
+    expect(formatElapsed(2 * 60 * 60_000)).toBe('2h');
+  });
+
+  it('formats days with remaining hours', () => {
+    expect(formatElapsed(((2 * 24) + 3) * 60 * 60_000)).toBe('2d 3h');
+  });
+
+  it('formats whole days without trailing hours', () => {
+    expect(formatElapsed(3 * 24 * 60 * 60_000)).toBe('3d');
   });
 });

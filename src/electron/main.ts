@@ -7,7 +7,7 @@
 
 import { app, BrowserWindow, Menu, powerMonitor, crashReporter, ipcMain } from 'electron';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { existsSync } from 'fs';
 import { registerIPCHandlers } from './ipc/handlers.js';
 import { buildSplashHtml } from './splash-html.js';
@@ -59,12 +59,24 @@ function readWindowBounds(): void {
 
 function resolveWindowIcon(): string | undefined {
   const iconCandidates = [
+    join(process.resourcesPath, 'build', 'icon.ico'),
+    join(process.resourcesPath, 'build', 'icon.png'),
     join(process.cwd(), 'build', 'icon.ico'),
     join(process.cwd(), 'build', 'icon.png'),
     join(__dirname, '..', '..', 'build', 'icon.ico'),
     join(__dirname, '..', '..', 'build', 'icon.png'),
   ];
   return iconCandidates.find(p => existsSync(p));
+}
+
+function resolveSplashLogoUrl(): string | undefined {
+  const pngCandidates = [
+    join(process.resourcesPath, 'build', 'icon.png'),
+    join(process.cwd(), 'build', 'icon.png'),
+    join(__dirname, '..', '..', 'build', 'icon.png'),
+  ];
+  const logoPath = pngCandidates.find(p => existsSync(p));
+  return logoPath ? pathToFileURL(logoPath).href : undefined;
 }
 
 function clearStartupFallbackTimer(): void {
@@ -98,8 +110,9 @@ function maybeShowMainWindow(): void {
   closeSplashWindow();
 }
 
-function createSplashWindow(): void {
+function createSplashWindow(windowIcon?: string): void {
   closeSplashWindow();
+  const splashLogoUrl = resolveSplashLogoUrl();
 
   splashWindow = new BrowserWindow({
     width: 460,
@@ -115,10 +128,11 @@ function createSplashWindow(): void {
     skipTaskbar: true,
     backgroundColor: '#0a0a0a',
     alwaysOnTop: true,
+    icon: windowIcon,
   });
 
   splashWindow.setMenuBarVisibility(false);
-  void splashWindow.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(buildSplashHtml(app.getVersion()))}`);
+  void splashWindow.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(buildSplashHtml(app.getVersion(), splashLogoUrl))}`);
   splashWindow.once('ready-to-show', () => splashWindow?.show());
   splashWindow.on('closed', () => {
     splashWindow = null;
@@ -141,7 +155,7 @@ function createWindow(): void {
   rendererStartupReady = false;
 
   const windowIcon = resolveWindowIcon();
-  createSplashWindow();
+  createSplashWindow(windowIcon);
 
   mainWindow = new BrowserWindow({
     width: windowBounds.width,
@@ -204,7 +218,7 @@ function createWindow(): void {
       logger.info('[Main] Attempting renderer reload after crash');
       mainWindowReadyToShow = false;
       rendererStartupReady = false;
-      createSplashWindow();
+      createSplashWindow(windowIcon);
       mainWindow.webContents.reload();
     }
   });

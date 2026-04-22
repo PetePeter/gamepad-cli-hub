@@ -445,7 +445,7 @@ function buildPatternFormFields(existing: any | null): any[] {
   const ex = existing || {};
   return [
     {
-      key: 'regex', label: 'Regex', defaultValue: ex.regex || '',
+      key: 'regex', label: 'Regex', required: true, defaultValue: ex.regex || '',
       placeholder: 'e.g. try again at (\\d{1,2}(?::\\d{2})?(?:am|pm))',
     },
     {

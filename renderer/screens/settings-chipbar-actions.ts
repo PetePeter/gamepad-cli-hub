@@ -170,6 +170,7 @@ async function showAddChipbarActionForm(): Promise<void> {
     { 
       key: 'label', 
       label: 'Label', 
+      required: true,
       placeholder: 'e.g. 💾 Save Plan',
       help: 'Button label shown in the chipbar (emojis recommended)' 
     },
@@ -177,6 +178,7 @@ async function showAddChipbarActionForm(): Promise<void> {
       key: 'sequence', 
       label: 'Sequence', 
       type: 'textarea', 
+      required: true,
       placeholder: 'e.g. Write exactly one JSON file into {inboxDir}/ and do not write it anywhere else.{Enter}',
       help: 'Sequence to send when clicked. Use {Enter}, {Ctrl+C}, and template expansions like {cwd}, {sessionName}, or installer-safe {inboxDir}.'
     },
@@ -207,6 +209,7 @@ async function showEditChipbarActionForm(index: number, existing: { label: strin
     { 
       key: 'label', 
       label: 'Label', 
+      required: true,
       defaultValue: existing.label,
       help: 'Button label shown in the chipbar'
     },
@@ -214,6 +217,7 @@ async function showEditChipbarActionForm(index: number, existing: { label: strin
       key: 'sequence', 
       label: 'Sequence', 
       type: 'textarea', 
+      required: true,
       defaultValue: existing.sequence,
       help: 'Sequence to send when clicked. Use {Enter}, template expansions like {cwd}, and installer-safe {inboxDir}.'
     },
