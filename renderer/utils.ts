@@ -295,6 +295,8 @@ Plain text     \u2192 Typed literally
 {{ or }}        \u2192 Literal { or }
 Newline        \u2192 Enter key press
 
+All {tokens} are case-insensitive.
+
 MODIFIERS: Ctrl, Alt, Shift, Win
 
 SPECIAL KEYS: Enter, Send, Tab, Esc, Space, Backspace, Delete,

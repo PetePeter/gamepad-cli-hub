@@ -8,7 +8,7 @@
 import { app, BrowserWindow, Menu, powerMonitor, crashReporter, ipcMain } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { registerIPCHandlers } from './ipc/handlers.js';
 import { buildSplashHtml } from './splash-html.js';
 import { setupPowerMonitor } from '../session/power-monitor.js';
@@ -70,6 +70,19 @@ function resolveWindowIcon(): string | undefined {
 }
 
 function resolveSplashLogoUrl(): string | undefined {
+  const svgCandidates = [
+    join(app.getAppPath(), 'dist', 'renderer', 'assets', 'helm-paper-boat.svg'),
+    join(app.getAppPath(), 'renderer', 'assets', 'helm-paper-boat.svg'),
+    join(process.resourcesPath, 'app.asar', 'dist', 'renderer', 'assets', 'helm-paper-boat.svg'),
+    join(process.cwd(), 'renderer', 'assets', 'helm-paper-boat.svg'),
+    join(__dirname, '..', '..', 'renderer', 'assets', 'helm-paper-boat.svg'),
+  ];
+  const svgPath = svgCandidates.find(p => existsSync(p));
+  if (svgPath) {
+    const svg = readFileSync(svgPath, 'utf8');
+    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  }
+
   const pngCandidates = [
     join(process.resourcesPath, 'build', 'icon.png'),
     join(process.cwd(), 'build', 'icon.png'),

@@ -57,12 +57,12 @@ export async function renderChipbarActionsPanel(): Promise<void> {
     .map(def => `<li><code>${def.token}</code> → ${def.description}</li>`)
     .join('');
   helpDiv.innerHTML = `
-    <p><strong>Chip Bar Actions</strong> are global quick-action buttons that appear in the chipbar above every terminal.</p>
+    <p><strong>Chip Bar Actions</strong> are global quick-action buttons that appear in the chipbar below every terminal.</p>
     <p><strong>Global actions shown for every CLI.</strong></p>
     <p><strong>Template expansions:</strong></p>
     <ul class="settings-help__list">${templateList}</ul>
     <p><strong>Installer-safe paths:</strong> <code>{inboxDir}</code> and <code>{plansDir}</code> resolve from the app's writable config directory, so they keep working in packaged installs.</p>
-    <p><strong>Sequence syntax:</strong> Use {Enter}, {Ctrl+C}, {Wait 500}, etc. — same as gamepad bindings.</p>
+    <p><strong>Sequence syntax:</strong> Use {Enter}, {Ctrl+C}, {Wait 500}, etc. — same as gamepad bindings, and token matching is case-insensitive.</p>
   `;
   panel.appendChild(helpDiv);
 

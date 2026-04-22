@@ -55,6 +55,48 @@ function appendText(actions: SequenceAction[], char: string): void {
   }
 }
 
+const KEY_ALIASES: Record<string, string> = {
+  enter: 'Enter',
+  send: 'Send',
+  tab: 'Tab',
+  esc: 'Esc',
+  escape: 'Escape',
+  space: 'Space',
+  backspace: 'Backspace',
+  delete: 'Delete',
+  up: 'Up',
+  down: 'Down',
+  right: 'Right',
+  left: 'Left',
+  arrowup: 'ArrowUp',
+  arrowdown: 'ArrowDown',
+  arrowright: 'ArrowRight',
+  arrowleft: 'ArrowLeft',
+  home: 'Home',
+  end: 'End',
+  pageup: 'PageUp',
+  pagedown: 'PageDown',
+  insert: 'Insert',
+  capslock: 'CapsLock',
+  printscreen: 'PrintScreen',
+};
+
+for (let i = 1; i <= 12; i++) {
+  KEY_ALIASES[`f${i}`] = `F${i}`;
+}
+
+const MODIFIER_ALIASES: Record<string, string> = {
+  ctrl: 'Ctrl',
+  control: 'Ctrl',
+  alt: 'Alt',
+  shift: 'Shift',
+  win: 'Win',
+  meta: 'Win',
+  cmd: 'Win',
+  command: 'Win',
+  option: 'Alt',
+};
+
 function parseToken(token: string): SequenceAction | null {
   if (token === '') return null;
 
@@ -65,21 +107,45 @@ function parseToken(token: string): SequenceAction | null {
 
   const downMatch = token.match(/^(\S+)\s+Down$/i);
   if (downMatch) {
-    return { type: 'modDown', key: downMatch[1] };
+    return { type: 'modDown', key: canonicalizeModifier(downMatch[1]) };
   }
 
   const upMatch = token.match(/^(\S+)\s+Up$/i);
   if (upMatch) {
-    return { type: 'modUp', key: upMatch[1] };
+    return { type: 'modUp', key: canonicalizeModifier(upMatch[1]) };
   }
 
   if (token.includes('+')) {
-    const keys = token.split('+').map(k => k.trim()).filter(k => k);
+    const keys = token.split('+').map(k => canonicalizeComboPart(k.trim())).filter(k => k);
     if (keys.length === 0) return null;
     return { type: 'combo', keys };
   }
 
-  return { type: 'key', key: token };
+  return { type: 'key', key: canonicalizeKey(token) };
+}
+
+function canonicalizeModifier(token: string): string {
+  return MODIFIER_ALIASES[token.toLowerCase()] ?? token;
+}
+
+function canonicalizeComboPart(token: string): string {
+  if (token === '') return '';
+
+  const modifier = MODIFIER_ALIASES[token.toLowerCase()];
+  if (modifier) return modifier;
+
+  const key = KEY_ALIASES[token.toLowerCase()];
+  if (key) return key;
+
+  if (token.length === 1) {
+    return token.toUpperCase();
+  }
+
+  return token;
+}
+
+function canonicalizeKey(token: string): string {
+  return KEY_ALIASES[token.toLowerCase()] ?? token;
 }
 
 export function formatSequencePreview(actions: SequenceAction[]): string {

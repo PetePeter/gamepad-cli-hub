@@ -111,4 +111,22 @@ describe('useChipBarStore', () => {
     expect(window.gamepadCli.configGetChipbarActions).toHaveBeenCalledTimes(1);
     expect(executeSequenceForSession).toHaveBeenCalledWith('s1', 'echo /inbox');
   });
+
+  it('resolves chipbar preview templates case-insensitively', async () => {
+    window.gamepadCli.configGetChipbarActions.mockResolvedValue({
+      actions: [{ label: 'Quick', sequence: 'echo {INBOXDIR}{ENTER}' }],
+      inboxDir: '/inbox',
+    });
+
+    const store = useChipBarStore();
+    await store.refresh('s1');
+
+    expect(store.actions).toEqual([
+      {
+        label: 'Quick',
+        sequence: 'echo {INBOXDIR}{ENTER}',
+        preview: 'echo /inbox{ENTER}',
+      },
+    ]);
+  });
 });

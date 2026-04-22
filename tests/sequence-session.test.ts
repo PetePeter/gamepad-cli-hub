@@ -136,6 +136,15 @@ describe('executeSequenceForSession — {Send} routing', () => {
     expect(mockPtyWrite).toHaveBeenCalledTimes(1);
     expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\r');
   });
+
+  it('treats {send} and other named tokens case-insensitively', async () => {
+    await executeSequenceForSession('sess-1', 'cmd{enter}arg{send}');
+
+    expect(mockDeliverBulkText).toHaveBeenCalledTimes(1);
+    expect(mockDeliverBulkText).toHaveBeenCalledWith('sess-1', 'cmd\rarg');
+    expect(mockPtyWrite).toHaveBeenCalledTimes(1);
+    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\r');
+  });
 });
 
 // ============================================================================

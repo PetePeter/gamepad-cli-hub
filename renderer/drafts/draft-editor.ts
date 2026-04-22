@@ -123,13 +123,13 @@ export function initDraftEditor(): void {
 
   const mainArea = document.getElementById('mainArea');
   const terminalContainer = mainArea?.querySelector('.terminal-container');
-  const draftStrip = document.getElementById('draftStrip');
+  const draftStrip = document.getElementById('draftStrip') ?? mainArea?.querySelector('.draft-strip');
 
   if (mainArea && terminalContainer) {
-    if (draftStrip && draftStrip.nextSibling) {
-      mainArea.insertBefore(editor, draftStrip.nextSibling);
+    if (draftStrip) {
+      mainArea.insertBefore(editor, draftStrip);
     } else {
-      mainArea.insertBefore(editor, terminalContainer);
+      mainArea.appendChild(editor);
     }
   } else if (mainArea) {
     mainArea.appendChild(editor);

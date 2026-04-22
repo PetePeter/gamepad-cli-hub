@@ -50,7 +50,10 @@ export const KEY_TO_ESCAPE: Record<string, string> = {
 };
 
 function keyToPtySequence(key: string): string | null {
-  return KEY_TO_ESCAPE[key] ?? null;
+  const canonicalEntry = Object.entries(KEY_TO_ESCAPE).find(
+    ([name]) => name.toLowerCase() === key.toLowerCase(),
+  );
+  return canonicalEntry?.[1] ?? null;
 }
 
 function comboToPtySequence(keys: string[]): string | null {

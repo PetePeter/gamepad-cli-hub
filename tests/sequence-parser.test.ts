@@ -46,6 +46,13 @@ describe('parseSequence', () => {
     it('parses {Space}', () => {
       expect(parseSequence('{Space}')).toEqual([{ type: 'key', key: 'Space' }]);
     });
+
+    it('parses special keys case-insensitively', () => {
+      expect(parseSequence('{enter}')).toEqual([{ type: 'key', key: 'Enter' }]);
+      expect(parseSequence('{ESCAPE}')).toEqual([{ type: 'key', key: 'Escape' }]);
+      expect(parseSequence('{arrowleft}')).toEqual([{ type: 'key', key: 'ArrowLeft' }]);
+      expect(parseSequence('{f5}')).toEqual([{ type: 'key', key: 'F5' }]);
+    });
   });
 
   describe('{Send} token', () => {
@@ -58,6 +65,10 @@ describe('parseSequence', () => {
         { type: 'text', value: 'hello' },
         { type: 'key', key: 'Send' },
       ]);
+    });
+
+    it('parses {send} case-insensitively', () => {
+      expect(parseSequence('{send}')).toEqual([{ type: 'key', key: 'Send' }]);
     });
   });
 
@@ -74,6 +85,11 @@ describe('parseSequence', () => {
 
     it('parses {Alt+F4}', () => {
       expect(parseSequence('{Alt+F4}')).toEqual([{ type: 'combo', keys: ['Alt', 'F4'] }]);
+    });
+
+    it('parses combos case-insensitively and canonicalizes known keys', () => {
+      expect(parseSequence('{ctrl+s}')).toEqual([{ type: 'combo', keys: ['Ctrl', 'S'] }]);
+      expect(parseSequence('{aLt+f4}')).toEqual([{ type: 'combo', keys: ['Alt', 'F4'] }]);
     });
   });
 

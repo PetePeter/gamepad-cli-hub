@@ -2597,13 +2597,15 @@ kbd {
 .draft-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: 6px;
+  padding: 6px 10px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  min-height: 28px;
+  min-height: 40px;
   align-items: center;
+  align-content: flex-start;
+  justify-content: flex-start;
 }
 
 .draft-pill {
@@ -2818,7 +2820,7 @@ kbd {
   font-family: 'Consolas', 'Courier New', monospace;
   resize: vertical;
   min-height: 60px;
-  max-height: 200px;
+  max-height: 50vh;
   outline: none;
   line-height: 1.4;
 }
@@ -2839,14 +2841,23 @@ kbd {
   user-select: none;
 }
 
-/* Chip action bar — right-aligned quick-action buttons in the draft strip */
+/* Chip action bar — left-aligned quick-action buttons in the bottom strip */
+.chip-action-dock {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 6px 10px;
+  min-height: 40px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
 .chip-action-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   align-items: center;
-  margin-left: auto;
-  padding-left: 8px;
-  border-left: 1px solid var(--border);
   flex-shrink: 0;
 }
 

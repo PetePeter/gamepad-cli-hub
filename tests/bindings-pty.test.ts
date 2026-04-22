@@ -148,6 +148,13 @@ describe('keyToPtyEscape', () => {
     expect(keyToPtyEscape('F12')).toBe('\x1b[24~');
   });
 
+  it('matches named keys case-insensitively', () => {
+    expect(keyToPtyEscape('enter')).toBe('\r');
+    expect(keyToPtyEscape('ESC')).toBe('\x1b');
+    expect(keyToPtyEscape('arrowup')).toBe('\x1b[A');
+    expect(keyToPtyEscape('f5')).toBe('\x1b[15~');
+  });
+
   it('falls back to the key character itself for unknown keys', () => {
     expect(keyToPtyEscape('a')).toBe('a');
     expect(keyToPtyEscape('z')).toBe('z');

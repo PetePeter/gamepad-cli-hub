@@ -385,6 +385,26 @@ describe('scheduleInitialPrompt', () => {
     expect(writeFn).toHaveBeenCalledWith('s1', '\r');
   });
 
+  it('treats {tokens} case-insensitively across enter, wait, combo, and send', async () => {
+    const writeFn = vi.fn();
+    const deliverFn = vi.fn().mockResolvedValue(undefined);
+    const onComplete = vi.fn();
+    scheduleInitialPrompt('s1', {
+      initialPrompt: [{ label: 'Test', sequence: 'hello{enter}{wait 50}{ctrl+c}{send}' }],
+      initialPromptDelay: 0,
+    }, writeFn, deliverFn, onComplete);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(deliverFn).toHaveBeenCalledTimes(1);
+    expect(deliverFn).toHaveBeenCalledWith('s1', 'hello\r');
+    expect(writeFn).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(50);
+    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(writeFn).toHaveBeenNthCalledWith(1, 's1', '\x03');
+    expect(writeFn).toHaveBeenNthCalledWith(2, 's1', '\r');
+  });
+
   // ---- Multi-item tests ----
 
   it('sends multiple items in order', async () => {

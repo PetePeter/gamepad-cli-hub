@@ -84,6 +84,7 @@ import BindingEditorModal from './components/modals/BindingEditorModal.vue';
 import ToastNotification from './components/ToastNotification.vue';
 import ClearDonePlansModal from './components/modals/ClearDonePlansModal.vue';
 import ChipBar from './components/chips/ChipBar.vue';
+import ChipActionBar from './components/chips/ChipActionBar.vue';
 import { useChipBarStore } from './stores/chip-bar.js';
 import { useNavigationStore } from './stores/navigation.js';
 
@@ -177,6 +178,14 @@ const chipBarDrafts = computed(() =>
 );
 
 const chipBarPlans = computed(() => chipBarStore.plans);
+const chipBarHasPills = computed(() =>
+  chipBarDrafts.value.length > 0 ||
+  chipBarPlans.value.length > 0,
+);
+const chipActionBarVisible = computed(() =>
+  chipBarVisible.value &&
+  (chipBarHasPills.value || chipBarStore.actions.length > 0),
+);
 
 // Maps each navList item's id → its index — fed to session cards/group headers as
 // data-nav-index so the legacy updateSessionsFocus() can find focused elements.
@@ -897,11 +906,12 @@ onUnmounted(() => {
     <!-- Right panel: terminal / overview / plan -->
     <div class="panel-right" id="mainArea">
       <ChipBar
+        id="draftStrip"
         :drafts="chipBarDrafts"
         :plan-chips="chipBarPlans"
-        :actions="chipBarStore.actions"
+        :actions="[]"
         :visible="chipBarVisible"
-        :show-new-draft="true"
+        :show-new-draft="false"
         @draft-click="onChipBarDraftClick"
         @plan-chip-click="onChipBarPlanClick"
         @new-draft="onChipBarNewDraft"
@@ -909,6 +919,14 @@ onUnmounted(() => {
       />
       <div class="terminal-container" id="terminalContainer" ref="terminalContainerRef">
         <!-- xterm.js terminals rendered by TerminalManager -->
+      </div>
+      <div v-if="chipActionBarVisible" class="chip-action-dock">
+        <ChipActionBar
+          :actions="chipBarStore.actions"
+          :show-new-draft="true"
+          @new-draft="onChipBarNewDraft"
+          @action-click="onChipBarAction"
+        />
       </div>
     </div>
 

@@ -91,6 +91,15 @@ describe('Chip-bar action store behavior', () => {
     expect(executeSequenceForSession).toHaveBeenCalledWith('session-1', 'cd C:\\myproject{Enter}');
   });
 
+  it('treats chipbar template variables case-insensitively', async () => {
+    const store = useChipBarStore();
+
+    await store.refresh('session-1');
+    await store.triggerAction('cd {CWD}{enter}');
+
+    expect(executeSequenceForSession).toHaveBeenCalledWith('session-1', 'cd C:\\myproject{enter}');
+  });
+
   it('openNewDraft delegates to the current draft editor', async () => {
     const store = useChipBarStore();
 
