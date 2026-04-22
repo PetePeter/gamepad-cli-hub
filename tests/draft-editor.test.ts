@@ -19,6 +19,8 @@ const mockExecuteSequence = vi.fn();
 const mockWriteTempContent = vi.fn();
 const mockPtyWrite = vi.fn();
 const mockDeleteTemp = vi.fn();
+const mockPlanUpdate = vi.fn();
+const mockPlanSetState = vi.fn();
 
 vi.mock('../renderer/stores/chip-bar.js', () => ({
   useChipBarStore: () => ({
@@ -83,6 +85,8 @@ describe('Draft Editor', () => {
       writeTempContent: mockWriteTempContent,
       ptyWrite: mockPtyWrite,
       deleteTemp: mockDeleteTemp,
+      planUpdate: mockPlanUpdate,
+      planSetState: mockPlanSetState,
     };
 
     mockDraftCreate.mockReset();
@@ -94,6 +98,8 @@ describe('Draft Editor', () => {
     mockWriteTempContent.mockReset();
     mockPtyWrite.mockReset();
     mockDeleteTemp.mockReset();
+    mockPlanUpdate.mockReset();
+    mockPlanSetState.mockReset();
 
     mod = await getModule();
 
@@ -619,6 +625,301 @@ describe('Draft Editor', () => {
       expect(mod.isDraftEditorVisible()).toBe(true);
       expect(labelInput.value).toBe('My Draft');
       expect(contentInput.value).toBe('content');
+    });
+  });
+
+  // =========================================================================
+  // Plan Editor Auto-save
+  // =========================================================================
+
+  describe('Plan Editor Auto-save', () => {
+    beforeEach(() => {
+      mod.initDraftEditor();
+    });
+
+    it('showPlanInEditor focuses title input automatically', async () => {
+      const callbacks = {
+        onSave: vi.fn(),
+        onDelete: vi.fn(),
+      };
+      mod.showPlanInEditor('session-1', {
+        id: 'plan-1',
+        title: 'Test Plan',
+        description: 'Do the thing',
+        status: 'pending',
+      }, callbacks);
+
+      const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement;
+      await flush();
+      expect(document.activeElement).toBe(labelInput);
+    });
+
+    it('title input blur schedules auto-save after 500ms', async () => {
+      mockPlanUpdate.mockResolvedValue(undefined);
+      mockPlanSetState.mockResolvedValue(undefined);
+      const callbacks = {
+        onSave: vi.fn(),
+        onDelete: vi.fn(),
+      };
+      mod.showPlanInEditor('session-1', {
+        id: 'plan-1',
+        title: 'Test Plan',
+        description: 'Do the thing',
+        status: 'pending',
+      }, callbacks);
+
+      const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement;
+      labelInput.value = 'Updated Plan';
+      labelInput.dispatchEvent(new Event('input', { bubbles: true }));
+      labelInput.dispatchEvent(new Event('blur', { bubbles: true }));
+
+      // Before 500ms
+      expect(callbacks.onSave).not.toHaveBeenCalled();
+
+      // After 500ms
+      await new Promise(r => setTimeout(r, 550));
+      expect(callbacks.onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Updated Plan',
+        })
+      );
+    });
+
+    it('typing in title sets save status to unsaved', async () => {
+      const callbacks = {
+        onSave: vi.fn(),
+        onDelete: vi.fn(),
+      };
+      mod.showPlanInEditor('session-1', {
+        id: 'plan-1',
+        title: 'Test Plan',
+        description: 'Do the thing',
+        status: 'pending',
+      }, callbacks);
+
+      const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement;
+      labelInput.value = 'New Title';
+      labelInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+      const saveStatusEl = document.getElementById('planSaveStatus');
+      expect(saveStatusEl?.textContent).toContain('Unsaved');
+    });
+
+    it('successful auto-save transitions status: unsaved → saving → saved → clean', async () => {
+      mockPlanUpdate.mockResolvedValue(undefined);
+      mockPlanSetState.mockResolvedValue(undefined);
+      const callbacks = {
+        // Make callback slightly async so we can observe the "saving" state
+        onSave: vi.fn(async () => {
+          await new Promise(r => setTimeout(r, 10));
+        }),
+        onDelete: vi.fn(),
+      };
+      mod.showPlanInEditor('session-1', {
+        id: 'plan-1',
+        title: 'Test Plan',
+        description: 'Do the thing',
+        status: 'pending',
+      }, callbacks);
+
+      const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement;
+      const saveStatusEl = document.getElementById('planSaveStatus');
+
+      // Change title
+      labelInput.value = 'Updated Plan';
+      labelInput.dispatchEvent(new Event('input', { bubbles: true }));
+      expect(saveStatusEl?.textContent).toContain('Unsaved');
+
+      // Blur and wait for auto-save to trigger (500ms + small buffer)
+      labelInput.dispatchEvent(new Event('blur', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 550));
+      // At this point, saveWithoutClose has been called and updatePlanSaveStatus('saving') was set
+      // The status should be "Saving" or have transitioned to "Saved"
+      expect(['Saving…', 'Saved'].some(s => saveStatusEl?.textContent?.includes(s))).toBe(true);
+
+      // Wait for save to complete and status update
+      await new Promise(r => setTimeout(r, 100));
+      expect(saveStatusEl?.textContent).toContain('Saved');
+
+      // Wait for indicator to fade to clean
+      await new Promise(r => setTimeout(r, 2100));
+      expect(saveStatusEl?.classList.contains('plan-save-status--hidden')).toBe(true);
+    });
+
+    it('no auto-save if plan has no changes (dirty check)', async () => {
+      mockPlanUpdate.mockResolvedValue(undefined);
+      mockPlanSetState.mockResolvedValue(undefined);
+      const callbacks = {
+        onSave: vi.fn(),
+        onDelete: vi.fn(),
+      };
+      mod.showPlanInEditor('session-1', {
+        id: 'plan-1',
+        title: 'Test Plan',
+        description: 'Do the thing',
+        status: 'pending',
+      }, callbacks);
+
+      const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement;
+      // Don't change anything
+      labelInput.dispatchEvent(new Event('blur', { bubbles: true }));
+
+      // Wait for auto-save timeout
+      await new Promise(r => setTimeout(r, 600));
+
+      // onSave should not have been called (dirty check prevents it)
+      expect(callbacks.onSave).not.toHaveBeenCalled();
+    });
+
+    it('cancel pending auto-save timer when editor closes', async () => {
+      mockPlanUpdate.mockResolvedValue(undefined);
+      mockPlanSetState.mockResolvedValue(undefined);
+      const callbacks = {
+        onSave: vi.fn(),
+        onDelete: vi.fn(),
+      };
+      mod.showPlanInEditor('session-1', {
+        id: 'plan-1',
+        title: 'Test Plan',
+        description: 'Do the thing',
+        status: 'pending',
+      }, callbacks);
+
+      const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement;
+      labelInput.value = 'Updated Plan';
+      labelInput.dispatchEvent(new Event('input', { bubbles: true }));
+      labelInput.dispatchEvent(new Event('blur', { bubbles: true }));
+
+      // Close editor immediately (before auto-save fires)
+      mod.hideDraftEditor();
+
+      // Wait for original auto-save timeout
+      await new Promise(r => setTimeout(r, 600));
+
+      // onSave should not have been called (timer was cancelled)
+      expect(callbacks.onSave).not.toHaveBeenCalled();
+    });
+
+    it('save indicator is hidden in draft mode', async () => {
+      mod.showDraftEditor('session-1');
+      const saveStatusEl = document.getElementById('planSaveStatus');
+      expect(saveStatusEl?.classList.contains('plan-save-status--hidden')).toBe(true);
+    });
+
+    it('manual Save button still closes editor after save', async () => {
+      mockPlanUpdate.mockResolvedValue(undefined);
+      mockPlanSetState.mockResolvedValue(undefined);
+      const callbacks = {
+        onSave: vi.fn(),
+        onDelete: vi.fn(),
+      };
+      mod.showPlanInEditor('session-1', {
+        id: 'plan-1',
+        title: 'Test Plan',
+        description: 'Do the thing',
+        status: 'pending',
+      }, callbacks);
+
+      const saveBtn = document.getElementById('draftSaveBtn') as HTMLButtonElement;
+      saveBtn.click();
+
+      await flush();
+
+      expect(callbacks.onSave).toHaveBeenCalled();
+      expect(mod.isDraftEditorVisible()).toBe(false);
+    });
+  });
+
+  // =========================================================================
+  // Draft Editor Auto-save
+  // =========================================================================
+
+  describe('Draft Editor Auto-save', () => {
+    beforeEach(() => {
+      mod.initDraftEditor();
+    });
+
+    it('showDraftEditor() starts with clean save indicator (hidden)', async () => {
+      mod.showDraftEditor('session-1');
+      const saveStatusEl = document.getElementById('planSaveStatus');
+      expect(saveStatusEl?.classList.contains('plan-save-status--hidden')).toBe(true);
+    });
+
+    it('typing in draft label sets save status to unsaved', async () => {
+      mod.showDraftEditor('session-1');
+      const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement;
+      const saveStatusEl = document.getElementById('planSaveStatus');
+
+      labelInput.value = 'My Draft';
+      labelInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+      expect(saveStatusEl?.textContent).toContain('Unsaved');
+    });
+
+    it('draft blur triggers auto-save after 500ms — creates new draft and captures ID', async () => {
+      const mockCreated = { id: 'draft-new-id', sessionId: 'session-1', label: 'My Draft', text: 'content' };
+      mockDraftCreate.mockResolvedValue(mockCreated);
+      mockDraftUpdate.mockResolvedValue(undefined);
+
+      mod.showDraftEditor('session-1');
+      const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement;
+
+      // Verify initial state: no draftId
+      expect(mod.draftEditorState.draftId).toBeNull();
+
+      // Change label and blur
+      labelInput.value = 'My Draft';
+      labelInput.dispatchEvent(new Event('input', { bubbles: true }));
+      labelInput.dispatchEvent(new Event('blur', { bubbles: true }));
+
+      // Before 500ms: still no create call
+      expect(mockDraftCreate).not.toHaveBeenCalled();
+
+      // After 500ms: create was called
+      await new Promise(r => setTimeout(r, 550));
+      expect(mockDraftCreate).toHaveBeenCalledWith('session-1', 'My Draft', '');
+      expect(mod.draftEditorState.draftId).toBe('draft-new-id');
+    });
+
+    it('draft auto-save updates existing draft (not creates duplicate)', async () => {
+      mockDraftCreate.mockResolvedValue({ id: 'draft-1', sessionId: 'session-1', label: 'Initial', text: '' });
+      mockDraftUpdate.mockResolvedValue(undefined);
+
+      // Open with existing draft
+      mod.showDraftEditor('session-1', { id: 'draft-1', label: 'Initial', text: '' });
+      const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement;
+
+      // Change and blur
+      labelInput.value = 'Updated';
+      labelInput.dispatchEvent(new Event('input', { bubbles: true }));
+      labelInput.dispatchEvent(new Event('blur', { bubbles: true }));
+
+      // Wait for auto-save
+      await new Promise(r => setTimeout(r, 550));
+
+      // Should call update, not create
+      expect(mockDraftCreate).not.toHaveBeenCalled();
+      expect(mockDraftUpdate).toHaveBeenCalledWith('draft-1', expect.objectContaining({ label: 'Updated' }));
+    });
+
+    it('draft auto-save skipped when label is empty', async () => {
+      mockDraftCreate.mockResolvedValue(undefined);
+      mockDraftUpdate.mockResolvedValue(undefined);
+
+      mod.showDraftEditor('session-1');
+      const contentInput = document.getElementById('draftContentInput') as HTMLTextAreaElement;
+
+      // Change content only (no label)
+      contentInput.value = 'Just text, no title';
+      contentInput.dispatchEvent(new Event('input', { bubbles: true }));
+      contentInput.dispatchEvent(new Event('blur', { bubbles: true }));
+
+      // Wait for auto-save timeout
+      await new Promise(r => setTimeout(r, 550));
+
+      // Should not create or update (empty label)
+      expect(mockDraftCreate).not.toHaveBeenCalled();
+      expect(mockDraftUpdate).not.toHaveBeenCalled();
     });
   });
 });

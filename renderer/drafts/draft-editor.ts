@@ -35,6 +35,8 @@ export interface DraftEditorState {
   planOriginalDescription: string;
   planOriginalStatus: PlanStatus;
   planOriginalStateInfo: string;
+  saveStatus: 'clean' | 'unsaved' | 'saving' | 'saved';
+  autoSaveTimer: ReturnType<typeof setTimeout> | null;
   // Shared
   focusIndex: number;
 }
@@ -48,8 +50,9 @@ export interface PlanCallbacks {
 }
 
 const ALL_FOCUS_IDS = [
+  'draftLabelInput',        // Title first (auto-focused in plan mode)
   'draftPlanStateSelect', 'draftPlanStateInfo',
-  'draftLabelInput', 'draftContentInput',
+  'draftContentInput',
   'draftSaveBtn', 'draftApplyBtn', 'draftDoneBtn',
   'draftDeleteBtn', 'draftCancelBtn',
 ] as const;
@@ -71,6 +74,8 @@ export const draftEditorState: DraftEditorState = {
   planOriginalDescription: '',
   planOriginalStatus: 'pending',
   planOriginalStateInfo: '',
+  planSaveStatus: 'clean',
+  autoSaveTimer: null,
   focusIndex: 0,
 };
 
@@ -92,6 +97,7 @@ export function initDraftEditor(): void {
     <div class="draft-editor-header">
       <span class="draft-editor-title">📝 New Draft</span>
       <div class="draft-editor-actions">
+        <span class="plan-save-status plan-save-status--hidden" id="planSaveStatus"></span>
         <button class="btn btn--primary btn--sm" id="draftSaveBtn">Save</button>
         <button class="btn btn--primary btn--sm" id="draftApplyBtn">Apply</button>
         <button class="btn btn--success btn--sm" id="draftDoneBtn" style="display:none">✓ Done</button>
@@ -99,8 +105,9 @@ export function initDraftEditor(): void {
         <button class="btn btn--secondary btn--sm" id="draftCancelBtn">Cancel</button>
       </div>
     </div>
-    <div class="draft-editor-plan-state" id="draftPlanStateRow" style="display:none">
-      <select class="draft-editor-plan-select" id="draftPlanStateSelect">
+    <div class="draft-editor-title-row">
+      <input type="text" class="draft-editor-label" id="draftLabelInput" placeholder="Title..." maxlength="100" />
+      <select class="draft-editor-plan-select" id="draftPlanStateSelect" style="display:none">
         <option value="pending">⏸ Pending</option>
         <option value="startable">▶ Ready</option>
         <option value="doing">🔄 In Progress</option>
@@ -117,7 +124,6 @@ export function initDraftEditor(): void {
         style="display:none"
       />
     </div>
-    <input type="text" class="draft-editor-label" id="draftLabelInput" placeholder="Title..." maxlength="100" />
     <textarea class="draft-editor-content" id="draftContentInput" placeholder="Enter your prompt..." rows="4"></textarea>
   `;
 
@@ -177,6 +183,13 @@ export function initDraftEditor(): void {
       closeEditor();
     }
   });
+
+  // Auto-save listeners: blur triggers debounced save, input marks as unsaved
+  const autoSaveFields = ['draftLabelInput', 'draftContentInput', 'draftPlanStateSelect', 'draftPlanStateInfo'];
+  for (const id of autoSaveFields) {
+    document.getElementById(id)?.addEventListener('blur', scheduleAutoSave);
+    document.getElementById(id)?.addEventListener('input', () => updateSaveStatus('unsaved'));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -220,6 +233,8 @@ export function showDraftEditor(sessionId: string, existingDraft?: { id: string;
   // Draft mode: Save, Apply, Delete, Cancel (no Done)
   setButtonVisibility({ save: true, apply: true, done: false, delete: true, cancel: true });
 
+  updateSaveStatus('clean');
+
   editor.style.display = 'flex';
   applyEditorFocus();
 }
@@ -249,7 +264,6 @@ export function showPlanInEditor(
   const titleEl = editor.querySelector('.draft-editor-title');
   const labelInput = document.getElementById('draftLabelInput') as HTMLInputElement | null;
   const contentInput = document.getElementById('draftContentInput') as HTMLTextAreaElement | null;
-  const stateRow = document.getElementById('draftPlanStateRow') as HTMLElement | null;
   const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement | null;
   const stateInfo = document.getElementById('draftPlanStateInfo') as HTMLInputElement | null;
 
@@ -265,8 +279,8 @@ export function showPlanInEditor(
   if (titleEl) titleEl.textContent = `🗺️ Edit Plan · ${statusLabels[plan.status] ?? plan.status}`;
   if (labelInput) labelInput.value = plan.title;
   if (contentInput) contentInput.value = plan.description;
-  if (stateRow) stateRow.style.display = '';
   if (stateSelect) {
+    stateSelect.style.display = '';
     stateSelect.value = plan.status === 'done' ? 'pending' : plan.status;
   }
   if (stateInfo) stateInfo.value = plan.stateInfo ?? '';
@@ -275,6 +289,10 @@ export function showPlanInEditor(
   setInputEditable(stateInfo);
   if (stateSelect) stateSelect.disabled = plan.status === 'done';
   syncPlanStateInfoVisibility();
+
+  // Set focus index for gamepad navigation (actual focus happens in applyEditorFocus)
+  draftEditorState.focusIndex = ALL_FOCUS_IDS.indexOf('draftLabelInput');
+  updateSaveStatus('clean');
 
   // Plan mode: Save, Apply (startable/doing/wait-tests), Done (doing/wait-tests), Delete, Cancel
   setButtonVisibility({
@@ -293,10 +311,16 @@ export function showPlanInEditor(
 
   editor.style.display = 'flex';
   applyEditorFocus();
+  labelInput?.select();  // Select text after focus for immediate typing
 }
 
 /** Hide the editor (both modes). */
 export function hideDraftEditor(): void {
+  // Cancel any pending auto-save timer
+  if (draftEditorState.autoSaveTimer) {
+    clearTimeout(draftEditorState.autoSaveTimer);
+    draftEditorState.autoSaveTimer = null;
+  }
   const editor = document.getElementById('draftEditor');
   if (editor) editor.style.display = 'none';
   resetState();
@@ -332,6 +356,14 @@ export function hasUnsavedPlanChanges(): boolean {
     description !== draftEditorState.planOriginalDescription ||
     status !== draftEditorState.planOriginalStatus ||
     stateInfo !== draftEditorState.planOriginalStateInfo;
+}
+
+/** Whether the currently visible draft editor has unsaved field changes. */
+function hasUnsavedDraftChanges(): boolean {
+  if (!draftEditorState.visible || draftEditorState.mode !== 'draft') return false;
+  const label = (document.getElementById('draftLabelInput') as HTMLInputElement | null)?.value.trim() || '';
+  const text = (document.getElementById('draftContentInput') as HTMLTextAreaElement | null)?.value || '';
+  return label !== draftEditorState.label || text !== draftEditorState.text;
 }
 
 // ---------------------------------------------------------------------------
@@ -488,6 +520,100 @@ function deletePlan(): void {
   showPlanDeleteConfirm(title, () => draftEditorState.planCallbacks?.onDelete());
 }
 
+/** Save plan/draft data without closing the editor (for auto-save). */
+function saveWithoutClose(): void {
+  if (draftEditorState.mode === 'plan') {
+    saveWithoutClosePlan();
+  } else if (draftEditorState.mode === 'draft') {
+    void saveWithoutCloseDraft();
+  }
+}
+
+/** Save plan data without closing the editor (for auto-save). */
+function saveWithoutClosePlan(): void {
+  const cb = draftEditorState.planCallbacks;
+  if (!cb) return;
+  if (!hasUnsavedPlanChanges()) return;  // no-op if clean
+  updateSaveStatus('saving');
+  const title = (document.getElementById('draftLabelInput') as HTMLInputElement | null)?.value ?? '';
+  const description = (document.getElementById('draftContentInput') as HTMLTextAreaElement | null)?.value ?? '';
+  const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement | null;
+  const status = stateSelect?.disabled
+    ? draftEditorState.planStatus
+    : ((stateSelect?.value as PlanStatus | undefined) ?? draftEditorState.planStatus);
+  // Only include stateInfo when status requires it (same logic as hasUnsavedPlanChanges)
+  const stateInfo = (status === 'blocked' || status === 'question')
+    ? ((document.getElementById('draftPlanStateInfo') as HTMLInputElement | null)?.value ?? '')
+    : '';
+  try {
+    cb.onSave({ title, description, status, stateInfo });
+    // Update originals so hasUnsavedPlanChanges() returns false
+    draftEditorState.planOriginalTitle = title;
+    draftEditorState.planOriginalDescription = description;
+    draftEditorState.planOriginalStatus = status;
+    draftEditorState.planOriginalStateInfo = stateInfo;
+    updateSaveStatus('saved');
+    setTimeout(() => updateSaveStatus('clean'), 2000);  // fade out after 2s
+  } catch {
+    updateSaveStatus('unsaved');
+  }
+}
+
+/** Save draft data without closing the editor (for auto-save). */
+async function saveWithoutCloseDraft(): Promise<void> {
+  if (!hasUnsavedDraftChanges()) return;
+  const label = (document.getElementById('draftLabelInput') as HTMLInputElement | null)?.value.trim() || '';
+  const text = (document.getElementById('draftContentInput') as HTMLTextAreaElement | null)?.value || '';
+  if (!label) return;  // require label before auto-saving
+  updateSaveStatus('saving');
+  try {
+    const { draftId, sessionId } = draftEditorState;
+    if (draftId) {
+      await window.gamepadCli.draftUpdate(draftId, { label, text });
+    } else {
+      const created = await window.gamepadCli.draftCreate(sessionId, label, text);
+      draftEditorState.draftId = created.id;  // track for subsequent updates
+    }
+    draftEditorState.label = label;  // update originals
+    draftEditorState.text = text;
+    updateSaveStatus('saved');
+    void refreshChipBar(sessionId || null);
+    setTimeout(() => updateSaveStatus('clean'), 2000);
+  } catch (err) {
+    console.error('[Editor] Auto-save draft failed:', err);
+    updateSaveStatus('unsaved');
+  }
+}
+
+/** Schedule auto-save 500ms after user stops editing (plan and draft modes). */
+function scheduleAutoSave(): void {
+  if (draftEditorState.autoSaveTimer) clearTimeout(draftEditorState.autoSaveTimer);
+  draftEditorState.autoSaveTimer = setTimeout(() => {
+    draftEditorState.autoSaveTimer = null;
+    saveWithoutClose();
+  }, 500);
+}
+
+/** Update the save status indicator span. */
+function updateSaveStatus(status: 'clean' | 'unsaved' | 'saving' | 'saved'): void {
+  draftEditorState.planSaveStatus = status;
+  const el = document.getElementById('planSaveStatus');
+  if (!el) return;
+  el.className = 'plan-save-status';
+  if (status === 'clean') {
+    el.classList.add('plan-save-status--hidden');
+    el.textContent = '';
+    return;
+  }
+  const labels: Record<string, string> = {
+    unsaved: '● Unsaved',
+    saving: '◑ Saving…',
+    saved: '✓ Saved',
+  };
+  el.textContent = labels[status] ?? '';
+  el.classList.add(`plan-save-status--${status}`);
+}
+
 // ---------------------------------------------------------------------------
 // Focus helpers
 // ---------------------------------------------------------------------------
@@ -538,8 +664,11 @@ function resetState(): void {
   draftEditorState.planOriginalDescription = '';
   draftEditorState.planOriginalStatus = 'pending';
   draftEditorState.planOriginalStateInfo = '';
+  draftEditorState.planSaveStatus = 'clean';
+  draftEditorState.autoSaveTimer = null;
   draftEditorState.focusIndex = 0;
   hidePlanStateControls();
+  updateSaveStatus('clean');  // clear save indicator span
 }
 
 function setButtonVisibility(vis: { save: boolean; apply: boolean; done: boolean; delete: boolean; cancel: boolean }): void {
@@ -571,11 +700,10 @@ function setInputEditable(input: HTMLInputElement | HTMLTextAreaElement | HTMLSe
 }
 
 function hidePlanStateControls(): void {
-  const stateRow = document.getElementById('draftPlanStateRow') as HTMLElement | null;
   const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement | null;
   const stateInfo = document.getElementById('draftPlanStateInfo') as HTMLInputElement | null;
-  if (stateRow) stateRow.style.display = 'none';
   if (stateSelect) {
+    stateSelect.style.display = 'none';
     stateSelect.value = 'pending';
     stateSelect.disabled = false;
   }

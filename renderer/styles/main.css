@@ -2771,6 +2771,25 @@ kbd {
   gap: 6px;
 }
 
+.draft-editor-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Plan-mode dropdown inside title row — right-aligned, visually secondary */
+.draft-editor-title-row .draft-editor-plan-select {
+  min-width: 110px;
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+/* Title input takes most of the space */
+.draft-editor-title-row .draft-editor-label {
+  flex: 1;
+}
+
 .draft-editor-plan-select,
 .draft-editor-plan-info {
   padding: 4px 8px;
@@ -2809,6 +2828,18 @@ kbd {
 .draft-editor-label:focus {
   border-color: var(--accent);
 }
+
+.plan-save-status {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.plan-save-status--hidden { display: none; }
+.plan-save-status--unsaved { color: #f5a623; }   /* amber dot */
+.plan-save-status--saving  { color: var(--text-dim); }
+.plan-save-status--saved   { color: #44cc44; }   /* green */
 
 .draft-editor-content {
   padding: 6px 8px;
