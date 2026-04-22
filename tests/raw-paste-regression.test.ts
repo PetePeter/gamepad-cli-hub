@@ -123,30 +123,29 @@ describe('deliverBulkText preserves literal text in ptyindividual mode', () => {
 
 describe('deliverBulkText preserves literal text in clippaste mode', () => {
   let mockPtyWrite: ReturnType<typeof vi.fn>;
-  let mockPaste: ReturnType<typeof vi.fn>;
   let mockFocus: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     mockPtyWrite = vi.fn().mockResolvedValue({ success: true });
-    mockPaste = vi.fn();
     mockFocus = vi.fn();
     (window as any).gamepadCli = { ptyWrite: mockPtyWrite };
-    (window as any).requestAnimationFrame = (cb: () => void) => { cb(); return 0; };
     mockState.sessions = [{ id: 'sess-1', cliType: 'claude-code' }];
     mockState.cliToolsCache = { 'claude-code': { pasteMode: 'clippaste' } };
     mockGetTerminalManager.mockReturnValue({
       getSession: (id: string) => ({
-        view: { focus: mockFocus, paste: mockPaste },
+        view: {
+          focus: mockFocus,
+          isBracketedPasteEnabled: () => false,
+        },
       }),
     });
   });
 
-  it('sends literal text via xterm paste', async () => {
+  it('sends literal text through the PTY-owned clippaste path', async () => {
     await deliverBulkText('sess-1', 'hello{Enter}');
 
     expect(mockFocus).toHaveBeenCalled();
-    expect(mockPaste).toHaveBeenCalledWith('hello{Enter}');
-    expect(mockPtyWrite).not.toHaveBeenCalled();
+    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello{Enter}');
   });
 });
 

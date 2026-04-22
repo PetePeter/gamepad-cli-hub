@@ -26,12 +26,8 @@ const ptyIndividualLock = new Set<string>();
 const SENDKEYS_INDIVIDUAL_DELAY_MS = 20;
 const PTY_INDIVIDUAL_DELAY_MS = 30;
 
-function nextFrame(): Promise<void> {
-  return new Promise(resolve => requestAnimationFrame(() => resolve()));
-}
-
-/** Deliver bulk text to the active session — either via PTY write, xterm paste,
- *  or OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode.
+/** Deliver bulk text to the active session — either via PTY write or
+ *  OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode.
  *  When using PTY mode, wraps text in bracketed paste markers if the terminal
  *  has enabled bracketed paste mode (DEC private mode 2004). */
 export async function deliverBulkText(sessionId: string, text: string): Promise<void> {
@@ -70,27 +66,20 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
     return;
   }
 
-  // Clippaste mode — route through xterm.js paste handling so the embedded
-  // terminal delivers the paste to the PTY path instead of using OS-level keys.
-  if (tool?.pasteMode === 'clippaste') {
-    const tm = getTerminalManager();
-    const session = tm?.getSession?.(sessionId);
-
-    if (!session) return;
-
-    // Focus first so xterm's hidden textarea is the active terminal input sink.
-    session.view.focus();
-    // Wait for overlay teardown / focus restoration to settle before pasting.
-    await nextFrame();
-    await nextFrame();
-    session.view.paste(text);
-    return;
-  }
-
-  // PTY mode — wrap in bracketed paste markers if the terminal requests it
   const tm = getTerminalManager();
   const view = tm?.getSession?.(sessionId)?.view;
-  const payload = view?.isBracketedPasteEnabled()
+
+  // Clippaste mode keeps the terminal focused like a Ctrl+V paste, but the app
+  // still owns delivery by writing the bulk payload through the PTY path.
+  if (tool?.pasteMode === 'clippaste') {
+    view?.focus();
+  }
+
+  // PTY/clippaste mode — wrap in bracketed paste markers if the terminal requests it
+  const bracketedPasteEnabled = typeof view?.isBracketedPasteEnabled === 'function'
+    ? view.isBracketedPasteEnabled()
+    : false;
+  const payload = bracketedPasteEnabled
     ? `\x1b[200~${text}\x1b[201~`
     : text;
   window.gamepadCli.ptyWrite(sessionId, payload);
