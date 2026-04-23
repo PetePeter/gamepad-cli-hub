@@ -79,6 +79,22 @@ describe('PtyManager', () => {
       );
     });
 
+    it('passes merged environment variables to the factory', () => {
+      manager.spawn({
+        sessionId: 's1',
+        command: 'test',
+        env: { COPILOT_MODEL: 'qwen/qwen3.6-35b-a3b' },
+      });
+
+      expect(factory.spawn).toHaveBeenCalledWith(
+        expect.any(String),
+        [],
+        expect.objectContaining({
+          env: expect.objectContaining({ COPILOT_MODEL: 'qwen/qwen3.6-35b-a3b' }),
+        }),
+      );
+    });
+
     it('returns the PtyProcess', () => {
       const result = manager.spawn({ sessionId: 's1', command: 'test' });
       expect(result).toBe(mock.pty);

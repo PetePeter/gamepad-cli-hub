@@ -15,6 +15,7 @@ export interface ToolEditorData {
   name: string;
   command: string;
   args: string;
+  env: Array<{ name: string; value: string }>;
   initialPromptDelay: number;
   pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   spawnCommand: string;
@@ -37,6 +38,7 @@ const emit = defineEmits<{
     name: string;
     command: string;
     args: string;
+    env: Array<{ name: string; value: string }>;
     initialPromptDelay: number;
     pasteMode: string;
     spawnCommand: string;
@@ -55,6 +57,7 @@ const emit = defineEmits<{
 const name = ref('');
 const command = ref('');
 const args = ref('');
+const envItems = ref<Array<{ name: string; value: string }>>([]);
 const initialPromptDelay = ref(2000);
 const pasteMode = ref<'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'>('pty');
 const spawnCommand = ref('');
@@ -109,6 +112,12 @@ function initForm(): void {
   name.value = d.name ?? '';
   command.value = d.command ?? '';
   args.value = d.args ?? '';
+  envItems.value = Array.isArray(d.env)
+    ? d.env.map(item => ({
+        name: typeof item?.name === 'string' ? item.name : '',
+        value: typeof item?.value === 'string' ? item.value : '',
+      }))
+    : [];
   initialPromptDelay.value = d.initialPromptDelay ?? 2000;
   pasteMode.value = d.pasteMode ?? 'pty';
   spawnCommand.value = d.spawnCommand ?? '';
@@ -134,6 +143,14 @@ function removePromptItem(index: number): void {
   promptItems.value.splice(index, 1);
 }
 
+function addEnvItem(): void {
+  envItems.value.push({ name: '', value: '' });
+}
+
+function removeEnvItem(index: number): void {
+  envItems.value.splice(index, 1);
+}
+
 /* ── Save / Cancel ──────────────────────────────────────────────────────── */
 
 function onSave(): void {
@@ -141,6 +158,7 @@ function onSave(): void {
     name: name.value,
     command: command.value,
     args: args.value,
+    env: envItems.value.map(item => ({ name: item.name, value: item.value })),
     initialPromptDelay: initialPromptDelay.value,
     pasteMode: pasteMode.value,
     spawnCommand: spawnCommand.value,
@@ -215,6 +233,47 @@ defineExpose({ handleButton });
                 class="te-input"
               />
             </div>
+          </fieldset>
+
+          <fieldset class="te-section">
+            <legend class="te-section__legend">Environment Variables</legend>
+            <div class="te-env-list">
+              <div
+                v-for="(item, idx) in envItems"
+                :key="idx"
+                class="te-env-item te-grid-2col"
+              >
+                <input
+                  :id="`te-env-name-${idx}`"
+                  type="text"
+                  class="te-input te-input--mono"
+                  placeholder="Variable name, e.g. COPILOT_MODEL"
+                  :value="item.name"
+                  @input="item.name = ($event.target as HTMLInputElement).value"
+                />
+                <div class="te-env-value-row">
+                  <input
+                    :id="`te-env-value-${idx}`"
+                    type="text"
+                    class="te-input te-input--mono"
+                    placeholder="Value"
+                    :value="item.value"
+                    @input="item.value = ($event.target as HTMLInputElement).value"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn--small btn--danger"
+                    title="Remove"
+                    @click="removeEnvItem(idx)"
+                  >✕</button>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="btn btn--secondary"
+              @click="addEnvItem"
+            >+ Add Variable</button>
           </fieldset>
 
           <!-- ═══ Session Management (collapsed by default) ═══ -->
@@ -378,6 +437,26 @@ defineExpose({ handleButton });
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
+}
+
+.te-env-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.te-env-item {
+  align-items: center;
+}
+
+.te-env-value-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.te-env-value-row .te-input {
+  flex: 1;
 }
 
 /* ── Close button ───────────────────────────────────────────────────────── */

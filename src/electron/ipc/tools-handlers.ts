@@ -5,7 +5,7 @@
  */
 
 import { ipcMain } from 'electron';
-import type { ConfigLoader, PatternRule, SequenceListItem } from '../../config/loader.js';
+import type { ConfigLoader, EnvVarEntry, PatternRule, SequenceListItem } from '../../config/loader.js';
 import { logger } from '../../utils/logger.js';
 
 export function setupToolsHandlers(configLoader: ConfigLoader): void {
@@ -25,7 +25,7 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
   ipcMain.handle('tools:addCliType', (
     _event, key: string, name: string, command: string,
     initialPrompt: SequenceListItem[], initialPromptDelay: number,
-    options?: { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' },
+    options?: { args?: string; env?: EnvVarEntry[]; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' },
   ) => {
     try {
       configLoader.addCliType(key, name, command, initialPrompt, initialPromptDelay, options);
@@ -39,7 +39,7 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
   ipcMain.handle('tools:updateCliType', (
     _event, key: string, name: string, command: string,
     initialPrompt: SequenceListItem[], initialPromptDelay: number,
-    options?: { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' },
+    options?: { args?: string; env?: EnvVarEntry[]; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' },
   ) => {
     try {
       configLoader.updateCliType(key, name, command, initialPrompt, initialPromptDelay, options);

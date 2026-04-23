@@ -918,6 +918,51 @@ describe('ConfigLoader', () => {
       expect(entry.args).toBe('--debug --timeout 30');
     });
 
+    it('addCliType with env stores environment variable entries', () => {
+      loader.load();
+      loader.addCliType('env-tool', 'Env Tool', 'mytool', [], 0, {
+        env: [
+          { name: 'COPILOT_PROVIDER_BASE_URL', value: 'http://192.168.56.1:1234' },
+          { name: 'COPILOT_MODEL', value: 'qwen/qwen3.6-35b-a3b' },
+        ],
+      });
+
+      const entry = loader.getCliTypeEntry('env-tool')!;
+      expect(entry.env).toEqual([
+        { name: 'COPILOT_PROVIDER_BASE_URL', value: 'http://192.168.56.1:1234' },
+        { name: 'COPILOT_MODEL', value: 'qwen/qwen3.6-35b-a3b' },
+      ]);
+    });
+
+    it('updateCliType with env replaces environment variable entries', () => {
+      const profileWithEnv = {
+        ...DEFAULT_PROFILE,
+        tools: {
+          ...DEFAULT_PROFILE.tools,
+          'claude-code': {
+            ...DEFAULT_PROFILE.tools['claude-code'],
+            env: [{ name: 'OLD_KEY', value: 'old-value' }],
+          },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithEnv);
+      loader = new ConfigLoader(TEST_DIR);
+      loader.load();
+
+      loader.updateCliType('claude-code', 'CC', 'cc', [], 0, {
+        env: [
+          { name: 'COPILOT_PROVIDER_TYPE', value: 'openai' },
+          { name: 'COPILOT_MODEL', value: 'qwen' },
+        ],
+      });
+
+      const entry = loader.getCliTypeEntry('claude-code')!;
+      expect(entry.env).toEqual([
+        { name: 'COPILOT_PROVIDER_TYPE', value: 'openai' },
+        { name: 'COPILOT_MODEL', value: 'qwen' },
+      ]);
+    });
+
     it('updateCliType with empty args clears args field', () => {
       const profileWithArgs = {
         ...DEFAULT_PROFILE,
@@ -935,6 +980,26 @@ describe('ConfigLoader', () => {
       expect(entry.args).toBeUndefined();
     });
 
+    it('updateCliType with empty env clears env field', () => {
+      const profileWithEnv = {
+        ...DEFAULT_PROFILE,
+        tools: {
+          ...DEFAULT_PROFILE.tools,
+          'claude-code': {
+            ...DEFAULT_PROFILE.tools['claude-code'],
+            env: [{ name: 'COPILOT_MODEL', value: 'qwen' }],
+          },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithEnv);
+      loader = new ConfigLoader(TEST_DIR);
+      loader.load();
+
+      loader.updateCliType('claude-code', 'CC', 'cc', [], 0, { env: [] });
+      const entry = loader.getCliTypeEntry('claude-code')!;
+      expect(entry.env).toBeUndefined();
+    });
+
     it('args round-trip preserves on disk', () => {
       loader.load();
       loader.addCliType('rt-tool', 'RT', 'rt', [], 0, { args: '--flag value' });
@@ -946,6 +1011,31 @@ describe('ConfigLoader', () => {
         command: 'rt',
         args: ['--flag', 'value'],
       });
+    });
+
+    it('env round-trip preserves on disk and sanitizes invalid entries on load', () => {
+      const profileWithEnv = {
+        ...DEFAULT_PROFILE,
+        tools: {
+          ...DEFAULT_PROFILE.tools,
+          'claude-code': {
+            ...DEFAULT_PROFILE.tools['claude-code'],
+            env: [
+              { name: 'COPILOT_PROVIDER_BASE_URL', value: 'http://localhost:1234' },
+              { name: '  COPILOT_MODEL  ', value: 'qwen' },
+              { name: '', value: 'ignored' },
+            ],
+          },
+        },
+      };
+      writeYaml('profiles/default.yaml', profileWithEnv);
+
+      const fresh = new ConfigLoader(TEST_DIR);
+      fresh.load();
+      expect(fresh.getCliTypeEntry('claude-code')!.env).toEqual([
+        { name: 'COPILOT_PROVIDER_BASE_URL', value: 'http://localhost:1234' },
+        { name: 'COPILOT_MODEL', value: 'qwen' },
+      ]);
     });
 
     it('getSpawnConfig preserves quoted args for complex CLI options', () => {

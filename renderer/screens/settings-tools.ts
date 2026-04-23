@@ -206,6 +206,9 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
     name: value.name || key,
     command: value.command || '',
     args: value.args || '',
+    env: Array.isArray(value.env)
+      ? value.env.map((i: any) => ({ name: i.name || '', value: i.value || '' }))
+      : [],
     initialPromptDelay: value.initialPromptDelay ?? 0,
     pasteMode: value.pasteMode || 'pty',
     spawnCommand: value.spawnCommand || '',
@@ -240,7 +243,7 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
 }
 
 /** Build the optional command fields from tool editor result. Empty string = clear. */
-function buildCommandOptionsFromToolEditor(values: any): { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' } | undefined {
+function buildCommandOptionsFromToolEditor(values: any): { args?: string; env?: Array<{ name: string; value: string }>; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' } | undefined {
   const fields = ['args', 'handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
   const opts: Record<string, string> = {};
   let hasAny = false;
@@ -249,6 +252,16 @@ function buildCommandOptionsFromToolEditor(values: any): { args?: string; handof
     opts[field] = val.trim();
     hasAny = true;
   }
+  const env = Array.isArray(values.env)
+    ? values.env
+      .map((item: any) => ({
+        name: typeof item?.name === 'string' ? item.name.trim() : '',
+        value: typeof item?.value === 'string' ? item.value : '',
+      }))
+      .filter((item: { name: string; value: string }) => item.name.length > 0)
+    : [];
+  (opts as any).env = env;
+  hasAny = true;
   const pm = values.pasteMode;
   if (pm === 'pty' || pm === 'ptyindividual' || pm === 'sendkeys' || pm === 'sendkeysindividual' || pm === 'clippaste') {
     (opts as any).pasteMode = pm;

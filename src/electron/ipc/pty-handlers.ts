@@ -44,6 +44,25 @@ function resolvePromptConfig(
   return {};
 }
 
+function resolveToolEnv(
+  cliType: string | undefined,
+  configLoader: ConfigLoader | undefined,
+): Record<string, string> | undefined {
+  if (!cliType || !configLoader) return undefined;
+  try {
+    const envEntries = configLoader.getCliTypeEntry?.(cliType)?.env;
+    if (!envEntries?.length) return undefined;
+    const env = Object.fromEntries(
+      envEntries
+        .filter(entry => typeof entry?.name === 'string' && entry.name.trim().length > 0)
+        .map(entry => [entry.name.trim(), typeof entry?.value === 'string' ? entry.value : '']),
+    );
+    return Object.keys(env).length > 0 ? env : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function setupPtyHandlers(
   ptyManager: PtyManager,
   stateDetector: StateDetector,
@@ -76,6 +95,7 @@ export function setupPtyHandlers(
 
       // Resolve actual command: resume > spawnCommand > base command+args
       let rawCommand: string | undefined;
+      const toolEnv = resolveToolEnv(cliType, configLoader);
 
       if (isResume && cliType && configLoader) {
         const cfg = configLoader.getCliTypeEntry?.(cliType);
@@ -100,7 +120,14 @@ export function setupPtyHandlers(
         }
       }
 
-      const pty = ptyManager.spawn({ sessionId, command: rawCommand ? undefined : command, args: rawCommand ? undefined : args, rawCommand, cwd });
+      const pty = ptyManager.spawn({
+        sessionId,
+        command: rawCommand ? undefined : command,
+        args: rawCommand ? undefined : args,
+        rawCommand,
+        cwd,
+        ...(toolEnv ? { env: toolEnv } : {}),
+      });
 
       // Register with SessionManager so rename/state/persistence work
       // Include cliSessionName in addSession() so it's persisted atomically

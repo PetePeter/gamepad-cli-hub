@@ -364,6 +364,7 @@ const gamepadCliAPI = {
     initialPrompt: Array<{label: string; sequence: string}>, initialPromptDelay: number,
     options?: {
       args?: string;
+      env?: Array<{ name: string; value: string }>;
       handoffCommand?: string;
       renameCommand?: string;
       spawnCommand?: string;
@@ -377,6 +378,7 @@ const gamepadCliAPI = {
     initialPrompt: Array<{label: string; sequence: string}>, initialPromptDelay: number,
     options?: {
       args?: string;
+      env?: Array<{ name: string; value: string }>;
       handoffCommand?: string;
       renameCommand?: string;
       spawnCommand?: string;

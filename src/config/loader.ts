@@ -95,6 +95,11 @@ export interface SpawnConfig {
   args: string[];
 }
 
+export interface EnvVarEntry {
+  name: string;
+  value: string;
+}
+
 export function parseCliArgs(argsText?: string): string[] {
   if (!argsText) return [];
 
@@ -152,6 +157,8 @@ export interface CliTypeConfig {
   command: string;
   /** Persistent command-line arguments appended to `command` at spawn time. Space-separated string. */
   args?: string;
+  /** Extra environment variables injected into the spawned CLI process. */
+  env?: EnvVarEntry[];
   initialPrompt?: SequenceListItem[];
   initialPromptDelay?: number;
   /** Named sequence groups — accessible via gamepad bindings and context menu */
@@ -284,6 +291,17 @@ export interface ChipbarAction {
   label: string;
   sequence: string;
 }
+
+type CliTypeOptions = {
+  args?: string;
+  env?: EnvVarEntry[];
+  handoffCommand?: string;
+  renameCommand?: string;
+  spawnCommand?: string;
+  resumeCommand?: string;
+  continueCommand?: string;
+  pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
+};
 
 export interface ProfileConfig {
   name: string;
@@ -421,6 +439,16 @@ export class ConfigLoader {
         } else if (tool && tool.initialPrompt != null && !Array.isArray(tool.initialPrompt)) {
           tool.initialPrompt = [];
           promptMigrated = true;
+        }
+        if (tool && tool.env != null) {
+          tool.env = Array.isArray(tool.env)
+            ? tool.env
+              .map((entry: any) => ({
+                name: typeof entry?.name === 'string' ? entry.name.trim() : '',
+                value: typeof entry?.value === 'string' ? entry.value : '',
+              }))
+              .filter((entry: EnvVarEntry) => entry.name.length > 0)
+            : [];
         }
       }
       if (promptMigrated) {
@@ -942,7 +970,7 @@ export class ConfigLoader {
   addCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' },
+    options?: CliTypeOptions,
   ): void {
     this.ensureLoaded();
     if (this.activeProfile!.tools[key]) {
@@ -950,6 +978,7 @@ export class ConfigLoader {
     }
     const tool: CliTypeConfig = { name, command, initialPrompt: initialPrompt ?? [], initialPromptDelay: initialPromptDelay ?? 0 };
     if (options?.args) tool.args = options.args;
+    if (options?.env?.length) tool.env = options.env;
     if (options?.handoffCommand) tool.handoffCommand = options.handoffCommand;
     if (options?.renameCommand) tool.renameCommand = options.renameCommand;
     if (options?.spawnCommand) tool.spawnCommand = options.spawnCommand;
@@ -963,7 +992,7 @@ export class ConfigLoader {
   updateCliType(
     key: string, name: string, command: string,
     initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: { args?: string; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' },
+    options?: CliTypeOptions,
   ): void {
     this.ensureLoaded();
     if (!this.activeProfile!.tools[key]) {
@@ -978,6 +1007,10 @@ export class ConfigLoader {
 
     // Optional fields: undefined = preserve, empty string = clear, value = set
     if (options) {
+      if (options.env !== undefined) {
+        if (options.env.length === 0) delete existing.env;
+        else existing.env = options.env;
+      }
       for (const field of ['args', 'handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand', 'pasteMode'] as const) {
         const val = options[field];
         if (val === undefined) continue;

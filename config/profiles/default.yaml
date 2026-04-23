@@ -66,6 +66,53 @@ tools:
         - label: commit
           sequence: use skill(commit)
     pasteMode: clippaste
+  copilot-ollama:
+    name: Copilot Ollama
+    command: copilot
+    spawnCommand: copilot --resume={cliSessionName}
+    resumeCommand: copilot --resume={cliSessionName}
+    continueCommand: copilot --continue
+    handoffCommand: go implement it
+    env:
+      - name: COPILOT_PROVIDER_TYPE
+        value: openai
+      - name: COPILOT_PROVIDER_BASE_URL
+        value: http://192.168.56.1:1234/v1
+      - name: COPILOT_MODEL
+        value: qwen/qwen3.6-35b-a3b
+      - name: COPILOT_PROVIDER_MAX_PROMPT_TOKEN
+        value: "100000"
+      - name: COPILOT_PROVIDER_MAX_OUTPUT_TOKENS
+        value: "30000"
+    initialPrompt:
+      - label: ""
+        sequence: /allow-all{Send}
+      - label: ""
+        sequence: >-
+          {Wait 3000}<application-prompt>
+
+          SYSTEMPROMPT:
+
+          First line of EVERY response MUST be exactly one AIAGENT state tag:
+
+          - AIAGENT-PLANNING — researching, thinking, investigating -
+          AIAGENT-IMPLEMENTING — writing code, making changes -
+          AIAGENT-COMPLETED — done, ready for review - AIAGENT-IDLE — waiting
+          for input
+
+          Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
+
+
+          ALways end each response with an open ended question using the ask
+          question tool, including a free text entry field
+
+          </application-prompt>
+    initialPromptDelay: 7000
+    sequences:
+      prompts:
+        - label: commit
+          sequence: use skill(commit)
+    pasteMode: clippaste
   codex:
     name: Codex CLI
     command: codex
@@ -193,6 +240,55 @@ bindings:
       action: sequence-list
       sequenceGroup: prompts
   copilot-cli:
+    RightTrigger:
+      action: voice
+      key: F1
+      mode: hold
+    A:
+      action: keyboard
+      sequence: "{Enter}"
+    RightStickDown:
+      action: keyboard
+      sequence: "{Down}"
+    RightStickUp:
+      action: keyboard
+      sequence: "{Up}"
+    B:
+      action: keyboard
+      sequence: "{Escape}"
+    RightStickLeft:
+      action: keyboard
+      sequence: "{Backspace}"
+    RightStickRight:
+      action: keyboard
+      sequence: "{Space}"
+    X:
+      action: keyboard
+      sequence: /clear{Enter}
+    Y:
+      action: keyboard
+      sequence: "/foundation:"
+    LeftTrigger:
+      action: voice
+      key: F1
+      mode: hold
+    RightStick:
+      action: keyboard
+      sequence: "{Enter}"
+    LeftStickDown:
+      action: keyboard
+      sequence: "{PageDown}"
+    LeftStickUp:
+      action: keyboard
+      sequence: "{PageUp}"
+    RightBumper:
+      action: sequence-list
+      sequenceGroup: prompts
+    Sandwich:
+      action: context-menu
+    Back:
+      action: context-menu
+  copilot-ollama:
     RightTrigger:
       action: voice
       key: F1

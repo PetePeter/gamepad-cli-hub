@@ -15,6 +15,7 @@ interface ToolEditorData {
   name: string;
   command: string;
   args: string;
+  env: Array<{ name: string; value: string }>;
   initialPromptDelay: number;
   pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   spawnCommand: string;
@@ -29,6 +30,7 @@ const DEFAULT_DATA: ToolEditorData = {
   name: '',
   command: '',
   args: '',
+  env: [],
   initialPromptDelay: 2000,
   pasteMode: 'pty',
   spawnCommand: '',
@@ -92,16 +94,21 @@ describe('ToolEditorModal.vue', () => {
         name: 'My Tool',
         command: 'my-cmd',
         args: '--flag',
+        env: [{ name: 'COPILOT_MODEL', value: 'qwen' }],
         initialPromptDelay: 5000,
       },
     });
     const nameInput = w.find('#te-name').element as HTMLInputElement;
     const cmdInput = w.find('#te-command').element as HTMLInputElement;
     const argsInput = w.find('#te-args').element as HTMLInputElement;
+    const envNameInput = w.find('#te-env-name-0').element as HTMLInputElement;
+    const envValueInput = w.find('#te-env-value-0').element as HTMLInputElement;
     const delayInput = w.find('#te-delay').element as HTMLInputElement;
     expect(nameInput.value).toBe('My Tool');
     expect(cmdInput.value).toBe('my-cmd');
     expect(argsInput.value).toBe('--flag');
+    expect(envNameInput.value).toBe('COPILOT_MODEL');
+    expect(envValueInput.value).toBe('qwen');
     expect(delayInput.value).toBe('5000');
     w.unmount();
   });
@@ -129,6 +136,7 @@ describe('ToolEditorModal.vue', () => {
         name: 'Test',
         command: 'test-cmd',
         args: '--arg',
+        env: [{ name: 'COPILOT_MODEL', value: 'qwen' }],
         initialPromptDelay: 3000,
         pasteMode: 'sendkeys',
         initialPrompt: [{ label: 'greet', sequence: 'hello' }],
@@ -143,6 +151,7 @@ describe('ToolEditorModal.vue', () => {
     expect(values.name).toBe('Test');
     expect(values.command).toBe('test-cmd');
     expect(values.args).toBe('--arg');
+    expect(values.env).toEqual([{ name: 'COPILOT_MODEL', value: 'qwen' }]);
     expect(values.initialPromptDelay).toBe(3000);
     expect(values.pasteMode).toBe('sendkeys');
     expect(values._promptItems).toEqual([{ label: 'greet', sequence: 'hello' }]);
@@ -214,6 +223,34 @@ describe('ToolEditorModal.vue', () => {
     expect(w.find('#te-continue').exists()).toBe(true);
     expect(w.find('#te-rename').exists()).toBe(true);
     expect(w.find('#te-handoff').exists()).toBe(true);
+    w.unmount();
+  });
+
+  it('can add environment variable rows', async () => {
+    const w = factory();
+    expect(w.findAll('.te-env-item').length).toBe(0);
+    const addBtn = w.findAll('button').find(b => b.text() === '+ Add Variable')!;
+    await addBtn.trigger('click');
+    await flushPromises();
+    expect(w.findAll('.te-env-item').length).toBe(1);
+    w.unmount();
+  });
+
+  it('can remove environment variable rows', async () => {
+    const w = factory({
+      initialData: {
+        ...DEFAULT_DATA,
+        env: [
+          { name: 'A', value: '1' },
+          { name: 'B', value: '2' },
+        ],
+      },
+    });
+    expect(w.findAll('.te-env-item').length).toBe(2);
+    const removeBtn = w.findAll('.te-env-item .btn--danger')[0];
+    await removeBtn.trigger('click');
+    await flushPromises();
+    expect(w.findAll('.te-env-item').length).toBe(1);
     w.unmount();
   });
 

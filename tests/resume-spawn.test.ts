@@ -273,6 +273,31 @@ describe('pty:spawn resume logic', () => {
     });
   });
 
+  it('passes configured tool environment variables to PTY spawn', async () => {
+    configLoader.getCliTypeEntry.mockReturnValue({
+      name: 'Ollama Copilot',
+      command: 'copilot',
+      env: [
+        { name: 'COPILOT_PROVIDER_TYPE', value: 'openai' },
+        { name: 'COPILOT_PROVIDER_BASE_URL', value: 'http://192.168.56.1:1234' },
+        { name: 'COPILOT_MODEL', value: 'qwen/qwen3.6-35b-a3b' },
+      ],
+    } as CliTypeConfig);
+
+    const handler = handlers.get('pty:spawn')!;
+    await handler({}, 'sid-1', 'copilot', [], '/work', 'copilot-ollama');
+
+    expect(ptyManager.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: {
+          COPILOT_PROVIDER_TYPE: 'openai',
+          COPILOT_PROVIDER_BASE_URL: 'http://192.168.56.1:1234',
+          COPILOT_MODEL: 'qwen/qwen3.6-35b-a3b',
+        },
+      }),
+    );
+  });
+
   it('falls back to command+args when no spawnCommand on fresh spawn', async () => {
     configLoader.getCliTypeEntry.mockReturnValue({
       name: 'Generic',
