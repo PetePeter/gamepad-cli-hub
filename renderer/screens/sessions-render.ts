@@ -1,8 +1,8 @@
 /**
- * Sessions screen — card rendering, state dropdown, and UI building.
+ * Sessions screen helpers for sort controls, rename state, and the state dropdown.
  *
- * Extracted from sessions.ts. Imports state access from sessions.ts (which re-exports
- * spawn helpers) to avoid direct sub-module cross-dependencies.
+ * Vue owns the sidebar session-list rendering. This module only keeps the
+ * non-visual sidebar helpers that still need imperative DOM access.
  */
 
 import { state } from '../state.js';
@@ -100,10 +100,9 @@ export async function initSessionsSortControl(): Promise<void> {
           getSessionCwd,
           getSessionActivity,
         );
-        // Rebuild groups and navList so renderSessions() picks up the new order
+        // Rebuild groups and navList so the Vue sidebar reacts to the new order.
         sessionsState.groups = groupSessionsByDirectory(state.sessions, getSessionCwd, sessionsState.groupPrefs);
         sessionsState.navList = buildFlatNavList(sessionsState.groups);
-        renderSessions();
         updateSessionsFocus();
         if (isOverviewVisible()) refreshOverview();
         try {
@@ -125,13 +124,11 @@ export async function initSessionsSortControl(): Promise<void> {
 /** Start editing a session name */
 export function startRename(sessionId: string): void {
   sessionsState.editingSessionId = sessionId;
-  renderSessions();
 }
 
 /** Cancel editing and restore display mode */
 export function cancelRename(): void {
   sessionsState.editingSessionId = null;
-  renderSessions();
 }
 
 /** Commit the rename and update the session */
@@ -157,25 +154,16 @@ export async function commitRename(sessionId: string, newName: string): Promise<
       if (tm) tm.renameSession(sessionId, trimmed);
       // Reload sessions to get updated data
       await loadSessionsData();
-      renderSessions();
       refreshOverview();
     } else {
       logEvent(`Rename failed: ${result.error}`);
       sessionsState.editingSessionId = null;
-      renderSessions();
     }
   } catch (error) {
     console.error('[Sessions] Rename failed:', error);
     logEvent('Rename failed');
     sessionsState.editingSessionId = null;
-    renderSessions();
   }
-}
-
-// --- Render — sessions list (grouped by directory) ---
-export function renderSessions(): void {
-  // Vue owns #sessionsList — DOM manipulation here would clobber the virtual DOM.
-  // SessionCard.vue / SessionGroup.vue render reactively from sessionsState.groups.
 }
 
 // --- State dropdown ---

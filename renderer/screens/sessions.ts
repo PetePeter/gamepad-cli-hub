@@ -1,8 +1,8 @@
 /**
- * Sessions screen — vertical session list + quick spawn grid.
+ * Sessions screen — sidebar state, navigation handlers, and public API.
  *
- * Main orchestrator: state management, navigation handlers, public API.
- * Delegates rendering to sessions-render.ts and spawn logic to sessions-spawn.ts.
+ * Vue renders the grouped session list. This module owns the navigation state,
+ * keyboard/gamepad routing, and non-visual session services.
  */
 
 import { state } from '../state.js';
@@ -27,7 +27,7 @@ import { currentView } from '../main-view/main-view-manager.js';
 
 // Sub-module imports — circular at module level, safe because all usages are in function bodies.
 import {
-  renderSessions, initSessionsSortControl, updateStatusCounts,
+  initSessionsSortControl, updateStatusCounts,
   startRename, showStateDropdown, commitRename, cancelRename,
   sessionsSortField, sessionsSortDirection,
 } from './sessions-render.js';
@@ -301,7 +301,6 @@ export async function toggleSessionOverviewVisibility(sessionId: string): Promis
     overviewHidden: [...hidden],
   };
   await saveGroupPrefs();
-  renderSessions();
   if (isOverviewVisible()) {
     const count = getOverviewSessions().length;
     if (count === 0) {
@@ -476,7 +475,6 @@ export async function loadSessions(): Promise<void> {
   await initSessionGroupPrefs();
   await loadSessionsData();
   await initSessionsSortControl();
-  renderSessions();
   renderSpawnGrid();
   renderPlansGrid();
   updateStatusCounts();
@@ -489,7 +487,6 @@ function ensurePlanChangedListener(): void {
   }
   if (!window.gamepadCli?.onPlanChanged) return;
   removePlanChangedListener = window.gamepadCli.onPlanChanged((dirPath: string) => {
-    renderSessions();
     void refreshPlanBadges();
 
     const activeSessionId = state.activeSessionId;
@@ -552,7 +549,6 @@ export function handleSessionsScreenButton(button: string): boolean {
 
 export function updateSessionHighlight(): void {
   sessionsState.cardColumn = 0;
-  renderSessions();
   updateSessionsFocus();
 }
 
@@ -565,7 +561,6 @@ export function syncSessionHighlight(sessionId: string): void {
     state.activeSessionId = sessionId;
     // Selecting a session is mutually exclusive with the planner screen.
     if (isPlanScreenVisible()) hidePlanScreen();
-    renderSessions();
     updateSessionsFocus();
   }
 }
@@ -814,7 +809,6 @@ async function deleteSession(sessionId: string): Promise<void> {
       sessionsState.sessionsFocusIndex = clamp(
         sessionsState.sessionsFocusIndex, 0, Math.max(0, state.sessions.length - 1),
       );
-      renderSessions();
       updateStatusCounts();
       updateSessionsFocus();
     } else {

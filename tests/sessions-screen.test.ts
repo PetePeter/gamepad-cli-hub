@@ -110,17 +110,23 @@ function buildSidebarDom(): void {
   }
 
   document.body.innerHTML = `
-    <section id="screen-sessions" class="screen screen--active">
+    <section id="screen-sessions" class="screen screen--active sessions-screen-section">
       <div id="sessionsSortBar"></div>
-      <div class="sessions-list" id="sessionsList"></div>
-      <div class="sessions-empty" id="sessionsEmpty" style="display:none">
-        No active sessions
-      </div>
-      <div class="spawn-section">
-        <h3 class="section-label">Quick Spawn</h3>
-        <div class="spawn-grid" id="spawnGrid"></div>
+      <div class="sessions-list-shell">
+        <div class="sessions-list" id="sessionsList"></div>
+        <div class="sessions-empty" id="sessionsEmpty" style="display:none">
+          No active sessions
+        </div>
       </div>
     </section>
+    <div class="spawn-section" id="quickSpawnSection">
+      <h3 class="section-label">Quick Spawn</h3>
+      <div class="spawn-grid" id="spawnGrid"></div>
+    </div>
+    <div class="spawn-section" id="plannerSection">
+      <h3 class="section-label">Folder Planner</h3>
+      <div class="plans-grid" id="plansGrid"></div>
+    </div>
     <div id="mainArea">
       <div id="terminalContainer"></div>
     </div>
@@ -332,6 +338,18 @@ describe('Sessions Screen', () => {
       delete (window as any).gamepadCli;
       await loadAndFlush(sessions);
       expect(state.sessions).toEqual([]);
+    });
+
+    it('keeps quick spawn and planner sections outside the scrollable sessions list shell', () => {
+      const shell = document.querySelector('.sessions-list-shell');
+      const list = document.getElementById('sessionsList');
+      const quickSpawn = document.getElementById('quickSpawnSection');
+      const planner = document.getElementById('plannerSection');
+
+      expect(shell?.contains(list)).toBe(true);
+      expect(shell?.contains(quickSpawn)).toBe(false);
+      expect(shell?.contains(planner)).toBe(false);
+      expect(quickSpawn?.previousElementSibling?.id).toBe('screen-sessions');
     });
   });
 
@@ -1513,7 +1531,7 @@ describe('Sessions Screen', () => {
 
     function enterRenameMode(renderInsideCard = false): HTMLInputElement {
       sessionsState.editingSessionId = 's-0';
-      // Create the input manually since renderSessions is mocked downstream
+      // Create the input manually since Vue owns the row rendering in these tests.
       const input = document.createElement('input');
       input.className = 'session-rename-input';
       input.type = 'text';

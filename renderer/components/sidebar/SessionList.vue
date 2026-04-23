@@ -2,8 +2,9 @@
 /**
  * SessionList.vue — Owns the full sidebar session list surface.
  *
- * Keeps the legacy sessions-list container/DOM hooks intact while moving the
- * grouped rendering boundary out of App.vue.
+ * Renders the entire scrollable session-list region. App.vue keeps the lower
+ * Quick Spawn and Folder Planner sections outside this component so they stay
+ * pinned below the scrolling list.
  */
 import SessionGroup from './SessionGroup.vue';
 import SessionCard from './SessionCard.vue';

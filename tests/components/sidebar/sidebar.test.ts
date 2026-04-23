@@ -376,7 +376,7 @@ function makeSessionListProps(overrides: Record<string, any> = {}) {
 }
 
 describe('SessionList', () => {
-  it('owns the legacy sessionsList container and overview button', () => {
+  it('owns the scrollable sessionsList container and overview button', () => {
     const w = mount(SessionList, { props: makeSessionListProps() });
     expect(w.find('#sessionsList').exists()).toBe(true);
     expect(w.find('.overview-nav-button').text()).toBe('Overview');
@@ -438,6 +438,44 @@ describe('SessionList', () => {
     });
     expect(w.findAll('.group-header')).toHaveLength(1);
     expect(w.findAll('.session-card')).toHaveLength(0);
+  });
+
+  it('renders long grouped lists inside the shared scroll region without dropping row actions', () => {
+    const manySessions = Array.from({ length: 24 }, (_, index) => ({
+      id: `s${index + 1}`,
+      name: `session-${index + 1}`,
+      cliType: 'claude-code',
+      title: `Task ${index + 1}`,
+    }));
+    const navIndexMap = new Map<string, number>([['/workspace/a', 1]]);
+    manySessions.forEach((session, index) => {
+      navIndexMap.set(session.id, index + 2);
+    });
+
+    const w = mount(SessionList, {
+      props: makeSessionListProps({
+        groups: [{ dirPath: '/workspace/a', collapsed: false, sessions: manySessions }],
+        navIndexMap,
+        navList: [
+          { type: 'overview-button', id: 'overview' },
+          { type: 'group-header', id: '/workspace/a' },
+          ...manySessions.map((session) => ({ type: 'session-card', id: session.id })),
+        ],
+        sessionsFocusIndex: 25,
+        focusColumn: 4,
+      }),
+    });
+
+    const list = w.get('#sessionsList');
+    const cards = list.findAll('.session-card');
+    expect(cards).toHaveLength(24);
+    expect(list.findAll('.group-header')).toHaveLength(1);
+    expect(cards.at(-1)?.attributes('data-nav-index')).toBe('25');
+    expect(cards.at(-1)?.classes()).toContain('focused');
+    expect(cards.at(-1)?.find('.session-close').classes()).toContain('card-col-focused');
+    expect(cards.at(-1)?.find('.session-state-btn').exists()).toBe(true);
+    expect(cards.at(-1)?.find('.session-rename').exists()).toBe(true);
+    expect(cards.at(-1)?.find('.session-overview-toggle').exists()).toBe(true);
   });
 });
 
