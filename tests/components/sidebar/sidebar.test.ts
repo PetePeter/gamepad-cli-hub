@@ -19,17 +19,17 @@ import SessionCard from '../../../renderer/components/sidebar/SessionCard.vue';
 function makeCardProps(overrides: Record<string, any> = {}) {
   return {
     session: { id: 's1', name: 'test-session', cliType: 'claude-code', title: '' },
+    navIndex: 2,
     sessionState: 'idle',
     activityLevel: 'active',
     displayName: 'Claude',
     draftCount: 0,
-    lastOutputTime: null,
     elapsedText: '',
     workingPlanLabel: '',
     workingPlanTooltip: '',
     isActive: false,
     isFocused: false,
-    cardColumn: 0,
+    focusColumn: 0,
     isEditing: false,
     isHiddenFromOverview: false,
     ...overrides,
@@ -208,7 +208,7 @@ describe('SessionCard', () => {
   });
 
   it('applies card-col-focused to correct column button', () => {
-    const w = mount(SessionCard, { props: makeCardProps({ isFocused: true, cardColumn: 4 }) });
+    const w = mount(SessionCard, { props: makeCardProps({ isFocused: true, focusColumn: 4 }) });
     expect(w.find('.session-close').classes()).toContain('card-col-focused');
     expect(w.find('.session-state-btn').classes()).not.toContain('card-col-focused');
   });
@@ -234,6 +234,23 @@ describe('SessionCard', () => {
     const w = mount(SessionCard, { props: makeCardProps() });
     expect((w.vm as any).handleButton('B')).toBe(false);
   });
+
+  it('renders explicit nav index hook on the row root', () => {
+    const w = mount(SessionCard, { props: makeCardProps({ navIndex: 7 }) });
+    expect(w.find('.session-card').attributes('data-nav-index')).toBe('7');
+  });
+
+  it('emits cancelSchedule when pending schedule cancel is clicked', async () => {
+    const w = mount(SessionCard, { props: makeCardProps({ scheduledAt: 'tomorrow 10:00' }) });
+    await w.find('.session-schedule-cancel').trigger('click');
+    expect(w.emitted('cancelSchedule')).toEqual([['s1']]);
+  });
+
+  it('shows snapped-out state on the row root', () => {
+    const w = mount(SessionCard, { props: makeCardProps({ isSnappedOut: true }) });
+    expect(w.find('.session-card').classes()).toContain('snapped-out');
+    expect(w.find('.snap-indicator').exists()).toBe(true);
+  });
 });
 
 // ============================================================================
@@ -241,6 +258,7 @@ describe('SessionCard', () => {
 // ============================================================================
 
 import SessionGroup from '../../../renderer/components/sidebar/SessionGroup.vue';
+import SessionList from '../../../renderer/components/sidebar/SessionList.vue';
 
 function makeGroupProps(overrides: Record<string, any> = {}) {
   return {
@@ -250,8 +268,8 @@ function makeGroupProps(overrides: Record<string, any> = {}) {
       collapsed: false,
       sessionCount: 3,
     },
+    navIndex: 1,
     isFocused: false,
-    cardColumn: 0,
     ...overrides,
   };
 }
@@ -295,6 +313,131 @@ describe('SessionGroup', () => {
   it('applies focused class when isFocused', () => {
     const w = mount(SessionGroup, { props: makeGroupProps({ isFocused: true }) });
     expect(w.find('.group-header').classes()).toContain('focused');
+  });
+
+  it('renders explicit nav index hook on the group root', () => {
+    const w = mount(SessionGroup, { props: makeGroupProps({ navIndex: 5 }) });
+    expect(w.find('.group-header').attributes('data-nav-index')).toBe('5');
+  });
+});
+
+// ============================================================================
+// SessionList
+// ============================================================================
+
+function makeSessionListProps(overrides: Record<string, any> = {}) {
+  return {
+    hasSessions: true,
+    groups: [
+      {
+        dirPath: '/workspace/a',
+        collapsed: false,
+        sessions: [
+          { id: 's1', name: 'alpha', cliType: 'claude-code', title: 'Auth work' },
+        ],
+      },
+      {
+        dirPath: '/workspace/empty',
+        collapsed: false,
+        sessions: [],
+      },
+    ],
+    directories: [
+      { name: 'a', path: '/workspace/a' },
+      { name: 'empty', path: '/workspace/empty' },
+    ],
+    navIndexMap: new Map([
+      ['/workspace/a', 1],
+      ['s1', 2],
+    ]),
+    activeFocus: 'sessions',
+    sessionsFocusIndex: 0,
+    navList: [
+      { type: 'overview-button', id: 'overview' },
+      { type: 'group-header', id: '/workspace/a' },
+      { type: 'session-card', id: 's1' },
+    ],
+    focusColumn: 0,
+    activeSessionId: null,
+    editingSessionId: null,
+    sessionStates: new Map([['s1', 'idle']]),
+    sessionActivityLevels: new Map([['s1', 'active']]),
+    draftCounts: new Map([['s1', 2]]),
+    workingPlanLabels: new Map([['s1', 'Plan A']]),
+    workingPlanTooltips: new Map([['s1', 'Plan A tooltip']]),
+    pendingSchedules: new Map([['s1', 'tomorrow']]),
+    snappedOutSessions: new Set<string>(),
+    getCliDisplayName: vi.fn((cliType: string) => cliType === 'claude-code' ? 'Claude' : cliType),
+    resolveGroupDisplayName: vi.fn((dirPath: string) => dirPath.split('/').pop() || dirPath),
+    isSessionHiddenFromOverview: vi.fn(() => false),
+    sessionElapsedText: vi.fn(() => '2m ago'),
+    ...overrides,
+  };
+}
+
+describe('SessionList', () => {
+  it('owns the legacy sessionsList container and overview button', () => {
+    const w = mount(SessionList, { props: makeSessionListProps() });
+    expect(w.find('#sessionsList').exists()).toBe(true);
+    expect(w.find('.overview-nav-button').text()).toBe('Overview');
+  });
+
+  it('renders grouped sessions through SessionGroup and SessionCard', () => {
+    const w = mount(SessionList, { props: makeSessionListProps() });
+    expect(w.findAll('.group-header')).toHaveLength(1);
+    expect(w.findAll('.session-card')).toHaveLength(1);
+    expect(w.find('.group-header').attributes('data-nav-index')).toBe('1');
+    expect(w.find('.session-card').attributes('data-nav-index')).toBe('2');
+  });
+
+  it('emits showGlobalOverview on overview button click', async () => {
+    const w = mount(SessionList, { props: makeSessionListProps() });
+    await w.find('.overview-nav-button').trigger('click');
+    expect(w.emitted('showGlobalOverview')).toEqual([[]]);
+  });
+
+  it('forwards session and group events', async () => {
+    const w = mount(SessionList, { props: makeSessionListProps() });
+    await w.find('.group-name').trigger('click');
+    expect(w.emitted('showOverview')).toEqual([['/workspace/a']]);
+
+    await w.find('.session-card').trigger('click');
+    expect(w.emitted('sessionClick')).toEqual([['s1']]);
+  });
+
+  it('forwards row-owned action events', async () => {
+    const w = mount(SessionList, { props: makeSessionListProps() });
+    await w.find('.session-overview-toggle').trigger('click');
+    expect(w.emitted('toggleOverview')).toEqual([['s1']]);
+
+    await w.find('.session-schedule-cancel').trigger('click');
+    expect(w.emitted('cancelSchedule')).toEqual([['s1']]);
+  });
+
+  it('shows empty state when there are no sessions', () => {
+    const w = mount(SessionList, {
+      props: makeSessionListProps({
+        hasSessions: false,
+        groups: [],
+        navList: [],
+      }),
+    });
+    expect(w.find('.overview-nav-button').exists()).toBe(false);
+    expect(w.find('.sessions-empty').text()).toContain('No active sessions');
+  });
+
+  it('does not render cards for collapsed groups', () => {
+    const w = mount(SessionList, {
+      props: makeSessionListProps({
+        groups: [{
+          dirPath: '/workspace/a',
+          collapsed: true,
+          sessions: [{ id: 's1', name: 'alpha', cliType: 'claude-code', title: 'Auth work' }],
+        }],
+      }),
+    });
+    expect(w.findAll('.group-header')).toHaveLength(1);
+    expect(w.findAll('.session-card')).toHaveLength(0);
   });
 });
 

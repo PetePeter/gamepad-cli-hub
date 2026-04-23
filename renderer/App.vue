@@ -61,8 +61,7 @@ import { deliverBulkText, deliverViaClipboardPaste } from './paste-handler.js';
 // Sidebar components
 import StatusStrip from './components/sidebar/StatusStrip.vue';
 import SortBar from './components/sidebar/SortBar.vue';
-import SessionGroup from './components/sidebar/SessionGroup.vue';
-import SessionCard from './components/sidebar/SessionCard.vue';
+import SessionList from './components/sidebar/SessionList.vue';
 import SpawnGrid from './components/sidebar/SpawnGrid.vue';
 import PlansGrid from './components/sidebar/PlansGrid.vue';
 
@@ -869,75 +868,40 @@ onUnmounted(() => {
             :direction="getSortDirection()"
             @change="onSortChange"
           />
-          <div class="sessions-list" id="sessionsList">
-            <!-- Persistent global overview button — always visible when sessions exist -->
-            <button
-              v-if="state.sessions.length > 0"
-              class="overview-nav-button"
-              :class="{ focused: sessionsState.activeFocus === 'sessions' && sessionsState.navList[sessionsState.sessionsFocusIndex]?.type === 'overview-button' }"
-              title="Overview — all sessions"
-              @click="onShowGlobalOverview"
-            >
-              Overview
-            </button>
-            <template v-for="(group, gi) in sessionsState.groups" :key="group.dirPath">
-              <template v-if="group.sessions.length > 0">
-              <SessionGroup
-                :group="{
-                  dirPath: group.dirPath,
-                  displayName: resolveGroupDisplayName(group.dirPath, sessionsState.directories),
-                  collapsed: group.collapsed,
-                  sessionCount: group.sessions.length,
-                }"
-                :data-nav-index="navIndexMap.get(group.dirPath) ?? -1"
-                :is-focused="sessionsState.activeFocus === 'sessions'
-                  && sessionsState.navList[sessionsState.sessionsFocusIndex]?.type === 'group-header'
-                  && sessionsState.navList[sessionsState.sessionsFocusIndex]?.id === group.dirPath"
-                :card-column="sessionsState.cardColumn"
-                @toggle-collapse="onGroupToggleCollapse"
-                @show-overview="onShowOverview"
-              />
-              <template v-if="!group.collapsed">
-                <SessionCard
-                  v-for="session in group.sessions"
-                  :key="session.id"
-                  :data-nav-index="navIndexMap.get(session.id) ?? -1"
-                  :session="{ id: session.id, name: session.name, cliType: session.cliType, title: session.title }"
-                  :session-state="state.sessionStates.get(session.id) || 'idle'"
-                  :activity-level="state.sessionActivityLevels.get(session.id) || 'idle'"
-                  :display-name="session.name !== session.cliType ? session.name : getCliDisplayName(session.cliType)"
-                  :draft-count="state.draftCounts.get(session.id) ?? 0"
-                  :last-output-time="state.lastOutputTimes.get(session.id) ?? null"
-                  :elapsed-text="sessionElapsedText(session.id)"
-                  :working-plan-label="state.workingPlanLabels?.get(session.id) || ''"
-                  :working-plan-tooltip="state.workingPlanTooltips?.get(session.id) || ''"
-                  :is-active="state.activeSessionId === session.id"
-                  :is-focused="sessionsState.activeFocus === 'sessions'
-                    && sessionsState.navList[sessionsState.sessionsFocusIndex]?.type === 'session-card'
-                    && sessionsState.navList[sessionsState.sessionsFocusIndex]?.id === session.id"
-                  :card-column="sessionsState.cardColumn"
-                  :is-editing="sessionsState.editingSessionId === session.id"
-                  :is-hidden-from-overview="isSessionHiddenFromOverview(session, sessionsState.groupPrefs)"
-                  :scheduled-at="state.pendingSchedules.get(session.id) ?? null"
-                  :is-snapped-out="state.snappedOutSessions.has(session.id)"
-                  @click="onSessionClick"
-                  @rename="onSessionRename"
-                  @commit-rename="onCommitRename"
-                  @cancel-rename="onCancelRename"
-                  @close="onRequestClose"
-                  @state-change="onSessionStateChange"
-                  @toggle-overview="onToggleOverview"
-                  @cancel-schedule="onCancelSchedule"
-                  @snap-out="onSessionSnapOut"
-                  @snap-back="onSessionSnapBack"
-                />
-              </template>
-              </template>
-            </template>
-            <div v-if="state.sessions.length === 0" class="sessions-empty">
-              No active sessions
-            </div>
-          </div>
+          <SessionList
+            :has-sessions="state.sessions.length > 0"
+            :groups="sessionsState.groups"
+            :directories="sessionsState.directories"
+            :nav-index-map="navIndexMap"
+            :active-focus="sessionsState.activeFocus"
+            :sessions-focus-index="sessionsState.sessionsFocusIndex"
+            :nav-list="sessionsState.navList"
+            :focus-column="sessionsState.cardColumn"
+            :active-session-id="state.activeSessionId"
+            :editing-session-id="sessionsState.editingSessionId"
+            :session-states="state.sessionStates"
+            :session-activity-levels="state.sessionActivityLevels"
+            :draft-counts="state.draftCounts"
+            :working-plan-labels="state.workingPlanLabels"
+            :working-plan-tooltips="state.workingPlanTooltips"
+            :pending-schedules="state.pendingSchedules"
+            :snapped-out-sessions="state.snappedOutSessions"
+            :get-cli-display-name="getCliDisplayName"
+            :resolve-group-display-name="resolveGroupDisplayName"
+            :is-session-hidden-from-overview="(session) => isSessionHiddenFromOverview(session, sessionsState.groupPrefs)"
+            :session-elapsed-text="sessionElapsedText"
+            @show-global-overview="onShowGlobalOverview"
+            @toggle-group-collapse="onGroupToggleCollapse"
+            @show-overview="onShowOverview"
+            @session-click="onSessionClick"
+            @session-rename="onSessionRename"
+            @commit-rename="onCommitRename"
+            @cancel-rename="onCancelRename"
+            @request-close="onRequestClose"
+            @session-state-change="onSessionStateChange"
+            @toggle-overview="onToggleOverview"
+            @cancel-schedule="onCancelSchedule"
+          />
         </section>
 
         <!-- Settings screen (legacy DOM rendering) -->

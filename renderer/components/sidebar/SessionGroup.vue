@@ -15,8 +15,8 @@ export interface SessionGroupData {
 
 const props = defineProps<{
   group: SessionGroupData;
+  navIndex: number;
   isFocused: boolean;
-  cardColumn: number;
 }>();
 
 const emit = defineEmits<{
@@ -30,6 +30,7 @@ const emit = defineEmits<{
     class="group-header"
     :class="{ focused: isFocused }"
     :data-dir-path="group.dirPath"
+    :data-nav-index="navIndex"
     @click="emit('toggleCollapse', group.dirPath)"
   >
     <span class="group-chevron">{{ group.collapsed ? '▲' : '▼' }}</span>

@@ -17,19 +17,21 @@ export interface SessionCardSession {
   title?: string;
 }
 
+export type SessionCardFocusColumn = 0 | 1 | 2 | 3 | 4;
+
 export interface SessionCardProps {
   session: SessionCardSession;
+  navIndex: number;
   sessionState: string;
   activityLevel: string;
   displayName: string;
   draftCount: number;
-  lastOutputTime: number | null;
   elapsedText: string;
   workingPlanLabel: string;
   workingPlanTooltip: string;
   isActive: boolean;
   isFocused: boolean;
-  cardColumn: number;
+  focusColumn: SessionCardFocusColumn;
   isEditing: boolean;
   isHiddenFromOverview: boolean;
   scheduledAt?: string | null;
@@ -61,8 +63,6 @@ const emit = defineEmits<{
   stateChange: [sessionId: string, newState: string];
   toggleOverview: [sessionId: string];
   cancelSchedule: [sessionId: string];
-  snapOut: [sessionId: string];
-  snapBack: [sessionId: string];
 }>();
 
 // --- Local state ---
@@ -87,11 +87,14 @@ const dotColor = computed(() => getActivityColor(props.activityLevel));
 const stateLabel = computed(() => STATE_LABELS[props.sessionState] || '💤 Idle');
 const eyeIcon = computed(() => props.isHiddenFromOverview ? '👁‍🗨' : '👁');
 const eyeTitle = computed(() => props.isHiddenFromOverview ? 'Show in overview' : 'Hide from overview');
-const hasMeta = computed(() => props.session.title && props.session.title !== props.displayName);
+const metaText = computed(() => {
+  const title = props.session.title?.trim();
+  return title && title !== props.displayName ? title : '';
+});
 
 // Column focus helpers
 function colClass(col: number): string {
-  return props.isFocused && props.cardColumn === col ? 'card-col-focused' : '';
+  return props.isFocused && props.focusColumn === col ? 'card-col-focused' : '';
 }
 
 // --- Handlers ---
@@ -131,6 +134,7 @@ defineExpose({ handleButton });
     class="session-card"
     :class="{ active: isActive, focused: isFocused, 'snapped-out': isSnappedOut }"
     :data-session-id="session.id"
+    :data-nav-index="navIndex"
     @click="emit('click', session.id)"
   >
     <!-- Line 1: top row -->
@@ -226,8 +230,8 @@ defineExpose({ handleButton });
     </div>
 
     <!-- Line 3: terminal title meta -->
-    <span v-if="hasMeta" class="session-meta" :title="session.title">
-      {{ session.title }}
+    <span v-if="metaText" class="session-meta" :title="metaText">
+      {{ metaText }}
     </span>
 
     <!-- Line 4: pending schedule chip -->
