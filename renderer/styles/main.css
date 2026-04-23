@@ -224,8 +224,10 @@ button {
 /* Main Content */
 .sidebar-content {
   flex: 1;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   position: relative;
+  min-height: 0;
 }
 
 /* Screens */
@@ -251,7 +253,7 @@ button {
   flex-direction: column;
   padding: 0;
   flex: 1;
-  min-height: 0;
+  overflow: hidden;
 }
 
 .screen--active {
