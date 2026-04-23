@@ -83,11 +83,12 @@ function createMockDraftManager(): DraftManager {
 }
 
 function createMockWindowManager(): WindowManager {
+  const mainWindow = {
+    isDestroyed: vi.fn(() => false),
+    webContents: { send: vi.fn() },
+  };
   return {
-    getMainWindow: vi.fn(() => ({
-      isDestroyed: vi.fn(() => false),
-      webContents: { send: vi.fn() },
-    })),
+    getMainWindow: vi.fn(() => mainWindow),
     getWindowIdForSession: vi.fn(() => undefined),
     getWindow: vi.fn(() => undefined),
     unassignSession: vi.fn(),
@@ -112,6 +113,7 @@ describe('session:close IPC handler', () => {
   let draftManager: ReturnType<typeof createMockDraftManager>;
   let windowManager: ReturnType<typeof createMockWindowManager>;
   let configLoader: ReturnType<typeof createMockConfigLoader>;
+  let mainWindowSend: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     electronMockState.handlers.clear();
@@ -124,6 +126,7 @@ describe('session:close IPC handler', () => {
     ptyManager = createMockPtyManager();
     draftManager = createMockDraftManager();
     windowManager = createMockWindowManager();
+    mainWindowSend = (windowManager.getMainWindow as any)().webContents.send;
     configLoader = createMockConfigLoader();
     setupSessionHandlers(sessionManager, ptyManager, draftManager, windowManager, configLoader);
   }
@@ -216,5 +219,52 @@ describe('session:close IPC handler', () => {
     expect(result).toEqual({ success: true, session: updatedSession });
     expect(childWindow.setTitle).toHaveBeenCalledWith('Renamed - claude-code - demo-app');
     expect(childWindow.webContents.send).toHaveBeenCalledWith('session:updated', updatedSession);
+  });
+
+  it('notifies the main window when an explicit snap-back closes the child window', async () => {
+    setup({
+      'sess-1': { id: 'sess-1', name: 'Test', cliType: 'claude-code', processId: 9999, workingDir: 'C:\\work\\demo-app', windowId: 101 },
+    });
+
+    const snapOutHandler = electronMockState.handlers.get('session:snapOut')!;
+    const snapOutResult = await snapOutHandler({}, 'sess-1');
+    const childWindow = electronMockState.browserWindowInstances[0]!;
+    const closedHandler = childWindow.on.mock.calls.find(([event]: [string]) => event === 'closed')?.[1];
+    childWindow.close.mockImplementation(() => closedHandler?.());
+
+    (windowManager.isSessionSnappedOut as any).mockReturnValue(true);
+    (windowManager.getWindowIdForSession as any).mockReturnValue(snapOutResult.windowId);
+    (windowManager.getWindow as any).mockReturnValue(childWindow);
+    mainWindowSend.mockClear();
+    (sessionManager.updateSession as any).mockClear();
+    (windowManager.unassignSession as any).mockClear();
+    (windowManager.unregisterWindow as any).mockClear();
+
+    const snapBackHandler = electronMockState.handlers.get('session:snapBack')!;
+    const result = await snapBackHandler({}, 'sess-1');
+
+    expect(result).toEqual({ success: true });
+    expect(childWindow.close).toHaveBeenCalled();
+    expect(windowManager.unregisterWindow).toHaveBeenCalledWith(101);
+    expect(windowManager.unassignSession).toHaveBeenCalledWith('sess-1');
+    expect(sessionManager.updateSession).toHaveBeenCalledWith('sess-1', { windowId: undefined });
+    expect(mainWindowSend).toHaveBeenCalledWith('session:snapBack', 'sess-1');
+  });
+
+  it('does not notify the main window when a snapped-out session window closes after the session is gone', async () => {
+    setup({
+      'sess-1': { id: 'sess-1', name: 'Test', cliType: 'claude-code', processId: 9999, workingDir: 'C:\\work\\demo-app', windowId: 101 },
+    });
+
+    const snapOutHandler = electronMockState.handlers.get('session:snapOut')!;
+    await snapOutHandler({}, 'sess-1');
+    const childWindow = electronMockState.browserWindowInstances[0]!;
+    const closedHandler = childWindow.on.mock.calls.find(([event]: [string]) => event === 'closed')?.[1];
+    mainWindowSend.mockClear();
+    (sessionManager.hasSession as any).mockReturnValue(false);
+
+    closedHandler?.();
+
+    expect(mainWindowSend).not.toHaveBeenCalledWith('session:snapBack', 'sess-1');
   });
 });

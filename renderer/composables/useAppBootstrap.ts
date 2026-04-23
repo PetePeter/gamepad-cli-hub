@@ -341,6 +341,30 @@ export function doCloseSession(sessionId: string): void {
   void refreshSessions();
 }
 
+export async function restoreSnappedBackSession(sessionId: string): Promise<void> {
+  state.snappedOutSessions.delete(sessionId);
+
+  try {
+    await refreshSessions();
+  } catch (error) {
+    console.error('[Bootstrap] Failed to refresh sessions after snap-back:', error);
+  }
+
+  const session = state.sessions.find(s => s.id === sessionId);
+  if (!session) {
+    console.warn(`[Bootstrap] Snap-back session ${sessionId} missing after refresh`);
+    return;
+  }
+
+  const tm = getTerminalManager();
+  if (!tm) return;
+
+  if (!tm.has(sessionId)) {
+    tm.adoptTerminal(sessionId, session.cliType, session.workingDir);
+  }
+  tm.switchTo(sessionId);
+}
+
 // ============================================================================
 // IPC Listeners
 // ============================================================================

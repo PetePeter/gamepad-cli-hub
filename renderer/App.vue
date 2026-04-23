@@ -23,7 +23,7 @@ import { processConfigBinding, processConfigRelease, initConfigCache, executeSeq
 import { refreshSessions, doSpawn, switchToSession, doCloseSession,
   bootstrap, teardown, startTimerRefresh, stopTimerRefresh,
   getSortField, getSortDirection, setSortField, setSortDirection,
-  setPendingContextText,
+  setPendingContextText, restoreSnappedBackSession,
 } from './composables/useAppBootstrap.js';
 import { formatElapsed } from '../src/utils/time-parser.js';
 import type { SessionSortField, SortDirection } from './sort-logic.js';
@@ -781,16 +781,7 @@ onMounted(async () => {
       : null;
     unsubSnapBack = window.gamepadCli?.onSnapBack
       ? window.gamepadCli.onSnapBack((sessionId: string) => {
-          state.snappedOutSessions.delete(sessionId);
-          // Re-adopt terminal in main window
-          const session = state.sessions.find(s => s.id === sessionId);
-          if (session) {
-            const tm = getTerminalManager();
-            if (tm && !tm.has(sessionId)) {
-              tm.adoptTerminal(sessionId, session.cliType, session.workingDir);
-              tm.switchTo(sessionId);
-            }
-          }
+          void restoreSnappedBackSession(sessionId);
         })
       : null;
     onViewChange((view: ViewName) => {

@@ -35,8 +35,6 @@ export function setupSessionHandlers(
     return `${session.name} - ${session.cliType} - ${getFolderLabel(session.workingDir)}`;
   };
 
-  const snapBackInProgress = new Set<string>();
-
   const notifyMainWindow = (channel: 'session:snapOut' | 'session:snapBack', sessionId: string): void => {
     const mainWin = windowManager.getMainWindow();
     if (mainWin && !mainWin.isDestroyed()) {
@@ -210,9 +208,8 @@ export function setupSessionHandlers(
           clearTimeout(boundsTimer);
           boundsTimer = null;
         }
-        const notifyMain = !snapBackInProgress.has(sessionId) && sessionManager.hasSession(sessionId);
+        const notifyMain = sessionManager.hasSession(sessionId);
         finalizeSnapBack(sessionId, childWindow.id, notifyMain);
-        snapBackInProgress.delete(sessionId);
       });
 
       logger.info(`[Session] Snapped out session ${sessionId} to window ${childWindow.id}`);
@@ -238,7 +235,6 @@ export function setupSessionHandlers(
       if (windowId !== undefined) {
         const win = windowManager.getWindow(windowId);
         if (win && !win.isDestroyed()) {
-          snapBackInProgress.add(sessionId);
           win.close();
         } else {
           finalizeSnapBack(sessionId, windowId, true);
