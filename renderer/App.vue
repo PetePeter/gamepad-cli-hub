@@ -56,7 +56,7 @@ import { showSequencePicker } from './modals/sequence-picker.js';
 import { showDraftSubmenu } from './modals/draft-submenu.js';
 import { showEditorPopup } from './editor/editor-popup.js';
 import { showDraftEditor } from './drafts/draft-editor.js';
-import { deliverBulkText } from './paste-handler.js';
+import { deliverBulkText, deliverViaClipboardPaste } from './paste-handler.js';
 
 // Sidebar components
 import StatusStrip from './components/sidebar/StatusStrip.vue';
@@ -737,7 +737,9 @@ onMounted(async () => {
   try {
     offTextDeliver = window.gamepadCli.onTextDeliverRequest(async ({ requestId, sessionId, text }) => {
       try {
-        await deliverBulkText(sessionId, text);
+        // Use clipboard+Ctrl+V for app-initiated pastes (pattern-matcher, initial-prompt)
+        // This ensures reliable delivery to Ink-based form inputs (e.g., Copilot question tool)
+        await deliverViaClipboardPaste(text);
         await window.gamepadCli.textDeliverResponse(requestId, true);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

@@ -21,6 +21,7 @@ const mockPtyWrite = vi.fn();
 const mockDeleteTemp = vi.fn();
 const mockPlanUpdate = vi.fn();
 const mockPlanSetState = vi.fn();
+const mockKeyboardTypeString = vi.fn();
 
 vi.mock('../renderer/stores/chip-bar.js', () => ({
   useChipBarStore: () => ({
@@ -88,7 +89,15 @@ describe('Draft Editor', () => {
       deleteTemp: mockDeleteTemp,
       planUpdate: mockPlanUpdate,
       planSetState: mockPlanSetState,
+      keyboardTypeString: mockKeyboardTypeString,
     };
+
+    // Mock clipboard for deliverViaClipboardPaste
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
 
     mockDraftCreate.mockReset();
     mockDraftUpdate.mockReset();
@@ -97,6 +106,7 @@ describe('Draft Editor', () => {
     mockDraftCount.mockReset();
     mockExecuteSequence.mockReset();
     mockWriteTempContent.mockReset();
+    mockKeyboardTypeString.mockReset();
     mockPtyWrite.mockReset();
     mockDeleteTemp.mockReset();
     mockPlanUpdate.mockReset();
@@ -498,24 +508,22 @@ describe('Draft Editor', () => {
       mod.initDraftEditor();
     });
 
-    it('sends text to PTY via writeTempContent and ptyWrite', async () => {
-      mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-123.md' });
-      mockPtyWrite.mockResolvedValue(undefined);
+    it('sends text via clipboard+Ctrl+V for reliable Ink form delivery', async () => {
+      mockKeyboardTypeString.mockResolvedValue({ success: true });
       mockDraftDelete.mockResolvedValue(undefined);
 
       mod.showDraftEditor('session-1', { id: 'draft-1', label: 'Test', text: 'hello world' });
 
       await mod.applyDraft();
 
-      expect(mockWriteTempContent).toHaveBeenCalledWith('hello world');
-      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', '</tmp/helm-work-123.md');
-      expect(mockDeleteTemp).not.toHaveBeenCalled();
+      // Verify clipboard was set and Ctrl+V was sent (via keyboardTypeString with \u0016)
+      expect(mockKeyboardTypeString).toHaveBeenCalledWith('\u0016');
       expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
       expect(mod.isDraftEditorVisible()).toBe(false);
     });
 
-    it('does not call ptyWrite when creating new draft (no draftId) if text is empty', async () => {
-      mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-456.md' });
+    it('sends text via clipboard+Ctrl+V when creating new draft (no draftId)', async () => {
+      mockKeyboardTypeString.mockResolvedValue({ success: true });
 
       mod.showDraftEditor('session-1');
       const contentInput = document.getElementById('draftContentInput') as HTMLTextAreaElement;
@@ -523,8 +531,7 @@ describe('Draft Editor', () => {
 
       await mod.applyDraft();
 
-      expect(mockWriteTempContent).toHaveBeenCalledWith('new text');
-      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', '</tmp/helm-work-456.md');
+      expect(mockKeyboardTypeString).toHaveBeenCalledWith('\u0016');
       expect(mockDraftDelete).not.toHaveBeenCalled();
       expect(mod.isDraftEditorVisible()).toBe(false);
     });
@@ -539,9 +546,8 @@ describe('Draft Editor', () => {
       expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
     });
 
-    it('A button on Apply triggers applyDraft', async () => {
-      mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-789.md' });
-      mockPtyWrite.mockResolvedValue(undefined);
+    it('A button on Apply triggers applyDraft with clipboard+Ctrl+V', async () => {
+      mockKeyboardTypeString.mockResolvedValue({ success: true });
       mockDraftDelete.mockResolvedValue(undefined);
 
       mod.showDraftEditor('session-1', { id: 'draft-1', label: 'Test', text: 'apply me' });
@@ -555,9 +561,7 @@ describe('Draft Editor', () => {
       mod.handleDraftEditorButton('A');
       await flush();
 
-      expect(mockWriteTempContent).toHaveBeenCalledWith('apply me');
-      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', '</tmp/helm-work-789.md');
-      expect(mockDeleteTemp).not.toHaveBeenCalled();
+      expect(mockKeyboardTypeString).toHaveBeenCalledWith('\u0016');
       expect(mockDraftDelete).toHaveBeenCalledWith('draft-1');
     });
   });

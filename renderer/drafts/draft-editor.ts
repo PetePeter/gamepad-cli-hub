@@ -12,7 +12,7 @@
 import { showPlanDeleteConfirm } from '../modals/plan-delete-confirm.js';
 import { toDirection, logEvent } from '../utils.js';
 import type { PlanStatus } from '../../src/types/plan.js';
-import { deliverBulkText } from '../paste-handler.js';
+import { deliverBulkText, deliverViaClipboardPaste } from '../paste-handler.js';
 
 // ---------------------------------------------------------------------------
 // Types & state
@@ -450,16 +450,8 @@ export async function applyDraft(): Promise<void> {
 
   if (text && sessId) {
     try {
-      // Write content to temp file for draft apply
-      const result = await window.gamepadCli?.writeTempContent(text);
-      if (!result?.success) {
-        console.error('[Editor] Failed to write temp file:', result?.error);
-        return;
-      }
-
-      const filePath = result.path;
-      // Route through the active CLI's configured bulk-text path.
-      await deliverBulkText(sessId, `<${filePath}`);
+      // Use clipboard+Ctrl+V for reliable app-initiated paste (works with Ink forms)
+      await deliverViaClipboardPaste(text);
     } catch (err) {
       console.error('[Editor] Failed to apply draft:', err);
     }

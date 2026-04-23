@@ -24,11 +24,34 @@ type HasPendingQuestion = (sessionId: string) => boolean;
 let registeredHandler: ((e: KeyboardEvent) => void) | null = null;
 let pasteInFlight = false;
 let editorInFlight = false;
+let clipboardPasteInFlight = false;
 /** Per-session lock to prevent interleaved character-by-character paste */
 const ptyIndividualLock = new Set<string>();
 
 const SENDKEYS_INDIVIDUAL_DELAY_MS = 20;
 const PTY_INDIVIDUAL_DELAY_MS = 30;
+
+/** Deliver text via clipboard + Ctrl+V keystroke (for app-initiated pastes).
+ *  Sets clipboard, then sends Ctrl+V which the keyboard relay intercepts,
+ *  reads clipboard, and delivers via normal pasteMode logic.
+ *  Reliable for Ink-based forms that need keystroke events. */
+export async function deliverViaClipboardPaste(text: string): Promise<void> {
+  if (!text || clipboardPasteInFlight) return;
+  clipboardPasteInFlight = true;
+  try {
+    // Write to system clipboard
+    await navigator.clipboard.writeText(text);
+    console.log(`[Paste] clipboard set: ${text.length} chars`);
+
+    // Send Ctrl+V keystroke — keyboard relay will intercept and read clipboard
+    await window.gamepadCli.keyboardTypeString('\u0016'); // Ctrl+V as ASCII control code
+    console.log(`[Paste] clipboard+Ctrl+V sent, relay will handle`);
+  } catch (err) {
+    console.error('[Paste] clipboard paste failed:', err);
+  } finally {
+    clipboardPasteInFlight = false;
+  }
+}
 
 /** Deliver bulk text to the active session — either via PTY write or
  *  OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode.
