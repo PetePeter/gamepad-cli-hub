@@ -978,7 +978,7 @@ export class ConfigLoader {
     }
     const tool: CliTypeConfig = { name, command, initialPrompt: initialPrompt ?? [], initialPromptDelay: initialPromptDelay ?? 0 };
     if (options?.args) tool.args = options.args;
-    if (options?.env?.length) tool.env = options.env;
+    if (options?.env !== undefined && options.env.length > 0) tool.env = options.env;
     if (options?.handoffCommand) tool.handoffCommand = options.handoffCommand;
     if (options?.renameCommand) tool.renameCommand = options.renameCommand;
     if (options?.spawnCommand) tool.spawnCommand = options.spawnCommand;

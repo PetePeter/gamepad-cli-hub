@@ -57,7 +57,8 @@ const emit = defineEmits<{
 const name = ref('');
 const command = ref('');
 const args = ref('');
-const envItems = ref<Array<{ name: string; value: string }>>([]);
+type EnvItem = { id: number; name: string; value: string };
+const envItems = ref<EnvItem[]>([]);
 const initialPromptDelay = ref(2000);
 const pasteMode = ref<'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'>('pty');
 const spawnCommand = ref('');
@@ -76,6 +77,7 @@ const syntaxHelpExpanded = ref(false);
 const syntaxHelpText = getSequenceSyntaxHelpText();
 const overlayRef = ref<HTMLElement | null>(null);
 const { onKeydown } = useFocusTrap(overlayRef);
+let nextEnvId = 1;
 
 /* ── Modal title ────────────────────────────────────────────────────────── */
 
@@ -114,6 +116,7 @@ function initForm(): void {
   args.value = d.args ?? '';
   envItems.value = Array.isArray(d.env)
     ? d.env.map(item => ({
+        id: nextEnvId++,
         name: typeof item?.name === 'string' ? item.name : '',
         value: typeof item?.value === 'string' ? item.value : '',
       }))
@@ -144,7 +147,7 @@ function removePromptItem(index: number): void {
 }
 
 function addEnvItem(): void {
-  envItems.value.push({ name: '', value: '' });
+  envItems.value.push({ id: nextEnvId++, name: '', value: '' });
 }
 
 function removeEnvItem(index: number): void {
@@ -240,7 +243,7 @@ defineExpose({ handleButton });
             <div class="te-env-list">
               <div
                 v-for="(item, idx) in envItems"
-                :key="idx"
+                :key="item.id"
                 class="te-env-item te-grid-2col"
               >
                 <input
@@ -254,10 +257,10 @@ defineExpose({ handleButton });
                 <div class="te-env-value-row">
                   <input
                     :id="`te-env-value-${idx}`"
-                    type="text"
-                    class="te-input te-input--mono"
-                    placeholder="Value"
-                    :value="item.value"
+                  type="text"
+                  class="te-input te-input--mono"
+                  placeholder="Value or env ref like %AZURE_API_KEY% or ${AZURE_API_KEY}"
+                  :value="item.value"
                     @input="item.value = ($event.target as HTMLInputElement).value"
                   />
                   <button

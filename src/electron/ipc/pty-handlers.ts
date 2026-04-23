@@ -55,12 +55,18 @@ function resolveToolEnv(
     const env = Object.fromEntries(
       envEntries
         .filter(entry => typeof entry?.name === 'string' && entry.name.trim().length > 0)
-        .map(entry => [entry.name.trim(), typeof entry?.value === 'string' ? entry.value : '']),
+        .map(entry => [entry.name.trim(), resolveEnvValue(typeof entry?.value === 'string' ? entry.value : '')]),
     );
     return Object.keys(env).length > 0 ? env : undefined;
   } catch {
     return undefined;
   }
+}
+
+function resolveEnvValue(value: string): string {
+  return value
+    .replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_match, name: string) => process.env[name] ?? '')
+    .replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (_match, name: string) => process.env[name] ?? '');
 }
 
 export function setupPtyHandlers(

@@ -66,10 +66,18 @@ describe('pty:spawn resume logic', () => {
   let sessionManager: Record<string, any>;
   let configLoader: Record<string, any>;
   let sessions: Map<string, any>;
+  const originalEnv = {
+    AZURE_API_BASE: process.env.AZURE_API_BASE,
+    AZURE_API_KEY: process.env.AZURE_API_KEY,
+    AZURE_API_VERSION: process.env.AZURE_API_VERSION,
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
     handlers.clear();
+    process.env.AZURE_API_BASE = originalEnv.AZURE_API_BASE;
+    process.env.AZURE_API_KEY = originalEnv.AZURE_API_KEY;
+    process.env.AZURE_API_VERSION = originalEnv.AZURE_API_VERSION;
 
     ptyManager = new MockPtyManager();
     sessions = new Map();
@@ -293,6 +301,36 @@ describe('pty:spawn resume logic', () => {
           COPILOT_PROVIDER_TYPE: 'openai',
           COPILOT_PROVIDER_BASE_URL: 'http://192.168.56.1:1234',
           COPILOT_MODEL: 'qwen/qwen3.6-35b-a3b',
+        },
+      }),
+    );
+  });
+
+  it('resolves environment variable references before PTY spawn', async () => {
+    process.env.AZURE_API_BASE = 'https://example.azure.com/';
+    process.env.AZURE_API_KEY = 'secret-key';
+    process.env.AZURE_API_VERSION = '2024-12-01-preview';
+    configLoader.getCliTypeEntry.mockReturnValue({
+      name: 'Azure Copilot',
+      command: 'copilot',
+      env: [
+        { name: 'COPILOT_PROVIDER_TYPE', value: 'azure' },
+        { name: 'COPILOT_PROVIDER_BASE_URL', value: '%AZURE_API_BASE%' },
+        { name: 'COPILOT_PROVIDER_API_KEY', value: '${AZURE_API_KEY}' },
+        { name: 'COPILOT_PROVIDER_AZURE_API_VERSION', value: '%AZURE_API_VERSION%' },
+      ],
+    } as CliTypeConfig);
+
+    const handler = handlers.get('pty:spawn')!;
+    await handler({}, 'sid-1', 'copilot', [], '/work', 'azure-copilot');
+
+    expect(ptyManager.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: {
+          COPILOT_PROVIDER_TYPE: 'azure',
+          COPILOT_PROVIDER_BASE_URL: 'https://example.azure.com/',
+          COPILOT_PROVIDER_API_KEY: 'secret-key',
+          COPILOT_PROVIDER_AZURE_API_VERSION: '2024-12-01-preview',
         },
       }),
     );
