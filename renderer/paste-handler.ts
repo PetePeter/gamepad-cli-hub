@@ -14,6 +14,10 @@ import { showEditorPopup } from './editor/editor-popup.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
 
+function nextFrame(): Promise<void> {
+  return new Promise(resolve => requestAnimationFrame(() => resolve()));
+}
+
 type GetActiveSessionId = () => string | null;
 type HasPendingQuestion = (sessionId: string) => boolean;
 
@@ -66,16 +70,31 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
     return;
   }
 
-  const tm = getTerminalManager();
-  const view = tm?.getSession?.(sessionId)?.view;
-
-  // Clippaste mode keeps the terminal focused like a Ctrl+V paste, but the app
-  // still owns delivery by writing the bulk payload through the PTY path.
+  // Clippaste mode — route through xterm.js paste handling
   if (tool?.pasteMode === 'clippaste') {
-    view?.focus();
+    const tm = getTerminalManager();
+    const termSession = tm?.getSession?.(sessionId);
+
+    if (!termSession) {
+      console.warn(`[Paste] clippaste: session not found or terminal manager unavailable`);
+      return;
+    }
+
+    // Focus first so xterm's hidden textarea is the active terminal input sink.
+    termSession.view.focus();
+    // Wait for next paint cycle(s) — allows modal overlays time to exit,
+    // but does not guarantee completion of CSS transitions or async dismissals.
+    // This is a best-effort heuristic, not a timing guarantee.
+    await nextFrame();
+    await nextFrame();
+    termSession.view.paste(text);
+    console.log(`[Paste] clippaste complete: ${text.length} chars pasted via xterm`);
+    return;
   }
 
-  // PTY/clippaste mode — wrap in bracketed paste markers if the terminal requests it
+  // PTY mode — wrap in bracketed paste markers if the terminal requests it
+  const tm = getTerminalManager();
+  const view = tm?.getSession?.(sessionId)?.view;
   const bracketedPasteEnabled = typeof view?.isBracketedPasteEnabled === 'function'
     ? view.isBracketedPasteEnabled()
     : false;

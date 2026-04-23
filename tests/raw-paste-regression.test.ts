@@ -124,10 +124,13 @@ describe('deliverBulkText preserves literal text in ptyindividual mode', () => {
 describe('deliverBulkText preserves literal text in clippaste mode', () => {
   let mockPtyWrite: ReturnType<typeof vi.fn>;
   let mockFocus: ReturnType<typeof vi.fn>;
+  let mockPaste: ReturnType<typeof vi.fn>;
+  let restoreRequestAnimationFrame: (() => void) | null = null;
 
   beforeEach(() => {
     mockPtyWrite = vi.fn().mockResolvedValue({ success: true });
     mockFocus = vi.fn();
+    mockPaste = vi.fn();
     (window as any).gamepadCli = { ptyWrite: mockPtyWrite };
     mockState.sessions = [{ id: 'sess-1', cliType: 'claude-code' }];
     mockState.cliToolsCache = { 'claude-code': { pasteMode: 'clippaste' } };
@@ -135,17 +138,35 @@ describe('deliverBulkText preserves literal text in clippaste mode', () => {
       getSession: (id: string) => ({
         view: {
           focus: mockFocus,
+          paste: mockPaste,
           isBracketedPasteEnabled: () => false,
         },
       }),
     });
+
+    // Polyfill requestAnimationFrame for jsdom (used by nextFrame() in paste-handler)
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      callback(0);
+      return 1;
+    }) as typeof requestAnimationFrame;
+    restoreRequestAnimationFrame = () => {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+    };
   });
 
-  it('sends literal text through the PTY-owned clippaste path', async () => {
+  afterEach(() => {
+    restoreRequestAnimationFrame?.();
+    restoreRequestAnimationFrame = null;
+    vi.restoreAllMocks();
+  });
+
+  it('sends literal text through xterm paste', async () => {
     await deliverBulkText('sess-1', 'hello{Enter}');
 
     expect(mockFocus).toHaveBeenCalled();
-    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello{Enter}');
+    expect(mockPaste).toHaveBeenCalledWith('hello{Enter}');
+    expect(mockPtyWrite).not.toHaveBeenCalled();
   });
 });
 
