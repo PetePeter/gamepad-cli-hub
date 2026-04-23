@@ -123,9 +123,6 @@ const bindingEditorBinding = ref<any>(null);
 const spawnCollapsed = ref(false);
 const plannerCollapsed = ref(false);
 
-// Rename state
-const editingSessionId = ref<string | null>(null);
-
 // Panel resize
 const { splitterRef, panelRef } = usePanelResize({
   onResized: () => { getTerminalManager()?.fitActive(); },
@@ -303,11 +300,11 @@ async function onSessionClick(sessionId: string): Promise<void> {
 }
 
 function onSessionRename(sessionId: string): void {
-  editingSessionId.value = sessionId;
+  sessionsState.editingSessionId = sessionId;
 }
 
 function onCommitRename(sessionId: string, newName: string): void {
-  editingSessionId.value = null;
+  sessionsState.editingSessionId = null;
   const tm = getTerminalManager();
   if (tm) tm.renameSession(sessionId, newName);
   window.gamepadCli?.sessionRename(sessionId, newName);
@@ -315,7 +312,14 @@ function onCommitRename(sessionId: string, newName: string): void {
 }
 
 function onCancelRename(): void {
-  editingSessionId.value = null;
+  sessionsState.editingSessionId = null;
+}
+
+function handleRenameRequest(e: Event): void {
+  const detail = (e as CustomEvent).detail as { sessionId: string } | undefined;
+  if (detail?.sessionId) {
+    onSessionRename(detail.sessionId);
+  }
 }
 
 function onRequestClose(sessionId: string, displayName: string): void {
@@ -781,6 +785,9 @@ onMounted(async () => {
     // Keyboard → modal stack bridge (all navigation keys reach modals via unified path)
     window.addEventListener('keydown', handleModalKeyboardBridge, true);
 
+    // Ctrl+Shift+R → inline rename request from paste-handler
+    window.addEventListener('rename-session-request', handleRenameRequest);
+
     // Snap-out / snap-back IPC listeners
     unsubSnapOut = window.gamepadCli?.onSnapOut
       ? window.gamepadCli.onSnapOut((sessionId: string) => {
@@ -813,6 +820,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleModalKeyboardBridge, true);
+  window.removeEventListener('rename-session-request', handleRenameRequest);
   offTextDeliver?.();
   offTextDeliver = null;
   unsubSnapOut?.();
@@ -908,7 +916,7 @@ onUnmounted(() => {
                     && sessionsState.navList[sessionsState.sessionsFocusIndex]?.type === 'session-card'
                     && sessionsState.navList[sessionsState.sessionsFocusIndex]?.id === session.id"
                   :card-column="sessionsState.cardColumn"
-                  :is-editing="editingSessionId === session.id"
+                  :is-editing="sessionsState.editingSessionId === session.id"
                   :is-hidden-from-overview="isSessionHiddenFromOverview(session, sessionsState.groupPrefs)"
                   :scheduled-at="state.pendingSchedules.get(session.id) ?? null"
                   :is-snapped-out="state.snappedOutSessions.has(session.id)"

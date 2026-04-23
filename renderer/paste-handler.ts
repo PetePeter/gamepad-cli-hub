@@ -11,7 +11,6 @@
 import { keyToPtyEscape, comboToPtyEscape } from './bindings.js';
 import { isDraftEditorVisible } from './drafts/draft-editor.js';
 import { showEditorPopup } from './editor/editor-popup.js';
-import { showSessionRenameModal } from './modals/session-rename-modal.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
 
@@ -157,13 +156,15 @@ export function setupKeyboardRelay(
     const sessionId = getActiveSessionId();
     if (!sessionId) return;
 
-    // Ctrl+Shift+R — rename active session (allow even when modals visible)
+    // Ctrl+Shift+R — rename active session inline (allow even when modals visible)
     if (e.ctrlKey && e.shiftKey && e.key === 'R') {
       e.preventDefault();
       e.stopPropagation();
       const session = state.sessions.find(s => s.id === sessionId);
       if (session) {
-        showSessionRenameModal(sessionId, session.name);
+        window.dispatchEvent(new CustomEvent('rename-session-request', {
+          detail: { sessionId },
+        }));
       }
       return;
     }
