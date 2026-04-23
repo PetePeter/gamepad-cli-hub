@@ -461,11 +461,19 @@ button {
 
 
 /* Session Cards (sidebar vertical list) */
+.sessions-list-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: var(--spacing-xs);
+  gap: 6px;
+}
+
 .sessions-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--spacing-xs);
   overflow-y: auto;
   flex: 1;
   min-height: 0;
@@ -489,6 +497,7 @@ button {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
+  min-height: 52px;
   cursor: pointer;
   border-radius: var(--radius-md, 8px);
   border: 1px solid transparent;
@@ -569,7 +578,7 @@ button {
   flex-direction: column;
   gap: 4px;
   padding: 8px 12px;
-  min-height: 64px;
+  min-height: 94px;
   border-radius: var(--radius-md, 8px);
   border: 1px solid transparent;
   cursor: pointer;

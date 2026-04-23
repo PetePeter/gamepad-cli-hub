@@ -16,6 +16,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 const mockSessionGetAll = vi.fn<() => Promise<any[]>>().mockResolvedValue([]);
 const mockSessionSetActive = vi.fn().mockResolvedValue(undefined);
 const mockSessionClose = vi.fn().mockResolvedValue({ success: true });
+const mockSessionSetState = vi.fn().mockResolvedValue(undefined);
 const mockConfigGetCliTypes = vi.fn<() => Promise<string[]>>().mockResolvedValue([]);
 const mockConfigGetWorkingDirs = vi.fn<() => Promise<any[]>>().mockResolvedValue([]);
 const mockConfigGetSpawnCommand = vi.fn().mockResolvedValue({ command: 'claude', args: [] });
@@ -209,6 +210,7 @@ describe('Sessions Screen', () => {
       sessionGetAll: mockSessionGetAll,
       sessionSetActive: mockSessionSetActive,
       sessionClose: mockSessionClose,
+      sessionSetState: mockSessionSetState,
       sessionRename: vi.fn().mockResolvedValue({ success: true }),
       configGetCliTypes: mockConfigGetCliTypes,
       configGetWorkingDirs: mockConfigGetWorkingDirs,
@@ -1418,6 +1420,46 @@ describe('Sessions Screen', () => {
       expect(sessionsState.editingSessionId).toBe('s-0');
     });
 
+    it('A at col=1 opens the state dropdown for the focused rendered card', () => {
+      const card = document.createElement('div');
+      card.className = 'session-card';
+      card.dataset.sessionId = 's-0';
+      const stateBtn = document.createElement('button');
+      stateBtn.className = 'session-state-btn';
+      card.appendChild(stateBtn);
+      document.body.appendChild(card);
+
+      sessionsState.cardColumn = 1;
+      const result = sessions.handleSessionsScreenButton('A');
+
+      expect(result).toBe(true);
+      expect(document.querySelector('.session-state-dropdown')).toBeTruthy();
+      card.remove();
+      document.querySelector('.session-state-dropdown')?.remove();
+    });
+
+    it('A in the state dropdown selects the focused option', async () => {
+      const dropdown = document.createElement('div');
+      dropdown.className = 'session-state-dropdown';
+      const idle = document.createElement('button');
+      idle.className = 'session-state-option active';
+      idle.textContent = 'Idle';
+      const planning = document.createElement('button');
+      planning.className = 'session-state-option dropdown-focused';
+      planning.textContent = 'Planning';
+      const onPlanningClick = vi.fn();
+      planning.addEventListener('click', onPlanningClick);
+      dropdown.append(idle, planning);
+      document.body.appendChild(dropdown);
+
+      const result = sessions.handleSessionsScreenButton('A');
+
+      expect(result).toBe(true);
+      await flush();
+      expect(onPlanningClick).toHaveBeenCalled();
+      dropdown.remove();
+    });
+
     it('A on the eye toggle persists overviewHidden changes', async () => {
       mockSessionGetAll.mockResolvedValueOnce([{ ...makeSessions(1)[0], cliSessionName: 'cli-0' }]);
       sessionsState.sessionsFocusIndex = 2;
@@ -1469,14 +1511,22 @@ describe('Sessions Screen', () => {
       sessionsState.sessionsFocusIndex = 2; // first session card (after overview + group header)
     });
 
-    function enterRenameMode(): HTMLInputElement {
+    function enterRenameMode(renderInsideCard = false): HTMLInputElement {
       sessionsState.editingSessionId = 's-0';
       // Create the input manually since renderSessions is mocked downstream
       const input = document.createElement('input');
       input.className = 'session-rename-input';
       input.type = 'text';
       input.value = 'Alpha';
-      document.body.appendChild(input);
+      if (renderInsideCard) {
+        const card = document.createElement('div');
+        card.className = 'session-card';
+        card.dataset.sessionId = 's-0';
+        card.appendChild(input);
+        document.body.appendChild(card);
+      } else {
+        document.body.appendChild(input);
+      }
       return input;
     }
 
@@ -1488,6 +1538,16 @@ describe('Sessions Screen', () => {
       await flush();
       expect((window as any).gamepadCli.sessionRename).toHaveBeenCalledWith('s-0', 'NewName');
       input.remove();
+    });
+
+    it('A button commits rename from the inline editing row', async () => {
+      const input = enterRenameMode(true);
+      input.value = 'InlineName';
+      const result = sessions.handleSessionsScreenButton('A');
+      expect(result).toBe(true);
+      await flush();
+      expect((window as any).gamepadCli.sessionRename).toHaveBeenCalledWith('s-0', 'InlineName');
+      input.closest('.session-card')?.remove();
     });
 
     it('B button cancels rename when editing', () => {
@@ -1536,6 +1596,51 @@ describe('Sessions Screen', () => {
       input.remove();
     });
 
+  });
+
+  describe('updateSessionsFocus', () => {
+    it('scrolls the focused rendered session item into view without mutating focus classes', () => {
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+
+      const list = document.getElementById('sessionsList')!;
+      list.innerHTML = `
+        <div class="group-header" data-nav-index="1"></div>
+        <div class="session-card" data-nav-index="2">
+          <button class="session-state-btn"></button>
+          <button class="session-rename"></button>
+          <button class="session-overview-toggle"></button>
+          <button class="session-close"></button>
+        </div>
+      `;
+
+      sessionsState.activeFocus = 'sessions';
+      sessionsState.sessionsFocusIndex = 2;
+      sessionsState.cardColumn = 4;
+
+      sessions.updateSessionsFocus();
+
+      const card = list.querySelector('.session-card') as HTMLElement;
+      const closeBtn = list.querySelector('.session-close') as HTMLElement;
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+      expect(card.classList.contains('focused')).toBe(false);
+      expect(closeBtn.classList.contains('card-col-focused')).toBe(false);
+    });
+
+    it('does not scroll when sessions are not the active focus zone', () => {
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+
+      const list = document.getElementById('sessionsList')!;
+      list.innerHTML = `<div class="session-card" data-nav-index="2"></div>`;
+
+      sessionsState.activeFocus = 'spawn';
+      sessionsState.sessionsFocusIndex = 2;
+
+      sessions.updateSessionsFocus();
+
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    });
   });
 
 });

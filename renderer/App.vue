@@ -30,7 +30,7 @@ import type { SessionSortField, SortDirection } from './sort-logic.js';
 import { findNavIndexBySessionId, toggleCollapse, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
 import { showOverview, handleOverviewInput } from './screens/group-overview.js';
 import { showPlanScreen, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction, refreshCanvasIfVisible } from './plans/plan-screen.js';
-import { handleSessionsScreenButton, toggleSessionOverviewVisibility } from './screens/sessions.js';
+import { handleSessionsScreenButton, toggleSessionOverviewVisibility, setSessionState } from './screens/sessions.js';
 import { usePanelResize } from './composables/usePanelResize.js';
 import { setSpawnCollapsed, setPlannerCollapsed } from './sidebar/section-collapse.js';
 import { setDirPickerBridge } from './screens/sessions-spawn.js';
@@ -57,6 +57,7 @@ import { showDraftSubmenu } from './modals/draft-submenu.js';
 import { showEditorPopup } from './editor/editor-popup.js';
 import { showDraftEditor } from './drafts/draft-editor.js';
 import { deliverBulkText, deliverViaClipboardPaste } from './paste-handler.js';
+import { startRename, commitRename, cancelRename } from './screens/sessions-render.js';
 
 // Sidebar components
 import StatusStrip from './components/sidebar/StatusStrip.vue';
@@ -299,19 +300,15 @@ async function onSessionClick(sessionId: string): Promise<void> {
 }
 
 function onSessionRename(sessionId: string): void {
-  sessionsState.editingSessionId = sessionId;
+  startRename(sessionId);
 }
 
-function onCommitRename(sessionId: string, newName: string): void {
-  sessionsState.editingSessionId = null;
-  const tm = getTerminalManager();
-  if (tm) tm.renameSession(sessionId, newName);
-  window.gamepadCli?.sessionRename(sessionId, newName);
-  void refreshSessions();
+async function onCommitRename(sessionId: string, newName: string): Promise<void> {
+  await commitRename(sessionId, newName);
 }
 
 function onCancelRename(): void {
-  sessionsState.editingSessionId = null;
+  cancelRename();
 }
 
 function handleRenameRequest(e: Event): void {
@@ -338,9 +335,8 @@ function onConfirmClose(): void {
   }
 }
 
-function onSessionStateChange(sessionId: string, newState: string): void {
-  window.gamepadCli?.sessionSetState(sessionId, newState);
-  state.sessionStates.set(sessionId, newState);
+async function onSessionStateChange(sessionId: string, newState: string): Promise<void> {
+  await setSessionState(sessionId, newState);
 }
 
 // Group actions

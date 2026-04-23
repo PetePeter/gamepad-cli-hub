@@ -116,11 +116,39 @@ export function getSessionState(sessionId: string): string {
   return sessionStates.get(sessionId) || 'idle';
 }
 
-export function setSessionState(sessionId: string, newState: string): void {
-  const previous = sessionStates.get(sessionId);
+export async function setSessionState(sessionId: string, newState: string): Promise<void> {
+  const previous = sessionStates.get(sessionId) ?? state.sessionStates.get(sessionId) ?? 'idle';
   if (previous === newState) return;
-  sessionStates.set(sessionId, newState);
-  loadSessions();
+
+  try {
+    if (!window.gamepadCli?.sessionSetState) return;
+    const result = await window.gamepadCli.sessionSetState(sessionId, newState);
+    if (result?.success === false) {
+      logEvent(`State change failed: ${result.error}`);
+      return;
+    }
+
+    sessionStates.set(sessionId, newState);
+    state.sessionStates.set(sessionId, newState);
+
+    const session = state.sessions.find(item => item.id === sessionId);
+    if (session) {
+      (session as any).state = newState;
+    }
+
+    if (sessionsSortField === 'state') {
+      await loadSessionsData();
+    }
+
+    if (isOverviewVisible()) {
+      refreshOverview();
+    }
+
+    updateSessionsFocus();
+  } catch (error) {
+    console.error('[Sessions] Failed to set session state:', error);
+    logEvent('State change failed');
+  }
 }
 
 export function removeSessionState(sessionId: string): void {
@@ -333,6 +361,23 @@ function confirmCloseSessionById(sessionId: string): void {
   showCloseConfirm(session.id, displayName, doCloseSession, getDraftCountCache(session.id));
 }
 
+function getFocusedRenderedSessionCard(): HTMLElement | null {
+  const navItem = sessionsState.navList[sessionsState.sessionsFocusIndex];
+  if (!navItem || navItem.type !== 'session-card') return null;
+  return document.querySelector(`.session-card[data-session-id="${navItem.id}"]`) as HTMLElement | null;
+}
+
+function getEditingRenameInput(): HTMLInputElement | null {
+  if (sessionsState.editingSessionId) {
+    const editingCard = document.querySelector(
+      `.session-card[data-session-id="${sessionsState.editingSessionId}"]`
+    ) as HTMLElement | null;
+    const editingInput = editingCard?.querySelector('.session-rename-input') as HTMLInputElement | null;
+    if (editingInput) return editingInput;
+  }
+  return document.querySelector('.session-rename-input') as HTMLInputElement | null;
+}
+
 function startRenameForFocused(): void {
   const session = getSessionAtFocus();
   if (!session) return;
@@ -463,7 +508,7 @@ export function handleSessionsScreenButton(button: string): boolean {
 
   // Rename mode intercepts all input
   if (sessionsState.editingSessionId) {
-    const input = document.querySelector('.session-rename-input') as HTMLInputElement;
+    const input = getEditingRenameInput();
     if (button === 'A') {
       if (input) commitRename(sessionsState.editingSessionId, input.value);
       return true;
@@ -622,7 +667,8 @@ export async function loadSessionsData(): Promise<void> {
 function openStateDropdownForFocused(): void {
   const session = getSessionAtFocus();
   if (!session) return;
-  const card = document.querySelector(`.session-card[data-session-id="${session.id}"]`);
+  const card = getFocusedRenderedSessionCard()
+    ?? document.querySelector(`.session-card[data-session-id="${session.id}"]`);
   const stateBtn = card?.querySelector('.session-state-btn') as HTMLElement;
   if (!stateBtn) return;
   const currentState = getSessionState(session.id);
@@ -731,34 +777,12 @@ function handleSessionsZoneButton(button: string): boolean {
 export function updateSessionsFocus(): void {
   const list = document.getElementById('sessionsList');
   if (!list) return;
-  // DOM walks navList order: a mix of .group-header and .session-card, each
-  // carrying its nav index via dataset.navIndex. Focus styling applies
-  // uniformly across both kinds.
-  const items = Array.from(list.children) as HTMLElement[];
-  items.forEach(el => {
-    if (!el.classList.contains('session-card') && !el.classList.contains('group-header')) {
-      el.classList.remove('focused');
-      return;
-    }
-    const idxStr = el.dataset.navIndex;
-    const idx = idxStr !== undefined ? Number(idxStr) : -1;
-    const isFocused = idx === sessionsState.sessionsFocusIndex && sessionsState.activeFocus === 'sessions';
-    el.classList.toggle('focused', isFocused);
-
-    if (el.classList.contains('session-card')) {
-      const stateBtn = el.querySelector('.session-state-btn');
-      const renameBtn = el.querySelector('.session-rename');
-      const eyeBtn = el.querySelector('.session-overview-toggle');
-      const closeBtn = el.querySelector('.session-close');
-      if (stateBtn) stateBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 1);
-      if (renameBtn) renameBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 2);
-      if (eyeBtn) eyeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 3);
-      if (closeBtn) closeBtn.classList.toggle('card-col-focused', isFocused && sessionsState.cardColumn === 4);
-    } else if (el.classList.contains('group-header')) {
-      // No sub-buttons on group headers
-    }
-  });
-  const focused = items.find(el => el.classList.contains('focused'));
+  // Vue owns the visual focused/card-column classes; this helper only keeps the
+  // currently focused rendered row visible as navigation state changes.
+  if (sessionsState.activeFocus !== 'sessions') return;
+  const focused = list.querySelector<HTMLElement>(
+    `[data-nav-index="${sessionsState.sessionsFocusIndex}"]`,
+  );
   focused?.scrollIntoView({ block: 'nearest' });
 }
 
