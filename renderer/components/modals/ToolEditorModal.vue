@@ -240,6 +240,12 @@ defineExpose({ handleButton });
 
           <fieldset class="te-section">
             <legend class="te-section__legend">Environment Variables</legend>
+            <p class="te-section__hint">
+              Set a literal value or reference an existing host environment variable.
+              Examples: <code>COPILOT_MODEL = gpt-5.1-chat</code>,
+              <code>COPILOT_PROVIDER_API_KEY = %AZURE_API_KEY%</code>,
+              <code>COPILOT_PROVIDER_BASE_URL = ${AZURE_API_BASE}</code>.
+            </p>
             <div class="te-env-list">
               <div
                 v-for="(item, idx) in envItems"
@@ -489,6 +495,13 @@ defineExpose({ handleButton });
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
+}
+
+.te-section__hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-dim);
+  line-height: 1.4;
 }
 
 .te-section__legend {
