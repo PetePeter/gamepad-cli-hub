@@ -347,7 +347,7 @@ describe('Sessions Screen', () => {
       sessionsState.activeFocus = 'sessions';
 
       document.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'n',
+        key: 'N',
         ctrlKey: true,
         shiftKey: true,
         bubbles: true,
@@ -394,7 +394,7 @@ describe('Sessions Screen', () => {
       }];
 
       document.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'o',
+        key: 'O',
         ctrlKey: true,
         shiftKey: true,
         bubbles: true,
@@ -419,7 +419,7 @@ describe('Sessions Screen', () => {
       sessionsState.overviewIsGlobal = false;
 
       document.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'o',
+        key: 'O',
         ctrlKey: true,
         shiftKey: true,
         bubbles: true,
@@ -441,7 +441,7 @@ describe('Sessions Screen', () => {
       ];
 
       document.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 's',
+        key: 'S',
         ctrlKey: true,
         shiftKey: true,
         bubbles: true,
@@ -450,6 +450,30 @@ describe('Sessions Screen', () => {
       await flush();
 
       expect(mockNavigateToSession).toHaveBeenCalledWith('s-1');
+    });
+
+    it('Ctrl+Shift+W opens close confirm for the active terminal session', async () => {
+      mockCurrentView = 'terminal';
+      state.activeSessionId = 's-1';
+      state.recentSessionId = 's-1';
+      state.sessions = [{
+        id: 's-1',
+        name: 'Session 1',
+        cliType: 'claude-code',
+        processId: 1,
+        workingDir: '/projects/a',
+      }];
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'W',
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockShowCloseConfirm).toHaveBeenCalledWith('s-1', 'Session 1', expect.any(Function), expect.any(Number));
     });
   });
 

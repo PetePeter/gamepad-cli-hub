@@ -844,7 +844,7 @@ function onKeyDown(e: KeyboardEvent): void {
     }
   }
 
-  if (e.key === 'n' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+  if (e.key.toLowerCase() === 'n' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
     const draftEditor = document.getElementById('draftEditor');
     if (draftEditor && draftEditor.style.display !== 'none') return;
     // Let the plan screen own Ctrl+N while it's focused (adds a node).
@@ -872,7 +872,7 @@ function onKeyDown(e: KeyboardEvent): void {
     return;
   }
 
-  if (e.key === 'w' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+  if (e.key.toLowerCase() === 'w' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
     // Close the active session when in terminal view.
     if (view === 'terminal' && state.activeSessionId) {
       e.preventDefault();
