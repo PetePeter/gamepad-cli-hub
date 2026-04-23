@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Release publishing script — Step 2 of 2.
+Release publishing script - Step 2 of 2.
 
 Finds the latest prepared release in release/, commits the version bump,
 tags, pushes to GitHub, and publishes the release with the installer EXE
@@ -54,7 +54,7 @@ def find_latest_release():
     if not candidates:
         return None
 
-    # Sort by folder name (date+version) descending — latest first
+    # Sort by folder name (date+version) descending - latest first
     candidates.sort(key=lambda x: x[0], reverse=True)
     folder_name, version, path = candidates[0]
     return {"version": version, "path": path, "folder_name": folder_name}
@@ -62,7 +62,7 @@ def find_latest_release():
 
 def main():
     print("=" * 50)
-    print("🚀 Publishing release to GitHub...")
+    print("Publishing release to GitHub...")
     print("=" * 50)
     print()
 
@@ -70,57 +70,57 @@ def main():
     print("[1/5] Finding latest prepared release...")
     release = find_latest_release()
     if not release:
-        print("❌ No prepared release found in release/")
+        print("ERROR: No prepared release found in release/")
         print("   Run prepareDeploy.py first.")
         sys.exit(1)
 
     version = release["version"]
     release_path = release["path"]
-    print(f"  ✅ Found: {release['folder_name']} (v{version})")
+    print(f"  OK: Found: {release['folder_name']} (v{version})")
     print()
 
     # 2. Verify artifacts
     print("[2/5] Verifying artifacts...")
     exes = list(release_path.glob("*.exe"))
     if not exes:
-        print("❌ No .exe found in release folder. Cannot publish.")
+        print("ERROR: No .exe found in release folder. Cannot publish.")
         print("   Run prepareDeploy.py first.")
         sys.exit(1)
     for exe in exes:
         size_mb = exe.stat().st_size / (1024 * 1024)
-        print(f"  📄 {exe.name} ({size_mb:.1f} MB)")
+        print(f"  FILE: {exe.name} ({size_mb:.1f} MB)")
 
     # Verify package.json version matches
     pkg = json.loads(Path("package.json").read_text(encoding="utf-8"))
     if pkg["version"] != version:
-        print(f"❌ Version mismatch: package.json has {pkg['version']}, release folder has {version}")
+        print(f"ERROR: Version mismatch: package.json has {pkg['version']}, release folder has {version}")
         print("   Did you run prepareDeploy.py for this version?")
         sys.exit(1)
-    print(f"  ✅ package.json version matches: {version}")
+    print(f"  OK: package.json version matches: {version}")
     print()
 
     # 3. Check gh CLI is available and authenticated
     print("[3/5] Checking GitHub CLI...")
     if not shutil.which("gh"):
-        print("❌ gh CLI not found. Install from https://cli.github.com/")
+        print("ERROR: gh CLI not found. Install from https://cli.github.com/")
         sys.exit(1)
 
     deploy_token = os.environ.get("DEPLOY_GH_TOKEN")
     if deploy_token:
         os.environ["GH_TOKEN"] = deploy_token
-        print("  ✅ DEPLOY_GH_TOKEN set (forwarded to GH_TOKEN for gh CLI)")
+        print("  OK: DEPLOY_GH_TOKEN set (forwarded to GH_TOKEN for gh CLI)")
     else:
         # Fall back to gh's own auth (gh auth login)
         auth_result = run("gh auth status", check=False, capture=True)
         if auth_result.returncode != 0:
-            print("⚠️  Not authenticated. Either:")
+            print("WARNING: Not authenticated. Either:")
             print("   - Set DEPLOY_GH_TOKEN=ghp_xxxxxxxxxxxx")
             print("   - Or run: gh auth login")
             response = input("   Continue anyway? (y/N): ").strip().lower()
             if response != "y":
                 sys.exit(1)
         else:
-            print("  ✅ gh CLI authenticated")
+            print("  OK: gh CLI authenticated")
     print()
 
     # 4. Git commit, tag, push
@@ -136,14 +136,14 @@ def main():
     asset_args = " ".join(f'"{exe}"' for exe in exes)
     notes_file = release_path / "RELEASE_NOTES.md"
     if notes_file.exists():
-        print(f"  📝 Using release notes from {notes_file.name}")
+        print(f"  NOTES: Using release notes from {notes_file.name}")
         run(f'gh release create {tag} --title "{tag}" --notes-file "{notes_file}" {asset_args}')
     else:
         run(f'gh release create {tag} --title "{tag}" --notes "Release {tag}" {asset_args}')
 
     print()
     print("=" * 50)
-    print(f"✅ v{version} published!")
+    print(f"v{version} published!")
     print("=" * 50)
     print()
     print(f"  GitHub Release: https://github.com/PetePeter/gamepad-cli-hub/releases/tag/v{version}")

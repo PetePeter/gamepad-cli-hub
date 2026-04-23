@@ -368,6 +368,48 @@ function resolvePlanShortcutDirPath(preferredSessionId?: string): string | null 
     ?? null;
 }
 
+function getCurrentShortcutSessionId(): string | null {
+  return state.activeSessionId ?? state.recentSessionId;
+}
+
+function resolveCurrentShortcutDirPath(): string | null {
+  const preferredSessionId = getCurrentShortcutSessionId();
+  return resolvePlanShortcutDirPath(preferredSessionId ?? undefined)
+    ?? getCurrentPlanDirPath()
+    ?? null;
+}
+
+async function openCurrentSessionPlanShortcut(): Promise<void> {
+  const dirPath = resolveCurrentShortcutDirPath();
+  if (!dirPath) return;
+  await useNavigationStore().openPlan(dirPath);
+}
+
+async function toggleCurrentSessionOverviewShortcut(): Promise<void> {
+  const preferredSessionId = getCurrentShortcutSessionId();
+  const dirPath = resolveCurrentShortcutDirPath();
+  if (!dirPath) return;
+
+  if (currentView() === 'overview') {
+    if (sessionsState.overviewIsGlobal) {
+      await useNavigationStore().openOverview(dirPath, preferredSessionId ?? undefined);
+      return;
+    }
+    if (sessionsState.overviewGroup === dirPath) {
+      await useNavigationStore().openOverview(null, preferredSessionId ?? undefined);
+      return;
+    }
+  }
+
+  await useNavigationStore().openOverview(dirPath, preferredSessionId ?? undefined);
+}
+
+async function switchToLastSelectedSessionShortcut(): Promise<void> {
+  const sessionId = state.lastSelectedSessionId;
+  if (!sessionId || !state.sessions.some(session => session.id === sessionId)) return;
+  await useNavigationStore().navigateToSession(sessionId);
+}
+
 export async function triggerNewPlanShortcut(preferredSessionId?: string): Promise<void> {
   const dirPath = resolvePlanShortcutDirPath(preferredSessionId);
   if (!dirPath || !window.gamepadCli?.planCreate) return;
@@ -776,6 +818,31 @@ function onKeyDown(e: KeyboardEvent): void {
 
   // Bridge/Vue modals own keyboard navigation while visible.
   if (document.querySelector('.modal-overlay.modal--visible')) return;
+
+  if (e.shiftKey && (e.ctrlKey || e.metaKey)) {
+    const key = e.key.toLowerCase();
+
+    if (key === 'p') {
+      e.preventDefault();
+      e.stopPropagation();
+      void openCurrentSessionPlanShortcut();
+      return;
+    }
+
+    if (key === 'o') {
+      e.preventDefault();
+      e.stopPropagation();
+      void toggleCurrentSessionOverviewShortcut();
+      return;
+    }
+
+    if (key === 's') {
+      e.preventDefault();
+      e.stopPropagation();
+      void switchToLastSelectedSessionShortcut();
+      return;
+    }
+  }
 
   if (e.key === 'n' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
     const draftEditor = document.getElementById('draftEditor');

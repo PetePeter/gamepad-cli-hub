@@ -63,6 +63,7 @@ const mockChipBarClear = vi.fn();
 const mockChipBarRefresh = vi.fn();
 const mockSetSelectedOnExit = vi.fn();
 const mockHideOverview = vi.fn();
+const mockSessionSetActive = vi.fn();
 
 vi.mock('../renderer/drafts/draft-editor.js', () => ({
   hideDraftEditor: mockHideDraftEditor,
@@ -105,7 +106,10 @@ function buildNavList(...items: Array<{ type: string; id: string }>): void {
 function resetSingletons(): void {
   state.currentScreen = 'sessions';
   state.activeSessionId = null;
+  state.recentSessionId = null;
+  state.lastSelectedSessionId = null;
   state.sessions = [];
+  state.snappedOutSessions.clear();
   sessionsState.sessionsFocusIndex = 0;
   sessionsState.cardColumn = 0;
   sessionsState.activeFocus = 'sessions';
@@ -126,6 +130,9 @@ describe('useNavigationStore', () => {
     resetSingletons();
     vi.clearAllMocks();
     mockTm.hasTerminal.mockReturnValue(true);
+    (window as any).gamepadCli = {
+      sessionSetActive: mockSessionSetActive,
+    };
     store = useNavigationStore();
   });
 
@@ -289,6 +296,18 @@ describe('useNavigationStore', () => {
       await store.navigateToSession('sess-1');
 
       expect(mockChipBarRefresh).toHaveBeenCalledWith('sess-1');
+    });
+
+    it('focuses a snapped-out session via sessionSetActive instead of local switchTo', async () => {
+      state.snappedOutSessions.add('sess-2');
+
+      await store.navigateToSession('sess-2');
+
+      expect(mockSessionSetActive).toHaveBeenCalledWith('sess-2');
+      expect(mockTm.switchTo).not.toHaveBeenCalled();
+      expect(state.activeSessionId).toBe('sess-2');
+      expect(store.focusedNavItem).toEqual({ id: 'sess-2', type: 'session-card' });
+      expect(mockChipBarRefresh).toHaveBeenCalledWith('sess-2');
     });
 
     it('dismisses overview (with selectedOnExit) when overview is open', async () => {

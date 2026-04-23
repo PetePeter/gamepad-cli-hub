@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Release preparation script — Step 1 of 2.
+Release preparation script - Step 1 of 2.
 
 Bumps version in package.json, builds the app, and packages a Windows
 NSIS installer into a date+version stamped folder under release/.
@@ -76,7 +76,7 @@ def bump_version(part):
             parts[1] = "0"
             parts[2] = "0"
         case _:
-            print(f"❌ Invalid part: {part}")
+            print(f"ERROR: Invalid part: {part}")
             sys.exit(1)
 
     new_version = ".".join(parts)
@@ -107,9 +107,9 @@ def create_deploy_configs():
         data.pop("workingDirectories", None)
         with open(profiles_dst / yaml_file.name, "w", encoding="utf-8") as f:
             yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
-        print(f"    {yaml_file.name} → config-deploy/profiles/{yaml_file.name}")
+        print(f"    {yaml_file.name} -> config-deploy/profiles/{yaml_file.name}")
 
-    # Clean settings.yaml (defaults only — no window bounds or session groups)
+    # Clean settings.yaml (defaults only - no window bounds or session groups)
     settings = {
         "activeProfile": "default",
         "hapticFeedback": False,
@@ -117,12 +117,12 @@ def create_deploy_configs():
     }
     with open(deploy_dir / "settings.yaml", "w", encoding="utf-8") as f:
         yaml.dump(settings, f, default_flow_style=False, sort_keys=False)
-    print("    settings.yaml → config-deploy/settings.yaml (defaults)")
+    print("    settings.yaml -> config-deploy/settings.yaml (defaults)")
 
     # Empty sessions.yaml (no saved sessions)
     with open(deploy_dir / "sessions.yaml", "w", encoding="utf-8") as f:
         yaml.dump([], f)
-    print("    sessions.yaml → config-deploy/sessions.yaml (empty)")
+    print("    sessions.yaml -> config-deploy/sessions.yaml (empty)")
 
 
 def cleanup_deploy_configs():
@@ -140,7 +140,7 @@ def check_git_clean():
         shell=True, capture_output=True, text=True
     )
     if result.stdout.strip():
-        print("❌ Uncommitted changes detected. Commit or stash first.")
+        print("ERROR: Uncommitted changes detected. Commit or stash first.")
         print()
         print("Dirty files:")
         for line in result.stdout.strip().split("\n"):
@@ -160,35 +160,35 @@ def main():
     part = args[0]
 
     print("=" * 50)
-    print(f"📦 Preparing {part} release...")
+    print(f"Preparing {part} release...")
     print("=" * 50)
     print()
 
     # 1. Check git is clean
     print("[1/6] Checking git status...")
     if force:
-        print("  ⚠️  Skipping dirty-repo check (--force)")
+        print("  WARNING: Skipping dirty-repo check (--force)")
     else:
         check_git_clean()
-        print("  ✅ Working tree is clean")
+        print("  OK: Working tree is clean")
     print()
 
     # 2. Bump version
     print("[2/6] Bumping version...")
     old_version, new_version = bump_version(part)
-    print(f"  ✅ {old_version} → {new_version}")
+    print(f"  OK: {old_version} -> {new_version}")
     print()
 
     # 3. Patch native modules for VS 2026 compatibility, then build + package
     print("[3/6] Patching native modules for build...")
     patch_native_modules()
-    print("  ✅ Native modules patched")
+    print("  OK: Native modules patched")
     print()
 
     # 4. Create deploy-safe config staging directory
     print("[4/6] Creating deploy configs (stripping personal paths)...")
     create_deploy_configs()
-    print("  ✅ Deploy configs staged in config-deploy/")
+    print("  OK: Deploy configs staged in config-deploy/")
     print()
 
     # Clean release/ before building to avoid leftover artifacts
@@ -201,7 +201,7 @@ def main():
     try:
         result = run("npm run package", check=False)
         if result.returncode != 0:
-            print("❌ Build failed. Revert with: git checkout package.json")
+            print("ERROR: Build failed. Revert with: git checkout package.json")
             sys.exit(1)
     finally:
         cleanup_deploy_configs()
@@ -213,7 +213,7 @@ def main():
     release_dir = release_root / f"{date_stamp}-v{new_version}"
     release_dir.mkdir(parents=True, exist_ok=True)
 
-    # Only keep the installer EXE — skip directories, blockmap, auto-update manifests, and builder metadata
+    # Only keep the installer EXE - skip directories, blockmap, auto-update manifests, and builder metadata
     skip_suffixes = {".blockmap", ".yml", ".yaml"}
     for item in release_root.iterdir():
         if item == release_dir or item.name.startswith("."):
@@ -231,15 +231,15 @@ def main():
         # Also check for NSIS installer pattern
         exes = list(release_dir.glob("*Setup*.exe"))
     if not exes:
-        print("⚠️  No installer found in release output. Check electron-builder config.")
+        print("WARNING: No installer found in release output. Check electron-builder config.")
     else:
         for exe in exes:
             size_mb = exe.stat().st_size / (1024 * 1024)
-            print(f"  📄 {exe.name} ({size_mb:.1f} MB)")
+            print(f"  FILE: {exe.name} ({size_mb:.1f} MB)")
 
     print()
     print("=" * 50)
-    print(f"✅ Release v{new_version} prepared!")
+    print(f"Release v{new_version} prepared!")
     print("=" * 50)
     print()
     print(f"  Artifacts: {release_dir}")

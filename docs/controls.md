@@ -27,6 +27,11 @@ Gamepad button and keyboard shortcut mappings.
 |-------|--------|
 | Ctrl+Tab | Next terminal tab |
 | Ctrl+Shift+Tab | Previous terminal tab |
+| Ctrl+Shift+N | Terminal: open quick spawn / Sessions or Overview: create a new plan for the current directory |
+| Ctrl+Shift+W | Close the active session while terminal view is active |
+| Ctrl+Shift+P | Open the planner for the current session folder |
+| Ctrl+Shift+O | Open the overview for the current session folder; press again to toggle between that folder overview and global overview |
+| Ctrl+Shift+S | Switch back to the last selected session, including a snapped-out window |
 | Arrow keys | Navigate sessions (mapped to D-pad equivalents) |
 | Enter | Mapped to A button |
 | Escape | Mapped to B button |
@@ -96,3 +101,19 @@ The 🗺️ Plans button on group headers (column 1, click only — D-pad Right 
 | B (gamepad) | Exit plan screen |
 
 Keyboard and clipboard paste are blocked while the plan screen is visible (`.plan-screen.visible` guard in paste-handler).
+
+### Plan And Draft Editor Shortcuts
+
+| Input | Action |
+|-------|--------|
+| Ctrl+S | Save and close the current draft/plan editor |
+| Ctrl+Enter | Save and close the current draft/plan editor |
+| Ctrl+N | Save current draft/plan item and create a new one |
+| Escape | Cancel using the same close path as the visible Cancel action |
+
+### Prompt Editor Modal
+
+| Input | Action |
+|-------|--------|
+| Ctrl+Enter | Send the current textarea content to the active session |
+| Escape | Close the prompt editor modal |

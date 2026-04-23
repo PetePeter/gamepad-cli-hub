@@ -13,7 +13,7 @@ declare global {
   }
 }
 
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { state } from './state.js';
 import SnapOutWindow from './components/SnapOutWindow.vue';
 import { sessionsState } from './screens/sessions-state.js';
@@ -201,6 +201,14 @@ const chipActionBarVisible = computed(() =>
   (chipBarHasPills.value || chipBarStore.actions.length > 0),
 );
 
+watch(() => state.activeSessionId, (next, prev) => {
+  if (!next) return;
+  if (prev && prev !== next) {
+    state.lastSelectedSessionId = prev;
+  }
+  state.recentSessionId = next;
+});
+
 // Maps each navList item's id → its index — fed to session cards/group headers as
 // data-nav-index so the legacy updateSessionsFocus() can find focused elements.
 const navIndexMap = computed(() => {
@@ -291,13 +299,6 @@ function handleRelease(button: string): void {
 // ============================================================================
 
 async function onSessionClick(sessionId: string): Promise<void> {
-  if (state.snappedOutSessions.has(sessionId)) {
-    // Focus the snapped-out window
-    try {
-      await window.gamepadCli.sessionSetActive(sessionId);
-    } catch { /* ignore */ }
-    return;
-  }
   void navStore.navigateToSession(sessionId);
 }
 

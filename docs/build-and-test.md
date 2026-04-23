@@ -12,24 +12,24 @@ npm test         # Vitest suite
 ## Release Workflow (two-step)
 
 ```bash
-python prepareDeploy.py patch   # Bump version, strip configs, build, package EXE → release/YYYYMMDD-vX.Y.Z/
+python prepareDeploy.py patch   # Bump version, strip configs, build, package EXE -> release/YYYYMMDD-vX.Y.Z/
 # ... validate the EXE manually ...
 python sendDeploy.py            # Commit, tag, push, upload installer via gh CLI
 ```
 
 | Script | Purpose |
 |--------|---------|
-| `runApp.py` | Dev workflow — install deps, build, launch |
+| `runApp.py` | Dev workflow - install deps, build, launch |
 | `runTests.py` | Run Vitest suite |
-| `prepareDeploy.py` | Release step 1 — bump version, strip configs for deploy, build, package EXE |
-| `sendDeploy.py` | Release step 2 — commit, tag, push, upload installer to GitHub Releases via `gh` CLI |
+| `prepareDeploy.py` | Release step 1 - bump version, strip configs for deploy, build, package EXE |
+| `sendDeploy.py` | Release step 2 - commit, tag, push, upload installer to GitHub Releases via `gh` CLI |
 
 ## Deploy Config Stripping
 
 `prepareDeploy.py` creates a `config-deploy/` staging directory containing sanitised config files:
-- **Profile YAMLs** — `workingDirectories` removed (no personal paths)
-- **settings.yaml** — clean defaults only (no window bounds or session groups)
-- **sessions.yaml** — empty (no saved sessions)
+- **Profile YAMLs** - `workingDirectories` removed (no personal paths)
+- **settings.yaml** - clean defaults only (no window bounds or session groups)
+- **sessions.yaml** - empty (no saved sessions)
 
 `electron-builder` overlays `config-deploy/` onto `config/` during packaging (see `build.files` in `package.json`). The staging directory is automatically cleaned up after the build, and is gitignored.
 
@@ -51,6 +51,6 @@ python sendDeploy.py            # Commit, tag, push, upload installer via gh CLI
 | Gamepad input | Browser Gamepad API (sole input source) |
 | Embedded terminals | node-pty (PTY) + @xterm/xterm (xterm.js) |
 | PTY shell | cmd.exe (Windows), bash (Unix) |
-| Haptic feedback | Config setting (implementation pending — PowerShell XInput path removed) |
+| Haptic feedback | Config setting (implementation pending - PowerShell XInput path removed) |
 | Config | YAML (yaml package) |
 | Logging | Winston |

@@ -39,15 +39,19 @@ const mockShowCloseConfirm = vi.fn();
 const mockHidePlanScreen = vi.fn();
 const mockShowPlanScreen = vi.fn();
 let mockPlanScreenVisible = false;
+let mockCurrentPlanDirPath: string | null = null;
 
 const mockActivateSession = vi.fn();
 const mockOpenOverview = vi.fn();
+const mockOpenPlan = vi.fn();
+const mockNavigateToSession = vi.fn();
 
 vi.mock('../renderer/stores/navigation.js', () => ({
   useNavigationStore: () => ({
     activateSession: mockActivateSession,
     openOverview: mockOpenOverview,
-    navigateToSession: vi.fn(),
+    openPlan: mockOpenPlan,
+    navigateToSession: mockNavigateToSession,
     syncSidebarToSession: vi.fn(),
     onNavListRebuilt: vi.fn(),
   }),
@@ -84,6 +88,7 @@ vi.mock('../renderer/plans/plan-screen.js', () => ({
     return mockHidePlanScreen(...args);
   },
   isPlanScreenVisible: () => mockPlanScreenVisible,
+  getCurrentPlanDirPath: () => mockCurrentPlanDirPath,
 }));
 
 let mockCurrentView = 'terminal';
@@ -237,8 +242,13 @@ describe('Sessions Screen', () => {
     ]);
     mockPlanDoingForSession.mockResolvedValue([]);
     mockPlanScreenVisible = false;
+    mockCurrentPlanDirPath = null;
     mockHidePlanScreen.mockReset();
     mockShowPlanScreen.mockReset();
+    mockOpenPlan.mockReset();
+    mockNavigateToSession.mockReset();
+    state.recentSessionId = null;
+    state.lastSelectedSessionId = null;
   });
 
   afterEach(() => {
@@ -324,7 +334,7 @@ describe('Sessions Screen', () => {
   });
 
   describe('keyboard shortcuts', () => {
-    it('Ctrl+N creates a plan for the focused directory group', async () => {
+    it('Ctrl+Shift+N creates a plan for the focused directory group', async () => {
       mockCurrentView = 'overview';
       sessionsState.navList = [{ type: 'group-header', id: '/projects/a', groupIndex: 0 }];
       sessionsState.groups = [{
@@ -339,6 +349,7 @@ describe('Sessions Screen', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', {
         key: 'n',
         ctrlKey: true,
+        shiftKey: true,
         bubbles: true,
         cancelable: true,
       }));
@@ -346,6 +357,99 @@ describe('Sessions Screen', () => {
 
       expect(mockPlanCreate).toHaveBeenCalledWith('/projects/a', 'New Plan', '');
       mockCurrentView = 'terminal';
+    });
+
+    it('Ctrl+Shift+P opens the planner for the current session folder', async () => {
+      state.activeSessionId = 's-1';
+      state.recentSessionId = 's-1';
+      state.sessions = [{
+        id: 's-1',
+        name: 'Session 1',
+        cliType: 'claude-code',
+        processId: 1,
+        workingDir: '/projects/a',
+      }];
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'P',
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockOpenPlan).toHaveBeenCalledWith('/projects/a');
+    });
+
+    it('Ctrl+Shift+O opens the current session folder overview', async () => {
+      state.activeSessionId = 's-1';
+      state.recentSessionId = 's-1';
+      state.sessions = [{
+        id: 's-1',
+        name: 'Session 1',
+        cliType: 'claude-code',
+        processId: 1,
+        workingDir: '/projects/a',
+      }];
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'o',
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockOpenOverview).toHaveBeenCalledWith('/projects/a', 's-1');
+    });
+
+    it('Ctrl+Shift+O toggles a folder overview to global overview on second press', async () => {
+      mockCurrentView = 'overview';
+      state.recentSessionId = 's-1';
+      state.sessions = [{
+        id: 's-1',
+        name: 'Session 1',
+        cliType: 'claude-code',
+        processId: 1,
+        workingDir: '/projects/a',
+      }];
+      sessionsState.overviewGroup = '/projects/a';
+      sessionsState.overviewIsGlobal = false;
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'o',
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockOpenOverview).toHaveBeenCalledWith(null, 's-1');
+      mockCurrentView = 'terminal';
+    });
+
+    it('Ctrl+Shift+S switches to the last selected session', async () => {
+      state.activeSessionId = 's-2';
+      state.recentSessionId = 's-2';
+      state.lastSelectedSessionId = 's-1';
+      state.sessions = [
+        { id: 's-1', name: 'Session 1', cliType: 'claude-code', processId: 1, workingDir: '/projects/a' },
+        { id: 's-2', name: 'Session 2', cliType: 'claude-code', processId: 2, workingDir: '/projects/b' },
+      ];
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 's',
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockNavigateToSession).toHaveBeenCalledWith('s-1');
     });
   });
 

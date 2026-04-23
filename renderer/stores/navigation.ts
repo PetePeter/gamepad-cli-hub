@@ -135,6 +135,20 @@ export const useNavigationStore = defineStore('navigation', () => {
     hideEditorPopup();
     chipBarStore.clear();
 
+    // 3. Focus snapped-out sessions via the main process so their owning
+    // window is activated instead of assuming the terminal lives locally.
+    if (state.snappedOutSessions.has(sessionId)) {
+      try {
+        await window.gamepadCli?.sessionSetActive(sessionId);
+      } catch {
+        // Ignore focus failures and still sync local selection state.
+      }
+      state.activeSessionId = sessionId;
+      syncSidebarToSession(sessionId);
+      void chipBarStore.refresh(sessionId);
+      return;
+    }
+
     // 3. Switch terminal
     const tm = getTerminalManager();
     if (tm?.hasTerminal(sessionId)) {

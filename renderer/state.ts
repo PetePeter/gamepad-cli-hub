@@ -28,6 +28,10 @@ export interface AppState {
   currentScreen: string;
   sessions: Session[];
   activeSessionId: string | null;
+  /** Most recent non-null selected session, even if an overlay temporarily deselects terminals. */
+  recentSessionId: string | null;
+  /** Previously selected session before the current/recent one. */
+  lastSelectedSessionId: string | null;
   gamepadCount: number;
   eventLog: Array<{ time: string; event: string }>;
   cliTypes: string[];
@@ -76,6 +80,8 @@ export const state: AppState = reactive({
   currentScreen: 'sessions',
   sessions: [],
   activeSessionId: null,
+  recentSessionId: null,
+  lastSelectedSessionId: null,
   gamepadCount: 0,
   eventLog: [],
   cliTypes: [],
