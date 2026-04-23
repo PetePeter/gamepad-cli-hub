@@ -161,6 +161,22 @@ export function setupKeyboardRelay(
     const sessionId = getActiveSessionId();
     if (!sessionId) return;
 
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation(); // Must happen before any await so xterm never sees the key.
+
+      const { useEscProtection } = await import('./composables/useEscProtection.js');
+      const escProtection = useEscProtection();
+
+      // ESC protection confirm path must run before overlay blocking so the
+      // guard can be confirmed while its own modal is visible.
+      if (escProtection.isProtecting.value) {
+        window.gamepadCli.ptyWrite(sessionId, '\x1b');
+        escProtection.dismissProtection();
+        return;
+      }
+    }
+
     // Ctrl+Shift+R — rename active session inline (allow even when modals visible)
     if (e.ctrlKey && e.shiftKey && e.key === 'R') {
       e.preventDefault();
@@ -228,6 +244,23 @@ export function setupKeyboardRelay(
       return;
     }
 
+    // ESC key protection — run before xterm early return so terminal focus does
+    // not bypass the first-press guard.
+    if (e.key === 'Escape') {
+      const protected_ = await getEscProtectionEnabled();
+      if (protected_) {
+        const { useEscProtection } = await import('./composables/useEscProtection.js');
+        const escProtection = useEscProtection();
+
+        escProtection.openProtection(sessionId);
+        return;
+      }
+
+      // Protection disabled — send ESC directly
+      window.gamepadCli.ptyWrite(sessionId, '\x1b');
+      return;
+    }
+
     // Let xterm.js handle its own input (except paste, handled above)
     if (isXtermTarget(e)) return;
 
@@ -250,21 +283,6 @@ export function setupKeyboardRelay(
     // Skip modifier-only keys
     if (['Control', 'Shift', 'Alt', 'Meta', 'CapsLock', 'NumLock', 'ScrollLock',
          'Dead', 'Unidentified', 'Process', 'Compose'].includes(e.key)) return;
-
-    // ESC key protection — intercept before sending to PTY
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      const protected_ = await getEscProtectionEnabled();
-      if (protected_) {
-        const { useEscProtection } = await import('./composables/useEscProtection.js');
-        const escProtection = useEscProtection();
-        escProtection.openProtection(sessionId);
-        return;
-      }
-      // Protection disabled — send ESC normally
-      window.gamepadCli.ptyWrite(sessionId, '\x1b');
-      return;
-    }
 
     // Named keys (Enter, Tab, arrows, etc.)
     const esc = keyToPtyEscape(e.key);

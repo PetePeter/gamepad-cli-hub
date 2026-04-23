@@ -686,6 +686,14 @@ function handleModalKeyboardBridge(e: KeyboardEvent): void {
   const active = document.activeElement;
   const editableInModal = isEditableElementInsideModal(active);
   const interceptKeys = stack.topInterceptKeys.value;
+  const escProtection = useEscProtection();
+
+  if (escProtection.isProtecting.value && e.key !== 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    escProtection.dismissProtection();
+    return;
+  }
 
   if (e.key === 'ArrowUp') {
     if (!interceptKeys.has('arrows') || editableInModal) return;
@@ -718,28 +726,7 @@ function handleModalKeyboardBridge(e: KeyboardEvent): void {
   } else if (e.key === 'Escape') {
     if (!interceptKeys.has('escape')) return;
     e.preventDefault();
-
-    // Handle ESC protection: second ESC confirms and sends \x1b to active terminal
-    const escProtection = useEscProtection();
-    if (escProtection.isProtecting.value) {
-      const sessionId = state.activeSessionId;
-      if (sessionId) {
-        window.gamepadCli.ptyWrite(sessionId, '\x1b');
-      }
-      escProtection.dismissProtection();
-      return;
-    }
-
     stack.handleInput('B');
-  } else {
-    // Any other key while ESC protection modal is open — dismiss without sending ESC
-    const escProtection = useEscProtection();
-    if (escProtection.isProtecting.value) {
-      e.preventDefault();
-      e.stopPropagation();
-      escProtection.dismissProtection();
-      return;
-    }
   }
 }
 

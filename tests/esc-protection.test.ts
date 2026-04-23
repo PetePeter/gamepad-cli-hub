@@ -69,6 +69,12 @@ describe('keyboard relay ESC handling', () => {
   let activeSessionId: string | null = null;
   let ptyWriteData: Array<{ sessionId: string; data: string }> = [];
 
+  beforeEach(() => {
+    // Reset protection state between tests
+    const protection = useEscProtection();
+    protection.dismissProtection();
+  });
+
   afterEach(() => {
     teardownKeyboardRelay();
     ptyWriteData = [];
@@ -102,6 +108,44 @@ describe('keyboard relay ESC handling', () => {
     expect(ptyWriteData).toHaveLength(0); // No ESC sent yet
   });
 
+  it('first ESC opens protection modal even when the terminal has focus', async () => {
+    activeSessionId = 'test-session';
+    ptyWriteData = [];
+
+    window.gamepadCli = {
+      ptyWrite: vi.fn((sessionId: string, data: string) => {
+        ptyWriteData.push({ sessionId, data });
+      }),
+    } as any;
+
+    setupKeyboardRelay(
+      () => activeSessionId,
+      () => false,
+      async () => true,
+    );
+
+    const protection = useEscProtection();
+    const xterm = document.createElement('div');
+    xterm.className = 'xterm';
+    xterm.tabIndex = 0;
+    document.body.appendChild(xterm);
+    xterm.focus();
+
+    const escEvent = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    });
+    xterm.dispatchEvent(escEvent);
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(protection.isProtecting.value).toBe(true);
+    expect(ptyWriteData).toHaveLength(0);
+
+    document.body.removeChild(xterm);
+  });
+
   it('does not open protection when disabled', async () => {
     activeSessionId = 'test-session';
     ptyWriteData = [];
@@ -131,6 +175,79 @@ describe('keyboard relay ESC handling', () => {
     expect(protection.isProtecting.value).toBe(false);
     expect(ptyWriteData).toHaveLength(1);
     expect(ptyWriteData[0]).toEqual({ sessionId: 'test-session', data: '\x1b' });
+  });
+
+  it('second ESC confirms while the protection modal overlay is visible', async () => {
+    activeSessionId = 'test-session';
+    ptyWriteData = [];
+
+    window.gamepadCli = {
+      ptyWrite: vi.fn((sessionId: string, data: string) => {
+        ptyWriteData.push({ sessionId, data });
+      }),
+    } as any;
+
+    setupKeyboardRelay(
+      () => activeSessionId,
+      () => false,
+      async () => true,
+    );
+
+    const protection = useEscProtection();
+    protection.openProtection('test-session');
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay modal--visible';
+    document.body.appendChild(overlay);
+
+    const escEvent = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(escEvent);
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(ptyWriteData).toEqual([{ sessionId: 'test-session', data: '\x1b' }]);
+    expect(protection.isProtecting.value).toBe(false);
+
+    document.body.removeChild(overlay);
+  });
+
+  it('first ESC prevents default before async protection work resolves', async () => {
+    activeSessionId = 'test-session';
+    ptyWriteData = [];
+
+    let releaseProtectionCheck: (() => void) | null = null;
+    const protectionCheck = new Promise<boolean>((resolve) => {
+      releaseProtectionCheck = () => resolve(true);
+    });
+
+    window.gamepadCli = {
+      ptyWrite: vi.fn((sessionId: string, data: string) => {
+        ptyWriteData.push({ sessionId, data });
+      }),
+    } as any;
+
+    setupKeyboardRelay(
+      () => activeSessionId,
+      () => false,
+      async () => protectionCheck,
+    );
+
+    const escEvent = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(escEvent);
+
+    expect(escEvent.defaultPrevented).toBe(true);
+    expect(ptyWriteData).toHaveLength(0);
+
+    releaseProtectionCheck?.();
+    await new Promise(resolve => setTimeout(resolve, 10));
   });
 
   it('normal keys sent to PTY when protection not active', async () => {
