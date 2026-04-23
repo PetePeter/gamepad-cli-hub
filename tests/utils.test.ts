@@ -5,7 +5,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getSequenceSyntaxHelpText, navigateFocus } from '../renderer/utils.js';
+import { getCliDisplayName, getSequenceSyntaxHelpText, navigateFocus } from '../renderer/utils.js';
+import { state } from '../renderer/state.js';
 
 describe('navigateFocus', () => {
   const scrollIntoView = vi.fn();
@@ -40,6 +41,25 @@ describe('navigateFocus', () => {
 
     expect(document.activeElement).toBe(document.getElementById('third'));
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
+  });
+});
+
+describe('getCliDisplayName', () => {
+  beforeEach(() => {
+    state.cliToolsCache = {};
+  });
+
+  it('prefers the configured tool name from live config cache', () => {
+    state.cliToolsCache['azure-copilot'] = { name: 'Azure Copilot' };
+    expect(getCliDisplayName('azure-copilot')).toBe('Azure Copilot');
+  });
+
+  it('falls back to built-in display names when no config entry exists', () => {
+    expect(getCliDisplayName('copilot-cli')).toBe('Copilot');
+  });
+
+  it('falls back to the cli key when neither config nor built-in name exists', () => {
+    expect(getCliDisplayName('my-custom-cli')).toBe('my-custom-cli');
   });
 });
 

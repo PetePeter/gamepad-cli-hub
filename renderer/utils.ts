@@ -117,6 +117,10 @@ export function getCliIcon(cliType: string): string {
 }
 
 export function getCliDisplayName(cliType: string): string {
+  const configuredName = state.cliToolsCache?.[cliType]?.name;
+  if (typeof configuredName === 'string' && configuredName.trim().length > 0) {
+    return configuredName.trim();
+  }
   const names: Record<string, string> = {
     'claude-code': 'Claude',
     'copilot-cli': 'Copilot',
