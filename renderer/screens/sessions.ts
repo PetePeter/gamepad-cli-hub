@@ -141,11 +141,28 @@ export function getSessionActivity(sessionId: string): string {
   return state.sessionActivityLevels.get(sessionId) ?? 'idle';
 }
 
-export function doCloseSession(sessionId: string): void {
-  const tm = getTerminalManager();
-  if (tm) tm.destroyTerminal(sessionId);
+export async function doCloseSession(sessionId: string): Promise<void> {
+  if (!window.gamepadCli) return;
+
+  try {
+    const result = await window.gamepadCli.sessionClose(sessionId);
+    if (!result?.success) {
+      console.error(`[Sessions] Failed to close session ${sessionId}:`, result?.error ?? 'unknown error');
+      return;
+    }
+  } catch (error) {
+    console.error(`[Sessions] Failed to close session ${sessionId}:`, error);
+    return;
+  }
+
   removeSessionState(sessionId);
-  loadSessions();
+  draftCounts.delete(sessionId);
+  planDoingCounts.delete(sessionId);
+  planStartableCounts.delete(sessionId);
+  state.sessionActivityLevels.delete(sessionId);
+  state.lastOutputTimes.delete(sessionId);
+  state.snappedOutSessions.delete(sessionId);
+  await loadSessions();
 }
 
 // ============================================================================

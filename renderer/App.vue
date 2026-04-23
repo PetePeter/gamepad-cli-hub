@@ -38,7 +38,7 @@ import { loadSettingsScreen, handleSettingsScreenButton } from './screens/settin
 import { onViewChange, currentView, type MainView as ViewName } from './main-view/main-view-manager.js';
 import { useModalStack } from './composables/useModalStack.js';
 import {
-  closeConfirm, getCloseConfirmCallback,
+  closeConfirm, getCloseConfirmCallback, setCloseConfirmCallback,
   contextMenu,
   planDeleteConfirm, getPlanDeleteCallback,
   clearDonePlans, getClearDonePlansCallback,
@@ -323,16 +323,25 @@ function onRequestClose(sessionId: string, displayName: string): void {
   closeConfirm.sessionName = displayName;
   closeConfirm.draftCount = state.draftCounts.get(sessionId) ?? 0;
   closeConfirm.visible = true;
+  setCloseConfirmCallback((targetSessionId: string) => {
+    void doCloseSession(targetSessionId);
+  });
 }
 
-function onConfirmClose(): void {
+function onCancelClose(): void {
+  closeConfirm.visible = false;
+  setCloseConfirmCallback(null);
+}
+
+async function onConfirmClose(): Promise<void> {
   closeConfirm.visible = false;
   const cb = getCloseConfirmCallback();
   if (cb) {
-    cb(closeConfirm.sessionId);
+    await cb(closeConfirm.sessionId);
   } else {
-    doCloseSession(closeConfirm.sessionId);
+    await doCloseSession(closeConfirm.sessionId);
   }
+  setCloseConfirmCallback(null);
 }
 
 async function onSessionStateChange(sessionId: string, newState: string): Promise<void> {
@@ -970,7 +979,7 @@ onUnmounted(() => {
       :session-name="closeConfirm.sessionName"
       :draft-count="closeConfirm.draftCount"
       @confirm="onConfirmClose"
-      @cancel="closeConfirm.visible = false"
+      @cancel="onCancelClose"
     />
 
     <PlanDeleteConfirmModal

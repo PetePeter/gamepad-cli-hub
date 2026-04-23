@@ -329,16 +329,29 @@ export async function switchToSession(sessionId: string): Promise<void> {
   logEvent(`Session ${sessionId} is not an embedded terminal`);
 }
 
-export function doCloseSession(sessionId: string): void {
-  const tm = getTerminalManager();
-  if (tm) tm.destroyTerminal(sessionId);
+export async function doCloseSession(sessionId: string): Promise<void> {
+  if (!window.gamepadCli) return;
+
+  try {
+    const result = await window.gamepadCli.sessionClose(sessionId);
+    if (!result?.success) {
+      console.error(`[Bootstrap] Failed to close session ${sessionId}:`, result?.error ?? 'unknown error');
+      return;
+    }
+  } catch (error) {
+    console.error(`[Bootstrap] Failed to close session ${sessionId}:`, error);
+    return;
+  }
+
   state.sessionStates.delete(sessionId);
   state.sessionActivityLevels.delete(sessionId);
   state.lastOutputTimes.delete(sessionId);
   state.draftCounts.delete(sessionId);
   state.planDoingCounts.delete(sessionId);
   state.planStartableCounts.delete(sessionId);
-  void refreshSessions();
+  state.snappedOutSessions.delete(sessionId);
+
+  await refreshSessions();
 }
 
 export async function restoreSnappedBackSession(sessionId: string): Promise<void> {

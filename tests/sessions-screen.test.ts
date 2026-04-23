@@ -1420,15 +1420,16 @@ describe('Sessions Screen', () => {
       expect(mockShowCloseConfirm).toHaveBeenCalledWith('s-0', expect.any(String), expect.any(Function), expect.any(Number));
     });
 
-    it('A at col=4 close confirm callback destroys session', async () => {
+    it('A at col=4 close confirm callback closes the session via IPC', async () => {
       sessionsState.cardColumn = 4;
       sessions.handleSessionsScreenButton('A');
       await flush();
       // Extract the onConfirm callback and invoke it
       const onConfirm = mockShowCloseConfirm.mock.calls[0][2];
-      onConfirm('s-0');
+      await onConfirm('s-0');
       await flush();
-      expect(mockDestroyTerminal).toHaveBeenCalledWith('s-0');
+      expect(mockSessionClose).toHaveBeenCalledWith('s-0');
+      expect(mockDestroyTerminal).not.toHaveBeenCalledWith('s-0');
     });
 
     it('A at col=2 triggers rename for focused session', () => {
