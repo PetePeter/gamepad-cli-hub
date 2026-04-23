@@ -1,7 +1,7 @@
 name: Default
 tools:
   claude-code:
-    name: Claude Code
+    name: claudecode
     command: claude
     spawnCommand: claude --session-id {cliSessionName}
     resumeCommand: claude --resume={cliSessionName}
@@ -31,7 +31,7 @@ tools:
           sequence: use skill(commit)
     pasteMode: pty
   copilot-cli:
-    name: GitHub Copilot CLI
+    name: copilot-raw
     command: copilot
     spawnCommand: copilot --resume={cliSessionName}
     resumeCommand: copilot --resume={cliSessionName}
@@ -67,7 +67,7 @@ tools:
           sequence: use skill(commit)
     pasteMode: clippaste
   copilot-ollama:
-    name: Copilot Ollama
+    name: copilot-ollama
     command: copilot
     spawnCommand: copilot --resume={cliSessionName}
     resumeCommand: copilot --resume={cliSessionName}
@@ -114,7 +114,7 @@ tools:
           sequence: use skill(commit)
     pasteMode: clippaste
   azure-copilot:
-    name: copilot-azure
+    name: copilot-azure-kimi
     command: copilot
     spawnCommand: copilot --resume={cliSessionName}
     resumeCommand: copilot --resume={cliSessionName}
@@ -163,7 +163,7 @@ tools:
           sequence: use skill(commit)
     pasteMode: clippaste
   codex:
-    name: Codex CLI
+    name: codex
     command: codex
     args: --dangerously-bypass-approvals-and-sandbox
     handoffCommand: go implement it
@@ -196,7 +196,7 @@ tools:
     initialPrompt: []
     initialPromptDelay: 2000
   opencode:
-    name: opencode
+    name: opencode-glm+kimi
     command: opencode
     initialPrompt:
       - label: ""
