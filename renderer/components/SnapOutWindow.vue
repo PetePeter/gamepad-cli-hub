@@ -7,6 +7,7 @@
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { TerminalView } from '../terminal/terminal-view.js';
+import { useKeyboardRelay } from '../composables/useKeyboardRelay.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
 import { deliverBulkText } from '../paste-handler.js';
 import { showDraftEditor, initDraftEditor } from '../drafts/draft-editor.js';
@@ -16,6 +17,7 @@ import { getCliDisplayName } from '../utils.js';
 import ChipBar from './chips/ChipBar.vue';
 import ChipActionBar from './chips/ChipActionBar.vue';
 import ContextMenu from './modals/ContextMenu.vue';
+import EscProtectionModal from './modals/EscProtectionModal.vue';
 
 const props = defineProps<{
   sessionId: string;
@@ -49,6 +51,20 @@ const chipActionBarVisible = computed(() =>
 const contextMenuVisible = ref(false);
 const contextMenuHasSelection = ref(false);
 const contextMenuSelectedText = ref('');
+
+async function getEscProtectionEnabled(): Promise<boolean> {
+  try {
+    return await window.gamepadCli.configGetEscProtectionEnabled();
+  } catch (error) {
+    console.error('Failed to get ESC protection setting for snapped-out window:', error);
+    return true;
+  }
+}
+
+useKeyboardRelay({
+  getActiveSessionId: () => props.sessionId,
+  getEscProtectionEnabled,
+});
 
 function getFolderLabel(workingDir?: string): string {
   if (!workingDir) return 'No Folder';
@@ -303,6 +319,7 @@ function onContextMenuCancel(): void {
       @action="onContextMenuAction"
       @cancel="onContextMenuCancel"
     />
+    <EscProtectionModal />
   </div>
 </template>
 
