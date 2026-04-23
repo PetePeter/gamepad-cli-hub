@@ -23,6 +23,11 @@ const mockPlanUpdate = vi.fn();
 const mockPlanSetState = vi.fn();
 const mockKeyboardTypeString = vi.fn();
 
+const mockState = {
+  sessions: [{ id: 'session-1', cliType: 'copilot' }],
+  cliToolsCache: { copilot: { pasteMode: 'clippaste' } },
+};
+
 vi.mock('../renderer/stores/chip-bar.js', () => ({
   useChipBarStore: () => ({
     refresh: vi.fn().mockResolvedValue(undefined),
@@ -41,6 +46,10 @@ vi.mock('../renderer/utils.js', () => ({
 
 vi.mock('../renderer/bindings.js', () => ({
   executeSequence: (...args: unknown[]) => mockExecuteSequence(...args),
+}));
+
+vi.mock('../renderer/state.js', () => ({
+  state: mockState,
 }));
 
 // ---------------------------------------------------------------------------

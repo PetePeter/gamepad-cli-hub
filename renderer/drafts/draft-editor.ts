@@ -450,8 +450,17 @@ export async function applyDraft(): Promise<void> {
 
   if (text && sessId) {
     try {
-      // Use clipboard+Ctrl+V for reliable app-initiated paste (works with Ink forms)
-      await deliverViaClipboardPaste(text);
+      const { state } = await import('../state.js');
+      const session = state.sessions.find(s => s.id === sessId);
+      const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
+
+      // Use clipboard+Ctrl+V only for 'clippaste' pasteMode (terminal paste mode)
+      if (tool?.pasteMode === 'clippaste') {
+        await deliverViaClipboardPaste(text);
+      } else {
+        // Use standard delivery for other pasteMode options
+        await deliverBulkText(sessId, text);
+      }
     } catch (err) {
       console.error('[Editor] Failed to apply draft:', err);
     }

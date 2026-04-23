@@ -737,9 +737,16 @@ onMounted(async () => {
   try {
     offTextDeliver = window.gamepadCli.onTextDeliverRequest(async ({ requestId, sessionId, text }) => {
       try {
-        // Use clipboard+Ctrl+V for app-initiated pastes (pattern-matcher, initial-prompt)
-        // This ensures reliable delivery to Ink-based form inputs (e.g., Copilot question tool)
-        await deliverViaClipboardPaste(text);
+        const session = state.sessions.find(s => s.id === sessionId);
+        const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
+
+        // Use clipboard+Ctrl+V only for 'clippaste' pasteMode (terminal paste mode)
+        if (tool?.pasteMode === 'clippaste') {
+          await deliverViaClipboardPaste(text);
+        } else {
+          // Use standard delivery for other pasteMode options
+          await deliverBulkText(sessionId, text);
+        }
         await window.gamepadCli.textDeliverResponse(requestId, true);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
