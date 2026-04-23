@@ -451,7 +451,7 @@ describe('Sessions Screen', () => {
       mockCurrentView = 'terminal';
     });
 
-    it('Ctrl+Shift+S switches to the last selected session', async () => {
+    it('Ctrl+Shift+S switches to the current session context', async () => {
       state.activeSessionId = 's-2';
       state.recentSessionId = 's-2';
       state.lastSelectedSessionId = 's-1';
@@ -469,7 +469,28 @@ describe('Sessions Screen', () => {
       }));
       await flush();
 
-      expect(mockNavigateToSession).toHaveBeenCalledWith('s-1');
+      expect(mockNavigateToSession).toHaveBeenCalledWith('s-2');
+    });
+
+    it('Ctrl+Shift+S restores the recent session while plan/overview cleared active selection', async () => {
+      state.activeSessionId = null;
+      state.recentSessionId = 's-2';
+      state.lastSelectedSessionId = 's-1';
+      state.sessions = [
+        { id: 's-1', name: 'Session 1', cliType: 'claude-code', processId: 1, workingDir: '/projects/a' },
+        { id: 's-2', name: 'Session 2', cliType: 'claude-code', processId: 2, workingDir: '/projects/b' },
+      ];
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'S',
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockNavigateToSession).toHaveBeenCalledWith('s-2');
     });
 
     it('Ctrl+Shift+W opens close confirm for the active terminal session', async () => {

@@ -381,7 +381,7 @@ async function toggleCurrentSessionOverviewShortcut(): Promise<void> {
 }
 
 async function switchToLastSelectedSessionShortcut(): Promise<void> {
-  const sessionId = state.lastSelectedSessionId;
+  const sessionId = getCurrentShortcutSessionId() ?? state.lastSelectedSessionId;
   if (!sessionId || !state.sessions.some(session => session.id === sessionId)) return;
   await useNavigationStore().navigateToSession(sessionId);
 }
