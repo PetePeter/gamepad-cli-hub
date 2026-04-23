@@ -19,6 +19,7 @@ interface SessionListGroupSession {
   name: string;
   cliType: string;
   title?: string;
+  cliSessionName?: string;
 }
 
 type SessionListFocusColumn = 0 | 1 | 2 | 3 | 4;
@@ -114,7 +115,7 @@ function onSessionStateChange(sessionId: string, newState: string): void {
             <SessionCard
               v-for="session in group.sessions"
               :key="session.id"
-              :session="{ id: session.id, name: session.name, cliType: session.cliType, title: session.title }"
+              :session="{ id: session.id, name: session.name, cliType: session.cliType, title: session.title, cliSessionName: session.cliSessionName }"
               :nav-index="navIndexMap.get(session.id) ?? -1"
               :session-state="sessionStates.get(session.id) || 'idle'"
               :activity-level="sessionActivityLevels.get(session.id) || 'idle'"

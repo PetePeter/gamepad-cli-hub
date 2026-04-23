@@ -42,7 +42,7 @@ export const sessionsState: SessionsScreenState = reactive({
   editingSessionId: null,
   navList: [],
   groups: [],
-  groupPrefs: { order: [], collapsed: [], overviewHidden: [] },
+  groupPrefs: { order: [], collapsed: [], overviewHidden: [], bookmarked: [] },
   overviewGroup: null,
   overviewIsGlobal: false,
   overviewFocusIndex: 0,

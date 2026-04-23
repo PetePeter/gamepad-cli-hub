@@ -18,7 +18,7 @@ import { refreshOverview, isOverviewVisible } from './group-overview.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import {
-  getSessionState, getSessionActivity, setSessionState,
+  getSessionState, getSessionActivity,
   loadSessionsData, updateSessionsFocus,
   getSessionCwd, getTerminalManager,
 } from './sessions.js';
@@ -164,95 +164,6 @@ export async function commitRename(sessionId: string, newName: string): Promise<
     logEvent('Rename failed');
     sessionsState.editingSessionId = null;
   }
-}
-
-// --- State dropdown ---
-export function showStateDropdown(anchor: HTMLElement, sessionId: string, currentState: string): void {
-  // Close any existing dropdown
-  document.querySelectorAll('.session-state-dropdown').forEach(el => el.remove());
-
-  const dropdown = document.createElement('div');
-  dropdown.className = 'session-state-dropdown';
-
-  const states = ['implementing', 'waiting', 'planning', 'completed', 'idle'];
-  let focusIndex = states.indexOf(currentState);
-  if (focusIndex < 0) focusIndex = 0;
-
-  for (const s of states) {
-    const option = document.createElement('button');
-    option.className = 'session-state-option';
-    if (s === currentState) option.classList.add('active');
-    option.textContent = getStateLabel(s);
-    option.addEventListener('click', (e) => {
-      e.stopPropagation();
-      cleanup();
-      setSessionState(sessionId, s);
-    });
-    dropdown.appendChild(option);
-  }
-
-  // Append to sidebar (not session-info) so it's not clipped by overflow
-  const sidebar = document.getElementById('sidePanel') || anchor.parentElement!;
-  sidebar.appendChild(dropdown);
-
-  // Position relative to anchor, flipping if it would go off-screen
-  const anchorRect = anchor.getBoundingClientRect();
-  const sidebarRect = sidebar.getBoundingClientRect();
-  dropdown.style.position = 'fixed';
-  dropdown.style.left = `${anchorRect.left}px`;
-
-  // Try above first; if clipped, put below
-  const dropdownHeight = dropdown.offsetHeight || 120;
-  if (anchorRect.top - dropdownHeight < sidebarRect.top) {
-    dropdown.style.top = `${anchorRect.bottom + 2}px`;
-  } else {
-    dropdown.style.top = `${anchorRect.top - dropdownHeight - 2}px`;
-  }
-
-  // Focus the current state option
-  const options = dropdown.querySelectorAll('.session-state-option') as NodeListOf<HTMLButtonElement>;
-  options[focusIndex]?.focus();
-  options[focusIndex]?.classList.add('dropdown-focused');
-
-  // Keyboard navigation: Up/Down arrows + Enter to select + ESC to close
-  function onKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      focusIndex = Math.min(states.length - 1, focusIndex + 1);
-      options[focusIndex]?.focus();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      focusIndex = Math.max(0, focusIndex - 1);
-      options[focusIndex]?.focus();
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      cleanup();
-      setSessionState(sessionId, states[focusIndex]);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      cleanup();
-    }
-  }
-
-  function cleanup(): void {
-    dropdown.remove();
-    document.removeEventListener('keydown', onKeyDown, true);
-    document.removeEventListener('click', closeHandler, true);
-  }
-
-  // Expose cleanup for gamepad B-button dismissal
-  (dropdown as any)._cleanup = cleanup;
-
-  // Close on outside click
-  const closeHandler = (e: MouseEvent) => {
-    if (!dropdown.contains(e.target as Node)) {
-      cleanup();
-    }
-  };
-
-  document.addEventListener('keydown', onKeyDown, true);
-  // Defer to avoid the current click closing immediately
-  setTimeout(() => document.addEventListener('click', closeHandler, true), 0);
 }
 
 // --- Status counts ---

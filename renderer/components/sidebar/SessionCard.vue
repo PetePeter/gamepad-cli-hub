@@ -5,7 +5,7 @@
  * Replaces the imperative createSessionCard() in sessions-render.ts with a reactive
  * template. Props drive all rendering — no manual DOM updates needed.
  */
-import { ref, computed, nextTick, watch } from 'vue';
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { getActivityColor } from '../../state-colors.js';
 
 // --- Types ---
@@ -15,6 +15,7 @@ export interface SessionCardSession {
   name: string;
   cliType: string;
   title?: string;
+  cliSessionName?: string;
 }
 
 export type SessionCardFocusColumn = 0 | 1 | 2 | 3 | 4;
@@ -67,9 +68,23 @@ const emit = defineEmits<{
 
 // --- Local state ---
 
+const cardEl = ref<HTMLDivElement | null>(null);
 const renameValue = ref('');
 const renameInput = ref<HTMLInputElement | null>(null);
 const showStateDropdown = ref(false);
+
+const openDropdown = () => { showStateDropdown.value = true; };
+const closeDropdown = () => { showStateDropdown.value = false; };
+
+onMounted(() => {
+  cardEl.value?.addEventListener('open-state-dropdown', openDropdown);
+  cardEl.value?.addEventListener('close-state-dropdown', closeDropdown);
+});
+
+onUnmounted(() => {
+  cardEl.value?.removeEventListener('open-state-dropdown', openDropdown);
+  cardEl.value?.removeEventListener('close-state-dropdown', closeDropdown);
+});
 
 // Auto-focus rename input when editing begins
 watch(() => props.isEditing, async (editing) => {
@@ -116,21 +131,11 @@ function selectState(s: string): void {
   emit('stateChange', props.session.id, s);
 }
 
-function handleButton(button: string): boolean {
-  if (showStateDropdown.value) {
-    if (button === 'B' || button === 'Escape') {
-      showStateDropdown.value = false;
-      return true;
-    }
-  }
-  return false;
-}
-
-defineExpose({ handleButton });
 </script>
 
 <template>
   <div
+    ref="cardEl"
     class="session-card"
     :class="{ active: isActive, focused: isFocused, 'snapped-out': isSnappedOut }"
     :data-session-id="session.id"

@@ -27,10 +27,10 @@ import { refreshSessions, doSpawn, switchToSession, doCloseSession,
 } from './composables/useAppBootstrap.js';
 import { formatElapsed } from '../src/utils/time-parser.js';
 import type { SessionSortField, SortDirection } from './sort-logic.js';
-import { findNavIndexBySessionId, toggleCollapse, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
+import { findNavIndexBySessionId, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
 import { showOverview, handleOverviewInput } from './screens/group-overview.js';
 import { showPlanScreen, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction, refreshCanvasIfVisible } from './plans/plan-screen.js';
-import { handleSessionsScreenButton, toggleSessionOverviewVisibility, setSessionState } from './screens/sessions.js';
+import { handleSessionsScreenButton, toggleSessionOverviewVisibility, setSessionState, toggleGroupCollapse } from './screens/sessions.js';
 import { usePanelResize } from './composables/usePanelResize.js';
 import { setSpawnCollapsed, setPlannerCollapsed } from './sidebar/section-collapse.js';
 import { setDirPickerBridge } from './screens/sessions-spawn.js';
@@ -341,19 +341,7 @@ async function onSessionStateChange(sessionId: string, newState: string): Promis
 
 // Group actions
 function onGroupToggleCollapse(dirPath: string): void {
-  sessionsState.groupPrefs.collapsed = toggleCollapse(sessionsState.groupPrefs.collapsed, dirPath);
-  void refreshSessions();
-  void saveGroupPrefsToBackend();
-}
-
-async function saveGroupPrefsToBackend(): Promise<void> {
-  try {
-    await window.gamepadCli?.configSetSessionGroupPrefs({
-      order: [...sessionsState.groupPrefs.order],
-      collapsed: [...sessionsState.groupPrefs.collapsed],
-      overviewHidden: [...sessionsState.groupPrefs.overviewHidden],
-    });
-  } catch { /* ignore */ }
+  void toggleGroupCollapse(dirPath);
 }
 
 function onShowPlans(dirPath: string): void {

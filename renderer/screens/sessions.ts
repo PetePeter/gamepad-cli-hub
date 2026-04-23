@@ -6,7 +6,6 @@
  */
 
 import { state } from '../state.js';
-import { formatElapsed } from '../../src/utils/time-parser.js';
 import { sessionsState } from './sessions-state.js';
 import { logEvent, getCliDisplayName, toDirection } from '../utils.js';
 import type { Session } from '../state.js';
@@ -17,7 +16,6 @@ import {
   toggleCollapse,
   findNavIndexBySessionId, getSessionOverviewAliases, getSessionOverviewKey,
 } from '../session-groups.js';
-import { getActivityColor } from '../state-colors.js';
 import {
   getOverviewSessions, handleOverviewInput, hideOverview, isOverviewVisible, refreshOverview,
 } from './group-overview.js';
@@ -28,7 +26,7 @@ import { currentView } from '../main-view/main-view-manager.js';
 // Sub-module imports — circular at module level, safe because all usages are in function bodies.
 import {
   initSessionsSortControl, updateStatusCounts,
-  startRename, showStateDropdown, commitRename, cancelRename,
+  startRename, commitRename, cancelRename,
   sessionsSortField, sessionsSortDirection,
 } from './sessions-render.js';
 
@@ -39,7 +37,7 @@ import {
   getSessionCwd, getTerminalManager,
   autoSelectFocusedSession, renderSpawnGrid,
   handleSessionsZone, handleSpawnZone, handleSpawnZoneButton,
-  lastSwitchTime, clamp,
+  clamp,
 } from './sessions-spawn.js';
 
 import {
@@ -61,12 +59,6 @@ export {
 // ============================================================================
 
 const sessionStates = new Map<string, string>();
-
-/** Track session activity level (active/inactive/idle based on output timing) */
-const sessionActivity = new Map<string, string>();
-
-/** Track last output timestamp per session (for timer display) */
-const lastOutputTimes = new Map<string, number>();
 
 // Draft count cache — updated on session load and draft changes
 const draftCounts = new Map<string, number>();
@@ -99,17 +91,6 @@ export function setPlanStartableCountCache(sessionId: string, count: number): vo
   planStartableCounts.set(sessionId, count);
 }
 
-/** Get the last output timestamp for a session */
-export function getLastOutputTime(sessionId: string): number {
-  return lastOutputTimes.get(sessionId) ?? 0;
-}
-
-/** Set the last output timestamp for a session */
-export function setLastOutputTime(sessionId: string, timestamp: number): void {
-  lastOutputTimes.set(sessionId, timestamp);
-}
-
-const ACTIVITY_DEBOUNCE_MS = 300;
 let removePlanChangedListener: (() => void) | null = null;
 
 export function getSessionState(sessionId: string): string {
@@ -153,84 +134,11 @@ export async function setSessionState(sessionId: string, newState: string): Prom
 
 export function removeSessionState(sessionId: string): void {
   sessionStates.delete(sessionId);
-  sessionActivity.delete(sessionId);
-  lastOutputTimes.delete(sessionId);
 }
 
-/** Get session activity level */
+/** Get session activity level — reads from reactive state updated by useAppBootstrap. */
 export function getSessionActivity(sessionId: string): string {
-  return sessionActivity.get(sessionId) ?? 'idle';
-}
-
-/** Set session activity level */
-export function setSessionActivity(sessionId: string, level: string, lastOutputAt?: number): void {
-  // Ignore active events right after a session switch (likely focus-induced PTY noise)
-  if (level === 'active' && Date.now() - lastSwitchTime < ACTIVITY_DEBOUNCE_MS) {
-    return;
-  }
-  if (lastOutputAt !== undefined) {
-    lastOutputTimes.set(sessionId, lastOutputAt);
-  }
-  const previous = sessionActivity.get(sessionId) ?? 'idle';
-  if (previous !== level) {
-    sessionActivity.set(sessionId, level);
-    // In-place DOM update: just update the dot color — avoids destroying the rename input
-    updateActivityDotInPlace(sessionId, level);
-  }
-  // Always update the timer display (timestamp changes even if level is unchanged)
-  updateTimerInPlace(sessionId);
-}
-
-/** Update just the activity dot color for a session card without re-rendering. */
-function updateActivityDotInPlace(sessionId: string, level: string): void {
-  const color = getActivityColor(level);
-  // Session card dot
-  const card = document.querySelector(`.session-card[data-session-id="${sessionId}"]`);
-  const dot = card?.querySelector('.session-activity-dot') as HTMLElement | null;
-  if (dot) {
-    dot.style.background = color;
-  }
-  // Overview card dot (if overview is visible)
-  const overviewCard = document.querySelector(`.overview-card[data-session-id="${sessionId}"]`);
-  const overviewDot = overviewCard?.querySelector('.overview-state-dot') as HTMLElement | null;
-  if (overviewDot) {
-    overviewDot.style.background = color;
-  }
-}
-
-/** Update the elapsed-time timer text on a session card. */
-function updateTimerInPlace(sessionId: string): void {
-  const card = document.querySelector(`.session-card[data-session-id="${sessionId}"]`);
-  const timer = card?.querySelector('.session-timer') as HTMLElement | null;
-  if (!timer) return;
-  const ts = lastOutputTimes.get(sessionId);
-  timer.textContent = ts ? formatElapsed(Date.now() - ts) : '';
-}
-
-/** Refresh all visible timer spans. Called by setInterval. */
-export function refreshAllTimers(): void {
-  const timers = document.querySelectorAll('.session-timer') as NodeListOf<HTMLElement>;
-  for (const timer of timers) {
-    const card = timer.closest('.session-card') as HTMLElement | null;
-    if (!card?.dataset.sessionId) continue;
-    const ts = lastOutputTimes.get(card.dataset.sessionId);
-    timer.textContent = ts ? formatElapsed(Date.now() - ts) : '';
-  }
-}
-
-// Live timer refresh — update every 10 seconds
-let timerInterval: ReturnType<typeof setInterval> | null = null;
-
-export function startTimerRefresh(): void {
-  if (timerInterval) return;
-  timerInterval = setInterval(refreshAllTimers, 10_000);
-}
-
-export function stopTimerRefresh(): void {
-  if (timerInterval) {
-    clearInterval(timerInterval);
-    timerInterval = null;
-  }
+  return state.sessionActivityLevels.get(sessionId) ?? 'idle';
 }
 
 export function doCloseSession(sessionId: string): void {
@@ -658,16 +566,14 @@ export async function loadSessionsData(): Promise<void> {
 // State dropdown handlers
 // ============================================================================
 
-/** Open the state dropdown for the currently focused session card. */
+/** Open the state dropdown for the currently focused session card via Vue bridge. */
 function openStateDropdownForFocused(): void {
   const session = getSessionAtFocus();
   if (!session) return;
   const card = getFocusedRenderedSessionCard()
     ?? document.querySelector(`.session-card[data-session-id="${session.id}"]`);
-  const stateBtn = card?.querySelector('.session-state-btn') as HTMLElement;
-  if (!stateBtn) return;
-  const currentState = getSessionState(session.id);
-  showStateDropdown(stateBtn, session.id, currentState);
+  if (!card) return;
+  card.dispatchEvent(new CustomEvent('open-state-dropdown'));
 }
 
 /** Handle gamepad buttons while the state dropdown is open. */
@@ -697,9 +603,8 @@ function handleStateDropdownButton(button: string, dropdown: HTMLElement): void 
     return;
   }
   if (button === 'B') {
-    const cleanupFn = (dropdown as any)._cleanup;
-    if (cleanupFn) cleanupFn();
-    else dropdown.remove();
+    const card = dropdown.closest('.session-card');
+    card?.dispatchEvent(new CustomEvent('close-state-dropdown'));
     return;
   }
   // Other buttons: ignore while dropdown is open
@@ -793,30 +698,6 @@ export function updateAllFocus(): void {
   updateSessionsFocus();
   updateSpawnFocus();
   updatePlansFocus();
-}
-
-// ============================================================================
-// Actions (dead code — kept for potential future use)
-// ============================================================================
-
-async function deleteSession(sessionId: string): Promise<void> {
-  try {
-    if (!window.gamepadCli) return;
-    const result = await window.gamepadCli.sessionClose(sessionId);
-    if (result.success) {
-      logEvent(`Deleted: ${sessionId}`);
-      state.sessions = await window.gamepadCli.sessionGetAll();
-      sessionsState.sessionsFocusIndex = clamp(
-        sessionsState.sessionsFocusIndex, 0, Math.max(0, state.sessions.length - 1),
-      );
-      updateStatusCounts();
-      updateSessionsFocus();
-    } else {
-      logEvent(`Delete failed: ${result.error}`);
-    }
-  } catch (error) {
-    console.error('[Sessions] Failed to delete session:', error);
-  }
 }
 
 export function refreshSessions(): void {

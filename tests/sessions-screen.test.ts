@@ -276,7 +276,7 @@ describe('Sessions Screen', () => {
       editingSessionId: null,
       navList: [],
       groups: [],
-      groupPrefs: { order: [], collapsed: [], overviewHidden: [] },
+      groupPrefs: { order: [], collapsed: [], overviewHidden: [], bookmarked: [] },
       overviewGroup: null,
       overviewIsGlobal: false,
       overviewFocusIndex: 0,
@@ -1438,22 +1438,21 @@ describe('Sessions Screen', () => {
       expect(sessionsState.editingSessionId).toBe('s-0');
     });
 
-    it('A at col=1 opens the state dropdown for the focused rendered card', () => {
+    it('A at col=1 dispatches open-state-dropdown on the focused session card', () => {
       const card = document.createElement('div');
       card.className = 'session-card';
       card.dataset.sessionId = 's-0';
-      const stateBtn = document.createElement('button');
-      stateBtn.className = 'session-state-btn';
-      card.appendChild(stateBtn);
       document.body.appendChild(card);
+
+      let eventDispatched = false;
+      card.addEventListener('open-state-dropdown', () => { eventDispatched = true; });
 
       sessionsState.cardColumn = 1;
       const result = sessions.handleSessionsScreenButton('A');
 
       expect(result).toBe(true);
-      expect(document.querySelector('.session-state-dropdown')).toBeTruthy();
+      expect(eventDispatched).toBe(true);
       card.remove();
-      document.querySelector('.session-state-dropdown')?.remove();
     });
 
     it('A in the state dropdown selects the focused option', async () => {

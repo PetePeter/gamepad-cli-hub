@@ -220,19 +220,21 @@ describe('SessionCard', () => {
     expect(w.find('.session-working-plan').text()).toBe('🗺️ Auth refactor');
   });
 
-  it('handleButton closes state dropdown on B', async () => {
+  it('closes state dropdown when close-state-dropdown event is dispatched', async () => {
     const w = mount(SessionCard, { props: makeCardProps() });
     await w.find('.session-state-btn').trigger('click');
     expect(w.find('.session-state-dropdown').exists()).toBe(true);
-    const result = (w.vm as any).handleButton('B');
-    expect(result).toBe(true);
+    w.element.dispatchEvent(new CustomEvent('close-state-dropdown'));
     await nextTick();
     expect(w.find('.session-state-dropdown').exists()).toBe(false);
   });
 
-  it('handleButton returns false when no dropdown', () => {
+  it('opens state dropdown when open-state-dropdown event is dispatched', async () => {
     const w = mount(SessionCard, { props: makeCardProps() });
-    expect((w.vm as any).handleButton('B')).toBe(false);
+    expect(w.find('.session-state-dropdown').exists()).toBe(false);
+    w.element.dispatchEvent(new CustomEvent('open-state-dropdown'));
+    await nextTick();
+    expect(w.find('.session-state-dropdown').exists()).toBe(true);
   });
 
   it('renders explicit nav index hook on the row root', () => {
