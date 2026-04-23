@@ -228,8 +228,13 @@ export function resetToolEditorData(): ToolEditorBridgeData { return { ...EMPTY_
 // ============================================================================
 
 export function isAnyBridgeModalVisible(): boolean {
+  // Import inside function to avoid circular dependency
+  const { useEscProtection } = require('../composables/useEscProtection.js');
+  const escProtection = useEscProtection();
+
   return closeConfirm.visible || contextMenu.visible || planDeleteConfirm.visible ||
     clearDonePlans.visible || sequencePicker.visible || quickSpawn.visible || dirPicker.visible ||
-    draftSubmenu.visible || formModal.visible || editorPopup.visible || toolEditor.visible;
+    draftSubmenu.visible || formModal.visible || editorPopup.visible || toolEditor.visible ||
+    escProtection.isProtecting.value;
 }
 

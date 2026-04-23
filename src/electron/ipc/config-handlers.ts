@@ -190,6 +190,26 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
     }
   });
 
+  ipcMain.handle('config:getEscProtectionEnabled', () => {
+    try {
+      return configLoader.getEscProtectionEnabled();
+    } catch (error) {
+      logger.error(`[IPC] Failed to get ESC protection setting: ${error}`);
+      return true;
+    }
+  });
+
+  ipcMain.handle('config:setEscProtectionEnabled', (_event, enabled: boolean) => {
+    try {
+      configLoader.setEscProtectionEnabled(enabled);
+      logger.info(`[IPC] ESC protection set to: ${enabled}`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to set ESC protection: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle('config:getSortPrefs', (_event, area: string) => {
     try {
       return configLoader.getSortPrefs(area as 'sessions' | 'bindings');

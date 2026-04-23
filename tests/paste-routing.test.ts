@@ -80,7 +80,7 @@ describe('keyboard relay', () => {
       globalThis.requestAnimationFrame = originalRequestAnimationFrame;
     };
 
-    setupKeyboardRelay(getActiveSessionId, hasPendingQuestion);
+    setupKeyboardRelay(getActiveSessionId, hasPendingQuestion, async () => false);
   });
 
   afterEach(() => {
@@ -201,10 +201,11 @@ describe('keyboard relay', () => {
       expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\r');
     });
 
-    it('relays Escape as escape character', () => {
+    it('relays Escape as escape character', async () => {
       getActiveSessionId.mockReturnValue('sess-1');
 
       fireKey('Escape');
+      await new Promise(resolve => setTimeout(resolve, 10));
       expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\x1b');
     });
 
@@ -385,7 +386,7 @@ describe('keyboard relay', () => {
     it('calling setup twice only registers one listener', () => {
       getActiveSessionId.mockReturnValue('sess-1');
 
-      setupKeyboardRelay(getActiveSessionId);
+      setupKeyboardRelay(getActiveSessionId, () => false, async () => false);
       fireKey('a');
 
       expect(mockPtyWrite).toHaveBeenCalledTimes(1);

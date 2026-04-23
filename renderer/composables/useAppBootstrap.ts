@@ -329,18 +329,10 @@ export async function switchToSession(sessionId: string): Promise<void> {
   logEvent(`Session ${sessionId} is not an embedded terminal`);
 }
 
-export async function doCloseSession(sessionId: string): Promise<void> {
-  if (!window.gamepadCli) return;
-
-  try {
-    const result = await window.gamepadCli.sessionClose(sessionId);
-    if (!result?.success) {
-      console.error(`[Bootstrap] Failed to close session ${sessionId}:`, result?.error ?? 'unknown error');
-      return;
-    }
-  } catch (error) {
-    console.error(`[Bootstrap] Failed to close session ${sessionId}:`, error);
-    return;
+function cleanupRendererSession(sessionId: string, detachTerminal = false): void {
+  const tm = getTerminalManager();
+  if (detachTerminal && tm?.hasTerminal(sessionId)) {
+    tm.detachTerminal(sessionId);
   }
 
   state.sessionStates.delete(sessionId);
@@ -349,8 +341,27 @@ export async function doCloseSession(sessionId: string): Promise<void> {
   state.draftCounts.delete(sessionId);
   state.planDoingCounts.delete(sessionId);
   state.planStartableCounts.delete(sessionId);
+  state.workingPlanLabels.delete(sessionId);
+  state.workingPlanTooltips.delete(sessionId);
+  state.pendingSchedules.delete(sessionId);
   state.snappedOutSessions.delete(sessionId);
+}
 
+export async function doCloseSession(sessionId: string): Promise<void> {
+  if (!window.gamepadCli) return;
+
+  try {
+    const result = await window.gamepadCli.sessionClose(sessionId);
+    if (!result?.success && result?.error !== 'Session not found') {
+      console.error(`[Bootstrap] Failed to close session ${sessionId}:`, result?.error ?? 'unknown error');
+      return;
+    }
+  } catch (error) {
+    console.error(`[Bootstrap] Failed to close session ${sessionId}:`, error);
+    return;
+  }
+
+  cleanupRendererSession(sessionId, true);
   await refreshSessions();
 }
 
@@ -403,6 +414,11 @@ function setupIpcListeners(): void {
     if (previous !== event.level) {
       state.sessionActivityLevels.set(event.sessionId, event.level);
     }
+  });
+
+  window.gamepadCli.onPtyExit((sessionId) => {
+    cleanupRendererSession(sessionId, true);
+    void refreshSessions();
   });
 
   window.gamepadCli.onNotificationClick((event) => {
@@ -625,6 +641,14 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
   setupKeyboardRelay(
     () => tm.getActiveSessionId() ?? null,
     (sessionId) => getSessionState(sessionId) === 'question',
+    async () => {
+      try {
+        return await window.gamepadCli.configGetEscProtectionEnabled();
+      } catch (err) {
+        console.error('Failed to get ESC protection setting:', err);
+        return true;
+      }
+    },
   );
 
   // Overview + Plan screen dependencies

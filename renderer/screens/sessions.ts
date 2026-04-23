@@ -141,12 +141,25 @@ export function getSessionActivity(sessionId: string): string {
   return state.sessionActivityLevels.get(sessionId) ?? 'idle';
 }
 
+function cleanupRendererSession(sessionId: string): void {
+  removeSessionState(sessionId);
+  draftCounts.delete(sessionId);
+  planDoingCounts.delete(sessionId);
+  planStartableCounts.delete(sessionId);
+  state.sessionActivityLevels.delete(sessionId);
+  state.lastOutputTimes.delete(sessionId);
+  state.workingPlanLabels.delete(sessionId);
+  state.workingPlanTooltips.delete(sessionId);
+  state.pendingSchedules.delete(sessionId);
+  state.snappedOutSessions.delete(sessionId);
+}
+
 export async function doCloseSession(sessionId: string): Promise<void> {
   if (!window.gamepadCli) return;
 
   try {
     const result = await window.gamepadCli.sessionClose(sessionId);
-    if (!result?.success) {
+    if (!result?.success && result?.error !== 'Session not found') {
       console.error(`[Sessions] Failed to close session ${sessionId}:`, result?.error ?? 'unknown error');
       return;
     }
@@ -155,13 +168,7 @@ export async function doCloseSession(sessionId: string): Promise<void> {
     return;
   }
 
-  removeSessionState(sessionId);
-  draftCounts.delete(sessionId);
-  planDoingCounts.delete(sessionId);
-  planStartableCounts.delete(sessionId);
-  state.sessionActivityLevels.delete(sessionId);
-  state.lastOutputTimes.delete(sessionId);
-  state.snappedOutSessions.delete(sessionId);
+  cleanupRendererSession(sessionId);
   await loadSessions();
 }
 

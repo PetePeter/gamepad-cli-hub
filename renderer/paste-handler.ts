@@ -20,11 +20,13 @@ function nextFrame(): Promise<void> {
 
 type GetActiveSessionId = () => string | null;
 type HasPendingQuestion = (sessionId: string) => boolean;
+type GetEscProtectionEnabled = () => Promise<boolean>;
 
 let registeredHandler: ((e: KeyboardEvent) => void) | null = null;
 let pasteInFlight = false;
 let editorInFlight = false;
 let clipboardPasteInFlight = false;
+let getEscProtectionEnabled: GetEscProtectionEnabled = async () => true;
 /** Per-session lock to prevent interleaved character-by-character paste */
 const ptyIndividualLock = new Set<string>();
 
@@ -149,8 +151,11 @@ function isXtermTarget(e: KeyboardEvent): boolean {
 export function setupKeyboardRelay(
   getActiveSessionId: GetActiveSessionId,
   hasPendingQuestion: HasPendingQuestion = () => false,
+  getEscProtectionEnabledFn: GetEscProtectionEnabled = async () => true,
 ): void {
   if (registeredHandler) return; // idempotent
+
+  getEscProtectionEnabled = getEscProtectionEnabledFn;
 
   registeredHandler = async (e: KeyboardEvent) => {
     const sessionId = getActiveSessionId();
@@ -170,7 +175,10 @@ export function setupKeyboardRelay(
     }
 
     // Block ALL keyboard relay when any modal overlay is visible
-    if (document.querySelector('.modal-overlay.modal--visible')) return;
+    if (document.querySelector('.modal-overlay.modal--visible')) {
+      e.stopPropagation();
+      return;
+    }
 
     // Block keyboard relay when the plan canvas is visible
     if (document.querySelector('.plan-screen.visible')) return;
@@ -243,7 +251,22 @@ export function setupKeyboardRelay(
     if (['Control', 'Shift', 'Alt', 'Meta', 'CapsLock', 'NumLock', 'ScrollLock',
          'Dead', 'Unidentified', 'Process', 'Compose'].includes(e.key)) return;
 
-    // Named keys (Enter, Tab, Escape, arrows, etc.)
+    // ESC key protection — intercept before sending to PTY
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      const protected_ = await getEscProtectionEnabled();
+      if (protected_) {
+        const { useEscProtection } = await import('./composables/useEscProtection.js');
+        const escProtection = useEscProtection();
+        escProtection.openProtection(sessionId);
+        return;
+      }
+      // Protection disabled — send ESC normally
+      window.gamepadCli.ptyWrite(sessionId, '\x1b');
+      return;
+    }
+
+    // Named keys (Enter, Tab, arrows, etc.)
     const esc = keyToPtyEscape(e.key);
     if (esc !== e.key || e.key.length > 1) {
       // Known named key or multi-char key name → send escape sequence

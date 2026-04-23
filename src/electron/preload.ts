@@ -140,6 +140,16 @@ const gamepadCliAPI = {
   configSetNotifications: (enabled: boolean) => ipcRenderer.invoke('config:setNotifications', enabled),
 
   /**
+   * Get ESC protection setting
+   */
+  configGetEscProtectionEnabled: () => ipcRenderer.invoke('config:getEscProtectionEnabled'),
+
+  /**
+   * Set ESC protection setting
+   */
+  configSetEscProtectionEnabled: (enabled: boolean) => ipcRenderer.invoke('config:setEscProtectionEnabled', enabled),
+
+  /**
    * Get sort preferences for an area (sessions or bindings)
    */
   configGetSortPrefs: (area: string) => ipcRenderer.invoke('config:getSortPrefs', area),

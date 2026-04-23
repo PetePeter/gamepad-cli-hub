@@ -270,6 +270,7 @@ export interface SettingsConfig {
   activeProfile: string;
   hapticFeedback: boolean;
   notifications: boolean;
+  escProtectionEnabled: boolean;
   sidebar?: SidebarPrefs;
   snapOutWindows?: Record<string, SnapOutWindowPrefs>;
   sorting?: SortingConfig;
@@ -736,6 +737,17 @@ export class ConfigLoader {
   setNotifications(enabled: boolean): void {
     this.ensureLoaded();
     this.settings!.notifications = enabled;
+    this.saveSettings();
+  }
+
+  getEscProtectionEnabled(): boolean {
+    this.ensureLoaded();
+    return this.settings!.escProtectionEnabled ?? true;
+  }
+
+  setEscProtectionEnabled(enabled: boolean): void {
+    this.ensureLoaded();
+    this.settings!.escProtectionEnabled = enabled;
     this.saveSettings();
   }
 

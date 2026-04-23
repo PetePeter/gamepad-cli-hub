@@ -37,6 +37,7 @@ import { setDirPickerBridge } from './screens/sessions-spawn.js';
 import { loadSettingsScreen, handleSettingsScreenButton } from './screens/settings.js';
 import { onViewChange, currentView, type MainView as ViewName } from './main-view/main-view-manager.js';
 import { useModalStack } from './composables/useModalStack.js';
+import { useEscProtection } from './composables/useEscProtection.js';
 import {
   closeConfirm, getCloseConfirmCallback, setCloseConfirmCallback,
   contextMenu,
@@ -82,6 +83,7 @@ import FormModal from './components/modals/FormModal.vue';
 import ToolEditorModal from './components/modals/ToolEditorModal.vue';
 import EditorPopup from './components/modals/EditorPopup.vue';
 import BindingEditorModal from './components/modals/BindingEditorModal.vue';
+import EscProtectionModal from './components/modals/EscProtectionModal.vue';
 import ToastNotification from './components/ToastNotification.vue';
 import ClearDonePlansModal from './components/modals/ClearDonePlansModal.vue';
 import ChipBar from './components/chips/ChipBar.vue';
@@ -716,7 +718,28 @@ function handleModalKeyboardBridge(e: KeyboardEvent): void {
   } else if (e.key === 'Escape') {
     if (!interceptKeys.has('escape')) return;
     e.preventDefault();
+
+    // Handle ESC protection: second ESC confirms and sends \x1b to active terminal
+    const escProtection = useEscProtection();
+    if (escProtection.isProtecting.value) {
+      const sessionId = state.activeSessionId;
+      if (sessionId) {
+        window.gamepadCli.ptyWrite(sessionId, '\x1b');
+      }
+      escProtection.dismissProtection();
+      return;
+    }
+
     stack.handleInput('B');
+  } else {
+    // Any other key while ESC protection modal is open — dismiss without sending ESC
+    const escProtection = useEscProtection();
+    if (escProtection.isProtecting.value) {
+      e.preventDefault();
+      e.stopPropagation();
+      escProtection.dismissProtection();
+      return;
+    }
   }
 }
 
@@ -1077,6 +1100,8 @@ onUnmounted(() => {
       @save="onBindingEditorSave"
       @cancel="bindingEditorVisible = false"
     />
+
+    <EscProtectionModal />
 
     <ToastNotification />
   </template>

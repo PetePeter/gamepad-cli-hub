@@ -16,6 +16,8 @@ export interface KeyboardRelayOptions {
   getActiveSessionId: () => string | null;
   /** Returns true if the session has a pending question */
   hasPendingQuestion?: (sessionId: string) => boolean;
+  /** Returns true if ESC protection is enabled (async) */
+  getEscProtectionEnabled?: () => Promise<boolean>;
 }
 
 export function useKeyboardRelay(options: KeyboardRelayOptions) {
@@ -23,6 +25,7 @@ export function useKeyboardRelay(options: KeyboardRelayOptions) {
     setupKeyboardRelay(
       options.getActiveSessionId,
       options.hasPendingQuestion ?? (() => false),
+      options.getEscProtectionEnabled ?? (async () => true),
     );
   });
 
