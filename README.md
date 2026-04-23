@@ -19,9 +19,11 @@ Helm is an Electron desktop app that lets you control multiple AI coding CLI ses
 - **Multi-CLI workflows** — Run Claude Code, Copilot CLI, Codex CLI, and other AI tools side-by-side in embedded terminals
 - **Physical controls** — D-pad, buttons, and analog sticks replace keyboard shortcuts. Works with Xbox controllers and generic/DirectInput gamepads
 - **Session groups** — Sessions grouped by working directory with collapsible headers and a live preview grid
+- **Directory planning** — Per-folder plan graph with startable/doing/done states, plan chips, and quick apply/complete actions
+- **Drafts + chip bar** — Keep prompt drafts beside the active terminal and trigger reusable quick actions with template expansions
 - **Telegram bot** — Remote session control, output monitoring, and spawning from your phone
 - **Voice control ready** — Designed to work with OpenWhisper for voice-to-text input
-- **Session resume** — Sessions survive app crashes and restarts, with per-CLI resume commands
+- **Session recovery** — Sessions survive app crashes and restarts, with per-CLI resume commands and snapped-out window recovery
 
 ---
 
@@ -43,7 +45,7 @@ Plug in a controller (USB or Bluetooth). The app detects it automatically — Xb
 | Input | Action |
 |-------|--------|
 | D-Pad Up / Down | Switch sessions (auto-selects terminal) |
-| D-Pad Right | Open group overview (from group header) / cycle card sub-elements |
+| D-Pad Right | Open group overview from a group header / cycle session-card sub-elements |
 | D-Pad Left | Back one sub-element column |
 | Left Stick | Same as D-pad |
 | Right Stick | Scroll terminal buffer (configurable per-profile) |
@@ -61,10 +63,16 @@ Plug in a controller (USB or Bluetooth). The app detects it automatically — Xb
 | Input | Action |
 |-------|--------|
 | Ctrl+Tab / Ctrl+Shift+Tab | Next / previous terminal tab |
+| Ctrl+Shift+N | Terminal: open quick spawn / Sessions or Overview: create a new plan for the current directory |
+| Ctrl+Shift+W | Close the active session while terminal view is active |
+| Ctrl+Shift+P | Open the planner for the current session folder |
+| Ctrl+Shift+O | Open the overview for the current session folder; press again to toggle to global overview |
+| Ctrl+Shift+S | Switch back to the last selected session, including a snapped-out window |
 | Arrow keys | Navigate sessions (D-pad equivalents) |
 | Enter | Confirm (A button) |
 | Escape | Back (B button) |
 | Delete | Close (X button) |
+| F5 | Mapped to Y button |
 | Ctrl+V | Paste clipboard text to active terminal |
 | Ctrl+G | Open in-app Prompt Editor (textarea + recent-prompts history) — Ctrl+Enter sends to active terminal |
 
@@ -89,6 +97,16 @@ Both overview modes show:
 **Eye toggle (👁 / 👁‍🗨)** — Each session card has an eye button (D-pad Right to column 3). Toggle it to hide a session from the global overview without closing it. Hidden sessions still appear in the sidebar list and their own group overview.
 
 See [docs/group-overview.md](docs/group-overview.md) for details.
+
+---
+
+## Plans, Drafts & Chip Bar
+
+Each working directory can have its own plan graph. Plan items live in a dependency-aware canvas with `pending`, `startable`, `doing`, and `done` states. Startable work appears as chips near the active terminal so you can pick it up quickly, and active work can be completed from the same strip.
+
+The same strip also shows draft prompts and reusable chip-bar actions. In practice this means you can keep a few common prompts or workflows one click away while a session is busy.
+
+See [docs/directory-plans.md](docs/directory-plans.md) and [docs/config-system.md](docs/config-system.md) for the planner and chip-bar details.
 
 ---
 
@@ -167,9 +185,9 @@ Voice bindings support two routing modes:
 
 ---
 
-## Sequence Syntax
+## Prompt Sequences
 
-Button bindings and initial prompts use a sequence parser for scripting complex input:
+Button bindings, quick actions, and initial prompts can send small scripted input sequences:
 
 ```yaml
 A:
@@ -177,32 +195,18 @@ A:
   sequence: |
     /clear
     {Wait 500}
-    yes{Enter}
+    yes{Send}
     {Ctrl+C}
 ```
 
 | Token | Effect |
 |-------|--------|
 | Plain text | Sent as literal characters to PTY |
-| `{Enter}`, `{Tab}`, `{Escape}`, `{Delete}` | Named keys |
+| `{Enter}`, `{Send}`, `{Tab}`, `{Escape}`, `{Delete}` | Named keys |
 | `{Ctrl+C}`, `{Ctrl+Z}`, `{Ctrl+V}` | Modifier + key combos |
 | `{Wait 500}` | Pause N ms (max 30000) |
-| `{Ctrl Down}`, `{Ctrl Up}` | Hold/release modifier |
+| `{Ctrl Down}`, `{Ctrl Up}`, `{Shift Down}`, `{Shift Up}` | Hold/release modifier |
 | `{{`, `}}` | Literal `{` and `}` |
-
-### Chip Bar Template Expansions
-
-Chip bar quick actions also support these `{...}` template expansions inside their sequence text:
-
-| Template | Expands to |
-|----------|------------|
-| `{cwd}` | Active session working directory |
-| `{cliType}` | Active session CLI type key |
-| `{sessionName}` | Active session display name |
-| `{inboxDir}` | Writable planner inbox path at `config/plans/incoming` |
-| `{plansDir}` | Alias for `{inboxDir}` for backward compatibility |
-
-In packaged installs, `{inboxDir}` and `{plansDir}` resolve from the app's writable config directory under the user's app-data folder, not the read-only install directory.
 
 ### Initial Prompts
 
@@ -221,43 +225,13 @@ tools:
 
 ---
 
-## How It Fits Together
-
-```mermaid
-graph LR
-    XB[🎮 Game Controller] --> APP[Helm]
-    TG[📱 Telegram Bot] <--> APP
-    APP --> T1[Claude Code PTY]
-    APP --> T2[Copilot CLI PTY]
-    APP --> T3[Codex CLI PTY]
-    APP --> T4[... more sessions]
-
-    style APP fill:#4a9eff,color:#fff,stroke:#2d7ad6
-```
-
-The app sits between your input devices and your AI coding assistants. It reads gamepad input via the Browser Gamepad API, resolves per-CLI bindings, and routes input to embedded terminal sessions via PTY.
-
-**D-pad navigation auto-selects terminals** — press up/down to switch sessions and the terminal activates immediately. Keyboard input always routes to the active terminal.
-
-**Session persistence** — Sessions are saved to disk after every change and restored on startup. Dead processes are cleaned up via PTY exit events. Per-CLI resume commands reconnect to existing CLI sessions.
-
----
-
 ## Configuration
 
-Everything is configurable from the in-app settings UI — Profiles, per-CLI bindings, Tools, Directories, and Telegram tabs. Config files are there if you prefer hand-editing.
+Everything is configurable from the in-app settings UI: profiles, tool commands, working directories, button bindings, Telegram integration, and quick actions.
 
 ### Profiles
 
-Profiles are self-contained YAML files storing tools, directories, bindings, stick config, and D-pad settings. Switch profiles with Back/Start or from the settings screen.
-
-```
-config/
-├── settings.yaml          # Active profile + feature toggles
-├── sessions.yaml          # Persisted session state (auto-managed)
-└── profiles/
-    └── default.yaml       # Tools + dirs + bindings + sticks + dpad
-```
+Profiles let you keep different setups for different workflows. You can switch profiles with Back/Start or from Settings.
 
 ### Binding Actions
 
@@ -269,81 +243,28 @@ config/
 | `context-menu` | Open the context menu overlay |
 | `sequence-list` | Show a picker of named sequences (reference a group or inline items) |
 
-### Per-CLI Bindings
-
-The same button can do different things depending on which CLI is active:
-
-```yaml
-bindings:
-  claude-code:
-    A:
-      action: keyboard
-      sequence: "/clear{Enter}"
-  copilot-cli:
-    A:
-      action: keyboard
-      sequence: "git status{Enter}"
-```
-
-### Stick Configuration
-
-```yaml
-sticks:
-  left:
-    mode: cursor      # cursor | scroll | disabled
-    deadzone: 8000
-    repeatRate: 60
-  right:
-    mode: scroll
-    deadzone: 0.25
-    repeatRate: 60
-```
-
----
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|-----------|
-| Desktop shell | Electron 41 |
-| Language | TypeScript (ESM) |
-| Bundler | esbuild |
-| Tests | Vitest |
-| Gamepad input | Browser Gamepad API |
-| Terminals | node-pty + xterm.js |
-| Remote control | Telegram Bot API (node-telegram-bot-api) |
-| Config | YAML |
-| Logging | Winston (daily rotation) |
-
----
-
 ## Build & Test
 
 ```bash
-npm run build      # esbuild: electron + preload + renderer
-npm run start      # Build and launch
-npm run package    # Build + package portable Windows EXE
-npm test           # Vitest suite
+npm install
+npm start
 ```
 
-See [docs/build-and-test.md](docs/build-and-test.md) for details.
+If you want the development and packaging details, see [docs/build-and-test.md](docs/build-and-test.md).
 
 ---
 
 ## Documentation
 
-Detailed reference docs are in `docs/`:
+User-facing docs are in `docs/`:
 
 | Document | Content |
 |----------|---------|
-| [modules.md](docs/modules.md) | Module reference — all modules with files and responsibilities |
-| [config-system.md](docs/config-system.md) | Profile YAML, binding types, sequence parser, stick/dpad config |
 | [controls.md](docs/controls.md) | Gamepad + keyboard mappings, navigation priority chain |
-| [terminal-architecture.md](docs/terminal-architecture.md) | PTY stack, input/output routing, activity dots |
- | [group-overview.md](docs/group-overview.md) | Session preview grid — entry/exit, navigation, live previews |
- | [file-structure.md](docs/file-structure.md) | Complete directory tree with per-file descriptions |
- | [build-and-test.md](docs/build-and-test.md) | Build commands, output paths, tech stack details |
- | [Plans/delivery-report.html](Plans/delivery-report.html) | Delivery summary for the Helm implementation batch (Groups 1-8) |
+| [group-overview.md](docs/group-overview.md) | Session preview grid — entry/exit, navigation, live previews |
+| [directory-plans.md](docs/directory-plans.md) | Planner canvas, plan lifecycle, persistence, and chips |
+| [config-system.md](docs/config-system.md) | Profile setup, bindings, tool configuration, and sequences |
+| [CHANGELOG.md](CHANGELOG.md) | Versioned release notes |
 
 ---
 
