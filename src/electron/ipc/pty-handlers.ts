@@ -11,6 +11,7 @@ import { scheduleInitialPrompt } from '../../session/initial-prompt.js';
 import type { NotificationManager } from '../../session/notification-manager.js';
 import { logger } from '../../utils/logger.js';
 import type { WindowManager } from '../window-manager.js';
+import { mintSessionAuthToken } from '../../mcp/session-auth.js';
 
 // Track cancel functions for initial prompt pre-loading per session
 const promptCancellers: Map<string, () => void> = new Map();
@@ -79,7 +80,11 @@ function buildHelmManagedEnv(
   }
   const env = {
     ...(baseEnv ?? {}),
-    HELM_MCP_TOKEN: configLoader?.getMcpConfig?.().authToken ?? '',
+    HELM_MCP_TOKEN: mintSessionAuthToken(
+      configLoader?.getMcpConfig?.().authToken ?? '',
+      helmSession.sessionId,
+      helmSession.sessionName,
+    ),
     HELM_SESSION_ID: helmSession.sessionId,
     HELM_SESSION_NAME: helmSession.sessionName,
   };

@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import type { McpConfig } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
 import { HelmControlService } from './helm-control-service.js';
+import { parseSessionAuthToken } from './session-auth.js';
 
 type JsonRpcId = string | number | null;
 
@@ -19,6 +20,11 @@ interface McpTool {
   title: string;
   description: string;
   inputSchema: Record<string, unknown>;
+}
+
+interface AuthContext {
+  sessionId?: string;
+  sessionName?: string;
 }
 
 const MCP_PROTOCOL_VERSION = '2025-06-18';
@@ -341,7 +347,8 @@ export class LocalhostMcpServer {
       res.end();
       return;
     }
-    if (!this.isAuthorized(req)) {
+    const authContext = this.getAuthContext(req);
+    if (!authContext) {
       logger.warn('[MCP] Unauthorized request rejected');
       this.writeJson(res, 401, { error: 'Unauthorized' });
       return;
@@ -387,7 +394,7 @@ export class LocalhostMcpServer {
           const params = payload.params ?? {};
           const name = asString(params.name, 'Tool name is required');
           const args = asRecord(params.arguments);
-          const result = await this.callTool(name, args);
+          const result = await this.callTool(name, args, authContext);
           const structuredContent = normalizeStructuredContent(result);
           this.writeJsonRpcResult(res, id, {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -403,7 +410,7 @@ export class LocalhostMcpServer {
     }
   }
 
-  private async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  private async callTool(name: string, args: Record<string, unknown>, authContext: AuthContext): Promise<unknown> {
     switch (name) {
       case 'plans_list':
         return this.service.listPlans(asString(args.dirPath, 'dirPath is required'));
@@ -483,8 +490,12 @@ export class LocalhostMcpServer {
           asString(args.text, 'text is required'),
           {
             submit: typeof args.submit === 'boolean' ? args.submit : true,
-            ...(typeof args.senderSessionId === 'string' ? { senderSessionId: args.senderSessionId } : {}),
-            ...(typeof args.senderSessionName === 'string' ? { senderSessionName: args.senderSessionName } : {}),
+            ...(typeof args.senderSessionId === 'string'
+              ? { senderSessionId: args.senderSessionId }
+              : (authContext.sessionId ? { senderSessionId: authContext.sessionId } : {})),
+            ...(typeof args.senderSessionName === 'string'
+              ? { senderSessionName: args.senderSessionName }
+              : (authContext.sessionName ? { senderSessionName: authContext.sessionName } : {})),
             ...(typeof args.expectsResponse === 'boolean' ? { expectsResponse: args.expectsResponse } : {}),
           },
         );
@@ -517,13 +528,16 @@ export class LocalhostMcpServer {
     );
   }
 
-  private isAuthorized(req: IncomingMessage): boolean {
+  private getAuthContext(req: IncomingMessage): AuthContext | null {
     const header = req.headers.authorization;
-    if (!header?.startsWith('Bearer ')) return false;
-    const provided = Buffer.from(header.slice(7), 'utf8');
+    if (!header?.startsWith('Bearer ')) return null;
+    const token = header.slice(7);
+    const provided = Buffer.from(token, 'utf8');
     const expected = Buffer.from(this.token, 'utf8');
-    if (provided.length !== expected.length) return false;
-    return timingSafeEqual(provided, expected);
+    if (provided.length === expected.length && timingSafeEqual(provided, expected)) {
+      return {};
+    }
+    return parseSessionAuthToken(this.token, token);
   }
 
   private readBody(req: IncomingMessage): Promise<string> {

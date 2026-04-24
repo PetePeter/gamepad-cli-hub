@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HelmControlService } from '../src/mcp/helm-control-service.js';
 import { LocalhostMcpServer } from '../src/mcp/localhost-mcp-server.js';
+import { mintSessionAuthToken } from '../src/mcp/session-auth.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -359,6 +360,33 @@ describe('LocalhostMcpServer', () => {
     });
     const json = await response.json();
     expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', { submit: true, senderSessionId: 's1', senderSessionName: 'oc1' });
+    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
+  });
+
+  it('infers sender info from a trusted session token when explicit sender fields are omitted', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+    const sessionToken = mintSessionAuthToken('secret-token', 'sender-1', 'Codex Session');
+
+    const response = await rpc(port, sessionToken, {
+      jsonrpc: '2.0',
+      id: 38.5,
+      method: 'tools/call',
+      params: {
+        name: 'session_send_text',
+        arguments: { name: 'Claude', text: 'hello', expectsResponse: true },
+      },
+    });
+    const json = await response.json();
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', {
+      submit: true,
+      senderSessionId: 'sender-1',
+      senderSessionName: 'Codex Session',
+      expectsResponse: true,
+    });
     expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
   });
 

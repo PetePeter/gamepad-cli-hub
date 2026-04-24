@@ -26,6 +26,7 @@ vi.mock('../src/session/initial-prompt.js', () => ({
 import { setupPtyHandlers } from '../src/electron/ipc/pty-handlers.js';
 import type { SessionManager } from '../src/session/manager.js';
 import type { ConfigLoader, CliTypeConfig } from '../src/config/loader.js';
+import { parseSessionAuthToken } from '../src/mcp/session-auth.js';
 
 class MockPtyManager extends EventEmitter {
   has = vi.fn().mockReturnValue(true);
@@ -318,7 +319,7 @@ describe('pty:spawn resume logic', () => {
           COPILOT_PROVIDER_TYPE: 'openai',
           COPILOT_PROVIDER_BASE_URL: 'http://192.168.56.1:1234',
           COPILOT_MODEL: 'qwen/qwen3.6-35b-a3b',
-          HELM_MCP_TOKEN: '',
+          HELM_MCP_TOKEN: expect.any(String),
           HELM_SESSION_ID: 'sid-1',
           HELM_SESSION_NAME: 'copilot-ollama',
         },
@@ -351,7 +352,7 @@ describe('pty:spawn resume logic', () => {
           COPILOT_PROVIDER_BASE_URL: 'https://example.azure.com/',
           COPILOT_PROVIDER_API_KEY: 'secret-key',
           COPILOT_PROVIDER_AZURE_API_VERSION: '2024-12-01-preview',
-          HELM_MCP_TOKEN: '',
+          HELM_MCP_TOKEN: expect.any(String),
           HELM_SESSION_ID: 'sid-1',
           HELM_SESSION_NAME: 'azure-copilot',
         },
@@ -376,12 +377,17 @@ describe('pty:spawn resume logic', () => {
     expect(ptyManager.spawn).toHaveBeenCalledWith(
       expect.objectContaining({
         env: {
-          HELM_MCP_TOKEN: 'helm-token',
+          HELM_MCP_TOKEN: expect.any(String),
           HELM_SESSION_ID: 'sid-1',
           HELM_SESSION_NAME: 'claude-code',
         },
       }),
     );
+    const env = (ptyManager.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0].env;
+    expect(parseSessionAuthToken('helm-token', env.HELM_MCP_TOKEN)).toEqual({
+      sessionId: 'sid-1',
+      sessionName: 'claude-code',
+    });
   });
 
   it('falls back to command+args when no spawnCommand on fresh spawn', async () => {

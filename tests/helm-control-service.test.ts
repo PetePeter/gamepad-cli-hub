@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HelmControlService } from '../src/mcp/helm-control-service.js';
+import { parseSessionAuthToken } from '../src/mcp/session-auth.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -129,11 +130,16 @@ describe('HelmControlService.spawnCli', () => {
       expect.objectContaining({
         env: expect.objectContaining({
           EXTRA_FLAG: 'enabled',
-          HELM_MCP_TOKEN: 'helm-token',
+          HELM_MCP_TOKEN: expect.any(String),
           HELM_SESSION_ID: expect.any(String),
           HELM_SESSION_NAME: 'Claude',
         }),
       }),
     );
+    const env = (ptyManager.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0].env;
+    expect(parseSessionAuthToken('helm-token', env.HELM_MCP_TOKEN)).toEqual({
+      sessionId: env.HELM_SESSION_ID,
+      sessionName: 'Claude',
+    });
   });
 });

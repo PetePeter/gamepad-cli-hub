@@ -5,6 +5,7 @@ import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { PlanItem, PlanStatus } from '../types/plan.js';
 import type { SessionInfo } from '../types/session.js';
+import { mintSessionAuthToken } from './session-auth.js';
 
 export interface SessionSummary {
   id: string;
@@ -311,7 +312,11 @@ export class HelmControlService {
         .map((entry) => [entry.name.trim(), this.resolveEnvValue(typeof entry?.value === 'string' ? entry.value : '')]),
     );
     if (helmSession) {
-      env.HELM_MCP_TOKEN = this.configLoader.getMcpConfig().authToken;
+      env.HELM_MCP_TOKEN = mintSessionAuthToken(
+        this.configLoader.getMcpConfig().authToken,
+        helmSession.sessionId,
+        helmSession.sessionName,
+      );
       env.HELM_SESSION_ID = helmSession.sessionId;
       env.HELM_SESSION_NAME = helmSession.sessionName;
     }

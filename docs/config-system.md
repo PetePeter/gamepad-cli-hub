@@ -255,6 +255,7 @@ mcp:
 - **enabled** — Starts the HTTP server when Helm launches. The server only runs while Helm is open.
 - **port** — Bound strictly to `127.0.0.1`; never exposed to the network.
 - **authToken** — Random string sent as `Authorization: Bearer <token>`. Generated via the settings UI or manually entered.
+  Helm also mints session-scoped bearer tokens for Helm-spawned CLIs so the MCP server can infer sender identity for inter-LLM relay without callers manually passing sender fields.
 
 Environment variable overrides (optional):
 
@@ -264,6 +265,8 @@ Environment variable overrides (optional):
 | `HELM_MCP_HOST` | Override bind address (default `127.0.0.1`) |
 | `HELM_MCP_PORT` | Override port (default `47373`) |
 | `HELM_MCP_TOKEN` | Override auth token |
+
+When `session_send_text` is called through a Helm-spawned CLI session, the localhost MCP server can infer the sender from that session-scoped bearer token. A bare external HTTP client that only knows the shared root token is still authenticated, but it is not automatically tied to a specific Helm session.
 
 ### Client Configuration
 
