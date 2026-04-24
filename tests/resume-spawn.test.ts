@@ -90,6 +90,7 @@ describe('pty:spawn resume logic', () => {
     };
     configLoader = {
       getCliTypeEntry: vi.fn(),
+      getMcpConfig: vi.fn(() => ({ enabled: false, port: 47373, authToken: '' })),
     };
 
     setupPtyHandlers(
@@ -115,13 +116,17 @@ describe('pty:spawn resume logic', () => {
     await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code', undefined, 'hub-sid-1');
 
     // Should spawn with rawCommand — no escaping, no split on whitespace
-    expect(ptyManager.spawn).toHaveBeenCalledWith({
+    expect(ptyManager.spawn).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 'sid-1',
       command: undefined,
       args: undefined,
       rawCommand: 'claude --resume "hub-sid-1"',
       cwd: '/work',
-    });
+      env: expect.objectContaining({
+        HELM_SESSION_ID: 'sid-1',
+        HELM_SESSION_NAME: 'claude-code',
+      }),
+    }));
   });
 
   it('falls back to continueCommand as rawCommand when no resumeCommand', async () => {
@@ -136,13 +141,17 @@ describe('pty:spawn resume logic', () => {
     await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code', undefined, 'hub-sid-1');
 
     // continueCommand also uses rawCommand — it's a CLI parameter
-    expect(ptyManager.spawn).toHaveBeenCalledWith({
+    expect(ptyManager.spawn).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 'sid-1',
       command: undefined,
       args: undefined,
       rawCommand: 'claude --continue',
       cwd: '/work',
-    });
+      env: expect.objectContaining({
+        HELM_SESSION_ID: 'sid-1',
+        HELM_SESSION_NAME: 'claude-code',
+      }),
+    }));
   });
 
   it('falls back to base command when no resumeCommand and no continueCommand', async () => {
@@ -155,13 +164,17 @@ describe('pty:spawn resume logic', () => {
     await handler({}, 'sid-1', 'bash', ['-l'], '/work', 'generic', undefined, 'hub-sid-1');
 
     // Should use original command and args (no rawCommand)
-    expect(ptyManager.spawn).toHaveBeenCalledWith({
+    expect(ptyManager.spawn).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 'sid-1',
       command: 'bash',
       args: ['-l'],
       rawCommand: undefined,
       cwd: '/work',
-    });
+      env: expect.objectContaining({
+        HELM_SESSION_ID: 'sid-1',
+        HELM_SESSION_NAME: 'generic',
+      }),
+    }));
   });
 
   it('skips initialPrompt on resume', async () => {
@@ -272,13 +285,17 @@ describe('pty:spawn resume logic', () => {
     // Should be a valid UUID
     expect(uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
     // Should spawn with rawCommand using the UUID
-    expect(ptyManager.spawn).toHaveBeenCalledWith({
+    expect(ptyManager.spawn).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 'sid-1',
       command: undefined,
       args: undefined,
       rawCommand: `claude --session-id ${uuid}`,
       cwd: '/work',
-    });
+      env: expect.objectContaining({
+        HELM_SESSION_ID: 'sid-1',
+        HELM_SESSION_NAME: 'claude-code',
+      }),
+    }));
   });
 
   it('passes configured tool environment variables to PTY spawn', async () => {
@@ -301,6 +318,9 @@ describe('pty:spawn resume logic', () => {
           COPILOT_PROVIDER_TYPE: 'openai',
           COPILOT_PROVIDER_BASE_URL: 'http://192.168.56.1:1234',
           COPILOT_MODEL: 'qwen/qwen3.6-35b-a3b',
+          HELM_MCP_TOKEN: '',
+          HELM_SESSION_ID: 'sid-1',
+          HELM_SESSION_NAME: 'copilot-ollama',
         },
       }),
     );
@@ -331,6 +351,34 @@ describe('pty:spawn resume logic', () => {
           COPILOT_PROVIDER_BASE_URL: 'https://example.azure.com/',
           COPILOT_PROVIDER_API_KEY: 'secret-key',
           COPILOT_PROVIDER_AZURE_API_VERSION: '2024-12-01-preview',
+          HELM_MCP_TOKEN: '',
+          HELM_SESSION_ID: 'sid-1',
+          HELM_SESSION_NAME: 'azure-copilot',
+        },
+      }),
+    );
+  });
+
+  it('injects Helm-managed environment variables even without manual env config', async () => {
+    configLoader.getCliTypeEntry.mockReturnValue({
+      name: 'Claude Code',
+      command: 'claude',
+    } as CliTypeConfig);
+    configLoader.getMcpConfig.mockReturnValue({
+      enabled: true,
+      port: 47373,
+      authToken: 'helm-token',
+    });
+
+    const handler = handlers.get('pty:spawn')!;
+    await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code');
+
+    expect(ptyManager.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: {
+          HELM_MCP_TOKEN: 'helm-token',
+          HELM_SESSION_ID: 'sid-1',
+          HELM_SESSION_NAME: 'claude-code',
         },
       }),
     );
@@ -345,13 +393,17 @@ describe('pty:spawn resume logic', () => {
     const handler = handlers.get('pty:spawn')!;
     await handler({}, 'sid-1', 'bash', ['-l'], '/work', 'generic');
 
-    expect(ptyManager.spawn).toHaveBeenCalledWith({
+    expect(ptyManager.spawn).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 'sid-1',
       command: 'bash',
       args: ['-l'],
       rawCommand: undefined,
       cwd: '/work',
-    });
+      env: expect.objectContaining({
+        HELM_SESSION_ID: 'sid-1',
+        HELM_SESSION_NAME: 'generic',
+      }),
+    }));
   });
 
   it('prefers resumeCommand over spawnCommand on resume', async () => {
@@ -365,13 +417,17 @@ describe('pty:spawn resume logic', () => {
     const handler = handlers.get('pty:spawn')!;
     await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code', undefined, 'abc-123');
 
-    expect(ptyManager.spawn).toHaveBeenCalledWith({
+    expect(ptyManager.spawn).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 'sid-1',
       command: undefined,
       args: undefined,
       rawCommand: 'claude --resume=abc-123',
       cwd: '/work',
-    });
+      env: expect.objectContaining({
+        HELM_SESSION_ID: 'sid-1',
+        HELM_SESSION_NAME: 'claude-code',
+      }),
+    }));
   });
 
   it('warns when spawnCommand has no {cliSessionName} placeholder', async () => {
@@ -426,13 +482,17 @@ describe('pty:spawn resume logic', () => {
     await handler({}, 'sid-1', 'claude', ['--flag'], '/work', 'claude-code');
 
     // Without configLoader, should use command+args directly
-    expect(ptyManager.spawn).toHaveBeenCalledWith({
+    expect(ptyManager.spawn).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 'sid-1',
       command: 'claude',
       args: ['--flag'],
       rawCommand: undefined,
       cwd: '/work',
-    });
+      env: expect.objectContaining({
+        HELM_SESSION_ID: 'sid-1',
+        HELM_SESSION_NAME: 'claude-code',
+      }),
+    }));
   });
 
   it('includes cliSessionName in addSession call atomically', async () => {

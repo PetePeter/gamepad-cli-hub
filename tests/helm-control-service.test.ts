@@ -10,19 +10,22 @@ function makeService() {
     has: vi.fn(() => true),
     deliverText: vi.fn(() => Promise.resolve()),
     write: vi.fn(),
+    spawn: vi.fn(() => ({ pid: 1234 })),
   };
   const sessionManager = {
     getSession: vi.fn((id: string) => ({ id, name: 'Claude', cliType: 'claude-code' })),
     getAllSessions: vi.fn(() => [{ id: 's1', name: 'Claude', cliType: 'claude-code' }]),
+    addSession: vi.fn(),
   };
   const planManager = {
     getForDirectory: vi.fn(() => []),
   };
   const configLoader = {
-    getWorkingDirectories: vi.fn(() => []),
+    getWorkingDirectories: vi.fn(() => [{ name: 'Helm', path: '/work' }]),
     getCliTypeEntry: vi.fn(() => ({})),
     getAllCliTypes: vi.fn(() => []),
     getCliTypeConfig: vi.fn(() => ({})),
+    getMcpConfig: vi.fn(() => ({ enabled: true, port: 47373, authToken: 'helm-token' })),
   };
 
   const service = new HelmControlService(
@@ -32,7 +35,7 @@ function makeService() {
     configLoader as unknown as import('../src/config/loader.js').ConfigLoader,
   );
 
-  return { service, ptyManager, sessionManager };
+  return { service, ptyManager, sessionManager, configLoader };
 }
 
 describe('HelmControlService.sendTextToSession', () => {
@@ -108,5 +111,29 @@ describe('HelmControlService.sendTextToSession', () => {
     const { service, ptyManager } = makeService();
     (ptyManager.has as ReturnType<typeof vi.fn>).mockReturnValue(false);
     await expect(service.sendTextToSession('s1', 'hello')).rejects.toThrow('Session PTY is not running: s1');
+  });
+});
+
+describe('HelmControlService.spawnCli', () => {
+  it('injects Helm-managed environment variables into spawned CLI sessions', () => {
+    const { service, ptyManager, configLoader } = makeService();
+    (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+      name: 'Claude Code',
+      command: 'claude',
+      env: [{ name: 'EXTRA_FLAG', value: 'enabled' }],
+    });
+
+    service.spawnCli('claude-code', '/work', 'Claude');
+
+    expect(ptyManager.spawn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: expect.objectContaining({
+          EXTRA_FLAG: 'enabled',
+          HELM_MCP_TOKEN: 'helm-token',
+          HELM_SESSION_ID: expect.any(String),
+          HELM_SESSION_NAME: 'Claude',
+        }),
+      }),
+    );
   });
 });

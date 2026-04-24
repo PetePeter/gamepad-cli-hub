@@ -63,7 +63,7 @@ import {
   draftSubmenu,
   formModal, getFormModalResolve,
   editorPopup, getEditorPopupOnSend, getEditorPopupResolve, setEditorPopupCallbacks,
-  toolEditor, getToolEditorCallback,
+  toolEditor, getToolEditorCallback, setToolEditorCallback,
   isAnyBridgeModalVisible,
 } from './stores/modal-bridge.js';
 import { collectSequenceItems } from './modals/context-menu.js';
@@ -1088,6 +1088,29 @@ function onToolAdd(): void {
     handoffCommand: '',
     initialPrompt: [],
   };
+  setToolEditorCallback(async (values) => {
+    const name = values.name?.trim();
+    if (!name) {
+      logEvent('Add CLI type: name is required');
+      return;
+    }
+    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const command = values.command?.trim() || '';
+    const validItems = (values._promptItems || []).filter((item: { sequence: string }) => item.sequence.trim());
+    const initialPromptDelay = values.initialPromptDelay || 0;
+    const options = buildToolEditorOptions(values);
+    const addResult = await window.gamepadCli.toolsAddCliType(key, name, command, validItems, initialPromptDelay, options);
+    if (addResult.success) {
+      logEvent(`Added CLI type: ${key}`);
+      state.cliTypes = await window.gamepadCli.configGetCliTypes();
+      state.availableSpawnTypes = state.cliTypes;
+      await initConfigCache();
+      loadSessions();
+      await loadSettingsData();
+      return;
+    }
+    logEvent(`Failed to add CLI type: ${addResult.error || 'unknown error'}`);
+  });
   toolEditor.visible = true;
 }
 
@@ -1117,10 +1140,60 @@ async function onToolEdit(key: string): Promise<void> {
         ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))
         : [],
     };
+    setToolEditorCallback(async (values) => {
+      const command = values.command?.trim() || '';
+      const validItems = (values._promptItems || []).filter((item: { sequence: string }) => item.sequence.trim());
+      const initialPromptDelay = values.initialPromptDelay || 0;
+      const options = buildToolEditorOptions(values);
+      const updateResult = await window.gamepadCli.toolsUpdateCliType(key, values.name, command, validItems, initialPromptDelay, options);
+      if (updateResult.success) {
+        logEvent(`Updated CLI type: ${key}`);
+        state.cliTypes = await window.gamepadCli.configGetCliTypes();
+        state.availableSpawnTypes = state.cliTypes;
+        await initConfigCache();
+        loadSessions();
+        await loadSettingsData();
+        return;
+      }
+      logEvent(`Failed to update CLI type: ${updateResult.error || 'unknown error'}`);
+    });
     toolEditor.visible = true;
   } catch (error) {
     console.error('Failed to load tool for edit:', error);
   }
+}
+
+function buildToolEditorOptions(values: any): {
+  args?: string;
+  env?: Array<{ name: string; value: string }>;
+  handoffCommand?: string;
+  renameCommand?: string;
+  spawnCommand?: string;
+  resumeCommand?: string;
+  continueCommand?: string;
+  pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
+} {
+  const fields = ['args', 'handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
+  const options: Record<string, string> = {};
+  for (const field of fields) {
+    options[field] = typeof values[field] === 'string' ? values[field].trim() : '';
+  }
+  const env = Array.isArray(values.env)
+    ? values.env
+      .map((item: any) => ({
+        name: typeof item?.name === 'string' ? item.name.trim() : '',
+        value: typeof item?.value === 'string' ? item.value : '',
+      }))
+      .filter((item: { name: string; value: string }) => item.name.length > 0)
+    : [];
+  const pasteMode = values.pasteMode;
+  return {
+    ...options,
+    env,
+    ...(pasteMode === 'pty' || pasteMode === 'ptyindividual' || pasteMode === 'sendkeys' || pasteMode === 'sendkeysindividual' || pasteMode === 'clippaste'
+      ? { pasteMode }
+      : {}),
+  };
 }
 
 async function onToolDelete(key: string): Promise<void> {

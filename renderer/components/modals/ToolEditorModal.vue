@@ -10,6 +10,12 @@ import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import { getSequenceSyntaxHelpText } from '../../utils.js';
 
 const MODAL_ID = 'tool-editor-modal';
+const HELM_AUTOFILLED_ENV_ITEMS = [
+  { name: 'HELM_MCP_TOKEN', value: '<autofilled by helm>' },
+  { name: 'HELM_SESSION_ID', value: '<autofilled by helm>' },
+  { name: 'HELM_SESSION_NAME', value: '<autofilled by helm>' },
+] as const;
+const HELM_AUTOFILLED_ENV_NAMES = new Set(HELM_AUTOFILLED_ENV_ITEMS.map((item) => item.name));
 
 export interface ToolEditorData {
   name: string;
@@ -120,6 +126,7 @@ function initForm(): void {
         name: typeof item?.name === 'string' ? item.name : '',
         value: typeof item?.value === 'string' ? item.value : '',
       }))
+        .filter((item) => !HELM_AUTOFILLED_ENV_NAMES.has(item.name.trim()))
     : [];
   initialPromptDelay.value = d.initialPromptDelay ?? 2000;
   pasteMode.value = d.pasteMode ?? 'pty';
@@ -245,6 +252,31 @@ defineExpose({ handleButton });
               Examples: <code>COPILOT_MODEL = gpt-5.1-chat</code>,
               <code>COPILOT_PROVIDER_API_KEY = %AZURE_API_KEY%</code>,
               <code>COPILOT_PROVIDER_BASE_URL = ${AZURE_API_BASE}</code>.
+            </p>
+            <div class="te-env-list te-env-list--managed">
+              <div
+                v-for="item in HELM_AUTOFILLED_ENV_ITEMS"
+                :key="item.name"
+                class="te-env-item te-grid-2col te-env-item--readonly"
+              >
+                <input
+                  :value="item.name"
+                  type="text"
+                  class="te-input te-input--mono"
+                  readonly
+                  disabled
+                />
+                <input
+                  :value="item.value"
+                  type="text"
+                  class="te-input te-input--mono"
+                  readonly
+                  disabled
+                />
+              </div>
+            </div>
+            <p class="te-section__hint">
+              Helm injects these values at runtime for every spawned CLI session. They are read-only here.
             </p>
             <div class="te-env-list">
               <div
@@ -456,6 +488,14 @@ defineExpose({ handleButton });
 
 .te-env-item {
   align-items: center;
+}
+
+.te-env-item--readonly {
+  opacity: 0.85;
+}
+
+.te-env-list--managed {
+  margin-bottom: var(--spacing-xs);
 }
 
 .te-env-value-row {

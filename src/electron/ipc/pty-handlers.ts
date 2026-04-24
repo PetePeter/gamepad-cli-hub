@@ -47,19 +47,19 @@ function resolvePromptConfig(
 function resolveToolEnv(
   cliType: string | undefined,
   configLoader: ConfigLoader | undefined,
+  helmSession?: { sessionId: string; sessionName: string },
 ): Record<string, string> | undefined {
-  if (!cliType || !configLoader) return undefined;
+  if (!cliType || !configLoader) return buildHelmManagedEnv(configLoader, helmSession);
   try {
     const envEntries = configLoader.getCliTypeEntry?.(cliType)?.env;
-    if (!envEntries?.length) return undefined;
     const env = Object.fromEntries(
-      envEntries
+      (envEntries ?? [])
         .filter(entry => typeof entry?.name === 'string' && entry.name.trim().length > 0)
         .map(entry => [entry.name.trim(), resolveEnvValue(typeof entry?.value === 'string' ? entry.value : '')]),
     );
-    return Object.keys(env).length > 0 ? env : undefined;
+    return buildHelmManagedEnv(configLoader, helmSession, env);
   } catch {
-    return undefined;
+    return buildHelmManagedEnv(configLoader, helmSession);
   }
 }
 
@@ -67,6 +67,23 @@ function resolveEnvValue(value: string): string {
   return value
     .replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_match, name: string) => process.env[name] ?? '')
     .replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (_match, name: string) => process.env[name] ?? '');
+}
+
+function buildHelmManagedEnv(
+  configLoader: ConfigLoader | undefined,
+  helmSession?: { sessionId: string; sessionName: string },
+  baseEnv?: Record<string, string>,
+): Record<string, string> | undefined {
+  if (!helmSession) {
+    return baseEnv && Object.keys(baseEnv).length > 0 ? baseEnv : undefined;
+  }
+  const env = {
+    ...(baseEnv ?? {}),
+    HELM_MCP_TOKEN: configLoader?.getMcpConfig?.().authToken ?? '',
+    HELM_SESSION_ID: helmSession.sessionId,
+    HELM_SESSION_NAME: helmSession.sessionName,
+  };
+  return Object.keys(env).length > 0 ? env : undefined;
 }
 
 export function setupPtyHandlers(
@@ -101,7 +118,10 @@ export function setupPtyHandlers(
 
       // Resolve actual command: resume > spawnCommand > base command+args
       let rawCommand: string | undefined;
-      const toolEnv = resolveToolEnv(cliType, configLoader);
+      const toolEnv = resolveToolEnv(cliType, configLoader, {
+        sessionId,
+        sessionName: cliType || 'unknown',
+      });
 
       if (isResume && cliType && configLoader) {
         const cfg = configLoader.getCliTypeEntry?.(cliType);

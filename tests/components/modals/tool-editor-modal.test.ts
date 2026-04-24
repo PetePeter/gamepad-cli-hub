@@ -113,6 +113,17 @@ describe('ToolEditorModal.vue', () => {
     w.unmount();
   });
 
+  it('shows Helm-managed environment variables as readonly rows', () => {
+    const w = factory();
+    const readonlyRows = w.findAll('.te-env-item--readonly');
+    expect(readonlyRows).toHaveLength(3);
+    const readonlyInputs = w.findAll('.te-env-item--readonly input').map((input) => (input.element as HTMLInputElement).value);
+    expect(readonlyInputs).toContain('HELM_MCP_TOKEN');
+    expect(readonlyInputs).toContain('HELM_SESSION_ID');
+    expect(readonlyInputs).toContain('HELM_SESSION_NAME');
+    w.unmount();
+  });
+
   it('has args input field', () => {
     const w = factory({
       initialData: { ...DEFAULT_DATA, args: '--verbose' },
@@ -228,11 +239,11 @@ describe('ToolEditorModal.vue', () => {
 
   it('can add environment variable rows', async () => {
     const w = factory();
-    expect(w.findAll('.te-env-item').length).toBe(0);
+    expect(w.findAll('.te-env-item:not(.te-env-item--readonly)').length).toBe(0);
     const addBtn = w.findAll('button').find(b => b.text() === '+ Add Variable')!;
     await addBtn.trigger('click');
     await flushPromises();
-    expect(w.findAll('.te-env-item').length).toBe(1);
+    expect(w.findAll('.te-env-item:not(.te-env-item--readonly)').length).toBe(1);
     w.unmount();
   });
 
@@ -246,11 +257,11 @@ describe('ToolEditorModal.vue', () => {
         ],
       },
     });
-    expect(w.findAll('.te-env-item').length).toBe(2);
+    expect(w.findAll('.te-env-item:not(.te-env-item--readonly)').length).toBe(2);
     const removeBtn = w.findAll('.te-env-item .btn--danger')[0];
     await removeBtn.trigger('click');
     await flushPromises();
-    expect(w.findAll('.te-env-item').length).toBe(1);
+    expect(w.findAll('.te-env-item:not(.te-env-item--readonly)').length).toBe(1);
     w.unmount();
   });
 

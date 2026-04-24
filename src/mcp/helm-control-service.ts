@@ -187,7 +187,10 @@ export class HelmControlService {
     const cliEntry = this.requireCliEntry(cliType);
     const sessionId = randomUUID();
     const cliSessionName = randomUUID();
-    const toolEnv = this.resolveToolEnv(cliType);
+    const toolEnv = this.resolveToolEnv(cliType, {
+      sessionId,
+      sessionName: name.trim(),
+    });
     let rawCommand: string | undefined;
     let command: string | undefined;
     let args: string[] | undefined;
@@ -300,14 +303,18 @@ export class HelmControlService {
     return workingDir;
   }
 
-  private resolveToolEnv(cliType: string): Record<string, string> | undefined {
+  private resolveToolEnv(cliType: string, helmSession?: { sessionId: string; sessionName: string }): Record<string, string> | undefined {
     const envEntries = this.requireCliEntry(cliType).env;
-    if (!envEntries?.length) return undefined;
     const env = Object.fromEntries(
-      envEntries
+      (envEntries ?? [])
         .filter((entry) => typeof entry?.name === 'string' && entry.name.trim().length > 0)
         .map((entry) => [entry.name.trim(), this.resolveEnvValue(typeof entry?.value === 'string' ? entry.value : '')]),
     );
+    if (helmSession) {
+      env.HELM_MCP_TOKEN = this.configLoader.getMcpConfig().authToken;
+      env.HELM_SESSION_ID = helmSession.sessionId;
+      env.HELM_SESSION_NAME = helmSession.sessionName;
+    }
     return Object.keys(env).length > 0 ? env : undefined;
   }
 
