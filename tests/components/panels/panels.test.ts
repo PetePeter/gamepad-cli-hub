@@ -17,6 +17,7 @@ vi.mock('../../../renderer/state-colors.js', () => ({
 import TerminalPane from '../../../renderer/components/panels/TerminalPane.vue';
 import OverviewCard from '../../../renderer/components/panels/OverviewCard.vue';
 import OverviewGrid from '../../../renderer/components/panels/OverviewGrid.vue';
+import DraftEditor from '../../../renderer/components/panels/DraftEditor.vue';
 import PlanScreen from '../../../renderer/components/panels/PlanScreen.vue';
 import MainView from '../../../renderer/components/panels/MainView.vue';
 import ChipBar from '../../../renderer/components/chips/ChipBar.vue';
@@ -287,6 +288,130 @@ describe('OverviewGrid', () => {
     const marks = w.findAll('.overview-break-mark');
     expect(marks).toHaveLength(1);
     expect(marks[0].text()).toBe('Project Two');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DraftEditor
+// ---------------------------------------------------------------------------
+describe('DraftEditor', () => {
+  it('renders draft mode with save and apply actions', () => {
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'draft',
+        sessionId: 'sess-1',
+        initialLabel: 'Scratch',
+        initialText: 'hello',
+      },
+    });
+    expect(w.find('.draft-editor-title').text()).toContain('Draft');
+    expect((w.find('.draft-editor-label').element as HTMLInputElement).value).toBe('Scratch');
+    expect(w.findAll('.draft-editor-actions button').map((btn) => btn.text())).toContain('Apply');
+  });
+
+  it('emits draft save payload', async () => {
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'draft',
+        sessionId: 'sess-1',
+        initialLabel: 'Start',
+        initialText: 'Body',
+      },
+    });
+    await w.find('.draft-editor-label').setValue('Updated');
+    await w.find('.draft-editor-content').setValue('Updated body');
+    await w.find('.draft-editor-actions button').trigger('click');
+    expect(w.emitted('save')).toEqual([[{ label: 'Updated', text: 'Updated body' }]]);
+    expect(w.emitted('close')).toHaveLength(1);
+  });
+
+  it('shows plan state controls and emits plan save', async () => {
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'plan',
+        sessionId: 'sess-1',
+        initialLabel: 'Plan task',
+        initialText: 'Need details',
+        planStatus: 'doing',
+        planCallbacks: { onSave: vi.fn(), onDelete: vi.fn(), onApply: vi.fn(), onDone: vi.fn() },
+      },
+    });
+    expect(w.find('.draft-editor-plan-select').exists()).toBe(true);
+    await w.find('.draft-editor-plan-select').setValue('blocked');
+    await w.find('.draft-editor-plan-info').setValue('Waiting on API key');
+    await w.find('.draft-editor-actions button').trigger('click');
+    expect(w.emitted('plan-save')).toEqual([[
+      {
+        title: 'Plan task',
+        description: 'Need details',
+        status: 'blocked',
+        stateInfo: 'Waiting on API key',
+      },
+    ]]);
+  });
+
+  it('does not auto-save immediately on first render', async () => {
+    const onSave = vi.fn();
+    mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'plan',
+        sessionId: 'sess-1',
+        initialLabel: 'Plan task',
+        initialText: 'Need details',
+        planStatus: 'doing',
+        planCallbacks: { onSave, onDelete: vi.fn() },
+      },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('updates plan action buttons when the selected status changes', async () => {
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'plan',
+        sessionId: 'sess-1',
+        initialLabel: 'Plan task',
+        initialText: 'Need details',
+        planStatus: 'doing',
+        planCallbacks: { onSave: vi.fn(), onDelete: vi.fn(), onApply: vi.fn(), onDone: vi.fn() },
+      },
+    });
+
+    expect(w.findAll('.draft-editor-actions button').map((btn) => btn.text())).toContain('↻ Apply Again');
+    expect(w.findAll('.draft-editor-actions button').map((btn) => btn.text())).toContain('✓ Done');
+
+    await w.find('.draft-editor-plan-select').setValue('blocked');
+
+    const labels = w.findAll('.draft-editor-actions button').map((btn) => btn.text());
+    expect(labels).not.toContain('↻ Apply Again');
+    expect(labels).not.toContain('✓ Done');
+  });
+
+  it('cycles focus with gamepad-style input', async () => {
+    const w = mount(DraftEditor, {
+      attachTo: document.body,
+      props: {
+        visible: true,
+        mode: 'draft',
+        sessionId: 'sess-1',
+        initialLabel: 'Draft',
+        initialText: 'Body',
+      },
+    });
+    const vm = w.vm as any;
+    await Promise.resolve();
+    expect(document.activeElement).toBe(w.find('.draft-editor-label').element);
+    expect(vm.handleButton('DPadDown')).toBe(true);
+    expect(document.activeElement).toBe(w.find('.draft-editor-content').element);
+    w.unmount();
   });
 });
 

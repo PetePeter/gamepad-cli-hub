@@ -55,7 +55,27 @@ import { collectSequenceItems } from './modals/context-menu.js';
 import { showSequencePicker } from './modals/sequence-picker.js';
 import { showDraftSubmenu } from './modals/draft-submenu.js';
 import { showEditorPopup } from './editor/editor-popup.js';
-import { showDraftEditor } from './drafts/draft-editor.js';
+import DraftEditor from './components/panels/DraftEditor.vue';
+import type { PlanStatus } from '../../src/types/plan.js';
+import type { PlanCallbacks } from './components/panels/DraftEditor.vue';
+import {
+  setDraftEditorOpener as setLegacyDraftEditorOpener,
+  setPlanEditorOpener as setLegacyPlanEditorOpener,
+  setDraftEditorCloser as setLegacyDraftEditorCloser,
+  setDraftEditorVisibilityChecker as setLegacyDraftEditorVisibilityChecker,
+  setDraftEditorButtonHandler as setLegacyDraftEditorButtonHandler,
+  setPlanChangesChecker as setLegacyPlanChangesChecker,
+} from './drafts/draft-editor.js';
+import {
+  setDraftEditorOpener as setChipBarDraftEditorOpener,
+  setPlanEditorOpener as setChipBarPlanEditorOpener,
+} from './stores/chip-bar.js';
+import {
+  setPlanEditorOpener as setPlanScreenPlanEditorOpener,
+  setDraftEditorCloser as setPlanScreenDraftEditorCloser,
+  setDraftEditorVisibilityChecker as setPlanScreenDraftEditorVisibilityChecker,
+  setPlanChangesChecker as setPlanScreenPlanChangesChecker,
+} from './plans/plan-screen.js';
 import { deliverBulkText, deliverViaClipboardPaste } from './paste-handler.js';
 import { startRename, commitRename, cancelRename } from './screens/sessions-render.js';
 
@@ -112,6 +132,18 @@ const settingsVisible = ref(false);
 const terminalContainerRef = ref<HTMLElement | null>(null);
 const chipBarStore = useChipBarStore();
 const navStore = useNavigationStore();
+
+// Draft editor state
+const draftEditorVisible = ref(false);
+const draftEditorMode = ref<'draft' | 'plan'>('draft');
+const draftEditorSessionId = ref('');
+const draftEditorDraftId = ref<string | null>(null);
+const draftEditorLabel = ref('');
+const draftEditorText = ref('');
+const draftEditorPlanStatus = ref<PlanStatus>('pending');
+const draftEditorPlanStateInfo = ref('');
+const draftEditorPlanCallbacks = ref<PlanCallbacks | null>(null);
+const draftEditorRef = ref<InstanceType<typeof DraftEditor> | null>(null);
 let offTextDeliver: (() => void) | null = null;
 let unsubSnapOut: (() => void) | null = null;
 let unsubSnapBack: (() => void) | null = null;
@@ -357,6 +389,12 @@ function handleButton(button: string): void {
   // Binding editor uses local refs (not bridged)
   if (bindingEditorVisible.value) return;
 
+  // Draft editor captures gamepad input
+  if (draftEditorVisible.value) {
+    draftEditorRef.value?.handleButton(button);
+    return;
+  }
+
   // Settings screen
   if (settingsVisible.value) {
     if (button === 'B') {
@@ -504,6 +542,38 @@ function handleRenameRequest(e: Event): void {
   if (detail?.sessionId) {
     onSessionRename(detail.sessionId);
   }
+}
+
+// ── Draft / Plan Editor ────────────────────────────────────────────────────
+
+function openDraftEditor(sessionId: string, draft?: { id: string; label: string; text: string }) {
+  draftEditorMode.value = 'draft';
+  draftEditorSessionId.value = sessionId;
+  draftEditorDraftId.value = draft?.id ?? null;
+  draftEditorLabel.value = draft?.label ?? '';
+  draftEditorText.value = draft?.text ?? '';
+  draftEditorPlanCallbacks.value = null;
+  draftEditorVisible.value = true;
+}
+
+function openPlanEditor(
+  sessionId: string,
+  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string },
+  callbacks: PlanCallbacks,
+) {
+  draftEditorMode.value = 'plan';
+  draftEditorSessionId.value = sessionId;
+  draftEditorPlanStatus.value = plan.status;
+  draftEditorPlanStateInfo.value = plan.stateInfo ?? '';
+  draftEditorLabel.value = plan.title;
+  draftEditorText.value = plan.description;
+  draftEditorPlanCallbacks.value = callbacks;
+  draftEditorVisible.value = true;
+}
+
+function closeDraftEditor() {
+  draftEditorPlanCallbacks.value?.onClose?.();
+  draftEditorVisible.value = false;
 }
 
 function onRequestClose(sessionId: string, displayName: string): void {
@@ -1373,7 +1443,7 @@ async function onBindingSortChange(field: string, direction: 'asc' | 'desc'): Pr
 function onDraftNewDraft(): void {
   draftSubmenu.visible = false;
   if (!state.activeSessionId) return;
-  showDraftEditor(state.activeSessionId);
+  openDraftEditor(state.activeSessionId);
 }
 
 function onChipBarDraftClick(draftId: string): void {
@@ -1385,14 +1455,88 @@ function onChipBarPlanClick(planId: string): void {
 }
 
 function onChipBarNewDraft(): void {
-  chipBarStore.openNewDraft();
+  const sessionId = state.activeSessionId ?? chipBarStore.activeSessionId ?? '';
+  if (sessionId) openDraftEditor(sessionId);
 }
 
 function onChipBarAction(sequence: string): void {
   void chipBarStore.triggerAction(sequence);
 }
 
-async function onDraftApply(draft: { id: string; text: string }): Promise<void> {
+async function onDraftSave(payload: { label: string; text: string }): Promise<void> {
+  const sessionId = draftEditorSessionId.value;
+  const draftId = draftEditorDraftId.value;
+  try {
+    if (draftId) {
+      await window.gamepadCli.draftUpdate(draftId, payload);
+    } else {
+      await window.gamepadCli.draftCreate(sessionId, payload.label, payload.text);
+    }
+  } catch (err) {
+    console.error('[App] Failed to save draft:', err);
+  }
+  await chipBarStore.refresh(sessionId);
+}
+
+async function onDraftApply(payload: { label: string; text: string }): Promise<void> {
+  const sessionId = draftEditorSessionId.value;
+  const draftId = draftEditorDraftId.value;
+  closeDraftEditor();
+  if (payload.text && sessionId) {
+    try {
+      const session = state.sessions.find(s => s.id === sessionId);
+      const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
+      if (tool?.pasteMode === 'clippaste') {
+        await deliverViaClipboardPaste(payload.text);
+      } else {
+        await deliverBulkText(sessionId, payload.text);
+      }
+    } catch (err) {
+      console.error('[App] Failed to apply draft:', err);
+    }
+  }
+  if (draftId) {
+    try { await window.gamepadCli?.draftDelete(draftId); }
+    catch (err) { console.error('[App] Failed to delete draft after apply:', err); }
+  }
+  await chipBarStore.refresh(sessionId);
+}
+
+async function onDraftDelete(): Promise<void> {
+  const sessionId = draftEditorSessionId.value;
+  const draftId = draftEditorDraftId.value;
+  closeDraftEditor();
+  if (draftId) {
+    try { await window.gamepadCli?.draftDelete(draftId); }
+    catch (err) { console.error('[App] Failed to delete draft:', err); }
+  }
+  await chipBarStore.refresh(sessionId);
+}
+
+function onDraftClose(): void {
+  closeDraftEditor();
+}
+
+async function onPlanSave(updates: { title: string; description: string; status: PlanStatus; stateInfo?: string }): Promise<void> {
+  draftEditorPlanCallbacks.value?.onSave?.(updates);
+}
+
+function onPlanApply(): void {
+  draftEditorPlanCallbacks.value?.onApply?.();
+  closeDraftEditor();
+}
+
+function onPlanDone(): void {
+  draftEditorPlanCallbacks.value?.onDone?.();
+  closeDraftEditor();
+}
+
+function onPlanDelete(): void {
+  draftEditorPlanCallbacks.value?.onDelete?.();
+  closeDraftEditor();
+}
+
+async function onDraftSubmenuApply(draft: { id: string; text: string }): Promise<void> {
   draftSubmenu.visible = false;
   if (state.activeSessionId && draft.text) {
     void deliverBulkText(state.activeSessionId, draft.text);
@@ -1400,13 +1544,13 @@ async function onDraftApply(draft: { id: string; text: string }): Promise<void> 
   await window.gamepadCli?.draftDelete(draft.id);
 }
 
-function onDraftEdit(draft: { id: string; label: string; text: string }): void {
+function onDraftSubmenuEdit(draft: { id: string; label: string; text: string }): void {
   draftSubmenu.visible = false;
   if (!state.activeSessionId) return;
-  showDraftEditor(state.activeSessionId, draft);
+  openDraftEditor(state.activeSessionId, draft);
 }
 
-async function onDraftDelete(draft: { id: string }): Promise<void> {
+async function onDraftSubmenuDelete(draft: { id: string }): Promise<void> {
   draftSubmenu.visible = false;
   await window.gamepadCli?.draftDelete(draft.id);
 }
@@ -1654,6 +1798,22 @@ onMounted(async () => {
       activeView.value = view;
     });
 
+    // Wire draft/plan editor callbacks
+    setLegacyDraftEditorOpener(openDraftEditor);
+    setLegacyPlanEditorOpener(openPlanEditor);
+    setLegacyDraftEditorCloser(closeDraftEditor);
+    setLegacyDraftEditorVisibilityChecker(() => draftEditorVisible.value);
+    setLegacyDraftEditorButtonHandler((button: string) => draftEditorRef.value?.handleButton(button));
+    setLegacyPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
+
+    setChipBarDraftEditorOpener(openDraftEditor);
+    setChipBarPlanEditorOpener(openPlanEditor);
+
+    setPlanScreenPlanEditorOpener(openPlanEditor);
+    setPlanScreenDraftEditorCloser(closeDraftEditor);
+    setPlanScreenDraftEditorVisibilityChecker(() => draftEditorVisible.value);
+    setPlanScreenPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
+
     await loadCollapsePrefs();
     await chipBarStore.refresh(state.activeSessionId ?? null);
   } catch (error) {
@@ -1879,6 +2039,27 @@ onUnmounted(() => {
         @new-draft="onChipBarNewDraft"
         @action-click="onChipBarAction"
       />
+      <DraftEditor
+        v-if="draftEditorVisible"
+        ref="draftEditorRef"
+        :visible="draftEditorVisible"
+        :mode="draftEditorMode"
+        :session-id="draftEditorSessionId"
+        :draft-id="draftEditorDraftId"
+        :initial-label="draftEditorLabel"
+        :initial-text="draftEditorText"
+        :plan-status="draftEditorPlanStatus"
+        :plan-state-info="draftEditorPlanStateInfo"
+        :plan-callbacks="draftEditorPlanCallbacks"
+        @save="onDraftSave"
+        @apply="onDraftApply"
+        @delete="onDraftDelete"
+        @close="onDraftClose"
+        @plan-save="onPlanSave"
+        @plan-apply="onPlanApply"
+        @plan-done="onPlanDone"
+        @plan-delete="onPlanDelete"
+      />
       <div
         v-show="activeView === 'terminal'"
         class="terminal-container"
@@ -1966,9 +2147,9 @@ onUnmounted(() => {
       v-model:visible="draftSubmenu.visible"
       :drafts="draftSubmenu.items"
       @new-draft="onDraftNewDraft"
-      @apply="onDraftApply"
-      @edit="onDraftEdit"
-      @delete="onDraftDelete"
+      @apply="onDraftSubmenuApply"
+      @edit="onDraftSubmenuEdit"
+      @delete="onDraftSubmenuDelete"
       @cancel="draftSubmenu.visible = false"
     />
 

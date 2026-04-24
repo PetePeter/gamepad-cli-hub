@@ -1211,12 +1211,10 @@ describe('Plan Screen', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Plan Editor Tests
+// Plan Editor Bridge Tests
 // ---------------------------------------------------------------------------
 
-describe('Plan Editor (unified)', () => {
-  let editor: Awaited<ReturnType<typeof getEditorModule>>;
-
+describe('Plan Editor bridge integration', () => {
   beforeEach(async () => {
     buildPlanDom();
 
@@ -1238,365 +1236,123 @@ describe('Plan Editor (unified)', () => {
     mockPlanDelete.mockReset();
     mockPlanComplete.mockReset();
     mockPlanApply.mockReset();
+    mockPlanSetState.mockReset();
     mockPlanDeps.mockReset();
     mockPtyWrite.mockReset();
     mockDeleteTemp.mockReset();
     mockWriteTempContent.mockReset();
 
     screen = await getScreenModule();
-    editor = await getEditorModule();
-    editor.initDraftEditor();
-    const { initPlanDeleteConfirmClickHandlers } = await getPlanDeleteConfirmModule();
-    initPlanDeleteConfirmClickHandlers();
+    screen.setDraftEditorCloser(vi.fn());
+    screen.setDraftEditorVisibilityChecker(() => false);
+    screen.setPlanChangesChecker(() => false);
   });
 
-  describe('showPlanInEditor', () => {
-    it('creates editor panel with title input and description textarea', () => {
-      const item = makeItem({ id: 'e1', title: 'Test', description: 'Desc' });
+  async function openEditorForItem(item: PlanItem) {
+    const opener = vi.fn();
+    screen.setPlanEditorOpener(opener);
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout([item]));
 
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn() });
+    await screen.showPlanScreen('/test/dir');
 
-      const editorEl = document.getElementById('draftEditor');
-      expect(editorEl).not.toBeNull();
-      expect(editorEl!.style.display).not.toBe('none');
+    const node = document.querySelector('.plan-node') as HTMLElement;
+    node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-      const titleInput = document.getElementById('draftLabelInput') as HTMLInputElement;
-      expect(titleInput.value).toBe('Test');
-      expect(titleInput.disabled).toBe(false);
-      expect(titleInput.readOnly).toBe(false);
+    expect(opener).toHaveBeenCalledOnce();
+    return opener.mock.calls[0] as [string, PlanItem, {
+      onSave: (updates: { title: string; description: string; status: PlanItem['status']; stateInfo?: string }) => Promise<void>;
+      onDelete: () => Promise<void>;
+      onDone?: () => Promise<void>;
+      onApply?: () => Promise<void>;
+      onClose?: () => void;
+    }];
+  }
 
-      const descTextarea = document.getElementById('draftContentInput') as HTMLTextAreaElement;
-      expect(descTextarea.value).toBe('Desc');
-      expect(descTextarea.disabled).toBe(false);
-      expect(descTextarea.readOnly).toBe(false);
+  it('opens a selected node through the registered plan editor opener', async () => {
+    const item = makeItem({ id: 'bridge-open', title: 'Bridge open', description: 'Use Vue editor' });
+
+    const [sessionId, openedItem, callbacks] = await openEditorForItem(item);
+
+    expect(sessionId).toBe('session-1');
+    expect(openedItem).toMatchObject({
+      id: 'bridge-open',
+      title: 'Bridge open',
+      description: 'Use Vue editor',
     });
-
-    it('shows delete button', () => {
-      const item = makeItem({ id: 'e2' });
-
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn() });
-
-      const deleteBtn = document.getElementById('draftDeleteBtn');
-      expect(deleteBtn).not.toBeNull();
-      expect(deleteBtn!.style.display).not.toBe('none');
-    });
-
-    it('shows Done button for doing items', () => {
-      const item = makeItem({ id: 'e3', status: 'doing' });
-
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn(), onDone: vi.fn() });
-
-      const doneBtn = document.getElementById('draftDoneBtn');
-      expect(doneBtn).not.toBeNull();
-      expect(doneBtn!.style.display).not.toBe('none');
-    });
-
-    it('does not show Done button for pending items', () => {
-      const item = makeItem({ id: 'e4', status: 'pending' });
-
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn() });
-
-      const doneBtn = document.getElementById('draftDoneBtn');
-      expect(doneBtn!.style.display).toBe('none');
-    });
-
-    it('shows Cancel button for all items', () => {
-      const item = makeItem({ id: 'e5', status: 'pending' });
-
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn() });
-
-      const cancelBtn = document.getElementById('draftCancelBtn');
-      expect(cancelBtn).not.toBeNull();
-      expect(cancelBtn!.style.display).not.toBe('none');
-      expect(cancelBtn!.textContent).toBe('Cancel');
-    });
-
-    it('shows Apply button for startable items when onApply provided', () => {
-      const item = makeItem({ id: 'e6', status: 'startable' });
-
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn(), onApply: vi.fn() });
-
-      const applyBtn = document.getElementById('draftApplyBtn');
-      expect(applyBtn).not.toBeNull();
-      expect(applyBtn!.style.display).not.toBe('none');
-      expect(applyBtn!.textContent).toBe('▶ Apply');
-    });
-
-    it('shows Apply button for doing items when onApply provided', () => {
-      const item = makeItem({ id: 'e7', status: 'doing' });
-
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn(), onApply: vi.fn() });
-
-      const applyBtn = document.getElementById('draftApplyBtn');
-      expect(applyBtn!.style.display).not.toBe('none');
-      expect(applyBtn!.textContent).toBe('↻ Apply Again');
-    });
-
-    it('does not show Apply button when onApply is not provided', () => {
-      const item = makeItem({ id: 'e8', status: 'startable' });
-
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn() });
-
-      const applyBtn = document.getElementById('draftApplyBtn');
-      expect(applyBtn!.style.display).toBe('none');
-    });
-
-    it('saves state changes and state info', () => {
-      const item = makeItem({ id: 'e9', status: 'doing' });
-      const onSave = vi.fn();
-
-      editor.showPlanInEditor('session-1', item, { onSave, onDelete: vi.fn() });
-
-      const stateSelect = document.getElementById('draftPlanStateSelect') as HTMLSelectElement;
-      const stateInfo = document.getElementById('draftPlanStateInfo') as HTMLInputElement;
-      stateSelect.value = 'blocked';
-      stateSelect.dispatchEvent(new Event('change'));
-      stateInfo.value = 'Waiting on backend';
-
-      (document.getElementById('draftSaveBtn') as HTMLElement).click();
-
-      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
-        title: item.title,
-        description: item.description,
-        status: 'blocked',
-        stateInfo: 'Waiting on backend',
-      }));
+    expect(callbacks).toMatchObject({
+      onSave: expect.any(Function),
+      onDelete: expect.any(Function),
+      onClose: expect.any(Function),
     });
   });
 
-  describe('hideDraftEditor', () => {
-    it('hides the editor panel', () => {
-      const item = makeItem({ id: 'h1' });
+  it('saves plan edits through the callback passed to the Vue editor owner', async () => {
+    const item = makeItem({ id: 'bridge-save', status: 'doing', title: 'Draft editor plan' });
 
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn() });
-      expect(document.getElementById('draftEditor')!.style.display).not.toBe('none');
+    const [, , callbacks] = await openEditorForItem(item);
 
-      editor.hideDraftEditor();
+    mockPlanUpdate.mockResolvedValue(undefined);
+    mockPlanSetState.mockResolvedValue(undefined);
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
 
-      expect(document.getElementById('draftEditor')!.style.display).toBe('none');
+    await callbacks.onSave({
+      title: 'Updated title',
+      description: 'Updated body',
+      status: 'blocked',
+      stateInfo: 'Waiting on backend',
     });
+
+    expect(mockPlanUpdate).toHaveBeenCalledWith('bridge-save', {
+      title: 'Updated title',
+      description: 'Updated body',
+      status: 'blocked',
+      stateInfo: 'Waiting on backend',
+    });
+    expect(mockPlanSetState).toHaveBeenCalledWith('bridge-save', 'blocked', 'Waiting on backend', 'session-1');
   });
 
-  describe('editor delete', () => {
-    it('shows a confirmation modal before deleting', async () => {
-      const item = makeItem({ id: 'del1' });
-      const onDelete = vi.fn();
+  it('applies startable items through the callback passed to the Vue editor owner', async () => {
+    const item = makeItem({ id: 'bridge-apply', status: 'startable', description: 'start this' });
 
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete });
+    const [, , callbacks] = await openEditorForItem(item);
 
-      const deleteBtn = document.getElementById('draftDeleteBtn') as HTMLElement;
-      deleteBtn.click();
+    mockPlanApply.mockResolvedValue({});
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-test.txt' });
+    mockPtyWrite.mockResolvedValue(undefined);
 
-      expect(onDelete).not.toHaveBeenCalled();
-      const { planDeleteConfirmState } = await import('../renderer/modals/plan-delete-confirm.js');
-      expect(planDeleteConfirmState.visible).toBe(true);
-    });
+    await callbacks.onApply?.();
+    await flush();
 
-    it('calls onDelete after confirmation', async () => {
-      const item = makeItem({ id: 'del2' });
-      const onDelete = vi.fn();
-
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete });
-
-      (document.getElementById('draftDeleteBtn') as HTMLElement).click();
-
-      const { getPlanDeleteCallback } = await import('../renderer/stores/modal-bridge.js');
-      const cb = getPlanDeleteCallback();
-      expect(cb).not.toBeNull();
-      cb!();
-
-      expect(onDelete).toHaveBeenCalled();
-    });
-
-    it('does not call onDelete when confirmation is cancelled', async () => {
-      const item = makeItem({ id: 'del3' });
-      const onDelete = vi.fn();
-
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete });
-
-      (document.getElementById('draftDeleteBtn') as HTMLElement).click();
-
-      const { hidePlanDeleteConfirm } = await import('../renderer/modals/plan-delete-confirm.js');
-      hidePlanDeleteConfirm();
-
-      expect(onDelete).not.toHaveBeenCalled();
-    });
+    expect(mockWriteTempContent).toHaveBeenCalledWith('start this');
+    expect(mockPtyWrite).toHaveBeenCalledWith('session-1', 'work for you to do is here: /tmp/helm-work-test.txt\n');
+    expect(mockDeleteTemp).not.toHaveBeenCalled();
+    expect(mockPlanApply).toHaveBeenCalledWith('bridge-apply', 'session-1');
   });
 
-  describe('editor Done button', () => {
-    it('calls onDone when Done button is clicked', () => {
-      const item = makeItem({ id: 'done1', status: 'doing' });
-      const onDone = vi.fn();
+  it('resolves apply target from the directory session when the active session is cleared', async () => {
+    const { state } = await import('../renderer/state.js');
+    state.activeSessionId = null;
+    state.sessions = [{ id: 'session-dir', workingDir: '/test/dir' }] as any;
 
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn(), onDone });
+    const item = makeItem({ id: 'bridge-dir-session', status: 'startable', description: 'dir task' });
+    const [, , callbacks] = await openEditorForItem(item);
 
-      const doneBtn = document.getElementById('draftDoneBtn') as HTMLElement;
-      expect(doneBtn).not.toBeNull();
-      doneBtn.click();
+    mockPlanApply.mockResolvedValue({});
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-dir.txt' });
+    mockPtyWrite.mockResolvedValue(undefined);
 
-      expect(onDone).toHaveBeenCalled();
-    });
+    await callbacks.onApply?.();
+    await flush();
 
-    it('does not throw when onDone is not provided', () => {
-      const item = makeItem({ id: 'done2', status: 'doing' });
-
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn() });
-
-      const doneBtn = document.getElementById('draftDoneBtn') as HTMLElement;
-      // Done button hidden when onDone not provided — clicking hidden button is a no-op
-      expect(doneBtn.style.display).toBe('none');
-    });
-  });
-
-  describe('editor Apply button', () => {
-    it('calls onApply when Apply button is clicked', () => {
-      const item = makeItem({ id: 'apply1', status: 'startable' });
-      const onApply = vi.fn();
-
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn(), onApply });
-
-      const applyBtn = document.getElementById('draftApplyBtn') as HTMLElement;
-      expect(applyBtn).not.toBeNull();
-      applyBtn.click();
-
-      expect(onApply).toHaveBeenCalled();
-    });
-  });
-
-  describe('plan canvas apply behavior', () => {
-    it('re-applies doing items without a state transition', async () => {
-      const items = [makeItem({ id: 'apply-doing', status: 'doing', description: 'redo this' })];
-      mockPlanList.mockResolvedValueOnce(items);
-      mockPlanDeps.mockResolvedValue([]);
-      mockComputeLayout.mockReturnValue(fakeLayout(items));
-
-      await screen.showPlanScreen('/test/dir');
-      // Node is auto-selected; click to open editor
-      const node = document.querySelector('.plan-node')!;
-      (node as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
-
-      mockPlanList.mockResolvedValue(items);
-      mockPlanDeps.mockResolvedValue([]);
-      mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-test.txt' });
-      mockPtyWrite.mockResolvedValue(undefined);
-      const applyBtn = document.getElementById('draftApplyBtn') as HTMLElement;
-      applyBtn.click();
-      await flush();
-
-      expect(mockWriteTempContent).toHaveBeenCalledWith('redo this');
-      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', 'work for you to do is here: /tmp/helm-work-test.txt\n');
-      expect(mockDeleteTemp).not.toHaveBeenCalled();
-      expect(mockPlanApply).not.toHaveBeenCalled();
-    });
-
-    it('applies startable items by sending text and transitioning state', async () => {
-      const items = [makeItem({ id: 'apply-startable', status: 'startable', description: 'start this' })];
-      mockPlanList.mockResolvedValueOnce(items);
-      mockPlanDeps.mockResolvedValue([]);
-      mockComputeLayout.mockReturnValue(fakeLayout(items));
-
-      await screen.showPlanScreen('/test/dir');
-      // Node is auto-selected; click to open editor
-      const node = document.querySelector('.plan-node')!;
-      (node as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
-
-      mockPlanApply.mockResolvedValue({});
-      mockPlanList.mockResolvedValue(items);
-      mockPlanDeps.mockResolvedValue([]);
-      mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-test.txt' });
-      mockPtyWrite.mockResolvedValue(undefined);
-
-      const applyBtn = document.getElementById('draftApplyBtn') as HTMLElement;
-      applyBtn.click();
-      await flush();
-
-      expect(mockWriteTempContent).toHaveBeenCalledWith('start this');
-      expect(mockPtyWrite).toHaveBeenCalledWith('session-1', 'work for you to do is here: /tmp/helm-work-test.txt\n');
-      expect(mockDeleteTemp).not.toHaveBeenCalled();
-      expect(mockPlanApply).toHaveBeenCalledWith('apply-startable', 'session-1');
-    });
-
-    it('applies from the directory session when the planner has cleared activeSessionId', async () => {
-      const { state } = await import('../renderer/state.js');
-      state.activeSessionId = null;
-      state.sessions = [
-        { id: 'session-dir', workingDir: '/test/dir' },
-      ] as any;
-
-      const items = [makeItem({ id: 'apply-dir-session', status: 'startable', description: 'dir task' })];
-      mockPlanList.mockResolvedValueOnce(items);
-      mockPlanDeps.mockResolvedValue([]);
-      mockComputeLayout.mockReturnValue(fakeLayout(items));
-
-      await screen.showPlanScreen('/test/dir');
-      const node = document.querySelector('.plan-node')!;
-      (node as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
-
-      mockPlanApply.mockResolvedValue({});
-      mockPlanList.mockResolvedValue(items);
-      mockWriteTempContent.mockResolvedValue({ success: true, path: '/tmp/helm-work-dir.txt' });
-      mockPtyWrite.mockResolvedValue(undefined);
-
-      const applyBtn = document.getElementById('draftApplyBtn') as HTMLElement;
-      expect(applyBtn.style.display).not.toBe('none');
-      applyBtn.click();
-      await flush();
-
-      expect(mockPtyWrite).toHaveBeenCalledWith('session-dir', 'work for you to do is here: /tmp/helm-work-dir.txt\n');
-      expect(mockPlanApply).toHaveBeenCalledWith('apply-dir-session', 'session-dir');
-    });
-  });
-
-  describe('editor Cancel button', () => {
-    it('hides editor when Cancel is clicked', () => {
-      const item = makeItem({ id: 'cancel1' });
-
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn() });
-
-      expect(document.getElementById('draftEditor')!.style.display).not.toBe('none');
-
-      const cancelBtn = document.getElementById('draftCancelBtn') as HTMLElement;
-      cancelBtn.click();
-
-      expect(document.getElementById('draftEditor')!.style.display).toBe('none');
-    });
-
-    it('Cancel notifies the planner owner through onClose', () => {
-      const item = makeItem({ id: 'cancel-close' });
-      const onClose = vi.fn();
-
-      editor.showPlanInEditor('session-1', item, { onSave: vi.fn(), onDelete: vi.fn(), onClose });
-
-      const cancelBtn = document.getElementById('draftCancelBtn') as HTMLElement;
-      cancelBtn.click();
-
-      expect(onClose).toHaveBeenCalledOnce();
-    });
-
-    it('Escape in the description textarea hides the editor like Cancel without closing the plan screen', async () => {
-      const items = [makeItem({ id: 'cancel-esc' })];
-      const onClose = vi.fn();
-      mockPlanList.mockResolvedValue(items);
-      mockPlanDeps.mockResolvedValue([]);
-      mockComputeLayout.mockReturnValue(fakeLayout(items));
-      mockPlanIncomingList.mockResolvedValue([]);
-
-      await screen.showPlanScreen('/test/dir');
-
-      const node = document.querySelector('.plan-node') as HTMLElement;
-      node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-
-      editor.hideDraftEditor();
-      editor.showPlanInEditor('session-1', items[0], { onSave: vi.fn(), onDelete: vi.fn(), onClose });
-
-      const textarea = document.getElementById('draftContentInput') as HTMLTextAreaElement;
-      textarea.focus();
-      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-
-      expect(document.getElementById('draftEditor')!.style.display).toBe('none');
-      expect(onClose).toHaveBeenCalledOnce();
-      expect(document.querySelector('.plan-screen')!.classList.contains('visible')).toBe(true);
-    });
+    expect(mockPtyWrite).toHaveBeenCalledWith('session-dir', 'work for you to do is here: /tmp/helm-work-dir.txt\n');
+    expect(mockPlanApply).toHaveBeenCalledWith('bridge-dir-session', 'session-dir');
   });
 });

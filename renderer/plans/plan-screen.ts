@@ -8,7 +8,6 @@
 import type { PlanItem, PlanDependency } from '../../src/types/plan.js';
 import type { LayoutNode, LayoutResult } from './plan-layout.js';
 import { computeLayout } from './plan-layout.js';
-import { showPlanInEditor, hideDraftEditor, isDraftEditorVisible, closeEditor, hasUnsavedPlanChanges } from '../drafts/draft-editor.js';
 import { deliverBulkText } from '../paste-handler.js';
 import { hidePlanDeleteConfirm, showPlanDeleteConfirm } from '../modals/plan-delete-confirm.js';
 import { clearDonePlans, setClearDonePlansCallback } from '../stores/modal-bridge.js';
@@ -16,9 +15,29 @@ import { state } from '../state.js';
 import { registerView, showView, currentView, type ViewMountContext } from '../main-view/main-view-manager.js';
 import { showPlanHelpModal, hidePlanHelpModal, isPlanHelpVisible } from './plan-help-modal.js';
 import { sessionsState } from '../screens/sessions-state.js';
-import { resolveGroupDisplayName } from '../session-groups.js';
-
-// ---------------------------------------------------------------------------
+import { resolveGroupDisplayName } from '../session-groups.js';
+
+
+// ---------------------------------------------------------------------------
+// Editor bridge callbacks
+// ---------------------------------------------------------------------------
+
+let planEditorOpener: ((sessionId: string, plan: { id: string; title: string; description: string; status: import('../../src/types/plan.js').PlanStatus; stateInfo?: string }, callbacks: any) => void) | null = null;
+export function setPlanEditorOpener(fn: typeof planEditorOpener) { planEditorOpener = fn; }
+
+let draftEditorCloser: (() => void) | null = null;
+export function setDraftEditorCloser(fn: typeof draftEditorCloser) { draftEditorCloser = fn; }
+
+let draftEditorVisibilityChecker: (() => boolean) | null = null;
+export function setDraftEditorVisibilityChecker(fn: typeof draftEditorVisibilityChecker) { draftEditorVisibilityChecker = fn; }
+
+let planChangesChecker: (() => boolean) | null = null;
+export function setPlanChangesChecker(fn: typeof planChangesChecker) { planChangesChecker = fn; }
+
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
@@ -103,9 +122,11 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
       hidePlanHelpModal();
       return;
     }
-    if (editingId) {
-      closeEditor();
-      clearSelection();
+    if (editingId) {
+
+      draftEditorCloser?.();
+
+      clearSelection();
       return;
     }
     if (selectedId) {
@@ -122,7 +143,7 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
   }
 
   // Skip all other planner shortcuts while the draft editor is open.
-  if (isDraftEditorVisible()) return;
+  if (draftEditorVisibilityChecker?.() ?? false) return;
 
   if (editable) return;
 
@@ -152,7 +173,7 @@ async function mountPlanScreen(params?: unknown, context?: ViewMountContext): Pr
   currentDir = dirPath;
   selectedId = null;
   hidePlanDeleteConfirm();
-  hideDraftEditor();
+  draftEditorCloser?.();
   if (openCallback) {
     openCallback();
   }
@@ -207,7 +228,7 @@ function unmountPlanScreen(): void {
   cachedLayout = null;
   cachedItems = [];
   hidePlanDeleteConfirm();
-  hideDraftEditor();
+  draftEditorCloser?.();
   if (screenEl) {
     screenEl.classList.remove('visible');
   }
@@ -842,7 +863,7 @@ function findSnapTarget(
 /** Highlight a node without opening the editor. Closes editor if navigating to a different node. */
 function selectNode(item: PlanItem): void {
   if (selectedId !== item.id && editingId) {
-    hideDraftEditor();
+    draftEditorCloser?.();
     editingId = null;
   }
   selectedId = item.id;
@@ -856,19 +877,31 @@ function openNodeEditor(item: PlanItem): void {
   selectNode(item); // ensure highlight is up-to-date
   editingId = item.id;
   const targetSessionId = resolvePlanTargetSessionId(item);
-  showPlanInEditor(
-    targetSessionId ?? '',
-    item,
-    {
-      onSave: handleSave,
-      onDelete: () => handleDelete(item.id),
-      onDone: item.status === 'doing' || item.status === 'wait-tests' ? () => handleComplete(item.id) : undefined,
-      onApply: targetSessionId && (item.status === 'startable' || item.status === 'doing' || item.status === 'wait-tests')
-        ? () => handleApplyFromCanvas(item)
-        : undefined,
-      onClose: () => { editingId = null; },
-    },
-  );
+  planEditorOpener?.(
+
+    targetSessionId ?? '',
+
+    item,
+
+    {
+
+      onSave: handleSave,
+
+      onDelete: () => handleDelete(item.id),
+
+      onDone: item.status === 'doing' || item.status === 'wait-tests' ? () => handleComplete(item.id) : undefined,
+
+      onApply: targetSessionId && (item.status === 'startable' || item.status === 'doing' || item.status === 'wait-tests')
+
+        ? () => handleApplyFromCanvas(item)
+
+        : undefined,
+
+      onClose: () => { editingId = null; },
+
+    },
+
+  );
 }
 
 function requestDelete(id: string): void {
@@ -910,7 +943,7 @@ async function handleDelete(id: string): Promise<void> {
     await window.gamepadCli.planDelete(id);
     selectedId = null;
     editingId = null;
-    hideDraftEditor();
+    draftEditorCloser?.();
     await refreshCanvas();
   } catch (err) {
     console.error('[PlanScreen] Delete failed:', err);
@@ -922,7 +955,7 @@ async function handleComplete(id: string): Promise<void> {
     await window.gamepadCli.planComplete(id);
     selectedId = null;
     editingId = null;
-    hideDraftEditor();
+    draftEditorCloser?.();
     await refreshCanvas();
   } catch (err) {
     console.error('[PlanScreen] Complete failed:', err);
@@ -951,7 +984,7 @@ async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
     selectedId = null;
     editingId = null;
     hidePlanDeleteConfirm();
-    hideDraftEditor();
+    draftEditorCloser?.();
     await refreshCanvas();
   } catch (err) {
     console.error('[PlanScreen] Apply failed:', err);
@@ -959,7 +992,7 @@ async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
 }
 
 async function handleAddNode(options?: { fromShortcut?: boolean }): Promise<void> {
-  if (editingId && options?.fromShortcut && hasUnsavedPlanChanges()) {
+  if (editingId && options?.fromShortcut && (planChangesChecker?.() ?? false)) {
     showBriefNotice('Finish or cancel current edits before creating a new plan');
     return;
   }
@@ -967,7 +1000,7 @@ async function handleAddNode(options?: { fromShortcut?: boolean }): Promise<void
   try {
     const created = await window.gamepadCli.planCreate(currentDir, 'New Plan', '');
     if (editingId) {
-      closeEditor();
+      draftEditorCloser?.();
       editingId = null;
     }
     await refreshCanvas();

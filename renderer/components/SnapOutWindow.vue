@@ -9,8 +9,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { TerminalView } from '../terminal/terminal-view.js';
 import { useKeyboardRelay } from '../composables/useKeyboardRelay.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
-import { deliverBulkText } from '../paste-handler.js';
-import { showDraftEditor, initDraftEditor } from '../drafts/draft-editor.js';
+import { deliverBulkText, deliverViaClipboardPaste } from '../paste-handler.js';
 import { contextMenu } from '../stores/modal-bridge.js';
 import { state } from '../state.js';
 import { getCliDisplayName } from '../utils.js';
@@ -18,6 +17,19 @@ import ChipBar from './chips/ChipBar.vue';
 import ChipActionBar from './chips/ChipActionBar.vue';
 import ContextMenu from './modals/ContextMenu.vue';
 import EscProtectionModal from './modals/EscProtectionModal.vue';
+import DraftEditor from './panels/DraftEditor.vue';
+import {
+  setDraftEditorOpener as setChipBarDraftEditorOpener,
+  setPlanEditorOpener as setChipBarPlanEditorOpener,
+} from '../stores/chip-bar.js';
+import {
+  setDraftEditorOpener as setLegacyDraftEditorOpener,
+  setPlanEditorOpener as setLegacyPlanEditorOpener,
+  setDraftEditorCloser as setLegacyDraftEditorCloser,
+  setDraftEditorVisibilityChecker as setLegacyDraftEditorVisibilityChecker,
+  setDraftEditorButtonHandler as setLegacyDraftEditorButtonHandler,
+  setPlanChangesChecker as setLegacyPlanChangesChecker,
+} from '../drafts/draft-editor.js';
 
 const props = defineProps<{
   sessionId: string;
@@ -29,6 +41,18 @@ let unsubData: (() => void) | null = null;
 let unsubExit: (() => void) | null = null;
 let unsubSessionUpdated: (() => void) | null = null;
 const sessionInfo = ref<any | null>(null);
+
+// Draft editor state
+const draftEditorVisible = ref(false);
+const draftEditorMode = ref<'draft' | 'plan'>('draft');
+const draftEditorSessionId = ref('');
+const draftEditorDraftId = ref<string | null>(null);
+const draftEditorLabel = ref('');
+const draftEditorText = ref('');
+const draftEditorPlanStatus = ref<import('../../src/types/plan.js').PlanStatus>('pending');
+const draftEditorPlanStateInfo = ref('');
+const draftEditorPlanCallbacks = ref<import('./panels/DraftEditor.vue').PlanCallbacks | null>(null);
+const draftEditorRef = ref<InstanceType<typeof DraftEditor> | null>(null);
 
 // Chip bar store
 const chipBarStore = useChipBarStore();
@@ -81,6 +105,75 @@ function updateWindowTitle(): void {
   document.title = `${sessionInfo.value.name} - ${cliLabel} - ${getFolderLabel(sessionInfo.value.workingDir)}`;
 }
 
+function openDraftEditor(sessionId: string, draft?: { id: string; label: string; text: string }) {
+  draftEditorMode.value = 'draft';
+  draftEditorSessionId.value = sessionId;
+  draftEditorDraftId.value = draft?.id ?? null;
+  draftEditorLabel.value = draft?.label ?? '';
+  draftEditorText.value = draft?.text ?? '';
+  draftEditorPlanCallbacks.value = null;
+  draftEditorVisible.value = true;
+}
+
+function closeDraftEditor() {
+  draftEditorPlanCallbacks.value?.onClose?.();
+  draftEditorVisible.value = false;
+}
+
+async function onDraftSave(payload: { label: string; text: string }): Promise<void> {
+  const sessionId = draftEditorSessionId.value;
+  const draftId = draftEditorDraftId.value;
+  try {
+    if (draftId) {
+      await window.gamepadCli.draftUpdate(draftId, payload);
+    } else {
+      await window.gamepadCli.draftCreate(sessionId, payload.label, payload.text);
+    }
+  } catch (err) {
+    console.error('[SnapOut] Failed to save draft:', err);
+  }
+  await chipBarStore.refresh(sessionId);
+}
+
+async function onDraftApply(payload: { label: string; text: string }): Promise<void> {
+  const sessionId = draftEditorSessionId.value;
+  const draftId = draftEditorDraftId.value;
+  closeDraftEditor();
+  if (payload.text && sessionId) {
+    try {
+      const session = state.sessions.find(s => s.id === sessionId);
+      const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
+      if (tool?.pasteMode === 'clippaste') {
+        await deliverViaClipboardPaste(payload.text);
+      } else {
+        await deliverBulkText(sessionId, payload.text);
+      }
+    } catch (err) {
+      console.error('[SnapOut] Failed to apply draft:', err);
+    }
+  }
+  if (draftId) {
+    try { await window.gamepadCli?.draftDelete(draftId); }
+    catch (err) { console.error('[SnapOut] Failed to delete draft after apply:', err); }
+  }
+  await chipBarStore.refresh(sessionId);
+}
+
+async function onDraftDelete(): Promise<void> {
+  const sessionId = draftEditorSessionId.value;
+  const draftId = draftEditorDraftId.value;
+  closeDraftEditor();
+  if (draftId) {
+    try { await window.gamepadCli?.draftDelete(draftId); }
+    catch (err) { console.error('[SnapOut] Failed to delete draft:', err); }
+  }
+  await chipBarStore.refresh(sessionId);
+}
+
+function onDraftClose(): void {
+  closeDraftEditor();
+}
+
 onMounted(async () => {
   if (!containerRef.value) return;
 
@@ -100,9 +193,6 @@ onMounted(async () => {
     state.activeSessionId = props.sessionId;
     updateWindowTitle();
   }
-
-  // Initialize draft editor DOM (appends to #mainArea or body)
-  initDraftEditor();
 
   // Create terminal view (no PTY spawn — PTY already exists)
   view = new TerminalView({
@@ -165,6 +255,17 @@ onMounted(async () => {
 
   // Load chip bar data for this session
   await chipBarStore.refresh(props.sessionId);
+
+  // Wire draft/plan editor callbacks
+  setLegacyDraftEditorOpener(openDraftEditor);
+  setLegacyPlanEditorOpener(() => { /* plan editor not supported in snap-out */ });
+  setLegacyDraftEditorCloser(closeDraftEditor);
+  setLegacyDraftEditorVisibilityChecker(() => draftEditorVisible.value);
+  setLegacyDraftEditorButtonHandler((button: string) => draftEditorRef.value?.handleButton(button));
+  setLegacyPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
+
+  setChipBarDraftEditorOpener(openDraftEditor);
+  setChipBarPlanEditorOpener(() => { /* plan editor not supported in snap-out */ });
 
   // Handle window resize
   const handleResize = () => {
@@ -263,12 +364,12 @@ async function onContextMenuAction(action: string): Promise<void> {
       const { showDraftSubmenu } = await import('../modals/draft-submenu.js');
       const drafts = await window.gamepadCli.draftList(props.sessionId);
       showDraftSubmenu(drafts, {
-        onNewDraft: () => showDraftEditor(props.sessionId),
+        onNewDraft: () => openDraftEditor(props.sessionId),
         onApply: (draft) => {
           if (draft.text) void deliverBulkText(props.sessionId, draft.text);
           void window.gamepadCli.draftDelete(draft.id);
         },
-        onEdit: (draft) => showDraftEditor(props.sessionId, draft),
+        onEdit: (draft) => openDraftEditor(props.sessionId, draft),
         onDelete: (draft) => window.gamepadCli.draftDelete(draft.id),
       });
       break;
@@ -293,6 +394,23 @@ function onContextMenuCancel(): void {
       @plan-chip-click="onChipBarPlanClick"
       @new-draft="onChipBarNewDraft"
       @action-click="onChipBarAction"
+    />
+    <DraftEditor
+      v-if="draftEditorVisible"
+      ref="draftEditorRef"
+      :visible="draftEditorVisible"
+      :mode="draftEditorMode"
+      :session-id="draftEditorSessionId"
+      :draft-id="draftEditorDraftId"
+      :initial-label="draftEditorLabel"
+      :initial-text="draftEditorText"
+      :plan-status="draftEditorPlanStatus"
+      :plan-state-info="draftEditorPlanStateInfo"
+      :plan-callbacks="draftEditorPlanCallbacks"
+      @save="onDraftSave"
+      @apply="onDraftApply"
+      @delete="onDraftDelete"
+      @close="onDraftClose"
     />
     
     <div ref="containerRef" class="snap-out-terminal"></div>
