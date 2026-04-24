@@ -26,6 +26,7 @@ function makeService(): HelmControlService {
     listSessions: vi.fn((dirPath?: string) => [{ id: 's1', name: 'Claude', cliType: 'claude-code', ...(dirPath ? { workingDir: dirPath } : {}) }]),
     getSession: vi.fn((sessionId: string) => ({ id: sessionId, name: 'Claude', cliType: 'claude-code' })),
     sendTextToSession: vi.fn(async (sessionRef: string, text: string, _options?: { submit?: boolean; senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean }) => ({ success: true, sessionId: sessionRef, name: 'Claude' })),
+    setSessionWorkingPlan: vi.fn((sessionRef: string, planId: string) => ({ sessionId: sessionRef, name: 'Claude', planId, planTitle: 'Task', planStatus: 'doing' })),
   } as unknown as HelmControlService;
 }
 
@@ -124,6 +125,33 @@ describe('LocalhostMcpServer', () => {
     const json = await response.json();
     expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { submit: true });
     expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
+  });
+
+  it('dispatches session_set_working_plan through the MCP surface', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 36,
+      method: 'tools/call',
+      params: {
+        name: 'session_set_working_plan',
+        arguments: { sessionId: 's1', planId: 'plan-1' },
+      },
+    });
+    const json = await response.json();
+    expect((service.setSessionWorkingPlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'plan-1');
+    expect(json.result.structuredContent).toEqual({
+      sessionId: 's1',
+      name: 'Claude',
+      planId: 'plan-1',
+      planTitle: 'Task',
+      planStatus: 'doing',
+    });
   });
 
   it('wraps array results in a record for structuredContent', async () => {

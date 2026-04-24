@@ -17,9 +17,12 @@ function makeService() {
     getSession: vi.fn((id: string) => ({ id, name: 'Claude', cliType: 'claude-code' })),
     getAllSessions: vi.fn(() => [{ id: 's1', name: 'Claude', cliType: 'claude-code' }]),
     addSession: vi.fn(),
+    updateSession: vi.fn(),
   };
   const planManager = {
     getForDirectory: vi.fn(() => []),
+    getItem: vi.fn(),
+    setState: vi.fn(),
   };
   const configLoader = {
     getWorkingDirectories: vi.fn(() => [{ name: 'Helm', path: '/work' }]),
@@ -140,6 +143,44 @@ describe('HelmControlService.spawnCli', () => {
     expect(parseSessionAuthToken('helm-token', env.HELM_MCP_TOKEN)).toEqual({
       sessionId: env.HELM_SESSION_ID,
       sessionName: 'Claude',
+    });
+  });
+
+  it('sets the explicit working plan for a session and reassigns a startable plan', () => {
+    const { service, sessionManager } = makeService();
+    const planManager = (service as any).planManager;
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 's1',
+      name: 'Claude',
+      cliType: 'claude-code',
+      workingDir: '/work',
+    });
+    (planManager.getItem as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 'plan-1',
+      dirPath: '/work',
+      title: 'Auth refactor',
+      description: 'Desc',
+      status: 'startable',
+    });
+    (planManager.setState as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 'plan-1',
+      dirPath: '/work',
+      title: 'Auth refactor',
+      description: 'Desc',
+      status: 'doing',
+      sessionId: 's1',
+    });
+
+    const result = service.setSessionWorkingPlan('s1', 'plan-1');
+
+    expect(planManager.setState).toHaveBeenCalledWith('plan-1', 'doing', undefined, 's1');
+    expect(sessionManager.updateSession).toHaveBeenCalledWith('s1', { currentPlanId: 'plan-1' });
+    expect(result).toEqual({
+      sessionId: 's1',
+      name: 'Claude',
+      planId: 'plan-1',
+      planTitle: 'Auth refactor',
+      planStatus: 'doing',
     });
   });
 });

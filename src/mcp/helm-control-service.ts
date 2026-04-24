@@ -15,6 +15,7 @@ export interface SessionSummary {
   state?: string;
   questionPending?: boolean;
   cliSessionName?: string;
+  currentPlanId?: string;
   windowId?: number;
 }
 
@@ -263,6 +264,50 @@ export class HelmControlService {
     return { success: true, sessionId: session.id, name: session.name };
   }
 
+  setSessionWorkingPlan(
+    sessionRef: string,
+    planId: string,
+  ): { sessionId: string; name: string; planId: string; planTitle: string; planStatus: PlanStatus } {
+    const session = this.findSession(sessionRef);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionRef}`);
+    }
+
+    const plan = this.planManager.getItem(planId);
+    if (!plan) {
+      throw new Error(`Plan not found: ${planId}`);
+    }
+    if (session.workingDir && plan.dirPath !== session.workingDir) {
+      throw new Error(`Plan ${planId} does not belong to session directory ${session.workingDir}`);
+    }
+    if (plan.status === 'done' || plan.status === 'pending') {
+      throw new Error(`Plan ${planId} is not active or startable`);
+    }
+
+    const planIsAlreadyOwnedBySession =
+      plan.sessionId === session.id &&
+      (plan.status === 'doing' || plan.status === 'wait-tests' || plan.status === 'blocked' || plan.status === 'question');
+
+    const updatedPlan = planIsAlreadyOwnedBySession
+      ? plan
+      : (() => {
+          if (plan.sessionId && plan.sessionId !== session.id) {
+            throw new Error(`Plan ${planId} is already assigned to session ${plan.sessionId}`);
+          }
+          return this.planManager.setState(plan.id, 'doing', undefined, session.id)
+            ?? (() => { throw new Error(`Plan ${planId} could not be assigned to session ${session.id}`); })();
+        })();
+
+    this.sessionManager.updateSession(session.id, { currentPlanId: updatedPlan.id });
+    return {
+      sessionId: session.id,
+      name: session.name,
+      planId: updatedPlan.id,
+      planTitle: updatedPlan.title,
+      planStatus: updatedPlan.status,
+    };
+  }
+
   private toSessionSummary(session: SessionInfo): SessionSummary {
     return {
       id: session.id,
@@ -272,6 +317,7 @@ export class HelmControlService {
       state: session.state,
       questionPending: session.questionPending,
       cliSessionName: session.cliSessionName,
+      currentPlanId: session.currentPlanId,
       windowId: session.windowId,
     };
   }

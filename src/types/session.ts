@@ -33,6 +33,8 @@ export interface SessionInfo {
   questionPending?: boolean;
   /** CLI-internal session name used for resume (UUID v4, e.g., 'a1b2c3d4-e5f6-...'). Set after spawn. */
   cliSessionName?: string;
+  /** Explicit plan item to show on the session row as the current working plan. */
+  currentPlanId?: string;
   /** Telegram forum topic ID for this session's topic thread */
   topicId?: number;
   /** BrowserWindow ID if this session is snapped out to a child window. Undefined/null means main window. */

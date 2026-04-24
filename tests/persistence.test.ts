@@ -89,6 +89,18 @@ describe('persistence', () => {
       expect(parsed.sessions[0].cliSessionName).toBe('hub-session-1');
     });
 
+    it('persists currentPlanId when present', () => {
+      const sessionWithPlan: SessionInfo = {
+        ...mockSession1,
+        currentPlanId: 'plan-123',
+      };
+      saveSessions([sessionWithPlan]);
+
+      const [, content] = (fs.writeFileSync as any).mock.calls[0];
+      const parsed = YAML.parse(content);
+      expect(parsed.sessions[0].currentPlanId).toBe('plan-123');
+    });
+
     it('omits cliSessionName when not present', () => {
       saveSessions([mockSession1]);
 
@@ -140,6 +152,16 @@ describe('persistence', () => {
 
       const result = loadSessions();
       expect(result[0].cliSessionName).toBe('hub-session-1');
+    });
+
+    it('loads currentPlanId from persisted data', () => {
+      (fs.existsSync as any).mockReturnValue(true);
+      (fs.readFileSync as any).mockReturnValue(
+        YAML.stringify({ sessions: [{ ...mockSession1, currentPlanId: 'plan-123' }] })
+      );
+
+      const result = loadSessions();
+      expect(result[0].currentPlanId).toBe('plan-123');
     });
   });
 

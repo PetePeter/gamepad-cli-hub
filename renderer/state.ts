@@ -15,6 +15,7 @@ export interface Session {
   workingDir?: string;
   title?: string;
   cliSessionName?: string;
+  currentPlanId?: string;
   windowId?: number;
 }
 

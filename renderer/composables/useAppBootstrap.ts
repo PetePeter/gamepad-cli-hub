@@ -214,7 +214,10 @@ async function refreshPlanCounts(): Promise<void> {
       try {
         const doing = await window.gamepadCli.planDoingForSession(id);
         if (doing.length > 0) state.planDoingCounts.set(id, doing.length);
-        const plan = doing[0];
+        const session = state.sessions.find((entry) => entry.id === id);
+        const plan = session?.currentPlanId
+          ? (doing.find((entry) => entry.id === session.currentPlanId) ?? doing[0])
+          : doing[0];
         if (plan) {
           const prefix = plan.status === 'blocked' ? '⛔' : plan.status === 'question' ? '❓' : plan.status === 'wait-tests' ? '⏳' : '🗺️';
           state.workingPlanLabels.set(id, `${prefix} ${plan.title}`);

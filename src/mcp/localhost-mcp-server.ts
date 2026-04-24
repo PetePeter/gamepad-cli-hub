@@ -242,6 +242,21 @@ const TOOLS: McpTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'session_set_working_plan',
+    title: 'Set Session Working Plan',
+    description: 'Update which plan the session row should show as currently being worked on, assigning the plan to that session when allowed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        name: { type: 'string' },
+        planId: { type: 'string' },
+      },
+      required: ['planId'],
+      additionalProperties: false,
+    },
+  },
 ];
 
 export interface LocalhostMcpServerOptions {
@@ -498,6 +513,11 @@ export class LocalhostMcpServer {
               : (authContext.sessionName ? { senderSessionName: authContext.sessionName } : {})),
             ...(typeof args.expectsResponse === 'boolean' ? { expectsResponse: args.expectsResponse } : {}),
           },
+        );
+      case 'session_set_working_plan':
+        return this.service.setSessionWorkingPlan(
+          asString(args.sessionId ?? args.name, 'sessionId or name is required'),
+          asString(args.planId, 'planId is required'),
         );
       default:
         throw new Error(`Unknown tool: ${name}`);

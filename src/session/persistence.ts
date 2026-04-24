@@ -24,6 +24,7 @@ export function saveSessions(sessions: SessionInfo[]): void {
       processId: s.processId,
       ...(s.workingDir ? { workingDir: s.workingDir } : {}),
       ...(s.cliSessionName ? { cliSessionName: s.cliSessionName } : {}),
+      ...(s.currentPlanId ? { currentPlanId: s.currentPlanId } : {}),
       ...(s.topicId != null ? { topicId: s.topicId } : {}),
       // windowId is intentionally NOT persisted — it's ephemeral
     }))};
