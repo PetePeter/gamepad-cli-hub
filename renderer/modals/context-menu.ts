@@ -105,13 +105,7 @@ export function hideContextMenu(): void {
 }
 
 // ============================================================================
-// Gamepad handler — kept for legacy navigation.ts callers (no-ops now, Vue handles)
+// Gamepad handler — kept for legacy navigation.ts callers (no-op now, Vue handles)
 // ============================================================================
 
-export function handleContextMenuButton(_button: string): void {
-  // Vue ContextMenu handles gamepad via useModalStack
-}
-
-export function initContextMenuClickHandlers(): void {
-  // No-op — Vue component handles click events
-}
+export function handleContextMenuButton(_button: string): void {}

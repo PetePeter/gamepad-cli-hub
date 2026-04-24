@@ -56,16 +56,10 @@ export function isDraftSubmenuVisible(): boolean {
 }
 
 // ============================================================================
-// Gamepad handler — kept for legacy callers (no-ops now, Vue handles)
+// Gamepad handler — kept for legacy callers (no-op now, Vue handles)
 // ============================================================================
 
-export function handleDraftSubmenuButton(_button: string): void {
-  // Vue DraftSubmenu handles gamepad via useModalStack
-}
-
-export function initDraftSubmenuClickHandlers(): void {
-  // No-op — Vue component handles click events
-}
+export function handleDraftSubmenuButton(_button: string): void {}
 
 // ============================================================================
 // Draft Action state — kept for legacy readers
@@ -87,14 +81,8 @@ export function isDraftActionVisible(): boolean {
   return draftActionState.visible;
 }
 
-export function handleDraftActionButton(_button: string): void {
-  // Vue DraftSubmenu handles the action picker internally
-}
+export function handleDraftActionButton(_button: string): void {}
 
 export function hideDraftActionPicker(): void {
   draftActionState.visible = false;
-}
-
-export function initDraftActionClickHandlers(): void {
-  // No-op — Vue component handles click events
 }

@@ -1,11 +1,16 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { state } from '../state.js';
-import { showDraftEditor, showPlanInEditor, hideDraftEditor } from '../drafts/draft-editor.js';
 import { resolveChipbarTemplates } from '../drafts/chipbar-templates.js';
 import { executeSequenceForSession } from '../bindings.js';
 import type { PlanStatus } from '../../src/types/plan.js';
 import { deliverBulkText } from '../paste-handler.js';
+
+let draftEditorOpener: ((sessionId: string, draft?: { id: string; label: string; text: string }) => void) | null = null;
+export function setDraftEditorOpener(fn: typeof draftEditorOpener) { draftEditorOpener = fn; }
+
+let planEditorOpener: ((sessionId: string, plan: any, callbacks: any) => void) | null = null;
+export function setPlanEditorOpener(fn: typeof planEditorOpener) { planEditorOpener = fn; }
 
 export interface ChipBarDraft {
   id: string;
@@ -97,13 +102,13 @@ export const useChipBarStore = defineStore('chip-bar', () => {
     const draft = drafts.value.find((item) => item.id === draftId);
     const sessionId = activeSessionId.value;
     if (!draft || !sessionId) return;
-    showDraftEditor(sessionId, draft);
+    draftEditorOpener?.(sessionId, draft);
   }
 
   function openNewDraft(): void {
     const sessionId = activeSessionId.value;
     if (!sessionId) return;
-    showDraftEditor(sessionId);
+    draftEditorOpener?.(sessionId);
   }
 
   async function triggerAction(sequence: string): Promise<void> {
@@ -142,14 +147,12 @@ export const useChipBarStore = defineStore('chip-bar', () => {
 
       const onDelete = async () => {
         await window.gamepadCli.planDelete(planId);
-        hideDraftEditor();
         await refresh(sessionId);
       };
 
       const onDone = plan.status === 'doing' || plan.status === 'wait-tests'
         ? async () => {
           await window.gamepadCli.planComplete(planId);
-          hideDraftEditor();
           await refresh(sessionId);
         }
         : undefined;
@@ -165,11 +168,10 @@ export const useChipBarStore = defineStore('chip-bar', () => {
         if (plan.status === 'startable') {
           await window.gamepadCli.planApply(planId, state.activeSessionId);
         }
-        hideDraftEditor();
         await refresh(sessionId);
       };
 
-      showPlanInEditor(sessionId, item, { onSave, onDelete, onDone, onApply });
+      planEditorOpener?.(sessionId, item, { onSave, onDelete, onDone, onApply });
     } catch (error) {
       console.error('[ChipBarStore] Failed to open plan:', error);
     }

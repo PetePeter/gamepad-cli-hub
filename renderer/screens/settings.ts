@@ -11,13 +11,10 @@ import { state } from '../state.js';
 import { sessionsState } from './sessions-state.js';
 import {
   logEvent,
-  showScreen,
-  navigateFocus,
   getCliDisplayName,
   showFormModal,
   createBrowseButton,
   getRequiredFormFieldError,
-  toDirection,
 } from '../utils.js';
 import { renderBindingsDisplay, renderSequenceGroups } from './settings-bindings.js';
 import { renderProfilesPanel } from './settings-profiles.js';
@@ -71,49 +68,6 @@ export async function loadSettingsScreen(): Promise<void> {
     }
   } catch (error) {
     console.error('Failed to load settings screen:', error);
-  }
-}
-
-// ============================================================================
-// Gamepad Button Handler
-// ============================================================================
-
-export function handleSettingsScreenButton(button: string): boolean {
-  const dir = toDirection(button);
-  if (dir) {
-    switch (dir) {
-      case 'left':  navigateSettingsTab(-1); return true;
-      case 'right': navigateSettingsTab(1);  return true;
-      case 'up':    navigateFocus(-1);       return true;
-      case 'down':  navigateFocus(1);        return true;
-    }
-  }
-  switch (button) {
-    case 'B':
-      showScreen('sessions');
-      return true;
-    case 'A':
-      activateSettingsFocused();
-      return true;
-    default:
-      return false;
-  }
-}
-
-function navigateSettingsTab(direction: number): void {
-  const allTabs = ['profiles', ...state.cliTypes, 'tools', 'chipbar-actions', 'directories', 'telegram', 'mcp'];
-  const currentIndex = allTabs.indexOf(state.settingsTab);
-  let nextIndex = currentIndex + direction;
-  if (nextIndex < 0) nextIndex = allTabs.length - 1;
-  if (nextIndex >= allTabs.length) nextIndex = 0;
-  state.settingsTab = allTabs[nextIndex];
-  loadSettingsScreen();
-}
-
-function activateSettingsFocused(): void {
-  const active = document.activeElement as HTMLElement;
-  if (active?.classList.contains('focusable')) {
-    active.click();
   }
 }
 

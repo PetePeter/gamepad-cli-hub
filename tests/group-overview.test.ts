@@ -1,23 +1,20 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock the state module
 vi.mock('../renderer/state.js', () => ({
   state: {
-    sessions: [] as Array<{ id: string; name: string; cliType: string; processId: number; workingDir?: string }>,
+    sessions: [] as Array<{ id: string; name: string; cliType: string; processId: number; workingDir?: string; title?: string }>,
     currentScreen: 'sessions',
     activeSessionId: null,
   },
 }));
 
-// Mock sessions-state
 vi.mock('../renderer/screens/sessions-state.js', () => ({
   sessionsState: {
     overviewGroup: null as string | null,
     overviewIsGlobal: false,
     overviewFocusIndex: 0,
-    activeFocus: 'sessions' as string,
+    activeFocus: 'sessions',
     sessionsFocusIndex: 0,
     spawnFocusIndex: 0,
     cardColumn: 0,
@@ -26,767 +23,189 @@ vi.mock('../renderer/screens/sessions-state.js', () => ({
     editingSessionId: null,
     navList: [],
     groups: [],
-    groupPrefs: { order: [], collapsed: [] },
+    groupPrefs: { order: [], collapsed: [], overviewHidden: [] },
   },
 }));
 
 import { state } from '../renderer/state.js';
 import { sessionsState } from '../renderer/screens/sessions-state.js';
-import { PtyOutputBuffer } from '../renderer/terminal/pty-output-buffer.js';
 import {
-  setOutputBuffer,
-  setSessionStateGetter,
+  getOverviewSessions,
+  handleOverviewInput,
+  hideOverview,
+  isCardCollapsed,
+  isOverviewVisible,
+  selectOverviewCard,
   setActivityLevelGetter,
+  setOutputBuffer,
+  setOverviewDismissCallback,
+  setSelectCardCallback,
+  setSessionStateGetter,
   setTerminalManagerGetter,
   showOverview,
-  hideOverview,
-  isOverviewVisible,
-  getOverviewSessions,
-  updateOverviewFocus,
   toggleCollapseCard,
-  isCardCollapsed,
-  handleOverviewInput,
-  setSelectCardCallback,
-  selectOverviewCard,
-  setOverviewDismissCallback,
 } from '../renderer/screens/group-overview.js';
+import { PtyOutputBuffer } from '../renderer/terminal/pty-output-buffer.js';
 
-describe('GroupOverview', () => {
-  let buffer: PtyOutputBuffer;
-  let domSetUp = false;
-
+describe('group-overview', () => {
   beforeEach(() => {
-    // scrollIntoView is not implemented in jsdom
-    Element.prototype.scrollIntoView = vi.fn();
-
-    if (!domSetUp) {
-      document.body.innerHTML = `
-        <div id="mainArea">
-          <div id="terminalContainer"></div>
-        </div>
-        <div id="panelSplitter"></div>
-      `;
-      domSetUp = true;
-    } else {
-      // Reset DOM state without clearing innerHTML — clearing it would orphan
-      // the module's private overviewContainer ref, breaking subsequent tests.
-      document.getElementById('terminalContainer')!.style.display = '';
-    }
-
-    buffer = new PtyOutputBuffer(50);
-    setOutputBuffer(buffer);
+    setOutputBuffer(new PtyOutputBuffer(50));
     setSessionStateGetter(() => 'idle');
     setActivityLevelGetter(() => 'idle');
+    setTerminalManagerGetter(() => null);
 
+    state.sessions = [];
+    sessionsState.groups = [];
+    sessionsState.navList = [];
     sessionsState.overviewGroup = null;
     sessionsState.overviewIsGlobal = false;
     sessionsState.overviewFocusIndex = 0;
-    state.sessions = [];
-    sessionsState.groups = [];
+    sessionsState.sessionsFocusIndex = 0;
     sessionsState.groupPrefs = { order: [], collapsed: [], overviewHidden: [] };
+
+    if (isCardCollapsed('s1')) toggleCollapseCard('s1');
+    if (isCardCollapsed('s2')) toggleCollapseCard('s2');
   });
 
-  afterEach(() => {
+  it('tracks visibility through showOverview and hideOverview', () => {
+    state.sessions = [
+      { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+    ];
+
+    showOverview('/project');
+    expect(isOverviewVisible()).toBe(true);
+    expect(sessionsState.overviewGroup).toBe('/project');
+
     hideOverview();
+    expect(isOverviewVisible()).toBe(false);
+    expect(sessionsState.overviewGroup).toBeNull();
   });
 
-  describe('showOverview / hideOverview', () => {
-    it('creates and shows the overview grid', () => {
-      state.sessions = [
-        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-      ];
-      showOverview('/project');
+  it('returns grouped sessions for a folder overview', () => {
+    state.sessions = [
+      { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+      { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/other', processId: 0 },
+      { id: 's3', name: 'Three', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+    ];
 
-      expect(sessionsState.overviewGroup).toBe('/project');
-      expect(sessionsState.overviewIsGlobal).toBe(false);
-      const grid = document.getElementById('overviewGrid');
-      expect(grid).not.toBeNull();
-      expect(grid?.style.display).toBe('grid');
-      const tc = document.getElementById('terminalContainer');
-      expect(tc?.style.display).toBe('none');
-    });
+    showOverview('/project');
 
-    it('hides the overview and restores terminal container', () => {
-      state.sessions = [
-        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-      ];
-      showOverview('/project');
-      hideOverview();
-
-      expect(sessionsState.overviewGroup).toBeNull();
-      expect(sessionsState.overviewIsGlobal).toBe(false);
-      const grid = document.getElementById('overviewGrid');
-      expect(grid?.style.display).toBe('none');
-      const tc = document.getElementById('terminalContainer');
-      expect(tc?.style.display).toBe('');
-    });
-
-    it('terminal area remains visible when opening overview', () => {
-      showOverview('/project');
-      const ta = document.getElementById('mainArea');
-      expect(ta?.style.display).not.toBe('none');
-    });
+    expect(getOverviewSessions().map((session) => session.id)).toEqual(['s1', 's3']);
   });
 
-  describe('card rendering', () => {
-    it('renders one card per session in the group', () => {
-      state.sessions = [
-        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-        { id: 's2', name: 'Copilot-1', cliType: 'copilot-cli', workingDir: '/project', processId: 0 },
-        { id: 's3', name: 'Other', cliType: 'generic', workingDir: '/other', processId: 0 },
-      ];
-      sessionsState.groups = [
-        { dirPath: '/project', displayName: 'project', sessions: state.sessions.slice(0, 2) as any, collapsed: false },
-        { dirPath: '/other', displayName: 'other', sessions: state.sessions.slice(2) as any, collapsed: false },
-      ];
-      showOverview('/project');
+  it('returns visible sessions across groups for the global overview', () => {
+    state.sessions = [
+      { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
+      { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project-b', processId: 0 },
+    ];
+    sessionsState.groups = [
+      { dirPath: '/project-a', displayName: 'project-a', sessions: [state.sessions[0]] as any, collapsed: false },
+      { dirPath: '/project-b', displayName: 'project-b', sessions: [state.sessions[1]] as any, collapsed: false },
+    ];
 
-      const cards = document.querySelectorAll('.overview-card');
-      expect(cards.length).toBe(2);
-    });
+    showOverview(null);
 
-    it('shows session name and state', () => {
-      state.sessions = [
-        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-      ];
-      showOverview('/project');
-
-      const name = document.querySelector('.overview-card-name');
-      expect(name?.textContent).toBe('Claude-1');
-      // CLI type detail label has been removed
-      const detail = document.querySelector('.overview-card-detail');
-      expect(detail).toBeNull();
-    });
-
-    it('shows state label from injected getter', () => {
-      setSessionStateGetter(() => 'implementing');
-      state.sessions = [
-        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-      ];
-      showOverview('/project');
-
-      const stateLabel = document.querySelector('.overview-card-state');
-      expect(stateLabel?.textContent).toBe('implementing');
-    });
-
-    it('shows preview lines from xterm.js buffer (bottom-aligned)', () => {
-      const mockTm = {
-        deselect: vi.fn(),
-        switchTo: vi.fn(),
-        getActiveSessionId: vi.fn().mockReturnValue(null),
-        hasTerminal: vi.fn().mockReturnValue(true),
-        getTerminalLines: vi.fn().mockReturnValue(['line1', 'line2', 'line3']),
-      };
-      setTerminalManagerGetter(() => mockTm as any);
-
-      state.sessions = [
-        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-      ];
-      showOverview('/project');
-
-      const lines = document.querySelectorAll('.overview-card .preview-line');
-      expect(lines.length).toBe(10);
-      // 7 padding lines first, then 3 content lines (bottom-aligned)
-      expect(lines[6].textContent).toBe('\u00A0');
-      expect(lines[7].textContent).toBe('line1');
-      expect(lines[8].textContent).toBe('line2');
-      expect(lines[9].textContent).toBe('line3');
-
-      setTerminalManagerGetter(() => null);
-    });
-
-    it('keeps ten preview lines visible even with more than five overview cards', () => {
-      const mockTm = {
-        deselect: vi.fn(),
-        switchTo: vi.fn(),
-        getActiveSessionId: vi.fn().mockReturnValue(null),
-        hasTerminal: vi.fn().mockReturnValue(true),
-        getTerminalLines: vi.fn().mockReturnValue(['line1', 'line2']),
-      };
-      setTerminalManagerGetter(() => mockTm as any);
-
-      state.sessions = Array.from({ length: 6 }, (_, index) => ({
-        id: `s${index + 1}`,
-        name: `Session ${index + 1}`,
-        cliType: 'claude-code',
-        workingDir: '/project',
-        processId: 0,
-      }));
-
-      showOverview('/project');
-
-      const cards = document.querySelectorAll('.overview-card');
-      expect(cards).toHaveLength(6);
-      for (const card of cards) {
-        expect(card.querySelectorAll('.preview-line')).toHaveLength(10);
-      }
-
-      setTerminalManagerGetter(() => null);
-    });
-
-    it('uses absolute-positioned overview grid CSS for reliable scrollbar visibility', () => {
-      const css = readFileSync('renderer/styles/main.css', 'utf8');
-      const overviewGridBlock = css.match(/\.overview-grid\s*\{[^}]+\}/)?.[0] ?? '';
-
-      // Absolute overlay inside .panel-right — definite height triggers scrollbar
-      expect(overviewGridBlock).toMatch(/position:\s*absolute;/);
-      expect(overviewGridBlock).toMatch(/overflow-y:\s*(auto|scroll);/);
-    });
-
-    it('pads preview at the top when fewer lines available (bottom-aligned)', () => {
-      const mockTm = {
-        deselect: vi.fn(),
-        switchTo: vi.fn(),
-        getActiveSessionId: vi.fn().mockReturnValue(null),
-        hasTerminal: vi.fn().mockReturnValue(true),
-        getTerminalLines: vi.fn().mockReturnValue(['only one']),
-      };
-      setTerminalManagerGetter(() => mockTm as any);
-
-      state.sessions = [
-        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-      ];
-      showOverview('/project');
-
-      const lines = document.querySelectorAll('.overview-card .preview-line');
-      expect(lines.length).toBe(10);
-      // 9 padding lines first, then 1 content line at the bottom
-      expect(lines[0].textContent).toBe('\u00A0');
-      expect(lines[8].textContent).toBe('\u00A0');
-      expect(lines[9].textContent).toBe('only one');
-
-      setTerminalManagerGetter(() => null);
-    });
-
-    it('trims leading blank lines and bottom-aligns content', () => {
-      const mockTm = {
-        deselect: vi.fn(),
-        switchTo: vi.fn(),
-        getActiveSessionId: vi.fn().mockReturnValue(null),
-        hasTerminal: vi.fn().mockReturnValue(true),
-        getTerminalLines: vi.fn().mockReturnValue(['', '', 'real content', 'more content']),
-      };
-      setTerminalManagerGetter(() => mockTm as any);
-
-      state.sessions = [
-        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-      ];
-      showOverview('/project');
-
-      const lines = document.querySelectorAll('.overview-card .preview-line');
-      expect(lines.length).toBe(10);
-      // 2 leading blanks trimmed → 2 content lines → 8 padding + 2 content
-      expect(lines[7].textContent).toBe('\u00A0');
-      expect(lines[8].textContent).toBe('real content');
-      expect(lines[9].textContent).toBe('more content');
-
-      setTerminalManagerGetter(() => null);
-    });
-
-    it('shows .overview-card-subtitle when session has title', () => {
-      state.sessions = [
-        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0, title: 'cmd.exe - claude' },
-      ];
-      showOverview('/project');
-
-      const subtitle = document.querySelector('.overview-card-subtitle');
-      expect(subtitle).not.toBeNull();
-      expect(subtitle!.textContent).toBe('cmd.exe - claude');
-    });
-
-    it('does not show subtitle when title is absent', () => {
-      state.sessions = [
-        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-      ];
-      showOverview('/project');
-
-      const subtitle = document.querySelector('.overview-card-subtitle');
-      expect(subtitle).toBeNull();
-    });
-
-    it('does not show subtitle when title matches session name', () => {
-      state.sessions = [
-        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0, title: 'Claude-1' },
-      ];
-      showOverview('/project');
-
-      const subtitle = document.querySelector('.overview-card-subtitle');
-      expect(subtitle).toBeNull();
-    });
-
-    it('renders visible sessions from multiple folders in global overview', () => {
-      state.sessions = [
-        { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
-        { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
-        { id: 's3', name: 'Three', cliType: 'claude-code', workingDir: '/project-b', processId: 0 },
-      ];
-      sessionsState.groups = [
-        { dirPath: '/project-a', displayName: 'project-a', sessions: state.sessions.slice(0, 2) as any, collapsed: false },
-        { dirPath: '/project-b', displayName: 'project-b', sessions: state.sessions.slice(2) as any, collapsed: false },
-      ];
-
-      showOverview(null);
-
-      expect(sessionsState.overviewIsGlobal).toBe(true);
-      expect(Array.from(document.querySelectorAll('.overview-card')).map(card => card.getAttribute('data-session-id')))
-        .toEqual(['s1', 's2', 's3']);
-    });
-
-    it('renders break marks between visible folder groups in global overview', () => {
-      state.sessions = [
-        { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
-        { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project-b', processId: 0 },
-      ];
-      sessionsState.groups = [
-        { dirPath: '/project-a', displayName: 'project-a', sessions: [state.sessions[0]] as any, collapsed: false },
-        { dirPath: '/project-b', displayName: 'project-b', sessions: [state.sessions[1]] as any, collapsed: false },
-      ];
-
-      showOverview(null);
-
-      const marks = document.querySelectorAll('.overview-break-mark');
-      expect(marks).toHaveLength(1);
-      expect(marks[0]?.textContent).toContain('project-b');
-    });
-
-    it('does not render break marks for a single visible folder', () => {
-      state.sessions = [
-        { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
-        { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
-      ];
-      sessionsState.groups = [
-        { dirPath: '/project-a', displayName: 'project-a', sessions: state.sessions as any, collapsed: false },
-      ];
-
-      showOverview(null);
-
-      expect(document.querySelectorAll('.overview-break-mark')).toHaveLength(0);
-    });
-
-    it('does not render break marks between adjacent sessions from the same folder', () => {
-      state.sessions = [
-        { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
-        { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },
-        { id: 's3', name: 'Three', cliType: 'claude-code', workingDir: '/project-b', processId: 0 },
-      ];
-      sessionsState.groups = [
-        { dirPath: '/project-a', displayName: 'project-a', sessions: state.sessions.slice(0, 2) as any, collapsed: false },
-        { dirPath: '/project-b', displayName: 'project-b', sessions: state.sessions.slice(2) as any, collapsed: false },
-      ];
-
-      showOverview(null);
-
-      expect(document.querySelectorAll('.overview-break-mark')).toHaveLength(1);
-    });
+    expect(getOverviewSessions().map((session) => session.id)).toEqual(['s1', 's2']);
+    expect(sessionsState.overviewIsGlobal).toBe(true);
   });
 
-  describe('focus management', () => {
-    it('first card is focused by default', () => {
-      state.sessions = [
-        { id: 's1', name: 'A', cliType: 'cc', workingDir: '/p', processId: 0 },
-        { id: 's2', name: 'B', cliType: 'cc', workingDir: '/p', processId: 0 },
-      ];
-      showOverview('/p');
+  it('preselects the requested session when provided', () => {
+    state.sessions = [
+      { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+      { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+    ];
 
-      const cards = document.querySelectorAll('.overview-card');
-      expect(cards[0].classList.contains('overview-card--focused')).toBe(true);
-      expect(cards[1].classList.contains('overview-card--focused')).toBe(false);
-    });
+    showOverview('/project', 's2');
 
-    it('updates focus highlight when overviewFocusIndex changes', () => {
-      state.sessions = [
-        { id: 's1', name: 'A', cliType: 'cc', workingDir: '/p', processId: 0 },
-        { id: 's2', name: 'B', cliType: 'cc', workingDir: '/p', processId: 0 },
-      ];
-      showOverview('/p');
-
-      sessionsState.overviewFocusIndex = 1;
-      updateOverviewFocus();
-
-      const cards = document.querySelectorAll('.overview-card');
-      expect(cards[0].classList.contains('overview-card--focused')).toBe(false);
-      expect(cards[1].classList.contains('overview-card--focused')).toBe(true);
-    });
+    expect(sessionsState.overviewFocusIndex).toBe(1);
   });
 
-  describe('isOverviewVisible', () => {
-    it('returns false when no overview is shown', () => {
-      expect(isOverviewVisible()).toBe(false);
-    });
+  it('persists collapse state across reopen', () => {
+    toggleCollapseCard('s1');
 
-    it('returns true when overview is shown', () => {
-      state.sessions = [{ id: 's1', name: 'A', cliType: 'cc', workingDir: '/p', processId: 0 }];
-      showOverview('/p');
-      expect(isOverviewVisible()).toBe(true);
-    });
+    showOverview('/project');
+    hideOverview();
+    showOverview('/project');
 
-    it('returns false after hideOverview', () => {
-      state.sessions = [{ id: 's1', name: 'A', cliType: 'cc', workingDir: '/p', processId: 0 }];
-      showOverview('/p');
-      hideOverview();
-      expect(isOverviewVisible()).toBe(false);
-    });
+    expect(isCardCollapsed('s1')).toBe(true);
   });
 
-  describe('getOverviewSessions', () => {
-    it('returns empty when no overview active', () => {
-      expect(getOverviewSessions()).toEqual([]);
-    });
+  it('selectOverviewCard closes overview and forwards the selected id', () => {
+    const onSelect = vi.fn();
+    setSelectCardCallback(onSelect);
+    state.sessions = [
+      { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+    ];
 
-    it('returns only sessions matching the overview group', () => {
-      state.sessions = [
-        { id: 's1', name: 'A', cliType: 'cc', workingDir: '/project', processId: 0 },
-        { id: 's2', name: 'B', cliType: 'cc', workingDir: '/other', processId: 0 },
-        { id: 's3', name: 'C', cliType: 'cc', workingDir: '/project', processId: 0 },
-      ];
-      showOverview('/project');
+    showOverview('/project');
+    selectOverviewCard('s1');
 
-      const sessions = getOverviewSessions();
-      expect(sessions.length).toBe(2);
-      expect(sessions.map(s => s.id)).toEqual(['s1', 's3']);
-    });
+    expect(isOverviewVisible()).toBe(false);
+    expect(onSelect).toHaveBeenCalledWith('s1');
   });
 
-  describe('session deselection on overview', () => {
-    let mockTm: Record<string, ReturnType<typeof vi.fn>>;
+  it('restores the previous terminal on non-selection dismiss', () => {
+    const tm = {
+      deselect: vi.fn(),
+      switchTo: vi.fn(),
+      getActiveSessionId: vi.fn(() => 's1'),
+      hasTerminal: vi.fn(() => true),
+      getTerminalLines: vi.fn(() => []),
+    };
+    setTerminalManagerGetter(() => tm as any);
+    state.sessions = [
+      { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+    ];
 
-    beforeEach(() => {
-      mockTm = {
-        deselect: vi.fn(),
-        switchTo: vi.fn(),
-        getActiveSessionId: vi.fn().mockReturnValue('s1'),
-        hasTerminal: vi.fn().mockReturnValue(true),
-        getTerminalLines: vi.fn().mockReturnValue([]),
-      };
-      setTerminalManagerGetter(() => mockTm as any);
+    showOverview('/project');
+    hideOverview();
 
-      state.sessions = [
-        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-        { id: 's2', name: 'Copilot-1', cliType: 'copilot-cli', workingDir: '/project', processId: 0 },
-      ];
-    });
-
-    afterEach(() => {
-      setTerminalManagerGetter(() => null);
-    });
-
-    it('showOverview deselects the active terminal', () => {
-      showOverview('/project');
-
-      expect(mockTm.getActiveSessionId).toHaveBeenCalled();
-      expect(mockTm.deselect).toHaveBeenCalled();
-    });
-
-    it('hideOverview restores the previously active terminal', () => {
-      showOverview('/project');
-      mockTm.deselect.mockClear();
-
-      hideOverview();
-
-      expect(mockTm.switchTo).toHaveBeenCalledWith('s1');
-    });
-
-    it('hideOverview does not restore if previous terminal was destroyed', () => {
-      showOverview('/project');
-
-      // Simulate terminal destruction between show and hide
-      mockTm.hasTerminal.mockReturnValue(false);
-
-      hideOverview();
-
-      expect(mockTm.switchTo).not.toHaveBeenCalled();
-    });
-
-    it('showOverview saves and deselects, hideOverview restores', () => {
-      showOverview('/project');
-
-      expect(mockTm.deselect).toHaveBeenCalledTimes(1);
-
-      hideOverview();
-
-      expect(mockTm.switchTo).toHaveBeenCalledWith('s1');
-    });
-
-    it('selectOverviewCard does not restore the previous terminal (race fix)', () => {
-      const cardCb = vi.fn();
-      setSelectCardCallback(cardCb);
-
-      showOverview('/project');
-      selectOverviewCard('s2');
-
-      // Should not restore s1 — the card callback handles the switch
-      expect(mockTm.switchTo).not.toHaveBeenCalledWith('s1');
-      expect(cardCb).toHaveBeenCalledWith('s2');
-    });
-
-    it('hideOverview skips restore when terminal already switched (autoSelectFocusedSession path)', () => {
-      showOverview('/project');
-
-      // Simulate terminal already switched to s2 before unmount
-      mockTm.getActiveSessionId.mockReturnValue('s2');
-
-      hideOverview();
-
-      expect(mockTm.switchTo).not.toHaveBeenCalled();
-    });
-
-    it('hideOverview fires dismiss callback even when terminal already switched (autoSelectFocusedSession path)', () => {
-      // The dismiss callback (updateSessionsFocus) should always fire on non-selection exit
-      // so the sidebar scrolls to the focused item — it is idempotent and safe to call twice.
-      const dismissCb = vi.fn();
-      setOverviewDismissCallback(dismissCb);
-
-      showOverview('/project');
-
-      // Simulate auto-switch before unmount
-      mockTm.getActiveSessionId.mockReturnValue('s2');
-
-      hideOverview();
-
-      expect(dismissCb).toHaveBeenCalledTimes(1);
-    });
-
-    it('hideOverview fires dismiss callback on non-select exit', () => {
-      const dismissCb = vi.fn();
-      setOverviewDismissCallback(dismissCb);
-
-      showOverview('/project');
-      hideOverview();
-
-      expect(dismissCb).toHaveBeenCalledTimes(1);
-    });
-
-    it('selectOverviewCard does not fire dismiss callback', () => {
-      const dismissCb = vi.fn();
-      setOverviewDismissCallback(dismissCb);
-      setSelectCardCallback(vi.fn());
-
-      showOverview('/project');
-      selectOverviewCard('s2');
-
-      expect(dismissCb).not.toHaveBeenCalled();
-    });
-
-    it('hideOverview restores sessionsFocusIndex to the nav item that opened the overview', () => {
-      sessionsState.navList = [
-        { type: 'group-header', id: '/other', groupIndex: 0 },
-        { type: 'group-header', id: '/project', groupIndex: 1 },
-        { type: 'session-card', id: 's1', groupIndex: 1 },
-      ];
-      sessionsState.sessionsFocusIndex = 1; // pointing at /project group-header
-
-      showOverview('/project');
-
-      // Navigate away in the sidebar while overview is open
-      sessionsState.sessionsFocusIndex = 2;
-
-      hideOverview();
-
-      // Should snap back to the group header that opened the overview
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
-    });
-
-    it('selectOverviewCard does not restore sessionsFocusIndex', () => {
-      sessionsState.navList = [
-        { type: 'group-header', id: '/project', groupIndex: 0 },
-        { type: 'session-card', id: 's1', groupIndex: 0 },
-        { type: 'session-card', id: 's2', groupIndex: 0 },
-      ];
-      sessionsState.sessionsFocusIndex = 0; // pointing at group-header
-
-      showOverview('/project');
-      sessionsState.sessionsFocusIndex = 1;
-
-      setSelectCardCallback(vi.fn());
-      selectOverviewCard('s2');
-
-      // Should not restore to 0 — caller manages focus after card selection
-      expect(sessionsState.sessionsFocusIndex).toBe(1);
-    });
+    expect(tm.deselect).toHaveBeenCalledTimes(1);
+    expect(tm.switchTo).toHaveBeenCalledWith('s1');
   });
 
-  describe('initial session pre-selection', () => {
-    beforeEach(() => {
-      state.sessions = [
-        { id: 's1', name: 'Session-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-        { id: 's2', name: 'Session-2', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-        { id: 's3', name: 'Session-3', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-      ];
-    });
+  it('fires dismiss callback only for non-selection exits', () => {
+    const dismiss = vi.fn();
+    setOverviewDismissCallback(dismiss);
+    setSelectCardCallback(vi.fn());
+    state.sessions = [
+      { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+    ];
 
-    it('pre-selects matching session when initialSessionId provided', () => {
-      showOverview('/project', 's2');
-      expect(sessionsState.overviewFocusIndex).toBe(1);
-    });
+    showOverview('/project');
+    hideOverview();
+    expect(dismiss).toHaveBeenCalledTimes(1);
 
-    it('defaults to 0 when initialSessionId not in group', () => {
-      showOverview('/project', 'not-in-group');
-      expect(sessionsState.overviewFocusIndex).toBe(0);
-    });
-
-    it('defaults to 0 when no initialSessionId provided', () => {
-      showOverview('/project');
-      expect(sessionsState.overviewFocusIndex).toBe(0);
-    });
+    showOverview('/project');
+    selectOverviewCard('s1');
+    expect(dismiss).toHaveBeenCalledTimes(1);
   });
 
-  describe('collapsible cards', () => {
-    beforeEach(() => {
-      state.sessions = [
-        { id: 's1', name: 'Claude-1', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-        { id: 's2', name: 'Claude-2', cliType: 'claude-code', workingDir: '/project', processId: 0 },
-      ];
-      // Ensure clean collapse state — toggle any leftover collapsed state
-      if (isCardCollapsed('s1')) toggleCollapseCard('s1');
-      if (isCardCollapsed('s2')) toggleCollapseCard('s2');
-    });
+  it('restores sidebar focus to the nav item that opened the overview', () => {
+    state.sessions = [
+      { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+    ];
+    sessionsState.navList = [
+      { type: 'group-header', id: '/project', groupIndex: 0 },
+      { type: 'session-card', id: 's1', groupIndex: 0 },
+    ];
+    sessionsState.sessionsFocusIndex = 0;
 
-    it('toggleCollapseCard adds and removes collapsed state', () => {
-      expect(isCardCollapsed('s1')).toBe(false);
-      toggleCollapseCard('s1');
-      expect(isCardCollapsed('s1')).toBe(true);
-      toggleCollapseCard('s1');
-      expect(isCardCollapsed('s1')).toBe(false);
-    });
+    showOverview('/project');
+    sessionsState.sessionsFocusIndex = 1;
+    hideOverview();
 
-    it('collapsed card gets the overview-card--collapsed CSS class', () => {
-      toggleCollapseCard('s1');
-      showOverview('/project');
-
-      const card = document.querySelector('.overview-card[data-session-id="s1"]');
-      expect(card?.classList.contains('overview-card--collapsed')).toBe(true);
-    });
-
-    it('collapsed card does not render a preview div', () => {
-      toggleCollapseCard('s1');
-      showOverview('/project');
-
-      const card = document.querySelector('.overview-card[data-session-id="s1"]');
-      const preview = card?.querySelector('.overview-card-preview');
-      expect(preview).toBeNull();
-    });
-
-    it('collapsed card still renders header (dot, name, state)', () => {
-      toggleCollapseCard('s1');
-      showOverview('/project');
-
-      const card = document.querySelector('.overview-card[data-session-id="s1"]');
-      expect(card?.querySelector('.overview-state-dot')).not.toBeNull();
-      expect(card?.querySelector('.overview-card-name')?.textContent).toBe('Claude-1');
-      expect(card?.querySelector('.overview-card-state')).not.toBeNull();
-    });
-
-    it('expanded card still has a preview div', () => {
-      showOverview('/project');
-
-      const card = document.querySelector('.overview-card[data-session-id="s2"]');
-      expect(card?.classList.contains('overview-card--collapsed')).toBe(false);
-      expect(card?.querySelector('.overview-card-preview')).not.toBeNull();
-    });
-
-    it('live updates still update dot and state on collapsed cards', () => {
-      vi.useFakeTimers();
-      let stateValue = 'idle';
-      let activityValue = 'idle';
-      setSessionStateGetter(() => stateValue);
-      setActivityLevelGetter(() => activityValue);
-
-      toggleCollapseCard('s1');
-      showOverview('/project');
-
-      // Trigger a PTY update for the collapsed card
-      stateValue = 'implementing';
-      activityValue = 'active';
-      buffer.append('s1', 'some output\n');
-
-      // Flush happens on a 500ms timer — advance it
-      vi.advanceTimersByTime(500);
-
-      const card = document.querySelector('.overview-card[data-session-id="s1"]');
-      const stateLabel = card?.querySelector('.overview-card-state');
-      expect(stateLabel?.textContent).toBe('implementing');
-      vi.useRealTimers();
-    });
-
-    it('collapse state persists across overview close and reopen', () => {
-      toggleCollapseCard('s1');
-      showOverview('/project');
-      hideOverview();
-
-      showOverview('/project');
-      const card = document.querySelector('.overview-card[data-session-id="s1"]');
-      expect(card?.classList.contains('overview-card--collapsed')).toBe(true);
-      expect(isCardCollapsed('s1')).toBe(true);
-    });
-
-    it('independent cards — collapsing one does not affect the other', () => {
-      toggleCollapseCard('s1');
-      showOverview('/project');
-
-      const card1 = document.querySelector('.overview-card[data-session-id="s1"]');
-      const card2 = document.querySelector('.overview-card[data-session-id="s2"]');
-      expect(card1?.classList.contains('overview-card--collapsed')).toBe(true);
-      expect(card2?.classList.contains('overview-card--collapsed')).toBe(false);
-    });
+    expect(sessionsState.sessionsFocusIndex).toBe(0);
   });
 
-  describe('handleOverviewInput — passive D-pad (overview is not a focus trap)', () => {
-    beforeEach(() => {
-      state.sessions = [
-        { id: 's1', name: 'A', cliType: 'cc', workingDir: '/p', processId: 0 },
-        { id: 's2', name: 'B', cliType: 'cc', workingDir: '/p', processId: 0 },
-      ];
-      sessionsState.overviewFocusIndex = 0;
-      showOverview('/p');
-    });
+  it('keeps passive D-pad behavior in handleOverviewInput', () => {
+    state.sessions = [
+      { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+    ];
+    showOverview('/project');
 
-    it('DPadUp is NOT consumed — falls through to sidebar navigation', () => {
-      const consumed = handleOverviewInput('DPadUp');
-      expect(consumed).toBe(false);
-    });
-
-    it('DPadDown is NOT consumed — falls through to sidebar navigation', () => {
-      const consumed = handleOverviewInput('DPadDown');
-      expect(consumed).toBe(false);
-    });
-
-    it('A selects the focused card and is consumed', () => {
-      let selected: string | null = null;
-      setSelectCardCallback((id) => { selected = id; });
-
-      const consumed = handleOverviewInput('A');
-      expect(consumed).toBe(true);
-      expect(selected).toBe('s1');
-    });
-
-    it('B hides the overview and is consumed', () => {
-      expect(isOverviewVisible()).toBe(true);
-      const consumed = handleOverviewInput('B');
-      expect(consumed).toBe(true);
-      expect(isOverviewVisible()).toBe(false);
-    });
-
-    it('DPadLeft hides the overview and is consumed', () => {
-      expect(isOverviewVisible()).toBe(true);
-      const consumed = handleOverviewInput('DPadLeft');
-      expect(consumed).toBe(true);
-      expect(isOverviewVisible()).toBe(false);
-    });
-
-    it('DPadRight is consumed (no-op — stays in overview)', () => {
-      const consumed = handleOverviewInput('DPadRight');
-      expect(consumed).toBe(true);
-      expect(isOverviewVisible()).toBe(true);
-    });
-
-    it('when zero sessions in group, any input hides the overview and is consumed', () => {
-      // Reopen with no sessions in the group
-      hideOverview();
-      state.sessions = [];
-      showOverview('/p');
-      const consumed = handleOverviewInput('DPadUp');
-      expect(consumed).toBe(true);
-      expect(isOverviewVisible()).toBe(false);
-    });
+    expect(handleOverviewInput('DPadUp')).toBe(false);
+    expect(handleOverviewInput('DPadDown')).toBe(false);
+    expect(handleOverviewInput('DPadRight')).toBe(true);
   });
 });

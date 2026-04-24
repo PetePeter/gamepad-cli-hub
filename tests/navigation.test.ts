@@ -13,7 +13,6 @@ const mockProcessConfigBinding = vi.fn();
 const mockProcessConfigRelease = vi.fn();
 
 const mockHandleSessionsScreenButton = vi.fn(() => false);
-const mockHandleSettingsScreenButton = vi.fn(() => false);
 
 const mockHandleBindingEditorButton = vi.fn();
 const mockHandleContextMenuButton = vi.fn();
@@ -80,10 +79,6 @@ vi.mock('../renderer/bindings.js', () => ({
 
 vi.mock('../renderer/screens/sessions.js', () => ({
   handleSessionsScreenButton: mockHandleSessionsScreenButton,
-}));
-
-vi.mock('../renderer/screens/settings.js', () => ({
-  handleSettingsScreenButton: mockHandleSettingsScreenButton,
 }));
 
 vi.mock('../renderer/modals/binding-editor.js', () => ({
@@ -337,16 +332,15 @@ describe('handleGamepadEvent', () => {
       mod.handleGamepadEvent(makeEvent('A'));
 
       expect(mockHandleSessionsScreenButton).toHaveBeenCalledWith('A');
-      expect(mockHandleSettingsScreenButton).not.toHaveBeenCalled();
     });
 
-    it('calls handleSettingsScreenButton on settings screen', () => {
+    it('swallows legacy settings-screen input without routing to old handlers', () => {
       mockState.currentScreen = 'settings';
 
       mod.handleGamepadEvent(makeEvent('DPadDown'));
 
-      expect(mockHandleSettingsScreenButton).toHaveBeenCalledWith('DPadDown');
       expect(mockHandleSessionsScreenButton).not.toHaveBeenCalled();
+      expect(mockProcessConfigBinding).not.toHaveBeenCalled();
     });
   });
 
@@ -380,7 +374,6 @@ describe('handleGamepadEvent', () => {
       mod.handleGamepadEvent(makeEvent('Y'));
 
       expect(mockHandleSessionsScreenButton).not.toHaveBeenCalled();
-      expect(mockHandleSettingsScreenButton).not.toHaveBeenCalled();
       expect(mockProcessConfigBinding).toHaveBeenCalledWith('Y');
     });
   });

@@ -251,25 +251,6 @@ describe('Context Menu', () => {
   });
 
   // =========================================================================
-  // Click Handlers — now no-op
-  // =========================================================================
-
-  describe('Context Menu Click Handlers', () => {
-    it('initContextMenuClickHandlers is a no-op (Vue handles clicks)', () => {
-      // Should not throw
-      mod.initContextMenuClickHandlers();
-      expect(true).toBe(true);
-    });
-
-    it('initContextMenuClickHandlers can be called without error', () => {
-      mod.showContextMenu(0, 0, 'sess-1', 'gamepad');
-      mod.initContextMenuClickHandlers();
-      // No-op — no side effects to assert
-      expect(mod.contextMenuState.visible).toBe(true);
-    });
-  });
-
-  // =========================================================================
   // Selection reading from terminal
   // =========================================================================
 

@@ -47,6 +47,25 @@ def run_command(command, cwd=None):
         return 1
 
 
+def _command_wrapper_name(name: str) -> str:
+    """Return the platform-specific npm bin wrapper name."""
+    if os.name == "nt":
+        return f"{name}.cmd"
+    return name
+
+
+def dependencies_ready() -> bool:
+    """Check that the local toolchain needed by the runner is actually present."""
+    required_paths = [
+        Path("package.json"),
+        Path("node_modules"),
+        Path("node_modules") / ".bin" / _command_wrapper_name("esbuild"),
+        Path("node_modules") / ".bin" / _command_wrapper_name("vite"),
+        Path("node_modules") / ".bin" / _command_wrapper_name("electron"),
+    ]
+    return all(path.exists() for path in required_paths)
+
+
 # ---- Process management and cleanup ----
 _procs = {}
 
@@ -113,7 +132,7 @@ def main():
     # Step 1: Install dependencies
     print_step(1, "Installing Dependencies")
 
-    if not Path("node_modules").exists():
+    if not dependencies_ready():
         print("[INFO] Installing npm dependencies...")
         if run_command("npm install") != 0:
             print("[ERROR] Failed to install dependencies")

@@ -37,8 +37,6 @@ import {
   setPlanScreenFitCallback, setPlanScreenCloseCallback, setPlanScreenOpenCallback,
 } from '../plans/plan-screen.js';
 
-// Draft editor init
-import { initDraftEditor } from '../drafts/draft-editor.js';
 import { refreshPlanBadges } from '../screens/sessions-plans.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
 import { useNavigationStore } from '../stores/navigation.js';
@@ -667,9 +665,6 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
     const activeId = getTerminalManager()?.getActiveSessionId() ?? null;
     void useChipBarStore().refresh(activeId);
   });
-
-  // Draft editor
-  initDraftEditor();
 
   // Tab cycling
   setupTabCycling();
