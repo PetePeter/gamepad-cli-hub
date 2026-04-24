@@ -74,6 +74,13 @@ vi.mock('../src/config/loader.js', () => ({
       instanceName: 'test',
       allowedUserIds: [],
     }),
+    getMcpConfig: vi.fn().mockReturnValue({
+      enabled: false,
+      port: 5555,
+      authToken: '',
+    }),
+    getPatterns: vi.fn().mockReturnValue([]),
+    addBookmarkedDir: vi.fn(),
   },
 }));
 
@@ -146,6 +153,70 @@ vi.mock('../src/telegram/orchestrator.js', () => ({
     feedPtyOutput: vi.fn(),
     cleanup: vi.fn(),
   }),
+}));
+
+vi.mock('../src/session/draft-manager.js', () => ({
+  DraftManager: vi.fn(function (this: any) {
+    this.importAll = vi.fn();
+    this.on = vi.fn();
+  }),
+}));
+
+vi.mock('../src/session/plan-manager.js', () => ({
+  PlanManager: vi.fn(function (this: any) {
+    this.on = vi.fn();
+  }),
+}));
+
+vi.mock('../src/session/pattern-matcher.js', () => ({
+  PatternMatcher: vi.fn(function (this: any) {
+    this.processOutput = vi.fn();
+  }),
+}));
+
+vi.mock('../src/session/incoming-plans-watcher.js', () => ({
+  IncomingPlansWatcher: vi.fn(function (this: any) {
+    this.on = vi.fn();
+  }),
+}));
+
+vi.mock('../src/session/persistence.js', () => ({
+  loadDrafts: vi.fn().mockReturnValue([]),
+}));
+
+vi.mock('../src/electron/ipc/editor-handlers.js', () => ({
+  setupEditorHandlers: vi.fn(),
+}));
+
+vi.mock('../src/electron/ipc/draft-handlers.js', () => ({
+  setupDraftHandlers: vi.fn(),
+}));
+
+vi.mock('../src/electron/ipc/plan-handlers.js', () => ({
+  setupPlanHandlers: vi.fn(),
+}));
+
+vi.mock('../src/mcp/helm-control-service.js', () => ({
+  HelmControlService: vi.fn(function (this: any) {
+    this.on = vi.fn();
+  }),
+}));
+
+vi.mock('../src/mcp/localhost-mcp-server.js', () => ({
+  LocalhostMcpServer: vi.fn(function (this: any) {
+    this.start = vi.fn().mockResolvedValue(undefined);
+  }),
+}));
+
+vi.mock('../src/electron/window-manager.js', () => ({
+  WindowManager: vi.fn(function (this: any) {
+    this.on = vi.fn();
+  }),
+}));
+
+vi.mock('../renderer/paste-handler.js', () => ({
+  setupKeyboardRelay: vi.fn(),
+  deliverBulkText: vi.fn(),
 }));
 
 vi.mock('electron', () => ({

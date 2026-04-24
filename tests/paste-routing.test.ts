@@ -43,6 +43,14 @@ vi.mock('../renderer/runtime/terminal-provider.js', () => ({
   getTerminalManager: mockGetTerminalManager,
 }));
 
+vi.mock('../renderer/composables/useEscProtection.js', () => ({
+  useEscProtection: () => ({
+    isProtecting: { value: false },
+    openProtection: vi.fn(),
+    dismissProtection: vi.fn(),
+  }),
+}));
+
 import { setupKeyboardRelay, teardownKeyboardRelay, deliverBulkText } from '../renderer/paste-handler';
 
 // ============================================================================
