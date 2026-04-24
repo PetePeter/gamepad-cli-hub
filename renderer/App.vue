@@ -27,7 +27,7 @@ import { refreshSessions, doSpawn, switchToSession, doCloseSession,
 } from './composables/useAppBootstrap.js';
 import { formatElapsed } from '../src/utils/time-parser.js';
 import { sortBindingEntries, type BindingSortField, type SessionSortField, type SortDirection } from './sort-logic.js';
-import { findNavIndexBySessionId, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
+import { findNavIndexBySessionId, getVisibleSessions, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
 import { getOverviewSessions } from './screens/group-overview.js';
 import { showPlanScreen, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction, refreshCanvasIfVisible } from './plans/plan-screen.js';
 import { handleSessionsScreenButton, toggleSessionOverviewVisibility, setSessionState, toggleGroupCollapse } from './screens/sessions.js';
@@ -257,9 +257,8 @@ const chipActionBarVisible = computed(() =>
 
 // Overview sessions with preview lines
 const overviewSessions = computed(() => {
-  const sessions = getOverviewSessions();
   const tm = getTerminalManager();
-  return sessions.map(session => {
+  const mapSession = (session: typeof state.sessions[number]) => {
     const lines = tm?.getTerminalLines(session.id, 10) ?? [];
     // Trim leading blank lines
     let start = 0;
@@ -280,7 +279,23 @@ const overviewSessions = computed(() => {
       sessionState: state.sessionStates.get(session.id) ?? 'idle',
       previewLines,
     };
-  });
+  };
+
+  if (sessionsState.overviewIsGlobal) {
+    return sessionsState.groups
+      .map((group) => ({
+        id: group.dirPath,
+        label: resolveGroupDisplayName(group.dirPath, sessionsState.directories),
+        sessions: getVisibleSessions([group], sessionsState.groupPrefs).map(mapSession),
+      }))
+      .filter((section) => section.sessions.length > 0);
+  }
+
+  return [{
+    id: sessionsState.overviewGroup ?? 'current',
+    label: overviewGroupLabel.value || 'Sessions',
+    sessions: getOverviewSessions().map(mapSession),
+  }];
 });
 
 watch(() => activeView.value, (view) => {
@@ -1874,11 +1889,12 @@ onUnmounted(() => {
       </div>
       <OverviewGrid
         v-if="activeView === 'overview'"
-        :sessions="overviewSessions"
+        :sections="overviewSessions"
         :focus-index="sessionsState.overviewFocusIndex"
         :collapsed-ids="overviewCollapsedIds"
         :active-session-id="state.activeSessionId"
         :group-label="overviewGroupLabel"
+        :show-section-marks="sessionsState.overviewIsGlobal"
         @select="onOverviewSelect"
         @toggle-collapse="onOverviewToggleCollapse"
         @close="navStore.closeOverview()"

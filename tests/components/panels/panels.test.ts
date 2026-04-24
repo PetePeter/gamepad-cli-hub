@@ -208,8 +208,13 @@ describe('OverviewGrid', () => {
       previewLines: ['output line'],
     }));
 
+  const makeSections = () => [
+    { id: 'g1', label: 'Project One', sessions: makeSessions(2) },
+    { id: 'g2', label: 'Project Two', sessions: makeSessions(1).map((session) => ({ ...session, id: 's-2' })) },
+  ];
+
   const baseProps = {
-    sessions: makeSessions(3),
+    sections: [{ id: 'g1', label: 'My Project', sessions: makeSessions(3) }],
     focusIndex: 0,
     collapsedIds: new Set<string>(),
     activeSessionId: 's-0',
@@ -227,7 +232,7 @@ describe('OverviewGrid', () => {
   });
 
   it('shows session count (singular)', () => {
-    const w = mount(OverviewGrid, { props: { ...baseProps, sessions: makeSessions(1) } });
+    const w = mount(OverviewGrid, { props: { ...baseProps, sections: [{ id: 'g1', label: 'My Project', sessions: makeSessions(1) }] } });
     expect(w.find('.overview-grid-count').text()).toBe('1 session');
   });
 
@@ -265,9 +270,23 @@ describe('OverviewGrid', () => {
   });
 
   it('renders empty grid', () => {
-    const w = mount(OverviewGrid, { props: { ...baseProps, sessions: [] } });
+    const w = mount(OverviewGrid, { props: { ...baseProps, sections: [] } });
     expect(w.findAll('.overview-card')).toHaveLength(0);
     expect(w.find('.overview-grid-count').text()).toBe('0 sessions');
+  });
+
+  it('renders section break marks in global overview mode', () => {
+    const w = mount(OverviewGrid, {
+      props: {
+        ...baseProps,
+        sections: makeSections(),
+        groupLabel: 'All Sessions',
+        showSectionMarks: true,
+      },
+    });
+    const marks = w.findAll('.overview-break-mark');
+    expect(marks).toHaveLength(1);
+    expect(marks[0].text()).toBe('Project Two');
   });
 });
 
