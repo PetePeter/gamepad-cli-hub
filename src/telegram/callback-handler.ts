@@ -466,16 +466,23 @@ async function handleSpawnExec(
     const cliSessionName = randomId();
     const cfg = configLoader.getCliTypeEntry(cliType);
 
-    // Resolve the spawn command: prefer spawnCommand template, fall back to base command
+    // Resolve the spawn command: prefer spawnCommand template, fall back to the
+    // normalized spawn config if the template is unexpectedly absent.
     let rawCommand: string | undefined;
+    let command: string | undefined;
+    let args: string[] | undefined;
     if (cfg?.spawnCommand) {
       rawCommand = cfg.spawnCommand.replaceAll('{cliSessionName}', cliSessionName);
+    } else {
+      const spawnConfig = configLoader.getSpawnConfig(cliType);
+      command = spawnConfig?.command || cliType;
+      args = spawnConfig?.args || [];
     }
 
     const pty = ptyManager.spawn({
       sessionId,
-      command: rawCommand ? undefined : cfg?.command,
-      args: rawCommand ? undefined : [],
+      command: rawCommand ? undefined : command,
+      args: rawCommand ? undefined : args,
       rawCommand,
       cwd: dirPath,
     });

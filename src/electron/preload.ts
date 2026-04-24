@@ -386,10 +386,9 @@ const gamepadCliAPI = {
 
   toolsGetAll: () => ipcRenderer.invoke('tools:getAll'),
   toolsAddCliType: (
-    key: string, name: string, command: string,
+    key: string, name: string,
     initialPrompt: Array<{label: string; sequence: string}>, initialPromptDelay: number,
     options?: {
-      args?: string;
       env?: Array<{ name: string; value: string }>;
       handoffCommand?: string;
       renameCommand?: string;
@@ -398,12 +397,11 @@ const gamepadCliAPI = {
       continueCommand?: string;
       pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
     },
-  ) => ipcRenderer.invoke('tools:addCliType', key, name, command, initialPrompt, initialPromptDelay, options),
+  ) => ipcRenderer.invoke('tools:addCliType', key, name, initialPrompt, initialPromptDelay, options),
   toolsUpdateCliType: (
-    key: string, name: string, command: string,
+    key: string, name: string,
     initialPrompt: Array<{label: string; sequence: string}>, initialPromptDelay: number,
     options?: {
-      args?: string;
       env?: Array<{ name: string; value: string }>;
       handoffCommand?: string;
       renameCommand?: string;
@@ -412,7 +410,7 @@ const gamepadCliAPI = {
       continueCommand?: string;
       pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
     },
-  ) => ipcRenderer.invoke('tools:updateCliType', key, name, command, initialPrompt, initialPromptDelay, options),
+  ) => ipcRenderer.invoke('tools:updateCliType', key, name, initialPrompt, initialPromptDelay, options),
   toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),
   toolsGetPatterns: (cliType: string) => ipcRenderer.invoke('tools:getPatterns', cliType),
   toolsAddPattern: (cliType: string, rule: object) => ipcRenderer.invoke('tools:addPattern', cliType, rule),

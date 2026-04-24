@@ -13,8 +13,6 @@ const GLOBAL_STUBS = { teleport: true } as const;
 
 interface ToolEditorData {
   name: string;
-  command: string;
-  args: string;
   env: Array<{ name: string; value: string }>;
   initialPromptDelay: number;
   pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
@@ -28,8 +26,6 @@ interface ToolEditorData {
 
 const DEFAULT_DATA: ToolEditorData = {
   name: '',
-  command: '',
-  args: '',
   env: [],
   initialPromptDelay: 2000,
   pasteMode: 'pty',
@@ -92,21 +88,18 @@ describe('ToolEditorModal.vue', () => {
       initialData: {
         ...DEFAULT_DATA,
         name: 'My Tool',
-        command: 'my-cmd',
-        args: '--flag',
+        spawnCommand: 'my-cmd --flag',
         env: [{ name: 'COPILOT_MODEL', value: 'qwen' }],
         initialPromptDelay: 5000,
       },
     });
     const nameInput = w.find('#te-name').element as HTMLInputElement;
-    const cmdInput = w.find('#te-command').element as HTMLInputElement;
-    const argsInput = w.find('#te-args').element as HTMLInputElement;
+    const spawnInput = w.find('#te-spawn').element as HTMLInputElement;
     const envNameInput = w.find('#te-env-name-0').element as HTMLInputElement;
     const envValueInput = w.find('#te-env-value-0').element as HTMLInputElement;
     const delayInput = w.find('#te-delay').element as HTMLInputElement;
     expect(nameInput.value).toBe('My Tool');
-    expect(cmdInput.value).toBe('my-cmd');
-    expect(argsInput.value).toBe('--flag');
+    expect(spawnInput.value).toBe('my-cmd --flag');
     expect(envNameInput.value).toBe('COPILOT_MODEL');
     expect(envValueInput.value).toBe('qwen');
     expect(delayInput.value).toBe('5000');
@@ -124,13 +117,13 @@ describe('ToolEditorModal.vue', () => {
     w.unmount();
   });
 
-  it('has args input field', () => {
+  it('shows spawn command input in the main launch section', () => {
     const w = factory({
-      initialData: { ...DEFAULT_DATA, args: '--verbose' },
+      initialData: { ...DEFAULT_DATA, spawnCommand: 'codex --full-auto' },
     });
-    const argsInput = w.find('#te-args').element as HTMLInputElement;
-    expect(argsInput).toBeTruthy();
-    expect(argsInput.value).toBe('--verbose');
+    const spawnInput = w.find('#te-spawn').element as HTMLInputElement;
+    expect(spawnInput).toBeTruthy();
+    expect(spawnInput.value).toBe('codex --full-auto');
     w.unmount();
   });
 
@@ -145,8 +138,7 @@ describe('ToolEditorModal.vue', () => {
       initialData: {
         ...DEFAULT_DATA,
         name: 'Test',
-        command: 'test-cmd',
-        args: '--arg',
+        spawnCommand: 'test-cmd --arg',
         env: [{ name: 'COPILOT_MODEL', value: 'qwen' }],
         initialPromptDelay: 3000,
         pasteMode: 'sendkeys',
@@ -160,8 +152,7 @@ describe('ToolEditorModal.vue', () => {
     expect(saved).toHaveLength(1);
     const values = saved[0][0] as Record<string, unknown>;
     expect(values.name).toBe('Test');
-    expect(values.command).toBe('test-cmd');
-    expect(values.args).toBe('--arg');
+    expect(values.spawnCommand).toBe('test-cmd --arg');
     expect(values.env).toEqual([{ name: 'COPILOT_MODEL', value: 'qwen' }]);
     expect(values.initialPromptDelay).toBe(3000);
     expect(values.pasteMode).toBe('sendkeys');
@@ -216,24 +207,10 @@ describe('ToolEditorModal.vue', () => {
     w.unmount();
   });
 
-  it('session management section is collapsed by default', () => {
+  it('shows the launch section without an extra collapse step', () => {
     const w = factory();
-    expect(w.find('#te-spawn').exists()).toBe(false);
-    expect(w.find('#te-resume').exists()).toBe(false);
-    w.unmount();
-  });
-
-  it('session management section can be expanded', async () => {
-    const w = factory();
-    const legend = w.findAll('.te-section__legend--collapsible')
-      .find(el => el.text().includes('Session Management'))!;
-    await legend.trigger('click');
-    await flushPromises();
     expect(w.find('#te-spawn').exists()).toBe(true);
     expect(w.find('#te-resume').exists()).toBe(true);
-    expect(w.find('#te-continue').exists()).toBe(true);
-    expect(w.find('#te-rename').exists()).toBe(true);
-    expect(w.find('#te-handoff').exists()).toBe(true);
     w.unmount();
   });
 

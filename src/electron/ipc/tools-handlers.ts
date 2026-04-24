@@ -23,12 +23,12 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
   });
 
   ipcMain.handle('tools:addCliType', (
-    _event, key: string, name: string, command: string,
+    _event, key: string, name: string,
     initialPrompt: SequenceListItem[], initialPromptDelay: number,
-    options?: { args?: string; env?: EnvVarEntry[]; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' },
+    options?: { env?: EnvVarEntry[]; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' },
   ) => {
     try {
-      configLoader.addCliType(key, name, command, initialPrompt, initialPromptDelay, options);
+      configLoader.addCliType(key, name, initialPrompt, initialPromptDelay, options);
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to add CLI type: ${error}`);
@@ -37,12 +37,12 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
   });
 
   ipcMain.handle('tools:updateCliType', (
-    _event, key: string, name: string, command: string,
+    _event, key: string, name: string,
     initialPrompt: SequenceListItem[], initialPromptDelay: number,
-    options?: { args?: string; env?: EnvVarEntry[]; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' },
+    options?: { env?: EnvVarEntry[]; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' },
   ) => {
     try {
-      configLoader.updateCliType(key, name, command, initialPrompt, initialPromptDelay, options);
+      configLoader.updateCliType(key, name, initialPrompt, initialPromptDelay, options);
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to update CLI type: ${error}`);

@@ -100,9 +100,7 @@ function createCliTypeItem(key: string, value: any): HTMLElement {
   item.className = 'settings-list-item';
   item.dataset.cliKey = key;
 
-  const command = value.command || '';
-  const args = value.args || '';
-  const commandDisplay = args ? `${command} ${args}` : command;
+  const commandDisplay = value.spawnCommand || value.resumeCommand || value.continueCommand || '';
 
   item.innerHTML = `
     <div class="settings-list-item__info">
@@ -180,12 +178,11 @@ async function showAddCliTypeForm(): Promise<void> {
     if (!name) { logEvent('Add CLI type: name is required'); return; }
 
     const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const command = values.command?.trim() || '';
     const validItems = (values._promptItems || []).filter((i: PromptItem) => i.sequence.trim());
     const initialPromptDelay = values.initialPromptDelay || 0;
     const options = buildCommandOptionsFromToolEditor(values);
 
-    const addResult = await window.gamepadCli.toolsAddCliType(key, name, command, validItems, initialPromptDelay, options);
+    const addResult = await window.gamepadCli.toolsAddCliType(key, name, validItems, initialPromptDelay, options);
     if (addResult.success) {
       logEvent(`Added CLI type: ${key}`);
       state.cliTypes = await window.gamepadCli.configGetCliTypes();
@@ -204,8 +201,6 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
   toolEditor.editKey = key;
   toolEditor.initialData = {
     name: value.name || key,
-    command: value.command || '',
-    args: value.args || '',
     env: Array.isArray(value.env)
       ? value.env.map((i: any) => ({ name: i.name || '', value: i.value || '' }))
       : [],
@@ -223,12 +218,11 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
   toolEditor.visible = true;
 
   setToolEditorCallback(async (values) => {
-    const command = values.command?.trim() || '';
     const validItems = (values._promptItems || []).filter((i: PromptItem) => i.sequence.trim());
     const initialPromptDelay = values.initialPromptDelay || 0;
     const options = buildCommandOptionsFromToolEditor(values);
 
-    const updateResult = await window.gamepadCli.toolsUpdateCliType(key, values.name, command, validItems, initialPromptDelay, options);
+    const updateResult = await window.gamepadCli.toolsUpdateCliType(key, values.name, validItems, initialPromptDelay, options);
     if (updateResult.success) {
       logEvent(`Updated CLI type: ${key}`);
       state.cliTypes = await window.gamepadCli.configGetCliTypes();
@@ -243,8 +237,8 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
 }
 
 /** Build the optional command fields from tool editor result. Empty string = clear. */
-function buildCommandOptionsFromToolEditor(values: any): { args?: string; env?: Array<{ name: string; value: string }>; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' } | undefined {
-  const fields = ['args', 'handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
+function buildCommandOptionsFromToolEditor(values: any): { env?: Array<{ name: string; value: string }>; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' } | undefined {
+  const fields = ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
   const opts: Record<string, string> = {};
   let hasAny = false;
   for (const field of fields) {

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { parseCliArgs, type ConfigLoader } from '../config/loader.js';
+import { type ConfigLoader } from '../config/loader.js';
 import type { PlanManager } from '../session/plan-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
@@ -30,7 +30,6 @@ export interface CliSummary {
   cliType: string;
   name: string;
   command: string;
-  args?: string;
   supportsResume: boolean;
   supportedDirPaths: string[];
 }
@@ -54,8 +53,7 @@ export class HelmControlService {
       return {
         cliType,
         name: entry.name,
-        command: entry.command,
-        ...(entry.args ? { args: entry.args } : {}),
+        command: entry.spawnCommand ?? '',
         supportsResume: Boolean(entry.spawnCommand || entry.resumeCommand || entry.continueCommand),
         supportedDirPaths,
       };
@@ -199,8 +197,8 @@ export class HelmControlService {
     if (cliEntry.spawnCommand) {
       rawCommand = cliEntry.spawnCommand.replaceAll('{cliSessionName}', cliSessionName);
     } else {
-      command = cliEntry.command || cliType;
-      args = parseCliArgs(cliEntry.args);
+      command = cliType;
+      args = [];
     }
 
     const pty = this.ptyManager.spawn({

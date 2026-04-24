@@ -7,7 +7,7 @@
 
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { parseCliArgs, type ConfigLoader } from '../../config/loader.js';
+import { type ConfigLoader } from '../../config/loader.js';
 import type { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
 import { logger } from '../../utils/logger.js';
 
@@ -308,9 +308,7 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
     try {
       const entry = configLoader.getCliTypeEntry(cliType);
       if (!entry) return null;
-      // For embedded PTY, use the raw command directly — no terminal wrapper
-      const args = parseCliArgs(entry.args);
-      return { command: entry.command || cliType, args };
+      return configLoader.getSpawnConfig(cliType);
     } catch (error) {
       logger.error(`[IPC] Failed to get spawn command for ${cliType}: ${error}`);
       return null;

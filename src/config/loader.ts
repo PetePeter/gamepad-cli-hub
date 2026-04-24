@@ -154,9 +154,6 @@ export function parseCliArgs(argsText?: string): string[] {
 
 export interface CliTypeConfig {
   name: string;
-  command: string;
-  /** Persistent command-line arguments appended to `command` at spawn time. Space-separated string. */
-  args?: string;
   /** Extra environment variables injected into the spawned CLI process. */
   env?: EnvVarEntry[];
   initialPrompt?: SequenceListItem[];
@@ -307,7 +304,6 @@ export interface ChipbarAction {
 }
 
 type CliTypeOptions = {
-  args?: string;
   env?: EnvVarEntry[];
   handoffCommand?: string;
   renameCommand?: string;
@@ -316,6 +312,10 @@ type CliTypeOptions = {
   continueCommand?: string;
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
 };
+
+function isCliTypeOptions(value: unknown): value is CliTypeOptions {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 export interface ProfileConfig {
   name: string;
@@ -375,6 +375,72 @@ export function stickVirtualButtonName(stick: 'left' | 'right', direction: Stick
   const prefix = stick === 'left' ? 'LeftStick' : 'RightStick';
   const suffix = direction.charAt(0).toUpperCase() + direction.slice(1);
   return `${prefix}${suffix}` as StickVirtualButton;
+}
+
+function buildLegacySpawnCommand(command: unknown, args: unknown): string {
+  const commandText = typeof command === 'string' ? command.trim() : '';
+  const argsText = typeof args === 'string' ? args.trim() : '';
+  return [commandText, argsText].filter(Boolean).join(' ');
+}
+
+function normalizeToolConfig(tool: any): boolean {
+  if (!tool || typeof tool !== 'object') return false;
+
+  let changed = false;
+
+  if (typeof tool.initialPrompt === 'string') {
+    tool.initialPrompt = tool.initialPrompt.trim()
+      ? [{ label: 'Prompt', sequence: tool.initialPrompt }]
+      : [];
+    changed = true;
+  } else if (tool.initialPrompt != null && !Array.isArray(tool.initialPrompt)) {
+    tool.initialPrompt = [];
+    changed = true;
+  }
+
+  if (tool.env != null) {
+    const nextEnv = Array.isArray(tool.env)
+      ? tool.env
+        .map((entry: any) => ({
+          name: typeof entry?.name === 'string' ? entry.name.trim() : '',
+          value: typeof entry?.value === 'string' ? entry.value : '',
+        }))
+        .filter((entry: EnvVarEntry) => entry.name.length > 0)
+      : [];
+    if (JSON.stringify(nextEnv) !== JSON.stringify(tool.env)) {
+      changed = true;
+    }
+    tool.env = nextEnv;
+  }
+
+  const legacySpawnCommand = buildLegacySpawnCommand(tool.command, tool.args);
+  if (typeof tool.spawnCommand === 'string' && tool.spawnCommand.trim()) {
+    if (tool.command !== undefined || tool.args !== undefined) {
+      delete tool.command;
+      delete tool.args;
+      changed = true;
+    }
+  } else if (legacySpawnCommand) {
+    tool.spawnCommand = legacySpawnCommand;
+    delete tool.command;
+    delete tool.args;
+    changed = true;
+  } else if (tool.command !== undefined || tool.args !== undefined) {
+    delete tool.command;
+    delete tool.args;
+    changed = true;
+  }
+
+  return changed;
+}
+
+function parseCommandTemplate(commandText?: string): SpawnConfig {
+  const parts = parseCliArgs(commandText);
+  if (parts.length === 0) {
+    return { command: '', args: [] };
+  }
+  const [command, ...args] = parts;
+  return { command, args };
 }
 
 // ============================================================================
@@ -452,32 +518,14 @@ export class ConfigLoader {
       fs.writeFileSync(filePath, YAML.stringify(raw), 'utf8');
     }
 
-    // Migrate string initialPrompt → SequenceListItem[] in tools
-    let promptMigrated = false;
+    // Normalize legacy tool fields in place so the rest of the app only sees the
+    // canonical spawnCommand-based launch shape.
+    let toolsMigrated = false;
     if (raw.tools && typeof raw.tools === 'object') {
       for (const toolKey of Object.keys(raw.tools)) {
-        const tool = raw.tools[toolKey];
-        if (tool && typeof tool.initialPrompt === 'string') {
-          tool.initialPrompt = tool.initialPrompt.trim()
-            ? [{ label: 'Prompt', sequence: tool.initialPrompt }]
-            : [];
-          promptMigrated = true;
-        } else if (tool && tool.initialPrompt != null && !Array.isArray(tool.initialPrompt)) {
-          tool.initialPrompt = [];
-          promptMigrated = true;
-        }
-        if (tool && tool.env != null) {
-          tool.env = Array.isArray(tool.env)
-            ? tool.env
-              .map((entry: any) => ({
-                name: typeof entry?.name === 'string' ? entry.name.trim() : '',
-                value: typeof entry?.value === 'string' ? entry.value : '',
-              }))
-              .filter((entry: EnvVarEntry) => entry.name.length > 0)
-            : [];
-        }
+        if (normalizeToolConfig(raw.tools[toolKey])) toolsMigrated = true;
       }
-      if (promptMigrated) {
+      if (toolsMigrated) {
         fs.writeFileSync(filePath, YAML.stringify(raw), 'utf8');
       }
     }
@@ -970,6 +1018,11 @@ export class ConfigLoader {
       }
       profile = this.readYaml<ProfileConfig>(srcPath);
       profile.name = name;
+      if (profile.tools && typeof profile.tools === 'object') {
+        for (const tool of Object.values(profile.tools)) {
+          normalizeToolConfig(tool);
+        }
+      }
     } else {
       // Empty profile - no tools, no directories, minimal stub bindings
       profile = {
@@ -1031,16 +1084,29 @@ export class ConfigLoader {
   // ---------- Tools CRUD -----------------------------------------------
 
   addCliType(
-    key: string, name: string, command: string,
-    initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: CliTypeOptions,
+    key: string, name: string,
+    legacyCommandOrInitialPrompt?: string | SequenceListItem[],
+    initialPromptOrDelay?: SequenceListItem[] | number,
+    initialPromptDelayOrOptions?: number | CliTypeOptions,
+    maybeOptions?: CliTypeOptions,
   ): void {
     this.ensureLoaded();
     if (this.activeProfile!.tools[key]) {
       throw new Error(`CLI type already exists: ${key}`);
     }
-    const tool: CliTypeConfig = { name, command, initialPrompt: initialPrompt ?? [], initialPromptDelay: initialPromptDelay ?? 0 };
-    if (options?.args) tool.args = options.args;
+    const legacyCommand = typeof legacyCommandOrInitialPrompt === 'string' ? legacyCommandOrInitialPrompt.trim() : '';
+    const initialPrompt = Array.isArray(legacyCommandOrInitialPrompt)
+      ? legacyCommandOrInitialPrompt
+      : (Array.isArray(initialPromptOrDelay) ? initialPromptOrDelay : []);
+    const initialPromptDelay = typeof initialPromptDelayOrOptions === 'number'
+      ? initialPromptDelayOrOptions
+      : (typeof initialPromptOrDelay === 'number' ? initialPromptOrDelay : 0);
+    const options = isCliTypeOptions(initialPromptDelayOrOptions)
+      ? initialPromptDelayOrOptions
+      : maybeOptions;
+    const tool: CliTypeConfig = { name, initialPrompt, initialPromptDelay };
+    const spawnCommand = options?.spawnCommand?.trim() || legacyCommand;
+    if (spawnCommand) tool.spawnCommand = spawnCommand;
     if (options?.env !== undefined && options.env.length > 0) tool.env = options.env;
     if (options?.handoffCommand) tool.handoffCommand = options.handoffCommand;
     if (options?.renameCommand) tool.renameCommand = options.renameCommand;
@@ -1053,20 +1119,32 @@ export class ConfigLoader {
   }
 
   updateCliType(
-    key: string, name: string, command: string,
-    initialPrompt?: SequenceListItem[], initialPromptDelay?: number,
-    options?: CliTypeOptions,
+    key: string, name: string,
+    legacyCommandOrInitialPrompt?: string | SequenceListItem[],
+    initialPromptOrDelay?: SequenceListItem[] | number,
+    initialPromptDelayOrOptions?: number | CliTypeOptions,
+    maybeOptions?: CliTypeOptions,
   ): void {
     this.ensureLoaded();
     if (!this.activeProfile!.tools[key]) {
       throw new Error(`CLI type not found: ${key}`);
     }
+    const legacyCommand = typeof legacyCommandOrInitialPrompt === 'string' ? legacyCommandOrInitialPrompt.trim() : '';
+    const initialPrompt = Array.isArray(legacyCommandOrInitialPrompt)
+      ? legacyCommandOrInitialPrompt
+      : (Array.isArray(initialPromptOrDelay) ? initialPromptOrDelay : []);
+    const initialPromptDelay = typeof initialPromptDelayOrOptions === 'number'
+      ? initialPromptDelayOrOptions
+      : (typeof initialPromptOrDelay === 'number' ? initialPromptOrDelay : undefined);
+    const options = isCliTypeOptions(initialPromptDelayOrOptions)
+      ? initialPromptDelayOrOptions
+      : maybeOptions;
     const existing = this.activeProfile!.tools[key];
     // Merge — preserve fields not provided (sequences, etc.)
     existing.name = name;
-    existing.command = command;
-    existing.initialPrompt = initialPrompt ?? [];
+    existing.initialPrompt = initialPrompt;
     if (initialPromptDelay !== undefined) existing.initialPromptDelay = initialPromptDelay;
+    if (legacyCommand && !options?.spawnCommand) existing.spawnCommand = legacyCommand;
 
     // Optional fields: undefined = preserve, empty string = clear, value = set
     if (options) {
@@ -1074,7 +1152,7 @@ export class ConfigLoader {
         if (options.env.length === 0) delete existing.env;
         else existing.env = options.env;
       }
-      for (const field of ['args', 'handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand', 'pasteMode'] as const) {
+      for (const field of ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand', 'pasteMode'] as const) {
         const val = options[field];
         if (val === undefined) continue;
         if (val === '') { delete (existing as any)[field]; }
@@ -1133,8 +1211,7 @@ export class ConfigLoader {
 
 
   private buildSpawnConfig(config: CliTypeConfig): SpawnConfig {
-    const cmd = config.command || '';
-    return { command: cmd, args: parseCliArgs(config.args) };
+    return parseCommandTemplate(config.spawnCommand);
   }
 
   // ---------- Save helpers ---------------------------------------------

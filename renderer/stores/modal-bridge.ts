@@ -191,8 +191,6 @@ export function getEditorPopupResolve(): (() => void) | null { return _editorPop
 
 export interface ToolEditorBridgeData {
   name: string;
-  command: string;
-  args: string;
   env: Array<{ name: string; value: string }>;
   initialPromptDelay: number;
   pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
@@ -205,7 +203,7 @@ export interface ToolEditorBridgeData {
 }
 
 const EMPTY_TOOL_DATA: ToolEditorBridgeData = {
-  name: '', command: '', args: '', env: [], initialPromptDelay: 2000,
+  name: '', env: [], initialPromptDelay: 2000,
   pasteMode: 'pty', spawnCommand: '', resumeCommand: '', continueCommand: '',
   renameCommand: '', handoffCommand: '', initialPrompt: [],
 };

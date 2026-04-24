@@ -110,7 +110,6 @@ In profile YAML `tools` section:
 ```yaml
 claude-code:
   name: Claude Code
-  command: claude
   renameCommand: "/rename {cliSessionName}"   # Optional: rename CLI-internal session (sent to PTY stdin)
   spawnCommand: "claude --session-id {cliSessionName}"  # Fresh spawn: set session UUID (written as-is to shell stdin)
   resumeCommand: "claude --resume={cliSessionName}"  # Resume: reload specific session by UUID

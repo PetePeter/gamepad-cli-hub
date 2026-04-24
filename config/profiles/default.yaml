@@ -2,7 +2,6 @@ name: Default
 tools:
   claude-code:
     name: claudecode
-    command: claude
     spawnCommand: claude --session-id {cliSessionName}
     resumeCommand: claude --resume={cliSessionName}
     continueCommand: claude --continue
@@ -32,7 +31,6 @@ tools:
     pasteMode: pty
   copilot-cli:
     name: copilot-raw
-    command: copilot
     spawnCommand: copilot --resume={cliSessionName}
     resumeCommand: copilot --resume={cliSessionName}
     continueCommand: copilot --continue
@@ -68,8 +66,7 @@ tools:
     pasteMode: clippaste
   codex:
     name: codex
-    command: codex
-    args: --dangerously-bypass-approvals-and-sandbox
+    spawnCommand: codex --dangerously-bypass-approvals-and-sandbox
     handoffCommand: go implement it
     initialPrompt:
       - label: ""
@@ -96,12 +93,12 @@ tools:
           sequence: use skill(commit)
   cmd:
     name: cmd
-    command: cmd.exe
+    spawnCommand: cmd.exe
     initialPrompt: []
     initialPromptDelay: 2000
   opencode:
     name: opencode-glm+kimi
-    command: opencode
+    spawnCommand: opencode
     initialPrompt:
       - label: ""
         sequence: >-

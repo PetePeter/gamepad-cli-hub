@@ -560,7 +560,10 @@ describe('ConfigLoader', () => {
       const onDisk = readYaml<any>('profiles/gaming.yaml');
       expect(onDisk.name).toBe('gaming');
       expect(onDisk.bindings['claude-code']).toEqual(DEFAULT_PROFILE.bindings['claude-code']);
-      expect(onDisk.tools).toEqual(DEFAULT_PROFILE.tools);
+      expect(onDisk.tools).toEqual({
+        'claude-code': { name: 'Claude Code', spawnCommand: 'cc', initialPrompt: [] },
+        'copilot-cli': { name: 'GitHub Copilot CLI', spawnCommand: 'copilot', initialPrompt: [] },
+      });
       expect(onDisk.workingDirectories).toEqual(DEFAULT_PROFILE.workingDirectories);
     });
 
@@ -685,7 +688,7 @@ describe('ConfigLoader', () => {
 
       const onDisk = readYaml<any>('profiles/default.yaml');
       expect(onDisk.tools['new-tool']).toBeDefined();
-      expect(onDisk.tools['new-tool'].command).toBe('echo');
+      expect(onDisk.tools['new-tool'].spawnCommand).toBe('echo');
     });
 
     it('addCliType throws if key already exists', () => {
@@ -750,7 +753,7 @@ describe('ConfigLoader', () => {
       const entry = loader.getCliTypeEntry('claude-code');
       expect(entry).not.toBeNull();
       expect(entry!.name).toBe('CC Renamed');
-      expect(entry!.command).toBe('cc2');
+      expect(entry!.spawnCommand).toBe('cc2');
       expect(entry!.initialPrompt).toEqual([{ label: 'New', sequence: 'new prompt' }]);
       expect(entry!.initialPromptDelay).toBe(3000);
 
@@ -848,7 +851,7 @@ describe('ConfigLoader', () => {
       loader.updateCliType('claude-code', 'CC Renamed', 'cc2');
       const entry = loader.getCliTypeEntry('claude-code')!;
       expect(entry.name).toBe('CC Renamed');
-      expect(entry.command).toBe('cc2');
+      expect(entry.spawnCommand).toBe('cc2');
       expect(entry.sequences).toEqual({ prompts: [{ label: 'commit', sequence: 'use skill(commit)' }] });
       expect(entry.handoffCommand).toBe('go implement it\r');
       expect(entry.renameCommand).toBe('/session {cliSessionName}');
@@ -896,26 +899,26 @@ describe('ConfigLoader', () => {
       expect(entry.renameCommand).toBeUndefined();
     });
 
-    it('addCliType with args stores args field', () => {
+    it('addCliType with spawnCommand stores the full launch template', () => {
       loader.load();
-      loader.addCliType('arg-tool', 'Arg Tool', 'mytool', [], 0, {
-        args: '--model opus --verbose',
+      loader.addCliType('arg-tool', 'Arg Tool', [], 0, {
+        spawnCommand: 'mytool --model opus --verbose',
       });
       const entry = loader.getCliTypeEntry('arg-tool')!;
-      expect(entry.args).toBe('--model opus --verbose');
+      expect(entry.spawnCommand).toBe('mytool --model opus --verbose');
       expect(loader.getSpawnConfig('arg-tool')).toEqual({
         command: 'mytool',
         args: ['--model', 'opus', '--verbose'],
       });
     });
 
-    it('updateCliType with args stores args field', () => {
+    it('updateCliType with spawnCommand stores the full launch template', () => {
       loader.load();
-      loader.updateCliType('claude-code', 'CC', 'cc', [], 0, {
-        args: '--debug --timeout 30',
+      loader.updateCliType('claude-code', 'CC', [], 0, {
+        spawnCommand: 'cc --debug --timeout 30',
       });
       const entry = loader.getCliTypeEntry('claude-code')!;
-      expect(entry.args).toBe('--debug --timeout 30');
+      expect(entry.spawnCommand).toBe('cc --debug --timeout 30');
     });
 
     it('addCliType with env stores environment variable entries', () => {
@@ -963,21 +966,21 @@ describe('ConfigLoader', () => {
       ]);
     });
 
-    it('updateCliType with empty args clears args field', () => {
-      const profileWithArgs = {
+    it('updateCliType with empty spawnCommand clears the fresh launch template', () => {
+      const profileWithSpawnCommand = {
         ...DEFAULT_PROFILE,
         tools: {
           ...DEFAULT_PROFILE.tools,
-          'claude-code': { ...DEFAULT_PROFILE.tools['claude-code'], args: '--verbose' },
+          'claude-code': { ...DEFAULT_PROFILE.tools['claude-code'], spawnCommand: 'cc --verbose' },
         },
       };
-      writeYaml('profiles/default.yaml', profileWithArgs);
+      writeYaml('profiles/default.yaml', profileWithSpawnCommand);
       loader = new ConfigLoader(TEST_DIR);
       loader.load();
 
-      loader.updateCliType('claude-code', 'CC', 'cc', [], 0, { args: '' });
+      loader.updateCliType('claude-code', 'CC', [], 0, { spawnCommand: '' });
       const entry = loader.getCliTypeEntry('claude-code')!;
-      expect(entry.args).toBeUndefined();
+      expect(entry.spawnCommand).toBeUndefined();
     });
 
     it('updateCliType with empty env clears env field', () => {
@@ -1000,13 +1003,13 @@ describe('ConfigLoader', () => {
       expect(entry.env).toBeUndefined();
     });
 
-    it('args round-trip preserves on disk', () => {
+    it('spawnCommand round-trip preserves on disk', () => {
       loader.load();
-      loader.addCliType('rt-tool', 'RT', 'rt', [], 0, { args: '--flag value' });
+      loader.addCliType('rt-tool', 'RT', [], 0, { spawnCommand: 'rt --flag value' });
 
       const fresh = new ConfigLoader(TEST_DIR);
       fresh.load();
-      expect(fresh.getCliTypeEntry('rt-tool')!.args).toBe('--flag value');
+      expect(fresh.getCliTypeEntry('rt-tool')!.spawnCommand).toBe('rt --flag value');
       expect(fresh.getSpawnConfig('rt-tool')).toEqual({
         command: 'rt',
         args: ['--flag', 'value'],
@@ -1040,8 +1043,8 @@ describe('ConfigLoader', () => {
 
     it('getSpawnConfig preserves quoted args for complex CLI options', () => {
       loader.load();
-      loader.addCliType('codex', 'Codex CLI', 'codex', [], 0, {
-        args: '--full-auto -c \'model="gpt-5"\' --cd "X:\\coding\\My Project"',
+      loader.addCliType('codex', 'Codex CLI', [], 0, {
+        spawnCommand: 'codex --full-auto -c \'model="gpt-5"\' --cd "X:\\coding\\My Project"',
       });
 
       expect(loader.getSpawnConfig('codex')).toEqual({
@@ -1074,7 +1077,7 @@ describe('ConfigLoader', () => {
       fresh.load();
       const entry = fresh.getCliTypeEntry('claude-code')!;
       expect(entry.name).toBe('New Name');
-      expect(entry.command).toBe('new-cmd');
+      expect(entry.spawnCommand).toBe('new-cmd');
       expect(entry.sequences).toEqual({ prompts: [{ label: 'x', sequence: 'y' }] });
       expect(entry.handoffCommand).toBe('h');
       expect(entry.continueCommand).toBe('c');

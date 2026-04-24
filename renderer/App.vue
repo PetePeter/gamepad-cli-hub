@@ -838,7 +838,7 @@ async function loadSettingsData(): Promise<void> {
     settingsTools.value = Object.entries(cliTypes).map(([key, value]: [string, any]) => ({
       key,
       name: value.name || key,
-      command: value.command || '',
+      command: value.spawnCommand || value.resumeCommand || value.continueCommand || '',
       hasInitialPrompt: Array.isArray(value.initialPrompt) && value.initialPrompt.length > 0,
       initialPromptCount: Array.isArray(value.initialPrompt) ? value.initialPrompt.length : 0,
     }));
@@ -1076,8 +1076,6 @@ function onToolAdd(): void {
   toolEditor.editKey = '';
   toolEditor.initialData = {
     name: '',
-    command: '',
-    args: '',
     env: [],
     initialPromptDelay: 0,
     pasteMode: 'pty',
@@ -1095,11 +1093,10 @@ function onToolAdd(): void {
       return;
     }
     const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const command = values.command?.trim() || '';
     const validItems = (values._promptItems || []).filter((item: { sequence: string }) => item.sequence.trim());
     const initialPromptDelay = values.initialPromptDelay || 0;
     const options = buildToolEditorOptions(values);
-    const addResult = await window.gamepadCli.toolsAddCliType(key, name, command, validItems, initialPromptDelay, options);
+    const addResult = await window.gamepadCli.toolsAddCliType(key, name, validItems, initialPromptDelay, options);
     if (addResult.success) {
       logEvent(`Added CLI type: ${key}`);
       state.cliTypes = await window.gamepadCli.configGetCliTypes();
@@ -1124,8 +1121,6 @@ async function onToolEdit(key: string): Promise<void> {
     toolEditor.editKey = key;
     toolEditor.initialData = {
       name: value.name || key,
-      command: value.command || '',
-      args: value.args || '',
       env: Array.isArray(value.env)
         ? value.env.map((i: any) => ({ name: i.name || '', value: i.value || '' }))
         : [],
@@ -1141,11 +1136,10 @@ async function onToolEdit(key: string): Promise<void> {
         : [],
     };
     setToolEditorCallback(async (values) => {
-      const command = values.command?.trim() || '';
       const validItems = (values._promptItems || []).filter((item: { sequence: string }) => item.sequence.trim());
       const initialPromptDelay = values.initialPromptDelay || 0;
       const options = buildToolEditorOptions(values);
-      const updateResult = await window.gamepadCli.toolsUpdateCliType(key, values.name, command, validItems, initialPromptDelay, options);
+      const updateResult = await window.gamepadCli.toolsUpdateCliType(key, values.name, validItems, initialPromptDelay, options);
       if (updateResult.success) {
         logEvent(`Updated CLI type: ${key}`);
         state.cliTypes = await window.gamepadCli.configGetCliTypes();
@@ -1164,7 +1158,6 @@ async function onToolEdit(key: string): Promise<void> {
 }
 
 function buildToolEditorOptions(values: any): {
-  args?: string;
   env?: Array<{ name: string; value: string }>;
   handoffCommand?: string;
   renameCommand?: string;
@@ -1173,7 +1166,7 @@ function buildToolEditorOptions(values: any): {
   continueCommand?: string;
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
 } {
-  const fields = ['args', 'handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
+  const fields = ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
   const options: Record<string, string> = {};
   for (const field of fields) {
     options[field] = typeof values[field] === 'string' ? values[field].trim() : '';

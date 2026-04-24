@@ -19,8 +19,6 @@ const HELM_AUTOFILLED_ENV_NAMES = new Set(HELM_AUTOFILLED_ENV_ITEMS.map((item) =
 
 export interface ToolEditorData {
   name: string;
-  command: string;
-  args: string;
   env: Array<{ name: string; value: string }>;
   initialPromptDelay: number;
   pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
@@ -42,8 +40,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'save', values: {
     name: string;
-    command: string;
-    args: string;
     env: Array<{ name: string; value: string }>;
     initialPromptDelay: number;
     pasteMode: string;
@@ -61,8 +57,6 @@ const emit = defineEmits<{
 /* ── Form state ─────────────────────────────────────────────────────────── */
 
 const name = ref('');
-const command = ref('');
-const args = ref('');
 type EnvItem = { id: number; name: string; value: string };
 const envItems = ref<EnvItem[]>([]);
 const initialPromptDelay = ref(2000);
@@ -76,9 +70,8 @@ const handoffCommand = ref('');
 interface SeqItem { label: string; sequence: string }
 const promptItems = ref<SeqItem[]>([]);
 
-/* ── Section collapse state ─────────────────────────────────────────────── */
+/* ── Section state ──────────────────────────────────────────────────────── */
 
-const sessionExpanded = ref(false);
 const syntaxHelpExpanded = ref(false);
 const syntaxHelpText = getSequenceSyntaxHelpText();
 const overlayRef = ref<HTMLElement | null>(null);
@@ -118,8 +111,6 @@ function handleButton(button: string): boolean {
 function initForm(): void {
   const d = props.initialData;
   name.value = d.name ?? '';
-  command.value = d.command ?? '';
-  args.value = d.args ?? '';
   envItems.value = Array.isArray(d.env)
     ? d.env.map(item => ({
         id: nextEnvId++,
@@ -166,8 +157,6 @@ function removeEnvItem(index: number): void {
 function onSave(): void {
   emit('save', {
     name: name.value,
-    command: command.value,
-    args: args.value,
     env: envItems.value.map(item => ({ name: item.name, value: item.value })),
     initialPromptDelay: initialPromptDelay.value,
     pasteMode: pasteMode.value,
@@ -211,35 +200,13 @@ defineExpose({ handleButton });
           <!-- ═══ Basic ═══ -->
           <fieldset class="te-section">
             <legend class="te-section__legend">Basic</legend>
-            <div class="te-grid-2col">
-              <div class="te-field">
-                <label for="te-name">Name</label>
-                <input
-                  id="te-name"
-                  v-model="name"
-                  type="text"
-                  placeholder="e.g. Claude Code"
-                  class="te-input"
-                />
-              </div>
-              <div class="te-field">
-                <label for="te-command">Command</label>
-                <input
-                  id="te-command"
-                  v-model="command"
-                  type="text"
-                  placeholder="e.g. claude"
-                  class="te-input"
-                />
-              </div>
-            </div>
             <div class="te-field">
-              <label for="te-args">Args</label>
+              <label for="te-name">Name</label>
               <input
-                id="te-args"
-                v-model="args"
+                id="te-name"
+                v-model="name"
                 type="text"
-                placeholder="e.g. --no-update-check"
+                placeholder="e.g. Claude Code"
                 class="te-input"
               />
             </div>
@@ -317,65 +284,57 @@ defineExpose({ handleButton });
             >+ Add Variable</button>
           </fieldset>
 
-          <!-- ═══ Session Management (collapsed by default) ═══ -->
           <fieldset class="te-section">
-            <legend
-              class="te-section__legend te-section__legend--collapsible"
-              @click="sessionExpanded = !sessionExpanded"
-            >
-              {{ sessionExpanded ? '▾' : '▸' }} Session Management
-            </legend>
-            <div v-if="sessionExpanded" class="te-section__body">
-              <div class="te-field">
-                <label for="te-spawn">Spawn Command</label>
-                <input
-                  id="te-spawn"
-                  v-model="spawnCommand"
-                  type="text"
-                  placeholder="Template for spawning new sessions"
-                  class="te-input te-input--mono"
-                />
-              </div>
-              <div class="te-field">
-                <label for="te-resume">Resume Command</label>
-                <input
-                  id="te-resume"
-                  v-model="resumeCommand"
-                  type="text"
-                  placeholder="Template for resuming sessions"
-                  class="te-input te-input--mono"
-                />
-              </div>
-              <div class="te-field">
-                <label for="te-continue">Continue Command</label>
-                <input
-                  id="te-continue"
-                  v-model="continueCommand"
-                  type="text"
-                  placeholder="Template for continuing sessions"
-                  class="te-input te-input--mono"
-                />
-              </div>
-              <div class="te-field">
-                <label for="te-rename">Rename Command</label>
-                <input
-                  id="te-rename"
-                  v-model="renameCommand"
-                  type="text"
-                  placeholder="Template for renaming sessions"
-                  class="te-input te-input--mono"
-                />
-              </div>
-              <div class="te-field">
-                <label for="te-handoff">Handoff Command</label>
-                <input
-                  id="te-handoff"
-                  v-model="handoffCommand"
-                  type="text"
-                  placeholder="Template for handoff between sessions"
-                  class="te-input te-input--mono"
-                />
-              </div>
+            <legend class="te-section__legend">Launch</legend>
+            <div class="te-field">
+              <label for="te-spawn">Spawn Command</label>
+              <input
+                id="te-spawn"
+                v-model="spawnCommand"
+                type="text"
+                placeholder="e.g. codex --dangerously-bypass-approvals-and-sandbox"
+                class="te-input te-input--mono"
+              />
+            </div>
+            <div class="te-field">
+              <label for="te-resume">Resume Command</label>
+              <input
+                id="te-resume"
+                v-model="resumeCommand"
+                type="text"
+                placeholder="Template for resuming sessions"
+                class="te-input te-input--mono"
+              />
+            </div>
+            <div class="te-field">
+              <label for="te-continue">Continue Command</label>
+              <input
+                id="te-continue"
+                v-model="continueCommand"
+                type="text"
+                placeholder="Template for continuing sessions"
+                class="te-input te-input--mono"
+              />
+            </div>
+            <div class="te-field">
+              <label for="te-rename">Rename Command</label>
+              <input
+                id="te-rename"
+                v-model="renameCommand"
+                type="text"
+                placeholder="Template for renaming sessions"
+                class="te-input te-input--mono"
+              />
+            </div>
+            <div class="te-field">
+              <label for="te-handoff">Handoff Command</label>
+              <input
+                id="te-handoff"
+                v-model="handoffCommand"
+                type="text"
+                placeholder="Template for handoff between sessions"
+                class="te-input te-input--mono"
+              />
             </div>
           </fieldset>
 
