@@ -94,10 +94,6 @@ function getNodeColor(status: string): string {
   return STATUS_COLORS[status] ?? STATUS_COLORS.pending;
 }
 
-function truncate(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
-}
-
 function connectorPoint(id: string, side: 'in' | 'out'): { x: number; y: number } | null {
   const node = nodeMap.value.get(id);
   if (!node) return null;
@@ -314,15 +310,15 @@ function startDragConnection(id: string, e: MouseEvent): void {
             r="7"
             :fill="getNodeColor(item.status)"
           />
-          <text class="plan-node__title" x="36" y="24" fill="#fff">{{ truncate(item.title, 24) }}</text>
-          <text class="plan-node__desc" x="16" y="48" fill="#cfcfcf">{{ truncate(item.description, 28) }}</text>
-          <text
-            v-if="item.stateInfo"
-            class="plan-node__desc"
-            x="16"
-            y="66"
-            fill="#999"
-          >{{ truncate(item.stateInfo, 28) }}</text>
+          <foreignObject x="32" y="6" width="160" height="20">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__title">{{ item.title }}</div>
+          </foreignObject>
+          <foreignObject x="8" y="28" width="184" :height="item.stateInfo ? 26 : 40">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__desc">{{ item.description }}</div>
+          </foreignObject>
+          <foreignObject v-if="item.stateInfo" x="8" y="56" width="184" height="18">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__state-info">{{ item.stateInfo }}</div>
+          </foreignObject>
           <circle
             class="plan-node__connector plan-node__connector--in"
             cx="0"
