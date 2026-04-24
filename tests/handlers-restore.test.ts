@@ -74,6 +74,11 @@ vi.mock('../src/config/loader.js', () => ({
       instanceName: 'test',
       allowedUserIds: [],
     }),
+    getMcpConfig: vi.fn().mockReturnValue({
+      enabled: false,
+      port: 5555,
+      authToken: '',
+    }),
   },
 }));
 
