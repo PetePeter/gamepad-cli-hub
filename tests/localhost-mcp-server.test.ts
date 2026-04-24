@@ -8,6 +8,8 @@ vi.mock('../src/utils/logger.js', () => ({
 
 function makeService(): HelmControlService {
   return {
+    listClis: vi.fn(() => [{ cliType: 'codex', name: 'codex', command: 'codex', supportsResume: false, supportedDirPaths: ['X:\\coding\\gamepad-cli-hub'] }]),
+    listDirectories: vi.fn(() => [{ dirPath: 'X:\\coding\\gamepad-cli-hub', name: 'Helm', source: ['config', 'plans'], planCount: 8, sessionCount: 0 }]),
     listPlans: vi.fn((dirPath: string) => [{ id: 'p1', dirPath, title: 'Task', description: 'Desc', status: 'startable' }]),
     getPlan: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'startable' })),
     createPlan: vi.fn((dirPath: string, title: string, description: string) => ({ id: 'created', dirPath, title, description, status: 'startable' })),
@@ -19,9 +21,10 @@ function makeService(): HelmControlService {
     removeDependency: vi.fn(() => true),
     exportDirectory: vi.fn((dirPath: string) => ({ dirPath, items: [], dependencies: [] })),
     exportItem: vi.fn((id: string) => ({ item: { id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'startable' }, dependencies: [] })),
-    listSessions: vi.fn(() => [{ id: 's1', name: 'Claude', cliType: 'claude-code' }]),
+    spawnCli: vi.fn((cliType: string, dirPath: string, name: string) => ({ id: 's2', name, cliType, workingDir: dirPath })),
+    listSessions: vi.fn((dirPath?: string) => [{ id: 's1', name: 'Claude', cliType: 'claude-code', ...(dirPath ? { workingDir: dirPath } : {}) }]),
     getSession: vi.fn((sessionId: string) => ({ id: sessionId, name: 'Claude', cliType: 'claude-code' })),
-    sendTextToSession: vi.fn(async () => ({ success: true })),
+    sendTextToSession: vi.fn(async (sessionRef: string) => ({ success: true, sessionId: sessionRef, name: 'Claude' })),
   } as unknown as HelmControlService;
 }
 
@@ -119,7 +122,114 @@ describe('LocalhostMcpServer', () => {
     });
     const json = await response.json();
     expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello');
-    expect(json.result.structuredContent).toEqual({ success: true });
+    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
+  });
+
+  it('wraps array results in a record for structuredContent', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 31,
+      method: 'tools/call',
+      params: {
+        name: 'plans_list',
+        arguments: { dirPath: 'X:\\coding\\gamepad-cli-hub' },
+      },
+    });
+    const json = await response.json();
+    expect(json.result.structuredContent).toEqual({
+      items: [{ id: 'p1', dirPath: 'X:\\coding\\gamepad-cli-hub', title: 'Task', description: 'Desc', status: 'startable' }],
+    });
+  });
+
+  it('lists directories through the MCP surface', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 32,
+      method: 'tools/call',
+      params: {
+        name: 'directories_list',
+        arguments: {},
+      },
+    });
+    const json = await response.json();
+    expect(json.result.structuredContent).toEqual({
+      items: [{ dirPath: 'X:\\coding\\gamepad-cli-hub', name: 'Helm', source: ['config', 'plans'], planCount: 8, sessionCount: 0 }],
+    });
+  });
+
+  it('lists configured cli types through the MCP surface', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 34,
+      method: 'tools/call',
+      params: {
+        name: 'clis_list',
+        arguments: {},
+      },
+    });
+    const json = await response.json();
+    expect(json.result.structuredContent).toEqual({
+      items: [{ cliType: 'codex', name: 'codex', command: 'codex', supportsResume: false, supportedDirPaths: ['X:\\coding\\gamepad-cli-hub'] }],
+    });
+  });
+
+  it('spawns a cli session through the MCP surface', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 35,
+      method: 'tools/call',
+      params: {
+        name: 'cli_spawn',
+        arguments: { cliType: 'codex', dirPath: 'X:\\coding\\gamepad-cli-hub', name: 'Builder' },
+      },
+    });
+    const json = await response.json();
+    expect((service.spawnCli as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('codex', 'X:\\coding\\gamepad-cli-hub', 'Builder', undefined);
+    expect(json.result.structuredContent).toEqual({ id: 's2', name: 'Builder', cliType: 'codex', workingDir: 'X:\\coding\\gamepad-cli-hub' });
+  });
+
+  it('passes an optional dirPath filter into sessions_list', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 33,
+      method: 'tools/call',
+      params: {
+        name: 'sessions_list',
+        arguments: { dirPath: 'X:\\coding\\gamepad-cli-hub' },
+      },
+    });
+
+    expect((service.listSessions as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('X:\\coding\\gamepad-cli-hub');
   });
 
   it('returns explicit errors instead of null structured content for invalid plan transitions', async () => {
@@ -187,6 +297,27 @@ describe('LocalhostMcpServer', () => {
     });
     const json = await response.json();
     expect(json.error.message).toBe('Session not found: missing-session');
+  });
+
+  it('allows session_send_text to target a session by exact name', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 36,
+      method: 'tools/call',
+      params: {
+        name: 'session_send_text',
+        arguments: { name: 'Claude', text: 'hello' },
+      },
+    });
+    const json = await response.json();
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello');
+    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
   });
 
   it('returns 405 for GET requests', async () => {

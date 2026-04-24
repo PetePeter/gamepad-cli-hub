@@ -28,6 +28,16 @@ const MCP_PATH = '/mcp';
 
 const TOOLS: McpTool[] = [
   {
+    name: 'clis_list',
+    title: 'List CLI Types',
+    description: 'List CLI types configured in Helm and the configured working directories they can be spawned into.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'plans_list',
     title: 'List Plans',
     description: 'List all plan items for a directory.',
@@ -157,9 +167,9 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'sessions_list',
-    title: 'List Sessions',
-    description: 'List currently known Helm sessions.',
+    name: 'directories_list',
+    title: 'List Directories',
+    description: 'List known working directories, including configured folders and directories that currently have plans or sessions.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -167,27 +177,58 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'session_get',
-    title: 'Get Session',
-    description: 'Get one Helm session by ID.',
+    name: 'cli_spawn',
+    title: 'Spawn CLI Session',
+    description: 'Spawn a new CLI session in a configured working directory and give it a stable display name for later lookup.',
     inputSchema: {
       type: 'object',
-      properties: { sessionId: { type: 'string' } },
-      required: ['sessionId'],
+      properties: {
+        cliType: { type: 'string' },
+        dirPath: { type: 'string' },
+        name: { type: 'string' },
+        prompt: { type: 'string' },
+      },
+      required: ['cliType', 'dirPath', 'name'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'sessions_list',
+    title: 'List Sessions',
+    description: 'List currently known Helm sessions, optionally filtered to one working directory.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dirPath: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'session_get',
+    title: 'Get Session',
+    description: 'Get one Helm session by session ID or exact display name.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        name: { type: 'string' },
+      },
       additionalProperties: false,
     },
   },
   {
     name: 'session_send_text',
     title: 'Send Text To Session',
-    description: 'Send text to a running session PTY.',
+    description: 'Send text to a running session PTY by session ID or exact display name.',
     inputSchema: {
       type: 'object',
       properties: {
         sessionId: { type: 'string' },
+        name: { type: 'string' },
         text: { type: 'string' },
       },
-      required: ['sessionId', 'text'],
+      required: ['text'],
       additionalProperties: false,
     },
   },
@@ -343,9 +384,10 @@ export class LocalhostMcpServer {
           const name = asString(params.name, 'Tool name is required');
           const args = asRecord(params.arguments);
           const result = await this.callTool(name, args);
+          const structuredContent = normalizeStructuredContent(result);
           this.writeJsonRpcResult(res, id, {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-            structuredContent: result,
+            structuredContent,
           });
           return;
         }
@@ -361,6 +403,8 @@ export class LocalhostMcpServer {
     switch (name) {
       case 'plans_list':
         return this.service.listPlans(asString(args.dirPath, 'dirPath is required'));
+      case 'clis_list':
+        return this.service.listClis();
       case 'plan_get':
         return requireResult(
           this.service.getPlan(asString(args.id, 'id is required')),
@@ -421,16 +465,25 @@ export class LocalhostMcpServer {
           this.service.exportDirectory(asString(args.dirPath, 'dirPath is required')),
           `No plans found for directory: ${asString(args.dirPath, 'dirPath is required')}`,
         );
+      case 'directories_list':
+        return this.service.listDirectories();
+      case 'cli_spawn':
+        return this.service.spawnCli(
+          asString(args.cliType, 'cliType is required'),
+          asString(args.dirPath, 'dirPath is required'),
+          asString(args.name, 'name is required'),
+          typeof args.prompt === 'string' ? args.prompt : undefined,
+        );
       case 'sessions_list':
-        return this.service.listSessions();
+        return this.service.listSessions(typeof args.dirPath === 'string' ? args.dirPath : undefined);
       case 'session_get':
         return requireResult(
-          this.service.getSession(asString(args.sessionId, 'sessionId is required')),
-          `Session not found: ${asString(args.sessionId, 'sessionId is required')}`,
+          this.service.getSession(asString(args.sessionId ?? args.name, 'sessionId or name is required')),
+          `Session not found: ${asString(args.sessionId ?? args.name, 'sessionId or name is required')}`,
         );
       case 'session_send_text':
         return this.service.sendTextToSession(
-          asString(args.sessionId, 'sessionId is required'),
+          asString(args.sessionId ?? args.name, 'sessionId or name is required'),
           asString(args.text, 'text is required'),
         );
       default:
@@ -536,4 +589,14 @@ function requireBooleanResult(value: boolean, message: string): true {
     throw new Error(message);
   }
   return true;
+}
+
+function normalizeStructuredContent(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (Array.isArray(value)) {
+    return { items: value };
+  }
+  return { result: value ?? null };
 }

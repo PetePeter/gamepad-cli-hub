@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { parseCliArgs, type ConfigLoader } from '../config/loader.js';
 import type { PlanManager } from '../session/plan-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
@@ -15,15 +17,48 @@ export interface SessionSummary {
   windowId?: number;
 }
 
+export interface DirectorySummary {
+  dirPath: string;
+  name?: string;
+  source: Array<'config' | 'plans' | 'sessions'>;
+  planCount: number;
+  sessionCount: number;
+}
+
+export interface CliSummary {
+  cliType: string;
+  name: string;
+  command: string;
+  args?: string;
+  supportsResume: boolean;
+  supportedDirPaths: string[];
+}
+
 export class HelmControlService {
   constructor(
     private readonly planManager: PlanManager,
     private readonly sessionManager: SessionManager,
     private readonly ptyManager: PtyManager,
+    private readonly configLoader: ConfigLoader,
   ) {}
 
   listPlans(dirPath: string): PlanItem[] {
     return this.planManager.getForDirectory(dirPath);
+  }
+
+  listClis(): CliSummary[] {
+    const supportedDirPaths = this.configLoader.getWorkingDirectories().map((entry) => entry.path);
+    return this.configLoader.getCliTypes().map((cliType) => {
+      const entry = this.requireCliEntry(cliType);
+      return {
+        cliType,
+        name: entry.name,
+        command: entry.command,
+        ...(entry.args ? { args: entry.args } : {}),
+        supportsResume: Boolean(entry.spawnCommand || entry.resumeCommand || entry.continueCommand),
+        supportedDirPaths,
+      };
+    });
   }
 
   getPlan(id: string): PlanItem | null {
@@ -71,25 +106,89 @@ export class HelmControlService {
     return this.planManager.exportItem(id);
   }
 
-  listSessions(): SessionSummary[] {
-    return this.sessionManager.getAllSessions().map((session) => this.toSessionSummary(session));
+  listDirectories(): DirectorySummary[] {
+    const configured = this.configLoader.getWorkingDirectories();
+    const sessions = this.sessionManager.getAllSessions();
+    return configured
+      .map((entry) => {
+        const source: Array<'config' | 'plans' | 'sessions'> = ['config'];
+        if (this.planManager.getForDirectory(entry.path).length > 0) source.push('plans');
+        if (sessions.some((session) => session.workingDir === entry.path)) source.push('sessions');
+        return {
+          dirPath: entry.path,
+          name: entry.name,
+          source,
+          planCount: this.planManager.getForDirectory(entry.path).length,
+          sessionCount: sessions.filter((session) => session.workingDir === entry.path).length,
+        };
+      })
+      .sort((a, b) => a.dirPath.localeCompare(b.dirPath));
   }
 
-  getSession(sessionId: string): SessionSummary | null {
-    const session = this.sessionManager.getSession(sessionId);
+  listSessions(dirPath?: string): SessionSummary[] {
+    return this.sessionManager
+      .getAllSessions()
+      .filter((session) => !dirPath || session.workingDir === dirPath)
+      .map((session) => this.toSessionSummary(session));
+  }
+
+  getSession(sessionRef: string): SessionSummary | null {
+    const session = this.findSession(sessionRef);
     return session ? this.toSessionSummary(session) : null;
   }
 
-  async sendTextToSession(sessionId: string, text: string): Promise<{ success: true }> {
-    const session = this.sessionManager.getSession(sessionId);
+  spawnCli(cliType: string, dirPath: string, name: string, prompt?: string): SessionSummary {
+    const workingDir = this.requireWorkingDirectory(dirPath);
+    const cliEntry = this.requireCliEntry(cliType);
+    const sessionId = randomUUID();
+    const cliSessionName = randomUUID();
+    const toolEnv = this.resolveToolEnv(cliType);
+    let rawCommand: string | undefined;
+    let command: string | undefined;
+    let args: string[] | undefined;
+
+    if (cliEntry.spawnCommand) {
+      rawCommand = cliEntry.spawnCommand.replaceAll('{cliSessionName}', cliSessionName);
+    } else {
+      command = cliEntry.command || cliType;
+      args = parseCliArgs(cliEntry.args);
+    }
+
+    const pty = this.ptyManager.spawn({
+      sessionId,
+      rawCommand,
+      command,
+      args,
+      cwd: workingDir.path,
+      ...(toolEnv ? { env: toolEnv } : {}),
+    });
+
+    this.sessionManager.addSession({
+      id: sessionId,
+      name: name.trim(),
+      cliType,
+      processId: pty.pid,
+      workingDir: workingDir.path,
+      cliSessionName,
+    });
+
+    if (prompt && prompt.trim()) {
+      void this.ptyManager.deliverText(sessionId, prompt);
+    }
+
+    return this.toSessionSummary(requireResult(this.sessionManager.getSession(sessionId), `Session not found: ${sessionId}`));
+  }
+
+  async sendTextToSession(sessionRef: string, text: string): Promise<{ success: true; sessionId: string; name: string }> {
+    const session = this.findSession(sessionRef);
     if (!session) {
-      throw new Error(`Session not found: ${sessionId}`);
+      throw new Error(`Session not found: ${sessionRef}`);
     }
-    if (!this.ptyManager.has(sessionId)) {
-      throw new Error(`Session PTY is not running: ${sessionId}`);
+    if (!this.ptyManager.has(session.id)) {
+      throw new Error(`Session PTY is not running: ${session.id}`);
     }
-    await this.ptyManager.deliverText(sessionId, text);
-    return { success: true };
+    await this.ptyManager.deliverText(session.id, text);
+    return { success: true, sessionId: session.id, name: session.name };
   }
 
   private toSessionSummary(session: SessionInfo): SessionSummary {
@@ -104,4 +203,54 @@ export class HelmControlService {
       windowId: session.windowId,
     };
   }
+
+  private findSession(sessionRef: string): SessionInfo | null {
+    const byId = this.sessionManager.getSession(sessionRef);
+    if (byId) return byId;
+    const matches = this.sessionManager.getAllSessions().filter((session) => session.name === sessionRef);
+    if (matches.length > 1) {
+      throw new Error(`Multiple sessions found with name: ${sessionRef}. Use sessionId instead.`);
+    }
+    return matches[0] ?? null;
+  }
+
+  private requireCliEntry(cliType: string) {
+    const entry = this.configLoader.getCliTypeEntry(cliType);
+    if (!entry) {
+      throw new Error(`Unknown CLI type: ${cliType}`);
+    }
+    return entry;
+  }
+
+  private requireWorkingDirectory(dirPath: string) {
+    const workingDir = this.configLoader.getWorkingDirectories().find((entry) => entry.path === dirPath);
+    if (!workingDir) {
+      throw new Error(`Working directory is not configured in Helm: ${dirPath}`);
+    }
+    return workingDir;
+  }
+
+  private resolveToolEnv(cliType: string): Record<string, string> | undefined {
+    const envEntries = this.requireCliEntry(cliType).env;
+    if (!envEntries?.length) return undefined;
+    const env = Object.fromEntries(
+      envEntries
+        .filter((entry) => typeof entry?.name === 'string' && entry.name.trim().length > 0)
+        .map((entry) => [entry.name.trim(), this.resolveEnvValue(typeof entry?.value === 'string' ? entry.value : '')]),
+    );
+    return Object.keys(env).length > 0 ? env : undefined;
+  }
+
+  private resolveEnvValue(value: string): string {
+    return value
+      .replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_match, envName: string) => process.env[envName] ?? '')
+      .replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (_match, envName: string) => process.env[envName] ?? '');
+  }
+}
+
+function requireResult<T>(value: T | null, message: string): T {
+  if (value === null) {
+    throw new Error(message);
+  }
+  return value;
 }
