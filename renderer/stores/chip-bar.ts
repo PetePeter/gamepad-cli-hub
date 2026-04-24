@@ -5,11 +5,15 @@ import { resolveChipbarTemplates } from '../drafts/chipbar-templates.js';
 import { executeSequenceForSession } from '../bindings.js';
 import type { PlanStatus } from '../../src/types/plan.js';
 import { deliverBulkText } from '../paste-handler.js';
+import {
+  showDraftEditor as legacyShowDraftEditor,
+  showPlanInEditor as legacyShowPlanInEditor,
+} from '../drafts/draft-editor.js';
 
-let draftEditorOpener: ((sessionId: string, draft?: { id: string; label: string; text: string }) => void) | null = null;
+let draftEditorOpener: ((sessionId: string, draft?: { id: string; label: string; text: string }) => void) | null = legacyShowDraftEditor;
 export function setDraftEditorOpener(fn: typeof draftEditorOpener) { draftEditorOpener = fn; }
 
-let planEditorOpener: ((sessionId: string, plan: any, callbacks: any) => void) | null = null;
+let planEditorOpener: ((sessionId: string, plan: any, callbacks: any) => void) | null = legacyShowPlanInEditor;
 export function setPlanEditorOpener(fn: typeof planEditorOpener) { planEditorOpener = fn; }
 
 export interface ChipBarDraft {

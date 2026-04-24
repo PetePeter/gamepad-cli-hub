@@ -11,5 +11,11 @@ export default defineConfig({
   },
   test: {
     setupFiles: ['./tests/pinia-setup.ts'],
+    exclude: [
+      '**/.claude/**',
+      '**/dist/**',
+      '**/dist-electron/**',
+      '**/node_modules/**',
+    ],
   },
 });

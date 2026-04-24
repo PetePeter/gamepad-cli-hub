@@ -8,6 +8,7 @@ import { clearDonePlans, setClearDonePlansCallback } from '../stores/modal-bridg
 import { state } from '../state.js';
 import { registerView, showView, currentView, type ViewMountContext } from '../main-view/main-view-manager.js';
 import { hidePlanHelpModal, isPlanHelpVisible, showPlanHelpModal } from './plan-help-modal.js';
+import { showPlanInEditor as legacyShowPlanInEditor } from '../drafts/draft-editor.js';
 
 export interface PlanEditorCallbacks {
   onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string }) => void | Promise<void>;
@@ -31,7 +32,7 @@ export const planScreenState = reactive({
 let fitActiveCallback: (() => void) | null = null;
 let closeCallback: (() => void) | null = null;
 let openCallback: (() => void) | null = null;
-let planEditorOpener: ((sessionId: string, plan: PlanItem, callbacks: PlanEditorCallbacks) => void) | null = null;
+let planEditorOpener: ((sessionId: string, plan: PlanItem, callbacks: PlanEditorCallbacks) => void) | null = legacyShowPlanInEditor;
 let draftEditorCloser: (() => void) | null = null;
 let draftEditorVisibilityChecker: (() => boolean) | null = null;
 let planChangesChecker: (() => boolean) | null = null;

@@ -124,6 +124,7 @@ vi.mock('../renderer/runtime/terminal-provider.js', () => ({
 vi.mock('../renderer/drafts/draft-editor.js', () => ({
   isDraftEditorVisible: () => _draftEditorVisible,
   handleDraftEditorButton: mockHandleDraftEditorButton,
+  showPlanInEditor: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------

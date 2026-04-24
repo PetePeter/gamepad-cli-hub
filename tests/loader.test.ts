@@ -57,7 +57,7 @@ describe('Config auto-seeding for dev mode (Option A)', () => {
   // Test 1: seedConfigIfNeeded copies templates when target missing
   // =========================================================================
 
-  it('seedConfigIfNeeded copies templates when target missing', () => {
+  it('seedConfigIfNeeded copies templates when target missing', async () => {
     // Setup: Create a fake bundled config directory with templates
     const bundledDir = path.join(TEST_DIR, 'bundled-config');
     const targetDir = path.join(TEST_DIR, 'user-config');
@@ -99,7 +99,7 @@ describe('Config auto-seeding for dev mode (Option A)', () => {
   // Test 2: seedConfigIfNeeded skips if target already exists
   // =========================================================================
 
-  it('seedConfigIfNeeded skips if target already exists', () => {
+  it('seedConfigIfNeeded skips if target already exists', async () => {
     const bundledDir = path.join(TEST_DIR, 'bundled-config');
     const targetDir = path.join(TEST_DIR, 'user-config');
 
@@ -136,7 +136,7 @@ describe('Config auto-seeding for dev mode (Option A)', () => {
   // Test 3: Dev mode calls seeding at loader import time
   // =========================================================================
 
-  it('loader imports and calls seeding (dev + packaged modes)', () => {
+  it('loader imports and calls seeding (dev + packaged modes)', async () => {
     // This test verifies that seedConfigIfNeeded is called at loader import time
     // We create a test directory, load ConfigLoader, and verify seeds occurred
 
@@ -161,15 +161,15 @@ describe('Config auto-seeding for dev mode (Option A)', () => {
     seedConfigIfNeeded(bundledDir, configDir);
 
     // Verify: Files exist in target
-    expect(fileExists(path.join(configDir, 'settings.yaml'))).toBe(true);
-    expect(fileExists(path.join(configDir, 'profiles', 'default.yaml'))).toBe(true);
+    expect(fs.existsSync(path.join(configDir, 'settings.yaml'))).toBe(true);
+    expect(fs.existsSync(path.join(configDir, 'profiles', 'default.yaml'))).toBe(true);
   });
 
   // =========================================================================
   // Test 4: readYaml succeeds after seeding populates settings.yaml
   // =========================================================================
 
-  it('readYaml succeeds after seeding populates settings.yaml', () => {
+  it('readYaml succeeds after seeding populates settings.yaml', async () => {
     const bundledDir = path.join(TEST_DIR, 'bundled-seed');
     const userConfigDir = path.join(TEST_DIR, 'user-seeded-config');
 
@@ -205,7 +205,7 @@ describe('Config auto-seeding for dev mode (Option A)', () => {
   // Test 5: Missing bundled dir skipped gracefully (early return)
   // =========================================================================
 
-  it('Missing bundled dir skipped gracefully (early return)', () => {
+  it('Missing bundled dir skipped gracefully (early return)', async () => {
     const bogusSource = path.join(TEST_DIR, 'nonexistent-source');
     const targetDir = path.join(TEST_DIR, 'should-not-be-created');
 
@@ -226,7 +226,7 @@ describe('Config auto-seeding for dev mode (Option A)', () => {
   // Test 6: Full ConfigLoader workflow with seeded config
   // =========================================================================
 
-  it('ConfigLoader loads successfully after seeding', () => {
+  it('ConfigLoader loads successfully after seeding', async () => {
     const bundledDir = path.join(TEST_DIR, 'bundled-workflow');
     const userConfigDir = path.join(TEST_DIR, 'user-workflow-config');
 
@@ -262,7 +262,7 @@ describe('Config auto-seeding for dev mode (Option A)', () => {
   // Test 7: Nested directory structures copied correctly
   // =========================================================================
 
-  it('Nested directory structures (profiles/, plans/) copied correctly', () => {
+  it('Nested directory structures (profiles/, plans/) copied correctly', async () => {
     const bundledDir = path.join(TEST_DIR, 'bundled-nested');
     const targetDir = path.join(TEST_DIR, 'user-nested');
 

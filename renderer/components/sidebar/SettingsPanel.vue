@@ -80,7 +80,7 @@ defineExpose({ handleButton });
     <div class="settings-content">
       <div class="settings-action-bar" />
       <div class="settings-display">
-        <slot :activeTab="activeTab" />
+        <slot v-if="$slots.default" :activeTab="activeTab" />
       </div>
     </div>
   </div>

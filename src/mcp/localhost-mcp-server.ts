@@ -220,7 +220,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_send_text',
     title: 'Send Text To Session',
-    description: 'Send text to a running session PTY by session ID or exact display name. When submit is true (default), appends Enter to submit the text.',
+    description: 'Send text to a running session PTY by session ID or exact display name. When submit is true (default), appends Enter to submit the text. Optional expectsResponse marks HELM inter-LLM envelopes that expect a reply.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -230,6 +230,7 @@ const TOOLS: McpTool[] = [
         submit: { type: 'boolean', default: true },
         senderSessionId: { type: 'string' },
         senderSessionName: { type: 'string' },
+        expectsResponse: { type: 'boolean', default: false },
       },
       required: ['text'],
       additionalProperties: false,
@@ -484,6 +485,7 @@ export class LocalhostMcpServer {
             submit: typeof args.submit === 'boolean' ? args.submit : true,
             ...(typeof args.senderSessionId === 'string' ? { senderSessionId: args.senderSessionId } : {}),
             ...(typeof args.senderSessionName === 'string' ? { senderSessionName: args.senderSessionName } : {}),
+            ...(typeof args.expectsResponse === 'boolean' ? { expectsResponse: args.expectsResponse } : {}),
           },
         );
       default:

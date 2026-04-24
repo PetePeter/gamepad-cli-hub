@@ -227,7 +227,7 @@ export class HelmControlService {
   async sendTextToSession(
     sessionRef: string,
     text: string,
-    options?: { submit?: boolean; senderSessionId?: string; senderSessionName?: string },
+    options?: { submit?: boolean; senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean },
   ): Promise<{ success: true; sessionId: string; name: string }> {
     const session = this.findSession(sessionRef);
     if (!session) {
@@ -240,14 +240,17 @@ export class HelmControlService {
     let message = text;
     if (options?.senderSessionId || options?.senderSessionName) {
       const envelope = JSON.stringify({
+        type: 'inter_llm_message',
         fromSessionId: options.senderSessionId ?? undefined,
         fromSessionName: options.senderSessionName ?? undefined,
+        expectsResponse: options.expectsResponse ?? false,
+        timestamp: new Date().toISOString(),
       });
       message = `[HELM_MSG]${envelope}\n${text}`;
     }
 
     if (options?.submit !== false) {
-      message += '\r';
+      message += process.platform === 'win32' ? '\r\n' : '\n';
     }
 
     await this.ptyManager.deliverText(session.id, message);

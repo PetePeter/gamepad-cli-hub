@@ -184,7 +184,7 @@ watch(() => props.visible, (visible) => {
       autoSaveTimer.value = null;
     }
   }
-});
+}, { immediate: true });
 
 watch(() => props.initialLabel, (val) => {
   if (props.visible) label.value = val;

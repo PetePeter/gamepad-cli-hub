@@ -94,7 +94,7 @@ watch(() => props.isEditing, async (editing) => {
     renameInput.value?.focus();
     renameInput.value?.select();
   }
-});
+}, { immediate: true });
 
 // --- Computed ---
 

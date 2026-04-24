@@ -36,6 +36,8 @@ vi.mock('../../renderer/stores/chip-bar.js', () => ({
     openNewDraft: vi.fn(),
     triggerAction: vi.fn(),
   }),
+  setDraftEditorOpener: vi.fn(),
+  setPlanEditorOpener: vi.fn(),
 }));
 
 vi.mock('../../renderer/paste-handler.js', () => ({
@@ -45,6 +47,12 @@ vi.mock('../../renderer/paste-handler.js', () => ({
 vi.mock('../../renderer/drafts/draft-editor.js', () => ({
   showDraftEditor: vi.fn(),
   initDraftEditor: vi.fn(),
+  setDraftEditorOpener: vi.fn(),
+  setPlanEditorOpener: vi.fn(),
+  setDraftEditorCloser: vi.fn(),
+  setDraftEditorVisibilityChecker: vi.fn(),
+  setDraftEditorButtonHandler: vi.fn(),
+  setPlanChangesChecker: vi.fn(),
 }));
 
 vi.mock('../../renderer/stores/modal-bridge.js', () => ({

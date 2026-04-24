@@ -57,13 +57,23 @@ vi.mock('../renderer/session-groups.js', () => ({
 }));
 
 // Dynamic imports — draft-editor, editor-popup, chip-bar, group-overview
-const mockHideDraftEditor = vi.fn();
-const mockHideEditorPopup = vi.fn();
-const mockChipBarClear = vi.fn();
-const mockChipBarRefresh = vi.fn();
-const mockSetSelectedOnExit = vi.fn();
-const mockHideOverview = vi.fn();
-const mockSessionSetActive = vi.fn();
+const {
+  mockHideDraftEditor,
+  mockHideEditorPopup,
+  mockChipBarClear,
+  mockChipBarRefresh,
+  mockSetSelectedOnExit,
+  mockHideOverview,
+  mockSessionSetActive,
+} = vi.hoisted(() => ({
+  mockHideDraftEditor: vi.fn(),
+  mockHideEditorPopup: vi.fn(),
+  mockChipBarClear: vi.fn(),
+  mockChipBarRefresh: vi.fn(),
+  mockSetSelectedOnExit: vi.fn(),
+  mockHideOverview: vi.fn(),
+  mockSessionSetActive: vi.fn(),
+}));
 
 vi.mock('../renderer/drafts/draft-editor.js', () => ({
   hideDraftEditor: mockHideDraftEditor,
