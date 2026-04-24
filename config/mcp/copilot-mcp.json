@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "helm": {
+      "type": "http",
+      "url": "http://127.0.0.1:47421/mcp",
+      "tools": [
+        "*"
+      ],
+      "headers": {
+        "Authorization": "Bearer fisheyeSteakStrawberry\""
+      }
+    }
+  }
+}

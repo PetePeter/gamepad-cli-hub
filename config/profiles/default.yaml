@@ -3,9 +3,9 @@ tools:
   claude-code:
     name: claudecode
     command: claude
-    spawnCommand: claude --session-id {cliSessionName}
-    resumeCommand: claude --resume={cliSessionName}
-    continueCommand: claude --continue
+    spawnCommand: claude --mcp-config X:\coding\gamepad-cli-hub-mcp-localhost\config\mcp\claude-mcp.json --session-id {cliSessionName}
+    resumeCommand: claude --mcp-config X:\coding\gamepad-cli-hub-mcp-localhost\config\mcp\claude-mcp.json --resume={cliSessionName}
+    continueCommand: claude --mcp-config X:\coding\gamepad-cli-hub-mcp-localhost\config\mcp\claude-mcp.json --continue
     handoffCommand: go implement it
     initialPromptDelay: 5000
     initialPrompt:
@@ -33,9 +33,9 @@ tools:
   copilot-cli:
     name: copilot-raw
     command: copilot
-    spawnCommand: copilot --resume={cliSessionName}
-    resumeCommand: copilot --resume={cliSessionName}
-    continueCommand: copilot --continue
+    spawnCommand: copilot --additional-mcp-config @X:\coding\gamepad-cli-hub-mcp-localhost\config\mcp\copilot-mcp.json --resume={cliSessionName}
+    resumeCommand: copilot --additional-mcp-config @X:\coding\gamepad-cli-hub-mcp-localhost\config\mcp\copilot-mcp.json --resume={cliSessionName}
+    continueCommand: copilot --additional-mcp-config @X:\coding\gamepad-cli-hub-mcp-localhost\config\mcp\copilot-mcp.json --continue
     handoffCommand: go implement it
     initialPrompt:
       - label: ""
@@ -69,9 +69,9 @@ tools:
   copilot-ollama:
     name: copilot-ollama
     command: copilot
-    spawnCommand: copilot --resume={cliSessionName}
-    resumeCommand: copilot --resume={cliSessionName}
-    continueCommand: copilot --continue
+    spawnCommand: copilot --additional-mcp-config @X:\coding\gamepad-cli-hub-mcp-localhost\config\mcp\copilot-mcp.json --resume={cliSessionName}
+    resumeCommand: copilot --additional-mcp-config @X:\coding\gamepad-cli-hub-mcp-localhost\config\mcp\copilot-mcp.json --resume={cliSessionName}
+    continueCommand: copilot --additional-mcp-config @X:\coding\gamepad-cli-hub-mcp-localhost\config\mcp\copilot-mcp.json --continue
     handoffCommand: go implement it
     env:
       - name: COPILOT_PROVIDER_TYPE
@@ -116,9 +116,9 @@ tools:
   azure-copilot:
     name: copilot-azure-kimi
     command: copilot
-    spawnCommand: copilot --resume={cliSessionName}
-    resumeCommand: copilot --resume={cliSessionName}
-    continueCommand: copilot --continue
+    spawnCommand: copilot --additional-mcp-config @X:\coding\gamepad-cli-hub-mcp-localhost\config\mcp\copilot-mcp.json --resume={cliSessionName}
+    resumeCommand: copilot --additional-mcp-config @X:\coding\gamepad-cli-hub-mcp-localhost\config\mcp\copilot-mcp.json --resume={cliSessionName}
+    continueCommand: copilot --additional-mcp-config @X:\coding\gamepad-cli-hub-mcp-localhost\config\mcp\copilot-mcp.json --continue
     handoffCommand: go implement it
     env:
       - name: COPILOT_PROVIDER_TYPE
@@ -165,7 +165,10 @@ tools:
   codex:
     name: codex
     command: codex
-    args: --dangerously-bypass-approvals-and-sandbox
+    args: --dangerously-bypass-approvals-and-sandbox -c "mcp_servers.helm.url='http://127.0.0.1:47421/mcp'" -c "mcp_servers.helm.bearer_token_env_var='HELM_MCP_TOKEN'"
+    env:
+      - name: HELM_MCP_TOKEN
+        value: 'fisheyeSteakStrawberry"'
     handoffCommand: go implement it
     initialPrompt:
       - label: ""
@@ -198,6 +201,9 @@ tools:
   opencode:
     name: opencode-glm+kimi
     command: opencode
+    env:
+      - name: OPENCODE_CONFIG
+        value: X:\coding\gamepad-cli-hub-mcp-localhost\config\mcp\opencode.json
     initialPrompt:
       - label: ""
         sequence: >-
