@@ -34,7 +34,6 @@ import { handleSessionsScreenButton, toggleSessionOverviewVisibility, setSession
 import { usePanelResize } from './composables/usePanelResize.js';
 import { setSpawnCollapsed, setPlannerCollapsed } from './sidebar/section-collapse.js';
 import { setDirPickerBridge } from './screens/sessions-spawn.js';
-import { loadSettingsScreen, handleSettingsScreenButton } from './screens/settings.js';
 import { onViewChange, currentView, type MainView as ViewName } from './main-view/main-view-manager.js';
 import { useModalStack } from './composables/useModalStack.js';
 import { useEscProtection } from './composables/useEscProtection.js';
@@ -70,6 +69,18 @@ import PlansGrid from './components/sidebar/PlansGrid.vue';
 // Panel components
 import MainView from './components/panels/MainView.vue';
 import SettingsPanel from './components/sidebar/SettingsPanel.vue';
+
+// Settings tab components
+import BindingsTab from './components/sidebar/BindingsTab.vue';
+import ProfilesTab from './components/sidebar/ProfilesTab.vue';
+import ToolsTab from './components/sidebar/ToolsTab.vue';
+import TelegramTab from './components/sidebar/TelegramTab.vue';
+import DirectoriesTab from './components/sidebar/DirectoriesTab.vue';
+import ChipbarActionsTab from './components/sidebar/ChipbarActionsTab.vue';
+import McpTab from './components/sidebar/McpTab.vue';
+
+import { logEvent, showFormModal, updateProfileDisplay, navigateFocus } from './utils.js';
+import { loadSessions } from './screens/sessions.js';
 
 // Modal components
 import CloseConfirmModal from './components/modals/CloseConfirmModal.vue';
@@ -120,6 +131,21 @@ const bindingEditorVisible = ref(false);
 const bindingEditorButton = ref('');
 const bindingEditorCliType = ref('');
 const bindingEditorBinding = ref<any>(null);
+
+// Settings panel state
+const settingsPanelRef = ref<any>(null);
+const settingsTab = ref(state.settingsTab || 'profiles');
+const settingsCliTypes = ref<string[]>([]);
+const settingsProfiles = ref<Array<{ name: string; isActive: boolean }>>([]);
+const settingsTools = ref<Array<{ key: string; name: string; command: string; hasInitialPrompt: boolean; initialPromptCount: number }>>([]);
+const settingsDirectories = ref<Array<{ name: string; path: string }>>([]);
+const settingsChipbarActions = ref<Array<{ label: string; sequence: string }>>([]);
+const settingsTelegramConfig = ref({ botToken: '', chatId: '', allowedUsers: '', notificationsEnabled: false });
+const settingsTelegramBotRunning = ref(false);
+const settingsMcpConfig = ref({ enabled: false, port: 47373, authToken: '' });
+const settingsNotificationsEnabled = ref(false);
+const settingsBindings = ref<Array<{ button: string; action: string; label: string; detail: string }>>([]);
+const settingsSequenceGroups = ref<Array<{ name: string; items: Array<{ label: string; sequence: string }> }>>([]);
 
 // Section collapse
 const spawnCollapsed = ref(false);
@@ -252,8 +278,29 @@ function handleButton(button: string): void {
     if (button === 'B') {
       settingsVisible.value = false;
       navStore.closeSettings();
+    } else if (button === 'A') {
+      const active = document.activeElement as HTMLElement;
+      if (active?.classList.contains('focusable')) {
+        active.click();
+      }
     } else {
-      handleSettingsScreenButton(button);
+      const dir = toDirection(button);
+      if (dir === 'left' || dir === 'right') {
+        if (settingsPanelRef.value?.handleButton) {
+          settingsPanelRef.value.handleButton(button);
+        } else {
+          const tabs = buildSettingsTabs();
+          const idx = tabs.findIndex(t => t.id === settingsTab.value);
+          let nextIdx = idx + (dir === 'left' ? -1 : 1);
+          if (nextIdx < 0) nextIdx = tabs.length - 1;
+          if (nextIdx >= tabs.length) nextIdx = 0;
+          settingsTab.value = tabs[nextIdx].id;
+        }
+      } else if (dir === 'up' || dir === 'down') {
+        navigateFocus(dir === 'up' ? -1 : 1);
+      } else if (settingsPanelRef.value?.handleButton) {
+        settingsPanelRef.value.handleButton(button);
+      }
     }
     return;
   }
@@ -511,15 +558,630 @@ function onOpenLogsFolder(): void {
   window.gamepadCli?.openLogsFolder();
 }
 
+async function loadSettingsData(): Promise<void> {
+  if (!window.gamepadCli) return;
+
+  // Load CLI types
+  settingsCliTypes.value = state.cliTypes.length > 0
+    ? state.cliTypes
+    : (await window.gamepadCli.configGetCliTypes());
+
+  // Load profiles
+  const profiles = await window.gamepadCli.profileList();
+  const activeProfile = await window.gamepadCli.profileGetActive();
+  settingsProfiles.value = profiles.map((name: string) => ({
+    name,
+    isActive: name === activeProfile,
+  }));
+
+  // Load notifications setting
+  try {
+    settingsNotificationsEnabled.value = await window.gamepadCli.configGetNotifications();
+  } catch {
+    settingsNotificationsEnabled.value = false;
+  }
+
+  // Load tools
+  try {
+    const toolsData = await window.gamepadCli.toolsGetAll();
+    const cliTypes = toolsData?.cliTypes || {};
+    settingsTools.value = Object.entries(cliTypes).map(([key, value]: [string, any]) => ({
+      key,
+      name: value.name || key,
+      command: value.command || '',
+      hasInitialPrompt: Array.isArray(value.initialPrompt) && value.initialPrompt.length > 0,
+      initialPromptCount: Array.isArray(value.initialPrompt) ? value.initialPrompt.length : 0,
+    }));
+  } catch {
+    settingsTools.value = [];
+  }
+
+  // Load directories
+  try {
+    const dirs = await window.gamepadCli.configGetWorkingDirs();
+    settingsDirectories.value = dirs || [];
+    sessionsState.directories = dirs || [];
+  } catch {
+    settingsDirectories.value = [];
+    sessionsState.directories = [];
+  }
+
+  // Load chipbar actions
+  try {
+    const chipbarData = await window.gamepadCli.configGetChipbarActions();
+    settingsChipbarActions.value = chipbarData?.actions || [];
+  } catch {
+    settingsChipbarActions.value = [];
+  }
+
+  // Load telegram config
+  try {
+    const tgConfig = await window.gamepadCli.telegramGetConfig();
+    settingsTelegramConfig.value = {
+      botToken: tgConfig?.botToken || '',
+      chatId: tgConfig?.chatId ? String(tgConfig.chatId) : '',
+      allowedUsers: (tgConfig?.allowedUserIds || []).join(', '),
+      notificationsEnabled: tgConfig?.enabled || false,
+    };
+    settingsTelegramBotRunning.value = await window.gamepadCli.telegramIsRunning();
+  } catch {
+    settingsTelegramConfig.value = { botToken: '', chatId: '', allowedUsers: '', notificationsEnabled: false };
+    settingsTelegramBotRunning.value = false;
+  }
+
+  // Load MCP config
+  try {
+    const mcpConfig = await window.gamepadCli.configGetMcpConfig();
+    settingsMcpConfig.value = {
+      enabled: mcpConfig?.enabled ?? false,
+      port: mcpConfig?.port ?? 47373,
+      authToken: mcpConfig?.authToken || '',
+    };
+  } catch {
+    settingsMcpConfig.value = { enabled: false, port: 47373, authToken: '' };
+  }
+
+  // Load current tab bindings
+  await loadCurrentTabBindings();
+}
+
+async function loadCurrentTabBindings(): Promise<void> {
+  const tab = settingsTab.value;
+  if (tab === 'profiles' || tab === 'tools' || tab === 'chipbar-actions' || tab === 'directories' || tab === 'telegram' || tab === 'mcp') {
+    settingsBindings.value = [];
+    settingsSequenceGroups.value = [];
+    return;
+  }
+
+  let bindings = state.cliBindingsCache[tab];
+  if (!bindings && window.gamepadCli) {
+    bindings = await window.gamepadCli.configGetBindings(tab);
+    if (bindings) state.cliBindingsCache[tab] = bindings;
+  }
+
+  // Convert bindings to BindingEntry format
+  const entries = Object.entries(bindings || {}).map(([button, binding]: [string, any]) => ({
+    button,
+    action: binding.action || '',
+    label: binding.label || binding.action || '',
+    detail: binding.sequence || binding.command || '',
+  }));
+  settingsBindings.value = entries;
+
+  // Load sequence groups
+  try {
+    const sequences = state.cliSequencesCache[tab] || await window.gamepadCli.configGetSequences(tab);
+    if (sequences) {
+      state.cliSequencesCache[tab] = sequences;
+      settingsSequenceGroups.value = Object.entries(sequences).map(([name, items]: [string, any]) => ({
+        name,
+        items: Array.isArray(items) ? items : [],
+      }));
+    } else {
+      settingsSequenceGroups.value = [];
+    }
+  } catch {
+    settingsSequenceGroups.value = [];
+  }
+}
+
+function buildSettingsTabs() {
+  return [
+    { id: 'profiles', label: '👤 Profiles' },
+    ...settingsCliTypes.value.map(ct => ({
+      id: ct,
+      label: getCliDisplayName(ct),
+    })),
+    { id: 'tools', label: '🔧 Tools' },
+    { id: 'chipbar-actions', label: '⚡ Quick Actions' },
+    { id: 'directories', label: '📁 Dirs' },
+    { id: 'telegram', label: '📨 Telegram' },
+    { id: 'mcp', label: '🧩 MCP' },
+  ];
+}
+
 function onOpenSettings(): void {
   settingsVisible.value = true;
   navStore.openSettings();
-  void loadSettingsScreen();
+  settingsTab.value = state.settingsTab || 'profiles';
+  void loadSettingsData();
 }
+
+watch(settingsTab, () => {
+  state.settingsTab = settingsTab.value;
+  void loadCurrentTabBindings();
+});
+
+watch(() => toolEditor.visible, (visible) => {
+  if (!visible && settingsVisible.value) {
+    void loadSettingsData();
+  }
+});
 
 function onCloseSettings(): void {
   settingsVisible.value = false;
   navStore.closeSettings();
+}
+
+// ── Profiles Tab Handlers ──────────────────────────────────────────────────
+
+async function onProfileCreate(): Promise<void> {
+  const existingProfiles = settingsProfiles.value.map(p => p.name);
+  const result = await showFormModal('Create Profile', [
+    { key: 'name', label: 'Profile Name', required: true, placeholder: 'e.g. my-profile' },
+    { key: 'copyFrom', label: 'Copy from', type: 'select', options: [
+      { value: '', label: '(None — start empty)' },
+      ...existingProfiles.map(p => ({ value: p, label: p })),
+    ] },
+  ]);
+
+  if (!result || !result.name) return;
+
+  try {
+    const createResult = await window.gamepadCli.profileCreate(result.name, result.copyFrom || undefined);
+    if (createResult.success) {
+      logEvent(`Created profile: ${result.name}`);
+      void loadSettingsData();
+    } else {
+      logEvent('Profile creation failed');
+    }
+  } catch (error) {
+    console.error('Failed to create profile:', error);
+    logEvent(`Profile create error: ${error}`);
+  }
+}
+
+async function onProfileSwitch(name: string): Promise<void> {
+  const tm = getTerminalManager();
+  const sessionCount = tm?.getCount() ?? 0;
+
+  if (sessionCount > 0) {
+    const result = await showFormModal('Switch Profile', [{
+      key: 'action',
+      label: `${sessionCount} terminal(s) are open. What should happen?`,
+      type: 'select',
+      options: [
+        { value: 'keep', label: 'Keep sessions open' },
+        { value: 'close', label: 'Close all sessions' },
+      ],
+      defaultValue: 'keep',
+    }]);
+    if (!result) return;
+
+    if (result.action === 'close' && tm) {
+      tm.dispose();
+      state.sessions = [];
+      state.activeSessionId = null;
+    }
+  }
+
+  await window.gamepadCli.profileSwitch(name);
+  state.cliTypes = await window.gamepadCli.configGetCliTypes();
+  state.availableSpawnTypes = state.cliTypes;
+  await initConfigCache();
+  useChipBarStore().invalidateActions();
+  void useChipBarStore().refresh();
+  updateProfileDisplay();
+  logEvent(`Profile: ${name}`);
+  void loadSettingsData();
+  loadSessions();
+}
+
+async function onProfileDelete(name: string): Promise<void> {
+  try {
+    const result = await window.gamepadCli.profileDelete(name);
+    if (result.success) {
+      logEvent(`Deleted profile: ${name}`);
+      void loadSettingsData();
+    }
+  } catch (error) {
+    console.error('Delete profile failed:', error);
+  }
+}
+
+async function onToggleNotifications(enabled: boolean): Promise<void> {
+  await window.gamepadCli.configSetNotifications(enabled);
+  logEvent(`Notifications: ${enabled ? 'ON' : 'OFF'}`);
+}
+
+// ── Tools Tab Handlers ─────────────────────────────────────────────────────
+
+function onToolAdd(): void {
+  toolEditor.mode = 'add';
+  toolEditor.editKey = '';
+  toolEditor.initialData = {
+    name: '',
+    command: '',
+    args: '',
+    env: [],
+    initialPromptDelay: 0,
+    pasteMode: 'pty',
+    spawnCommand: '',
+    resumeCommand: '',
+    continueCommand: '',
+    renameCommand: '',
+    handoffCommand: '',
+    initialPrompt: [],
+  };
+  toolEditor.visible = true;
+}
+
+async function onToolEdit(key: string): Promise<void> {
+  try {
+    const toolsData = await window.gamepadCli.toolsGetAll();
+    const value = toolsData?.cliTypes?.[key];
+    if (!value) return;
+
+    toolEditor.mode = 'edit';
+    toolEditor.editKey = key;
+    toolEditor.initialData = {
+      name: value.name || key,
+      command: value.command || '',
+      args: value.args || '',
+      env: Array.isArray(value.env)
+        ? value.env.map((i: any) => ({ name: i.name || '', value: i.value || '' }))
+        : [],
+      initialPromptDelay: value.initialPromptDelay ?? 0,
+      pasteMode: value.pasteMode || 'pty',
+      spawnCommand: value.spawnCommand || '',
+      resumeCommand: value.resumeCommand || '',
+      continueCommand: value.continueCommand || '',
+      renameCommand: value.renameCommand || '',
+      handoffCommand: value.handoffCommand || '',
+      initialPrompt: Array.isArray(value.initialPrompt)
+        ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))
+        : [],
+    };
+    toolEditor.visible = true;
+  } catch (error) {
+    console.error('Failed to load tool for edit:', error);
+  }
+}
+
+async function onToolDelete(key: string): Promise<void> {
+  try {
+    const result = await window.gamepadCli.toolsRemoveCliType(key);
+    if (result.success) {
+      logEvent(`Deleted CLI type: ${key}`);
+      delete state.cliBindingsCache[key];
+      delete state.cliSequencesCache[key];
+      state.cliTypes = await window.gamepadCli.configGetCliTypes();
+      state.availableSpawnTypes = state.cliTypes;
+      loadSessions();
+      void loadSettingsData();
+    } else {
+      logEvent(`Failed to delete: ${result.error || 'unknown error'}`);
+    }
+  } catch (error) {
+    console.error('Delete CLI type failed:', error);
+  }
+}
+
+// ── Directories Tab Handlers ───────────────────────────────────────────────
+
+async function onDirectoryAdd(name: string, path: string): Promise<void> {
+  try {
+    const result = await window.gamepadCli.configAddWorkingDir(name, path);
+    if (result.success) {
+      const dirs = await window.gamepadCli.configGetWorkingDirs();
+      settingsDirectories.value = dirs || [];
+      sessionsState.directories = dirs || [];
+      logEvent(`Added directory: ${name}`);
+    } else {
+      logEvent('Failed to add directory');
+    }
+  } catch (error) {
+    console.error('Add directory failed:', error);
+    logEvent('Failed to add directory');
+  }
+}
+
+async function onDirectoryEdit(index: number, _name: string, _path: string): Promise<void> {
+  const dir = settingsDirectories.value[index];
+  if (!dir) return;
+
+  const result = await showFormModal('Edit Directory', [
+    { key: 'name', label: 'Name', required: true, defaultValue: dir.name },
+    { key: 'path', label: 'Path', required: true, defaultValue: dir.path, browse: true },
+  ]);
+
+  if (!result) return;
+
+  const updateResult = await window.gamepadCli.configUpdateWorkingDir(index, result.name, result.path);
+  if (updateResult.success) {
+    const dirs = await window.gamepadCli.configGetWorkingDirs();
+    settingsDirectories.value = dirs || [];
+    sessionsState.directories = dirs || [];
+    logEvent(`Updated directory: ${result.name}`);
+  } else {
+    logEvent('Failed to update directory');
+  }
+}
+
+async function onDirectoryDelete(index: number): Promise<void> {
+  const dir = settingsDirectories.value[index];
+  if (!dir) return;
+
+  try {
+    const result = await window.gamepadCli.configRemoveWorkingDir(index);
+    if (result.success) {
+      const dirs = await window.gamepadCli.configGetWorkingDirs();
+      settingsDirectories.value = dirs || [];
+      sessionsState.directories = dirs || [];
+      logEvent(`Deleted directory: ${dir.name}`);
+    }
+  } catch (error) {
+    console.error('Delete directory failed:', error);
+  }
+}
+
+// ── Chipbar Actions Tab Handlers ───────────────────────────────────────────
+
+async function onChipbarActionAdd(): Promise<void> {
+  const result = await showFormModal('Add Chip Bar Action', [
+    {
+      key: 'label',
+      label: 'Label',
+      required: true,
+      placeholder: 'e.g. 💾 Save Plan',
+      help: 'Button label shown in the chipbar (emojis recommended)',
+    },
+    {
+      key: 'sequence',
+      label: 'Sequence',
+      type: 'textarea',
+      required: true,
+      placeholder: 'e.g. Write exactly one JSON file into {inboxDir}/ and do not write it anywhere else.{Enter}',
+      help: 'Sequence to send when clicked. Use {Enter}, {Ctrl+C}, and template expansions.',
+    },
+  ]);
+
+  if (!result) return;
+
+  const label = result.label?.trim();
+  const sequence = result.sequence?.trim();
+
+  if (!label || !sequence) {
+    logEvent('Add chip bar action: label and sequence are required');
+    return;
+  }
+
+  try {
+    const chipbarData = await window.gamepadCli.configGetChipbarActions();
+    const updatedActions = [...(chipbarData?.actions || []), { label, sequence }];
+    const saveResult = await window.gamepadCli.configSetChipbarActions(updatedActions);
+    if (saveResult.success) {
+      settingsChipbarActions.value = updatedActions;
+      useChipBarStore().invalidateActions();
+      void useChipBarStore().refresh();
+      logEvent(`Added chip bar action: ${label}`);
+    } else {
+      throw new Error(saveResult.error || 'Failed to add chip bar action');
+    }
+  } catch (error) {
+    console.error('Add chip bar action failed:', error);
+    logEvent(`Failed to add action: ${error instanceof Error ? error.message : 'unknown error'}`);
+  }
+}
+
+async function onChipbarActionEdit(index: number): Promise<void> {
+  const action = settingsChipbarActions.value[index];
+  if (!action) return;
+
+  const result = await showFormModal(`Edit Chip Bar Action: ${action.label}`, [
+    {
+      key: 'label',
+      label: 'Label',
+      required: true,
+      defaultValue: action.label,
+      help: 'Button label shown in the chipbar',
+    },
+    {
+      key: 'sequence',
+      label: 'Sequence',
+      type: 'textarea',
+      required: true,
+      defaultValue: action.sequence,
+      help: 'Sequence to send when clicked.',
+    },
+  ]);
+
+  if (!result) return;
+
+  const label = result.label?.trim() || action.label;
+  const sequence = result.sequence?.trim() || action.sequence;
+
+  if (!label || !sequence) {
+    logEvent('Edit chip bar action: label and sequence are required');
+    return;
+  }
+
+  try {
+    const updatedActions = [...settingsChipbarActions.value];
+    updatedActions[index] = { label, sequence };
+    const saveResult = await window.gamepadCli.configSetChipbarActions(updatedActions);
+    if (saveResult.success) {
+      settingsChipbarActions.value = updatedActions;
+      useChipBarStore().invalidateActions();
+      void useChipBarStore().refresh();
+      logEvent(`Updated chip bar action: ${label}`);
+    } else {
+      throw new Error(saveResult.error || 'Failed to update chip bar action');
+    }
+  } catch (error) {
+    console.error('Update chip bar action failed:', error);
+    logEvent(`Failed to update action: ${error instanceof Error ? error.message : 'unknown error'}`);
+  }
+}
+
+async function onChipbarActionDelete(index: number): Promise<void> {
+  const action = settingsChipbarActions.value[index];
+  if (!action) return;
+
+  try {
+    const updatedActions = settingsChipbarActions.value.filter((_, i) => i !== index);
+    const result = await window.gamepadCli.configSetChipbarActions(updatedActions);
+    if (result.success) {
+      settingsChipbarActions.value = updatedActions;
+      useChipBarStore().invalidateActions();
+      void useChipBarStore().refresh();
+      logEvent(`Deleted chip bar action: ${action.label}`);
+    } else {
+      throw new Error(result.error || 'Failed to delete chip bar action');
+    }
+  } catch (error) {
+    console.error('Delete chip bar action failed:', error);
+    logEvent(`Failed to delete action: ${error instanceof Error ? error.message : 'unknown error'}`);
+  }
+}
+
+async function onChipbarActionMove(fromIndex: number, toIndex: number): Promise<void> {
+  const actions = [...settingsChipbarActions.value];
+  const [moved] = actions.splice(fromIndex, 1);
+  actions.splice(toIndex, 0, moved);
+
+  try {
+    const result = await window.gamepadCli.configSetChipbarActions(actions);
+    if (result.success) {
+      settingsChipbarActions.value = actions;
+      useChipBarStore().invalidateActions();
+      void useChipBarStore().refresh();
+      logEvent(`Moved chip bar action from position ${fromIndex + 1} to ${toIndex + 1}`);
+    } else {
+      throw new Error(result.error || 'Failed to reorder chip bar action');
+    }
+  } catch (error) {
+    console.error('Move chip bar action failed:', error);
+  }
+}
+
+// ── Telegram Tab Handlers ──────────────────────────────────────────────────
+
+async function onTelegramUpdateField(field: string, value: string | boolean): Promise<void> {
+  try {
+    if (field === 'notificationsEnabled') {
+      await window.gamepadCli.telegramSetConfig({ enabled: Boolean(value) });
+      settingsTelegramConfig.value.notificationsEnabled = Boolean(value);
+    } else if (field === 'botToken') {
+      await window.gamepadCli.telegramSetConfig({ botToken: String(value) });
+      settingsTelegramConfig.value.botToken = String(value);
+    } else if (field === 'chatId') {
+      await window.gamepadCli.telegramSetConfig({ chatId: String(value) });
+      settingsTelegramConfig.value.chatId = String(value);
+    } else if (field === 'allowedUsers') {
+      const ids = String(value).split(',').map(s => s.trim()).filter(Boolean);
+      await window.gamepadCli.telegramSetConfig({ allowedUserIds: ids });
+      settingsTelegramConfig.value.allowedUsers = String(value);
+    }
+  } catch (error) {
+    console.error('Failed to update Telegram config:', error);
+  }
+}
+
+async function onTelegramStartBot(): Promise<void> {
+  try {
+    await window.gamepadCli.telegramStartBot();
+    settingsTelegramBotRunning.value = true;
+  } catch (error) {
+    console.error('Failed to start Telegram bot:', error);
+  }
+}
+
+async function onTelegramStopBot(): Promise<void> {
+  try {
+    await window.gamepadCli.telegramStopBot();
+    settingsTelegramBotRunning.value = false;
+  } catch (error) {
+    console.error('Failed to stop Telegram bot:', error);
+  }
+}
+
+// ── MCP Tab Handlers ───────────────────────────────────────────────────────
+
+async function onMcpUpdate(updates: Partial<{ enabled: boolean; port: number; authToken: string }>): Promise<void> {
+  try {
+    await window.gamepadCli.configSetMcpConfig(updates);
+    settingsMcpConfig.value = { ...settingsMcpConfig.value, ...updates };
+  } catch (error) {
+    console.error('Failed to update MCP config:', error);
+  }
+}
+
+async function onMcpGenerateToken(): Promise<void> {
+  try {
+    const result = await window.gamepadCli.configGenerateMcpToken();
+    if (result?.success && typeof result.token === 'string') {
+      settingsMcpConfig.value.authToken = result.token;
+      await window.gamepadCli.configSetMcpConfig({ authToken: result.token });
+    }
+  } catch (error) {
+    console.error('Failed to generate MCP token:', error);
+  }
+}
+
+// ── Bindings Tab Handlers ──────────────────────────────────────────────────
+
+function onBindingAdd(): void {
+  // Find first unmapped button
+  const ALL_BUTTONS = ['A', 'B', 'X', 'Y', 'DPadUp', 'DPadDown', 'DPadLeft', 'DPadRight', 'LeftBumper', 'RightBumper', 'LeftTrigger', 'RightTrigger', 'LeftStick', 'RightStick', 'Sandwich', 'Back', 'Xbox', 'LeftStickUp', 'LeftStickDown', 'LeftStickLeft', 'LeftStickRight', 'RightStickUp', 'RightStickDown', 'RightStickLeft', 'RightStickRight'];
+  const mapped = new Set(settingsBindings.value.map(b => b.button));
+  const unmapped = ALL_BUTTONS.filter(b => !mapped.has(b));
+
+  if (unmapped.length === 0) {
+    logEvent('All buttons already have bindings');
+    return;
+  }
+
+  // Show picker or directly open editor with first unmapped
+  onEditBinding(unmapped[0], settingsTab.value);
+}
+
+async function onBindingDelete(button: string): Promise<void> {
+  try {
+    const result = await window.gamepadCli.configSetBinding(button, settingsTab.value, null);
+    if (result.success) {
+      await initConfigCache();
+      void loadCurrentTabBindings();
+      logEvent(`Deleted binding for ${button}`);
+    }
+  } catch (error) {
+    console.error('Failed to delete binding:', error);
+  }
+}
+
+async function onBindingCopyFrom(sourceCli: string): Promise<void> {
+  try {
+    const result = await window.gamepadCli.configCopyBindings(sourceCli, settingsTab.value);
+    if (result.success) {
+      await initConfigCache();
+      void loadCurrentTabBindings();
+      logEvent(`Copied bindings from ${getCliDisplayName(sourceCli)}`);
+    } else {
+      logEvent(`Failed to copy bindings: ${result.error || 'unknown error'}`);
+    }
+  } catch (error) {
+    console.error('Failed to copy bindings:', error);
+  }
 }
 
 // Draft submenu actions
@@ -657,7 +1319,7 @@ async function onBindingEditorSave(binding: any): Promise<void> {
       // Refresh bindings cache to reflect the changes
       await initConfigCache();
       // Refresh the settings display to show updated bindings
-      void loadSettingsScreen();
+      void loadCurrentTabBindings();
     }
     bindingEditorVisible.value = false;
   } catch (error) {
@@ -907,19 +1569,78 @@ onUnmounted(() => {
           />
         </section>
 
-        <!-- Settings screen (legacy DOM rendering) -->
-        <div v-show="settingsVisible" class="settings-panel settings-panel--shell">
-          <div class="settings-panel__header">
-            <button class="settings-back-btn" @click="onCloseSettings" title="Back (B)">← Back</button>
-          </div>
-          <div class="settings-tabs" id="settingsTabs" role="tablist">
-            <!-- Legacy renderSettingsTabs() populates this -->
-          </div>
-          <div class="settings-content settings-content--shell">
-            <div class="settings-action-bar" id="bindingActionBar"></div>
-            <div class="settings-display settings-display--shell" id="bindingsDisplay"></div>
-          </div>
-        </div>
+        <!-- Settings screen (Vue components) -->
+        <SettingsPanel
+          v-show="settingsVisible"
+          ref="settingsPanelRef"
+          :visible="settingsVisible"
+          :tabs="buildSettingsTabs()"
+          :active-tab="settingsTab"
+          @update:active-tab="settingsTab = $event"
+          @close="onCloseSettings"
+        >
+          <template #default="{ activeTab }">
+            <ProfilesTab
+              v-if="activeTab === 'profiles'"
+              :profiles="settingsProfiles"
+              :active-profile="state.activeProfile"
+              :notifications-enabled="settingsNotificationsEnabled"
+              @create="onProfileCreate"
+              @switch="onProfileSwitch"
+              @delete="onProfileDelete"
+              @toggle-notifications="onToggleNotifications"
+            />
+            <ToolsTab
+              v-else-if="activeTab === 'tools'"
+              :tools="settingsTools"
+              @add="onToolAdd"
+              @edit="onToolEdit"
+              @delete="onToolDelete"
+            />
+            <DirectoriesTab
+              v-else-if="activeTab === 'directories'"
+              :directories="settingsDirectories"
+              @add="onDirectoryAdd"
+              @edit="onDirectoryEdit"
+              @delete="onDirectoryDelete"
+            />
+            <ChipbarActionsTab
+              v-else-if="activeTab === 'chipbar-actions'"
+              :actions="settingsChipbarActions"
+              @add="onChipbarActionAdd"
+              @edit="onChipbarActionEdit"
+              @delete="onChipbarActionDelete"
+              @move="onChipbarActionMove"
+            />
+            <TelegramTab
+              v-else-if="activeTab === 'telegram'"
+              :config="settingsTelegramConfig"
+              :bot-running="settingsTelegramBotRunning"
+              @update-field="onTelegramUpdateField"
+              @start-bot="onTelegramStartBot"
+              @stop-bot="onTelegramStopBot"
+            />
+            <McpTab
+              v-else-if="activeTab === 'mcp'"
+              :config="settingsMcpConfig"
+              @update="onMcpUpdate"
+              @generate-token="onMcpGenerateToken"
+            />
+            <BindingsTab
+              v-else
+              :bindings="settingsBindings"
+              :sequence-groups="settingsSequenceGroups"
+              :cli-type="activeTab"
+              :cli-label="getCliDisplayName(activeTab)"
+              sort-field="button"
+              sort-direction="asc"
+              @add-binding="onBindingAdd"
+              @edit-binding="onEditBinding($event, activeTab)"
+              @delete-binding="onBindingDelete"
+              @copy-from="onBindingCopyFrom"
+            />
+          </template>
+        </SettingsPanel>
       </main>
 
       <!-- Spawn sections pinned at bottom of sidebar -->
