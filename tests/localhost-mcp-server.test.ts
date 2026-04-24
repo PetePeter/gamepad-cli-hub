@@ -122,6 +122,73 @@ describe('LocalhostMcpServer', () => {
     expect(json.result.structuredContent).toEqual({ success: true });
   });
 
+  it('returns explicit errors instead of null structured content for invalid plan transitions', async () => {
+    const service = makeService();
+    (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'startable' });
+    (service.setPlanState as unknown as ReturnType<typeof vi.fn>).mockReturnValue(null);
+
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 4,
+      method: 'tools/call',
+      params: {
+        name: 'plan_set_state',
+        arguments: { id: 'p1', status: 'blocked', stateInfo: 'waiting' },
+      },
+    });
+    const json = await response.json();
+    expect(json.error.message).toContain('could not be set to blocked');
+  });
+
+  it('requires a sessionId when setting an unassigned plan to doing', async () => {
+    const service = makeService();
+    (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'startable' });
+
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'tools/call',
+      params: {
+        name: 'plan_set_state',
+        arguments: { id: 'p1', status: 'doing' },
+      },
+    });
+    const json = await response.json();
+    expect(json.error.message).toContain('sessionId is required');
+  });
+
+  it('returns explicit not-found errors for session_get', async () => {
+    const service = makeService();
+    (service.getSession as unknown as ReturnType<typeof vi.fn>).mockReturnValue(null);
+
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 6,
+      method: 'tools/call',
+      params: {
+        name: 'session_get',
+        arguments: { sessionId: 'missing-session' },
+      },
+    });
+    const json = await response.json();
+    expect(json.error.message).toBe('Session not found: missing-session');
+  });
+
   it('returns 405 for GET requests', async () => {
     const server = new LocalhostMcpServer(makeService(), { token: 'secret-token', port: 0 });
     servers.push(server);

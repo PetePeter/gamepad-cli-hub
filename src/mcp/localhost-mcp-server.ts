@@ -362,7 +362,10 @@ export class LocalhostMcpServer {
       case 'plans_list':
         return this.service.listPlans(asString(args.dirPath, 'dirPath is required'));
       case 'plan_get':
-        return this.service.getPlan(asString(args.id, 'id is required'));
+        return requireResult(
+          this.service.getPlan(asString(args.id, 'id is required')),
+          `Plan not found: ${asString(args.id, 'id is required')}`,
+        );
       case 'plan_create':
         return this.service.createPlan(
           asString(args.dirPath, 'dirPath is required'),
@@ -370,41 +373,61 @@ export class LocalhostMcpServer {
           asString(args.description, 'description is required'),
         );
       case 'plan_update':
-        return this.service.updatePlan(asString(args.id, 'id is required'), {
-          ...(typeof args.title === 'string' ? { title: args.title } : {}),
-          ...(typeof args.description === 'string' ? { description: args.description } : {}),
-        });
+        return requireResult(
+          this.service.updatePlan(asString(args.id, 'id is required'), {
+            ...(typeof args.title === 'string' ? { title: args.title } : {}),
+            ...(typeof args.description === 'string' ? { description: args.description } : {}),
+          }),
+          `Plan not found: ${asString(args.id, 'id is required')}`,
+        );
       case 'plan_delete':
-        return { deleted: this.service.deletePlan(asString(args.id, 'id is required')) };
+        return {
+          deleted: requireBooleanResult(
+            this.service.deletePlan(asString(args.id, 'id is required')),
+            `Plan not found: ${asString(args.id, 'id is required')}`,
+          ),
+        };
       case 'plan_set_state':
-        return this.service.setPlanState(
+        return this.setPlanStateWithValidation(
           asString(args.id, 'id is required'),
           asPlanStatus(args.status),
           typeof args.stateInfo === 'string' ? args.stateInfo : undefined,
           typeof args.sessionId === 'string' ? args.sessionId : undefined,
         );
       case 'plan_complete':
-        return this.service.completePlan(asString(args.id, 'id is required'));
+        return this.completePlanWithValidation(asString(args.id, 'id is required'));
       case 'plan_add_dependency':
         return {
-          added: this.service.addDependency(
-            asString(args.fromId, 'fromId is required'),
-            asString(args.toId, 'toId is required'),
+          added: requireBooleanResult(
+            this.service.addDependency(
+              asString(args.fromId, 'fromId is required'),
+              asString(args.toId, 'toId is required'),
+            ),
+            'Dependency could not be added. Check IDs, directory match, duplicate edges, and cycle constraints.',
           ),
         };
       case 'plan_remove_dependency':
         return {
-          removed: this.service.removeDependency(
-            asString(args.fromId, 'fromId is required'),
-            asString(args.toId, 'toId is required'),
+          removed: requireBooleanResult(
+            this.service.removeDependency(
+              asString(args.fromId, 'fromId is required'),
+              asString(args.toId, 'toId is required'),
+            ),
+            'Dependency not found.',
           ),
         };
       case 'plan_export_directory':
-        return this.service.exportDirectory(asString(args.dirPath, 'dirPath is required'));
+        return requireResult(
+          this.service.exportDirectory(asString(args.dirPath, 'dirPath is required')),
+          `No plans found for directory: ${asString(args.dirPath, 'dirPath is required')}`,
+        );
       case 'sessions_list':
         return this.service.listSessions();
       case 'session_get':
-        return this.service.getSession(asString(args.sessionId, 'sessionId is required'));
+        return requireResult(
+          this.service.getSession(asString(args.sessionId, 'sessionId is required')),
+          `Session not found: ${asString(args.sessionId, 'sessionId is required')}`,
+        );
       case 'session_send_text':
         return this.service.sendTextToSession(
           asString(args.sessionId, 'sessionId is required'),
@@ -413,6 +436,30 @@ export class LocalhostMcpServer {
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
+  }
+
+  private setPlanStateWithValidation(
+    id: string,
+    status: 'pending' | 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question',
+    stateInfo?: string,
+    sessionId?: string,
+  ): unknown {
+    const current = requireResult(this.service.getPlan(id), `Plan not found: ${id}`);
+    if (status === 'doing' && !sessionId && !current.sessionId) {
+      throw new Error('sessionId is required when setting a plan to doing unless it is already assigned to a session');
+    }
+    return requireResult(
+      this.service.setPlanState(id, status, stateInfo, sessionId),
+      `Plan ${id} could not be set to ${status} from its current state`,
+    );
+  }
+
+  private completePlanWithValidation(id: string): unknown {
+    requireResult(this.service.getPlan(id), `Plan not found: ${id}`);
+    return requireResult(
+      this.service.completePlan(id),
+      `Plan ${id} could not be completed from its current state`,
+    );
   }
 
   private isAuthorized(req: IncomingMessage): boolean {
@@ -475,4 +522,18 @@ function asPlanStatus(value: unknown): 'pending' | 'startable' | 'doing' | 'wait
     return value;
   }
   throw new Error('status must be one of pending, startable, doing, wait-tests, blocked, or question');
+}
+
+function requireResult<T>(value: T | null, message: string): T {
+  if (value === null) {
+    throw new Error(message);
+  }
+  return value;
+}
+
+function requireBooleanResult(value: boolean, message: string): true {
+  if (!value) {
+    throw new Error(message);
+  }
+  return true;
 }
