@@ -69,7 +69,9 @@ export function showOverview(groupDirPath: string | null = null, initialSessionI
   void showView('overview', { groupDirPath, initialSessionId });
 }
 
-/** Internal — mount the overview view (called by the manager). */
+/** Internal — mount the overview view (called by the manager).
+ *  DEPRECATED: App.vue now renders overview via Vue components.
+ *  This function only sets up state for backward compat. */
 function mountOverview(params?: unknown): void {
   const p = (params as { groupDirPath?: string | null; initialSessionId?: string } | undefined);
   const groupDirPath = p?.groupDirPath ?? null;
@@ -82,56 +84,12 @@ function mountOverview(params?: unknown): void {
   const matchIdx = initialSessionId ? overviewSessions.findIndex(s => s.id === initialSessionId) : -1;
   sessionsState.overviewFocusIndex = matchIdx >= 0 ? matchIdx : 0;
 
-  // Deselect the active terminal — keyboard/paste should not affect any session while overview is open
+  // Deselect the active terminal
   const tm = terminalManagerGetter?.();
   previousActiveSessionId = tm?.getActiveSessionId() ?? null;
   parentNavItem = sessionsState.navList[sessionsState.sessionsFocusIndex] ?? null;
   selectedOnExit = false;
   tm?.deselect();
-
-  const mainArea = document.getElementById('mainArea');
-  if (!mainArea) return;
-
-  // Ensure terminal area content is ready for overview
-
-  // Hide the terminal container (xterm.js panes)
-  const termContainer = document.getElementById('terminalContainer');
-  if (termContainer) termContainer.style.display = 'none';
-
-  // Hide draft UI — overview is an absolute overlay that would cover them
-  const draftStrip = mainArea.querySelector('.draft-strip') as HTMLElement | null;
-  if (draftStrip) draftStrip.style.display = 'none';
-  const draftEditor = mainArea.querySelector('.draft-editor') as HTMLElement | null;
-  if (draftEditor) draftEditor.style.display = 'none';
-
-  // Create or reuse overview container
-  if (!overviewContainer) {
-    overviewContainer = document.createElement('div');
-    overviewContainer.id = 'overviewGrid';
-    overviewContainer.className = 'overview-grid';
-    mainArea.appendChild(overviewContainer);
-  }
-  overviewContainer.style.display = 'grid';
-
-  renderOverviewCards();
-  updateOverviewFocus();
-
-  // Subscribe to live PTY updates
-  if (outputBuffer && !updateUnsubscribe) {
-    const cb = (sessionId: string) => {
-      pendingUpdates.add(sessionId);
-      if (!throttleTimer) {
-        throttleTimer = setTimeout(() => {
-          flushPendingUpdates();
-          throttleTimer = null;
-        }, 500);
-      }
-    };
-    outputBuffer.onUpdate(cb);
-    updateUnsubscribe = () => {
-      outputBuffer?.offUpdate(cb);
-    };
-  }
 }
 
 /** Hide the overview grid and restore the terminal container. Delegates through the manager. */
@@ -143,31 +101,14 @@ export function hideOverview(): void {
   }
 }
 
-/** Internal — unmount the overview view (called by the manager). */
+/** Internal — unmount the overview view (called by the manager).
+ *  DEPRECATED: App.vue now renders overview via Vue components.
+ *  This function only handles cleanup for backward compat. */
 function unmountOverview(): void {
   sessionsState.overviewGroup = null;
   sessionsState.overviewIsGlobal = false;
 
-  if (overviewContainer) {
-    overviewContainer.style.display = 'none';
-  }
-
-  // Restore the terminal container
-  const termContainer = document.getElementById('terminalContainer');
-  if (termContainer) termContainer.style.display = '';
-
-  // Restore draft UI hidden when overview opened
-  const mainArea = document.getElementById('mainArea');
-  if (mainArea) {
-    const draftStrip = mainArea.querySelector('.draft-strip') as HTMLElement | null;
-    if (draftStrip) draftStrip.style.display = '';
-    const draftEditor = mainArea.querySelector('.draft-editor') as HTMLElement | null;
-    if (draftEditor) draftEditor.style.display = '';
-  }
-
   // Restore the previously active terminal unless the exit already switched to a new session.
-  // sessionAlreadySwitched covers autoSelectFocusedSession (tm.switchTo ran before unmount).
-  // selectedOnExit covers selectOverviewCard (callback switches after unmount).
   const tm = terminalManagerGetter?.();
   const currentActive = tm?.getActiveSessionId() ?? null;
   const sessionAlreadySwitched = currentActive !== null && currentActive !== previousActiveSessionId;
@@ -177,8 +118,7 @@ function unmountOverview(): void {
     tm.switchTo(previousActiveSessionId);
   }
 
-  // Restore sidebar focus to the nav item that opened the overview (look up by identity
-  // to handle navList churn while overview was open).
+  // Restore sidebar focus to the nav item that opened the overview.
   if (!selectedOnExit) {
     if (parentNavItem) {
       const restoredIndex = sessionsState.navList.findIndex(
@@ -193,17 +133,6 @@ function unmountOverview(): void {
   selectedOnExit = false;
   parentNavItem = null;
   previousActiveSessionId = null;
-
-  // Unsubscribe from live updates
-  if (updateUnsubscribe) {
-    updateUnsubscribe();
-    updateUnsubscribe = null;
-  }
-  if (throttleTimer) {
-    clearTimeout(throttleTimer);
-    throttleTimer = null;
-  }
-  pendingUpdates.clear();
 }
 
 registerView('overview', { mount: mountOverview, unmount: unmountOverview });
