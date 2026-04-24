@@ -8,7 +8,7 @@
     "start": "npm run build && electron .",
     "dev": "npm run build && electron .",
     "build": "npm run build:electron && npm run build:preload && npm run build:renderer",
-    "build:electron": "esbuild src/electron/main.ts --bundle --platform=node --external:electron --external:@jitsi/robotjs --external:node-pty --external:yaml --external:winston --external:winston-daily-rotate-file --external:node-telegram-bot-api --outfile=dist-electron/main.js --format=esm --sourcemap",
+    "build:electron": "esbuild src/electron/main.ts --bundle --platform=node --external:electron --external:@jitsi/robotjs --external:node-pty --external:yaml --external:winston --external:winston-daily-rotate-file --external:node-telegram-bot-api --external:chokidar --outfile=dist-electron/main.js --format=esm --sourcemap",
     "build:preload": "esbuild src/electron/preload.ts --bundle --platform=node --external:electron --outfile=dist-electron/preload.cjs --format=cjs --sourcemap",
     "build:renderer": "vite build --config vite.renderer.config.ts",
     "package": "npm run build && electron-builder --win --x64",

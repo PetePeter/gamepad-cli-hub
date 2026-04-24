@@ -39,6 +39,8 @@ import { RendererTextDeliverer } from './text-delivery.js';
 import { loadDrafts } from '../../session/persistence.js';
 import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
 import { WindowManager } from '../window-manager.js';
+import { HelmControlService } from '../../mcp/helm-control-service.js';
+import { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
 
 
 /**
@@ -99,6 +101,8 @@ export function registerIPCHandlers(
   const incomingWatcher = new IncomingPlansWatcher(planManager);
   const textDeliverer = new RendererTextDeliverer(windowManager, sessionManager, configLoader);
   ptyManager.setTextDeliveryHandler((sessionId, text) => textDeliverer.deliver(sessionId, text));
+  const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager);
+  const localhostMcpServer = new LocalhostMcpServer(helmControlService);
 
   const patternMatcher = new PatternMatcher(
     (sessionId, data) => ptyManager.deliverText(sessionId, data),
@@ -169,6 +173,10 @@ export function registerIPCHandlers(
 
   logger.info('[IPC] All handlers registered');
 
+  void localhostMcpServer.start().catch((error) => {
+    logger.error(`[MCP] Failed to start localhost MCP server: ${error}`);
+  });
+
   return {
     cleanup: () => {
       cleanupTelegram();
@@ -181,6 +189,7 @@ export function registerIPCHandlers(
       notificationManager.dispose();
       ptyManager.killAll();
       void incomingWatcher.close();
+      void localhostMcpServer.close();
       logger.info('[IPC] Cleanup complete');
     },
     sessionManager,
