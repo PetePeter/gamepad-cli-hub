@@ -28,7 +28,7 @@ const MCP_PATH = '/mcp';
 
 const TOOLS: McpTool[] = [
   {
-    name: 'clis_list',
+    name: 'tools_list',
     title: 'List CLI Types',
     description: 'List CLI types configured in Helm and the configured working directories they can be spawned into.',
     inputSchema: {
@@ -128,9 +128,9 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'plan_add_dependency',
-    title: 'Add Dependency',
-    description: 'Add a dependency edge from one plan item to another.',
+    name: 'plan_nextplan_link',
+    title: 'Link Next Plan',
+    description: 'Link one plan item as a prerequisite for another. A plan can have many outgoing links (to many next plans) and many incoming links (from many previous plans). The source plan must complete before the target plan can start.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -142,9 +142,9 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'plan_remove_dependency',
-    title: 'Remove Dependency',
-    description: 'Remove a dependency edge between two plan items.',
+    name: 'plan_nextplan_unlink',
+    title: 'Unlink Next Plan',
+    description: 'Remove a prerequisite link between two plan items.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -177,8 +177,8 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'cli_spawn',
-    title: 'Spawn CLI Session',
+    name: 'helm_session_create',
+    title: 'Create Helm Session',
     description: 'Spawn a new CLI session in a configured working directory and give it a stable display name for later lookup.',
     inputSchema: {
       type: 'object',
@@ -220,13 +220,16 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_send_text',
     title: 'Send Text To Session',
-    description: 'Send text to a running session PTY by session ID or exact display name.',
+    description: 'Send text to a running session PTY by session ID or exact display name. When submit is true (default), appends Enter to submit the text.',
     inputSchema: {
       type: 'object',
       properties: {
         sessionId: { type: 'string' },
         name: { type: 'string' },
         text: { type: 'string' },
+        submit: { type: 'boolean', default: true },
+        senderSessionId: { type: 'string' },
+        senderSessionName: { type: 'string' },
       },
       required: ['text'],
       additionalProperties: false,
@@ -403,7 +406,7 @@ export class LocalhostMcpServer {
     switch (name) {
       case 'plans_list':
         return this.service.listPlans(asString(args.dirPath, 'dirPath is required'));
-      case 'clis_list':
+      case 'tools_list':
         return this.service.listClis();
       case 'plan_get':
         return requireResult(
@@ -440,26 +443,18 @@ export class LocalhostMcpServer {
         );
       case 'plan_complete':
         return this.completePlanWithValidation(asString(args.id, 'id is required'));
-      case 'plan_add_dependency':
-        return {
-          added: requireBooleanResult(
-            this.service.addDependency(
-              asString(args.fromId, 'fromId is required'),
-              asString(args.toId, 'toId is required'),
-            ),
-            'Dependency could not be added. Check IDs, directory match, duplicate edges, and cycle constraints.',
-          ),
-        };
-      case 'plan_remove_dependency':
-        return {
-          removed: requireBooleanResult(
-            this.service.removeDependency(
-              asString(args.fromId, 'fromId is required'),
-              asString(args.toId, 'toId is required'),
-            ),
-            'Dependency not found.',
-          ),
-        };
+      case 'plan_nextplan_link':
+        this.service.linkPlans(
+          asString(args.fromId, 'fromId is required'),
+          asString(args.toId, 'toId is required'),
+        );
+        return { linked: true };
+      case 'plan_nextplan_unlink':
+        this.service.unlinkPlans(
+          asString(args.fromId, 'fromId is required'),
+          asString(args.toId, 'toId is required'),
+        );
+        return { unlinked: true };
       case 'plan_export_directory':
         return requireResult(
           this.service.exportDirectory(asString(args.dirPath, 'dirPath is required')),
@@ -467,7 +462,7 @@ export class LocalhostMcpServer {
         );
       case 'directories_list':
         return this.service.listDirectories();
-      case 'cli_spawn':
+      case 'helm_session_create':
         return this.service.spawnCli(
           asString(args.cliType, 'cliType is required'),
           asString(args.dirPath, 'dirPath is required'),
@@ -485,6 +480,11 @@ export class LocalhostMcpServer {
         return this.service.sendTextToSession(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),
           asString(args.text, 'text is required'),
+          {
+            submit: typeof args.submit === 'boolean' ? args.submit : true,
+            ...(typeof args.senderSessionId === 'string' ? { senderSessionId: args.senderSessionId } : {}),
+            ...(typeof args.senderSessionName === 'string' ? { senderSessionName: args.senderSessionName } : {}),
+          },
         );
       default:
         throw new Error(`Unknown tool: ${name}`);

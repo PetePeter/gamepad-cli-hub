@@ -6,7 +6,7 @@
  * are never imported directly by the application.
  */
 
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, dialog } from 'electron';
 import { SessionManager } from '../../session/manager.js';
 import { PtyManager } from '../../session/pty-manager.js';
 import { StateDetector } from '../../session/state-detector.js';
@@ -178,6 +178,19 @@ export function registerIPCHandlers(
   logger.info('[IPC] All handlers registered');
 
   void localhostMcpServer.start().catch((error) => {
+    const isAddrInUse = error && typeof error === 'object' && 'code' in error && error.code === 'EADDRINUSE';
+    const port = localhostMcpServer.getAddress()?.port ?? configLoader.getMcpConfig().port;
+    if (isAddrInUse) {
+      dialog.showErrorBox(
+        'MCP Server Failed to Start — Port Already in Use',
+        `Helm's MCP server could not start because port ${port} is already in use by another process.\n\n` +
+        `The MCP feature allows external AI tools to control Helm. Without it, those tools will not work.\n\n` +
+        `To fix this:\n` +
+        `1. Close the other application using port ${port}, or\n` +
+        `2. Change the MCP port in Helm Settings → MCP Server\n\n` +
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
     logger.error(`[MCP] Failed to start localhost MCP server: ${error}`);
   });
 

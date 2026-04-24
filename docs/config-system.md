@@ -4,10 +4,13 @@
 
 ```
 config/
-├── settings.yaml               # Active profile name, hapticFeedback toggle, notifications toggle, sidebar prefs, sorting, sessionGroups (order + collapsed + bookmarked)
+├── settings.yaml               # Active profile name, hapticFeedback toggle, notifications toggle, sidebar prefs, sorting, sessionGroups (order + collapsed + bookmarked), mcp (enabled/port/token)
 ├── sessions.yaml               # Persisted session state (auto-managed)
 ├── drafts.yaml                 # Persisted draft prompts per session (auto-managed)
 ├── plans.yaml                  # Persisted directory plan items + dependencies (auto-managed, folder-level not per-profile)
+├── mcp/
+│   ├── claude-mcp.json         # Sample MCP config for Claude Code clients
+│   └── copilot-mcp.json        # Sample MCP config for Copilot CLI clients
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 ```
@@ -233,3 +236,95 @@ plans:
 ```
 
 Status transitions: new items start as `startable` (no deps) or `pending` (has unfinished deps). `startable` → `doing` via `plan:apply`. `doing` → `done` via `plan:complete`. Completing an item triggers `recomputeStartable()` which may promote `pending` items to `startable`.
+
+## MCP Server (localhost)
+
+Helm exposes a Model Context Protocol (MCP) HTTP endpoint on `127.0.0.1` so external AI CLIs (e.g. Claude Code, Copilot CLI) can query and control Helm remotely. The server is disabled by default.
+
+### Settings
+
+Stored in `config/settings.yaml` under the `mcp` key:
+
+```yaml
+mcp:
+  enabled: false          # Toggle the MCP server on/off
+  port: 47373             # TCP port bound to 127.0.0.1 (1-65535)
+  authToken: ""           # Bearer token required for all requests
+```
+
+- **enabled** — Starts the HTTP server when Helm launches. The server only runs while Helm is open.
+- **port** — Bound strictly to `127.0.0.1`; never exposed to the network.
+- **authToken** — Random string sent as `Authorization: Bearer <token>`. Generated via the settings UI or manually entered.
+
+Environment variable overrides (optional):
+
+| Variable | Effect |
+|----------|--------|
+| `HELM_MCP_ENABLED` | `1` to enable, anything else to disable |
+| `HELM_MCP_HOST` | Override bind address (default `127.0.0.1`) |
+| `HELM_MCP_PORT` | Override port (default `47373`) |
+| `HELM_MCP_TOKEN` | Override auth token |
+
+### Client Configuration
+
+#### Claude Code / Claude Desktop
+
+Add to `claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\settings.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "helm": {
+      "type": "http",
+      "url": "http://127.0.0.1:47373/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE"
+      }
+    }
+  }
+}
+```
+
+#### Copilot CLI / VS Code
+
+Add to `.mcp.json` or VS Code MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "helm": {
+      "type": "http",
+      "url": "http://127.0.0.1:47373/mcp",
+      "tools": ["*"],
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN_HERE"
+      }
+    }
+  }
+}
+```
+
+### Available Tools
+
+The MCP server exposes the following tools for external clients:
+
+| Tool | Description |
+|------|-------------|
+| `clis_list` | List configured CLI types and their supported working directories |
+| `plans_list` | List all plan items for a directory |
+| `plan_get` | Get a single plan item by ID |
+| `plan_create` | Create a plan item in a directory |
+| `plan_update` | Update a plan item title/description |
+| `plan_delete` | Delete a plan item |
+| `plan_set_state` | Set plan state (`pending`/`startable`/`doing`/`wait-tests`/`blocked`/`question`) |
+| `plan_complete` | Mark a plan item as done |
+| `plan_add_dependency` | Add a dependency between two plan items |
+| `plan_remove_dependency` | Remove a dependency between two plan items |
+| `plan_export_directory` | Export all plans + dependencies for a directory |
+| `directories_list` | List all known working directories |
+| `cli_spawn` | Spawn a new CLI session in a working directory |
+| `sessions_list` | List active Helm sessions |
+| `session_get` | Get a session by ID or exact display name |
+| `session_send_text` | Send text to a running session's PTY |
+
+All tools return JSON via MCP's `tools/call` endpoint. Errors are returned as JSON-RPC error responses with descriptive messages.

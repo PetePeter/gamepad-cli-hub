@@ -17,14 +17,14 @@ function makeService(): HelmControlService {
     deletePlan: vi.fn(() => true),
     completePlan: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done' })),
     setPlanState: vi.fn((id: string, status: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status })),
-    addDependency: vi.fn(() => true),
-    removeDependency: vi.fn(() => true),
+    linkPlans: vi.fn(),
+    unlinkPlans: vi.fn(),
     exportDirectory: vi.fn((dirPath: string) => ({ dirPath, items: [], dependencies: [] })),
     exportItem: vi.fn((id: string) => ({ item: { id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'startable' }, dependencies: [] })),
     spawnCli: vi.fn((cliType: string, dirPath: string, name: string) => ({ id: 's2', name, cliType, workingDir: dirPath })),
     listSessions: vi.fn((dirPath?: string) => [{ id: 's1', name: 'Claude', cliType: 'claude-code', ...(dirPath ? { workingDir: dirPath } : {}) }]),
     getSession: vi.fn((sessionId: string) => ({ id: sessionId, name: 'Claude', cliType: 'claude-code' })),
-    sendTextToSession: vi.fn(async (sessionRef: string) => ({ success: true, sessionId: sessionRef, name: 'Claude' })),
+    sendTextToSession: vi.fn(async (sessionRef: string, text: string, _options?: { submit?: boolean; senderSessionId?: string; senderSessionName?: string }) => ({ success: true, sessionId: sessionRef, name: 'Claude' })),
   } as unknown as HelmControlService;
 }
 
@@ -121,7 +121,7 @@ describe('LocalhostMcpServer', () => {
       'Mcp-Name': 'session_send_text',
     });
     const json = await response.json();
-    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello');
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { submit: true });
     expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
   });
 
@@ -181,7 +181,7 @@ describe('LocalhostMcpServer', () => {
       id: 34,
       method: 'tools/call',
       params: {
-        name: 'clis_list',
+        name: 'tools_list',
         arguments: {},
       },
     });
@@ -203,7 +203,7 @@ describe('LocalhostMcpServer', () => {
       id: 35,
       method: 'tools/call',
       params: {
-        name: 'cli_spawn',
+        name: 'helm_session_create',
         arguments: { cliType: 'codex', dirPath: 'X:\\coding\\gamepad-cli-hub', name: 'Builder' },
       },
     });
@@ -316,7 +316,49 @@ describe('LocalhostMcpServer', () => {
       },
     });
     const json = await response.json();
-    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello');
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', { submit: true });
+    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
+  });
+
+  it('supports submit=false to send text without Enter', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 37,
+      method: 'tools/call',
+      params: {
+        name: 'session_send_text',
+        arguments: { name: 'Claude', text: 'hello', submit: false },
+      },
+    });
+    const json = await response.json();
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', { submit: false });
+    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
+  });
+
+  it('passes sender info into sendTextToSession', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 38,
+      method: 'tools/call',
+      params: {
+        name: 'session_send_text',
+        arguments: { name: 'Claude', text: 'hello', senderSessionId: 's1', senderSessionName: 'oc1' },
+      },
+    });
+    const json = await response.json();
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', { submit: true, senderSessionId: 's1', senderSessionName: 'oc1' });
     expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
   });
 

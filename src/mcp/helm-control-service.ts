@@ -90,12 +90,57 @@ export class HelmControlService {
     return this.planManager.setState(id, status, stateInfo, sessionId);
   }
 
-  addDependency(fromId: string, toId: string): boolean {
-    return this.planManager.addDependency(fromId, toId);
+  linkPlans(fromId: string, toId: string): void {
+    if (fromId === toId) {
+      throw new Error('Cannot link a plan to itself');
+    }
+    const from = this.planManager.getItem(fromId);
+    const to = this.planManager.getItem(toId);
+    if (!from) {
+      throw new Error(`Source plan not found: ${fromId}`);
+    }
+    if (!to) {
+      throw new Error(`Target plan not found: ${toId}`);
+    }
+    if (from.dirPath !== to.dirPath) {
+      throw new Error('Cannot link plans across different directories');
+    }
+
+    const exported = this.planManager.exportDirectory(from.dirPath);
+    const existing = exported?.dependencies.some((d) => d.fromId === fromId && d.toId === toId);
+    if (existing) {
+      throw new Error('Link already exists between these plans');
+    }
+
+    // Check for cycle: adding fromId→toId would create a cycle if toId can already reach fromId
+    const deps = exported?.dependencies ?? [];
+    const visited = new Set<string>();
+    const stack = [toId];
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (current === fromId) {
+        throw new Error('Link would create a cycle (circular ordering is not allowed)');
+      }
+      if (visited.has(current)) continue;
+      visited.add(current);
+      for (const dep of deps) {
+        if (dep.fromId === current) {
+          stack.push(dep.toId);
+        }
+      }
+    }
+
+    const success = this.planManager.addDependency(fromId, toId);
+    if (!success) {
+      throw new Error('Failed to link plans');
+    }
   }
 
-  removeDependency(fromId: string, toId: string): boolean {
-    return this.planManager.removeDependency(fromId, toId);
+  unlinkPlans(fromId: string, toId: string): void {
+    const success = this.planManager.removeDependency(fromId, toId);
+    if (!success) {
+      throw new Error('Link not found between these plans');
+    }
   }
 
   exportDirectory(dirPath: string): { dirPath: string; items: PlanItem[]; dependencies: { fromId: string; toId: string }[] } | null {
@@ -179,7 +224,11 @@ export class HelmControlService {
     return this.toSessionSummary(requireResult(this.sessionManager.getSession(sessionId), `Session not found: ${sessionId}`));
   }
 
-  async sendTextToSession(sessionRef: string, text: string): Promise<{ success: true; sessionId: string; name: string }> {
+  async sendTextToSession(
+    sessionRef: string,
+    text: string,
+    options?: { submit?: boolean; senderSessionId?: string; senderSessionName?: string },
+  ): Promise<{ success: true; sessionId: string; name: string }> {
     const session = this.findSession(sessionRef);
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);
@@ -187,7 +236,21 @@ export class HelmControlService {
     if (!this.ptyManager.has(session.id)) {
       throw new Error(`Session PTY is not running: ${session.id}`);
     }
-    await this.ptyManager.deliverText(session.id, text);
+
+    let message = text;
+    if (options?.senderSessionId || options?.senderSessionName) {
+      const envelope = JSON.stringify({
+        fromSessionId: options.senderSessionId ?? undefined,
+        fromSessionName: options.senderSessionName ?? undefined,
+      });
+      message = `[HELM_MSG]${envelope}\n${text}`;
+    }
+
+    if (options?.submit !== false) {
+      message += '\r';
+    }
+
+    await this.ptyManager.deliverText(session.id, message);
     return { success: true, sessionId: session.id, name: session.name };
   }
 
