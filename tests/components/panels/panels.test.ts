@@ -419,18 +419,30 @@ describe('DraftEditor', () => {
 // PlanScreen
 // ---------------------------------------------------------------------------
 describe('PlanScreen', () => {
-  const makeNodes = () => [
+  const makeItems = () => [
     { id: 'n1', title: 'Task 1', description: 'First task', status: 'startable' as const },
     { id: 'n2', title: 'Task 2', description: 'Second task depends on first', status: 'pending' as const },
     { id: 'n3', title: 'Done Task', description: 'Already completed', status: 'done' as const },
   ];
 
+  const layout = {
+    nodes: [
+      { id: 'n1', x: 60, y: 60, layer: 0, order: 0 },
+      { id: 'n2', x: 340, y: 60, layer: 1, order: 0 },
+      { id: 'n3', x: 620, y: 60, layer: 2, order: 0 },
+    ],
+    width: 880,
+    height: 220,
+  };
+
   const baseProps = {
     visible: true,
     dirPath: '/home/project',
-    nodes: makeNodes(),
+    items: makeItems(),
     deps: [{ fromId: 'n1', toId: 'n2' }],
+    layout,
     selectedId: null as string | null,
+    notice: '',
   };
 
   it('renders when visible', () => {
@@ -445,7 +457,7 @@ describe('PlanScreen', () => {
 
   it('shows dir path in title', () => {
     const w = mount(PlanScreen, { props: baseProps });
-    expect(w.find('.plan-screen-title').text()).toBe('Plans: /home/project');
+    expect(w.find('.plan-header__title').text()).toBe('/home/project - Plans');
   });
 
   it('renders plan nodes', () => {
@@ -456,149 +468,126 @@ describe('PlanScreen', () => {
 
   it('shows node titles', () => {
     const w = mount(PlanScreen, { props: baseProps });
-    const titles = w.findAll('.plan-node-title');
+    const titles = w.findAll('.plan-node__title');
     expect(titles[0].text()).toBe('Task 1');
     expect(titles[1].text()).toBe('Task 2');
   });
 
-  it('emits selectNode on node click', async () => {
+  it('emits nodeClick on node click', async () => {
     const w = mount(PlanScreen, { props: baseProps });
     const nodes = w.findAll('.plan-node');
     await nodes[0].trigger('click');
-    expect(w.emitted('selectNode')).toEqual([['n1']]);
+    expect(w.emitted('nodeClick')).toEqual([['n1']]);
   });
 
-  it('shows editor panel when a node is selected', () => {
+  it('shows action bar when a node is selected', () => {
     const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' } });
-    expect(w.find('.plan-node-editor').exists()).toBe(true);
-    expect(w.find('.plan-editor-title').text()).toBe('Task 1');
+    const headers = w.findAll('.plan-header');
+    expect(headers).toHaveLength(2);
+    expect(headers[1].text()).toContain('Task 1');
   });
 
-  it('hides editor panel when no node selected', () => {
+  it('hides selected action bar when no node is selected', () => {
     const w = mount(PlanScreen, { props: baseProps });
-    expect(w.find('.plan-node-editor').exists()).toBe(false);
+    expect(w.findAll('.plan-header')).toHaveLength(1);
   });
 
   it('shows Apply button for non-done nodes', () => {
     const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' } });
-    const buttons = w.findAll('.plan-editor-actions button');
+    const buttons = w.findAll('.plan-header__controls button');
     const texts = buttons.map(b => b.text());
     expect(texts).toContain('Apply');
   });
 
   it('shows Done button only for doing nodes', () => {
-    const nodes = [{ id: 'n1', title: 'Active', description: 'In progress', status: 'doing' as const }];
-    const w = mount(PlanScreen, { props: { ...baseProps, nodes, selectedId: 'n1' } });
-    const buttons = w.findAll('.plan-editor-actions button');
+    const items = [{ id: 'n1', title: 'Active', description: 'In progress', status: 'doing' as const }];
+    const w = mount(PlanScreen, {
+      props: {
+        ...baseProps,
+        items,
+        layout: { nodes: [{ id: 'n1', x: 60, y: 60, layer: 0, order: 0 }], width: 320, height: 220 },
+        selectedId: 'n1',
+      },
+    });
+    const buttons = w.findAll('.plan-header__controls button');
     const texts = buttons.map(b => b.text());
     expect(texts).toContain('Done');
   });
 
   it('does not show Done button for startable nodes', () => {
     const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' } });
-    const buttons = w.findAll('.plan-editor-actions button');
+    const buttons = w.findAll('.plan-header__controls button');
     const texts = buttons.map(b => b.text());
     expect(texts).not.toContain('Done');
   });
 
   it('shows Delete button always for selected node', () => {
     const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n3' } });
-    const buttons = w.findAll('.plan-editor-actions button');
+    const buttons = w.findAll('.plan-header__controls button');
     const texts = buttons.map(b => b.text());
     expect(texts).toContain('Delete');
   });
 
   it('does not show Apply button for done node', () => {
     const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n3' } });
-    const buttons = w.findAll('.plan-editor-actions button');
+    const buttons = w.findAll('.plan-header__controls button');
     const texts = buttons.map(b => b.text());
     expect(texts).not.toContain('Apply');
   });
 
   it('emits close on back button click', async () => {
     const w = mount(PlanScreen, { props: baseProps });
-    await w.find('.plan-back-btn').trigger('click');
+    await w.find('.plan-header__btn').trigger('click');
     expect(w.emitted('close')).toHaveLength(1);
   });
 
   it('emits addNode on + Add button click', async () => {
     const w = mount(PlanScreen, { props: baseProps });
-    await w.find('.plan-add-btn').trigger('click');
+    await w.findAll('.plan-header__btn')[1].trigger('click');
     expect(w.emitted('addNode')).toHaveLength(1);
   });
 
-  it('emits applyNode from editor Apply button', async () => {
+  it('emits applyNode from selected action button', async () => {
     const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' } });
-    const applyBtn = w.findAll('.plan-editor-actions button').find(b => b.text() === 'Apply');
+    const applyBtn = w.findAll('.plan-header__controls button').find(b => b.text() === 'Apply');
     await applyBtn!.trigger('click');
     expect(w.emitted('applyNode')).toEqual([['n1']]);
   });
 
-  it('emits deleteNode from editor Delete button', async () => {
+  it('emits deleteNode from selected action button', async () => {
     const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' } });
-    const delBtn = w.findAll('.plan-editor-actions button').find(b => b.text() === 'Delete');
+    const delBtn = w.findAll('.plan-header__controls button').find(b => b.text() === 'Delete');
     await delBtn!.trigger('click');
     expect(w.emitted('deleteNode')).toEqual([['n1']]);
   });
 
-  // Gamepad handleButton tests
-  it('handleButton B deselects when node selected', () => {
-    const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' } });
-    const vm = w.vm as any;
-    expect(vm.handleButton('B')).toBe(true);
-    expect(w.emitted('selectNode')).toEqual([[null]]);
-  });
-
-  it('handleButton B closes when no node selected', () => {
+  it('emits editNode on double-click', async () => {
     const w = mount(PlanScreen, { props: baseProps });
-    const vm = w.vm as any;
-    expect(vm.handleButton('B')).toBe(true);
-    expect(w.emitted('close')).toHaveLength(1);
-  });
-
-  it('handleButton A applies selected node', () => {
-    const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n2' } });
-    const vm = w.vm as any;
-    expect(vm.handleButton('A')).toBe(true);
-    expect(w.emitted('applyNode')).toEqual([['n2']]);
-  });
-
-  it('handleButton A does nothing without selection', () => {
-    const w = mount(PlanScreen, { props: baseProps });
-    const vm = w.vm as any;
-    expect(vm.handleButton('A')).toBe(true);
-    expect(w.emitted('applyNode')).toBeUndefined();
-  });
-
-  it('handleButton X deletes selected node', () => {
-    const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' } });
-    const vm = w.vm as any;
-    expect(vm.handleButton('X')).toBe(true);
-    expect(w.emitted('deleteNode')).toEqual([['n1']]);
-  });
-
-  it('handleButton Y adds new node', () => {
-    const w = mount(PlanScreen, { props: baseProps });
-    const vm = w.vm as any;
-    expect(vm.handleButton('Y')).toBe(true);
-    expect(w.emitted('addNode')).toHaveLength(1);
-  });
-
-  it('handleButton unknown returns false', () => {
-    const w = mount(PlanScreen, { props: baseProps });
-    const vm = w.vm as any;
-    expect(vm.handleButton('Start')).toBe(false);
+    await w.findAll('.plan-node')[0].trigger('dblclick');
+    expect(w.emitted('editNode')).toEqual([['n1']]);
   });
 
   it('renders dependency arrows', () => {
     const w = mount(PlanScreen, { props: baseProps });
-    const arrows = w.findAll('.plan-dep-arrow');
+    const arrows = w.findAll('.plan-arrow');
     expect(arrows).toHaveLength(1);
   });
 
   it('renders with no nodes', () => {
-    const w = mount(PlanScreen, { props: { ...baseProps, nodes: [], deps: [] } });
+    const w = mount(PlanScreen, {
+      props: {
+        ...baseProps,
+        items: [],
+        deps: [],
+        layout: { nodes: [], width: 0, height: 0 },
+      },
+    });
     expect(w.findAll('.plan-node')).toHaveLength(0);
+  });
+
+  it('shows planner notices', () => {
+    const w = mount(PlanScreen, { props: { ...baseProps, notice: 'Imported 2 plan items' } });
+    expect(w.find('.plan-notice').text()).toContain('Imported 2 plan items');
   });
 });
 

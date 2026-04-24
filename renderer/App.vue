@@ -29,7 +29,22 @@ import { formatElapsed } from '../src/utils/time-parser.js';
 import { sortBindingEntries, type BindingSortField, type SessionSortField, type SortDirection } from './sort-logic.js';
 import { findNavIndexBySessionId, getVisibleSessions, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
 import { getOverviewSessions } from './screens/group-overview.js';
-import { showPlanScreen, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction, refreshCanvasIfVisible } from './plans/plan-screen.js';
+import {
+  handlePlanScreenDpad,
+  handlePlanScreenAction,
+  onPlanAddDependency,
+  onPlanAddNode,
+  onPlanClearDone,
+  onPlanExportDirectory,
+  onPlanImport,
+  onPlanNodeApply,
+  onPlanNodeClick,
+  onPlanNodeComplete,
+  onPlanNodeDelete,
+  onPlanNodeEdit,
+  onPlanRemoveDependency,
+  planScreenState,
+} from './plans/plan-screen.js';
 import { handleSessionsScreenButton, toggleSessionOverviewVisibility, setSessionState, toggleGroupCollapse } from './screens/sessions.js';
 import { usePanelResize } from './composables/usePanelResize.js';
 import { setSpawnCollapsed, setPlannerCollapsed } from './sidebar/section-collapse.js';
@@ -89,6 +104,7 @@ import PlansGrid from './components/sidebar/PlansGrid.vue';
 // Panel components
 import MainView from './components/panels/MainView.vue';
 import OverviewGrid from './components/panels/OverviewGrid.vue';
+import PlanScreen from './components/panels/PlanScreen.vue';
 import SettingsPanel from './components/sidebar/SettingsPanel.vue';
 
 // Settings tab components
@@ -2079,6 +2095,28 @@ onUnmounted(() => {
         @select="onOverviewSelect"
         @toggle-collapse="onOverviewToggleCollapse"
         @close="navStore.closeOverview()"
+      />
+      <PlanScreen
+        v-if="activeView === 'plan'"
+        :visible="activeView === 'plan'"
+        :dir-path="planScreenState.currentDir"
+        :items="planScreenState.items"
+        :deps="planScreenState.deps"
+        :layout="planScreenState.layout"
+        :selected-id="planScreenState.selectedId"
+        :notice="planScreenState.notice"
+        @close="navStore.closePlan()"
+        @add-node="onPlanAddNode()"
+        @export-dir="onPlanExportDirectory()"
+        @import-dir="onPlanImport()"
+        @clear-done="onPlanClearDone()"
+        @node-click="onPlanNodeClick"
+        @edit-node="onPlanNodeEdit"
+        @apply-node="onPlanNodeApply"
+        @complete-node="onPlanNodeComplete"
+        @delete-node="onPlanNodeDelete"
+        @add-dep="onPlanAddDependency"
+        @remove-dep="onPlanRemoveDependency"
       />
       <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
         <ChipActionBar
