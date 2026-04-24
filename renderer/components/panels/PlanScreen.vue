@@ -4,7 +4,7 @@ import type { PlanDependency, PlanItem } from '../../../src/types/plan.js';
 import type { LayoutResult } from '../../plans/plan-layout.js';
 
 const NODE_W = 200;
-const NODE_H = 80;
+const NODE_H = 102;
 const CONNECTOR_R = 6;
 const CONNECTOR_SNAP_TOLERANCE_PX = 16;
 
@@ -92,6 +92,10 @@ watch(() => [props.visible, props.layout.width, props.layout.height], () => {
 
 function getNodeColor(status: string): string {
   return STATUS_COLORS[status] ?? STATUS_COLORS.pending;
+}
+
+function formatPlanDate(value?: number): string {
+  return value ? new Date(value).toLocaleDateString() : '';
 }
 
 function connectorPoint(id: string, side: 'in' | 'out'): { x: number; y: number } | null {
@@ -297,7 +301,7 @@ function startDragConnection(id: string, e: MouseEvent): void {
         >
           <rect
             width="200"
-            height="80"
+            height="102"
             rx="10"
             ry="10"
             fill="#1a1a1a"
@@ -313,16 +317,21 @@ function startDragConnection(id: string, e: MouseEvent): void {
           <foreignObject x="32" y="6" width="160" height="20">
             <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__title">{{ item.title }}</div>
           </foreignObject>
-          <foreignObject x="8" y="28" width="184" :height="item.stateInfo ? 26 : 40">
+          <foreignObject x="8" y="26" width="184" height="14">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__meta">
+              {{ item.humanId || 'Plan' }} · C {{ formatPlanDate(item.createdAt) }} · S {{ formatPlanDate(item.stateUpdatedAt || item.updatedAt) }}
+            </div>
+          </foreignObject>
+          <foreignObject x="8" y="42" width="184" :height="item.stateInfo ? 24 : 34">
             <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__desc">{{ item.description }}</div>
           </foreignObject>
-          <foreignObject v-if="item.stateInfo" x="8" y="56" width="184" height="18">
+          <foreignObject v-if="item.stateInfo" x="8" y="78" width="184" height="16">
             <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__state-info">{{ item.stateInfo }}</div>
           </foreignObject>
           <circle
             class="plan-node__connector plan-node__connector--in"
             cx="0"
-            cy="40"
+            cy="51"
             :r="CONNECTOR_R"
             fill="#333"
             stroke="#555"
@@ -331,7 +340,7 @@ function startDragConnection(id: string, e: MouseEvent): void {
           <circle
             class="plan-node__connector plan-node__connector--out"
             cx="200"
-            cy="40"
+            cy="51"
             :r="CONNECTOR_R"
             fill="#333"
             stroke="#555"

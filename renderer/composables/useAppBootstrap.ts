@@ -220,8 +220,9 @@ async function refreshPlanCounts(): Promise<void> {
           : doing[0];
         if (plan) {
           const prefix = plan.status === 'blocked' ? '⛔' : plan.status === 'question' ? '❓' : plan.status === 'wait-tests' ? '⏳' : '🗺️';
-          state.workingPlanLabels.set(id, `${prefix} ${plan.title}`);
-          state.workingPlanTooltips.set(id, plan.stateInfo ? `${plan.title}\n${plan.stateInfo}` : plan.title);
+          const planRef = plan.humanId ? `${plan.humanId} · ${plan.title}` : plan.title;
+          state.workingPlanLabels.set(id, `${prefix} ${planRef}`);
+          state.workingPlanTooltips.set(id, plan.stateInfo ? `${planRef}\n${plan.stateInfo}` : planRef);
         } else {
           state.workingPlanLabels.delete(id);
           state.workingPlanTooltips.delete(id);

@@ -2605,6 +2605,17 @@ kbd {
   user-select: none;
 }
 
+.plan-node__meta {
+  color: #8f8f8f;
+  font-size: 9px;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  user-select: none;
+}
+
 .plan-node__desc {
   color: #cfcfcf;
   font-size: 11px;
@@ -3045,6 +3056,12 @@ kbd {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.draft-editor-plan-meta {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin: 0 0 8px;
 }
 
 .draft-editor-actions {

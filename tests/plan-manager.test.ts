@@ -21,11 +21,15 @@ vi.mock('../src/session/persistence.js', () => ({
 }));
 
 import { PlanManager } from '../src/session/plan-manager.js';
+import * as persistence from '../src/session/persistence.js';
 
 describe('PlanManager', () => {
   let pm: PlanManager;
 
   beforeEach(() => {
+    (persistence.listPlanFiles as unknown as ReturnType<typeof vi.fn>).mockReturnValue([]);
+    (persistence.loadPlanFile as unknown as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    (persistence.savePlanFile as unknown as ReturnType<typeof vi.fn>).mockClear();
     pm = new PlanManager();
   });
 
@@ -41,7 +45,9 @@ describe('PlanManager', () => {
       expect(item.dirPath).toBe('/projects/backend');
       expect(item.title).toBe('Build Auth');
       expect(item.description).toBe('JWT middleware');
+      expect(item.humanId).toMatch(/^P-\d{4,}$/);
       expect(item.createdAt).toBeTypeOf('number');
+      expect(item.stateUpdatedAt).toBeTypeOf('number');
       expect(item.updatedAt).toBeTypeOf('number');
     });
 
@@ -82,6 +88,33 @@ describe('PlanManager', () => {
 
     it('returns null for unknown ID', () => {
       expect(pm.update('nonexistent', { title: 'nope' })).toBeNull();
+    });
+  });
+
+  describe('metadata migration', () => {
+    it('assigns missing humanId and stateUpdatedAt when loading older plan files', () => {
+      (persistence.listPlanFiles as unknown as ReturnType<typeof vi.fn>).mockReturnValue(['legacy.json']);
+      (persistence.loadPlanFile as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        id: 'legacy-id',
+        dirPath: '/d',
+        title: 'Legacy',
+        description: 'Older plan',
+        status: 'startable',
+        createdAt: 100,
+        updatedAt: 101,
+      });
+
+      pm = new PlanManager();
+
+      expect(pm.getItem('legacy-id')).toMatchObject({
+        humanId: expect.stringMatching(/^P-\d{4,}$/),
+        stateUpdatedAt: 101,
+      });
+      expect(persistence.savePlanFile).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'legacy-id',
+        humanId: expect.stringMatching(/^P-\d{4,}$/),
+        stateUpdatedAt: 101,
+      }));
     });
   });
 

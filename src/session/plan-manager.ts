@@ -20,10 +20,16 @@ import type { PlanItem, PlanDependency, DirectoryPlan, PlanStatus } from '../typ
 
 const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['doing', 'wait-tests', 'blocked', 'question']);
 const PAUSED_PLAN_STATUSES = new Set<PlanStatus>(['wait-tests', 'blocked', 'question']);
+const HUMAN_ID_RE = /^P-(\d{4,})$/;
+
+function formatHumanId(value: number): string {
+  return `P-${String(value).padStart(4, '0')}`;
+}
 
 export class PlanManager extends EventEmitter {
   private items = new Map<string, PlanItem>();
   private dependencies: PlanDependency[] = [];
+  private nextHumanId = 1;
 
   constructor() {
     super();
@@ -33,9 +39,19 @@ export class PlanManager extends EventEmitter {
   /** Load all plan items and dependencies from disk on startup. */
   private loadFromDisk(): void {
     const filenames = listPlanFiles();
+    const loaded: PlanItem[] = [];
     for (const filename of filenames) {
       const item = loadPlanFile(filename);
-      if (item) this.items.set(item.id, item);
+      if (!item) continue;
+      loaded.push(item);
+      this.noteHumanId(item.humanId);
+      this.items.set(item.id, item);
+    }
+
+    for (const item of loaded) {
+      if (this.ensurePlanMetadata(item)) {
+        savePlanFile(item);
+      }
     }
 
     const validIds = new Set(this.items.keys());
@@ -62,11 +78,13 @@ export class PlanManager extends EventEmitter {
     const now = Date.now();
     const item: PlanItem = {
       id: randomUUID(),
+      humanId: this.allocateHumanId(),
       dirPath,
       title,
       description,
       status: 'startable',
       createdAt: now,
+      stateUpdatedAt: now,
       updatedAt: now,
     };
     this.items.set(item.id, item);
@@ -188,6 +206,7 @@ export class PlanManager extends EventEmitter {
     item.sessionId = sessionId;
     item.stateInfo = undefined;
     item.updatedAt = Date.now();
+    item.stateUpdatedAt = item.updatedAt;
 
     savePlanFile(item);
     this.emit('plan:changed', item.dirPath);
@@ -204,6 +223,7 @@ export class PlanManager extends EventEmitter {
     item.sessionId = undefined;
     item.stateInfo = undefined;
     item.updatedAt = Date.now();
+    item.stateUpdatedAt = item.updatedAt;
 
     this.recomputeStartable(item.dirPath);
     this.saveDir(item.dirPath);
@@ -228,6 +248,7 @@ export class PlanManager extends EventEmitter {
     item.status = status;
     item.stateInfo = PAUSED_PLAN_STATUSES.has(status) ? stateInfo.trim() : undefined;
     item.updatedAt = Date.now();
+    item.stateUpdatedAt = item.updatedAt;
 
     if (status === 'pending' || status === 'startable') {
       this.recomputeStartable(item.dirPath);
@@ -299,11 +320,14 @@ export class PlanManager extends EventEmitter {
     const now = Date.now();
     const imported: PlanItem = {
       ...item,
+      humanId: item.humanId,
       title: uniqueTitle,
       status: 'startable',
       createdAt: item.createdAt ?? now,
+      stateUpdatedAt: item.stateUpdatedAt ?? item.updatedAt ?? item.createdAt ?? now,
       updatedAt: now,
     };
+    this.ensurePlanMetadata(imported);
 
     this.items.set(imported.id, imported);
     savePlanFile(imported);
@@ -359,6 +383,32 @@ export class PlanManager extends EventEmitter {
     let n = 2;
     while (existing.has(`${title} (${n})`)) n++;
     return `${title} (${n})`;
+  }
+
+  private noteHumanId(humanId?: string): void {
+    const match = typeof humanId === 'string' ? humanId.match(HUMAN_ID_RE) : null;
+    if (!match) return;
+    this.nextHumanId = Math.max(this.nextHumanId, Number.parseInt(match[1] ?? '0', 10) + 1);
+  }
+
+  private allocateHumanId(): string {
+    const humanId = formatHumanId(this.nextHumanId++);
+    return humanId;
+  }
+
+  private ensurePlanMetadata(item: PlanItem): boolean {
+    let changed = false;
+    if (!item.humanId) {
+      item.humanId = this.allocateHumanId();
+      changed = true;
+    } else {
+      this.noteHumanId(item.humanId);
+    }
+    if (!item.stateUpdatedAt) {
+      item.stateUpdatedAt = item.updatedAt ?? item.createdAt ?? Date.now();
+      changed = true;
+    }
+    return changed;
   }
 
   /** Check if adding fromId→toId would create a cycle via DFS. */

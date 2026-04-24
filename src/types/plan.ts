@@ -10,6 +10,8 @@ export type PlanStatus = 'pending' | 'startable' | 'doing' | 'wait-tests' | 'blo
 export interface PlanItem {
   /** Unique identifier (UUID v4) */
   id: string;
+  /** Human-readable stable identifier for UI/MCP references (for example, P-0007). */
+  humanId?: string;
   /** Directory this plan belongs to */
   dirPath: string;
   /** Short title displayed on the node */
@@ -24,6 +26,8 @@ export interface PlanItem {
   stateInfo?: string;
   /** Creation timestamp */
   createdAt: number;
+  /** Timestamp when the current lifecycle status last changed. */
+  stateUpdatedAt?: number;
   /** Last update timestamp */
   updatedAt: number;
 }

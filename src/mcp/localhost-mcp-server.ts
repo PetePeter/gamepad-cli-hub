@@ -36,7 +36,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'tools_list',
     title: 'List CLI Types',
-    description: 'List CLI types configured in Helm and the configured working directories they can be spawned into.',
+    description: 'List CLI types configured in Helm and the configured working directories they can be spawned into. Call this near the start of a Helm workflow when you need to know what CLIs and spawn targets are actually available before creating a session.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -46,7 +46,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plans_list',
     title: 'List Plans',
-    description: 'List all plan items for a directory.',
+    description: 'List all plan items for a directory. Use this before editing or assigning plan work so you can reference the human-readable plan IDs Helm returns.',
     inputSchema: {
       type: 'object',
       properties: { dirPath: { type: 'string' } },
@@ -57,7 +57,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_get',
     title: 'Get Plan',
-    description: 'Get a single plan item by ID.',
+    description: 'Get a single plan item by ID. Use this when you need full plan details, including human-readable ID and timestamps, before changing state or discussing a plan with the user.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -109,7 +109,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_set_state',
     title: 'Set Plan State',
-    description: 'Set a plan item state to pending, startable, doing, wait-tests, blocked, or question.',
+    description: 'Set a plan item state to pending, startable, doing, wait-tests, blocked, or question. Use this when the lifecycle state itself changed; if you only need the session row to point at the current plan, prefer session_set_working_plan.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -175,7 +175,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'directories_list',
     title: 'List Directories',
-    description: 'List known working directories, including configured folders and directories that currently have plans or sessions.',
+    description: 'List known working directories, including configured folders and directories that currently have plans or sessions. Call this when you need to discover which project directories Helm knows about before creating plans or sessions.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -185,7 +185,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'helm_session_create',
     title: 'Create Helm Session',
-    description: 'Spawn a new CLI session in a configured working directory and give it a stable display name for later lookup.',
+    description: 'Spawn a new CLI session in a configured working directory and give it a stable display name for later lookup. Call this when no suitable session exists yet and you need Helm to launch one.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -201,7 +201,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'sessions_list',
     title: 'List Sessions',
-    description: 'List currently known Helm sessions, optionally filtered to one working directory.',
+    description: 'List currently known Helm sessions, optionally filtered to one working directory. Call this before sending text so you can target an existing session instead of spawning blindly.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -213,7 +213,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_get',
     title: 'Get Session',
-    description: 'Get one Helm session by session ID or exact display name.',
+    description: 'Get one Helm session by session ID or exact display name. Use this when you need session details, including its current working-plan pointer, before deciding what to send or update.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -226,7 +226,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_send_text',
     title: 'Send Text To Session',
-    description: 'Send text to a running session PTY by session ID or exact display name. When submit is true (default), inserts the text and then issues a send/submit action separately. Optional expectsResponse marks HELM inter-LLM envelopes that expect a reply.',
+    description: 'Send text to a running session PTY by session ID or exact display name. Call this when you want Helm to relay plain text into an existing session. When submit is true (default), Helm inserts the text and then issues a send/submit action separately. Optional expectsResponse marks HELM inter-LLM envelopes that expect a reply.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -245,7 +245,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_set_working_plan',
     title: 'Set Session Working Plan',
-    description: 'Update which plan the session row should show as currently being worked on, assigning the plan to that session when allowed.',
+    description: 'Update which plan the session row should show as currently being worked on, assigning the plan to that session when allowed. Call this when the agent has moved on to a different plan item and you want the Helm session list to reflect that explicitly.',
     inputSchema: {
       type: 'object',
       properties: {

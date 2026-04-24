@@ -93,7 +93,7 @@ export function showDraftEditor(sessionId: string, existingDraft?: { id: string;
 
 export function showPlanInEditor(
   sessionId: string,
-  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string },
+  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; humanId?: string; createdAt?: number; stateUpdatedAt?: number },
   callbacks: PlanCallbacks,
 ): void {
   planEditorOpener?.(sessionId, plan, callbacks);

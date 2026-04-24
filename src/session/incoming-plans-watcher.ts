@@ -219,11 +219,13 @@ export class IncomingPlansWatcher extends EventEmitter {
     const now = Date.now();
     const item: PlanItem = {
       id: raw.id as string,
+      ...(typeof raw.humanId === 'string' && raw.humanId.trim() ? { humanId: raw.humanId as string } : {}),
       dirPath: raw.dirPath as string,
       title: raw.title as string,
       description: raw.description as string,
       status: status as PlanItem['status'],
       createdAt: (raw.createdAt as number) ?? now,
+      stateUpdatedAt: (raw.stateUpdatedAt as number) ?? (raw.updatedAt as number) ?? now,
       updatedAt: now,
     };
     if (raw.sessionId) item.sessionId = raw.sessionId as string;

@@ -28,6 +28,9 @@ export interface DraftEditorProps {
   planId?: string | null;
   planStatus?: PlanStatus;
   planStateInfo?: string;
+  planHumanId?: string;
+  planCreatedAt?: number | null;
+  planStateUpdatedAt?: number | null;
   planCallbacks?: PlanCallbacks | null;
 }
 
@@ -38,6 +41,9 @@ const props = withDefaults(defineProps<DraftEditorProps>(), {
   planId: null,
   planStatus: 'pending',
   planStateInfo: '',
+  planHumanId: '',
+  planCreatedAt: null,
+  planStateUpdatedAt: null,
   planCallbacks: null,
 });
 
@@ -140,6 +146,15 @@ const saveStatusText = computed(() => {
     saved: '✓ Saved',
   };
   return labels[saveStatus.value] ?? '';
+});
+
+const planMetaText = computed(() => {
+  if (!isPlan.value) return '';
+  const parts: string[] = [];
+  if (props.planHumanId) parts.push(props.planHumanId);
+  if (props.planCreatedAt) parts.push(`Created ${new Date(props.planCreatedAt).toLocaleString()}`);
+  if (props.planStateUpdatedAt) parts.push(`State ${new Date(props.planStateUpdatedAt).toLocaleString()}`);
+  return parts.join('  ·  ');
 });
 
 // Focusable elements in order
@@ -396,6 +411,7 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
         <button class="btn btn--secondary btn--sm" @click="onCancel">Cancel</button>
       </div>
     </div>
+    <div v-if="planMetaText" class="draft-editor-plan-meta">{{ planMetaText }}</div>
 
     <div class="draft-editor-title-row">
       <input
