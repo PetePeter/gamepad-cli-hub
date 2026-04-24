@@ -26,7 +26,7 @@ import { refreshSessions, doSpawn, switchToSession, doCloseSession,
   setPendingContextText, restoreSnappedBackSession,
 } from './composables/useAppBootstrap.js';
 import { formatElapsed } from '../src/utils/time-parser.js';
-import type { SessionSortField, SortDirection } from './sort-logic.js';
+import { sortBindingEntries, type BindingSortField, type SessionSortField, type SortDirection } from './sort-logic.js';
 import { findNavIndexBySessionId, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
 import { getOverviewSessions } from './screens/group-overview.js';
 import { showPlanScreen, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction, refreshCanvasIfVisible } from './plans/plan-screen.js';
@@ -151,6 +151,8 @@ const settingsMcpConfig = ref({ enabled: false, port: 47373, authToken: '' });
 const settingsNotificationsEnabled = ref(false);
 const settingsBindings = ref<Array<{ button: string; action: string; label: string; detail: string }>>([]);
 const settingsSequenceGroups = ref<Array<{ name: string; items: Array<{ label: string; sequence: string }> }>>([]);
+const settingsBindingSortField = ref<BindingSortField>('button');
+const settingsBindingSortDirection = ref<SortDirection>('asc');
 
 // Section collapse
 const spawnCollapsed = ref(false);
@@ -171,6 +173,16 @@ const sortOptions = [
   { value: 'state', label: 'State' },
   { value: 'activity', label: 'Activity' },
 ];
+
+const ALL_BINDING_BUTTONS = [
+  'A', 'B', 'X', 'Y',
+  'DPadUp', 'DPadDown', 'DPadLeft', 'DPadRight',
+  'LeftBumper', 'RightBumper', 'LeftTrigger', 'RightTrigger',
+  'LeftStick', 'RightStick',
+  'Sandwich', 'Back', 'Xbox',
+  'LeftStickUp', 'LeftStickDown', 'LeftStickLeft', 'LeftStickRight',
+  'RightStickUp', 'RightStickDown', 'RightStickLeft', 'RightStickRight',
+] as const;
 
 const spawnItems = computed(() =>
   sessionsState.cliTypes.map(ct => ({
@@ -225,6 +237,18 @@ const chipBarPlans = computed(() => chipBarStore.plans);
 const chipBarHasPills = computed(() =>
   chipBarDrafts.value.length > 0 ||
   chipBarPlans.value.length > 0,
+);
+const settingsAddableButtons = computed(() => {
+  const mapped = new Set(settingsBindings.value.map((binding) => binding.button));
+  return ALL_BINDING_BUTTONS.filter((button) => !mapped.has(button));
+});
+const settingsBindingCopySources = computed(() =>
+  settingsCliTypes.value
+    .filter((cliType) => cliType !== settingsTab.value)
+    .map((cliType) => ({
+      id: cliType,
+      label: getCliDisplayName(cliType),
+    })),
 );
 const chipActionBarVisible = computed(() =>
   chipBarVisible.value &&
@@ -678,6 +702,18 @@ async function loadSettingsData(): Promise<void> {
   settingsCliTypes.value = state.cliTypes.length > 0
     ? state.cliTypes
     : (await window.gamepadCli.configGetCliTypes());
+  const validTabs = new Set([
+    'profiles',
+    ...settingsCliTypes.value,
+    'tools',
+    'chipbar-actions',
+    'directories',
+    'telegram',
+    'mcp',
+  ]);
+  if (!validTabs.has(settingsTab.value)) {
+    settingsTab.value = 'profiles';
+  }
 
   // Load profiles
   const profiles = await window.gamepadCli.profileList();
@@ -755,6 +791,15 @@ async function loadSettingsData(): Promise<void> {
   }
 
   // Load current tab bindings
+  try {
+    const prefs = await window.gamepadCli.configGetSortPrefs('bindings');
+    settingsBindingSortField.value = (prefs?.field as BindingSortField) || 'button';
+    settingsBindingSortDirection.value = (prefs?.direction as SortDirection) || 'asc';
+  } catch {
+    settingsBindingSortField.value = 'button';
+    settingsBindingSortDirection.value = 'asc';
+  }
+
   await loadCurrentTabBindings();
 }
 
@@ -772,8 +817,14 @@ async function loadCurrentTabBindings(): Promise<void> {
     if (bindings) state.cliBindingsCache[tab] = bindings;
   }
 
+  const sortedEntries = sortBindingEntries(
+    Object.entries(bindings || {}),
+    settingsBindingSortField.value,
+    settingsBindingSortDirection.value,
+  );
+
   // Convert bindings to BindingEntry format
-  const entries = Object.entries(bindings || {}).map(([button, binding]: [string, any]) => ({
+  const entries = sortedEntries.map(([button, binding]: [string, any]) => ({
     button,
     action: binding.action || '',
     label: binding.label || binding.action || '',
@@ -1254,19 +1305,14 @@ async function onMcpGenerateToken(): Promise<void> {
 
 // ── Bindings Tab Handlers ──────────────────────────────────────────────────
 
-function onBindingAdd(): void {
-  // Find first unmapped button
-  const ALL_BUTTONS = ['A', 'B', 'X', 'Y', 'DPadUp', 'DPadDown', 'DPadLeft', 'DPadRight', 'LeftBumper', 'RightBumper', 'LeftTrigger', 'RightTrigger', 'LeftStick', 'RightStick', 'Sandwich', 'Back', 'Xbox', 'LeftStickUp', 'LeftStickDown', 'LeftStickLeft', 'LeftStickRight', 'RightStickUp', 'RightStickDown', 'RightStickLeft', 'RightStickRight'];
-  const mapped = new Set(settingsBindings.value.map(b => b.button));
-  const unmapped = ALL_BUTTONS.filter(b => !mapped.has(b));
-
-  if (unmapped.length === 0) {
+function onBindingAdd(button?: string): void {
+  const targetButton = button || settingsAddableButtons.value[0];
+  if (!targetButton) {
     logEvent('All buttons already have bindings');
     return;
   }
 
-  // Show picker or directly open editor with first unmapped
-  onEditBinding(unmapped[0], settingsTab.value);
+  onEditBinding(targetButton, settingsTab.value);
 }
 
 async function onBindingDelete(button: string): Promise<void> {
@@ -1284,7 +1330,7 @@ async function onBindingDelete(button: string): Promise<void> {
 
 async function onBindingCopyFrom(sourceCli: string): Promise<void> {
   try {
-    const result = await window.gamepadCli.configCopyBindings(sourceCli, settingsTab.value);
+    const result = await window.gamepadCli.configCopyCliBindings(sourceCli, settingsTab.value);
     if (result.success) {
       await initConfigCache();
       void loadCurrentTabBindings();
@@ -1295,6 +1341,17 @@ async function onBindingCopyFrom(sourceCli: string): Promise<void> {
   } catch (error) {
     console.error('Failed to copy bindings:', error);
   }
+}
+
+async function onBindingSortChange(field: string, direction: 'asc' | 'desc'): Promise<void> {
+  settingsBindingSortField.value = field as BindingSortField;
+  settingsBindingSortDirection.value = direction;
+  try {
+    await window.gamepadCli.configSetSortPrefs('bindings', { field, direction });
+  } catch (error) {
+    console.error('Failed to save binding sort prefs:', error);
+  }
+  await loadCurrentTabBindings();
 }
 
 // Draft submenu actions
@@ -1745,12 +1802,15 @@ onUnmounted(() => {
               :sequence-groups="settingsSequenceGroups"
               :cli-type="activeTab"
               :cli-label="getCliDisplayName(activeTab)"
-              sort-field="button"
-              sort-direction="asc"
+              :addable-buttons="settingsAddableButtons"
+              :copy-source-options="settingsBindingCopySources"
+              :sort-field="settingsBindingSortField"
+              :sort-direction="settingsBindingSortDirection"
               @add-binding="onBindingAdd"
               @edit-binding="onEditBinding($event, activeTab)"
               @delete-binding="onBindingDelete"
               @copy-from="onBindingCopyFrom"
+              @sort-change="onBindingSortChange"
             />
           </template>
         </SettingsPanel>

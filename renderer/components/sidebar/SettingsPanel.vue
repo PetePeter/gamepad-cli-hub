@@ -29,10 +29,12 @@ const activeTabIndex = computed(() =>
 );
 
 function navigateTab(delta: number): void {
-  const idx = activeTabIndex.value + delta;
-  if (idx >= 0 && idx < props.tabs.length) {
-    emit('update:activeTab', props.tabs[idx].id);
-  }
+  if (props.tabs.length === 0) return;
+  const currentIndex = activeTabIndex.value >= 0 ? activeTabIndex.value : 0;
+  let nextIndex = currentIndex + delta;
+  if (nextIndex < 0) nextIndex = props.tabs.length - 1;
+  if (nextIndex >= props.tabs.length) nextIndex = 0;
+  emit('update:activeTab', props.tabs[nextIndex].id);
 }
 
 function handleButton(button: string): boolean {
@@ -61,7 +63,7 @@ defineExpose({ handleButton });
     <div class="settings-panel__header">
       <button class="settings-back-btn" @click="emit('close')" title="Back (B)">← Back</button>
     </div>
-    <div class="settings-tabs" id="settingsTabs" role="tablist">
+    <div class="settings-tabs" role="tablist">
       <button
         v-for="tab in tabs"
         :key="tab.id"
@@ -76,8 +78,8 @@ defineExpose({ handleButton });
     </div>
 
     <div class="settings-content">
-      <div class="settings-action-bar" id="bindingActionBar" />
-      <div class="settings-display" id="bindingsDisplay">
+      <div class="settings-action-bar" />
+      <div class="settings-display">
         <slot :activeTab="activeTab" />
       </div>
     </div>
