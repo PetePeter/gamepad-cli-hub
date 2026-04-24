@@ -28,7 +28,7 @@ import { refreshSessions, doSpawn, switchToSession, doCloseSession,
 import { formatElapsed } from '../src/utils/time-parser.js';
 import type { SessionSortField, SortDirection } from './sort-logic.js';
 import { findNavIndexBySessionId, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
-import { showOverview, handleOverviewInput } from './screens/group-overview.js';
+import { getOverviewSessions } from './screens/group-overview.js';
 import { showPlanScreen, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction, refreshCanvasIfVisible } from './plans/plan-screen.js';
 import { handleSessionsScreenButton, toggleSessionOverviewVisibility, setSessionState, toggleGroupCollapse } from './screens/sessions.js';
 import { usePanelResize } from './composables/usePanelResize.js';
@@ -68,6 +68,7 @@ import PlansGrid from './components/sidebar/PlansGrid.vue';
 
 // Panel components
 import MainView from './components/panels/MainView.vue';
+import OverviewGrid from './components/panels/OverviewGrid.vue';
 import SettingsPanel from './components/sidebar/SettingsPanel.vue';
 
 // Settings tab components
@@ -114,6 +115,10 @@ const navStore = useNavigationStore();
 let offTextDeliver: (() => void) | null = null;
 let unsubSnapOut: (() => void) | null = null;
 let unsubSnapBack: (() => void) | null = null;
+
+// Overview state
+const overviewCollapsedIds = ref<Set<string>>(new Set());
+const overviewGroupLabel = ref('');
 
 // Snap-out mode detection
 const isSnapOut = computed(() => {
@@ -223,8 +228,48 @@ const chipBarHasPills = computed(() =>
 );
 const chipActionBarVisible = computed(() =>
   chipBarVisible.value &&
-  (chipBarHasPills.value || chipBarStore.actions.length > 0),
+  (chipBarHasPills.value || chipBarStore.actions.length > 0)
 );
+
+// Overview sessions with preview lines
+const overviewSessions = computed(() => {
+  const sessions = getOverviewSessions();
+  const tm = getTerminalManager();
+  return sessions.map(session => {
+    const lines = tm?.getTerminalLines(session.id, 10) ?? [];
+    // Trim leading blank lines
+    let start = 0;
+    while (start < lines.length && (lines[start] ?? '').trim() === '') start++;
+    const trimmedLines = lines.slice(start);
+    // Pad to bottom-align
+    const padCount = 10 - trimmedLines.length;
+    const previewLines = [
+      ...Array(padCount).fill('\u00A0'),
+      ...trimmedLines.map(l => l || '\u00A0'),
+    ];
+    return {
+      id: session.id,
+      name: session.name,
+      cliType: session.cliType,
+      title: session.title,
+      activityLevel: state.sessionActivityLevels.get(session.id) ?? 'idle',
+      sessionState: state.sessionStates.get(session.id) ?? 'idle',
+      previewLines,
+    };
+  });
+});
+
+watch(() => activeView.value, (view) => {
+  if (view === 'overview') {
+    if (sessionsState.overviewIsGlobal) {
+      overviewGroupLabel.value = 'All Sessions';
+    } else if (sessionsState.overviewGroup) {
+      overviewGroupLabel.value = resolveGroupDisplayName(sessionsState.overviewGroup, sessionsState.directories);
+    } else {
+      overviewGroupLabel.value = 'Sessions';
+    }
+  }
+});
 
 watch(() => state.activeSessionId, (next, prev) => {
   if (!next) return;
@@ -314,8 +359,63 @@ function handleButton(button: string): void {
   }
 
   // Overview grid — routes before session navigation so A/B/Left/Right act on the grid
-  if (currentView() === 'overview') {
-    if (handleOverviewInput(button)) return;
+  if (activeView.value === 'overview') {
+    const sessions = getOverviewSessions();
+    const count = sessions.length;
+    const dir = toDirection(button);
+
+    if (count === 0) {
+      void navStore.closeOverview();
+      return;
+    }
+
+    if (dir === 'left') {
+      void navStore.closeOverview();
+      return;
+    }
+    if (dir === 'right') {
+      return;
+    }
+
+    if (button === 'A') {
+      const session = sessions[sessionsState.overviewFocusIndex];
+      if (session) {
+        void navStore.navigateToSession(session.id);
+      }
+      return;
+    }
+
+    if (button === 'X') {
+      const session = sessions[sessionsState.overviewFocusIndex];
+      if (session) {
+        if (overviewCollapsedIds.value.has(session.id)) {
+          overviewCollapsedIds.value.delete(session.id);
+        } else {
+          overviewCollapsedIds.value.add(session.id);
+        }
+      }
+      return;
+    }
+
+    if (button === 'B') {
+      void navStore.closeOverview();
+      return;
+    }
+
+    if (dir === 'up') {
+      if (sessionsState.overviewFocusIndex > 0) {
+        sessionsState.overviewFocusIndex--;
+      }
+      return;
+    }
+    if (dir === 'down') {
+      if (sessionsState.overviewFocusIndex < count - 1) {
+        sessionsState.overviewFocusIndex++;
+      }
+      return;
+    }
+
+    return;
   }
 
   // Session navigation — D-pad, A to select, overview-button, spawn/plans zones
@@ -395,6 +495,19 @@ async function onConfirmClose(): Promise<void> {
 
 async function onSessionStateChange(sessionId: string, newState: string): Promise<void> {
   await setSessionState(sessionId, newState);
+}
+
+// Overview actions
+function onOverviewSelect(sessionId: string): void {
+  void navStore.navigateToSession(sessionId);
+}
+
+function onOverviewToggleCollapse(sessionId: string): void {
+  if (overviewCollapsedIds.value.has(sessionId)) {
+    overviewCollapsedIds.value.delete(sessionId);
+  } else {
+    overviewCollapsedIds.value.add(sessionId);
+  }
 }
 
 // Group actions
@@ -1684,17 +1797,33 @@ onUnmounted(() => {
         :drafts="chipBarDrafts"
         :plan-chips="chipBarPlans"
         :actions="[]"
-        :visible="chipBarVisible"
+        :visible="chipBarVisible && activeView !== 'overview'"
         :show-new-draft="false"
         @draft-click="onChipBarDraftClick"
         @plan-chip-click="onChipBarPlanClick"
         @new-draft="onChipBarNewDraft"
         @action-click="onChipBarAction"
       />
-      <div class="terminal-container" id="terminalContainer" ref="terminalContainerRef">
+      <div
+        v-show="activeView === 'terminal'"
+        class="terminal-container"
+        id="terminalContainer"
+        ref="terminalContainerRef"
+      >
         <!-- xterm.js terminals rendered by TerminalManager -->
       </div>
-      <div v-if="chipActionBarVisible" class="chip-action-dock">
+      <OverviewGrid
+        v-if="activeView === 'overview'"
+        :sessions="overviewSessions"
+        :focus-index="sessionsState.overviewFocusIndex"
+        :collapsed-ids="overviewCollapsedIds"
+        :active-session-id="state.activeSessionId"
+        :group-label="overviewGroupLabel"
+        @select="onOverviewSelect"
+        @toggle-collapse="onOverviewToggleCollapse"
+        @close="navStore.closeOverview()"
+      />
+      <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
         <ChipActionBar
           :actions="chipBarStore.actions"
           :show-new-draft="true"
