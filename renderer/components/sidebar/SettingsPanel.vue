@@ -2,8 +2,9 @@
 /**
  * SettingsPanel.vue — Slide-over settings with dynamic tab switching.
  *
- * Replaces settings.ts orchestrator. Tabs are rendered via dynamic component
- * switching based on the active tab. Each tab is a separate child component.
+ * Replaces settings.ts orchestrator. Tabs are rendered via slot content
+ * based on the active tab. Each tab is a separate child component provided
+ * by the parent (App.vue).
  */
 import { computed } from 'vue';
 
@@ -57,11 +58,14 @@ defineExpose({ handleButton });
 
 <template>
   <div v-if="visible" class="settings-panel">
-    <div class="settings-tabs" role="tablist">
+    <div class="settings-panel__header">
+      <button class="settings-back-btn" @click="emit('close')" title="Back (B)">← Back</button>
+    </div>
+    <div class="settings-tabs" id="settingsTabs" role="tablist">
       <button
         v-for="tab in tabs"
         :key="tab.id"
-        class="settings-tab"
+        class="settings-tab focusable"
         :class="{ 'settings-tab--active': tab.id === activeTab }"
         role="tab"
         :aria-selected="tab.id === activeTab"

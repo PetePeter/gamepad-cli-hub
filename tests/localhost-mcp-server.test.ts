@@ -24,7 +24,7 @@ function makeService(): HelmControlService {
     spawnCli: vi.fn((cliType: string, dirPath: string, name: string) => ({ id: 's2', name, cliType, workingDir: dirPath })),
     listSessions: vi.fn((dirPath?: string) => [{ id: 's1', name: 'Claude', cliType: 'claude-code', ...(dirPath ? { workingDir: dirPath } : {}) }]),
     getSession: vi.fn((sessionId: string) => ({ id: sessionId, name: 'Claude', cliType: 'claude-code' })),
-    sendTextToSession: vi.fn(async (sessionRef: string, text: string, _options?: { submit?: boolean; senderSessionId?: string; senderSessionName?: string }) => ({ success: true, sessionId: sessionRef, name: 'Claude' })),
+    sendTextToSession: vi.fn(async (sessionRef: string, text: string, _options?: { submit?: boolean; senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean }) => ({ success: true, sessionId: sessionRef, name: 'Claude' })),
   } as unknown as HelmControlService;
 }
 
@@ -359,6 +359,48 @@ describe('LocalhostMcpServer', () => {
     });
     const json = await response.json();
     expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', { submit: true, senderSessionId: 's1', senderSessionName: 'oc1' });
+    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
+  });
+
+  it('passes expectsResponse into sendTextToSession', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 39,
+      method: 'tools/call',
+      params: {
+        name: 'session_send_text',
+        arguments: { name: 'Claude', text: 'hello', senderSessionId: 's1', expectsResponse: true },
+      },
+    });
+    const json = await response.json();
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', { submit: true, senderSessionId: 's1', expectsResponse: true });
+    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
+  });
+
+  it('defaults expectsResponse to false', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 40,
+      method: 'tools/call',
+      params: {
+        name: 'session_send_text',
+        arguments: { name: 'Claude', text: 'hello' },
+      },
+    });
+    const json = await response.json();
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', { submit: true });
     expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
   });
 
