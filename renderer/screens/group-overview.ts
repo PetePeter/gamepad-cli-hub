@@ -189,7 +189,8 @@ function unmountOverview(): void {
     overviewDismissCallback?.();
   }
 
-  // Reset per-open state
+  // Reset per-open state. Must happen after all restore logic above completes,
+  // because selectedOnExit controls whether we restore previous terminal/focus.
   selectedOnExit = false;
   parentNavItem = null;
   previousActiveSessionId = null;

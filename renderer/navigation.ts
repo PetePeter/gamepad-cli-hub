@@ -22,7 +22,7 @@ import { isDraftEditorVisible, handleDraftEditorButton } from './drafts/draft-ed
 import { formModalVisible } from './utils.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { sessionsState } from './screens/sessions-state.js';
-import { handleOverviewInput, isOverviewVisible, setSelectCardCallback } from './screens/group-overview.js';
+import { handleOverviewInput, isOverviewVisible } from './screens/group-overview.js';
 import { findNavIndexBySessionId } from './session-groups.js';
 import { updateSessionsFocus } from './screens/sessions.js';
 import { isPlanScreenVisible, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction } from './plans/plan-screen.js';
@@ -87,17 +87,6 @@ export function setupGamepadNavigation(): void {
   if (dotEl) dotEl.classList.toggle('connected', state.gamepadCount > 0);
   console.log('[Renderer] setupGamepadNavigation: END, count:', state.gamepadCount);
 
-  // Wire overview card click → session switch + sidebar sync
-  setSelectCardCallback((sessionId) => {
-    switchToSession(sessionId);
-    const navIdx = findNavIndexBySessionId(sessionsState.navList, sessionId);
-    if (navIdx >= 0) {
-      sessionsState.sessionsFocusIndex = navIdx;
-      sessionsState.cardColumn = 0;
-      state.activeSessionId = sessionId;
-      updateSessionsFocus();
-    }
-  });
 }
 
 // ============================================================================
