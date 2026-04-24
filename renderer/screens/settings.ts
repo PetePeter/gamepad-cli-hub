@@ -24,6 +24,7 @@ import { renderProfilesPanel } from './settings-profiles.js';
 import { renderToolsPanel } from './settings-tools.js';
 import { renderTelegramSettings } from './settings-telegram.js';
 import { renderChipbarActionsPanel } from './settings-chipbar-actions.js';
+import { renderMcpSettings } from './settings-mcp.js';
 
 // ============================================================================
 // Main entry
@@ -49,6 +50,13 @@ export async function loadSettingsScreen(): Promise<void> {
         const actionBar = document.getElementById('bindingActionBar');
         if (actionBar) actionBar.innerHTML = '';
         await renderTelegramSettings(contentContainer);
+      }
+    } else if (state.settingsTab === 'mcp') {
+      const contentContainer = document.getElementById('bindingsDisplay');
+      if (contentContainer) {
+        const actionBar = document.getElementById('bindingActionBar');
+        if (actionBar) actionBar.innerHTML = '';
+        await renderMcpSettings(contentContainer);
       }
     } else if (state.settingsTab === 'directories') {
       await renderDirectoriesPanel();
@@ -93,7 +101,7 @@ export function handleSettingsScreenButton(button: string): boolean {
 }
 
 function navigateSettingsTab(direction: number): void {
-  const allTabs = ['profiles', ...state.cliTypes, 'tools', 'directories', 'telegram'];
+  const allTabs = ['profiles', ...state.cliTypes, 'tools', 'chipbar-actions', 'directories', 'telegram', 'mcp'];
   const currentIndex = allTabs.indexOf(state.settingsTab);
   let nextIndex = currentIndex + direction;
   if (nextIndex < 0) nextIndex = allTabs.length - 1;
@@ -139,6 +147,7 @@ function renderSettingsTabs(cliTypes: string[]): void {
     { key: 'chipbar-actions', label: '⚡ Quick Actions' },
     { key: 'directories', label: '📁 Dirs' },
     { key: 'telegram', label: '📨 Telegram' },
+    { key: 'mcp', label: '🧩 MCP' },
   ];
 
   allTabs.forEach(tab => {

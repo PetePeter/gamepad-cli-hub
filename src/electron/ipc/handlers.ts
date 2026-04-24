@@ -102,7 +102,11 @@ export function registerIPCHandlers(
   const textDeliverer = new RendererTextDeliverer(windowManager, sessionManager, configLoader);
   ptyManager.setTextDeliveryHandler((sessionId, text) => textDeliverer.deliver(sessionId, text));
   const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager);
-  const localhostMcpServer = new LocalhostMcpServer(helmControlService);
+  const localhostMcpServer = new LocalhostMcpServer(helmControlService, {
+    enabled: configLoader.getMcpConfig().enabled,
+    port: configLoader.getMcpConfig().port,
+    token: configLoader.getMcpConfig().authToken,
+  });
 
   const patternMatcher = new PatternMatcher(
     (sessionId, data) => ptyManager.deliverText(sessionId, data),
@@ -110,7 +114,7 @@ export function registerIPCHandlers(
   );
 
   const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager, windowManager, configLoader);
-  setupConfigHandlers(configLoader);
+  setupConfigHandlers(configLoader, localhostMcpServer);
   setupEditorHandlers(configLoader);
   setupProfileHandlers(configLoader);
   setupToolsHandlers(configLoader);

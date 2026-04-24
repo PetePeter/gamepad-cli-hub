@@ -140,6 +140,22 @@ const gamepadCliAPI = {
   configSetNotifications: (enabled: boolean) => ipcRenderer.invoke('config:setNotifications', enabled),
 
   /**
+   * Get localhost MCP server settings
+   */
+  configGetMcpConfig: () => ipcRenderer.invoke('config:getMcpConfig'),
+
+  /**
+   * Update localhost MCP server settings
+   */
+  configSetMcpConfig: (updates: { enabled?: boolean; port?: number; authToken?: string }) =>
+    ipcRenderer.invoke('config:setMcpConfig', updates),
+
+  /**
+   * Generate and persist a new localhost MCP auth token
+   */
+  configGenerateMcpToken: () => ipcRenderer.invoke('config:generateMcpToken'),
+
+  /**
    * Get ESC protection setting
    */
   configGetEscProtectionEnabled: () => ipcRenderer.invoke('config:getEscProtectionEnabled'),

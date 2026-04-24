@@ -266,6 +266,18 @@ const DEFAULT_TELEGRAM_CONFIG: TelegramConfig = {
   notifyOnCrash: true,
 };
 
+export interface McpConfig {
+  enabled: boolean;
+  port: number;
+  authToken: string;
+}
+
+const DEFAULT_MCP_CONFIG: McpConfig = {
+  enabled: false,
+  port: 47373,
+  authToken: '',
+};
+
 export interface SettingsConfig {
   activeProfile: string;
   hapticFeedback: boolean;
@@ -277,6 +289,7 @@ export interface SettingsConfig {
   sessionGroups?: SessionGroupPrefs;
   editorHistory?: string[];
   telegram?: TelegramConfig;
+  mcp?: McpConfig;
 }
 
 export interface SessionGroupPrefs {
@@ -410,6 +423,13 @@ export class ConfigLoader {
     if (!this.settings.telegram) {
       this.settings.telegram = { ...DEFAULT_TELEGRAM_CONFIG };
     }
+    this.settings.mcp = {
+      ...DEFAULT_MCP_CONFIG,
+      ...(this.settings.mcp ?? {}),
+      enabled: this.settings.mcp?.enabled === true,
+      port: normalizeMcpPort(this.settings.mcp?.port),
+      authToken: typeof this.settings.mcp?.authToken === 'string' ? this.settings.mcp.authToken : '',
+    };
     this.activeProfileName = this.settings.activeProfile;
   }
 
@@ -883,6 +903,32 @@ export class ConfigLoader {
     this.saveSettings();
   }
 
+  /** Get the current localhost MCP configuration. */
+  getMcpConfig(): McpConfig {
+    return {
+      ...DEFAULT_MCP_CONFIG,
+      ...(this.settings?.mcp ?? {}),
+      enabled: this.settings?.mcp?.enabled === true,
+      port: normalizeMcpPort(this.settings?.mcp?.port),
+      authToken: typeof this.settings?.mcp?.authToken === 'string' ? this.settings.mcp.authToken : '',
+    };
+  }
+
+  /** Update the localhost MCP configuration (partial merge). */
+  setMcpConfig(updates: Partial<McpConfig>): void {
+    if (!this.settings) return;
+    const next = {
+      ...this.getMcpConfig(),
+      ...updates,
+    };
+    this.settings.mcp = {
+      enabled: next.enabled === true,
+      port: normalizeMcpPort(next.port),
+      authToken: typeof next.authToken === 'string' ? next.authToken : '',
+    };
+    this.saveSettings();
+  }
+
   listProfiles(): string[] {
     const profilesDir = path.join(this.configDir, 'profiles');
     if (!fs.existsSync(profilesDir)) return [];
@@ -1099,6 +1145,14 @@ export class ConfigLoader {
     const filePath = path.join(this.configDir, 'profiles', `${this.activeProfileName}.yaml`);
     fs.writeFileSync(filePath, YAML.stringify(this.activeProfile), 'utf8');
   }
+}
+
+function normalizeMcpPort(value: unknown): number {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+    return DEFAULT_MCP_CONFIG.port;
+  }
+  return parsed;
 }
 
 // Export a singleton instance for convenience

@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
+import type { McpConfig } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
 import { HelmControlService } from './helm-control-service.js';
 
@@ -196,6 +197,7 @@ export interface LocalhostMcpServerOptions {
   host?: string;
   port?: number;
   token?: string;
+  enabled?: boolean;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -205,8 +207,9 @@ export class LocalhostMcpServer {
   });
   private started = false;
   private readonly host: string;
-  private readonly port: number;
-  private readonly token: string;
+  private port: number;
+  private token: string;
+  private enabled: boolean;
 
   constructor(
     private readonly service: HelmControlService,
@@ -216,15 +219,16 @@ export class LocalhostMcpServer {
     this.host = options.host ?? env.HELM_MCP_HOST ?? DEFAULT_HOST;
     this.port = options.port ?? parsePort(env.HELM_MCP_PORT) ?? DEFAULT_PORT;
     this.token = options.token ?? env.HELM_MCP_TOKEN ?? '';
+    this.enabled = options.enabled ?? (env.HELM_MCP_ENABLED ? env.HELM_MCP_ENABLED === '1' : this.token.trim().length > 0);
   }
 
   isEnabled(): boolean {
-    return this.token.trim().length > 0;
+    return this.enabled && this.token.trim().length > 0;
   }
 
   async start(): Promise<boolean> {
     if (!this.isEnabled()) {
-      logger.warn('[MCP] HELM_MCP_TOKEN is not set; localhost MCP server disabled');
+      logger.info('[MCP] Localhost MCP server disabled by config or missing auth token');
       return false;
     }
     if (this.started) return true;
@@ -238,6 +242,26 @@ export class LocalhostMcpServer {
     this.started = true;
     logger.info(`[MCP] Listening on http://${this.host}:${this.port}${MCP_PATH}`);
     return true;
+  }
+
+  async applyConfig(config: McpConfig): Promise<void> {
+    const nextEnabled = config.enabled === true;
+    const nextPort = parsePort(String(config.port)) ?? DEFAULT_PORT;
+    const nextToken = config.authToken ?? '';
+    const shouldRestart = this.started && (nextPort !== this.port || nextToken !== this.token || nextEnabled !== this.enabled);
+
+    this.enabled = nextEnabled;
+    this.port = nextPort;
+    this.token = nextToken;
+
+    if (shouldRestart) {
+      await this.close();
+    }
+    if (this.isEnabled()) {
+      await this.start();
+    } else if (this.started) {
+      await this.close();
+    }
   }
 
   async close(): Promise<void> {

@@ -6,10 +6,12 @@
  */
 
 import { ipcMain, dialog, BrowserWindow } from 'electron';
+import { randomUUID } from 'node:crypto';
 import { parseCliArgs, type ConfigLoader } from '../../config/loader.js';
+import type { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
 import { logger } from '../../utils/logger.js';
 
-export function setupConfigHandlers(configLoader: ConfigLoader): void {
+export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServer?: LocalhostMcpServer): void {
   ipcMain.handle('config:getAll', () => {
     try {
       configLoader.load();
@@ -186,6 +188,44 @@ export function setupConfigHandlers(configLoader: ConfigLoader): void {
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to set notifications: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('config:getMcpConfig', () => {
+    try {
+      return configLoader.getMcpConfig();
+    } catch (error) {
+      logger.error(`[IPC] Failed to get MCP config: ${error}`);
+      return { enabled: false, port: 47373, authToken: '' };
+    }
+  });
+
+  ipcMain.handle('config:setMcpConfig', async (_event, updates: { enabled?: boolean; port?: number; authToken?: string }) => {
+    try {
+      configLoader.setMcpConfig(updates);
+      if (localhostMcpServer) {
+        await localhostMcpServer.applyConfig(configLoader.getMcpConfig());
+      }
+      logger.info(`[IPC] MCP config updated: ${JSON.stringify({ enabled: updates.enabled, port: updates.port, authToken: updates.authToken ? '[redacted]' : undefined })}`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to set MCP config: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('config:generateMcpToken', async () => {
+    try {
+      const token = `${randomUUID().replace(/-/g, '')}${randomUUID().replace(/-/g, '')}`;
+      configLoader.setMcpConfig({ authToken: token });
+      if (localhostMcpServer) {
+        await localhostMcpServer.applyConfig(configLoader.getMcpConfig());
+      }
+      logger.info('[IPC] Generated new MCP auth token');
+      return { success: true, token };
+    } catch (error) {
+      logger.error(`[IPC] Failed to generate MCP auth token: ${error}`);
       return { success: false, error: String(error) };
     }
   });
