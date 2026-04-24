@@ -249,11 +249,15 @@ export class HelmControlService {
       message = `[HELM_MSG]${envelope}\n${text}`;
     }
 
+    await this.ptyManager.deliverText(session.id, message);
+
+    // Submit as a separate send action so the destination CLI keeps its normal
+    // paste mode for inserted text, then receives the same PTY-level "send"
+    // behavior as sequence parser {Send}.
     if (options?.submit !== false) {
-      message += process.platform === 'win32' ? '\r\n' : '\n';
+      this.ptyManager.write(session.id, '\r');
     }
 
-    await this.ptyManager.deliverText(session.id, message);
     return { success: true, sessionId: session.id, name: session.name };
   }
 

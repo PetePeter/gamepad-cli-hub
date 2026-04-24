@@ -220,7 +220,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_send_text',
     title: 'Send Text To Session',
-    description: 'Send text to a running session PTY by session ID or exact display name. When submit is true (default), appends Enter to submit the text. Optional expectsResponse marks HELM inter-LLM envelopes that expect a reply.',
+    description: 'Send text to a running session PTY by session ID or exact display name. When submit is true (default), inserts the text and then issues a send/submit action separately. Optional expectsResponse marks HELM inter-LLM envelopes that expect a reply.',
     inputSchema: {
       type: 'object',
       properties: {

@@ -9,6 +9,7 @@ function makeService() {
   const ptyManager = {
     has: vi.fn(() => true),
     deliverText: vi.fn(() => Promise.resolve()),
+    write: vi.fn(),
   };
   const sessionManager = {
     getSession: vi.fn((id: string) => ({ id, name: 'Claude', cliType: 'claude-code' })),
@@ -39,17 +40,18 @@ describe('HelmControlService.sendTextToSession', () => {
     vi.restoreAllMocks();
   });
 
-  it('appends platform-specific newline when submit is true', async () => {
+  it('delivers text, then sends a separate submit action when submit is true', async () => {
     const { service, ptyManager } = makeService();
     await service.sendTextToSession('s1', 'hello');
-    const expectedLineEnding = process.platform === 'win32' ? '\r\n' : '\n';
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', `hello${expectedLineEnding}`);
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
+    expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
   });
 
-  it('does not append newline when submit is false', async () => {
+  it('does not send a submit action when submit is false', async () => {
     const { service, ptyManager } = makeService();
     await service.sendTextToSession('s1', 'hello', { submit: false });
     expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
+    expect(ptyManager.write).not.toHaveBeenCalled();
   });
 
   it('wraps text in HELM_MSG envelope with sender info and metadata', async () => {
@@ -91,8 +93,8 @@ describe('HelmControlService.sendTextToSession', () => {
   it('does not wrap text when no sender info is provided', async () => {
     const { service, ptyManager } = makeService();
     await service.sendTextToSession('s1', 'hello');
-    const expectedLineEnding = process.platform === 'win32' ? '\r\n' : '\n';
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', `hello${expectedLineEnding}`);
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
+    expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
   });
 
   it('throws when session is not found', async () => {
