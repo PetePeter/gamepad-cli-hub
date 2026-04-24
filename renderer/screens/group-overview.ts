@@ -8,20 +8,13 @@
 import { state, type Session } from '../state.js';
 import { sessionsState } from './sessions-state.js';
 import type { PtyOutputBuffer } from '../terminal/pty-output-buffer.js';
-import { getActivityColor } from '../state-colors.js';
-import { getVisibleSessions, resolveGroupDisplayName, type NavItem } from '../session-groups.js';
+import { getVisibleSessions, type NavItem } from '../session-groups.js';
 import { toDirection } from '../utils.js';
 import { registerView, showView, currentView } from '../main-view/main-view-manager.js';
 
-const PREVIEW_LINES = 10;
-
-let overviewContainer: HTMLElement | null = null;
 let outputBuffer: PtyOutputBuffer | null = null;
 let sessionStateGetter: ((sessionId: string) => string) | null = null;
 let activityLevelGetter: ((sessionId: string) => string) | null = null;
-let updateUnsubscribe: (() => void) | null = null;
-let throttleTimer: ReturnType<typeof setTimeout> | null = null;
-let pendingUpdates = new Set<string>();
 let previousActiveSessionId: string | null = null;
 let selectedOnExit = false;
 /** NavItem that had focus when overview opened — restored on dismiss, looked up by identity. */
@@ -157,37 +150,11 @@ export function getOverviewSessions(): Session[] {
 
 /** Re-render overview cards if currently visible (e.g. after rename) */
 export function refreshOverview(): void {
-  if (!isOverviewVisible() || !overviewContainer) return;
+  if (!isOverviewVisible()) return;
   const sessionCount = getOverviewSessions().length;
   sessionsState.overviewFocusIndex = sessionCount > 0
     ? Math.min(sessionsState.overviewFocusIndex, sessionCount - 1)
     : 0;
-  renderOverviewCards();
-  updateOverviewFocus();
-}
-
-/** Render all overview content for the current mode. */
-function renderOverviewCards(): void {
-  if (!overviewContainer) return;
-  overviewContainer.innerHTML = '';
-
-  if (sessionsState.overviewIsGlobal) {
-    const groups = getVisibleOverviewGroups();
-    groups.forEach((group, index) => {
-      if (index > 0) {
-        overviewContainer!.appendChild(createBreakMark(group.dirPath));
-      }
-      for (const session of group.sessions) {
-        overviewContainer!.appendChild(createOverviewCard(session));
-      }
-    });
-    return;
-  }
-
-  for (const session of getOverviewSessions()) {
-    const card = createOverviewCard(session);
-    overviewContainer.appendChild(card);
-  }
 }
 
 function getVisibleOverviewGroups(): Array<{ dirPath: string; sessions: Session[] }> {
@@ -197,82 +164,6 @@ function getVisibleOverviewGroups(): Array<{ dirPath: string; sessions: Session[
       sessions: getVisibleSessions([group], sessionsState.groupPrefs),
     }))
     .filter(group => group.sessions.length > 0);
-}
-
-function createBreakMark(dirPath: string): HTMLElement {
-  const mark = document.createElement('div');
-  mark.className = 'overview-break-mark';
-  mark.textContent = `────────── ${resolveGroupDisplayName(dirPath, sessionsState.directories)} ──────────`;
-  return mark;
-}
-
-/** Create a single overview card element */
-function createOverviewCard(session: Session): HTMLElement {
-  const card = document.createElement('div');
-  card.className = 'overview-card';
-  card.dataset.sessionId = session.id;
-
-  const collapsed = collapsedSessions.has(session.id);
-  if (collapsed) card.classList.add('overview-card--collapsed');
-
-  // Header: state dot + name + state label
-  const header = document.createElement('div');
-  header.className = 'overview-card-header';
-
-  const dot = document.createElement('span');
-  dot.className = 'overview-state-dot';
-  const activityLevel = getActivityLevelForOverview(session.id);
-  dot.style.background = getActivityColor(activityLevel);
-  header.appendChild(dot);
-
-  const name = document.createElement('span');
-  name.className = 'overview-card-name';
-  name.textContent = session.name;
-  header.appendChild(name);
-
-  // Subtitle: OSC terminal title
-  if (session.title && session.title !== session.name) {
-    const subtitle = document.createElement('span');
-    subtitle.className = 'overview-card-subtitle';
-    subtitle.textContent = session.title;
-    subtitle.title = session.title;
-    header.appendChild(subtitle);
-  }
-
-  const sessionState = getSessionStateForOverview(session.id);
-  const stateLabel = document.createElement('span');
-  stateLabel.className = 'overview-card-state';
-  stateLabel.textContent = sessionState;
-  header.appendChild(stateLabel);
-
-  card.appendChild(header);
-
-  // Preview: last N lines (skip for collapsed cards)
-  if (!collapsed) {
-    const preview = document.createElement('div');
-    preview.className = 'overview-card-preview';
-    renderPreviewLines(preview, session.id);
-    card.appendChild(preview);
-  }
-
-  // Click handler — same as A-button
-  card.addEventListener('click', () => {
-    selectOverviewCard(session.id);
-  });
-
-  return card;
-}
-
-/** Update focus highlight on overview cards */
-export function updateOverviewFocus(): void {
-  if (!overviewContainer) return;
-  const cards = overviewContainer.querySelectorAll('.overview-card');
-  cards.forEach((card, i) => {
-    card.classList.toggle('overview-card--focused', i === sessionsState.overviewFocusIndex);
-  });
-  // Scroll focused card into view
-  const focused = cards[sessionsState.overviewFocusIndex];
-  if (focused) focused.scrollIntoView({ block: 'nearest' });
 }
 
 /** Select a card — exit overview and switch to the session */
@@ -332,71 +223,6 @@ export function setSelectCardCallback(fn: (sessionId: string) => void): void {
 /** Callback fired when overview is dismissed without a card selection (B/Left). Used to sync sidebar scroll. */
 export function setOverviewDismissCallback(fn: () => void): void {
   overviewDismissCallback = fn;
-}
-
-/** Render preview lines into a container element — reads from xterm.js buffer for fidelity.
- *  Content is bottom-aligned: padding divs first, then real lines, so the latest
- *  output always sits at the bottom of the preview area (like a real terminal). */
-function renderPreviewLines(preview: Element, sessionId: string): void {
-  preview.innerHTML = '';
-  const tm = terminalManagerGetter?.();
-  const lines = tm?.getTerminalLines(sessionId, PREVIEW_LINES) ?? [];
-
-  // Trim leading blank lines so content is compact
-  let start = 0;
-  while (start < lines.length && (lines[start] ?? '').trim() === '') start++;
-  const trimmedLines = lines.slice(start);
-
-  // Pad at the top so content is bottom-aligned
-  const padCount = PREVIEW_LINES - trimmedLines.length;
-  for (let i = 0; i < padCount; i++) {
-    const lineEl = document.createElement('div');
-    lineEl.className = 'preview-line';
-    lineEl.textContent = '\u00A0';
-    preview.appendChild(lineEl);
-  }
-  for (const line of trimmedLines) {
-    const lineEl = document.createElement('div');
-    lineEl.className = 'preview-line';
-    lineEl.textContent = line || '\u00A0';
-    preview.appendChild(lineEl);
-  }
-}
-
-/** Flush pending live updates — only re-render affected card previews */
-function flushPendingUpdates(): void {
-  if (!overviewContainer || !isOverviewVisible()) return;
-  for (const sessionId of pendingUpdates) {
-    const card = overviewContainer.querySelector(`.overview-card[data-session-id="${sessionId}"]`);
-    if (!card) continue;
-
-    // Update preview only for expanded cards
-    if (!collapsedSessions.has(sessionId)) {
-      const preview = card.querySelector('.overview-card-preview');
-      if (preview) renderPreviewLines(preview, sessionId);
-    }
-
-    // Always update the state dot color and label
-    const dot = card.querySelector('.overview-state-dot') as HTMLElement;
-    const stateLabel = card.querySelector('.overview-card-state');
-    if (dot || stateLabel) {
-      const sessionState = getSessionStateForOverview(sessionId);
-      const activityLevel = getActivityLevelForOverview(sessionId);
-      if (dot) dot.style.background = getActivityColor(activityLevel);
-      if (stateLabel) stateLabel.textContent = sessionState;
-    }
-  }
-  pendingUpdates.clear();
-}
-
-/** Get session state via injected getter (avoids circular dep with sessions.ts) */
-function getSessionStateForOverview(sessionId: string): string {
-  return sessionStateGetter?.(sessionId) ?? 'idle';
-}
-
-/** Get activity level via injected getter (avoids circular dep with sessions.ts) */
-function getActivityLevelForOverview(sessionId: string): string {
-  return activityLevelGetter?.(sessionId) ?? 'idle';
 }
 
 /** Toggle collapse state for an overview card */

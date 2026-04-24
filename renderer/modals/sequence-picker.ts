@@ -58,17 +58,7 @@ export function hideSequencePicker(): void {
 }
 
 // ============================================================================
-// Gamepad handler — kept for legacy callers (no-ops now, Vue handles)
+// Gamepad handler — kept for legacy callers (no-op now, Vue handles)
 // ============================================================================
 
-export function handleSequencePickerButton(_button: string): void {
-  // Vue SequencePickerModal handles gamepad via useModalStack
-}
-
-export function renderSequencePicker(): void {
-  // No-op — Vue component renders
-}
-
-export function initSequencePickerClickHandlers(): void {
-  // No-op — Vue component handles click events
-}
+export function handleSequencePickerButton(_button: string): void {}

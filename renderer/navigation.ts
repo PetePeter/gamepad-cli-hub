@@ -10,7 +10,6 @@ import { browserGamepad } from './gamepad.js';
 import { logEvent, showScreen, toDirection } from './utils.js';
 import { processConfigBinding, processConfigRelease } from './bindings.js';
 import { handleSessionsScreenButton, switchToSession, showTerminalArea, hideTerminalArea, getSessionState } from './screens/sessions.js';
-import { handleSettingsScreenButton } from './screens/settings.js';
 import { handleBindingEditorButton } from './modals/binding-editor.js';
 import { bindingEditorState } from './modals/binding-editor.js';
 import { contextMenuState, handleContextMenuButton } from './modals/context-menu.js';
@@ -231,7 +230,7 @@ export function handleGamepadEvent(event: ButtonEvent): void {
       break;
     }
     case 'settings':
-      consumed = handleSettingsScreenButton(event.button);
+      consumed = true;
       break;
   }
 

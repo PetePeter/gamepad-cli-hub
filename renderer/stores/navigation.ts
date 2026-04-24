@@ -19,6 +19,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { state } from '../state.js';
 import { sessionsState } from '../screens/sessions-state.js';
+import { hideDraftEditor } from '../drafts/draft-editor.js';
 import {
   showView,
   onViewChange,
@@ -125,8 +126,7 @@ export const useNavigationStore = defineStore('navigation', () => {
     }
 
     // 2. Clean up draft/editor/chip bar
-    const [{ hideDraftEditor }, { hideEditorPopup }, chipBarMod] = await Promise.all([
-      import('../drafts/draft-editor.js'),
+    const [{ hideEditorPopup }, chipBarMod] = await Promise.all([
       import('../editor/editor-popup.js'),
       import('../stores/chip-bar.js'),
     ]);

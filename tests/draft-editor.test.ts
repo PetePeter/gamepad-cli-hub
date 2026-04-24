@@ -74,12 +74,9 @@ describe('draft editor bridge', () => {
     expect(handler).toHaveBeenCalledWith('DPadDown');
   });
 
-  it('keeps initDraftEditor and legacy action exports as no-ops', async () => {
+  it('keeps initDraftEditor as a harmless compatibility stub', async () => {
     const mod = await getModule();
 
     expect(() => mod.initDraftEditor()).not.toThrow();
-    await expect(mod.saveDraft()).resolves.toBeUndefined();
-    await expect(mod.applyDraft()).resolves.toBeUndefined();
-    await expect(mod.deleteDraft()).resolves.toBeUndefined();
   });
 });

@@ -54,17 +54,6 @@ export function renderEventLog(): void {
   `).join('');
 }
 
-// ============================================================================
-// Screen Management
-// ============================================================================
-
-/** Callback set by the settings module so showScreen can trigger settings load */
-let loadSettingsCallback: (() => void) | null = null;
-
-export function setLoadSettingsCallback(cb: () => void): void {
-  loadSettingsCallback = cb;
-}
-
 export function showScreen(screenName: string): void {
   document.querySelectorAll('.screen').forEach(s => {
     // Keep sessions visible when settings is shown (slide-over)
@@ -79,10 +68,6 @@ export function showScreen(screenName: string): void {
     targetScreen.classList.add('screen--active');
     state.currentScreen = screenName;
     logEvent(`Screen: ${screenName}`);
-
-    if (screenName === 'settings' && loadSettingsCallback) {
-      loadSettingsCallback();
-    }
   }
 }
 

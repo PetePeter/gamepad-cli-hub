@@ -10,6 +10,7 @@ import { parseSequence, formatSequencePreview, type SequenceAction } from '../sr
 import type { Binding } from '../src/config/loader.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { deliverBulkText } from './paste-handler.js';
+import { showDraftEditor } from './drafts/draft-editor.js';
 
 /** Scroll handler for scroll bindings. Routes to overview grid when visible, otherwise to active terminal. */
 function executeScroll(binding: { direction: string; lines?: number }): void {
@@ -264,7 +265,6 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
         break;
       }
       case 'new-draft': {
-        const { showDraftEditor } = await import('./drafts/draft-editor.js');
         if (state.activeSessionId) {
           showDraftEditor(state.activeSessionId);
           logEvent('New draft from binding');

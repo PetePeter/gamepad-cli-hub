@@ -118,11 +118,3 @@ export function handleDraftEditorButton(button: string): void {
 export function hasUnsavedPlanChanges(): boolean {
   return planChangesChecker?.() ?? false;
 }
-
-// ---------------------------------------------------------------------------
-// Legacy action exports (no-ops)
-// ---------------------------------------------------------------------------
-
-export async function saveDraft(): Promise<void> {}
-export async function applyDraft(): Promise<void> {}
-export async function deleteDraft(): Promise<void> {}
