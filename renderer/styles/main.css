@@ -1072,6 +1072,10 @@ kbd {
   width: 100%;
   min-width: 0;
   min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-sm) var(--spacing-md);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .settings-panel--shell {
@@ -1856,6 +1860,196 @@ kbd {
   font-family: monospace;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* ── Settings Tab Panels ─────────────────────────────────────────────────── */
+
+.settings-profiles-panel,
+.settings-tools-panel,
+.settings-telegram-panel,
+.settings-directories-panel,
+.settings-chipbar-panel,
+.settings-mcp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  width: 100%;
+}
+
+/* Profiles tab */
+.settings-profile-actions,
+.settings-tool-actions,
+.settings-chipbar-actions {
+  margin-top: var(--spacing-sm);
+}
+
+.settings-notifications {
+  margin-top: var(--spacing-sm);
+}
+
+.notification-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-xs) 0;
+}
+
+.notification-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.profile-name {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-active-badge {
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  background: var(--accent);
+  color: #000;
+  flex-shrink: 0;
+}
+
+.profile-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
+}
+
+/* Tools tab */
+.tool-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tool-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-command {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-prompt-badge {
+  font-size: var(--font-size-sm);
+  color: var(--text-dim);
+}
+
+.tool-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
+}
+
+.tools-empty {
+  color: var(--text-dim);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-md);
+  text-align: center;
+}
+
+/* Telegram tab */
+.telegram-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.telegram-section:last-child {
+  border-bottom: none;
+}
+
+.telegram-section h4 {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.telegram-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.telegram-field input {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+}
+
+.telegram-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.bot-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.bot-running {
+  color: #44cc44;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.bot-stopped {
+  color: var(--text-dim);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+/* Settings empty state */
+.settings-empty {
+  color: var(--text-dim);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-md);
+  text-align: center;
+}
+
+.settings-form__hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-dim);
+  margin-top: 4px;
 }
 
 .binding-card__delete {
@@ -2778,7 +2972,7 @@ kbd {
    ============================================================================ */
 
 .draft-editor {
-  display: none;
+  display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 8px 10px;
