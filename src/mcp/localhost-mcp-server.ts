@@ -162,17 +162,6 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'plan_export_directory',
-    title: 'Export Directory Plans',
-    description: 'Export all plan items and dependencies for a directory.',
-    inputSchema: {
-      type: 'object',
-      properties: { dirPath: { type: 'string' } },
-      required: ['dirPath'],
-      additionalProperties: false,
-    },
-  },
-  {
     name: 'directories_list',
     title: 'List Directories',
     description: 'List known working directories, including configured folders and directories that currently have plans or sessions. Call this when you need to discover which project directories Helm knows about before creating plans or sessions.',
@@ -478,11 +467,6 @@ export class LocalhostMcpServer {
           asString(args.toId, 'toId is required'),
         );
         return { unlinked: true };
-      case 'plan_export_directory':
-        return requireResult(
-          this.service.exportDirectory(asString(args.dirPath, 'dirPath is required')),
-          `No plans found for directory: ${asString(args.dirPath, 'dirPath is required')}`,
-        );
       case 'directories_list':
         return this.service.listDirectories();
       case 'helm_session_create':
