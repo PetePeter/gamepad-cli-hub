@@ -322,6 +322,41 @@ export async function doSpawn(
   }
 }
 
+export async function doSpawnShell(command: string): Promise<void> {
+  try {
+    const tm = getTerminalManager();
+    if (!tm) return;
+
+    const sessionId = `pty-shell-${Date.now()}`;
+    const success = await tm.createTerminal(sessionId, 'shell', 'cmd.exe', [], undefined);
+
+    if (success) {
+      logEvent('Spawned embedded shell terminal');
+      useNavigationStore().activateSession(sessionId);
+
+      setTimeout(async () => {
+        try {
+          await window.gamepadCli.ptyWrite(sessionId, command + '\r');
+        } catch (e) { console.error('[Bootstrap] Failed to write command to shell:', e); }
+      }, 300);
+
+      setTimeout(async () => {
+        try {
+          await refreshSessions();
+          const navStore = useNavigationStore();
+          navStore.syncSidebarToSession(sessionId);
+          sessionsState.activeFocus = 'sessions';
+        } catch (e) { console.error('[Bootstrap] Post-shell-spawn refresh failed:', e); }
+      }, 400);
+    } else {
+      logEvent('Spawn FAILED: PTY creation returned false for shell');
+    }
+  } catch (error) {
+    console.error('[Bootstrap] Failed to spawn shell:', error);
+    logEvent('Shell spawn failed');
+  }
+}
+
 export async function switchToSession(sessionId: string): Promise<void> {
   const tm = getTerminalManager();
   if (tm && tm.hasTerminal(sessionId)) {

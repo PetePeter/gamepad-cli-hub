@@ -315,6 +315,15 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
     }
   });
 
+  ipcMain.handle('config:getCliTypeEnv', (_event, cliType: string) => {
+    try {
+      return configLoader.getCliTypeEntry(cliType)?.env ?? [];
+    } catch (error) {
+      logger.error(`[IPC] Failed to get CLI type env for ${cliType}: ${error}`);
+      return [];
+    }
+  });
+
   ipcMain.handle('config:getDpadConfig', () => {
     try {
       return configLoader.getDpadConfig();

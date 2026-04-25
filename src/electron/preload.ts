@@ -203,6 +203,8 @@ const gamepadCliAPI = {
    */
   configGetSpawnCommand: (cliType: string) => ipcRenderer.invoke('config:getSpawnCommand', cliType),
 
+  configGetCliTypeEnv: (cliType: string) => ipcRenderer.invoke('config:getCliTypeEnv', cliType),
+
   configGetDpadConfig: () => ipcRenderer.invoke('config:getDpadConfig'),
 
   configGetStickConfig: (stick: string) => ipcRenderer.invoke('config:getStickConfig', stick),

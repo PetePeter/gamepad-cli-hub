@@ -4,12 +4,20 @@
  * @vitest-environment jsdom
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import McpTab from '../../../renderer/components/sidebar/McpTab.vue';
 
 describe('McpTab.vue', () => {
-  it('renders copy-paste setup and teardown blocks for supported CLIs', () => {
+  beforeEach(() => {
+    // Mock window.gamepadCli for McpCliSetup component
+    (window as any).gamepadCli = {
+      configGetCliTypes: vi.fn().mockResolvedValue(['codex', 'claude-code', 'copilot-cli', 'opencode']),
+      configGetCliTypeEnv: vi.fn().mockResolvedValue([]),
+    };
+  });
+
+  it('renders copy-paste setup and teardown blocks for supported CLIs', async () => {
     const wrapper = mount(McpTab, {
       props: {
         config: {
@@ -19,6 +27,10 @@ describe('McpTab.vue', () => {
         },
       },
     });
+
+    // Wait for async operations in McpCliSetup to complete
+    await wrapper.vm.$nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     const text = wrapper.text();
     expect(text).toContain('Codex setup');

@@ -20,7 +20,7 @@ import { sessionsState } from './screens/sessions-state.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { getCliDisplayName, getCliIcon, toDirection } from './utils.js';
 import { processConfigBinding, processConfigRelease, initConfigCache, executeSequence } from './bindings.js';
-import { refreshSessions, doSpawn, switchToSession, doCloseSession,
+import { refreshSessions, doSpawn, doSpawnShell, switchToSession, doCloseSession,
   bootstrap, teardown, startTimerRefresh, stopTimerRefresh,
   getSortField, getSortDirection, setSortField, setSortDirection,
   setPendingContextText, restoreSnappedBackSession,
@@ -1476,6 +1476,11 @@ async function onMcpGenerateToken(): Promise<void> {
   }
 }
 
+async function onMcpRunInCmd(command: string): Promise<void> {
+  settingsVisible.value = false;
+  await doSpawnShell(command);
+}
+
 // ── Bindings Tab Handlers ──────────────────────────────────────────────────
 
 function onBindingAdd(button?: string): void {
@@ -2058,6 +2063,7 @@ onUnmounted(() => {
               :config="settingsMcpConfig"
               @update="onMcpUpdate"
               @generate-token="onMcpGenerateToken"
+              @run-in-cmd="onMcpRunInCmd"
             />
             <BindingsTab
               v-else
