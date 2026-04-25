@@ -47,6 +47,26 @@ export class HelmControlService {
     return this.planManager.getForDirectory(dirPath);
   }
 
+  plansSummary(dirPath: string) {
+    const exported = this.planManager.exportDirectory(dirPath);
+    if (!exported) return [];
+    const { items, dependencies } = exported;
+    const idToHumanId = new Map(items.map((i) => [i.id, i.humanId ?? i.id]));
+    return items.map((item) => ({
+      id: item.id,
+      humanId: item.humanId ?? item.id,
+      title: item.title,
+      status: item.status,
+      stateUpdatedAt: item.stateUpdatedAt,
+      blockedBy: dependencies
+        .filter((d) => d.toId === item.id)
+        .map((d) => idToHumanId.get(d.fromId) ?? d.fromId),
+      blocks: dependencies
+        .filter((d) => d.fromId === item.id)
+        .map((d) => idToHumanId.get(d.toId) ?? d.toId),
+    }));
+  }
+
   listClis(): CliSummary[] {
     const supportedDirPaths = this.configLoader.getWorkingDirectories().map((entry) => entry.path);
     return this.configLoader.getCliTypes().map((cliType) => {

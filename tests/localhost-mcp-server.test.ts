@@ -12,6 +12,7 @@ function makeService(): HelmControlService {
     listClis: vi.fn(() => [{ cliType: 'codex', name: 'codex', command: 'codex', supportsResume: false, supportedDirPaths: ['X:\\coding\\gamepad-cli-hub'] }]),
     listDirectories: vi.fn(() => [{ dirPath: 'X:\\coding\\gamepad-cli-hub', name: 'Helm', source: ['config', 'plans'], planCount: 8, sessionCount: 0 }]),
     listPlans: vi.fn((dirPath: string) => [{ id: 'p1', dirPath, title: 'Task', description: 'Desc', status: 'startable' }]),
+    plansSummary: vi.fn(() => [{ id: 'p1', humanId: 'P-0001', title: 'Task', status: 'startable', blockedBy: [], blocks: [] }]),
     getPlan: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'startable' })),
     createPlan: vi.fn((dirPath: string, title: string, description: string) => ({ id: 'created', dirPath, title, description, status: 'startable' })),
     updatePlan: vi.fn((id: string, updates: { title?: string; description?: string }) => ({ id, dirPath: '/proj', title: updates.title ?? 'Task', description: updates.description ?? 'Desc', status: 'startable' })),
@@ -173,6 +174,29 @@ describe('LocalhostMcpServer', () => {
     const json = await response.json();
     expect(json.result.structuredContent).toEqual({
       items: [{ id: 'p1', dirPath: 'X:\\coding\\gamepad-cli-hub', title: 'Task', description: 'Desc', status: 'startable' }],
+    });
+  });
+
+  it('plans_summary dispatches to plansSummary and wraps array result', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 32,
+      method: 'tools/call',
+      params: {
+        name: 'plans_summary',
+        arguments: { dirPath: 'X:\\coding\\gamepad-cli-hub' },
+      },
+    });
+    const json = await response.json();
+    expect(service.plansSummary).toHaveBeenCalledWith('X:\\coding\\gamepad-cli-hub');
+    expect(json.result.structuredContent).toEqual({
+      items: [{ id: 'p1', humanId: 'P-0001', title: 'Task', status: 'startable', blockedBy: [], blocks: [] }],
     });
   });
 

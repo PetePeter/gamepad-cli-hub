@@ -55,6 +55,17 @@ const TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'plans_summary',
+    title: 'Plans Summary',
+    description: 'List all plans for a directory as a compact summary — status, human-readable ID, title, and dependency relationships. Call this first when orienting to a project so you know what work exists and what is blocked by what. Use plan_get for the full description of a specific plan.',
+    inputSchema: {
+      type: 'object',
+      properties: { dirPath: { type: 'string' } },
+      required: ['dirPath'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'plan_get',
     title: 'Get Plan',
     description: 'Get a single plan item by ID. Use this when you need full plan details, including human-readable ID and timestamps, before changing state or discussing a plan with the user.',
@@ -418,6 +429,8 @@ export class LocalhostMcpServer {
     switch (name) {
       case 'plans_list':
         return this.service.listPlans(asString(args.dirPath, 'dirPath is required'));
+      case 'plans_summary':
+        return this.service.plansSummary(asString(args.dirPath, 'dirPath is required'));
       case 'tools_list':
         return this.service.listClis();
       case 'plan_get':
