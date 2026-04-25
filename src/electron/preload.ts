@@ -214,6 +214,11 @@ const gamepadCliAPI = {
   configSetCollapsePrefs: (prefs: { spawnCollapsed?: boolean; plannerCollapsed?: boolean }) =>
     ipcRenderer.invoke('config:setCollapsePrefs', prefs),
 
+  configGetEditorPrefs: () => ipcRenderer.invoke('config:getEditorPrefs') as Promise<{ draftEditorHeight?: number; planEditorHeight?: number }>,
+
+  configSetEditorPrefs: (prefs: { draftEditorHeight?: number; planEditorHeight?: number }) =>
+    ipcRenderer.invoke('config:setEditorPrefs', prefs),
+
   // ========================================================================
   // PTY Terminal Management
   // ========================================================================

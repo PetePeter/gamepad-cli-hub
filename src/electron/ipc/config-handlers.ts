@@ -381,6 +381,26 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
     }
   });
 
+  ipcMain.handle('config:getEditorPrefs', () => {
+    try {
+      return configLoader.getEditorPrefs();
+    } catch (error) {
+      logger.error(`[IPC] Failed to get editor prefs: ${error}`);
+      return {};
+    }
+  });
+
+  ipcMain.handle('config:setEditorPrefs', (_event, prefs: Partial<{ draftEditorHeight?: number; planEditorHeight?: number }>) => {
+    try {
+      configLoader.setEditorPrefs(prefs);
+      logger.info(`[IPC] Editor prefs updated: ${JSON.stringify(prefs)}`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to set editor prefs: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle('dialog:showOpenFile', async (_event, filters?: Electron.FileFilter[]) => {
     const focusedWindow = BrowserWindow.getFocusedWindow();
     const options: Electron.OpenDialogOptions = {

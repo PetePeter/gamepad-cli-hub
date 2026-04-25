@@ -5,7 +5,7 @@
  * Replaces draft-editor.ts with a reactive Vue component.
  * Handles both draft mode (per-session memos) and plan mode (plan item editing).
  */
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import type { PlanStatus } from '../../src/types/plan.js';
 
 export interface PlanCallbacks {
@@ -82,6 +82,11 @@ const labelInputRef = ref<HTMLInputElement | null>(null);
 const contentInputRef = ref<HTMLTextAreaElement | null>(null);
 const stateSelectRef = ref<HTMLSelectElement | null>(null);
 const stateInfoRef = ref<HTMLInputElement | null>(null);
+
+// ResizeObserver + debounced persistence for editor height
+const resizeObserver = ref<ResizeObserver | null>(null);
+const heightDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+const editorHeightKey = computed(() => (isDraft.value ? 'draftEditorHeight' : 'planEditorHeight'));
 
 // ── Computed ───────────────────────────────────────────────────────────────
 
@@ -191,9 +196,11 @@ watch(() => props.visible, (visible) => {
     nextTick(() => {
       hydratingFromProps.value = false;
       applyFocus();
+      applyPersistedHeight().then(() => setupHeightObserver());
     });
   } else {
     hydratingFromProps.value = false;
+    teardownHeightObserver();
     if (autoSaveTimer.value) {
       clearTimeout(autoSaveTimer.value);
       autoSaveTimer.value = null;
@@ -376,7 +383,70 @@ function onStateSelectChange(): void {
   // Reactive watcher handles visibility
 }
 
-// Expose handleButton for parent
+// ── Height persistence ─────────────────────────────────────────────────────
+
+async function applyPersistedHeight(): Promise<void> {
+  const textarea = contentInputRef.value;
+  if (!textarea) return;
+  try {
+    const prefs = await window.gamepadCli.configGetEditorPrefs();
+    const height = prefs[editorHeightKey.value];
+    if (height && height > 0) {
+      textarea.style.height = `${height}px`;
+    }
+  } catch {
+    // ignore read errors
+  }
+}
+
+function scheduleHeightSave(): void {
+  if (heightDebounceTimer.value) clearTimeout(heightDebounceTimer.value);
+  heightDebounceTimer.value = setTimeout(() => {
+    heightDebounceTimer.value = null;
+    const textarea = contentInputRef.value;
+    if (!textarea) return;
+    const height = textarea.offsetHeight;
+    if (height > 0) {
+      window.gamepadCli.configSetEditorPrefs({ [editorHeightKey.value]: height })
+        .catch(() => { /* ignore write errors */ });
+    }
+  }, 300);
+}
+
+function setupHeightObserver(): void {
+  const textarea = contentInputRef.value;
+  if (!textarea || resizeObserver.value || typeof ResizeObserver === 'undefined') return;
+  resizeObserver.value = new ResizeObserver(() => {
+    scheduleHeightSave();
+  });
+  resizeObserver.value.observe(textarea);
+}
+
+function teardownHeightObserver(): void {
+  if (resizeObserver.value) {
+    resizeObserver.value.disconnect();
+    resizeObserver.value = null;
+  }
+  if (heightDebounceTimer.value) {
+    clearTimeout(heightDebounceTimer.value);
+    heightDebounceTimer.value = null;
+  }
+}
+
+// ── Lifecycle ──────────────────────────────────────────────────────────────
+
+onMounted(() => {
+  if (props.visible) {
+    applyPersistedHeight().then(() => setupHeightObserver());
+  }
+});
+
+onUnmounted(() => {
+  teardownHeightObserver();
+});
+
+// ── Expose handleButton for parent ─────────────────────────────────────────
+
 defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
 </script>
 

@@ -275,6 +275,11 @@ const DEFAULT_MCP_CONFIG: McpConfig = {
   authToken: '',
 };
 
+export interface EditorPrefs {
+  draftEditorHeight?: number;
+  planEditorHeight?: number;
+}
+
 export interface SettingsConfig {
   activeProfile: string;
   hapticFeedback: boolean;
@@ -285,6 +290,7 @@ export interface SettingsConfig {
   sorting?: SortingConfig;
   sessionGroups?: SessionGroupPrefs;
   editorHistory?: string[];
+  editorPrefs?: EditorPrefs;
   telegram?: TelegramConfig;
   mcp?: McpConfig;
 }
@@ -914,6 +920,17 @@ export class ConfigLoader {
   setEditorHistory(entries: string[]): void {
     this.ensureLoaded();
     this.settings!.editorHistory = entries;
+    this.saveSettings();
+  }
+
+  getEditorPrefs(): EditorPrefs {
+    this.ensureLoaded();
+    return this.settings!.editorPrefs ?? {};
+  }
+
+  setEditorPrefs(prefs: Partial<EditorPrefs>): void {
+    this.ensureLoaded();
+    this.settings!.editorPrefs = { ...(this.settings!.editorPrefs ?? {}), ...prefs };
     this.saveSettings();
   }
 
