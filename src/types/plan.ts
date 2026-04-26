@@ -3,8 +3,15 @@
  * Per-directory DAG of work items with dependency tracking.
  */
 
-/** Lifecycle status of a plan item. */
-export type PlanStatus = 'pending' | 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question' | 'done';
+/** Lifecycle status of a plan item.
+ * - planning: initial state, may be blocked by dependencies
+ * - ready: all dependencies satisfied, ready for agent to pick up (computed state, not set directly)
+ * - coding: agent is actively working on it
+ * - review: awaiting human review before completion
+ * - blocked: unable to proceed (requires mandatory stateInfo reason)
+ * - done: completed (only reachable via plan_complete endpoint)
+ */
+export type PlanStatus = 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done';
 
 /** Type classification for a plan item. */
 export type PlanType = 'bug' | 'feature' | 'research';
@@ -68,4 +75,23 @@ export function getDisplayTitle(title: string, type?: PlanType): string {
   if (title.startsWith(prefix)) return title;
 
   return `${prefix} ${title}`;
+}
+
+/**
+ * Compute whether a plan item is startable (all dependencies satisfied).
+ * A plan is startable if:
+ * - It has no blocking dependencies, OR
+ * - All items it depends on are done
+ *
+ * Note: This is a computed property, not stored as a state.
+ * The actual status should be 'ready' when isStartable returns true for non-active items.
+ */
+export function isStartable(item: PlanItem, allDeps: PlanDependency[], allItems: PlanItem[]): boolean {
+  const blockers = allDeps
+    .filter(d => d.toId === item.id)
+    .map(d => allItems.find(x => x.id === d.fromId))
+    .filter(Boolean);
+
+  if (blockers.length === 0) return true;
+  return blockers.every(b => b!.status === 'done');
 }

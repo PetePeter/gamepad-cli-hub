@@ -112,13 +112,13 @@ describe('Chip-bar action store behavior', () => {
   it('openPlan shows the plan editor with current callbacks', async () => {
     const store = useChipBarStore();
     window.gamepadCli.planGetAllDoingForDir.mockResolvedValue([
-      { id: 'plan-1', title: 'Fix API', status: 'doing', sessionId: 'session-1' },
+      { id: 'plan-1', title: 'Fix API', status: 'coding', sessionId: 'session-1' },
     ]);
     window.gamepadCli.planGetItem.mockResolvedValue({
       id: 'plan-1',
       title: 'Fix API',
       description: 'Handle retries',
-      status: 'doing',
+      status: 'coding',
       sessionId: 'session-1',
     });
 
@@ -127,7 +127,7 @@ describe('Chip-bar action store behavior', () => {
 
     expect(mockShowPlanInEditor).toHaveBeenCalledWith(
       'session-1',
-      expect.objectContaining({ id: 'plan-1', status: 'doing' }),
+      expect.objectContaining({ id: 'plan-1', status: 'coding' }),
       expect.objectContaining({
         onSave: expect.any(Function),
         onDelete: expect.any(Function),

@@ -410,13 +410,13 @@ describe('Sessions Plans Grid', () => {
       sessionsState.directories = [{ name: 'proj', path: '/proj' }];
       mockPlanStartableForDir.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
       mockPlanList.mockResolvedValue([
-        { status: 'doing' },
-        { status: 'doing' },
+        { status: 'coding' },
+        { status: 'coding' },
         { status: 'blocked' },
-        { status: 'question' },
-        { status: 'pending' },
-        { status: 'pending' },
-        { status: 'pending' },
+        { status: 'blocked' },
+        { status: 'planning' },
+        { status: 'planning' },
+        { status: 'planning' },
       ]);
 
       await plans.refreshPlanBadges();
@@ -451,7 +451,7 @@ describe('Sessions Plans Grid', () => {
         dir === '/a' ? [{ id: '1' }] : []
       );
       mockPlanList.mockImplementation(async (dir: string) =>
-        dir === '/a' ? [{ status: 'doing' }] : [{ status: 'blocked' }, { status: 'blocked' }]
+        dir === '/a' ? [{ status: 'coding' }] : [{ status: 'blocked' }, { status: 'blocked' }]
       );
 
       await plans.refreshPlanBadges();

@@ -13,7 +13,7 @@ export interface PlanChipItem {
   id: string;
   title: string;
   type?: 'bug' | 'feature' | 'research';
-  status: 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question';
+  status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done';
 }
 
 export interface ChipAction {

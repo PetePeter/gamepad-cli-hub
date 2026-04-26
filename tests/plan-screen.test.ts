@@ -162,7 +162,7 @@ describe('plan screen bridge', () => {
 
   it('loads planner state when opened', async () => {
     const mod = await getModule();
-    const items = [{ id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'pending', createdAt: 1, updatedAt: 1 }];
+    const items = [{ id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'planning', createdAt: 1, updatedAt: 1 }];
     mockPlanList.mockResolvedValue(items);
     mockPlanDeps.mockResolvedValue([]);
     mockComputeLayout.mockReturnValue(fakeLayout(['a']));
@@ -178,8 +178,8 @@ describe('plan screen bridge', () => {
   it('routes D-pad selection through the computed layout', async () => {
     const mod = await getModule();
     const items = [
-      { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'pending', createdAt: 1, updatedAt: 1 },
-      { id: 'b', dirPath: '/test/dir', title: 'B', description: 'Beta', status: 'pending', createdAt: 1, updatedAt: 1 },
+      { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'planning', createdAt: 1, updatedAt: 1 },
+      { id: 'b', dirPath: '/test/dir', title: 'B', description: 'Beta', status: 'planning', createdAt: 1, updatedAt: 1 },
     ];
     mockPlanList.mockResolvedValue(items);
     mockPlanDeps.mockResolvedValue([]);
@@ -195,7 +195,7 @@ describe('plan screen bridge', () => {
   it('opens the Vue-owned editor through the registered opener', async () => {
     const mod = await getModule();
     const opener = vi.fn();
-    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'pending', createdAt: 1, updatedAt: 1 };
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'planning', createdAt: 1, updatedAt: 1 };
     mockPlanList.mockResolvedValue([item]);
     mockPlanDeps.mockResolvedValue([]);
     mockComputeLayout.mockReturnValue(fakeLayout(['a']));
@@ -214,7 +214,7 @@ describe('plan screen bridge', () => {
   it('saves plan edits through the editor callback', async () => {
     const mod = await getModule();
     const opener = vi.fn();
-    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'doing', createdAt: 1, updatedAt: 1 };
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'coding', createdAt: 1, updatedAt: 1 };
     mockPlanList.mockResolvedValue([item]);
     mockPlanDeps.mockResolvedValue([]);
     mockComputeLayout.mockReturnValue(fakeLayout(['a']));
@@ -245,7 +245,7 @@ describe('plan screen bridge', () => {
   it('applies a startable plan through the editor callback', async () => {
     const mod = await getModule();
     const opener = vi.fn();
-    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'startable', createdAt: 1, updatedAt: 1 };
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'ready', createdAt: 1, updatedAt: 1 };
     mockPlanList.mockResolvedValue([item]);
     mockPlanDeps.mockResolvedValue([]);
     mockComputeLayout.mockReturnValue(fakeLayout(['a']));
@@ -266,7 +266,7 @@ describe('plan screen bridge', () => {
 
   it('routes delete requests through the confirmation bridge', async () => {
     const mod = await getModule();
-    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'pending', createdAt: 1, updatedAt: 1 };
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'planning', createdAt: 1, updatedAt: 1 };
     mockPlanList.mockResolvedValue([item]);
     mockPlanDeps.mockResolvedValue([]);
     mockComputeLayout.mockReturnValue(fakeLayout(['a']));
@@ -284,8 +284,8 @@ describe('plan screen bridge', () => {
   it('adds and removes dependencies through the bridge actions', async () => {
     const mod = await getModule();
     const items = [
-      { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'pending', createdAt: 1, updatedAt: 1 },
-      { id: 'b', dirPath: '/test/dir', title: 'B', description: 'Beta', status: 'pending', createdAt: 1, updatedAt: 1 },
+      { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'planning', createdAt: 1, updatedAt: 1 },
+      { id: 'b', dirPath: '/test/dir', title: 'B', description: 'Beta', status: 'planning', createdAt: 1, updatedAt: 1 },
     ];
     mockPlanList.mockResolvedValue(items);
     mockPlanDeps.mockResolvedValue([]);
@@ -301,7 +301,7 @@ describe('plan screen bridge', () => {
 
   it('exports planner data through the save-file flow', async () => {
     const mod = await getModule();
-    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'pending', createdAt: 1, updatedAt: 1 };
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'planning', createdAt: 1, updatedAt: 1 };
     mockPlanList.mockResolvedValue([item]);
     mockPlanDeps.mockResolvedValue([]);
     mockComputeLayout.mockReturnValue(fakeLayout(['a']));
@@ -337,7 +337,7 @@ describe('plan screen bridge', () => {
 
   it('clears planner state when hidden', async () => {
     const mod = await getModule();
-    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'pending', createdAt: 1, updatedAt: 1 };
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'planning', createdAt: 1, updatedAt: 1 };
     mockPlanList.mockResolvedValue([item]);
     mockPlanDeps.mockResolvedValue([]);
     mockComputeLayout.mockReturnValue(fakeLayout(['a']));

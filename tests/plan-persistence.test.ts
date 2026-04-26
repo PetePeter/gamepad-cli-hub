@@ -33,7 +33,7 @@ function makePlanItem(overrides: Partial<PlanItem> = {}): PlanItem {
     dirPath: 'C:\\Users\\oscar\\project',
     title: 'Build Auth',
     description: 'JWT middleware',
-    status: 'startable',
+    status: 'ready',
     createdAt: 1000,
     updatedAt: 1001,
     ...overrides,

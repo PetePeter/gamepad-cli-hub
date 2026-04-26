@@ -173,27 +173,27 @@ describe('HelmControlService.spawnCli', () => {
       dirPath: '/work',
       title: 'Auth refactor',
       description: 'Desc',
-      status: 'startable',
+      status: 'ready',
     });
     (planManager.setState as ReturnType<typeof vi.fn>).mockReturnValue({
       id: 'plan-1',
       dirPath: '/work',
       title: 'Auth refactor',
       description: 'Desc',
-      status: 'doing',
+      status: 'coding',
       sessionId: 's1',
     });
 
     const result = service.setSessionWorkingPlan('s1', 'plan-1');
 
-    expect(planManager.setState).toHaveBeenCalledWith('plan-1', 'doing', undefined, 's1');
+    expect(planManager.setState).toHaveBeenCalledWith('plan-1', 'coding', undefined, 's1');
     expect(sessionManager.updateSession).toHaveBeenCalledWith('s1', { currentPlanId: 'plan-1' });
     expect(result).toEqual({
       sessionId: 's1',
       name: 'Claude',
       planId: 'plan-1',
       planTitle: 'Auth refactor',
-      planStatus: 'doing',
+      planStatus: 'coding',
     });
   });
 });

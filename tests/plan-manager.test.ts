@@ -51,9 +51,9 @@ describe('PlanManager', () => {
       expect(item.updatedAt).toBeTypeOf('number');
     });
 
-    it('sets no-dep item to startable immediately', () => {
+    it('sets no-dep item to ready immediately', () => {
       const item = pm.create('/projects/backend', 'Standalone', 'No deps');
-      expect(item.status).toBe('startable');
+      expect(item.status).toBe('ready');
     });
 
     it('assigns unique IDs', () => {
@@ -99,7 +99,7 @@ describe('PlanManager', () => {
         dirPath: '/d',
         title: 'Legacy',
         description: 'Older plan',
-        status: 'startable',
+        status: 'ready',
         createdAt: 100,
         updatedAt: 101,
       });
@@ -137,7 +137,7 @@ describe('PlanManager', () => {
       // c should become startable (its only blocker was deleted)
       const cNow = pm.getItem(c.id);
       expect(cNow).not.toBeNull();
-      expect(cNow!.status).toBe('startable');
+      expect(cNow!.status).toBe('ready');
     });
 
     it('returns false for unknown ID', () => {
@@ -150,11 +150,11 @@ describe('PlanManager', () => {
       pm.addDependency(a.id, b.id);
 
       // b should be pending (blocked by a)
-      expect(pm.getItem(b.id)!.status).toBe('pending');
+      expect(pm.getItem(b.id)!.status).toBe('planning');
 
       // Delete a — b's blocker is gone, so b should become startable
       pm.delete(a.id);
-      expect(pm.getItem(b.id)!.status).toBe('startable');
+      expect(pm.getItem(b.id)!.status).toBe('ready');
     });
   });
 
@@ -174,7 +174,7 @@ describe('PlanManager', () => {
       const b = pm.create('/d', 'B', '');
       pm.addDependency(a.id, b.id);
 
-      expect(pm.getItem(b.id)!.status).toBe('pending');
+      expect(pm.getItem(b.id)!.status).toBe('planning');
     });
 
     it('rejects self-loop', () => {
@@ -203,7 +203,7 @@ describe('PlanManager', () => {
       expect(pm.addDependency(b.id, c.id)).toBe(true);
 
       // c is pending because both a and b are not done
-      expect(pm.getItem(c.id)!.status).toBe('pending');
+      expect(pm.getItem(c.id)!.status).toBe('planning');
     });
   });
 
@@ -220,10 +220,10 @@ describe('PlanManager', () => {
       const a = pm.create('/d', 'A', '');
       const b = pm.create('/d', 'B', '');
       pm.addDependency(a.id, b.id);
-      expect(pm.getItem(b.id)!.status).toBe('pending');
+      expect(pm.getItem(b.id)!.status).toBe('planning');
 
       pm.removeDependency(a.id, b.id);
-      expect(pm.getItem(b.id)!.status).toBe('startable');
+      expect(pm.getItem(b.id)!.status).toBe('ready');
     });
 
     it('returns false for unknown edge', () => {
@@ -236,7 +236,7 @@ describe('PlanManager', () => {
   describe('startable computation', () => {
     it('item with no deps is startable', () => {
       const item = pm.create('/d', 'Solo', '');
-      expect(item.status).toBe('startable');
+      expect(item.status).toBe('ready');
     });
 
     it('item with all deps done is startable', () => {
@@ -248,7 +248,7 @@ describe('PlanManager', () => {
       pm.applyItem(a.id, 'session-1');
       pm.completeItem(a.id);
 
-      expect(pm.getItem(b.id)!.status).toBe('startable');
+      expect(pm.getItem(b.id)!.status).toBe('ready');
     });
 
     it('item with any dep not done is pending', () => {
@@ -262,7 +262,7 @@ describe('PlanManager', () => {
       pm.applyItem(a.id, 'session-1');
       pm.completeItem(a.id);
 
-      expect(pm.getItem(c.id)!.status).toBe('pending');
+      expect(pm.getItem(c.id)!.status).toBe('planning');
     });
 
     it('completing a dep cascades startable to dependents', () => {
@@ -275,13 +275,13 @@ describe('PlanManager', () => {
       // Complete a → b becomes startable
       pm.applyItem(a.id, 's1');
       pm.completeItem(a.id);
-      expect(pm.getItem(b.id)!.status).toBe('startable');
-      expect(pm.getItem(c.id)!.status).toBe('pending');
+      expect(pm.getItem(b.id)!.status).toBe('ready');
+      expect(pm.getItem(c.id)!.status).toBe('planning');
 
       // Complete b → c becomes startable
       pm.applyItem(b.id, 's1');
       pm.completeItem(b.id);
-      expect(pm.getItem(c.id)!.status).toBe('startable');
+      expect(pm.getItem(c.id)!.status).toBe('ready');
     });
   });
 
@@ -293,7 +293,7 @@ describe('PlanManager', () => {
       const applied = pm.applyItem(item.id, 'session-42');
 
       expect(applied).not.toBeNull();
-      expect(applied!.status).toBe('doing');
+      expect(applied!.status).toBe('coding');
       expect(applied!.sessionId).toBe('session-42');
     });
 
@@ -318,7 +318,7 @@ describe('PlanManager', () => {
 
       expect(completed).not.toBeNull();
       expect(completed!.status).toBe('done');
-      expect(pm.getItem(b.id)!.status).toBe('startable');
+      expect(pm.getItem(b.id)!.status).toBe('ready');
     });
 
     it('rejects non-doing items', () => {
@@ -394,10 +394,10 @@ describe('PlanManager', () => {
       const b = pm.create('/d', 'B', '');
       pm.addDependency(a.id, b.id);
       pm.applyItem(a.id, 'session-1');
-      pm.setState(a.id, 'question', 'Need product input');
+      pm.setState(a.id, 'blocked', 'Need product input');
       pm.removeDependency(a.id, b.id);
 
-      expect(pm.getItem(a.id)?.status).toBe('question');
+      expect(pm.getItem(a.id)?.status).toBe('blocked');
       expect(pm.getItem(a.id)?.stateInfo).toBe('Need product input');
     });
 
@@ -406,9 +406,9 @@ describe('PlanManager', () => {
       pm.applyItem(item.id, 'session-1');
       pm.setState(item.id, 'blocked', 'Waiting on CI');
 
-      const updated = pm.setState(item.id, 'doing');
+      const updated = pm.setState(item.id, 'coding');
       expect(updated).not.toBeNull();
-      expect(updated?.status).toBe('doing');
+      expect(updated?.status).toBe('coding');
       expect(updated?.sessionId).toBe('session-1');
       expect(updated?.stateInfo).toBeUndefined();
     });
@@ -418,7 +418,7 @@ describe('PlanManager', () => {
       pm.applyItem(item.id, 'session-1');
       pm.completeItem(item.id);
 
-      expect(pm.setState(item.id, 'pending')).toBeNull();
+      expect(pm.setState(item.id, 'planning')).toBeNull();
     });
   });
 
@@ -532,7 +532,7 @@ describe('PlanManager', () => {
             dirPath: '/new',
             title: 'Imported',
             description: 'From file',
-            status: 'startable',
+            status: 'ready',
             createdAt: 1000,
             updatedAt: 1000,
           }],
@@ -551,14 +551,14 @@ describe('PlanManager', () => {
           dirPath: '/d',
           items: [
             { id: 'a', dirPath: '/d', title: 'A', description: '', status: 'done', createdAt: 1, updatedAt: 1 },
-            { id: 'b', dirPath: '/d', title: 'B', description: '', status: 'pending', createdAt: 2, updatedAt: 2 },
+            { id: 'b', dirPath: '/d', title: 'B', description: '', status: 'planning', createdAt: 2, updatedAt: 2 },
           ],
           dependencies: [{ fromId: 'a', toId: 'b' }],
         },
       });
 
       // b's only dep (a) is done → b should be recomputed to startable
-      expect(pm.getItem('b')!.status).toBe('startable');
+      expect(pm.getItem('b')!.status).toBe('ready');
     });
   });
 
@@ -597,16 +597,16 @@ describe('PlanManager', () => {
       pm.addDependency(blocker.id, y.id);
       pm.addDependency(blocker.id, z.id);
 
-      expect(pm.getItem(x.id)!.status).toBe('pending');
-      expect(pm.getItem(y.id)!.status).toBe('pending');
-      expect(pm.getItem(z.id)!.status).toBe('pending');
+      expect(pm.getItem(x.id)!.status).toBe('planning');
+      expect(pm.getItem(y.id)!.status).toBe('planning');
+      expect(pm.getItem(z.id)!.status).toBe('planning');
 
       pm.applyItem(blocker.id, 's1');
       pm.completeItem(blocker.id);
 
-      expect(pm.getItem(x.id)!.status).toBe('startable');
-      expect(pm.getItem(y.id)!.status).toBe('startable');
-      expect(pm.getItem(z.id)!.status).toBe('startable');
+      expect(pm.getItem(x.id)!.status).toBe('ready');
+      expect(pm.getItem(y.id)!.status).toBe('ready');
+      expect(pm.getItem(z.id)!.status).toBe('ready');
     });
   });
 

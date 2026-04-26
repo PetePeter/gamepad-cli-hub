@@ -39,7 +39,7 @@ const props = withDefaults(defineProps<DraftEditorProps>(), {
   initialLabel: '',
   initialText: '',
   planId: null,
-  planStatus: 'pending',
+  planStatus: 'planning',
   planStateInfo: '',
   planHumanId: '',
   planCreatedAt: null,
@@ -101,34 +101,33 @@ const titleText = computed(() => {
     return props.draftId ? '📝 Edit Draft' : '📝 New Draft';
   }
   const statusLabels: Record<string, string> = {
-    pending: '⏸ Pending',
-    startable: '▶ Ready',
-    doing: '🔄 In Progress',
-    'wait-tests': '⏳ Wait Tests',
+    planning: '⏸ Planning',
+    ready: '▶ Ready',
+    coding: '🔄 Coding',
+    review: '⏳ Review',
     blocked: '⛔ Blocked',
-    question: '❓ Question',
     done: '✓ Done',
   };
   return `🗺️ Edit Plan · ${statusLabels[activePlanStatus.value] ?? activePlanStatus.value}`;
 });
 
 const showPlanStateSelect = computed(() => isPlan.value);
-const showPlanStateInfo = computed(() => isPlan.value && (status.value === 'blocked' || status.value === 'question'));
+const showPlanStateInfo = computed(() => isPlan.value && status.value === 'blocked');
 
 const showDoneButton = computed(() => {
   if (!isPlan.value || !props.planCallbacks?.onDone) return false;
-  return activePlanStatus.value === 'doing' || activePlanStatus.value === 'wait-tests';
+  return activePlanStatus.value === 'coding' || activePlanStatus.value === 'review';
 });
 
 const showApplyButton = computed(() => {
   if (isDraft.value) return true;
   if (!props.planCallbacks?.onApply) return false;
-  return activePlanStatus.value === 'startable' || activePlanStatus.value === 'doing' || activePlanStatus.value === 'wait-tests';
+  return activePlanStatus.value === 'ready' || activePlanStatus.value === 'coding' || activePlanStatus.value === 'review';
 });
 
 const applyButtonText = computed(() => {
   if (isDraft.value) return 'Apply';
-  if (activePlanStatus.value === 'doing' || activePlanStatus.value === 'wait-tests') return '↻ Apply Again';
+  if (activePlanStatus.value === 'coding' || activePlanStatus.value === 'review') return '↻ Apply Again';
   return '▶ Apply';
 });
 
@@ -273,7 +272,7 @@ function onSave(): void {
     emit('close');
   } else {
     const effectiveStatus = stateSelectRef.value?.disabled ? props.planStatus : status.value;
-    const effectiveStateInfo = (effectiveStatus === 'blocked' || effectiveStatus === 'question')
+    const effectiveStateInfo = effectiveStatus === 'blocked'
       ? stateInfo.value : '';
     emit('plan-save', {
       title: label.value,
@@ -333,7 +332,7 @@ function doAutoSave(): void {
   } else {
     if (!props.planCallbacks?.onSave) return;
     const effectiveStatus = stateSelectRef.value?.disabled ? props.planStatus : status.value;
-    const effectiveStateInfo = (effectiveStatus === 'blocked' || effectiveStatus === 'question')
+    const effectiveStateInfo = effectiveStatus === 'blocked'
       ? stateInfo.value : '';
     saveStatus.value = 'saving';
     props.planCallbacks.onSave({
@@ -501,12 +500,11 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
         :disabled="planStatus === 'done'"
         @change="onStateSelectChange"
       >
-        <option value="pending">⏸ Pending</option>
-        <option value="startable">▶ Ready</option>
-        <option value="doing">🔄 In Progress</option>
-        <option value="wait-tests">⏳ Wait Tests</option>
+        <option value="planning">⏸ Planning</option>
+        <option value="ready">▶ Ready</option>
+        <option value="coding">🔄 Coding</option>
+        <option value="review">⏳ Review</option>
         <option value="blocked">⛔ Blocked</option>
-        <option value="question">❓ Question</option>
       </select>
       <input
         v-if="showPlanStateInfo"

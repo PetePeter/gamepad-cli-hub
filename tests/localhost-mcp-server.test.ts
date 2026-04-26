@@ -11,23 +11,23 @@ function makeService(): HelmControlService {
   return {
     listClis: vi.fn(() => [{ cliType: 'codex', name: 'codex', command: 'codex', supportsResume: false, supportedDirPaths: ['X:\\coding\\gamepad-cli-hub'] }]),
     listDirectories: vi.fn(() => [{ dirPath: 'X:\\coding\\gamepad-cli-hub', name: 'Helm', source: ['config', 'plans'], planCount: 8, sessionCount: 0 }]),
-    listPlans: vi.fn((dirPath: string) => [{ id: 'p1', dirPath, title: 'Task', description: 'Desc', status: 'startable' }]),
-    plansSummary: vi.fn(() => [{ id: 'p1', humanId: 'P-0001', title: 'Task', status: 'startable', blockedBy: [], blocks: [] }]),
-    getPlan: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'startable' })),
-    createPlan: vi.fn((dirPath: string, title: string, description: string) => ({ id: 'created', dirPath, title, description, status: 'startable' })),
-    updatePlan: vi.fn((id: string, updates: { title?: string; description?: string }) => ({ id, dirPath: '/proj', title: updates.title ?? 'Task', description: updates.description ?? 'Desc', status: 'startable' })),
+    listPlans: vi.fn((dirPath: string) => [{ id: 'p1', dirPath, title: 'Task', description: 'Desc', status: 'ready' }]),
+    plansSummary: vi.fn(() => [{ id: 'p1', humanId: 'P-0001', title: 'Task', status: 'ready', blockedBy: [], blocks: [] }]),
+    getPlan: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'ready' })),
+    createPlan: vi.fn((dirPath: string, title: string, description: string) => ({ id: 'created', dirPath, title, description, status: 'ready' })),
+    updatePlan: vi.fn((id: string, updates: { title?: string; description?: string }) => ({ id, dirPath: '/proj', title: updates.title ?? 'Task', description: updates.description ?? 'Desc', status: 'ready' })),
     deletePlan: vi.fn(() => true),
     completePlan: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done' })),
     setPlanState: vi.fn((id: string, status: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status })),
     linkPlans: vi.fn(),
     unlinkPlans: vi.fn(),
     exportDirectory: vi.fn((dirPath: string) => ({ dirPath, items: [], dependencies: [] })),
-    exportItem: vi.fn((id: string) => ({ item: { id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'startable' }, dependencies: [] })),
+    exportItem: vi.fn((id: string) => ({ item: { id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'ready' }, dependencies: [] })),
     spawnCli: vi.fn((cliType: string, dirPath: string, name: string) => ({ id: 's2', name, cliType, workingDir: dirPath })),
     listSessions: vi.fn((dirPath?: string) => [{ id: 's1', name: 'Claude', cliType: 'claude-code', ...(dirPath ? { workingDir: dirPath } : {}) }]),
     getSession: vi.fn((sessionId: string) => ({ id: sessionId, name: 'Claude', cliType: 'claude-code' })),
     sendTextToSession: vi.fn(async (sessionRef: string, text: string, _options?: { submit?: boolean; senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean }) => ({ success: true, sessionId: sessionRef, name: 'Claude' })),
-    setSessionWorkingPlan: vi.fn((sessionRef: string, planId: string) => ({ sessionId: sessionRef, name: 'Claude', planId, planTitle: 'Task', planStatus: 'doing' })),
+    setSessionWorkingPlan: vi.fn((sessionRef: string, planId: string) => ({ sessionId: sessionRef, name: 'Claude', planId, planTitle: 'Task', planStatus: 'coding' })),
   } as unknown as HelmControlService;
 }
 
@@ -151,7 +151,7 @@ describe('LocalhostMcpServer', () => {
       name: 'Claude',
       planId: 'plan-1',
       planTitle: 'Task',
-      planStatus: 'doing',
+      planStatus: 'coding',
     });
   });
 
@@ -173,7 +173,7 @@ describe('LocalhostMcpServer', () => {
     });
     const json = await response.json();
     expect(json.result.structuredContent).toEqual({
-      items: [{ id: 'p1', dirPath: 'X:\\coding\\gamepad-cli-hub', title: 'Task', description: 'Desc', status: 'startable' }],
+      items: [{ id: 'p1', dirPath: 'X:\\coding\\gamepad-cli-hub', title: 'Task', description: 'Desc', status: 'ready' }],
     });
   });
 
@@ -196,7 +196,7 @@ describe('LocalhostMcpServer', () => {
     const json = await response.json();
     expect(service.plansSummary).toHaveBeenCalledWith('X:\\coding\\gamepad-cli-hub');
     expect(json.result.structuredContent).toEqual({
-      items: [{ id: 'p1', humanId: 'P-0001', title: 'Task', status: 'startable', blockedBy: [], blocks: [] }],
+      items: [{ id: 'p1', humanId: 'P-0001', title: 'Task', status: 'ready', blockedBy: [], blocks: [] }],
     });
   });
 
@@ -287,7 +287,7 @@ describe('LocalhostMcpServer', () => {
 
   it('returns explicit errors instead of null structured content for invalid plan transitions', async () => {
     const service = makeService();
-    (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'startable' });
+    (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'ready' });
     (service.setPlanState as unknown as ReturnType<typeof vi.fn>).mockReturnValue(null);
 
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
@@ -310,7 +310,7 @@ describe('LocalhostMcpServer', () => {
 
   it('requires a sessionId when setting an unassigned plan to doing', async () => {
     const service = makeService();
-    (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'startable' });
+    (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'ready' });
 
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);
@@ -323,7 +323,7 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'plan_set_state',
-        arguments: { id: 'p1', status: 'doing' },
+        arguments: { id: 'p1', status: 'coding' },
       },
     });
     const json = await response.json();

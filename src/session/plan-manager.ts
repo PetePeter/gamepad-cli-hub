@@ -17,9 +17,10 @@ import {
   cleanupOrphanDependencies,
 } from './persistence.js';
 import type { PlanItem, PlanDependency, DirectoryPlan, PlanStatus, PlanType } from '../types/plan.js';
+import { isStartable } from '../types/plan.js';
 
-const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['doing', 'wait-tests', 'blocked', 'question']);
-const PAUSED_PLAN_STATUSES = new Set<PlanStatus>(['wait-tests', 'blocked', 'question']);
+const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['coding', 'review', 'blocked']);
+const PAUSED_PLAN_STATUSES = new Set<PlanStatus>(['review', 'blocked']);
 const HUMAN_ID_RE = /^P-(\d{4,})$/;
 
 function formatHumanId(value: number): string {
@@ -36,21 +37,39 @@ export class PlanManager extends EventEmitter {
     this.loadFromDisk();
   }
 
-  /** Load all plan items and dependencies from disk on startup. */
+  /** Load all plan items and dependencies from disk on startup.
+   * Migrates old plan statuses to new ones on load.
+   */
   private loadFromDisk(): void {
     const filenames = listPlanFiles();
     const loaded: PlanItem[] = [];
     for (const filename of filenames) {
       const item = loadPlanFile(filename);
       if (!item) continue;
+
+      // Migrate old statuses to new ones
+      const migrated = this.migrateOldStatus(item.status, item.stateInfo);
+      item.status = migrated.status;
+      if (migrated.stateInfo && !item.stateInfo) {
+        item.stateInfo = migrated.stateInfo;
+      }
+
       loaded.push(item);
       this.noteHumanId(item.humanId);
       this.items.set(item.id, item);
     }
 
+    let changed = 0;
     for (const item of loaded) {
-      if (this.ensurePlanMetadata(item)) {
+      let itemChanged = this.ensurePlanMetadata(item);
+      // Check if migration changed the status
+      const migrated = this.migrateOldStatus((item as any)._originalStatus ?? item.status, item.stateInfo);
+      if (migrated.status !== item.status || (migrated.stateInfo && !item.stateInfo)) {
+        itemChanged = true;
+      }
+      if (itemChanged) {
         savePlanFile(item);
+        changed++;
       }
     }
 
@@ -62,7 +81,11 @@ export class PlanManager extends EventEmitter {
     for (const item of this.items.values()) dirs.add(item.dirPath);
     for (const dirPath of dirs) this.recomputeStartable(dirPath);
 
-    logger.info(`[PlanManager] Loaded ${this.items.size} plan(s) from disk`);
+    if (changed > 0) {
+      logger.info(`[PlanManager] Loaded ${this.items.size} plan(s) from disk, migrated ${changed} to new state system`);
+    } else {
+      logger.info(`[PlanManager] Loaded ${this.items.size} plan(s) from disk`);
+    }
   }
 
   /** Save all items for a directory + the dependency list. */
@@ -73,12 +96,12 @@ export class PlanManager extends EventEmitter {
     saveDependencies(this.dependencies);
   }
 
-  /** Create a new plan item. No-dep items start as 'startable'. */
+  /** Create a new plan item. New items start as 'planning', transition to 'ready' when deps satisfied. */
   create(dirPath: string, title: string, description: string): PlanItem {
     return this.createWithType(dirPath, title, description, undefined);
   }
 
-  /** Create a new plan item with optional type. No-dep items start as 'startable'. */
+  /** Create a new plan item with optional type. New items start as 'planning', transition to 'ready' when deps satisfied. */
   createWithType(dirPath: string, title: string, description: string, type?: PlanType): PlanItem {
     const now = Date.now();
     const item: PlanItem = {
@@ -87,7 +110,7 @@ export class PlanManager extends EventEmitter {
       dirPath,
       title,
       description,
-      status: 'startable',
+      status: 'planning',
       type,
       createdAt: now,
       stateUpdatedAt: now,
@@ -95,6 +118,12 @@ export class PlanManager extends EventEmitter {
     };
     this.items.set(item.id, item);
     savePlanFile(item);
+
+    // Recompute startable for the new item and any dependents
+    // This transitions no-dep items to 'ready' immediately
+    this.recomputeStartable(dirPath);
+    savePlanFile(item);
+
     this.emit('plan:changed', dirPath);
     logger.info(`[PlanManager] Created plan "${title}" in ${dirPath}`);
     return item;
@@ -159,9 +188,14 @@ export class PlanManager extends EventEmitter {
     return [...this.items.values()].filter(i => i.dirPath === dirPath);
   }
 
-  /** Get startable items for a directory. */
+  /** Get startable items for a directory (computed: items with status 'ready' or items where dependencies are all done). */
   getStartableForDirectory(dirPath: string): PlanItem[] {
-    return this.getForDirectory(dirPath).filter(i => i.status === 'startable');
+    const items = this.getForDirectory(dirPath);
+    return items.filter(i => {
+      // Only non-active items can be startable
+      if (ACTIVE_PLAN_STATUSES.has(i.status) || i.status === 'done' || i.status === 'blocked') return false;
+      return isStartable(i, this.dependencies, items);
+    });
   }
 
   /** Get items currently being worked on by a specific session. */
@@ -211,12 +245,16 @@ export class PlanManager extends EventEmitter {
     return true;
   }
 
-  /** Apply a startable plan to a session (startable → doing). */
+  /** Apply a ready plan to a session (ready → coding). */
   applyItem(id: string, sessionId: string): PlanItem | null {
     const item = this.items.get(id);
-    if (!item || item.status !== 'startable') return null;
+    if (!item) return null;
 
-    item.status = 'doing';
+    // Must be ready (or transition from planning if it has no deps satisfied)
+    const items = this.getForDirectory(item.dirPath);
+    if (!isStartable(item, this.dependencies, items) && item.status !== 'ready') return null;
+
+    item.status = 'coding';
     item.sessionId = sessionId;
     item.stateInfo = undefined;
     item.updatedAt = Date.now();
@@ -228,10 +266,10 @@ export class PlanManager extends EventEmitter {
     return item;
   }
 
-  /** Complete a doing or wait-tests plan (→ done). Cascades startable recompute. */
+  /** Complete a plan in coding or review state (→ done). Cascades ready recompute for dependents. */
   completeItem(id: string): PlanItem | null {
     const item = this.items.get(id);
-    if (!item || (item.status !== 'doing' && item.status !== 'wait-tests')) return null;
+    if (!item || (item.status !== 'coding' && item.status !== 'review')) return null;
 
     item.status = 'done';
     item.sessionId = undefined;
@@ -246,25 +284,57 @@ export class PlanManager extends EventEmitter {
     return item;
   }
 
-  /** Manually update a plan item's state outside the normal apply/complete flow. */
-  setState(id: string, status: Exclude<PlanStatus, 'done'>, stateInfo = '', sessionId?: string): PlanItem | null {
-    const item = this.items.get(id);
-    if (!item || !this.canSetState(item, status)) return null;
+  /** Manually update a plan item's state outside the normal apply/complete flow.
+   * Cannot transition to 'done' — only completeItem can do that.
+   * 'blocked' state requires non-empty stateInfo (reason why blocked).
+   * When transitioning to 'coding', sessionId is required.
+   */
+  setState(id: string, status: any, stateInfo = '', sessionId?: string): PlanItem | null {
+    // Reject 'done' explicitly — only plan_complete can transition to done
+    if (status === 'done') {
+      logger.warn(`[PlanManager] setState rejected transition to 'done' for ${id} — use plan_complete instead`);
+      return null;
+    }
 
-    if (status === 'doing') {
+    const item = this.items.get(id);
+    if (!item || !this.canSetState(item, status as Exclude<PlanStatus, 'done'>)) return null;
+
+    // Validate blocked state requires stateInfo
+    if (status === 'blocked' && !stateInfo.trim()) {
+      logger.warn(`[PlanManager] setState blocked rejected: requires stateInfo reason for ${id}`);
+      return null;
+    }
+
+    // 'coding' requires sessionId
+    if (status === 'coding') {
       const nextSessionId = sessionId ?? item.sessionId;
       if (!nextSessionId) return null;
       item.sessionId = nextSessionId;
-    } else if (status === 'pending' || status === 'startable' || status === 'wait-tests' || status === 'blocked' || status === 'question') {
+    } else if (status === 'planning' || status === 'ready' || status === 'review' || status === 'blocked') {
       item.sessionId = sessionId ?? item.sessionId;
     }
 
     item.status = status;
-    item.stateInfo = PAUSED_PLAN_STATUSES.has(status) ? stateInfo.trim() : undefined;
+    // Handle stateInfo:
+    // - If new state is 'blocked', store the provided stateInfo (reason)
+    // - If transitioning from blocked to a non-paused state, preserve provided stateInfo (reason unblocked)
+    // - Otherwise, clear stateInfo unless new state is paused
+    if (status === 'blocked') {
+      item.stateInfo = stateInfo.trim() || item.stateInfo || 'Blocked';
+    } else if (stateInfo.trim()) {
+      // Preserve provided stateInfo (e.g., when unblocking, reason is recorded)
+      item.stateInfo = stateInfo.trim();
+    } else if (!PAUSED_PLAN_STATUSES.has(status as PlanStatus)) {
+      item.stateInfo = undefined;
+    } else {
+      // For paused states (review, blocked), keep existing or clear
+      item.stateInfo = PAUSED_PLAN_STATUSES.has(status as PlanStatus) ? item.stateInfo : undefined;
+    }
+
     item.updatedAt = Date.now();
     item.stateUpdatedAt = item.updatedAt;
 
-    if (status === 'pending' || status === 'startable') {
+    if (status === 'planning' || status === 'ready') {
       this.recomputeStartable(item.dirPath);
       this.saveDir(item.dirPath);
     } else {
@@ -321,7 +391,7 @@ export class PlanManager extends EventEmitter {
    * Import a single plan item from an external source (e.g. CLI-generated incoming file).
    * - Rejects duplicate IDs (returns null).
    * - Auto-renames on title collision: appends ` (2)`, ` (3)`, etc.
-   * - Incoming `status` is normalised to `startable` if unrecognised.
+   * - Migrates old statuses to new: pending→planning, startable→ready, doing→coding, wait-tests→review, question→blocked
    * - Optional `deps` are filtered to only include edges that reference known IDs after import.
    */
   importItem(item: PlanItem, deps: PlanDependency[] = []): PlanItem | null {
@@ -332,11 +402,14 @@ export class PlanManager extends EventEmitter {
 
     const uniqueTitle = this.resolveUniqueTitle(item.dirPath, item.title);
     const now = Date.now();
+    const migratedStatus = this.migrateOldStatus(item.status, item.stateInfo);
+
     const imported: PlanItem = {
       ...item,
       humanId: item.humanId,
       title: uniqueTitle,
-      status: 'startable',
+      status: migratedStatus.status,
+      stateInfo: migratedStatus.stateInfo ?? item.stateInfo,
       createdAt: item.createdAt ?? now,
       stateUpdatedAt: item.stateUpdatedAt ?? item.updatedAt ?? item.createdAt ?? now,
       updatedAt: now,
@@ -448,12 +521,15 @@ export class PlanManager extends EventEmitter {
     return false;
   }
 
-  /** Recompute startable status for all non-terminal items in a directory. */
+  /** Recompute ready status for all non-terminal items in a directory.
+   * Items transition planning → ready when all dependencies are done.
+   * Does not affect active items (coding, review, blocked) or done items.
+   */
   private recomputeStartable(dirPath: string): void {
     const items = this.getForDirectory(dirPath);
 
     for (const item of items) {
-      if (ACTIVE_PLAN_STATUSES.has(item.status) || item.status === 'done') continue;
+      if (ACTIVE_PLAN_STATUSES.has(item.status) || item.status === 'done' || item.status === 'blocked') continue;
 
       const blockers = this.dependencies
         .filter(d => d.toId === item.id)
@@ -461,15 +537,43 @@ export class PlanManager extends EventEmitter {
         .filter(Boolean);
 
       const allDone = blockers.length === 0 || blockers.every(b => b!.status === 'done');
-      item.status = allDone ? 'startable' : 'pending';
+      item.status = allDone ? 'ready' : 'planning';
     }
   }
 
   private canSetState(item: PlanItem, next: Exclude<PlanStatus, 'done'>): boolean {
     if (item.status === 'done') return false;
-    if (next === 'doing') {
-      return item.status === 'doing' || item.status === 'startable' || item.status === 'wait-tests' || PAUSED_PLAN_STATUSES.has(item.status);
+    // 'coding' requires existing or provided sessionId
+    if (next === 'coding') {
+      return item.status === 'coding' || item.status === 'ready' || item.status === 'review' || PAUSED_PLAN_STATUSES.has(item.status);
     }
     return true;
+  }
+
+  /** Migrate old plan statuses to new ones.
+   * Old states: pending | startable | doing | wait-tests | blocked | question | done
+   * New states: planning | ready | coding | review | blocked | done
+   * Mapping:
+   *   pending → planning
+   *   startable → ready
+   *   doing → coding
+   *   wait-tests → review
+   *   question → blocked (with stateInfo="Question pending")
+   *   blocked → blocked (unchanged)
+   *   done → done (unchanged)
+   */
+  private migrateOldStatus(status: any, existingStateInfo?: string): { status: PlanStatus; stateInfo?: string } {
+    const statusStr = String(status ?? '');
+
+    if (statusStr === 'pending') return { status: 'planning' };
+    if (statusStr === 'startable') return { status: 'ready' };
+    if (statusStr === 'doing') return { status: 'coding' };
+    if (statusStr === 'wait-tests') return { status: 'review' };
+    if (statusStr === 'question') return { status: 'blocked', stateInfo: existingStateInfo || 'Question pending' };
+    if (statusStr === 'blocked') return { status: 'blocked', stateInfo: existingStateInfo };
+    if (statusStr === 'done') return { status: 'done' };
+
+    // Unknown status — default to planning
+    return { status: 'planning' };
   }
 }

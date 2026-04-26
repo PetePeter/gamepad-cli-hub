@@ -5,7 +5,7 @@ import { getDisplayTitle } from '../../types.js';
 const props = defineProps<{
   title: string;
   type?: 'bug' | 'feature' | 'research';
-  status: 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question';
+  status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done';
 }>();
 
 const emit = defineEmits<{
@@ -13,11 +13,12 @@ const emit = defineEmits<{
 }>();
 
 const STATUS_ICONS: Record<typeof props.status, string> = {
-  startable: '🔵',
-  doing: '🟢',
-  'wait-tests': '⏳',
+  planning: '⚪',
+  ready: '🔵',
+  coding: '🟢',
+  review: '⏳',
   blocked: '⛔',
-  question: '❓',
+  done: '✅',
 };
 
 const displayTitle = computed(() => {

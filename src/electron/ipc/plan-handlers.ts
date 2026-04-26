@@ -79,6 +79,7 @@ export function setupPlanHandlers(
   });
 
   ipcMain.handle('plan:apply', (_event, id: string, sessionId: string) => {
+    // Apply transitions a ready plan to coding state (ready → coding)
     return planManager.applyItem(id, sessionId);
   });
 
@@ -88,7 +89,12 @@ export function setupPlanHandlers(
 
   ipcMain.handle(
     'plan:setState',
-    (_event, id: string, status: 'pending' | 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question', stateInfo?: string, sessionId?: string) => {
+    (_event, id: string, status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked', stateInfo?: string, sessionId?: string) => {
+      // Never allow direct transition to 'done' via setState — only via plan_complete
+      if (status === 'done') {
+        logger.warn(`[plan:setState] Rejected transition to 'done' for ${id} — use plan_complete instead`);
+        return null;
+      }
       return planManager.setState(id, status, stateInfo, sessionId);
     },
   );

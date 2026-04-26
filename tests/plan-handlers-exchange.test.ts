@@ -73,7 +73,7 @@ function makeItem(overrides = {}) {
     dirPath: '/proj',
     title: 'Task',
     description: 'Do the thing',
-    status: 'startable' as const,
+    status: 'ready' as const,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     ...overrides,
@@ -225,7 +225,7 @@ describe('plan exchange IPC channels', () => {
         dirPath: '/proj',
         title: 'CLI Task',
         description: 'From CLI',
-        status: 'startable',
+        status: 'ready',
       });
 
       const result = await handlers.get('plan:import-file')!({}, json, '/proj');
@@ -239,7 +239,7 @@ describe('plan exchange IPC channels', () => {
           dirPath: '/proj',
           title: 'Wrapped Task',
           description: '',
-          status: 'startable',
+          status: 'ready',
         },
         dependencies: [],
       });
@@ -252,8 +252,8 @@ describe('plan exchange IPC channels', () => {
       const json = JSON.stringify({
         dirPath: '/proj',
         items: [
-          { id: 'b1', dirPath: '/proj', title: 'Batch 1', description: '', status: 'startable' },
-          { id: 'b2', dirPath: '/proj', title: 'Batch 2', description: '', status: 'startable' },
+          { id: 'b1', dirPath: '/proj', title: 'Batch 1', description: '', status: 'ready' },
+          { id: 'b2', dirPath: '/proj', title: 'Batch 2', description: '', status: 'ready' },
         ],
         dependencies: [],
       });
@@ -267,7 +267,7 @@ describe('plan exchange IPC channels', () => {
       const json = JSON.stringify({
         dirPath: '/original',
         items: [
-          { id: 'c1', dirPath: '/original', title: 'Cross-dir', description: '', status: 'startable' },
+          { id: 'c1', dirPath: '/original', title: 'Cross-dir', description: '', status: 'ready' },
         ],
         dependencies: [],
       });
@@ -290,7 +290,7 @@ describe('plan exchange IPC channels', () => {
         dirPath: '/proj',
         title: 'Dup',
         description: '',
-        status: 'startable',
+        status: 'ready',
       });
 
       const result = await handlers.get('plan:import-file')!({}, json, '/proj');
@@ -305,7 +305,7 @@ describe('plan exchange IPC channels', () => {
         dirPath: '/proj',
         title: 'Same Title',
         description: '',
-        status: 'startable',
+        status: 'ready',
       });
 
       const result = await handlers.get('plan:import-file')!({}, json, '/proj');

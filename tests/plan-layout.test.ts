@@ -15,7 +15,7 @@ function item(id: string, dirPath = '/proj'): PlanItem {
     dirPath,
     title: id,
     description: '',
-    status: 'startable',
+    status: 'ready',
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };

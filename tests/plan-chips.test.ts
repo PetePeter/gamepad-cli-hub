@@ -29,7 +29,7 @@ vi.mock('../renderer/paste-handler.js', () => ({
 describe('Plan chip components', () => {
   it('renders the correct status icons', () => {
     const blocked = mount(PlanChip, { props: { title: 'Blocked task', status: 'blocked' } });
-    const question = mount(PlanChip, { props: { title: 'Question task', status: 'question' } });
+    const question = mount(PlanChip, { props: { title: 'Question task', status: 'blocked' } });
 
     expect(blocked.text()).toContain('⛔');
     expect(question.text()).toContain('❓');
@@ -40,8 +40,8 @@ describe('Plan chip components', () => {
       props: {
         drafts: [],
         planChips: [
-          { id: 'p1', title: 'Setup DB', status: 'startable' },
-          { id: 'p2', title: 'Write API', status: 'doing' },
+          { id: 'p1', title: 'Setup DB', status: 'ready' },
+          { id: 'p2', title: 'Write API', status: 'coding' },
         ],
         actions: [],
         visible: true,
@@ -80,17 +80,17 @@ describe('Plan chip store integration', () => {
         planDoingForSession: vi.fn().mockResolvedValue([]),
         planGetAllDoingForDir: vi.fn().mockResolvedValue([
           { id: 'blocked-1', title: 'Waiting on API', status: 'blocked', sessionId: 'session-1' },
-          { id: 'question-1', title: 'Need answer', status: 'question', sessionId: 'session-2' },
+          { id: 'question-1', title: 'Need answer', status: 'blocked', sessionId: 'session-2' },
         ]),
         planStartableForDir: vi.fn().mockResolvedValue([
-          { id: 'start-1', title: 'Ready to start', status: 'startable' },
+          { id: 'start-1', title: 'Ready to start', status: 'ready' },
         ]),
         configGetChipbarActions: vi.fn().mockResolvedValue({ actions: [], inboxDir: '' }),
         planGetItem: vi.fn().mockResolvedValue({
           id: 'start-1',
           title: 'Ready to start',
           description: 'Task desc',
-          status: 'startable',
+          status: 'ready',
           sessionId: 'session-1',
         }),
         planUpdate: vi.fn().mockResolvedValue(undefined),
@@ -108,7 +108,7 @@ describe('Plan chip store integration', () => {
 
     await store.refresh('session-1');
 
-    expect(store.plans.map((plan) => plan.status)).toEqual(['blocked', 'question', 'startable']);
+    expect(store.plans.map((plan) => plan.status)).toEqual(['blocked', 'blocked', 'ready']);
     expect(state.planDoingCounts.get('session-1')).toBe(2);
     expect(state.planStartableCounts.get('session-1')).toBe(1);
   });
@@ -117,7 +117,7 @@ describe('Plan chip store integration', () => {
     const store = useChipBarStore();
     window.gamepadCli.planGetAllDoingForDir.mockResolvedValue([]);
     window.gamepadCli.planStartableForDir.mockResolvedValue([
-      { id: 'start-1', title: 'Ready to start', status: 'startable' },
+      { id: 'start-1', title: 'Ready to start', status: 'ready' },
     ]);
 
     await store.refresh('session-1');
@@ -125,7 +125,7 @@ describe('Plan chip store integration', () => {
 
     expect(mockShowPlanInEditor).toHaveBeenCalledWith(
       'session-1',
-      expect.objectContaining({ id: 'start-1', status: 'startable' }),
+      expect.objectContaining({ id: 'start-1', status: 'ready' }),
       expect.objectContaining({ onSave: expect.any(Function), onApply: expect.any(Function) }),
     );
   });

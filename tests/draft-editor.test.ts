@@ -33,13 +33,13 @@ describe('draft editor bridge', () => {
 
     mod.showPlanInEditor(
       'session-1',
-      { id: 'p1', title: 'Plan', description: 'Body', status: 'doing' },
+      { id: 'p1', title: 'Plan', description: 'Body', status: 'coding' },
       callbacks,
     );
 
     expect(opener).toHaveBeenCalledWith(
       'session-1',
-      { id: 'p1', title: 'Plan', description: 'Body', status: 'doing' },
+      { id: 'p1', title: 'Plan', description: 'Body', status: 'coding' },
       callbacks,
     );
   });

@@ -163,10 +163,10 @@ describe('plan IPC handlers', () => {
 
   // ─── Lifecycle ─────────────────────────────────────────
 
-  it('plan:apply transitions startable → doing with sessionId', async () => {
+  it('plan:apply transitions ready → coding with sessionId', async () => {
     const item = await handlers.get('plan:create')!({}, '/proj', 'Task', '');
     const applied = await handlers.get('plan:apply')!({}, item.id, 'sess-42');
-    expect(applied.status).toBe('doing');
+    expect(applied.status).toBe('coding');
     expect(applied.sessionId).toBe('sess-42');
   });
 
@@ -247,15 +247,15 @@ describe('plan IPC handlers', () => {
     const b = await handlers.get('plan:create')!({}, '/proj', 'B', '');
     await handlers.get('plan:addDep')!({}, a.id, b.id);
 
-    // B is pending (blocked by A)
+    // B is planning (blocked by A)
     let bItem = (await handlers.get('plan:list')!({}, '/proj')).find((i: any) => i.id === b.id);
-    expect(bItem.status).toBe('pending');
+    expect(bItem.status).toBe('planning');
 
-    // Complete A → B becomes startable
+    // Complete A → B becomes ready
     await handlers.get('plan:apply')!({}, a.id, 'sess-1');
     await handlers.get('plan:complete')!({}, a.id);
 
     bItem = (await handlers.get('plan:list')!({}, '/proj')).find((i: any) => i.id === b.id);
-    expect(bItem.status).toBe('startable');
+    expect(bItem.status).toBe('ready');
   });
 });

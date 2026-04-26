@@ -32,7 +32,7 @@ describe('Chip components', () => {
 
   it('truncates plan chip labels to the legacy 20 char limit', () => {
     const wrapper = mount(PlanChip, {
-      props: { title: 'abcdefghijklmnopqrstuvwxyz', status: 'doing' },
+      props: { title: 'abcdefghijklmnopqrstuvwxyz', status: 'coding' },
     });
     expect(wrapper.text()).toContain('abcdefghijklmnopqrst…');
     expect(wrapper.attributes('title')).toBe('abcdefghijklmnopqrstuvwxyz');

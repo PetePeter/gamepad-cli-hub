@@ -73,7 +73,7 @@ function makeItem(overrides: Partial<PlanItem> & { id: string }): PlanItem {
     dirPath: '/test/dir',
     title: `Item ${overrides.id}`,
     description: `Desc for ${overrides.id}`,
-    status: 'pending',
+    status: 'planning',
     createdAt: Date.now(),
     updatedAt: Date.now(),
     ...overrides,

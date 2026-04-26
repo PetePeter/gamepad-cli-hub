@@ -157,7 +157,7 @@ describe('Plan Types (P-0038)', () => {
         dirPath: '/d',
         title: 'Legacy',
         description: 'Old plan',
-        status: 'startable' as const,
+        status: 'ready' as const,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -176,7 +176,7 @@ describe('Plan Types (P-0038)', () => {
         dirPath: '/d',
         title: 'Doing task',
         description: 'Active',
-        status: 'doing' as const,
+        status: 'coding' as const,
         sessionId: 'session-1',
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -186,7 +186,7 @@ describe('Plan Types (P-0038)', () => {
 
       const pm2 = new PlanManager();
       const item = pm2.getItem('test-id');
-      expect(item!.status).toBe('doing');
+      expect(item!.status).toBe('coding');
       expect(item!.type).toBeUndefined();
     });
   });
@@ -241,7 +241,7 @@ describe('Plan Types (P-0038)', () => {
       const item = pm.createWithType('/d', 'Task', 'desc', 'bug');
       const applied = pm.applyItem(item.id, 'session-1');
       expect(applied!.type).toBe('bug');
-      expect(applied!.status).toBe('doing');
+      expect(applied!.status).toBe('coding');
     });
 
     it('preserves type when item completes', () => {
@@ -280,7 +280,7 @@ describe('Plan Types (P-0038)', () => {
         dirPath: '/d',
         title: 'Imported',
         description: 'From outside',
-        status: 'pending' as const,
+        status: 'planning' as const,
         type: 'bug' as const,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -295,7 +295,7 @@ describe('Plan Types (P-0038)', () => {
         dirPath: '/d',
         title: 'Imported',
         description: 'From outside',
-        status: 'pending' as const,
+        status: 'planning' as const,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };

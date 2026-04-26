@@ -335,7 +335,7 @@ describe('DraftEditor', () => {
         sessionId: 'sess-1',
         initialLabel: 'Plan task',
         initialText: 'Need details',
-        planStatus: 'doing',
+        planStatus: 'coding',
         planCallbacks: { onSave: vi.fn(), onDelete: vi.fn(), onApply: vi.fn(), onDone: vi.fn() },
       },
     });
@@ -362,7 +362,7 @@ describe('DraftEditor', () => {
         sessionId: 'sess-1',
         initialLabel: 'Plan task',
         initialText: 'Need details',
-        planStatus: 'doing',
+        planStatus: 'coding',
         planCallbacks: { onSave, onDelete: vi.fn() },
       },
     });
@@ -380,7 +380,7 @@ describe('DraftEditor', () => {
         sessionId: 'sess-1',
         initialLabel: 'Plan task',
         initialText: 'Need details',
-        planStatus: 'doing',
+        planStatus: 'coding',
         planCallbacks: { onSave: vi.fn(), onDelete: vi.fn(), onApply: vi.fn(), onDone: vi.fn() },
       },
     });
@@ -420,8 +420,8 @@ describe('DraftEditor', () => {
 // ---------------------------------------------------------------------------
 describe('PlanScreen', () => {
   const makeItems = () => [
-    { id: 'n1', title: 'Task 1', description: 'First task', status: 'startable' as const },
-    { id: 'n2', title: 'Task 2', description: 'Second task depends on first', status: 'pending' as const },
+    { id: 'n1', title: 'Task 1', description: 'First task', status: 'ready' as const },
+    { id: 'n2', title: 'Task 2', description: 'Second task depends on first', status: 'planning' as const },
     { id: 'n3', title: 'Done Task', description: 'Already completed', status: 'done' as const },
   ];
 
@@ -500,7 +500,7 @@ describe('PlanScreen', () => {
   });
 
   it('shows Done button only for doing nodes', () => {
-    const items = [{ id: 'n1', title: 'Active', description: 'In progress', status: 'doing' as const }];
+    const items = [{ id: 'n1', title: 'Active', description: 'In progress', status: 'coding' as const }];
     const w = mount(PlanScreen, {
       props: {
         ...baseProps,
@@ -677,8 +677,8 @@ describe('ChipBar', () => {
   ];
 
   const basePlanChips = [
-    { id: 'p1', title: 'Setup DB', status: 'startable' as const },
-    { id: 'p2', title: 'Write API', status: 'doing' as const },
+    { id: 'p1', title: 'Setup DB', status: 'ready' as const },
+    { id: 'p2', title: 'Write API', status: 'coding' as const },
   ];
 
   it('renders drafts and plan chips when visible', () => {
@@ -733,6 +733,7 @@ describe('ChipBar', () => {
       props: { drafts: [], planChips: basePlanChips, actions: [], visible: true },
     });
     const chips = w.findAll('.plan-chip');
+    // basePlanChips[0] is 'ready' (blue circle), basePlanChips[1] is 'coding' (green circle)
     expect(chips[0].text()).toContain('🔵');
     expect(chips[0].text()).toContain('Setup DB');
     expect(chips[1].text()).toContain('🟢');
@@ -746,11 +747,12 @@ describe('ChipBar', () => {
     expect(w.find('.plan-chip').text()).toContain('⛔');
   });
 
-  it('renders plan chip with question status icon', () => {
+  it('renders plan chip with blocked status icon', () => {
+    // Note: 'question' status was migrated to 'blocked' in P-0035
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: [{ id: 'p4', title: 'Question', status: 'question' as const }], actions: [], visible: true },
+      props: { drafts: [], planChips: [{ id: 'p4', title: 'Blocked', status: 'blocked' as const }], actions: [], visible: true },
     });
-    expect(w.find('.plan-chip').text()).toContain('❓');
+    expect(w.find('.plan-chip').text()).toContain('⛔');
   });
 
   it('emits draftClick when draft pill clicked', async () => {
@@ -774,7 +776,7 @@ describe('ChipBar', () => {
       props: { drafts: [], planChips: basePlanChips, actions: [], visible: true },
     });
     const chips = w.findAll('.plan-chip');
-    expect(chips[0].classes()).toContain('plan-chip--startable');
-    expect(chips[1].classes()).toContain('plan-chip--doing');
+    expect(chips[0].classes()).toContain('plan-chip--ready');
+    expect(chips[1].classes()).toContain('plan-chip--coding');
   });
 });

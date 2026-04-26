@@ -71,7 +71,7 @@ function makeValidJson(overrides: Record<string, unknown> = {}): string {
     dirPath: '/projects/backend',
     title: 'Implement Auth',
     description: 'JWT middleware',
-    status: 'startable',
+    status: 'ready',
     ...overrides,
   });
 }
@@ -231,8 +231,8 @@ describe('IncomingPlansWatcher', () => {
     });
 
     it('forces imported item status to startable', () => {
-      // Even if file says 'doing', importItem must normalise to 'startable'
-      mockReadFileSync.mockReturnValue(makeValidJson({ status: 'doing' }));
+      // Even if file says 'coding', importItem must normalise to 'ready'
+      mockReadFileSync.mockReturnValue(makeValidJson({ status: 'coding' }));
       watcher.start();
 
       const importSpy = vi.spyOn(planManager, 'importItem');
@@ -243,9 +243,9 @@ describe('IncomingPlansWatcher', () => {
       // Spy was set up before processFile ran — verify status was normalised
       expect(importSpy).toHaveBeenCalledOnce();
       const passedItem = importSpy.mock.calls[0][0];
-      // File sent 'doing' but importItem must receive the item and force 'startable' internally
-      // (PlanManager.importItem always sets status='startable'; watcher passes item as-is)
-      expect(passedItem.status).toBe('doing'); // watcher passes raw status; manager normalises
+      // File sent 'coding' but importItem must receive the item and force 'ready' internally
+      // (PlanManager.importItem always sets status='ready'; watcher passes item as-is)
+      expect(passedItem.status).toBe('coding'); // watcher passes raw status; manager normalises
       expect(onImported).toHaveBeenCalled();
     });
 
@@ -350,7 +350,7 @@ describe('IncomingPlansWatcher', () => {
         dirPath: '/projects/backend',
         title: 'Already Exists',
         description: '',
-        status: 'startable',
+        status: 'ready',
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
