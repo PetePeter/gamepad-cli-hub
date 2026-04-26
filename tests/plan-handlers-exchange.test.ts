@@ -2,7 +2,6 @@
  * Tests for the new plan exchange IPC channels:
  *   plan:incoming-list, plan:incoming-delete
  *   plan:export-item, plan:export-directory
- *   plan:import-file
  *   plan:read-file, plan:write-file
  *
  * Also tests that the incoming-watcher events forward to the renderer window.
@@ -102,7 +101,6 @@ describe('plan exchange IPC channels', () => {
       'plan:incoming-delete',
       'plan:export-item',
       'plan:export-directory',
-      'plan:import-file',
       'plan:read-file',
       'plan:write-file',
     ];
@@ -213,103 +211,6 @@ describe('plan exchange IPC channels', () => {
     it('returns null for empty directory', async () => {
       const result = await handlers.get('plan:export-directory')!({}, '/empty');
       expect(result).toBeNull();
-    });
-  });
-
-  // ─── plan:import-file ─────────────────────────────────────────────────────
-
-  describe('plan:import-file', () => {
-    it('imports a single item from flat PlanItem JSON', async () => {
-      const json = JSON.stringify({
-        id: 'cli-001',
-        dirPath: '/proj',
-        title: 'CLI Task',
-        description: 'From CLI',
-        status: 'ready',
-      });
-
-      const result = await handlers.get('plan:import-file')!({}, json, '/proj');
-      expect(result).toMatchObject({ id: 'cli-001', title: 'CLI Task' });
-    });
-
-    it('imports a single item from wrapped { item, dependencies } format', async () => {
-      const json = JSON.stringify({
-        item: {
-          id: 'cli-002',
-          dirPath: '/proj',
-          title: 'Wrapped Task',
-          description: '',
-          status: 'ready',
-        },
-        dependencies: [],
-      });
-
-      const result = await handlers.get('plan:import-file')!({}, json, '/proj');
-      expect(result).toMatchObject({ title: 'Wrapped Task' });
-    });
-
-    it('imports batch directory format and returns array', async () => {
-      const json = JSON.stringify({
-        dirPath: '/proj',
-        items: [
-          { id: 'b1', dirPath: '/proj', title: 'Batch 1', description: '', status: 'ready' },
-          { id: 'b2', dirPath: '/proj', title: 'Batch 2', description: '', status: 'ready' },
-        ],
-        dependencies: [],
-      });
-
-      const result = await handlers.get('plan:import-file')!({}, json, '/proj');
-      expect(Array.isArray(result)).toBe(true);
-      expect((result as unknown[]).length).toBe(2);
-    });
-
-    it('overrides dirPath with targetDirPath in batch import', async () => {
-      const json = JSON.stringify({
-        dirPath: '/original',
-        items: [
-          { id: 'c1', dirPath: '/original', title: 'Cross-dir', description: '', status: 'ready' },
-        ],
-        dependencies: [],
-      });
-
-      const result = await handlers.get('plan:import-file')!({}, json, '/target-dir');
-      expect((result as any)[0].dirPath).toBe('/target-dir');
-    });
-
-    it('returns null for invalid JSON', async () => {
-      const result = await handlers.get('plan:import-file')!({}, 'not json', '/proj');
-      expect(result).toBeNull();
-    });
-
-    it('returns null for duplicate ID', async () => {
-      planManager.create('/proj', 'Existing'); // auto-assigns ID
-      const existingId = planManager.getForDirectory('/proj')[0].id;
-
-      const json = JSON.stringify({
-        id: existingId,
-        dirPath: '/proj',
-        title: 'Dup',
-        description: '',
-        status: 'ready',
-      });
-
-      const result = await handlers.get('plan:import-file')!({}, json, '/proj');
-      expect(result).toBeNull();
-    });
-
-    it('auto-renames on title collision', async () => {
-      planManager.create('/proj', 'Same Title', '');
-
-      const json = JSON.stringify({
-        id: 'fresh-id',
-        dirPath: '/proj',
-        title: 'Same Title',
-        description: '',
-        status: 'ready',
-      });
-
-      const result = await handlers.get('plan:import-file')!({}, json, '/proj');
-      expect((result as any).title).toBe('Same Title (2)');
     });
   });
 

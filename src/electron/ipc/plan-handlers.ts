@@ -154,20 +154,6 @@ export function setupPlanHandlers(
     return result ? JSON.stringify(result, null, 2) : null;
   });
 
-  // ─── Import ───────────────────────────────────────────────────────────────
-
-  ipcMain.handle('plan:import-file', (_event, jsonString: string, targetDirPath: string) => {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(jsonString);
-    } catch {
-      logger.warn('[plan:import-file] Invalid JSON');
-      return null;
-    }
-
-    return importParsed(planManager, parsed as Record<string, unknown>, targetDirPath);
-  });
-
   /** Read a file from the local filesystem and return its contents. */
   ipcMain.handle('plan:read-file', (_event, filePath: string): string | null => {
     try {
@@ -191,38 +177,5 @@ export function setupPlanHandlers(
   });
 
   logger.info('[IPC] Plan handlers registered');
-}
-
-/**
- * Parse and import plan data from a JSON object.
- * Handles both single-item format and DirectoryPlan batch format.
- * Returns imported item(s) or null on failure.
- */
-function importParsed(
-  planManager: PlanManager,
-  parsed: Record<string, unknown>,
-  targetDirPath: string,
-): PlanItem | PlanItem[] | null {
-  // Batch format: { dirPath, items: [...], dependencies: [...] }
-  if (Array.isArray(parsed.items)) {
-    const deps = (parsed.dependencies as PlanDependency[]) ?? [];
-    const imported: PlanItem[] = [];
-    for (const rawItem of parsed.items as PlanItem[]) {
-      const item = planManager.importItem(
-        { ...rawItem, dirPath: targetDirPath || rawItem.dirPath },
-        deps,
-      );
-      if (item) imported.push(item);
-    }
-    return imported.length > 0 ? imported : null;
-  }
-
-  // Single-item format: { item: {...}, dependencies: [...] } or flat PlanItem
-  const rawItem = (parsed.item ?? parsed) as PlanItem;
-  const deps = (parsed.dependencies as PlanDependency[]) ?? [];
-  return planManager.importItem(
-    { ...rawItem, dirPath: targetDirPath || rawItem.dirPath },
-    deps,
-  );
 }
 

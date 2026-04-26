@@ -32,7 +32,6 @@ const emit = defineEmits<{
   close: [];
   addNode: [];
   exportDir: [];
-  importDir: [];
   clearDone: [];
   nodeClick: [id: string];
   editNode: [id: string];
@@ -239,7 +238,6 @@ function startDragConnection(id: string, e: MouseEvent): void {
       <span class="plan-header__title">{{ dirPath }} - Plans</span>
       <div class="plan-header__controls">
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('exportDir')">⬆ Export Dir</button>
-        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('importDir')">⬇ Import</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('clearDone')">🧹 Clear Done</button>
       </div>
       <span v-if="notice" class="plan-notice plan-notice--visible">{{ notice }}</span>

@@ -36,7 +36,6 @@ import {
   onPlanAddNode,
   onPlanClearDone,
   onPlanExportDirectory,
-  onPlanImport,
   onPlanNodeApply,
   onPlanNodeClick,
   onPlanNodeComplete,
@@ -2189,7 +2188,6 @@ onUnmounted(() => {
         @close="navStore.closePlan()"
         @add-node="onPlanAddNode()"
         @export-dir="onPlanExportDirectory()"
-        @import-dir="onPlanImport()"
         @clear-done="onPlanClearDone()"
         @node-click="onPlanNodeClick"
         @edit-node="onPlanNodeEdit"

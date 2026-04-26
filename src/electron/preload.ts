@@ -623,10 +623,6 @@ const gamepadCliAPI = {
   planExportDirectory: (dirPath: string): Promise<string | null> =>
     ipcRenderer.invoke('plan:export-directory', dirPath),
 
-  /** Import a JSON string (single item or directory batch) into a target directory */
-  planImportFile: (jsonString: string, targetDirPath: string): Promise<unknown> =>
-    ipcRenderer.invoke('plan:import-file', jsonString, targetDirPath),
-
   /** Read a local file and return its content as a string */
   planReadFile: (filePath: string): Promise<string | null> =>
     ipcRenderer.invoke('plan:read-file', filePath),

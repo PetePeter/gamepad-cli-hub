@@ -460,25 +460,6 @@ async function handleExportDirectory(): Promise<void> {
   }
 }
 
-async function handleImport(): Promise<void> {
-  try {
-    const filePath = await window.gamepadCli.dialogShowOpenFile();
-    if (!filePath) return;
-    const content = await window.gamepadCli.planReadFile(filePath);
-    if (!content) return;
-    const result = await window.gamepadCli.planImportFile(content, planScreenState.currentDir);
-    if (result) {
-      await refreshCanvas();
-      const count = Array.isArray(result) ? result.length : 1;
-      showBriefNotice(`Imported ${count} plan item${count === 1 ? '' : 's'} ✓`);
-    } else {
-      showBriefNotice('Import failed - invalid JSON or duplicate item');
-    }
-  } catch (err) {
-    console.error('[PlanScreen] Import failed:', err);
-  }
-}
-
 async function handleClearDone(): Promise<void> {
   try {
     const items = await window.gamepadCli.planList(planScreenState.currentDir);
@@ -538,10 +519,6 @@ export function onPlanRemoveDependency(fromId: string, toId: string): void {
 
 export function onPlanExportDirectory(): void {
   void handleExportDirectory();
-}
-
-export function onPlanImport(): void {
-  void handleImport();
 }
 
 export function onPlanClearDone(): void {
