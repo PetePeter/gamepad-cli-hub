@@ -6,6 +6,9 @@
 /** Lifecycle status of a plan item. */
 export type PlanStatus = 'pending' | 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question' | 'done';
 
+/** Type classification for a plan item. */
+export type PlanType = 'bug' | 'feature' | 'research';
+
 /** A single plan item (node in the DAG). */
 export interface PlanItem {
   /** Unique identifier (UUID v4) */
@@ -24,6 +27,8 @@ export interface PlanItem {
   sessionId?: string;
   /** Extra context for blocked/question states */
   stateInfo?: string;
+  /** Type classification: bug, feature, or research */
+  type?: PlanType;
   /** Creation timestamp */
   createdAt: number;
   /** Timestamp when the current lifecycle status last changed. */
@@ -45,4 +50,22 @@ export interface DirectoryPlan {
   dirPath: string;
   items: PlanItem[];
   dependencies: PlanDependency[];
+}
+
+/**
+ * Get the display title for a plan item with type prefix.
+ * - If type is undefined, returns title unchanged.
+ * - If title already starts with the appropriate prefix, no double-prefix.
+ * - Otherwise, prepends [B], [F], or [R] based on type.
+ */
+export function getDisplayTitle(title: string, type?: PlanType): string {
+  if (!type) return title;
+
+  const prefixMap = { bug: '[B]', feature: '[F]', research: '[R]' };
+  const prefix = prefixMap[type];
+
+  // Check if already prefixed
+  if (title.startsWith(prefix)) return title;
+
+  return `${prefix} ${title}`;
 }

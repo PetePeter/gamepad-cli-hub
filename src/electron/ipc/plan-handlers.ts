@@ -54,12 +54,12 @@ export function setupPlanHandlers(
     return planManager.getForDirectory(dirPath);
   });
 
-  ipcMain.handle('plan:create', (_event, dirPath: string, title: string, description: string) => {
-    return planManager.create(dirPath, title, description);
+  ipcMain.handle('plan:create', (_event, dirPath: string, title: string, description: string, type?: 'bug' | 'feature' | 'research') => {
+    return planManager.createWithType(dirPath, title, description, type);
   });
 
-  ipcMain.handle('plan:update', (_event, id: string, updates: { title?: string; description?: string }) => {
-    return planManager.update(id, updates);
+  ipcMain.handle('plan:update', (_event, id: string, updates: { title?: string; description?: string; type?: 'bug' | 'feature' | 'research' }) => {
+    return planManager.updateWithType(id, updates);
   });
 
   ipcMain.handle('plan:delete', (_event, id: string) => {

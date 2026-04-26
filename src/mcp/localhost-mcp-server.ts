@@ -86,6 +86,7 @@ const TOOLS: McpTool[] = [
         dirPath: { type: 'string' },
         title: { type: 'string' },
         description: { type: 'string' },
+        type: { type: 'string', enum: ['bug', 'feature', 'research'] },
       },
       required: ['dirPath', 'title', 'description'],
       additionalProperties: false,
@@ -94,13 +95,14 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_update',
     title: 'Update Plan',
-    description: 'Update a plan item title and or description.',
+    description: 'Update a plan item title, description, and/or type.',
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string' },
         title: { type: 'string' },
         description: { type: 'string' },
+        type: { type: 'string', enum: ['bug', 'feature', 'research'] },
       },
       required: ['id'],
       additionalProperties: false,
@@ -467,12 +469,14 @@ export class LocalhostMcpServer {
           asString(args.dirPath, 'dirPath is required'),
           asString(args.title, 'title is required'),
           asString(args.description, 'description is required'),
+          typeof args.type === 'string' ? (args.type as 'bug' | 'feature' | 'research') : undefined,
         );
       case 'plan_update':
         return requireResult(
           this.service.updatePlan(asString(args.id, 'id is required'), {
             ...(typeof args.title === 'string' ? { title: args.title } : {}),
             ...(typeof args.description === 'string' ? { description: args.description } : {}),
+            ...(typeof args.type === 'string' ? { type: args.type as 'bug' | 'feature' | 'research' } : {}),
           }),
           `Plan not found: ${asString(args.id, 'id is required')}`,
         );

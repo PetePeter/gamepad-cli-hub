@@ -25,6 +25,7 @@ export interface ChipBarDraft {
 export interface ChipBarPlan {
   id: string;
   title: string;
+  type?: 'bug' | 'feature' | 'research';
   status: 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question';
 }
 
@@ -207,8 +208,8 @@ async function loadDrafts(sessionId: string): Promise<ChipBarDraft[]> {
 async function loadPlans(sessionId: string): Promise<ChipBarPlan[]> {
   const session = state.sessions.find((item) => item.id === sessionId);
   const cwd = session?.workingDir ?? '';
-  let activePlans: Array<{ id: string; title: string; status: string }> = [];
-  let startablePlans: Array<{ id: string; title: string }> = [];
+  let activePlans: Array<{ id: string; title: string; type?: string; status: string }> = [];
+  let startablePlans: Array<{ id: string; title: string; type?: string }> = [];
 
   try {
     if (cwd && window.gamepadCli.planGetAllDoingForDir) {
@@ -234,11 +235,13 @@ async function loadPlans(sessionId: string): Promise<ChipBarPlan[]> {
       .map((plan) => ({
         id: plan.id,
         title: plan.title,
+        type: plan.type as 'bug' | 'feature' | 'research' | undefined,
         status: toChipStatus(plan.status),
       })),
     ...startablePlans.map((plan) => ({
       id: plan.id,
       title: plan.title,
+      type: plan.type as 'bug' | 'feature' | 'research' | undefined,
       status: 'startable' as const,
     })),
   ];

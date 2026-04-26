@@ -12,6 +12,7 @@ export interface DraftPill {
 export interface PlanChipItem {
   id: string;
   title: string;
+  type?: 'bug' | 'feature' | 'research';
   status: 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question';
 }
 
@@ -56,6 +57,7 @@ const hasContent = computed(() =>
       v-for="chip in planChips"
       :key="chip.id"
       :title="chip.title"
+      :type="chip.type"
       :status="chip.status"
       @click="emit('planChipClick', chip.id)"
     />

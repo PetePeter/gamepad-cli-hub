@@ -3,7 +3,7 @@ import { type ConfigLoader } from '../config/loader.js';
 import type { PlanManager } from '../session/plan-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
-import type { PlanItem, PlanStatus } from '../types/plan.js';
+import type { PlanItem, PlanStatus, PlanType } from '../types/plan.js';
 import type { SessionInfo } from '../types/session.js';
 import { mintSessionAuthToken } from './session-auth.js';
 
@@ -78,6 +78,7 @@ export class HelmControlService {
       id: item.id,
       humanId: item.humanId ?? item.id,
       title: item.title,
+      type: item.type,
       status: item.status,
       stateUpdatedAt: item.stateUpdatedAt,
       blockedBy: dependencies
@@ -107,12 +108,12 @@ export class HelmControlService {
     return this.planManager.getItem(id);
   }
 
-  createPlan(dirPath: string, title: string, description: string): PlanItem {
-    return this.planManager.create(dirPath, title, description);
+  createPlan(dirPath: string, title: string, description: string, type?: PlanType): PlanItem {
+    return this.planManager.createWithType(dirPath, title, description, type);
   }
 
-  updatePlan(id: string, updates: { title?: string; description?: string }): PlanItem | null {
-    return this.planManager.update(id, updates);
+  updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType }): PlanItem | null {
+    return this.planManager.updateWithType(id, updates);
   }
 
   deletePlan(id: string): boolean {

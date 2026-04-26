@@ -16,7 +16,7 @@ import {
   saveDependencies,
   cleanupOrphanDependencies,
 } from './persistence.js';
-import type { PlanItem, PlanDependency, DirectoryPlan, PlanStatus } from '../types/plan.js';
+import type { PlanItem, PlanDependency, DirectoryPlan, PlanStatus, PlanType } from '../types/plan.js';
 
 const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['doing', 'wait-tests', 'blocked', 'question']);
 const PAUSED_PLAN_STATUSES = new Set<PlanStatus>(['wait-tests', 'blocked', 'question']);
@@ -75,6 +75,11 @@ export class PlanManager extends EventEmitter {
 
   /** Create a new plan item. No-dep items start as 'startable'. */
   create(dirPath: string, title: string, description: string): PlanItem {
+    return this.createWithType(dirPath, title, description, undefined);
+  }
+
+  /** Create a new plan item with optional type. No-dep items start as 'startable'. */
+  createWithType(dirPath: string, title: string, description: string, type?: PlanType): PlanItem {
     const now = Date.now();
     const item: PlanItem = {
       id: randomUUID(),
@@ -83,6 +88,7 @@ export class PlanManager extends EventEmitter {
       title,
       description,
       status: 'startable',
+      type,
       createdAt: now,
       stateUpdatedAt: now,
       updatedAt: now,
@@ -96,11 +102,19 @@ export class PlanManager extends EventEmitter {
 
   /** Update an existing plan item's title and/or description. */
   update(id: string, updates: { title?: string; description?: string }): PlanItem | null {
+    return this.updateWithType(id, updates);
+  }
+
+  /** Update an existing plan item's title, description, and/or type. */
+  updateWithType(id: string, updates: { title?: string; description?: string; type?: PlanType }): PlanItem | null {
     const item = this.items.get(id);
     if (!item) return null;
 
     if (updates.title !== undefined) item.title = updates.title;
     if (updates.description !== undefined) item.description = updates.description;
+    if (Object.prototype.hasOwnProperty.call(updates, 'type')) {
+      item.type = updates.type;
+    }
     item.updatedAt = Date.now();
 
     savePlanFile(item);

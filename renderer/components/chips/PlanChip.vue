@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { getDisplayTitle } from '../../types.js';
 
 const props = defineProps<{
   title: string;
+  type?: 'bug' | 'feature' | 'research';
   status: 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question';
 }>();
 
@@ -18,7 +20,10 @@ const STATUS_ICONS: Record<typeof props.status, string> = {
   question: '❓',
 };
 
-const displayTitle = computed(() => truncateTitle(props.title));
+const displayTitle = computed(() => {
+  const titleWithPrefix = getDisplayTitle(props.title, props.type);
+  return truncateTitle(titleWithPrefix);
+});
 
 function truncateTitle(title: string): string {
   return title.length > 20 ? `${title.slice(0, 20)}…` : title;
