@@ -22,7 +22,7 @@ import { dirname } from 'node:path';
 
 const __watcher_dirname = dirname(fileURLToPath(import.meta.url));
 
-const VALID_STATUSES = new Set(['pending', 'startable', 'doing', 'wait-tests', 'blocked', 'question', 'done']);
+const VALID_STATUSES = new Set(['planning', 'startable', 'coding', 'review', 'blocked', 'done']);
 
 export interface IncomingImportedEvent {
   filename: string;
@@ -213,7 +213,7 @@ export class IncomingPlansWatcher extends EventEmitter {
     if (typeof raw.title !== 'string' || !raw.title) return { ok: false, error: 'Missing or invalid title' };
     if (typeof raw.description !== 'string') return { ok: false, error: 'Missing description' };
 
-    const status = (raw.status as string) ?? 'pending';
+    const status = (raw.status as string) ?? 'planning';
     if (!VALID_STATUSES.has(status)) return { ok: false, error: `Invalid status: ${status}` };
 
     const now = Date.now();

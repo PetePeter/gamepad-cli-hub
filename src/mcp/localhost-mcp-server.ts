@@ -122,12 +122,12 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_set_state',
     title: 'Set Plan State',
-    description: 'Set a plan item state to pending, startable, doing, wait-tests, blocked, or question. Use this when the lifecycle state itself changed; if you only need the session row to point at the current plan, prefer session_set_working_plan.',
+    description: 'Set a plan item state to planning, startable, coding, review, or blocked. Use this when the lifecycle state itself changed; if you only need the session row to point at the current plan, prefer session_set_working_plan.',
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string' },
-        status: { type: 'string', enum: ['pending', 'startable', 'doing', 'wait-tests', 'blocked', 'question'] },
+        status: { type: 'string', enum: ['planning', 'startable', 'coding', 'review', 'blocked'] },
         stateInfo: { type: 'string' },
         sessionId: { type: 'string' },
       },
@@ -138,7 +138,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_complete',
     title: 'Complete Plan',
-    description: 'Mark a doing or wait-tests plan item as done.',
+    description: 'Mark a coding or review plan item as done.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -573,13 +573,13 @@ export class LocalhostMcpServer {
 
   private setPlanStateWithValidation(
     id: string,
-    status: 'pending' | 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question',
+    status: 'planning' | 'startable' | 'coding' | 'review' | 'blocked',
     stateInfo?: string,
     sessionId?: string,
   ): unknown {
     const current = requireResult(this.service.getPlan(id), `Plan not found: ${id}`);
-    if (status === 'doing' && !sessionId && !current.sessionId) {
-      throw new Error('sessionId is required when setting a plan to doing unless it is already assigned to a session');
+    if (status === 'coding' && !sessionId && !current.sessionId) {
+      throw new Error('sessionId is required when setting a plan to coding unless it is already assigned to a session');
     }
     return requireResult(
       this.service.setPlanState(id, status, stateInfo, sessionId),
@@ -653,11 +653,11 @@ function asString(value: unknown, errorMessage: string): string {
   return value;
 }
 
-function asPlanStatus(value: unknown): 'pending' | 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question' {
-  if (value === 'pending' || value === 'startable' || value === 'doing' || value === 'wait-tests' || value === 'blocked' || value === 'question') {
+function asPlanStatus(value: unknown): 'planning' | 'startable' | 'coding' | 'review' | 'blocked' {
+  if (value === 'planning' || value === 'startable' || value === 'coding' || value === 'review' || value === 'blocked') {
     return value;
   }
-  throw new Error('status must be one of pending, startable, doing, wait-tests, blocked, or question');
+  throw new Error('status must be one of planning, startable, coding, review, or blocked');
 }
 
 function requireResult<T>(value: T | null, message: string): T {

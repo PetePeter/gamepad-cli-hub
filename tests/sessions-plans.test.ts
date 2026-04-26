@@ -56,11 +56,10 @@ vi.mock('../renderer/stores/navigation.js', () => ({
 
 const mockState = {
   planDirStartableCounts: new Map<string, number>(),
-  planDirDoingCounts: new Map<string, number>(),
+  planDirCodingCounts: new Map<string, number>(),
   planDirBlockedCounts: new Map<string, number>(),
-  planDirQuestionCounts: new Map<string, number>(),
-  planDirWaitTestsCounts: new Map<string, number>(),
-  planDirPendingCounts: new Map<string, number>(),
+  planDirReviewCounts: new Map<string, number>(),
+  planDirPlanningCounts: new Map<string, number>(),
 };
 
 vi.mock('../renderer/state.js', () => ({
@@ -399,14 +398,13 @@ describe('Sessions Plans Grid', () => {
   describe('refreshPlanBadges', () => {
     beforeEach(() => {
       mockState.planDirStartableCounts.clear();
-      mockState.planDirDoingCounts.clear();
+      mockState.planDirCodingCounts.clear();
       mockState.planDirBlockedCounts.clear();
-      mockState.planDirQuestionCounts.clear();
-      mockState.planDirWaitTestsCounts.clear();
-      mockState.planDirPendingCounts.clear();
+      mockState.planDirReviewCounts.clear();
+      mockState.planDirPlanningCounts.clear();
     });
 
-    it('populates all 5 counts from planList and planStartableForDir', async () => {
+    it('populates all 4 counts from planList and planStartableForDir', async () => {
       sessionsState.directories = [{ name: 'proj', path: '/proj' }];
       mockPlanStartableForDir.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
       mockPlanList.mockResolvedValue([
@@ -416,16 +414,16 @@ describe('Sessions Plans Grid', () => {
         { status: 'blocked' },
         { status: 'planning' },
         { status: 'planning' },
-        { status: 'planning' },
+        { status: 'review' },
       ]);
 
       await plans.refreshPlanBadges();
 
       expect(mockState.planDirStartableCounts.get('/proj')).toBe(2);
-      expect(mockState.planDirDoingCounts.get('/proj')).toBe(2);
-      expect(mockState.planDirBlockedCounts.get('/proj')).toBe(1);
-      expect(mockState.planDirQuestionCounts.get('/proj')).toBe(1);
-      expect(mockState.planDirPendingCounts.get('/proj')).toBe(3);
+      expect(mockState.planDirCodingCounts.get('/proj')).toBe(2);
+      expect(mockState.planDirBlockedCounts.get('/proj')).toBe(2);
+      expect(mockState.planDirReviewCounts.get('/proj')).toBe(1);
+      expect(mockState.planDirPlanningCounts.get('/proj')).toBe(2);
     });
 
     it('sets all counts to 0 when planList returns empty', async () => {
@@ -436,10 +434,10 @@ describe('Sessions Plans Grid', () => {
       await plans.refreshPlanBadges();
 
       expect(mockState.planDirStartableCounts.get('/proj')).toBe(0);
-      expect(mockState.planDirDoingCounts.get('/proj')).toBe(0);
+      expect(mockState.planDirCodingCounts.get('/proj')).toBe(0);
       expect(mockState.planDirBlockedCounts.get('/proj')).toBe(0);
-      expect(mockState.planDirQuestionCounts.get('/proj')).toBe(0);
-      expect(mockState.planDirPendingCounts.get('/proj')).toBe(0);
+      expect(mockState.planDirReviewCounts.get('/proj')).toBe(0);
+      expect(mockState.planDirPlanningCounts.get('/proj')).toBe(0);
     });
 
     it('populates counts for each directory independently', async () => {
@@ -457,7 +455,7 @@ describe('Sessions Plans Grid', () => {
       await plans.refreshPlanBadges();
 
       expect(mockState.planDirStartableCounts.get('/a')).toBe(1);
-      expect(mockState.planDirDoingCounts.get('/a')).toBe(1);
+      expect(mockState.planDirCodingCounts.get('/a')).toBe(1);
       expect(mockState.planDirStartableCounts.get('/b')).toBe(0);
       expect(mockState.planDirBlockedCounts.get('/b')).toBe(2);
     });

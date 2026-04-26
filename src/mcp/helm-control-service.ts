@@ -331,13 +331,13 @@ export class HelmControlService {
     if (session.workingDir && plan.dirPath !== session.workingDir) {
       throw new Error(`Plan ${planId} does not belong to session directory ${session.workingDir}`);
     }
-    if (plan.status === 'done' || plan.status === 'pending') {
+    if (plan.status === 'done' || plan.status === 'planning') {
       throw new Error(`Plan ${planId} is not active or startable`);
     }
 
     const planIsAlreadyOwnedBySession =
       plan.sessionId === session.id &&
-      (plan.status === 'doing' || plan.status === 'wait-tests' || plan.status === 'blocked' || plan.status === 'question');
+      (plan.status === 'coding' || plan.status === 'review' || plan.status === 'blocked');
 
     const updatedPlan = planIsAlreadyOwnedBySession
       ? plan
@@ -345,7 +345,7 @@ export class HelmControlService {
           if (plan.sessionId && plan.sessionId !== session.id) {
             throw new Error(`Plan ${planId} is already assigned to session ${plan.sessionId}`);
           }
-          return this.planManager.setState(plan.id, 'doing', undefined, session.id)
+          return this.planManager.setState(plan.id, 'coding', undefined, session.id)
             ?? (() => { throw new Error(`Plan ${planId} could not be assigned to session ${session.id}`); })();
         })();
 

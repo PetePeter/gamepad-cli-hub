@@ -9,12 +9,11 @@ const CONNECTOR_R = 6;
 const CONNECTOR_SNAP_TOLERANCE_PX = 16;
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: '#555555',
-  startable: '#4488ff',
-  doing: '#44cc44',
-  'wait-tests': '#44ccff',
+  planning: '#555555',
+  ready: '#4488ff',
+  coding: '#44cc44',
+  review: '#44ccff',
   blocked: '#ff9f1a',
-  question: '#d17cff',
   done: '#555555',
 };
 
@@ -375,7 +374,7 @@ function startDragConnection(id: string, e: MouseEvent): void {
           @click="emit('applyNode', selectedItem.id)"
         >Apply</button>
         <button
-          v-if="selectedItem.status === 'doing' || selectedItem.status === 'wait-tests'"
+          v-if="selectedItem.status === 'coding' || selectedItem.status === 'review'"
           class="plan-header__btn plan-header__btn--secondary"
           @click="emit('completeNode', selectedItem.id)"
         >Done</button>

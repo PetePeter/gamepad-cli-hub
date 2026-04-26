@@ -242,7 +242,7 @@ describe('plan screen bridge', () => {
   it('applies a startable plan through the editor callback', async () => {
     const mod = await getModule();
     const opener = vi.fn();
-    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'ready', createdAt: 1, updatedAt: 1 };
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'startable', createdAt: 1, updatedAt: 1 };
     mockPlanList.mockResolvedValue([item]);
     mockPlanDeps.mockResolvedValue([]);
     mockComputeLayout.mockReturnValue(fakeLayout(['a']));

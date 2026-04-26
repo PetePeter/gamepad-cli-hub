@@ -22,7 +22,7 @@ vi.mock('../renderer/state.js', () => ({
       { id: 'session-1', name: 'My Session', cliType: 'claude-code', workingDir: 'C:\\myproject' },
     ],
     draftCounts: new Map(),
-    planDoingCounts: new Map(),
+    planCodingCounts: new Map(),
     planStartableCounts: new Map(),
   },
 }));

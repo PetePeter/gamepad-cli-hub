@@ -247,11 +247,10 @@ const plansDirItems = computed(() =>
     name: d.name,
     path: d.path,
     startableCount: state.planDirStartableCounts.get(d.path) ?? 0,
-    doingCount: state.planDirDoingCounts.get(d.path) ?? 0,
+    codingCount: state.planDirCodingCounts.get(d.path) ?? 0,
     blockedCount: state.planDirBlockedCounts.get(d.path) ?? 0,
-    questionCount: state.planDirQuestionCounts.get(d.path) ?? 0,
-    waitTestsCount: state.planDirWaitTestsCounts.get(d.path) ?? 0,
-    pendingCount: state.planDirPendingCounts.get(d.path) ?? 0,
+    reviewCount: state.planDirReviewCounts.get(d.path) ?? 0,
+    planningCount: state.planDirPlanningCounts.get(d.path) ?? 0,
   }))
 );
 

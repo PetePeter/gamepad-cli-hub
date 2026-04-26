@@ -51,22 +51,20 @@ export interface AppState {
   lastOutputTimes: Map<string, number>;
   /** Per-session draft count cache */
   draftCounts: Map<string, number>;
-  /** Per-session plan doing count cache */
-  planDoingCounts: Map<string, number>;
+  /** Per-session plan coding count cache */
+  planCodingCounts: Map<string, number>;
   /** Per-session plan startable count cache */
   planStartableCounts: Map<string, number>;
   /** Per-directory plan startable count (for dirs without active sessions) */
   planDirStartableCounts: Map<string, number>;
-  /** Per-directory plan doing count */
-  planDirDoingCounts: Map<string, number>;
+  /** Per-directory plan coding count */
+  planDirCodingCounts: Map<string, number>;
   /** Per-directory plan blocked count */
   planDirBlockedCounts: Map<string, number>;
-  /** Per-directory plan question count */
-  planDirQuestionCounts: Map<string, number>;
-  /** Per-directory plan wait-tests count */
-  planDirWaitTestsCounts: Map<string, number>;
-  /** Per-directory plan pending count */
-  planDirPendingCounts: Map<string, number>;
+  /** Per-directory plan review count */
+  planDirReviewCounts: Map<string, number>;
+  /** Per-directory plan planning count */
+  planDirPlanningCounts: Map<string, number>;
   /** Per-session working plan label (e.g. "🗺️ Auth refactor") */
   workingPlanLabels: Map<string, string>;
   /** Per-session working plan tooltip */
@@ -96,14 +94,13 @@ export const state: AppState = reactive({
   sessionActivityLevels: new Map(),
   lastOutputTimes: new Map(),
   draftCounts: new Map(),
-  planDoingCounts: new Map(),
+  planCodingCounts: new Map(),
   planStartableCounts: new Map(),
   planDirStartableCounts: new Map(),
-  planDirDoingCounts: new Map(),
+  planDirCodingCounts: new Map(),
   planDirBlockedCounts: new Map(),
-  planDirQuestionCounts: new Map(),
-  planDirWaitTestsCounts: new Map(),
-  planDirPendingCounts: new Map(),
+  planDirReviewCounts: new Map(),
+  planDirPlanningCounts: new Map(),
   workingPlanLabels: new Map(),
   workingPlanTooltips: new Map(),
   pendingSchedules: new Map(),

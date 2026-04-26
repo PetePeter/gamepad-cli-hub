@@ -157,7 +157,7 @@ describe('Plan Types (P-0038)', () => {
         dirPath: '/d',
         title: 'Legacy',
         description: 'Old plan',
-        status: 'ready' as const,
+        status: 'startable' as const,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -186,7 +186,7 @@ describe('Plan Types (P-0038)', () => {
 
       const pm2 = new PlanManager();
       const item = pm2.getItem('test-id');
-      expect(item!.status).toBe('coding');
+      expect(item!.status).toBe('ready');
       expect(item!.type).toBeUndefined();
     });
   });

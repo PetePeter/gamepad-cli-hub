@@ -134,7 +134,7 @@ describe('useAppBootstrap PTY exit cleanup', () => {
     state.sessionActivityLevels.clear();
     state.lastOutputTimes.clear();
     state.draftCounts.clear();
-    state.planDoingCounts.clear();
+    state.planCodingCounts.clear();
     state.planStartableCounts.clear();
     state.workingPlanLabels.clear();
     state.workingPlanTooltips.clear();

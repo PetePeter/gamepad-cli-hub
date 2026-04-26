@@ -78,7 +78,7 @@ describe('useChipBarStore', () => {
     ];
     state.activeSessionId = 's1';
     state.draftCounts.clear();
-    state.planDoingCounts.clear();
+    state.planCodingCounts.clear();
     state.planStartableCounts.clear();
     (globalThis as typeof globalThis & { window: any }).window = {
       gamepadCli: {

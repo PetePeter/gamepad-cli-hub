@@ -190,14 +190,13 @@ async function refreshDraftCounts(): Promise<void> {
 
 async function refreshPlanCounts(): Promise<void> {
   if (!window.gamepadCli?.planStartableForDir) return;
-  state.planDoingCounts.clear();
+  state.planCodingCounts.clear();
   state.planStartableCounts.clear();
   state.planDirStartableCounts.clear();
-  state.planDirDoingCounts.clear();
+  state.planDirCodingCounts.clear();
   state.planDirBlockedCounts.clear();
-  state.planDirQuestionCounts.clear();
-  state.planDirWaitTestsCounts.clear();
-  state.planDirPendingCounts.clear();
+  state.planDirReviewCounts.clear();
+  state.planDirPlanningCounts.clear();
 
   const tm = getTerminalManager();
 
@@ -213,13 +212,13 @@ async function refreshPlanCounts(): Promise<void> {
 
       try {
         const doing = await window.gamepadCli.planDoingForSession(id);
-        if (doing.length > 0) state.planDoingCounts.set(id, doing.length);
+        if (doing.length > 0) state.planCodingCounts.set(id, doing.length);
         const session = state.sessions.find((entry) => entry.id === id);
         const plan = session?.currentPlanId
           ? (doing.find((entry) => entry.id === session.currentPlanId) ?? doing[0])
           : doing[0];
         if (plan) {
-          const prefix = plan.status === 'blocked' ? '⛔' : plan.status === 'question' ? '❓' : plan.status === 'wait-tests' ? '⏳' : '🗺️';
+          const prefix = plan.status === 'blocked' ? '⛔' : plan.status === 'review' ? '⏳' : '🗺️';
           const planRef = plan.humanId ? `${plan.humanId} · ${plan.title}` : plan.title;
           state.workingPlanLabels.set(id, `${prefix} ${planRef}`);
           state.workingPlanTooltips.set(id, plan.stateInfo ? `${planRef}\n${plan.stateInfo}` : planRef);
@@ -376,7 +375,7 @@ function cleanupRendererSession(sessionId: string, detachTerminal = false): void
   state.sessionActivityLevels.delete(sessionId);
   state.lastOutputTimes.delete(sessionId);
   state.draftCounts.delete(sessionId);
-  state.planDoingCounts.delete(sessionId);
+  state.planCodingCounts.delete(sessionId);
   state.planStartableCounts.delete(sessionId);
   state.workingPlanLabels.delete(sessionId);
   state.workingPlanTooltips.delete(sessionId);
@@ -677,7 +676,10 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
   // Keyboard relay
   setupKeyboardRelay(
     () => tm.getActiveSessionId() ?? null,
-    (sessionId) => getSessionState(sessionId) === 'question',
+    (sessionId) => {
+      const session = state.sessions.find(s => s.id === sessionId);
+      return session ? (session as any).questionPending ?? false : false;
+    },
     async () => {
       try {
         return await window.gamepadCli.configGetEscProtectionEnabled();

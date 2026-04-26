@@ -71,7 +71,7 @@ function makeValidJson(overrides: Record<string, unknown> = {}): string {
     dirPath: '/projects/backend',
     title: 'Implement Auth',
     description: 'JWT middleware',
-    status: 'ready',
+    status: 'startable',
     ...overrides,
   });
 }

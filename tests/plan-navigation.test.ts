@@ -50,7 +50,7 @@ vi.mock('../renderer/state.js', () => ({
       { id: 'session-1', name: 'Test Session', cliType: 'claude-code', processId: 1, workingDir: '/test/dir' },
     ],
     draftCounts: new Map(),
-    planDoingCounts: new Map(),
+    planCodingCounts: new Map(),
     planStartableCounts: new Map(),
   },
 }));

@@ -72,15 +72,15 @@ export function setDraftCountCache(sessionId: string, count: number): void {
 }
 
 // Plan count caches — updated when plan chips refresh
-const planDoingCounts = new Map<string, number>();
+const planCodingCounts = new Map<string, number>();
 const planStartableCounts = new Map<string, number>();
 
-export function getPlanDoingCountCache(sessionId: string): number {
-  return planDoingCounts.get(sessionId) ?? 0;
+export function getPlanCodingCountCache(sessionId: string): number {
+  return planCodingCounts.get(sessionId) ?? 0;
 }
 
-export function setPlanDoingCountCache(sessionId: string, count: number): void {
-  planDoingCounts.set(sessionId, count);
+export function setPlanCodingCountCache(sessionId: string, count: number): void {
+  planCodingCounts.set(sessionId, count);
 }
 
 export function getPlanStartableCountCache(sessionId: string): number {
@@ -144,7 +144,7 @@ export function getSessionActivity(sessionId: string): string {
 function cleanupRendererSession(sessionId: string): void {
   removeSessionState(sessionId);
   draftCounts.delete(sessionId);
-  planDoingCounts.delete(sessionId);
+  planCodingCounts.delete(sessionId);
   planStartableCounts.delete(sessionId);
   state.sessionActivityLevels.delete(sessionId);
   state.lastOutputTimes.delete(sessionId);

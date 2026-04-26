@@ -26,7 +26,7 @@ export interface ChipBarPlan {
   id: string;
   title: string;
   type?: 'bug' | 'feature' | 'research';
-  status: 'startable' | 'doing' | 'wait-tests' | 'blocked' | 'question';
+  status: 'startable' | 'coding' | 'review' | 'blocked' | 'planning';
 }
 
 export interface ChipBarAction {
@@ -41,10 +41,10 @@ interface ChipBarActionConfig {
 }
 
 const ACTIVE_PLAN_STATUSES = new Set<ChipBarPlan['status']>([
-  'doing',
-  'wait-tests',
+  'coding',
+  'review',
   'blocked',
-  'question',
+  'planning',
 ]);
 
 export const useChipBarStore = defineStore('chip-bar', () => {
@@ -88,7 +88,7 @@ export const useChipBarStore = defineStore('chip-bar', () => {
       preview: resolveChipbarTemplates(action.sequence, buildTemplateContext(sessionId, actionConfig.inboxDir)),
     }));
     state.draftCounts.set(sessionId, nextDrafts.length);
-    state.planDoingCounts.set(
+    state.planCodingCounts.set(
       sessionId,
       nextPlans.filter((plan) => plan.status !== 'startable').length,
     );
@@ -155,7 +155,7 @@ export const useChipBarStore = defineStore('chip-bar', () => {
         await refresh(sessionId);
       };
 
-      const onDone = plan.status === 'doing' || plan.status === 'wait-tests'
+      const onDone = plan.status === 'coding' || plan.status === 'review'
         ? async () => {
           await window.gamepadCli.planComplete(planId);
           await refresh(sessionId);
@@ -265,13 +265,13 @@ async function loadActionConfig(): Promise<ChipBarActionConfig> {
 function toChipStatus(status: string): ChipBarPlan['status'] {
   if (
     status === 'startable' ||
-    status === 'wait-tests' ||
+    status === 'review' ||
     status === 'blocked' ||
-    status === 'question'
+    status === 'planning'
   ) {
     return status;
   }
-  return 'doing';
+  return 'coding';
 }
 
 function buildTemplateContext(sessionId: string, inboxDir: string): {
