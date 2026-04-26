@@ -9,7 +9,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import type { PlanStatus } from '../../src/types/plan.js';
 
 export interface PlanCallbacks {
-  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string }) => void;
+  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: 'bug' | 'feature' | 'research' }) => void;
   onDelete: () => void;
   onDone?: () => void;
   onApply?: () => void;
@@ -31,6 +31,7 @@ export interface DraftEditorProps {
   planHumanId?: string;
   planCreatedAt?: number | null;
   planStateUpdatedAt?: number | null;
+  planType?: 'bug' | 'feature' | 'research';
   planCallbacks?: PlanCallbacks | null;
 }
 
@@ -44,6 +45,7 @@ const props = withDefaults(defineProps<DraftEditorProps>(), {
   planHumanId: '',
   planCreatedAt: null,
   planStateUpdatedAt: null,
+  planType: undefined,
   planCallbacks: null,
 });
 
@@ -54,7 +56,7 @@ const emit = defineEmits<{
   delete: [];
   close: [];
   // Plan-specific events
-  'plan-save': [updates: { title: string; description: string; status: PlanStatus; stateInfo?: string }];
+  'plan-save': [updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: 'bug' | 'feature' | 'research' }];
   'plan-apply': [];
   'plan-done': [];
   'plan-delete': [];
@@ -66,6 +68,7 @@ const label = ref(props.initialLabel);
 const text = ref(props.initialText);
 const status = ref<PlanStatus>(props.planStatus);
 const stateInfo = ref(props.planStateInfo);
+const type = ref<'bug' | 'feature' | 'research' | undefined>(props.planType);
 const saveStatus = ref<'clean' | 'unsaved' | 'saving' | 'saved'>('clean');
 const autoSaveTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const focusIndex = ref(0);
@@ -76,12 +79,14 @@ const origLabel = ref(props.initialLabel);
 const origText = ref(props.initialText);
 const origStatus = ref<PlanStatus>(props.planStatus);
 const origStateInfo = ref(props.planStateInfo);
+const origType = ref<'bug' | 'feature' | 'research' | undefined>(props.planType);
 
 // Refs for focus management
 const labelInputRef = ref<HTMLInputElement | null>(null);
 const contentInputRef = ref<HTMLTextAreaElement | null>(null);
 const stateSelectRef = ref<HTMLSelectElement | null>(null);
 const stateInfoRef = ref<HTMLInputElement | null>(null);
+const typeSelectRef = ref<HTMLSelectElement | null>(null);
 
 // ResizeObserver + debounced persistence for editor height
 const resizeObserver = ref<ResizeObserver | null>(null);
@@ -140,7 +145,8 @@ const hasUnsavedChanges = computed(() => {
   return label.value !== origLabel.value ||
     text.value !== origText.value ||
     effectiveStatus !== origStatus.value ||
-    effectiveStateInfo !== origStateInfo.value;
+    effectiveStateInfo !== origStateInfo.value ||
+    type.value !== origType.value;
 });
 
 const saveStatusText = computed(() => {
@@ -168,6 +174,7 @@ const focusableElements = computed(() => {
   ];
   if (showPlanStateSelect.value) {
     elements.push(stateSelectRef.value);
+    elements.push(typeSelectRef.value);
   }
   if (showPlanStateInfo.value) {
     elements.push(stateInfoRef.value);
@@ -186,10 +193,12 @@ watch(() => props.visible, (visible) => {
     text.value = props.initialText;
     status.value = props.planStatus;
     stateInfo.value = props.planStateInfo;
+    type.value = props.planType;
     origLabel.value = props.initialLabel;
     origText.value = props.initialText;
     origStatus.value = props.planStatus;
     origStateInfo.value = props.planStateInfo;
+    origType.value = props.planType;
     saveStatus.value = 'clean';
     focusIndex.value = 0;
     nextTick(() => {
@@ -216,7 +225,7 @@ watch(() => props.initialText, (val) => {
 });
 
 // Mark as unsaved on input
-watch([label, text, status, stateInfo], () => {
+watch([label, text, status, stateInfo, type], () => {
   if (!props.visible || hydratingFromProps.value) return;
   if (saveStatus.value === 'clean' || saveStatus.value === 'saved') {
     saveStatus.value = 'unsaved';
@@ -279,6 +288,7 @@ function onSave(): void {
       description: text.value,
       status: effectiveStatus,
       stateInfo: effectiveStateInfo,
+      type: type.value,
     });
     emit('close');
   }
@@ -340,11 +350,13 @@ function doAutoSave(): void {
       description: text.value,
       status: effectiveStatus,
       stateInfo: effectiveStateInfo,
+      type: type.value,
     });
     origLabel.value = label.value;
     origText.value = text.value;
     origStatus.value = effectiveStatus;
     origStateInfo.value = effectiveStateInfo;
+    origType.value = type.value;
     saveStatus.value = 'saved';
     setTimeout(() => {
       if (saveStatus.value === 'saved') saveStatus.value = 'clean';
@@ -505,6 +517,17 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
         <option value="coding">🔄 Coding</option>
         <option value="review">⏳ Review</option>
         <option value="blocked">⛔ Blocked</option>
+      </select>
+      <select
+        v-if="isPlan"
+        ref="typeSelectRef"
+        v-model="type"
+        class="draft-editor-plan-select"
+      >
+        <option :value="undefined">None</option>
+        <option value="bug">Bug</option>
+        <option value="feature">Feature</option>
+        <option value="research">Research</option>
       </select>
       <input
         v-if="showPlanStateInfo"

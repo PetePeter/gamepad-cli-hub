@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { getDisplayTitle } from '../../types.js';
 import type { PlanDependency, PlanItem } from '../../../src/types/plan.js';
 import type { LayoutResult } from '../../plans/plan-layout.js';
 
@@ -312,7 +313,7 @@ function startDragConnection(id: string, e: MouseEvent): void {
             :fill="getNodeColor(item.status)"
           />
           <foreignObject x="32" y="6" width="160" height="20">
-            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__title">{{ item.title }}</div>
+            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__title">{{ getDisplayTitle(item.title, item.type) }}</div>
           </foreignObject>
           <foreignObject x="8" y="26" width="184" height="14">
             <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__meta">
