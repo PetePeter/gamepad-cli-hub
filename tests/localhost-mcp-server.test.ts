@@ -532,4 +532,74 @@ describe('LocalhostMcpServer', () => {
     const response = await fetch(`http://127.0.0.1:${port}/mcp`, { method: 'GET' });
     expect(response.status).toBe(405);
   });
+
+  it('session_info returns complete SessionInfo with MCP endpoint and state registry', async () => {
+    const service = makeService();
+    (service as any).getSessionInfo = vi.fn((authContext) => ({
+      sessionId: 'sess-123',
+      sessionName: 'Claude-Main',
+      cliType: 'claude-code',
+      workingDir: 'X:\\coding\\gamepad-cli-hub',
+      mcp_url: 'http://127.0.0.1:47373/mcp',
+      mcp_token: 'secret-token-value',
+      aiagent_states: ['planning', 'implementing', 'completed', 'idle'],
+      available_tools: [
+        { name: 'tools_list', title: 'List CLI Types' },
+        { name: 'session_info', title: 'Get Session Info' },
+      ],
+      available_directories: [
+        { path: 'X:\\coding\\gamepad-cli-hub', name: 'Helm' },
+      ],
+    }));
+
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 100,
+      method: 'tools/call',
+      params: {
+        name: 'session_info',
+        arguments: {},
+      },
+    });
+
+    const json = await response.json();
+    expect((service as any).getSessionInfo).toHaveBeenCalled();
+    const content = json.result.structuredContent;
+    expect(content.sessionId).toBe('sess-123');
+    expect(content.sessionName).toBe('Claude-Main');
+    expect(content.cliType).toBe('claude-code');
+    expect(content.mcp_url).toBe('http://127.0.0.1:47373/mcp');
+    expect(content.aiagent_states).toContain('planning');
+    expect(content.aiagent_states).toContain('implementing');
+    expect(content.available_tools).toHaveLength(2);
+    expect(content.available_directories).toHaveLength(1);
+  });
+
+  it('session_info tool is included in tools/list response', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 101,
+      method: 'tools/list',
+      params: {},
+    });
+
+    const json = await response.json();
+    const sessionInfoTool = json.result.tools.find((t: { name: string }) => t.name === 'session_info');
+    expect(sessionInfoTool).toBeDefined();
+    expect(sessionInfoTool.title).toBe('Get Session Info');
+    expect(sessionInfoTool.description).toContain('AIAGENT state registry');
+    expect(sessionInfoTool.description).toContain('MCP endpoint URL');
+    expect(sessionInfoTool.inputSchema.properties).toEqual({});
+  });
 });

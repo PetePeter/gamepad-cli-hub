@@ -35,6 +35,28 @@ export interface CliSummary {
   supportedDirPaths: string[];
 }
 
+export interface McpToolSummary {
+  name: string;
+  title: string;
+}
+
+export interface DirectoryInfo {
+  path: string;
+  name?: string;
+}
+
+export interface SessionInfoResponse {
+  sessionId?: string;
+  sessionName?: string;
+  cliType?: string;
+  workingDir?: string;
+  mcp_url: string;
+  mcp_token: string;
+  aiagent_states: string[];
+  available_tools: McpToolSummary[];
+  available_directories: DirectoryInfo[];
+}
+
 export class HelmControlService {
   constructor(
     private readonly planManager: PlanManager,
@@ -336,6 +358,82 @@ export class HelmControlService {
     };
   }
 
+  /**
+   * Get session info with MCP endpoint and AIAGENT state registry.
+   * Called via session_info MCP tool — autocall endpoint provides context to AI agents.
+   */
+  getSessionInfo(authContext?: { sessionId?: string; sessionName?: string }): SessionInfoResponse {
+    const mcpConfig = this.configLoader.getMcpConfig();
+    const mcpPort = mcpConfig.port ?? 47373;
+    const mcpUrl = `http://127.0.0.1:${mcpPort}/mcp`;
+
+    // Extract sessionId from auth context (set-scoped token) or default to undefined
+    const sessionId = authContext?.sessionId;
+    const sessionName = authContext?.sessionName;
+
+    // Get session info if authenticated with session token
+    let sessionInfo: SessionInfo | undefined;
+    if (sessionId) {
+      sessionInfo = this.sessionManager.getSession(sessionId) ?? undefined;
+    }
+
+    return {
+      sessionId,
+      sessionName: sessionName ?? sessionInfo?.name,
+      cliType: sessionInfo?.cliType,
+      workingDir: sessionInfo?.workingDir,
+      mcp_url: mcpUrl,
+      mcp_token: mcpConfig.authToken ?? '',
+      aiagent_states: this.getAiagentStates(),
+      available_tools: this.getAvailableTools(),
+      available_directories: this.getAvailableDirectories(),
+    };
+  }
+
+  /**
+   * Get list of valid AIAGENT state tags for the state registry.
+   * Registered states are: planning, implementing, completed, idle.
+   */
+  private getAiagentStates(): string[] {
+    return ['planning', 'implementing', 'completed', 'idle'];
+  }
+
+  /**
+   * Get list of available MCP tools with names and titles.
+   */
+  private getAvailableTools(): McpToolSummary[] {
+    return [
+      { name: 'tools_list', title: 'List CLI Types' },
+      { name: 'plans_list', title: 'List Plans' },
+      { name: 'plans_summary', title: 'Plans Summary' },
+      { name: 'plan_get', title: 'Get Plan' },
+      { name: 'plan_create', title: 'Create Plan' },
+      { name: 'plan_update', title: 'Update Plan' },
+      { name: 'plan_delete', title: 'Delete Plan' },
+      { name: 'plan_set_state', title: 'Set Plan State' },
+      { name: 'plan_complete', title: 'Complete Plan' },
+      { name: 'plan_nextplan_link', title: 'Link Next Plan' },
+      { name: 'plan_nextplan_unlink', title: 'Unlink Next Plan' },
+      { name: 'directories_list', title: 'List Directories' },
+      { name: 'helm_session_create', title: 'Create Helm Session' },
+      { name: 'sessions_list', title: 'List Sessions' },
+      { name: 'session_get', title: 'Get Session' },
+      { name: 'session_send_text', title: 'Send Text To Session' },
+      { name: 'session_set_working_plan', title: 'Set Session Working Plan' },
+      { name: 'session_info', title: 'Get Session Info' },
+    ];
+  }
+
+  /**
+   * Get list of available working directories with names.
+   */
+  private getAvailableDirectories(): DirectoryInfo[] {
+    return this.configLoader.getWorkingDirectories().map((entry) => ({
+      path: entry.path,
+      name: entry.name,
+    }));
+  }
+
   private toSessionSummary(session: SessionInfo): SessionSummary {
     return {
       id: session.id,
@@ -384,13 +482,16 @@ export class HelmControlService {
         .map((entry) => [entry.name.trim(), this.resolveEnvValue(typeof entry?.value === 'string' ? entry.value : '')]),
     );
     if (helmSession) {
+      const mcpConfig = this.configLoader.getMcpConfig();
+      const mcpPort = mcpConfig.port ?? 47373;
       env.HELM_MCP_TOKEN = mintSessionAuthToken(
-        this.configLoader.getMcpConfig().authToken,
+        mcpConfig.authToken,
         helmSession.sessionId,
         helmSession.sessionName,
       );
       env.HELM_SESSION_ID = helmSession.sessionId;
       env.HELM_SESSION_NAME = helmSession.sessionName;
+      env.HELM_MCP_URL = `http://127.0.0.1:${mcpPort}/mcp`;
     }
     return Object.keys(env).length > 0 ? env : undefined;
   }

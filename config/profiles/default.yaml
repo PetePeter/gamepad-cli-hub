@@ -14,12 +14,9 @@ tools:
 
           SYSTEMPROMPT:
 
-          First line of EVERY response MUST be exactly one AIAGENT state tag:
-
-          - AIAGENT-PLANNING — researching, thinking, investigating -
-          AIAGENT-IMPLEMENTING — writing code, making changes -
-          AIAGENT-COMPLETED — done, ready for review - AIAGENT-IDLE — waiting
-          for input
+          First line of EVERY response MUST be exactly one AIAGENT state tag from the session_info MCP tool registry:
+          AIAGENT-PLANNING, AIAGENT-IMPLEMENTING, AIAGENT-COMPLETED, or AIAGENT-IDLE.
+          Call the session_info MCP tool on session startup to get the canonical state list.
 
           Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
 
@@ -44,12 +41,9 @@ tools:
 
           SYSTEMPROMPT:
 
-          First line of EVERY response MUST be exactly one AIAGENT state tag:
-
-          - AIAGENT-PLANNING — researching, thinking, investigating -
-          AIAGENT-IMPLEMENTING — writing code, making changes -
-          AIAGENT-COMPLETED — done, ready for review - AIAGENT-IDLE — waiting
-          for input
+          First line of EVERY response MUST be exactly one AIAGENT state tag from the session_info MCP tool registry:
+          AIAGENT-PLANNING, AIAGENT-IMPLEMENTING, AIAGENT-COMPLETED, or AIAGENT-IDLE.
+          Call the session_info MCP tool on session startup to get the canonical state list.
 
           Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
 
@@ -75,12 +69,9 @@ tools:
 
           SYSTEMPROMPT:
 
-          First line of EVERY response MUST be exactly one AIAGENT state tag:
-
-          - AIAGENT-PLANNING — researching, thinking, investigating -
-          AIAGENT-IMPLEMENTING — writing code, making changes -
-          AIAGENT-COMPLETED — done, ready for review - AIAGENT-IDLE — waiting
-          for input
+          First line of EVERY response MUST be exactly one AIAGENT state tag from the session_info MCP tool registry:
+          AIAGENT-PLANNING, AIAGENT-IMPLEMENTING, AIAGENT-COMPLETED, or AIAGENT-IDLE.
+          Call the session_info MCP tool on session startup to get the canonical state list.
 
           Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
 
@@ -106,12 +97,9 @@ tools:
 
           SYSTEMPROMPT:
 
-          First line of EVERY response MUST be exactly one AIAGENT state tag:
-
-          - AIAGENT-PLANNING — researching, thinking, investigating -
-          AIAGENT-IMPLEMENTING — writing code, making changes -
-          AIAGENT-COMPLETED — done, ready for review - AIAGENT-IDLE — waiting
-          for input
+          First line of EVERY response MUST be exactly one AIAGENT state tag from the session_info MCP tool registry:
+          AIAGENT-PLANNING, AIAGENT-IMPLEMENTING, AIAGENT-COMPLETED, or AIAGENT-IDLE.
+          Call the session_info MCP tool on session startup to get the canonical state list.
 
           Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
 
