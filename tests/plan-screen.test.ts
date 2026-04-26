@@ -18,7 +18,6 @@ const mockPlanAddDep = vi.fn();
 const mockPlanRemoveDep = vi.fn();
 const mockPlanExportDirectory = vi.fn();
 const mockPlanWriteFile = vi.fn();
-const mockPlanImportFile = vi.fn();
 const mockPlanReadFile = vi.fn();
 const mockPlanClearCompleted = vi.fn();
 const mockWriteTempContent = vi.fn();
@@ -124,7 +123,6 @@ describe('plan screen bridge', () => {
     mockPlanRemoveDep.mockReset();
     mockPlanExportDirectory.mockReset();
     mockPlanWriteFile.mockReset();
-    mockPlanImportFile.mockReset();
     mockPlanReadFile.mockReset();
     mockPlanClearCompleted.mockReset();
     mockWriteTempContent.mockReset();
@@ -151,7 +149,6 @@ describe('plan screen bridge', () => {
       planRemoveDep: mockPlanRemoveDep,
       planExportDirectory: mockPlanExportDirectory,
       planWriteFile: mockPlanWriteFile,
-      planImportFile: mockPlanImportFile,
       planReadFile: mockPlanReadFile,
       planClearCompleted: mockPlanClearCompleted,
       writeTempContent: mockWriteTempContent,
