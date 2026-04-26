@@ -259,18 +259,26 @@ export class HelmControlService {
     if (!this.ptyManager.has(session.id)) {
       throw new Error(`Session PTY is not running: ${session.id}`);
     }
-
-    let message = text;
-    if (options?.senderSessionId || options?.senderSessionName) {
-      const envelope = JSON.stringify({
-        type: 'inter_llm_message',
-        fromSessionId: options.senderSessionId ?? undefined,
-        fromSessionName: options.senderSessionName ?? undefined,
-        expectsResponse: options.expectsResponse ?? false,
-        timestamp: new Date().toISOString(),
-      });
-      message = `[HELM_MSG]${envelope}\n${text}`;
+    if (!options?.senderSessionId || !options?.senderSessionName) {
+      throw new Error('senderSessionId and senderSessionName are required — anonymous messages are not allowed');
     }
+    if (session.id === options.senderSessionId) {
+      throw new Error('Cannot send a message from a session to itself — sender and receiver must be different sessions');
+    }
+
+    const expectsResponse = options.expectsResponse ?? false;
+    const envelope = JSON.stringify({
+      type: 'inter_llm_message',
+      fromSessionId: options.senderSessionId,
+      fromSessionName: options.senderSessionName,
+      expectsResponse,
+      timestamp: new Date().toISOString(),
+    });
+
+    const tag = expectsResponse
+      ? `[HELM_MSG: expectsResponse=true. To reply, call MCP tool mcp__helm__session_send_text with: sessionId="${options.senderSessionId}", senderSessionId=<your env $HELM_SESSION_ID>, text="<your reply>". Your HELM_SESSION_ID is injected by Helm at startup.]`
+      : '[HELM_MSG]';
+    const message = `${tag}${envelope}\n${text}`;
 
     await this.ptyManager.deliverText(session.id, message);
 

@@ -226,19 +226,33 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_send_text',
     title: 'Send Text To Session',
-    description: 'Send text to a running session PTY by session ID or exact display name. Call this when you want Helm to relay plain text into an existing session. When submit is true (default), Helm inserts the text and then issues a send/submit action separately. Optional expectsResponse marks HELM inter-LLM envelopes that expect a reply.',
+    description:
+      'Send text to a running session PTY. ' +
+      'DESTINATION: Provide sessionId (the target session that will receive the text). ' +
+      'SENDER: Provide senderSessionId (your own session ID from the HELM_SESSION_ID env var). ' +
+      'IMPORTANT: Destination and sender MUST be different sessions — self-messages are rejected. ' +
+      'When submit is true (default), Helm inserts the text and then issues a send/submit action separately. ' +
+      'Optional expectsResponse marks HELM inter-LLM envelopes that expect a reply. ' +
+      'RECEIVING RESPONSES: When the target session replies, Helm pastes a [HELM_MSG] envelope directly into the sender session\'s chatbox as a new user message — there is no polling or callback; the reply arrives as an inbound chat turn in your own session.',
     inputSchema: {
       type: 'object',
       properties: {
-        sessionId: { type: 'string' },
-        name: { type: 'string' },
+        sessionId: {
+          type: 'string',
+          description: '[DESTINATION] Target session ID — MUST be different from senderSessionId.',
+        },
         text: { type: 'string' },
         submit: { type: 'boolean', default: true },
-        senderSessionId: { type: 'string' },
-        senderSessionName: { type: 'string' },
+        senderSessionId: {
+          type: 'string',
+          description:
+            '[SENDER] Your session ID — MUST equal the HELM_SESSION_ID environment variable injected by Helm at startup. ' +
+            'Retrieve it with `echo $HELM_SESSION_ID` (bash) or read process.env.HELM_SESSION_ID (Node.js). ' +
+            'IMPORTANT: must be DIFFERENT from the destination sessionId.',
+        },
         expectsResponse: { type: 'boolean', default: false },
       },
-      required: ['text'],
+      required: ['text', 'sessionId', 'senderSessionId'],
       additionalProperties: false,
     },
   },
@@ -496,21 +510,41 @@ export class LocalhostMcpServer {
           this.service.getSession(asString(args.sessionId ?? args.name, 'sessionId or name is required')),
           `Session not found: ${asString(args.sessionId ?? args.name, 'sessionId or name is required')}`,
         );
-      case 'session_send_text':
+      case 'session_send_text': {
+        const explicitSenderId = typeof args.senderSessionId === 'string' ? args.senderSessionId : undefined;
+        const senderSessionId = explicitSenderId ?? authContext.sessionId;
+        if (!senderSessionId) {
+          throw new Error(
+            'senderSessionId is required — use the HELM_SESSION_ID environment variable injected by Helm at startup.',
+          );
+        }
+        // Session-scoped tokens are trusted; global-token callers must verify against known sessions.
+        let senderSessionName: string;
+        if (!explicitSenderId && authContext.sessionName) {
+          senderSessionName = authContext.sessionName;
+        } else {
+          const knownSessions = this.service.listSessions();
+          const senderSession = knownSessions.find((s) => s.id === senderSessionId);
+          if (!senderSession) {
+            throw new Error(
+              `Unknown sender session: senderSessionId "${senderSessionId}" does not match any active Helm session. ` +
+                'senderSessionId must be the exact value of the HELM_SESSION_ID environment variable ' +
+                'that Helm injected into your session at startup — do not guess or construct this value.',
+            );
+          }
+          senderSessionName = senderSession.name;
+        }
         return this.service.sendTextToSession(
-          asString(args.sessionId ?? args.name, 'sessionId or name is required'),
+          asString(args.sessionId, 'sessionId is required'),
           asString(args.text, 'text is required'),
           {
             submit: typeof args.submit === 'boolean' ? args.submit : true,
-            ...(typeof args.senderSessionId === 'string'
-              ? { senderSessionId: args.senderSessionId }
-              : (authContext.sessionId ? { senderSessionId: authContext.sessionId } : {})),
-            ...(typeof args.senderSessionName === 'string'
-              ? { senderSessionName: args.senderSessionName }
-              : (authContext.sessionName ? { senderSessionName: authContext.sessionName } : {})),
+            senderSessionId,
+            senderSessionName,
             ...(typeof args.expectsResponse === 'boolean' ? { expectsResponse: args.expectsResponse } : {}),
           },
         );
+      }
       case 'session_set_working_plan':
         return this.service.setSessionWorkingPlan(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),

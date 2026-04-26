@@ -116,7 +116,7 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'session_send_text',
-        arguments: { sessionId: 's1', text: 'hello' },
+        arguments: { sessionId: 's1', text: 'hello', senderSessionId: 's1' },
       },
     }, {
       Accept: 'application/json, text/event-stream',
@@ -124,7 +124,7 @@ describe('LocalhostMcpServer', () => {
       'Mcp-Name': 'session_send_text',
     });
     const json = await response.json();
-    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { submit: true });
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { submit: true, senderSessionId: 's1', senderSessionName: 'Claude' });
     expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
   });
 
@@ -352,27 +352,6 @@ describe('LocalhostMcpServer', () => {
     expect(json.error.message).toBe('Session not found: missing-session');
   });
 
-  it('allows session_send_text to target a session by exact name', async () => {
-    const service = makeService();
-    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
-    servers.push(server);
-    await server.start();
-    const port = server.getAddress()!.port;
-
-    const response = await rpc(port, 'secret-token', {
-      jsonrpc: '2.0',
-      id: 36,
-      method: 'tools/call',
-      params: {
-        name: 'session_send_text',
-        arguments: { name: 'Claude', text: 'hello' },
-      },
-    });
-    const json = await response.json();
-    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', { submit: true });
-    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
-  });
-
   it('supports submit=false to send text without Enter', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
@@ -386,12 +365,12 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'session_send_text',
-        arguments: { name: 'Claude', text: 'hello', submit: false },
+        arguments: { sessionId: 's1', text: 'hello', submit: false, senderSessionId: 's1' },
       },
     });
     const json = await response.json();
-    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', { submit: false });
-    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { submit: false, senderSessionId: 's1', senderSessionName: 'Claude' });
+    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
   });
 
   it('passes sender info into sendTextToSession', async () => {
@@ -407,12 +386,12 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'session_send_text',
-        arguments: { name: 'Claude', text: 'hello', senderSessionId: 's1', senderSessionName: 'oc1' },
+        arguments: { sessionId: 's1', text: 'hello', senderSessionId: 's1' },
       },
     });
     const json = await response.json();
-    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', { submit: true, senderSessionId: 's1', senderSessionName: 'oc1' });
-    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { submit: true, senderSessionId: 's1', senderSessionName: 'Claude' });
+    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
   });
 
   it('infers sender info from a trusted session token when explicit sender fields are omitted', async () => {
@@ -429,17 +408,17 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'session_send_text',
-        arguments: { name: 'Claude', text: 'hello', expectsResponse: true },
+        arguments: { sessionId: 's1', text: 'hello', expectsResponse: true },
       },
     });
     const json = await response.json();
-    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', {
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', {
       submit: true,
       senderSessionId: 'sender-1',
       senderSessionName: 'Codex Session',
       expectsResponse: true,
     });
-    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
+    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
   });
 
   it('passes expectsResponse into sendTextToSession', async () => {
@@ -455,15 +434,15 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'session_send_text',
-        arguments: { name: 'Claude', text: 'hello', senderSessionId: 's1', expectsResponse: true },
+        arguments: { sessionId: 's1', text: 'hello', senderSessionId: 's1', expectsResponse: true },
       },
     });
     const json = await response.json();
-    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', { submit: true, senderSessionId: 's1', expectsResponse: true });
-    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { submit: true, senderSessionId: 's1', senderSessionName: 'Claude', expectsResponse: true });
+    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
   });
 
-  it('defaults expectsResponse to false', async () => {
+  it('rejects session_send_text when sender info is missing', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);
@@ -476,12 +455,72 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'session_send_text',
-        arguments: { name: 'Claude', text: 'hello' },
+        arguments: { sessionId: 's1', text: 'hello' },
       },
     });
     const json = await response.json();
-    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 'hello', { submit: true });
-    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 'Claude', name: 'Claude' });
+    expect(json.error.message).toContain('senderSessionId is required');
+  });
+
+  it('rejects session_send_text when senderSessionId does not match a known session', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 40.1,
+      method: 'tools/call',
+      params: {
+        name: 'session_send_text',
+        arguments: { sessionId: 's1', text: 'hello', senderSessionId: 'unknown-id' },
+      },
+    });
+    const json = await response.json();
+    expect(json.error.message).toContain('Unknown sender session');
+    expect(json.error.message).toContain('HELM_SESSION_ID');
+  });
+
+  it('rejects session_send_text when neither sessionId nor name is provided', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 41,
+      method: 'tools/call',
+      params: {
+        name: 'session_send_text',
+        arguments: { text: 'hello', senderSessionId: 's1' },
+      },
+    });
+    const json = await response.json();
+    expect(json.error.message).toContain('sessionId is required');
+  });
+
+  it('rejects session_send_text when text is missing', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 42,
+      method: 'tools/call',
+      params: {
+        name: 'session_send_text',
+        arguments: { sessionId: 's1', senderSessionId: 's1' },
+      },
+    });
+    const json = await response.json();
+    expect(json.error.message).toContain('text is required');
   });
 
   it('returns 405 for GET requests', async () => {

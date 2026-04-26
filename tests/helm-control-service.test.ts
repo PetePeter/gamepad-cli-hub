@@ -49,15 +49,15 @@ describe('HelmControlService.sendTextToSession', () => {
 
   it('delivers text, then sends a separate submit action when submit is true', async () => {
     const { service, ptyManager } = makeService();
-    await service.sendTextToSession('s1', 'hello');
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
+    await service.sendTextToSession('s1', 'hello', { senderSessionId: 'sid', senderSessionName: 'Sender' });
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('hello'));
     expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
   });
 
   it('does not send a submit action when submit is false', async () => {
     const { service, ptyManager } = makeService();
-    await service.sendTextToSession('s1', 'hello', { submit: false });
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
+    await service.sendTextToSession('s1', 'hello', { submit: false, senderSessionId: 'sid', senderSessionName: 'Sender' });
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('hello'));
     expect(ptyManager.write).not.toHaveBeenCalled();
   });
 
@@ -70,9 +70,10 @@ describe('HelmControlService.sendTextToSession', () => {
     });
 
     const callArg = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0][1] as string;
-    expect(callArg).toMatch(/^\[HELM_MSG\]/);
+    expect(callArg).toMatch(/^\[HELM_MSG: expectsResponse=true\. To reply, call MCP tool mcp__helm__session_send_text with: sessionId="sender1"/);
+    expect(callArg).toContain('senderSessionId=<your env $HELM_SESSION_ID>');
 
-    const envelopeMatch = callArg.match(/^\[HELM_MSG\](\{[^\n]+\})\nhello/);
+    const envelopeMatch = callArg.match(/^\[HELM_MSG[^\]]*\](\{[^\n]+\})\nhello/);
     expect(envelopeMatch).toBeTruthy();
 
     const envelope = JSON.parse(envelopeMatch![1]);
@@ -89,19 +90,24 @@ describe('HelmControlService.sendTextToSession', () => {
     const { service, ptyManager } = makeService();
     await service.sendTextToSession('s1', 'hello', {
       senderSessionId: 'sender1',
+      senderSessionName: 'Sender',
     });
 
     const callArg = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0][1] as string;
+    expect(callArg).toMatch(/^\[HELM_MSG\]\{/);
     const envelopeMatch = callArg.match(/^\[HELM_MSG\](\{[^\n]+\})\nhello/);
     const envelope = JSON.parse(envelopeMatch![1]);
     expect(envelope.expectsResponse).toBe(false);
   });
 
-  it('does not wrap text when no sender info is provided', async () => {
-    const { service, ptyManager } = makeService();
-    await service.sendTextToSession('s1', 'hello');
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
-    expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
+  it('throws when sender info is missing', async () => {
+    const { service } = makeService();
+    await expect(service.sendTextToSession('s1', 'hello')).rejects.toThrow('senderSessionId and senderSessionName are required');
+  });
+
+  it('throws when only senderSessionId is provided without senderSessionName', async () => {
+    const { service } = makeService();
+    await expect(service.sendTextToSession('s1', 'hello', { senderSessionId: 'sid' })).rejects.toThrow('senderSessionId and senderSessionName are required');
   });
 
   it('throws when session is not found', async () => {
@@ -115,6 +121,13 @@ describe('HelmControlService.sendTextToSession', () => {
     const { service, ptyManager } = makeService();
     (ptyManager.has as ReturnType<typeof vi.fn>).mockReturnValue(false);
     await expect(service.sendTextToSession('s1', 'hello')).rejects.toThrow('Session PTY is not running: s1');
+  });
+
+  it('throws when sender and receiver are the same session', async () => {
+    const { service } = makeService();
+    await expect(
+      service.sendTextToSession('s1', 'hello', { senderSessionId: 's1', senderSessionName: 'Same' }),
+    ).rejects.toThrow('Cannot send a message from a session to itself — sender and receiver must be different sessions');
   });
 });
 
