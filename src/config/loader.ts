@@ -232,9 +232,19 @@ export interface SortingConfig {
   bindings: AreaSortPrefs;
 }
 
+export interface PlanFilterConfig {
+  types: { bug: boolean; feature: boolean; research: boolean; untyped: boolean };
+  statuses: { planning: boolean; ready: boolean; coding: boolean; review: boolean; blocked: boolean; done: boolean };
+}
+
 const DEFAULT_SORTING: SortingConfig = {
   sessions: { field: 'state', direction: 'asc' },
   bindings: { field: 'button', direction: 'asc' },
+};
+
+const DEFAULT_PLAN_FILTERS: PlanFilterConfig = {
+  types: { bug: true, feature: true, research: true, untyped: true },
+  statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
 };
 
 export interface TelegramConfig {
@@ -288,6 +298,7 @@ export interface SettingsConfig {
   sidebar?: SidebarPrefs;
   snapOutWindows?: Record<string, SnapOutWindowPrefs>;
   sorting?: SortingConfig;
+  planFilters?: PlanFilterConfig;
   sessionGroups?: SessionGroupPrefs;
   editorHistory?: string[];
   editorPrefs?: EditorPrefs;
@@ -896,6 +907,20 @@ export class ConfigLoader {
       this.settings!.sorting = { ...DEFAULT_SORTING };
     }
     this.settings!.sorting[area] = { ...this.settings!.sorting[area], ...prefs };
+    this.saveSettings();
+  }
+
+  getPlanFilters(): PlanFilterConfig {
+    this.ensureLoaded();
+    if (this.settings!.planFilters) {
+      return { ...this.settings!.planFilters };
+    }
+    return { ...DEFAULT_PLAN_FILTERS };
+  }
+
+  setPlanFilters(filters: Partial<PlanFilterConfig>): void {
+    this.ensureLoaded();
+    this.settings!.planFilters = { ...this.getPlanFilters(), ...filters };
     this.saveSettings();
   }
 

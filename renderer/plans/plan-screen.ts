@@ -42,6 +42,24 @@ let draftEditorVisibilityChecker: (() => boolean) | null = null;
 let planChangesChecker: (() => boolean) | null = null;
 let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
+async function loadFilterPreferences(): Promise<void> {
+  try {
+    const saved = await window.gamepadCli.configGetPlanFilters();
+    planScreenState.filters.types = saved.types;
+    planScreenState.filters.statuses = saved.statuses;
+  } catch (err) {
+    console.error('[PlanScreen] Failed to load filter preferences:', err);
+  }
+}
+
+async function saveFilterPreferences(): Promise<void> {
+  try {
+    await window.gamepadCli.configSetPlanFilters(planScreenState.filters);
+  } catch (err) {
+    console.error('[PlanScreen] Failed to save filter preferences:', err);
+  }
+}
+
 export function setPlanScreenFitCallback(fn: () => void): void { fitActiveCallback = fn; }
 export function setPlanScreenCloseCallback(fn: () => void): void { closeCallback = fn; }
 export function setPlanScreenOpenCallback(fn: () => void): void { openCallback = fn; }
@@ -250,6 +268,7 @@ async function mountPlanScreen(params?: unknown, context?: ViewMountContext): Pr
   hidePlanDeleteConfirm();
   draftEditorCloser?.();
   openCallback?.();
+  await loadFilterPreferences();
   await loadPlanData(dirPath, context);
   if (context && !context.isActive()) return;
   planScreenState.visible = true;
@@ -557,11 +576,13 @@ export function onPlanClearDone(): void {
 export function toggleTypeFilter(type: 'bug' | 'feature' | 'research' | 'untyped'): void {
   planScreenState.filters.types[type] = !planScreenState.filters.types[type];
   refreshLayout();
+  void saveFilterPreferences();
 }
 
 export function toggleStatusFilter(status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done'): void {
   planScreenState.filters.statuses[status] = !planScreenState.filters.statuses[status];
   refreshLayout();
+  void saveFilterPreferences();
 }
 
 export function toggleStatusGroup(group: 'active' | 'terminal' | 'planning'): void {
@@ -578,12 +599,14 @@ export function toggleStatusGroup(group: 'active' | 'terminal' | 'planning'): vo
     planScreenState.filters.statuses[status] = newValue;
   }
   refreshLayout();
+  void saveFilterPreferences();
 }
 
 export function resetFilters(): void {
   planScreenState.filters.types = { bug: true, feature: true, research: true, untyped: true };
   planScreenState.filters.statuses = { planning: true, ready: true, coding: true, review: true, blocked: true, done: true };
   refreshLayout();
+  void saveFilterPreferences();
 }
 
 function refreshLayout(): void {

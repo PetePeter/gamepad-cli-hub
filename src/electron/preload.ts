@@ -176,6 +176,18 @@ const gamepadCliAPI = {
   configSetSortPrefs: (area: string, prefs: { field?: string; direction?: string }) =>
     ipcRenderer.invoke('config:setSortPrefs', area, prefs),
 
+  /**
+   * Get plan filter preferences
+   */
+  configGetPlanFilters: () =>
+    ipcRenderer.invoke('config:getPlanFilters'),
+
+  /**
+   * Set plan filter preferences
+   */
+  configSetPlanFilters: (filters: { types?: { bug?: boolean; feature?: boolean; research?: boolean; untyped?: boolean }; statuses?: { planning?: boolean; ready?: boolean; coding?: boolean; review?: boolean; blocked?: boolean; done?: boolean } }) =>
+    ipcRenderer.invoke('config:setPlanFilters', filters),
+
   configGetSessionGroupPrefs: () =>
     ipcRenderer.invoke('config:getSessionGroupPrefs') as Promise<{
       order: string[];
@@ -567,27 +579,27 @@ const gamepadCliAPI = {
   planRemoveDep: (fromId: string, toId: string) =>
     ipcRenderer.invoke('plan:removeDep', fromId, toId),
 
-  /** Apply a startable plan to a session (startable → doing) */
+  /** Apply a ready plan to a session (ready → coding) */
   planApply: (id: string, sessionId: string) =>
     ipcRenderer.invoke('plan:apply', id, sessionId),
 
-  /** Mark a doing plan as complete (doing → done) */
+  /** Mark a coding or review plan as complete (coding/review → done) */
   planComplete: (id: string) =>
     ipcRenderer.invoke('plan:complete', id),
 
-  /** Reopen a done plan back to startable or pending */
+  /** Reopen a done plan back to ready or planning */
   planReopen: (id: string) =>
     ipcRenderer.invoke('plan:reopen', id),
 
   /** Manually set a plan state and optional context */
   planSetState: (
     id: string,
-    status: 'planning' | 'startable' | 'coding' | 'review' | 'blocked' | 'done',
+    status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done',
     stateInfo?: string,
     sessionId?: string,
   ) => ipcRenderer.invoke('plan:setState', id, status, stateInfo, sessionId),
 
-  /** Get startable plans for a directory */
+  /** Get ready plans for a directory */
   planStartableForDir: (dirPath: string) =>
     ipcRenderer.invoke('plan:startableForDir', dirPath),
 

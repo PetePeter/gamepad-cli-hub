@@ -270,6 +270,25 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
     }
   });
 
+  ipcMain.handle('config:getPlanFilters', () => {
+    try {
+      return configLoader.getPlanFilters();
+    } catch (error) {
+      logger.error(`[IPC] Failed to get plan filters: ${error}`);
+      return { types: { bug: true, feature: true, research: true, untyped: true }, statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true } };
+    }
+  });
+
+  ipcMain.handle('config:setPlanFilters', (_event, filters: { types?: { bug?: boolean; feature?: boolean; research?: boolean; untyped?: boolean }; statuses?: { planning?: boolean; ready?: boolean; coding?: boolean; review?: boolean; blocked?: boolean; done?: boolean } }) => {
+    try {
+      configLoader.setPlanFilters(filters);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to set plan filters: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle('config:getSessionGroupPrefs', () => {
     try {
       return configLoader.getSessionGroupPrefs();
