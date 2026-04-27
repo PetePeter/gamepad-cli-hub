@@ -147,6 +147,17 @@ const TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'plan_reopen',
+    title: 'Reopen Plan',
+    description: 'Revert a done plan back to startable or pending based on its current dependencies. Use this to undo an accidental plan_complete call. The plan\'s sessionId is cleared on reopen.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'plan_nextplan_link',
     title: 'Link Next Plan',
     description: 'Link one plan item as a prerequisite for another. A plan can have many outgoing links (to many next plans) and many incoming links (from many previous plans). The source plan must complete before the target plan can start.',
@@ -467,6 +478,7 @@ export class LocalhostMcpServer {
   }
 
   private async callTool(name: string, args: Record<string, unknown>, authContext: AuthContext): Promise<unknown> {
+    logger.info(`[MCP] callTool: ${name} | session=${authContext.sessionId ?? 'anonymous'} (${authContext.sessionName ?? '-'})`);
     switch (name) {
       case 'plans_list':
         return this.service.listPlans(asString(args.dirPath, 'dirPath is required'));
@@ -511,6 +523,11 @@ export class LocalhostMcpServer {
         );
       case 'plan_complete':
         return this.completePlanWithValidation(asString(args.id, 'id is required'));
+      case 'plan_reopen':
+        return requireResult(
+          this.service.reopenPlan(asString(args.id, 'id is required')),
+          `Plan ${asString(args.id, 'id is required')} could not be reopened — it may not be in done state`,
+        );
       case 'plan_nextplan_link':
         this.service.linkPlans(
           asString(args.fromId, 'fromId is required'),

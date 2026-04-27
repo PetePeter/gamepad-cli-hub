@@ -262,7 +262,7 @@ export class PlanManager extends EventEmitter {
 
     savePlanFile(item);
     this.emit('plan:changed', item.dirPath);
-    logger.info(`[PlanManager] Applied plan ${id} to session ${sessionId}`);
+    logger.info(`[PlanManager] Applied plan "${item.title}" (${id}) to session ${sessionId}`);
     return item;
   }
 
@@ -271,6 +271,7 @@ export class PlanManager extends EventEmitter {
     const item = this.items.get(id);
     if (!item || (item.status !== 'coding' && item.status !== 'review')) return null;
 
+    const prevStatus = item.status;
     item.status = 'done';
     item.sessionId = undefined;
     item.stateInfo = undefined;
@@ -280,7 +281,30 @@ export class PlanManager extends EventEmitter {
     this.recomputeStartable(item.dirPath);
     this.saveDir(item.dirPath);
     this.emit('plan:changed', item.dirPath);
-    logger.info(`[PlanManager] Completed plan ${id}`);
+    logger.info(`[PlanManager] Completed plan "${item.title}" (${id}) [${item.dirPath}] — was ${prevStatus}`);
+    return item;
+  }
+
+  /** Reopen a done plan — transitions back to startable or pending based on current dependencies. */
+  reopenItem(id: string): PlanItem | null {
+    const item = this.items.get(id);
+    if (!item || item.status !== 'done') return null;
+
+    const blockers = this.dependencies
+      .filter(d => d.toId === item.id)
+      .map(d => this.items.get(d.fromId));
+    const allBlockersDone = blockers.every(b => b?.status === 'done');
+
+    item.status = allBlockersDone ? 'startable' : 'pending';
+    item.sessionId = undefined;
+    item.stateInfo = undefined;
+    item.updatedAt = Date.now();
+    item.stateUpdatedAt = item.updatedAt;
+
+    this.recomputeStartable(item.dirPath);
+    this.saveDir(item.dirPath);
+    this.emit('plan:changed', item.dirPath);
+    logger.info(`[PlanManager] Reopened plan "${item.title}" (${id}) → ${item.status}`);
     return item;
   }
 
@@ -314,6 +338,7 @@ export class PlanManager extends EventEmitter {
       item.sessionId = sessionId ?? item.sessionId;
     }
 
+    const prevStatus = item.status;
     item.status = status;
     // Handle stateInfo:
     // - If new state is 'blocked', store the provided stateInfo (reason)
@@ -342,7 +367,7 @@ export class PlanManager extends EventEmitter {
     }
 
     this.emit('plan:changed', item.dirPath);
-    logger.info(`[PlanManager] Set plan ${id} to ${status}`);
+    logger.info(`[PlanManager] Set plan "${item.title}" (${id}) ${prevStatus} → ${status}`);
     return item;
   }
 

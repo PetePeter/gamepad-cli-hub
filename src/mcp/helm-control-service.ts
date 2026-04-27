@@ -140,7 +140,13 @@ export class HelmControlService {
   }
 
   completePlan(id: string): PlanItem | null {
+    logger.info(`[MCP:Service] completePlan id=${id}`);
     return this.planManager.completeItem(id);
+  }
+
+  reopenPlan(id: string): PlanItem | null {
+    logger.info(`[MCP:Service] reopenPlan id=${id}`);
+    return this.planManager.reopenItem(id);
   }
 
   setPlanState(
@@ -149,6 +155,7 @@ export class HelmControlService {
     stateInfo?: string,
     sessionId?: string,
   ): PlanItem | null {
+    logger.info(`[MCP:Service] setPlanState id=${id} status=${status} sessionId=${sessionId ?? '-'}`);
     return this.planManager.setState(id, status, stateInfo, sessionId);
   }
 
@@ -338,6 +345,7 @@ export class HelmControlService {
     sessionRef: string,
     planId: string,
   ): { sessionId: string; name: string; planId: string; planTitle: string; planStatus: PlanStatus } {
+    logger.info(`[MCP:Service] setSessionWorkingPlan session=${sessionRef} plan=${planId}`);
     const session = this.findSession(sessionRef);
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);

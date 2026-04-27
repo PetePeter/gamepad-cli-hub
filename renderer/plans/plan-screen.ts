@@ -530,6 +530,10 @@ export function onPlanNodeComplete(id: string): void {
   void handleComplete(id);
 }
 
+export async function onPlanNodeReopen(id: string): Promise<void> {
+  await window.gamepadCli.planReopen(id);
+}
+
 export function onPlanAddNode(): void {
   void handleAddNode();
 }
@@ -587,4 +591,10 @@ function refreshLayout(): void {
   const filteredDeps = getFilteredDeps(planScreenState.deps);
   planScreenState.layout = computeLayout(filteredItems, filteredDeps);
   syncSelection();
+}
+
+export async function handleReopen(): Promise<void> {
+  const id = planScreenState.selectedId;
+  if (!id) return;
+  await window.gamepadCli.planReopen(id);
 }

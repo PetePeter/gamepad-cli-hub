@@ -575,6 +575,10 @@ const gamepadCliAPI = {
   planComplete: (id: string) =>
     ipcRenderer.invoke('plan:complete', id),
 
+  /** Reopen a done plan back to startable or pending */
+  planReopen: (id: string) =>
+    ipcRenderer.invoke('plan:reopen', id),
+
   /** Manually set a plan state and optional context */
   planSetState: (
     id: string,

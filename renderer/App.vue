@@ -41,6 +41,7 @@ import {
   onPlanNodeComplete,
   onPlanNodeDelete,
   onPlanNodeEdit,
+  onPlanNodeReopen,
   onPlanRemoveDependency,
   planScreenState,
   toggleTypeFilter,
@@ -2210,6 +2211,7 @@ onUnmounted(() => {
         @edit-node="onPlanNodeEdit"
         @apply-node="onPlanNodeApply"
         @complete-node="onPlanNodeComplete"
+        @reopen-node="onPlanNodeReopen"
         @delete-node="onPlanNodeDelete"
         @add-dep="onPlanAddDependency"
         @remove-dep="onPlanRemoveDependency"

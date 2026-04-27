@@ -46,6 +46,7 @@ const emit = defineEmits<{
   editNode: [id: string];
   applyNode: [id: string];
   completeNode: [id: string];
+  reopenNode: [id: string];
   deleteNode: [id: string];
   addDep: [fromId: string, toId: string];
   removeDep: [fromId: string, toId: string];
@@ -430,6 +431,11 @@ function startDragConnection(id: string, e: MouseEvent): void {
           class="plan-header__btn plan-header__btn--secondary"
           @click="emit('completeNode', selectedItem.id)"
         >Done</button>
+        <button
+          v-if="selectedItem.status === 'done'"
+          class="plan-header__btn plan-header__btn--secondary"
+          @click="emit('reopenNode', selectedItem.id)"
+        >Reopen</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('deleteNode', selectedItem.id)">Delete</button>
       </div>
     </div>

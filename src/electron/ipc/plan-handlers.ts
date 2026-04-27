@@ -87,6 +87,10 @@ export function setupPlanHandlers(
     return planManager.completeItem(id);
   });
 
+  ipcMain.handle('plan:reopen', (_event, id: string) => {
+    return planManager.reopenItem(id);
+  });
+
   ipcMain.handle(
     'plan:setState',
     (_event, id: string, status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked', stateInfo?: string, sessionId?: string) => {
