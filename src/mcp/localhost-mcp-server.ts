@@ -620,7 +620,7 @@ export class LocalhostMcpServer {
 
   private setPlanStateWithValidation(
     id: string,
-    status: 'planning' | 'startable' | 'coding' | 'review' | 'blocked',
+    status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked',
     stateInfo?: string,
     sessionId?: string,
   ): unknown {

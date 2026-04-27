@@ -313,7 +313,13 @@ export class PlanManager extends EventEmitter {
    * 'blocked' state requires non-empty stateInfo (reason why blocked).
    * When transitioning to 'coding', sessionId is required.
    */
-  setState(id: string, status: any, stateInfo = '', sessionId?: string): PlanItem | null {
+  setState(id: string, status: Exclude<PlanStatus, 'done'>, stateInfo = '', sessionId?: string): PlanItem | null {
+    // Validate status is a valid PlanStatus (not 'done')
+    const validStatuses: PlanStatus[] = ['planning', 'ready', 'coding', 'review', 'blocked', 'done'];
+    if (!validStatuses.includes(status)) {
+      logger.warn(`[PlanManager] setState rejected invalid status '${status}' for ${id} — must be one of: planning, ready, coding, review, blocked`);
+      return null;
+    }
     // Reject 'done' explicitly — only plan_complete can transition to done
     if (status === 'done') {
       logger.warn(`[PlanManager] setState rejected transition to 'done' for ${id} — use plan_complete instead`);
