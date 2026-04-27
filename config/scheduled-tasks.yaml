@@ -1,11 +1,11 @@
 tasks:
-  - id: e0c36b8b-dccf-40e5-8eb7-f76a8cc788fb
+  - id: 72af45bf-1901-460c-af35-6c3268d63dbf
     title: Test
     planIds: []
     initialPrompt: Test
     cliType: claude-code
-    scheduledTime: 2026-04-27T22:16:15.957Z
+    scheduledTime: 2026-04-27T22:20:38.888Z
     dirPath: X:\\coding\\test
     status: executing
-    createdAt: 1777328176957
-    sessionId: pty-1777328176957
+    createdAt: 1777328439888
+    sessionId: pty-1777328439888

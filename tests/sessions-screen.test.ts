@@ -354,7 +354,7 @@ describe('Sessions Screen', () => {
   });
 
   describe('keyboard shortcuts', () => {
-    it('Ctrl+Shift+N creates a plan for the focused directory group', async () => {
+    it('Ctrl+N creates a plan for the focused directory group', async () => {
       mockCurrentView = 'overview';
       sessionsState.navList = [{ type: 'group-header', id: '/projects/a', groupIndex: 0 }];
       sessionsState.groups = [{
@@ -367,9 +367,9 @@ describe('Sessions Screen', () => {
       sessionsState.activeFocus = 'sessions';
 
       document.dispatchEvent(new KeyboardEvent('keydown', {
-        key: 'N',
+        key: 'n', // lowercase to match e.key.toLowerCase() check
         ctrlKey: true,
-        shiftKey: true,
+        shiftKey: false, // Ctrl+N (without Shift) creates plans
         bubbles: true,
         cancelable: true,
       }));
