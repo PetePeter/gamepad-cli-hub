@@ -454,6 +454,7 @@ function onContextMenuCancel(): void {
   flex: 1;
   min-height: 0;
   position: relative;
+  overflow: hidden;
   z-index: 1;
 }
 
