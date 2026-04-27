@@ -256,7 +256,7 @@ describe('LocalhostMcpServer', () => {
       id: 35,
       method: 'tools/call',
       params: {
-        name: 'helm_session_create',
+        name: 'session_create',
         arguments: { cliType: 'codex', dirPath: 'X:\\coding\\gamepad-cli-hub', name: 'Builder' },
       },
     });

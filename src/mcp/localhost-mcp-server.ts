@@ -185,8 +185,8 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'helm_session_create',
-    title: 'Create Helm Session',
+    name: 'session_create',
+    title: 'Create Session',
     description: 'Spawn a new CLI session in a configured working directory and give it a stable display name for later lookup. Call this when no suitable session exists yet and you need Helm to launch one.',
     inputSchema: {
       type: 'object',
@@ -510,7 +510,7 @@ export class LocalhostMcpServer {
         return { unlinked: true };
       case 'directories_list':
         return this.service.listDirectories();
-      case 'helm_session_create':
+      case 'session_create':
         return this.service.spawnCli(
           asString(args.cliType, 'cliType is required'),
           asString(args.dirPath, 'dirPath is required'),

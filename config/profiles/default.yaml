@@ -9,18 +9,7 @@ tools:
     initialPromptDelay: 5000
     initialPrompt:
       - label: ""
-        sequence: >-
-          <application-prompt>
-
-          SYSTEMPROMPT:
-
-          First line of EVERY response MUST be exactly one AIAGENT state tag from the session_info MCP tool registry:
-          AIAGENT-PLANNING, AIAGENT-IMPLEMENTING, AIAGENT-COMPLETED, or AIAGENT-IDLE.
-          Call the session_info MCP tool on session startup to get the canonical state list.
-
-          Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
-
-          </application-prompt>
+        sequence: "Call session_info to get helm MCP AIAGENT state registry, then output AIAGENT state as first line of each response.{Enter}"
     sequences:
       prompts:
         - label: commit
@@ -36,22 +25,7 @@ tools:
       - label: ""
         sequence: /allow-all{Send}
       - label: ""
-        sequence: >-
-          {Wait 3000}<application-prompt>
-
-          SYSTEMPROMPT:
-
-          First line of EVERY response MUST be exactly one AIAGENT state tag from the session_info MCP tool registry:
-          AIAGENT-PLANNING, AIAGENT-IMPLEMENTING, AIAGENT-COMPLETED, or AIAGENT-IDLE.
-          Call the session_info MCP tool on session startup to get the canonical state list.
-
-          Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
-
-
-          ALways end each response with an open ended question using the ask
-          question tool, including a free text entry field
-
-          </application-prompt>
+        sequence: "{Wait 3000}Call session_info to get helm MCP AIAGENT state registry, then output AIAGENT state as first line of each response.{Enter}"
     initialPromptDelay: 7000
     sequences:
       prompts:
@@ -64,18 +38,7 @@ tools:
     handoffCommand: go implement it
     initialPrompt:
       - label: ""
-        sequence: >-
-          <application-prompt>
-
-          SYSTEMPROMPT:
-
-          First line of EVERY response MUST be exactly one AIAGENT state tag from the session_info MCP tool registry:
-          AIAGENT-PLANNING, AIAGENT-IMPLEMENTING, AIAGENT-COMPLETED, or AIAGENT-IDLE.
-          Call the session_info MCP tool on session startup to get the canonical state list.
-
-          Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
-
-          </application-prompt>
+        sequence: "Call session_info to get helm MCP AIAGENT state registry, then output AIAGENT state as first line of each response.{Enter}"
     initialPromptDelay: 1000
     pasteMode: pty
     sequences:
@@ -92,18 +55,7 @@ tools:
     spawnCommand: opencode
     initialPrompt:
       - label: ""
-        sequence: >-
-          <application-prompt>
-
-          SYSTEMPROMPT:
-
-          First line of EVERY response MUST be exactly one AIAGENT state tag from the session_info MCP tool registry:
-          AIAGENT-PLANNING, AIAGENT-IMPLEMENTING, AIAGENT-COMPLETED, or AIAGENT-IDLE.
-          Call the session_info MCP tool on session startup to get the canonical state list.
-
-          Format: First line = "AIAGENT-STATE" only. Nothing else on that line.
-
-          </application-prompt>
+        sequence: "Call session_info to get helm MCP AIAGENT state registry, then output AIAGENT state as first line of each response.{Enter}"
     initialPromptDelay: 10000
     pasteMode: pty
     sequences:

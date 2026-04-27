@@ -45,7 +45,7 @@ The tool returns a `SessionInfoResponse` object with these fields:
 
 - **`available_tools`** (McpToolSummary[]) — List of tools exposed by the MCP server with `{ name, title }` fields. Use this to discover what operations are available before calling tools.
 
-- **`available_directories`** (DirectoryInfo[]) — List of configured working directories with `{ path, name }` fields. Use when spawning new sessions — pass the directory `path` to `helm_session_create`.
+- **`available_directories`** (DirectoryInfo[]) — List of configured working directories with `{ path, name }` fields. Use when spawning new sessions — pass the directory `path` to `session_create`.
 
 ## Usage Pattern
 

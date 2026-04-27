@@ -416,7 +416,7 @@ export class HelmControlService {
       { name: 'plan_nextplan_link', title: 'Link Next Plan' },
       { name: 'plan_nextplan_unlink', title: 'Unlink Next Plan' },
       { name: 'directories_list', title: 'List Directories' },
-      { name: 'helm_session_create', title: 'Create Helm Session' },
+      { name: 'session_create', title: 'Create Session' },
       { name: 'sessions_list', title: 'List Sessions' },
       { name: 'session_get', title: 'Get Session' },
       { name: 'session_send_text', title: 'Send Text To Session' },
