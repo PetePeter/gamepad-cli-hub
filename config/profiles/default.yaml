@@ -16,6 +16,29 @@ tools:
         - label: commit
           sequence: use skill(commit)
     pasteMode: pty
+    patterns:
+      # Rate limit: immediate cancel and retry
+      - regex: rate limit
+        action: send-text
+        sequence: "{Ctrl+c}retry{Enter}"
+        cooldownMs: 60000
+      # Too many requests: immediate cancel and retry
+      - regex: too many requests
+        action: send-text
+        sequence: "{Ctrl+c}retry{Enter}"
+        cooldownMs: 60000
+      # Scheduled retry: "try again at 9pm" or "try again at 9:30pm"
+      - regex: try again at (\d{1,2}(?::\d{2})?(?:am|pm))
+        action: wait-until
+        timeGroup: 1
+        onResume: resume{Enter}
+        cooldownMs: 300000
+      # Usage limit: wait 1 hour before retry
+      - regex: usage limit|quota exceeded|limit reached
+        action: wait-until
+        waitMs: 3600000
+        onResume: "{Ctrl+c}retry{Enter}"
+        cooldownMs: 300000
   copilot-cli:
     name: copilot-raw
     spawnCommand: copilot --resume={cliSessionName}
@@ -34,6 +57,19 @@ tools:
         - label: commit
           sequence: use skill(commit)
     pasteMode: clippaste
+    patterns:
+      # Rate limit: immediate cancel and retry
+      - regex: rate limit|rate-limit exceeded
+        action: send-text
+        sequence: "{Ctrl+c}retry{Enter}"
+        cooldownMs: 60000
+      # Scheduled retry: "try again at 9pm" or "try again at 9:30pm"
+      - regex: try again (?:in \d+ minutes?|at (\d{1,2}(?::\d{2})?(?:am|pm)))
+        action: wait-until
+        timeGroup: 1
+        onResume: retry{Enter}
+        cooldownMs: 300000
+      # No fallback waitMs - if no time parsed, rule skips (logs warning)
   codex:
     name: codex
     spawnCommand: codex --dangerously-bypass-approvals-and-sandbox

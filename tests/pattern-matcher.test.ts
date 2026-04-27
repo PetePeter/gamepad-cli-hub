@@ -250,4 +250,120 @@ describe('PatternMatcher', () => {
       expect(getPatterns).toHaveBeenCalledWith('copilot-cli');
     });
   });
+
+  describe('default rate-limit patterns', () => {
+    describe('claude-code patterns', () => {
+      const claudeCodePatterns: PatternRule[] = [
+        {
+          regex: 'rate limit',
+          action: 'send-text',
+          sequence: '{Ctrl+c}retry{Enter}',
+          cooldownMs: 60000,
+        },
+        {
+          regex: 'too many requests',
+          action: 'send-text',
+          sequence: '{Ctrl+c}retry{Enter}',
+          cooldownMs: 60000,
+        },
+        {
+          regex: 'try again at (\\d{1,2}(?::\\d{2})?(?:am|pm))',
+          action: 'wait-until',
+          timeGroup: 1,
+          onResume: 'resume{Enter}',
+          cooldownMs: 300000,
+        },
+        {
+          regex: 'usage limit|quota exceeded|limit reached',
+          action: 'wait-until',
+          waitMs: 3600000,
+          onResume: '{Ctrl+c}retry{Enter}',
+          cooldownMs: 300000,
+        },
+      ];
+
+      it('rate limit pattern sends immediate cancel+retry', () => {
+        const { pm, ptyWrite } = makeMatcher(claudeCodePatterns);
+        pm.processOutput('s1', 'claude-code', 'Error: rate limit exceeded');
+        expect(ptyWrite).toHaveBeenCalledWith('s1', '{Ctrl+c}retry{Enter}');
+      });
+
+      it('too many requests pattern sends immediate cancel+retry', () => {
+        const { pm, ptyWrite } = makeMatcher(claudeCodePatterns);
+        pm.processOutput('s1', 'claude-code', 'Error: too many requests, please slow down');
+        expect(ptyWrite).toHaveBeenCalledWith('s1', '{Ctrl+c}retry{Enter}');
+      });
+
+      it('scheduled retry parses time from capture group', () => {
+        const { pm, ptyWrite } = makeMatcher(claudeCodePatterns);
+        const handler = vi.fn();
+        pm.on('schedule-created', handler);
+        pm.processOutput('s1', 'claude-code', 'Please try again at 9:30pm');
+        expect(handler).toHaveBeenCalled();
+        vi.runAllTimers();
+        expect(ptyWrite).toHaveBeenCalledWith('s1', 'resume{Enter}');
+      });
+
+      it('usage limit pattern waits 1 hour then cancels and retries', () => {
+        const { pm, ptyWrite } = makeMatcher(claudeCodePatterns);
+        pm.processOutput('s1', 'claude-code', 'Usage limit reached for this hour');
+        vi.advanceTimersByTime(3600001);
+        expect(ptyWrite).toHaveBeenCalledWith('s1', '{Ctrl+c}retry{Enter}');
+      });
+
+      it('quota exceeded pattern waits 1 hour then cancels and retries', () => {
+        const { pm, ptyWrite } = makeMatcher(claudeCodePatterns);
+        pm.processOutput('s1', 'claude-code', 'Quota exceeded, please try again later');
+        vi.advanceTimersByTime(3600001);
+        expect(ptyWrite).toHaveBeenCalledWith('s1', '{Ctrl+c}retry{Enter}');
+      });
+    });
+
+    describe('copilot-cli patterns', () => {
+      const copilotPatterns: PatternRule[] = [
+        {
+          regex: 'rate limit|rate-limit exceeded',
+          action: 'send-text',
+          sequence: '{Ctrl+c}retry{Enter}',
+          cooldownMs: 60000,
+        },
+        {
+          regex: 'try again (?:in \\d+ minutes?|at (\\d{1,2}(?::\\d{2})?(?:am|pm)))',
+          action: 'wait-until',
+          timeGroup: 1,
+          onResume: 'retry{Enter}',
+          cooldownMs: 300000,
+        },
+      ];
+
+      it('rate limit pattern sends immediate cancel+retry', () => {
+        const { pm, ptyWrite } = makeMatcher(copilotPatterns);
+        pm.processOutput('s1', 'copilot-cli', 'Error: rate limit exceeded');
+        expect(ptyWrite).toHaveBeenCalledWith('s1', '{Ctrl+c}retry{Enter}');
+      });
+
+      it('rate-limit pattern also matches', () => {
+        const { pm, ptyWrite } = makeMatcher(copilotPatterns);
+        pm.processOutput('s1', 'copilot-cli', 'rate-limit exceeded, try again later');
+        expect(ptyWrite).toHaveBeenCalledWith('s1', '{Ctrl+c}retry{Enter}');
+      });
+
+      it('scheduled retry parses time from "try again at 9pm"', () => {
+        const { pm, ptyWrite } = makeMatcher(copilotPatterns);
+        pm.processOutput('s1', 'copilot-cli', 'Please try again at 9pm');
+        vi.runAllTimers();
+        expect(ptyWrite).toHaveBeenCalledWith('s1', 'retry{Enter}');
+      });
+
+      it('"try again in 5 minutes" matches but has no timeGroup, so uses fallback', () => {
+        // This pattern matches "try again in X minutes" but has no timeGroup
+        // Since there's no waitMs either, the rule logs a warning and skips
+        const { pm, ptyWrite } = makeMatcher(copilotPatterns);
+        pm.processOutput('s1', 'copilot-cli', 'Please try again in 5 minutes');
+        // No immediate action - schedule creation requires valid time or waitMs
+        // The rule will log a warning and skip
+        expect(ptyWrite).not.toHaveBeenCalled();
+      });
+    });
+  });
 });
