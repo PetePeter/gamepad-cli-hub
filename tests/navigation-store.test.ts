@@ -97,6 +97,25 @@ vi.mock('../renderer/screens/group-overview.js', () => ({
   hideOverview: mockHideOverview,
 }));
 
+vi.mock('../renderer/plans/plan-screen.js', () => ({
+  hidePlanScreen: vi.fn(),
+  isPlanScreenVisible: vi.fn(() => false),
+  handlePlanScreenDpad: vi.fn(),
+  handlePlanScreenAction: vi.fn(() => false),
+  onPlanAddDependency: vi.fn(),
+  onPlanAddNode: vi.fn(),
+  onPlanClearDone: vi.fn(),
+  onPlanExportDirectory: vi.fn(),
+  onPlanNodeApply: vi.fn(),
+  onPlanNodeClick: vi.fn(),
+  onPlanNodeComplete: vi.fn(),
+  onPlanNodeDelete: vi.fn(),
+  onPlanNodeEdit: vi.fn(),
+  onPlanRemoveDependency: vi.fn(),
+  planScreenState: { visible: false },
+  getCurrentPlanDirPath: vi.fn(() => null),
+}));
+
 // ── Imports (after mocks) ──────────────────────────────────────────────
 
 import { useNavigationStore } from '../renderer/stores/navigation.js';

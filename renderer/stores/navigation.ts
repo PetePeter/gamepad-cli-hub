@@ -122,6 +122,8 @@ export const useNavigationStore = defineStore('navigation', () => {
       setSelectedOnExit(true);
       await showView('terminal');
     } else if (cv === 'plan') {
+      const { hidePlanScreen } = await import('../plans/plan-screen.js');
+      hidePlanScreen();
       await showView('terminal');
     }
 

@@ -539,6 +539,7 @@ function handleRelease(button: string): void {
 // ============================================================================
 
 async function onSessionClick(sessionId: string): Promise<void> {
+  if (isAnyBridgeModalVisible()) return;
   void navStore.navigateToSession(sessionId);
 }
 

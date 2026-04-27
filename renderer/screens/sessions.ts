@@ -491,6 +491,7 @@ export function syncSessionHighlight(sessionId: string): void {
     sessionsState.sessionsFocusIndex = idx;
     sessionsState.cardColumn = 0;
     state.activeSessionId = sessionId;
+    useNavigationStore().syncSidebarToSession(sessionId);
     // Selecting a session is mutually exclusive with the planner screen.
     if (isPlanScreenVisible()) hidePlanScreen();
     updateSessionsFocus();
