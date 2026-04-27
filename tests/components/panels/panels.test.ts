@@ -339,8 +339,8 @@ describe('DraftEditor', () => {
         planCallbacks: { onSave: vi.fn(), onDelete: vi.fn(), onApply: vi.fn(), onDone: vi.fn() },
       },
     });
-    expect(w.find('.draft-editor-plan-select').exists()).toBe(true);
-    await w.find('.draft-editor-plan-select').setValue('blocked');
+    expect(w.find('.draft-editor-status-select').exists()).toBe(true);
+    await w.find('.draft-editor-status-select').setValue('blocked');
     await w.find('.draft-editor-plan-info').setValue('Waiting on API key');
     await w.find('.draft-editor-actions button').trigger('click');
     expect(w.emitted('plan-save')).toEqual([[
@@ -349,6 +349,7 @@ describe('DraftEditor', () => {
         description: 'Need details',
         status: 'blocked',
         stateInfo: 'Waiting on API key',
+        type: undefined,
       },
     ]]);
   });
@@ -388,7 +389,7 @@ describe('DraftEditor', () => {
     expect(w.findAll('.draft-editor-actions button').map((btn) => btn.text())).toContain('↻ Apply Again');
     expect(w.findAll('.draft-editor-actions button').map((btn) => btn.text())).toContain('✓ Done');
 
-    await w.find('.draft-editor-plan-select').setValue('blocked');
+    await w.find('.draft-editor-status-select').setValue('blocked');
 
     const labels = w.findAll('.draft-editor-actions button').map((btn) => btn.text());
     expect(labels).not.toContain('↻ Apply Again');

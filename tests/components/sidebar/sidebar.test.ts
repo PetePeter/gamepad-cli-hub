@@ -612,8 +612,8 @@ import PlansGrid from '../../../renderer/components/sidebar/PlansGrid.vue';
 
 describe('PlansGrid', () => {
   const dirs = [
-    { name: 'project-a', path: '/a', startableCount: 2, doingCount: 1, blockedCount: 0, questionCount: 0, pendingCount: 0 },
-    { name: 'project-b', path: '/b', startableCount: 0, doingCount: 0, blockedCount: 0, questionCount: 0, pendingCount: 0 },
+    { name: 'project-a', path: '/a', startableCount: 2, codingCount: 1, blockedCount: 0, reviewCount: 0, planningCount: 0 },
+    { name: 'project-b', path: '/b', startableCount: 0, codingCount: 0, blockedCount: 0, reviewCount: 0, planningCount: 0 },
   ];
 
   it('renders buttons for each directory', () => {
@@ -631,26 +631,28 @@ describe('PlansGrid', () => {
     expect(dots[0].text()).toContain('2');
   });
 
-  it('shows doing dot when count > 0', () => {
+  it('shows coding dot when count > 0', () => {
     const w = mount(PlansGrid, { props: { directories: dirs, focusIndex: 0, isActive: false } });
-    const dots = w.findAll('.plan-dot--doing');
+    const dots = w.findAll('.plan-dot--coding');
     expect(dots.length).toBe(1);
     expect(dots[0].text()).toContain('1');
   });
 
   it('hides dots when all counts are 0', () => {
     const w = mount(PlansGrid, {
-      props: { directories: [{ name: 'x', path: '/x', startableCount: 0, doingCount: 0, blockedCount: 0, questionCount: 0, pendingCount: 0 }], focusIndex: 0, isActive: false },
+      props: { directories: [{ name: 'x', path: '/x', startableCount: 0, codingCount: 0, blockedCount: 0, reviewCount: 0, planningCount: 0 }], focusIndex: 0, isActive: false },
     });
     expect(w.find('.plans-btn-dots').exists()).toBe(false);
   });
 
-  it('shows blocked and question dots', () => {
-    const dir = { name: 'p', path: '/p', startableCount: 0, doingCount: 0, blockedCount: 3, questionCount: 2, pendingCount: 1 };
+  it('shows status dots for all states', () => {
+    const dir = { name: 'p', path: '/p', planningCount: 1, startableCount: 2, codingCount: 3, reviewCount: 4, blockedCount: 5 };
     const w = mount(PlansGrid, { props: { directories: [dir], focusIndex: 0, isActive: false } });
-    expect(w.find('.plan-dot--blocked').text()).toContain('3');
-    expect(w.find('.plan-dot--question').text()).toContain('2');
-    expect(w.find('.plan-dot--pending').text()).toContain('1');
+    expect(w.find('.plan-dot--planning').text()).toContain('1');
+    expect(w.find('.plan-dot--startable').text()).toContain('2');
+    expect(w.find('.plan-dot--coding').text()).toContain('3');
+    expect(w.find('.plan-dot--review').text()).toContain('4');
+    expect(w.find('.plan-dot--blocked').text()).toContain('5');
   });
 
   it('emits showPlans on button click', async () => {

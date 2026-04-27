@@ -117,7 +117,7 @@ const titleText = computed(() => {
 });
 
 const showPlanStateSelect = computed(() => isPlan.value);
-const showPlanStateInfo = computed(() => isPlan.value && status.value === 'blocked');
+const showPlanStateInfo = computed(() => isPlan.value);
 
 const showDoneButton = computed(() => {
   if (!isPlan.value || !props.planCallbacks?.onDone) return false;
@@ -140,8 +140,8 @@ const hasUnsavedChanges = computed(() => {
   if (isDraft.value) {
     return label.value.trim() !== origLabel.value || text.value !== origText.value;
   }
-  const effectiveStatus = stateSelectRef.value?.disabled ? props.planStatus : status.value;
-  const effectiveStateInfo = showPlanStateInfo.value ? stateInfo.value : '';
+  const effectiveStatus = status.value;
+  const effectiveStateInfo = stateInfo.value;
   return label.value !== origLabel.value ||
     text.value !== origText.value ||
     effectiveStatus !== origStatus.value ||
@@ -173,8 +173,8 @@ const focusableElements = computed(() => {
     labelInputRef.value,
   ];
   if (showPlanStateSelect.value) {
-    elements.push(stateSelectRef.value);
     elements.push(typeSelectRef.value);
+    elements.push(stateSelectRef.value);
   }
   if (showPlanStateInfo.value) {
     elements.push(stateInfoRef.value);
@@ -280,9 +280,8 @@ function onSave(): void {
     emit('save', { label: label.value.trim(), text: text.value });
     emit('close');
   } else {
-    const effectiveStatus = stateSelectRef.value?.disabled ? props.planStatus : status.value;
-    const effectiveStateInfo = effectiveStatus === 'blocked'
-      ? stateInfo.value : '';
+    const effectiveStatus = status.value;
+    const effectiveStateInfo = stateInfo.value;
     emit('plan-save', {
       title: label.value,
       description: text.value,
@@ -341,9 +340,8 @@ function doAutoSave(): void {
     }, 2000);
   } else {
     if (!props.planCallbacks?.onSave) return;
-    const effectiveStatus = stateSelectRef.value?.disabled ? props.planStatus : status.value;
-    const effectiveStateInfo = effectiveStatus === 'blocked'
-      ? stateInfo.value : '';
+    const effectiveStatus = status.value;
+    const effectiveStateInfo = stateInfo.value;
     saveStatus.value = 'saving';
     props.planCallbacks.onSave({
       title: label.value,
@@ -505,11 +503,21 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
         @keydown="onLabelKeyDown"
       />
       <select
+        v-if="isPlan"
+        ref="typeSelectRef"
+        v-model="type"
+        class="draft-editor-plan-select draft-editor-type-select"
+      >
+        <option :value="undefined">None</option>
+        <option value="bug">Bug</option>
+        <option value="feature">Feature</option>
+        <option value="research">Research</option>
+      </select>
+      <select
         v-if="showPlanStateSelect"
         ref="stateSelectRef"
         v-model="status"
-        class="draft-editor-plan-select"
-        :disabled="planStatus === 'done'"
+        class="draft-editor-plan-select draft-editor-status-select"
         @change="onStateSelectChange"
       >
         <option value="planning">⏸ Planning</option>
@@ -517,17 +525,7 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
         <option value="coding">🔄 Coding</option>
         <option value="review">⏳ Review</option>
         <option value="blocked">⛔ Blocked</option>
-      </select>
-      <select
-        v-if="isPlan"
-        ref="typeSelectRef"
-        v-model="type"
-        class="draft-editor-plan-select"
-      >
-        <option :value="undefined">None</option>
-        <option value="bug">Bug</option>
-        <option value="feature">Feature</option>
-        <option value="research">Research</option>
+        <option value="done">✓ Done</option>
       </select>
       <input
         v-if="showPlanStateInfo"

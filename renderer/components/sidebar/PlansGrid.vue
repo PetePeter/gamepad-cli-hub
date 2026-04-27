@@ -2,7 +2,7 @@
 /**
  * PlansGrid.vue — 2-column grid of per-directory plan buttons with status dot counts.
  *
- * Shows up to 5 status dots (startable, doing, blocked, question, pending),
+ * Shows status dots (startable, coding, review, blocked, planning),
  * skipping any with a zero count. Replaces renderPlansGrid() + createPlansButton().
  */
 
@@ -10,11 +10,10 @@ export interface PlansDirItem {
   name: string;
   path: string;
   startableCount: number;
-  doingCount: number;
+  codingCount: number;
   blockedCount: number;
-  questionCount: number;
-  waitTestsCount: number;
-  pendingCount: number;
+  reviewCount: number;
+  planningCount: number;
 }
 
 const props = defineProps<{
@@ -43,15 +42,14 @@ const emit = defineEmits<{
         <span class="spawn-label">{{ dir.name }}</span>
       </div>
       <div
-        v-if="dir.startableCount > 0 || dir.doingCount > 0 || dir.blockedCount > 0 || dir.questionCount > 0 || dir.waitTestsCount > 0 || dir.pendingCount > 0"
+        v-if="dir.planningCount > 0 || dir.startableCount > 0 || dir.codingCount > 0 || dir.reviewCount > 0 || dir.blockedCount > 0"
         class="plans-btn-dots"
       >
+        <span v-if="dir.planningCount > 0" class="plan-dot plan-dot--planning">⚪{{ dir.planningCount }}</span>
         <span v-if="dir.startableCount > 0" class="plan-dot plan-dot--startable">🔵{{ dir.startableCount }}</span>
-        <span v-if="dir.doingCount > 0" class="plan-dot plan-dot--doing">🟢{{ dir.doingCount }}</span>
-        <span v-if="dir.waitTestsCount > 0" class="plan-dot plan-dot--wait-tests">⏳{{ dir.waitTestsCount }}</span>
-        <span v-if="dir.blockedCount > 0" class="plan-dot plan-dot--blocked">🟠{{ dir.blockedCount }}</span>
-        <span v-if="dir.questionCount > 0" class="plan-dot plan-dot--question">🟣{{ dir.questionCount }}</span>
-        <span v-if="dir.pendingCount > 0" class="plan-dot plan-dot--pending">⚪{{ dir.pendingCount }}</span>
+        <span v-if="dir.codingCount > 0" class="plan-dot plan-dot--coding">🟢{{ dir.codingCount }}</span>
+        <span v-if="dir.reviewCount > 0" class="plan-dot plan-dot--review">⏳{{ dir.reviewCount }}</span>
+        <span v-if="dir.blockedCount > 0" class="plan-dot plan-dot--blocked">⛔{{ dir.blockedCount }}</span>
       </div>
     </button>
   </div>

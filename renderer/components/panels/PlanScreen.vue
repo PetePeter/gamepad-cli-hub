@@ -90,7 +90,7 @@ watch(() => [props.visible, props.layout.width, props.layout.height], () => {
 }, { immediate: true });
 
 function getNodeColor(status: string): string {
-  return STATUS_COLORS[status] ?? STATUS_COLORS.pending;
+  return STATUS_COLORS[status] ?? STATUS_COLORS.planning;
 }
 
 function formatPlanDate(value?: number): string {
