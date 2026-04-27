@@ -603,6 +603,16 @@ export class LocalhostMcpServer {
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),
           asAiagentState(args.state, 'state must be one of planning, implementing, completed, or idle'),
         );
+      case 'telegram_send': {
+        const sessionId = asString(args.sessionId, 'sessionId is required');
+        const text = asString(args.text, 'text is required');
+        const replyTo = typeof args.replyTo === 'string' ? args.replyTo : undefined;
+        return this.service.sendTelegramMessage(sessionId, text, { replyTo });
+      }
+      case 'telegram_set_output_mode':
+        return this.service.setTelegramOutputMode(
+          asString(args.mode, 'mode must be one of relay or diagnostic'),
+        );
       default:
         throw new Error(`Unknown tool: ${name}`);
     }

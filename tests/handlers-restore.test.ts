@@ -182,6 +182,7 @@ vi.mock('../src/session/incoming-plans-watcher.js', () => ({
 
 vi.mock('../src/session/persistence.js', () => ({
   loadDrafts: vi.fn().mockReturnValue([]),
+  loadScheduledTasks: vi.fn().mockReturnValue([]),
 }));
 
 vi.mock('../src/electron/ipc/editor-handlers.js', () => ({

@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { logger } from '../utils/logger.js';
 import { type ConfigLoader } from '../config/loader.js';
 import type { PlanManager } from '../session/plan-manager.js';
 import type { SessionManager } from '../session/manager.js';
@@ -76,13 +78,15 @@ export interface SessionInfoResponse {
   };
 }
 
-export class HelmControlService {
+export class HelmControlService extends EventEmitter {
   constructor(
     private readonly planManager: PlanManager,
     private readonly sessionManager: SessionManager,
     private readonly ptyManager: PtyManager,
     private readonly configLoader: ConfigLoader,
-  ) {}
+  ) {
+    super();
+  }
 
   listPlans(dirPath: string): PlanItem[] {
     return this.planManager.getForDirectory(dirPath);
@@ -462,6 +466,44 @@ export class HelmControlService {
   }
 
   /**
+   * Send a message to a Telegram user from a CLI session.
+   * Called via telegram_send MCP tool — allows CLI sessions to send deliberate replies to Telegram users.
+   */
+  async sendTelegramMessage(
+    sessionRef: string,
+    text: string,
+    options?: { replyTo?: string },
+  ): Promise<{ success: boolean; topicId?: number }> {
+    const session = this.findSession(sessionRef);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionRef}`);
+    }
+
+    // Import here to avoid circular dependency
+    const { TelegramRelayService } = await import('../telegram/relay-service.js');
+    // Get relay service from telegram orchestrator (will be injected)
+    // For now, emit event and let telegram layer handle it
+    this.emit('telegram:send', {
+      sessionId: session.id,
+      text,
+      replyTo: options?.replyTo,
+      timestamp: Date.now(),
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Set Telegram output mode (relay or diagnostic).
+   * Called via telegram_set_output_mode MCP tool — allows CLI sessions to control how their output appears in Telegram.
+   */
+  setTelegramOutputMode(mode: 'relay' | 'diagnostic'): { mode: string } {
+    this.emit('telegram:set_mode', { mode });
+    logger.info(`[MCP] Telegram output mode set to: ${mode}`);
+    return { mode };
+  }
+
+  /**
    * Get list of valid AIAGENT state tags for the state registry.
    * Registered states are: planning, implementing, completed, idle.
    */
@@ -492,6 +534,8 @@ export class HelmControlService {
       { name: 'session_send_text', title: 'Send Text To Session' },
       { name: 'session_set_working_plan', title: 'Set Session Working Plan' },
       { name: 'session_info', title: 'Get Session Info' },
+      { name: 'telegram_send', title: 'Send Message to Telegram User' },
+      { name: 'telegram_set_output_mode', title: 'Set Telegram Output Mode' },
     ];
   }
 

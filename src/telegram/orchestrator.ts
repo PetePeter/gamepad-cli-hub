@@ -16,17 +16,20 @@ import { TextInputManager } from './text-input.js';
 import { OutputSummarizer } from './output-summarizer.js';
 import { TerminalMirror } from './terminal-mirror.js';
 import { PinnedDashboard } from './pinned-dashboard.js';
+import { TelegramRelayService } from './relay-service.js';
 import { setupCallbackHandler } from './callback-handler.js';
 import { setupSlashCommands } from './commands.js';
 import { setupTopicInput } from './topic-input.js';
 import { isReplyKeyboardPress } from './reply-keyboard.js';
 import { logger } from '../utils/logger.js';
+import type { HelmControlService } from '../mcp/helm-control-service.js';
 
 export interface TelegramModules {
   textInput: TextInputManager;
   outputSummarizer: OutputSummarizer;
   terminalMirror: TerminalMirror;
   dashboard: PinnedDashboard;
+  relayService: TelegramRelayService;
   /** Feed PTY output — call on every pty:data event */
   feedPtyOutput: (sessionId: string, data: string) => void;
   /** Forward activity-change events — triggers output flush on inactive/idle */
@@ -47,6 +50,7 @@ export function initTelegramModules(
   sessionManager: SessionManager,
   ptyManager: PtyManager,
   configLoader: ConfigLoader,
+  helmControlService: HelmControlService,
   draftManager?: { clearSession(sessionId: string): void },
 ): TelegramModules {
   const outputSummarizer = new OutputSummarizer();
@@ -54,6 +58,24 @@ export function initTelegramModules(
   const textInput = new TextInputManager(bot, topicManager, ptyManager, terminalMirror);
   const instanceName = configLoader.getTelegramConfig().instanceName;
   const dashboard = new PinnedDashboard(bot, sessionManager, instanceName);
+  const relayService = new TelegramRelayService(bot, topicManager, sessionManager, ptyManager, helmControlService);
+
+  // Wire up MCP event handlers for relay service
+  const handleMcpSend = async (data: { sessionId: string; text: string; replyTo?: string; timestamp: number }) => {
+    await relayService.receiveFromSession({
+      sessionId: data.sessionId,
+      text: data.text,
+      replyTo: data.replyTo,
+      timestamp: data.timestamp,
+    });
+  };
+
+  const handleMcpSetMode = (data: { mode: 'relay' | 'diagnostic' }) => {
+    relayService.setOutputMode(data.mode);
+  };
+
+  helmControlService.on('telegram:send', handleMcpSend);
+  helmControlService.on('telegram:set_mode', handleMcpSetMode);
 
   const cleanupCallbacks = setupCallbackHandler(
     bot, topicManager, sessionManager, ptyManager,
@@ -86,6 +108,7 @@ export function initTelegramModules(
     outputSummarizer,
     terminalMirror,
     dashboard,
+    relayService,
     feedPtyOutput: (sessionId: string, data: string) => {
       if (!bot.isRunning()) return;
       outputSummarizer.feedOutput(sessionId, data);
@@ -112,6 +135,8 @@ export function initTelegramModules(
       cleanupCommands();
       cleanupTopicInput();
       bot.removeListener('message', replyKeyboardHandler);
+      helmControlService.off('telegram:send', handleMcpSend);
+      helmControlService.off('telegram:set_mode', handleMcpSetMode);
       textInput.dispose();
       outputSummarizer.dispose();
       terminalMirror.dispose();

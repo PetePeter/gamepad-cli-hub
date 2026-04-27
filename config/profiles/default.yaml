@@ -9,7 +9,8 @@ tools:
     initialPromptDelay: 5000
     initialPrompt:
       - label: ""
-        sequence: "Call session_info to get helm MCP AIAGENT state registry, then output AIAGENT state as first line of each response.{Enter}"
+        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
+          AIAGENT state as first line of each response.{Enter}
     sequences:
       prompts:
         - label: commit
@@ -25,7 +26,8 @@ tools:
       - label: ""
         sequence: /allow-all{Send}
       - label: ""
-        sequence: "{Wait 3000}Call session_info to get helm MCP AIAGENT state registry, then output AIAGENT state as first line of each response.{Enter}"
+        sequence: "{Wait 3000}Call session_info to get helm MCP AIAGENT state registry,
+          then output AIAGENT state as first line of each response.{Enter}"
     initialPromptDelay: 7000
     sequences:
       prompts:
@@ -38,7 +40,8 @@ tools:
     handoffCommand: go implement it
     initialPrompt:
       - label: ""
-        sequence: "Call session_info to get helm MCP AIAGENT state registry, then output AIAGENT state as first line of each response.{Enter}"
+        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
+          AIAGENT state as first line of each response.{Enter}
     initialPromptDelay: 1000
     pasteMode: pty
     sequences:
@@ -55,13 +58,64 @@ tools:
     spawnCommand: opencode
     initialPrompt:
       - label: ""
-        sequence: "Call session_info to get helm MCP AIAGENT state registry, then output AIAGENT state as first line of each response.{Enter}"
+        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
+          AIAGENT state as first line of each response.{Enter}
     initialPromptDelay: 10000
     pasteMode: pty
     sequences:
       prompts:
         - label: commit
           sequence: use skill(commit)
+  kimi-cc:
+    name: Kimi + CC
+    initialPrompt:
+      - label: ""
+        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
+          AIAGENT state as first line of each response.{Enter}
+    initialPromptDelay: 5000
+    env:
+      - name: ANTHROPIC_BASE_URL
+        value: https://api.moonshot.ai/anthropic
+      - name: ANTHROPIC_AUTH_TOKEN
+        value: sk-kimi-2MSQymvpOjxVWe2jvBmRPBSQZD6vGdHVjIJm5aNnsGsdPJT8ZAuVn9ENr93OQSuw
+      - name: ANTHROPIC_MODEL
+        value: kimi-k2.5
+      - name: ANTHROPIC_SMALL_FAST_MODEL
+        value: kimi-k2.5
+      - name: CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
+        value: "1"
+      - name: API_TIMEOUT_MS
+        value: "600000"
+    pasteMode: pty
+    spawnCommand: claude --session-id {cliSessionName}
+    resumeCommand: claude --resume={cliSessionName}
+    continueCommand: claude --continue
+  glm-cc:
+    name: GLM + CC
+    initialPrompt:
+      - label: ""
+        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
+          AIAGENT state as first line of each response.{Enter}
+    initialPromptDelay: 5000
+    env:
+      - name: ANTHROPIC_BASE_URL
+        value: https://api.z.ai/api/anthropic
+      - name: CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
+        value: "1"
+      - name: CLAUDE_CODE_DISABLE_1M_CONTEXT
+        value: "1"
+      - name: ANTHROPIC_DEFAULT_HAIKU_MODEL
+        value: glm-4.7
+      - name: ANTHROPIC_DEFAULT_SONNET_MODEL
+        value: glm-4.7
+      - name: ANTHROPIC_DEFAULT_OPUS_MODEL
+        value: glm-4.7
+      - name: ANTHROPIC_AUTH_TOKEN
+        value: 63475507ce704887a938565992f311ae.bpOp0K1tVuukEE9Q
+    pasteMode: pty
+    spawnCommand: claude --session-id {cliSessionName}
+    resumeCommand: claude --resume={cliSessionName}
+    continueCommand: claude --resume={cliSessionName}
 workingDirectories:
   - name: Helm
     path: X:\coding\gamepad-cli-hub

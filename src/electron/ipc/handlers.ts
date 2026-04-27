@@ -84,6 +84,9 @@ export function registerIPCHandlers(
     (sessionId) => stateDetector.getState(sessionId),
   );
 
+  // Create HelmControlService before Telegram modules (Telegram relay needs it)
+  const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager, configLoader);
+
   const telegramBot = new TelegramBotCore();
   const topicManager = new TopicManager(telegramBot, sessionManager, configLoader.getTelegramConfig().instanceName);
   const telegramNotifier = new TelegramNotifier(telegramBot, topicManager, sessionManager, () => configLoader.getTelegramConfig());
@@ -91,7 +94,7 @@ export function registerIPCHandlers(
   // Initialize all telegram modules (Phase 1+2+3)
   const telegramModules = initTelegramModules(
     telegramBot, topicManager, telegramNotifier,
-    sessionManager, ptyManager, configLoader, draftManager,
+    sessionManager, ptyManager, configLoader, helmControlService, draftManager,
   );
 
   // Restore sessions persisted from previous run
@@ -104,7 +107,6 @@ export function registerIPCHandlers(
   const incomingWatcher = new IncomingPlansWatcher(planManager);
   const textDeliverer = new RendererTextDeliverer(windowManager, sessionManager, configLoader);
   ptyManager.setTextDeliveryHandler((sessionId, text) => textDeliverer.deliver(sessionId, text));
-  const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager, configLoader);
   const localhostMcpServer = new LocalhostMcpServer(helmControlService, {
     enabled: configLoader.getMcpConfig().enabled,
     port: configLoader.getMcpConfig().port,
