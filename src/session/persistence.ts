@@ -26,6 +26,7 @@ export function saveSessions(sessions: SessionInfo[]): void {
       ...(s.cliSessionName ? { cliSessionName: s.cliSessionName } : {}),
       ...(s.currentPlanId ? { currentPlanId: s.currentPlanId } : {}),
       ...(s.topicId != null ? { topicId: s.topicId } : {}),
+      ...(s.aiagentState ? { aiagentState: s.aiagentState } : {}),
       // windowId is intentionally NOT persisted — it's ephemeral
     }))};
     writeFileSync(SESSIONS_FILE, YAML.stringify(data), 'utf8');

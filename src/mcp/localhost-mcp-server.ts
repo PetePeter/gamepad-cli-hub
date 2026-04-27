@@ -283,6 +283,21 @@ const TOOLS: McpTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'session_set_aiagent_state',
+    title: 'Set Session AIAGENT State',
+    description: 'Update the AIAGENT state for a session. This state persists across restarts and is controlled by external agents to show the current working state (planning, implementing, completed, idle).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        name: { type: 'string' },
+        state: { type: 'string', enum: ['planning', 'implementing', 'completed', 'idle'] },
+      },
+      required: ['state'],
+      additionalProperties: false,
+    },
+  },
 ];
 
 export interface LocalhostMcpServerOptions {
@@ -566,6 +581,11 @@ export class LocalhostMcpServer {
         );
       case 'session_info':
         return this.service.getSessionInfo(authContext);
+      case 'session_set_aiagent_state':
+        return this.service.setAiagentState(
+          asString(args.sessionId ?? args.name, 'sessionId or name is required'),
+          asAiagentState(args.state, 'state must be one of planning, implementing, completed, or idle'),
+        );
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
@@ -658,6 +678,13 @@ function asPlanStatus(value: unknown): 'planning' | 'startable' | 'coding' | 're
     return value;
   }
   throw new Error('status must be one of planning, startable, coding, review, or blocked');
+}
+
+function asAiagentState(value: unknown, errorMessage?: string): 'planning' | 'implementing' | 'completed' | 'idle' {
+  if (value === 'planning' || value === 'implementing' || value === 'completed' || value === 'idle') {
+    return value;
+  }
+  throw new Error(errorMessage ?? 'state must be one of planning, implementing, completed, or idle');
 }
 
 function requireResult<T>(value: T | null, message: string): T {

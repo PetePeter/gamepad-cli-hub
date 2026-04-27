@@ -55,6 +55,25 @@ export interface SessionInfoResponse {
   aiagent_states: string[];
   available_tools: McpToolSummary[];
   available_directories: DirectoryInfo[];
+  aiagent_state_guide?: {
+    validStates: string[];
+    how_to_update: {
+      description: string;
+      mcp_call: string;
+      usage_example: { sessionId: string; state: string };
+      state_icons: Record<string, string>;
+    };
+    notes: string[];
+  };
+  session_send_text_guide?: {
+    description: string;
+    how_it_works: string;
+    required_args: Record<string, string>;
+    optional_args: Record<string, string>;
+    examples: Array<{ scenario: string; payload: Record<string, unknown> }>;
+    error_scenarios: string[];
+    receiving_responses: string;
+  };
 }
 
 export class HelmControlService {
@@ -359,6 +378,16 @@ export class HelmControlService {
     };
   }
 
+  setAiagentState(sessionRef: string, state: 'planning' | 'implementing' | 'completed' | 'idle'): { sessionId: string; name: string; state: string } {
+    const session = this.findSession(sessionRef);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionRef}`);
+    }
+
+    this.sessionManager.updateSession(session.id, { aiagentState: state });
+    return { sessionId: session.id, name: session.name, state };
+  }
+
   /**
    * Get session info with MCP endpoint and AIAGENT state registry.
    * Called via session_info MCP tool — autocall endpoint provides context to AI agents.
@@ -388,6 +417,39 @@ export class HelmControlService {
       aiagent_states: this.getAiagentStates(),
       available_tools: this.getAvailableTools(),
       available_directories: this.getAvailableDirectories(),
+      aiagent_state_guide: {
+        validStates: ['planning', 'implementing', 'completed', 'idle'],
+        how_to_update: {
+          description: 'Update the session\'s AIAGENT state icon in Helm. This state persists across restarts and is controlled by external agents.',
+          mcp_call: 'session:set_aiagent_state',
+          usage_example: { sessionId: 'your-session-id', state: 'implementing' },
+          state_icons: { planning: '⚙️', implementing: '🟢', completed: '✅', idle: '⚪' },
+        },
+        notes: [
+          'State persists across restarts',
+          'Updates trigger session:changed event',
+          'Only external agents should set this state — activity dots (green/blue/grey) are based on PTY I/O timing and are managed automatically',
+          'When LLM starts to make changes, mark it as implementing. When done, mark it as completed for the user to review. If questions arise, mark it as planning and make follow-up plans with the questions. Only the user should mark it as idle, or the LLM if explicitly requested.',
+        ],
+      },
+      session_send_text_guide: {
+        description: 'Send text to another session from your session. This enables inter-LLM communication via Helm\'s embedded PTY system.',
+        how_it_works: 'Text is delivered to the target session\'s PTY via stdin. Helm wraps your message in a [HELM_MSG] envelope with metadata. When expectsResponse=true, replies are pasted back into your session as new chat turns — no polling needed.',
+        required_args: { sessionId: '[DESTINATION] Target session ID — MUST be different from senderSessionId', text: 'The text to send', senderSessionId: '[SENDER] Your session ID — MUST equal the HELM_SESSION_ID environment variable injected by Helm at startup' },
+        optional_args: { submit: 'Boolean, default true. If true, Helm issues a send/submit action (like pressing Enter) after inserting the text', expectsResponse: 'Boolean, default false. If true, Helm routes the target session\'s reply back to your session' },
+        examples: [
+          { scenario: 'Send prompt to session', payload: { sessionId: 'target-session-id', text: 'Analyze this file', senderSessionId: '$HELM_SESSION_ID', submit: true, expectsResponse: false } },
+          { scenario: 'Send with auto-enter', payload: { sessionId: 'target-session-id', text: 'git status', senderSessionId: '$HELM_SESSION_ID', submit: true, expectsResponse: false } },
+          { scenario: 'Send and await response', payload: { sessionId: 'target-session-id', text: 'What is the current git branch?', senderSessionId: '$HELM_SESSION_ID', submit: true, expectsResponse: true } },
+        ],
+        error_scenarios: [
+          'senderSessionId must be from HELM_SESSION_ID env var',
+          'senderSessionId must be different from the destination sessionId',
+          'Unknown sender session — senderSessionId does not match any active Helm session',
+          'Destination session not found or PTY not running',
+        ],
+        receiving_responses: 'When expectsResponse=true, Helm pastes [HELM_MSG] envelope as new chat turn in sender session. Reply using session_send_text with sessionId set to the original senderSessionId.',
+      },
     };
   }
 
