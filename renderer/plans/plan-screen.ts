@@ -27,6 +27,10 @@ export const planScreenState = reactive({
   selectedId: null as string | null,
   editingId: null as string | null,
   notice: '',
+  filters: {
+    types: { bug: true, feature: true, research: true, untyped: true },
+    statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
+  },
 });
 
 let fitActiveCallback: (() => void) | null = null;
@@ -56,10 +60,31 @@ function getSelectedItem(): PlanItem | null {
     : null;
 }
 
+function matchesFilters(item: PlanItem): boolean {
+  const { filters } = planScreenState;
+  
+  const typeMatch = !item.type ? filters.types.untyped : filters.types[item.type] ?? true;
+  if (!typeMatch) return false;
+  
+  const statusMatch = filters.statuses[item.status] ?? false;
+  return statusMatch;
+}
+
+function getFilteredItems(): PlanItem[] {
+  return planScreenState.items.filter(matchesFilters);
+}
+
+function getFilteredDeps(allDeps: PlanDependency[]): PlanDependency[] {
+  const filteredIds = new Set(getFilteredItems().map(i => i.id));
+  return allDeps.filter(dep => filteredIds.has(dep.fromId) && filteredIds.has(dep.toId));
+}
+
 function setPlanData(items: PlanItem[], deps: PlanDependency[]): void {
   planScreenState.items = items;
   planScreenState.deps = deps;
-  planScreenState.layout = computeLayout(items, deps);
+  const filteredItems = getFilteredItems();
+  const filteredDeps = getFilteredDeps(deps);
+  planScreenState.layout = computeLayout(filteredItems, filteredDeps);
 }
 
 function clearNotice(): void {
@@ -523,4 +548,43 @@ export function onPlanExportDirectory(): void {
 
 export function onPlanClearDone(): void {
   void handleClearDone();
+}
+
+export function toggleTypeFilter(type: 'bug' | 'feature' | 'research' | 'untyped'): void {
+  planScreenState.filters.types[type] = !planScreenState.filters.types[type];
+  refreshLayout();
+}
+
+export function toggleStatusFilter(status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done'): void {
+  planScreenState.filters.statuses[status] = !planScreenState.filters.statuses[status];
+  refreshLayout();
+}
+
+export function toggleStatusGroup(group: 'active' | 'terminal' | 'planning'): void {
+  const groups = {
+    active: ['coding', 'review', 'blocked'],
+    terminal: ['done'],
+    planning: ['planning', 'ready'],
+  };
+  const statuses = groups[group] ?? [];
+  const currentValues = statuses.map(s => planScreenState.filters.statuses[s]);
+  const allTrue = currentValues.every(v => v);
+  const newValue = !allTrue;
+  for (const status of statuses) {
+    planScreenState.filters.statuses[status] = newValue;
+  }
+  refreshLayout();
+}
+
+export function resetFilters(): void {
+  planScreenState.filters.types = { bug: true, feature: true, research: true, untyped: true };
+  planScreenState.filters.statuses = { planning: true, ready: true, coding: true, review: true, blocked: true, done: true };
+  refreshLayout();
+}
+
+function refreshLayout(): void {
+  const filteredItems = getFilteredItems();
+  const filteredDeps = getFilteredDeps(planScreenState.deps);
+  planScreenState.layout = computeLayout(filteredItems, filteredDeps);
+  syncSelection();
 }

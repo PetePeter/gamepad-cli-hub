@@ -43,6 +43,9 @@ import {
   onPlanNodeEdit,
   onPlanRemoveDependency,
   planScreenState,
+  toggleTypeFilter,
+  toggleStatusFilter,
+  resetFilters,
 } from './plans/plan-screen.js';
 import { handleSessionsScreenButton, toggleSessionOverviewVisibility, setSessionState, toggleGroupCollapse } from './screens/sessions.js';
 import { usePanelResize } from './composables/usePanelResize.js';
@@ -1691,6 +1694,19 @@ function onPlanDeleteConfirm(): void {
   if (cb) cb();
 }
 
+// Filter handlers
+function onToggleTypeFilter(type: 'bug' | 'feature' | 'research' | 'untyped'): void {
+  toggleTypeFilter(type);
+}
+
+function onToggleStatusFilter(status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done'): void {
+  toggleStatusFilter(status);
+}
+
+function onResetFilters(): void {
+  resetFilters();
+}
+
 // Clear done plans confirm
 function onClearDonePlansConfirm(): void {
   clearDonePlans.visible = false;
@@ -2185,6 +2201,7 @@ onUnmounted(() => {
         :layout="planScreenState.layout"
         :selected-id="planScreenState.selectedId"
         :notice="planScreenState.notice"
+        :filters="planScreenState.filters"
         @close="navStore.closePlan()"
         @add-node="onPlanAddNode()"
         @export-dir="onPlanExportDirectory()"
@@ -2196,6 +2213,9 @@ onUnmounted(() => {
         @delete-node="onPlanNodeDelete"
         @add-dep="onPlanAddDependency"
         @remove-dep="onPlanRemoveDependency"
+        @toggle-type-filter="onToggleTypeFilter"
+        @toggle-status-filter="onToggleStatusFilter"
+        @reset-filters="onResetFilters"
       />
       <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
         <ChipActionBar

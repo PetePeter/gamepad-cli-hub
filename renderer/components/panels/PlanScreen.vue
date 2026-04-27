@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, withDefaults } from 'vue';
 import { getDisplayTitle } from '../../types.js';
 import type { PlanDependency, PlanItem } from '../../../src/types/plan.js';
 import type { LayoutResult } from '../../plans/plan-layout.js';
@@ -18,7 +18,7 @@ const STATUS_COLORS: Record<string, string> = {
   done: '#555555',
 };
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   visible: boolean;
   dirPath: string;
   items: PlanItem[];
@@ -26,7 +26,16 @@ const props = defineProps<{
   layout: LayoutResult;
   selectedId: string | null;
   notice?: string;
-}>();
+  filters?: {
+    types: { bug: boolean; feature: boolean; research: boolean; untyped: boolean };
+    statuses: { planning: boolean; ready: boolean; coding: boolean; review: boolean; blocked: boolean; done: boolean };
+  };
+}>(), {
+  filters: () => ({
+    types: { bug: true, feature: true, research: true, untyped: true },
+    statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
+  }),
+});
 
 const emit = defineEmits<{
   close: [];
@@ -40,6 +49,9 @@ const emit = defineEmits<{
   deleteNode: [id: string];
   addDep: [fromId: string, toId: string];
   removeDep: [fromId: string, toId: string];
+  toggleTypeFilter: [type: 'bug' | 'feature' | 'research' | 'untyped'];
+  toggleStatusFilter: [status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done'];
+  resetFilters: [];
 }>();
 
 const wrapperRef = ref<HTMLElement | null>(null);
@@ -236,6 +248,45 @@ function startDragConnection(id: string, e: MouseEvent): void {
       <button class="plan-header__btn" @click="emit('close')">← Back</button>
       <button class="plan-header__btn plan-header__btn--add" @click="emit('addNode')">+ Add Node</button>
       <span class="plan-header__title">{{ dirPath }} - Plans</span>
+      
+      <div class="plan-header__filters">
+        <span class="plan-header__filter-label">Type:</span>
+        <label class="plan-header__filter">
+          <input type="checkbox" :checked="filters.types.bug" @change="emit('toggleTypeFilter', 'bug')"> Bug
+        </label>
+        <label class="plan-header__filter">
+          <input type="checkbox" :checked="filters.types.feature" @change="emit('toggleTypeFilter', 'feature')"> Feature
+        </label>
+        <label class="plan-header__filter">
+          <input type="checkbox" :checked="filters.types.research" @change="emit('toggleTypeFilter', 'research')"> Research
+        </label>
+        <label class="plan-header__filter">
+          <input type="checkbox" :checked="filters.types.untyped" @change="emit('toggleTypeFilter', 'untyped')"> Untyped
+        </label>
+        
+        <span class="plan-header__filter-label plan-header__filter-label--status">Status:</span>
+        <label class="plan-header__filter">
+          <input type="checkbox" :checked="filters.statuses.planning" @change="emit('toggleStatusFilter', 'planning')"> Planning
+        </label>
+        <label class="plan-header__filter">
+          <input type="checkbox" :checked="filters.statuses.ready" @change="emit('toggleStatusFilter', 'ready')"> Ready
+        </label>
+        <label class="plan-header__filter">
+          <input type="checkbox" :checked="filters.statuses.coding" @change="emit('toggleStatusFilter', 'coding')"> Coding
+        </label>
+        <label class="plan-header__filter">
+          <input type="checkbox" :checked="filters.statuses.review" @change="emit('toggleStatusFilter', 'review')"> Review
+        </label>
+        <label class="plan-header__filter">
+          <input type="checkbox" :checked="filters.statuses.blocked" @change="emit('toggleStatusFilter', 'blocked')"> Blocked
+        </label>
+        <label class="plan-header__filter">
+          <input type="checkbox" :checked="filters.statuses.done" @change="emit('toggleStatusFilter', 'done')"> Done
+        </label>
+        
+        <button class="plan-header__btn plan-header__btn--reset" @click="emit('resetFilters')">Reset</button>
+      </div>
+      
       <div class="plan-header__controls">
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('exportDir')">⬆ Export Dir</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('clearDone')">🧹 Clear Done</button>

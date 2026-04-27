@@ -2529,6 +2529,50 @@ kbd {
   margin-left: auto;
 }
 
+.plan-header__filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  flex-wrap: wrap;
+}
+
+.plan-header__filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #ccc;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.plan-header__filter:hover {
+  color: #fff;
+}
+
+.plan-header__filter input {
+  cursor: pointer;
+}
+
+.plan-header__filter-label {
+  font-size: 11px;
+  color: #888;
+  font-weight: 600;
+}
+
+.plan-header__filter-label--status {
+  margin-left: 8px;
+}
+
+.plan-header__btn--reset {
+  padding: 2px 8px;
+  font-size: 10px;
+}
+
 /* Brief transient notice (export/import feedback) */
 .plan-notice {
   font-size: 12px;
