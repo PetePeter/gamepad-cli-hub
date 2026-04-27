@@ -15,6 +15,7 @@ import { NotificationManager } from '../../session/notification-manager.js';
 import { DraftManager } from '../../session/draft-manager.js';
 import { PlanManager } from '../../session/plan-manager.js';
 import { PatternMatcher } from '../../session/pattern-matcher.js';
+import { ScheduledTaskManager } from '../../session/scheduled-task-manager.js';
 import { configLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
 import { logger } from '../../utils/logger.js';
@@ -35,6 +36,7 @@ import { setupPtyHandlers, cancelAllPrompts } from './pty-handlers.js';
 import { setupTelegramHandlers } from './telegram-handlers.js';
 import { setupDraftHandlers } from './draft-handlers.js';
 import { setupPlanHandlers } from './plan-handlers.js';
+import { setupScheduledTaskHandlers } from './scheduled-task-handlers.js';
 import { RendererTextDeliverer } from './text-delivery.js';
 import { loadDrafts } from '../../session/persistence.js';
 import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
@@ -76,6 +78,7 @@ export function registerIPCHandlers(
   const pipelineQueue = new PipelineQueue();
   const draftManager = new DraftManager();
   const planManager = new PlanManager();
+  const scheduledTaskManager = new ScheduledTaskManager(sessionManager, ptyManager, planManager, configLoader);
   const notificationManager = new NotificationManager(
     windowManager, sessionManager, configLoader,
     (sessionId) => stateDetector.getState(sessionId),
@@ -122,6 +125,7 @@ export function registerIPCHandlers(
   setupSystemHandlers(dirname ?? process.cwd());
   setupDraftHandlers(draftManager);
   setupPlanHandlers(planManager, windowManager, incomingWatcher);
+  setupScheduledTaskHandlers(scheduledTaskManager, windowManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, telegramModules.feedPtyOutput, telegramModules.handleActivityChange, telegramModules.trackInput, patternMatcher);
 
   // Wire events ONCE (no-ops when bot not running — notifier checks isRunning)
@@ -177,6 +181,9 @@ export function registerIPCHandlers(
 
   logger.info('[IPC] All handlers registered');
 
+  // Start scheduled task manager
+  scheduledTaskManager.start();
+
   void localhostMcpServer.start().catch((error) => {
     const isAddrInUse = error && typeof error === 'object' && 'code' in error && error.code === 'EADDRINUSE';
     const port = localhostMcpServer.getAddress()?.port ?? configLoader.getMcpConfig().port;
@@ -206,6 +213,7 @@ export function registerIPCHandlers(
       notificationManager.dispose();
       ptyManager.killAll();
       void incomingWatcher.close();
+      scheduledTaskManager.stop();
       void localhostMcpServer.close();
       logger.info('[IPC] Cleanup complete');
     },

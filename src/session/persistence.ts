@@ -6,6 +6,7 @@ import { logger } from '../utils/logger.js';
 import { getConfigDir } from '../utils/app-paths.js';
 import type { SessionInfo, DraftPrompt } from '../types/session.js';
 import type { PlanItem, PlanDependency, DirectoryPlan } from '../types/plan.js';
+import type { ScheduledTask } from '../types/scheduled-task.js';
 
 const __persistence_dirname = dirname(fileURLToPath(import.meta.url));
 const SESSIONS_FILE = join(getConfigDir(__persistence_dirname), 'sessions.yaml');
@@ -13,6 +14,7 @@ const DRAFTS_FILE = join(getConfigDir(__persistence_dirname), 'drafts.yaml');
 const PLANS_FILE = join(getConfigDir(__persistence_dirname), 'plans.yaml');
 const DEFAULT_PLANS_DIR = join(getConfigDir(__persistence_dirname), 'plans');
 const DEFAULT_PLAN_DEPS_FILE = join(getConfigDir(__persistence_dirname), 'plan-dependencies.json');
+const SCHEDULED_TASKS_FILE = join(getConfigDir(__persistence_dirname), 'scheduled-tasks.yaml');
 
 /** Persist current sessions to disk so they survive restarts. */
 export function saveSessions(sessions: SessionInfo[]): void {
@@ -237,4 +239,35 @@ export function cleanupOrphanDependencies(
     logger.info(`[Persistence] Cleaned up ${removed} orphan dependency edge(s)`);
   }
   return { removed, deps: cleaned };
+}
+
+// ─── Scheduled tasks persistence ───────────────────────────────────────────────
+
+/** Persist scheduled tasks to disk. */
+export function saveScheduledTasks(tasks: ScheduledTask[]): void {
+  try {
+    const data = { tasks: tasks.map(t => ({
+      ...t,
+      scheduledTime: t.scheduledTime.toISOString(),
+    }))};
+    writeFileSync(SCHEDULED_TASKS_FILE, YAML.stringify(data), 'utf8');
+  } catch (err) {
+    logger.error(`Failed to save scheduled tasks: ${err}`);
+  }
+}
+
+/** Load persisted scheduled tasks from disk. */
+export function loadScheduledTasks(): ScheduledTask[] {
+  try {
+    if (!existsSync(SCHEDULED_TASKS_FILE)) return [];
+    const content = readFileSync(SCHEDULED_TASKS_FILE, 'utf8');
+    const parsed = YAML.parse(content) as { tasks?: Array<Omit<ScheduledTask, 'scheduledTime'> & { scheduledTime: string }> };
+    return parsed?.tasks.map(t => ({
+      ...t,
+      scheduledTime: new Date(t.scheduledTime),
+    })) ?? [];
+  } catch (err) {
+    logger.error(`Failed to load scheduled tasks: ${err}`);
+    return [];
+  }
 }

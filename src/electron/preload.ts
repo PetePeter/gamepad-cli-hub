@@ -701,6 +701,38 @@ const gamepadCliAPI = {
     return () => ipcRenderer.removeListener('pattern:schedule-cancelled', listener);
   },
 
+  // ========================================================================
+  // Scheduled Tasks
+  // ========================================================================
+
+  /** Create a new scheduled task */
+  scheduledTaskCreate: (params: {
+    title: string;
+    description?: string;
+    planIds: string[];
+    initialPrompt: string;
+    cliType: string;
+    cliParams?: string;
+    scheduledTime: Date;
+    dirPath: string;
+  }) => ipcRenderer.invoke('scheduled_task:create', params),
+
+  /** List all scheduled tasks */
+  scheduledTaskList: () => ipcRenderer.invoke('scheduled_task:list'),
+
+  /** Get a single scheduled task by ID */
+  scheduledTaskGet: (id: string) => ipcRenderer.invoke('scheduled_task:get', id),
+
+  /** Cancel a pending scheduled task */
+  scheduledTaskCancel: (id: string) => ipcRenderer.invoke('scheduled_task:cancel', id),
+
+  /** Subscribe to scheduled task change events */
+  onScheduledTaskChanged: (callback: (task: { id: string; title: string; status: string }) => void) => {
+    const listener = (_e: unknown, task: { id: string; title: string; status: string }) => callback(task);
+    ipcRenderer.on('scheduled-task:changed', listener);
+    return () => ipcRenderer.removeListener('scheduled-task:changed', listener);
+  },
+
 };
 
 /**
