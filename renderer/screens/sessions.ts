@@ -768,31 +768,29 @@ function onKeyDown(e: KeyboardEvent): void {
     }
   }
 
-  if (e.key.toLowerCase() === 'n' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+  // Ctrl+N (without shift) creates new plans
+  if (e.key.toLowerCase() === 'n' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
     const draftEditor = document.getElementById('draftEditor');
     if (draftEditor && draftEditor.style.display !== 'none') return;
     // Let the plan screen own Ctrl+N while it's focused (adds a node).
     if (view === 'plan') return;
-    // When in terminal view, Ctrl+N opens the CLI picker then folder picker.
-    if (view === 'terminal') {
-      e.preventDefault();
-      e.stopPropagation();
-      openQuickSpawn((cliType) => {
-        void spawnNewSession(cliType);
-      });
-      return;
-    }
-    // On overview, Ctrl+N creates a plan for the currently overviewed directory.
-    if (view === 'overview') {
-      e.preventDefault();
-      e.stopPropagation();
-      void triggerNewPlanShortcut();
-      return;
-    }
-    // Default: create a plan for the focused directory group (sidebar focus).
+    // On overview or sidebar focus, Ctrl+N creates a plan for the current directory.
     e.preventDefault();
     e.stopPropagation();
     void triggerNewPlanShortcut();
+    return;
+  }
+
+  // Ctrl+Shift+N creates new sessions
+  if (e.key.toLowerCase() === 'n' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+    const draftEditor = document.getElementById('draftEditor');
+    if (draftEditor && draftEditor.style.display !== 'none') return;
+    // Always open the CLI picker then folder picker to spawn a new session.
+    e.preventDefault();
+    e.stopPropagation();
+    openQuickSpawn((cliType) => {
+      void spawnNewSession(cliType);
+    });
     return;
   }
 
