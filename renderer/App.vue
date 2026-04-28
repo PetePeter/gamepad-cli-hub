@@ -75,6 +75,7 @@ import { showDraftSubmenu } from './modals/draft-submenu.js';
 import { showEditorPopup } from './editor/editor-popup.js';
 import DraftEditor from './components/panels/DraftEditor.vue';
 import type { PlanStatus } from '../../src/types/plan.js';
+import type { ScheduledTask } from '../../src/types/scheduled-task.js';
 import type { PlanCallbacks } from './components/panels/DraftEditor.vue';
 import {
   setDraftEditorOpener as setLegacyDraftEditorOpener,
@@ -118,6 +119,7 @@ import TelegramTab from './components/sidebar/TelegramTab.vue';
 import DirectoriesTab from './components/sidebar/DirectoriesTab.vue';
 import ChipbarActionsTab from './components/sidebar/ChipbarActionsTab.vue';
 import McpTab from './components/sidebar/McpTab.vue';
+import ScheduledTasksTab from './components/sidebar/ScheduledTasksTab.vue';
 
 import { logEvent, showFormModal, updateProfileDisplay, navigateFocus } from './utils.js';
 import { loadSessions } from './screens/sessions.js';
@@ -970,6 +972,7 @@ function buildSettingsTabs() {
     { id: 'chipbar-actions', label: '⚡ Quick Actions' },
     { id: 'directories', label: '📁 Dirs' },
     { id: 'telegram', label: '📨 Telegram' },
+    { id: 'scheduled-tasks', label: '⏰ Tasks' },
     { id: 'mcp', label: '🧩 MCP' },
   ];
 }
@@ -1454,6 +1457,16 @@ async function onTelegramStopBot(): Promise<void> {
   } catch (error) {
     console.error('Failed to stop Telegram bot:', error);
   }
+}
+
+// ── Scheduled Tasks Tab Handlers ─────────────────────────────────────────────
+
+async function onScheduledTaskCreated(task: ScheduledTask): Promise<void> {
+  console.log('[App] Scheduled task created:', task.title);
+}
+
+async function onScheduledTaskCancelled(taskId: string): Promise<void> {
+  console.log('[App] Scheduled task cancelled:', taskId);
 }
 
 // ── MCP Tab Handlers ───────────────────────────────────────────────────────
@@ -2073,6 +2086,11 @@ onUnmounted(() => {
               @update-field="onTelegramUpdateField"
               @start-bot="onTelegramStartBot"
               @stop-bot="onTelegramStopBot"
+            />
+            <ScheduledTasksTab
+              v-else-if="activeTab === 'scheduled-tasks'"
+              @task-created="onScheduledTaskCreated"
+              @task-cancelled="onScheduledTaskCancelled"
             />
             <McpTab
               v-else-if="activeTab === 'mcp'"
