@@ -340,13 +340,17 @@ export class PlanManager extends EventEmitter {
       return null;
     }
 
-    // 'coding' requires sessionId
+    // 'coding' requires sessionId — keep existing or require explicit
     if (status === 'coding') {
       const nextSessionId = sessionId ?? item.sessionId;
       if (!nextSessionId) return null;
       item.sessionId = nextSessionId;
-    } else if (status === 'planning' || status === 'ready' || status === 'review' || status === 'blocked') {
+    } else if (status === 'review' || status === 'blocked') {
+      // Active pause states — preserve existing owner, allow explicit reassignment
       item.sessionId = sessionId ?? item.sessionId;
+    } else {
+      // planning / ready — pre-work states, clear stale ownership
+      item.sessionId = undefined;
     }
 
     const prevStatus = item.status;

@@ -238,7 +238,31 @@ describe('plan screen bridge', () => {
       status: 'blocked',
       stateInfo: 'Waiting',
     });
-    expect(mockPlanSetState).toHaveBeenCalledWith('a', 'blocked', 'Waiting', 'session-1');
+    expect(mockPlanSetState).toHaveBeenCalledWith('a', 'blocked', 'Waiting', undefined);
+  });
+
+  it('does not assign the active session when saving an unowned plan as review', async () => {
+    const mod = await getModule();
+    const opener = vi.fn();
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'ready', createdAt: 1, updatedAt: 1 };
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    mockPlanUpdate.mockResolvedValue(undefined);
+    mockPlanSetState.mockResolvedValue(undefined);
+    mod.setPlanEditorOpener(opener);
+
+    await mod.showPlanScreen('/test/dir');
+    mod.handlePlanScreenAction('A');
+
+    const callbacks = opener.mock.calls[0][2];
+    await callbacks.onSave({
+      title: 'Updated',
+      description: 'Updated body',
+      status: 'review',
+    });
+
+    expect(mockPlanSetState).toHaveBeenCalledWith('a', 'review', undefined, undefined);
   });
 
   it('applies a ready plan through the editor callback', async () => {

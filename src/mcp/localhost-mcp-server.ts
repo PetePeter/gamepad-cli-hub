@@ -79,7 +79,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_create',
     title: 'Create Plan',
-    description: 'Create a plan item in a directory.',
+    description: 'Create a plan item in a directory. The new plan starts in "planning" status with no session owner. When you begin working on this plan, claim it by calling plan_set_state with status "coding" and your sessionId, then call session_set_working_plan.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -122,7 +122,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_set_state',
     title: 'Set Plan State',
-    description: 'Set a plan item state to planning, ready, coding, review, or blocked. Use this when the lifecycle state itself changed; if you only need the session row to point at the current plan, prefer session_set_working_plan.',
+    description: 'Set a plan item state to planning, ready, coding, review, or blocked. Use this when the lifecycle state itself changed; if you only need the session row to point at the current plan, prefer session_set_working_plan. IMPORTANT: When setting status to "coding", you must pass sessionId to claim ownership. The "planning" and "ready" states automatically clear any previous session owner. "review" and "blocked" preserve existing ownership. Always call session_set_working_plan after claiming a plan to update the session\'s visible working plan.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -480,8 +480,10 @@ export class LocalhostMcpServer {
           const args = asRecord(params.arguments);
           const result = await this.callTool(name, args, authContext);
           const structuredContent = normalizeStructuredContent(result);
+          const reminder = getToolReminder(name);
+          const text = `${JSON.stringify(result, null, 2)}${reminder ? `\n\n${reminder}` : ''}`;
           this.writeJsonRpcResult(res, id, {
-            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+            content: [{ type: 'text', text }],
             structuredContent,
           });
           return;
@@ -761,4 +763,14 @@ function normalizeStructuredContent(value: unknown): Record<string, unknown> {
     return { items: value };
   }
   return { result: value ?? null };
+}
+
+function getToolReminder(name: string): string {
+  if (name === 'plan_create') {
+    return 'Reminder: creating a plan does not assign ownership. When you begin implementation, explicitly call plan_set_state with status "coding" and your sessionId, then call session_set_working_plan.';
+  }
+  if (name === 'plan_set_state') {
+    return 'Reminder: ownership is explicit. Use session_set_working_plan after claiming work so Helm shows the session as working on this plan.';
+  }
+  return '';
 }

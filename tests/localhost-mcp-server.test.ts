@@ -101,6 +101,12 @@ describe('LocalhostMcpServer', () => {
     const toolsJson = await toolsResponse.json();
     expect(Array.isArray(toolsJson.result.tools)).toBe(true);
     expect(toolsJson.result.tools.some((tool: { name: string }) => tool.name === 'plans_list')).toBe(true);
+    const planCreateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_create');
+    const planSetStateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_set_state');
+    expect(planCreateTool.description).toContain('claim it by calling plan_set_state');
+    expect(planSetStateTool.description).toContain('planning');
+    expect(planSetStateTool.description).toContain('ready');
+    expect(planSetStateTool.description).toContain('session_set_working_plan');
   });
 
   it('dispatches tool calls into the shared service', async () => {
@@ -153,6 +159,54 @@ describe('LocalhostMcpServer', () => {
       planTitle: 'Task',
       planStatus: 'coding',
     });
+  });
+
+  it('adds ownership reminders to plan_create and plan_set_state text without changing structured content', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const createResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 37,
+      method: 'tools/call',
+      params: {
+        name: 'plan_create',
+        arguments: { dirPath: '/proj', title: 'Task', description: 'Desc' },
+      },
+    });
+    const createJson = await createResponse.json();
+    expect(createJson.result.structuredContent).toEqual({
+      id: 'created',
+      dirPath: '/proj',
+      title: 'Task',
+      description: 'Desc',
+      status: 'ready',
+    });
+    expect(createJson.result.content[0].text).toContain('Reminder: creating a plan does not assign ownership');
+    expect(createJson.result.content[0].text).toContain('session_set_working_plan');
+
+    const setStateResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 38,
+      method: 'tools/call',
+      params: {
+        name: 'plan_set_state',
+        arguments: { id: 'p1', status: 'coding', sessionId: 's1' },
+      },
+    });
+    const setStateJson = await setStateResponse.json();
+    expect(setStateJson.result.structuredContent).toEqual({
+      id: 'p1',
+      dirPath: '/proj',
+      title: 'Task',
+      description: 'Desc',
+      status: 'coding',
+    });
+    expect(setStateJson.result.content[0].text).toContain('Reminder: ownership is explicit');
+    expect(setStateJson.result.content[0].text).toContain('session_set_working_plan');
   });
 
   it('wraps array results in a record for structuredContent', async () => {

@@ -468,6 +468,48 @@ describe('PlanManager', () => {
       expect(updated?.stateInfo).toBeUndefined();
     });
 
+    it('clears session ownership when moving back to planning or ready', () => {
+      const blocker = pm.create('/d', 'Blocker', '');
+      const item = pm.create('/d', 'Task', '');
+      pm.addDependency(blocker.id, item.id);
+      pm.setState(item.id, 'coding', '', 'session-1');
+
+      const planning = pm.setState(item.id, 'planning');
+      expect(planning?.status).toBe('planning');
+      expect(planning?.sessionId).toBeUndefined();
+
+      const readyItem = pm.create('/d', 'Ready task', '');
+      pm.setState(readyItem.id, 'coding', '', 'session-2');
+      const ready = pm.setState(readyItem.id, 'ready');
+      expect(ready?.status).toBe('ready');
+      expect(ready?.sessionId).toBeUndefined();
+    });
+
+    it('preserves existing session ownership for review and blocked', () => {
+      const item = pm.create('/d', 'Task', '');
+      pm.applyItem(item.id, 'session-1');
+
+      const review = pm.setState(item.id, 'review');
+      expect(review?.status).toBe('review');
+      expect(review?.sessionId).toBe('session-1');
+
+      const blocked = pm.setState(item.id, 'blocked', 'Waiting on review');
+      expect(blocked?.status).toBe('blocked');
+      expect(blocked?.sessionId).toBe('session-1');
+    });
+
+    it('does not assign review or blocked ownership without an explicit session', () => {
+      const item = pm.create('/d', 'Task', '');
+
+      const blocked = pm.setState(item.id, 'blocked', 'Waiting on decision');
+      expect(blocked?.status).toBe('blocked');
+      expect(blocked?.sessionId).toBeUndefined();
+
+      const review = pm.setState(item.id, 'review');
+      expect(review?.status).toBe('review');
+      expect(review?.sessionId).toBeUndefined();
+    });
+
     it('rejects done to pending', () => {
       const item = pm.create('/d', 'Task', '');
       pm.applyItem(item.id, 'session-1');

@@ -380,11 +380,16 @@ async function handleSave(updates: { title: string; description: string; status:
         showBriefNotice('Select or open a session in this directory before marking a plan as coding');
         return;
       }
+      // Only coding claims a session from the editor. Paused states preserve
+      // any existing owner in PlanManager without assigning the active session.
+      const ownerSessionId = updates.status === 'coding'
+        ? targetSessionId ?? undefined
+        : undefined;
       await window.gamepadCli.planSetState(
         planScreenState.selectedId,
         updates.status,
         updates.stateInfo,
-        targetSessionId ?? current.sessionId,
+        ownerSessionId,
       );
     }
     await refreshCanvas();
