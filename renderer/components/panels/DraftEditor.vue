@@ -7,6 +7,7 @@
  */
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import type { PlanStatus } from '../../src/types/plan.js';
+import type { PlanAttachment } from '../../src/types/plan-attachment.js';
 
 export interface PlanCallbacks {
   onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: 'bug' | 'feature' | 'research' }) => void;
@@ -90,6 +91,12 @@ const contentInputRef = ref<HTMLTextAreaElement | null>(null);
 const stateSelectRef = ref<HTMLSelectElement | null>(null);
 const stateInfoRef = ref<HTMLInputElement | null>(null);
 const typeSelectRef = ref<HTMLSelectElement | null>(null);
+
+// Attachments (plan mode only)
+const attachments = ref<PlanAttachment[]>([]);
+const attachmentsLoading = ref(false);
+const attachmentBusyId = ref<string | null>(null);
+const attachmentError = ref('');
 
 // ResizeObserver + debounced persistence for editor height
 const resizeObserver = ref<ResizeObserver | null>(null);
@@ -402,6 +409,72 @@ function onStateSelectChange(): void {
   // Reactive watcher handles visibility
 }
 
+// ── Attachments ────────────────────────────────────────────────────────────
+
+function formatAttachmentSize(sizeBytes: number): string {
+  if (sizeBytes >= 1024 * 1024) return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
+  if (sizeBytes >= 1024) return `${Math.round(sizeBytes / 1024)} KB`;
+  return `${sizeBytes} B`;
+}
+
+async function loadAttachments(): Promise<void> {
+  const planId = props.planId;
+  if (!planId || !isPlan.value) { attachments.value = []; return; }
+  attachmentsLoading.value = true;
+  attachmentError.value = '';
+  try {
+    attachments.value = await window.gamepadCli.planAttachmentList?.(planId) ?? [];
+  } catch {
+    attachmentError.value = 'Could not load attachments';
+    attachments.value = [];
+  } finally {
+    attachmentsLoading.value = false;
+  }
+}
+
+async function addAttachment(): Promise<void> {
+  const planId = props.planId;
+  if (!planId) return;
+  attachmentError.value = '';
+  const filePath = await window.gamepadCli.dialogShowOpenFile?.([{ name: 'All Files', extensions: ['*'] }]);
+  if (!filePath) return;
+  const result = await window.gamepadCli.planAttachmentAddFile?.(planId, filePath);
+  if (!result) { attachmentError.value = 'Could not attach file (max 10 MB)'; return; }
+  await loadAttachments();
+}
+
+async function openAttachment(att: PlanAttachment): Promise<void> {
+  const planId = props.planId;
+  if (!planId) return;
+  attachmentBusyId.value = att.id;
+  attachmentError.value = '';
+  try {
+    const ok = await window.gamepadCli.planAttachmentOpen?.(planId, att.id);
+    if (!ok) attachmentError.value = 'Could not open attachment';
+  } finally {
+    attachmentBusyId.value = null;
+  }
+}
+
+async function deleteAttachment(att: PlanAttachment): Promise<void> {
+  const planId = props.planId;
+  if (!planId) return;
+  attachmentBusyId.value = att.id;
+  attachmentError.value = '';
+  try {
+    const ok = await window.gamepadCli.planAttachmentDelete?.(planId, att.id);
+    if (!ok) { attachmentError.value = 'Could not delete attachment'; return; }
+    await loadAttachments();
+  } finally {
+    attachmentBusyId.value = null;
+  }
+}
+
+watch([() => props.planId, () => props.visible], ([, visible]) => {
+  if (visible && isPlan.value) void loadAttachments();
+  else attachments.value = [];
+});
+
 // ── Height persistence ─────────────────────────────────────────────────────
 
 async function applyPersistedHeight(): Promise<void> {
@@ -557,6 +630,24 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
       @keydown="onKeyDown"
     />
 
+    <div v-if="isPlan && planId" class="draft-editor-attachments">
+      <div class="draft-editor-attachments__header">
+        <span class="draft-editor-attachments__title">Attachments</span>
+        <button class="btn btn--secondary btn--sm" @click="addAttachment">Attach File</button>
+      </div>
+      <div v-if="attachmentError" class="draft-editor-attachments__error">{{ attachmentError }}</div>
+      <div v-if="attachmentsLoading" class="draft-editor-attachments__empty">Loading…</div>
+      <div v-else-if="attachments.length === 0" class="draft-editor-attachments__empty">No attachments</div>
+      <div v-else class="draft-editor-attachments__list">
+        <div v-for="att in attachments" :key="att.id" class="draft-editor-attachments__row">
+          <span class="draft-editor-attachments__name">{{ att.filename }}</span>
+          <span class="draft-editor-attachments__size">{{ formatAttachmentSize(att.sizeBytes) }}</span>
+          <button class="btn btn--secondary btn--sm" :disabled="attachmentBusyId === att.id" @click="openAttachment(att)">Open</button>
+          <button class="btn btn--danger btn--sm" :disabled="attachmentBusyId === att.id" @click="deleteAttachment(att)">Delete</button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="mode === 'plan' && planStatus === 'done' && completionNotes" class="draft-editor__completion-notes">
       <label>Completion Notes</label>
       <p class="draft-editor__completion-notes-text">{{ completionNotes }}</p>
@@ -565,6 +656,69 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
 </template>
 
 <style scoped>
+.draft-editor-attachments {
+  border-top: 1px solid #2a2a2a;
+  padding-top: 10px;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.draft-editor-attachments__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.draft-editor-attachments__title {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.draft-editor-attachments__empty,
+.draft-editor-attachments__error {
+  font-size: 12px;
+  color: #666;
+}
+
+.draft-editor-attachments__error {
+  color: #ff9a9a;
+}
+
+.draft-editor-attachments__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.draft-editor-attachments__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: #151515;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+}
+
+.draft-editor-attachments__name {
+  font-size: 12px;
+  color: #ddd;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draft-editor-attachments__size {
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
+}
+
 .draft-editor__completion-notes {
   margin-top: 12px;
   padding: 12px;

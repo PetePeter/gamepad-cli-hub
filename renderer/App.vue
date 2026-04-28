@@ -36,7 +36,7 @@ import {
   onPlanAddNode,
   onPlanClearDone,
   onPlanAssignSequence,
-  onPlanCreateSequenceForSelected,
+  onPlanCreateSequence,
   onPlanExportDirectory,
   onPlanNodeApply,
   onPlanNodeClick,
@@ -172,6 +172,7 @@ const draftEditorSessionId = ref('');
 const draftEditorDraftId = ref<string | null>(null);
 const draftEditorLabel = ref('');
 const draftEditorText = ref('');
+const draftEditorPlanId = ref<string | null>(null);
 const draftEditorPlanStatus = ref<PlanStatus>('planning');
 const draftEditorPlanStateInfo = ref('');
 const draftEditorPlanType = ref<PlanType | undefined>(undefined);
@@ -611,6 +612,7 @@ function openPlanEditor(
 ) {
   draftEditorMode.value = 'plan';
   draftEditorSessionId.value = sessionId;
+  draftEditorPlanId.value = plan.id;
   draftEditorPlanStatus.value = plan.status;
   draftEditorPlanStateInfo.value = plan.stateInfo ?? '';
   draftEditorPlanType.value = plan.type;
@@ -626,6 +628,7 @@ function openPlanEditor(
 
 function closeDraftEditor() {
   draftEditorPlanCallbacks.value?.onClose?.();
+  draftEditorPlanId.value = null;
   draftEditorVisible.value = false;
 }
 
@@ -2287,6 +2290,7 @@ onUnmounted(() => {
         :draft-id="draftEditorDraftId"
         :initial-label="draftEditorLabel"
         :initial-text="draftEditorText"
+        :plan-id="draftEditorPlanId"
         :plan-status="draftEditorPlanStatus"
         :plan-state-info="draftEditorPlanStateInfo"
         :plan-type="draftEditorPlanType"
@@ -2342,7 +2346,7 @@ onUnmounted(() => {
         @add-node="onPlanAddNode()"
         @export-dir="onPlanExportDirectory()"
         @clear-done="onPlanClearDone()"
-        @create-sequence-for-selected="onPlanCreateSequenceForSelected"
+        @create-sequence="onPlanCreateSequence"
         @assign-sequence="onPlanAssignSequence"
         @update-sequence="onPlanUpdateSequence"
         @delete-sequence="onPlanDeleteSequence"

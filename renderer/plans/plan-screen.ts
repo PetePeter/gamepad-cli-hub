@@ -687,15 +687,14 @@ export function onPlanClearDone(): void {
   void handleClearDone();
 }
 
-export async function onPlanCreateSequenceForSelected(): Promise<void> {
+export async function onPlanCreateSequence(title: string, missionStatement: string, sharedMemory: string): Promise<void> {
   const selected = getSelectedItem();
   if (!selected) return;
-  const title = selected.title ? `${selected.title} Sequence` : 'New Sequence';
   const sequence = await window.gamepadCli.planSequenceCreate?.(
     planScreenState.currentDir,
-    title,
-    selected.description,
-    '',
+    title || 'New Sequence',
+    missionStatement,
+    sharedMemory,
   );
   if (sequence?.id) {
     await window.gamepadCli.planSequenceAssign?.(selected.id, sequence.id);
