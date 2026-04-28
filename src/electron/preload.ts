@@ -6,6 +6,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
+import type { DraftPrompt } from '../types/session.js';
 
 const appVersion = ipcRenderer.sendSync('app:getVersionSync') as string;
 
@@ -531,11 +532,11 @@ const gamepadCliAPI = {
 
   /** Create a new draft prompt for a session */
   draftCreate: (sessionId: string, label: string, text: string) =>
-    ipcRenderer.invoke('draft:create', sessionId, label, text),
+    ipcRenderer.invoke('draft:create', sessionId, label, text) as Promise<DraftPrompt>,
 
   /** Update an existing draft */
   draftUpdate: (draftId: string, updates: { label?: string; text?: string }) =>
-    ipcRenderer.invoke('draft:update', draftId, updates),
+    ipcRenderer.invoke('draft:update', draftId, updates) as Promise<DraftPrompt | null>,
 
   /** Delete a draft */
   draftDelete: (draftId: string) =>

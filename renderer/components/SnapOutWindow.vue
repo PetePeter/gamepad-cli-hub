@@ -30,6 +30,7 @@ import {
   setDraftEditorButtonHandler as setLegacyDraftEditorButtonHandler,
   setPlanChangesChecker as setLegacyPlanChangesChecker,
 } from '../drafts/draft-editor.js';
+import { saveDraftWithStableId } from '../drafts/draft-save.js';
 
 const props = defineProps<{
   sessionId: string;
@@ -124,10 +125,9 @@ async function onDraftSave(payload: { label: string; text: string }): Promise<vo
   const sessionId = draftEditorSessionId.value;
   const draftId = draftEditorDraftId.value;
   try {
-    if (draftId) {
-      await window.gamepadCli.draftUpdate(draftId, payload);
-    } else {
-      await window.gamepadCli.draftCreate(sessionId, payload.label, payload.text);
+    const savedDraftId = await saveDraftWithStableId(window.gamepadCli, sessionId, draftId, payload);
+    if (!draftId && savedDraftId) {
+      draftEditorDraftId.value = savedDraftId;
     }
   } catch (err) {
     console.error('[SnapOut] Failed to save draft:', err);
