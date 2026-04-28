@@ -489,7 +489,9 @@ function handleButton(button: string): void {
     if (handlePlanScreenAction(button)) return;
   }
 
-  // Overview grid — routes before session navigation so A/B/Left/Right act on the grid
+  // Overview grid — routes before session navigation so A/B/Left/Right act on the grid.
+  // Up/Down intentionally fall through to the sidebar session navigation path,
+  // matching the keyboard/legacy gamepad contract and avoiding trapped overview focus.
   if (activeView.value === 'overview') {
     const sessions = getOverviewSessions();
     const count = sessions.length;
@@ -533,20 +535,6 @@ function handleButton(button: string): void {
       return;
     }
 
-    if (dir === 'up') {
-      if (sessionsState.overviewFocusIndex > 0) {
-        sessionsState.overviewFocusIndex--;
-      }
-      return;
-    }
-    if (dir === 'down') {
-      if (sessionsState.overviewFocusIndex < count - 1) {
-        sessionsState.overviewFocusIndex++;
-      }
-      return;
-    }
-
-    return;
   }
 
   // Session navigation — D-pad, A to select, overview-button, spawn/plans zones

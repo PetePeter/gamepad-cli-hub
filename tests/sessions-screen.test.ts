@@ -255,6 +255,9 @@ describe('Sessions Screen', () => {
     mockShowPlanScreen.mockReset();
     mockOpenPlan.mockReset();
     mockNavigateToSession.mockReset();
+    mockActivateSession.mockReset();
+    mockSwitchTo.mockReset();
+    mockCurrentView = 'terminal';
     state.recentSessionId = null;
     state.lastSelectedSessionId = null;
   });
@@ -539,6 +542,18 @@ describe('Sessions Screen', () => {
       sessions.handleSessionsScreenButton('DPadDown');
       sessions.handleSessionsScreenButton('DPadDown');
       expect(sessionsState.sessionsFocusIndex).toBe(4);
+    });
+
+    it('DPadDown from overview routes session auto-select through full navigation', () => {
+      mockCurrentView = 'overview';
+      sessionsState.sessionsFocusIndex = 2; // first session card
+
+      sessions.handleSessionsScreenButton('DPadDown');
+
+      expect(sessionsState.sessionsFocusIndex).toBe(3);
+      expect(mockNavigateToSession).toHaveBeenCalledWith('s-1');
+      expect(mockActivateSession).not.toHaveBeenCalled();
+      expect(mockSwitchTo).not.toHaveBeenCalled();
     });
 
     it('DPadUp moves sessionsFocusIndex backward', () => {
