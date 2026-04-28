@@ -5,6 +5,7 @@ import { type ConfigLoader } from '../config/loader.js';
 import type { PlanManager, PlanRefResolution } from '../session/plan-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
+import type { TerminalOutputMode } from '../session/terminal-output-buffer.js';
 import type { PlanItem, PlanStatus, PlanType } from '../types/plan.js';
 import type { SessionInfo } from '../types/session.js';
 import { mintSessionAuthToken } from './session-auth.js';
@@ -35,6 +36,22 @@ export interface CliSummary {
   command: string;
   supportsResume: boolean;
   supportedDirPaths: string[];
+}
+
+export interface SessionTerminalTailResponse {
+  sessionId: string;
+  name: string;
+  cliType: string;
+  workingDir?: string;
+  requestedLines: number;
+  returnedLines: number;
+  clamped: boolean;
+  maxLines: number;
+  mode: TerminalOutputMode;
+  ptyRunning: boolean;
+  lastOutputAt?: number;
+  raw?: string[];
+  stripped?: string[];
 }
 
 export interface McpToolSummary {
@@ -446,6 +463,42 @@ export class HelmControlService extends EventEmitter {
     return { sessionId: session.id, name: session.name, state };
   }
 
+  readSessionTerminal(
+    sessionRef: string,
+    requestedLines = 50,
+    mode: TerminalOutputMode = 'both',
+  ): SessionTerminalTailResponse {
+    const session = this.findSession(sessionRef);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionRef}`);
+    }
+    if (!Number.isInteger(requestedLines) || requestedLines < 1) {
+      throw new Error('lines must be an integer from 1 to 100');
+    }
+
+    const maxLines = 100;
+    const lines = Math.min(requestedLines, maxLines);
+    const tail = this.ptyManager.getTerminalTail(session.id, lines, mode);
+    const rawLength = tail.raw?.length ?? 0;
+    const strippedLength = tail.stripped?.length ?? 0;
+
+    return {
+      sessionId: session.id,
+      name: session.name,
+      cliType: session.cliType,
+      workingDir: session.workingDir,
+      requestedLines,
+      returnedLines: Math.max(rawLength, strippedLength),
+      clamped: requestedLines > maxLines,
+      maxLines,
+      mode,
+      ptyRunning: this.ptyManager.has(session.id),
+      ...(tail.lastOutputAt !== undefined ? { lastOutputAt: tail.lastOutputAt } : {}),
+      ...(tail.raw ? { raw: tail.raw } : {}),
+      ...(tail.stripped ? { stripped: tail.stripped } : {}),
+    };
+  }
+
   closeSession(sessionRef: string): { sessionId: string; name: string } {
     const session = this.findSession(sessionRef);
     if (!session) {
@@ -611,6 +664,7 @@ export class HelmControlService extends EventEmitter {
       { name: 'sessions_list', title: 'List Sessions', description: 'List currently known Helm sessions, optionally filtered to one working directory.' },
       { name: 'session_get', title: 'Get Session', description: 'Get a session by ID or exact display name.' },
       { name: 'session_send_text', title: 'Send Text To Session', description: 'Send text to a running session PTY, with optional reply routing through HELM_MSG metadata.' },
+      { name: 'session_read_terminal', title: 'Read Session Terminal', description: 'Read the recent terminal tail for any known session by ID or exact display name, with raw, stripped, or both output modes.' },
       { name: 'session_set_working_plan', title: 'Set Session Working Plan', description: 'Update the session row to show the plan currently being worked on.' },
       { name: 'session_set_aiagent_state', title: 'Set Session AIAGENT State', description: 'Update the session AIAGENT state icon in Helm.' },
       { name: 'session_close', title: 'Close Session', description: 'Close a Helm session and stop its PTY.' },

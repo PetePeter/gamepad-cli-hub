@@ -45,6 +45,12 @@ When `senderSessionId` or `senderSessionName` is provided to `session_send_text`
 - Know whether a response is expected
 - Route a reply back via Helm MCP
 
+## Reading Session Output
+
+Use `session_read_terminal` to inspect the recent terminal tail for any known session by `sessionId` or exact display `name`. The tool accepts `lines` from 1 to 100 and reports whether a larger request was clamped. Set `mode` to `raw`, `stripped`, or `both` depending on whether ANSI sequences are useful to the caller.
+
+The response includes session metadata, `ptyRunning`, `lastOutputAt` when output has been seen, and the selected output arrays.
+
 ### Envelope Format
 
 ```

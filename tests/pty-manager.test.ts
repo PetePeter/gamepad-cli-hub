@@ -111,6 +111,18 @@ describe('PtyManager', () => {
 
       expect(handler).toHaveBeenCalledWith('s1', 'hello world');
     });
+
+    it('captures terminal tail output from PTY data', () => {
+      manager.spawn({ sessionId: 's1', command: 'test' });
+
+      mock.triggerData('\x1b[32mhello\x1b[0m\nprogress 50%\rprogress 100%\n');
+
+      expect(manager.getTerminalTail('s1', 5, 'both')).toMatchObject({
+        raw: ['\x1b[32mhello\x1b[0m', 'progress 100%'],
+        stripped: ['hello', 'progress 100%'],
+        lastOutputAt: expect.any(Number),
+      });
+    });
   });
 
   describe('exit events', () => {

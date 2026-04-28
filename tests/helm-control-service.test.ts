@@ -14,6 +14,11 @@ function makeService() {
     write: vi.fn(),
     spawn: vi.fn(() => ({ pid: 1234 })),
     kill: vi.fn(),
+    getTerminalTail: vi.fn(() => ({
+      raw: ['\x1b[31mraw\x1b[0m'],
+      stripped: ['raw'],
+      lastOutputAt: 1234,
+    })),
   };
   const sessionManager = {
     getSession: vi.fn((id: string) => ({ id, name: 'Claude', cliType: 'claude-code' })),
@@ -281,6 +286,42 @@ describe('HelmControlService.getSessionInfo', () => {
     expect(createTool?.description).toContain('Acceptance Criteria');
     expect(completeTool?.description).toContain('tests/review');
     expect(linkTool?.description).toContain('QUESTION plan');
+  });
+});
+
+describe('HelmControlService.readSessionTerminal', () => {
+  it('returns terminal tail metadata and clamps line count', () => {
+    const { service, ptyManager, sessionManager } = makeService();
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 's1',
+      name: 'Claude',
+      cliType: 'claude-code',
+      workingDir: '/work',
+    });
+
+    const result = service.readSessionTerminal('s1', 120, 'both');
+
+    expect(ptyManager.getTerminalTail).toHaveBeenCalledWith('s1', 100, 'both');
+    expect(result).toEqual({
+      sessionId: 's1',
+      name: 'Claude',
+      cliType: 'claude-code',
+      workingDir: '/work',
+      requestedLines: 120,
+      returnedLines: 1,
+      clamped: true,
+      maxLines: 100,
+      mode: 'both',
+      ptyRunning: true,
+      lastOutputAt: 1234,
+      raw: ['\x1b[31mraw\x1b[0m'],
+      stripped: ['raw'],
+    });
+  });
+
+  it('rejects invalid line counts', () => {
+    const { service } = makeService();
+    expect(() => service.readSessionTerminal('s1', 0, 'raw')).toThrow('lines must be an integer from 1 to 100');
   });
 });
 

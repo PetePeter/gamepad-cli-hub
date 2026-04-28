@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { createRequire } from 'node:module';
 import { logger } from '../utils/logger.js';
+import { TerminalOutputBuffer, type TerminalOutputMode, type TerminalTail } from './terminal-output-buffer.js';
 
 const esmRequire = createRequire(import.meta.url);
 
@@ -62,6 +63,7 @@ export class PtyManager extends EventEmitter {
   private ptys: Map<string, PtyProcess> = new Map();
   private factory: PtyFactory;
   private textDeliveryHandler?: (sessionId: string, text: string) => Promise<void>;
+  private terminalOutputBuffer = new TerminalOutputBuffer();
 
   constructor(factory?: PtyFactory) {
     super();
@@ -108,11 +110,13 @@ export class PtyManager extends EventEmitter {
     }
 
     ptyProcess.onData((data: string) => {
+      this.terminalOutputBuffer.append(sessionId, data);
       this.emit('data', sessionId, data);
     });
 
     ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
       this.ptys.delete(sessionId);
+      this.terminalOutputBuffer.clear(sessionId);
       this.emit('exit', sessionId, exitCode);
     });
 
@@ -192,6 +196,7 @@ export class PtyManager extends EventEmitter {
       logger.error(`[PTY] Kill failed for session=${sessionId}: ${error}`);
     }
     this.ptys.delete(sessionId);
+    this.terminalOutputBuffer.clear(sessionId);
   }
 
   /** Kill all PTY processes. */
@@ -204,6 +209,7 @@ export class PtyManager extends EventEmitter {
       }
     }
     this.ptys.clear();
+    this.terminalOutputBuffer.clearAll();
   }
 
   /** Check if a PTY exists for a session. */
@@ -220,4 +226,10 @@ export class PtyManager extends EventEmitter {
   getSessionIds(): string[] {
     return Array.from(this.ptys.keys());
   }
+
+  /** Read recent terminal output captured from PTY stdout. */
+  getTerminalTail(sessionId: string, lines: number, mode: TerminalOutputMode): TerminalTail {
+    return this.terminalOutputBuffer.tail(sessionId, lines, mode);
+  }
+
 }

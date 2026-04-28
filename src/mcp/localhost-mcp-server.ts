@@ -281,6 +281,21 @@ const TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'session_read_terminal',
+    title: 'Read Session Terminal',
+    description: 'Read the recent terminal tail for any known session by sessionId or exact name. lines must be 1..100; values over 100 are clamped and reported. mode controls raw ANSI output, ANSI-stripped output, or both.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        name: { type: 'string' },
+        lines: { type: 'number', minimum: 1 },
+        mode: { type: 'string', enum: ['raw', 'stripped', 'both'] },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'session_set_working_plan',
     title: 'Set Session Working Plan',
     description: 'Update which plan the session row should show as currently being worked on, assigning the plan to that session when allowed. planId accepts either the canonical UUID or P-00xx human-readable ID. Call this when the agent has moved on to a different plan item and you want the Helm session list to reflect that explicitly.',
@@ -621,6 +636,12 @@ export class LocalhostMcpServer {
           },
         );
       }
+      case 'session_read_terminal':
+        return this.service.readSessionTerminal(
+          asString(args.sessionId ?? args.name, 'sessionId or name is required'),
+          typeof args.lines === 'number' ? args.lines : undefined,
+          asTerminalOutputMode(args.mode),
+        );
       case 'session_set_working_plan':
         return this.service.setSessionWorkingPlan(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),
@@ -754,6 +775,12 @@ function asAiagentState(value: unknown, errorMessage?: string): 'planning' | 'im
     return value;
   }
   throw new Error(errorMessage ?? 'state must be one of planning, implementing, completed, or idle');
+}
+
+function asTerminalOutputMode(value: unknown): 'raw' | 'stripped' | 'both' {
+  if (value === undefined) return 'both';
+  if (value === 'raw' || value === 'stripped' || value === 'both') return value;
+  throw new Error('mode must be one of raw, stripped, or both');
 }
 
 function requireResult<T>(value: T | null, message: string): T {

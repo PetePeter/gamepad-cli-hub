@@ -27,6 +27,20 @@ function makeService(): HelmControlService {
     listSessions: vi.fn((dirPath?: string) => [{ id: 's1', name: 'Claude', cliType: 'claude-code', ...(dirPath ? { workingDir: dirPath } : {}) }]),
     getSession: vi.fn((sessionId: string) => ({ id: sessionId, name: 'Claude', cliType: 'claude-code' })),
     sendTextToSession: vi.fn(async (sessionRef: string, text: string, _options?: { submit?: boolean; senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean }) => ({ success: true, sessionId: sessionRef, name: 'Claude' })),
+    readSessionTerminal: vi.fn((sessionRef: string, lines = 50, mode = 'both') => ({
+      sessionId: sessionRef,
+      name: 'Claude',
+      cliType: 'claude-code',
+      requestedLines: lines,
+      returnedLines: 1,
+      clamped: lines > 100,
+      maxLines: 100,
+      mode,
+      ptyRunning: true,
+      raw: ['\x1b[32mhello\x1b[0m'],
+      stripped: ['hello'],
+      lastOutputAt: 1234,
+    })),
     setSessionWorkingPlan: vi.fn((sessionRef: string, planId: string) => ({ sessionId: sessionRef, name: 'Claude', planId, planTitle: 'Task', planStatus: 'coding' })),
   } as unknown as HelmControlService;
 }
@@ -105,6 +119,7 @@ describe('LocalhostMcpServer', () => {
     const planCompleteTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_complete');
     const planNextLinkTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_nextplan_link');
     const planSetStateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_set_state');
+    const readTerminalTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'session_read_terminal');
     expect(planCreateTool.description).toContain('Problem Statement');
     expect(planCreateTool.description).toContain('Acceptance Criteria');
     expect(planCreateTool.description).toContain('QUESTION:');
@@ -117,6 +132,8 @@ describe('LocalhostMcpServer', () => {
     expect(planSetStateTool.description).toContain('planning');
     expect(planSetStateTool.description).toContain('ready');
     expect(planSetStateTool.description).toContain('session_set_working_plan');
+    expect(readTerminalTool.description).toContain('terminal tail');
+    expect(readTerminalTool.description).toContain('raw ANSI');
   });
 
   it('dispatches tool calls into the shared service', async () => {
@@ -168,6 +185,35 @@ describe('LocalhostMcpServer', () => {
       planId: 'plan-1',
       planTitle: 'Task',
       planStatus: 'coding',
+    });
+  });
+
+  it('dispatches session_read_terminal through the MCP surface', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 41,
+      method: 'tools/call',
+      params: {
+        name: 'session_read_terminal',
+        arguments: { name: 'Claude', lines: 120, mode: 'both' },
+      },
+    });
+    const json = await response.json();
+
+    expect((service.readSessionTerminal as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 120, 'both');
+    expect(json.result.structuredContent).toMatchObject({
+      sessionId: 'Claude',
+      requestedLines: 120,
+      clamped: true,
+      maxLines: 100,
+      raw: ['\x1b[32mhello\x1b[0m'],
+      stripped: ['hello'],
     });
   });
 
