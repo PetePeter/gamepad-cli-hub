@@ -880,10 +880,6 @@ describe('LocalhostMcpServer', () => {
       mcp_url: 'http://127.0.0.1:47373/mcp',
       mcp_token: 'secret-token-value',
       aiagent_states: ['planning', 'implementing', 'completed', 'idle'],
-      available_tools: [
-        { name: 'tools_list', title: 'List CLI Types' },
-        { name: 'session_info', title: 'Get Session Info' },
-      ],
       available_directories: [
         { path: 'X:\\coding\\gamepad-cli-hub', name: 'Helm' },
       ],
@@ -913,7 +909,7 @@ describe('LocalhostMcpServer', () => {
     expect(content.mcp_url).toBe('http://127.0.0.1:47373/mcp');
     expect(content.aiagent_states).toContain('planning');
     expect(content.aiagent_states).toContain('implementing');
-    expect(content.available_tools).toHaveLength(2);
+    expect(content.available_tools).toBeUndefined();
     expect(content.available_directories).toHaveLength(1);
   });
 

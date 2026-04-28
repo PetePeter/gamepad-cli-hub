@@ -458,7 +458,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_info',
     title: 'Get Session Info',
-    description: 'Retrieve current session context including MCP endpoint URL, AIAGENT state registry, available tools, and working directories. Autocall at session startup to prime the AIAGENT state registry. Returns mcp_url and mcp_token for building MCP requests, plus the canonical list of valid AIAGENT-* state tags.',
+    description: 'Retrieve current session context including MCP endpoint URL, AIAGENT state registry, and working directories. Autocall at session startup to prime the AIAGENT state registry. Returns mcp_url and mcp_token for building MCP requests, plus the canonical list of valid AIAGENT-* state tags.',
     inputSchema: {
       type: 'object',
       properties: {},

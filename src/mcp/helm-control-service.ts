@@ -81,7 +81,6 @@ export interface SessionInfoResponse {
   mcp_url: string;
   mcp_token: string;
   aiagent_states: string[];
-  available_tools: McpToolSummary[];
   available_directories: DirectoryInfo[];
   aiagent_state_guide?: {
     validStates: string[];
@@ -689,7 +688,6 @@ export class HelmControlService extends EventEmitter {
       mcp_url: mcpUrl,
       mcp_token: mcpConfig.authToken ?? '',
       aiagent_states: this.getAiagentStates(),
-      available_tools: this.getAvailableTools(),
       available_directories: this.getAvailableDirectories(),
       aiagent_state_guide: {
         validStates: ['planning', 'implementing', 'completed', 'idle'],
