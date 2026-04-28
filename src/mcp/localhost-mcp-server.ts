@@ -197,6 +197,93 @@ const TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'plan_sequence_list',
+    title: 'List Plan Sequences',
+    description: 'List sequence/shared-memory stores for a directory, or for a specific plan by UUID/P-id. Returned sharedMemory is the common memory for all member plans; use expectedUpdatedAt on writes to avoid concurrent overwrite.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dirPath: { type: 'string' },
+        planId: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'plan_sequence_create',
+    title: 'Create Plan Sequence',
+    description: 'Create a first-class sequence/shared-memory store in a directory. Plans can be assigned to it with plan_sequence_assign.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dirPath: { type: 'string' },
+        title: { type: 'string' },
+        missionStatement: { type: 'string' },
+        sharedMemory: { type: 'string' },
+      },
+      required: ['dirPath', 'title'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'plan_sequence_update',
+    title: 'Update Plan Sequence',
+    description: 'Update sequence title, mission, sharedMemory, or order. Pass expectedUpdatedAt from plan_sequence_list/get-style responses for mutex-style protection against concurrent LLM writes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        title: { type: 'string' },
+        missionStatement: { type: 'string' },
+        sharedMemory: { type: 'string' },
+        order: { type: 'number' },
+        expectedUpdatedAt: { type: 'number' },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'plan_sequence_memory_append',
+    title: 'Append Sequence Memory',
+    description: 'Append text to a sequence sharedMemory store. Pass expectedUpdatedAt from the last read to make the append mutexable and fail on concurrent changes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        text: { type: 'string' },
+        expectedUpdatedAt: { type: 'number' },
+      },
+      required: ['id', 'text'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'plan_sequence_delete',
+    title: 'Delete Plan Sequence',
+    description: 'Delete a sequence/shared-memory store and clear sequence membership from its member plans.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'plan_sequence_assign',
+    title: 'Assign Plan Sequence',
+    description: 'Assign a plan by UUID/P-id to a sequence in the same directory, or pass null sequenceId to unlink the plan from its sequence without deleting the sequence.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        planId: { type: 'string' },
+        sequenceId: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+      },
+      required: ['planId', 'sequenceId'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'plan_attachment_list',
     title: 'List Plan Attachments',
     description: 'List files attached to a plan by UUID or P-00xx human-readable ID. Attachments are stored inside Helm config, not as fragile external references.',
@@ -735,6 +822,47 @@ export class LocalhostMcpServer {
           asString(args.toId, 'toId is required'),
         );
         return { unlinked: true };
+      case 'plan_sequence_list':
+        return this.service.listPlanSequences({
+          ...(typeof args.dirPath === 'string' ? { dirPath: args.dirPath } : {}),
+          ...(typeof args.planId === 'string' ? { planRef: args.planId } : {}),
+        });
+      case 'plan_sequence_create':
+        return this.service.createPlanSequence({
+          dirPath: asString(args.dirPath, 'dirPath is required'),
+          title: asString(args.title, 'title is required'),
+          ...(typeof args.missionStatement === 'string' ? { missionStatement: args.missionStatement } : {}),
+          ...(typeof args.sharedMemory === 'string' ? { sharedMemory: args.sharedMemory } : {}),
+        });
+      case 'plan_sequence_update':
+        return this.service.updatePlanSequence(
+          asString(args.id, 'id is required'),
+          {
+            ...(typeof args.title === 'string' ? { title: args.title } : {}),
+            ...(typeof args.missionStatement === 'string' ? { missionStatement: args.missionStatement } : {}),
+            ...(typeof args.sharedMemory === 'string' ? { sharedMemory: args.sharedMemory } : {}),
+            ...(typeof args.order === 'number' ? { order: args.order } : {}),
+            ...(typeof args.expectedUpdatedAt === 'number' ? { expectedUpdatedAt: args.expectedUpdatedAt } : {}),
+          },
+        );
+      case 'plan_sequence_memory_append':
+        return this.service.appendPlanSequenceMemory(
+          asString(args.id, 'id is required'),
+          asString(args.text, 'text is required'),
+          typeof args.expectedUpdatedAt === 'number' ? args.expectedUpdatedAt : undefined,
+        );
+      case 'plan_sequence_delete':
+        return {
+          deleted: requireBooleanResult(
+            this.service.deletePlanSequence(asString(args.id, 'id is required')),
+            `Sequence not found: ${asString(args.id, 'id is required')}`,
+          ),
+        };
+      case 'plan_sequence_assign':
+        return this.service.assignPlanSequence(
+          asString(args.planId, 'planId is required'),
+          args.sequenceId === null ? null : asString(args.sequenceId, 'sequenceId is required or null'),
+        );
       case 'plan_attachment_list':
         return this.service.listPlanAttachments(asString(args.planId, 'planId is required'));
       case 'plan_attachment_add':
@@ -1012,6 +1140,9 @@ function getToolReminder(name: string): string {
   }
   if (name === 'plan_set_state') {
     return 'Reminder: ownership is explicit. Use session_set_working_plan after claiming work so Helm shows the session as working on this plan.';
+  }
+  if (name === 'plan_get' || name.startsWith('plan_sequence_')) {
+    return 'Reminder: sequence.sharedMemory is shared by every plan in that sequence. Re-read the sequence and pass expectedUpdatedAt when updating or appending to avoid overwriting another LLM.';
   }
   return '';
 }

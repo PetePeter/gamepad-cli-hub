@@ -6,7 +6,7 @@ import type { PlanManager, PlanRefResolution } from '../session/plan-manager.js'
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { TerminalOutputMode } from '../session/terminal-output-buffer.js';
-import type { PlanItem, PlanStatus, PlanType } from '../types/plan.js';
+import type { PlanItem, PlanSequence, PlanStatus, PlanType } from '../types/plan.js';
 import type { PlanAttachment, PlanAttachmentTempFile } from '../types/plan-attachment.js';
 import type { SessionInfo } from '../types/session.js';
 import type {
@@ -176,8 +176,17 @@ export class HelmControlService extends EventEmitter {
     });
   }
 
-  getPlan(id: string): PlanItem | null {
-    return this.resolvePlanRef(id, 'Plan')?.item ?? null;
+  getPlan(id: string): (PlanItem & { sequence?: PlanSequence; sequenceMemoryGuide?: string }) | null {
+    const plan = this.resolvePlanRef(id, 'Plan')?.item ?? null;
+    if (!plan) return null;
+    const sequence = plan.sequenceId ? this.planManager.getSequence(plan.sequenceId) ?? undefined : undefined;
+    return {
+      ...plan,
+      ...(sequence ? { sequence } : {}),
+      sequenceMemoryGuide: sequence
+        ? 'This plan belongs to the returned sequence. The sequence.sharedMemory field is the shared memory store for all plans in that sequence. Use plan_sequence_update or plan_sequence_memory_append with expectedUpdatedAt to avoid overwriting concurrent LLM updates.'
+        : 'This plan is not assigned to a sequence. Use plan_sequence_list for directory sequences or plan_sequence_assign to attach it to a shared memory sequence.',
+    };
   }
 
   createPlan(dirPath: string, title: string, description: string, type?: PlanType): PlanItem {
@@ -301,6 +310,79 @@ export class HelmControlService extends EventEmitter {
   exportItem(id: string): { item: PlanItem; dependencies: { fromId: string; toId: string }[] } | null {
     const plan = this.resolvePlanRef(id, 'Plan');
     return plan ? this.planManager.exportItem(plan.item.id) : null;
+  }
+
+  listPlanSequences(input: { dirPath?: string; planRef?: string }): Array<PlanSequence & { memberPlanIds: string[]; memberHumanIds: string[]; selectedForPlan?: boolean }> {
+    const plan = input.planRef ? this.resolvePlanRef(input.planRef, 'Plan')?.item ?? null : null;
+    if (input.planRef && !plan) {
+      throw new Error(`Plan not found: ${input.planRef}`);
+    }
+    const dirPath = input.dirPath ?? plan?.dirPath;
+    if (!dirPath) {
+      throw new Error('dirPath or planId is required');
+    }
+    const items = this.planManager.getForDirectory(dirPath);
+    return this.planManager.getSequencesForDirectory(dirPath).map((sequence) => {
+      const members = items.filter((item) => item.sequenceId === sequence.id);
+      return {
+        ...sequence,
+        memberPlanIds: members.map((item) => item.id),
+        memberHumanIds: members.map((item) => item.humanId ?? item.id),
+        ...(plan ? { selectedForPlan: plan.sequenceId === sequence.id } : {}),
+      };
+    });
+  }
+
+  createPlanSequence(input: { dirPath: string; title: string; missionStatement?: string; sharedMemory?: string }): PlanSequence {
+    return this.planManager.createSequence(input.dirPath, input.title, input.missionStatement ?? '', input.sharedMemory ?? '');
+  }
+
+  updatePlanSequence(
+    id: string,
+    updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number; expectedUpdatedAt?: number },
+  ): PlanSequence {
+    const sequence = this.planManager.getSequence(id);
+    if (!sequence) {
+      throw new Error(`Sequence not found: ${id}`);
+    }
+    this.assertSequenceMutex(sequence, updates.expectedUpdatedAt);
+    const updated = this.planManager.updateSequence(id, updates);
+    if (!updated) {
+      throw new Error(`Sequence not found: ${id}`);
+    }
+    return updated;
+  }
+
+  appendPlanSequenceMemory(id: string, text: string, expectedUpdatedAt?: number): PlanSequence {
+    const sequence = this.planManager.getSequence(id);
+    if (!sequence) {
+      throw new Error(`Sequence not found: ${id}`);
+    }
+    this.assertSequenceMutex(sequence, expectedUpdatedAt);
+    const separator = sequence.sharedMemory.trim().length > 0 ? '\n\n' : '';
+    const updated = this.planManager.updateSequence(id, {
+      sharedMemory: `${sequence.sharedMemory}${separator}${text}`,
+    });
+    if (!updated) {
+      throw new Error(`Sequence not found: ${id}`);
+    }
+    return updated;
+  }
+
+  deletePlanSequence(id: string): boolean {
+    return this.planManager.deleteSequence(id);
+  }
+
+  assignPlanSequence(planRef: string, sequenceId: string | null): PlanItem {
+    const plan = this.resolvePlanRef(planRef, 'Plan')?.item ?? null;
+    if (!plan) {
+      throw new Error(`Plan not found: ${planRef}`);
+    }
+    const updated = this.planManager.assignSequence(plan.id, sequenceId);
+    if (!updated) {
+      throw new Error(sequenceId ? `Sequence not found or not in plan directory: ${sequenceId}` : `Plan not found: ${planRef}`);
+    }
+    return updated;
   }
 
   listPlanAttachments(planRef: string): PlanAttachment[] {
@@ -787,6 +869,12 @@ export class HelmControlService extends EventEmitter {
       { name: 'plan_complete', title: 'Complete Plan', description: 'Mark a coding or review plan as done by UUID or P-00xx humanId with documentation of behavior changed, files, tests/review, and remaining risk.' },
       { name: 'plan_nextplan_link', title: 'Link Next Plan', description: 'Link one plan as a prerequisite for another using UUIDs or P-00xx humanIds. For blocker questions, link the QUESTION plan to the original blocked plan.' },
       { name: 'plan_nextplan_unlink', title: 'Unlink Next Plan', description: 'Remove a prerequisite link between two plan items using UUIDs or P-00xx humanIds.' },
+      { name: 'plan_sequence_list', title: 'List Plan Sequences', description: 'List sequence/shared-memory stores for a directory or plan, including member plan IDs and sharedMemory.' },
+      { name: 'plan_sequence_create', title: 'Create Plan Sequence', description: 'Create a sequence/shared-memory store that plans can join.' },
+      { name: 'plan_sequence_update', title: 'Update Plan Sequence', description: 'Update sequence title, mission, sharedMemory, or order. Pass expectedUpdatedAt for mutex-style write protection.' },
+      { name: 'plan_sequence_memory_append', title: 'Append Sequence Memory', description: 'Append to a sequence sharedMemory store with optional expectedUpdatedAt concurrency protection.' },
+      { name: 'plan_sequence_delete', title: 'Delete Plan Sequence', description: 'Delete a sequence and clear membership from member plans.' },
+      { name: 'plan_sequence_assign', title: 'Assign Plan Sequence', description: 'Assign or unlink a plan from a sequence without deleting the sequence.' },
       { name: 'plan_attachment_list', title: 'List Plan Attachments', description: 'List files attached to a plan by UUID or P-00xx humanId.' },
       { name: 'plan_attachment_add', title: 'Add Plan Attachment', description: 'Attach text, JSON, image, or binary content up to 10MB to a plan. Binary content is supplied as base64 and stored inside Helm config.' },
       { name: 'plan_attachment_delete', title: 'Delete Plan Attachment', description: 'Delete one stored attachment from a plan by attachment ID.' },
@@ -845,6 +933,13 @@ export class HelmControlService extends EventEmitter {
       throw new Error(`${label} reference is ambiguous: ${ref}. Matching plans: ${matches}`);
     }
     return null;
+  }
+
+  private assertSequenceMutex(sequence: PlanSequence, expectedUpdatedAt?: number): void {
+    if (expectedUpdatedAt === undefined) return;
+    if (sequence.updatedAt !== expectedUpdatedAt) {
+      throw new Error(`Sequence ${sequence.id} was updated concurrently. Expected updatedAt=${expectedUpdatedAt}, current updatedAt=${sequence.updatedAt}. Re-read it before writing sharedMemory.`);
+    }
   }
 
   private findSession(sessionRef: string): SessionInfo | null {

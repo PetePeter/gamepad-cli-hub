@@ -2521,6 +2521,16 @@ kbd {
   color: #4488ff;
 }
 
+.plan-header__btn--danger {
+  border-color: #663333;
+  color: #d89090;
+}
+
+.plan-header__btn--danger:hover {
+  border-color: #ff5f5f;
+  color: #ff9a9a;
+}
+
 .plan-header__controls {
   display: flex;
   align-items: center;
@@ -2751,24 +2761,74 @@ kbd {
   color: #2a2a2a;
 }
 
-.plan-sequence-panel {
-  display: grid;
-  gap: 8px;
-  padding: 8px 12px;
+.plan-inspector {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  max-height: min(42vh, 360px);
   background: #111;
   border-top: 1px solid #242424;
+  overflow: hidden;
 }
+
+.plan-inspector__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #222;
+}
+
+.plan-inspector__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #eee;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-inspector__body {
+  display: grid;
+  grid-template-columns: minmax(360px, 2fr) minmax(260px, 1fr);
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px 12px;
+}
+
+.plan-inspector__section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: 8px;
+}
+
+.plan-inspector__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #bbb;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .plan-sequence-panel__row {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-.plan-sequence-panel__label,
-.plan-sequence-panel__grid label span {
+
+.plan-sequence-panel__field span {
   color: #999;
   font-size: 11px;
 }
+
 .plan-sequence-panel__select,
 .plan-sequence-panel__input,
 .plan-sequence-panel__textarea {
@@ -2785,19 +2845,73 @@ kbd {
 }
 .plan-sequence-panel__grid {
   display: grid;
-  grid-template-columns: minmax(160px, 0.7fr) minmax(220px, 1fr) minmax(220px, 1fr) auto;
+  grid-template-columns: minmax(140px, 0.55fr) minmax(240px, 1fr) minmax(240px, 1fr) auto;
   gap: 8px;
-  align-items: end;
+  align-items: stretch;
+  min-height: 126px;
 }
-.plan-sequence-panel__grid label {
+.plan-sequence-panel__field {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 4px;
   min-width: 0;
+  min-height: 0;
 }
 .plan-sequence-panel__textarea {
-  height: 46px;
+  min-height: 112px;
   resize: vertical;
   padding: 6px 8px;
+}
+
+.plan-attachments__list {
+  display: grid;
+  gap: 6px;
+  overflow: auto;
+}
+
+.plan-attachments__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  background: #151515;
+}
+
+.plan-attachments__info {
+  display: grid;
+  min-width: 0;
+}
+
+.plan-attachments__name {
+  overflow: hidden;
+  color: #ddd;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-attachments__meta,
+.plan-attachments__empty,
+.plan-attachments__error {
+  color: #888;
+  font-size: 11px;
+}
+
+.plan-attachments__error {
+  color: #ff9a9a;
+}
+
+@media (max-width: 980px) {
+  .plan-inspector__body {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-sequence-panel__grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Plan node connectors */

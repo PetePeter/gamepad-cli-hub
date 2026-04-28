@@ -4,6 +4,7 @@ import { dirname, join, basename } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import type { PlanManager } from '../../session/plan-manager.js';
 import type { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
+import { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
 import { logger } from '../../utils/logger.js';
 import type { PlanItem, PlanDependency } from '../../types/plan.js';
 import type { WindowManager } from '../window-manager.js';
@@ -15,6 +16,7 @@ export function setupPlanHandlers(
   incomingWatcher?: IncomingPlansWatcher,
 ): void {
   const getTargetWindows = () => windowManager?.getAllWindows() ?? BrowserWindow.getAllWindows();
+  const attachmentManager = new PlanAttachmentManager(planManager);
 
   // Forward plan:changed events to all windows (PlanManager self-saves to disk)
   planManager.on('plan:changed', (dirPath: string) => {
@@ -148,6 +150,53 @@ export function setupPlanHandlers(
 
   ipcMain.handle('plan:sequence-assign', (_event, planId: string, sequenceId: string | null) => {
     return planManager.assignSequence(planId, sequenceId);
+  });
+
+  ipcMain.handle('plan:attachment-list', (_event, planId: string) => {
+    return attachmentManager.list(planId);
+  });
+
+  ipcMain.handle('plan:attachment-add-file', (_event, planId: string, filePath: string) => {
+    try {
+      const content = readFileSync(filePath);
+      const attachment = attachmentManager.add(planId, {
+        filename: basename(filePath),
+        content,
+      });
+      planManager.emit('plan:changed', planManager.getItem(planId)?.dirPath ?? '');
+      return attachment;
+    } catch (error) {
+      logger.warn(`[plan:attachment-add-file] Failed to attach ${filePath}: ${error}`);
+      return null;
+    }
+  });
+
+  ipcMain.handle('plan:attachment-delete', (_event, planId: string, attachmentId: string) => {
+    try {
+      const deleted = attachmentManager.delete(planId, attachmentId);
+      if (deleted) {
+        planManager.emit('plan:changed', planManager.getItem(planId)?.dirPath ?? '');
+      }
+      return deleted;
+    } catch (error) {
+      logger.warn(`[plan:attachment-delete] Failed to delete ${attachmentId}: ${error}`);
+      return false;
+    }
+  });
+
+  ipcMain.handle('plan:attachment-open', async (_event, planId: string, attachmentId: string) => {
+    try {
+      const { tempPath } = attachmentManager.getToTempFile(planId, attachmentId);
+      const errorMessage = await shell.openPath(tempPath);
+      if (errorMessage) {
+        logger.warn(`[plan:attachment-open] Failed to open ${tempPath}: ${errorMessage}`);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      logger.warn(`[plan:attachment-open] Failed to open ${attachmentId}: ${error}`);
+      return false;
+    }
   });
 
   // ─── Incoming plans ────────────────────────────────────────────────────────

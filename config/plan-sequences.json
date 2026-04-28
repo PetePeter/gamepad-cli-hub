@@ -10,6 +10,16 @@
       "order": 0,
       "createdAt": 1777411349900,
       "updatedAt": 1777411368416
+    },
+    {
+      "id": "bded8959-6129-4655-83b0-5b37298dbe0a",
+      "dirPath": "X:\\coding\\gamepad-cli-hub",
+      "title": "gobble",
+      "missionStatement": "## Reviewer Follow-up\n\nReviewed after DONE. Follow-up bug plan created: P-0098 (Review fix: backup settings must target a selected directory and use documented config format).\n\nRelevant findings:\n- BackupTab's manual Backup Now uses the first configured directory rather than a selected/current directory.\n- BackupTab silently ignores backup/config save errors.\n- The documented config/plan-backups.yaml format does not match PlanBackupManager's JSON.parse/JSON.stringify implementation.\n- BackupRestoreModal does not provide the requested selected-snapshot preview/diff details.\n- Restore success currently shows a generic notice instead of identifying the restored timestamp.\n\n---\n\n1. **Restore Modal (renderer/plans/backup-restore-modal.ts):**\n   - Vue 3 component showing dated backups (newest first, scrollable)\n   - Each row: \\\"2024-04-28 09:30\\\" · \\\"3 plans · 2 deps\\\" · status badge (✓/⚠/✗)\n   - Click/Select to preview (show timestamp, plan count, age, diff vs current)\n   - Buttons: Restore (IPC call) | Delete | Cancel\n   - Manual \\\"Backup Now\\\" button at bottom\n   - Arrow keys to navigate, A=confirm, B=close, Backspace=delete\n   - Error handling + loading state\n\n2. **Plan Screen Integration:**\n   - Add 🗚 Restore button in header → opens modal\n   - Keyboard shortcut: R key to open\n   - After restore: reload plan data + show \\\"Restored from {timestamp}\\\" notice\n   - Add modal via Teleport (same pattern as plan help modal)\n\n3. **Settings Panel Integration:**\n   - New collapsible section \\\"Plan Backups\\\"\n   - Toggles/sliders: enable | maxSnapshots (1-100) | interval (1-168 hrs)\n   - \\\"Backup Now\\\" manual trigger button\n   - Debounced config save on change\n   - Show disk usage estimate (if available)",
+      "sharedMemory": "",
+      "order": 1,
+      "createdAt": 1777412553468,
+      "updatedAt": 1777412572937
     }
   ]
 }

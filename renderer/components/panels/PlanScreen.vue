@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch, withDefaults } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { getDisplayTitle } from '../../types.js';
 import type { PlanDependency, PlanItem, PlanSequence } from '../../../src/types/plan.js';
+import type { PlanAttachment } from '../../../src/types/plan-attachment.js';
 import type { LayoutResult } from '../../plans/plan-layout.js';
 
 const NODE_W = 200;
@@ -53,6 +54,7 @@ const emit = defineEmits<{
   createSequenceForSelected: [];
   assignSequence: [planId: string, sequenceId: string | null];
   updateSequence: [id: string, updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number }];
+  deleteSequence: [id: string];
   nodeClick: [id: string];
   editNode: [id: string];
   applyNode: [id: string];
@@ -75,6 +77,10 @@ const isPanning = ref(false);
 const panStart = ref({ x: 0, y: 0, vbx: 0, vby: 0 });
 const dragState = ref<{ fromId: string; x: number; y: number } | null>(null);
 const sequenceDraft = reactive({ id: '', title: '', missionStatement: '', sharedMemory: '' });
+const attachments = ref<PlanAttachment[]>([]);
+const attachmentsLoading = ref(false);
+const attachmentBusyId = ref<string | null>(null);
+const attachmentError = ref('');
 
 const nodeMap = computed(() => {
   const map = new Map<string, LayoutResult['nodes'][number]>();
@@ -130,6 +136,10 @@ watch(selectedSequence, (sequence) => {
   sequenceDraft.sharedMemory = sequence?.sharedMemory ?? '';
 }, { immediate: true });
 
+watch(() => selectedItem.value?.id ?? null, (planId) => {
+  void loadAttachments(planId);
+}, { immediate: true });
+
 const dragPath = computed(() => {
   if (!dragState.value) return '';
   const from = nodeMap.value.get(dragState.value.fromId);
@@ -157,6 +167,73 @@ function getNodeColor(status: string): string {
 
 function formatPlanDate(value?: number): string {
   return value ? new Date(value).toLocaleDateString() : '';
+}
+
+function formatAttachmentSize(sizeBytes: number): string {
+  if (sizeBytes >= 1024 * 1024) return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`;
+  if (sizeBytes >= 1024) return `${Math.round(sizeBytes / 1024)} KB`;
+  return `${sizeBytes} B`;
+}
+
+async function loadAttachments(planId = selectedItem.value?.id ?? null): Promise<void> {
+  attachmentError.value = '';
+  if (!planId) {
+    attachments.value = [];
+    return;
+  }
+  attachmentsLoading.value = true;
+  try {
+    attachments.value = await window.gamepadCli.planAttachmentList?.(planId) ?? [];
+  } catch {
+    attachmentError.value = 'Could not load attachments';
+    attachments.value = [];
+  } finally {
+    attachmentsLoading.value = false;
+  }
+}
+
+async function addAttachment(): Promise<void> {
+  const planId = selectedItem.value?.id;
+  if (!planId) return;
+  attachmentError.value = '';
+  const filePath = await window.gamepadCli.dialogShowOpenFile?.([{ name: 'All Files', extensions: ['*'] }]);
+  if (!filePath) return;
+  const attachment = await window.gamepadCli.planAttachmentAddFile?.(planId, filePath);
+  if (!attachment) {
+    attachmentError.value = 'Could not attach file';
+    return;
+  }
+  await loadAttachments(planId);
+}
+
+async function openAttachment(attachment: PlanAttachment): Promise<void> {
+  const planId = selectedItem.value?.id;
+  if (!planId) return;
+  attachmentBusyId.value = attachment.id;
+  attachmentError.value = '';
+  try {
+    const opened = await window.gamepadCli.planAttachmentOpen?.(planId, attachment.id);
+    if (!opened) attachmentError.value = 'Could not open attachment';
+  } finally {
+    attachmentBusyId.value = null;
+  }
+}
+
+async function deleteAttachment(attachment: PlanAttachment): Promise<void> {
+  const planId = selectedItem.value?.id;
+  if (!planId) return;
+  attachmentBusyId.value = attachment.id;
+  attachmentError.value = '';
+  try {
+    const deleted = await window.gamepadCli.planAttachmentDelete?.(planId, attachment.id);
+    if (!deleted) {
+      attachmentError.value = 'Could not delete attachment';
+      return;
+    }
+    await loadAttachments(planId);
+  } finally {
+    attachmentBusyId.value = null;
+  }
 }
 
 function connectorPoint(id: string, side: 'in' | 'out'): { x: number; y: number } | null {
@@ -502,68 +579,107 @@ function startDragConnection(id: string, e: MouseEvent): void {
       <span>F focus related</span>
     </div>
 
-    <div v-if="selectedItem" class="plan-header">
-      <span class="plan-header__title">{{ selectedItem.title }}</span>
-      <div class="plan-header__controls">
-        <button class="plan-header__btn" @click="emit('editNode', selectedItem.id)">Edit</button>
-        <button
-          v-if="selectedItem.status !== 'done'"
-          class="plan-header__btn plan-header__btn--secondary"
-          @click="emit('applyNode', selectedItem.id)"
-        >Apply</button>
-        <button
-          v-if="selectedItem.status === 'coding' || selectedItem.status === 'review'"
-          class="plan-header__btn plan-header__btn--secondary"
-          @click="emit('completeNode', selectedItem.id)"
-        >Done</button>
-        <button
-          v-if="selectedItem.status === 'done'"
-          class="plan-header__btn plan-header__btn--secondary"
-          @click="emit('reopenNode', selectedItem.id)"
-        >Reopen</button>
-        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('deleteNode', selectedItem.id)">Delete</button>
+    <div v-if="selectedItem" class="plan-inspector">
+      <div class="plan-inspector__header">
+        <span class="plan-inspector__title">{{ selectedItem.title }}</span>
+        <div class="plan-header__controls">
+          <button class="plan-header__btn" @click="emit('editNode', selectedItem.id)">Edit</button>
+          <button
+            v-if="selectedItem.status !== 'done'"
+            class="plan-header__btn plan-header__btn--secondary"
+            @click="emit('applyNode', selectedItem.id)"
+          >Apply</button>
+          <button
+            v-if="selectedItem.status === 'coding' || selectedItem.status === 'review'"
+            class="plan-header__btn plan-header__btn--secondary"
+            @click="emit('completeNode', selectedItem.id)"
+          >Done</button>
+          <button
+            v-if="selectedItem.status === 'done'"
+            class="plan-header__btn plan-header__btn--secondary"
+            @click="emit('reopenNode', selectedItem.id)"
+          >Reopen</button>
+          <button class="plan-header__btn plan-header__btn--secondary" @click="emit('deleteNode', selectedItem.id)">Delete</button>
+        </div>
       </div>
-    </div>
 
-    <div v-if="selectedItem" class="plan-sequence-panel">
-      <div class="plan-sequence-panel__row">
-        <span class="plan-sequence-panel__label">Sequence</span>
-        <select
-          class="plan-sequence-panel__select"
-          :value="selectedItem.sequenceId ?? ''"
-          @change="emit('assignSequence', selectedItem.id, ($event.target as HTMLSelectElement).value || null)"
-        >
-          <option value="">None</option>
-          <option v-for="sequence in sequences" :key="sequence.id" :value="sequence.id">{{ sequence.title }}</option>
-        </select>
-        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('createSequenceForSelected')">New Sequence</button>
-        <button
-          v-if="selectedSequence"
-          class="plan-header__btn plan-header__btn--secondary"
-          @click="emit('assignSequence', selectedItem.id, null)"
-        >Remove</button>
-      </div>
-      <div v-if="selectedSequence" class="plan-sequence-panel__grid">
-        <label>
-          <span>Title</span>
-          <input v-model="sequenceDraft.title" class="plan-sequence-panel__input" />
-        </label>
-        <label>
-          <span>Mission</span>
-          <textarea v-model="sequenceDraft.missionStatement" class="plan-sequence-panel__textarea"></textarea>
-        </label>
-        <label>
-          <span>Memory</span>
-          <textarea v-model="sequenceDraft.sharedMemory" class="plan-sequence-panel__textarea"></textarea>
-        </label>
-        <button
-          class="plan-header__btn plan-header__btn--secondary"
-          @click="emit('updateSequence', sequenceDraft.id, {
-            title: sequenceDraft.title,
-            missionStatement: sequenceDraft.missionStatement,
-            sharedMemory: sequenceDraft.sharedMemory,
-          })"
-        >Save Sequence</button>
+      <div class="plan-inspector__body">
+        <section class="plan-inspector__section plan-inspector__section--sequence">
+          <div class="plan-inspector__section-header">
+            <span>Sequence</span>
+            <button class="plan-header__btn plan-header__btn--secondary" @click="emit('createSequenceForSelected')">New Sequence</button>
+          </div>
+          <div class="plan-sequence-panel__row">
+            <select
+              class="plan-sequence-panel__select"
+              :value="selectedItem.sequenceId ?? ''"
+              @change="emit('assignSequence', selectedItem.id, ($event.target as HTMLSelectElement).value || null)"
+            >
+              <option value="">None</option>
+              <option v-for="sequence in sequences" :key="sequence.id" :value="sequence.id">{{ sequence.title }}</option>
+            </select>
+            <button
+              v-if="selectedSequence"
+              class="plan-header__btn plan-header__btn--secondary"
+              @click="emit('assignSequence', selectedItem.id, null)"
+            >Unlink Plan</button>
+            <button
+              v-if="selectedSequence"
+              class="plan-header__btn plan-header__btn--danger"
+              @click="emit('deleteSequence', selectedSequence.id)"
+            >Delete Sequence</button>
+          </div>
+          <div v-if="selectedSequence" class="plan-sequence-panel__grid">
+            <label class="plan-sequence-panel__field plan-sequence-panel__field--title">
+              <span>Title</span>
+              <input v-model="sequenceDraft.title" class="plan-sequence-panel__input" />
+            </label>
+            <label class="plan-sequence-panel__field">
+              <span>Mission</span>
+              <textarea v-model="sequenceDraft.missionStatement" class="plan-sequence-panel__textarea"></textarea>
+            </label>
+            <label class="plan-sequence-panel__field">
+              <span>Memory</span>
+              <textarea v-model="sequenceDraft.sharedMemory" class="plan-sequence-panel__textarea"></textarea>
+            </label>
+            <button
+              class="plan-header__btn plan-header__btn--secondary"
+              @click="emit('updateSequence', sequenceDraft.id, {
+                title: sequenceDraft.title,
+                missionStatement: sequenceDraft.missionStatement,
+                sharedMemory: sequenceDraft.sharedMemory,
+              })"
+            >Save Sequence</button>
+          </div>
+        </section>
+
+        <section class="plan-inspector__section plan-inspector__section--attachments">
+          <div class="plan-inspector__section-header">
+            <span>Attachments</span>
+            <button class="plan-header__btn plan-header__btn--secondary" @click="addAttachment">Attach File</button>
+          </div>
+          <div v-if="attachmentError" class="plan-attachments__error">{{ attachmentError }}</div>
+          <div v-if="attachmentsLoading" class="plan-attachments__empty">Loading attachments</div>
+          <div v-else-if="attachments.length === 0" class="plan-attachments__empty">No attachments</div>
+          <div v-else class="plan-attachments__list">
+            <div v-for="attachment in attachments" :key="attachment.id" class="plan-attachments__row">
+              <div class="plan-attachments__info">
+                <span class="plan-attachments__name">{{ attachment.filename }}</span>
+                <span class="plan-attachments__meta">{{ formatAttachmentSize(attachment.sizeBytes) }}</span>
+              </div>
+              <button
+                class="plan-header__btn plan-header__btn--secondary"
+                :disabled="attachmentBusyId === attachment.id"
+                @click="openAttachment(attachment)"
+              >Open</button>
+              <button
+                class="plan-header__btn plan-header__btn--secondary"
+                :disabled="attachmentBusyId === attachment.id"
+                @click="deleteAttachment(attachment)"
+              >Delete</button>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   </div>

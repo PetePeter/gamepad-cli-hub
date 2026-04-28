@@ -155,6 +155,72 @@ describe('HelmControlService.sendTextToSession', () => {
   });
 });
 
+describe('HelmControlService plan sequences', () => {
+  it('returns sequence membership and shared memory for a plan', () => {
+    const { service, planManager } = makeService();
+    const plan = {
+      id: 'plan-1',
+      humanId: 'P-0001',
+      dirPath: '/work',
+      title: 'Plan',
+      description: 'Body',
+      status: 'ready',
+      sequenceId: 'seq-1',
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const sequence = {
+      id: 'seq-1',
+      dirPath: '/work',
+      title: 'Sequence',
+      missionStatement: 'Mission',
+      sharedMemory: 'Shared notes',
+      order: 0,
+      createdAt: 1,
+      updatedAt: 2,
+    };
+    (planManager.getItem as ReturnType<typeof vi.fn>).mockReturnValue(plan);
+    (planManager.getForDirectory as ReturnType<typeof vi.fn>).mockReturnValue([plan]);
+    (planManager as any).getSequencesForDirectory = vi.fn(() => [sequence]);
+
+    expect(service.listPlanSequences({ planRef: 'P-0001' })).toEqual([
+      expect.objectContaining({
+        id: 'seq-1',
+        sharedMemory: 'Shared notes',
+        memberPlanIds: ['plan-1'],
+        memberHumanIds: ['P-0001'],
+        selectedForPlan: true,
+      }),
+    ]);
+  });
+
+  it('requires expectedUpdatedAt to match for mutexed sequence memory appends', () => {
+    const { service, planManager } = makeService();
+    const sequence = {
+      id: 'seq-1',
+      dirPath: '/work',
+      title: 'Sequence',
+      missionStatement: 'Mission',
+      sharedMemory: 'Before',
+      order: 0,
+      createdAt: 1,
+      updatedAt: 22,
+    };
+    (planManager as any).getSequence = vi.fn(() => sequence);
+    (planManager as any).updateSequence = vi.fn((_id: string, updates: { sharedMemory: string }) => ({
+      ...sequence,
+      ...updates,
+      updatedAt: 23,
+    }));
+
+    expect(() => service.appendPlanSequenceMemory('seq-1', 'After', 21)).toThrow('updated concurrently');
+    expect(service.appendPlanSequenceMemory('seq-1', 'After', 22)).toMatchObject({
+      sharedMemory: 'Before\n\nAfter',
+      updatedAt: 23,
+    });
+  });
+});
+
 describe('HelmControlService.spawnCli', () => {
   it('injects Helm-managed environment variables into spawned CLI sessions', () => {
     const { service, ptyManager, configLoader } = makeService();

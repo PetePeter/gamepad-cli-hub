@@ -642,6 +642,22 @@ const gamepadCliAPI = {
   planSequenceAssign: (planId: string, sequenceId: string | null) =>
     ipcRenderer.invoke('plan:sequence-assign', planId, sequenceId),
 
+  /** List files attached to a plan */
+  planAttachmentList: (planId: string) =>
+    ipcRenderer.invoke('plan:attachment-list', planId),
+
+  /** Copy a local file into plan-owned attachment storage */
+  planAttachmentAddFile: (planId: string, filePath: string) =>
+    ipcRenderer.invoke('plan:attachment-add-file', planId, filePath),
+
+  /** Delete a stored plan attachment */
+  planAttachmentDelete: (planId: string, attachmentId: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:attachment-delete', planId, attachmentId),
+
+  /** Copy an attachment to a temp file and open it with the OS default handler */
+  planAttachmentOpen: (planId: string, attachmentId: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:attachment-open', planId, attachmentId),
+
   /** List files in the incoming plans folder */
   planIncomingList: (): Promise<string[]> =>
     ipcRenderer.invoke('plan:incoming-list'),
