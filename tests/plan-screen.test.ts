@@ -96,6 +96,10 @@ function fakeLayout(ids: string[]) {
   };
 }
 
+function planItem(id: string, title = id) {
+  return { id, dirPath: '/test/dir', title, description: title, status: 'planning', createdAt: 1, updatedAt: 1 };
+}
+
 async function getModule() {
   return await import('../renderer/plans/plan-screen.js');
 }
@@ -189,6 +193,97 @@ describe('plan screen bridge', () => {
     expect(mod.getSelectedPlanId()).toBe('a');
     expect(mod.handlePlanScreenDpad('right')).toBe(true);
     expect(mod.getSelectedPlanId()).toBe('b');
+  });
+
+  it('computes related focus across dependency chains in either direction', async () => {
+    const mod = await getModule();
+    const related = mod.computeConnectedPlanIds('b', [
+      { fromId: 'a', toId: 'b' },
+      { fromId: 'b', toId: 'c' },
+      { fromId: 'x', toId: 'y' },
+    ]);
+
+    expect([...related].sort()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('dims unrelated plans without removing them from the filtered layout', async () => {
+    const mod = await getModule();
+    const items = [planItem('a'), planItem('b'), planItem('c'), planItem('d')];
+    const deps = [
+      { fromId: 'a', toId: 'b' },
+      { fromId: 'b', toId: 'c' },
+    ];
+    mockPlanList.mockResolvedValue(items);
+    mockPlanDeps.mockResolvedValue(deps);
+    mockComputeLayout.mockImplementation((layoutItems: typeof items) => fakeLayout(layoutItems.map((item) => item.id)));
+
+    await mod.showPlanScreen('/test/dir');
+    mod.onPlanNodeClick('b');
+    mod.toggleRelatedFocus();
+
+    expect([...mod.planScreenState.relatedFocusIds].sort()).toEqual(['a', 'b', 'c']);
+    expect(mod.isPlanRelatedBackground('d')).toBe(true);
+    expect(mockComputeLayout).toHaveBeenLastCalledWith(items, deps);
+  });
+
+  it('keeps D-pad navigation out of unrelated background plans', async () => {
+    const mod = await getModule();
+    const items = [planItem('a'), planItem('b'), planItem('c')];
+    mockPlanList.mockResolvedValue(items);
+    mockPlanDeps.mockResolvedValue([{ fromId: 'a', toId: 'b' }]);
+    mockComputeLayout.mockReturnValue({
+      nodes: [
+        { id: 'a', x: 60, y: 60, layer: 0, order: 0 },
+        { id: 'c', x: 340, y: 60, layer: 1, order: 0 },
+        { id: 'b', x: 340, y: 180, layer: 1, order: 1 },
+      ],
+      width: 620,
+      height: 340,
+    });
+
+    await mod.showPlanScreen('/test/dir');
+    mod.toggleRelatedFocus();
+
+    expect(mod.handlePlanScreenDpad('right')).toBe(true);
+    expect(mod.getSelectedPlanId()).toBe('b');
+  });
+
+  it('keeps new plans foreground while related focus is active until refresh or link', async () => {
+    const mod = await getModule();
+    const opener = vi.fn();
+    const initialItems = [planItem('a'), planItem('b'), planItem('c')];
+    const withNewItem = [...initialItems, planItem('n', 'New Plan')];
+    mockPlanList
+      .mockResolvedValueOnce(initialItems)
+      .mockResolvedValueOnce(withNewItem)
+      .mockResolvedValueOnce(withNewItem)
+      .mockResolvedValueOnce(withNewItem);
+    mockPlanDeps
+      .mockResolvedValueOnce([{ fromId: 'a', toId: 'b' }])
+      .mockResolvedValueOnce([{ fromId: 'a', toId: 'b' }])
+      .mockResolvedValueOnce([{ fromId: 'a', toId: 'b' }])
+      .mockResolvedValueOnce([{ fromId: 'a', toId: 'b' }, { fromId: 'a', toId: 'n' }]);
+    mockComputeLayout.mockImplementation((layoutItems: typeof initialItems) => fakeLayout(layoutItems.map((item) => item.id)));
+    mockPlanCreate.mockResolvedValue({ id: 'n' });
+    mockPlanAddDep.mockResolvedValue(undefined);
+    mod.setPlanEditorOpener(opener);
+
+    await mod.showPlanScreen('/test/dir');
+    mod.toggleRelatedFocus();
+    await mod.onPlanAddNode();
+
+    expect(mod.planScreenState.relatedTransientIds.has('n')).toBe(true);
+    expect(mod.isPlanRelatedBackground('n')).toBe(false);
+    expect(mod.isPlanRelatedBackground('c')).toBe(true);
+
+    await mod.refreshCanvasIfVisible();
+    expect(mod.planScreenState.relatedTransientIds.has('n')).toBe(false);
+    expect(mod.isPlanRelatedBackground('n')).toBe(true);
+
+    await mod.onPlanAddDependency('a', 'n');
+    expect(mod.planScreenState.relatedTransientIds.has('n')).toBe(false);
+    expect(mod.planScreenState.relatedFocusIds.has('n')).toBe(true);
+    expect(mod.isPlanRelatedBackground('n')).toBe(false);
   });
 
   it('opens the Vue-owned editor through the registered opener', async () => {

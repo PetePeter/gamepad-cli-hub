@@ -27,11 +27,22 @@ export const planScreenState = reactive({
   selectedId: null as string | null,
   editingId: null as string | null,
   notice: '',
+  relatedFocusRootId: null as string | null,
+  relatedFocusIds: new Set<string>(),
+  relatedTransientIds: new Set<string>(),
   filters: {
     types: { bug: true, feature: true, research: true, untyped: true },
     statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
   },
 });
+
+interface SetPlanDataOptions {
+  preserveTransientFocus?: boolean;
+}
+
+interface RefreshCanvasOptions {
+  preserveTransientFocus?: boolean;
+}
 
 let fitActiveCallback: (() => void) | null = null;
 let closeCallback: (() => void) | null = null;
@@ -74,6 +85,14 @@ function getLayoutNodes(): LayoutNode[] {
   return planScreenState.layout.nodes;
 }
 
+function getNavigableLayoutNodes(): LayoutNode[] {
+  if (!planScreenState.relatedFocusRootId) return getLayoutNodes();
+  if (planScreenState.selectedId && isPlanRelatedBackground(planScreenState.selectedId)) {
+    return getLayoutNodes();
+  }
+  return getLayoutNodes().filter((node) => !isPlanRelatedBackground(node.id));
+}
+
 function getSelectedItem(): PlanItem | null {
   return planScreenState.selectedId
     ? planScreenState.items.find((item) => item.id === planScreenState.selectedId) ?? null
@@ -99,9 +118,73 @@ function getFilteredDeps(allDeps: PlanDependency[]): PlanDependency[] {
   return allDeps.filter(dep => filteredIds.has(dep.fromId) && filteredIds.has(dep.toId));
 }
 
-function setPlanData(items: PlanItem[], deps: PlanDependency[]): void {
+export function computeConnectedPlanIds(rootId: string | null, deps: PlanDependency[]): Set<string> {
+  if (!rootId) return new Set();
+  const connected = new Map<string, Set<string>>();
+  for (const dep of deps) {
+    if (!connected.has(dep.fromId)) connected.set(dep.fromId, new Set());
+    if (!connected.has(dep.toId)) connected.set(dep.toId, new Set());
+    connected.get(dep.fromId)?.add(dep.toId);
+    connected.get(dep.toId)?.add(dep.fromId);
+  }
+
+  const visited = new Set<string>([rootId]);
+  const queue = [rootId];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) continue;
+    for (const next of connected.get(current) ?? []) {
+      if (visited.has(next)) continue;
+      visited.add(next);
+      queue.push(next);
+    }
+  }
+  return visited;
+}
+
+function setRelatedTransientIds(ids: Iterable<string>): void {
+  planScreenState.relatedTransientIds = new Set(ids);
+}
+
+function refreshRelatedFocus(): void {
+  const rootId = planScreenState.relatedFocusRootId;
+  if (!rootId) {
+    planScreenState.relatedFocusIds = new Set();
+    setRelatedTransientIds([]);
+    return;
+  }
+
+  const itemIds = new Set(planScreenState.items.map((item) => item.id));
+  if (!itemIds.has(rootId)) {
+    planScreenState.relatedFocusRootId = null;
+    planScreenState.relatedFocusIds = new Set();
+    setRelatedTransientIds([]);
+    return;
+  }
+
+  const connectedIds = computeConnectedPlanIds(rootId, planScreenState.deps);
+  const visibleConnectedIds = new Set([...connectedIds].filter((id) => itemIds.has(id)));
+  planScreenState.relatedFocusIds = visibleConnectedIds;
+  setRelatedTransientIds([...planScreenState.relatedTransientIds].filter((id) => itemIds.has(id) && !visibleConnectedIds.has(id)));
+}
+
+function isPlanRelatedForeground(id: string): boolean {
+  return !planScreenState.relatedFocusRootId
+    || planScreenState.relatedFocusIds.has(id)
+    || planScreenState.relatedTransientIds.has(id);
+}
+
+export function isPlanRelatedBackground(id: string): boolean {
+  return !isPlanRelatedForeground(id);
+}
+
+function setPlanData(items: PlanItem[], deps: PlanDependency[], options?: SetPlanDataOptions): void {
+  if (!options?.preserveTransientFocus) {
+    setRelatedTransientIds([]);
+  }
   planScreenState.items = items;
   planScreenState.deps = deps;
+  refreshRelatedFocus();
   const filteredItems = getFilteredItems();
   const filteredDeps = getFilteredDeps(deps);
   planScreenState.layout = computeLayout(filteredItems, filteredDeps);
@@ -132,13 +215,13 @@ function syncSelection(): void {
   }
 }
 
-async function loadPlanData(dirPath: string, context?: ViewMountContext): Promise<void> {
+async function loadPlanData(dirPath: string, context?: ViewMountContext, options?: SetPlanDataOptions): Promise<void> {
   const [items, deps] = await Promise.all([
     window.gamepadCli.planList(dirPath),
     window.gamepadCli.planDeps(dirPath),
   ]);
   if (context && !context.isActive()) return;
-  setPlanData(items, deps);
+  setPlanData(items, deps, options);
   syncSelection();
   if (!planScreenState.selectedId && planScreenState.layout.nodes.length > 0) {
     const first = planScreenState.layout.nodes.find((node) => node.layer === 0 && node.order === 0) ?? planScreenState.layout.nodes[0];
@@ -206,6 +289,9 @@ function closePlannerOverlay(): void {
   planScreenState.layout = { nodes: [], width: 0, height: 0 };
   planScreenState.selectedId = null;
   planScreenState.editingId = null;
+  planScreenState.relatedFocusRootId = null;
+  planScreenState.relatedFocusIds = new Set();
+  setRelatedTransientIds([]);
   hidePlanDeleteConfirm();
   hidePlanHelpModal();
   clearNotice();
@@ -249,6 +335,12 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
 
   if (draftEditorVisibilityChecker?.() ?? false) return;
   if (editable) return;
+
+  if (e.key === 'f' || e.key === 'F') {
+    e.preventDefault();
+    toggleRelatedFocus();
+    return;
+  }
 
   if (e.key === 'r' || e.key === 'R') {
     if (isPlanScreenVisible()) {
@@ -315,7 +407,7 @@ export function getSelectedPlanId(): string | null {
 }
 
 export function handlePlanScreenDpad(dir: string): boolean {
-  const layoutNodes = getLayoutNodes();
+  const layoutNodes = getNavigableLayoutNodes();
   if (layoutNodes.length === 0) return false;
 
   if (!planScreenState.selectedId) {
@@ -350,7 +442,8 @@ export function handlePlanScreenAction(button: string): boolean {
       const item = getSelectedItem();
       if (item) openNodeEditor(item);
     } else {
-      const first = getLayoutNodes().find((node) => node.layer === 0 && node.order === 0) ?? getLayoutNodes()[0];
+      const layoutNodes = getNavigableLayoutNodes();
+      const first = layoutNodes.find((node) => node.layer === 0 && node.order === 0) ?? layoutNodes[0];
       if (first) planScreenState.selectedId = first.id;
     }
     return true;
@@ -459,14 +552,17 @@ async function handleAddNode(options?: { fromShortcut?: boolean }): Promise<void
 
   try {
     const created = await window.gamepadCli.planCreate(planScreenState.currentDir, 'New Plan', '');
+    const createdId = created && typeof created === 'object' && 'id' in created ? String(created.id) : null;
+    if (createdId && planScreenState.relatedFocusRootId) {
+      setRelatedTransientIds([...planScreenState.relatedTransientIds, createdId]);
+    }
     if (planScreenState.editingId) {
       draftEditorCloser?.();
       planScreenState.editingId = null;
     }
 
-    await refreshCanvas();
+    await refreshCanvas({ preserveTransientFocus: true });
 
-    const createdId = created && typeof created === 'object' && 'id' in created ? String(created.id) : null;
     const createdItem = createdId ? planScreenState.items.find((item) => item.id === createdId) ?? null : null;
     if (createdItem) {
       openNodeEditor(createdItem);
@@ -488,20 +584,20 @@ async function handleRemoveDep(dep: PlanDependency): Promise<void> {
 async function handleAddDep(fromId: string, toId: string): Promise<void> {
   try {
     await window.gamepadCli.planAddDep(fromId, toId);
-    await refreshCanvas();
+    await refreshCanvas({ preserveTransientFocus: true });
   } catch (err) {
     console.error('[PlanScreen] Add dep failed:', err);
     showBriefNotice('Could not add dependency');
   }
 }
 
-export async function refreshCanvasIfVisible(): Promise<void> {
-  if (isPlanScreenVisible()) await refreshCanvas();
+async function refreshCanvas(options?: RefreshCanvasOptions): Promise<void> {
+  if (!planScreenState.currentDir) return;
+  await loadPlanData(planScreenState.currentDir, undefined, options);
 }
 
-async function refreshCanvas(): Promise<void> {
-  if (!planScreenState.currentDir) return;
-  await loadPlanData(planScreenState.currentDir);
+export async function refreshCanvasIfVisible(): Promise<void> {
+  if (isPlanScreenVisible()) await refreshCanvas();
 }
 
 async function handleExportDirectory(): Promise<void> {
@@ -567,12 +663,12 @@ export async function onPlanNodeReopen(id: string): Promise<void> {
   await window.gamepadCli.planReopen(id);
 }
 
-export function onPlanAddNode(): void {
-  void handleAddNode();
+export function onPlanAddNode(): Promise<void> {
+  return handleAddNode();
 }
 
-export function onPlanAddDependency(fromId: string, toId: string): void {
-  void handleAddDep(fromId, toId);
+export function onPlanAddDependency(fromId: string, toId: string): Promise<void> {
+  return handleAddDep(fromId, toId);
 }
 
 export function onPlanRemoveDependency(fromId: string, toId: string): void {
@@ -585,6 +681,20 @@ export function onPlanExportDirectory(): void {
 
 export function onPlanClearDone(): void {
   void handleClearDone();
+}
+
+export function toggleRelatedFocus(): void {
+  if (planScreenState.relatedFocusRootId) {
+    planScreenState.relatedFocusRootId = null;
+    planScreenState.relatedFocusIds = new Set();
+    setRelatedTransientIds([]);
+    return;
+  }
+
+  const rootId = planScreenState.selectedId;
+  if (!rootId || !planScreenState.items.some((item) => item.id === rootId)) return;
+  planScreenState.relatedFocusRootId = rootId;
+  refreshRelatedFocus();
 }
 
 export function toggleTypeFilter(type: 'bug' | 'feature' | 'research' | 'untyped'): void {

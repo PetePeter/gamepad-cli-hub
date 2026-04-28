@@ -26,11 +26,17 @@ const props = withDefaults(defineProps<{
   layout: LayoutResult;
   selectedId: string | null;
   notice?: string;
+  relatedFocusRootId?: string | null;
+  relatedFocusIds?: Set<string>;
+  relatedTransientIds?: Set<string>;
   filters?: {
     types: { bug: boolean; feature: boolean; research: boolean; untyped: boolean };
     statuses: { planning: boolean; ready: boolean; coding: boolean; review: boolean; blocked: boolean; done: boolean };
   };
 }>(), {
+  relatedFocusRootId: null,
+  relatedFocusIds: () => new Set<string>(),
+  relatedTransientIds: () => new Set<string>(),
   filters: () => ({
     types: { bug: true, feature: true, research: true, untyped: true },
     statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
@@ -50,6 +56,7 @@ const emit = defineEmits<{
   deleteNode: [id: string];
   addDep: [fromId: string, toId: string];
   removeDep: [fromId: string, toId: string];
+  toggleRelatedFocus: [];
   toggleTypeFilter: [type: 'bug' | 'feature' | 'research' | 'untyped'];
   toggleStatusFilter: [status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done'];
   resetFilters: [];
@@ -81,6 +88,14 @@ const positionedItems = computed(() =>
 const selectedItem = computed(() =>
   props.selectedId ? props.items.find((item) => item.id === props.selectedId) ?? null : null,
 );
+
+const relatedFocusActive = computed(() => !!props.relatedFocusRootId);
+
+const relatedForegroundIds = computed(() => {
+  const ids = new Set(props.relatedFocusIds ?? []);
+  for (const id of props.relatedTransientIds ?? []) ids.add(id);
+  return ids;
+});
 
 const dragPath = computed(() => {
   if (!dragState.value) return '';
@@ -127,6 +142,14 @@ function depPath(dep: PlanDependency): string {
   const cpx = (from.x + to.x) / 2;
   const my = (from.y + to.y) / 2;
   return `M ${from.x} ${from.y} Q ${cpx} ${from.y}, ${cpx} ${my} Q ${cpx} ${to.y}, ${to.x} ${to.y}`;
+}
+
+function isRelatedBackground(id: string): boolean {
+  return relatedFocusActive.value && !relatedForegroundIds.value.has(id);
+}
+
+function isDepRelatedBackground(dep: PlanDependency): boolean {
+  return isRelatedBackground(dep.fromId) || isRelatedBackground(dep.toId);
 }
 
 function wrapperPoint(clientX: number, clientY: number): { x: number; y: number } {
@@ -290,6 +313,12 @@ function startDragConnection(id: string, e: MouseEvent): void {
       </div>
       
       <div class="plan-header__controls">
+        <button
+          class="plan-header__btn plan-header__btn--secondary"
+          :disabled="!selectedId && !relatedFocusActive"
+          title="Focus related plans (F)"
+          @click="emit('toggleRelatedFocus')"
+        >{{ relatedFocusActive ? 'Clear Focus' : 'Focus Related' }}</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('exportDir')">⬆ Export Dir</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('clearDone')">🧹 Clear Done</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openBackups')" title="Backups (R)">💾 Backups</button>
@@ -320,6 +349,7 @@ function startDragConnection(id: string, e: MouseEvent): void {
           v-for="dep in deps"
           :key="`${dep.fromId}-${dep.toId}`"
           class="plan-arrow"
+          :class="{ 'plan-arrow--related-background': isDepRelatedBackground(dep) }"
           :d="depPath(dep)"
           fill="none"
           stroke="#555"
@@ -345,6 +375,8 @@ function startDragConnection(id: string, e: MouseEvent): void {
           :class="{
             'plan-node--selected': item.id === selectedId,
             'plan-node--done': item.status === 'done',
+            'plan-node--related-background': isRelatedBackground(item.id),
+            'plan-node--related-transient': relatedTransientIds.has(item.id),
           }"
           :data-id="item.id"
           :transform="`translate(${item.x}, ${item.y})`"
@@ -417,6 +449,7 @@ function startDragConnection(id: string, e: MouseEvent): void {
       <span>B back or deselect</span>
       <span>Double click edit</span>
       <span>Drag connector to link</span>
+      <span>F focus related</span>
     </div>
 
     <div v-if="selectedItem" class="plan-header">

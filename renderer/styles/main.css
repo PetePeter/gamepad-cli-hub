@@ -2635,6 +2635,17 @@ kbd {
 .plan-node--selected rect { stroke-width: 2.5; stroke: #ff6600 !important; }
 .plan-node--done { opacity: 0.5; }
 .plan-node--done .plan-node__title { text-decoration: line-through; }
+.plan-node--related-background:not(.plan-node--selected) {
+  opacity: 0.24;
+  filter: grayscale(0.8);
+}
+.plan-node--related-background:not(.plan-node--selected) rect {
+  stroke-dasharray: 4 4;
+}
+.plan-node--related-transient:not(.plan-node--selected) rect {
+  stroke: #4fd08b;
+  stroke-dasharray: 5 3;
+}
 
 .plan-node__title {
   color: #fff;
@@ -2686,6 +2697,10 @@ kbd {
 /* Plan arrows */
 .plan-arrow { cursor: pointer; }
 .plan-arrow:hover { stroke: #888 !important; stroke-width: 2.5; }
+.plan-arrow--related-background {
+  opacity: 0.18;
+  stroke-dasharray: 6 5;
+}
 
 /* Plan empty state */
 .plan-canvas-empty {

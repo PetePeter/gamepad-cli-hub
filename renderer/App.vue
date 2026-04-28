@@ -46,6 +46,7 @@ import {
   planScreenState,
   toggleTypeFilter,
   toggleStatusFilter,
+  toggleRelatedFocus,
   resetFilters,
   refreshCanvasIfVisible,
 } from './plans/plan-screen.js';
@@ -1752,6 +1753,10 @@ function onResetFilters(): void {
   resetFilters();
 }
 
+function onToggleRelatedFocus(): void {
+  toggleRelatedFocus();
+}
+
 // Clear done plans confirm
 function onClearDonePlansConfirm(): void {
   clearDonePlans.visible = false;
@@ -2305,6 +2310,9 @@ onUnmounted(() => {
         :layout="planScreenState.layout"
         :selected-id="planScreenState.selectedId"
         :notice="planScreenState.notice"
+        :related-focus-root-id="planScreenState.relatedFocusRootId"
+        :related-focus-ids="planScreenState.relatedFocusIds"
+        :related-transient-ids="planScreenState.relatedTransientIds"
         :filters="planScreenState.filters"
         @close="navStore.closePlan()"
         @add-node="onPlanAddNode()"
@@ -2318,6 +2326,7 @@ onUnmounted(() => {
         @delete-node="onPlanNodeDelete"
         @add-dep="onPlanAddDependency"
         @remove-dep="onPlanRemoveDependency"
+        @toggle-related-focus="onToggleRelatedFocus"
         @toggle-type-filter="onToggleTypeFilter"
         @toggle-status-filter="onToggleStatusFilter"
         @reset-filters="onResetFilters"
