@@ -154,6 +154,8 @@ describe('plan screen bridge', () => {
       writeTempContent: mockWriteTempContent,
       dialogShowSaveFile: mockDialogShowSaveFile,
       dialogShowOpenFile: mockDialogShowOpenFile,
+      configGetPlanFilters: vi.fn().mockResolvedValue({ types: { bug: true, feature: true, research: true, untyped: true }, statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true } }),
+      configSetPlanFilters: vi.fn().mockResolvedValue(undefined),
     };
   });
 

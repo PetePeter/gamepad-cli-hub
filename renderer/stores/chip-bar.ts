@@ -44,7 +44,6 @@ const ACTIVE_PLAN_STATUSES = new Set<ChipBarPlan['status']>([
   'coding',
   'review',
   'blocked',
-  'planning',
 ]);
 
 export const useChipBarStore = defineStore('chip-bar', () => {

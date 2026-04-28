@@ -96,6 +96,14 @@ export class ScheduledTaskManager extends EventEmitter {
 
     logger.info(`[ScheduledTaskManager] Loaded ${this.tasks.size} task(s) from disk`);
 
+    // Reset any crashed executing tasks back to pending for retry
+    for (const task of this.tasks.values()) {
+      if (task.status === 'executing') {
+        task.status = 'pending';
+        logger.info(`[ScheduledTaskManager] Reset crashed task "${task.title}" (${task.id}) from executing to pending`);
+      }
+    }
+
     // Schedule all pending tasks
     const now = Date.now();
     for (const task of this.tasks.values()) {

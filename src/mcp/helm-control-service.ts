@@ -479,10 +479,7 @@ export class HelmControlService extends EventEmitter {
       throw new Error(`Session not found: ${sessionRef}`);
     }
 
-    // Import here to avoid circular dependency
-    const { TelegramRelayService } = await import('../telegram/relay-service.js');
-    // Get relay service from telegram orchestrator (will be injected)
-    // For now, emit event and let telegram layer handle it
+    // Emit event and let telegram layer handle it
     this.emit('telegram:send', {
       sessionId: session.id,
       text,

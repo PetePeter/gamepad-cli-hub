@@ -365,7 +365,7 @@ async function handleSave(updates: { title: string; description: string; status:
   try {
     await window.gamepadCli.planUpdate(planScreenState.selectedId, updates);
     const current = getSelectedItem();
-    if (current && current.status !== 'done') {
+    if (current && updates.status !== 'done') {
       const targetSessionId = resolvePlanTargetSessionId(current);
       if (updates.status === 'coding' && !targetSessionId) {
         showBriefNotice('Select or open a session in this directory before marking a plan as coding');
