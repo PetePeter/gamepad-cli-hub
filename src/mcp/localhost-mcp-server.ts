@@ -122,12 +122,12 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_set_state',
     title: 'Set Plan State',
-    description: 'Set a plan item state to planning, startable, coding, review, or blocked. Use this when the lifecycle state itself changed; if you only need the session row to point at the current plan, prefer session_set_working_plan.',
+    description: 'Set a plan item state to planning, ready, coding, review, or blocked. Use this when the lifecycle state itself changed; if you only need the session row to point at the current plan, prefer session_set_working_plan.',
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string' },
-        status: { type: 'string', enum: ['planning', 'startable', 'coding', 'review', 'blocked'] },
+        status: { type: 'string', enum: ['planning', 'ready', 'coding', 'review', 'blocked'] },
         stateInfo: { type: 'string' },
         sessionId: { type: 'string' },
       },
@@ -149,7 +149,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_reopen',
     title: 'Reopen Plan',
-    description: 'Revert a done plan back to startable or pending based on its current dependencies. Use this to undo an accidental plan_complete call. The plan\'s sessionId is cleared on reopen.',
+    description: 'Revert a done plan back to ready or planning based on its current dependencies. Use this to undo an accidental plan_complete call. The plan\'s sessionId is cleared on reopen.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -700,11 +700,11 @@ function asString(value: unknown, errorMessage: string): string {
   return value;
 }
 
-function asPlanStatus(value: unknown): 'planning' | 'startable' | 'coding' | 'review' | 'blocked' {
-  if (value === 'planning' || value === 'startable' || value === 'coding' || value === 'review' || value === 'blocked') {
+function asPlanStatus(value: unknown): 'planning' | 'ready' | 'coding' | 'review' | 'blocked' {
+  if (value === 'planning' || value === 'ready' || value === 'coding' || value === 'review' || value === 'blocked') {
     return value;
   }
-  throw new Error('status must be one of planning, startable, coding, review, or blocked');
+  throw new Error('status must be one of planning, ready, coding, review, or blocked');
 }
 
 function asAiagentState(value: unknown, errorMessage?: string): 'planning' | 'implementing' | 'completed' | 'idle' {

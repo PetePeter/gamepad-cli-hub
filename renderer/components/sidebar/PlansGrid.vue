@@ -2,7 +2,7 @@
 /**
  * PlansGrid.vue — 2-column grid of per-directory plan buttons with status dot counts.
  *
- * Shows status dots (startable, coding, review, blocked, planning),
+ * Shows status dots (ready, coding, review, blocked, planning),
  * skipping any with a zero count. Replaces renderPlansGrid() + createPlansButton().
  */
 
@@ -46,7 +46,7 @@ const emit = defineEmits<{
         class="plans-btn-dots"
       >
         <span v-if="dir.planningCount > 0" class="plan-dot plan-dot--planning">⚪{{ dir.planningCount }}</span>
-        <span v-if="dir.startableCount > 0" class="plan-dot plan-dot--startable">🔵{{ dir.startableCount }}</span>
+        <span v-if="dir.startableCount > 0" class="plan-dot plan-dot--ready">🔵{{ dir.startableCount }}</span>
         <span v-if="dir.codingCount > 0" class="plan-dot plan-dot--coding">🟢{{ dir.codingCount }}</span>
         <span v-if="dir.reviewCount > 0" class="plan-dot plan-dot--review">⏳{{ dir.reviewCount }}</span>
         <span v-if="dir.blockedCount > 0" class="plan-dot plan-dot--blocked">⛔{{ dir.blockedCount }}</span>

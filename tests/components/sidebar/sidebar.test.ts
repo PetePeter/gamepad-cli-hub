@@ -626,7 +626,7 @@ describe('PlansGrid', () => {
 
   it('shows startable dot when count > 0', () => {
     const w = mount(PlansGrid, { props: { directories: dirs, focusIndex: 0, isActive: false } });
-    const dots = w.findAll('.plan-dot--startable');
+    const dots = w.findAll('.plan-dot--ready');
     expect(dots.length).toBe(1);
     expect(dots[0].text()).toContain('2');
   });
@@ -649,7 +649,7 @@ describe('PlansGrid', () => {
     const dir = { name: 'p', path: '/p', planningCount: 1, startableCount: 2, codingCount: 3, reviewCount: 4, blockedCount: 5 };
     const w = mount(PlansGrid, { props: { directories: [dir], focusIndex: 0, isActive: false } });
     expect(w.find('.plan-dot--planning').text()).toContain('1');
-    expect(w.find('.plan-dot--startable').text()).toContain('2');
+    expect(w.find('.plan-dot--ready').text()).toContain('2');
     expect(w.find('.plan-dot--coding').text()).toContain('3');
     expect(w.find('.plan-dot--review').text()).toContain('4');
     expect(w.find('.plan-dot--blocked').text()).toContain('5');

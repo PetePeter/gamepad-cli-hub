@@ -982,12 +982,11 @@ button {
 .plans-btn-top { display: flex; align-items: center; gap: 6px; flex: 1; }
 .plans-btn-dots { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 2px; }
 .plan-dot { font-size: 0.7em; }
-.plan-dot--startable { color: #4488ff; }
-.plan-dot--doing { color: #44cc44; }
-.plan-dot--wait-tests { color: #44ccff; }
+.plan-dot--ready { color: #4488ff; }
+.plan-dot--coding { color: #44cc44; }
+.plan-dot--review { color: #44ccff; }
 .plan-dot--blocked { color: #ff9f1a; }
-.plan-dot--question { color: #d17cff; }
-.plan-dot--pending { color: #555555; }
+.plan-dot--planning { color: #555555; }
 
 /* Buttons */
 .btn {
@@ -3010,15 +3009,15 @@ kbd {
   margin-right: 4px;
 }
 
-.plan-badge--doing {
+.plan-badge--coding {
   color: #44cc44;
 }
 
-.plan-badge--startable {
+.plan-badge--ready {
   color: #4488ff;
 }
 
-.plan-badge--wait-tests {
+.plan-badge--review {
   color: #44ccff;
 }
 
@@ -3026,8 +3025,8 @@ kbd {
   color: #ff9f1a;
 }
 
-.plan-badge--question {
-  color: #d17cff;
+.plan-badge--planning {
+  color: #555555;
 }
 
 .plan-chip {
@@ -3054,15 +3053,15 @@ kbd {
   border-color: var(--text-secondary);
 }
 
-.plan-chip--doing {
+.plan-chip--coding {
   border: 2px solid #44cc44;
 }
 
-.plan-chip--startable {
+.plan-chip--ready {
   border: 2px solid #4488ff;
 }
 
-.plan-chip--wait-tests {
+.plan-chip--review {
   border: 2px solid #44ccff;
 }
 
@@ -3070,8 +3069,8 @@ kbd {
   border: 2px solid #ff9f1a;
 }
 
-.plan-chip--question {
-  border: 2px solid #d17cff;
+.plan-chip--planning {
+  border: 2px solid #555555;
 }
 
 /* ============================================================================

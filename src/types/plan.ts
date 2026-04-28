@@ -30,7 +30,7 @@ export interface PlanItem {
   description: string;
   /** Current lifecycle status */
   status: PlanStatus;
-  /** Session ID when status is 'doing' or 'wait-tests' (which session picked it up) */
+  /** Session ID when status is 'coding' or 'review' (which session picked it up) */
   sessionId?: string;
   /** Extra context for blocked/question states */
   stateInfo?: string;
