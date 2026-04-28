@@ -25,6 +25,10 @@ function makeService() {
   const planManager = {
     getForDirectory: vi.fn(() => []),
     getItem: vi.fn(),
+    resolveItemRef: vi.fn((ref: string) => {
+      const item = planManager.getItem(ref);
+      return item ? { status: 'found' as const, item } : { status: 'missing' as const };
+    }),
     setState: vi.fn(),
   };
   const configLoader = {
@@ -199,6 +203,55 @@ describe('HelmControlService.spawnCli', () => {
       planStatus: 'coding',
     });
   });
+
+  it('accepts P-id plan references when setting the explicit working plan', () => {
+    const { service, sessionManager } = makeService();
+    const planManager = (service as any).planManager;
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 's1',
+      name: 'Claude',
+      cliType: 'claude-code',
+      workingDir: '/work',
+    });
+    const plan = {
+      id: 'plan-1',
+      humanId: 'P-0042',
+      dirPath: '/work',
+      title: 'Auth refactor',
+      description: 'Desc',
+      status: 'ready',
+    };
+    (planManager.getItem as ReturnType<typeof vi.fn>).mockImplementation((ref: string) => ref === 'plan-1' ? plan : null);
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockImplementation((ref: string) => (
+      ref === 'P-0042' ? { status: 'found', item: plan } : { status: 'missing' }
+    ));
+    (planManager.setState as ReturnType<typeof vi.fn>).mockReturnValue({ ...plan, status: 'coding', sessionId: 's1' });
+
+    const result = service.setSessionWorkingPlan('s1', 'P-0042');
+
+    expect(planManager.setState).toHaveBeenCalledWith('plan-1', 'coding', undefined, 's1');
+    expect(result.planId).toBe('plan-1');
+  });
+
+  it('reports ambiguous P-id references clearly', () => {
+    const { service, sessionManager } = makeService();
+    const planManager = (service as any).planManager;
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 's1',
+      name: 'Claude',
+      cliType: 'claude-code',
+      workingDir: '/work',
+    });
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({
+      status: 'ambiguous',
+      matches: [
+        { id: 'a', humanId: 'P-0042', dirPath: '/work' },
+        { id: 'b', humanId: 'P-0042', dirPath: '/other' },
+      ],
+    });
+
+    expect(() => service.setSessionWorkingPlan('s1', 'P-0042')).toThrow('Plan reference is ambiguous: P-0042');
+  });
 });
 
 describe('HelmControlService.getSessionInfo', () => {
@@ -215,6 +268,8 @@ describe('HelmControlService.getSessionInfo', () => {
       'TDD Suggestions',
       'Acceptance Criteria',
     ]);
+    expect(info.agent_plan_guide?.plan_identifier_semantics.join(' ')).toContain('P-0035');
+    expect(info.agent_plan_guide?.plan_identifier_semantics.join(' ')).toContain('canonical UUID');
     expect(info.agent_plan_guide?.when_to_create_plan.join(' ')).toContain('follow-up work');
     expect(info.agent_plan_guide?.question_plan_workflow.join(' ')).toContain('plan_nextplan_link');
     expect(info.agent_plan_guide?.completion_documentation.join(' ')).toContain('tests or review');

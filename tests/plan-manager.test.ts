@@ -116,6 +116,49 @@ describe('PlanManager', () => {
         stateUpdatedAt: 101,
       }));
     });
+
+    it('resolves UUID and P-id plan references', () => {
+      const item = pm.create('/d', 'Alias me', 'Resolve by either ID');
+
+      expect(pm.resolveItemRef(item.id)).toEqual({ status: 'found', item });
+      expect(pm.resolveItemRef(item.humanId!.toLowerCase())).toEqual({ status: 'found', item });
+      expect(pm.resolveItemRef('P-9999')).toEqual({ status: 'missing' });
+    });
+
+    it('reports ambiguous P-id references', () => {
+      (persistence.listPlanFiles as unknown as ReturnType<typeof vi.fn>).mockReturnValue(['a.json', 'b.json']);
+      (persistence.loadPlanFile as unknown as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce({
+          id: 'a',
+          humanId: 'P-0042',
+          dirPath: '/d',
+          title: 'A',
+          description: 'First',
+          status: 'ready',
+          createdAt: 100,
+          updatedAt: 101,
+        })
+        .mockReturnValueOnce({
+          id: 'b',
+          humanId: 'P-0042',
+          dirPath: '/d',
+          title: 'B',
+          description: 'Second',
+          status: 'ready',
+          createdAt: 100,
+          updatedAt: 101,
+        });
+
+      pm = new PlanManager();
+
+      expect(pm.resolveItemRef('P-0042')).toMatchObject({
+        status: 'ambiguous',
+        matches: [
+          expect.objectContaining({ id: 'a' }),
+          expect.objectContaining({ id: 'b' }),
+        ],
+      });
+    });
   });
 
   describe('delete', () => {

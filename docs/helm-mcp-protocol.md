@@ -8,6 +8,8 @@ Helm MCP (Model Context Protocol) provides bidirectional communication between C
 
 Agents should call `session_info` on startup and read `agent_plan_guide` before creating or updating plans. New durable plans should include these description sections: `Problem Statement`, `User POV`, `Done Statement`, `Files / Classes Affected`, `TDD Suggestions`, and `Acceptance Criteria`.
 
+Values like `P-0035` are Helm human-readable plan IDs (`PlanItem.humanId`). MCP plan tools accept either the canonical UUID or the `P-00xx` ID where a plan reference is requested. Use `plans_summary` to map between `P-00xx`, UUID, title, status, and dependency context.
+
 When an agent is blocked by an important question, create a separate plan titled `QUESTION: ...`, put the concrete question at the top of that new plan, and link the question plan to the original blocked plan with `plan_nextplan_link` so the question is the prerequisite. Do not bury blocking questions in chat only, and do not overwrite the original plan description just to ask the question.
 
 When completing a plan, `plan_complete` documentation should summarize implemented behavior, important files changed, tests or review performed, and any remaining risk.

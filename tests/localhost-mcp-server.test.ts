@@ -110,6 +110,7 @@ describe('LocalhostMcpServer', () => {
     expect(planCreateTool.description).toContain('QUESTION:');
     expect(planCreateTool.description).toContain('plan_nextplan_link');
     expect(planCreateTool.description).toContain('claim it by calling plan_set_state');
+    expect(planCompleteTool.description).toContain('P-00xx');
     expect(planCompleteTool.description).toContain('implemented behavior');
     expect(planCompleteTool.description).toContain('tests or review');
     expect(planNextLinkTool.description).toContain('blocking questions');

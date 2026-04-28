@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { logger } from '../utils/logger.js';
 import { type ConfigLoader } from '../config/loader.js';
-import type { PlanManager } from '../session/plan-manager.js';
+import type { PlanManager, PlanRefResolution } from '../session/plan-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { PlanItem, PlanStatus, PlanType } from '../types/plan.js';
@@ -78,6 +78,7 @@ export interface SessionInfoResponse {
     receiving_responses: string;
   };
   agent_plan_guide?: {
+    plan_identifier_semantics: string[];
     when_to_create_plan: string[];
     required_description_sections: string[];
     question_plan_workflow: string[];
@@ -144,7 +145,7 @@ export class HelmControlService extends EventEmitter {
   }
 
   getPlan(id: string): PlanItem | null {
-    return this.planManager.getItem(id);
+    return this.resolvePlanRef(id, 'Plan')?.item ?? null;
   }
 
   createPlan(dirPath: string, title: string, description: string, type?: PlanType): PlanItem {
@@ -152,6 +153,8 @@ export class HelmControlService extends EventEmitter {
   }
 
   updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType | null }): PlanItem | null {
+    const plan = this.resolvePlanRef(id, 'Plan');
+    if (!plan) return null;
     const nextUpdates: { title?: string; description?: string; type?: PlanType } = {
       ...(updates.title !== undefined ? { title: updates.title } : {}),
       ...(updates.description !== undefined ? { description: updates.description } : {}),
@@ -159,21 +162,24 @@ export class HelmControlService extends EventEmitter {
     if (Object.prototype.hasOwnProperty.call(updates, 'type')) {
       nextUpdates.type = updates.type ?? undefined;
     }
-    return this.planManager.updateWithType(id, nextUpdates);
+    return this.planManager.updateWithType(plan.item.id, nextUpdates);
   }
 
   deletePlan(id: string): boolean {
-    return this.planManager.delete(id);
+    const plan = this.resolvePlanRef(id, 'Plan');
+    return plan ? this.planManager.delete(plan.item.id) : false;
   }
 
   completePlan(id: string, completionNotes?: string): PlanItem | null {
     logger.info(`[MCP:Service] completePlan id=${id}`);
-    return this.planManager.completeItem(id, completionNotes);
+    const plan = this.resolvePlanRef(id, 'Plan');
+    return plan ? this.planManager.completeItem(plan.item.id, completionNotes) : null;
   }
 
   reopenPlan(id: string): PlanItem | null {
     logger.info(`[MCP:Service] reopenPlan id=${id}`);
-    return this.planManager.reopenItem(id);
+    const plan = this.resolvePlanRef(id, 'Plan');
+    return plan ? this.planManager.reopenItem(plan.item.id) : null;
   }
 
   setPlanState(
@@ -183,27 +189,31 @@ export class HelmControlService extends EventEmitter {
     sessionId?: string,
   ): PlanItem | null {
     logger.info(`[MCP:Service] setPlanState id=${id} status=${status} sessionId=${sessionId ?? '-'}`);
-    return this.planManager.setState(id, status, stateInfo, sessionId);
+    const plan = this.resolvePlanRef(id, 'Plan');
+    return plan ? this.planManager.setState(plan.item.id, status, stateInfo, sessionId) : null;
   }
 
   linkPlans(fromId: string, toId: string): void {
     if (fromId === toId) {
       throw new Error('Cannot link a plan to itself');
     }
-    const from = this.planManager.getItem(fromId);
-    const to = this.planManager.getItem(toId);
+    const from = this.resolvePlanRef(fromId, 'Source plan');
+    const to = this.resolvePlanRef(toId, 'Target plan');
     if (!from) {
       throw new Error(`Source plan not found: ${fromId}`);
     }
     if (!to) {
       throw new Error(`Target plan not found: ${toId}`);
     }
-    if (from.dirPath !== to.dirPath) {
+    if (from.item.id === to.item.id) {
+      throw new Error('Cannot link a plan to itself');
+    }
+    if (from.item.dirPath !== to.item.dirPath) {
       throw new Error('Cannot link plans across different directories');
     }
 
-    const exported = this.planManager.exportDirectory(from.dirPath);
-    const existing = exported?.dependencies.some((d) => d.fromId === fromId && d.toId === toId);
+    const exported = this.planManager.exportDirectory(from.item.dirPath);
+    const existing = exported?.dependencies.some((d) => d.fromId === from.item.id && d.toId === to.item.id);
     if (existing) {
       throw new Error('Link already exists between these plans');
     }
@@ -211,10 +221,10 @@ export class HelmControlService extends EventEmitter {
     // Check for cycle: adding fromId→toId would create a cycle if toId can already reach fromId
     const deps = exported?.dependencies ?? [];
     const visited = new Set<string>();
-    const stack = [toId];
+    const stack = [to.item.id];
     while (stack.length > 0) {
       const current = stack.pop()!;
-      if (current === fromId) {
+      if (current === from.item.id) {
         throw new Error('Link would create a cycle (circular ordering is not allowed)');
       }
       if (visited.has(current)) continue;
@@ -226,14 +236,22 @@ export class HelmControlService extends EventEmitter {
       }
     }
 
-    const success = this.planManager.addDependency(fromId, toId);
+    const success = this.planManager.addDependency(from.item.id, to.item.id);
     if (!success) {
       throw new Error('Failed to link plans');
     }
   }
 
   unlinkPlans(fromId: string, toId: string): void {
-    const success = this.planManager.removeDependency(fromId, toId);
+    const from = this.resolvePlanRef(fromId, 'Source plan');
+    const to = this.resolvePlanRef(toId, 'Target plan');
+    if (!from) {
+      throw new Error(`Source plan not found: ${fromId}`);
+    }
+    if (!to) {
+      throw new Error(`Target plan not found: ${toId}`);
+    }
+    const success = this.planManager.removeDependency(from.item.id, to.item.id);
     if (!success) {
       throw new Error('Link not found between these plans');
     }
@@ -244,7 +262,8 @@ export class HelmControlService extends EventEmitter {
   }
 
   exportItem(id: string): { item: PlanItem; dependencies: { fromId: string; toId: string }[] } | null {
-    return this.planManager.exportItem(id);
+    const plan = this.resolvePlanRef(id, 'Plan');
+    return plan ? this.planManager.exportItem(plan.item.id) : null;
   }
 
   listDirectories(): DirectorySummary[] {
@@ -382,7 +401,7 @@ export class HelmControlService extends EventEmitter {
       throw new Error(`Session not found: ${sessionRef}`);
     }
 
-    const plan = this.planManager.getItem(planId);
+    const plan = this.resolvePlanRef(planId, 'Plan')?.item;
     if (!plan) {
       throw new Error(`Plan not found: ${planId}`);
     }
@@ -504,6 +523,11 @@ export class HelmControlService extends EventEmitter {
         receiving_responses: 'When expectsResponse=true, Helm pastes [HELM_MSG] envelope as new chat turn in sender session. Reply using session_send_text with sessionId set to the original senderSessionId.',
       },
       agent_plan_guide: {
+        plan_identifier_semantics: [
+          'Values like P-0035 are Helm human-readable plan IDs (PlanItem.humanId), not chat message IDs.',
+          'MCP plan tools accept either the canonical UUID id or the P-00xx humanId wherever a plan id/ref is requested.',
+          'Use plans_summary or plans_list when you need to map between a P-id, canonical UUID, title, status, and dependency context.',
+        ],
         when_to_create_plan: [
           'Create a new Helm plan when you discover follow-up work that should survive the current session or be handled later.',
           'Create a new Helm plan for blockers that need user input, upstream investigation, or another agent, instead of burying them in chat only.',
@@ -572,16 +596,16 @@ export class HelmControlService extends EventEmitter {
   private getAvailableTools(): McpToolSummary[] {
     return [
       { name: 'tools_list', title: 'List CLI Types', description: 'List CLI types configured in Helm and the configured working directories they can be spawned into.' },
-      { name: 'plans_list', title: 'List Plans', description: 'List all plan items for a directory before editing or assigning work.' },
-      { name: 'plans_summary', title: 'Plans Summary', description: 'List compact plan status, human-readable IDs, and dependency relationships before claiming work.' },
-      { name: 'plan_get', title: 'Get Plan', description: 'Get full plan details before changing state, editing content, or asking about a plan.' },
+      { name: 'plans_list', title: 'List Plans', description: 'List all plan items for a directory before editing or assigning work. Returned humanId values such as P-0035 are Helm plan IDs.' },
+      { name: 'plans_summary', title: 'Plans Summary', description: 'List compact plan status, canonical IDs, human-readable P-ids, and dependency relationships before claiming work.' },
+      { name: 'plan_get', title: 'Get Plan', description: 'Get full plan details before changing state, editing content, or asking about a plan. The id argument accepts either UUID or P-00xx humanId.' },
       { name: 'plan_create', title: 'Create Plan', description: `Create durable follow-up or question plans. Descriptions should include: ${REQUIRED_PLAN_DESCRIPTION_SECTIONS.join(', ')}.` },
-      { name: 'plan_update', title: 'Update Plan', description: 'Update a plan title, description, and/or type while preserving existing context unless the edit is intentional.' },
-      { name: 'plan_delete', title: 'Delete Plan', description: 'Delete a plan item.' },
-      { name: 'plan_set_state', title: 'Set Plan State', description: 'Set plan lifecycle state. Pass sessionId when claiming coding work and then call session_set_working_plan.' },
-      { name: 'plan_complete', title: 'Complete Plan', description: 'Mark a coding or review plan as done with documentation of behavior changed, files, tests/review, and remaining risk.' },
-      { name: 'plan_nextplan_link', title: 'Link Next Plan', description: 'Link one plan as a prerequisite for another. For blocker questions, link the QUESTION plan to the original blocked plan.' },
-      { name: 'plan_nextplan_unlink', title: 'Unlink Next Plan', description: 'Remove a prerequisite link between two plan items.' },
+      { name: 'plan_update', title: 'Update Plan', description: 'Update a plan title, description, and/or type while preserving existing context unless the edit is intentional. The id argument accepts UUID or P-00xx humanId.' },
+      { name: 'plan_delete', title: 'Delete Plan', description: 'Delete a plan item by UUID or P-00xx humanId.' },
+      { name: 'plan_set_state', title: 'Set Plan State', description: 'Set plan lifecycle state by UUID or P-00xx humanId. Pass sessionId when claiming coding work and then call session_set_working_plan.' },
+      { name: 'plan_complete', title: 'Complete Plan', description: 'Mark a coding or review plan as done by UUID or P-00xx humanId with documentation of behavior changed, files, tests/review, and remaining risk.' },
+      { name: 'plan_nextplan_link', title: 'Link Next Plan', description: 'Link one plan as a prerequisite for another using UUIDs or P-00xx humanIds. For blocker questions, link the QUESTION plan to the original blocked plan.' },
+      { name: 'plan_nextplan_unlink', title: 'Unlink Next Plan', description: 'Remove a prerequisite link between two plan items using UUIDs or P-00xx humanIds.' },
       { name: 'directories_list', title: 'List Directories', description: 'List known configured working directories before creating plans or sessions.' },
       { name: 'session_create', title: 'Create Session', description: 'Spawn a new CLI session in a configured working directory with a stable display name.' },
       { name: 'sessions_list', title: 'List Sessions', description: 'List currently known Helm sessions, optionally filtered to one working directory.' },
@@ -618,6 +642,18 @@ export class HelmControlService extends EventEmitter {
       currentPlanId: session.currentPlanId,
       windowId: session.windowId,
     };
+  }
+
+  private resolvePlanRef(ref: string, label: string): Extract<PlanRefResolution, { status: 'found' }> | null {
+    const resolution = this.planManager.resolveItemRef(ref);
+    if (resolution.status === 'found') return resolution;
+    if (resolution.status === 'ambiguous') {
+      const matches = resolution.matches
+        .map((item) => `${item.humanId ?? item.id} (${item.id}) in ${item.dirPath}`)
+        .join(', ');
+      throw new Error(`${label} reference is ambiguous: ${ref}. Matching plans: ${matches}`);
+    }
+    return null;
   }
 
   private findSession(sessionRef: string): SessionInfo | null {

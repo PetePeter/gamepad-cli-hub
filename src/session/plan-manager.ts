@@ -23,6 +23,11 @@ const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['coding', 'review', 'blocked']
 const PAUSED_PLAN_STATUSES = new Set<PlanStatus>(['review', 'blocked']);
 const HUMAN_ID_RE = /^P-(\d{4,})$/;
 
+export type PlanRefResolution =
+  | { status: 'found'; item: PlanItem }
+  | { status: 'ambiguous'; matches: PlanItem[] }
+  | { status: 'missing' };
+
 function formatHumanId(value: number): string {
   return `P-${String(value).padStart(4, '0')}`;
 }
@@ -181,6 +186,20 @@ export class PlanManager extends EventEmitter {
   /** Get a single plan item by ID. */
   getItem(id: string): PlanItem | null {
     return this.items.get(id) ?? null;
+  }
+
+  /** Resolve either a canonical UUID plan ID or a human-readable P-00xx plan ID. */
+  resolveItemRef(ref: string): PlanRefResolution {
+    const direct = this.items.get(ref);
+    if (direct) return { status: 'found', item: direct };
+
+    const normalizedRef = ref.trim().toUpperCase();
+    if (!HUMAN_ID_RE.test(normalizedRef)) return { status: 'missing' };
+
+    const matches = [...this.items.values()].filter((item) => item.humanId?.toUpperCase() === normalizedRef);
+    if (matches.length === 1) return { status: 'found', item: matches[0] };
+    if (matches.length > 1) return { status: 'ambiguous', matches };
+    return { status: 'missing' };
   }
 
   /** Get all plan items for a directory. */

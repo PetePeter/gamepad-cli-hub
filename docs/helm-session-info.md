@@ -50,6 +50,7 @@ The tool returns a `SessionInfoResponse` object with these fields:
 ### Agent Plan Guidance
 
 - **`agent_plan_guide`** — Guidance for LLM agents that create, claim, complete, or link Helm plans.
+  - **`plan_identifier_semantics`** — Values like `P-0035` are Helm human-readable plan IDs, and MCP plan tools accept either the canonical UUID or the `P-00xx` human ID.
   - **`when_to_create_plan`** — When follow-up work, blockers, or later cleanup should become durable Helm plans.
   - **`required_description_sections`** — Required plan description headings: `Problem Statement`, `User POV`, `Done Statement`, `Files / Classes Affected`, `TDD Suggestions`, and `Acceptance Criteria`.
   - **`question_plan_workflow`** — Blocking questions should become separate `QUESTION: ...` plans linked to the original task with `plan_nextplan_link`, using the question plan as the prerequisite.
@@ -96,6 +97,9 @@ Response:
       { "path": "X:\\homeassistant", "name": "HomeAssistant" }
     ],
     "agent_plan_guide": {
+      "plan_identifier_semantics": [
+        "Values like P-0035 are Helm human-readable plan IDs..."
+      ],
       "required_description_sections": [
         "Problem Statement",
         "User POV",
@@ -163,6 +167,8 @@ The `available_tools` array lists all MCP tools currently exposed by Helm. Use t
 ### 5. Creating Durable Plans
 
 When an agent discovers follow-up work that should survive the current session, call `plan_create` with a description that includes the required sections from `agent_plan_guide.required_description_sections`. If the agent is blocked by a user question, create a separate plan titled `QUESTION: ...`, put the concrete question at the top of that plan, and link that question plan to the original blocked plan with `plan_nextplan_link` so the question must complete first.
+
+When a user mentions `P-0035` or another `P-00xx` value, treat it as a Helm plan reference. MCP plan tools that accept a plan id also accept these human-readable IDs; use `plans_summary` when you need to map the `P-00xx` value to the canonical UUID, title, status, or dependency context.
 
 ## Environment Variables (at Session Spawn)
 

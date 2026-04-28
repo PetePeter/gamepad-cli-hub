@@ -313,16 +313,16 @@ The MCP server exposes the following tools for external clients:
 | Tool | Description |
 |------|-------------|
 | `tools_list` | List configured CLI types and their supported working directories |
-| `plans_list` | List all plan items for a directory |
-| `plans_summary` | List compact plan status, human-readable IDs, and dependency relationships |
-| `plan_get` | Get a single plan item by ID |
+| `plans_list` | List all plan items for a directory, including human-readable `P-00xx` IDs |
+| `plans_summary` | List compact plan status, canonical IDs, human-readable IDs, and dependency relationships |
+| `plan_get` | Get a single plan item by UUID or `P-00xx` human-readable ID |
 | `plan_create` | Create a durable plan with `Problem Statement`, `User POV`, `Done Statement`, `Files / Classes Affected`, `TDD Suggestions`, and `Acceptance Criteria` sections |
-| `plan_update` | Update a plan item title, description, and/or type |
-| `plan_delete` | Delete a plan item |
-| `plan_set_state` | Set plan state (`planning`/`ready`/`coding`/`review`/`blocked`) |
-| `plan_complete` | Mark a plan item as done with implementation, file, test/review, and risk notes |
-| `plan_nextplan_link` | Link one plan as a prerequisite for another, including `QUESTION: ...` blocker links to original plans |
-| `plan_nextplan_unlink` | Remove a prerequisite link between two plan items |
+| `plan_update` | Update a plan item title, description, and/or type by UUID or `P-00xx` ID |
+| `plan_delete` | Delete a plan item by UUID or `P-00xx` ID |
+| `plan_set_state` | Set plan state (`planning`/`ready`/`coding`/`review`/`blocked`) by UUID or `P-00xx` ID |
+| `plan_complete` | Mark a plan item as done by UUID or `P-00xx` ID with implementation, file, test/review, and risk notes |
+| `plan_nextplan_link` | Link one plan as a prerequisite for another by UUID or `P-00xx` ID, including `QUESTION: ...` blocker links to original plans |
+| `plan_nextplan_unlink` | Remove a prerequisite link between two plan items by UUID or `P-00xx` ID |
 | `directories_list` | List all known working directories |
 | `session_create` | Spawn a new CLI session in a working directory |
 | `sessions_list` | List active Helm sessions |

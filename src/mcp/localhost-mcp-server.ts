@@ -54,7 +54,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plans_list',
     title: 'List Plans',
-    description: 'List all plan items for a directory. Use this before editing or assigning plan work so you can reference the human-readable plan IDs Helm returns.',
+    description: 'List all plan items for a directory. Use this before editing or assigning plan work so you can reference the human-readable P-00xx plan IDs Helm returns.',
     inputSchema: {
       type: 'object',
       properties: { dirPath: { type: 'string' } },
@@ -65,7 +65,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plans_summary',
     title: 'Plans Summary',
-    description: 'List all plans for a directory as a compact summary — status, human-readable ID, title, and dependency relationships. Call this first when orienting to a project so you know what work exists and what is blocked by what. Use plan_get for the full description of a specific plan before claiming, updating, or creating linked follow-ups.',
+    description: 'List all plans for a directory as a compact summary — status, canonical ID, human-readable P-00xx ID, title, and dependency relationships. Call this first when orienting to a project so you know what work exists and what is blocked by what. Use plan_get for the full description of a specific plan before claiming, updating, or creating linked follow-ups.',
     inputSchema: {
       type: 'object',
       properties: { dirPath: { type: 'string' } },
@@ -76,7 +76,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_get',
     title: 'Get Plan',
-    description: 'Get a single plan item by ID. Use this when you need full plan details, including human-readable ID and timestamps, before changing state, preserving existing description content, or discussing a plan with the user.',
+    description: 'Get a single plan item by UUID or P-00xx human-readable ID. Use this when you need full plan details, including human-readable ID and timestamps, before changing state, preserving existing description content, or discussing a plan with the user.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -103,7 +103,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_update',
     title: 'Update Plan',
-    description: 'Update a plan item title, description, and/or type. Set type to "bug", "feature", or "research"; pass null to clear the type.',
+    description: 'Update a plan item title, description, and/or type by UUID or P-00xx human-readable ID. Set type to "bug", "feature", or "research"; pass null to clear the type.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -119,7 +119,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_delete',
     title: 'Delete Plan',
-    description: 'Delete a plan item.',
+    description: 'Delete a plan item by UUID or P-00xx human-readable ID.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -130,7 +130,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_set_state',
     title: 'Set Plan State',
-    description: 'Set a plan item state to planning, ready, coding, review, or blocked. Use this when the lifecycle state itself changed; if you only need the session row to point at the current plan, prefer session_set_working_plan. IMPORTANT: When setting status to "coding", you must pass sessionId to claim ownership. The "planning" and "ready" states automatically clear any previous session owner. "review" and "blocked" preserve existing ownership. Always call session_set_working_plan after claiming a plan to update the session\'s visible working plan.',
+    description: 'Set a plan item state by UUID or P-00xx human-readable ID to planning, ready, coding, review, or blocked. Use this when the lifecycle state itself changed; if you only need the session row to point at the current plan, prefer session_set_working_plan. IMPORTANT: When setting status to "coding", you must pass sessionId to claim ownership. The "planning" and "ready" states automatically clear any previous session owner. "review" and "blocked" preserve existing ownership. Always call session_set_working_plan after claiming a plan to update the session\'s visible working plan.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -146,7 +146,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_complete',
     title: 'Complete Plan',
-    description: 'Mark a coding or review plan item as done. Requires documentation of what was done (minimum 10 characters). Good completion notes summarize implemented behavior, important files changed, tests or review performed, and any remaining risk.',
+    description: 'Mark a coding or review plan item as done by UUID or P-00xx human-readable ID. Requires documentation of what was done (minimum 10 characters). Good completion notes summarize implemented behavior, important files changed, tests or review performed, and any remaining risk.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -160,7 +160,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_reopen',
     title: 'Reopen Plan',
-    description: 'Revert a done plan back to ready or planning based on its current dependencies. Use this to undo an accidental plan_complete call. The plan\'s sessionId is cleared on reopen.',
+    description: 'Revert a done plan back to ready or planning by UUID or P-00xx human-readable ID based on its current dependencies. Use this to undo an accidental plan_complete call. The plan\'s sessionId is cleared on reopen.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -171,7 +171,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_nextplan_link',
     title: 'Link Next Plan',
-    description: 'Link one plan item as a prerequisite for another. A plan can have many outgoing links (to many next plans) and many incoming links (from many previous plans). The source plan must complete before the target plan can start. Use this for blocking questions by linking the separate QUESTION plan to the original blocked plan.',
+    description: 'Link one plan item as a prerequisite for another by UUID or P-00xx human-readable ID. A plan can have many outgoing links (to many next plans) and many incoming links (from many previous plans). The source plan must complete before the target plan can start. Use this for blocking questions by linking the separate QUESTION plan to the original blocked plan.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -185,7 +185,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_nextplan_unlink',
     title: 'Unlink Next Plan',
-    description: 'Remove a prerequisite link between two plan items.',
+    description: 'Remove a prerequisite link between two plan items by UUID or P-00xx human-readable ID.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -283,7 +283,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_set_working_plan',
     title: 'Set Session Working Plan',
-    description: 'Update which plan the session row should show as currently being worked on, assigning the plan to that session when allowed. Call this when the agent has moved on to a different plan item and you want the Helm session list to reflect that explicitly.',
+    description: 'Update which plan the session row should show as currently being worked on, assigning the plan to that session when allowed. planId accepts either the canonical UUID or P-00xx human-readable ID. Call this when the agent has moved on to a different plan item and you want the Helm session list to reflect that explicitly.',
     inputSchema: {
       type: 'object',
       properties: {
