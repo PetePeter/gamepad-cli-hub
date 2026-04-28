@@ -168,7 +168,7 @@ describe('PlanManager', () => {
       expect(pm.getForDirectory('/d')).toHaveLength(0);
     });
 
-    it('removes all edges involving the deleted item', () => {
+    it('rewires a simple dependency chain when deleting the middle item', () => {
       const a = pm.create('/d', 'A', '');
       const b = pm.create('/d', 'B', '');
       const c = pm.create('/d', 'C', '');
@@ -177,10 +177,98 @@ describe('PlanManager', () => {
 
       pm.delete(b.id);
 
-      // c should become startable (its only blocker was deleted)
+      const exported = pm.exportDirectory('/d');
+      expect(exported?.dependencies).toEqual([{ fromId: a.id, toId: c.id }]);
       const cNow = pm.getItem(c.id);
       expect(cNow).not.toBeNull();
-      expect(cNow!.status).toBe('ready');
+      expect(cNow!.status).toBe('planning');
+    });
+
+    it('rewires all valid parent and child dependency pairs', () => {
+      const a = pm.create('/d', 'A', '');
+      const b = pm.create('/d', 'B', '');
+      const middle = pm.create('/d', 'Middle', '');
+      const c = pm.create('/d', 'C', '');
+      const d = pm.create('/d', 'D', '');
+      pm.addDependency(a.id, middle.id);
+      pm.addDependency(b.id, middle.id);
+      pm.addDependency(middle.id, c.id);
+      pm.addDependency(middle.id, d.id);
+
+      pm.delete(middle.id);
+
+      expect(pm.exportDirectory('/d')?.dependencies).toEqual(expect.arrayContaining([
+        { fromId: a.id, toId: c.id },
+        { fromId: a.id, toId: d.id },
+        { fromId: b.id, toId: c.id },
+        { fromId: b.id, toId: d.id },
+      ]));
+      expect(pm.exportDirectory('/d')?.dependencies).toHaveLength(4);
+    });
+
+    it('does not duplicate an existing rewired dependency', () => {
+      const a = pm.create('/d', 'A', '');
+      const b = pm.create('/d', 'B', '');
+      const c = pm.create('/d', 'C', '');
+      pm.addDependency(a.id, b.id);
+      pm.addDependency(b.id, c.id);
+      pm.addDependency(a.id, c.id);
+
+      pm.delete(b.id);
+
+      expect(pm.exportDirectory('/d')?.dependencies).toEqual([{ fromId: a.id, toId: c.id }]);
+    });
+
+    it('skips rewired links that would create a cycle', () => {
+      const a = pm.create('/d', 'A', '');
+      const b = pm.create('/d', 'B', '');
+      const c = pm.create('/d', 'C', '');
+      pm.addDependency(a.id, b.id);
+      pm.addDependency(b.id, c.id);
+      pm.addDependency(c.id, a.id);
+
+      // The cycle candidate is rejected up front, so add the reverse edge by importing a legacy graph.
+      pm.importAll({
+        '/d': {
+          dirPath: '/d',
+          items: [a, b, c],
+          dependencies: [
+            { fromId: a.id, toId: b.id },
+            { fromId: b.id, toId: c.id },
+            { fromId: c.id, toId: a.id },
+          ],
+        },
+      });
+
+      pm.delete(b.id);
+
+      expect(pm.exportDirectory('/d')?.dependencies).toEqual([{ fromId: c.id, toId: a.id }]);
+    });
+
+    it('skips rewired links across directories', () => {
+      const a = pm.create('/a', 'A', '');
+      const b = pm.create('/a', 'B', '');
+      const c = pm.create('/c', 'C', '');
+      pm.importAll({
+        '/a': {
+          dirPath: '/a',
+          items: [a, b],
+          dependencies: [
+            { fromId: a.id, toId: b.id },
+            { fromId: b.id, toId: c.id },
+          ],
+        },
+        '/c': {
+          dirPath: '/c',
+          items: [c],
+          dependencies: [],
+        },
+      });
+
+      pm.delete(b.id);
+
+      expect(pm.exportDirectory('/a')?.dependencies).toEqual([]);
+      expect(pm.exportDirectory('/c')?.dependencies).toEqual([]);
     });
 
     it('returns false for unknown ID', () => {

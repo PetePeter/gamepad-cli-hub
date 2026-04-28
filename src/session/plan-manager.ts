@@ -163,13 +163,24 @@ export class PlanManager extends EventEmitter {
     if (!item) return false;
 
     const dirPath = item.dirPath;
+    const incoming = this.dependencies.filter(d => d.toId === id);
+    const outgoing = this.dependencies.filter(d => d.fromId === id);
     deletePlanFile(id);
     this.items.delete(id);
     this.dependencies = this.dependencies.filter(d => d.fromId !== id && d.toId !== id);
+    let rewired = 0;
+    for (const parent of incoming) {
+      for (const child of outgoing) {
+        if (this.canAddDependency(parent.fromId, child.toId)) {
+          this.dependencies.push({ fromId: parent.fromId, toId: child.toId });
+          rewired++;
+        }
+      }
+    }
     this.recomputeStartable(dirPath);
     this.saveDir(dirPath);
     this.emit('plan:changed', dirPath);
-    logger.info(`[PlanManager] Deleted plan ${id}`);
+    logger.info(`[PlanManager] Deleted plan ${id}; rewired ${rewired} dependency link(s)`);
     return true;
   }
 
@@ -229,16 +240,10 @@ export class PlanManager extends EventEmitter {
 
   /** Add a dependency edge. Returns false if rejected (cycle, self-loop, cross-dir). */
   addDependency(fromId: string, toId: string): boolean {
-    if (fromId === toId) return false;
-
-    const from = this.items.get(fromId);
-    const to = this.items.get(toId);
-    if (!from || !to) return false;
-    if (from.dirPath !== to.dirPath) return false;
-    if (this.dependencies.some(d => d.fromId === fromId && d.toId === toId)) return false;
-    if (this.wouldCreateCycle(fromId, toId)) return false;
+    if (!this.canAddDependency(fromId, toId)) return false;
 
     this.dependencies.push({ fromId, toId });
+    const from = this.items.get(fromId)!;
     this.recomputeStartable(from.dirPath);
     this.saveDir(from.dirPath);
     this.emit('plan:changed', from.dirPath);
@@ -555,6 +560,18 @@ export class PlanManager extends EventEmitter {
       changed = true;
     }
     return changed;
+  }
+
+  private canAddDependency(fromId: string, toId: string): boolean {
+    if (fromId === toId) return false;
+
+    const from = this.items.get(fromId);
+    const to = this.items.get(toId);
+    if (!from || !to) return false;
+    if (from.dirPath !== to.dirPath) return false;
+    if (this.dependencies.some(d => d.fromId === fromId && d.toId === toId)) return false;
+    if (this.wouldCreateCycle(fromId, toId)) return false;
+    return true;
   }
 
   /** Check if adding fromId→toId would create a cycle via DFS. */
