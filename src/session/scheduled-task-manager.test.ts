@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ScheduledTaskManager } from './scheduled-task-manager.js';
+import { saveScheduledTasks } from './persistence.js';
 import type { ScheduledTask, CreateScheduledTaskParams } from '../types/scheduled-task.js';
 
 // ─── Fakes for dependencies ─────────────────────────────────────────────────────
@@ -98,6 +99,7 @@ describe('ScheduledTaskManager', () => {
   afterEach(() => {
     vi.useRealTimers();
     manager.stop();
+    saveScheduledTasks([]);
   });
 
   describe('createTask()', () => {
@@ -137,6 +139,54 @@ describe('ScheduledTaskManager', () => {
 
       manager.createTask(params);
       expect(listener).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('updateTask()', () => {
+    it('should update and reschedule pending tasks', () => {
+      const listener = vi.fn();
+      manager.on('task:changed', listener);
+      const task = manager.createTask({
+        title: 'Original',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() + 10000),
+        dirPath: 'X:\\\\coding\\\\test',
+      });
+
+      const nextTime = new Date(Date.now() + 20000);
+      const updated = manager.updateTask(task.id, {
+        title: 'Updated',
+        initialPrompt: 'Updated prompt',
+        cliType: 'codex',
+        scheduledTime: nextTime,
+      });
+
+      expect(updated).toMatchObject({
+        id: task.id,
+        title: 'Updated',
+        initialPrompt: 'Updated prompt',
+        cliType: 'codex',
+        scheduledTime: nextTime,
+        status: 'pending',
+      });
+      expect(listener).toHaveBeenCalledTimes(2);
+    });
+
+    it('should reject updates for non-pending tasks', () => {
+      const task = manager.createTask({
+        title: 'Original',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() + 10000),
+        dirPath: 'X:\\\\coding\\\\test',
+      });
+      manager.cancelTask(task.id);
+
+      expect(manager.updateTask(task.id, { title: 'Nope' })).toBeNull();
+      expect(manager.getTask(task.id)?.title).toBe('Original');
     });
   });
 

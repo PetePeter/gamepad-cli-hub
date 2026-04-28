@@ -1501,6 +1501,10 @@ async function onScheduledTaskCreated(task: ScheduledTask): Promise<void> {
   console.log('[App] Scheduled task created:', task.title);
 }
 
+async function onScheduledTaskUpdated(task: ScheduledTask): Promise<void> {
+  console.log('[App] Scheduled task updated:', task.title);
+}
+
 async function onScheduledTaskCancelled(taskId: string): Promise<void> {
   console.log('[App] Scheduled task cancelled:', taskId);
 }
@@ -2178,6 +2182,7 @@ onUnmounted(() => {
             <ScheduledTasksTab
               v-else-if="activeTab === 'scheduled-tasks'"
               @task-created="onScheduledTaskCreated"
+              @task-updated="onScheduledTaskUpdated"
               @task-cancelled="onScheduledTaskCancelled"
             />
             <McpTab

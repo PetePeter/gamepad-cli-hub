@@ -33,3 +33,14 @@ export interface CreateScheduledTaskParams {
   scheduledTime: Date;
   dirPath: string;
 }
+
+export interface UpdateScheduledTaskParams {
+  title?: string;
+  description?: string;
+  planIds?: string[];
+  initialPrompt?: string;
+  cliType?: string;
+  cliParams?: string;
+  scheduledTime?: Date;
+  dirPath?: string;
+}

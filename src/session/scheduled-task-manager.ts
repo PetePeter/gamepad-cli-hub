@@ -10,7 +10,7 @@ import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { logger } from '../utils/logger.js';
 import { saveScheduledTasks, loadScheduledTasks } from './persistence.js';
-import type { ScheduledTask, ScheduledTaskStatus, CreateScheduledTaskParams } from '../types/scheduled-task.js';
+import type { ScheduledTask, ScheduledTaskStatus, CreateScheduledTaskParams, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
 import type { SessionManager } from './manager.js';
 import type { PtyManager } from './pty-manager.js';
 import type { PlanManager } from './plan-manager.js';
@@ -64,6 +64,27 @@ export class ScheduledTaskManager extends EventEmitter {
   /** Get a task by ID. */
   getTask(id: string): ScheduledTask | null {
     return this.tasks.get(id) ?? null;
+  }
+
+  /** Update a pending scheduled task and reschedule its timer. */
+  updateTask(id: string, updates: UpdateScheduledTaskParams): ScheduledTask | null {
+    const task = this.tasks.get(id);
+    if (!task || task.status !== 'pending') return null;
+
+    if (updates.title !== undefined) task.title = updates.title;
+    if (Object.prototype.hasOwnProperty.call(updates, 'description')) task.description = updates.description;
+    if (updates.planIds !== undefined) task.planIds = updates.planIds;
+    if (updates.initialPrompt !== undefined) task.initialPrompt = updates.initialPrompt;
+    if (updates.cliType !== undefined) task.cliType = updates.cliType;
+    if (Object.prototype.hasOwnProperty.call(updates, 'cliParams')) task.cliParams = updates.cliParams;
+    if (updates.scheduledTime !== undefined) task.scheduledTime = updates.scheduledTime;
+    if (updates.dirPath !== undefined) task.dirPath = updates.dirPath;
+
+    this.saveTasks();
+    this.scheduleTask(task);
+    this.emit('task:changed', task);
+    logger.info(`[ScheduledTaskManager] Updated task "${task.title}" (${id})`);
+    return task;
   }
 
   /** Cancel a pending task. Returns false if task already executing. */

@@ -7,7 +7,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import type { ScheduledTaskManager } from '../../session/scheduled-task-manager.js';
 import type { WindowManager } from '../window-manager.js';
-import type { CreateScheduledTaskParams } from '../../types/scheduled-task.js';
+import type { CreateScheduledTaskParams, UpdateScheduledTaskParams } from '../../types/scheduled-task.js';
 import { logger } from '../../utils/logger.js';
 
 export function setupScheduledTaskHandlers(
@@ -48,6 +48,15 @@ export function setupScheduledTaskHandlers(
       return taskManager.getTask(id);
     } catch (err) {
       logger.error(`[scheduled_task:get] Failed: ${err}`);
+      return null;
+    }
+  });
+
+  ipcMain.handle('scheduled_task:update', (_event, id: string, updates: UpdateScheduledTaskParams) => {
+    try {
+      return taskManager.updateTask(id, updates);
+    } catch (err) {
+      logger.error(`[scheduled_task:update] Failed: ${err}`);
       return null;
     }
   });

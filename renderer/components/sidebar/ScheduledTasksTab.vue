@@ -15,6 +15,7 @@ import DirPickerModal from '../modals/DirPickerModal.vue';
 
 const emit = defineEmits<{
   'task-created': [task: ScheduledTask];
+  'task-updated': [task: ScheduledTask];
   'task-cancelled': [taskId: string];
 }>();
 
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 const tasks = ref<ScheduledTask[]>([]);
 const creating = ref(false);
 const showCreateForm = ref(false);
+const editingTaskId = ref<string | null>(null);
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
 // Form state
@@ -47,6 +49,7 @@ const availableDirs = ref<{ name: string; path: string }[]>([]);
 const canCreate = computed(() => {
   return formTitle.value.trim() !== '' &&
     formInitialPrompt.value.trim() !== '' &&
+    selectedCliType.value.trim() !== '' &&
     formTime.value !== '' &&
     selectedDirPath.value.trim() !== '';
 });
@@ -95,6 +98,15 @@ function formatTime(date: Date | string): string {
   return d.toLocaleString();
 }
 
+function toLocalDateTimeInputValue(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+  ].join('-') + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 // ---------------------------------------------------------------------------
 // Data loading
 // ---------------------------------------------------------------------------
@@ -113,15 +125,21 @@ async function loadTasks(): Promise<void> {
 function toggleCreateForm(): void {
   showCreateForm.value = !showCreateForm.value;
   if (showCreateForm.value) {
+    startCreateForm();
+  } else {
     resetForm();
-    // Default time to next hour
-    const nextHour = new Date();
-    nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
-    formTime.value = nextHour.toISOString().slice(0, 16);
   }
 }
 
+function startCreateForm(): void {
+  resetForm();
+  const nextHour = new Date();
+  nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
+  formTime.value = toLocalDateTimeInputValue(nextHour);
+}
+
 function resetForm(): void {
+  editingTaskId.value = null;
   formTitle.value = '';
   formDescription.value = '';
   formInitialPrompt.value = '';
@@ -136,8 +154,8 @@ function resetForm(): void {
 // ---------------------------------------------------------------------------
 async function openCliPicker(): Promise<void> {
   try {
-    const clis = await window.gamepadCli.configGetCliTypes() as Array<{ cliType: string }>;
-    availableCliTypes.value = clis.map((c) => c.cliType);
+    const clis = await window.gamepadCli.configGetCliTypes() as string[];
+    availableCliTypes.value = clis;
     cliPickerVisible.value = true;
   } catch {
     // Ignore -- picker won't open
@@ -171,19 +189,22 @@ async function createTask(): Promise<void> {
   if (!canCreate.value) return;
   creating.value = true;
   try {
-    const result = await window.gamepadCli.scheduledTaskCreate({
+    const payload = {
       title: formTitle.value.trim(),
       description: formDescription.value.trim() || undefined,
       planIds: [],
       initialPrompt: formInitialPrompt.value.trim(),
-      cliType: selectedCliType.value || 'claude-code',
+      cliType: selectedCliType.value,
       cliParams: formCliParams.value.trim() || undefined,
       scheduledTime: new Date(formTime.value),
       dirPath: selectedDirPath.value.trim(),
-    });
+    };
+    const result = editingTaskId.value
+      ? await window.gamepadCli.scheduledTaskUpdate(editingTaskId.value, payload)
+      : await window.gamepadCli.scheduledTaskCreate(payload);
 
     if (result) {
-      emit('task-created', result);
+      emit(editingTaskId.value ? 'task-updated' : 'task-created', result);
       showCreateForm.value = false;
       resetForm();
       await loadTasks();
@@ -193,6 +214,18 @@ async function createTask(): Promise<void> {
   } finally {
     creating.value = false;
   }
+}
+
+function editTask(task: ScheduledTask): void {
+  editingTaskId.value = task.id;
+  formTitle.value = task.title;
+  formDescription.value = task.description ?? '';
+  formInitialPrompt.value = task.initialPrompt;
+  selectedCliType.value = task.cliType;
+  selectedDirPath.value = task.dirPath;
+  formCliParams.value = task.cliParams ?? '';
+  formTime.value = toLocalDateTimeInputValue(new Date(task.scheduledTime));
+  showCreateForm.value = true;
 }
 
 async function cancelTask(taskId: string): Promise<void> {
@@ -270,7 +303,7 @@ onUnmounted(() => {
       </div>
 
       <div class="st-form-row st-form-row--picker">
-        <label class="st-label">CLI Type</label>
+        <label class="st-label">CLI Type *</label>
         <button class="st-picker-btn focusable" @click="openCliPicker">
           {{ selectedCliType || 'Select CLI...' }}
         </button>
@@ -308,7 +341,7 @@ onUnmounted(() => {
           :disabled="!canCreate || creating"
           @click="createTask"
         >
-          {{ creating ? 'Creating...' : 'Create' }}
+          {{ creating ? (editingTaskId ? 'Saving...' : 'Creating...') : (editingTaskId ? 'Save' : 'Create') }}
         </button>
       </div>
     </div>
@@ -352,6 +385,13 @@ onUnmounted(() => {
         <div v-if="task.error" class="st-task-error">{{ task.error }}</div>
 
         <div v-if="task.status === 'pending'" class="st-task-actions">
+          <button
+            class="st-btn st-btn--secondary focusable"
+            :disabled="creating"
+            @click="editTask(task)"
+          >
+            Edit
+          </button>
           <button
             class="st-btn st-btn--danger focusable"
             :disabled="creating"
@@ -492,6 +532,14 @@ onUnmounted(() => {
 }
 .st-btn--primary:hover:not(:disabled) { opacity: 0.9; }
 .st-btn--primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.st-btn--secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+.st-btn--secondary:hover:not(:disabled) { border-color: var(--accent-primary); }
 .st-btn--danger {
   background: #ff4444;
   color: white;
@@ -599,5 +647,7 @@ onUnmounted(() => {
 }
 .st-task-actions {
   margin-top: 12px;
+  display: flex;
+  gap: 8px;
 }
 </style>

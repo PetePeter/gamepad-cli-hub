@@ -815,6 +815,18 @@ const gamepadCliAPI = {
   /** Get a single scheduled task by ID */
   scheduledTaskGet: (id: string) => ipcRenderer.invoke('scheduled_task:get', id),
 
+  /** Update a pending scheduled task */
+  scheduledTaskUpdate: (id: string, updates: {
+    title?: string;
+    description?: string;
+    planIds?: string[];
+    initialPrompt?: string;
+    cliType?: string;
+    cliParams?: string;
+    scheduledTime?: Date;
+    dirPath?: string;
+  }) => ipcRenderer.invoke('scheduled_task:update', id, updates),
+
   /** Cancel a pending scheduled task */
   scheduledTaskCancel: (id: string) => ipcRenderer.invoke('scheduled_task:cancel', id),
 
