@@ -363,7 +363,7 @@ export class HelmControlService extends EventEmitter {
       throw new Error(`Plan ${planId} does not belong to session directory ${session.workingDir}`);
     }
     if (plan.status === 'done' || plan.status === 'planning') {
-      throw new Error(`Plan ${planId} is not active or startable`);
+      throw new Error(`Plan ${planId} is not active or ready`);
     }
 
     const planIsAlreadyOwnedBySession =

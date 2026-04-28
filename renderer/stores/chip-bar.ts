@@ -26,7 +26,7 @@ export interface ChipBarPlan {
   id: string;
   title: string;
   type?: 'bug' | 'feature' | 'research';
-  status: 'startable' | 'coding' | 'review' | 'blocked' | 'planning';
+  status: 'ready' | 'coding' | 'review' | 'blocked' | 'planning';
 }
 
 export interface ChipBarAction {
@@ -90,11 +90,11 @@ export const useChipBarStore = defineStore('chip-bar', () => {
     state.draftCounts.set(sessionId, nextDrafts.length);
     state.planCodingCounts.set(
       sessionId,
-      nextPlans.filter((plan) => plan.status !== 'startable').length,
+      nextPlans.filter((plan) => plan.status !== 'ready').length,
     );
     state.planStartableCounts.set(
       sessionId,
-      nextPlans.filter((plan) => plan.status === 'startable').length,
+      nextPlans.filter((plan) => plan.status === 'ready').length,
     );
   }
 
@@ -170,7 +170,7 @@ export const useChipBarStore = defineStore('chip-bar', () => {
           return;
         }
         await deliverBulkText(state.activeSessionId, `${result.path}\n`);
-        if (plan.status === 'startable') {
+        if (plan.status === 'ready') {
           await window.gamepadCli.planApply(planId, state.activeSessionId);
         }
         await refresh(sessionId);
@@ -209,7 +209,7 @@ async function loadPlans(sessionId: string): Promise<ChipBarPlan[]> {
   const session = state.sessions.find((item) => item.id === sessionId);
   const cwd = session?.workingDir ?? '';
   let activePlans: Array<{ id: string; title: string; type?: string; status: string }> = [];
-  let startablePlans: Array<{ id: string; title: string; type?: string }> = [];
+  let readyPlans: Array<{ id: string; title: string; type?: string }> = [];
 
   try {
     if (cwd && window.gamepadCli.planGetAllDoingForDir) {
@@ -223,10 +223,10 @@ async function loadPlans(sessionId: string): Promise<ChipBarPlan[]> {
 
   try {
     if (cwd) {
-      startablePlans = await window.gamepadCli.planStartableForDir(cwd);
+      readyPlans = await window.gamepadCli.planStartableForDir(cwd);
     }
   } catch {
-    startablePlans = [];
+    readyPlans = [];
   }
 
   return [
@@ -238,11 +238,11 @@ async function loadPlans(sessionId: string): Promise<ChipBarPlan[]> {
         type: plan.type as 'bug' | 'feature' | 'research' | undefined,
         status: toChipStatus(plan.status),
       })),
-    ...startablePlans.map((plan) => ({
+    ...readyPlans.map((plan) => ({
       id: plan.id,
       title: plan.title,
       type: plan.type as 'bug' | 'feature' | 'research' | undefined,
-      status: 'startable' as const,
+      status: 'ready' as const,
     })),
   ];
 }
@@ -264,7 +264,7 @@ async function loadActionConfig(): Promise<ChipBarActionConfig> {
 
 function toChipStatus(status: string): ChipBarPlan['status'] {
   if (
-    status === 'startable' ||
+    status === 'ready' ||
     status === 'review' ||
     status === 'blocked' ||
     status === 'planning'

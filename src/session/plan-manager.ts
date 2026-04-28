@@ -285,17 +285,17 @@ export class PlanManager extends EventEmitter {
     return item;
   }
 
-  /** Reopen a done plan — transitions back to startable or pending based on current dependencies. */
+  /** Reopen a done plan — transitions back to ready or planning based on current dependencies. */
   reopenItem(id: string): PlanItem | null {
     const item = this.items.get(id);
     if (!item || item.status !== 'done') return null;
 
     const blockers = this.dependencies
-      .filter(d => d.toId === item.id)
+      .filter(d => d.toId === id)
       .map(d => this.items.get(d.fromId));
     const allBlockersDone = blockers.every(b => b?.status === 'done');
 
-    item.status = allBlockersDone ? 'startable' : 'pending';
+    item.status = allBlockersDone ? 'ready' : 'planning';
     item.sessionId = undefined;
     item.stateInfo = undefined;
     item.updatedAt = Date.now();

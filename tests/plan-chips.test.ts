@@ -83,14 +83,14 @@ describe('Plan chip store integration', () => {
           { id: 'question-1', title: 'Need answer', status: 'blocked', sessionId: 'session-2' },
         ]),
         planStartableForDir: vi.fn().mockResolvedValue([
-          { id: 'start-1', title: 'Ready to start', status: 'startable' },
+          { id: 'start-1', title: 'Ready to start', status: 'ready' },
         ]),
         configGetChipbarActions: vi.fn().mockResolvedValue({ actions: [], inboxDir: '' }),
         planGetItem: vi.fn().mockResolvedValue({
           id: 'start-1',
           title: 'Ready to start',
           description: 'Task desc',
-          status: 'startable',
+          status: 'ready',
           sessionId: 'session-1',
         }),
         planUpdate: vi.fn().mockResolvedValue(undefined),
@@ -103,21 +103,21 @@ describe('Plan chip store integration', () => {
     };
   });
 
-  it('refresh includes active and startable plans and updates counts', async () => {
+  it('refresh includes active and ready plans and updates counts', async () => {
     const store = useChipBarStore();
 
     await store.refresh('session-1');
 
-    expect(store.plans.map((plan) => plan.status)).toEqual(['blocked', 'blocked', 'startable']);
+    expect(store.plans.map((plan) => plan.status)).toEqual(['blocked', 'blocked', 'ready']);
     expect(state.planCodingCounts.get('session-1')).toBe(2);
     expect(state.planStartableCounts.get('session-1')).toBe(1);
   });
 
-  it('openPlan exposes apply/save callbacks for a startable plan', async () => {
+  it('openPlan exposes apply/save callbacks for a ready plan', async () => {
     const store = useChipBarStore();
     window.gamepadCli.planGetAllDoingForDir.mockResolvedValue([]);
     window.gamepadCli.planStartableForDir.mockResolvedValue([
-      { id: 'start-1', title: 'Ready to start', status: 'startable' },
+      { id: 'start-1', title: 'Ready to start', status: 'ready' },
     ]);
 
     await store.refresh('session-1');
@@ -125,7 +125,7 @@ describe('Plan chip store integration', () => {
 
     expect(mockShowPlanInEditor).toHaveBeenCalledWith(
       'session-1',
-      expect.objectContaining({ id: 'start-1', status: 'startable' }),
+      expect.objectContaining({ id: 'start-1', status: 'ready' }),
       expect.objectContaining({ onSave: expect.any(Function), onApply: expect.any(Function) }),
     );
   });

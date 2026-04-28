@@ -178,10 +178,10 @@ function openNodeEditor(item: PlanItem): void {
   planEditorOpener?.(targetSessionId, item, {
     onSave: handleSave,
     onDelete: () => handleDelete(item.id),
-    onDone: item.status === 'doing' || item.status === 'wait-tests'
+    onDone: item.status === 'coding' || item.status === 'review'
       ? () => handleComplete(item.id)
       : undefined,
-    onApply: targetSessionId && (item.status === 'startable' || item.status === 'doing' || item.status === 'wait-tests')
+    onApply: targetSessionId && (item.status === 'ready' || item.status === 'coding' || item.status === 'review')
       ? () => handleApplyFromCanvas(item)
       : undefined,
     onClose: () => { planScreenState.editingId = null; },
@@ -367,8 +367,8 @@ async function handleSave(updates: { title: string; description: string; status:
     const current = getSelectedItem();
     if (current && current.status !== 'done') {
       const targetSessionId = resolvePlanTargetSessionId(current);
-      if (updates.status === 'doing' && !targetSessionId) {
-        showBriefNotice('Select or open a session in this directory before marking a plan as doing');
+      if (updates.status === 'coding' && !targetSessionId) {
+        showBriefNotice('Select or open a session in this directory before marking a plan as coding');
         return;
       }
       await window.gamepadCli.planSetState(
@@ -423,7 +423,7 @@ async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
     }
 
     await deliverBulkText(targetSessionId, `work for you to do is here: ${result.path}\n`);
-    if (item.status === 'startable') {
+    if (item.status === 'ready') {
       await window.gamepadCli.planApply(item.id, targetSessionId);
     }
 
