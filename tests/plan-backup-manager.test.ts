@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PlanManager } from '../src/session/plan-manager.js';
@@ -193,6 +193,63 @@ describe('PlanBackupManager', () => {
 
       const snapshots = backupManager.listSnapshots('/path/with spaces/and-dashes');
       expect(snapshots).toHaveLength(1);
+    });
+  });
+
+  describe('edge cases', () => {
+    it('handles maxSnapshots=1 (keeps only the latest)', () => {
+      backupManager.updateConfig({ maxSnapshots: 1 });
+      backupManager.createSnapshot('/test/dir');
+      backupManager.createSnapshot('/test/dir');
+      backupManager.createSnapshot('/test/dir');
+
+      const snapshots = backupManager.listSnapshots('/test/dir');
+      expect(snapshots).toHaveLength(1);
+    });
+
+    it('handles empty dependencies array in snapshot', () => {
+      mockPlanManager.exportDirectory.mockReturnValue({
+        dirPath: '/test/dir',
+        items: [{ id: 'p1', dirPath: '/test/dir', title: 'Solo', description: 'no deps', status: 'ready', createdAt: 1, updatedAt: 1 }],
+        dependencies: [],
+      });
+
+      const result = backupManager.createSnapshot('/test/dir');
+      expect(result.success).toBe(true);
+      expect(result.metadata!.dependencyCount).toBe(0);
+
+      // Verify restore works with empty deps
+      const restoreResult = backupManager.restoreFromSnapshot(result.snapshotPath!);
+      expect(restoreResult.success).toBe(true);
+      expect(restoreResult.dependencyCount).toBe(0);
+    });
+
+    it('handles corrupt JSON in snapshot file gracefully', () => {
+      // Create a corrupt file in the backup directory
+      const backupDir = join(tempDir, 'plan-backups', 'test_dir');
+      mkdirSync(backupDir, { recursive: true });
+      writeFileSync(join(backupDir, 'snapshot-2024-04-28T09-30-00.000Z-0.json'), '{invalid json}');
+
+      // listSnapshots should skip corrupt files, not throw
+      const snapshots = backupManager.listSnapshots('/test/dir');
+      expect(Array.isArray(snapshots)).toBe(true);
+    });
+  });
+
+  describe('snapshot file content', () => {
+    it('creates valid JSON with correct structure', () => {
+      const result = backupManager.createSnapshot('/test/dir');
+      expect(result.snapshotPath).toBeDefined();
+
+      const content = JSON.parse(readFileSync(result.snapshotPath!, 'utf8'));
+
+      expect(content.metadata).toBeDefined();
+      expect(content.metadata.dirPath).toBe('/test/dir');
+      expect(content.metadata.planCount).toBe(1);
+      expect(content.metadata.status).toBe('complete');
+      expect(content.planData).toBeDefined();
+      expect(content.planData.items).toHaveLength(1);
+      expect(content.planData.dirPath).toBe('/test/dir');
     });
   });
 });
