@@ -1,53 +1,54 @@
 <script setup lang="ts">
 /**
- * ScheduledTasksTab.vue — UI for creating and managing scheduled tasks.
+ * ScheduledTasksTab.vue -- UI for creating and managing scheduled tasks.
  *
  * Features:
- * - Task list showing title, scheduled time, status, cancel button
- * - Create Task form with all required fields
- * - Auto-refresh every 10s
- * - Cancel action for pending tasks
+ * - Task list with countdown timers, status badges, cancel action
+ * - Create Task form with CLI picker (QuickSpawnModal) and directory picker (DirPickerModal)
+ * - Collapsible create form section
+ * - Auto-refresh every 10s with live countdown display
  */
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import type { ScheduledTask } from '../../../src/types/scheduled-task.js';
+import QuickSpawnModal from '../modals/QuickSpawnModal.vue';
+import DirPickerModal from '../modals/DirPickerModal.vue';
 
 const emit = defineEmits<{
   'task-created': [task: ScheduledTask];
   'task-cancelled': [taskId: string];
 }>();
 
+// ---------------------------------------------------------------------------
 // State
+// ---------------------------------------------------------------------------
 const tasks = ref<ScheduledTask[]>([]);
-const loading = ref(false);
+const creating = ref(false);
 const showCreateForm = ref(false);
-const refreshInterval = ref<number | null>(null);
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
 // Form state
 const formTitle = ref('');
 const formDescription = ref('');
-const formPlanIds = ref<string[]>([]);
 const formInitialPrompt = ref('');
-const formCliType = ref('claude-code');
+const selectedCliType = ref('');
+const selectedDirPath = ref('');
 const formCliParams = ref('');
 const formTime = ref('');
-const formDirPath = ref('');
 
-// Available options
-const cliTypes = ['claude-code', 'copilot-cli'];
-const statusColors: Record<ScheduledTask['status'], string> = {
-  pending: '#4488ff',
-  executing: '#44cc44',
-  completed: '#555555',
-  failed: '#ff4444',
-  cancelled: '#999999',
-};
+// Picker modal state
+const cliPickerVisible = ref(false);
+const dirPickerVisible = ref(false);
+const availableCliTypes = ref<string[]>([]);
+const availableDirs = ref<{ name: string; path: string }[]>([]);
 
+// ---------------------------------------------------------------------------
 // Computed
-const formValid = computed(() => {
+// ---------------------------------------------------------------------------
+const canCreate = computed(() => {
   return formTitle.value.trim() !== '' &&
     formInitialPrompt.value.trim() !== '' &&
     formTime.value !== '' &&
-    formDirPath.value.trim() !== '';
+    selectedDirPath.value.trim() !== '';
 });
 
 const sortedTasks = computed(() => {
@@ -56,91 +57,36 @@ const sortedTasks = computed(() => {
   );
 });
 
-// Methods
-async function loadTasks(): Promise<void> {
-  try {
-    const result = await window.gamepadCli.scheduledTaskList();
-    tasks.value = result || [];
-  } catch (error) {
-    console.error('[ScheduledTasksTab] Failed to load tasks:', error);
-  }
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function shortenPath(path: string): string {
+  const parts = path.replace(/\\/g, '/').split('/');
+  if (parts.length <= 2) return path;
+  return '.../' + parts.slice(-2).join('/');
 }
 
-async function refreshTasks(): Promise<void> {
-  loading.value = true;
-  await loadTasks();
-  loading.value = false;
+function formatCountdown(scheduledTime: Date | string): string {
+  const target = new Date(scheduledTime).getTime();
+  const now = Date.now();
+  const diff = target - now;
+  if (diff <= 0) return 'overdue';
+  const hours = Math.floor(diff / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  const secs = Math.floor((diff % 60000) / 1000);
+  if (hours > 0) return `${hours}h ${mins}m`;
+  if (mins > 0) return `${mins}m ${secs}s`;
+  return `${secs}s`;
 }
 
-function openCreateForm(): void {
-  showCreateForm.value = true;
-  // Set default time to next hour
-  const nextHour = new Date();
-  nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
-  formTime.value = nextHour.toISOString().slice(0, 16);
-  // Set default directory from active session
-  const activeSession = (window as any).state?.sessions?.find((s: any) => s.id === (window as any).state?.activeSessionId);
-  if (activeSession?.workingDir) {
-    formDirPath.value = activeSession.workingDir;
-  }
-}
-
-function closeCreateForm(): void {
-  showCreateForm.value = false;
-  resetForm();
-}
-
-function resetForm(): void {
-  formTitle.value = '';
-  formDescription.value = '';
-  formPlanIds.value = [];
-  formInitialPrompt.value = '';
-  formCliType.value = 'claude-code';
-  formCliParams.value = '';
-  formTime.value = '';
-  formDirPath.value = '';
-}
-
-async function submitTask(): Promise<void> {
-  if (!formValid.value) return;
-
-  loading.value = true;
-  try {
-    const result = await window.gamepadCli.scheduledTaskCreate({
-      title: formTitle.value.trim(),
-      description: formDescription.value.trim() || undefined,
-      planIds: formPlanIds.value,
-      initialPrompt: formInitialPrompt.value.trim(),
-      cliType: formCliType.value,
-      cliParams: formCliParams.value.trim() || undefined,
-      scheduledTime: new Date(formTime.value),
-      dirPath: formDirPath.value.trim(),
-    });
-
-    if (result) {
-      emit('task-created', result);
-      closeCreateForm();
-      await refreshTasks();
-    }
-  } catch (error) {
-    console.error('[ScheduledTasksTab] Failed to create task:', error);
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function cancelTask(taskId: string): Promise<void> {
-  loading.value = true;
-  try {
-    const success = await window.gamepadCli.scheduledTaskCancel(taskId);
-    if (success) {
-      emit('task-cancelled', taskId);
-      await refreshTasks();
-    }
-  } catch (error) {
-    console.error('[ScheduledTasksTab] Failed to cancel task:', error);
-  } finally {
-    loading.value = false;
+function getStatusBadge(status: string): { label: string; cssClass: string } {
+  switch (status) {
+    case 'pending': return { label: 'Pending', cssClass: 'badge--pending' };
+    case 'executing': return { label: 'Running', cssClass: 'badge--executing' };
+    case 'completed': return { label: 'Done', cssClass: 'badge--completed' };
+    case 'cancelled': return { label: 'Cancelled', cssClass: 'badge--cancelled' };
+    case 'failed': return { label: 'Failed', cssClass: 'badge--failed' };
+    default: return { label: status, cssClass: '' };
   }
 }
 
@@ -149,27 +95,128 @@ function formatTime(date: Date | string): string {
   return d.toLocaleString();
 }
 
-function formatStatus(status: ScheduledTask['status']): string {
-  const labels: Record<ScheduledTask['status'], string> = {
-    pending: '⏳ Pending',
-    executing: '▶️ Executing',
-    completed: '✅ Completed',
-    failed: '❌ Failed',
-    cancelled: '🚫 Cancelled',
-  };
-  return labels[status];
+// ---------------------------------------------------------------------------
+// Data loading
+// ---------------------------------------------------------------------------
+async function loadTasks(): Promise<void> {
+  try {
+    const result = await window.gamepadCli.scheduledTaskList();
+    tasks.value = result || [];
+  } catch {
+    // Empty on failure -- list will appear empty, user can retry
+  }
 }
 
+// ---------------------------------------------------------------------------
+// Form toggle + reset
+// ---------------------------------------------------------------------------
+function toggleCreateForm(): void {
+  showCreateForm.value = !showCreateForm.value;
+  if (showCreateForm.value) {
+    resetForm();
+    // Default time to next hour
+    const nextHour = new Date();
+    nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
+    formTime.value = nextHour.toISOString().slice(0, 16);
+  }
+}
+
+function resetForm(): void {
+  formTitle.value = '';
+  formDescription.value = '';
+  formInitialPrompt.value = '';
+  selectedCliType.value = '';
+  selectedDirPath.value = '';
+  formCliParams.value = '';
+  formTime.value = '';
+}
+
+// ---------------------------------------------------------------------------
+// Picker modals
+// ---------------------------------------------------------------------------
+async function openCliPicker(): Promise<void> {
+  try {
+    const clis = await window.gamepadCli.configGetCliTypes() as Array<{ cliType: string }>;
+    availableCliTypes.value = clis.map((c) => c.cliType);
+    cliPickerVisible.value = true;
+  } catch {
+    // Ignore -- picker won't open
+  }
+}
+
+function onCliSelected(cliType: string): void {
+  selectedCliType.value = cliType;
+  cliPickerVisible.value = false;
+}
+
+async function openDirPickerModal(): Promise<void> {
+  try {
+    const dirs = await window.gamepadCli.configGetWorkingDirs() as Array<{ path: string; name?: string }>;
+    availableDirs.value = dirs.map((d) => ({ name: d.name ?? d.path, path: d.path }));
+    dirPickerVisible.value = true;
+  } catch {
+    // Ignore -- picker won't open
+  }
+}
+
+function onDirSelected(path: string): void {
+  selectedDirPath.value = path;
+  dirPickerVisible.value = false;
+}
+
+// ---------------------------------------------------------------------------
+// Task CRUD
+// ---------------------------------------------------------------------------
+async function createTask(): Promise<void> {
+  if (!canCreate.value) return;
+  creating.value = true;
+  try {
+    const result = await window.gamepadCli.scheduledTaskCreate({
+      title: formTitle.value.trim(),
+      description: formDescription.value.trim() || undefined,
+      planIds: [],
+      initialPrompt: formInitialPrompt.value.trim(),
+      cliType: selectedCliType.value || 'claude-code',
+      cliParams: formCliParams.value.trim() || undefined,
+      scheduledTime: new Date(formTime.value),
+      dirPath: selectedDirPath.value.trim(),
+    });
+
+    if (result) {
+      emit('task-created', result);
+      showCreateForm.value = false;
+      resetForm();
+      await loadTasks();
+    }
+  } catch {
+    // Silent fail -- form stays open for retry
+  } finally {
+    creating.value = false;
+  }
+}
+
+async function cancelTask(taskId: string): Promise<void> {
+  try {
+    const success = await window.gamepadCli.scheduledTaskCancel(taskId);
+    if (success) {
+      emit('task-cancelled', taskId);
+      await loadTasks();
+    }
+  } catch {
+    // Silent fail
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Lifecycle
-onMounted(() => {
-  loadTasks();
-  refreshInterval.value = window.setInterval(loadTasks, 10000) as unknown as number;
+// ---------------------------------------------------------------------------
+onMounted(async () => {
+  await loadTasks();
+  refreshTimer = setInterval(loadTasks, 10000);
 });
 
 onUnmounted(() => {
-  if (refreshInterval.value !== null) {
-    clearInterval(refreshInterval.value);
-  }
+  if (refreshTimer) clearInterval(refreshTimer);
 });
 </script>
 
@@ -178,19 +225,18 @@ onUnmounted(() => {
     <!-- Header -->
     <div class="st-header">
       <h2 class="st-title">Scheduled Tasks</h2>
+      <span class="st-count">{{ tasks.length }} task{{ tasks.length !== 1 ? 's' : '' }}</span>
       <button
-        v-if="!showCreateForm"
         class="st-create-btn focusable"
-        @click="openCreateForm"
+        :disabled="creating"
+        @click="toggleCreateForm"
       >
-        + Create Task
+        {{ showCreateForm ? 'Cancel' : '+ Create Task' }}
       </button>
     </div>
 
-    <!-- Create Form -->
+    <!-- Create Form (collapsible) -->
     <div v-if="showCreateForm" class="st-form">
-      <h3 class="st-form-title">Create New Task</h3>
-
       <div class="st-form-row">
         <label class="st-label">Title *</label>
         <input
@@ -203,43 +249,38 @@ onUnmounted(() => {
       </div>
 
       <div class="st-form-row">
-        <label class="st-label">Description</label>
+        <label class="st-label">Description (optional)</label>
         <input
           v-model="formDescription"
           type="text"
           class="st-input focusable"
-          placeholder="Optional description"
+          placeholder="What this task does"
           maxlength="500"
         />
       </div>
 
       <div class="st-form-row">
-        <label class="st-label">Initial Prompt *</label>
+        <label class="st-label">Prompt *</label>
         <textarea
           v-model="formInitialPrompt"
           class="st-textarea focusable"
-          placeholder="What should the CLI work on?"
+          placeholder="What to send to the CLI"
           rows="3"
         />
       </div>
 
-      <div class="st-form-row">
-        <label class="st-label">CLI Type *</label>
-        <select v-model="formCliType" class="st-select focusable">
-          <option v-for="type in cliTypes" :key="type" :value="type">
-            {{ type === 'claude-code' ? 'Claude Code' : 'Copilot CLI' }}
-          </option>
-        </select>
+      <div class="st-form-row st-form-row--picker">
+        <label class="st-label">CLI Type</label>
+        <button class="st-picker-btn focusable" @click="openCliPicker">
+          {{ selectedCliType || 'Select CLI...' }}
+        </button>
       </div>
 
-      <div class="st-form-row">
-        <label class="st-label">CLI Params</label>
-        <input
-          v-model="formCliParams"
-          type="text"
-          class="st-input focusable"
-          placeholder="Optional CLI parameters"
-        />
+      <div class="st-form-row st-form-row--picker">
+        <label class="st-label">Working Directory *</label>
+        <button class="st-picker-btn focusable" @click="openDirPickerModal">
+          {{ selectedDirPath ? shortenPath(selectedDirPath) : 'Select Directory...' }}
+        </button>
       </div>
 
       <div class="st-form-row">
@@ -252,90 +293,68 @@ onUnmounted(() => {
       </div>
 
       <div class="st-form-row">
-        <label class="st-label">Working Directory *</label>
+        <label class="st-label">CLI Params (optional)</label>
         <input
-          v-model="formDirPath"
+          v-model="formCliParams"
           type="text"
           class="st-input focusable"
-          placeholder="X:\\path\\to\\project"
+          placeholder="Additional CLI arguments"
         />
       </div>
 
       <div class="st-form-actions">
         <button
           class="st-btn st-btn--primary focusable"
-          :disabled="!formValid || loading"
-          @click="submitTask"
+          :disabled="!canCreate || creating"
+          @click="createTask"
         >
-          Create Task
-        </button>
-        <button
-          class="st-btn st-btn--secondary focusable"
-          :disabled="loading"
-          @click="closeCreateForm"
-        >
-          Cancel
+          {{ creating ? 'Creating...' : 'Create' }}
         </button>
       </div>
     </div>
 
     <!-- Task List -->
-    <div v-if="!showCreateForm" class="st-task-list">
-      <div v-if="loading && tasks.length === 0" class="st-loading">
-        Loading tasks...
-      </div>
-
-      <div v-else-if="sortedTasks.length === 0" class="st-empty">
-        No scheduled tasks. Click "Create Task" to add one.
+    <div class="st-task-list">
+      <div v-if="sortedTasks.length === 0" class="st-empty">
+        No scheduled tasks yet. Click "+ Create Task" to add one.
       </div>
 
       <div
         v-for="task in sortedTasks"
         :key="task.id"
         class="st-task-card"
-        :style="{ borderLeftColor: statusColors[task.status] }"
+        :class="'st-task-card--' + task.status"
       >
         <div class="st-task-header">
           <h4 class="st-task-title">{{ task.title }}</h4>
           <span
-            class="st-task-status"
-            :style="{ color: statusColors[task.status] }"
+            class="st-task-badge"
+            :class="getStatusBadge(task.status).cssClass"
           >
-            {{ formatStatus(task.status) }}
+            {{ getStatusBadge(task.status).label }}
           </span>
         </div>
 
-        <div v-if="task.description" class="st-task-description">
-          {{ task.description }}
+        <p v-if="task.description" class="st-task-description">{{ task.description }}</p>
+
+        <div class="st-task-meta">
+          <span class="st-task-chip">{{ task.cliType }}</span>
+          <span class="st-task-chip">{{ shortenPath(task.dirPath) }}</span>
+          <span v-if="task.status === 'pending'" class="st-task-countdown">
+            {{ formatCountdown(task.scheduledTime) }}
+          </span>
+          <span v-else-if="task.status === 'executing'" class="st-task-countdown st-task-countdown--running">
+            running...
+          </span>
+          <span v-else class="st-task-time">{{ formatTime(task.scheduledTime) }}</span>
         </div>
 
-        <div class="st-task-details">
-          <div class="st-task-detail">
-            <span class="st-detail-label">⏰</span>
-            <span>{{ formatTime(task.scheduledTime) }}</span>
-          </div>
-          <div class="st-task-detail">
-            <span class="st-detail-label">🖥️</span>
-            <span>{{ task.cliType }}</span>
-          </div>
-          <div class="st-task-detail">
-            <span class="st-detail-label">📁</span>
-            <span class="st-detail-value">{{ task.dirPath }}</span>
-          </div>
-        </div>
-
-        <div v-if="task.sessionId" class="st-task-session">
-          Session: <code>{{ task.sessionId }}</code>
-        </div>
-
-        <div v-if="task.error" class="st-task-error">
-          ❌ {{ task.error }}
-        </div>
+        <div v-if="task.error" class="st-task-error">{{ task.error }}</div>
 
         <div v-if="task.status === 'pending'" class="st-task-actions">
           <button
             class="st-btn st-btn--danger focusable"
-            :disabled="loading"
+            :disabled="creating"
             @click="cancelTask(task.id)"
           >
             Cancel Task
@@ -343,6 +362,23 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- Inline picker modals (self-contained, not via App.vue bridge) -->
+    <QuickSpawnModal
+      :visible="cliPickerVisible"
+      :cli-types="availableCliTypes"
+      @select="onCliSelected"
+      @cancel="cliPickerVisible = false"
+      @update:visible="cliPickerVisible = $event"
+    />
+    <DirPickerModal
+      :visible="dirPickerVisible"
+      :cli-type="selectedCliType || ''"
+      :items="availableDirs"
+      @select="onDirSelected"
+      @cancel="dirPickerVisible = false"
+      @update:visible="dirPickerVisible = $event"
+    />
   </div>
 </template>
 
@@ -353,20 +389,24 @@ onUnmounted(() => {
   margin: 0 auto;
 }
 
+/* Header */
 .st-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 12px;
   margin-bottom: 20px;
 }
-
 .st-title {
   margin: 0;
   font-size: 1.5rem;
   color: var(--text-primary);
 }
-
+.st-count {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
 .st-create-btn {
+  margin-left: auto;
   padding: 8px 16px;
   background: var(--accent-primary);
   color: white;
@@ -374,41 +414,35 @@ onUnmounted(() => {
   border-radius: 4px;
   cursor: pointer;
   font-weight: 500;
+  font-size: 0.9rem;
 }
+.st-create-btn:hover { opacity: 0.9; }
+.st-create-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.st-create-btn:hover {
-  opacity: 0.9;
-}
-
+/* Form */
 .st-form {
   background: var(--bg-secondary);
   padding: 20px;
   border-radius: 8px;
   margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
-
-.st-form-title {
-  margin: 0 0 16px 0;
-  font-size: 1.2rem;
-  color: var(--text-primary);
-}
-
 .st-form-row {
-  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
-
 .st-label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
+  font-size: 0.8rem;
   font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
-
 .st-input,
-.st-select,
 .st-textarea {
-  width: 100%;
   padding: 8px 12px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
@@ -417,19 +451,33 @@ onUnmounted(() => {
   font-size: 0.95rem;
   box-sizing: border-box;
 }
-
 .st-textarea {
   resize: vertical;
-  min-height: 80px;
+  min-height: 60px;
   font-family: inherit;
 }
-
+.st-form-row--picker {
+  margin-bottom: 2px;
+}
+.st-picker-btn {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.st-picker-btn:hover {
+  border-color: var(--accent-primary);
+}
 .st-form-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 20px;
+  margin-top: 4px;
 }
 
+/* Buttons */
 .st-btn {
   padding: 10px 20px;
   border: none;
@@ -438,128 +486,109 @@ onUnmounted(() => {
   font-weight: 500;
   font-size: 0.95rem;
 }
-
 .st-btn--primary {
   background: var(--accent-primary);
   color: white;
 }
-
-.st-btn--primary:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
-.st-btn--primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.st-btn--secondary {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.st-btn--secondary:hover:not(:disabled) {
-  background: var(--border-color);
-}
-
+.st-btn--primary:hover:not(:disabled) { opacity: 0.9; }
+.st-btn--primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .st-btn--danger {
   background: #ff4444;
   color: white;
   padding: 6px 12px;
   font-size: 0.85rem;
 }
+.st-btn--danger:hover:not(:disabled) { background: #cc0000; }
 
-.st-btn--danger:hover:not(:disabled) {
-  background: #cc0000;
+/* Task list */
+.st-empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-secondary);
 }
-
 .st-task-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.st-loading,
-.st-empty {
-  text-align: center;
-  padding: 40px;
-  color: var(--text-secondary);
-}
-
+/* Task card */
 .st-task-card {
   background: var(--bg-secondary);
   border-radius: 8px;
   padding: 16px;
-  border-left: 4px solid transparent;
+  border-left: 4px solid var(--text-secondary);
 }
+.st-task-card--pending { border-left-color: #4488ff; }
+.st-task-card--executing { border-left-color: #ff9f1a; }
+.st-task-card--completed { border-left-color: #44cc44; opacity: 0.6; }
+.st-task-card--cancelled { border-left-color: #555; opacity: 0.5; }
+.st-task-card--failed { border-left-color: #ff4444; }
 
 .st-task-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 8px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
 }
-
 .st-task-title {
   margin: 0;
   font-size: 1.1rem;
-  color: var(--text-primary);
-}
-
-.st-task-status {
-  font-size: 0.85rem;
   font-weight: 500;
-  white-space: nowrap;
-}
-
-.st-task-description {
-  color: var(--text-secondary);
-  margin-bottom: 12px;
-  font-size: 0.95rem;
-}
-
-.st-task-details {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.st-task-detail {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.st-detail-label {
-  font-size: 1rem;
-}
-
-.st-detail-value {
-  font-family: monospace;
-  font-size: 0.85rem;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.st-task-session {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-color);
-  font-size: 0.85rem;
+/* Status badge */
+.st-task-badge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.badge--pending { background: rgba(68,136,255,0.15); color: #4488ff; }
+.badge--executing { background: rgba(255,159,26,0.15); color: #ff9f1a; }
+.badge--completed { background: rgba(68,204,68,0.15); color: #44cc44; }
+.badge--cancelled { background: rgba(85,85,85,0.15); color: #555; }
+.badge--failed { background: rgba(255,68,68,0.15); color: #ff4444; }
+
+.st-task-description {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.st-task-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.st-task-chip {
+  background: var(--bg-tertiary);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.st-task-countdown {
+  margin-left: auto;
+  font-weight: 500;
+  color: var(--accent-primary);
+}
+.st-task-countdown--running {
+  color: #ff9f1a;
+}
+.st-task-time {
+  margin-left: auto;
   color: var(--text-secondary);
 }
-
-.st-task-session code {
-  background: var(--bg-tertiary);
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-family: monospace;
-}
-
 .st-task-error {
   margin-top: 8px;
   padding: 8px;
@@ -568,7 +597,6 @@ onUnmounted(() => {
   color: #ff4444;
   font-size: 0.9rem;
 }
-
 .st-task-actions {
   margin-top: 12px;
 }
