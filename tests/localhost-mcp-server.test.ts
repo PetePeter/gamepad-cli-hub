@@ -21,6 +21,22 @@ function makeService(): HelmControlService {
     setPlanState: vi.fn((id: string, status: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status })),
     linkPlans: vi.fn(),
     unlinkPlans: vi.fn(),
+    listPlanAttachments: vi.fn(() => [{ id: 'a1', planId: 'p1', filename: 'note.txt', sizeBytes: 5, relativePath: 'p1/a1.txt', createdAt: 1, updatedAt: 1 }]),
+    addPlanAttachment: vi.fn((planId: string, input: { filename: string; text?: string; contentBase64?: string; contentType?: string }) => ({
+      id: 'a1',
+      planId,
+      filename: input.filename,
+      ...(input.contentType ? { contentType: input.contentType } : {}),
+      sizeBytes: input.text?.length ?? 3,
+      relativePath: `${planId}/a1.txt`,
+      createdAt: 1,
+      updatedAt: 1,
+    })),
+    deletePlanAttachment: vi.fn(() => true),
+    getPlanAttachment: vi.fn((planId: string, attachmentId: string) => ({
+      attachment: { id: attachmentId, planId, filename: 'note.txt', sizeBytes: 5, relativePath: `${planId}/${attachmentId}.txt`, createdAt: 1, updatedAt: 1 },
+      tempPath: 'C:\\Temp\\helm-attachment-a1-note.txt',
+    })),
     exportDirectory: vi.fn((dirPath: string) => ({ dirPath, items: [], dependencies: [] })),
     exportItem: vi.fn((id: string) => ({ item: { id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'ready' }, dependencies: [] })),
     spawnCli: vi.fn((cliType: string, dirPath: string, name: string) => ({ id: 's2', name, cliType, workingDir: dirPath })),
@@ -120,6 +136,8 @@ describe('LocalhostMcpServer', () => {
     const planNextLinkTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_nextplan_link');
     const planSetStateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_set_state');
     const readTerminalTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'session_read_terminal');
+    const attachmentAddTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_attachment_add');
+    const attachmentGetTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_attachment_get');
     expect(planCreateTool.description).toContain('Problem Statement');
     expect(planCreateTool.description).toContain('Acceptance Criteria');
     expect(planCreateTool.description).toContain('QUESTION:');
@@ -134,6 +152,10 @@ describe('LocalhostMcpServer', () => {
     expect(planSetStateTool.description).toContain('session_set_working_plan');
     expect(readTerminalTool.description).toContain('terminal tail');
     expect(readTerminalTool.description).toContain('raw ANSI');
+    expect(attachmentAddTool.description).toContain('10MB');
+    expect(attachmentAddTool.description).toContain('Helm config');
+    expect(attachmentGetTool.description).toContain('temp file');
+    expect(attachmentGetTool.description).toContain('inline');
   });
 
   it('dispatches tool calls into the shared service', async () => {
@@ -300,6 +322,70 @@ describe('LocalhostMcpServer', () => {
     const updateJson = await updateResponse.json();
     expect((service.updatePlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('p1', { type: 'research' });
     expect(updateJson.result.structuredContent.type).toBe('research');
+  });
+
+  it('dispatches plan attachment tools through the MCP surface', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const addResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 60,
+      method: 'tools/call',
+      params: {
+        name: 'plan_attachment_add',
+        arguments: { planId: 'P-0001', filename: 'note.txt', text: 'hello', contentType: 'text/plain' },
+      },
+    });
+    const addJson = await addResponse.json();
+    expect((service.addPlanAttachment as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('P-0001', {
+      filename: 'note.txt',
+      text: 'hello',
+      contentType: 'text/plain',
+    });
+    expect(addJson.result.structuredContent).toMatchObject({ id: 'a1', planId: 'P-0001', filename: 'note.txt' });
+
+    const listResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 61,
+      method: 'tools/call',
+      params: {
+        name: 'plan_attachment_list',
+        arguments: { planId: 'P-0001' },
+      },
+    });
+    const listJson = await listResponse.json();
+    expect((service.listPlanAttachments as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('P-0001');
+    expect(listJson.result.structuredContent.items[0].id).toBe('a1');
+
+    const getResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 62,
+      method: 'tools/call',
+      params: {
+        name: 'plan_attachment_get',
+        arguments: { planId: 'P-0001', attachmentId: 'a1' },
+      },
+    });
+    const getJson = await getResponse.json();
+    expect((service.getPlanAttachment as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('P-0001', 'a1');
+    expect(getJson.result.structuredContent.tempPath).toContain('helm-attachment');
+
+    const deleteResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 63,
+      method: 'tools/call',
+      params: {
+        name: 'plan_attachment_delete',
+        arguments: { planId: 'P-0001', attachmentId: 'a1' },
+      },
+    });
+    const deleteJson = await deleteResponse.json();
+    expect((service.deletePlanAttachment as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('P-0001', 'a1');
+    expect(deleteJson.result.structuredContent).toEqual({ deleted: true });
   });
 
   it('clears plan type through plan_update when type is null', async () => {

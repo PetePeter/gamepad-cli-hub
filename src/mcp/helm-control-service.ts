@@ -7,7 +7,9 @@ import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { TerminalOutputMode } from '../session/terminal-output-buffer.js';
 import type { PlanItem, PlanStatus, PlanType } from '../types/plan.js';
+import type { PlanAttachment, PlanAttachmentTempFile } from '../types/plan-attachment.js';
 import type { SessionInfo } from '../types/session.js';
+import { PlanAttachmentManager } from '../session/plan-attachment-manager.js';
 import { mintSessionAuthToken } from './session-auth.js';
 
 export interface SessionSummary {
@@ -118,6 +120,7 @@ export class HelmControlService extends EventEmitter {
     private readonly sessionManager: SessionManager,
     private readonly ptyManager: PtyManager,
     private readonly configLoader: ConfigLoader,
+    private readonly attachmentManager: PlanAttachmentManager = new PlanAttachmentManager(planManager),
   ) {
     super();
   }
@@ -184,7 +187,12 @@ export class HelmControlService extends EventEmitter {
 
   deletePlan(id: string): boolean {
     const plan = this.resolvePlanRef(id, 'Plan');
-    return plan ? this.planManager.delete(plan.item.id) : false;
+    if (!plan) return false;
+    const deleted = this.planManager.delete(plan.item.id);
+    if (deleted) {
+      this.attachmentManager.deletePlanAttachments(plan.item.id);
+    }
+    return deleted;
   }
 
   completePlan(id: string, completionNotes?: string): PlanItem | null {
@@ -281,6 +289,53 @@ export class HelmControlService extends EventEmitter {
   exportItem(id: string): { item: PlanItem; dependencies: { fromId: string; toId: string }[] } | null {
     const plan = this.resolvePlanRef(id, 'Plan');
     return plan ? this.planManager.exportItem(plan.item.id) : null;
+  }
+
+  listPlanAttachments(planRef: string): PlanAttachment[] {
+    const plan = this.resolvePlanRef(planRef, 'Plan');
+    if (!plan) {
+      throw new Error(`Plan not found: ${planRef}`);
+    }
+    return this.attachmentManager.list(plan.item.id);
+  }
+
+  addPlanAttachment(
+    planRef: string,
+    input: { filename: string; contentBase64?: string; text?: string; contentType?: string },
+  ): PlanAttachment {
+    const plan = this.resolvePlanRef(planRef, 'Plan');
+    if (!plan) {
+      throw new Error(`Plan not found: ${planRef}`);
+    }
+    const hasBase64 = typeof input.contentBase64 === 'string';
+    const hasText = typeof input.text === 'string';
+    if (hasBase64 === hasText) {
+      throw new Error('Provide exactly one of contentBase64 or text');
+    }
+    const content = hasBase64
+      ? decodeBase64Content(input.contentBase64!)
+      : Buffer.from(input.text!, 'utf8');
+    return this.attachmentManager.add(plan.item.id, {
+      filename: input.filename,
+      content,
+      ...(input.contentType ? { contentType: input.contentType } : {}),
+    });
+  }
+
+  deletePlanAttachment(planRef: string, attachmentId: string): boolean {
+    const plan = this.resolvePlanRef(planRef, 'Plan');
+    if (!plan) {
+      throw new Error(`Plan not found: ${planRef}`);
+    }
+    return this.attachmentManager.delete(plan.item.id, attachmentId);
+  }
+
+  getPlanAttachment(planRef: string, attachmentId: string): PlanAttachmentTempFile {
+    const plan = this.resolvePlanRef(planRef, 'Plan');
+    if (!plan) {
+      throw new Error(`Plan not found: ${planRef}`);
+    }
+    return this.attachmentManager.getToTempFile(plan.item.id, attachmentId);
   }
 
   listDirectories(): DirectorySummary[] {
@@ -659,6 +714,10 @@ export class HelmControlService extends EventEmitter {
       { name: 'plan_complete', title: 'Complete Plan', description: 'Mark a coding or review plan as done by UUID or P-00xx humanId with documentation of behavior changed, files, tests/review, and remaining risk.' },
       { name: 'plan_nextplan_link', title: 'Link Next Plan', description: 'Link one plan as a prerequisite for another using UUIDs or P-00xx humanIds. For blocker questions, link the QUESTION plan to the original blocked plan.' },
       { name: 'plan_nextplan_unlink', title: 'Unlink Next Plan', description: 'Remove a prerequisite link between two plan items using UUIDs or P-00xx humanIds.' },
+      { name: 'plan_attachment_list', title: 'List Plan Attachments', description: 'List files attached to a plan by UUID or P-00xx humanId.' },
+      { name: 'plan_attachment_add', title: 'Add Plan Attachment', description: 'Attach text, JSON, image, or binary content up to 10MB to a plan. Binary content is supplied as base64 and stored inside Helm config.' },
+      { name: 'plan_attachment_delete', title: 'Delete Plan Attachment', description: 'Delete one stored attachment from a plan by attachment ID.' },
+      { name: 'plan_attachment_get', title: 'Get Plan Attachment Temp File', description: 'Copy an attachment to a Helm temp file and return the local temp path instead of inline content.' },
       { name: 'directories_list', title: 'List Directories', description: 'List known configured working directories before creating plans or sessions.' },
       { name: 'session_create', title: 'Create Session', description: 'Spawn a new CLI session in a configured working directory with a stable display name.' },
       { name: 'sessions_list', title: 'List Sessions', description: 'List currently known Helm sessions, optionally filtered to one working directory.' },
@@ -770,4 +829,12 @@ function requireResult<T>(value: T | null, message: string): T {
     throw new Error(message);
   }
   return value;
+}
+
+function decodeBase64Content(value: string): Buffer {
+  const normalized = value.replace(/\s/g, '');
+  if (normalized.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) {
+    throw new Error('contentBase64 must be valid base64');
+  }
+  return Buffer.from(normalized, 'base64');
 }

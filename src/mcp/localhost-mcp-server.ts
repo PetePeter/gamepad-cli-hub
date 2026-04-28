@@ -197,6 +197,64 @@ const TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'plan_attachment_list',
+    title: 'List Plan Attachments',
+    description: 'List files attached to a plan by UUID or P-00xx human-readable ID. Attachments are stored inside Helm config, not as fragile external references.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        planId: { type: 'string' },
+      },
+      required: ['planId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'plan_attachment_add',
+    title: 'Add Plan Attachment',
+    description: 'Attach text, JSON, image, or arbitrary binary content up to 10MB to a plan by UUID or P-00xx human-readable ID. Provide exactly one of text or contentBase64. The file is copied into Helm config-managed storage.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        planId: { type: 'string' },
+        filename: { type: 'string' },
+        text: { type: 'string' },
+        contentBase64: { type: 'string' },
+        contentType: { type: 'string' },
+      },
+      required: ['planId', 'filename'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'plan_attachment_delete',
+    title: 'Delete Plan Attachment',
+    description: 'Delete a stored attachment from a plan by UUID or P-00xx human-readable ID and attachmentId.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        planId: { type: 'string' },
+        attachmentId: { type: 'string' },
+      },
+      required: ['planId', 'attachmentId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'plan_attachment_get',
+    title: 'Get Plan Attachment Temp File',
+    description: 'Copy a stored attachment to a Helm temp file and return the tempPath plus metadata. This avoids inline raw or base64 content in MCP responses.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        planId: { type: 'string' },
+        attachmentId: { type: 'string' },
+      },
+      required: ['planId', 'attachmentId'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'directories_list',
     title: 'List Directories',
     description: 'List known working directories, including configured folders and directories that currently have plans or sessions. Call this when you need to discover which project directories Helm knows about before creating plans or sessions.',
@@ -585,6 +643,33 @@ export class LocalhostMcpServer {
           asString(args.toId, 'toId is required'),
         );
         return { unlinked: true };
+      case 'plan_attachment_list':
+        return this.service.listPlanAttachments(asString(args.planId, 'planId is required'));
+      case 'plan_attachment_add':
+        return this.service.addPlanAttachment(
+          asString(args.planId, 'planId is required'),
+          {
+            filename: asString(args.filename, 'filename is required'),
+            ...(typeof args.text === 'string' ? { text: args.text } : {}),
+            ...(typeof args.contentBase64 === 'string' ? { contentBase64: args.contentBase64 } : {}),
+            ...(typeof args.contentType === 'string' ? { contentType: args.contentType } : {}),
+          },
+        );
+      case 'plan_attachment_delete':
+        return {
+          deleted: requireBooleanResult(
+            this.service.deletePlanAttachment(
+              asString(args.planId, 'planId is required'),
+              asString(args.attachmentId, 'attachmentId is required'),
+            ),
+            `Attachment not found: ${asString(args.attachmentId, 'attachmentId is required')}`,
+          ),
+        };
+      case 'plan_attachment_get':
+        return this.service.getPlanAttachment(
+          asString(args.planId, 'planId is required'),
+          asString(args.attachmentId, 'attachmentId is required'),
+        );
       case 'directories_list':
         return this.service.listDirectories();
       case 'session_create':

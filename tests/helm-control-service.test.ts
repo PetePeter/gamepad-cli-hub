@@ -51,7 +51,7 @@ function makeService() {
     configLoader as unknown as import('../src/config/loader.js').ConfigLoader,
   );
 
-  return { service, ptyManager, sessionManager, configLoader };
+  return { service, ptyManager, sessionManager, configLoader, planManager };
 }
 
 describe('HelmControlService.sendTextToSession', () => {
@@ -322,6 +322,77 @@ describe('HelmControlService.readSessionTerminal', () => {
   it('rejects invalid line counts', () => {
     const { service } = makeService();
     expect(() => service.readSessionTerminal('s1', 0, 'raw')).toThrow('lines must be an integer from 1 to 100');
+  });
+});
+
+describe('HelmControlService plan attachments', () => {
+  it('resolves P-id plan refs before calling the attachment manager', () => {
+    const { planManager, sessionManager, ptyManager, configLoader } = makeService();
+    const plan = { id: 'plan-1', humanId: 'P-0001', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready' };
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
+    const attachmentManager = {
+      list: vi.fn(() => []),
+      add: vi.fn((_planId: string, input: { filename: string; content: Buffer; contentType?: string }) => ({
+        id: 'a1',
+        planId: 'plan-1',
+        filename: input.filename,
+        sizeBytes: input.content.byteLength,
+        relativePath: 'plan-1/a1.txt',
+        createdAt: 1,
+        updatedAt: 1,
+      })),
+      delete: vi.fn(() => true),
+      getToTempFile: vi.fn(),
+      deletePlanAttachments: vi.fn(),
+    };
+    const service = new HelmControlService(
+      planManager as unknown as import('../src/session/plan-manager.js').PlanManager,
+      sessionManager as unknown as import('../src/session/manager.js').SessionManager,
+      ptyManager as unknown as import('../src/session/pty-manager.js').PtyManager,
+      configLoader as unknown as import('../src/config/loader.js').ConfigLoader,
+      attachmentManager as any,
+    );
+
+    const attachment = service.addPlanAttachment('P-0001', {
+      filename: 'note.txt',
+      text: 'hello',
+      contentType: 'text/plain',
+    });
+
+    expect(attachmentManager.add).toHaveBeenCalledWith('plan-1', {
+      filename: 'note.txt',
+      content: Buffer.from('hello', 'utf8'),
+      contentType: 'text/plain',
+    });
+    expect(attachment.sizeBytes).toBe(5);
+  });
+
+  it('requires exactly one attachment content input', () => {
+    const { service, planManager } = makeService();
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({
+      status: 'found',
+      item: { id: 'plan-1', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready' },
+    });
+
+    expect(() => service.addPlanAttachment('plan-1', { filename: 'empty.txt' })).toThrow('exactly one');
+    expect(() => service.addPlanAttachment('plan-1', {
+      filename: 'double.txt',
+      text: 'hello',
+      contentBase64: Buffer.from('hello').toString('base64'),
+    })).toThrow('exactly one');
+  });
+
+  it('rejects invalid base64 attachment input before writing', () => {
+    const { service, planManager } = makeService();
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({
+      status: 'found',
+      item: { id: 'plan-1', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready' },
+    });
+
+    expect(() => service.addPlanAttachment('plan-1', {
+      filename: 'bad.bin',
+      contentBase64: 'not base64!',
+    })).toThrow('valid base64');
   });
 });
 
