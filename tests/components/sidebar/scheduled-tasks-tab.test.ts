@@ -139,4 +139,67 @@ describe('ScheduledTasksTab', () => {
     }));
     expect(mockScheduledTaskCreate).not.toHaveBeenCalled();
   });
+
+  it('submits interval scheduling options', async () => {
+    const wrapper = mountTab();
+    await flushPromises();
+    await wrapper.find('.st-create-btn').trigger('click');
+
+    const inputs = wrapper.findAll('.st-input');
+    await inputs[0].setValue('Recurring');
+    await wrapper.find('textarea').setValue('Prompt');
+    await inputs.find((input) => input.attributes('type') === 'datetime-local')?.setValue('2026-04-29T10:00');
+    await wrapper.find('select').setValue('interval');
+    await wrapper.find('input[type="number"]').setValue('15');
+    await wrapper.findAll('.st-picker-btn')[0].trigger('click');
+    await flushPromises();
+    wrapper.findComponent(QuickSpawnModal).vm.$emit('select', 'codex');
+    await wrapper.findAll('.st-picker-btn')[1].trigger('click');
+    await flushPromises();
+    wrapper.findComponent(DirPickerModal).vm.$emit('select', 'X:\\coding\\gamepad-cli-hub');
+    await wrapper.vm.$nextTick();
+    await wrapper.find('.st-btn--primary').trigger('click');
+    await flushPromises();
+
+    expect(mockScheduledTaskCreate).toHaveBeenCalledWith(expect.objectContaining({
+      scheduleKind: 'interval',
+      intervalMs: 900000,
+    }));
+  });
+
+  it('opens the requested task for editing when mounted as a popup', async () => {
+    const task = {
+      id: 'task-1',
+      title: 'Original',
+      planIds: [],
+      initialPrompt: 'Original prompt',
+      cliType: 'codex',
+      scheduledTime: new Date(2026, 3, 29, 11, 0, 0, 0),
+      dirPath: 'X:\\coding\\gamepad-cli-hub',
+      status: 'pending',
+      createdAt: Date.now(),
+    };
+    mockScheduledTaskList.mockResolvedValue([task]);
+
+    const wrapper = mount(ScheduledTasksTab, {
+      props: { popup: true, initialEditTaskId: 'task-1' },
+    });
+    await flushPromises();
+
+    expect((wrapper.findAll('.st-input')[0].element as HTMLInputElement).value).toBe('Original');
+    await wrapper.find('.st-close-btn').trigger('click');
+    expect(wrapper.emitted('close')).toBeTruthy();
+  });
+
+  it('opens the create form immediately when mounted as a new-schedule popup', async () => {
+    const wrapper = mount(ScheduledTasksTab, {
+      props: { popup: true, initialCreate: true },
+    });
+    await flushPromises();
+
+    expect(wrapper.find('.st-form').exists()).toBe(true);
+    expect((wrapper.find('input[type="datetime-local"]').element as HTMLInputElement).value).toBe(
+      localDateTimeInputValue(new Date(2026, 3, 29, 10, 0, 0, 0)),
+    );
+  });
 });

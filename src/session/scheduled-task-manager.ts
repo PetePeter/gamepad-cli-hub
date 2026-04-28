@@ -17,6 +17,7 @@ import type { PlanManager } from './plan-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
 
 const PENDING_STATUSES = new Set<ScheduledTaskStatus>(['pending', 'executing']);
+const MIN_INTERVAL_MS = 60_000;
 
 export class ScheduledTaskManager extends EventEmitter {
   private tasks = new Map<string, ScheduledTask>();
@@ -43,6 +44,9 @@ export class ScheduledTaskManager extends EventEmitter {
       cliType: params.cliType,
       cliParams: params.cliParams,
       scheduledTime: params.scheduledTime,
+      scheduleKind: params.scheduleKind ?? 'once',
+      ...(params.intervalMs !== undefined ? { intervalMs: params.intervalMs } : {}),
+      nextRunAt: params.scheduledTime,
       dirPath: params.dirPath,
       status: 'pending',
       createdAt: now,
@@ -78,7 +82,10 @@ export class ScheduledTaskManager extends EventEmitter {
     if (updates.cliType !== undefined) task.cliType = updates.cliType;
     if (Object.prototype.hasOwnProperty.call(updates, 'cliParams')) task.cliParams = updates.cliParams;
     if (updates.scheduledTime !== undefined) task.scheduledTime = updates.scheduledTime;
+    if (updates.scheduleKind !== undefined) task.scheduleKind = updates.scheduleKind;
+    if (Object.prototype.hasOwnProperty.call(updates, 'intervalMs')) task.intervalMs = updates.intervalMs;
     if (updates.dirPath !== undefined) task.dirPath = updates.dirPath;
+    task.nextRunAt = task.scheduledTime;
 
     this.saveTasks();
     this.scheduleTask(task);
@@ -111,6 +118,8 @@ export class ScheduledTaskManager extends EventEmitter {
     for (const task of loaded) {
       // Only restore tasks that were still pending
       if (PENDING_STATUSES.has(task.status)) {
+        task.scheduleKind ??= 'once';
+        task.nextRunAt ??= task.scheduledTime;
         this.tasks.set(task.id, task);
       }
     }
@@ -129,7 +138,7 @@ export class ScheduledTaskManager extends EventEmitter {
     const now = Date.now();
     for (const task of this.tasks.values()) {
       if (task.status === 'pending') {
-        if (task.scheduledTime.getTime() <= now) {
+        if (this.getNextRunTime(task).getTime() <= now) {
           // Past scheduled time - execute immediately
           void this.executeTask(task);
         } else {
@@ -155,7 +164,7 @@ export class ScheduledTaskManager extends EventEmitter {
     this.clearTimer(task.id);
 
     const now = Date.now();
-    const delay = Math.max(0, task.scheduledTime.getTime() - now);
+    const delay = Math.max(0, this.getNextRunTime(task).getTime() - now);
 
     const timer = setTimeout(() => {
       void this.executeTask(task);
@@ -176,8 +185,11 @@ export class ScheduledTaskManager extends EventEmitter {
 
     logger.info(`[ScheduledTaskManager] Executing task "${task.title}" (${task.id})`);
 
+    let exitListener: ((sessionId: string) => void) | null = null;
     try {
-      // Spawn CLI session
+      const previousActiveSessionId = this.sessionManager.getActiveSession()?.id ?? null;
+      const sessionId = randomUUID();
+      const cliSessionName = randomUUID();
       const env = {
         HELM_SESSION_ID: randomUUID(),
       };
@@ -187,19 +199,43 @@ export class ScheduledTaskManager extends EventEmitter {
         throw new Error(`Unknown CLI type: ${task.cliType}`);
       }
 
-      const spawnResult = await this.ptyManager.spawnCommand(
-        task.cliType,
-        task.dirPath,
+      const rawCommand = cliConfig.spawnCommand?.replaceAll('{cliSessionName}', cliSessionName);
+      const pty = this.ptyManager.spawn({
+        sessionId,
+        ...(rawCommand ? { rawCommand } : { command: task.cliType, args: task.cliParams ? splitCliParams(task.cliParams) : [] }),
+        cwd: task.dirPath,
         env,
-      );
+      });
+      exitListener = (exitedSessionId: string) => {
+        if (exitedSessionId !== sessionId) return;
+        this.ptyManager.off('exit', exitListener!);
+        this.finishScheduledRun(task, sessionId);
+      };
+      this.ptyManager.on('exit', exitListener);
+
+      this.sessionManager.addSession({
+        id: sessionId,
+        name: `[scheduled] ${task.title}`,
+        cliType: task.cliType,
+        processId: pty.pid,
+        workingDir: task.dirPath,
+        cliSessionName,
+      });
+      if (previousActiveSessionId && this.sessionManager.getSession(previousActiveSessionId)) {
+        this.sessionManager.setActiveSession(previousActiveSessionId);
+      }
+      task.status = 'executing';
+      task.sessionId = sessionId;
+      this.saveTasks();
+      this.emit('task:changed', task);
 
       // Set working plan if planIds provided
       if (task.planIds.length > 0 && this.planManager) {
         const firstPlanId = task.planIds[0];
         const plan = this.planManager.getItem(firstPlanId);
         if (plan) {
-          this.planManager.setState(firstPlanId, 'coding', '', spawnResult.sessionId);
-          logger.info(`[ScheduledTaskManager] Set working plan ${firstPlanId} for session ${spawnResult.sessionId}`);
+          this.planManager.setState(firstPlanId, 'coding', '', sessionId);
+          logger.info(`[ScheduledTaskManager] Set working plan ${firstPlanId} for session ${sessionId}`);
         }
       }
 
@@ -210,20 +246,17 @@ export class ScheduledTaskManager extends EventEmitter {
         prompt = `${task.initialPrompt}\n\nPlan references:\n${planRefs}`;
       }
 
-      this.ptyManager.deliverText(spawnResult.sessionId, prompt);
+      await this.ptyManager.deliverText(sessionId, prompt);
 
-      // Update task status
-      task.status = 'executing';
-      task.sessionId = spawnResult.sessionId;
-
+      task.lastRunAt = Date.now();
       this.saveTasks();
       this.emit('task:changed', task);
-      logger.info(`[ScheduledTaskManager] Task "${task.title}" now executing in session ${spawnResult.sessionId}`);
-
-      // TODO: Track completion via session state changes
-      // For now, tasks stay in 'executing' state until manual completion
+      logger.info(`[ScheduledTaskManager] Task "${task.title}" running in background session ${sessionId}`);
 
     } catch (err) {
+      if (exitListener) {
+        this.ptyManager.off('exit', exitListener);
+      }
       logger.error(`[ScheduledTaskManager] Failed to execute task "${task.title}" (${task.id}): ${err}`);
       task.status = 'failed';
       task.error = err instanceof Error ? err.message : String(err);
@@ -248,4 +281,51 @@ export class ScheduledTaskManager extends EventEmitter {
     const tasksToSave = this.listTasks().filter(t => PENDING_STATUSES.has(t.status) || t.status === 'cancelled');
     saveScheduledTasks(tasksToSave);
   }
+
+  private getNextRunTime(task: ScheduledTask): Date {
+    return task.nextRunAt ?? task.scheduledTime;
+  }
+
+  private completeOrReschedule(task: ScheduledTask): void {
+    if (task.scheduleKind === 'interval') {
+      const intervalMs = task.intervalMs ?? 0;
+      if (!Number.isFinite(intervalMs) || intervalMs < MIN_INTERVAL_MS) {
+        task.status = 'failed';
+        task.error = 'Interval schedules must be at least 1 minute';
+        task.completedAt = Date.now();
+        return;
+      }
+      const nextRunAt = new Date(Date.now() + intervalMs);
+      task.status = 'pending';
+      task.scheduledTime = nextRunAt;
+      task.nextRunAt = nextRunAt;
+      task.sessionId = undefined;
+      task.error = undefined;
+      this.scheduleTask(task);
+      return;
+    }
+    task.status = 'completed';
+    task.completedAt = Date.now();
+  }
+
+  private finishScheduledRun(task: ScheduledTask, sessionId: string): void {
+    this.completeOrReschedule(task);
+    if (task.sessionId === sessionId && task.status !== 'pending') {
+      task.sessionId = undefined;
+    }
+    try {
+      if (this.sessionManager.getSession(sessionId)) {
+        this.sessionManager.removeSession(sessionId);
+      }
+    } catch (error) {
+      logger.warn(`[ScheduledTaskManager] Failed to remove scheduled session ${sessionId}: ${error}`);
+    }
+    this.saveTasks();
+    this.emit('task:changed', task);
+    logger.info(`[ScheduledTaskManager] Task "${task.title}" finished in background session ${sessionId}`);
+  }
+}
+
+function splitCliParams(params: string): string[] {
+  return params.trim().length > 0 ? params.trim().split(/\s+/) : [];
 }

@@ -119,6 +119,9 @@ function buildSidebarDom(): void {
         </div>
       </div>
     </section>
+    <div class="spawn-section" id="schedulerSection">
+      <h3 class="section-label">Scheduler</h3>
+    </div>
     <div class="spawn-section" id="quickSpawnSection">
       <h3 class="section-label">Quick Spawn</h3>
       <div class="spawn-grid" id="spawnGrid"></div>
@@ -346,13 +349,15 @@ describe('Sessions Screen', () => {
     it('keeps quick spawn and planner sections outside the scrollable sessions list shell', () => {
       const shell = document.querySelector('.sessions-list-shell');
       const list = document.getElementById('sessionsList');
+      const scheduler = document.getElementById('schedulerSection');
       const quickSpawn = document.getElementById('quickSpawnSection');
       const planner = document.getElementById('plannerSection');
 
       expect(shell?.contains(list)).toBe(true);
+      expect(shell?.contains(scheduler)).toBe(false);
       expect(shell?.contains(quickSpawn)).toBe(false);
       expect(shell?.contains(planner)).toBe(false);
-      expect(quickSpawn?.previousElementSibling?.id).toBe('screen-sessions');
+      expect(quickSpawn?.previousElementSibling?.id).toBe('schedulerSection');
     });
   });
 

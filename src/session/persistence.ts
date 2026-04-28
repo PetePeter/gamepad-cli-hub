@@ -271,6 +271,7 @@ export function saveScheduledTasks(tasks: ScheduledTask[]): void {
     const data = { tasks: tasks.map(t => ({
       ...t,
       scheduledTime: t.scheduledTime.toISOString(),
+      ...(t.nextRunAt ? { nextRunAt: t.nextRunAt.toISOString() } : {}),
     }))};
     writeFileSync(SCHEDULED_TASKS_FILE, YAML.stringify(data), 'utf8');
   } catch (err) {
@@ -287,6 +288,7 @@ export function loadScheduledTasks(): ScheduledTask[] {
     return parsed?.tasks.map(t => ({
       ...t,
       scheduledTime: new Date(t.scheduledTime),
+      ...(typeof (t as any).nextRunAt === 'string' ? { nextRunAt: new Date((t as any).nextRunAt) } : {}),
     })) ?? [];
   } catch (err) {
     logger.error(`Failed to load scheduled tasks: ${err}`);

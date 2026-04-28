@@ -377,16 +377,18 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
       return {
         spawnCollapsed: prefs.spawnCollapsed ?? false,
         plannerCollapsed: prefs.plannerCollapsed ?? false,
+        schedulerCollapsed: prefs.schedulerCollapsed ?? false,
       };
     } catch (error) {
       logger.error(`[IPC] Failed to get collapse prefs: ${error}`);
-      return { spawnCollapsed: false, plannerCollapsed: false };
+      return { spawnCollapsed: false, plannerCollapsed: false, schedulerCollapsed: false };
     }
   });
 
   ipcMain.handle('config:setCollapsePrefs', (_event, prefs: {
     spawnCollapsed?: boolean;
     plannerCollapsed?: boolean;
+    schedulerCollapsed?: boolean;
   }) => {
     try {
       const current = configLoader.getSidebarPrefs();
@@ -394,6 +396,7 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
         ...current,
         spawnCollapsed: prefs.spawnCollapsed ?? current.spawnCollapsed,
         plannerCollapsed: prefs.plannerCollapsed ?? current.plannerCollapsed,
+        schedulerCollapsed: prefs.schedulerCollapsed ?? current.schedulerCollapsed,
       });
     } catch (error) {
       logger.error(`[IPC] Failed to set collapse prefs: ${error}`);

@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { EventEmitter } from 'events';
 import { ScheduledTaskManager } from './scheduled-task-manager.js';
 import { saveScheduledTasks } from './persistence.js';
 import type { ScheduledTask, CreateScheduledTaskParams } from '../types/scheduled-task.js';
@@ -14,6 +15,7 @@ import type { ScheduledTask, CreateScheduledTaskParams } from '../types/schedule
 
 class FakeSessionManager {
   private sessions = new Map<string, { id: string; cliType: string; workingDir: string }>();
+  private activeSessionId: string | null = null;
 
   spawn(cliType: string, workingDir: string, env?: Record<string, string>): string {
     const id = `session-${Date.now()}`;
@@ -22,10 +24,24 @@ class FakeSessionManager {
   }
 
   getSession(id: string) { return this.sessions.get(id); }
+  getActiveSession() { return this.activeSessionId ? this.sessions.get(this.activeSessionId) ?? null : null; }
+  addSession(session: { id: string; cliType: string; workingDir: string }) {
+    this.sessions.set(session.id, session);
+    if (!this.activeSessionId) this.activeSessionId = session.id;
+  }
+  setActiveSession(id: string) { this.activeSessionId = id; }
+  removeSession(id: string) {
+    this.sessions.delete(id);
+    if (this.activeSessionId === id) this.activeSessionId = null;
+  }
 }
 
-class FakePtyManager {
+class FakePtyManager extends EventEmitter {
   private writes = new Map<string, string[]>();
+
+  constructor() {
+    super();
+  }
 
   async spawnCommand(
     cliType: string,
@@ -36,6 +52,10 @@ class FakePtyManager {
     return { pid: 1234, sessionId };
   }
 
+  spawn(options: { sessionId: string }): { pid: number } {
+    return { pid: 1234 + options.sessionId.length };
+  }
+
   deliverText(sessionId: string, text: string): void {
     if (!this.writes.has(sessionId)) this.writes.set(sessionId, []);
     this.writes.get(sessionId)!.push(text);
@@ -44,6 +64,12 @@ class FakePtyManager {
   getWrites(sessionId: string): string[] {
     return this.writes.get(sessionId) ?? [];
   }
+
+  emitExit(sessionId: string): void {
+    this.emit('exit', sessionId, 0);
+  }
+
+  kill = vi.fn();
 }
 
 class FakePlanManager {
@@ -212,7 +238,10 @@ describe('ScheduledTaskManager', () => {
       // Fast-forward past scheduled time
       vi.advanceTimersByTime(2000);
       await vi.runOnlyPendingTimersAsync();
-      expect(manager.getTask(task.id)?.status).toBe('executing');
+      const executing = manager.getTask(task.id);
+      expect(executing?.status).toBe('executing');
+      ptyManager.emitExit(executing!.sessionId!);
+      expect(manager.getTask(task.id)?.status).toBe('completed');
     });
 
     it('should clear timer if task is cancelled before firing', () => {
@@ -238,7 +267,7 @@ describe('ScheduledTaskManager', () => {
   });
 
   describe('cancelTask()', () => {
-    it('should return false if task already executing', async () => {
+    it('should return false after a one-shot task has already executed', async () => {
       const params: CreateScheduledTaskParams = {
         title: 'Test',
         planIds: [],
@@ -253,7 +282,10 @@ describe('ScheduledTaskManager', () => {
       vi.advanceTimersByTime(2000); // Trigger execution
       await vi.runOnlyPendingTimersAsync();
 
-      expect(manager.getTask(task.id)?.status).toBe('executing');
+      const executing = manager.getTask(task.id);
+      expect(executing?.status).toBe('executing');
+      ptyManager.emitExit(executing!.sessionId!);
+      expect(manager.getTask(task.id)?.status).toBe('completed');
       expect(manager.cancelTask(task.id)).toBe(false);
     });
 
@@ -320,7 +352,10 @@ describe('ScheduledTaskManager', () => {
       manager.start();
       await vi.runOnlyPendingTimersAsync();
 
-      expect(manager.getTask(manager.listTasks()[0].id)?.status).toBe('executing');
+      const executing = manager.getTask(manager.listTasks()[0].id);
+      expect(executing?.status).toBe('executing');
+      ptyManager.emitExit(executing!.sessionId!);
+      expect(manager.getTask(executing!.id)?.status).toBe('completed');
     });
   });
 
@@ -347,7 +382,7 @@ describe('ScheduledTaskManager', () => {
 
   describe('executeTask()', () => {
     it('should spawn CLI session with correct cwd and cliType', async () => {
-      const spawnSpy = vi.spyOn(ptyManager, 'spawnCommand');
+      const spawnSpy = vi.spyOn(ptyManager, 'spawn');
 
       const params: CreateScheduledTaskParams = {
         title: 'Test',
@@ -363,10 +398,13 @@ describe('ScheduledTaskManager', () => {
 
       await vi.runOnlyPendingTimersAsync();
 
-      expect(spawnSpy).toHaveBeenCalledWith('claude-code', 'X:\\\\coding\\\\test', expect.any(Object));
+      expect(spawnSpy).toHaveBeenCalledWith(expect.objectContaining({
+        rawCommand: 'echo claude-code',
+        cwd: 'X:\\\\coding\\\\test',
+      }));
     });
 
-    it('should update task status to executing with sessionId', async () => {
+    it('should complete one-shot tasks and close the background session', async () => {
       const params: CreateScheduledTaskParams = {
         title: 'Test',
         planIds: [],
@@ -384,6 +422,33 @@ describe('ScheduledTaskManager', () => {
       const updated = manager.getTask(task.id);
       expect(updated?.status).toBe('executing');
       expect(updated?.sessionId).toBeTruthy();
+      ptyManager.emitExit(updated!.sessionId!);
+      expect(manager.getTask(task.id)?.status).toBe('completed');
+      expect(sessionManager.getSession(updated!.sessionId!)).toBeUndefined();
+      expect(ptyManager.kill).not.toHaveBeenCalled();
+    });
+
+    it('should reschedule interval tasks after execution', async () => {
+      const task = manager.createTask({
+        title: 'Recurring',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() - 1000),
+        scheduleKind: 'interval',
+        intervalMs: 60000,
+        dirPath: 'X:\\\\coding\\\\test',
+      });
+
+      manager.start();
+      await vi.runOnlyPendingTimersAsync();
+
+      const running = manager.getTask(task.id);
+      expect(running?.status).toBe('executing');
+      ptyManager.emitExit(running!.sessionId!);
+      const updated = manager.getTask(task.id);
+      expect(updated?.status).toBe('pending');
+      expect(updated?.nextRunAt?.getTime()).toBeGreaterThan(Date.now());
     });
   });
 });

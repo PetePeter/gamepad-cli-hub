@@ -111,6 +111,7 @@ import SortBar from './components/sidebar/SortBar.vue';
 import SessionList from './components/sidebar/SessionList.vue';
 import SpawnGrid from './components/sidebar/SpawnGrid.vue';
 import PlansGrid from './components/sidebar/PlansGrid.vue';
+import SchedulerSection from './components/sidebar/SchedulerSection.vue';
 
 // Panel components
 import MainView from './components/panels/MainView.vue';
@@ -244,6 +245,9 @@ const settingsBindingSortDirection = ref<SortDirection>('asc');
 // Section collapse
 const spawnCollapsed = ref(false);
 const plannerCollapsed = ref(false);
+const schedulerCollapsed = ref(false);
+const schedulerPopupVisible = ref(false);
+const schedulerPopupTaskId = ref<string | null>(null);
 
 // Panel resize
 const { splitterRef, panelRef } = usePanelResize({
@@ -717,6 +721,7 @@ async function loadCollapsePrefs(): Promise<void> {
     if (prefs) {
       spawnCollapsed.value = prefs.spawnCollapsed ?? false;
       plannerCollapsed.value = prefs.plannerCollapsed ?? false;
+      schedulerCollapsed.value = (prefs as any).schedulerCollapsed ?? false;
       // Keep navigation module in sync (used by handleSessionsZone bounds checks)
       setSpawnCollapsed(spawnCollapsed.value);
       setPlannerCollapsed(plannerCollapsed.value);
@@ -730,6 +735,7 @@ function toggleSpawnCollapse(): void {
   window.gamepadCli.configSetCollapsePrefs({
     spawnCollapsed: spawnCollapsed.value,
     plannerCollapsed: plannerCollapsed.value,
+    schedulerCollapsed: schedulerCollapsed.value,
   });
 }
 
@@ -739,7 +745,22 @@ function togglePlannerCollapse(): void {
   window.gamepadCli.configSetCollapsePrefs({
     spawnCollapsed: spawnCollapsed.value,
     plannerCollapsed: plannerCollapsed.value,
+    schedulerCollapsed: schedulerCollapsed.value,
   });
+}
+
+function toggleSchedulerCollapse(): void {
+  schedulerCollapsed.value = !schedulerCollapsed.value;
+  window.gamepadCli.configSetCollapsePrefs({
+    spawnCollapsed: spawnCollapsed.value,
+    plannerCollapsed: plannerCollapsed.value,
+    schedulerCollapsed: schedulerCollapsed.value,
+  });
+}
+
+function openSchedulerPopup(taskId: string | null): void {
+  schedulerPopupTaskId.value = taskId;
+  schedulerPopupVisible.value = true;
 }
 
 // Spawn
@@ -842,7 +863,6 @@ async function loadSettingsData(): Promise<void> {
     'chipbar-actions',
     'directories',
     'telegram',
-    'scheduled-tasks',
     'backups',
     'mcp',
   ]);
@@ -940,7 +960,7 @@ async function loadSettingsData(): Promise<void> {
 
 async function loadCurrentTabBindings(): Promise<void> {
   const tab = settingsTab.value;
-  if (tab === 'profiles' || tab === 'tools' || tab === 'chipbar-actions' || tab === 'directories' || tab === 'telegram' || tab === 'mcp') {
+  if (tab === 'profiles' || tab === 'tools' || tab === 'chipbar-actions' || tab === 'directories' || tab === 'telegram' || tab === 'mcp' || tab === 'backups') {
     settingsBindings.value = [];
     settingsSequenceGroups.value = [];
     return;
@@ -995,7 +1015,6 @@ function buildSettingsTabs() {
     { id: 'chipbar-actions', label: '⚡ Quick Actions' },
     { id: 'directories', label: '📁 Dirs' },
     { id: 'telegram', label: '📨 Telegram' },
-    { id: 'scheduled-tasks', label: '⏰ Tasks' },
     { id: 'backups', label: '💾 Backups' },
     { id: 'mcp', label: '🧩 MCP' },
   ];
@@ -2169,12 +2188,6 @@ onUnmounted(() => {
               @start-bot="onTelegramStartBot"
               @stop-bot="onTelegramStopBot"
             />
-            <ScheduledTasksTab
-              v-else-if="activeTab === 'scheduled-tasks'"
-              @task-created="onScheduledTaskCreated"
-              @task-updated="onScheduledTaskUpdated"
-              @task-cancelled="onScheduledTaskCancelled"
-            />
             <McpTab
               v-else-if="activeTab === 'mcp'"
               :config="settingsMcpConfig"
@@ -2206,7 +2219,18 @@ onUnmounted(() => {
       </main>
 
       <!-- Spawn sections pinned at bottom of sidebar -->
-      <div v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': spawnCollapsed }">
+      <div id="schedulerSection" v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': schedulerCollapsed }">
+        <div class="section-label" @click="toggleSchedulerCollapse">
+          <button class="section-toggle">{{ schedulerCollapsed ? '▲' : '▼' }}</button>
+          <span>Scheduler</span>
+        </div>
+        <SchedulerSection
+          :collapsed="schedulerCollapsed"
+          @open="openSchedulerPopup"
+        />
+      </div>
+
+      <div id="quickSpawnSection" v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': spawnCollapsed }">
         <div class="section-label" @click="toggleSpawnCollapse">
           <button class="section-toggle">{{ spawnCollapsed ? '▲' : '▼' }}</button>
           <span>Quick Spawn</span>
@@ -2221,7 +2245,7 @@ onUnmounted(() => {
         />
       </div>
 
-      <div v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': plannerCollapsed }">
+      <div id="plannerSection" v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': plannerCollapsed }">
         <div class="section-label" @click="togglePlannerCollapse">
           <button class="section-toggle">{{ plannerCollapsed ? '▲' : '▼' }}</button>
           <span>Folder Planner</span>
@@ -2462,6 +2486,43 @@ onUnmounted(() => {
       @close="onBackupClose"
     />
 
+    <div v-if="schedulerPopupVisible" class="scheduler-popup-backdrop" @click.self="schedulerPopupVisible = false">
+      <div class="scheduler-popup">
+        <ScheduledTasksTab
+          popup
+          :initial-create="schedulerPopupTaskId === null"
+          :initial-edit-task-id="schedulerPopupTaskId"
+          @task-created="onScheduledTaskCreated"
+          @task-updated="onScheduledTaskUpdated"
+          @task-cancelled="onScheduledTaskCancelled"
+          @close="schedulerPopupVisible = false"
+        />
+      </div>
+    </div>
+
     <ToastNotification />
   </template>
 </template>
+
+<style scoped>
+.scheduler-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.scheduler-popup {
+  width: min(760px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+}
+</style>

@@ -5,6 +5,7 @@
  */
 
 export type ScheduledTaskStatus = 'pending' | 'executing' | 'completed' | 'failed' | 'cancelled';
+export type ScheduledTaskScheduleKind = 'once' | 'interval';
 
 export interface ScheduledTask {
   id: string;
@@ -15,11 +16,15 @@ export interface ScheduledTask {
   cliType: string;
   cliParams?: string;
   scheduledTime: Date;
+  scheduleKind?: ScheduledTaskScheduleKind;
+  intervalMs?: number;
+  nextRunAt?: Date;
   dirPath: string;
   status: ScheduledTaskStatus;
   sessionId?: string;
   createdAt: number;
   completedAt?: number;
+  lastRunAt?: number;
   error?: string;
 }
 
@@ -31,6 +36,8 @@ export interface CreateScheduledTaskParams {
   cliType: string;
   cliParams?: string;
   scheduledTime: Date;
+  scheduleKind?: ScheduledTaskScheduleKind;
+  intervalMs?: number;
   dirPath: string;
 }
 
@@ -42,5 +49,7 @@ export interface UpdateScheduledTaskParams {
   cliType?: string;
   cliParams?: string;
   scheduledTime?: Date;
+  scheduleKind?: ScheduledTaskScheduleKind;
+  intervalMs?: number;
   dirPath?: string;
 }

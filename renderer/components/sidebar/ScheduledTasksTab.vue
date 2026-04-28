@@ -8,8 +8,8 @@
  * - Collapsible create form section
  * - Auto-refresh every 10s with live countdown display
  */
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import type { ScheduledTask } from '../../../src/types/scheduled-task.js';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import type { ScheduledTask, ScheduledTaskScheduleKind } from '../../../src/types/scheduled-task.js';
 import QuickSpawnModal from '../modals/QuickSpawnModal.vue';
 import DirPickerModal from '../modals/DirPickerModal.vue';
 
@@ -17,7 +17,18 @@ const emit = defineEmits<{
   'task-created': [task: ScheduledTask];
   'task-updated': [task: ScheduledTask];
   'task-cancelled': [taskId: string];
+  'close': [];
 }>();
+
+const props = withDefaults(defineProps<{
+  initialEditTaskId?: string | null;
+  initialCreate?: boolean;
+  popup?: boolean;
+}>(), {
+  initialEditTaskId: null,
+  initialCreate: false,
+  popup: false,
+});
 
 // ---------------------------------------------------------------------------
 // State
@@ -36,6 +47,8 @@ const selectedCliType = ref('');
 const selectedDirPath = ref('');
 const formCliParams = ref('');
 const formTime = ref('');
+const scheduleKind = ref<ScheduledTaskScheduleKind>('once');
+const intervalMinutes = ref(60);
 
 // Picker modal state
 const cliPickerVisible = ref(false);
@@ -51,7 +64,8 @@ const canCreate = computed(() => {
     formInitialPrompt.value.trim() !== '' &&
     selectedCliType.value.trim() !== '' &&
     formTime.value !== '' &&
-    selectedDirPath.value.trim() !== '';
+    selectedDirPath.value.trim() !== '' &&
+    (scheduleKind.value !== 'interval' || intervalMinutes.value >= 1);
 });
 
 const sortedTasks = computed(() => {
@@ -96,6 +110,10 @@ function getStatusBadge(status: string): { label: string; cssClass: string } {
 function formatTime(date: Date | string): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   return d.toLocaleString();
+}
+
+function formatNextRun(task: ScheduledTask): string {
+  return formatCountdown(task.nextRunAt ?? task.scheduledTime);
 }
 
 function toLocalDateTimeInputValue(date: Date): string {
@@ -147,6 +165,8 @@ function resetForm(): void {
   selectedDirPath.value = '';
   formCliParams.value = '';
   formTime.value = '';
+  scheduleKind.value = 'once';
+  intervalMinutes.value = 60;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +217,8 @@ async function createTask(): Promise<void> {
       cliType: selectedCliType.value,
       cliParams: formCliParams.value.trim() || undefined,
       scheduledTime: new Date(formTime.value),
+      scheduleKind: scheduleKind.value,
+      intervalMs: scheduleKind.value === 'interval' ? intervalMinutes.value * 60_000 : undefined,
       dirPath: selectedDirPath.value.trim(),
     };
     const result = editingTaskId.value
@@ -225,6 +247,8 @@ function editTask(task: ScheduledTask): void {
   selectedDirPath.value = task.dirPath;
   formCliParams.value = task.cliParams ?? '';
   formTime.value = toLocalDateTimeInputValue(new Date(task.scheduledTime));
+  scheduleKind.value = task.scheduleKind ?? 'once';
+  intervalMinutes.value = Math.max(1, Math.round((task.intervalMs ?? 3600000) / 60000));
   showCreateForm.value = true;
 }
 
@@ -245,7 +269,27 @@ async function cancelTask(taskId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 onMounted(async () => {
   await loadTasks();
+  if (props.initialEditTaskId) {
+    const task = tasks.value.find((item) => item.id === props.initialEditTaskId);
+    if (task) editTask(task);
+  } else if (props.initialCreate) {
+    showCreateForm.value = true;
+    startCreateForm();
+  }
   refreshTimer = setInterval(loadTasks, 10000);
+});
+
+watch(() => props.initialCreate, (initialCreate) => {
+  if (!initialCreate || props.initialEditTaskId) return;
+  showCreateForm.value = true;
+  startCreateForm();
+});
+
+watch(() => props.initialEditTaskId, async (taskId) => {
+  if (!taskId) return;
+  await loadTasks();
+  const task = tasks.value.find((item) => item.id === taskId);
+  if (task) editTask(task);
 });
 
 onUnmounted(() => {
@@ -254,11 +298,19 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="scheduled-tasks-tab">
+  <div class="scheduled-tasks-tab" :class="{ 'scheduled-tasks-tab--popup': popup }">
     <!-- Header -->
     <div class="st-header">
       <h2 class="st-title">Scheduled Tasks</h2>
       <span class="st-count">{{ tasks.length }} task{{ tasks.length !== 1 ? 's' : '' }}</span>
+      <button
+        v-if="popup"
+        class="st-close-btn focusable"
+        title="Close"
+        @click="emit('close')"
+      >
+        x
+      </button>
       <button
         class="st-create-btn focusable"
         :disabled="creating"
@@ -326,6 +378,24 @@ onUnmounted(() => {
       </div>
 
       <div class="st-form-row">
+        <label class="st-label">Schedule</label>
+        <select v-model="scheduleKind" class="st-input focusable">
+          <option value="once">Once</option>
+          <option value="interval">Recurring interval</option>
+        </select>
+      </div>
+
+      <div v-if="scheduleKind === 'interval'" class="st-form-row">
+        <label class="st-label">Repeat Every Minutes *</label>
+        <input
+          v-model.number="intervalMinutes"
+          type="number"
+          min="1"
+          class="st-input focusable"
+        />
+      </div>
+
+      <div class="st-form-row">
         <label class="st-label">CLI Params (optional)</label>
         <input
           v-model="formCliParams"
@@ -374,7 +444,7 @@ onUnmounted(() => {
           <span class="st-task-chip">{{ task.cliType }}</span>
           <span class="st-task-chip">{{ shortenPath(task.dirPath) }}</span>
           <span v-if="task.status === 'pending'" class="st-task-countdown">
-            {{ formatCountdown(task.scheduledTime) }}
+            {{ formatNextRun(task) }}
           </span>
           <span v-else-if="task.status === 'executing'" class="st-task-countdown st-task-countdown--running">
             running...
@@ -428,6 +498,11 @@ onUnmounted(() => {
   max-width: 800px;
   margin: 0 auto;
 }
+.scheduled-tasks-tab--popup {
+  max-width: none;
+  max-height: 78vh;
+  overflow: auto;
+}
 
 /* Header */
 .st-header {
@@ -455,6 +530,15 @@ onUnmounted(() => {
   cursor: pointer;
   font-weight: 500;
   font-size: 0.9rem;
+}
+.st-close-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-radius: 4px;
+  cursor: pointer;
 }
 .st-create-btn:hover { opacity: 0.9; }
 .st-create-btn:disabled { opacity: 0.5; cursor: not-allowed; }

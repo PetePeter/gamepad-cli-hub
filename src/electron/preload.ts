@@ -222,9 +222,9 @@ const gamepadCliAPI = {
 
   configGetStickConfig: (stick: string) => ipcRenderer.invoke('config:getStickConfig', stick),
 
-  configGetCollapsePrefs: () => ipcRenderer.invoke('config:getCollapsePrefs') as Promise<{ spawnCollapsed: boolean; plannerCollapsed: boolean }>,
+  configGetCollapsePrefs: () => ipcRenderer.invoke('config:getCollapsePrefs') as Promise<{ spawnCollapsed: boolean; plannerCollapsed: boolean; schedulerCollapsed?: boolean }>,
 
-  configSetCollapsePrefs: (prefs: { spawnCollapsed?: boolean; plannerCollapsed?: boolean }) =>
+  configSetCollapsePrefs: (prefs: { spawnCollapsed?: boolean; plannerCollapsed?: boolean; schedulerCollapsed?: boolean }) =>
     ipcRenderer.invoke('config:setCollapsePrefs', prefs),
 
   configGetEditorPrefs: () => ipcRenderer.invoke('config:getEditorPrefs') as Promise<{ draftEditorHeight?: number; planEditorHeight?: number }>,
