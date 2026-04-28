@@ -118,6 +118,11 @@ export class TopicManager {
     return sessions.find(s => s.topicId === topicId) ?? null;
   }
 
+  /** Return the session ID mapped to a Telegram topic, if any. */
+  getSessionIdByTopic(topicId: number): string | null {
+    return this.findSessionByTopicId(topicId)?.id ?? null;
+  }
+
   // ==========================================================================
   // Private helpers
   // ==========================================================================

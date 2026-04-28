@@ -7,12 +7,20 @@
 
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
+import type TelegramBot from 'node-telegram-bot-api';
 import { logger } from '../utils/logger.js';
 import type { TelegramBotCore } from './bot.js';
 import type { TopicManager } from './topic-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { HelmControlService } from '../mcp/helm-control-service.js';
+import type {
+  TelegramBridge,
+  TelegramChannel,
+  TelegramChannelCreateInput,
+  TelegramSendToUserInput,
+  TelegramSendToUserResult,
+} from '../types/telegram-channel.js';
 
 export interface TelegramRelayMessage {
   id: string;
@@ -41,11 +49,12 @@ interface PendingReply {
   timestamp: number;
 }
 
-export class TelegramRelayService extends EventEmitter {
+export class TelegramRelayService extends EventEmitter implements TelegramBridge {
   private outputMode: OutputMode = 'relay';
   private pendingReplies = new Map<string, PendingReply>();
   private messageQueue: TelegramRelayMessage[] = [];
   private processingQueue = false;
+  private channels = new Map<string, TelegramChannel>();
 
   constructor(
     private telegramBot: TelegramBotCore,
@@ -55,6 +64,121 @@ export class TelegramRelayService extends EventEmitter {
     private helmControl: HelmControlService,
   ) {
     super();
+  }
+
+  isRunning(): boolean {
+    return this.telegramBot.isRunning();
+  }
+
+  listChannels(): TelegramChannel[] {
+    return [...this.channels.values()]
+      .sort((a, b) => b.updatedAt - a.updatedAt || a.sessionName.localeCompare(b.sessionName));
+  }
+
+  async createChannel(input: TelegramChannelCreateInput): Promise<TelegramChannel> {
+    const session = this.sessionManager.getSession(input.sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${input.sessionId}`);
+    }
+
+    const existing = [...this.channels.values()].find((channel) => (
+      channel.sessionId === session.id && channel.status === 'open'
+    ));
+    if (existing) {
+      if (input.expectsResponse && !existing.expectsResponse) {
+        const updated = { ...existing, expectsResponse: true, updatedAt: Date.now() };
+        this.channels.set(updated.id, updated);
+        return updated;
+      }
+      return existing;
+    }
+
+    const topicId = await this.topicManager.ensureTopic(session);
+    const now = Date.now();
+    const channel: TelegramChannel = {
+      id: randomUUID(),
+      sessionId: session.id,
+      sessionName: session.name,
+      ...(topicId != null ? { topicId } : {}),
+      status: 'open',
+      expectsResponse: input.expectsResponse ?? false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.channels.set(channel.id, channel);
+    this.emit('channel:created', channel);
+    return channel;
+  }
+
+  closeChannel(channelId: string): TelegramChannel | null {
+    const channel = this.channels.get(channelId);
+    if (!channel) return null;
+    const closed: TelegramChannel = {
+      ...channel,
+      status: 'closed',
+      updatedAt: Date.now(),
+    };
+    this.channels.set(channelId, closed);
+    this.emit('channel:closed', closed);
+    return closed;
+  }
+
+  async sendToUser(input: TelegramSendToUserInput): Promise<TelegramSendToUserResult> {
+    if (!this.telegramBot.isRunning()) {
+      throw new Error('Telegram bot is not running');
+    }
+    const channel = input.channelId
+      ? this.requireOpenChannel(input.channelId)
+      : await this.createChannel({
+          sessionId: requireString(input.sessionId, 'sessionId is required when channelId is not provided'),
+          expectsResponse: input.expectsResponse,
+        });
+
+    const expectsResponse = input.expectsResponse ?? channel.expectsResponse;
+    const text = formatAgentMessageForTelegram(input.text, expectsResponse);
+    const message = channel.topicId
+      ? await this.telegramBot.sendToTopic(channel.topicId, text, { parse_mode: 'HTML' })
+      : await this.telegramBot.sendMessage(text, { parse_mode: 'HTML' });
+    if (!message) {
+      throw new Error('Telegram message could not be sent');
+    }
+
+    const updated: TelegramChannel = {
+      ...channel,
+      expectsResponse,
+      lastMessageAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    this.channels.set(updated.id, updated);
+    this.emit('message:sent_to_user', { channel: updated, messageId: message.message_id });
+    return { sent: true, channel: updated, messageId: message.message_id };
+  }
+
+  async handleIncomingTelegramMessage(msg: TelegramBot.Message): Promise<boolean> {
+    if (!msg.text || msg.text.startsWith('/')) return false;
+    const topicId = msg.message_thread_id;
+    if (!topicId) return false;
+
+    const channel = [...this.channels.values()]
+      .filter((item) => item.status === 'open' && item.expectsResponse && item.topicId === topicId)
+      .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    if (!channel) return false;
+
+    await this.helmControl.sendTextToSession(channel.sessionId, msg.text, {
+      senderSessionId: 'telegram-relay',
+      senderSessionName: 'Telegram Relay',
+      expectsResponse: false,
+    });
+
+    const updated: TelegramChannel = {
+      ...channel,
+      lastMessageAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    this.channels.set(updated.id, updated);
+    await this.telegramBot.sendToTopic(topicId, 'Sent to session.');
+    this.emit('message:received_from_user', { channel: updated, messageId: msg.message_id });
+    return true;
   }
 
   /** Send a message from Telegram user to the target CLI session via MCP relay. */
@@ -83,11 +207,6 @@ export class TelegramRelayService extends EventEmitter {
         senderSessionId: 'telegram-relay',
         senderSessionName: 'Telegram Relay',
         expectsResponse: true,
-        metadata: {
-          telegramTopicId: message.topicId,
-          telegramMessageId: message.messageId,
-          trackingToken,
-        },
       });
 
       logger.info(`[TelegramRelay] Relayed message from topic ${message.topicId} to session ${session.id} (token: ${trackingToken})`);
@@ -112,7 +231,7 @@ export class TelegramRelayService extends EventEmitter {
     try {
       // Send formatted message to Telegram topic
       const formattedMessage = this.formatReplyForTelegram(reply.text);
-      await this.telegramBot.sendMessage(pending.topicId, formattedMessage);
+      await this.telegramBot.sendToTopic(pending.topicId, formattedMessage, { parse_mode: 'HTML' });
 
       logger.info(`[TelegramRelay] Relayed reply from session ${reply.sessionId} to topic ${pending.topicId}`);
       this.emit('reply:sent', { sessionId: reply.sessionId, topicId: pending.topicId });
@@ -197,4 +316,31 @@ export class TelegramRelayService extends EventEmitter {
       outputMode: this.outputMode,
     };
   }
+
+  private requireOpenChannel(channelId: string): TelegramChannel {
+    const channel = this.channels.get(channelId);
+    if (!channel || channel.status !== 'open') {
+      throw new Error(`Open Telegram channel not found: ${channelId}`);
+    }
+    return channel;
+  }
+}
+
+function requireString(value: string | undefined, errorMessage: string): string {
+  if (!value) {
+    throw new Error(errorMessage);
+  }
+  return value;
+}
+
+function formatAgentMessageForTelegram(text: string, expectsResponse: boolean): string {
+  const suffix = expectsResponse ? '\n\nReply in this topic and Helm will route it back to the asking session.' : '';
+  return `Agent message:\n\n${escapeHtml(text)}${suffix}`;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }

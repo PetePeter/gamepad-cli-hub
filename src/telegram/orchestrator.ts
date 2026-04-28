@@ -59,6 +59,7 @@ export function initTelegramModules(
   const instanceName = configLoader.getTelegramConfig().instanceName;
   const dashboard = new PinnedDashboard(bot, sessionManager, instanceName);
   const relayService = new TelegramRelayService(bot, topicManager, sessionManager, ptyManager, helmControlService);
+  helmControlService.setTelegramBridge(relayService);
 
   // Wire up MCP event handlers for relay service
   const handleMcpSend = async (data: { sessionId: string; text: string; replyTo?: string; timestamp: number }) => {
@@ -88,7 +89,7 @@ export function initTelegramModules(
   });
 
   const cleanupTopicInput = setupTopicInput(
-    bot, topicManager, ptyManager, textInput, terminalMirror, sessionManager,
+    bot, topicManager, ptyManager, textInput, terminalMirror, sessionManager, relayService,
   );
 
   // Reply keyboard text → slash command routing
@@ -135,6 +136,7 @@ export function initTelegramModules(
       cleanupCommands();
       cleanupTopicInput();
       bot.removeListener('message', replyKeyboardHandler);
+      helmControlService.setTelegramBridge(null);
       helmControlService.off('telegram:send', handleMcpSend);
       helmControlService.off('telegram:set_mode', handleMcpSetMode);
       textInput.dispose();

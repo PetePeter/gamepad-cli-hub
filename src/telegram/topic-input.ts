@@ -16,6 +16,7 @@ import type { PtyManager } from '../session/pty-manager.js';
 import type { TextInputManager } from './text-input.js';
 import type { TerminalMirror } from './terminal-mirror.js';
 import type { SessionManager } from '../session/manager.js';
+import type { TelegramRelayService } from './relay-service.js';
 import { isReplyKeyboardPress } from './reply-keyboard.js';
 import { escapeHtml } from './utils.js';
 import { logger } from '../utils/logger.js';
@@ -42,11 +43,16 @@ export function setupTopicInput(
   textInput: TextInputManager,
   terminalMirror?: TerminalMirror,
   sessionManager?: SessionManager,
+  relayService?: TelegramRelayService,
 ): () => void {
   const handler = async (msg: TelegramBot.Message) => {
     if (!msg.text) return;
     if (msg.text.startsWith('/')) return;
     if (isReplyKeyboardPress(msg.text)) return;
+
+    if (await relayService?.handleIncomingTelegramMessage(msg)) {
+      return;
+    }
 
     // Try to find session from topic mapping
     let sessionId: string | null = null;

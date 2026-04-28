@@ -407,6 +407,98 @@ const TOOLS: McpTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'telegram_status',
+    title: 'Telegram Status',
+    description: 'Report whether Telegram is enabled, configured, running, and available. Agents should use Telegram only for concise mobile-friendly urgent blockers or after the user has already engaged through Telegram. No bot token is returned.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'telegram_channel_list',
+    title: 'List Telegram Channels',
+    description: 'List MCP Telegram communication channels and their session/topic state without exposing Telegram secrets.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'telegram_channel_create',
+    title: 'Create Telegram Channel',
+    description: 'Create or reuse a Telegram communication channel for a session. Use only for mobile-friendly urgent blockers or after the user has already engaged through Telegram.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        name: { type: 'string' },
+        expectsResponse: { type: 'boolean' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'telegram_channel_close',
+    title: 'Close Telegram Channel',
+    description: 'Close one MCP Telegram communication channel without deleting unrelated session topics.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        channelId: { type: 'string' },
+      },
+      required: ['channelId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'telegram_send_to_user',
+    title: 'Send Telegram Message To User',
+    description: 'Send concise mobile-friendly text to the user via Telegram. Provide sessionId/name or an existing channelId. Lines must be short; do not send large wide logs, tables, or code blocks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        name: { type: 'string' },
+        channelId: { type: 'string' },
+        text: { type: 'string' },
+        expectsResponse: { type: 'boolean' },
+      },
+      required: ['text'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'telegram_send',
+    title: 'Send Message to Telegram User',
+    description: 'Compatibility wrapper for sending a concise Telegram message from a session. Prefer telegram_send_to_user for new MCP clients.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        text: { type: 'string' },
+        replyTo: { type: 'string' },
+      },
+      required: ['sessionId', 'text'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'telegram_set_output_mode',
+    title: 'Set Telegram Output Mode',
+    description: 'Control whether Telegram output uses relay mode or diagnostic mirroring.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['relay', 'diagnostic'] },
+      },
+      required: ['mode'],
+      additionalProperties: false,
+    },
+  },
 ];
 
 export interface LocalhostMcpServerOptions {
@@ -741,6 +833,28 @@ export class LocalhostMcpServer {
         );
       case 'session_close':
         return this.service.closeSession(asString(args.sessionId ?? args.name, 'sessionId or name is required'));
+      case 'telegram_status':
+        return this.service.getTelegramStatus();
+      case 'telegram_channel_list':
+        return this.service.listTelegramChannels();
+      case 'telegram_channel_create':
+        return this.service.createTelegramChannel(
+          asString(args.sessionId ?? args.name, 'sessionId or name is required'),
+          typeof args.expectsResponse === 'boolean' ? args.expectsResponse : false,
+        );
+      case 'telegram_channel_close':
+        return this.service.closeTelegramChannel(asString(args.channelId, 'channelId is required'));
+      case 'telegram_send_to_user':
+        return this.service.sendTelegramToUser(
+          typeof args.sessionId === 'string' || typeof args.name === 'string'
+            ? asString(args.sessionId ?? args.name, 'sessionId or name is required')
+            : undefined,
+          asString(args.text, 'text is required'),
+          {
+            ...(typeof args.channelId === 'string' ? { channelId: args.channelId } : {}),
+            ...(typeof args.expectsResponse === 'boolean' ? { expectsResponse: args.expectsResponse } : {}),
+          },
+        );
       case 'telegram_send': {
         const sessionId = asString(args.sessionId, 'sessionId is required');
         const text = asString(args.text, 'text is required');

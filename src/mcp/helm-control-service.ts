@@ -9,6 +9,12 @@ import type { TerminalOutputMode } from '../session/terminal-output-buffer.js';
 import type { PlanItem, PlanStatus, PlanType } from '../types/plan.js';
 import type { PlanAttachment, PlanAttachmentTempFile } from '../types/plan-attachment.js';
 import type { SessionInfo } from '../types/session.js';
+import type {
+  TelegramBridge,
+  TelegramChannel,
+  TelegramSendToUserResult,
+  TelegramStatus,
+} from '../types/telegram-channel.js';
 import { PlanAttachmentManager } from '../session/plan-attachment-manager.js';
 import { mintSessionAuthToken } from './session-auth.js';
 
@@ -115,6 +121,8 @@ const REQUIRED_PLAN_DESCRIPTION_SECTIONS = [
 ];
 
 export class HelmControlService extends EventEmitter {
+  private telegramBridge: TelegramBridge | null = null;
+
   constructor(
     private readonly planManager: PlanManager,
     private readonly sessionManager: SessionManager,
@@ -123,6 +131,10 @@ export class HelmControlService extends EventEmitter {
     private readonly attachmentManager: PlanAttachmentManager = new PlanAttachmentManager(planManager),
   ) {
     super();
+  }
+
+  setTelegramBridge(bridge: TelegramBridge | null): void {
+    this.telegramBridge = bridge;
   }
 
   listPlans(dirPath: string): PlanItem[] {
@@ -680,6 +692,67 @@ export class HelmControlService extends EventEmitter {
     return { success: true };
   }
 
+  getTelegramStatus(): TelegramStatus {
+    const config = this.configLoader.getTelegramConfig();
+    const chatConfigured = typeof config.chatId === 'number';
+    const allowedUsersConfigured = Array.isArray(config.allowedUserIds) && config.allowedUserIds.length > 0;
+    const configured = Boolean(config.botToken && chatConfigured && allowedUsersConfigured);
+    const running = this.telegramBridge?.isRunning() ?? false;
+    return {
+      enabled: config.enabled,
+      configured,
+      running,
+      available: config.enabled && configured && running,
+      chatConfigured,
+      allowedUsersConfigured,
+      openChannels: this.telegramBridge?.listChannels().filter((channel) => channel.status === 'open').length ?? 0,
+      guidance: 'Use Telegram only for mobile-friendly urgent blockers or after the user has already engaged through Telegram.',
+    };
+  }
+
+  listTelegramChannels(): TelegramChannel[] {
+    return this.telegramBridge?.listChannels() ?? [];
+  }
+
+  async createTelegramChannel(sessionRef: string, expectsResponse = false): Promise<TelegramChannel> {
+    this.requireTelegramAvailable();
+    const session = this.findSession(sessionRef);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionRef}`);
+    }
+    return this.telegramBridge!.createChannel({ sessionId: session.id, expectsResponse });
+  }
+
+  async closeTelegramChannel(channelId: string): Promise<TelegramChannel> {
+    this.requireTelegramBridge();
+    const closed = this.telegramBridge!.closeChannel(channelId);
+    if (!closed) {
+      throw new Error(`Telegram channel not found: ${channelId}`);
+    }
+    return closed;
+  }
+
+  async sendTelegramToUser(
+    sessionRef: string | undefined,
+    text: string,
+    options?: { channelId?: string; expectsResponse?: boolean },
+  ): Promise<TelegramSendToUserResult> {
+    this.requireTelegramAvailable();
+    validateMobileFriendlyTelegramText(text);
+    const session = options?.channelId
+      ? undefined
+      : this.findSession(requireString(sessionRef, 'sessionId or channelId is required'));
+    if (!options?.channelId && !session) {
+      throw new Error(`Session not found: ${sessionRef}`);
+    }
+    return this.telegramBridge!.sendToUser({
+      ...(session ? { sessionId: session.id } : {}),
+      ...(options?.channelId ? { channelId: options.channelId } : {}),
+      text,
+      ...(typeof options?.expectsResponse === 'boolean' ? { expectsResponse: options.expectsResponse } : {}),
+    });
+  }
+
   /**
    * Set Telegram output mode (relay or diagnostic).
    * Called via telegram_set_output_mode MCP tool — allows CLI sessions to control how their output appears in Telegram.
@@ -728,6 +801,11 @@ export class HelmControlService extends EventEmitter {
       { name: 'session_set_aiagent_state', title: 'Set Session AIAGENT State', description: 'Update the session AIAGENT state icon in Helm.' },
       { name: 'session_close', title: 'Close Session', description: 'Close a Helm session and stop its PTY.' },
       { name: 'session_info', title: 'Get Session Info', description: 'Retrieve MCP endpoint, AIAGENT state registry, available tools, directories, and agent planning guidance.' },
+      { name: 'telegram_status', title: 'Telegram Status', description: 'Report whether Telegram is enabled, configured, running, and available for urgent mobile-friendly user communication.' },
+      { name: 'telegram_channel_list', title: 'List Telegram Channels', description: 'List open and closed MCP Telegram communication channels without exposing Telegram secrets.' },
+      { name: 'telegram_channel_create', title: 'Create Telegram Channel', description: 'Create or reuse a Telegram communication channel for a session when user clarification is urgent or Telegram engagement already exists.' },
+      { name: 'telegram_channel_close', title: 'Close Telegram Channel', description: 'Close a Telegram communication channel without deleting unrelated session topics.' },
+      { name: 'telegram_send_to_user', title: 'Send Telegram Message To User', description: 'Send concise mobile-friendly text to the user via Telegram and optionally wait for a reply routed back to the session.' },
       { name: 'telegram_send', title: 'Send Message to Telegram User', description: 'Send a deliberate Telegram reply from a CLI session.' },
       { name: 'telegram_set_output_mode', title: 'Set Telegram Output Mode', description: 'Control how session output appears in Telegram.' },
     ];
@@ -822,6 +900,20 @@ export class HelmControlService extends EventEmitter {
       .replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_match, envName: string) => process.env[envName] ?? '')
       .replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (_match, envName: string) => process.env[envName] ?? '');
   }
+
+  private requireTelegramBridge(): void {
+    if (!this.telegramBridge) {
+      throw new Error('Telegram bridge is not available');
+    }
+  }
+
+  private requireTelegramAvailable(): void {
+    this.requireTelegramBridge();
+    const status = this.getTelegramStatus();
+    if (!status.available) {
+      throw new Error('Telegram is not available: enable Telegram, configure chat and allowed users, and start the bot first');
+    }
+  }
 }
 
 function requireResult<T>(value: T | null, message: string): T {
@@ -837,4 +929,24 @@ function decodeBase64Content(value: string): Buffer {
     throw new Error('contentBase64 must be valid base64');
   }
   return Buffer.from(normalized, 'base64');
+}
+
+function requireString(value: string | undefined, errorMessage: string): string {
+  if (!value) {
+    throw new Error(errorMessage);
+  }
+  return value;
+}
+
+function validateMobileFriendlyTelegramText(text: string): void {
+  if (text.trim().length === 0) {
+    throw new Error('Telegram message text is required');
+  }
+  if (text.length > 1600) {
+    throw new Error('Telegram message must be 1600 characters or fewer');
+  }
+  const wideLine = text.split(/\r?\n/).find((line) => line.length > 140);
+  if (wideLine) {
+    throw new Error('Telegram message lines must be 140 characters or fewer for mobile readability');
+  }
 }

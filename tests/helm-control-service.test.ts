@@ -42,6 +42,18 @@ function makeService() {
     getAllCliTypes: vi.fn(() => []),
     getCliTypeConfig: vi.fn(() => ({})),
     getMcpConfig: vi.fn(() => ({ enabled: true, port: 47373, authToken: 'helm-token' })),
+    getTelegramConfig: vi.fn(() => ({
+      enabled: true,
+      botToken: 'configured',
+      chatId: 123,
+      allowedUserIds: [456],
+      instanceName: 'Home',
+      safeModeDefault: true,
+      notifyOnComplete: true,
+      notifyOnIdle: true,
+      notifyOnError: true,
+      notifyOnCrash: true,
+    })),
   };
 
   const service = new HelmControlService(
@@ -393,6 +405,76 @@ describe('HelmControlService plan attachments', () => {
       filename: 'bad.bin',
       contentBase64: 'not base64!',
     })).toThrow('valid base64');
+  });
+});
+
+describe('HelmControlService telegram channels', () => {
+  it('reports Telegram availability without exposing secrets', () => {
+    const { service } = makeService();
+    service.setTelegramBridge({
+      isRunning: vi.fn(() => true),
+      listChannels: vi.fn(() => [{ id: 'tc1', sessionId: 's1', sessionName: 'Claude', status: 'open', expectsResponse: true, createdAt: 1, updatedAt: 1 }]),
+      createChannel: vi.fn(),
+      closeChannel: vi.fn(),
+      sendToUser: vi.fn(),
+    });
+
+    const status = service.getTelegramStatus();
+
+    expect(status).toMatchObject({
+      enabled: true,
+      configured: true,
+      running: true,
+      available: true,
+      openChannels: 1,
+    });
+    expect(JSON.stringify(status)).not.toContain('botToken');
+  });
+
+  it('creates channels and sends mobile-friendly messages through the bridge', async () => {
+    const { service, sessionManager } = makeService();
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 's1',
+      name: 'Claude',
+      cliType: 'claude-code',
+      workingDir: '/work',
+    });
+    const bridge = {
+      isRunning: vi.fn(() => true),
+      listChannels: vi.fn(() => []),
+      createChannel: vi.fn(async () => ({ id: 'tc1', sessionId: 's1', sessionName: 'Claude', topicId: 42, status: 'open' as const, expectsResponse: true, createdAt: 1, updatedAt: 1 })),
+      closeChannel: vi.fn(),
+      sendToUser: vi.fn(async () => ({
+        sent: true,
+        channel: { id: 'tc1', sessionId: 's1', sessionName: 'Claude', topicId: 42, status: 'open' as const, expectsResponse: true, createdAt: 1, updatedAt: 2 },
+        messageId: 99,
+      })),
+    };
+    service.setTelegramBridge(bridge);
+
+    const channel = await service.createTelegramChannel('s1', true);
+    const sent = await service.sendTelegramToUser('s1', 'Need a quick decision?', { expectsResponse: true });
+
+    expect(bridge.createChannel).toHaveBeenCalledWith({ sessionId: 's1', expectsResponse: true });
+    expect(bridge.sendToUser).toHaveBeenCalledWith({ sessionId: 's1', text: 'Need a quick decision?', expectsResponse: true });
+    expect(channel.id).toBe('tc1');
+    expect(sent.sent).toBe(true);
+  });
+
+  it('rejects unavailable Telegram and wide messages', async () => {
+    const { service } = makeService();
+
+    await expect(service.sendTelegramToUser('s1', 'hello')).rejects.toThrow('Telegram bridge');
+
+    service.setTelegramBridge({
+      isRunning: vi.fn(() => true),
+      listChannels: vi.fn(() => []),
+      createChannel: vi.fn(),
+      closeChannel: vi.fn(),
+      sendToUser: vi.fn(),
+    });
+
+    await expect(service.sendTelegramToUser('s1', 'x'.repeat(141))).rejects.toThrow('140 characters');
   });
 });
 

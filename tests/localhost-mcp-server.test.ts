@@ -58,6 +58,25 @@ function makeService(): HelmControlService {
       lastOutputAt: 1234,
     })),
     setSessionWorkingPlan: vi.fn((sessionRef: string, planId: string) => ({ sessionId: sessionRef, name: 'Claude', planId, planTitle: 'Task', planStatus: 'coding' })),
+    getTelegramStatus: vi.fn(() => ({
+      enabled: true,
+      configured: true,
+      running: true,
+      available: true,
+      chatConfigured: true,
+      allowedUsersConfigured: true,
+      openChannels: 1,
+      guidance: 'Use Telegram only for mobile-friendly urgent blockers.',
+    })),
+    listTelegramChannels: vi.fn(() => [{ id: 'tc1', sessionId: 's1', sessionName: 'Claude', topicId: 42, status: 'open', expectsResponse: true, createdAt: 1, updatedAt: 2 }]),
+    createTelegramChannel: vi.fn(async (sessionRef: string, expectsResponse: boolean) => ({ id: 'tc1', sessionId: sessionRef, sessionName: 'Claude', topicId: 42, status: 'open', expectsResponse, createdAt: 1, updatedAt: 2 })),
+    closeTelegramChannel: vi.fn(async (channelId: string) => ({ id: channelId, sessionId: 's1', sessionName: 'Claude', topicId: 42, status: 'closed', expectsResponse: true, createdAt: 1, updatedAt: 3 })),
+    sendTelegramToUser: vi.fn(async (sessionRef: string | undefined, text: string, options?: { channelId?: string; expectsResponse?: boolean }) => ({
+      sent: true,
+      channel: { id: options?.channelId ?? 'tc1', sessionId: sessionRef ?? 's1', sessionName: 'Claude', topicId: 42, status: 'open', expectsResponse: options?.expectsResponse ?? false, createdAt: 1, updatedAt: 2 },
+      messageId: 99,
+      text,
+    })),
   } as unknown as HelmControlService;
 }
 
@@ -138,6 +157,8 @@ describe('LocalhostMcpServer', () => {
     const readTerminalTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'session_read_terminal');
     const attachmentAddTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_attachment_add');
     const attachmentGetTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_attachment_get');
+    const telegramStatusTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'telegram_status');
+    const telegramSendTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'telegram_send_to_user');
     expect(planCreateTool.description).toContain('Problem Statement');
     expect(planCreateTool.description).toContain('Acceptance Criteria');
     expect(planCreateTool.description).toContain('QUESTION:');
@@ -156,6 +177,8 @@ describe('LocalhostMcpServer', () => {
     expect(attachmentAddTool.description).toContain('Helm config');
     expect(attachmentGetTool.description).toContain('temp file');
     expect(attachmentGetTool.description).toContain('inline');
+    expect(telegramStatusTool.description).toContain('No bot token');
+    expect(telegramSendTool.description).toContain('mobile-friendly');
   });
 
   it('dispatches tool calls into the shared service', async () => {
@@ -386,6 +409,67 @@ describe('LocalhostMcpServer', () => {
     const deleteJson = await deleteResponse.json();
     expect((service.deletePlanAttachment as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('P-0001', 'a1');
     expect(deleteJson.result.structuredContent).toEqual({ deleted: true });
+  });
+
+  it('dispatches telegram channel tools through the MCP surface', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const statusResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 70,
+      method: 'tools/call',
+      params: { name: 'telegram_status', arguments: {} },
+    });
+    const statusJson = await statusResponse.json();
+    expect((service.getTelegramStatus as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
+    expect(statusJson.result.structuredContent.available).toBe(true);
+    expect(JSON.stringify(statusJson.result.structuredContent)).not.toContain('botToken');
+
+    const createResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 71,
+      method: 'tools/call',
+      params: { name: 'telegram_channel_create', arguments: { sessionId: 's1', expectsResponse: true } },
+    });
+    const createJson = await createResponse.json();
+    expect((service.createTelegramChannel as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', true);
+    expect(createJson.result.structuredContent).toMatchObject({ id: 'tc1', expectsResponse: true });
+
+    const sendResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 72,
+      method: 'tools/call',
+      params: { name: 'telegram_send_to_user', arguments: { channelId: 'tc1', text: 'Need a quick decision?', expectsResponse: true } },
+    });
+    const sendJson = await sendResponse.json();
+    expect((service.sendTelegramToUser as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(undefined, 'Need a quick decision?', {
+      channelId: 'tc1',
+      expectsResponse: true,
+    });
+    expect(sendJson.result.structuredContent.sent).toBe(true);
+
+    const listResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 73,
+      method: 'tools/call',
+      params: { name: 'telegram_channel_list', arguments: {} },
+    });
+    const listJson = await listResponse.json();
+    expect(listJson.result.structuredContent.items[0].id).toBe('tc1');
+
+    const closeResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 74,
+      method: 'tools/call',
+      params: { name: 'telegram_channel_close', arguments: { channelId: 'tc1' } },
+    });
+    const closeJson = await closeResponse.json();
+    expect((service.closeTelegramChannel as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('tc1');
+    expect(closeJson.result.structuredContent.status).toBe('closed');
   });
 
   it('clears plan type through plan_update when type is null', async () => {

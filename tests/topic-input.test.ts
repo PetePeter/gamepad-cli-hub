@@ -124,6 +124,29 @@ describe('setupTopicInput', () => {
     expect(bot.sendToTopic).not.toHaveBeenCalled();
   });
 
+  it('lets the relay service consume pending MCP channel replies before direct PTY forwarding', async () => {
+    const relayService = {
+      handleIncomingTelegramMessage: vi.fn().mockResolvedValue(true),
+    };
+    bot = createMockBot();
+    setupTopicInput(
+      bot as any,
+      topicManager as any,
+      ptyManager as any,
+      textInput as any,
+      undefined,
+      sessionManager as any,
+      relayService as any,
+    );
+
+    const handler = getMessageHandler(bot);
+    await handler({ message_thread_id: 42, text: 'yes, do that' });
+
+    expect(relayService.handleIncomingTelegramMessage).toHaveBeenCalledWith({ message_thread_id: 42, text: 'yes, do that' });
+    expect(textInput.handleMessage).not.toHaveBeenCalled();
+    expect(ptyManager.write).not.toHaveBeenCalled();
+  });
+
   it('sends error when no active session and no topic mapping', async () => {
     const handler = getMessageHandler(bot);
     await handler({ text: 'hello' });
