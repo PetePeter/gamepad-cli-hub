@@ -8,3 +8,4 @@ export { default as DraftSubmenu } from './DraftSubmenu.vue';
 export { default as FormModal } from './FormModal.vue';
 export { default as BindingEditorModal } from './BindingEditorModal.vue';
 export { default as EscProtectionModal } from './EscProtectionModal.vue';
+export { default as BackupRestoreModal } from './BackupRestoreModal.vue';

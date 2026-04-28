@@ -53,6 +53,7 @@ const emit = defineEmits<{
   toggleTypeFilter: [type: 'bug' | 'feature' | 'research' | 'untyped'];
   toggleStatusFilter: [status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done'];
   resetFilters: [];
+  openBackups: [];
 }>();
 
 const wrapperRef = ref<HTMLElement | null>(null);
@@ -291,6 +292,7 @@ function startDragConnection(id: string, e: MouseEvent): void {
       <div class="plan-header__controls">
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('exportDir')">⬆ Export Dir</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('clearDone')">🧹 Clear Done</button>
+        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openBackups')" title="Backups (R)">💾 Backups</button>
       </div>
       <span v-if="notice" class="plan-notice plan-notice--visible">{{ notice }}</span>
     </div>

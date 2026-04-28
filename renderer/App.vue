@@ -13,7 +13,7 @@ declare global {
   }
 }
 
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { state } from './state.js';
 import SnapOutWindow from './components/SnapOutWindow.vue';
 import { sessionsState } from './screens/sessions-state.js';
@@ -47,6 +47,7 @@ import {
   toggleTypeFilter,
   toggleStatusFilter,
   resetFilters,
+  refreshCanvasIfVisible,
 } from './plans/plan-screen.js';
 import { handleSessionsScreenButton, toggleSessionOverviewVisibility, setSessionState, toggleGroupCollapse } from './screens/sessions.js';
 import { usePanelResize } from './composables/usePanelResize.js';
@@ -94,6 +95,7 @@ import {
   setDraftEditorCloser as setPlanScreenDraftEditorCloser,
   setDraftEditorVisibilityChecker as setPlanScreenDraftEditorVisibilityChecker,
   setPlanChangesChecker as setPlanScreenPlanChangesChecker,
+  setBackupRestoreOpener as setPlanScreenBackupRestoreOpener,
 } from './plans/plan-screen.js';
 import { deliverBulkText, deliverViaClipboardPaste } from './paste-handler.js';
 import { startRename, commitRename, cancelRename } from './screens/sessions-render.js';
@@ -120,6 +122,7 @@ import DirectoriesTab from './components/sidebar/DirectoriesTab.vue';
 import ChipbarActionsTab from './components/sidebar/ChipbarActionsTab.vue';
 import McpTab from './components/sidebar/McpTab.vue';
 import ScheduledTasksTab from './components/sidebar/ScheduledTasksTab.vue';
+import BackupTab from './components/sidebar/BackupTab.vue';
 
 import { logEvent, showFormModal, updateProfileDisplay, navigateFocus } from './utils.js';
 import { loadSessions } from './screens/sessions.js';
@@ -137,6 +140,7 @@ import ToolEditorModal from './components/modals/ToolEditorModal.vue';
 import EditorPopup from './components/modals/EditorPopup.vue';
 import BindingEditorModal from './components/modals/BindingEditorModal.vue';
 import EscProtectionModal from './components/modals/EscProtectionModal.vue';
+import BackupRestoreModal from './components/modals/BackupRestoreModal.vue';
 import ToastNotification from './components/ToastNotification.vue';
 import ClearDonePlansModal from './components/modals/ClearDonePlansModal.vue';
 import ChipBar from './components/chips/ChipBar.vue';
@@ -180,6 +184,26 @@ const overviewGroupLabel = ref('');
 const isSnapOut = computed(() => {
   const params = new URLSearchParams(window.location.search);
   return params.get('snapOut') === '1';
+});
+
+// Backup restore modal state
+interface BackupMeta {
+  timestamp: string;
+  dirPath: string;
+  planCount: number;
+  dependencyCount: number;
+  status: 'complete' | 'partial' | 'error';
+  error?: string;
+  sizeBytes?: number;
+  index: number;
+  snapshotPath?: string;
+}
+
+const backupRestore = reactive({
+  visible: false,
+  dirPath: '',
+  snapshots: [] as BackupMeta[],
+  loading: false,
 });
 
 const snapOutSessionId = computed(() => {
@@ -821,6 +845,8 @@ async function loadSettingsData(): Promise<void> {
     'chipbar-actions',
     'directories',
     'telegram',
+    'scheduled-tasks',
+    'backups',
     'mcp',
   ]);
   if (!validTabs.has(settingsTab.value)) {
@@ -973,6 +999,7 @@ function buildSettingsTabs() {
     { id: 'directories', label: '📁 Dirs' },
     { id: 'telegram', label: '📨 Telegram' },
     { id: 'scheduled-tasks', label: '⏰ Tasks' },
+    { id: 'backups', label: '💾 Backups' },
     { id: 'mcp', label: '🧩 MCP' },
   ];
 }
@@ -1728,6 +1755,54 @@ function onClearDonePlansConfirm(): void {
   if (cb) cb();
 }
 
+// Backup restore modal handlers
+async function openBackupRestore(): Promise<void> {
+  backupRestore.dirPath = planScreenState.currentDir;
+  backupRestore.loading = true;
+  backupRestore.visible = true;
+  try {
+    const snapshots = await window.gamepadCli.planListBackups(backupRestore.dirPath);
+    backupRestore.snapshots = snapshots;
+  } catch {
+    backupRestore.snapshots = [];
+  } finally {
+    backupRestore.loading = false;
+  }
+}
+
+async function onBackupRestore(snapshotPath: string): Promise<void> {
+  try {
+    const result = await window.gamepadCli.planRestoreBackup(snapshotPath);
+    if (result && typeof result === 'object' && 'success' in result && result.success) {
+      planScreenState.notice = 'Restored from backup';
+      void refreshCanvasIfVisible();
+    }
+  } catch {
+    planScreenState.notice = 'Restore failed';
+  }
+  backupRestore.visible = false;
+}
+
+async function onBackupDelete(snapshotPath: string): Promise<void> {
+  try {
+    await window.gamepadCli.planDeleteBackup(snapshotPath);
+    const snapshots = await window.gamepadCli.planListBackups(backupRestore.dirPath);
+    backupRestore.snapshots = snapshots;
+  } catch { /* ignore */ }
+}
+
+async function onBackupNow(): Promise<void> {
+  try {
+    await window.gamepadCli.planCreateBackupNow(backupRestore.dirPath);
+    const snapshots = await window.gamepadCli.planListBackups(backupRestore.dirPath);
+    backupRestore.snapshots = snapshots;
+  } catch { /* ignore */ }
+}
+
+function onBackupClose(): void {
+  backupRestore.visible = false;
+}
+
 // Sequence picker select
 function onSequencePickerSelect(seq: string): void {
   sequencePicker.visible = false;
@@ -1935,6 +2010,7 @@ onMounted(async () => {
     setPlanScreenDraftEditorCloser(closeDraftEditor);
     setPlanScreenDraftEditorVisibilityChecker(() => draftEditorVisible.value);
     setPlanScreenPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
+    setPlanScreenBackupRestoreOpener(openBackupRestore);
 
     await loadCollapsePrefs();
     await chipBarStore.refresh(state.activeSessionId ?? null);
@@ -2099,6 +2175,9 @@ onUnmounted(() => {
               @generate-token="onMcpGenerateToken"
               @run-in-cmd="onMcpRunInCmd"
             />
+            <BackupTab
+              v-else-if="activeTab === 'backups'"
+            />
             <BindingsTab
               v-else
               :bindings="settingsBindings"
@@ -2236,6 +2315,7 @@ onUnmounted(() => {
         @toggle-type-filter="onToggleTypeFilter"
         @toggle-status-filter="onToggleStatusFilter"
         @reset-filters="onResetFilters"
+        @open-backups="openBackupRestore()"
       />
       <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
         <ChipActionBar
@@ -2353,6 +2433,17 @@ onUnmounted(() => {
     />
 
     <EscProtectionModal />
+
+    <BackupRestoreModal
+      :visible="backupRestore.visible"
+      :dir-path="backupRestore.dirPath"
+      :snapshots="backupRestore.snapshots"
+      :loading="backupRestore.loading"
+      @restore="onBackupRestore"
+      @delete="onBackupDelete"
+      @backup-now="onBackupNow"
+      @close="onBackupClose"
+    />
 
     <ToastNotification />
   </template>

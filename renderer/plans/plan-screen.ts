@@ -40,6 +40,7 @@ let planEditorOpener: ((sessionId: string, plan: PlanItem, callbacks: PlanEditor
 let draftEditorCloser: (() => void) | null = null;
 let draftEditorVisibilityChecker: (() => boolean) | null = null;
 let planChangesChecker: (() => boolean) | null = null;
+let backupRestoreOpener: (() => void) | null = null;
 let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function loadFilterPreferences(): Promise<void> {
@@ -67,6 +68,7 @@ export function setPlanEditorOpener(fn: typeof planEditorOpener) { planEditorOpe
 export function setDraftEditorCloser(fn: typeof draftEditorCloser) { draftEditorCloser = fn; }
 export function setDraftEditorVisibilityChecker(fn: typeof draftEditorVisibilityChecker) { draftEditorVisibilityChecker = fn; }
 export function setPlanChangesChecker(fn: typeof planChangesChecker) { planChangesChecker = fn; }
+export function setBackupRestoreOpener(opener: () => void): void { backupRestoreOpener = opener; }
 
 function getLayoutNodes(): LayoutNode[] {
   return planScreenState.layout.nodes;
@@ -247,6 +249,13 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
 
   if (draftEditorVisibilityChecker?.() ?? false) return;
   if (editable) return;
+
+  if (e.key === 'r' || e.key === 'R') {
+    if (isPlanScreenVisible()) {
+      openBackupRestoreModal();
+      return;
+    }
+  }
 
   if (e.key === 'Delete' && planScreenState.selectedId) {
     e.preventDefault();
@@ -614,6 +623,17 @@ function refreshLayout(): void {
   const filteredDeps = getFilteredDeps(planScreenState.deps);
   planScreenState.layout = computeLayout(filteredItems, filteredDeps);
   syncSelection();
+}
+
+function isBackupRestoreModalVisible(): boolean {
+  return document.querySelector('.backup-restore-modal') !== null;
+}
+
+function openBackupRestoreModal(): void {
+  if (isBackupRestoreModalVisible()) return;
+  if (backupRestoreOpener) {
+    backupRestoreOpener();
+  }
 }
 
 export async function handleReopen(): Promise<void> {
