@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { getDisplayTitle } from '../../types.js';
 import type { PlanDependency, PlanItem, PlanSequence } from '../../../src/types/plan.js';
 import type { LayoutResult } from '../../plans/plan-layout.js';
+import SequencePanel from './SequencePanel.vue';
 
 const NODE_W = 200;
 const NODE_H = 102;
@@ -75,10 +76,6 @@ const viewBox = ref({ x: 0, y: 0, w: 800, h: 600 });
 const isPanning = ref(false);
 const panStart = ref({ x: 0, y: 0, vbx: 0, vby: 0 });
 const dragState = ref<{ fromId: string; x: number; y: number } | null>(null);
-const sequenceDraft = reactive({ id: '', title: '', missionStatement: '', sharedMemory: '' });
-const sequenceModalVisible = ref(false);
-const sequenceModalMode = ref<'create' | 'edit'>('create');
-const sequenceDeleteConfirm = ref(false);
 
 const nodeMap = computed(() => {
   const map = new Map<string, LayoutResult['nodes'][number]>();
@@ -97,12 +94,6 @@ const positionedItems = computed(() =>
 
 const selectedItem = computed(() =>
   props.selectedId ? props.items.find((item) => item.id === props.selectedId) ?? null : null,
-);
-
-const selectedSequence = computed(() =>
-  selectedItem.value?.sequenceId
-    ? props.sequences.find((sequence) => sequence.id === selectedItem.value?.sequenceId) ?? null
-    : null,
 );
 
 const sequenceBoxes = computed(() => {
@@ -127,48 +118,6 @@ const relatedForegroundIds = computed(() => {
   return ids;
 });
 
-function openSequenceCreateModal(): void {
-  sequenceDraft.id = '';
-  sequenceDraft.title = '';
-  sequenceDraft.missionStatement = '';
-  sequenceDraft.sharedMemory = '';
-  sequenceDeleteConfirm.value = false;
-  sequenceModalMode.value = 'create';
-  sequenceModalVisible.value = true;
-}
-
-function openSequenceEditModal(): void {
-  if (!selectedSequence.value) return;
-  sequenceDraft.id = selectedSequence.value.id;
-  sequenceDraft.title = selectedSequence.value.title;
-  sequenceDraft.missionStatement = selectedSequence.value.missionStatement ?? '';
-  sequenceDraft.sharedMemory = selectedSequence.value.sharedMemory ?? '';
-  sequenceDeleteConfirm.value = false;
-  sequenceModalMode.value = 'edit';
-  sequenceModalVisible.value = true;
-}
-
-function saveSequenceModal(): void {
-  if (sequenceModalMode.value === 'create') {
-    emit('createSequence', sequenceDraft.title, sequenceDraft.missionStatement, sequenceDraft.sharedMemory);
-  } else {
-    emit('updateSequence', sequenceDraft.id, {
-      title: sequenceDraft.title,
-      missionStatement: sequenceDraft.missionStatement,
-      sharedMemory: sequenceDraft.sharedMemory,
-    });
-  }
-  sequenceModalVisible.value = false;
-}
-
-function deleteSequenceModal(): void {
-  if (!sequenceDeleteConfirm.value) {
-    sequenceDeleteConfirm.value = true;
-    return;
-  }
-  emit('deleteSequence', sequenceDraft.id);
-  sequenceModalVisible.value = false;
-}
 
 const dragPath = computed(() => {
   if (!dragState.value) return '';
@@ -568,73 +517,15 @@ function startDragConnection(id: string, e: MouseEvent): void {
       </div>
 
       <div class="plan-inspector__body">
-        <section class="plan-inspector__section plan-inspector__section--sequence">
-          <div class="plan-inspector__section-header">
-            <span>Sequence</span>
-            <button class="plan-header__btn plan-header__btn--secondary" @click="openSequenceCreateModal">New Sequence</button>
-          </div>
-          <div class="plan-sequence-panel__row">
-            <select
-              class="plan-sequence-panel__select"
-              :value="selectedItem.sequenceId ?? ''"
-              @change="emit('assignSequence', selectedItem.id, ($event.target as HTMLSelectElement).value || null)"
-            >
-              <option value="">None</option>
-              <option v-for="sequence in sequences" :key="sequence.id" :value="sequence.id">{{ sequence.title }}</option>
-            </select>
-            <button
-              v-if="selectedSequence"
-              class="plan-header__btn plan-header__btn--secondary"
-              @click="emit('assignSequence', selectedItem.id, null)"
-            >Unlink Plan</button>
-            <button
-              v-if="selectedSequence"
-              class="plan-header__btn plan-header__btn--secondary"
-              @click="openSequenceEditModal"
-            >Edit</button>
-            <button
-              v-if="selectedSequence"
-              class="plan-header__btn plan-header__btn--danger"
-              @click="emit('deleteSequence', selectedSequence.id)"
-            >Delete Sequence</button>
-          </div>
-        </section>
+        <SequencePanel
+          :sequences="sequences"
+          :selected-item="selectedItem"
+          @create-sequence="(t, m, s) => emit('createSequence', t, m, s)"
+          @assign-sequence="(planId, seqId) => emit('assignSequence', planId, seqId)"
+          @update-sequence="(id, updates) => emit('updateSequence', id, updates)"
+          @delete-sequence="(id) => emit('deleteSequence', id)"
+        />
       </div>
     </div>
-
-    <!-- Sequence editor modal -->
-    <Teleport to="body">
-      <div v-if="sequenceModalVisible" class="plan-sequence-modal-overlay" @mousedown.self="sequenceModalVisible = false">
-        <div class="plan-sequence-modal">
-          <div class="plan-sequence-modal__header">
-            <span>{{ sequenceModalMode === 'create' ? 'New Sequence' : 'Edit Sequence' }}</span>
-          </div>
-          <label class="plan-sequence-modal__field">
-            <span>Title</span>
-            <input v-model="sequenceDraft.title" class="plan-sequence-modal__input" placeholder="Sequence title..." maxlength="100" />
-          </label>
-          <label class="plan-sequence-modal__field">
-            <span>Mission</span>
-            <textarea v-model="sequenceDraft.missionStatement" class="plan-sequence-modal__textarea" placeholder="What is this sequence working toward?" rows="3" />
-          </label>
-          <label class="plan-sequence-modal__field">
-            <span>Memory</span>
-            <textarea v-model="sequenceDraft.sharedMemory" class="plan-sequence-modal__textarea" placeholder="Shared context for all plans in this sequence..." rows="3" />
-          </label>
-          <div class="plan-sequence-modal__actions">
-            <button class="btn btn--primary btn--sm" @click="saveSequenceModal">
-              {{ sequenceModalMode === 'create' ? 'Create' : 'Save' }}
-            </button>
-            <button
-              v-if="sequenceModalMode === 'edit'"
-              class="btn btn--sm"
-              :class="sequenceDeleteConfirm ? 'btn--danger' : 'btn--secondary'"
-              @click="deleteSequenceModal"
-            >{{ sequenceDeleteConfirm ? 'Confirm Delete' : 'Delete' }}</button>
-            <button class="btn btn--secondary btn--sm" @click="sequenceModalVisible = false">Cancel</button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
