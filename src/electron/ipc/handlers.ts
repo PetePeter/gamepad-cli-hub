@@ -134,6 +134,26 @@ export function registerIPCHandlers(
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, telegramModules.feedPtyOutput, telegramModules.handleActivityChange, telegramModules.trackInput, patternMatcher);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
 
+  // Wire automatic backup scheduling: backup a directory when plans change,
+  // but only if enough time has passed since the last backup for that dir.
+  const lastBackupByDir = new Map<string, number>();
+  planManager.on('plan:changed', (dirPath: string) => {
+    const config = backupManager.getConfig();
+    if (!config.enabled) return;
+    if (config.excludePaths?.includes(dirPath)) return;
+
+    const now = Date.now();
+    const lastBackup = lastBackupByDir.get(dirPath) ?? 0;
+    if (now - lastBackup < config.snapshotIntervalMs) return;
+
+    lastBackupByDir.set(dirPath, now);
+    try {
+      backupManager.createSnapshot(dirPath);
+    } catch {
+      // Don't let backup failures disrupt plan operations
+    }
+  });
+
   // Wire events ONCE (no-ops when bot not running — notifier checks isRunning)
   stateDetector.on('state-change', (transition) => telegramNotifier.handleStateChange(transition));
   stateDetector.on('state-change', (transition) => telegramModules.handleStateChange(transition.sessionId, transition.newState));

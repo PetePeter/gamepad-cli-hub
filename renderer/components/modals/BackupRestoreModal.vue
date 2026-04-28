@@ -160,9 +160,7 @@ function handleKeyDown(event: KeyboardEvent): void {
 }
 
 function getSnapshotPath(metadata: BackupMetadata): string {
-  // This would be computed from the backup directory structure
-  // For now, return a placeholder that the renderer will resolve
-  return '';
+  return metadata.snapshotPath ?? '';
 }
 
 // Lifecycle

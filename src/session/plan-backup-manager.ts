@@ -33,6 +33,15 @@ const SNAPSHOT_FILE_PATTERN = /^snapshot-(.+)-(\d+)\.json$/;
 const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const BACKUP_CONFIG_FILE = 'plan-backups.yaml';
 
+/**
+ * Convert an ISO timestamp to a filesystem-safe version.
+ * Replaces colons with dashes so filenames work on Windows.
+ * Example: "2024-01-15T10:30:00.000Z" -> "2024-01-15T10-30-00.000Z"
+ */
+function toFsSafeTimestamp(iso: string): string {
+  return iso.replace(/:/g, '-');
+}
+
 /** Events emitted by PlanBackupManager */
 export interface PlanBackupEvents {
   'snapshot-created': [metadata: BackupMetadata, snapshotPath: string];
@@ -132,7 +141,8 @@ export class PlanBackupManager extends EventEmitter {
 
       // Generate timestamp and index for same-second duplicates
       const timestamp = new Date().toISOString();
-      const index = this.getNextIndexForTimestamp(backupDir, timestamp);
+      const fsTimestamp = toFsSafeTimestamp(timestamp);
+      const index = this.getNextIndexForTimestamp(backupDir, fsTimestamp);
 
       // Create metadata
       const metadata: BackupMetadata = {
@@ -150,8 +160,8 @@ export class PlanBackupManager extends EventEmitter {
         planData: exportedPlan,
       };
 
-      // Write snapshot file
-      const filename = `snapshot-${timestamp}-${index}.json`;
+      // Write snapshot file (use fs-safe timestamp for Windows compatibility)
+      const filename = `snapshot-${fsTimestamp}-${index}.json`;
       const snapshotPath = join(backupDir, filename);
       writeFileSync(snapshotPath, JSON.stringify(snapshot, null, 2), 'utf8');
 
@@ -243,7 +253,9 @@ export class PlanBackupManager extends EventEmitter {
           const snapshotPath = join(backupDir, file);
           const content = readFileSync(snapshotPath, 'utf8');
           const snapshot: PlanSnapshot = JSON.parse(content) as PlanSnapshot;
-          snapshots.push(snapshot.metadata);
+          // Clone metadata and attach snapshot path so the renderer can use it
+          const metadata: BackupMetadata = { ...snapshot.metadata, snapshotPath };
+          snapshots.push(metadata);
         } catch (error) {
           logger.warn(`[PlanBackupManager] Failed to read snapshot ${file}: ${error}`);
         }
@@ -329,13 +341,16 @@ export class PlanBackupManager extends EventEmitter {
   /**
    * Get the path to the backup directory for a given directory path.
    * Directory path is encoded to be filesystem-safe.
+   * Colons are replaced with dashes because they are reserved on Windows (drive letter separator).
    */
   private getBackupDirForPath(dirPath: string): string {
     // Encode the directory path to be filesystem-safe
     // Replace backslashes with forward slashes, then encode special chars
+    // Colons are replaced to avoid Windows reserved character conflicts
     const encoded = dirPath
       .replace(/\\/g, '/')
-      .replace(/[^a-zA-Z0-9\-_/:]/g, '_');
+      .replace(/:/g, '-')
+      .replace(/[^a-zA-Z0-9\-_/]/g, '_');
     return join(this.backupsRootDir, encoded);
   }
 

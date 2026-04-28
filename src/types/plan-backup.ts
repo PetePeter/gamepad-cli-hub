@@ -31,6 +31,8 @@ export interface BackupMetadata {
   sizeBytes?: number;
   /** Index for same-second duplicates (0, 1, 2, ...) */
   index: number;
+  /** Full path to the snapshot file (populated when listed) */
+  snapshotPath?: string;
 }
 
 /**
