@@ -49,6 +49,14 @@ const selectedSnapshot = computed(() => {
   return sortedSnapshots.value[selectedIndex.value];
 });
 
+const selectedSnapshotAge = computed(() =>
+  selectedSnapshot.value ? formatTime(selectedSnapshot.value.timestamp) : '',
+);
+
+const selectedSnapshotTimestamp = computed(() =>
+  selectedSnapshot.value ? new Date(selectedSnapshot.value.timestamp).toLocaleString() : '',
+);
+
 // Methods
 function formatTime(timestamp: string): string {
   const date = new Date(timestamp);
@@ -211,6 +219,32 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
+
+          <div v-if="selectedSnapshot" class="backup-preview">
+            <h3>Snapshot Preview</h3>
+            <dl>
+              <div>
+                <dt>Timestamp</dt>
+                <dd>{{ selectedSnapshotTimestamp }}</dd>
+              </div>
+              <div>
+                <dt>Age</dt>
+                <dd>{{ selectedSnapshotAge }}</dd>
+              </div>
+              <div>
+                <dt>Plans</dt>
+                <dd>{{ selectedSnapshot.planCount }}</dd>
+              </div>
+              <div>
+                <dt>Dependencies</dt>
+                <dd>{{ selectedSnapshot.dependencyCount }}</dd>
+              </div>
+              <div>
+                <dt>Current Impact</dt>
+                <dd>Restore replaces the current planner state for {{ selectedSnapshot.dirPath }}.</dd>
+              </div>
+            </dl>
+          </div>
         </div>
 
         <div class="modal-footer">
@@ -370,6 +404,38 @@ onUnmounted(() => {
 
 .backup-status {
   font-size: 1.2rem;
+}
+
+.backup-preview {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+}
+.backup-preview h3 {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+.backup-preview dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.backup-preview dl > div {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px;
+}
+.backup-preview dt {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+.backup-preview dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.86rem;
 }
 
 .status-complete {

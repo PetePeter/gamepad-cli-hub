@@ -1776,9 +1776,11 @@ async function openBackupRestore(): Promise<void> {
 
 async function onBackupRestore(snapshotPath: string): Promise<void> {
   try {
+    const snapshot = backupRestore.snapshots.find((entry) => entry.snapshotPath === snapshotPath);
     const result = await window.gamepadCli.planRestoreBackup(snapshotPath);
     if (result && typeof result === 'object' && 'success' in result && result.success) {
-      planScreenState.notice = 'Restored from backup';
+      const timestamp = snapshot?.timestamp ? new Date(snapshot.timestamp).toLocaleString() : '';
+      planScreenState.notice = timestamp ? `Restored backup from ${timestamp}` : 'Restored from backup';
       void refreshCanvasIfVisible();
     }
   } catch {

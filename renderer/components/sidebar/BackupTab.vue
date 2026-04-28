@@ -8,7 +8,7 @@
  * - Debounced save (500ms after change)
  * - Manual "Backup Now" button
  */
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 
 interface BackupConfig {
   enabled: boolean;
@@ -20,6 +20,13 @@ const enabled = ref(true);
 const maxSnapshots = ref(10);
 const intervalHours = ref(1);
 const saving = ref(false);
+const backingUp = ref(false);
+const selectedDirPath = ref('');
+const workingDirs = ref<Array<{ name?: string; path: string }>>([]);
+const statusMessage = ref('');
+const errorMessage = ref('');
+
+const canBackupNow = computed(() => selectedDirPath.value.trim() !== '' && !backingUp.value);
 
 onMounted(async () => {
   try {
@@ -28,6 +35,12 @@ onMounted(async () => {
     maxSnapshots.value = config.maxSnapshots;
     intervalHours.value = Math.round(config.snapshotIntervalMs / 3600000);
   } catch { /* use defaults */ }
+  try {
+    workingDirs.value = await window.gamepadCli.configGetWorkingDirs() ?? [];
+  } catch {
+    workingDirs.value = [];
+    errorMessage.value = 'Could not load configured folders';
+  }
 });
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -39,23 +52,36 @@ function scheduleSave(): void {
 
 async function doSave(): Promise<void> {
   saving.value = true;
+  errorMessage.value = '';
+  statusMessage.value = '';
   try {
     await window.gamepadCli.planSetBackupConfig({
       enabled: enabled.value,
       maxSnapshots: maxSnapshots.value,
       snapshotIntervalMs: intervalHours.value * 3600000,
     });
-  } catch { /* ignore */ }
+    statusMessage.value = 'Backup settings saved';
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Could not save backup settings';
+  }
   saving.value = false;
 }
 
 async function createBackupNow(): Promise<void> {
+  if (!canBackupNow.value) return;
+  backingUp.value = true;
+  errorMessage.value = '';
+  statusMessage.value = '';
   try {
-    const firstDir = (await window.gamepadCli.configGetWorkingDirs())?.[0]?.path;
-    if (firstDir) {
-      await window.gamepadCli.planCreateBackupNow(firstDir);
-    }
-  } catch { /* ignore */ }
+    const metadata = await window.gamepadCli.planCreateBackupNow(selectedDirPath.value);
+    statusMessage.value = metadata?.timestamp
+      ? `Backup created ${new Date(metadata.timestamp).toLocaleString()}`
+      : 'Backup created';
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'Could not create backup';
+  } finally {
+    backingUp.value = false;
+  }
 }
 </script>
 
@@ -74,9 +100,22 @@ async function createBackupNow(): Promise<void> {
       <input type="number" :value="intervalHours" min="1" max="168" @change="intervalHours = Number(($event.target as HTMLInputElement).value); scheduleSave()" />
     </div>
     <div class="setting-row">
-      <button class="btn btn--secondary" :disabled="saving" @click="createBackupNow">Backup Now</button>
+      <label>Backup Directory</label>
+      <select v-model="selectedDirPath" class="backup-select">
+        <option value="">Select a folder...</option>
+        <option v-for="dir in workingDirs" :key="dir.path" :value="dir.path">
+          {{ dir.name || dir.path }}
+        </option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <button class="btn btn--secondary" :disabled="saving || !canBackupNow" @click="createBackupNow">
+        {{ backingUp ? 'Backing Up...' : 'Backup Now' }}
+      </button>
       <span v-if="saving" class="saving-indicator">Saving...</span>
     </div>
+    <p v-if="statusMessage" class="backup-message backup-message--success">{{ statusMessage }}</p>
+    <p v-if="errorMessage" class="backup-message backup-message--error">{{ errorMessage }}</p>
   </div>
 </template>
 
@@ -99,6 +138,16 @@ async function createBackupNow(): Promise<void> {
 }
 .setting-row input[type="number"] {
   width: 80px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+.backup-select {
+  min-width: 180px;
+  max-width: 280px;
   padding: 6px 8px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
@@ -130,4 +179,10 @@ async function createBackupNow(): Promise<void> {
   color: var(--text-secondary);
   font-size: 0.85rem;
 }
+.backup-message {
+  margin: 0;
+  font-size: 0.85rem;
+}
+.backup-message--success { color: #44cc44; }
+.backup-message--error { color: #ff6666; }
 </style>

@@ -14,6 +14,7 @@ import { mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync, statSy
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
+import * as YAML from 'yaml';
 import type {
   BackupMetadata,
   BackupConfig,
@@ -66,6 +67,7 @@ export class PlanBackupManager extends EventEmitter {
     this.configFilePath = join(resolvedConfigDir, BACKUP_CONFIG_FILE);
     this.config = { ...this.getDefaultConfig(), ...config };
     this.loadConfig();
+    this.validateConfig(this.config);
   }
 
   /** Get the current backup configuration */
@@ -75,7 +77,9 @@ export class PlanBackupManager extends EventEmitter {
 
   /** Update the backup configuration */
   updateConfig(updates: Partial<BackupConfig>): void {
-    this.config = { ...this.config, ...updates };
+    const next = { ...this.config, ...updates };
+    this.validateConfig(next);
+    this.config = next;
     this.saveConfig();
     this.emit('config-changed', this.getConfig());
   }
@@ -85,8 +89,10 @@ export class PlanBackupManager extends EventEmitter {
     try {
       if (existsSync(this.configFilePath)) {
         const content = readFileSync(this.configFilePath, 'utf8');
-        const loaded = JSON.parse(content) as Partial<BackupConfig>;
-        this.config = { ...this.getDefaultConfig(), ...loaded };
+        const loaded = YAML.parse(content) as Partial<BackupConfig>;
+        const next = { ...this.getDefaultConfig(), ...loaded };
+        this.validateConfig(next);
+        this.config = next;
         logger.info('[PlanBackupManager] Loaded config from file');
       }
     } catch (error) {
@@ -98,7 +104,7 @@ export class PlanBackupManager extends EventEmitter {
   private saveConfig(): void {
     try {
       mkdirSync(dirname(this.configFilePath), { recursive: true });
-      writeFileSync(this.configFilePath, JSON.stringify(this.config, null, 2), 'utf8');
+      writeFileSync(this.configFilePath, YAML.stringify(this.config), 'utf8');
       logger.debug('[PlanBackupManager] Saved config to file');
     } catch (error) {
       logger.error(`[PlanBackupManager] Failed to save config: ${error}`);
@@ -113,6 +119,19 @@ export class PlanBackupManager extends EventEmitter {
       snapshotIntervalMs: 3600000, // 1 hour
       excludePaths: [],
     };
+  }
+
+  private validateConfig(config: BackupConfig): void {
+    if (!Number.isInteger(config.maxSnapshots) || config.maxSnapshots < 1 || config.maxSnapshots > 100) {
+      throw new Error('maxSnapshots must be an integer between 1 and 100');
+    }
+    const intervalHours = config.snapshotIntervalMs / 3600000;
+    if (!Number.isFinite(intervalHours) || intervalHours < 1 || intervalHours > 168) {
+      throw new Error('snapshotIntervalMs must be between 1 and 168 hours');
+    }
+    if (config.excludePaths !== undefined && !Array.isArray(config.excludePaths)) {
+      throw new Error('excludePaths must be an array');
+    }
   }
 
   /**

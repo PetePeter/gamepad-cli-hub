@@ -116,4 +116,18 @@ describe('Plan backup IPC handlers', () => {
     await handler(null, { maxSnapshots: 5 });
     expect(mockBackupManager.updateConfig).toHaveBeenCalledWith({ maxSnapshots: 5 });
   });
+
+  it('plan:setBackupConfig rejects invalid ranges through manager validation', async () => {
+    const { setupBackupPlanHandlers } = await import('../src/electron/ipc/plan-backup-handlers.js');
+    setupBackupPlanHandlers(mockIpc as any, mockWindowManager as any, () => mockBackupManager);
+    mockBackupManager.updateConfig.mockImplementation(() => {
+      throw new Error('maxSnapshots must be an integer between 1 and 100');
+    });
+
+    const setConfigCall = mockIpc.handle.mock.calls.find(call => call[0] === 'plan:setBackupConfig');
+    expect(setConfigCall).toBeDefined();
+
+    const handler = setConfigCall![1];
+    await expect(handler(null, { maxSnapshots: 0 })).rejects.toThrow('maxSnapshots');
+  });
 });

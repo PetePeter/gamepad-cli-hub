@@ -164,7 +164,7 @@ describe('PlanBackupManager', () => {
 
   describe('config persistence', () => {
     it('saves and loads config', async () => {
-      backupManager.updateConfig({ maxSnapshots: 5, snapshotIntervalMs: 1800000 });
+      backupManager.updateConfig({ maxSnapshots: 5, snapshotIntervalMs: 7200000 });
 
       // Create a second manager reading from the same config directory
       const manager2 = new PlanBackupManager(
@@ -173,7 +173,34 @@ describe('PlanBackupManager', () => {
       );
       const loaded = manager2.getConfig();
       expect(loaded.maxSnapshots).toBe(5);
-      expect(loaded.snapshotIntervalMs).toBe(1800000);
+      expect(loaded.snapshotIntervalMs).toBe(7200000);
+    });
+
+    it('loads documented YAML config format', async () => {
+      writeFileSync(join(tempDir, 'plan-backups.yaml'), [
+        'enabled: true',
+        'maxSnapshots: 7',
+        'snapshotIntervalMs: 7200000',
+        'excludePaths:',
+        '  - /skip/me',
+      ].join('\n'));
+
+      const manager2 = new PlanBackupManager(
+        mockPlanManager as unknown as PlanManager,
+        tempDir,
+      );
+
+      expect(manager2.getConfig()).toMatchObject({
+        enabled: true,
+        maxSnapshots: 7,
+        snapshotIntervalMs: 7200000,
+        excludePaths: ['/skip/me'],
+      });
+    });
+
+    it('rejects invalid config ranges before saving', () => {
+      expect(() => backupManager.updateConfig({ maxSnapshots: 0 })).toThrow('maxSnapshots');
+      expect(() => backupManager.updateConfig({ snapshotIntervalMs: 30 * 60 * 1000 })).toThrow('snapshotIntervalMs');
     });
   });
 
