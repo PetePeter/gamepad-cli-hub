@@ -43,9 +43,17 @@ The tool returns a `SessionInfoResponse` object with these fields:
 
 ### Available Resources
 
-- **`available_tools`** (McpToolSummary[]) — List of tools exposed by the MCP server with `{ name, title }` fields. Use this to discover what operations are available before calling tools.
+- **`available_tools`** (McpToolSummary[]) — List of tools exposed by the MCP server with `{ name, title, description }` fields. Use this to discover what operations are available before calling tools.
 
 - **`available_directories`** (DirectoryInfo[]) — List of configured working directories with `{ path, name }` fields. Use when spawning new sessions — pass the directory `path` to `session_create`.
+
+### Agent Plan Guidance
+
+- **`agent_plan_guide`** — Guidance for LLM agents that create, claim, complete, or link Helm plans.
+  - **`when_to_create_plan`** — When follow-up work, blockers, or later cleanup should become durable Helm plans.
+  - **`required_description_sections`** — Required plan description headings: `Problem Statement`, `User POV`, `Done Statement`, `Files / Classes Affected`, `TDD Suggestions`, and `Acceptance Criteria`.
+  - **`question_plan_workflow`** — Blocking questions should become separate `QUESTION: ...` plans linked to the original task with `plan_nextplan_link`, using the question plan as the prerequisite.
+  - **`completion_documentation`** — Completion notes should cover implemented behavior, changed files, tests or review, and remaining risk.
 
 ## Usage Pattern
 
@@ -79,14 +87,27 @@ Response:
     "mcp_token": "eyJhbGciOi...",
     "aiagent_states": ["planning", "implementing", "completed", "idle"],
     "available_tools": [
-      { "name": "tools_list", "title": "List CLI Types" },
-      { "name": "session_info", "title": "Get Session Info" },
+      { "name": "tools_list", "title": "List CLI Types", "description": "List CLI types configured in Helm..." },
+      { "name": "session_info", "title": "Get Session Info", "description": "Retrieve MCP endpoint, AIAGENT state registry..." },
       ...
     ],
     "available_directories": [
       { "path": "X:\\coding\\gamepad-cli-hub", "name": "Helm" },
       { "path": "X:\\homeassistant", "name": "HomeAssistant" }
-    ]
+    ],
+    "agent_plan_guide": {
+      "required_description_sections": [
+        "Problem Statement",
+        "User POV",
+        "Done Statement",
+        "Files / Classes Affected",
+        "TDD Suggestions",
+        "Acceptance Criteria"
+      ],
+      "question_plan_workflow": [
+        "Question plans should use a title that starts with QUESTION: ..."
+      ]
+    }
   }
 }
 ```
@@ -138,6 +159,10 @@ const response = await fetch(mcp_url, {
 ### 4. Discovering Available Tools
 
 The `available_tools` array lists all MCP tools currently exposed by Helm. Use this to check what operations are available before attempting calls.
+
+### 5. Creating Durable Plans
+
+When an agent discovers follow-up work that should survive the current session, call `plan_create` with a description that includes the required sections from `agent_plan_guide.required_description_sections`. If the agent is blocked by a user question, create a separate plan titled `QUESTION: ...`, put the concrete question at the top of that plan, and link that question plan to the original blocked plan with `plan_nextplan_link` so the question must complete first.
 
 ## Environment Variables (at Session Spawn)
 

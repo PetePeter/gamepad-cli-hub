@@ -312,21 +312,24 @@ The MCP server exposes the following tools for external clients:
 
 | Tool | Description |
 |------|-------------|
-| `clis_list` | List configured CLI types and their supported working directories |
+| `tools_list` | List configured CLI types and their supported working directories |
 | `plans_list` | List all plan items for a directory |
+| `plans_summary` | List compact plan status, human-readable IDs, and dependency relationships |
 | `plan_get` | Get a single plan item by ID |
-| `plan_create` | Create a plan item in a directory |
-| `plan_update` | Update a plan item title/description |
+| `plan_create` | Create a durable plan with `Problem Statement`, `User POV`, `Done Statement`, `Files / Classes Affected`, `TDD Suggestions`, and `Acceptance Criteria` sections |
+| `plan_update` | Update a plan item title, description, and/or type |
 | `plan_delete` | Delete a plan item |
-| `plan_set_state` | Set plan state (`pending`/`startable`/`doing`/`wait-tests`/`blocked`/`question`) |
-| `plan_complete` | Mark a plan item as done |
-| `plan_add_dependency` | Add a dependency between two plan items |
-| `plan_remove_dependency` | Remove a dependency between two plan items |
-| `plan_export_directory` | Export all plans + dependencies for a directory |
+| `plan_set_state` | Set plan state (`planning`/`ready`/`coding`/`review`/`blocked`) |
+| `plan_complete` | Mark a plan item as done with implementation, file, test/review, and risk notes |
+| `plan_nextplan_link` | Link one plan as a prerequisite for another, including `QUESTION: ...` blocker links to original plans |
+| `plan_nextplan_unlink` | Remove a prerequisite link between two plan items |
 | `directories_list` | List all known working directories |
-| `cli_spawn` | Spawn a new CLI session in a working directory |
+| `session_create` | Spawn a new CLI session in a working directory |
 | `sessions_list` | List active Helm sessions |
 | `session_get` | Get a session by ID or exact display name |
 | `session_send_text` | Send text to a running session's PTY |
+| `session_set_working_plan` | Show which plan a session is currently working on |
+| `session_set_aiagent_state` | Update the session AIAGENT state icon |
+| `session_info` | Return MCP endpoint, AIAGENT state registry, directories, tool descriptions, and agent plan guidance |
 
 All tools return JSON via MCP's `tools/call` endpoint. Errors are returned as JSON-RPC error responses with descriptive messages.

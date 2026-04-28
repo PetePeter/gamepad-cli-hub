@@ -40,6 +40,7 @@ const mockState = {
 
 const mockBindingEditorState = { visible: false };
 const mockContextMenuState = { visible: false };
+const mockContextMenu = { visible: false };
 const mockSequencePickerState = { visible: false };
 const mockCloseConfirmState = { visible: false };
 const mockPlanDeleteConfirmState = { visible: false };
@@ -107,6 +108,7 @@ vi.mock('../renderer/modals/plan-delete-confirm.js', () => ({
 }));
 
 vi.mock('../renderer/stores/modal-bridge.js', () => ({
+  contextMenu: mockContextMenu,
   dirPicker: mockDirPicker,
   quickSpawn: mockQuickSpawn,
 }));
@@ -146,6 +148,7 @@ function resetModalStates(): void {
   mockPlanDeleteConfirmState.visible = false;
   mockQuickSpawn.visible = false;
   mockContextMenuState.visible = false;
+  mockContextMenu.visible = false;
   mockSequencePickerState.visible = false;
   _draftEditorVisible = false;
 }
@@ -288,12 +291,12 @@ describe('handleGamepadEvent', () => {
     });
 
     it('contextMenu intercepts before sequencePicker', () => {
-      mockContextMenuState.visible = true;
+      mockContextMenu.visible = true;
       mockSequencePickerState.visible = true;
 
       mod.handleGamepadEvent(makeEvent('A'));
 
-      expect(mockHandleContextMenuButton).toHaveBeenCalledWith('A');
+      expect(mockModalStackHandleInput).toHaveBeenCalledWith('A');
       expect(mockHandleSequencePickerButton).not.toHaveBeenCalled();
     });
   });
@@ -313,12 +316,12 @@ describe('handleGamepadEvent', () => {
     });
 
     it('any modal visible prevents processConfigBinding', () => {
-      mockContextMenuState.visible = true;
+      mockContextMenu.visible = true;
       mockState.currentScreen = 'sessions';
 
       mod.handleGamepadEvent(makeEvent('X'));
 
-      expect(mockHandleContextMenuButton).toHaveBeenCalledWith('X');
+      expect(mockModalStackHandleInput).toHaveBeenCalledWith('X');
       expect(mockProcessConfigBinding).not.toHaveBeenCalled();
     });
   });

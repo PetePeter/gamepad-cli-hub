@@ -102,8 +102,17 @@ describe('LocalhostMcpServer', () => {
     expect(Array.isArray(toolsJson.result.tools)).toBe(true);
     expect(toolsJson.result.tools.some((tool: { name: string }) => tool.name === 'plans_list')).toBe(true);
     const planCreateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_create');
+    const planCompleteTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_complete');
+    const planNextLinkTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_nextplan_link');
     const planSetStateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_set_state');
+    expect(planCreateTool.description).toContain('Problem Statement');
+    expect(planCreateTool.description).toContain('Acceptance Criteria');
+    expect(planCreateTool.description).toContain('QUESTION:');
+    expect(planCreateTool.description).toContain('plan_nextplan_link');
     expect(planCreateTool.description).toContain('claim it by calling plan_set_state');
+    expect(planCompleteTool.description).toContain('implemented behavior');
+    expect(planCompleteTool.description).toContain('tests or review');
+    expect(planNextLinkTool.description).toContain('blocking questions');
     expect(planSetStateTool.description).toContain('planning');
     expect(planSetStateTool.description).toContain('ready');
     expect(planSetStateTool.description).toContain('session_set_working_plan');
@@ -186,6 +195,9 @@ describe('LocalhostMcpServer', () => {
       status: 'ready',
     });
     expect(createJson.result.content[0].text).toContain('Reminder: creating a plan does not assign ownership');
+    expect(createJson.result.content[0].text).toContain('Problem Statement');
+    expect(createJson.result.content[0].text).toContain('QUESTION:');
+    expect(createJson.result.content[0].text).toContain('plan_nextplan_link');
     expect(createJson.result.content[0].text).toContain('session_set_working_plan');
 
     const setStateResponse = await rpc(port, 'secret-token', {

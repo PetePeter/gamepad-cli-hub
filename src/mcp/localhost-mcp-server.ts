@@ -31,6 +31,14 @@ const MCP_PROTOCOL_VERSION = '2025-06-18';
 const DEFAULT_PORT = 47373;
 const DEFAULT_HOST = '127.0.0.1';
 const MCP_PATH = '/mcp';
+const REQUIRED_PLAN_DESCRIPTION_SECTIONS = [
+  'Problem Statement',
+  'User POV',
+  'Done Statement',
+  'Files / Classes Affected',
+  'TDD Suggestions',
+  'Acceptance Criteria',
+];
 
 const TOOLS: McpTool[] = [
   {
@@ -57,7 +65,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plans_summary',
     title: 'Plans Summary',
-    description: 'List all plans for a directory as a compact summary — status, human-readable ID, title, and dependency relationships. Call this first when orienting to a project so you know what work exists and what is blocked by what. Use plan_get for the full description of a specific plan.',
+    description: 'List all plans for a directory as a compact summary — status, human-readable ID, title, and dependency relationships. Call this first when orienting to a project so you know what work exists and what is blocked by what. Use plan_get for the full description of a specific plan before claiming, updating, or creating linked follow-ups.',
     inputSchema: {
       type: 'object',
       properties: { dirPath: { type: 'string' } },
@@ -68,7 +76,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_get',
     title: 'Get Plan',
-    description: 'Get a single plan item by ID. Use this when you need full plan details, including human-readable ID and timestamps, before changing state or discussing a plan with the user.',
+    description: 'Get a single plan item by ID. Use this when you need full plan details, including human-readable ID and timestamps, before changing state, preserving existing description content, or discussing a plan with the user.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -79,7 +87,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_create',
     title: 'Create Plan',
-    description: 'Create a plan item in a directory. Optionally set type to "bug", "feature", or "research". The new plan starts in "planning" status with no session owner. When you begin working on this plan, claim it by calling plan_set_state with status "coding" and your sessionId, then call session_set_working_plan.',
+    description: `Create a plan item in a directory when follow-up work, later cleanup, or a blocking question should survive the current session. Optionally set type to "bug", "feature", or "research". The description should include these sections: ${REQUIRED_PLAN_DESCRIPTION_SECTIONS.join(', ')}. For blocking questions, create a separate plan titled "QUESTION: ..." and link it to the original blocked plan with plan_nextplan_link so the question must be resolved first. The new plan starts in "planning" status with no session owner. When you begin working on this plan, claim it by calling plan_set_state with status "coding" and your sessionId, then call session_set_working_plan.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -138,7 +146,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_complete',
     title: 'Complete Plan',
-    description: 'Mark a coding or review plan item as done. Requires documentation of what was done (minimum 10 characters).',
+    description: 'Mark a coding or review plan item as done. Requires documentation of what was done (minimum 10 characters). Good completion notes summarize implemented behavior, important files changed, tests or review performed, and any remaining risk.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -163,7 +171,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_nextplan_link',
     title: 'Link Next Plan',
-    description: 'Link one plan item as a prerequisite for another. A plan can have many outgoing links (to many next plans) and many incoming links (from many previous plans). The source plan must complete before the target plan can start.',
+    description: 'Link one plan item as a prerequisite for another. A plan can have many outgoing links (to many next plans) and many incoming links (from many previous plans). The source plan must complete before the target plan can start. Use this for blocking questions by linking the separate QUESTION plan to the original blocked plan.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -774,7 +782,7 @@ function normalizeStructuredContent(value: unknown): Record<string, unknown> {
 
 function getToolReminder(name: string): string {
   if (name === 'plan_create') {
-    return 'Reminder: creating a plan does not assign ownership. When you begin implementation, explicitly call plan_set_state with status "coding" and your sessionId, then call session_set_working_plan.';
+    return `Reminder: creating a plan does not assign ownership. Plan descriptions should include: ${REQUIRED_PLAN_DESCRIPTION_SECTIONS.join(', ')}. For blocking questions, create a separate "QUESTION: ..." plan and link it to the original blocked plan with plan_nextplan_link. When you begin implementation, explicitly call plan_set_state with status "coding" and your sessionId, then call session_set_working_plan.`;
   }
   if (name === 'plan_set_state') {
     return 'Reminder: ownership is explicit. Use session_set_working_plan after claiming work so Helm shows the session as working on this plan.';

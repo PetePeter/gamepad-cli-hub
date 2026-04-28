@@ -40,6 +40,7 @@ export interface CliSummary {
 export interface McpToolSummary {
   name: string;
   title: string;
+  description?: string;
 }
 
 export interface DirectoryInfo {
@@ -76,7 +77,22 @@ export interface SessionInfoResponse {
     error_scenarios: string[];
     receiving_responses: string;
   };
+  agent_plan_guide?: {
+    when_to_create_plan: string[];
+    required_description_sections: string[];
+    question_plan_workflow: string[];
+    completion_documentation: string[];
+  };
 }
+
+const REQUIRED_PLAN_DESCRIPTION_SECTIONS = [
+  'Problem Statement',
+  'User POV',
+  'Done Statement',
+  'Files / Classes Affected',
+  'TDD Suggestions',
+  'Acceptance Criteria',
+];
 
 export class HelmControlService extends EventEmitter {
   constructor(
@@ -487,6 +503,23 @@ export class HelmControlService extends EventEmitter {
         ],
         receiving_responses: 'When expectsResponse=true, Helm pastes [HELM_MSG] envelope as new chat turn in sender session. Reply using session_send_text with sessionId set to the original senderSessionId.',
       },
+      agent_plan_guide: {
+        when_to_create_plan: [
+          'Create a new Helm plan when you discover follow-up work that should survive the current session or be handled later.',
+          'Create a new Helm plan for blockers that need user input, upstream investigation, or another agent, instead of burying them in chat only.',
+          'Do not overwrite the original plan when a new question or follow-up appears; preserve the original context and create a separate linked plan.',
+        ],
+        required_description_sections: REQUIRED_PLAN_DESCRIPTION_SECTIONS,
+        question_plan_workflow: [
+          'Question plans should use a title that starts with QUESTION: and a description whose first lines contain the concrete question.',
+          'After creating a question plan, call plan_nextplan_link from the question plan to the blocked/original plan so the question must be resolved first.',
+          'Keep the rest of the original plan description unchanged unless the user explicitly asks for an edit.',
+        ],
+        completion_documentation: [
+          'When calling plan_complete, document the implemented behavior, the important files changed, tests or review performed, and any remaining risk.',
+          'Completion notes should be useful to the next agent or sleeping user without requiring chat history.',
+        ],
+      },
     };
   }
 
@@ -538,28 +571,28 @@ export class HelmControlService extends EventEmitter {
    */
   private getAvailableTools(): McpToolSummary[] {
     return [
-      { name: 'tools_list', title: 'List CLI Types' },
-      { name: 'plans_list', title: 'List Plans' },
-      { name: 'plans_summary', title: 'Plans Summary' },
-      { name: 'plan_get', title: 'Get Plan' },
-      { name: 'plan_create', title: 'Create Plan' },
-      { name: 'plan_update', title: 'Update Plan' },
-      { name: 'plan_delete', title: 'Delete Plan' },
-      { name: 'plan_set_state', title: 'Set Plan State' },
-      { name: 'plan_complete', title: 'Complete Plan' },
-      { name: 'plan_nextplan_link', title: 'Link Next Plan' },
-      { name: 'plan_nextplan_unlink', title: 'Unlink Next Plan' },
-      { name: 'directories_list', title: 'List Directories' },
-      { name: 'session_create', title: 'Create Session' },
-      { name: 'sessions_list', title: 'List Sessions' },
-      { name: 'session_get', title: 'Get Session' },
-      { name: 'session_send_text', title: 'Send Text To Session' },
-      { name: 'session_set_working_plan', title: 'Set Session Working Plan' },
-      { name: 'session_set_aiagent_state', title: 'Set Session AIAGENT State' },
-      { name: 'session_close', title: 'Close Session' },
-      { name: 'session_info', title: 'Get Session Info' },
-      { name: 'telegram_send', title: 'Send Message to Telegram User' },
-      { name: 'telegram_set_output_mode', title: 'Set Telegram Output Mode' },
+      { name: 'tools_list', title: 'List CLI Types', description: 'List CLI types configured in Helm and the configured working directories they can be spawned into.' },
+      { name: 'plans_list', title: 'List Plans', description: 'List all plan items for a directory before editing or assigning work.' },
+      { name: 'plans_summary', title: 'Plans Summary', description: 'List compact plan status, human-readable IDs, and dependency relationships before claiming work.' },
+      { name: 'plan_get', title: 'Get Plan', description: 'Get full plan details before changing state, editing content, or asking about a plan.' },
+      { name: 'plan_create', title: 'Create Plan', description: `Create durable follow-up or question plans. Descriptions should include: ${REQUIRED_PLAN_DESCRIPTION_SECTIONS.join(', ')}.` },
+      { name: 'plan_update', title: 'Update Plan', description: 'Update a plan title, description, and/or type while preserving existing context unless the edit is intentional.' },
+      { name: 'plan_delete', title: 'Delete Plan', description: 'Delete a plan item.' },
+      { name: 'plan_set_state', title: 'Set Plan State', description: 'Set plan lifecycle state. Pass sessionId when claiming coding work and then call session_set_working_plan.' },
+      { name: 'plan_complete', title: 'Complete Plan', description: 'Mark a coding or review plan as done with documentation of behavior changed, files, tests/review, and remaining risk.' },
+      { name: 'plan_nextplan_link', title: 'Link Next Plan', description: 'Link one plan as a prerequisite for another. For blocker questions, link the QUESTION plan to the original blocked plan.' },
+      { name: 'plan_nextplan_unlink', title: 'Unlink Next Plan', description: 'Remove a prerequisite link between two plan items.' },
+      { name: 'directories_list', title: 'List Directories', description: 'List known configured working directories before creating plans or sessions.' },
+      { name: 'session_create', title: 'Create Session', description: 'Spawn a new CLI session in a configured working directory with a stable display name.' },
+      { name: 'sessions_list', title: 'List Sessions', description: 'List currently known Helm sessions, optionally filtered to one working directory.' },
+      { name: 'session_get', title: 'Get Session', description: 'Get a session by ID or exact display name.' },
+      { name: 'session_send_text', title: 'Send Text To Session', description: 'Send text to a running session PTY, with optional reply routing through HELM_MSG metadata.' },
+      { name: 'session_set_working_plan', title: 'Set Session Working Plan', description: 'Update the session row to show the plan currently being worked on.' },
+      { name: 'session_set_aiagent_state', title: 'Set Session AIAGENT State', description: 'Update the session AIAGENT state icon in Helm.' },
+      { name: 'session_close', title: 'Close Session', description: 'Close a Helm session and stop its PTY.' },
+      { name: 'session_info', title: 'Get Session Info', description: 'Retrieve MCP endpoint, AIAGENT state registry, available tools, directories, and agent planning guidance.' },
+      { name: 'telegram_send', title: 'Send Message to Telegram User', description: 'Send a deliberate Telegram reply from a CLI session.' },
+      { name: 'telegram_set_output_mode', title: 'Set Telegram Output Mode', description: 'Control how session output appears in Telegram.' },
     ];
   }
 

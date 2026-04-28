@@ -4,7 +4,7 @@
       "type": "http",
       "url": "http://127.0.0.1:47421/mcp",
       "headers": {
-        "Authorization": "Bearer fisheyeSteakStrawberry\""
+        "Authorization": "Bearer fisheyeSteakStrawberry"
       }
     }
   }

@@ -201,6 +201,34 @@ describe('HelmControlService.spawnCli', () => {
   });
 });
 
+describe('HelmControlService.getSessionInfo', () => {
+  it('returns agent plan guidance and descriptive tool summaries', () => {
+    const { service } = makeService();
+
+    const info = service.getSessionInfo({ sessionId: 's1', sessionName: 'Claude' });
+
+    expect(info.agent_plan_guide?.required_description_sections).toEqual([
+      'Problem Statement',
+      'User POV',
+      'Done Statement',
+      'Files / Classes Affected',
+      'TDD Suggestions',
+      'Acceptance Criteria',
+    ]);
+    expect(info.agent_plan_guide?.when_to_create_plan.join(' ')).toContain('follow-up work');
+    expect(info.agent_plan_guide?.question_plan_workflow.join(' ')).toContain('plan_nextplan_link');
+    expect(info.agent_plan_guide?.completion_documentation.join(' ')).toContain('tests or review');
+
+    const createTool = info.available_tools.find((tool) => tool.name === 'plan_create');
+    const completeTool = info.available_tools.find((tool) => tool.name === 'plan_complete');
+    const linkTool = info.available_tools.find((tool) => tool.name === 'plan_nextplan_link');
+    expect(createTool?.description).toContain('Problem Statement');
+    expect(createTool?.description).toContain('Acceptance Criteria');
+    expect(completeTool?.description).toContain('tests/review');
+    expect(linkTool?.description).toContain('QUESTION plan');
+  });
+});
+
 describe('HelmControlService.closeSession', () => {
   afterEach(() => {
     vi.restoreAllMocks();

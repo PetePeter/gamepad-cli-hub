@@ -12,7 +12,6 @@ import { processConfigBinding, processConfigRelease } from './bindings.js';
 import { handleSessionsScreenButton, switchToSession, showTerminalArea, hideTerminalArea, getSessionState } from './screens/sessions.js';
 import { handleBindingEditorButton } from './modals/binding-editor.js';
 import { bindingEditorState } from './modals/binding-editor.js';
-import { contextMenuState, handleContextMenuButton } from './modals/context-menu.js';
 import { sequencePickerState, handleSequencePickerButton } from './modals/sequence-picker.js';
 import { closeConfirmState, handleCloseConfirmButton } from './modals/close-confirm.js';
 import { planDeleteConfirmState, handlePlanDeleteConfirmButton } from './modals/plan-delete-confirm.js';
@@ -27,7 +26,7 @@ import { updateSessionsFocus } from './screens/sessions.js';
 import { isPlanScreenVisible, hidePlanScreen, handlePlanScreenDpad, handlePlanScreenAction } from './plans/plan-screen.js';
 import { isPlanHelpVisible, hidePlanHelpModal } from './plans/plan-help-modal.js';
 import { currentView } from './main-view/main-view-manager.js';
-import { dirPicker, quickSpawn } from './stores/modal-bridge.js';
+import { dirPicker, quickSpawn, contextMenu } from './stores/modal-bridge.js';
 import { useModalStack } from './composables/useModalStack.js';
 
 function handlePlanScreenButton(button: string): boolean {
@@ -186,8 +185,9 @@ export function handleGamepadEvent(event: ButtonEvent): void {
   }
 
   // Context menu intercepts all input when visible
-  if (contextMenuState.visible) {
-    handleContextMenuButton(event.button);
+  // (check bridge state, not legacy state, to stay in sync with Vue component)
+  if (contextMenu.visible) {
+    useModalStack().handleInput(event.button);
     return;
   }
 
