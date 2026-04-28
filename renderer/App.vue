@@ -171,6 +171,7 @@ const draftEditorPlanHumanId = ref('');
 const draftEditorPlanCreatedAt = ref<number | null>(null);
 const draftEditorPlanStateUpdatedAt = ref<number | null>(null);
 const draftEditorPlanCallbacks = ref<PlanCallbacks | null>(null);
+const draftEditorCompletionNotes = ref('');
 const draftEditorRef = ref<InstanceType<typeof DraftEditor> | null>(null);
 let offTextDeliver: (() => void) | null = null;
 let unsubSnapOut: (() => void) | null = null;
@@ -606,7 +607,7 @@ function openDraftEditor(sessionId: string, draft?: { id: string; label: string;
 
 function openPlanEditor(
   sessionId: string,
-  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; humanId?: string; createdAt?: number; stateUpdatedAt?: number },
+  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
   callbacks: PlanCallbacks,
 ) {
   draftEditorMode.value = 'plan';
@@ -616,6 +617,7 @@ function openPlanEditor(
   draftEditorPlanHumanId.value = plan.humanId ?? '';
   draftEditorPlanCreatedAt.value = plan.createdAt ?? null;
   draftEditorPlanStateUpdatedAt.value = plan.stateUpdatedAt ?? plan.createdAt ?? null;
+  draftEditorCompletionNotes.value = plan.completionNotes ?? '';
   draftEditorLabel.value = plan.title;
   draftEditorText.value = plan.description;
   draftEditorPlanCallbacks.value = callbacks;
@@ -2261,6 +2263,7 @@ onUnmounted(() => {
         :plan-created-at="draftEditorPlanCreatedAt"
         :plan-state-updated-at="draftEditorPlanStateUpdatedAt"
         :plan-callbacks="draftEditorPlanCallbacks"
+        :completion-notes="draftEditorCompletionNotes"
         @save="onDraftSave"
         @apply="onDraftApply"
         @delete="onDraftDelete"

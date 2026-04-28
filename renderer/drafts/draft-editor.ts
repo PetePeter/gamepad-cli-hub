@@ -63,7 +63,7 @@ type DraftEditorOpener = (sessionId: string, draft?: { id: string; label: string
 let draftEditorOpener: DraftEditorOpener | null = null;
 export function setDraftEditorOpener(fn: DraftEditorOpener) { draftEditorOpener = fn; }
 
-type PlanEditorOpener = (sessionId: string, plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string }, callbacks: PlanCallbacks) => void;
+type PlanEditorOpener = (sessionId: string, plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; completionNotes?: string }, callbacks: PlanCallbacks) => void;
 let planEditorOpener: PlanEditorOpener | null = null;
 export function setPlanEditorOpener(fn: PlanEditorOpener) { planEditorOpener = fn; }
 
@@ -93,7 +93,7 @@ export function showDraftEditor(sessionId: string, existingDraft?: { id: string;
 
 export function showPlanInEditor(
   sessionId: string,
-  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; humanId?: string; createdAt?: number; stateUpdatedAt?: number },
+  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
   callbacks: PlanCallbacks,
 ): void {
   planEditorOpener?.(sessionId, plan, callbacks);

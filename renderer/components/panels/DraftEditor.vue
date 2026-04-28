@@ -33,6 +33,8 @@ export interface DraftEditorProps {
   planStateUpdatedAt?: number | null;
   planType?: 'bug' | 'feature' | 'research';
   planCallbacks?: PlanCallbacks | null;
+  // Completion notes (read-only, shown when plan is done)
+  completionNotes?: string;
 }
 
 const props = withDefaults(defineProps<DraftEditorProps>(), {
@@ -47,6 +49,7 @@ const props = withDefaults(defineProps<DraftEditorProps>(), {
   planStateUpdatedAt: null,
   planType: undefined,
   planCallbacks: null,
+  completionNotes: '',
 });
 
 const emit = defineEmits<{
@@ -546,5 +549,36 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
       rows="4"
       @keydown="onKeyDown"
     />
+
+    <div v-if="mode === 'plan' && planStatus === 'done' && completionNotes" class="draft-editor__completion-notes">
+      <label>Completion Notes</label>
+      <p class="draft-editor__completion-notes-text">{{ completionNotes }}</p>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.draft-editor__completion-notes {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  border-left: 3px solid #44cc44;
+}
+.draft-editor__completion-notes label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.draft-editor__completion-notes-text {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+</style>
