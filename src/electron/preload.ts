@@ -647,6 +647,75 @@ const gamepadCliAPI = {
   planWriteFile: (filePath: string, content: string): Promise<boolean> =>
     ipcRenderer.invoke('plan:write-file', filePath, content),
 
+  // ── Plan Backup API ───────────────────────────────────────────────────────
+
+  /** List all backups for a directory */
+  planListBackups: (dirPath: string) =>
+    ipcRenderer.invoke('plan:listBackups', dirPath),
+
+  /** Get backup summary for a directory */
+  planGetBackupSummary: (dirPath: string) =>
+    ipcRenderer.invoke('plan:getBackupSummary', dirPath),
+
+  /** Restore a directory from a backup snapshot */
+  planRestoreBackup: (snapshotPath: string) =>
+    ipcRenderer.invoke('plan:restoreBackup', snapshotPath),
+
+  /** Delete a specific backup snapshot */
+  planDeleteBackup: (snapshotPath: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:deleteBackup', snapshotPath),
+
+  /** Manually create a backup snapshot for a directory */
+  planCreateBackupNow: (dirPath: string) =>
+    ipcRenderer.invoke('plan:createBackupNow', dirPath),
+
+  /** Get the current backup configuration */
+  planGetBackupConfig: () =>
+    ipcRenderer.invoke('plan:getBackupConfig'),
+
+  /** Update the backup configuration */
+  planSetBackupConfig: (config: {
+    enabled?: boolean;
+    maxSnapshots?: number;
+    snapshotIntervalMs?: number;
+    excludePaths?: string[];
+  }): Promise<boolean> =>
+    ipcRenderer.invoke('plan:setBackupConfig', config),
+
+  /** Delete all backups for a directory */
+  planDeleteAllBackups: (dirPath: string): Promise<number> =>
+    ipcRenderer.invoke('plan:deleteAllBackups', dirPath),
+
+  /** Subscribe to backup snapshot creation events */
+  onPlanBackupCreated: (callback: (metadata: { timestamp: string; dirPath: string; planCount: number; dependencyCount: number; status: string; index: number }, snapshotPath: string) => void) => {
+    const listener = (_event: unknown, metadata: { timestamp: string; dirPath: string; planCount: number; dependencyCount: number; status: string; index: number }, snapshotPath: string) => callback(metadata, snapshotPath);
+    ipcRenderer.on('plan-backup:created', listener);
+    return () => ipcRenderer.removeListener('plan-backup:created', listener);
+  },
+
+  /** Subscribe to backup snapshot deletion events */
+  onPlanBackupDeleted: (callback: (snapshotPath: string) => void) => {
+    const listener = (_event: unknown, snapshotPath: string) => callback(snapshotPath);
+    ipcRenderer.on('plan-backup:deleted', listener);
+    return () => ipcRenderer.removeListener('plan-backup:deleted', listener);
+  },
+
+  /** Subscribe to backup restoration events */
+  onPlanBackupRestored: (callback: (metadata: { timestamp: string; dirPath: string; planCount: number; dependencyCount: number; status: string; index: number }, planCount: number, dependencyCount: number) => void) => {
+    const listener = (_event: unknown, metadata: { timestamp: string; dirPath: string; planCount: number; dependencyCount: number; status: string; index: number }, planCount: number, dependencyCount: number) => callback(metadata, planCount, dependencyCount);
+    ipcRenderer.on('plan-backup:restored', listener);
+    return () => ipcRenderer.removeListener('plan-backup:restored', listener);
+  },
+
+  /** Subscribe to backup config change events */
+  onPlanBackupConfigChanged: (callback: (config: { enabled: boolean; maxSnapshots: number; snapshotIntervalMs: number; excludePaths?: string[] }) => void) => {
+    const listener = (_event: unknown, config: { enabled: boolean; maxSnapshots: number; snapshotIntervalMs: number; excludePaths?: string[] }) => callback(config);
+    ipcRenderer.on('plan-backup:config-changed', listener);
+    return () => ipcRenderer.removeListener('plan-backup:config-changed', listener);
+  },
+
+  // ───────────────────────────────────────────────────────────────────────────
+
   /** Open a file picker dialog and return the chosen path */
   dialogShowOpenFile: (filters?: { name: string; extensions: string[] }[]): Promise<string | null> =>
     ipcRenderer.invoke('dialog:showOpenFile', filters),
