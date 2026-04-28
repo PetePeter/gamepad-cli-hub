@@ -309,6 +309,20 @@ const TOOLS: McpTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'session_close',
+    title: 'Close Session',
+    description: 'Kill the PTY process and remove a session from Helm. Use this when a task is complete and the session is no longer needed, or to recover from a stuck session. Accepts sessionId or session name.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        name: { type: 'string' },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+  },
 ];
 
 export interface LocalhostMcpServerOptions {
@@ -603,6 +617,8 @@ export class LocalhostMcpServer {
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),
           asAiagentState(args.state, 'state must be one of planning, implementing, completed, or idle'),
         );
+      case 'session_close':
+        return this.service.closeSession(asString(args.sessionId ?? args.name, 'sessionId or name is required'));
       case 'telegram_send': {
         const sessionId = asString(args.sessionId, 'sessionId is required');
         const text = asString(args.text, 'text is required');

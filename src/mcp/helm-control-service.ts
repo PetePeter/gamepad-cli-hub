@@ -400,6 +400,20 @@ export class HelmControlService extends EventEmitter {
     return { sessionId: session.id, name: session.name, state };
   }
 
+  closeSession(sessionRef: string): { sessionId: string; name: string } {
+    const session = this.findSession(sessionRef);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionRef}`);
+    }
+    try {
+      this.ptyManager.kill(session.id);
+    } catch (killError) {
+      logger.warn(`[HelmControlService] Failed to kill PTY for session ${session.id}: ${killError}`);
+    }
+    this.sessionManager.removeSession(session.id);
+    return { sessionId: session.id, name: session.name };
+  }
+
   /**
    * Get session info with MCP endpoint and AIAGENT state registry.
    * Called via session_info MCP tool — autocall endpoint provides context to AI agents.
@@ -530,6 +544,8 @@ export class HelmControlService extends EventEmitter {
       { name: 'session_get', title: 'Get Session' },
       { name: 'session_send_text', title: 'Send Text To Session' },
       { name: 'session_set_working_plan', title: 'Set Session Working Plan' },
+      { name: 'session_set_aiagent_state', title: 'Set Session AIAGENT State' },
+      { name: 'session_close', title: 'Close Session' },
       { name: 'session_info', title: 'Get Session Info' },
       { name: 'telegram_send', title: 'Send Message to Telegram User' },
       { name: 'telegram_set_output_mode', title: 'Set Telegram Output Mode' },

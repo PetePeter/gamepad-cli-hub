@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HelmControlService } from '../src/mcp/helm-control-service.js';
 import { parseSessionAuthToken } from '../src/mcp/session-auth.js';
+import { logger } from '../src/utils/logger.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -12,12 +13,14 @@ function makeService() {
     deliverText: vi.fn(() => Promise.resolve()),
     write: vi.fn(),
     spawn: vi.fn(() => ({ pid: 1234 })),
+    kill: vi.fn(),
   };
   const sessionManager = {
     getSession: vi.fn((id: string) => ({ id, name: 'Claude', cliType: 'claude-code' })),
     getAllSessions: vi.fn(() => [{ id: 's1', name: 'Claude', cliType: 'claude-code' }]),
     addSession: vi.fn(),
     updateSession: vi.fn(),
+    removeSession: vi.fn(),
   };
   const planManager = {
     getForDirectory: vi.fn(() => []),
@@ -195,5 +198,69 @@ describe('HelmControlService.spawnCli', () => {
       planTitle: 'Auth refactor',
       planStatus: 'coding',
     });
+  });
+});
+
+describe('HelmControlService.closeSession', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('removes the session from SessionManager when given a valid sessionId', () => {
+    const { service, ptyManager, sessionManager } = makeService();
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 's1',
+      name: 'Claude',
+      cliType: 'claude-code',
+    });
+
+    const result = service.closeSession('s1');
+
+    expect(ptyManager.kill).toHaveBeenCalledWith('s1');
+    expect(sessionManager.removeSession).toHaveBeenCalledWith('s1');
+    expect(result).toEqual({ sessionId: 's1', name: 'Claude' });
+  });
+
+  it('accepts both sessionId and session name', () => {
+    const { service, ptyManager, sessionManager } = makeService();
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    (sessionManager.getAllSessions as ReturnType<typeof vi.fn>).mockReturnValue([
+      { id: 's1', name: 'Claude', cliType: 'claude-code' },
+    ]);
+
+    const result = service.closeSession('Claude');
+
+    expect(ptyManager.kill).toHaveBeenCalledWith('s1');
+    expect(sessionManager.removeSession).toHaveBeenCalledWith('s1');
+    expect(result).toEqual({ sessionId: 's1', name: 'Claude' });
+  });
+
+  it('throws when session not found', () => {
+    const { service, sessionManager } = makeService();
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    (sessionManager.getAllSessions as ReturnType<typeof vi.fn>).mockReturnValue([]);
+
+    expect(() => service.closeSession('nonexistent')).toThrow('Session not found: nonexistent');
+  });
+
+  it('continues if ptyManager.kill() throws an error', () => {
+    const { service, ptyManager, sessionManager } = makeService();
+    const killError = new Error('PTY kill failed');
+    (ptyManager.kill as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw killError;
+    });
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 's1',
+      name: 'Claude',
+      cliType: 'claude-code',
+    });
+
+    const result = service.closeSession('s1');
+
+    expect(sessionManager.removeSession).toHaveBeenCalledWith('s1');
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to kill PTY for session s1:'),
+    );
+    expect(result).toEqual({ sessionId: 's1', name: 'Claude' });
   });
 });
