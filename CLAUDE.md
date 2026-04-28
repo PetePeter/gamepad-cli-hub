@@ -102,6 +102,8 @@ Ctrl+G opens external editor (notepad with temp .md file) — on close, content 
 
 23. **Pattern Matcher** — `PatternMatcher` (`src/session/pattern-matcher.ts`) scans every PTY stdout chunk against per-CLI regex rules loaded from the profile YAML `patterns` array. Two action types: `send-text` (fires a sequence to PTY immediately) and `wait-until` (parses a scheduled time from the matched capture group via `TimeParser`, then fires `onResume` at that time). Cooldown is tracked per-session per-rule — after a rule fires, it is suppressed for `cooldownMs` ms for that session only, preventing rapid re-triggering. Pending schedules are cancellable via `pattern:cancelSchedule(sessionId)` IPC. Session cards render a ⏰ chip while a schedule is pending. Rule CRUD: `tools:addPattern`, `tools:updatePattern`, `tools:removePattern`, `tools:getPatterns` IPC channels.
 
+24. **Plan Backup & Restore** — Per-directory rolling-window snapshots of plan data, managed by `PlanBackupManager` (EventEmitter, CRUD, rolling window pruning). Snapshots are timestamped JSON files in `config/plan-backups/`. Automatic scheduling on `plan:changed` events with per-directory interval debounce. Configurable via `config/plan-backups.yaml` or Settings → 💾 Backups tab. Restore workflow: plan screen → R key / 💾 Backups button → select snapshot → restore. IPC: 8 channels (`plan:listBackups/getBackupSummary/restoreBackup/deleteBackup/createBackupNow/getBackupConfig/setBackupConfig/deleteAllBackups`). See [docs/plan-backup-restore.md](docs/plan-backup-restore.md).
+
 ## Architecture Principles
 
 - DRY, YAGNI, KISS
