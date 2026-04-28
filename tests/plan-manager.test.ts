@@ -246,7 +246,7 @@ describe('PlanManager', () => {
 
       // Complete a
       pm.applyItem(a.id, 'session-1');
-      pm.completeItem(a.id);
+      pm.completeItem(a.id, 'Completed this task successfully');
 
       expect(pm.getItem(b.id)!.status).toBe('ready');
     });
@@ -260,7 +260,7 @@ describe('PlanManager', () => {
 
       // Complete a but not b
       pm.applyItem(a.id, 'session-1');
-      pm.completeItem(a.id);
+      pm.completeItem(a.id, 'Completed this task successfully');
 
       expect(pm.getItem(c.id)!.status).toBe('planning');
     });
@@ -274,13 +274,13 @@ describe('PlanManager', () => {
 
       // Complete a → b becomes startable
       pm.applyItem(a.id, 's1');
-      pm.completeItem(a.id);
+      pm.completeItem(a.id, 'Completed this task successfully');
       expect(pm.getItem(b.id)!.status).toBe('ready');
       expect(pm.getItem(c.id)!.status).toBe('planning');
 
       // Complete b → c becomes startable
       pm.applyItem(b.id, 's1');
-      pm.completeItem(b.id);
+      pm.completeItem(b.id, 'Completed this task successfully');
       expect(pm.getItem(c.id)!.status).toBe('ready');
     });
   });
@@ -314,7 +314,7 @@ describe('PlanManager', () => {
       pm.addDependency(a.id, b.id);
 
       pm.applyItem(a.id, 's1');
-      const completed = pm.completeItem(a.id);
+      const completed = pm.completeItem(a.id, 'Completed this task successfully');
 
       expect(completed).not.toBeNull();
       expect(completed!.status).toBe('done');
@@ -325,6 +325,61 @@ describe('PlanManager', () => {
       const item = pm.create('/d', 'Task', '');
       // item is startable, not doing
       expect(pm.completeItem(item.id)).toBeNull();
+    });
+
+    describe('completionNotes validation', () => {
+      it('stores completionNotes when completing', () => {
+        const item = pm.create('/d', 'Task', '');
+        pm.applyItem(item.id, 's1');
+        const completed = pm.completeItem(item.id, 'Built the auth middleware with JWT validation');
+        expect(completed).not.toBeNull();
+        expect(completed!.completionNotes).toBe('Built the auth middleware with JWT validation');
+        expect(pm.getItem(item.id)!.completionNotes).toBe('Built the auth middleware with JWT validation');
+      });
+
+      it('rejects missing completionNotes (undefined)', () => {
+        const item = pm.create('/d', 'Task', '');
+        pm.applyItem(item.id, 's1');
+        expect(pm.completeItem(item.id, undefined)).toBeNull();
+        expect(pm.getItem(item.id)!.status).toBe('coding');
+      });
+
+      it('rejects empty completionNotes', () => {
+        const item = pm.create('/d', 'Task', '');
+        pm.applyItem(item.id, 's1');
+        expect(pm.completeItem(item.id, '')).toBeNull();
+        expect(pm.getItem(item.id)!.status).toBe('coding');
+      });
+
+      it('rejects whitespace-only completionNotes', () => {
+        const item = pm.create('/d', 'Task', '');
+        pm.applyItem(item.id, 's1');
+        expect(pm.completeItem(item.id, '   ')).toBeNull();
+        expect(pm.getItem(item.id)!.status).toBe('coding');
+      });
+
+      it('rejects completionNotes shorter than 10 characters', () => {
+        const item = pm.create('/d', 'Task', '');
+        pm.applyItem(item.id, 's1');
+        expect(pm.completeItem(item.id, 'Short')).toBeNull();
+        expect(pm.getItem(item.id)!.status).toBe('coding');
+      });
+
+      it('trims completionNotes before storing', () => {
+        const item = pm.create('/d', 'Task', '');
+        pm.applyItem(item.id, 's1');
+        const completed = pm.completeItem(item.id, '  Padded completion notes  ');
+        expect(completed!.completionNotes).toBe('Padded completion notes');
+      });
+
+      it('persists completionNotes to disk via savePlanFile', () => {
+        const item = pm.create('/d', 'Task', '');
+        pm.applyItem(item.id, 's1');
+        pm.completeItem(item.id, 'Persisted completion notes');
+        expect(persistence.savePlanFile).toHaveBeenCalledWith(
+          expect.objectContaining({ completionNotes: 'Persisted completion notes' }),
+        );
+      });
     });
   });
 
@@ -416,7 +471,7 @@ describe('PlanManager', () => {
     it('rejects done to pending', () => {
       const item = pm.create('/d', 'Task', '');
       pm.applyItem(item.id, 'session-1');
-      pm.completeItem(item.id);
+      pm.completeItem(item.id, 'Completed this task successfully');
 
       expect(pm.setState(item.id, 'planning')).toBeNull();
     });
@@ -494,7 +549,7 @@ describe('PlanManager', () => {
       const handler = vi.fn();
       pm.on('plan:changed', handler);
 
-      pm.completeItem(item.id);
+      pm.completeItem(item.id, 'Completed this task successfully');
 
       expect(handler).toHaveBeenCalledWith('/d');
     });
@@ -602,7 +657,7 @@ describe('PlanManager', () => {
       expect(pm.getItem(z.id)!.status).toBe('planning');
 
       pm.applyItem(blocker.id, 's1');
-      pm.completeItem(blocker.id);
+      pm.completeItem(blocker.id, 'Completed this task successfully');
 
       expect(pm.getItem(x.id)!.status).toBe('ready');
       expect(pm.getItem(y.id)!.status).toBe('ready');
@@ -622,7 +677,7 @@ describe('PlanManager', () => {
     it('deletes only done items, leaves non-done items', () => {
       const done1 = pm.create('/proj', 'Done1', '');
       pm.applyItem(done1.id, 's1');
-      pm.completeItem(done1.id);
+      pm.completeItem(done1.id, 'Completed this task successfully');
 
       const doing1 = pm.create('/proj', 'Doing1', '');
       pm.applyItem(doing1.id, 's2');
@@ -639,11 +694,11 @@ describe('PlanManager', () => {
     it('returns count of deleted items', () => {
       const a = pm.create('/proj', 'A', '');
       pm.applyItem(a.id, 's1');
-      pm.completeItem(a.id);
+      pm.completeItem(a.id, 'Completed this task successfully');
 
       const b = pm.create('/proj', 'B', '');
       pm.applyItem(b.id, 's2');
-      pm.completeItem(b.id);
+      pm.completeItem(b.id, 'Completed this task successfully');
 
       pm.create('/proj', 'C', '');
 
@@ -665,7 +720,7 @@ describe('PlanManager', () => {
     it('emits plan:changed event', () => {
       const item = pm.create('/proj', 'Task', '');
       pm.applyItem(item.id, 's1');
-      pm.completeItem(item.id);
+      pm.completeItem(item.id, 'Completed this task successfully');
 
       const handler = vi.fn();
       pm.on('plan:changed', handler);
@@ -678,11 +733,11 @@ describe('PlanManager', () => {
     it('does not delete done items in other directories', () => {
       const inTarget = pm.create('/proj', 'Target', '');
       pm.applyItem(inTarget.id, 's1');
-      pm.completeItem(inTarget.id);
+      pm.completeItem(inTarget.id, 'Completed this task successfully');
 
       const inOther = pm.create('/other', 'Other', '');
       pm.applyItem(inOther.id, 's2');
-      pm.completeItem(inOther.id);
+      pm.completeItem(inOther.id, 'Completed this task successfully');
 
       pm.deleteCompletedForDirectory('/proj');
 

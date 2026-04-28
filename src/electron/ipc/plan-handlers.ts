@@ -83,8 +83,8 @@ export function setupPlanHandlers(
     return planManager.applyItem(id, sessionId);
   });
 
-  ipcMain.handle('plan:complete', (_event, id: string) => {
-    return planManager.completeItem(id);
+  ipcMain.handle('plan:complete', (_event, id: string, completionNotes?: string) => {
+    return planManager.completeItem(id, completionNotes);
   });
 
   ipcMain.handle('plan:reopen', (_event, id: string) => {

@@ -584,8 +584,8 @@ const gamepadCliAPI = {
     ipcRenderer.invoke('plan:apply', id, sessionId),
 
   /** Mark a coding or review plan as complete (coding/review → done) */
-  planComplete: (id: string) =>
-    ipcRenderer.invoke('plan:complete', id),
+  planComplete: (id: string, completionNotes?: string) =>
+    ipcRenderer.invoke('plan:complete', id, completionNotes),
 
   /** Reopen a done plan back to ready or planning */
   planReopen: (id: string) =>

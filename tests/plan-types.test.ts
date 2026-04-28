@@ -247,7 +247,7 @@ describe('Plan Types (P-0038)', () => {
     it('preserves type when item completes', () => {
       let item = pm.createWithType('/d', 'Task', 'desc', 'research');
       item = pm.applyItem(item.id, 'session-1')!;
-      item = pm.completeItem(item.id)!;
+      item = pm.completeItem(item.id, 'Completed this task successfully')!;
       expect(item.type).toBe('research');
       expect(item.status).toBe('done');
     });

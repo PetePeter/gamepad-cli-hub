@@ -143,9 +143,9 @@ export class HelmControlService extends EventEmitter {
     return this.planManager.delete(id);
   }
 
-  completePlan(id: string): PlanItem | null {
+  completePlan(id: string, completionNotes?: string): PlanItem | null {
     logger.info(`[MCP:Service] completePlan id=${id}`);
-    return this.planManager.completeItem(id);
+    return this.planManager.completeItem(id, completionNotes);
   }
 
   reopenPlan(id: string): PlanItem | null {
@@ -339,6 +339,10 @@ export class HelmControlService extends EventEmitter {
     // paste mode for inserted text, then receives the same PTY-level "send"
     // behavior as sequence parser {Send}.
     if (options?.submit !== false) {
+      // Delay to ensure the target CLI has consumed the bracketed-paste text
+      // before sending Enter — without this the \r can race ahead and hit an
+      // empty prompt.
+      await new Promise((r) => setTimeout(r, 150));
       this.ptyManager.write(session.id, '\r');
     }
 

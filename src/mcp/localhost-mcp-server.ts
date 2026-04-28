@@ -138,11 +138,14 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_complete',
     title: 'Complete Plan',
-    description: 'Mark a coding or review plan item as done.',
+    description: 'Mark a coding or review plan item as done. Requires documentation of what was done (minimum 10 characters).',
     inputSchema: {
       type: 'object',
-      properties: { id: { type: 'string' } },
-      required: ['id'],
+      properties: {
+        id: { type: 'string' },
+        documentation: { type: 'string', description: 'Documentation of what was accomplished (minimum 10 characters)' },
+      },
+      required: ['id', 'documentation'],
       additionalProperties: false,
     },
   },
@@ -536,7 +539,10 @@ export class LocalhostMcpServer {
           typeof args.sessionId === 'string' ? args.sessionId : undefined,
         );
       case 'plan_complete':
-        return this.completePlanWithValidation(asString(args.id, 'id is required'));
+        return this.completePlanWithValidation(
+          asString(args.id, 'id is required'),
+          asString(args.documentation, 'documentation is required (minimum 10 characters)'),
+        );
       case 'plan_reopen':
         return requireResult(
           this.service.reopenPlan(asString(args.id, 'id is required')),
@@ -650,10 +656,13 @@ export class LocalhostMcpServer {
     );
   }
 
-  private completePlanWithValidation(id: string): unknown {
+  private completePlanWithValidation(id: string, documentation: string): unknown {
+    if (documentation.trim().length < 10) {
+      throw new Error('documentation must be at least 10 characters');
+    }
     requireResult(this.service.getPlan(id), `Plan not found: ${id}`);
     return requireResult(
-      this.service.completePlan(id),
+      this.service.completePlan(id, documentation),
       `Plan ${id} could not be completed from its current state`,
     );
   }

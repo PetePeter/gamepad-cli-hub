@@ -183,8 +183,9 @@ describe('plan IPC handlers', () => {
   it('plan:complete transitions doing → done', async () => {
     const item = await handlers.get('plan:create')!({}, '/proj', 'Task', '');
     await handlers.get('plan:apply')!({}, item.id, 'sess-1');
-    const completed = await handlers.get('plan:complete')!({}, item.id);
+    const completed = await handlers.get('plan:complete')!({}, item.id, 'Completed this task successfully');
     expect(completed.status).toBe('done');
+    expect(completed.completionNotes).toBe('Completed this task successfully');
   });
 
   it('plan:complete returns null for non-doing item', async () => {
@@ -253,7 +254,7 @@ describe('plan IPC handlers', () => {
 
     // Complete A → B becomes ready
     await handlers.get('plan:apply')!({}, a.id, 'sess-1');
-    await handlers.get('plan:complete')!({}, a.id);
+    await handlers.get('plan:complete')!({}, a.id, 'Completed this task successfully');
 
     bItem = (await handlers.get('plan:list')!({}, '/proj')).find((i: any) => i.id === b.id);
     expect(bItem.status).toBe('ready');

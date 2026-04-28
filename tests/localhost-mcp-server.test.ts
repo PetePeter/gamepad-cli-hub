@@ -17,7 +17,7 @@ function makeService(): HelmControlService {
     createPlan: vi.fn((dirPath: string, title: string, description: string) => ({ id: 'created', dirPath, title, description, status: 'ready' })),
     updatePlan: vi.fn((id: string, updates: { title?: string; description?: string }) => ({ id, dirPath: '/proj', title: updates.title ?? 'Task', description: updates.description ?? 'Desc', status: 'ready' })),
     deletePlan: vi.fn(() => true),
-    completePlan: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done' })),
+    completePlan: vi.fn((id: string, _notes?: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done' })),
     setPlanState: vi.fn((id: string, status: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status })),
     linkPlans: vi.fn(),
     unlinkPlans: vi.fn(),
@@ -601,5 +601,71 @@ describe('LocalhostMcpServer', () => {
     expect(sessionInfoTool.description).toContain('AIAGENT state registry');
     expect(sessionInfoTool.description).toContain('MCP endpoint URL');
     expect(sessionInfoTool.inputSchema.properties).toEqual({});
+  });
+
+  describe('plan_complete with documentation', () => {
+    it('accepts valid documentation and passes it through', async () => {
+      const service = makeService();
+      (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'coding' });
+      (service.completePlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done', completionNotes: 'All tests pass and feature works' });
+
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 50,
+        method: 'tools/call',
+        params: {
+          name: 'plan_complete',
+          arguments: { id: 'p1', documentation: 'All tests pass and feature works' },
+        },
+      });
+      const json = await response.json();
+      expect((service.completePlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('p1', 'All tests pass and feature works');
+      expect(json.result.structuredContent.completionNotes).toBe('All tests pass and feature works');
+    });
+
+    it('rejects missing documentation param', async () => {
+      const service = makeService();
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 51,
+        method: 'tools/call',
+        params: {
+          name: 'plan_complete',
+          arguments: { id: 'p1' },
+        },
+      });
+      const json = await response.json();
+      expect(json.error.message).toContain('documentation is required');
+    });
+
+    it('rejects documentation shorter than 10 characters', async () => {
+      const service = makeService();
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 52,
+        method: 'tools/call',
+        params: {
+          name: 'plan_complete',
+          arguments: { id: 'p1', documentation: 'short' },
+        },
+      });
+      const json = await response.json();
+      expect(json.error.message).toContain('at least 10 characters');
+    });
   });
 });

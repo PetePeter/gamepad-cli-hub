@@ -398,7 +398,7 @@ async function handleDelete(id: string): Promise<void> {
 
 async function handleComplete(id: string): Promise<void> {
   try {
-    await window.gamepadCli.planComplete(id);
+    await window.gamepadCli.planComplete(id, 'Completed via plan canvas UI');
     planScreenState.selectedId = null;
     planScreenState.editingId = null;
     draftEditorCloser?.();

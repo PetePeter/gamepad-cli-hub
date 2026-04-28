@@ -34,6 +34,8 @@ export interface PlanItem {
   sessionId?: string;
   /** Extra context for blocked/question states */
   stateInfo?: string;
+  /** Documentation of what was accomplished when completing this plan (required by plan_complete) */
+  completionNotes?: string;
   /** Type classification: bug, feature, or research */
   type?: PlanType;
   /** Creation timestamp */

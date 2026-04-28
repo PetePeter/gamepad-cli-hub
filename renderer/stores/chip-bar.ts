@@ -156,7 +156,7 @@ export const useChipBarStore = defineStore('chip-bar', () => {
 
       const onDone = plan.status === 'coding' || plan.status === 'review'
         ? async () => {
-          await window.gamepadCli.planComplete(planId);
+          await window.gamepadCli.planComplete(planId, 'Completed via draft chip bar');
           await refresh(sessionId);
         }
         : undefined;

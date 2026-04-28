@@ -60,7 +60,7 @@ describe('Plan State Upgrade (P-0035)', () => {
 
       // Complete a — now b should become ready
       pm.applyItem(a.id, 's1');
-      pm.completeItem(a.id);
+      pm.completeItem(a.id, 'Completed this task successfully');
 
       const bReady = pm.getItem(b.id)!;
       expect(bReady.status).toBe('ready');
@@ -93,7 +93,7 @@ describe('Plan State Upgrade (P-0035)', () => {
 
       // Complete a → b becomes ready
       pm.applyItem(a.id, 's1');
-      pm.completeItem(a.id);
+      pm.completeItem(a.id, 'Completed this task successfully');
 
       bItem = pm.getItem(b.id)!;
       expect(bItem.status).toBe('ready');
@@ -130,7 +130,7 @@ describe('Plan State Upgrade (P-0035)', () => {
       expect(rejectedDirect).toBeNull();
 
       // Only completeItem can transition to done
-      const completed = pm.completeItem(item.id);
+      const completed = pm.completeItem(item.id, 'Completed this task successfully');
       expect(completed).not.toBeNull();
       expect(completed!.status).toBe('done');
     });
@@ -226,7 +226,7 @@ describe('Plan State Upgrade (P-0035)', () => {
       expect(rejectedDirect).toBeNull();
 
       // Only completeItem works
-      const completed = pm.completeItem(item.id);
+      const completed = pm.completeItem(item.id, 'Completed this task successfully');
       expect(completed!.status).toBe('done');
     });
   });
@@ -399,7 +399,7 @@ describe('Plan State Upgrade (P-0035)', () => {
 
       // Complete a
       pm.applyItem(a.id, 's1');
-      pm.completeItem(a.id);
+      pm.completeItem(a.id, 'Completed this task successfully');
 
       // b should now be ready (all deps done)
       expect(pm.getItem(b.id)!.status).toBe('ready');
@@ -417,14 +417,14 @@ describe('Plan State Upgrade (P-0035)', () => {
 
       // Complete A
       pm.applyItem(a.id, 's1');
-      pm.completeItem(a.id);
+      pm.completeItem(a.id, 'Completed this task successfully');
 
       expect(pm.getItem(b.id)!.status).toBe('ready');
       expect(pm.getItem(c.id)!.status).toBe('planning'); // Still blocked by B
 
       // Complete B
       pm.applyItem(b.id, 's1');
-      pm.completeItem(b.id);
+      pm.completeItem(b.id, 'Completed this task successfully');
 
       expect(pm.getItem(c.id)!.status).toBe('ready');
     });

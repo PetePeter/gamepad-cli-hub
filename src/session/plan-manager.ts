@@ -266,12 +266,17 @@ export class PlanManager extends EventEmitter {
     return item;
   }
 
-  /** Complete a plan in coding or review state (→ done). Cascades ready recompute for dependents. */
-  completeItem(id: string): PlanItem | null {
+  /** Complete a plan in coding or review state (→ done). Cascades ready recompute for dependents.
+   *  Requires completionNotes (minimum 10 characters) to document what was accomplished. */
+  completeItem(id: string, completionNotes?: string): PlanItem | null {
     const item = this.items.get(id);
     if (!item || (item.status !== 'coding' && item.status !== 'review')) return null;
 
+    if (completionNotes === undefined) return null;
+    if (completionNotes.trim().length < 10) return null;
+
     const prevStatus = item.status;
+    item.completionNotes = completionNotes.trim();
     item.status = 'done';
     item.sessionId = undefined;
     item.stateInfo = undefined;
