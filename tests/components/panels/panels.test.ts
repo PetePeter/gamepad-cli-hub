@@ -354,6 +354,93 @@ describe('DraftEditor', () => {
     ]]);
   });
 
+  it('hydrates and emits plan type changes', async () => {
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'plan',
+        sessionId: 'sess-1',
+        initialLabel: 'Plan task',
+        initialText: 'Need details',
+        planStatus: 'ready',
+        planType: 'feature',
+        planCallbacks: { onSave: vi.fn(), onDelete: vi.fn() },
+      },
+    });
+
+    const typeSelect = w.find('.draft-editor-type-select');
+    expect((typeSelect.element as HTMLSelectElement).value).toBe('feature');
+
+    await typeSelect.setValue('research');
+    await w.find('.draft-editor-actions button').trigger('click');
+
+    expect(w.emitted('plan-save')?.[0][0]).toMatchObject({ type: 'research' });
+  });
+
+  it('emits undefined type when clearing a plan type', async () => {
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'plan',
+        sessionId: 'sess-1',
+        initialLabel: 'Plan task',
+        initialText: 'Need details',
+        planStatus: 'ready',
+        planType: 'bug',
+        planCallbacks: { onSave: vi.fn(), onDelete: vi.fn() },
+      },
+    });
+
+    await w.find('.draft-editor-type-select').setValue('');
+    await w.find('.draft-editor-actions button').trigger('click');
+
+    expect(w.emitted('plan-save')?.[0][0]).toMatchObject({ type: undefined });
+  });
+
+  it('keeps blocked plan saves in the editor until a blocker reason is entered', async () => {
+    const w = mount(DraftEditor, {
+      attachTo: document.body,
+      props: {
+        visible: true,
+        mode: 'plan',
+        sessionId: 'sess-1',
+        initialLabel: 'Plan task',
+        initialText: 'Need details',
+        planStatus: 'coding',
+        planCallbacks: { onSave: vi.fn(), onDelete: vi.fn() },
+      },
+    });
+
+    await w.find('.draft-editor-status-select').setValue('blocked');
+    await w.find('.draft-editor-actions button').trigger('click');
+
+    expect(w.emitted('plan-save')).toBeUndefined();
+    expect(w.emitted('close')).toBeUndefined();
+    expect(document.activeElement).toBe(w.find('.draft-editor-plan-info').element);
+
+    w.unmount();
+  });
+
+  it('does not auto-save a blocked plan before a blocker reason is entered', async () => {
+    const onSave = vi.fn();
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'plan',
+        sessionId: 'sess-1',
+        initialLabel: 'Plan task',
+        initialText: 'Need details',
+        planStatus: 'coding',
+        planCallbacks: { onSave, onDelete: vi.fn() },
+      },
+    });
+
+    await w.find('.draft-editor-status-select').setValue('blocked');
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   it('does not auto-save immediately on first render', async () => {
     const onSave = vi.fn();
     mount(DraftEditor, {

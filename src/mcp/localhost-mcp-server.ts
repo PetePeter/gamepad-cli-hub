@@ -79,7 +79,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_create',
     title: 'Create Plan',
-    description: 'Create a plan item in a directory. The new plan starts in "planning" status with no session owner. When you begin working on this plan, claim it by calling plan_set_state with status "coding" and your sessionId, then call session_set_working_plan.',
+    description: 'Create a plan item in a directory. Optionally set type to "bug", "feature", or "research". The new plan starts in "planning" status with no session owner. When you begin working on this plan, claim it by calling plan_set_state with status "coding" and your sessionId, then call session_set_working_plan.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -95,14 +95,14 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_update',
     title: 'Update Plan',
-    description: 'Update a plan item title, description, and/or type.',
+    description: 'Update a plan item title, description, and/or type. Set type to "bug", "feature", or "research"; pass null to clear the type.',
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string' },
         title: { type: 'string' },
         description: { type: 'string' },
-        type: { type: 'string', enum: ['bug', 'feature', 'research'] },
+        type: { anyOf: [{ type: 'string', enum: ['bug', 'feature', 'research'] }, { type: 'null' }] },
       },
       required: ['id'],
       additionalProperties: false,
@@ -522,7 +522,7 @@ export class LocalhostMcpServer {
           this.service.updatePlan(asString(args.id, 'id is required'), {
             ...(typeof args.title === 'string' ? { title: args.title } : {}),
             ...(typeof args.description === 'string' ? { description: args.description } : {}),
-            ...(typeof args.type === 'string' ? { type: args.type as 'bug' | 'feature' | 'research' } : {}),
+            ...(Object.prototype.hasOwnProperty.call(args, 'type') ? { type: asPlanTypeOrNull(args.type) } : {}),
           }),
           `Plan not found: ${asString(args.id, 'id is required')}`,
         );
@@ -732,6 +732,13 @@ function asPlanStatus(value: unknown): 'planning' | 'ready' | 'coding' | 'review
     return value;
   }
   throw new Error('status must be one of planning, ready, coding, review, or blocked');
+}
+
+function asPlanTypeOrNull(value: unknown): 'bug' | 'feature' | 'research' | null {
+  if (value === null || value === 'bug' || value === 'feature' || value === 'research') {
+    return value;
+  }
+  throw new Error('type must be one of bug, feature, research, or null');
 }
 
 function asAiagentState(value: unknown, errorMessage?: string): 'planning' | 'implementing' | 'completed' | 'idle' {

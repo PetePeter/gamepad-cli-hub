@@ -6,6 +6,7 @@
  */
 
 import type { PlanStatus } from '../../src/types/plan.js';
+import type { PlanType } from '../../src/types/plan.js';
 
 export interface DraftEditorState {
   visible: boolean;
@@ -28,7 +29,7 @@ export interface DraftEditorState {
 }
 
 export interface PlanCallbacks {
-  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string }) => void;
+  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType }) => void;
   onDelete: () => void;
   onDone?: () => void;
   onApply?: () => void;
@@ -63,7 +64,7 @@ type DraftEditorOpener = (sessionId: string, draft?: { id: string; label: string
 let draftEditorOpener: DraftEditorOpener | null = null;
 export function setDraftEditorOpener(fn: DraftEditorOpener) { draftEditorOpener = fn; }
 
-type PlanEditorOpener = (sessionId: string, plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; completionNotes?: string }, callbacks: PlanCallbacks) => void;
+type PlanEditorOpener = (sessionId: string, plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; completionNotes?: string }, callbacks: PlanCallbacks) => void;
 let planEditorOpener: PlanEditorOpener | null = null;
 export function setPlanEditorOpener(fn: PlanEditorOpener) { planEditorOpener = fn; }
 
@@ -93,7 +94,7 @@ export function showDraftEditor(sessionId: string, existingDraft?: { id: string;
 
 export function showPlanInEditor(
   sessionId: string,
-  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
+  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
   callbacks: PlanCallbacks,
 ): void {
   planEditorOpener?.(sessionId, plan, callbacks);

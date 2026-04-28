@@ -121,6 +121,8 @@ const titleText = computed(() => {
 
 const showPlanStateSelect = computed(() => isPlan.value);
 const showPlanStateInfo = computed(() => isPlan.value);
+const requiresStateInfo = computed(() => isPlan.value && status.value === 'blocked');
+const canSavePlan = computed(() => !requiresStateInfo.value || stateInfo.value.trim().length > 0);
 
 const showDoneButton = computed(() => {
   if (!isPlan.value || !props.planCallbacks?.onDone) return false;
@@ -283,8 +285,12 @@ function onSave(): void {
     emit('save', { label: label.value.trim(), text: text.value });
     emit('close');
   } else {
+    if (!canSavePlan.value) {
+      stateInfoRef.value?.focus();
+      return;
+    }
     const effectiveStatus = status.value;
-    const effectiveStateInfo = stateInfo.value;
+    const effectiveStateInfo = stateInfo.value.trim();
     emit('plan-save', {
       title: label.value,
       description: text.value,
@@ -343,8 +349,9 @@ function doAutoSave(): void {
     }, 2000);
   } else {
     if (!props.planCallbacks?.onSave) return;
+    if (!canSavePlan.value) return;
     const effectiveStatus = status.value;
-    const effectiveStateInfo = stateInfo.value;
+    const effectiveStateInfo = stateInfo.value.trim();
     saveStatus.value = 'saving';
     props.planCallbacks.onSave({
       title: label.value,
@@ -536,7 +543,7 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
         v-model="stateInfo"
         type="text"
         class="draft-editor-plan-info"
-        placeholder="Add state context..."
+        :placeholder="requiresStateInfo ? 'Required blocker reason...' : 'Add state context...'"
         maxlength="200"
       />
     </div>

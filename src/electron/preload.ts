@@ -556,11 +556,11 @@ const gamepadCliAPI = {
     ipcRenderer.invoke('plan:list', dirPath),
 
   /** Create a new plan item */
-  planCreate: (dirPath: string, title: string, description: string) =>
-    ipcRenderer.invoke('plan:create', dirPath, title, description),
+  planCreate: (dirPath: string, title: string, description: string, type?: 'bug' | 'feature' | 'research') =>
+    ipcRenderer.invoke('plan:create', dirPath, title, description, type),
 
-  /** Update a plan item's title and/or description */
-  planUpdate: (id: string, updates: { title?: string; description?: string }) =>
+  /** Update a plan item's title, description, and/or type */
+  planUpdate: (id: string, updates: { title?: string; description?: string; type?: 'bug' | 'feature' | 'research' }) =>
     ipcRenderer.invoke('plan:update', id, updates),
 
   /** Delete a plan item */

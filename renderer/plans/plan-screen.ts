@@ -1,5 +1,5 @@
 import { reactive } from 'vue';
-import type { PlanDependency, PlanItem, PlanStatus } from '../../src/types/plan.js';
+import type { PlanDependency, PlanItem, PlanStatus, PlanType } from '../../src/types/plan.js';
 import type { LayoutNode, LayoutResult } from './plan-layout.js';
 import { computeLayout } from './plan-layout.js';
 import { deliverBulkText } from '../paste-handler.js';
@@ -11,7 +11,7 @@ import { hidePlanHelpModal, isPlanHelpVisible, showPlanHelpModal } from './plan-
 import { showPlanInEditor as legacyShowPlanInEditor } from '../drafts/draft-editor.js';
 
 export interface PlanEditorCallbacks {
-  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string }) => void | Promise<void>;
+  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType }) => void | Promise<void>;
   onDelete: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
   onApply?: () => void | Promise<void>;
@@ -369,7 +369,7 @@ export function handlePlanScreenAction(button: string): boolean {
   return false;
 }
 
-async function handleSave(updates: { title: string; description: string; status: PlanItem['status']; stateInfo?: string }): Promise<void> {
+async function handleSave(updates: { title: string; description: string; status: PlanItem['status']; stateInfo?: string; type?: PlanType }): Promise<void> {
   if (!planScreenState.selectedId) return;
   try {
     await window.gamepadCli.planUpdate(planScreenState.selectedId, updates);

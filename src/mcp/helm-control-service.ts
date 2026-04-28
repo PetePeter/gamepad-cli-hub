@@ -135,8 +135,15 @@ export class HelmControlService extends EventEmitter {
     return this.planManager.createWithType(dirPath, title, description, type);
   }
 
-  updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType }): PlanItem | null {
-    return this.planManager.updateWithType(id, updates);
+  updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType | null }): PlanItem | null {
+    const nextUpdates: { title?: string; description?: string; type?: PlanType } = {
+      ...(updates.title !== undefined ? { title: updates.title } : {}),
+      ...(updates.description !== undefined ? { description: updates.description } : {}),
+    };
+    if (Object.prototype.hasOwnProperty.call(updates, 'type')) {
+      nextUpdates.type = updates.type ?? undefined;
+    }
+    return this.planManager.updateWithType(id, nextUpdates);
   }
 
   deletePlan(id: string): boolean {

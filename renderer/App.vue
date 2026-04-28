@@ -75,7 +75,7 @@ import { showSequencePicker } from './modals/sequence-picker.js';
 import { showDraftSubmenu } from './modals/draft-submenu.js';
 import { showEditorPopup } from './editor/editor-popup.js';
 import DraftEditor from './components/panels/DraftEditor.vue';
-import type { PlanStatus } from '../../src/types/plan.js';
+import type { PlanStatus, PlanType } from '../../src/types/plan.js';
 import type { ScheduledTask } from '../../src/types/scheduled-task.js';
 import type { PlanCallbacks } from './components/panels/DraftEditor.vue';
 import {
@@ -167,6 +167,7 @@ const draftEditorLabel = ref('');
 const draftEditorText = ref('');
 const draftEditorPlanStatus = ref<PlanStatus>('planning');
 const draftEditorPlanStateInfo = ref('');
+const draftEditorPlanType = ref<PlanType | undefined>(undefined);
 const draftEditorPlanHumanId = ref('');
 const draftEditorPlanCreatedAt = ref<number | null>(null);
 const draftEditorPlanStateUpdatedAt = ref<number | null>(null);
@@ -607,13 +608,14 @@ function openDraftEditor(sessionId: string, draft?: { id: string; label: string;
 
 function openPlanEditor(
   sessionId: string,
-  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
+  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
   callbacks: PlanCallbacks,
 ) {
   draftEditorMode.value = 'plan';
   draftEditorSessionId.value = sessionId;
   draftEditorPlanStatus.value = plan.status;
   draftEditorPlanStateInfo.value = plan.stateInfo ?? '';
+  draftEditorPlanType.value = plan.type;
   draftEditorPlanHumanId.value = plan.humanId ?? '';
   draftEditorPlanCreatedAt.value = plan.createdAt ?? null;
   draftEditorPlanStateUpdatedAt.value = plan.stateUpdatedAt ?? plan.createdAt ?? null;
@@ -1655,7 +1657,7 @@ function onDraftClose(): void {
   closeDraftEditor();
 }
 
-async function onPlanSave(updates: { title: string; description: string; status: PlanStatus; stateInfo?: string }): Promise<void> {
+async function onPlanSave(updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType }): Promise<void> {
   draftEditorPlanCallbacks.value?.onSave?.(updates);
 }
 
@@ -2259,6 +2261,7 @@ onUnmounted(() => {
         :initial-text="draftEditorText"
         :plan-status="draftEditorPlanStatus"
         :plan-state-info="draftEditorPlanStateInfo"
+        :plan-type="draftEditorPlanType"
         :plan-human-id="draftEditorPlanHumanId"
         :plan-created-at="draftEditorPlanCreatedAt"
         :plan-state-updated-at="draftEditorPlanStateUpdatedAt"

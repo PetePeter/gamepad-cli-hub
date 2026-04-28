@@ -14,8 +14,8 @@ function makeService(): HelmControlService {
     listPlans: vi.fn((dirPath: string) => [{ id: 'p1', dirPath, title: 'Task', description: 'Desc', status: 'ready' }]),
     plansSummary: vi.fn(() => [{ id: 'p1', humanId: 'P-0001', title: 'Task', status: 'ready', blockedBy: [], blocks: [] }]),
     getPlan: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'ready' })),
-    createPlan: vi.fn((dirPath: string, title: string, description: string) => ({ id: 'created', dirPath, title, description, status: 'ready' })),
-    updatePlan: vi.fn((id: string, updates: { title?: string; description?: string }) => ({ id, dirPath: '/proj', title: updates.title ?? 'Task', description: updates.description ?? 'Desc', status: 'ready' })),
+    createPlan: vi.fn((dirPath: string, title: string, description: string, type?: string) => ({ id: 'created', dirPath, title, description, status: 'ready', ...(type ? { type } : {}) })),
+    updatePlan: vi.fn((id: string, updates: { title?: string; description?: string; type?: string | null }) => ({ id, dirPath: '/proj', title: updates.title ?? 'Task', description: updates.description ?? 'Desc', status: 'ready', ...(updates.type ? { type: updates.type } : {}) })),
     deletePlan: vi.fn(() => true),
     completePlan: vi.fn((id: string, _notes?: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done' })),
     setPlanState: vi.fn((id: string, status: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status })),
@@ -207,6 +207,60 @@ describe('LocalhostMcpServer', () => {
     });
     expect(setStateJson.result.content[0].text).toContain('Reminder: ownership is explicit');
     expect(setStateJson.result.content[0].text).toContain('session_set_working_plan');
+  });
+
+  it('sets plan type through plan_create and plan_update MCP calls', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const createResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 39,
+      method: 'tools/call',
+      params: {
+        name: 'plan_create',
+        arguments: { dirPath: '/proj', title: 'Task', description: 'Desc', type: 'bug' },
+      },
+    });
+    const createJson = await createResponse.json();
+    expect((service.createPlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('/proj', 'Task', 'Desc', 'bug');
+    expect(createJson.result.structuredContent.type).toBe('bug');
+
+    const updateResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 40,
+      method: 'tools/call',
+      params: {
+        name: 'plan_update',
+        arguments: { id: 'p1', type: 'research' },
+      },
+    });
+    const updateJson = await updateResponse.json();
+    expect((service.updatePlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('p1', { type: 'research' });
+    expect(updateJson.result.structuredContent.type).toBe('research');
+  });
+
+  it('clears plan type through plan_update when type is null', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 41,
+      method: 'tools/call',
+      params: {
+        name: 'plan_update',
+        arguments: { id: 'p1', type: null },
+      },
+    });
+
+    expect((service.updatePlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('p1', { type: null });
   });
 
   it('wraps array results in a record for structuredContent', async () => {

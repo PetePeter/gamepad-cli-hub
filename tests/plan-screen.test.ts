@@ -265,6 +265,36 @@ describe('plan screen bridge', () => {
     expect(mockPlanSetState).toHaveBeenCalledWith('a', 'review', undefined, undefined);
   });
 
+  it('passes plan type updates through the editor save path', async () => {
+    const mod = await getModule();
+    const opener = vi.fn();
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'ready', type: 'bug', createdAt: 1, updatedAt: 1 };
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    mockPlanUpdate.mockResolvedValue(undefined);
+    mockPlanSetState.mockResolvedValue(undefined);
+    mod.setPlanEditorOpener(opener);
+
+    await mod.showPlanScreen('/test/dir');
+    mod.handlePlanScreenAction('A');
+
+    const callbacks = opener.mock.calls[0][2];
+    await callbacks.onSave({
+      title: 'Updated',
+      description: 'Updated body',
+      status: 'ready',
+      type: 'research',
+    });
+
+    expect(mockPlanUpdate).toHaveBeenCalledWith('a', {
+      title: 'Updated',
+      description: 'Updated body',
+      status: 'ready',
+      type: 'research',
+    });
+  });
+
   it('applies a ready plan through the editor callback', async () => {
     const mod = await getModule();
     const opener = vi.fn();

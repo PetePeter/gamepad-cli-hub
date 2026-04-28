@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { state } from '../state.js';
 import { resolveChipbarTemplates } from '../drafts/chipbar-templates.js';
 import { executeSequenceForSession } from '../bindings.js';
-import type { PlanStatus } from '../../src/types/plan.js';
+import type { PlanStatus, PlanType } from '../../src/types/plan.js';
 import { deliverBulkText } from '../paste-handler.js';
 import {
   showDraftEditor as legacyShowDraftEditor,
@@ -136,6 +136,7 @@ export const useChipBarStore = defineStore('chip-bar', () => {
         description: string;
         status: PlanStatus;
         stateInfo?: string;
+        type?: PlanType;
       }) => {
         await window.gamepadCli.planUpdate(planId, updates);
         if (item.status !== 'done') {
