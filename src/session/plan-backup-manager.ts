@@ -6,12 +6,14 @@
  * - Timestamped snapshots with ISO format
  * - Automatic cleanup of oldest snapshots
  * - Safe restore (original state retained on failure)
+ * - EventEmitter for snapshot lifecycle events
+ * - Config persistence to config/plan-backups.yaml
  */
 
 import { mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync, statSync, existsSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { EventEmitter } from 'node:events';
+import { EventEmitter } from 'node:events';
 import type {
   BackupMetadata,
   BackupConfig,
@@ -21,6 +23,7 @@ import type {
   PlanSnapshot,
 } from '../types/plan-backup.js';
 import type { DirectoryPlan } from '../types/plan.js';
+import type { PlanManager } from './plan-manager.js';
 import { logger } from '../utils/logger.js';
 import { getConfigDir } from '../utils/app-paths.js';
 
@@ -28,19 +31,32 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const SNAPSHOT_FILE_PATTERN = /^snapshot-(.+)-(\d+)\.json$/;
 const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const BACKUP_CONFIG_FILE = 'plan-backups.yaml';
 
-export class PlanBackupManager {
+/** Events emitted by PlanBackupManager */
+export interface PlanBackupEvents {
+  'snapshot-created': [metadata: BackupMetadata, snapshotPath: string];
+  'snapshot-deleted': [snapshotPath: string];
+  'restored': [metadata: BackupMetadata, planCount: number, dependencyCount: number];
+  'config-changed': [config: BackupConfig];
+}
+
+export class PlanBackupManager extends EventEmitter {
   private readonly backupsRootDir: string;
   private config: BackupConfig;
+  private readonly configFilePath: string;
 
   constructor(
-    private readonly planManager: EventEmitter,
+    private readonly planManager: PlanManager,
     configDir?: string,
     config?: Partial<BackupConfig>,
   ) {
+    super();
     const resolvedConfigDir = configDir ?? getConfigDir(__dirname);
     this.backupsRootDir = join(resolvedConfigDir, 'plan-backups');
+    this.configFilePath = join(resolvedConfigDir, BACKUP_CONFIG_FILE);
     this.config = { ...this.getDefaultConfig(), ...config };
+    this.loadConfig();
   }
 
   /** Get the current backup configuration */
@@ -51,6 +67,33 @@ export class PlanBackupManager {
   /** Update the backup configuration */
   updateConfig(updates: Partial<BackupConfig>): void {
     this.config = { ...this.config, ...updates };
+    this.saveConfig();
+    this.emit('config-changed', this.getConfig());
+  }
+
+  /** Load configuration from config file */
+  private loadConfig(): void {
+    try {
+      if (existsSync(this.configFilePath)) {
+        const content = readFileSync(this.configFilePath, 'utf8');
+        const loaded = JSON.parse(content) as Partial<BackupConfig>;
+        this.config = { ...this.getDefaultConfig(), ...loaded };
+        logger.info('[PlanBackupManager] Loaded config from file');
+      }
+    } catch (error) {
+      logger.warn(`[PlanBackupManager] Failed to load config: ${error}`);
+    }
+  }
+
+  /** Save configuration to config file */
+  private saveConfig(): void {
+    try {
+      mkdirSync(dirname(this.configFilePath), { recursive: true });
+      writeFileSync(this.configFilePath, JSON.stringify(this.config, null, 2), 'utf8');
+      logger.debug('[PlanBackupManager] Saved config to file');
+    } catch (error) {
+      logger.error(`[PlanBackupManager] Failed to save config: ${error}`);
+    }
   }
 
   /** Get default configuration values */
@@ -67,7 +110,7 @@ export class PlanBackupManager {
    * Create a snapshot for a directory.
    * Enforces rolling window by pruning oldest snapshots after creation.
    */
-  createSnapshot(dirPath: string, planData: DirectoryPlan): BackupResult {
+  createSnapshot(dirPath: string, planData?: DirectoryPlan): BackupResult {
     if (!this.config.enabled) {
       return { success: false, error: 'Backups are disabled' };
     }
@@ -77,6 +120,12 @@ export class PlanBackupManager {
     }
 
     try {
+      // Export plan data if not provided
+      const exportedPlan = planData ?? this.planManager.exportDirectory(dirPath);
+      if (!exportedPlan) {
+        return { success: false, error: 'Failed to export plan data for directory' };
+      }
+
       // Ensure backup directory exists
       const backupDir = this.getBackupDirForPath(dirPath);
       mkdirSync(backupDir, { recursive: true });
@@ -89,8 +138,8 @@ export class PlanBackupManager {
       const metadata: BackupMetadata = {
         timestamp,
         dirPath,
-        planCount: planData.items.length,
-        dependencyCount: planData.dependencies.length,
+        planCount: exportedPlan.items.length,
+        dependencyCount: exportedPlan.dependencies.length,
         status: 'complete',
         index,
       };
@@ -98,7 +147,7 @@ export class PlanBackupManager {
       // Create snapshot
       const snapshot: PlanSnapshot = {
         metadata,
-        planData,
+        planData: exportedPlan,
       };
 
       // Write snapshot file
@@ -110,6 +159,9 @@ export class PlanBackupManager {
       metadata.sizeBytes = stats.size;
 
       logger.info(`[PlanBackupManager] Created snapshot for ${dirPath}: ${filename}`);
+
+      // Emit event
+      this.emit('snapshot-created', metadata, snapshotPath);
 
       // Prune old snapshots if we exceed maxSnapshots
       this.pruneOldSnapshots(backupDir);
@@ -146,9 +198,17 @@ export class PlanBackupManager {
         return { success: false, error: 'Invalid snapshot structure' };
       }
 
-      // Get plan manager reference (would need to be injected or accessed)
-      // For now, return the data that would be restored
-      logger.info(`[PlanBackupManager] Restoring from ${basename(snapshotPath)}`);
+      // Import the snapshot data into the plan manager
+      // The importAll method takes a Record<string, DirectoryPlan>
+      const importData: Record<string, DirectoryPlan> = {
+        [snapshot.metadata.dirPath]: snapshot.planData,
+      };
+      this.planManager.importAll(importData);
+
+      logger.info(`[PlanBackupManager] Restored from ${basename(snapshotPath)}: ${snapshot.planData.items.length} plans, ${snapshot.planData.dependencies.length} dependencies`);
+
+      // Emit event
+      this.emit('restored', snapshot.metadata, snapshot.planData.items.length, snapshot.planData.dependencies.length);
 
       return {
         success: true,
@@ -230,6 +290,8 @@ export class PlanBackupManager {
       if (existsSync(snapshotPath)) {
         unlinkSync(snapshotPath);
         logger.info(`[PlanBackupManager] Deleted snapshot ${basename(snapshotPath)}`);
+        // Emit event
+        this.emit('snapshot-deleted', snapshotPath);
         return true;
       }
       return false;
