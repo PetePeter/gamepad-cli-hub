@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch, withDefaults } from 'vue';
+import { computed, reactive, ref, watch, withDefaults } from 'vue';
 import { getDisplayTitle } from '../../types.js';
-import type { PlanDependency, PlanItem } from '../../../src/types/plan.js';
+import type { PlanDependency, PlanItem, PlanSequence } from '../../../src/types/plan.js';
 import type { LayoutResult } from '../../plans/plan-layout.js';
 
 const NODE_W = 200;
@@ -23,6 +23,7 @@ const props = withDefaults(defineProps<{
   dirPath: string;
   items: PlanItem[];
   deps: PlanDependency[];
+  sequences?: PlanSequence[];
   layout: LayoutResult;
   selectedId: string | null;
   notice?: string;
@@ -34,6 +35,7 @@ const props = withDefaults(defineProps<{
     statuses: { planning: boolean; ready: boolean; coding: boolean; review: boolean; blocked: boolean; done: boolean };
   };
 }>(), {
+  sequences: () => [],
   relatedFocusRootId: null,
   relatedFocusIds: () => new Set<string>(),
   relatedTransientIds: () => new Set<string>(),
@@ -48,6 +50,9 @@ const emit = defineEmits<{
   addNode: [];
   exportDir: [];
   clearDone: [];
+  createSequenceForSelected: [];
+  assignSequence: [planId: string, sequenceId: string | null];
+  updateSequence: [id: string, updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number }];
   nodeClick: [id: string];
   editNode: [id: string];
   applyNode: [id: string];
@@ -69,6 +74,7 @@ const viewBox = ref({ x: 0, y: 0, w: 800, h: 600 });
 const isPanning = ref(false);
 const panStart = ref({ x: 0, y: 0, vbx: 0, vby: 0 });
 const dragState = ref<{ fromId: string; x: number; y: number } | null>(null);
+const sequenceDraft = reactive({ id: '', title: '', missionStatement: '', sharedMemory: '' });
 
 const nodeMap = computed(() => {
   const map = new Map<string, LayoutResult['nodes'][number]>();
@@ -89,6 +95,26 @@ const selectedItem = computed(() =>
   props.selectedId ? props.items.find((item) => item.id === props.selectedId) ?? null : null,
 );
 
+const selectedSequence = computed(() =>
+  selectedItem.value?.sequenceId
+    ? props.sequences.find((sequence) => sequence.id === selectedItem.value?.sequenceId) ?? null
+    : null,
+);
+
+const sequenceBoxes = computed(() => {
+  return props.sequences
+    .map((sequence) => {
+      const nodes = positionedItems.value.filter((item) => item.sequenceId === sequence.id);
+      if (nodes.length === 0) return null;
+      const minX = Math.min(...nodes.map((node) => node.x)) - 30;
+      const minY = Math.min(...nodes.map((node) => node.y)) - 42;
+      const maxX = Math.max(...nodes.map((node) => node.x + NODE_W)) + 30;
+      const maxY = Math.max(...nodes.map((node) => node.y + NODE_H)) + 26;
+      return { sequence, x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    })
+    .filter((box): box is NonNullable<typeof box> => box !== null);
+});
+
 const relatedFocusActive = computed(() => !!props.relatedFocusRootId);
 
 const relatedForegroundIds = computed(() => {
@@ -96,6 +122,13 @@ const relatedForegroundIds = computed(() => {
   for (const id of props.relatedTransientIds ?? []) ids.add(id);
   return ids;
 });
+
+watch(selectedSequence, (sequence) => {
+  sequenceDraft.id = sequence?.id ?? '';
+  sequenceDraft.title = sequence?.title ?? '';
+  sequenceDraft.missionStatement = sequence?.missionStatement ?? '';
+  sequenceDraft.sharedMemory = sequence?.sharedMemory ?? '';
+}, { immediate: true });
 
 const dragPath = computed(() => {
   if (!dragState.value) return '';
@@ -345,6 +378,23 @@ function startDragConnection(id: string, e: MouseEvent): void {
           </marker>
         </defs>
 
+        <g
+          v-for="box in sequenceBoxes"
+          :key="box.sequence.id"
+          class="plan-sequence-lane"
+          :transform="`translate(${box.x}, ${box.y})`"
+        >
+          <rect
+            :width="box.width"
+            :height="box.height"
+            rx="8"
+            ry="8"
+          />
+          <foreignObject x="10" y="8" :width="Math.max(120, box.width - 20)" height="28">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-sequence-lane__title">{{ box.sequence.title }}</div>
+          </foreignObject>
+        </g>
+
         <path
           v-for="dep in deps"
           :key="`${dep.fromId}-${dep.toId}`"
@@ -472,6 +522,48 @@ function startDragConnection(id: string, e: MouseEvent): void {
           @click="emit('reopenNode', selectedItem.id)"
         >Reopen</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('deleteNode', selectedItem.id)">Delete</button>
+      </div>
+    </div>
+
+    <div v-if="selectedItem" class="plan-sequence-panel">
+      <div class="plan-sequence-panel__row">
+        <span class="plan-sequence-panel__label">Sequence</span>
+        <select
+          class="plan-sequence-panel__select"
+          :value="selectedItem.sequenceId ?? ''"
+          @change="emit('assignSequence', selectedItem.id, ($event.target as HTMLSelectElement).value || null)"
+        >
+          <option value="">None</option>
+          <option v-for="sequence in sequences" :key="sequence.id" :value="sequence.id">{{ sequence.title }}</option>
+        </select>
+        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('createSequenceForSelected')">New Sequence</button>
+        <button
+          v-if="selectedSequence"
+          class="plan-header__btn plan-header__btn--secondary"
+          @click="emit('assignSequence', selectedItem.id, null)"
+        >Remove</button>
+      </div>
+      <div v-if="selectedSequence" class="plan-sequence-panel__grid">
+        <label>
+          <span>Title</span>
+          <input v-model="sequenceDraft.title" class="plan-sequence-panel__input" />
+        </label>
+        <label>
+          <span>Mission</span>
+          <textarea v-model="sequenceDraft.missionStatement" class="plan-sequence-panel__textarea"></textarea>
+        </label>
+        <label>
+          <span>Memory</span>
+          <textarea v-model="sequenceDraft.sharedMemory" class="plan-sequence-panel__textarea"></textarea>
+        </label>
+        <button
+          class="plan-header__btn plan-header__btn--secondary"
+          @click="emit('updateSequence', sequenceDraft.id, {
+            title: sequenceDraft.title,
+            missionStatement: sequenceDraft.missionStatement,
+            sharedMemory: sequenceDraft.sharedMemory,
+          })"
+        >Save Sequence</button>
       </div>
     </div>
   </div>

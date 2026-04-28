@@ -38,6 +38,8 @@ export interface PlanItem {
   completionNotes?: string;
   /** Type classification: bug, feature, or research */
   type?: PlanType;
+  /** Optional first-class sequence/swimlane membership. */
+  sequenceId?: string;
   /** Creation timestamp */
   createdAt: number;
   /** Timestamp when the current lifecycle status last changed. */
@@ -54,11 +56,32 @@ export interface PlanDependency {
   toId: string;
 }
 
+/** A first-class wrapper for a larger mission spanning multiple plan nodes. */
+export interface PlanSequence {
+  /** Unique identifier (UUID v4). */
+  id: string;
+  /** Directory this sequence belongs to. */
+  dirPath: string;
+  /** Short name displayed on the swimlane. */
+  title: string;
+  /** Stable mission statement for the sequence. */
+  missionStatement: string;
+  /** Shared notes/memory available to all member plans. */
+  sharedMemory: string;
+  /** Display order among sequences in the same directory. */
+  order: number;
+  /** Creation timestamp. */
+  createdAt: number;
+  /** Last update timestamp. */
+  updatedAt: number;
+}
+
 /** All plan data for a single directory. */
 export interface DirectoryPlan {
   dirPath: string;
   items: PlanItem[];
   dependencies: PlanDependency[];
+  sequences?: PlanSequence[];
 }
 
 /**

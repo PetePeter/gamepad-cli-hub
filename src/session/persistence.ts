@@ -5,7 +5,7 @@ import * as YAML from 'yaml';
 import { logger } from '../utils/logger.js';
 import { getConfigDir } from '../utils/app-paths.js';
 import type { SessionInfo, DraftPrompt } from '../types/session.js';
-import type { PlanItem, PlanDependency, DirectoryPlan } from '../types/plan.js';
+import type { PlanItem, PlanDependency, DirectoryPlan, PlanSequence } from '../types/plan.js';
 import type { ScheduledTask } from '../types/scheduled-task.js';
 
 const __persistence_dirname = dirname(fileURLToPath(import.meta.url));
@@ -14,6 +14,7 @@ const DRAFTS_FILE = join(getConfigDir(__persistence_dirname), 'drafts.yaml');
 const PLANS_FILE = join(getConfigDir(__persistence_dirname), 'plans.yaml');
 const DEFAULT_PLANS_DIR = join(getConfigDir(__persistence_dirname), 'plans');
 const DEFAULT_PLAN_DEPS_FILE = join(getConfigDir(__persistence_dirname), 'plan-dependencies.json');
+const DEFAULT_PLAN_SEQUENCES_FILE = join(getConfigDir(__persistence_dirname), 'plan-sequences.json');
 const SCHEDULED_TASKS_FILE = join(getConfigDir(__persistence_dirname), 'scheduled-tasks.yaml');
 
 /** Persist current sessions to disk so they survive restarts. */
@@ -239,6 +240,27 @@ export function cleanupOrphanDependencies(
     logger.info(`[Persistence] Cleaned up ${removed} orphan dependency edge(s)`);
   }
   return { removed, deps: cleaned };
+}
+
+/** Write the global plan sequence registry to disk. */
+export function savePlanSequences(sequences: PlanSequence[], sequencesFile = DEFAULT_PLAN_SEQUENCES_FILE): void {
+  try {
+    writeFileSync(sequencesFile, JSON.stringify({ version: 1, sequences }, null, 2), 'utf8');
+  } catch (err) {
+    logger.error(`Failed to save plan sequences: ${err}`);
+  }
+}
+
+/** Load the global plan sequence registry from disk. Returns [] if not found. */
+export function loadPlanSequences(sequencesFile = DEFAULT_PLAN_SEQUENCES_FILE): PlanSequence[] {
+  try {
+    if (!existsSync(sequencesFile)) return [];
+    const raw = JSON.parse(readFileSync(sequencesFile, 'utf8'));
+    return Array.isArray(raw?.sequences) ? raw.sequences : [];
+  } catch (err) {
+    logger.error(`Failed to load plan sequences: ${err}`);
+    return [];
+  }
 }
 
 // ─── Scheduled tasks persistence ───────────────────────────────────────────────

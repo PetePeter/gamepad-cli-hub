@@ -18,6 +18,8 @@ vi.mock('../src/session/persistence.js', () => ({
   loadDependencies: vi.fn(() => []),
   saveDependencies: vi.fn(),
   cleanupOrphanDependencies: vi.fn(() => ({ removed: 0, deps: [] })),
+  loadPlanSequences: vi.fn(() => []),
+  savePlanSequences: vi.fn(),
 }));
 
 import { PlanManager } from '../src/session/plan-manager.js';
@@ -30,6 +32,8 @@ describe('PlanManager', () => {
     (persistence.listPlanFiles as unknown as ReturnType<typeof vi.fn>).mockReturnValue([]);
     (persistence.loadPlanFile as unknown as ReturnType<typeof vi.fn>).mockReturnValue(null);
     (persistence.savePlanFile as unknown as ReturnType<typeof vi.fn>).mockClear();
+    (persistence.loadPlanSequences as unknown as ReturnType<typeof vi.fn>).mockReturnValue([]);
+    (persistence.savePlanSequences as unknown as ReturnType<typeof vi.fn>).mockClear();
     pm = new PlanManager();
   });
 
@@ -88,6 +92,45 @@ describe('PlanManager', () => {
 
     it('returns null for unknown ID', () => {
       expect(pm.update('nonexistent', { title: 'nope' })).toBeNull();
+    });
+  });
+
+  describe('sequences', () => {
+    it('creates sequences and assigns plans in the same directory', () => {
+      const item = pm.create('/d', 'Step', 'Do it');
+      const sequence = pm.createSequence('/d', 'Mission', 'Ship the thing', 'Remember constraints');
+
+      const assigned = pm.assignSequence(item.id, sequence.id);
+
+      expect(sequence).toMatchObject({
+        dirPath: '/d',
+        title: 'Mission',
+        missionStatement: 'Ship the thing',
+        sharedMemory: 'Remember constraints',
+      });
+      expect(assigned?.sequenceId).toBe(sequence.id);
+      expect(pm.getSequencesForDirectory('/d')).toEqual([sequence]);
+      expect(persistence.savePlanSequences).toHaveBeenCalledWith(expect.arrayContaining([sequence]));
+    });
+
+    it('rejects sequence assignment across directories', () => {
+      const item = pm.create('/a', 'Step', 'Do it');
+      const sequence = pm.createSequence('/b', 'Other mission');
+
+      expect(pm.assignSequence(item.id, sequence.id)).toBeNull();
+      expect(pm.getItem(item.id)?.sequenceId).toBeUndefined();
+    });
+
+    it('exports directory sequences with member plans', () => {
+      const item = pm.create('/d', 'Step', 'Do it');
+      const sequence = pm.createSequence('/d', 'Mission');
+      pm.assignSequence(item.id, sequence.id);
+
+      expect(pm.exportDirectory('/d')).toMatchObject({
+        dirPath: '/d',
+        items: [expect.objectContaining({ id: item.id, sequenceId: sequence.id })],
+        sequences: [expect.objectContaining({ id: sequence.id, title: 'Mission' })],
+      });
     });
   });
 

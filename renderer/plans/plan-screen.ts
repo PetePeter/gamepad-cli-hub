@@ -1,5 +1,5 @@
 import { reactive } from 'vue';
-import type { PlanDependency, PlanItem, PlanStatus, PlanType } from '../../src/types/plan.js';
+import type { PlanDependency, PlanItem, PlanSequence, PlanStatus, PlanType } from '../../src/types/plan.js';
 import type { LayoutNode, LayoutResult } from './plan-layout.js';
 import { computeLayout } from './plan-layout.js';
 import { deliverBulkText } from '../paste-handler.js';
@@ -23,6 +23,7 @@ export const planScreenState = reactive({
   currentDir: '',
   items: [] as PlanItem[],
   deps: [] as PlanDependency[],
+  sequences: [] as PlanSequence[],
   layout: { nodes: [], width: 0, height: 0 } as LayoutResult,
   selectedId: null as string | null,
   editingId: null as string | null,
@@ -178,12 +179,13 @@ export function isPlanRelatedBackground(id: string): boolean {
   return !isPlanRelatedForeground(id);
 }
 
-function setPlanData(items: PlanItem[], deps: PlanDependency[], options?: SetPlanDataOptions): void {
+function setPlanData(items: PlanItem[], deps: PlanDependency[], sequences: PlanSequence[] = [], options?: SetPlanDataOptions): void {
   if (!options?.preserveTransientFocus) {
     setRelatedTransientIds([]);
   }
   planScreenState.items = items;
   planScreenState.deps = deps;
+  planScreenState.sequences = sequences;
   refreshRelatedFocus();
   const filteredItems = getFilteredItems();
   const filteredDeps = getFilteredDeps(deps);
@@ -216,12 +218,13 @@ function syncSelection(): void {
 }
 
 async function loadPlanData(dirPath: string, context?: ViewMountContext, options?: SetPlanDataOptions): Promise<void> {
-  const [items, deps] = await Promise.all([
+  const [items, deps, sequences] = await Promise.all([
     window.gamepadCli.planList(dirPath),
     window.gamepadCli.planDeps(dirPath),
+    window.gamepadCli.planSequenceList?.(dirPath) ?? Promise.resolve([]),
   ]);
   if (context && !context.isActive()) return;
-  setPlanData(items, deps, options);
+  setPlanData(items, deps, sequences, options);
   syncSelection();
   if (!planScreenState.selectedId && planScreenState.layout.nodes.length > 0) {
     const first = planScreenState.layout.nodes.find((node) => node.layer === 0 && node.order === 0) ?? planScreenState.layout.nodes[0];
@@ -286,6 +289,7 @@ function closePlannerOverlay(): void {
   planScreenState.currentDir = '';
   planScreenState.items = [];
   planScreenState.deps = [];
+  planScreenState.sequences = [];
   planScreenState.layout = { nodes: [], width: 0, height: 0 };
   planScreenState.selectedId = null;
   planScreenState.editingId = null;
@@ -681,6 +685,35 @@ export function onPlanExportDirectory(): void {
 
 export function onPlanClearDone(): void {
   void handleClearDone();
+}
+
+export async function onPlanCreateSequenceForSelected(): Promise<void> {
+  const selected = getSelectedItem();
+  if (!selected) return;
+  const title = selected.title ? `${selected.title} Sequence` : 'New Sequence';
+  const sequence = await window.gamepadCli.planSequenceCreate?.(
+    planScreenState.currentDir,
+    title,
+    selected.description,
+    '',
+  );
+  if (sequence?.id) {
+    await window.gamepadCli.planSequenceAssign?.(selected.id, sequence.id);
+    await refreshCanvas();
+  }
+}
+
+export async function onPlanAssignSequence(planId: string, sequenceId: string | null): Promise<void> {
+  await window.gamepadCli.planSequenceAssign?.(planId, sequenceId);
+  await refreshCanvas();
+}
+
+export async function onPlanUpdateSequence(
+  id: string,
+  updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number },
+): Promise<void> {
+  await window.gamepadCli.planSequenceUpdate?.(id, updates);
+  await refreshCanvas();
 }
 
 export function toggleRelatedFocus(): void {

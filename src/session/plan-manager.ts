@@ -15,8 +15,10 @@ import {
   loadDependencies,
   saveDependencies,
   cleanupOrphanDependencies,
+  loadPlanSequences,
+  savePlanSequences,
 } from './persistence.js';
-import type { PlanItem, PlanDependency, DirectoryPlan, PlanStatus, PlanType } from '../types/plan.js';
+import type { PlanItem, PlanDependency, DirectoryPlan, PlanStatus, PlanType, PlanSequence } from '../types/plan.js';
 import { isStartable } from '../types/plan.js';
 
 const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['coding', 'review', 'blocked']);
@@ -35,6 +37,7 @@ function formatHumanId(value: number): string {
 export class PlanManager extends EventEmitter {
   private items = new Map<string, PlanItem>();
   private dependencies: PlanDependency[] = [];
+  private sequences = new Map<string, PlanSequence>();
   private nextHumanId = 1;
 
   constructor() {
@@ -81,6 +84,10 @@ export class PlanManager extends EventEmitter {
     const validIds = new Set(this.items.keys());
     const { deps: cleanedDeps } = cleanupOrphanDependencies(validIds);
     this.dependencies = cleanedDeps;
+    for (const sequence of loadPlanSequences()) {
+      this.sequences.set(sequence.id, sequence);
+    }
+    this.cleanupOrphanSequenceMemberships();
 
     const dirs = new Set<string>();
     for (const item of this.items.values()) dirs.add(item.dirPath);
@@ -99,6 +106,7 @@ export class PlanManager extends EventEmitter {
       if (item.dirPath === dirPath) savePlanFile(item);
     }
     saveDependencies(this.dependencies);
+    savePlanSequences([...this.sequences.values()]);
   }
 
   /** Create a new plan item. New items start as 'planning', transition to 'ready' when deps satisfied. */
@@ -154,6 +162,92 @@ export class PlanManager extends EventEmitter {
     savePlanFile(item);
     this.emit('plan:changed', item.dirPath);
     logger.info(`[PlanManager] Updated plan ${id}`);
+    return item;
+  }
+
+  /** Create a first-class sequence/swimlane for a directory. */
+  createSequence(dirPath: string, title: string, missionStatement = '', sharedMemory = ''): PlanSequence {
+    const now = Date.now();
+    const existing = this.getSequencesForDirectory(dirPath);
+    const sequence: PlanSequence = {
+      id: randomUUID(),
+      dirPath,
+      title,
+      missionStatement,
+      sharedMemory,
+      order: existing.length,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.sequences.set(sequence.id, sequence);
+    savePlanSequences([...this.sequences.values()]);
+    this.emit('plan:changed', dirPath);
+    logger.info(`[PlanManager] Created plan sequence "${title}" in ${dirPath}`);
+    return sequence;
+  }
+
+  /** Get all sequences for a directory. */
+  getSequencesForDirectory(dirPath: string): PlanSequence[] {
+    return [...this.sequences.values()]
+      .filter(sequence => sequence.dirPath === dirPath)
+      .sort((a, b) => a.order - b.order || a.createdAt - b.createdAt || a.title.localeCompare(b.title));
+  }
+
+  /** Get one sequence by ID. */
+  getSequence(id: string): PlanSequence | null {
+    return this.sequences.get(id) ?? null;
+  }
+
+  /** Update sequence display text and shared memory. */
+  updateSequence(
+    id: string,
+    updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number },
+  ): PlanSequence | null {
+    const sequence = this.sequences.get(id);
+    if (!sequence) return null;
+    if (updates.title !== undefined) sequence.title = updates.title;
+    if (updates.missionStatement !== undefined) sequence.missionStatement = updates.missionStatement;
+    if (updates.sharedMemory !== undefined) sequence.sharedMemory = updates.sharedMemory;
+    if (updates.order !== undefined) sequence.order = updates.order;
+    sequence.updatedAt = Date.now();
+    savePlanSequences([...this.sequences.values()]);
+    this.emit('plan:changed', sequence.dirPath);
+    logger.info(`[PlanManager] Updated plan sequence ${id}`);
+    return sequence;
+  }
+
+  /** Delete a sequence and clear membership from its member plans. */
+  deleteSequence(id: string): boolean {
+    const sequence = this.sequences.get(id);
+    if (!sequence) return false;
+    this.sequences.delete(id);
+    for (const item of this.items.values()) {
+      if (item.sequenceId === id) {
+        item.sequenceId = undefined;
+        item.updatedAt = Date.now();
+        savePlanFile(item);
+      }
+    }
+    savePlanSequences([...this.sequences.values()]);
+    this.emit('plan:changed', sequence.dirPath);
+    logger.info(`[PlanManager] Deleted plan sequence ${id}`);
+    return true;
+  }
+
+  /** Assign or unassign a plan to a sequence in the same directory. */
+  assignSequence(planId: string, sequenceId: string | null): PlanItem | null {
+    const item = this.items.get(planId);
+    if (!item) return null;
+    if (sequenceId) {
+      const sequence = this.sequences.get(sequenceId);
+      if (!sequence || sequence.dirPath !== item.dirPath) return null;
+      item.sequenceId = sequenceId;
+    } else {
+      item.sequenceId = undefined;
+    }
+    item.updatedAt = Date.now();
+    savePlanFile(item);
+    this.emit('plan:changed', item.dirPath);
     return item;
   }
 
@@ -422,7 +516,8 @@ export class PlanManager extends EventEmitter {
       const items = this.getForDirectory(dirPath);
       const itemIds = new Set(items.map(i => i.id));
       const deps = this.dependencies.filter(d => itemIds.has(d.fromId) || itemIds.has(d.toId));
-      result[dirPath] = { dirPath, items, dependencies: deps };
+      const sequences = this.getSequencesForDirectory(dirPath);
+      result[dirPath] = { dirPath, items, dependencies: deps, sequences };
     }
     return result;
   }
@@ -431,10 +526,15 @@ export class PlanManager extends EventEmitter {
   importAll(data: Record<string, DirectoryPlan>): void {
     this.items.clear();
     this.dependencies = [];
+    this.sequences.clear();
 
     for (const plan of Object.values(data)) {
+      const sequenceIds = new Set((plan.sequences ?? []).map(sequence => sequence.id));
+      for (const sequence of plan.sequences ?? []) {
+        this.sequences.set(sequence.id, { ...sequence, dirPath: sequence.dirPath || plan.dirPath });
+      }
       for (const item of plan.items) {
-        this.items.set(item.id, { ...item });
+        this.items.set(item.id, { ...item, sequenceId: item.sequenceId && sequenceIds.has(item.sequenceId) ? item.sequenceId : undefined });
       }
       this.dependencies.push(...plan.dependencies);
     }
@@ -447,6 +547,7 @@ export class PlanManager extends EventEmitter {
     for (const dirPath of dirs) {
       this.recomputeStartable(dirPath);
     }
+    savePlanSequences([...this.sequences.values()]);
 
     logger.info(`[PlanManager] Imported plans for ${dirs.size} directory(s)`);
   }
@@ -511,12 +612,13 @@ export class PlanManager extends EventEmitter {
    * Export all plan items for a directory, including their dependency edges.
    * Returns null if the directory has no plans.
    */
-  exportDirectory(dirPath: string): { dirPath: string; items: PlanItem[]; dependencies: PlanDependency[] } | null {
+  exportDirectory(dirPath: string): DirectoryPlan | null {
     const items = this.getForDirectory(dirPath);
     if (items.length === 0) return null;
     const itemIds = new Set(items.map(i => i.id));
     const dependencies = this.dependencies.filter(d => itemIds.has(d.fromId) && itemIds.has(d.toId));
-    return { dirPath, items, dependencies };
+    const sequences = this.getSequencesForDirectory(dirPath);
+    return { dirPath, items, dependencies, sequences };
   }
 
   /**
@@ -560,6 +662,16 @@ export class PlanManager extends EventEmitter {
       changed = true;
     }
     return changed;
+  }
+
+  private cleanupOrphanSequenceMemberships(): void {
+    const sequenceIds = new Set(this.sequences.keys());
+    for (const item of this.items.values()) {
+      if (item.sequenceId && !sequenceIds.has(item.sequenceId)) {
+        item.sequenceId = undefined;
+        savePlanFile(item);
+      }
+    }
   }
 
   private canAddDependency(fromId: string, toId: string): boolean {

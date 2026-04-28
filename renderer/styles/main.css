@@ -2694,6 +2694,26 @@ kbd {
   user-select: none;
 }
 
+/* Plan sequence swimlanes */
+.plan-sequence-lane {
+  pointer-events: none;
+}
+.plan-sequence-lane rect {
+  fill: rgba(79, 208, 139, 0.06);
+  stroke: rgba(79, 208, 139, 0.45);
+  stroke-width: 1.5;
+  stroke-dasharray: 9 5;
+}
+.plan-sequence-lane__title {
+  color: #8ff0bd;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Plan arrows */
 .plan-arrow { cursor: pointer; }
 .plan-arrow:hover { stroke: #888 !important; stroke-width: 2.5; }
@@ -2729,6 +2749,55 @@ kbd {
   content: '·';
   margin-right: 4px;
   color: #2a2a2a;
+}
+
+.plan-sequence-panel {
+  display: grid;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #111;
+  border-top: 1px solid #242424;
+}
+.plan-sequence-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.plan-sequence-panel__label,
+.plan-sequence-panel__grid label span {
+  color: #999;
+  font-size: 11px;
+}
+.plan-sequence-panel__select,
+.plan-sequence-panel__input,
+.plan-sequence-panel__textarea {
+  background: #171717;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #ddd;
+  font-size: 12px;
+}
+.plan-sequence-panel__select,
+.plan-sequence-panel__input {
+  height: 28px;
+  padding: 0 8px;
+}
+.plan-sequence-panel__grid {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.7fr) minmax(220px, 1fr) minmax(220px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.plan-sequence-panel__grid label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.plan-sequence-panel__textarea {
+  height: 46px;
+  resize: vertical;
+  padding: 6px 8px;
 }
 
 /* Plan node connectors */

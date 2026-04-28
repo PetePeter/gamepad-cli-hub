@@ -16,6 +16,10 @@ const mockPlanSetState = vi.fn();
 const mockPlanCreate = vi.fn();
 const mockPlanAddDep = vi.fn();
 const mockPlanRemoveDep = vi.fn();
+const mockPlanSequenceList = vi.fn();
+const mockPlanSequenceCreate = vi.fn();
+const mockPlanSequenceUpdate = vi.fn();
+const mockPlanSequenceAssign = vi.fn();
 const mockPlanExportDirectory = vi.fn();
 const mockPlanWriteFile = vi.fn();
 const mockPlanReadFile = vi.fn();
@@ -125,6 +129,10 @@ describe('plan screen bridge', () => {
     mockPlanCreate.mockReset();
     mockPlanAddDep.mockReset();
     mockPlanRemoveDep.mockReset();
+    mockPlanSequenceList.mockReset();
+    mockPlanSequenceCreate.mockReset();
+    mockPlanSequenceUpdate.mockReset();
+    mockPlanSequenceAssign.mockReset();
     mockPlanExportDirectory.mockReset();
     mockPlanWriteFile.mockReset();
     mockPlanReadFile.mockReset();
@@ -139,6 +147,7 @@ describe('plan screen bridge', () => {
     mockHidePlanHelpModal.mockReset();
     mockIsPlanHelpVisible.mockReturnValue(false);
     mockComputeLayout.mockReset();
+    mockPlanSequenceList.mockResolvedValue([]);
 
     (window as any).gamepadCli = {
       planList: mockPlanList,
@@ -151,6 +160,10 @@ describe('plan screen bridge', () => {
       planCreate: mockPlanCreate,
       planAddDep: mockPlanAddDep,
       planRemoveDep: mockPlanRemoveDep,
+      planSequenceList: mockPlanSequenceList,
+      planSequenceCreate: mockPlanSequenceCreate,
+      planSequenceUpdate: mockPlanSequenceUpdate,
+      planSequenceAssign: mockPlanSequenceAssign,
       planExportDirectory: mockPlanExportDirectory,
       planWriteFile: mockPlanWriteFile,
       planReadFile: mockPlanReadFile,
@@ -284,6 +297,39 @@ describe('plan screen bridge', () => {
     expect(mod.planScreenState.relatedTransientIds.has('n')).toBe(false);
     expect(mod.planScreenState.relatedFocusIds.has('n')).toBe(true);
     expect(mod.isPlanRelatedBackground('n')).toBe(false);
+  });
+
+  it('loads and edits first-class plan sequences through the planner bridge', async () => {
+    const mod = await getModule();
+    const item = planItem('a');
+    const sequence = {
+      id: 'seq-1',
+      dirPath: '/test/dir',
+      title: 'Mission',
+      missionStatement: 'Keep the goal visible',
+      sharedMemory: 'Shared notes',
+      order: 0,
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockPlanSequenceList
+      .mockResolvedValueOnce([sequence])
+      .mockResolvedValueOnce([sequence])
+      .mockResolvedValueOnce([{ ...sequence, title: 'Updated Mission' }]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    mockPlanSequenceAssign.mockResolvedValue({ ...item, sequenceId: 'seq-1' });
+    mockPlanSequenceUpdate.mockResolvedValue({ ...sequence, title: 'Updated Mission' });
+
+    await mod.showPlanScreen('/test/dir');
+    expect(mod.planScreenState.sequences).toEqual([sequence]);
+
+    await mod.onPlanAssignSequence('a', 'seq-1');
+    expect(mockPlanSequenceAssign).toHaveBeenCalledWith('a', 'seq-1');
+
+    await mod.onPlanUpdateSequence('seq-1', { title: 'Updated Mission' });
+    expect(mockPlanSequenceUpdate).toHaveBeenCalledWith('seq-1', { title: 'Updated Mission' });
   });
 
   it('opens the Vue-owned editor through the registered opener', async () => {

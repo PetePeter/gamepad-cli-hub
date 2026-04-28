@@ -35,6 +35,8 @@ import {
   onPlanAddDependency,
   onPlanAddNode,
   onPlanClearDone,
+  onPlanAssignSequence,
+  onPlanCreateSequenceForSelected,
   onPlanExportDirectory,
   onPlanNodeApply,
   onPlanNodeClick,
@@ -43,6 +45,7 @@ import {
   onPlanNodeEdit,
   onPlanNodeReopen,
   onPlanRemoveDependency,
+  onPlanUpdateSequence,
   planScreenState,
   toggleTypeFilter,
   toggleStatusFilter,
@@ -2307,6 +2310,7 @@ onUnmounted(() => {
         :dir-path="planScreenState.currentDir"
         :items="planScreenState.items"
         :deps="planScreenState.deps"
+        :sequences="planScreenState.sequences"
         :layout="planScreenState.layout"
         :selected-id="planScreenState.selectedId"
         :notice="planScreenState.notice"
@@ -2318,6 +2322,9 @@ onUnmounted(() => {
         @add-node="onPlanAddNode()"
         @export-dir="onPlanExportDirectory()"
         @clear-done="onPlanClearDone()"
+        @create-sequence-for-selected="onPlanCreateSequenceForSelected"
+        @assign-sequence="onPlanAssignSequence"
+        @update-sequence="onPlanUpdateSequence"
         @node-click="onPlanNodeClick"
         @edit-node="onPlanNodeEdit"
         @apply-node="onPlanNodeApply"

@@ -124,6 +124,32 @@ export function setupPlanHandlers(
     return planManager.getItem(id);
   });
 
+  ipcMain.handle('plan:sequence-list', (_event, dirPath: string) => {
+    return planManager.getSequencesForDirectory(dirPath);
+  });
+
+  ipcMain.handle(
+    'plan:sequence-create',
+    (_event, dirPath: string, title: string, missionStatement = '', sharedMemory = '') => {
+      return planManager.createSequence(dirPath, title, missionStatement, sharedMemory);
+    },
+  );
+
+  ipcMain.handle(
+    'plan:sequence-update',
+    (_event, id: string, updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number }) => {
+      return planManager.updateSequence(id, updates);
+    },
+  );
+
+  ipcMain.handle('plan:sequence-delete', (_event, id: string) => {
+    return planManager.deleteSequence(id);
+  });
+
+  ipcMain.handle('plan:sequence-assign', (_event, planId: string, sequenceId: string | null) => {
+    return planManager.assignSequence(planId, sequenceId);
+  });
+
   // ─── Incoming plans ────────────────────────────────────────────────────────
 
   ipcMain.handle('plan:incoming-list', () => {

@@ -620,6 +620,28 @@ const gamepadCliAPI = {
   planGetItem: (id: string) =>
     ipcRenderer.invoke('plan:getItem', id),
 
+  /** Get plan sequences for a directory */
+  planSequenceList: (dirPath: string) =>
+    ipcRenderer.invoke('plan:sequence-list', dirPath),
+
+  /** Create a plan sequence */
+  planSequenceCreate: (dirPath: string, title: string, missionStatement = '', sharedMemory = '') =>
+    ipcRenderer.invoke('plan:sequence-create', dirPath, title, missionStatement, sharedMemory),
+
+  /** Update a plan sequence */
+  planSequenceUpdate: (
+    id: string,
+    updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number },
+  ) => ipcRenderer.invoke('plan:sequence-update', id, updates),
+
+  /** Delete a plan sequence */
+  planSequenceDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:sequence-delete', id),
+
+  /** Assign or unassign a plan from a sequence */
+  planSequenceAssign: (planId: string, sequenceId: string | null) =>
+    ipcRenderer.invoke('plan:sequence-assign', planId, sequenceId),
+
   /** List files in the incoming plans folder */
   planIncomingList: (): Promise<string[]> =>
     ipcRenderer.invoke('plan:incoming-list'),
