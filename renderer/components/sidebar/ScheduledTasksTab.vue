@@ -9,7 +9,7 @@
  * - Auto-refresh every 10s with live countdown display
  */
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import type { ScheduledTask, ScheduledTaskScheduleKind } from '../../../src/types/scheduled-task.js';
+import type { ScheduledTask, ScheduledTaskMode, ScheduledTaskScheduleKind } from '../../../src/types/scheduled-task.js';
 import QuickSpawnModal from '../modals/QuickSpawnModal.vue';
 import DirPickerModal from '../modals/DirPickerModal.vue';
 
@@ -43,9 +43,11 @@ let refreshTimer: ReturnType<typeof setInterval> | null = null;
 const formTitle = ref('');
 const formDescription = ref('');
 const formInitialPrompt = ref('');
+const formMode = ref<ScheduledTaskMode>('spawn');
 const selectedCliType = ref('');
 const selectedDirPath = ref('');
 const formCliParams = ref('');
+const selectedTargetSessionId = ref('');
 const formTime = ref('');
 const scheduleKind = ref<ScheduledTaskScheduleKind>('once');
 const intervalMinutes = ref(60);
@@ -55,17 +57,26 @@ const cliPickerVisible = ref(false);
 const dirPickerVisible = ref(false);
 const availableCliTypes = ref<string[]>([]);
 const availableDirs = ref<{ name: string; path: string }[]>([]);
+const availableSessions = ref<Array<{ id: string; name: string; cliType: string; workingDir?: string }>>([]);
 
 // ---------------------------------------------------------------------------
 // Computed
 // ---------------------------------------------------------------------------
+const sessionsForDir = computed(() => {
+  if (formMode.value !== 'direct' || !selectedDirPath.value) return [];
+  return availableSessions.value.filter(s => s.workingDir === selectedDirPath.value);
+});
+
 const canCreate = computed(() => {
-  return formTitle.value.trim() !== '' &&
+  const hasBasics = formTitle.value.trim() !== '' &&
     formInitialPrompt.value.trim() !== '' &&
-    selectedCliType.value.trim() !== '' &&
     formTime.value !== '' &&
     selectedDirPath.value.trim() !== '' &&
     (scheduleKind.value !== 'interval' || intervalMinutes.value >= 1);
+  if (formMode.value === 'direct') {
+    return hasBasics && selectedTargetSessionId.value !== '';
+  }
+  return hasBasics && selectedCliType.value.trim() !== '';
 });
 
 const sortedTasks = computed(() => {
@@ -161,9 +172,11 @@ function resetForm(): void {
   formTitle.value = '';
   formDescription.value = '';
   formInitialPrompt.value = '';
+  formMode.value = 'spawn';
   selectedCliType.value = '';
   selectedDirPath.value = '';
   formCliParams.value = '';
+  selectedTargetSessionId.value = '';
   formTime.value = '';
   scheduleKind.value = 'once';
   intervalMinutes.value = 60;
@@ -187,6 +200,13 @@ function onCliSelected(cliType: string): void {
   cliPickerVisible.value = false;
 }
 
+function onModeChange(): void {
+  selectedTargetSessionId.value = '';
+  if (formMode.value === 'direct') {
+    loadSessions();
+  }
+}
+
 async function openDirPickerModal(): Promise<void> {
   try {
     const dirs = await window.gamepadCli.configGetWorkingDirs() as Array<{ path: string; name?: string }>;
@@ -199,7 +219,20 @@ async function openDirPickerModal(): Promise<void> {
 
 function onDirSelected(path: string): void {
   selectedDirPath.value = path;
+  selectedTargetSessionId.value = '';
   dirPickerVisible.value = false;
+  if (formMode.value === 'direct') {
+    loadSessions();
+  }
+}
+
+async function loadSessions(): Promise<void> {
+  try {
+    const sessions = await window.gamepadCli.listSessions() as Array<{ id: string; name: string; cliType: string; workingDir?: string }>;
+    availableSessions.value = sessions;
+  } catch {
+    availableSessions.value = [];
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -214,12 +247,14 @@ async function createTask(): Promise<void> {
       description: formDescription.value.trim() || undefined,
       planIds: [],
       initialPrompt: formInitialPrompt.value.trim(),
-      cliType: selectedCliType.value,
+      cliType: formMode.value === 'direct' ? '' : selectedCliType.value,
       cliParams: formCliParams.value.trim() || undefined,
       scheduledTime: new Date(formTime.value),
       scheduleKind: scheduleKind.value,
       intervalMs: scheduleKind.value === 'interval' ? intervalMinutes.value * 60_000 : undefined,
       dirPath: selectedDirPath.value.trim(),
+      mode: formMode.value,
+      targetSessionId: formMode.value === 'direct' ? selectedTargetSessionId.value : undefined,
     };
     const result = editingTaskId.value
       ? await window.gamepadCli.scheduledTaskUpdate(editingTaskId.value, payload)
@@ -243,13 +278,18 @@ function editTask(task: ScheduledTask): void {
   formTitle.value = task.title;
   formDescription.value = task.description ?? '';
   formInitialPrompt.value = task.initialPrompt;
+  formMode.value = task.mode ?? 'spawn';
   selectedCliType.value = task.cliType;
   selectedDirPath.value = task.dirPath;
   formCliParams.value = task.cliParams ?? '';
+  selectedTargetSessionId.value = task.targetSessionId ?? '';
   formTime.value = toLocalDateTimeInputValue(new Date(task.scheduledTime));
   scheduleKind.value = task.scheduleKind ?? 'once';
   intervalMinutes.value = Math.max(1, Math.round((task.intervalMs ?? 3600000) / 60000));
   showCreateForm.value = true;
+  if (formMode.value === 'direct') {
+    loadSessions();
+  }
 }
 
 async function cancelTask(taskId: string): Promise<void> {
@@ -356,9 +396,10 @@ onUnmounted(() => {
 
       <div class="st-form-row st-form-row--picker">
         <label class="st-label">CLI Type *</label>
-        <button class="st-picker-btn focusable" @click="openCliPicker">
+        <button v-if="formMode !== 'direct'" class="st-picker-btn focusable" @click="openCliPicker">
           {{ selectedCliType || 'Select CLI...' }}
         </button>
+        <span v-else class="st-picker-btn st-picker-btn--disabled">Auto (from session)</span>
       </div>
 
       <div class="st-form-row st-form-row--picker">
@@ -403,6 +444,28 @@ onUnmounted(() => {
           class="st-input focusable"
           placeholder="Additional CLI arguments"
         />
+      </div>
+
+      <div class="st-form-row">
+        <label class="st-label">Mode</label>
+        <select v-model="formMode" class="st-input focusable" @change="onModeChange">
+          <option value="spawn">Spawn new session</option>
+          <option value="direct">Send to existing session</option>
+        </select>
+      </div>
+
+      <div v-if="formMode === 'direct'" class="st-form-row">
+        <label class="st-label">Target Session *</label>
+        <select
+          v-model="selectedTargetSessionId"
+          class="st-input focusable"
+          :disabled="sessionsForDir.length === 0"
+        >
+          <option value="" disabled>{{ sessionsForDir.length === 0 ? 'No sessions in this directory' : 'Select session...' }}</option>
+          <option v-for="s in sessionsForDir" :key="s.id" :value="s.id">
+            {{ s.name }} ({{ s.cliType }})
+          </option>
+        </select>
       </div>
 
       <div class="st-form-actions">
@@ -594,7 +657,11 @@ onUnmounted(() => {
   cursor: pointer;
   transition: border-color 0.2s;
 }
-.st-picker-btn:hover {
+.st-picker-btn--disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.st-picker-btn:hover:not(.st-picker-btn--disabled) {
   border-color: var(--accent-primary);
 }
 .st-form-actions {

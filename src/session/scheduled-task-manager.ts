@@ -176,7 +176,7 @@ export class ScheduledTaskManager extends EventEmitter {
     logger.debug(`[ScheduledTaskManager] Scheduled task "${task.title}" (${task.id}) in ${delay}ms`);
   }
 
-  /** Execute a scheduled task: spawn CLI, set working plan, deliver prompt. */
+  /** Execute a scheduled task: spawn CLI or send to existing session, set working plan, deliver prompt. */
   private async executeTask(task: ScheduledTask): Promise<void> {
     this.clearTimer(task.id);
 
@@ -185,8 +185,67 @@ export class ScheduledTaskManager extends EventEmitter {
       return;
     }
 
-    logger.info(`[ScheduledTaskManager] Executing task "${task.title}" (${task.id})`);
+    logger.info(`[ScheduledTaskManager] Executing task "${task.title}" (${task.id}) mode=${task.mode ?? 'spawn'}`);
 
+    if (task.mode === 'direct' && task.targetSessionId) {
+      await this.executeDirectTask(task);
+    } else {
+      await this.executeSpawnTask(task);
+    }
+  }
+
+  /** Direct mode: send prompt to an existing session. */
+  private async executeDirectTask(task: ScheduledTask): Promise<void> {
+    try {
+      const targetId = task.targetSessionId!;
+      const session = this.sessionManager.getSession(targetId);
+      if (!session) {
+        throw new Error(`Target session ${targetId} not found`);
+      }
+      if (!this.ptyManager.has(targetId)) {
+        throw new Error(`Target session ${targetId} PTY is not running`);
+      }
+
+      task.status = 'executing';
+      task.sessionId = targetId;
+      this.saveTasks();
+      this.emit('task:changed', task);
+
+      if (task.planIds.length > 0 && this.planManager) {
+        const firstPlanId = task.planIds[0];
+        const plan = this.planManager.getItem(firstPlanId);
+        if (plan) {
+          this.planManager.setState(firstPlanId, 'coding', '', targetId);
+        }
+      }
+
+      let prompt = task.initialPrompt;
+      if (task.planIds.length > 0) {
+        const planRefs = task.planIds.map(id => `- ${id}`).join('\n');
+        prompt = `${task.initialPrompt}\n\nPlan references:\n${planRefs}`;
+      }
+
+      const trimmed = prompt.trim();
+      if (trimmed.length > 0) {
+        await this.ptyManager.deliverText(targetId, trimmed, { withReturn: true });
+      }
+
+      task.lastRunAt = Date.now();
+      this.completeOrReschedule(task);
+      logger.info(`[ScheduledTaskManager] Direct task "${task.title}" sent to session ${targetId}`);
+
+    } catch (err) {
+      logger.error(`[ScheduledTaskManager] Failed to execute direct task "${task.title}": ${err}`);
+      task.status = 'failed';
+      task.error = err instanceof Error ? err.message : String(err);
+      task.completedAt = Date.now();
+      this.saveTasks();
+      this.emit('task:changed', task);
+    }
+  }
+
+  /** Spawn mode: create a new PTY session and deliver prompt. */
+  private async executeSpawnTask(task: ScheduledTask): Promise<void> {
     let exitListener: ((sessionId: string) => void) | null = null;
     try {
       const previousActiveSessionId = this.sessionManager.getActiveSession()?.id ?? null;
