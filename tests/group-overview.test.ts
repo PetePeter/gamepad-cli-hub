@@ -208,4 +208,61 @@ describe('group-overview', () => {
     expect(handleOverviewInput('DPadDown')).toBe(false);
     expect(handleOverviewInput('DPadRight')).toBe(true);
   });
+
+  describe('unmount with stale parentNavItem', () => {
+    it('clamps focus index when the nav item that opened overview has been deleted', () => {
+      state.sessions = [
+        { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+        { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+      ];
+      sessionsState.navList = [
+        { type: 'group-header', id: '/project', groupIndex: 0 },
+        { type: 'session-card', id: 's1', groupIndex: 0 },
+        { type: 'session-card', id: 's2', groupIndex: 0 },
+      ];
+      sessionsState.sessionsFocusIndex = 1; // focused on s1
+
+      showOverview('/project');
+
+      // Simulate s1 being deleted while overview is open
+      state.sessions = [
+        { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+      ];
+      sessionsState.navList = [
+        { type: 'group-header', id: '/project', groupIndex: 0 },
+        { type: 'session-card', id: 's2', groupIndex: 0 },
+      ];
+      // Focus index is still 1 (pointing at now-deleted s1)
+      sessionsState.sessionsFocusIndex = 1;
+
+      hideOverview();
+
+      // Should be clamped to valid range (navList has 2 items: indices 0-1)
+      expect(sessionsState.sessionsFocusIndex).toBeLessThanOrEqual(sessionsState.navList.length - 1);
+      expect(sessionsState.sessionsFocusIndex).toBeGreaterThanOrEqual(0);
+    });
+
+    it('clamps focus index when the entire parent group is gone', () => {
+      state.sessions = [
+        { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+      ];
+      sessionsState.navList = [
+        { type: 'group-header', id: '/project', groupIndex: 0 },
+        { type: 'session-card', id: 's1', groupIndex: 0 },
+      ];
+      sessionsState.sessionsFocusIndex = 0;
+
+      showOverview('/project');
+
+      // Simulate entire group being removed while overview is open
+      state.sessions = [];
+      sessionsState.navList = [];
+      sessionsState.sessionsFocusIndex = 1; // stale — no items exist
+
+      hideOverview();
+
+      // Should be clamped to 0 (empty list)
+      expect(sessionsState.sessionsFocusIndex).toBe(0);
+    });
+  });
 });

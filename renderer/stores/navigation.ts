@@ -210,7 +210,11 @@ export const useNavigationStore = defineStore('navigation', () => {
 
     // Overview unmount restores terminal + numeric sidebar focus.
     // Read back the restored index and update identity tracker.
-    const currentIdx = sessionsState.sessionsFocusIndex;
+    const currentIdx = Math.min(
+      sessionsState.sessionsFocusIndex,
+      Math.max(0, sessionsState.navList.length - 1),
+    );
+    sessionsState.sessionsFocusIndex = currentIdx;
     const navItem = sessionsState.navList[currentIdx];
     if (navItem) {
       focusedNavItem.value = { id: navItem.id, type: navItem.type };

@@ -117,7 +117,14 @@ function unmountOverview(): void {
       const restoredIndex = sessionsState.navList.findIndex(
         item => item.type === parentNavItem!.type && item.id === parentNavItem!.id
       );
-      if (restoredIndex >= 0) sessionsState.sessionsFocusIndex = restoredIndex;
+      if (restoredIndex >= 0) {
+        sessionsState.sessionsFocusIndex = restoredIndex;
+      } else {
+        sessionsState.sessionsFocusIndex = Math.min(
+          sessionsState.sessionsFocusIndex,
+          Math.max(0, sessionsState.navList.length - 1),
+        );
+      }
     }
     overviewDismissCallback?.();
   }
