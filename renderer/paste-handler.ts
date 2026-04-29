@@ -205,7 +205,6 @@ export function setupKeyboardRelay(
       pasteInFlight = true;
       try {
         const text = await navigator.clipboard.readText();
-        hasPendingQuestion(sessionId);
         if (text.length > 0) {
           await deliverBulkText(sessionId, text);
         }
