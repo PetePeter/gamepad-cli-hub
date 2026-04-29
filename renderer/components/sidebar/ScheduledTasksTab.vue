@@ -228,7 +228,7 @@ function onDirSelected(path: string): void {
 
 async function loadSessions(): Promise<void> {
   try {
-    const sessions = await window.gamepadCli.listSessions() as Array<{ id: string; name: string; cliType: string; workingDir?: string }>;
+    const sessions = await window.gamepadCli.sessionGetAll() as Array<{ id: string; name: string; cliType: string; workingDir?: string }>;
     availableSessions.value = sessions;
   } catch {
     availableSessions.value = [];
@@ -308,7 +308,7 @@ async function cancelTask(taskId: string): Promise<void> {
 // Lifecycle
 // ---------------------------------------------------------------------------
 onMounted(async () => {
-  await loadTasks();
+  await Promise.all([loadTasks(), loadSessions()]);
   if (props.initialEditTaskId) {
     const task = tasks.value.find((item) => item.id === props.initialEditTaskId);
     if (task) editTask(task);
@@ -385,6 +385,14 @@ onUnmounted(() => {
       </div>
 
       <div class="st-form-row">
+        <label class="st-label">Mode</label>
+        <select v-model="formMode" class="st-input focusable" @change="onModeChange">
+          <option value="spawn">Spawn new session</option>
+          <option value="direct">Send to existing session</option>
+        </select>
+      </div>
+
+      <div class="st-form-row">
         <label class="st-label">Prompt *</label>
         <textarea
           v-model="formInitialPrompt"
@@ -394,12 +402,11 @@ onUnmounted(() => {
         />
       </div>
 
-      <div class="st-form-row st-form-row--picker">
+      <div v-if="formMode !== 'direct'" class="st-form-row st-form-row--picker">
         <label class="st-label">CLI Type *</label>
-        <button v-if="formMode !== 'direct'" class="st-picker-btn focusable" @click="openCliPicker">
+        <button class="st-picker-btn focusable" @click="openCliPicker">
           {{ selectedCliType || 'Select CLI...' }}
         </button>
-        <span v-else class="st-picker-btn st-picker-btn--disabled">Auto (from session)</span>
       </div>
 
       <div class="st-form-row st-form-row--picker">
@@ -436,7 +443,7 @@ onUnmounted(() => {
         />
       </div>
 
-      <div class="st-form-row">
+      <div v-if="formMode !== 'direct'" class="st-form-row">
         <label class="st-label">CLI Params (optional)</label>
         <input
           v-model="formCliParams"
@@ -444,14 +451,6 @@ onUnmounted(() => {
           class="st-input focusable"
           placeholder="Additional CLI arguments"
         />
-      </div>
-
-      <div class="st-form-row">
-        <label class="st-label">Mode</label>
-        <select v-model="formMode" class="st-input focusable" @change="onModeChange">
-          <option value="spawn">Spawn new session</option>
-          <option value="direct">Send to existing session</option>
-        </select>
       </div>
 
       <div v-if="formMode === 'direct'" class="st-form-row">

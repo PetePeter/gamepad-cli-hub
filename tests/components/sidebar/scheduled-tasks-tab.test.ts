@@ -15,6 +15,7 @@ const mockScheduledTaskUpdate = vi.fn();
 const mockScheduledTaskCancel = vi.fn();
 const mockConfigGetCliTypes = vi.fn();
 const mockConfigGetWorkingDirs = vi.fn();
+const mockSessionGetAll = vi.fn();
 
 function localDateTimeInputValue(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0');
@@ -51,6 +52,10 @@ describe('ScheduledTasksTab', () => {
     mockConfigGetWorkingDirs.mockReset().mockResolvedValue([
       { name: 'Hub', path: 'X:\\coding\\gamepad-cli-hub' },
     ]);
+    mockSessionGetAll.mockReset().mockResolvedValue([
+      { id: 'sess-1', name: 'main', cliType: 'claude-code', workingDir: 'X:\\coding\\gamepad-cli-hub' },
+      { id: 'sess-2', name: 'other', cliType: 'codex', workingDir: 'X:\\other\\project' },
+    ]);
 
     (window as any).gamepadCli = {
       scheduledTaskList: mockScheduledTaskList,
@@ -59,6 +64,7 @@ describe('ScheduledTasksTab', () => {
       scheduledTaskCancel: mockScheduledTaskCancel,
       configGetCliTypes: mockConfigGetCliTypes,
       configGetWorkingDirs: mockConfigGetWorkingDirs,
+      sessionGetAll: mockSessionGetAll,
     };
   });
 
@@ -149,7 +155,10 @@ describe('ScheduledTasksTab', () => {
     await inputs[0].setValue('Recurring');
     await wrapper.find('textarea').setValue('Prompt');
     await inputs.find((input) => input.attributes('type') === 'datetime-local')?.setValue('2026-04-29T10:00');
-    await wrapper.find('select').setValue('interval');
+    const scheduleSelect = wrapper.findAll('select').find(s =>
+      s.findAll('option').some(o => o.text() === 'Recurring interval'),
+    );
+    await scheduleSelect!.setValue('interval');
     await wrapper.find('input[type="number"]').setValue('15');
     await wrapper.findAll('.st-picker-btn')[0].trigger('click');
     await flushPromises();
@@ -201,5 +210,77 @@ describe('ScheduledTasksTab', () => {
     expect((wrapper.find('input[type="datetime-local"]').element as HTMLInputElement).value).toBe(
       localDateTimeInputValue(new Date(2026, 3, 29, 10, 0, 0, 0)),
     );
+  });
+
+  it('calls sessionGetAll (not listSessions) and loads sessions on mount', async () => {
+    mountTab();
+    await flushPromises();
+
+    expect(mockSessionGetAll).toHaveBeenCalled();
+  });
+
+  it('populates session picker with matching workingDir sessions in direct mode', async () => {
+    const wrapper = mountTab();
+    await flushPromises();
+
+    await wrapper.find('.st-create-btn').trigger('click');
+
+    // Switch to direct mode — mode selector is now near the top
+    const modeSelect = wrapper.findAll('select').find(s => {
+      const opts = s.findAll('option');
+      return opts.some(o => o.text() === 'Send to existing session');
+    });
+    expect(modeSelect).toBeDefined();
+    await modeSelect!.setValue('direct');
+    await flushPromises();
+
+    // Pick directory
+    const dirBtn = wrapper.findAll('.st-picker-btn').find(b => b.text().includes('Select Directory'));
+    expect(dirBtn).toBeDefined();
+    await dirBtn!.trigger('click');
+    await flushPromises();
+    wrapper.findComponent(DirPickerModal).vm.$emit('select', 'X:\\coding\\gamepad-cli-hub');
+    await wrapper.vm.$nextTick();
+
+    // Session select should have the matching session
+    const sessionSelect = wrapper.findAll('select').find(s =>
+      s.findAll('option').some(o => o.text().includes('main (claude-code)')),
+    );
+    expect(sessionSelect).toBeDefined();
+  });
+
+  it('hides CLI Type row in direct mode', async () => {
+    const wrapper = mountTab();
+    await flushPromises();
+    await wrapper.find('.st-create-btn').trigger('click');
+
+    // In spawn mode, CLI Type label is visible
+    const labels = () => wrapper.findAll('.st-label').map(l => l.text());
+
+    const modeSelect = wrapper.findAll('select').find(s => {
+      const opts = s.findAll('option');
+      return opts.some(o => o.text() === 'Send to existing session');
+    });
+    await modeSelect!.setValue('direct');
+    await flushPromises();
+
+    // CLI Type label should not be present in direct mode
+    expect(labels()).not.toContain('CLI Type *');
+  });
+
+  it('hides CLI Params row in direct mode', async () => {
+    const wrapper = mountTab();
+    await flushPromises();
+    await wrapper.find('.st-create-btn').trigger('click');
+
+    const modeSelect = wrapper.findAll('select').find(s => {
+      const opts = s.findAll('option');
+      return opts.some(o => o.text() === 'Send to existing session');
+    });
+    await modeSelect!.setValue('direct');
+    await flushPromises();
+
+    const labels = wrapper.findAll('.st-label').map(l => l.text());
+    expect(labels).not.toContain('CLI Params (optional)');
   });
 });
