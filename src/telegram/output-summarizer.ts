@@ -7,16 +7,19 @@
  * - Modified files (from git diff output)
  * - Last N lines of output
  *
- * Maintains a rolling buffer per session, capped at MAX_BUFFER_SIZE.
+ * Maintains a rolling cleaned line buffer per session. PTY data arrives on the
+ * Electron main-process hot path, so feedOutput only queues bounded raw data;
+ * cleanup/parsing runs lazily when a Telegram summary is requested.
  */
 
 import { escapeHtml, cleanTerminalOutput } from './utils.js';
 
 const MAX_BUFFER_SIZE = 50_000;
 const SUMMARY_LINES = 20;
+const MAX_CLEANED_LINES = 1_000;
 
 interface SessionBuffer {
-  raw: string;
+  pendingRaw: string;
   lines: string[];
 }
 
@@ -30,17 +33,17 @@ export class OutputSummarizer {
   feedOutput(sessionId: string, data: string): void {
     let buffer = this.buffers.get(sessionId);
     if (!buffer) {
-      buffer = { raw: '', lines: [] };
+      buffer = { pendingRaw: '', lines: [] };
       this.buffers.set(sessionId, buffer);
     }
 
-    buffer.raw += data;
+    if (!data) return;
 
-    if (buffer.raw.length > MAX_BUFFER_SIZE) {
-      buffer.raw = buffer.raw.slice(-MAX_BUFFER_SIZE);
+    buffer.pendingRaw += data;
+
+    if (buffer.pendingRaw.length > MAX_BUFFER_SIZE) {
+      buffer.pendingRaw = buffer.pendingRaw.slice(-MAX_BUFFER_SIZE);
     }
-
-    buffer.lines = cleanTerminalOutput(buffer.raw).split('\n');
   }
 
   /**
@@ -49,7 +52,12 @@ export class OutputSummarizer {
    */
   getSummary(sessionId: string): string {
     const buffer = this.buffers.get(sessionId);
-    if (!buffer || buffer.lines.length === 0) {
+    if (!buffer) {
+      return '📋 <i>No output yet</i>';
+    }
+
+    this.flushPending(buffer);
+    if (buffer.lines.length === 0) {
       return '📋 <i>No output yet</i>';
     }
 
@@ -74,6 +82,7 @@ export class OutputSummarizer {
   getLastLines(sessionId: string, count: number = SUMMARY_LINES): string {
     const buffer = this.buffers.get(sessionId);
     if (!buffer) return '';
+    this.flushPending(buffer);
     return buffer.lines.slice(-count).join('\n');
   }
 
@@ -85,6 +94,20 @@ export class OutputSummarizer {
   /** Clean up all buffers. */
   dispose(): void {
     this.buffers.clear();
+  }
+
+  private flushPending(buffer: SessionBuffer): void {
+    if (!buffer.pendingRaw) return;
+
+    const cleaned = cleanTerminalOutput(buffer.pendingRaw);
+    buffer.pendingRaw = '';
+    if (!cleaned) return;
+
+    buffer.lines.push(...cleaned.split('\n'));
+
+    if (buffer.lines.length > MAX_CLEANED_LINES) {
+      buffer.lines = buffer.lines.slice(-MAX_CLEANED_LINES);
+    }
   }
 }
 

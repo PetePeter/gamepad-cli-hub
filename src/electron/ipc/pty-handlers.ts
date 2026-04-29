@@ -290,13 +290,18 @@ export function setupPtyHandlers(
     // Feed to notification manager for output preview in toasts
     notificationManager?.feedOutput(sessionId, data);
 
-    // Feed to telegram modules (output summarizer + terminal mirror)
-    onPtyData?.(sessionId, data);
-
     // Forward to renderer for xterm.js rendering
     const win = windowManager.getWindowForSession(sessionId);
     if (win && !win.isDestroyed()) {
       win.webContents.send('pty:data', sessionId, data);
+    }
+
+    // Feed optional Telegram modules after renderer delivery. Telegram output
+    // bookkeeping must never sit in front of terminal rendering.
+    try {
+      onPtyData?.(sessionId, data);
+    } catch (error) {
+      logger.error(`[PTY IPC] Telegram PTY hook failed for session=${sessionId}: ${error}`);
     }
   });
 

@@ -97,6 +97,7 @@ class FakeConfigLoader {
   }
 
   getWorkingDirectories() { return [{ path: 'X:\\\\coding\\\\test', name: 'test' }]; }
+  getMcpConfig() { return { authToken: 'test-token', port: 47373, enabled: true }; }
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
@@ -402,6 +403,90 @@ describe('ScheduledTaskManager', () => {
         rawCommand: 'echo claude-code',
         cwd: 'X:\\\\coding\\\\test',
       }));
+    });
+
+    it('appends cliParams to rawCommand when spawnCommand is set', async () => {
+      const spawnSpy = vi.spyOn(ptyManager, 'spawn');
+
+      manager.createTask({
+        title: 'Resume Test',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() - 1000),
+        dirPath: 'X:\\\\coding\\\\test',
+        cliParams: '--resume',
+      });
+      manager.start();
+      await vi.runOnlyPendingTimersAsync();
+
+      expect(spawnSpy).toHaveBeenCalledWith(expect.objectContaining({
+        rawCommand: expect.stringContaining('--resume'),
+      }));
+    });
+
+    it('does not append empty cliParams to rawCommand', async () => {
+      const spawnSpy = vi.spyOn(ptyManager, 'spawn');
+
+      manager.createTask({
+        title: 'No Params',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() - 1000),
+        dirPath: 'X:\\\\coding\\\\test',
+        cliParams: '',
+      });
+      manager.start();
+      await vi.runOnlyPendingTimersAsync();
+
+      const rawCmd = (spawnSpy.mock.calls[0][0] as { rawCommand?: string }).rawCommand;
+      expect(rawCmd).toBe('echo claude-code');
+    });
+
+    it('sets HELM_SESSION_ID to actual sessionId, not a random UUID', async () => {
+      const spawned: Array<{ sessionId?: string; env?: Record<string, string> }> = [];
+      const origSpawn = ptyManager.spawn.bind(ptyManager);
+      vi.spyOn(ptyManager, 'spawn').mockImplementation((opts) => {
+        spawned.push(opts as typeof spawned[0]);
+        return origSpawn(opts);
+      });
+
+      manager.createTask({
+        title: 'Env Test',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() - 1000),
+        dirPath: 'X:\\\\coding\\\\test',
+      });
+      manager.start();
+      await vi.runOnlyPendingTimersAsync();
+
+      const sessionId = manager.listTasks().find(t => t.status === 'executing')?.sessionId;
+      expect(spawned[0].env?.HELM_SESSION_ID).toBe(sessionId);
+    });
+
+    it('delivers task prompt as onComplete callback after CLI init sequences', async () => {
+      const delivered: string[] = [];
+      const origDeliver = ptyManager.deliverText.bind(ptyManager);
+      vi.spyOn(ptyManager, 'deliverText').mockImplementation(async (sid, text) => {
+        delivered.push(text);
+        return origDeliver(sid, text);
+      });
+
+      manager.createTask({
+        title: 'Prompt Test',
+        planIds: [],
+        initialPrompt: 'do the thing',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() - 1000),
+        dirPath: 'X:\\\\coding\\\\test',
+      });
+      manager.start();
+      await vi.runOnlyPendingTimersAsync();
+
+      expect(delivered.some(t => t.includes('do the thing'))).toBe(true);
     });
 
     it('should complete one-shot tasks and close the background session', async () => {

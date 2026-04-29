@@ -31,6 +31,25 @@ describe('OutputSummarizer', () => {
       expect(lines.length).toBeLessThanOrEqual(50_001);
     });
 
+    it('keeps feedOutput cheap by parsing lazily', () => {
+      for (let i = 0; i < 1000; i++) {
+        summarizer.feedOutput('s1', `line ${i}\n`);
+      }
+
+      const last3 = summarizer.getLastLines('s1', 3);
+      expect(last3).toContain('line 999');
+      expect(last3).toContain('line 997');
+    });
+
+    it('bounds retained cleaned history after lazy parsing', () => {
+      const lines = Array.from({ length: 1200 }, (_, i) => `line ${i}`).join('\n');
+      summarizer.feedOutput('s1', lines);
+
+      const retained = summarizer.getLastLines('s1', 1100);
+      expect(retained).not.toContain('line 0');
+      expect(retained).toContain('line 1199');
+    });
+
     it('strips ANSI escape codes', () => {
       summarizer.feedOutput('s1', '\x1b[31mred text\x1b[0m');
       expect(summarizer.getLastLines('s1')).toBe('red text');
