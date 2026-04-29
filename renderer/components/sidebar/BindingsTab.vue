@@ -35,9 +35,13 @@ const emit = defineEmits<{
   deleteBinding: [button: string];
   copyFrom: [sourceCli: string];
   sortChange: [field: string, direction: 'asc' | 'desc'];
+  editSequenceGroup: [groupName: string];
+  deleteSequenceGroup: [groupName: string];
+  addSequenceGroup: [];
 }>();
 
 const pendingDelete = ref<string | null>(null);
+const pendingDeleteGroup = ref<string | null>(null);
 const deleteTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function onAddBinding(event: Event): void {
@@ -82,6 +86,22 @@ function onDeleteClick(button: string): void {
 function clearTimer(button: string): void {
   const t = deleteTimers.get(button);
   if (t) { clearTimeout(t); deleteTimers.delete(button); }
+}
+
+function onDeleteGroupClick(groupName: string): void {
+  if (pendingDeleteGroup.value === groupName) {
+    clearTimer('group:' + groupName);
+    pendingDeleteGroup.value = null;
+    emit('deleteSequenceGroup', groupName);
+    return;
+  }
+  if (pendingDeleteGroup.value) clearTimer('group:' + pendingDeleteGroup.value);
+  pendingDeleteGroup.value = groupName;
+  const timer = setTimeout(() => {
+    pendingDeleteGroup.value = null;
+    deleteTimers.delete('group:' + groupName);
+  }, 3000);
+  deleteTimers.set('group:' + groupName, timer);
 }
 </script>
 
@@ -147,20 +167,30 @@ function clearTimer(button: string): void {
       </div>
     </div>
 
-    <template v-if="sequenceGroups.length > 0">
+    <template v-if="sequenceGroups.length > 0 || true">
       <div class="settings-panel__header" style="margin-top: 16px">
         <span class="settings-panel__title">Sequence Groups</span>
+        <button class="btn btn--primary btn--sm focusable" @click="emit('addSequenceGroup')">+ Add Group</button>
       </div>
-      <div class="bindings-display">
+      <div v-if="sequenceGroups.length === 0" class="settings-empty">No sequence groups.</div>
+      <div v-else class="bindings-display">
         <div
           v-for="group in sequenceGroups"
           :key="group.name"
           class="binding-card focusable"
+          style="cursor: pointer"
           tabindex="0"
+          @click="emit('editSequenceGroup', group.name)"
+          @keydown.enter="emit('editSequenceGroup', group.name)"
         >
           <div class="binding-card__header">
             <span class="binding-card__button">📋 {{ group.name }}</span>
             <span class="binding-card__action-badge">{{ group.items.length }} item{{ group.items.length !== 1 ? 's' : '' }}</span>
+            <button
+              class="binding-card__delete btn btn--danger btn--sm focusable"
+              :title="pendingDeleteGroup === group.name ? 'Click again to confirm' : `Remove ${group.name}`"
+              @click.stop="onDeleteGroupClick(group.name)"
+            >{{ pendingDeleteGroup === group.name ? '?' : '✕' }}</button>
           </div>
           <div v-if="group.items.length > 0" class="binding-card__details">
             <div v-for="item in group.items" :key="item.label">• {{ item.label }}</div>

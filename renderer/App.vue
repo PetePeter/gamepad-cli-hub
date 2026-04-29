@@ -1599,6 +1599,67 @@ async function onBindingSortChange(field: string, direction: 'asc' | 'desc'): Pr
   await loadCurrentTabBindings();
 }
 
+async function onAddSequenceGroup(): Promise<void> {
+  const result = await showFormModal('Add Sequence Group', [
+    { key: 'groupId', label: 'Group Name', required: true, placeholder: 'e.g. prompts, shortcuts' },
+    { key: '_items', label: 'Sequence Items', type: 'sequence-items', required: true, defaultValue: '[]', showLabels: true },
+  ]);
+  if (!result) return;
+
+  const groupId = result.groupId?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (!groupId) { logEvent('Group name is required'); return; }
+
+  let items: Array<{ label: string; sequence: string }> = [];
+  try { items = JSON.parse(result._items).filter((i: any) => i?.sequence?.trim()); } catch { /* ignore */ }
+
+  try {
+    await window.gamepadCli.configSetSequenceGroup(settingsTab.value, groupId, items);
+    delete state.cliSequencesCache[settingsTab.value];
+    await loadCurrentTabBindings();
+    logEvent(`Added sequence group: ${groupId}`);
+  } catch (error) {
+    logEvent(`Failed to add sequence group: ${error}`);
+  }
+}
+
+async function onEditSequenceGroup(groupName: string): Promise<void> {
+  const existing = settingsSequenceGroups.value.find(g => g.name === groupName);
+  const items = existing?.items ?? [];
+
+  const result = await showFormModal(`Edit Group: ${groupName}`, [
+    { key: 'groupId', label: 'Group Name', required: true, defaultValue: groupName },
+    { key: '_items', label: 'Sequence Items', type: 'sequence-items', required: true, defaultValue: JSON.stringify(items), showLabels: true },
+  ]);
+  if (!result) return;
+
+  const newGroupId = result.groupId?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || groupName;
+  let validItems: Array<{ label: string; sequence: string }> = [];
+  try { validItems = JSON.parse(result._items).filter((i: any) => i?.sequence?.trim()); } catch { /* ignore */ }
+
+  try {
+    if (newGroupId !== groupName) {
+      try { await window.gamepadCli.configRemoveSequenceGroup(settingsTab.value, groupName); } catch { /* proceed to set */ }
+    }
+    await window.gamepadCli.configSetSequenceGroup(settingsTab.value, newGroupId, validItems);
+    delete state.cliSequencesCache[settingsTab.value];
+    await loadCurrentTabBindings();
+    logEvent(`Updated sequence group: ${newGroupId}`);
+  } catch (error) {
+    logEvent(`Failed to update sequence group: ${error}`);
+  }
+}
+
+async function onDeleteSequenceGroup(groupName: string): Promise<void> {
+  try {
+    await window.gamepadCli.configRemoveSequenceGroup(settingsTab.value, groupName);
+    delete state.cliSequencesCache[settingsTab.value];
+    await loadCurrentTabBindings();
+    logEvent(`Deleted sequence group: ${groupName}`);
+  } catch (error) {
+    logEvent(`Failed to delete sequence group: ${error}`);
+  }
+}
+
 // Draft submenu actions
 function onDraftNewDraft(): void {
   draftSubmenu.visible = false;
@@ -2217,6 +2278,9 @@ onUnmounted(() => {
               @delete-binding="onBindingDelete"
               @copy-from="onBindingCopyFrom"
               @sort-change="onBindingSortChange"
+              @edit-sequence-group="onEditSequenceGroup"
+              @delete-sequence-group="onDeleteSequenceGroup"
+              @add-sequence-group="onAddSequenceGroup"
             />
           </template>
         </SettingsPanel>
