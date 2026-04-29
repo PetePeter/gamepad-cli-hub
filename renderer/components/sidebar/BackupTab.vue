@@ -23,12 +23,10 @@ const intervalHours = ref(1);
 const backupDir = ref('');
 const saving = ref(false);
 const backingUp = ref(false);
-const selectedDirPath = ref('');
-const workingDirs = ref<Array<{ name?: string; path: string }>>([]);
 const statusMessage = ref('');
 const errorMessage = ref('');
 
-const canBackupNow = computed(() => selectedDirPath.value.trim() !== '' && !backingUp.value);
+const canBackupNow = computed(() => !backingUp.value);
 
 onMounted(async () => {
   try {
@@ -38,12 +36,6 @@ onMounted(async () => {
     intervalHours.value = Math.round(config.snapshotIntervalMs / 3600000);
     backupDir.value = config.backupDir ?? '';
   } catch { /* use defaults */ }
-  try {
-    workingDirs.value = await window.gamepadCli.configGetWorkingDirs() ?? [];
-  } catch {
-    workingDirs.value = [];
-    errorMessage.value = 'Could not load configured folders';
-  }
 });
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -77,10 +69,17 @@ async function createBackupNow(): Promise<void> {
   errorMessage.value = '';
   statusMessage.value = '';
   try {
-    const metadata = await window.gamepadCli.planCreateBackupNow(selectedDirPath.value);
-    statusMessage.value = metadata?.timestamp
-      ? `Backup created ${new Date(metadata.timestamp).toLocaleString()}`
-      : 'Backup created';
+    const dirs = await window.gamepadCli.configGetWorkingDirs() ?? [];
+    if (dirs.length === 0) {
+      statusMessage.value = 'No configured folders to back up';
+      return;
+    }
+    let succeeded = 0;
+    for (const dir of dirs) {
+      await window.gamepadCli.planCreateBackupNow(dir.path);
+      succeeded++;
+    }
+    statusMessage.value = `Backed up ${succeeded} folder${succeeded > 1 ? 's' : ''}`;
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Could not create backup';
   } finally {
@@ -129,16 +128,7 @@ async function browseBackupDir(): Promise<void> {
       </div>
     </div>
     <div class="setting-row">
-      <label>Backup Directory</label>
-      <select v-model="selectedDirPath" class="backup-select">
-        <option value="">Select a folder...</option>
-        <option v-for="dir in workingDirs" :key="dir.path" :value="dir.path">
-          {{ dir.name || dir.path }}
-        </option>
-      </select>
-    </div>
-    <div class="setting-row">
-      <button class="btn btn--secondary" :disabled="saving || !canBackupNow" @click="createBackupNow">
+      <button class="btn btn--secondary" :disabled="saving" @click="createBackupNow">
         {{ backingUp ? 'Backing Up...' : 'Backup Now' }}
       </button>
       <span v-if="saving" class="saving-indicator">Saving...</span>
@@ -188,16 +178,6 @@ async function browseBackupDir(): Promise<void> {
 }
 .setting-row input[type="number"] {
   width: 80px;
-  padding: 6px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.9rem;
-}
-.backup-select {
-  min-width: 180px;
-  max-width: 280px;
   padding: 6px 8px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
