@@ -251,6 +251,34 @@ export class PlanManager extends EventEmitter {
     return item;
   }
 
+  /** Bulk-assign multiple plans to a sequence (or unassign with null). Returns count of updated plans. */
+  bulkAssignSequence(planIds: string[], sequenceId: string | null): number {
+    if (planIds.length === 0) return 0;
+    let count = 0;
+    const dirPath = this.items.get(planIds[0])?.dirPath;
+    if (!dirPath) return 0;
+
+    for (const planId of planIds) {
+      const item = this.items.get(planId);
+      if (!item || item.dirPath !== dirPath) continue;
+      if (sequenceId) {
+        const sequence = this.sequences.get(sequenceId);
+        if (!sequence || sequence.dirPath !== item.dirPath) continue;
+        item.sequenceId = sequenceId;
+      } else {
+        item.sequenceId = undefined;
+      }
+      item.updatedAt = Date.now();
+      savePlanFile(item);
+      count++;
+    }
+
+    if (count > 0) {
+      this.emit('plan:changed', dirPath);
+    }
+    return count;
+  }
+
   /** Delete a plan item and all its edges. Recomputes startable for affected items. */
   delete(id: string): boolean {
     const item = this.items.get(id);

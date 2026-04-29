@@ -27,6 +27,7 @@ const props = withDefaults(defineProps<{
   sequences?: PlanSequence[];
   layout: LayoutResult;
   selectedId: string | null;
+  selectedIds?: Set<string>;
   notice?: string;
   relatedFocusRootId?: string | null;
   relatedFocusIds?: Set<string>;
@@ -37,6 +38,7 @@ const props = withDefaults(defineProps<{
   };
 }>(), {
   sequences: () => [],
+  selectedIds: () => new Set<string>(),
   relatedFocusRootId: null,
   relatedFocusIds: () => new Set<string>(),
   relatedTransientIds: () => new Set<string>(),
@@ -55,7 +57,8 @@ const emit = defineEmits<{
   assignSequence: [planId: string, sequenceId: string | null];
   updateSequence: [id: string, updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number }];
   deleteSequence: [id: string];
-  nodeClick: [id: string];
+  nodeClick: [id: string, event?: MouseEvent];
+  bulkAssignSequence: [sequenceId: string | null];
   editNode: [id: string];
   applyNode: [id: string];
   completeNode: [id: string];
@@ -414,13 +417,14 @@ function startDragConnection(id: string, e: MouseEvent): void {
           class="plan-node"
           :class="{
             'plan-node--selected': item.id === selectedId,
+            'plan-node--multiselected': selectedIds.has(item.id) && item.id !== selectedId,
             'plan-node--done': item.status === 'done',
             'plan-node--related-background': isRelatedBackground(item.id),
             'plan-node--related-transient': relatedTransientIds.has(item.id),
           }"
           :data-id="item.id"
           :transform="`translate(${item.x}, ${item.y})`"
-          @click.stop="emit('nodeClick', item.id)"
+          @click.stop="emit('nodeClick', item.id, $event)"
           @dblclick.stop="emit('editNode', item.id)"
         >
           <rect
@@ -527,5 +531,51 @@ function startDragConnection(id: string, e: MouseEvent): void {
         />
       </div>
     </div>
+
+    <div v-if="selectedIds.size > 1" class="plan-bulk-bar">
+      <span class="plan-bulk-bar__count">{{ selectedIds.size }} selected</span>
+      <select class="plan-bulk-bar__select" @change="emit('bulkAssignSequence', ($event.target as HTMLSelectElement).value || null)">
+        <option value="">Assign to sequence...</option>
+        <option v-for="seq in sequences" :key="seq.id" :value="seq.id">{{ seq.title }}</option>
+        <option value="">-- Unlink from sequence --</option>
+      </select>
+      <button class="btn btn--sm" @click="emit('bulkAssignSequence', null)">Clear</button>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.plan-node--multiselected rect:first-child {
+  stroke: #4488ff;
+  stroke-width: 2;
+}
+.plan-bulk-bar {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 8px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 500;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+.plan-bulk-bar__count {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.plan-bulk-bar__select {
+  padding: 6px 8px;
+  border: 1px solid var(--border-color, #333);
+  border-radius: 4px;
+  background: var(--bg-primary, #111);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  min-width: 160px;
+}
+</style>

@@ -565,7 +565,7 @@ describe('PlanScreen', () => {
     const w = mount(PlanScreen, { props: baseProps });
     const nodes = w.findAll('.plan-node');
     await nodes[0].trigger('click');
-    expect(w.emitted('nodeClick')).toEqual([['n1']]);
+    expect(w.emitted('nodeClick')![0]).toEqual(['n1', expect.any(MouseEvent)]);
   });
 
   it('shows action bar when a node is selected', () => {

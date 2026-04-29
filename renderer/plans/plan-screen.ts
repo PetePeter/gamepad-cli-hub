@@ -26,6 +26,7 @@ export const planScreenState = reactive({
   sequences: [] as PlanSequence[],
   layout: { nodes: [], width: 0, height: 0 } as LayoutResult,
   selectedId: null as string | null,
+  selectedIds: new Set<string>(),
   editingId: null as string | null,
   notice: '',
   relatedFocusRootId: null as string | null,
@@ -238,6 +239,7 @@ async function loadPlanData(dirPath: string, context?: ViewMountContext, options
 }
 
 function selectNodeById(id: string | null): void {
+  planScreenState.selectedIds.clear();
   planScreenState.selectedId = id;
   if (id === null) {
     planScreenState.editingId = null;
@@ -292,6 +294,7 @@ function closePlannerOverlay(): void {
   planScreenState.sequences = [];
   planScreenState.layout = { nodes: [], width: 0, height: 0 };
   planScreenState.selectedId = null;
+  planScreenState.selectedIds.clear();
   planScreenState.editingId = null;
   planScreenState.relatedFocusRootId = null;
   planScreenState.relatedFocusIds = new Set();
@@ -369,6 +372,7 @@ async function mountPlanScreen(params?: unknown, context?: ViewMountContext): Pr
   const dirPath = (params as { dir?: string } | undefined)?.dir ?? '';
   planScreenState.currentDir = dirPath;
   planScreenState.selectedId = null;
+  planScreenState.selectedIds.clear();
   planScreenState.editingId = null;
   hidePlanDeleteConfirm();
   draftEditorCloser?.();
@@ -411,6 +415,7 @@ export function getSelectedPlanId(): string | null {
 }
 
 export function handlePlanScreenDpad(dir: string): boolean {
+  planScreenState.selectedIds.clear();
   const layoutNodes = getNavigableLayoutNodes();
   if (layoutNodes.length === 0) return false;
 
@@ -636,13 +641,35 @@ async function handleClearDone(): Promise<void> {
   }
 }
 
-export function onPlanNodeClick(id: string): void {
+export function onPlanNodeClick(id: string, event?: MouseEvent): void {
+  if (event?.ctrlKey || event?.metaKey) {
+    if (planScreenState.selectedIds.has(id)) {
+      planScreenState.selectedIds.delete(id);
+    } else {
+      planScreenState.selectedIds.add(id);
+    }
+    planScreenState.selectedId = id;
+    return;
+  }
+  planScreenState.selectedIds.clear();
   if (planScreenState.selectedId === id) {
     const item = planScreenState.items.find((entry) => entry.id === id);
     if (item) openNodeEditor(item);
     return;
   }
   selectNodeById(id);
+}
+
+export async function onBulkAssignSequence(sequenceId: string | null): Promise<void> {
+  const ids = [...planScreenState.selectedIds];
+  if (ids.length === 0) return;
+  try {
+    await window.gamepadCli.planBulkAssignSequence(ids, sequenceId);
+    planScreenState.selectedIds.clear();
+    await refreshCanvas();
+  } catch (err) {
+    console.error('[PlanScreen] Bulk assign failed:', err);
+  }
 }
 
 export function onPlanNodeEdit(id: string): void {

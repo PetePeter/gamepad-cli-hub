@@ -642,6 +642,10 @@ const gamepadCliAPI = {
   planSequenceAssign: (planId: string, sequenceId: string | null) =>
     ipcRenderer.invoke('plan:sequence-assign', planId, sequenceId),
 
+  /** Bulk-assign multiple plans to a sequence (or unassign with null) */
+  planBulkAssignSequence: (planIds: string[], sequenceId: string | null) =>
+    ipcRenderer.invoke('plan:bulkAssignSequence', planIds, sequenceId),
+
   /** List files attached to a plan */
   planAttachmentList: (planId: string) =>
     ipcRenderer.invoke('plan:attachment-list', planId),

@@ -152,6 +152,10 @@ export function setupPlanHandlers(
     return planManager.assignSequence(planId, sequenceId);
   });
 
+  ipcMain.handle('plan:bulkAssignSequence', (_event, planIds: string[], sequenceId: string | null) => {
+    return planManager.bulkAssignSequence(planIds, sequenceId);
+  });
+
   ipcMain.handle('plan:attachment-list', (_event, planId: string) => {
     return attachmentManager.list(planId);
   });

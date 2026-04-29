@@ -44,6 +44,7 @@ import {
   onPlanNodeDelete,
   onPlanNodeEdit,
   onPlanNodeReopen,
+  onBulkAssignSequence,
   onPlanRemoveDependency,
   onPlanDeleteSequence,
   onPlanUpdateSequence,
@@ -2414,6 +2415,7 @@ onUnmounted(() => {
         :sequences="planScreenState.sequences"
         :layout="planScreenState.layout"
         :selected-id="planScreenState.selectedId"
+        :selected-ids="planScreenState.selectedIds"
         :notice="planScreenState.notice"
         :related-focus-root-id="planScreenState.relatedFocusRootId"
         :related-focus-ids="planScreenState.relatedFocusIds"
@@ -2440,6 +2442,7 @@ onUnmounted(() => {
         @toggle-status-filter="onToggleStatusFilter"
         @reset-filters="onResetFilters"
         @open-backups="openBackupRestore()"
+        @bulk-assign-sequence="onBulkAssignSequence"
       />
       <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
         <ChipActionBar
