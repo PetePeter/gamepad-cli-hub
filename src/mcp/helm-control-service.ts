@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { logger } from '../utils/logger.js';
 import { type ConfigLoader } from '../config/loader.js';
+import { scheduleInitialPrompt } from '../session/initial-prompt.js';
 import type { PlanManager, PlanRefResolution } from '../session/plan-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
@@ -518,9 +519,15 @@ export class HelmControlService extends EventEmitter {
       cliSessionName,
     });
 
-    if (prompt && prompt.trim()) {
-      void this.ptyManager.deliverText(sessionId, prompt);
-    }
+    const promptConfig = this.resolveInitialPromptConfig(cliEntry, cliSessionName);
+    const mcpPrompt = prompt?.trim() || undefined;
+    const onComplete = mcpPrompt
+      ? () => { void this.ptyManager.deliverText(sessionId, mcpPrompt); }
+      : undefined;
+
+    scheduleInitialPrompt(sessionId, promptConfig, (sid, data) => {
+      this.ptyManager.write(sid, data);
+    }, undefined, onComplete);
 
     return this.toSessionSummary(requireResult(this.sessionManager.getSession(sessionId), `Session not found: ${sessionId}`));
   }
@@ -1049,6 +1056,19 @@ export class HelmControlService extends EventEmitter {
       throw new Error(`Working directory is not configured in Helm: ${dirPath}`);
     }
     return workingDir;
+  }
+
+  private resolveInitialPromptConfig(cliEntry: ReturnType<ConfigLoader['getCliTypeEntry']>, cliSessionName: string) {
+    if (!cliEntry) return {};
+    const renameCommand = cliEntry.renameCommand && cliSessionName
+      ? cliEntry.renameCommand.replace('{cliSessionName}', cliSessionName)
+      : undefined;
+    return {
+      initialPrompt: cliEntry.initialPrompt,
+      initialPromptDelay: cliEntry.initialPromptDelay,
+      helmInitialPrompt: cliEntry.helmInitialPrompt,
+      renameCommand,
+    };
   }
 
   private resolveToolEnv(cliType: string, helmSession?: { sessionId: string; sessionName: string }): Record<string, string> | undefined {

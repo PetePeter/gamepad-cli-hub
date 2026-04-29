@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HelmControlService } from '../src/mcp/helm-control-service.js';
 import { parseSessionAuthToken } from '../src/mcp/session-auth.js';
 import { logger } from '../src/utils/logger.js';
@@ -239,6 +239,71 @@ describe('HelmControlService.spawnCli', () => {
     expect(parseSessionAuthToken('helm-token', env.HELM_MCP_TOKEN)).toEqual({
       sessionId: env.HELM_SESSION_ID,
       sessionName: 'Claude',
+    });
+  });
+
+  describe('initialPrompt scheduling', () => {
+    beforeEach(() => { vi.useFakeTimers(); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('sends configured initialPrompt sequences to PTY after delay', async () => {
+      const { service, ptyManager, configLoader } = makeService();
+      (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+        name: 'Claude Code',
+        command: 'claude',
+        initialPrompt: [{ label: 'hello', sequence: 'Hello world{Enter}' }],
+        initialPromptDelay: 1000,
+      });
+
+      service.spawnCli('claude-code', '/work', 'Claude');
+      expect(ptyManager.write).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1000);
+      await vi.runAllTimersAsync();
+
+      expect(ptyManager.write).toHaveBeenCalledWith(
+        expect.any(String),
+        'Hello world\r',
+      );
+    });
+
+    it('sends helmInitialPrompt when configured', async () => {
+      const { service, ptyManager, configLoader } = makeService();
+      (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+        name: 'GLM CC',
+        command: 'claude',
+        helmInitialPrompt: true,
+        initialPromptDelay: 500,
+      });
+
+      service.spawnCli('glm-cc', '/work', 'Worker');
+      vi.advanceTimersByTime(500);
+      await vi.runAllTimersAsync();
+
+      expect(ptyManager.write).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('session_info'),
+      );
+    });
+
+    it('delivers MCP prompt after initialPrompt completes', async () => {
+      const { service, ptyManager, configLoader } = makeService();
+      (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+        name: 'Claude Code',
+        command: 'claude',
+        initialPrompt: [{ label: 'init', sequence: 'init{Enter}' }],
+        initialPromptDelay: 500,
+      });
+
+      service.spawnCli('claude-code', '/work', 'Claude', 'custom prompt');
+      vi.advanceTimersByTime(500);
+      await vi.runAllTimersAsync();
+
+      expect(ptyManager.write).toHaveBeenCalled();
+      expect(ptyManager.deliverText).toHaveBeenCalledWith(
+        expect.any(String),
+        'custom prompt',
+      );
     });
   });
 
