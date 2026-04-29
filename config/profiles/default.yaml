@@ -7,7 +7,10 @@ tools:
     continueCommand: claude --continue
     handoffCommand: go implement it
     initialPromptDelay: 3000
-    helmInitialPrompt: true
+    initialPrompt:
+      - label: ""
+        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
+          AIAGENT state as first line of each response.{Enter}
     sequences:
       prompts:
         - label: commit
@@ -17,7 +20,10 @@ tools:
     name: codex
     spawnCommand: codex --dangerously-bypass-approvals-and-sandbox
     handoffCommand: go implement it
-    helmInitialPrompt: true
+    initialPrompt:
+      - label: ""
+        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
+          AIAGENT state as first line of each response.{Enter}
     initialPromptDelay: 1000
     pasteMode: pty
     sequences:
@@ -31,7 +37,10 @@ tools:
     initialPromptDelay: 2000
   glm-cc:
     name: GLM + CC
-    helmInitialPrompt: true
+    initialPrompt:
+      - label: ""
+        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
+          AIAGENT state as first line of each response.{Enter}
     initialPromptDelay: 3000
     env:
       - name: ANTHROPIC_BASE_URL
@@ -61,6 +70,8 @@ workingDirectories:
     path: X:\coding\stillhere
   - name: GrapeJourney
     path: X:\coding\Vitido
+  - name: cyberfile
+    path: X:\coding\CyberfileSystems
 chipActions:
   - label: 💾 Save Plan
     sequence: 'Write exactly one JSON file into {inboxDir}/ and do not write it
