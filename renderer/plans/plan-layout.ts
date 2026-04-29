@@ -26,7 +26,7 @@ export interface LayoutResult {
 export interface LayoutOptions {
   /** Horizontal spacing between layers (px). Default: 280 */
   horizontalSpacing?: number;
-  /** Vertical spacing between nodes in a layer (px). Default: 140 */
+  /** Vertical spacing between nodes in a layer (px). Default: 150 */
   verticalSpacing?: number;
   /** Horizontal padding from canvas edge (px). Default: 60 */
   paddingX?: number;
@@ -34,9 +34,9 @@ export interface LayoutOptions {
   paddingY?: number;
   /** Node width for centering (px). Default: 200 */
   nodeWidth?: number;
-  /** Node height for centering (px). Default: 80 */
+  /** Node height for centering (px). Default: 102 */
   nodeHeight?: number;
-  /** Extra vertical gap between sequence group boundaries and non-members (px). Default: 68 */
+  /** Extra vertical gap between sequence bands and non-members (px). Default: 68 */
   sequenceGroupGap?: number;
 }
 
@@ -84,8 +84,6 @@ export function computeLayout(
 
   // Layout sequenced items first
   const seqLayout = layoutGroup(sequencedItems, dependencies, opts);
-  const seqMaxLayer = seqLayout.nodes.reduce((max, n) => Math.max(max, n.layer), -1);
-
   // Layout unlinked items
   const unlinkLayout = layoutGroup(unlinkedItems, dependencies, opts);
 
@@ -133,7 +131,7 @@ function layoutGroup(
   const hasSequences = items.some(i => !!i.sequenceId);
   if (hasSequences) {
     const sequenceMap = new Map(items.map(i => [i.id, i.sequenceId]));
-    const adjusted = applySequenceGroupSpacing(rawLayout.nodes, layerGroups, sequenceMap, opts);
+    const adjusted = applySequenceBandLayout(rawLayout.nodes, layerGroups, sequenceMap, opts);
     let maxY = 0;
     for (const n of adjusted) maxY = Math.max(maxY, n.y + opts.nodeHeight);
     return { nodes: adjusted, width: rawLayout.width, height: maxY + opts.paddingY + 26 };
@@ -143,32 +141,67 @@ function layoutGroup(
 }
 
 /**
- * Post-process layout: insert extra vertical gaps at transitions between
- * sequence-member and non-member nodes within the same layer.
+ * Post-process layout: give each sequence its own vertical band while
+ * preserving dependency layers horizontally.
  */
-function applySequenceGroupSpacing(
+function applySequenceBandLayout(
   nodes: LayoutNode[],
   layerGroups: string[][],
   sequenceMap: Map<string, string | undefined>,
   opts: Required<LayoutOptions>,
 ): LayoutNode[] {
   const nodeMap = new Map(nodes.map(n => [n.id, n]));
-  const result = new Map(nodes.map(n => [n.id, { ...n }]));
+  const sequenceOrder: string[] = [];
+  const seenSequences = new Set<string>();
 
   for (const layer of layerGroups) {
-    if (layer.length < 2) continue;
-    const sorted = layer.map(id => ({ id, seqId: sequenceMap.get(id) }));
-    sorted.sort((a, b) => nodeMap.get(a.id)!.y - nodeMap.get(b.id)!.y);
+    const sorted = [...layer].sort((a, b) => nodeMap.get(a)!.y - nodeMap.get(b)!.y);
+    for (const id of sorted) {
+      const seqId = sequenceMap.get(id);
+      if (!seqId || seenSequences.has(seqId)) continue;
+      seenSequences.add(seqId);
+      sequenceOrder.push(seqId);
+    }
+  }
 
-    let extraGap = 0;
-    for (let i = 0; i < sorted.length - 1; i++) {
-      if (!!sorted[i].seqId !== !!sorted[i + 1].seqId) {
-        extraGap += opts.sequenceGroupGap;
-      }
-      if (extraGap > 0) {
-        const node = result.get(sorted[i + 1].id);
-        if (node) node.y += extraGap;
-      }
+  const bandHeights = new Map<string, number>();
+  for (const seqId of sequenceOrder) {
+    let maxLayerCount = 0;
+    for (const layer of layerGroups) {
+      const count = layer.filter(id => sequenceMap.get(id) === seqId).length;
+      maxLayerCount = Math.max(maxLayerCount, count);
+    }
+    bandHeights.set(seqId, opts.nodeHeight + Math.max(0, maxLayerCount - 1) * opts.verticalSpacing);
+  }
+
+  const bandStarts = new Map<string, number>();
+  let nextY = opts.paddingY;
+  for (const seqId of sequenceOrder) {
+    bandStarts.set(seqId, nextY);
+    nextY += (bandHeights.get(seqId) ?? opts.nodeHeight) + opts.sequenceGroupGap;
+  }
+
+  const result = new Map(nodes.map(n => [n.id, { ...n }]));
+  for (const layer of layerGroups) {
+    const bySequence = new Map<string, string[]>();
+    const sorted = [...layer].sort((a, b) => nodeMap.get(a)!.y - nodeMap.get(b)!.y);
+    for (const id of sorted) {
+      const seqId = sequenceMap.get(id);
+      if (!seqId) continue;
+      const ids = bySequence.get(seqId) ?? [];
+      ids.push(id);
+      bySequence.set(seqId, ids);
+    }
+
+    for (const [seqId, ids] of bySequence) {
+      const bandStart = bandStarts.get(seqId) ?? opts.paddingY;
+      ids.forEach((id, index) => {
+        const node = result.get(id);
+        if (node) {
+          node.y = bandStart + index * opts.verticalSpacing;
+          node.order = index;
+        }
+      });
     }
   }
 

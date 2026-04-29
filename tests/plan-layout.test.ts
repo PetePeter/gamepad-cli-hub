@@ -330,7 +330,7 @@ describe('computeLayout', () => {
   });
 });
 
-describe('sequence group spacing', () => {
+describe('sequence band spacing', () => {
   const seqOpts: LayoutOptions = { ...defaultOpts, sequenceGroupGap: 68 };
 
   it('places unlinked items in a separate right-side zone', () => {
@@ -363,6 +363,29 @@ describe('sequence group spacing', () => {
 
     expect(nodeMap.get('A')!.y).toBe(60);
     expect(nodeMap.get('B')!.y).toBe(60 + 150);
+  });
+
+  it('places different sequences in separate vertical bands', () => {
+    const items = [item('A', '/p', 'seq1'), item('B', '/p', 'seq2')];
+    const result = computeLayout(items, [], seqOpts);
+    const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
+
+    expect(nodeMap.get('A')!.x).toBe(nodeMap.get('B')!.x);
+    expect(nodeMap.get('B')!.y).toBeGreaterThanOrEqual(nodeMap.get('A')!.y + 102 + 68);
+  });
+
+  it('sizes each sequence band to its busiest dependency layer', () => {
+    const items = [
+      item('A', '/p', 'seq1'),
+      item('B', '/p', 'seq1'),
+      item('C', '/p', 'seq2'),
+    ];
+    const result = computeLayout(items, [], seqOpts);
+    const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
+
+    expect(nodeMap.get('A')!.y).toBe(60);
+    expect(nodeMap.get('B')!.y).toBe(210);
+    expect(nodeMap.get('C')!.y).toBeGreaterThanOrEqual(60 + 102 + 150 + 68);
   });
 
   it('does not add gap when no nodes have a sequenceId', () => {

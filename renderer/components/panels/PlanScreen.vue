@@ -123,29 +123,25 @@ const sequenceBoxes = computed(() => {
     }
   }
 
-  // Push overlapping sequence boxes apart vertically (sorted by y, then by x)
-  populated.sort((a, b) => a.y - b.y || a.x - b.x);
-  const SEQ_BOX_GAP = 20;
-  for (let i = 1; i < populated.length; i++) {
-    const prev = populated[i - 1]!;
-    const cur = populated[i]!;
-    // Check horizontal overlap
-    const hOverlap = cur.x < prev.x + prev.width && cur.x + cur.width > prev.x;
-    if (hOverlap && cur.y < prev.y + prev.height + SEQ_BOX_GAP) {
-      cur.y = prev.y + prev.height + SEQ_BOX_GAP;
-    }
-  }
-
   const emptyRowY = Math.max(props.layout.height, 600) + 80;
+  const emptyCols = Math.max(1, Math.floor((Math.max(props.layout.width, 800) - 40) / (EMPTY_SEQ_W + 20)));
   for (let i = 0; i < empty.length; i++) {
-    empty[i]!.x = 20 + i * (EMPTY_SEQ_W + 20);
-    empty[i]!.y = emptyRowY;
+    empty[i]!.x = 20 + (i % emptyCols) * (EMPTY_SEQ_W + 20);
+    empty[i]!.y = emptyRowY + Math.floor(i / emptyCols) * (EMPTY_SEQ_H + 16);
   }
 
   return [...populated, ...empty] as Array<{ sequence: PlanSequence; x: number; y: number; width: number; height: number; isEmpty: boolean }>;
 });
 
-const hasEmptySequences = computed(() => sequenceBoxes.value.some((b) => b.isEmpty));
+const canvasBounds = computed(() => {
+  let width = Math.max(props.layout.width, 800);
+  let height = Math.max(props.layout.height, 600);
+  for (const box of sequenceBoxes.value) {
+    width = Math.max(width, box.x + box.width + 40);
+    height = Math.max(height, box.y + box.height + 40);
+  }
+  return { width, height };
+});
 
 const unlinkedZone = computed(() => {
   const hasSequences = props.sequences.length > 0;
@@ -175,15 +171,13 @@ const dragPath = computed(() => {
   return `M ${x1} ${y1} L ${x2} ${y2}`;
 });
 
-watch(() => [props.visible, props.layout.width, props.layout.height], () => {
+watch(() => [props.visible, canvasBounds.value.width, canvasBounds.value.height], () => {
   if (!props.visible) return;
-  const baseH = Math.max(props.layout.height, 600);
-  const extraH = hasEmptySequences.value ? EMPTY_SEQ_H + 120 : 0;
   viewBox.value = {
     x: 0,
     y: 0,
-    w: Math.max(props.layout.width, 800),
-    h: baseH + extraH,
+    w: canvasBounds.value.width,
+    h: canvasBounds.value.height,
   };
 }, { immediate: true });
 
