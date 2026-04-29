@@ -46,6 +46,7 @@ const mockActivateSession = vi.fn();
 const mockOpenOverview = vi.fn();
 const mockOpenPlan = vi.fn();
 const mockNavigateToSession = vi.fn();
+const mockCloseOverview = vi.fn();
 
 vi.mock('../renderer/stores/navigation.js', () => ({
   useNavigationStore: () => ({
@@ -53,6 +54,7 @@ vi.mock('../renderer/stores/navigation.js', () => ({
     openOverview: mockOpenOverview,
     openPlan: mockOpenPlan,
     navigateToSession: mockNavigateToSession,
+    closeOverview: mockCloseOverview,
     syncSidebarToSession: vi.fn(),
     onNavListRebuilt: vi.fn(),
   }),
@@ -257,6 +259,7 @@ describe('Sessions Screen', () => {
     mockHidePlanScreen.mockReset();
     mockShowPlanScreen.mockReset();
     mockOpenPlan.mockReset();
+    mockCloseOverview.mockReset();
     mockNavigateToSession.mockReset();
     mockActivateSession.mockReset();
     mockSwitchTo.mockReset();
@@ -499,6 +502,29 @@ describe('Sessions Screen', () => {
       await flush();
 
       expect(mockNavigateToSession).toHaveBeenCalledWith('s-2');
+    });
+
+    it('Ctrl+Shift+S closes overview when no session context can be resolved', async () => {
+      mockCurrentView = 'overview';
+      state.activeSessionId = null;
+      state.recentSessionId = null;
+      state.lastSelectedSessionId = null;
+      state.sessions = [
+        { id: 's-1', name: 'Session 1', cliType: 'claude-code', processId: 1, workingDir: '/projects/a' },
+      ];
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'S',
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockCloseOverview).toHaveBeenCalledTimes(1);
+      expect(mockNavigateToSession).not.toHaveBeenCalled();
+      mockCurrentView = 'terminal';
     });
 
     it('Ctrl+Shift+W opens close confirm for the active terminal session', async () => {

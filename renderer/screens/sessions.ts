@@ -382,8 +382,14 @@ async function toggleCurrentSessionOverviewShortcut(): Promise<void> {
 
 async function switchToLastSelectedSessionShortcut(): Promise<void> {
   const sessionId = getCurrentShortcutSessionId() ?? state.lastSelectedSessionId;
-  if (!sessionId || !state.sessions.some(session => session.id === sessionId)) return;
-  await useNavigationStore().navigateToSession(sessionId);
+  const navStore = useNavigationStore();
+  if (!sessionId || !state.sessions.some(session => session.id === sessionId)) {
+    if (currentView() === 'overview') {
+      await navStore.closeOverview();
+    }
+    return;
+  }
+  await navStore.navigateToSession(sessionId);
 }
 
 export async function triggerNewPlanShortcut(preferredSessionId?: string): Promise<void> {

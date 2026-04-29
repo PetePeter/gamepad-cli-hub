@@ -161,6 +161,8 @@ export const useNavigationStore = defineStore('navigation', () => {
     if (tm?.hasTerminal(sessionId)) {
       tm.switchTo(sessionId);
       state.activeSessionId = sessionId;
+    } else {
+      state.activeSessionId = sessionId;
     }
 
     // 4. Sync sidebar focus

@@ -372,13 +372,13 @@ describe('useNavigationStore', () => {
       expect(ctx.savedFocusItem).toBeNull();
     });
 
-    it('does not call switchTo when terminal has no matching session', async () => {
+    it('sets activeSessionId even when terminal has no matching pane yet', async () => {
       mockTm.hasTerminal.mockReturnValue(false);
 
       await store.navigateToSession('nonexistent');
 
       expect(mockTm.switchTo).not.toHaveBeenCalled();
-      expect(state.activeSessionId).toBeNull();
+      expect(state.activeSessionId).toBe('nonexistent');
     });
   });
 
