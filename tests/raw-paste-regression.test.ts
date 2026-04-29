@@ -125,7 +125,6 @@ describe('deliverBulkText preserves literal text in clippaste mode', () => {
   let mockPtyWrite: ReturnType<typeof vi.fn>;
   let mockFocus: ReturnType<typeof vi.fn>;
   let mockPaste: ReturnType<typeof vi.fn>;
-  let restoreRequestAnimationFrame: (() => void) | null = null;
 
   beforeEach(() => {
     mockPtyWrite = vi.fn().mockResolvedValue({ success: true });
@@ -143,30 +142,18 @@ describe('deliverBulkText preserves literal text in clippaste mode', () => {
         },
       }),
     });
-
-    // Polyfill requestAnimationFrame for jsdom (used by nextFrame() in paste-handler)
-    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
-    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
-      callback(0);
-      return 1;
-    }) as typeof requestAnimationFrame;
-    restoreRequestAnimationFrame = () => {
-      globalThis.requestAnimationFrame = originalRequestAnimationFrame;
-    };
   });
 
   afterEach(() => {
-    restoreRequestAnimationFrame?.();
-    restoreRequestAnimationFrame = null;
     vi.restoreAllMocks();
   });
 
-  it('sends literal text through xterm paste', async () => {
+  it('sends literal text through PTY-owned clippaste', async () => {
     await deliverBulkText('sess-1', 'hello{Enter}');
 
     expect(mockFocus).toHaveBeenCalled();
-    expect(mockPaste).toHaveBeenCalledWith('hello{Enter}');
-    expect(mockPtyWrite).not.toHaveBeenCalled();
+    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello{Enter}');
+    expect(mockPaste).not.toHaveBeenCalled();
   });
 });
 

@@ -31,6 +31,8 @@ interface SessionTracking {
   scrolling: boolean;
   /** When true, processOutput skips activity promotion (resize redraws). */
   resizing: boolean;
+  /** When true, processOutput skips activity promotion (terminal switch/focus redraws). */
+  switching: boolean;
   /** When true, processOutput skips activity promotion (post-restore shell startup). */
   restoring: boolean;
 }
@@ -113,6 +115,7 @@ export class StateDetector extends EventEmitter {
   private idleTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private scrollTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private resizeTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private switchTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private restoreTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   /** Per-session debounce timers for small output chunks (TUI noise filtering). */
   private activityDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
@@ -163,6 +166,21 @@ export class StateDetector extends EventEmitter {
     }, DEFAULT_RESIZE_CLEAR_MS));
   }
 
+  /** Mark a session as switching/focusing — processOutput skips activity promotion.
+   *  Unlike resize/restore suppression, focus redraws are not promoted when the
+   *  suppression window clears. */
+  markSwitching(sessionId: string): void {
+    const tracking = this.getOrCreate(sessionId);
+    tracking.switching = true;
+
+    const existing = this.switchTimers.get(sessionId);
+    if (existing) clearTimeout(existing);
+    this.switchTimers.set(sessionId, setTimeout(() => {
+      tracking.switching = false;
+      this.switchTimers.delete(sessionId);
+    }, DEFAULT_RESIZE_CLEAR_MS));
+  }
+
   /** Mark a session as recently restored — shell startup output won't promote
    *  activity from grey to green. Auto-clears after 3s. */
   markRestored(sessionId: string): void {
@@ -198,11 +216,23 @@ export class StateDetector extends EventEmitter {
       clearTimeout(resizeTimer);
       this.resizeTimers.delete(sessionId);
     }
+    tracking.switching = false;
+    const switchTimer = this.switchTimers.get(sessionId);
+    if (switchTimer) {
+      clearTimeout(switchTimer);
+      this.switchTimers.delete(sessionId);
+    }
     tracking.restoring = false;
     const restoreTimer = this.restoreTimers.get(sessionId);
     if (restoreTimer) {
       clearTimeout(restoreTimer);
       this.restoreTimers.delete(sessionId);
+    }
+
+    const debounceTimer = this.activityDebounceTimers.get(sessionId);
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      this.activityDebounceTimers.delete(sessionId);
     }
 
     if (tracking.activityLevel !== 'active') {
@@ -219,9 +249,14 @@ export class StateDetector extends EventEmitter {
     tracking.lastOutputAt = Date.now();
 
     // Skip activity promotion during resize or restore (shell startup output is not new user activity)
-    if (!tracking.resizing && !tracking.restoring) {
+    if (!tracking.resizing && !tracking.switching && !tracking.restoring) {
       // Large output chunks immediately promote to active (genuine content)
       if (data.length >= this.activityPromoteThreshold) {
+        const existing = this.activityDebounceTimers.get(sessionId);
+        if (existing) {
+          clearTimeout(existing);
+          this.activityDebounceTimers.delete(sessionId);
+        }
         if (tracking.activityLevel !== 'active') {
           tracking.activityLevel = 'active';
           this.emit('activity-change', { sessionId, level: 'active', lastOutputAt: tracking.lastOutputAt } satisfies ActivityChange);
@@ -229,23 +264,19 @@ export class StateDetector extends EventEmitter {
         this.resetActivityTimers(sessionId);
       } else {
         // Small chunks are debounced to filter out TUI noise (cursor blink, spinner ticks, etc.)
-        // If already active, just reset timers (genuine activity continues)
-        if (tracking.activityLevel === 'active') {
+        // Debounce even while already active so continuous TUI redraw ticks do
+        // not keep extending the green activity window forever.
+        const existing = this.activityDebounceTimers.get(sessionId);
+        if (existing) clearTimeout(existing);
+        this.activityDebounceTimers.set(sessionId, setTimeout(() => {
+          this.activityDebounceTimers.delete(sessionId);
+          const current = this.sessionStates.get(sessionId);
+          if (current && current.activityLevel !== 'active') {
+            current.activityLevel = 'active';
+            this.emit('activity-change', { sessionId, level: 'active', lastOutputAt: current.lastOutputAt } satisfies ActivityChange);
+          }
           this.resetActivityTimers(sessionId);
-        } else {
-          // Debounce: wait for a pause in small chunks before promoting
-          const existing = this.activityDebounceTimers.get(sessionId);
-          if (existing) clearTimeout(existing);
-          this.activityDebounceTimers.set(sessionId, setTimeout(() => {
-            this.activityDebounceTimers.delete(sessionId);
-            const current = this.sessionStates.get(sessionId);
-            if (current && current.activityLevel !== 'active') {
-              current.activityLevel = 'active';
-              this.emit('activity-change', { sessionId, level: 'active', lastOutputAt: current.lastOutputAt } satisfies ActivityChange);
-            }
-            this.resetActivityTimers(sessionId);
-          }, this.activityDebounceMs));
-        }
+        }, this.activityDebounceMs));
       }
     }
 
@@ -336,6 +367,11 @@ export class StateDetector extends EventEmitter {
       clearTimeout(resizeTimer);
       this.resizeTimers.delete(sessionId);
     }
+    const switchTimer = this.switchTimers.get(sessionId);
+    if (switchTimer) {
+      clearTimeout(switchTimer);
+      this.switchTimers.delete(sessionId);
+    }
     const restoreTimer = this.restoreTimers.get(sessionId);
     if (restoreTimer) {
       clearTimeout(restoreTimer);
@@ -355,12 +391,14 @@ export class StateDetector extends EventEmitter {
     for (const timer of this.idleTimers.values()) clearTimeout(timer);
     for (const timer of this.scrollTimers.values()) clearTimeout(timer);
     for (const timer of this.resizeTimers.values()) clearTimeout(timer);
+    for (const timer of this.switchTimers.values()) clearTimeout(timer);
     for (const timer of this.restoreTimers.values()) clearTimeout(timer);
     for (const timer of this.activityDebounceTimers.values()) clearTimeout(timer);
     this.inactiveTimers.clear();
     this.idleTimers.clear();
     this.scrollTimers.clear();
     this.resizeTimers.clear();
+    this.switchTimers.clear();
     this.restoreTimers.clear();
     this.activityDebounceTimers.clear();
     this.sessionStates.clear();
@@ -433,7 +471,7 @@ export class StateDetector extends EventEmitter {
   private getOrCreate(sessionId: string): SessionTracking {
     let tracking = this.sessionStates.get(sessionId);
     if (!tracking) {
-      tracking = { state: 'idle', questionPending: false, lastOutputAt: 0, activityLevel: 'idle', scrolling: false, resizing: false, restoring: false };
+      tracking = { state: 'idle', questionPending: false, lastOutputAt: 0, activityLevel: 'idle', scrolling: false, resizing: false, switching: false, restoring: false };
       this.sessionStates.set(sessionId, tracking);
     }
     return tracking;

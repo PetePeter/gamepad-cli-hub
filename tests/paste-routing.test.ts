@@ -375,8 +375,8 @@ describe('keyboard relay', () => {
       await new Promise(r => setTimeout(r, 10));
 
       expect(navigator.clipboard.readText).toHaveBeenCalled();
-      expect(paste).toHaveBeenCalledWith('hello');
-      expect(mockPtyWrite).not.toHaveBeenCalled();
+      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello');
+      expect(paste).not.toHaveBeenCalled();
     });
 
     it('blocks printable key relay when a modal overlay is visible', () => {
@@ -727,20 +727,17 @@ describe('deliverBulkText', () => {
   describe('clippaste mode', () => {
     let mockFocus: ReturnType<typeof vi.fn>;
     let mockPaste: ReturnType<typeof vi.fn>;
-    let mockBracketedPasteEnabled: ReturnType<typeof vi.fn>;
     let mockSession: any;
 
     beforeEach(() => {
       mockFocus = vi.fn();
       mockPaste = vi.fn();
-      mockBracketedPasteEnabled = vi.fn().mockReturnValue(false);
 
       mockSession = {
         id: 'sess-1',
         view: {
           focus: mockFocus,
           paste: mockPaste,
-          isBracketedPasteEnabled: mockBracketedPasteEnabled,
         }
       };
 
@@ -755,15 +752,15 @@ describe('deliverBulkText', () => {
       vi.restoreAllMocks();
     });
 
-    it('pasteMode clippaste — focuses terminal and pastes via xterm', async () => {
+    it('pasteMode clippaste — focuses terminal and writes through PTY', async () => {
       mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
       mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
 
       await deliverBulkText('sess-1', 'test123');
 
       expect(mockFocus).toHaveBeenCalledOnce();
-      expect(mockPaste).toHaveBeenCalledWith('test123');
-      expect(mockPtyWrite).not.toHaveBeenCalled();
+      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'test123');
+      expect(mockPaste).not.toHaveBeenCalled();
     });
 
     it('pasteMode clippaste — returns early when session view is not found', async () => {
@@ -786,7 +783,8 @@ describe('deliverBulkText', () => {
       await deliverBulkText('sess-1', specialText);
 
       expect(mockFocus).toHaveBeenCalledOnce();
-      expect(mockPaste).toHaveBeenCalledWith(specialText);
+      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', specialText);
+      expect(mockPaste).not.toHaveBeenCalled();
     });
 
     it('pasteMode clippaste — does nothing with empty text', async () => {
@@ -799,16 +797,16 @@ describe('deliverBulkText', () => {
       expect(mockPtyWrite).not.toHaveBeenCalled();
     });
 
-    it('pasteMode clippaste — ignores bracketed paste setting (xterm handles it)', async () => {
+    it('pasteMode clippaste — does not add bracketed paste markers', async () => {
       mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
       mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
-      mockBracketedPasteEnabled.mockReturnValue(true);
+      mockSession.view.isBracketedPasteEnabled = vi.fn().mockReturnValue(true);
 
       await deliverBulkText('sess-1', 'test123');
 
       expect(mockFocus).toHaveBeenCalledOnce();
-      expect(mockPaste).toHaveBeenCalledWith('test123');
-      expect(mockPtyWrite).not.toHaveBeenCalled();
+      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'test123');
+      expect(mockPaste).not.toHaveBeenCalled();
     });
   });
 });

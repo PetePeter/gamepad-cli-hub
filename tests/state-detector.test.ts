@@ -701,6 +701,54 @@ describe('StateDetector', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Switch/focus suppression — markSwitching prevents focus redraw activity
+  // -------------------------------------------------------------------------
+
+  describe('switch suppression', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('does not promote focus redraw output when switching clears', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markSwitching('s1');
+      detector.processOutput('s1', 'focus redraw output that is definitely long enough to pass the threshold');
+      expect(handler).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1001);
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('allows real output after switching clears to promote activity', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markSwitching('s1');
+      vi.advanceTimersByTime(1001);
+      detector.processOutput('s1', 'real output that is definitely long enough to pass the threshold');
+
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
+    });
+
+    it('markActive clears switching suppression', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.markSwitching('s1');
+      detector.processOutput('s1', 'focus redraw output that is definitely long enough to pass the threshold');
+      detector.markActive('s1');
+
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Scroll suppression — markScrolling prevents keyword scanning
   // -------------------------------------------------------------------------
 
@@ -1119,7 +1167,7 @@ describe('StateDetector', () => {
       expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'inactive' }));
     });
 
-    it('resets activity timers when already active (small chunks)', () => {
+    it('debounces timer resets when already active (small chunks)', () => {
       const handler = vi.fn();
       detector.on('activity-change', handler);
 
@@ -1130,14 +1178,32 @@ describe('StateDetector', () => {
       vi.advanceTimersByTime(8_000);
       detector.processOutput('s1', 'tiny');
 
-      // Should NOT emit activity-change (already active), but resets timers
+      // Should NOT emit activity-change or reset timers until the debounce settles
       expect(handler).not.toHaveBeenCalled();
 
-      // Inactive timer should fire 10s from this new output, not from original
-      vi.advanceTimersByTime(3_000);
+      vi.advanceTimersByTime(149);
+      vi.advanceTimersByTime(1);
       expect(handler).not.toHaveBeenCalled();
 
-      vi.advanceTimersByTime(7_001);
+      vi.advanceTimersByTime(9_999);
+      expect(handler).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(2);
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'inactive' }));
+    });
+
+    it('does not let continuous small chunks keep an active session green', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      detector.processOutput('s1', 'large chunk that exceeds the threshold for immediate promotion');
+      handler.mockClear();
+
+      for (let elapsed = 0; elapsed < 10_000; elapsed += 100) {
+        vi.advanceTimersByTime(100);
+        detector.processOutput('s1', 'tick');
+      }
+
       expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'inactive' }));
     });
 

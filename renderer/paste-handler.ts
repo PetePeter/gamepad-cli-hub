@@ -14,10 +14,6 @@ import { showEditorPopup } from './editor/editor-popup.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
 
-function nextFrame(): Promise<void> {
-  return new Promise(resolve => requestAnimationFrame(() => resolve()));
-}
-
 type GetActiveSessionId = () => string | null;
 type HasPendingQuestion = (sessionId: string) => boolean;
 type GetEscProtectionEnabled = () => Promise<boolean>;
@@ -95,7 +91,8 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
     return;
   }
 
-  // Clippaste mode — route through xterm.js paste handling
+  // Clippaste mode — keep the terminal focused, but write via the app-owned
+  // PTY path so Copilot paste semantics remain explicit and observable.
   if (tool?.pasteMode === 'clippaste') {
     const tm = getTerminalManager();
     const termSession = tm?.getSession?.(sessionId);
@@ -105,15 +102,9 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
       return;
     }
 
-    // Focus first so xterm's hidden textarea is the active terminal input sink.
     termSession.view.focus();
-    // Wait for next paint cycle(s) — allows modal overlays time to exit,
-    // but does not guarantee completion of CSS transitions or async dismissals.
-    // This is a best-effort heuristic, not a timing guarantee.
-    await nextFrame();
-    await nextFrame();
-    termSession.view.paste(text);
-    console.log(`[Paste] clippaste complete: ${text.length} chars pasted via xterm`);
+    await window.gamepadCli.ptyWrite(sessionId, text);
+    console.log(`[Paste] clippaste complete: ${text.length} chars pasted via PTY`);
     return;
   }
 

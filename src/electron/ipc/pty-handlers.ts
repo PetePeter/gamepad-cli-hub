@@ -257,7 +257,7 @@ export function setupPtyHandlers(
 
   // pty:markSwitching - Suppress activity promotion before terminal switch
   ipcMain.handle('pty:markSwitching', (_event, sessionId: string) => {
-    stateDetector.markResizing(sessionId);
+    stateDetector.markSwitching(sessionId);
   });
 
   // pty:kill - Kill a session's PTY
