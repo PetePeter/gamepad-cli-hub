@@ -423,6 +423,56 @@ describe('plan screen bridge', () => {
     expect(mockPlanSetState).toHaveBeenCalledWith('a', 'review', undefined, undefined);
   });
 
+  it('saves an explicit planning status without forcing it back to ready', async () => {
+    const mod = await getModule();
+    const opener = vi.fn();
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'ready', createdAt: 1, updatedAt: 1 };
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    mockPlanUpdate.mockResolvedValue(undefined);
+    mockPlanSetState.mockResolvedValue(undefined);
+    mod.setPlanEditorOpener(opener);
+
+    await mod.showPlanScreen('/test/dir');
+    mod.handlePlanScreenAction('A');
+
+    const callbacks = opener.mock.calls[0][2];
+    await callbacks.onSave({
+      title: 'Updated',
+      description: 'Updated body',
+      status: 'planning',
+    });
+
+    expect(mockPlanSetState).toHaveBeenCalledWith('a', 'planning', undefined, undefined);
+  });
+
+  it('saves done through planComplete with completion notes', async () => {
+    const mod = await getModule();
+    const opener = vi.fn();
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'review', createdAt: 1, updatedAt: 1 };
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    mockPlanUpdate.mockResolvedValue(undefined);
+    mockPlanComplete.mockResolvedValue(undefined);
+    mod.setPlanEditorOpener(opener);
+
+    await mod.showPlanScreen('/test/dir');
+    mod.handlePlanScreenAction('A');
+
+    const callbacks = opener.mock.calls[0][2];
+    await callbacks.onSave({
+      title: 'Updated',
+      description: 'Updated body',
+      status: 'done',
+      stateInfo: 'Reviewed and completed',
+    });
+
+    expect(mockPlanComplete).toHaveBeenCalledWith('a', 'Reviewed and completed');
+    expect(mockPlanSetState).not.toHaveBeenCalled();
+  });
+
   it('passes plan type updates through the editor save path', async () => {
     const mod = await getModule();
     const opener = vi.fn();
@@ -475,23 +525,24 @@ describe('plan screen bridge', () => {
     expect(mockPlanApply).toHaveBeenCalledWith('a', 'session-1');
   });
 
-  it('completes a plan through the editor callback without a hardcoded note', async () => {
+  it('opens the editor in done mode from the canvas Done action', async () => {
     const mod = await getModule();
     const opener = vi.fn();
     const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'coding', createdAt: 1, updatedAt: 1 };
     mockPlanList.mockResolvedValue([item]);
     mockPlanDeps.mockResolvedValue([]);
     mockComputeLayout.mockReturnValue(fakeLayout(['a']));
-    mockPlanComplete.mockResolvedValue({});
     mod.setPlanEditorOpener(opener);
 
     await mod.showPlanScreen('/test/dir');
-    mod.handlePlanScreenAction('A');
+    mod.onPlanNodeComplete('a');
 
-    const callbacks = opener.mock.calls[0][2];
-    await callbacks.onDone();
-
-    expect(mockPlanComplete).toHaveBeenCalledWith('a');
+    expect(opener).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({ id: 'a', status: 'done', stateInfo: '' }),
+      expect.objectContaining({ onSave: expect.any(Function), onDelete: expect.any(Function) }),
+    );
+    expect(mockPlanComplete).not.toHaveBeenCalled();
   });
 
   it('routes delete requests through the confirmation bridge', async () => {

@@ -128,8 +128,12 @@ const titleText = computed(() => {
 
 const showPlanStateSelect = computed(() => isPlan.value);
 const showPlanStateInfo = computed(() => isPlan.value);
-const requiresStateInfo = computed(() => isPlan.value && status.value === 'blocked');
-const canSavePlan = computed(() => !requiresStateInfo.value || stateInfo.value.trim().length > 0);
+const requiresStateInfo = computed(() => isPlan.value && (status.value === 'blocked' || status.value === 'done'));
+const canSavePlan = computed(() => {
+  if (!requiresStateInfo.value) return true;
+  const trimmed = stateInfo.value.trim();
+  return status.value === 'done' ? trimmed.length >= 10 : trimmed.length > 0;
+});
 
 const showDoneButton = computed(() => {
   if (!isPlan.value || !props.planCallbacks?.onDone) return false;
@@ -318,7 +322,19 @@ function onApply(): void {
 }
 
 function onDone(): void {
-  emit('plan-done');
+  status.value = 'done';
+  if (!canSavePlan.value) {
+    stateInfoRef.value?.focus();
+    return;
+  }
+  emit('plan-save', {
+    title: label.value,
+    description: text.value,
+    status: 'done',
+    stateInfo: stateInfo.value.trim(),
+    type: type.value,
+  });
+  emit('close');
 }
 
 function onDelete(): void {
@@ -616,7 +632,7 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
         v-model="stateInfo"
         type="text"
         class="draft-editor-plan-info"
-        :placeholder="requiresStateInfo ? 'Required blocker reason...' : 'Add state context...'"
+        :placeholder="status === 'done' ? 'Required completion notes...' : requiresStateInfo ? 'Required blocker reason...' : 'Add state context...'"
         maxlength="200"
       />
     </div>

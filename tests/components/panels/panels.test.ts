@@ -442,6 +442,38 @@ describe('DraftEditor', () => {
     w.unmount();
   });
 
+  it('keeps done plan saves in the editor until completion notes are entered', async () => {
+    const w = mount(DraftEditor, {
+      attachTo: document.body,
+      props: {
+        visible: true,
+        mode: 'plan',
+        sessionId: 'sess-1',
+        initialLabel: 'Plan task',
+        initialText: 'Need details',
+        planStatus: 'review',
+        planCallbacks: { onSave: vi.fn(), onDelete: vi.fn() },
+      },
+    });
+
+    await w.find('.draft-editor-status-select').setValue('done');
+    await w.find('.draft-editor-actions button').trigger('click');
+
+    expect(w.emitted('plan-save')).toBeUndefined();
+    expect(w.emitted('close')).toBeUndefined();
+    expect(document.activeElement).toBe(w.find('.draft-editor-plan-info').element);
+
+    await w.find('.draft-editor-plan-info').setValue('Reviewed and completed');
+    await w.find('.draft-editor-actions button').trigger('click');
+
+    expect(w.emitted('plan-save')?.[0][0]).toMatchObject({
+      status: 'done',
+      stateInfo: 'Reviewed and completed',
+    });
+
+    w.unmount();
+  });
+
   it('does not auto-save a blocked plan before a blocker reason is entered', async () => {
     const onSave = vi.fn();
     const w = mount(DraftEditor, {

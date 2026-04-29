@@ -659,6 +659,25 @@ describe('PlanManager', () => {
       expect(ready?.sessionId).toBeUndefined();
     });
 
+    it('preserves an explicit planning state even when dependencies are satisfied', () => {
+      const item = pm.create('/d', 'Task', '');
+
+      const planning = pm.setState(item.id, 'planning');
+
+      expect(planning?.status).toBe('planning');
+      expect(pm.getItem(item.id)?.status).toBe('planning');
+    });
+
+    it('allows a startable planning item to move to coding with a session', () => {
+      const item = pm.create('/d', 'Task', '');
+      pm.setState(item.id, 'planning');
+
+      const coding = pm.setState(item.id, 'coding', '', 'session-1');
+
+      expect(coding?.status).toBe('coding');
+      expect(coding?.sessionId).toBe('session-1');
+    });
+
     it('preserves existing session ownership for review and blocked', () => {
       const item = pm.create('/d', 'Task', '');
       pm.applyItem(item.id, 'session-1');

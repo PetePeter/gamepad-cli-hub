@@ -533,12 +533,7 @@ export class PlanManager extends EventEmitter {
     item.updatedAt = Date.now();
     item.stateUpdatedAt = item.updatedAt;
 
-    if (status === 'planning' || status === 'ready') {
-      this.recomputeStartable(item.dirPath);
-      this.saveDir(item.dirPath);
-    } else {
-      savePlanFile(item);
-    }
+    savePlanFile(item);
 
     this.emit('plan:changed', item.dirPath);
     logger.info(`[PlanManager] Set plan "${item.title}" (${id}) ${prevStatus} → ${status}`);
@@ -774,7 +769,10 @@ export class PlanManager extends EventEmitter {
     if (item.status === 'done') return false;
     // 'coding' requires existing or provided sessionId
     if (next === 'coding') {
-      return item.status === 'coding' || item.status === 'ready' || item.status === 'review' || PAUSED_PLAN_STATUSES.has(item.status);
+      if (item.status === 'coding' || item.status === 'ready' || item.status === 'review' || PAUSED_PLAN_STATUSES.has(item.status)) {
+        return true;
+      }
+      return item.status === 'planning' && isStartable(item, this.dependencies, this.getForDirectory(item.dirPath));
     }
     return true;
   }

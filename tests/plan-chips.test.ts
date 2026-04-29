@@ -129,4 +129,44 @@ describe('Plan chip store integration', () => {
       expect.objectContaining({ onSave: expect.any(Function), onApply: expect.any(Function) }),
     );
   });
+
+  it('does not assign active session ownership when saving chip plans as review', async () => {
+    const store = useChipBarStore();
+    await store.refresh('session-1');
+    await store.openPlan('start-1');
+
+    const callbacks = mockShowPlanInEditor.mock.calls[0][2];
+    await callbacks.onSave({
+      title: 'Ready to start',
+      description: 'Task desc',
+      status: 'review',
+    });
+
+    expect(window.gamepadCli.planSetState).toHaveBeenCalledWith('start-1', 'review', undefined, undefined);
+  });
+
+  it('saves chip plans as done through completion notes', async () => {
+    const store = useChipBarStore();
+    window.gamepadCli.planGetItem.mockResolvedValue({
+      id: 'start-1',
+      title: 'Ready to start',
+      description: 'Task desc',
+      status: 'review',
+      sessionId: 'session-1',
+    });
+
+    await store.refresh('session-1');
+    await store.openPlan('start-1');
+
+    const callbacks = mockShowPlanInEditor.mock.calls[0][2];
+    await callbacks.onSave({
+      title: 'Ready to start',
+      description: 'Task desc',
+      status: 'done',
+      stateInfo: 'Reviewed and completed',
+    });
+
+    expect(window.gamepadCli.planComplete).toHaveBeenCalledWith('start-1', 'Reviewed and completed');
+    expect(window.gamepadCli.planSetState).not.toHaveBeenCalled();
+  });
 });

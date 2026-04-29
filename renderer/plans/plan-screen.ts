@@ -269,11 +269,27 @@ function openNodeEditor(item: PlanItem): void {
     onSave: handleSave,
     onDelete: () => handleDelete(item.id),
     onDone: item.status === 'coding' || item.status === 'review'
-      ? () => handleComplete(item.id)
+      ? () => openNodeCompletionEditor(item)
       : undefined,
     onApply: targetSessionId && (item.status === 'ready' || item.status === 'coding' || item.status === 'review')
       ? () => handleApplyFromCanvas(item)
       : undefined,
+    onClose: () => { planScreenState.editingId = null; },
+  });
+}
+
+function openNodeCompletionEditor(item: PlanItem): void {
+  if (item.status !== 'coding' && item.status !== 'review') {
+    showBriefNotice('Only coding or review plans can be marked done');
+    return;
+  }
+  planScreenState.selectedId = item.id;
+  planScreenState.editingId = item.id;
+  const targetSessionId = resolvePlanTargetSessionId(item) ?? '';
+  planEditorOpener?.(targetSessionId, { ...item, status: 'done', stateInfo: '' }, {
+    onSave: handleSave,
+    onDelete: () => handleDelete(item.id),
+    onApply: targetSessionId ? () => handleApplyFromCanvas(item) : undefined,
     onClose: () => { planScreenState.editingId = null; },
   });
 }
@@ -480,7 +496,13 @@ async function handleSave(updates: { title: string; description: string; status:
   try {
     await window.gamepadCli.planUpdate(planScreenState.selectedId, updates);
     const current = getSelectedItem();
-    if (current && updates.status !== 'done') {
+    if (current && updates.status === 'done' && current.status !== 'done') {
+      if (current.status !== 'coding' && current.status !== 'review') {
+        showBriefNotice('Only coding or review plans can be marked done');
+        return;
+      }
+      await window.gamepadCli.planComplete(planScreenState.selectedId, updates.stateInfo);
+    } else if (current && updates.status !== 'done') {
       const targetSessionId = resolvePlanTargetSessionId(current);
       if (updates.status === 'coding' && !targetSessionId) {
         showBriefNotice('Select or open a session in this directory before marking a plan as coding');
@@ -513,18 +535,6 @@ async function handleDelete(id: string): Promise<void> {
     await refreshCanvas();
   } catch (err) {
     console.error('[PlanScreen] Delete failed:', err);
-  }
-}
-
-async function handleComplete(id: string): Promise<void> {
-  try {
-    await window.gamepadCli.planComplete(id);
-    planScreenState.selectedId = null;
-    planScreenState.editingId = null;
-    draftEditorCloser?.();
-    await refreshCanvas();
-  } catch (err) {
-    console.error('[PlanScreen] Complete failed:', err);
   }
 }
 
@@ -679,7 +689,8 @@ export function onPlanNodeDelete(id: string): void {
 }
 
 export function onPlanNodeComplete(id: string): void {
-  void handleComplete(id);
+  const item = planScreenState.items.find((entry) => entry.id === id);
+  if (item) openNodeCompletionEditor(item);
 }
 
 export function onPlanAddNode(): Promise<void> {

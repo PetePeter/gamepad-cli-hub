@@ -139,12 +139,17 @@ export const useChipBarStore = defineStore('chip-bar', () => {
         type?: PlanType;
       }) => {
         await window.gamepadCli.planUpdate(planId, updates);
-        if (item.status !== 'done') {
+        if (updates.status === 'done' && item.status !== 'done') {
+          await window.gamepadCli.planComplete(planId, updates.stateInfo);
+        } else if (item.status !== 'done') {
+          const ownerSessionId = updates.status === 'coding'
+            ? state.activeSessionId || item.sessionId
+            : undefined;
           await window.gamepadCli.planSetState(
             planId,
             updates.status,
             updates.stateInfo,
-            state.activeSessionId || item.sessionId,
+            ownerSessionId,
           );
         }
         await refresh(sessionId);
