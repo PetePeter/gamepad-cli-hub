@@ -518,7 +518,7 @@ async function handleDelete(id: string): Promise<void> {
 
 async function handleComplete(id: string): Promise<void> {
   try {
-    await window.gamepadCli.planComplete(id, 'Completed via plan canvas UI');
+    await window.gamepadCli.planComplete(id);
     planScreenState.selectedId = null;
     planScreenState.editingId = null;
     draftEditorCloser?.();
@@ -664,19 +664,6 @@ export function onPlanNodeClick(id: string, event?: MouseEvent): void {
   selectNodeById(id);
 }
 
-export async function onBulkAssignSequence(sequenceId: string | null): Promise<void> {
-  const ids = [...planScreenState.selectedIds];
-  if (ids.length === 0) return;
-  const resolved = sequenceId === '__unlink__' ? null : sequenceId;
-  try {
-    await window.gamepadCli.planBulkAssignSequence(ids, resolved);
-    planScreenState.selectedIds.clear();
-    await refreshCanvas();
-  } catch (err) {
-    console.error('[PlanScreen] Bulk assign failed:', err);
-  }
-}
-
 export function onPlanNodeEdit(id: string): void {
   const item = planScreenState.items.find((entry) => entry.id === id);
   if (item) openNodeEditor(item);
@@ -693,10 +680,6 @@ export function onPlanNodeDelete(id: string): void {
 
 export function onPlanNodeComplete(id: string): void {
   void handleComplete(id);
-}
-
-export async function onPlanNodeReopen(id: string): Promise<void> {
-  await window.gamepadCli.planReopen(id);
 }
 
 export function onPlanAddNode(): Promise<void> {
@@ -818,10 +801,4 @@ function openBackupRestoreModal(): void {
   if (backupRestoreOpener) {
     backupRestoreOpener();
   }
-}
-
-export async function handleReopen(): Promise<void> {
-  const id = planScreenState.selectedId;
-  if (!id) return;
-  await window.gamepadCli.planReopen(id);
 }

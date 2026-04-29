@@ -1,5 +1,5 @@
 /**
- * Plan screen selected-plan inspector tests.
+ * Plan screen sequence UX tests.
  *
  * @vitest-environment jsdom
  */
@@ -31,7 +31,7 @@ const sequence: PlanSequence = {
   updatedAt: 1,
 };
 
-function mountScreen() {
+function mountScreen(overrides?: Record<string, unknown>) {
   return mount(PlanScreen, {
     props: {
       visible: true,
@@ -41,23 +41,49 @@ function mountScreen() {
       sequences: [sequence],
       layout: { nodes: [{ id: item.id, x: 10, y: 10 }], edges: [], width: 800, height: 600 },
       selectedId: item.id,
+      ...overrides,
     },
   });
 }
 
-describe('PlanScreen selected inspector', () => {
+describe('PlanScreen sequence UX', () => {
   beforeEach(() => {
     (window as any).gamepadCli = {};
   });
 
-  it('separates unlinking a plan from deleting the sequence', async () => {
+  it('renders unlink icon on nodes in a sequence', async () => {
     const wrapper = mountScreen();
     await flushPromises();
+    const unlinkIcon = wrapper.find('.plan-node__unlink');
+    expect(unlinkIcon.exists()).toBe(true);
+  });
 
-    await wrapper.findAll('button').find((button) => button.text() === 'Unlink Plan')!.trigger('click');
-    await wrapper.findAll('button').find((button) => button.text() === 'Delete Sequence')!.trigger('click');
+  it('does not render unlink icon on nodes without a sequence', async () => {
+    const noSeqItem = { ...item, sequenceId: undefined };
+    const wrapper = mountScreen({ items: [noSeqItem] });
+    await flushPromises();
+    expect(wrapper.find('.plan-node__unlink').exists()).toBe(false);
+  });
 
+  it('emits assignSequence(null) when unlink icon is clicked', async () => {
+    const wrapper = mountScreen();
+    await flushPromises();
+    await wrapper.find('.plan-node__unlink').trigger('click');
     expect(wrapper.emitted('assignSequence')?.[0]).toEqual([item.id, null]);
-    expect(wrapper.emitted('deleteSequence')?.[0]).toEqual([sequence.id]);
+  });
+
+  it('renders empty sequence lane with dashed placeholder', async () => {
+    const emptySeq: PlanSequence = { ...sequence, id: 'seq-empty', title: 'Empty Lane' };
+    const wrapper = mountScreen({ sequences: [sequence, emptySeq] });
+    await flushPromises();
+    const lanes = wrapper.findAll('.plan-sequence-lane--empty');
+    expect(lanes).toHaveLength(1);
+    expect(lanes[0].text()).toContain('Drop plans here');
+  });
+
+  it('does not render empty lane for populated sequences', async () => {
+    const wrapper = mountScreen();
+    await flushPromises();
+    expect(wrapper.find('.plan-sequence-lane--empty').exists()).toBe(false);
   });
 });

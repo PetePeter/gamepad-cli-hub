@@ -15,6 +15,7 @@ import type { SessionManager } from './manager.js';
 import type { PtyManager } from './pty-manager.js';
 import type { PlanManager } from './plan-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
+import { scheduleInitialPrompt } from './initial-prompt.js';
 
 const PENDING_STATUSES = new Set<ScheduledTaskStatus>(['pending', 'executing']);
 const MIN_INTERVAL_MS = 60_000;
@@ -22,6 +23,7 @@ const MIN_INTERVAL_MS = 60_000;
 export class ScheduledTaskManager extends EventEmitter {
   private tasks = new Map<string, ScheduledTask>();
   private timers = new Map<string, NodeJS.Timeout>();
+  private promptCancellers = new Map<string, () => void>();
 
   constructor(
     private sessionManager: SessionManager,
@@ -239,14 +241,29 @@ export class ScheduledTaskManager extends EventEmitter {
         }
       }
 
-      // Construct and deliver prompt
+      // Construct and deliver prompt via scheduleInitialPrompt for delay + sequence support
       let prompt = task.initialPrompt;
       if (task.planIds.length > 0) {
         const planRefs = task.planIds.map(id => `- ${id}`).join('\n');
         prompt = `${task.initialPrompt}\n\nPlan references:\n${planRefs}`;
       }
 
-      await this.ptyManager.deliverText(sessionId, prompt);
+      const trimmed = prompt.trim();
+      if (trimmed.length > 0) {
+        const seq = !/[{] *(?:send|enter) *[]}$/i.test(trimmed)
+          ? `${trimmed} {Send}`
+          : trimmed;
+        const cancel = scheduleInitialPrompt(
+          sessionId,
+          {
+            initialPrompt: [{ label: 'scheduled-prompt', sequence: seq }],
+            initialPromptDelay: cliConfig.initialPromptDelay,
+          },
+          (sid, data) => this.ptyManager.write(sid, data),
+          (sid, text) => this.ptyManager.deliverText(sid, text),
+        );
+        if (cancel) this.promptCancellers.set(sessionId, cancel);
+      }
 
       task.lastRunAt = Date.now();
       this.saveTasks();
@@ -309,6 +326,8 @@ export class ScheduledTaskManager extends EventEmitter {
   }
 
   private finishScheduledRun(task: ScheduledTask, sessionId: string): void {
+    const cancel = this.promptCancellers.get(sessionId);
+    if (cancel) { cancel(); this.promptCancellers.delete(sessionId); }
     this.completeOrReschedule(task);
     if (task.sessionId === sessionId && task.status !== 'pending') {
       task.sessionId = undefined;

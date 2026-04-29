@@ -6,7 +6,7 @@ tools:
     resumeCommand: claude --resume={cliSessionName}
     continueCommand: claude --continue
     handoffCommand: go implement it
-    initialPromptDelay: 5000
+    initialPromptDelay: 3000
     helmInitialPrompt: true
     sequences:
       prompts:
@@ -32,7 +32,7 @@ tools:
   glm-cc:
     name: GLM + CC
     helmInitialPrompt: true
-    initialPromptDelay: 5000
+    initialPromptDelay: 3000
     env:
       - name: ANTHROPIC_BASE_URL
         value: https://api.z.ai/api/anthropic

@@ -1,25 +1,4 @@
 {
   "version": 1,
-  "sequences": [
-    {
-      "id": "0aca8ffe-4b81-4499-a3d5-3f632ab74ab6",
-      "dirPath": "X:\\coding\\gamepad-cli-hub",
-      "title": "Fix plan status mismatch: P-0051 filter persistence requirement not met in original delivery Sequence",
-      "missionStatement": "## What Has Been Done\n\nInvestigated and documented the relationship between P-0051 and P-0055 regarding filter persistence.\n\n**Findings:**\n1. P-0051 (commit ea0b569) delivered filtering UI and logic but WITHOUT persistence\n2. P-0055 (commit 361f785) delivered persistence later as a separate plan\n3. P-0051 was marked review/done without meeting its original acceptance criteria\n\n**Resolution:**\nUpdated both P-0051 and P-0055 descriptions to properly document their relationship:\n- P-0051 now acknowledges that persistence was completed by P-0055\n- P-0055 now explicitly states that it completes P-0051's persistence requirement\n- Both plan descriptions clearly state that together they deliver the complete filtering feature\n\n**Status:**\nThe filter persistence requirement is now fully implemented and properly documented. P-0051 + P-0055 together satisfy the original requirement: \"Filters persist across close/reopen. Default: show all.\"\n\nNo code changes were required - this was a documentation/process fix to properly reflect the work that was already done.\n\n---\n\n## Issue\n\nP-0051 (Add filtering to plan screen) had explicit requirement: \"Filters persist across close/reopen. Default: show all.\" The original delivery (commit ea0b569) only implemented in-memory filter state, not disk persistence.\n\nThe requirement was technically met later by P-0055, but P-0051 was marked done/review without fulfilling its original acceptance criteria.\n\n## Impact\n\n- P-0051 should have been blocked until persistence was implemented\n- Acceptance criteria says \"persist across close/reopen\" but initial delivery violated this\n- P-0055 (persistence) was created as separate work instead of being part of P-0051\n\n## What Needs Fixing\n\nReview P-0051's final acceptance and either:\n1. Mark P-0051 as incomplete and move its original requirements into P-0055, OR\n2. Verify P-0051 was actually completed with persistence (check commit ea0b569 fully)\n\nIf option 1: verify P-0055 is marked as completing P-0051's original requirements.",
-      "sharedMemory": "",
-      "order": 0,
-      "createdAt": 1777411349900,
-      "updatedAt": 1777411368416
-    },
-    {
-      "id": "bded8959-6129-4655-83b0-5b37298dbe0a",
-      "dirPath": "X:\\coding\\gamepad-cli-hub",
-      "title": "gobble",
-      "missionStatement": "## Reviewer Follow-up\n\nReviewed after DONE. Follow-up bug plan created: P-0098 (Review fix: backup settings must target a selected directory and use documented config format).\n\nRelevant findings:\n- BackupTab's manual Backup Now uses the first configured directory rather than a selected/current directory.\n- BackupTab silently ignores backup/config save errors.\n- The documented config/plan-backups.yaml format does not match PlanBackupManager's JSON.parse/JSON.stringify implementation.\n- BackupRestoreModal does not provide the requested selected-snapshot preview/diff details.\n- Restore success currently shows a generic notice instead of identifying the restored timestamp.\n\n---\n\n1. **Restore Modal (renderer/plans/backup-restore-modal.ts):**\n   - Vue 3 component showing dated backups (newest first, scrollable)\n   - Each row: \\\"2024-04-28 09:30\\\" · \\\"3 plans · 2 deps\\\" · status badge (✓/⚠/✗)\n   - Click/Select to preview (show timestamp, plan count, age, diff vs current)\n   - Buttons: Restore (IPC call) | Delete | Cancel\n   - Manual \\\"Backup Now\\\" button at bottom\n   - Arrow keys to navigate, A=confirm, B=close, Backspace=delete\n   - Error handling + loading state\n\n2. **Plan Screen Integration:**\n   - Add 🗚 Restore button in header → opens modal\n   - Keyboard shortcut: R key to open\n   - After restore: reload plan data + show \\\"Restored from {timestamp}\\\" notice\n   - Add modal via Teleport (same pattern as plan help modal)\n\n3. **Settings Panel Integration:**\n   - New collapsible section \\\"Plan Backups\\\"\n   - Toggles/sliders: enable | maxSnapshots (1-100) | interval (1-168 hrs)\n   - \\\"Backup Now\\\" manual trigger button\n   - Debounced config save on change\n   - Show disk usage estimate (if available)",
-      "sharedMemory": "",
-      "order": 1,
-      "createdAt": 1777412553468,
-      "updatedAt": 1777412572937
-    }
-  ]
+  "sequences": []
 }

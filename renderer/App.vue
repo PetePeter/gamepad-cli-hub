@@ -43,8 +43,6 @@ import {
   onPlanNodeComplete,
   onPlanNodeDelete,
   onPlanNodeEdit,
-  onPlanNodeReopen,
-  onBulkAssignSequence,
   onPlanRemoveDependency,
   onPlanDeleteSequence,
   onPlanUpdateSequence,
@@ -2443,7 +2441,6 @@ onUnmounted(() => {
         @edit-node="onPlanNodeEdit"
         @apply-node="onPlanNodeApply"
         @complete-node="onPlanNodeComplete"
-        @reopen-node="onPlanNodeReopen"
         @delete-node="onPlanNodeDelete"
         @add-dep="onPlanAddDependency"
         @remove-dep="onPlanRemoveDependency"
@@ -2452,7 +2449,6 @@ onUnmounted(() => {
         @toggle-status-filter="onToggleStatusFilter"
         @reset-filters="onResetFilters"
         @open-backups="openBackupRestore()"
-        @bulk-assign-sequence="onBulkAssignSequence"
       />
       <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
         <ChipActionBar

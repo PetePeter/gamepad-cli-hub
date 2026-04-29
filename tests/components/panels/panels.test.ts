@@ -4,7 +4,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, flushPromises } from '@vue/test-utils';
 
 // Mock state-colors before component imports
 vi.mock('../../../renderer/state-colors.js', () => ({
@@ -354,6 +354,27 @@ describe('DraftEditor', () => {
     ]]);
   });
 
+  it('loads plan attachments on initial visible mount', async () => {
+    const planAttachmentList = vi.fn().mockResolvedValue([]);
+    (window as any).gamepadCli = { planAttachmentList };
+
+    mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'plan',
+        sessionId: 'sess-1',
+        planId: 'plan-1',
+        initialLabel: 'Plan task',
+        initialText: 'Need details',
+        planStatus: 'ready',
+        planCallbacks: { onSave: vi.fn(), onDelete: vi.fn() },
+      },
+    });
+    await flushPromises();
+
+    expect(planAttachmentList).toHaveBeenCalledWith('plan-1');
+  });
+
   it('hydrates and emits plan type changes', async () => {
     const w = mount(DraftEditor, {
       props: {
@@ -570,14 +591,13 @@ describe('PlanScreen', () => {
 
   it('shows action bar when a node is selected', () => {
     const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' } });
-    const headers = w.findAll('.plan-header');
-    expect(headers).toHaveLength(2);
-    expect(headers[1].text()).toContain('Task 1');
+    expect(w.find('.plan-inspector').exists()).toBe(true);
+    expect(w.find('.plan-inspector__title').text()).toBe('Task 1');
   });
 
   it('hides selected action bar when no node is selected', () => {
     const w = mount(PlanScreen, { props: baseProps });
-    expect(w.findAll('.plan-header')).toHaveLength(1);
+    expect(w.find('.plan-inspector').exists()).toBe(false);
   });
 
   it('shows Apply button for non-done nodes', () => {

@@ -473,7 +473,7 @@ async function deleteAttachment(att: PlanAttachment): Promise<void> {
 watch([() => props.planId, () => props.visible], ([, visible]) => {
   if (visible && isPlan.value) void loadAttachments();
   else attachments.value = [];
-});
+}, { immediate: true });
 
 // ── Height persistence ─────────────────────────────────────────────────────
 

@@ -475,6 +475,25 @@ describe('plan screen bridge', () => {
     expect(mockPlanApply).toHaveBeenCalledWith('a', 'session-1');
   });
 
+  it('completes a plan through the editor callback without a hardcoded note', async () => {
+    const mod = await getModule();
+    const opener = vi.fn();
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'coding', createdAt: 1, updatedAt: 1 };
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    mockPlanComplete.mockResolvedValue({});
+    mod.setPlanEditorOpener(opener);
+
+    await mod.showPlanScreen('/test/dir');
+    mod.handlePlanScreenAction('A');
+
+    const callbacks = opener.mock.calls[0][2];
+    await callbacks.onDone();
+
+    expect(mockPlanComplete).toHaveBeenCalledWith('a');
+  });
+
   it('routes delete requests through the confirmation bridge', async () => {
     const mod = await getModule();
     const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'planning', createdAt: 1, updatedAt: 1 };

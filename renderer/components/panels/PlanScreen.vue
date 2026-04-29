@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { getDisplayTitle } from '../../types.js';
 import type { PlanDependency, PlanItem, PlanSequence } from '../../../src/types/plan.js';
 import type { LayoutResult } from '../../plans/plan-layout.js';
-import SequencePanel from './SequencePanel.vue';
 
 const NODE_W = 200;
 const NODE_H = 102;
 const CONNECTOR_R = 6;
 const CONNECTOR_SNAP_TOLERANCE_PX = 16;
+const EMPTY_SEQ_W = 260;
+const EMPTY_SEQ_H = 80;
 
 const STATUS_COLORS: Record<string, string> = {
   planning: '#555555',
@@ -58,11 +59,9 @@ const emit = defineEmits<{
   updateSequence: [id: string, updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number }];
   deleteSequence: [id: string];
   nodeClick: [id: string, event?: MouseEvent];
-  bulkAssignSequence: [sequenceId: string | null];
   editNode: [id: string];
   applyNode: [id: string];
   completeNode: [id: string];
-  reopenNode: [id: string];
   deleteNode: [id: string];
   addDep: [fromId: string, toId: string];
   removeDep: [fromId: string, toId: string];
@@ -79,6 +78,12 @@ const viewBox = ref({ x: 0, y: 0, w: 800, h: 600 });
 const isPanning = ref(false);
 const panStart = ref({ x: 0, y: 0, vbx: 0, vby: 0 });
 const dragState = ref<{ fromId: string; x: number; y: number } | null>(null);
+const seqDragState = ref<{ ids: string[]; x: number; y: number; hoveredSeqId: string | null } | null>(null);
+
+const seqModalVisible = ref(false);
+const seqModalMode = ref<'create' | 'edit'>('create');
+const seqModalDeleteConfirm = ref(false);
+const seqDraft = reactive({ id: '', title: '', missionStatement: '', sharedMemory: '' });
 
 const nodeMap = computed(() => {
   const map = new Map<string, LayoutResult['nodes'][number]>();
@@ -100,18 +105,32 @@ const selectedItem = computed(() =>
 );
 
 const sequenceBoxes = computed(() => {
-  return props.sequences
-    .map((sequence) => {
-      const nodes = positionedItems.value.filter((item) => item.sequenceId === sequence.id);
-      if (nodes.length === 0) return null;
+  const populated: { sequence: PlanSequence; x: number; y: number; width: number; height: number; isEmpty: false }[] = [];
+  const empty: { sequence: PlanSequence; x: number; y: number; width: number; height: number; isEmpty: true }[] = [];
+
+  for (const sequence of props.sequences) {
+    const nodes = positionedItems.value.filter((item) => item.sequenceId === sequence.id);
+    if (nodes.length > 0) {
       const minX = Math.min(...nodes.map((node) => node.x)) - 30;
       const minY = Math.min(...nodes.map((node) => node.y)) - 42;
       const maxX = Math.max(...nodes.map((node) => node.x + NODE_W)) + 30;
       const maxY = Math.max(...nodes.map((node) => node.y + NODE_H)) + 26;
-      return { sequence, x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-    })
-    .filter((box): box is NonNullable<typeof box> => box !== null);
+      populated.push({ sequence, x: minX, y: minY, width: maxX - minX, height: maxY - minY, isEmpty: false });
+    } else {
+      empty.push({ sequence, x: 0, y: 0, width: EMPTY_SEQ_W, height: EMPTY_SEQ_H, isEmpty: true });
+    }
+  }
+
+  const emptyRowY = Math.max(props.layout.height, 600) + 80;
+  for (let i = 0; i < empty.length; i++) {
+    empty[i]!.x = 20 + i * (EMPTY_SEQ_W + 20);
+    empty[i]!.y = emptyRowY;
+  }
+
+  return [...populated, ...empty] as Array<{ sequence: PlanSequence; x: number; y: number; width: number; height: number; isEmpty: boolean }>;
 });
+
+const hasEmptySequences = computed(() => sequenceBoxes.value.some((b) => b.isEmpty));
 
 const relatedFocusActive = computed(() => !!props.relatedFocusRootId);
 
@@ -120,7 +139,6 @@ const relatedForegroundIds = computed(() => {
   for (const id of props.relatedTransientIds ?? []) ids.add(id);
   return ids;
 });
-
 
 const dragPath = computed(() => {
   if (!dragState.value) return '';
@@ -135,11 +153,13 @@ const dragPath = computed(() => {
 
 watch(() => [props.visible, props.layout.width, props.layout.height], () => {
   if (!props.visible) return;
+  const baseH = Math.max(props.layout.height, 600);
+  const extraH = hasEmptySequences.value ? EMPTY_SEQ_H + 120 : 0;
   viewBox.value = {
     x: 0,
     y: 0,
     w: Math.max(props.layout.width, 800),
-    h: Math.max(props.layout.height, 600),
+    h: baseH + extraH,
   };
 }, { immediate: true });
 
@@ -150,7 +170,6 @@ function getNodeColor(status: string): string {
 function formatPlanDate(value?: number): string {
   return value ? new Date(value).toLocaleDateString() : '';
 }
-
 
 function connectorPoint(id: string, side: 'in' | 'out'): { x: number; y: number } | null {
   const node = nodeMap.value.get(id);
@@ -247,6 +266,16 @@ function onCanvasMouseMove(e: MouseEvent): void {
     };
     return;
   }
+  if (seqDragState.value) {
+    const pt = svgPoint(e.clientX, e.clientY);
+    seqDragState.value = {
+      ...seqDragState.value,
+      x: pt.x,
+      y: pt.y,
+      hoveredSeqId: findSeqBoxAtPoint(pt.x, pt.y),
+    };
+    return;
+  }
   if (!isPanning.value || !wrapperRef.value) return;
   const rect = wrapperRef.value.getBoundingClientRect();
   const sx = viewBox.value.w / (rect.width || 1);
@@ -265,6 +294,14 @@ function onCanvasMouseUp(e: MouseEvent): void {
       emit('addDep', dragState.value.fromId, targetId);
     }
     dragState.value = null;
+  }
+  if (seqDragState.value) {
+    if (seqDragState.value.hoveredSeqId) {
+      for (const id of seqDragState.value.ids) {
+        emit('assignSequence', id, seqDragState.value.hoveredSeqId);
+      }
+    }
+    seqDragState.value = null;
   }
   isPanning.value = false;
 }
@@ -291,6 +328,70 @@ function startDragConnection(id: string, e: MouseEvent): void {
     ...svgPoint(e.clientX, e.clientY),
   };
 }
+
+function onNodeBodyMouseDown(id: string, e: MouseEvent): void {
+  if ((e.target as Element).closest('.plan-node__connector')) return;
+  e.stopPropagation();
+  const ids = props.selectedIds.has(id) ? [...props.selectedIds] : [id];
+  const pt = svgPoint(e.clientX, e.clientY);
+  seqDragState.value = { ids, x: pt.x, y: pt.y, hoveredSeqId: null };
+}
+
+function findSeqBoxAtPoint(x: number, y: number): string | null {
+  for (const box of sequenceBoxes.value) {
+    if (x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height) {
+      return box.sequence.id;
+    }
+  }
+  return null;
+}
+
+function unlinkFromSequence(id: string, e: MouseEvent): void {
+  e.stopPropagation();
+  emit('assignSequence', id, null);
+}
+
+function openSeqCreate(): void {
+  seqDraft.id = '';
+  seqDraft.title = '';
+  seqDraft.missionStatement = '';
+  seqDraft.sharedMemory = '';
+  seqModalDeleteConfirm.value = false;
+  seqModalMode.value = 'create';
+  seqModalVisible.value = true;
+}
+
+function openSeqEdit(sequence: PlanSequence): void {
+  seqDraft.id = sequence.id;
+  seqDraft.title = sequence.title;
+  seqDraft.missionStatement = sequence.missionStatement ?? '';
+  seqDraft.sharedMemory = sequence.sharedMemory ?? '';
+  seqModalDeleteConfirm.value = false;
+  seqModalMode.value = 'edit';
+  seqModalVisible.value = true;
+}
+
+function onSeqSave(): void {
+  if (seqModalMode.value === 'create') {
+    emit('createSequence', seqDraft.title, seqDraft.missionStatement, seqDraft.sharedMemory);
+  } else {
+    emit('updateSequence', seqDraft.id, {
+      title: seqDraft.title,
+      missionStatement: seqDraft.missionStatement,
+      sharedMemory: seqDraft.sharedMemory,
+    });
+  }
+  seqModalVisible.value = false;
+}
+
+function onSeqDelete(): void {
+  if (!seqModalDeleteConfirm.value) {
+    seqModalDeleteConfirm.value = true;
+    return;
+  }
+  emit('deleteSequence', seqDraft.id);
+  seqModalVisible.value = false;
+}
 </script>
 
 <template>
@@ -298,8 +399,9 @@ function startDragConnection(id: string, e: MouseEvent): void {
     <div class="plan-header">
       <button class="plan-header__btn" @click="emit('close')">← Back</button>
       <button class="plan-header__btn plan-header__btn--add" @click="emit('addNode')">+ Add Node</button>
+      <button class="plan-header__btn plan-header__btn--secondary" @click="openSeqCreate">+ Sequence</button>
       <span class="plan-header__title">{{ dirPath }} - Plans</span>
-      
+
       <div class="plan-header__filters">
         <span class="plan-header__filter-label">Type:</span>
         <label class="plan-header__filter">
@@ -314,7 +416,7 @@ function startDragConnection(id: string, e: MouseEvent): void {
         <label class="plan-header__filter">
           <input type="checkbox" :checked="filters.types.untyped" @change="emit('toggleTypeFilter', 'untyped')"> Untyped
         </label>
-        
+
         <span class="plan-header__filter-label plan-header__filter-label--status">Status:</span>
         <label class="plan-header__filter">
           <input type="checkbox" :checked="filters.statuses.planning" @change="emit('toggleStatusFilter', 'planning')"> Planning
@@ -334,10 +436,10 @@ function startDragConnection(id: string, e: MouseEvent): void {
         <label class="plan-header__filter">
           <input type="checkbox" :checked="filters.statuses.done" @change="emit('toggleStatusFilter', 'done')"> Done
         </label>
-        
+
         <button class="plan-header__btn plan-header__btn--reset" @click="emit('resetFilters')">Reset</button>
       </div>
-      
+
       <div class="plan-header__controls">
         <button
           class="plan-header__btn plan-header__btn--secondary"
@@ -375,6 +477,10 @@ function startDragConnection(id: string, e: MouseEvent): void {
           v-for="box in sequenceBoxes"
           :key="box.sequence.id"
           class="plan-sequence-lane"
+          :class="{
+            'plan-sequence-lane--empty': box.isEmpty,
+            'plan-sequence-lane--drop-target': seqDragState?.hoveredSeqId === box.sequence.id,
+          }"
           :transform="`translate(${box.x}, ${box.y})`"
         >
           <rect
@@ -384,8 +490,19 @@ function startDragConnection(id: string, e: MouseEvent): void {
             ry="8"
           />
           <foreignObject x="10" y="8" :width="Math.max(120, box.width - 20)" height="28">
-            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-sequence-lane__title">{{ box.sequence.title }}</div>
+            <div
+              xmlns="http://www.w3.org/1999/xhtml"
+              class="plan-sequence-lane__title"
+              @click.stop="openSeqEdit(box.sequence)"
+            >{{ box.sequence.title }}</div>
           </foreignObject>
+          <text
+            v-if="box.isEmpty"
+            class="plan-sequence-lane__placeholder"
+            x="50%"
+            y="55%"
+            text-anchor="middle"
+          >Drop plans here</text>
         </g>
 
         <path
@@ -426,6 +543,7 @@ function startDragConnection(id: string, e: MouseEvent): void {
           :transform="`translate(${item.x}, ${item.y})`"
           @click.stop="emit('nodeClick', item.id, $event)"
           @dblclick.stop="emit('editNode', item.id)"
+          @mousedown="onNodeBodyMouseDown(item.id, $event)"
         >
           <rect
             width="200"
@@ -457,6 +575,14 @@ function startDragConnection(id: string, e: MouseEvent): void {
             <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__state-info">{{ item.stateInfo }}</div>
           </foreignObject>
           <circle
+            v-if="item.sequenceId"
+            class="plan-node__unlink"
+            cx="190"
+            cy="12"
+            r="8"
+            @click.stop="unlinkFromSequence(item.id, $event)"
+          />
+          <circle
             class="plan-node__connector plan-node__connector--in"
             cx="0"
             cy="51"
@@ -473,7 +599,7 @@ function startDragConnection(id: string, e: MouseEvent): void {
             fill="#333"
             stroke="#555"
             stroke-width="1"
-            @mousedown="startDragConnection(item.id, $event)"
+            @mousedown.stop="startDragConnection(item.id, $event)"
           />
         </g>
 
@@ -492,6 +618,7 @@ function startDragConnection(id: string, e: MouseEvent): void {
       <span>X delete</span>
       <span>B back or deselect</span>
       <span>Double click edit</span>
+      <span>Drag node to sequence</span>
       <span>Drag connector to link</span>
       <span>F focus related</span>
     </div>
@@ -511,37 +638,64 @@ function startDragConnection(id: string, e: MouseEvent): void {
             class="plan-header__btn plan-header__btn--secondary"
             @click="emit('completeNode', selectedItem.id)"
           >Done</button>
-          <button
-            v-if="selectedItem.status === 'done'"
-            class="plan-header__btn plan-header__btn--secondary"
-            @click="emit('reopenNode', selectedItem.id)"
-          >Reopen</button>
           <button class="plan-header__btn plan-header__btn--secondary" @click="emit('deleteNode', selectedItem.id)">Delete</button>
         </div>
       </div>
-
-      <div class="plan-inspector__body">
-        <SequencePanel
-          :sequences="sequences"
-          :selected-item="selectedItem"
-          @create-sequence="(t, m, s) => emit('createSequence', t, m, s)"
-          @assign-sequence="(planId, seqId) => emit('assignSequence', planId, seqId)"
-          @update-sequence="(id, updates) => emit('updateSequence', id, updates)"
-          @delete-sequence="(id) => emit('deleteSequence', id)"
-        />
-      </div>
-    </div>
-
-    <div v-if="selectedIds.size > 1" class="plan-bulk-bar">
-      <span class="plan-bulk-bar__count">{{ selectedIds.size }} selected</span>
-      <select class="plan-bulk-bar__select" @change="emit('bulkAssignSequence', ($event.target as HTMLSelectElement).value || null)">
-        <option value="">Assign to sequence...</option>
-        <option v-for="seq in sequences" :key="seq.id" :value="seq.id">{{ seq.title }}</option>
-        <option value="__unlink__">-- Unlink from sequence --</option>
-      </select>
-      <button class="btn btn--sm" @click="emit('bulkAssignSequence', null)">Clear</button>
     </div>
   </div>
+
+  <Teleport to="body">
+    <div v-if="seqModalVisible" class="plan-sequence-modal-overlay" @mousedown.self="seqModalVisible = false">
+      <div class="plan-sequence-modal">
+        <div class="plan-sequence-modal__header">
+          {{ seqModalMode === 'create' ? 'New Sequence' : 'Edit Sequence' }}
+        </div>
+
+        <label class="plan-sequence-modal__field">
+          <span>Title</span>
+          <input
+            v-model="seqDraft.title"
+            class="plan-sequence-modal__input"
+            placeholder="Sequence title..."
+            maxlength="100"
+          />
+        </label>
+
+        <label class="plan-sequence-modal__field">
+          <span>Mission</span>
+          <textarea
+            v-model="seqDraft.missionStatement"
+            class="plan-sequence-modal__textarea"
+            placeholder="What is this sequence working toward?"
+            rows="3"
+          />
+        </label>
+
+        <label class="plan-sequence-modal__field">
+          <span>Memory</span>
+          <textarea
+            v-model="seqDraft.sharedMemory"
+            class="plan-sequence-modal__textarea"
+            placeholder="Shared context for all plans in this sequence..."
+            rows="3"
+          />
+        </label>
+
+        <div class="plan-sequence-modal__actions">
+          <button class="btn btn--primary btn--sm" @click="onSeqSave">
+            {{ seqModalMode === 'create' ? 'Create' : 'Save' }}
+          </button>
+          <button
+            v-if="seqModalMode === 'edit'"
+            class="btn btn--sm"
+            :class="seqModalDeleteConfirm ? 'btn--danger' : 'btn--secondary'"
+            @click="onSeqDelete"
+          >{{ seqModalDeleteConfirm ? 'Confirm Delete' : 'Delete' }}</button>
+          <button class="btn btn--secondary btn--sm" @click="seqModalVisible = false">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -549,33 +703,37 @@ function startDragConnection(id: string, e: MouseEvent): void {
   stroke: #4488ff;
   stroke-width: 2;
 }
-.plan-bulk-bar {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg-secondary, #1a1a1a);
-  border: 1px solid var(--border-color, #333);
-  border-radius: 8px;
-  padding: 10px 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  z-index: 500;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+.plan-node__unlink {
+  fill: none;
+  stroke: #666;
+  stroke-width: 1.5;
+  cursor: pointer;
 }
-.plan-bulk-bar__count {
-  color: var(--text-primary);
-  font-size: 0.9rem;
-  font-weight: 500;
+.plan-node__unlink:hover {
+  stroke: #ff6b6b;
+  stroke-width: 2;
 }
-.plan-bulk-bar__select {
-  padding: 6px 8px;
-  border: 1px solid var(--border-color, #333);
-  border-radius: 4px;
-  background: var(--bg-primary, #111);
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  min-width: 160px;
+.plan-sequence-lane--empty rect {
+  stroke-dasharray: 6 4;
+  stroke: #444;
+  fill: transparent;
+}
+.plan-sequence-lane--empty .plan-sequence-lane__placeholder {
+  fill: #555;
+  font-size: 12px;
+}
+.plan-sequence-lane--drop-target rect {
+  stroke: #44cc44;
+  stroke-width: 2.5;
+  fill: rgba(68, 204, 68, 0.08);
+}
+.plan-sequence-lane__title {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary, #ddd);
+}
+.plan-sequence-lane__title:hover {
+  color: #4488ff;
 }
 </style>
