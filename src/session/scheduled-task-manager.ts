@@ -51,6 +51,8 @@ export class ScheduledTaskManager extends EventEmitter {
       ...(params.intervalMs !== undefined ? { intervalMs: params.intervalMs } : {}),
       nextRunAt: params.scheduledTime,
       dirPath: params.dirPath,
+      mode: params.mode,
+      targetSessionId: params.targetSessionId,
       status: 'pending',
       createdAt: now,
     };
@@ -188,7 +190,16 @@ export class ScheduledTaskManager extends EventEmitter {
 
     logger.info(`[ScheduledTaskManager] Executing task "${task.title}" (${task.id}) mode=${task.mode ?? 'spawn'}`);
 
-    if (task.mode === 'direct' && task.targetSessionId) {
+    if (task.mode === 'direct') {
+      if (!task.targetSessionId) {
+        const err = new Error('Target session ID is missing');
+        task.status = 'failed';
+        task.error = err.message;
+        task.completedAt = Date.now();
+        this.saveTasks();
+        this.emit('task:changed', task);
+        return;
+      }
       await this.executeDirectTask(task);
     } else {
       await this.executeSpawnTask(task);

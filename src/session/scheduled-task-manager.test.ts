@@ -38,6 +38,7 @@ class FakeSessionManager {
 
 class FakePtyManager extends EventEmitter {
   private writes = new Map<string, string[]>();
+  private activePids = new Set<string>();
 
   constructor() {
     super();
@@ -53,7 +54,12 @@ class FakePtyManager extends EventEmitter {
   }
 
   spawn(options: { sessionId: string }): { pid: number } {
+    this.activePids.add(options.sessionId);
     return { pid: 1234 + options.sessionId.length };
+  }
+
+  has(sessionId: string): boolean {
+    return this.activePids.has(sessionId);
   }
 
   deliverText(sessionId: string, text: string): void {
@@ -65,7 +71,13 @@ class FakePtyManager extends EventEmitter {
     return this.writes.get(sessionId) ?? [];
   }
 
+  write(sessionId: string, data: string): void {
+    if (!this.writes.has(sessionId)) this.writes.set(sessionId, []);
+    this.writes.get(sessionId)!.push(data);
+  }
+
   emitExit(sessionId: string): void {
+    this.activePids.delete(sessionId);
     this.emit('exit', sessionId, 0);
   }
 
@@ -534,6 +546,75 @@ describe('ScheduledTaskManager', () => {
       const updated = manager.getTask(task.id);
       expect(updated?.status).toBe('pending');
       expect(updated?.nextRunAt?.getTime()).toBeGreaterThan(Date.now());
+    });
+  });
+
+  describe('direct mode', () => {
+    it('should fail with clear error when targetSessionId is missing', async () => {
+      manager.createTask({
+        title: 'Orphan Direct',
+        planIds: [],
+        initialPrompt: 'hello',
+        cliType: '',
+        scheduledTime: new Date(Date.now() - 1000),
+        dirPath: 'X:\\\\coding\\\\test',
+        mode: 'direct',
+      });
+
+      manager.start();
+      await vi.runOnlyPendingTimersAsync();
+
+      const failed = manager.listTasks()[0];
+      expect(failed.status).toBe('failed');
+      expect(failed.error).toContain('Target session ID is missing');
+    });
+
+    it('should fail when target session has been removed', async () => {
+      const deadSessionId = 'session-dead-gone';
+
+      manager.createTask({
+        title: 'Ghost Direct',
+        planIds: [],
+        initialPrompt: 'hello',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() - 1000),
+        dirPath: 'X:\\\\coding\\\\test',
+        mode: 'direct',
+        targetSessionId: deadSessionId,
+      });
+
+      manager.start();
+      await vi.runOnlyPendingTimersAsync();
+
+      const failed = manager.listTasks()[0];
+      expect(failed.status).toBe('failed');
+      expect(failed.error).toContain('not found');
+    });
+
+    it('should deliver prompt to existing session and complete', async () => {
+      const targetId = 'session-direct-target';
+      sessionManager.addSession({ id: targetId, cliType: 'claude-code', workingDir: 'X:\\\\coding\\\\test' });
+      ptyManager.spawn({ sessionId: targetId });
+
+      manager.createTask({
+        title: 'Direct Hit',
+        planIds: [],
+        initialPrompt: 'do the thing',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() - 1000),
+        dirPath: 'X:\\\\coding\\\\test',
+        mode: 'direct',
+        targetSessionId: targetId,
+      });
+
+      manager.start();
+      await vi.runOnlyPendingTimersAsync();
+
+      const completed = manager.listTasks()[0];
+      expect(completed.status).toBe('completed');
+      expect(ptyManager.getWrites(targetId)).toEqual(
+        expect.arrayContaining([expect.stringContaining('do the thing')]),
+      );
     });
   });
 });

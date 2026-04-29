@@ -247,7 +247,9 @@ async function createTask(): Promise<void> {
       description: formDescription.value.trim() || undefined,
       planIds: [],
       initialPrompt: formInitialPrompt.value.trim(),
-      cliType: formMode.value === 'direct' ? '' : selectedCliType.value,
+      cliType: formMode.value === 'direct'
+        ? (availableSessions.value.find(s => s.id === selectedTargetSessionId.value)?.cliType ?? selectedCliType.value)
+        : selectedCliType.value,
       cliParams: formCliParams.value.trim() || undefined,
       scheduledTime: new Date(formTime.value),
       scheduleKind: scheduleKind.value,
