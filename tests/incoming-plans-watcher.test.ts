@@ -58,6 +58,8 @@ vi.mock('../src/session/persistence.js', () => ({
   loadDependencies: vi.fn(() => []),
   saveDependencies: vi.fn(),
   cleanupOrphanDependencies: vi.fn(() => ({ removed: 0, deps: [] })),
+  loadPlanSequences: vi.fn(() => []),
+  savePlanSequences: vi.fn(),
 }));
 
 import { IncomingPlansWatcher } from '../src/session/incoming-plans-watcher.js';

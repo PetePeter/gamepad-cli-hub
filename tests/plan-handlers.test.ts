@@ -33,6 +33,8 @@ vi.mock('../src/session/persistence.js', () => ({
   loadDependencies: vi.fn(() => []),
   saveDependencies: vi.fn(),
   cleanupOrphanDependencies: vi.fn(() => ({ removed: 0, deps: [] })),
+  loadPlanSequences: vi.fn(() => []),
+  savePlanSequences: vi.fn(),
 }));
 
 import { setupPlanHandlers } from '../src/electron/ipc/plan-handlers.js';

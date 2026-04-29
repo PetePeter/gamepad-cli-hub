@@ -38,19 +38,31 @@ describe('BackupTab', () => {
     vi.useRealTimers();
   });
 
-  it('requires an explicit configured directory for manual backup', async () => {
+  it('backs up all configured directories and reports count', async () => {
     const wrapper = mount(BackupTab);
     await flushPromises();
 
-    await wrapper.find('.btn--secondary').trigger('click');
-    expect(mockPlanCreateBackupNow).not.toHaveBeenCalled();
-
-    await wrapper.find('select').setValue('X:\\second');
-    await wrapper.find('.btn--secondary').trigger('click');
+    const backupBtn = wrapper.findAll('.btn--secondary').find(b => b.text().includes('Backup Now'))!;
+    await backupBtn.trigger('click');
     await flushPromises();
 
+    expect(mockPlanCreateBackupNow).toHaveBeenCalledTimes(2);
+    expect(mockPlanCreateBackupNow).toHaveBeenCalledWith('X:\\first');
     expect(mockPlanCreateBackupNow).toHaveBeenCalledWith('X:\\second');
-    expect(wrapper.text()).toContain('Backup created');
+    expect(wrapper.text()).toContain('Backed up 2 folders');
+  });
+
+  it('shows message when no directories are configured', async () => {
+    mockConfigGetWorkingDirs.mockResolvedValue([]);
+    const wrapper = mount(BackupTab);
+    await flushPromises();
+
+    const backupBtn = wrapper.findAll('.btn--secondary').find(b => b.text().includes('Backup Now'))!;
+    await backupBtn.trigger('click');
+    await flushPromises();
+
+    expect(mockPlanCreateBackupNow).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('No configured folders to back up');
   });
 
   it('shows save failures', async () => {
