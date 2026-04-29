@@ -58,6 +58,7 @@ const emit = defineEmits<{
   assignSequence: [planId: string, sequenceId: string | null];
   updateSequence: [id: string, updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number }];
   deleteSequence: [id: string];
+  deleteSequenceWithPlans: [id: string];
   nodeClick: [id: string, event?: MouseEvent];
   editNode: [id: string];
   applyNode: [id: string];
@@ -83,6 +84,7 @@ const seqDragState = ref<{ ids: string[]; x: number; y: number; hoveredSeqId: st
 const seqModalVisible = ref(false);
 const seqModalMode = ref<'create' | 'edit'>('create');
 const seqModalDeleteConfirm = ref(false);
+const seqModalDeleteWithPlansConfirm = ref(false);
 const seqDraft = reactive({ id: '', title: '', missionStatement: '', sharedMemory: '' });
 
 const nodeMap = computed(() => {
@@ -357,6 +359,7 @@ function openSeqCreate(): void {
   seqDraft.missionStatement = '';
   seqDraft.sharedMemory = '';
   seqModalDeleteConfirm.value = false;
+  seqModalDeleteWithPlansConfirm.value = false;
   seqModalMode.value = 'create';
   seqModalVisible.value = true;
 }
@@ -367,6 +370,7 @@ function openSeqEdit(sequence: PlanSequence): void {
   seqDraft.missionStatement = sequence.missionStatement ?? '';
   seqDraft.sharedMemory = sequence.sharedMemory ?? '';
   seqModalDeleteConfirm.value = false;
+  seqModalDeleteWithPlansConfirm.value = false;
   seqModalMode.value = 'edit';
   seqModalVisible.value = true;
 }
@@ -387,9 +391,20 @@ function onSeqSave(): void {
 function onSeqDelete(): void {
   if (!seqModalDeleteConfirm.value) {
     seqModalDeleteConfirm.value = true;
+    seqModalDeleteWithPlansConfirm.value = false;
     return;
   }
   emit('deleteSequence', seqDraft.id);
+  seqModalVisible.value = false;
+}
+
+function onSeqDeleteWithPlans(): void {
+  if (!seqModalDeleteWithPlansConfirm.value) {
+    seqModalDeleteWithPlansConfirm.value = true;
+    seqModalDeleteConfirm.value = false;
+    return;
+  }
+  emit('deleteSequenceWithPlans', seqDraft.id);
   seqModalVisible.value = false;
 }
 </script>
@@ -489,13 +504,23 @@ function onSeqDelete(): void {
             rx="8"
             ry="8"
           />
-          <foreignObject x="10" y="8" :width="Math.max(120, box.width - 20)" height="28">
+          <foreignObject x="10" y="8" :width="Math.max(120, box.width - 44)" height="28">
             <div
               xmlns="http://www.w3.org/1999/xhtml"
               class="plan-sequence-lane__title"
-              @click.stop="openSeqEdit(box.sequence)"
             >{{ box.sequence.title }}</div>
           </foreignObject>
+          <g
+            class="plan-seq-edit-btn"
+            :transform="`translate(${box.width - 30}, 6)`"
+            @mousedown.stop
+            @mouseup.stop
+            @click.stop="openSeqEdit(box.sequence)"
+          >
+            <title>Edit sequence</title>
+            <rect width="22" height="20" rx="4" pointer-events="all" />
+            <text x="11" y="14" text-anchor="middle">✎</text>
+          </g>
           <text
             v-if="box.isEmpty"
             class="plan-sequence-lane__placeholder"
@@ -574,14 +599,19 @@ function onSeqDelete(): void {
           <foreignObject v-if="item.stateInfo" x="8" y="78" width="184" height="16">
             <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__state-info">{{ item.stateInfo }}</div>
           </foreignObject>
-          <circle
+          <g
             v-if="item.sequenceId"
             class="plan-node__unlink"
-            cx="190"
-            cy="12"
-            r="8"
+            @mousedown.stop
+            @mouseup.stop
             @click.stop="unlinkFromSequence(item.id, $event)"
-          />
+          >
+            <title>Unlink from sequence</title>
+            <circle cx="190" cy="12" r="8" />
+            <path d="M185 12h4" />
+            <path d="M191 12h4" />
+            <path d="M188.5 9.5l3 5" />
+          </g>
           <circle
             class="plan-node__connector plan-node__connector--in"
             cx="0"
@@ -691,6 +721,12 @@ function onSeqDelete(): void {
             :class="seqModalDeleteConfirm ? 'btn--danger' : 'btn--secondary'"
             @click="onSeqDelete"
           >{{ seqModalDeleteConfirm ? 'Confirm Delete' : 'Delete' }}</button>
+          <button
+            v-if="seqModalMode === 'edit'"
+            class="btn btn--sm"
+            :class="seqModalDeleteWithPlansConfirm ? 'btn--danger' : 'btn--secondary'"
+            @click="onSeqDeleteWithPlans"
+          >{{ seqModalDeleteWithPlansConfirm ? 'Confirm Delete All' : 'Delete + Plans' }}</button>
           <button class="btn btn--secondary btn--sm" @click="seqModalVisible = false">Cancel</button>
         </div>
       </div>
@@ -704,14 +740,49 @@ function onSeqDelete(): void {
   stroke-width: 2;
 }
 .plan-node__unlink {
-  fill: none;
-  stroke: #666;
-  stroke-width: 1.5;
   cursor: pointer;
 }
-.plan-node__unlink:hover {
-  stroke: #ff6b6b;
+.plan-node__unlink circle {
+  fill: rgba(46, 58, 76, 0.92);
+  stroke: #6f86a8;
+  stroke-width: 1.5;
+  pointer-events: all;
+}
+.plan-node__unlink path {
+  fill: none;
+  stroke: #c3d2e6;
+  stroke-linecap: round;
+  stroke-width: 1.4;
+  pointer-events: none;
+}
+.plan-node__unlink:hover circle {
+  fill: rgba(58, 75, 102, 0.96);
+  stroke: #9bb7dc;
   stroke-width: 2;
+}
+.plan-node__unlink:hover path {
+  stroke: #f0f6ff;
+}
+.plan-seq-edit-btn {
+  cursor: pointer;
+}
+.plan-seq-edit-btn rect {
+  fill: #2a2a2a;
+  stroke: #555;
+  stroke-width: 1;
+}
+.plan-seq-edit-btn text {
+  fill: #aaa;
+  font-size: 12px;
+  pointer-events: none;
+  user-select: none;
+}
+.plan-seq-edit-btn:hover rect {
+  fill: #383838;
+  stroke: #888;
+}
+.plan-seq-edit-btn:hover text {
+  fill: #eee;
 }
 .plan-sequence-lane--empty rect {
   stroke-dasharray: 6 4;

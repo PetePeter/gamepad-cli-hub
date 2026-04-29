@@ -648,6 +648,10 @@ const gamepadCliAPI = {
   planBulkAssignSequence: (planIds: string[], sequenceId: string | null) =>
     ipcRenderer.invoke('plan:bulkAssignSequence', planIds, sequenceId),
 
+  /** Delete a sequence and hard-delete all its member plan items */
+  planSequenceDeleteWithPlans: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:sequence-delete-with-plans', id),
+
   /** List files attached to a plan */
   planAttachmentList: (planId: string) =>
     ipcRenderer.invoke('plan:attachment-list', planId),

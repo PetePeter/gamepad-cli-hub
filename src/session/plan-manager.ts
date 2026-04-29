@@ -234,6 +234,19 @@ export class PlanManager extends EventEmitter {
     return true;
   }
 
+  /** Delete a sequence and hard-delete all its member plan items. */
+  deleteSequenceWithPlans(id: string): boolean {
+    const sequence = this.sequences.get(id);
+    if (!sequence) return false;
+    const memberIds = [...this.items.values()]
+      .filter((p) => p.sequenceId === id)
+      .map((p) => p.id);
+    for (const planId of memberIds) {
+      this.delete(planId);
+    }
+    return this.deleteSequence(id);
+  }
+
   /** Assign or unassign a plan to a sequence in the same directory. */
   assignSequence(planId: string, sequenceId: string | null): PlanItem | null {
     const item = this.items.get(planId);

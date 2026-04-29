@@ -45,6 +45,7 @@ import {
   onPlanNodeEdit,
   onPlanRemoveDependency,
   onPlanDeleteSequence,
+  onPlanDeleteSequenceWithPlans,
   onPlanUpdateSequence,
   planScreenState,
   toggleTypeFilter,
@@ -2437,6 +2438,7 @@ onUnmounted(() => {
         @assign-sequence="onPlanAssignSequence"
         @update-sequence="onPlanUpdateSequence"
         @delete-sequence="onPlanDeleteSequence"
+        @delete-sequence-with-plans="onPlanDeleteSequenceWithPlans"
         @node-click="onPlanNodeClick"
         @edit-node="onPlanNodeEdit"
         @apply-node="onPlanNodeApply"

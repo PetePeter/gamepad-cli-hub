@@ -148,6 +148,10 @@ export function setupPlanHandlers(
     return planManager.deleteSequence(id);
   });
 
+  ipcMain.handle('plan:sequence-delete-with-plans', (_event, id: string) => {
+    return planManager.deleteSequenceWithPlans(id);
+  });
+
   ipcMain.handle('plan:sequence-assign', (_event, planId: string, sequenceId: string | null) => {
     return planManager.assignSequence(planId, sequenceId);
   });

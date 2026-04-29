@@ -1,4 +1,15 @@
 {
   "version": 1,
-  "sequences": []
+  "sequences": [
+    {
+      "id": "0344149a-26a2-47fc-abb5-eaaa637a7f15",
+      "dirPath": "X:\\coding\\gamepad-cli-hub",
+      "title": "test",
+      "missionStatement": "test",
+      "sharedMemory": "",
+      "order": 0,
+      "createdAt": 1777473896511,
+      "updatedAt": 1777473896511
+    }
+  ]
 }

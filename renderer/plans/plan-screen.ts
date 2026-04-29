@@ -735,6 +735,11 @@ export async function onPlanDeleteSequence(id: string): Promise<void> {
   await refreshCanvas();
 }
 
+export async function onPlanDeleteSequenceWithPlans(id: string): Promise<void> {
+  await window.gamepadCli.planSequenceDeleteWithPlans?.(id);
+  await refreshCanvas();
+}
+
 export function toggleRelatedFocus(): void {
   if (planScreenState.relatedFocusRootId) {
     planScreenState.relatedFocusRootId = null;
