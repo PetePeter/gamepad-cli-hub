@@ -537,7 +537,7 @@ function startDragConnection(id: string, e: MouseEvent): void {
       <select class="plan-bulk-bar__select" @change="emit('bulkAssignSequence', ($event.target as HTMLSelectElement).value || null)">
         <option value="">Assign to sequence...</option>
         <option v-for="seq in sequences" :key="seq.id" :value="seq.id">{{ seq.title }}</option>
-        <option value="">-- Unlink from sequence --</option>
+        <option value="__unlink__">-- Unlink from sequence --</option>
       </select>
       <button class="btn btn--sm" @click="emit('bulkAssignSequence', null)">Clear</button>
     </div>

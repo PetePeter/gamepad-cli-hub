@@ -663,8 +663,9 @@ export function onPlanNodeClick(id: string, event?: MouseEvent): void {
 export async function onBulkAssignSequence(sequenceId: string | null): Promise<void> {
   const ids = [...planScreenState.selectedIds];
   if (ids.length === 0) return;
+  const resolved = sequenceId === '__unlink__' ? null : sequenceId;
   try {
-    await window.gamepadCli.planBulkAssignSequence(ids, sequenceId);
+    await window.gamepadCli.planBulkAssignSequence(ids, resolved);
     planScreenState.selectedIds.clear();
     await refreshCanvas();
   } catch (err) {
