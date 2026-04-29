@@ -134,6 +134,15 @@ const sequenceBoxes = computed(() => {
 
 const hasEmptySequences = computed(() => sequenceBoxes.value.some((b) => b.isEmpty));
 
+const unlinkedZone = computed(() => {
+  const hasSequences = props.sequences.length > 0;
+  const unlinkedNodes = positionedItems.value.filter(i => !i.sequenceId);
+  if (!hasSequences || unlinkedNodes.length === 0) return null;
+  const minX = Math.min(...unlinkedNodes.map(n => n.x));
+  const minY = Math.min(...unlinkedNodes.map(n => n.y));
+  return { x: minX, y: minY - 30 };
+});
+
 const relatedFocusActive = computed(() => !!props.relatedFocusRootId);
 
 const relatedForegroundIds = computed(() => {
@@ -530,6 +539,13 @@ function onSeqDeleteWithPlans(): void {
           >Drop plans here</text>
         </g>
 
+        <text
+          v-if="unlinkedZone"
+          class="plan-unlinked-label"
+          :x="unlinkedZone.x"
+          :y="unlinkedZone.y"
+        >Unlinked</text>
+
         <path
           v-for="dep in deps"
           :key="`${dep.fromId}-${dep.toId}`"
@@ -806,5 +822,11 @@ function onSeqDeleteWithPlans(): void {
 }
 .plan-sequence-lane__title:hover {
   color: #4488ff;
+}
+.plan-unlinked-label {
+  fill: #666;
+  font-size: 13px;
+  font-weight: 600;
+  user-select: none;
 }
 </style>

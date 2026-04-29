@@ -333,24 +333,27 @@ describe('computeLayout', () => {
 describe('sequence group spacing', () => {
   const seqOpts: LayoutOptions = { ...defaultOpts, sequenceGroupGap: 68 };
 
-  it('adds vertical gap between sequence member and non-member in same layer', () => {
+  it('places unlinked items in a separate right-side zone', () => {
     const items = [item('A', '/p', 'seq1'), item('B', '/p')];
     const deps: PlanDependency[] = [];
     const result = computeLayout(items, deps, seqOpts);
     const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
 
-    // A (seq1) at y=60, B (no seq) at y=60+140+68=268
+    // A (seq1) in left zone, B (no seq) in right zone
     expect(nodeMap.get('A')!.y).toBe(60);
-    expect(nodeMap.get('B')!.y).toBe(60 + 140 + 68);
+    expect(nodeMap.get('B')!.y).toBe(60);
+    expect(nodeMap.get('B')!.x).toBeGreaterThan(nodeMap.get('A')!.x);
   });
 
-  it('adds gap between non-member and sequence member', () => {
+  it('places sequenced items in left zone when unlinked comes first', () => {
     const items = [item('A', '/p'), item('B', '/p', 'seq1')];
     const result = computeLayout(items, [] as PlanDependency[], seqOpts);
     const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
 
+    // A (no seq) in right zone, B (seq1) in left zone
     expect(nodeMap.get('A')!.y).toBe(60);
-    expect(nodeMap.get('B')!.y).toBe(60 + 140 + 68);
+    expect(nodeMap.get('B')!.y).toBe(60);
+    expect(nodeMap.get('A')!.x).toBeGreaterThan(nodeMap.get('B')!.x);
   });
 
   it('does not add gap when all nodes in layer share same sequence', () => {
@@ -371,7 +374,7 @@ describe('sequence group spacing', () => {
     expect(nodeMap.get('B')!.y).toBe(60 + 140);
   });
 
-  it('handles multiple sequence transitions in one layer', () => {
+  it('partitions sequenced and unlinked into separate horizontal zones', () => {
     const items = [
       item('A', '/p', 'seq1'),
       item('B', '/p', 'seq1'),
@@ -382,23 +385,30 @@ describe('sequence group spacing', () => {
     const result = computeLayout(items, [], seqOpts);
     const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
 
-    // A,B same seq → no gap. B→C transition → gap. C→D transition → gap. D→E transition → gap.
-    const baseY = 60;
-    const spacing = 140;
-    const gap = 68;
-    expect(nodeMap.get('A')!.y).toBe(baseY);
-    expect(nodeMap.get('B')!.y).toBe(baseY + spacing);
-    expect(nodeMap.get('C')!.y).toBe(baseY + spacing * 2 + gap);
-    expect(nodeMap.get('D')!.y).toBe(baseY + spacing * 3 + gap * 2);
-    expect(nodeMap.get('E')!.y).toBe(baseY + spacing * 4 + gap * 3);
+    // Sequenced items (A, B, D) in left zone
+    const seqNodes = [nodeMap.get('A')!, nodeMap.get('B')!, nodeMap.get('D')!];
+    // Unlinked items (C, E) in right zone
+    const unlinkNodes = [nodeMap.get('C')!, nodeMap.get('E')!];
+
+    const seqMinX = Math.min(...seqNodes.map(n => n.x));
+    const unlinkMinX = Math.min(...unlinkNodes.map(n => n.x));
+
+    // Unlinked zone is to the right of sequenced zone
+    expect(unlinkMinX).toBeGreaterThan(seqMinX);
+
+    // All items have valid Y coordinates (vertical layout within each zone)
+    for (const n of result.nodes) {
+      expect(n.y).toBeGreaterThanOrEqual(60);
+    }
   });
 
-  it('increases canvas height to accommodate gaps and sequence box padding', () => {
+  it('canvas width accommodates both zones with gap', () => {
     const items = [item('A', '/p', 's1'), item('B', '/p')];
     const result = computeLayout(items, [], seqOpts);
+    const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
 
-    // height = max(y + nodeHeight) + paddingY + sequenceBoxBottomPadding
-    // = (60 + 140 + 68 + 80) + 60 + 26 = 434
-    expect(result.height).toBe(60 + 140 + 68 + 80 + 60 + 26);
+    // Canvas width must be larger than the rightmost node
+    const rightmostX = Math.max(nodeMap.get('A')!.x, nodeMap.get('B')!.x);
+    expect(result.width).toBeGreaterThan(rightmostX);
   });
 });

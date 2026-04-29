@@ -53,6 +53,9 @@ const DEFAULTS: Required<LayoutOptions> = {
 /**
  * Compute left-to-right layered layout for a set of plan items and dependencies.
  * Empty input returns empty layout. Handles disconnected components.
+ *
+ * When sequences exist, unlinked plans are partitioned into a separate
+ * right-side zone with a visual gap from the sequence-grouped plans.
  */
 export function computeLayout(
   items: PlanItem[],
@@ -64,10 +67,52 @@ export function computeLayout(
   }
 
   const opts = { ...DEFAULTS, ...options };
+  const hasSequences = items.some(i => !!i.sequenceId);
+
+  if (!hasSequences) {
+    return layoutGroup(items, dependencies, opts);
+  }
+
+  // Partition into sequenced and unlinked
+  const sequencedItems = items.filter(i => !!i.sequenceId);
+  const unlinkedItems = items.filter(i => !i.sequenceId);
+
+  // If everything is sequenced (or nothing), no partitioning needed
+  if (unlinkedItems.length === 0) {
+    return layoutGroup(items, dependencies, opts);
+  }
+
+  // Layout sequenced items first
+  const seqLayout = layoutGroup(sequencedItems, dependencies, opts);
+  const seqMaxLayer = seqLayout.nodes.reduce((max, n) => Math.max(max, n.layer), -1);
+
+  // Layout unlinked items
+  const unlinkLayout = layoutGroup(unlinkedItems, dependencies, opts);
+
+  // Offset unlinked nodes to the right of sequenced area
+  const unlinkOffset = seqLayout.width + opts.sequenceGroupGap;
+  for (const node of unlinkLayout.nodes) {
+    node.x += unlinkOffset;
+  }
+
+  // Merge and compute overall dimensions
+  const merged = [...seqLayout.nodes, ...unlinkLayout.nodes];
+  let maxY = 0;
+  for (const n of merged) maxY = Math.max(maxY, n.y + opts.nodeHeight);
+  const totalWidth = Math.max(seqLayout.width, unlinkOffset + unlinkLayout.width);
+
+  return { nodes: merged, width: totalWidth, height: maxY + opts.paddingY + 26 };
+}
+
+/** Run the full layout pipeline for a single group of items. */
+function layoutGroup(
+  items: PlanItem[],
+  dependencies: PlanDependency[],
+  opts: Required<LayoutOptions>,
+): LayoutResult {
   const ids = new Set(items.map(i => i.id));
   const deps = dependencies.filter(d => ids.has(d.fromId) && ids.has(d.toId));
 
-  // Build adjacency lists
   const outgoing = new Map<string, string[]>();
   const incoming = new Map<string, string[]>();
   for (const id of ids) {
@@ -79,22 +124,12 @@ export function computeLayout(
     incoming.get(d.toId)!.push(d.fromId);
   }
 
-  // Step 1: Topological sort (Kahn's algorithm)
   const sorted = topologicalSort(ids, outgoing, incoming);
-
-  // Step 2: Layer assignment (longest path from roots)
   const layers = assignLayers(sorted, incoming);
-
-  // Step 3: Group nodes by layer
   const layerGroups = groupByLayer(sorted, layers);
-
-  // Step 4: Within-layer ordering (barycenter heuristic — 2 passes)
   orderWithinLayers(layerGroups, outgoing, incoming);
-
-  // Step 5: Coordinate assignment
   const rawLayout = assignCoordinates(layerGroups, opts);
 
-  // Step 6: Sequence group spacing — insert vertical gaps at sequence boundaries
   const hasSequences = items.some(i => !!i.sequenceId);
   if (hasSequences) {
     const sequenceMap = new Map(items.map(i => [i.id, i.sequenceId]));
