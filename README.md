@@ -18,12 +18,16 @@ Helm is an Electron desktop app that lets you control multiple AI coding CLI ses
 
 - **Multi-CLI workflows** — Run Claude Code, Copilot CLI, Codex CLI, and other AI tools side-by-side in embedded terminals
 - **Physical controls** — D-pad, buttons, and analog sticks replace keyboard shortcuts. Works with Xbox controllers and generic/DirectInput gamepads
-- **Session groups** — Sessions grouped by working directory with collapsible headers and a live preview grid
-- **Directory planning** — Per-folder plan graph with startable/doing/done states, plan chips, and quick apply/complete actions
+- **Session groups** — Sessions grouped by working directory with collapsible headers, bookmarks, and a live preview grid
+- **Directory planning** — Per-folder plan graph with startable/doing/done states, plan sequences, shared memory, and plan chips
+- **Pattern matcher** — Auto-fire sequences when PTY output matches regex rules, with per-session cooldown and scheduled sends
+- **Scheduled tasks** — One-time or recurring prompts with spawn or direct-to-session delivery
 - **Drafts + chip bar** — Keep prompt drafts beside the active terminal and trigger reusable quick actions with template expansions
-- **Telegram bot** — Remote session control, output monitoring, and spawning from your phone
+- **Telegram bot** — Remote session control, activity-gated output monitoring, and spawning from your phone
+- **Plan backups** — Rolling snapshots per directory with one-click restore
 - **Voice control ready** — Designed to work with OpenWhisper for voice-to-text input
 - **Session recovery** — Sessions survive app crashes and restarts, with per-CLI resume commands and snapped-out window recovery
+- **Helm MCP server** — Control sessions from Claude Code or other AI agents via MCP tools (send text, read terminal, manage plans)
 
 ---
 
@@ -242,6 +246,48 @@ Profiles let you keep different setups for different workflows. You can switch p
 | `scroll` | Scroll the terminal buffer up/down |
 | `context-menu` | Open the context menu overlay |
 | `sequence-list` | Show a picker of named sequences (reference a group or inline items) |
+| `new-draft` | Open the draft editor for the active session |
+
+---
+
+## Scheduled Tasks
+
+Schedule prompts to run automatically at a specific time or on a recurring interval.
+
+Two modes:
+- **Spawn** — Creates a new CLI session, delivers the prompt, then tears down
+- **Direct** — Sends the prompt to an existing session (pick from dropdown filtered by directory)
+
+Schedule from the Sessions screen via the scheduler section or from Settings.
+
+---
+
+## Pattern Matcher
+
+Define per-CLI regex rules that auto-fire when PTY output matches. Two action types:
+
+- **send-text** — Immediately sends a sequence to the PTY
+- **wait-until** — Parses a time from the matched output and fires at that time
+
+Rules have per-session cooldowns to prevent rapid re-triggering. Pending schedules are cancellable from the session card.
+
+---
+
+## Plan Sequences
+
+Group related plans into sequences with shared memory. Sequences render as labeled lanes in the planner canvas with distinct bounding boxes.
+
+---
+
+## Plan Backups
+
+Automatic rolling-window snapshots of plan data per directory. Restore from the planner screen or Settings.
+
+---
+
+## Helm MCP Server
+
+Control sessions from Claude Code or other AI agents via MCP tools (send text, read terminal, manage plans, etc.). The MCP server starts automatically with the app.
 
 ## Build & Test
 
