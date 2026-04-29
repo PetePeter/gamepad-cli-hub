@@ -232,15 +232,18 @@ export class TerminalManager {
       requestAnimationFrame(() => {
         this.pendingFitRaf = null;
         if (this.activeSessionId !== sessionId) return;
+        const beforeFit = session.view.getDimensions();
         session.view.fit();
         session.view.focus();
 
-        // Force PTY resize sync — xterm.js only fires onResize when dims
-        // change, so after snap-back the PTY may retain the external window's
-        // narrower dimensions. Unconditionally push to keep PTY in sync.
-        if (window.gamepadCli?.ptyResize) {
-          const { cols, rows } = session.view.getDimensions();
-          window.gamepadCli.ptyResize(sessionId, cols, rows);
+        // xterm.js emits onResize when fit changes dimensions. If dimensions
+        // are unchanged, force one sync for snap-back cases where the main PTY
+        // may still remember the detached window size.
+        const afterFit = session.view.getDimensions();
+        if (window.gamepadCli?.ptyResize &&
+            beforeFit.cols === afterFit.cols &&
+            beforeFit.rows === afterFit.rows) {
+          window.gamepadCli.ptyResize(sessionId, afterFit.cols, afterFit.rows);
         }
       });
     });

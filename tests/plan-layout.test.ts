@@ -393,11 +393,12 @@ describe('sequence group spacing', () => {
     expect(nodeMap.get('E')!.y).toBe(baseY + spacing * 4 + gap * 3);
   });
 
-  it('increases canvas height to accommodate gaps', () => {
+  it('increases canvas height to accommodate gaps and sequence box padding', () => {
     const items = [item('A', '/p', 's1'), item('B', '/p')];
     const result = computeLayout(items, [], seqOpts);
 
-    // height = max(y + nodeHeight) + paddingY = (60 + 140 + 68 + 80) + 60 = 408
-    expect(result.height).toBe(60 + 140 + 68 + 80 + 60);
+    // height = max(y + nodeHeight) + paddingY + sequenceBoxBottomPadding
+    // = (60 + 140 + 68 + 80) + 60 + 26 = 434
+    expect(result.height).toBe(60 + 140 + 68 + 80 + 60 + 26);
   });
 });

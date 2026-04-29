@@ -35,6 +35,7 @@ import {
   hideOverview,
   isCardCollapsed,
   isOverviewVisible,
+  refreshOverview,
   selectOverviewCard,
   setActivityLevelGetter,
   setOutputBuffer,
@@ -118,6 +119,18 @@ describe('group-overview', () => {
     showOverview('/project', 's2');
 
     expect(sessionsState.overviewFocusIndex).toBe(1);
+  });
+
+  it('clamps a negative focus index during refresh', () => {
+    state.sessions = [
+      { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project', processId: 0 },
+    ];
+
+    showOverview('/project');
+    sessionsState.overviewFocusIndex = -1;
+    refreshOverview();
+
+    expect(sessionsState.overviewFocusIndex).toBe(0);
   });
 
   it('persists collapse state across reopen', () => {

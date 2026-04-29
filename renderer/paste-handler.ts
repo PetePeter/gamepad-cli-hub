@@ -191,14 +191,18 @@ export function setupKeyboardRelay(
     }
 
     // Ctrl+V paste — always intercept, even when xterm has focus
-    // (xterm.js doesn't reliably handle paste from clipboard)
-    // Placed before modal guard: paste is terminal-directed, and clippaste
-    // mode needs to reach deliverBulkText even when modals are visible.
-    // Still respects plan screen and draft editor blocks since those views
-    // consume keyboard input themselves.
+    // (xterm.js doesn't reliably handle paste from clipboard). Clippaste
+    // needs to pass through visible modals so it can focus the terminal sink,
+    // but normal paste modes must keep modal guards authoritative.
     if (e.ctrlKey && e.key === 'v') {
       if (document.querySelector('.plan-screen.visible')) return;
       if (isDraftEditorVisible()) return;
+      const session = state.sessions.find(s => s.id === sessionId);
+      const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
+      if (document.querySelector('.modal-overlay.modal--visible') && tool?.pasteMode !== 'clippaste') {
+        e.stopPropagation();
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       if (pasteInFlight) return;

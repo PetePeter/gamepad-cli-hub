@@ -2103,7 +2103,7 @@ onMounted(async () => {
     setLegacyDraftEditorOpener(openDraftEditor);
     setLegacyPlanEditorOpener(openPlanEditor);
     setLegacyDraftEditorCloser(closeDraftEditor);
-    setLegacyDraftEditorVisibilityChecker(() => draftEditorVisible.value && draftEditorRef.value !== null);
+    setLegacyDraftEditorVisibilityChecker(() => draftEditorVisible.value);
     setLegacyDraftEditorButtonHandler((button: string) => {
       if (!draftEditorRef.value) {
         console.warn('[DraftEditor] button handler called but ref is null');
@@ -2118,7 +2118,7 @@ onMounted(async () => {
 
     setPlanScreenPlanEditorOpener(openPlanEditor);
     setPlanScreenDraftEditorCloser(closeDraftEditor);
-    setPlanScreenDraftEditorVisibilityChecker(() => draftEditorVisible.value && draftEditorRef.value !== null);
+    setPlanScreenDraftEditorVisibilityChecker(() => draftEditorVisible.value);
     setPlanScreenPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
     setPlanScreenBackupRestoreOpener(openBackupRestore);
 

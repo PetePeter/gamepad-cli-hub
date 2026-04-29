@@ -393,6 +393,36 @@ describe('TerminalManager', () => {
     mgr.dispose();
   });
 
+  it('switchTo relies on xterm onResize when fit changes dimensions', async () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      callback(0);
+      return 1;
+    }) as typeof requestAnimationFrame;
+    const mgr = new TerminalManager(container);
+    await mgr.createTerminal('s1', 'aider', 'aider');
+    await mgr.createTerminal('s2', 'claude', 'claude');
+    mockGamepadCli.ptyResize.mockClear();
+
+    const targetSession = mgr.getSession('s2')!;
+    const targetTerminal = terminalInstances[terminalInstances.length - 1];
+    vi.spyOn(targetSession.view, 'getDimensions')
+      .mockReturnValueOnce({ cols: 100, rows: 25 })
+      .mockReturnValue({ cols: 120, rows: 30 });
+    vi.spyOn(targetSession.view, 'fit').mockImplementation(() => {
+      const resizeCallback = targetTerminal.onResize.mock.calls[0][0];
+      resizeCallback({ cols: 120, rows: 30 });
+    });
+
+    mgr.switchTo('s2');
+
+    expect(mockGamepadCli.ptyResize).toHaveBeenCalledTimes(1);
+    expect(mockGamepadCli.ptyResize).toHaveBeenCalledWith('s2', 120, 30);
+
+    mgr.dispose();
+    globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+  });
+
   it('switchTo with unknown ID is a no-op', async () => {
     const mgr = new TerminalManager(container);
     await mgr.createTerminal('s1', 'aider', 'aider');

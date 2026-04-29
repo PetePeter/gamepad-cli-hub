@@ -101,7 +101,7 @@ export function computeLayout(
     const adjusted = applySequenceGroupSpacing(rawLayout.nodes, layerGroups, sequenceMap, opts);
     let maxY = 0;
     for (const n of adjusted) maxY = Math.max(maxY, n.y + opts.nodeHeight);
-    return { nodes: adjusted, width: rawLayout.width, height: maxY + opts.paddingY };
+    return { nodes: adjusted, width: rawLayout.width, height: maxY + opts.paddingY + 26 };
   }
 
   return rawLayout;

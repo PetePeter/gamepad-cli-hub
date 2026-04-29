@@ -208,6 +208,23 @@ describe('plan screen bridge', () => {
     expect(mod.getSelectedPlanId()).toBe('b');
   });
 
+  it('Escape clears multi-select bulk selection', async () => {
+    const mod = await getModule();
+    const items = [planItem('a'), planItem('b')];
+    mockPlanList.mockResolvedValue(items);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a', 'b']));
+
+    await mod.showPlanScreen('/test/dir');
+    mod.planScreenState.selectedId = null;
+    mod.planScreenState.selectedIds.add('a');
+    mod.planScreenState.selectedIds.add('b');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+
+    expect(mod.planScreenState.selectedIds.size).toBe(0);
+  });
+
   it('computes related focus across dependency chains in either direction', async () => {
     const mod = await getModule();
     const related = mod.computeConnectedPlanIds('b', [

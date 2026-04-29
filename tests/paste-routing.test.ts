@@ -67,6 +67,9 @@ describe('keyboard relay', () => {
     mockPtyWrite = vi.fn().mockResolvedValue({ success: true });
     getActiveSessionId = vi.fn().mockReturnValue(null);
     hasPendingQuestion = vi.fn().mockReturnValue(false);
+    mockState.sessions = [];
+    mockState.cliToolsCache = {};
+    mockGetTerminalManager.mockReturnValue(null);
     mockShowEditorPopup.mockReset();
     mockShowEditorPopup.mockResolvedValue('editor text');
 
@@ -344,15 +347,36 @@ describe('keyboard relay', () => {
       document.body.removeChild(overlay);
     });
 
-    it('allows Ctrl+V paste even when a modal overlay is visible (paste is terminal-directed)', async () => {
+    it('blocks Ctrl+V paste for default PTY mode when a modal overlay is visible', async () => {
       getActiveSessionId.mockReturnValue('sess-1');
+      mockState.sessions = [{ id: 'sess-1', cliType: 'codex' }];
+      navigator.clipboard.readText.mockResolvedValue('hello');
+
+      fireKey('v', { ctrlKey: true });
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(navigator.clipboard.readText).not.toHaveBeenCalled();
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+    });
+
+    it('allows Ctrl+V paste for clippaste mode when a modal overlay is visible', async () => {
+      const paste = vi.fn();
+      getActiveSessionId.mockReturnValue('sess-1');
+      mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+      mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
+      mockGetTerminalManager.mockReturnValue({
+        getSession: vi.fn().mockReturnValue({
+          view: { focus: vi.fn(), paste },
+        }),
+      });
       navigator.clipboard.readText.mockResolvedValue('hello');
 
       fireKey('v', { ctrlKey: true });
       await new Promise(r => setTimeout(r, 10));
 
       expect(navigator.clipboard.readText).toHaveBeenCalled();
-      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello');
+      expect(paste).toHaveBeenCalledWith('hello');
+      expect(mockPtyWrite).not.toHaveBeenCalled();
     });
 
     it('blocks printable key relay when a modal overlay is visible', () => {

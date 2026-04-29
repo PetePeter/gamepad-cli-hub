@@ -331,6 +331,10 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
       planScreenState.selectedId = null;
       return;
     }
+    if (planScreenState.selectedIds.size > 0) {
+      planScreenState.selectedIds.clear();
+      return;
+    }
     return;
   }
 

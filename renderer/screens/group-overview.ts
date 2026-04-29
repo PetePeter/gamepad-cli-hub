@@ -161,7 +161,7 @@ export function refreshOverview(): void {
   if (!isOverviewVisible()) return;
   const sessionCount = getOverviewSessions().length;
   sessionsState.overviewFocusIndex = sessionCount > 0
-    ? Math.min(sessionsState.overviewFocusIndex, sessionCount - 1)
+    ? Math.max(0, Math.min(sessionsState.overviewFocusIndex, sessionCount - 1))
     : 0;
 }
 
