@@ -16,6 +16,7 @@ import type { PtyManager } from './pty-manager.js';
 import type { PlanManager } from './plan-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
 import { scheduleInitialPrompt } from './initial-prompt.js';
+import { mintSessionAuthToken } from '../mcp/session-auth.js';
 
 const PENDING_STATUSES = new Set<ScheduledTaskStatus>(['pending', 'executing']);
 const MIN_INTERVAL_MS = 60_000;
@@ -251,8 +252,13 @@ export class ScheduledTaskManager extends EventEmitter {
       const previousActiveSessionId = this.sessionManager.getActiveSession()?.id ?? null;
       const sessionId = randomUUID();
       const cliSessionName = randomUUID();
-      const env = {
-        HELM_SESSION_ID: randomUUID(),
+      const mcpConfig = this.configLoader.getMcpConfig?.() ?? { authToken: '', port: 47373 };
+      const mcpToken = mintSessionAuthToken(mcpConfig.authToken, sessionId, `[scheduled] ${task.title}`);
+      const env: Record<string, string> = {
+        HELM_SESSION_ID: sessionId,
+        HELM_SESSION_NAME: `[scheduled] ${task.title}`,
+        HELM_MCP_TOKEN: mcpToken,
+        HELM_MCP_URL: `http://127.0.0.1:${mcpConfig.port}/mcp`,
       };
 
       const cliConfig = this.configLoader.getCliTypeEntry(task.cliType);
@@ -303,28 +309,42 @@ export class ScheduledTaskManager extends EventEmitter {
         }
       }
 
-      // Construct and deliver prompt via scheduleInitialPrompt for delay + sequence support
+      // Build task prompt (with optional plan references)
       let prompt = task.initialPrompt;
       if (task.planIds.length > 0) {
         const planRefs = task.planIds.map(id => `- ${id}`).join('\n');
         prompt = `${task.initialPrompt}\n\nPlan references:\n${planRefs}`;
       }
-
       const trimmed = prompt.trim();
-      if (trimmed.length > 0) {
-        const seq = !/[{] *(?:send|enter) *[]}$/i.test(trimmed)
-          ? `${trimmed} {Send}`
-          : trimmed;
-        const cancel = scheduleInitialPrompt(
-          sessionId,
-          {
-            initialPrompt: [{ label: 'scheduled-prompt', sequence: seq }],
-            initialPromptDelay: cliConfig.initialPromptDelay,
-          },
-          (sid, data) => this.ptyManager.write(sid, data),
-          (sid, text) => this.ptyManager.deliverText(sid, text),
-        );
-        if (cancel) this.promptCancellers.set(sessionId, cancel);
+
+      // CLI init sequences (helmInitialPrompt + profile initialPrompt + rename) fire first.
+      // Task user prompt fires as onComplete callback — after CLI is ready.
+      const renameCommand = cliConfig.renameCommand
+        ? cliConfig.renameCommand.replaceAll('{cliSessionName}', cliSessionName)
+        : undefined;
+
+      const deliverTaskPrompt = trimmed.length > 0
+        ? () => { void this.ptyManager.deliverText(sessionId, trimmed); }
+        : undefined;
+
+      const cancel = scheduleInitialPrompt(
+        sessionId,
+        {
+          initialPrompt: cliConfig.initialPrompt,
+          initialPromptDelay: cliConfig.initialPromptDelay,
+          helmInitialPrompt: cliConfig.helmInitialPrompt,
+          renameCommand,
+        },
+        (sid, data) => this.ptyManager.write(sid, data),
+        (sid, text) => this.ptyManager.deliverText(sid, text),
+        deliverTaskPrompt,
+      );
+      if (cancel) {
+        this.promptCancellers.set(sessionId, cancel);
+      } else if (deliverTaskPrompt) {
+        // No CLI init sequences — deliver task prompt directly after delay
+        const fallbackTimer = setTimeout(deliverTaskPrompt, cliConfig.initialPromptDelay ?? 2000);
+        this.promptCancellers.set(sessionId, () => clearTimeout(fallbackTimer));
       }
 
       task.lastRunAt = Date.now();
