@@ -962,4 +962,71 @@ describe('PlanManager', () => {
       expect(pm.getItem(inOther.id)!.status).toBe('done');
     });
   });
+
+  describe('bulkAssignSequence', () => {
+    it('assigns sequenceId to multiple plans in same dir', () => {
+      const a = pm.create('/proj', 'A', '');
+      const b = pm.create('/proj', 'B', '');
+      const seq = pm.createSequence('/proj', 'my-seq');
+
+      const count = pm.bulkAssignSequence([a.id, b.id], seq.id);
+
+      expect(count).toBe(2);
+      expect(pm.getItem(a.id)!.sequenceId).toBe(seq.id);
+      expect(pm.getItem(b.id)!.sequenceId).toBe(seq.id);
+      expect(persistence.savePlanFile).toHaveBeenCalledTimes(6);
+    });
+
+    it('returns 0 for empty planIds array', () => {
+      expect(pm.bulkAssignSequence([], 'seq1')).toBe(0);
+    });
+
+    it('returns 0 for unknown plan id', () => {
+      expect(pm.bulkAssignSequence(['ghost'], 'seq1')).toBe(0);
+    });
+
+    it('skips plans from a different dirPath', () => {
+      const a = pm.create('/proj', 'A', '');
+      const b = pm.create('/other', 'B', '');
+      const seq = pm.createSequence('/proj', 's');
+
+      const count = pm.bulkAssignSequence([a.id, b.id], seq.id);
+
+      expect(count).toBe(1);
+      expect(pm.getItem(a.id)!.sequenceId).toBe(seq.id);
+      expect(pm.getItem(b.id)!.sequenceId).toBeUndefined();
+    });
+
+    it('accepts null sequenceId to unlink from sequence', () => {
+      const a = pm.create('/proj', 'A', '');
+      const seq = pm.createSequence('/proj', 's');
+      pm.assignSequence(a.id, seq.id);
+
+      const count = pm.bulkAssignSequence([a.id], null);
+
+      expect(count).toBe(1);
+      expect(pm.getItem(a.id)!.sequenceId).toBeUndefined();
+    });
+
+    it('skips plans when sequence dirPath does not match', () => {
+      const a = pm.create('/proj', 'A', '');
+      const seq = pm.createSequence('/other', 'wrong-dir');
+
+      const count = pm.bulkAssignSequence([a.id], seq.id);
+
+      expect(count).toBe(0);
+      expect(pm.getItem(a.id)!.sequenceId).toBeUndefined();
+    });
+
+    it('emits plan:changed after successful update', () => {
+      const a = pm.create('/proj', 'A', '');
+      const seq = pm.createSequence('/proj', 's');
+      const handler = vi.fn();
+      pm.on('plan:changed', handler);
+
+      pm.bulkAssignSequence([a.id], seq.id);
+
+      expect(handler).toHaveBeenCalledWith('/proj');
+    });
+  });
 });
