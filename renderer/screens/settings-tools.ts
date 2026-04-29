@@ -202,7 +202,7 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
   toolEditor.initialData = {
     name: value.name || key,
     env: Array.isArray(value.env)
-      ? value.env.map((i: any) => ({ name: i.name || '', value: i.value || '' }))
+      ? value.env.map((i: any) => ({ name: i.name || '', value: i.value || '', mode: i.mode || 'replace' }))
       : [],
     initialPromptDelay: value.initialPromptDelay ?? 0,
     pasteMode: value.pasteMode || 'pty',
@@ -238,7 +238,7 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
 }
 
 /** Build the optional command fields from tool editor result. Empty string = clear. */
-function buildCommandOptionsFromToolEditor(values: any): { env?: Array<{ name: string; value: string }>; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; helmInitialPrompt?: boolean; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' } | undefined {
+function buildCommandOptionsFromToolEditor(values: any): { env?: Array<{ name: string; value: string; mode?: string }>; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; helmInitialPrompt?: boolean; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' } | undefined {
   const fields = ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
   const opts: Record<string, string> = {};
   let hasAny = false;
@@ -252,6 +252,7 @@ function buildCommandOptionsFromToolEditor(values: any): { env?: Array<{ name: s
       .map((item: any) => ({
         name: typeof item?.name === 'string' ? item.name.trim() : '',
         value: typeof item?.value === 'string' ? item.value : '',
+        ...(item.mode === 'append' || item.mode === 'prepend' ? { mode: item.mode } : {}),
       }))
       .filter((item: { name: string; value: string }) => item.name.length > 0)
     : [];

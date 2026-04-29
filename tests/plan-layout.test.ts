@@ -24,11 +24,11 @@ function item(id: string, dirPath = '/proj', sequenceId?: string): PlanItem {
 
 const defaultOpts: LayoutOptions = {
   horizontalSpacing: 280,
-  verticalSpacing: 140,
+  verticalSpacing: 150,
   paddingX: 60,
   paddingY: 60,
   nodeWidth: 200,
-  nodeHeight: 80,
+  nodeHeight: 102,
 };
 
 describe('computeLayout', () => {
@@ -178,9 +178,9 @@ describe('computeLayout', () => {
     // Width = max(x + nodeWidth) + paddingX = (340 + 200) + 60 = 600
     expect(result.width).toBe(600);
 
-    // Layer 1 has 2 nodes: y=60, y=200
-    // Height = max(y + nodeHeight) + paddingY = (200 + 80) + 60 = 340
-    expect(result.height).toBe(340);
+    // Layer 1 has 2 nodes: y=60, y=210
+    // Height = max(y + nodeHeight) + paddingY = (210 + 102) + 60 = 372
+    expect(result.height).toBe(372);
   });
 
   // ─── Deterministic output ─────────────────────────────
@@ -362,7 +362,7 @@ describe('sequence group spacing', () => {
     const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
 
     expect(nodeMap.get('A')!.y).toBe(60);
-    expect(nodeMap.get('B')!.y).toBe(60 + 140);
+    expect(nodeMap.get('B')!.y).toBe(60 + 150);
   });
 
   it('does not add gap when no nodes have a sequenceId', () => {
@@ -371,7 +371,7 @@ describe('sequence group spacing', () => {
     const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
 
     expect(nodeMap.get('A')!.y).toBe(60);
-    expect(nodeMap.get('B')!.y).toBe(60 + 140);
+    expect(nodeMap.get('B')!.y).toBe(60 + 150);
   });
 
   it('partitions sequenced and unlinked into separate horizontal zones', () => {

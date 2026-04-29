@@ -123,6 +123,19 @@ const sequenceBoxes = computed(() => {
     }
   }
 
+  // Push overlapping sequence boxes apart vertically (sorted by y, then by x)
+  populated.sort((a, b) => a.y - b.y || a.x - b.x);
+  const SEQ_BOX_GAP = 20;
+  for (let i = 1; i < populated.length; i++) {
+    const prev = populated[i - 1]!;
+    const cur = populated[i]!;
+    // Check horizontal overlap
+    const hOverlap = cur.x < prev.x + prev.width && cur.x + cur.width > prev.x;
+    if (hOverlap && cur.y < prev.y + prev.height + SEQ_BOX_GAP) {
+      cur.y = prev.y + prev.height + SEQ_BOX_GAP;
+    }
+  }
+
   const emptyRowY = Math.max(props.layout.height, 600) + 80;
   for (let i = 0; i < empty.length; i++) {
     empty[i]!.x = 20 + i * (EMPTY_SEQ_W + 20);

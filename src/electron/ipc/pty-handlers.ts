@@ -5,7 +5,7 @@ import type { StateDetector } from '../../session/state-detector.js';
 import type { PatternMatcher } from '../../session/pattern-matcher.js';
 import type { SessionManager } from '../../session/manager.js';
 import type { PipelineQueue } from '../../session/pipeline-queue.js';
-import type { ConfigLoader } from '../../config/loader.js';
+import { resolveEnvWithMode, type ConfigLoader } from '../../config/loader.js';
 import { type SessionState, VALID_SESSION_STATES } from '../../types/session.js';
 import { scheduleInitialPrompt } from '../../session/initial-prompt.js';
 import type { NotificationManager } from '../../session/notification-manager.js';
@@ -54,11 +54,7 @@ function resolveToolEnv(
   if (!cliType || !configLoader) return buildHelmManagedEnv(configLoader, helmSession);
   try {
     const envEntries = configLoader.getCliTypeEntry?.(cliType)?.env;
-    const env = Object.fromEntries(
-      (envEntries ?? [])
-        .filter(entry => typeof entry?.name === 'string' && entry.name.trim().length > 0)
-        .map(entry => [entry.name.trim(), resolveEnvValue(typeof entry?.value === 'string' ? entry.value : '')]),
-    );
+    const env = resolveEnvWithMode(envEntries ?? [], process.env as Record<string, string | undefined>, resolveEnvValue);
     return buildHelmManagedEnv(configLoader, helmSession, env);
   } catch {
     return buildHelmManagedEnv(configLoader, helmSession);

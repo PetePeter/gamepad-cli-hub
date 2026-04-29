@@ -42,11 +42,11 @@ export interface LayoutOptions {
 
 const DEFAULTS: Required<LayoutOptions> = {
   horizontalSpacing: 280,
-  verticalSpacing: 140,
+  verticalSpacing: 150,
   paddingX: 60,
   paddingY: 60,
   nodeWidth: 200,
-  nodeHeight: 80,
+  nodeHeight: 102,
   sequenceGroupGap: 68,
 };
 

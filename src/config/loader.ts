@@ -98,6 +98,8 @@ export interface SpawnConfig {
 export interface EnvVarEntry {
   name: string;
   value: string;
+  /** How to merge with existing process env. Default: 'replace'. */
+  mode?: 'replace' | 'append' | 'prepend';
 }
 
 export function parseCliArgs(argsText?: string): string[] {
@@ -150,6 +152,34 @@ export function parseCliArgs(argsText?: string): string[] {
   if (escaping) current += '\\';
   if (current) args.push(current);
   return args;
+}
+
+/**
+ * Resolve an array of EnvVarEntry into a flat env record.
+ * Handles append/prepend by joining with the OS path delimiter.
+ */
+export function resolveEnvWithMode(
+  entries: EnvVarEntry[],
+  existingEnv: Record<string, string | undefined>,
+  resolveValue: (raw: string) => string,
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const entry of entries) {
+    if (!entry.name.trim()) continue;
+    const name = entry.name.trim();
+    const value = resolveValue(entry.value);
+    const mode = entry.mode ?? 'replace';
+    if (mode === 'prepend') {
+      const existing = existingEnv[name] ?? '';
+      env[name] = value ? `${value}${path.delimiter}${existing}` : existing;
+    } else if (mode === 'append') {
+      const existing = existingEnv[name] ?? '';
+      env[name] = value ? `${existing}${path.delimiter}${value}` : existing;
+    } else {
+      env[name] = value;
+    }
+  }
+  return env;
 }
 
 export interface CliTypeConfig {
@@ -425,6 +455,7 @@ function normalizeToolConfig(tool: any): boolean {
         .map((entry: any) => ({
           name: typeof entry?.name === 'string' ? entry.name.trim() : '',
           value: typeof entry?.value === 'string' ? entry.value : '',
+          ...(entry.mode === 'append' || entry.mode === 'prepend' ? { mode: entry.mode } : {}),
         }))
         .filter((entry: EnvVarEntry) => entry.name.length > 0)
       : [];

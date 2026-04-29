@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { logger } from '../utils/logger.js';
-import { type ConfigLoader } from '../config/loader.js';
+import { resolveEnvWithMode, type ConfigLoader } from '../config/loader.js';
 import { scheduleInitialPrompt } from '../session/initial-prompt.js';
 import type { PlanManager, PlanRefResolution } from '../session/plan-manager.js';
 import type { SessionManager } from '../session/manager.js';
@@ -1073,11 +1073,7 @@ export class HelmControlService extends EventEmitter {
 
   private resolveToolEnv(cliType: string, helmSession?: { sessionId: string; sessionName: string }): Record<string, string> | undefined {
     const envEntries = this.requireCliEntry(cliType).env;
-    const env = Object.fromEntries(
-      (envEntries ?? [])
-        .filter((entry) => typeof entry?.name === 'string' && entry.name.trim().length > 0)
-        .map((entry) => [entry.name.trim(), this.resolveEnvValue(typeof entry?.value === 'string' ? entry.value : '')]),
-    );
+    const env = resolveEnvWithMode(envEntries ?? [], process.env as Record<string, string | undefined>, this.resolveEnvValue.bind(this));
     if (helmSession) {
       const mcpConfig = this.configLoader.getMcpConfig();
       const mcpPort = mcpConfig.port ?? 47373;

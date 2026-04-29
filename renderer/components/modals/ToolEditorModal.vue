@@ -19,7 +19,7 @@ const HELM_AUTOFILLED_ENV_NAMES = new Set(HELM_AUTOFILLED_ENV_ITEMS.map((item) =
 
 export interface ToolEditorData {
   name: string;
-  env: Array<{ name: string; value: string }>;
+  env: Array<{ name: string; value: string; mode?: 'replace' | 'append' | 'prepend' }>;
   initialPromptDelay: number;
   pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   spawnCommand: string;
@@ -41,7 +41,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'save', values: {
     name: string;
-    env: Array<{ name: string; value: string }>;
+    env: Array<{ name: string; value: string; mode?: 'replace' | 'append' | 'prepend' }>;
     initialPromptDelay: number;
     pasteMode: string;
     spawnCommand: string;
@@ -59,7 +59,7 @@ const emit = defineEmits<{
 /* ── Form state ─────────────────────────────────────────────────────────── */
 
 const name = ref('');
-type EnvItem = { id: number; name: string; value: string };
+type EnvItem = { id: number; name: string; value: string; mode: 'replace' | 'append' | 'prepend' };
 const envItems = ref<EnvItem[]>([]);
 const initialPromptDelay = ref(2000);
 const pasteMode = ref<'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'>('pty');
@@ -119,6 +119,7 @@ function initForm(): void {
         id: nextEnvId++,
         name: typeof item?.name === 'string' ? item.name : '',
         value: typeof item?.value === 'string' ? item.value : '',
+        mode: (item.mode === 'append' || item.mode === 'prepend') ? item.mode : 'replace',
       }))
         .filter((item) => !HELM_AUTOFILLED_ENV_NAMES.has(item.name.trim()))
     : [];
@@ -149,7 +150,7 @@ function removePromptItem(index: number): void {
 }
 
 function addEnvItem(): void {
-  envItems.value.push({ id: nextEnvId++, name: '', value: '' });
+  envItems.value.push({ id: nextEnvId++, name: '', value: '', mode: 'replace' });
 }
 
 function removeEnvItem(index: number): void {
@@ -161,7 +162,11 @@ function removeEnvItem(index: number): void {
 function onSave(): void {
   emit('save', {
     name: name.value,
-    env: envItems.value.map(item => ({ name: item.name, value: item.value })),
+    env: envItems.value.map(item => ({
+      name: item.name,
+      value: item.value,
+      ...(item.mode !== 'replace' ? { mode: item.mode } : {}),
+    })),
     initialPromptDelay: initialPromptDelay.value,
     pasteMode: pasteMode.value,
     spawnCommand: spawnCommand.value,
@@ -254,13 +259,13 @@ defineExpose({ handleButton });
               <div
                 v-for="(item, idx) in envItems"
                 :key="item.id"
-                class="te-env-item te-grid-2col"
+                class="te-env-item te-grid-3col"
               >
                 <input
                   :id="`te-env-name-${idx}`"
                   type="text"
                   class="te-input te-input--mono"
-                  placeholder="Variable name, e.g. COPILOT_MODEL"
+                  placeholder="Variable name, e.g. PATH"
                   :value="item.name"
                   @input="item.name = ($event.target as HTMLInputElement).value"
                 />
@@ -280,6 +285,16 @@ defineExpose({ handleButton });
                     @click="removeEnvItem(idx)"
                   >✕</button>
                 </div>
+                <select
+                  :id="`te-env-mode-${idx}`"
+                  class="te-input te-input--mode"
+                  :value="item.mode"
+                  @change="item.mode = ($event.target as HTMLSelectElement).value as 'replace' | 'append' | 'prepend'"
+                >
+                  <option value="replace">Replace</option>
+                  <option value="prepend">Prepend</option>
+                  <option value="append">Append</option>
+                </select>
               </div>
             </div>
             <button
@@ -558,6 +573,23 @@ defineExpose({ handleButton });
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--spacing-sm);
+}
+
+.te-grid-3col {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.te-input--mode {
+  width: 90px;
+  padding: 4px 6px;
+  font-size: 11px;
+  background: var(--input-bg, #2a2a2a);
+  color: var(--text-secondary, #aaa);
+  border: 1px solid var(--border, #444);
+  border-radius: 4px;
 }
 
 /* ── Field layout ───────────────────────────────────────────────────────── */
