@@ -36,6 +36,8 @@ export interface LayoutOptions {
   nodeWidth?: number;
   /** Node height for centering (px). Default: 80 */
   nodeHeight?: number;
+  /** Extra vertical gap between sequence group boundaries and non-members (px). Default: 68 */
+  sequenceGroupGap?: number;
 }
 
 const DEFAULTS: Required<LayoutOptions> = {
@@ -45,6 +47,7 @@ const DEFAULTS: Required<LayoutOptions> = {
   paddingY: 60,
   nodeWidth: 200,
   nodeHeight: 80,
+  sequenceGroupGap: 68,
 };
 
 /**
@@ -89,7 +92,52 @@ export function computeLayout(
   orderWithinLayers(layerGroups, outgoing, incoming);
 
   // Step 5: Coordinate assignment
-  return assignCoordinates(layerGroups, opts);
+  const rawLayout = assignCoordinates(layerGroups, opts);
+
+  // Step 6: Sequence group spacing — insert vertical gaps at sequence boundaries
+  const hasSequences = items.some(i => !!i.sequenceId);
+  if (hasSequences) {
+    const sequenceMap = new Map(items.map(i => [i.id, i.sequenceId]));
+    const adjusted = applySequenceGroupSpacing(rawLayout.nodes, layerGroups, sequenceMap, opts);
+    let maxY = 0;
+    for (const n of adjusted) maxY = Math.max(maxY, n.y + opts.nodeHeight);
+    return { nodes: adjusted, width: rawLayout.width, height: maxY + opts.paddingY };
+  }
+
+  return rawLayout;
+}
+
+/**
+ * Post-process layout: insert extra vertical gaps at transitions between
+ * sequence-member and non-member nodes within the same layer.
+ */
+function applySequenceGroupSpacing(
+  nodes: LayoutNode[],
+  layerGroups: string[][],
+  sequenceMap: Map<string, string | undefined>,
+  opts: Required<LayoutOptions>,
+): LayoutNode[] {
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  const result = new Map(nodes.map(n => [n.id, { ...n }]));
+
+  for (const layer of layerGroups) {
+    if (layer.length < 2) continue;
+    const sorted = layer.map(id => ({ id, seqId: sequenceMap.get(id) }));
+    sorted.sort((a, b) => nodeMap.get(a.id)!.y - nodeMap.get(b.id)!.y);
+
+    let extraGap = 0;
+    for (let i = 0; i < sorted.length - 1; i++) {
+      if (!!sorted[i].seqId !== !!sorted[i + 1].seqId) {
+        extraGap += opts.sequenceGroupGap;
+      }
+      if (extraGap > 0) {
+        const node = result.get(sorted[i + 1].id);
+        if (node) node.y += extraGap;
+      }
+    }
+  }
+
+  return [...result.values()];
 }
 
 /** Kahn's topological sort. Returns IDs in topological order. */

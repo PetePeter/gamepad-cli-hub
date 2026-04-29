@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { computeLayout, type LayoutOptions } from '../renderer/plans/plan-layout.js';
 import type { PlanItem, PlanDependency } from '../src/types/plan.js';
 
-function item(id: string, dirPath = '/proj'): PlanItem {
+function item(id: string, dirPath = '/proj', sequenceId?: string): PlanItem {
   return {
     id,
     dirPath,
@@ -18,6 +18,7 @@ function item(id: string, dirPath = '/proj'): PlanItem {
     status: 'ready',
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    sequenceId,
   };
 }
 
@@ -326,5 +327,77 @@ describe('computeLayout', () => {
     expect(nodeMap.get('r2')!.layer).toBe(0);
     expect(nodeMap.get('r3')!.layer).toBe(0);
     expect(nodeMap.get('sink')!.layer).toBe(1);
+  });
+});
+
+describe('sequence group spacing', () => {
+  const seqOpts: LayoutOptions = { ...defaultOpts, sequenceGroupGap: 68 };
+
+  it('adds vertical gap between sequence member and non-member in same layer', () => {
+    const items = [item('A', '/p', 'seq1'), item('B', '/p')];
+    const deps: PlanDependency[] = [];
+    const result = computeLayout(items, deps, seqOpts);
+    const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
+
+    // A (seq1) at y=60, B (no seq) at y=60+140+68=268
+    expect(nodeMap.get('A')!.y).toBe(60);
+    expect(nodeMap.get('B')!.y).toBe(60 + 140 + 68);
+  });
+
+  it('adds gap between non-member and sequence member', () => {
+    const items = [item('A', '/p'), item('B', '/p', 'seq1')];
+    const result = computeLayout(items, [] as PlanDependency[], seqOpts);
+    const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
+
+    expect(nodeMap.get('A')!.y).toBe(60);
+    expect(nodeMap.get('B')!.y).toBe(60 + 140 + 68);
+  });
+
+  it('does not add gap when all nodes in layer share same sequence', () => {
+    const items = [item('A', '/p', 'seq1'), item('B', '/p', 'seq1')];
+    const result = computeLayout(items, [], seqOpts);
+    const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
+
+    expect(nodeMap.get('A')!.y).toBe(60);
+    expect(nodeMap.get('B')!.y).toBe(60 + 140);
+  });
+
+  it('does not add gap when no nodes have a sequenceId', () => {
+    const items = [item('A'), item('B')];
+    const result = computeLayout(items, [], seqOpts);
+    const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
+
+    expect(nodeMap.get('A')!.y).toBe(60);
+    expect(nodeMap.get('B')!.y).toBe(60 + 140);
+  });
+
+  it('handles multiple sequence transitions in one layer', () => {
+    const items = [
+      item('A', '/p', 'seq1'),
+      item('B', '/p', 'seq1'),
+      item('C', '/p'),
+      item('D', '/p', 'seq2'),
+      item('E', '/p'),
+    ];
+    const result = computeLayout(items, [], seqOpts);
+    const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
+
+    // A,B same seq → no gap. B→C transition → gap. C→D transition → gap. D→E transition → gap.
+    const baseY = 60;
+    const spacing = 140;
+    const gap = 68;
+    expect(nodeMap.get('A')!.y).toBe(baseY);
+    expect(nodeMap.get('B')!.y).toBe(baseY + spacing);
+    expect(nodeMap.get('C')!.y).toBe(baseY + spacing * 2 + gap);
+    expect(nodeMap.get('D')!.y).toBe(baseY + spacing * 3 + gap * 2);
+    expect(nodeMap.get('E')!.y).toBe(baseY + spacing * 4 + gap * 3);
+  });
+
+  it('increases canvas height to accommodate gaps', () => {
+    const items = [item('A', '/p', 's1'), item('B', '/p')];
+    const result = computeLayout(items, [], seqOpts);
+
+    // height = max(y + nodeHeight) + paddingY = (60 + 140 + 68 + 80) + 60 = 408
+    expect(result.height).toBe(60 + 140 + 68 + 80 + 60);
   });
 });
