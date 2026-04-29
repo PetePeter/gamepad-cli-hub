@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { scheduleInitialPrompt, actionToPtyData, KEY_TO_ESCAPE } from '../src/session/initial-prompt';
+import { scheduleInitialPrompt, actionToPtyData, KEY_TO_ESCAPE, HELM_INIT_SEQUENCE } from '../src/session/initial-prompt';
 import type { SequenceAction } from '../src/input/sequence-parser';
 import type { SequenceListItem } from '../src/config/loader';
 
@@ -155,6 +155,35 @@ describe('scheduleInitialPrompt', () => {
   it('returns null for undefined initialPrompt', () => {
     const result = scheduleInitialPrompt('s1', {}, vi.fn());
     expect(result).toBeNull();
+  });
+
+  it('prepends Helm init sequence when enabled', async () => {
+    const writeFn = vi.fn();
+    scheduleInitialPrompt('s1', {
+      helmInitialPrompt: true,
+      initialPrompt: [{ label: 'User', sequence: 'hello' }],
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', HELM_INIT_SEQUENCE.replace('{Enter}', '\r')]);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', 'hello']);
+  });
+
+  it('does not prepend Helm init sequence when disabled', async () => {
+    const writeFn = vi.fn();
+    scheduleInitialPrompt('s1', {
+      helmInitialPrompt: false,
+      initialPrompt: [{ label: 'User', sequence: 'hello' }],
+      initialPromptDelay: 0,
+    }, writeFn);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', 'hello']);
   });
 
   it('returns a cancel function for valid prompt', () => {

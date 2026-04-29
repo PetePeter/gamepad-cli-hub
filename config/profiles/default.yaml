@@ -7,10 +7,7 @@ tools:
     continueCommand: claude --continue
     handoffCommand: go implement it
     initialPromptDelay: 5000
-    initialPrompt:
-      - label: ""
-        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
-          AIAGENT state as first line of each response.{Enter}
+    helmInitialPrompt: true
     sequences:
       prompts:
         - label: commit
@@ -20,10 +17,7 @@ tools:
     name: codex
     spawnCommand: codex --dangerously-bypass-approvals-and-sandbox
     handoffCommand: go implement it
-    initialPrompt:
-      - label: ""
-        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
-          AIAGENT state as first line of each response.{Enter}
+    helmInitialPrompt: true
     initialPromptDelay: 1000
     pasteMode: pty
     sequences:
@@ -37,10 +31,7 @@ tools:
     initialPromptDelay: 2000
   glm-cc:
     name: GLM + CC
-    initialPrompt:
-      - label: ""
-        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
-          AIAGENT state as first line of each response.{Enter}
+    helmInitialPrompt: true
     initialPromptDelay: 5000
     env:
       - name: ANTHROPIC_BASE_URL

@@ -972,7 +972,35 @@ describe('LocalhostMcpServer', () => {
     expect(sessionInfoTool.title).toBe('Get Session Info');
     expect(sessionInfoTool.description).toContain('AIAGENT state registry');
     expect(sessionInfoTool.description).toContain('MCP endpoint URL');
+    expect(sessionInfoTool.description).toContain('WHEN:');
+    expect(sessionInfoTool.description).toContain('session_set_aiagent_state');
     expect(sessionInfoTool.inputSchema.properties).toEqual({});
+  });
+
+  it('session_info response reminds agents to set AIAGENT state', async () => {
+    const service = makeService();
+    (service as any).getSessionInfo = vi.fn(() => ({
+      mandatory_rules: ['ALWAYS call session_set_aiagent_state when your phase changes.'],
+      mcp_url: 'http://127.0.0.1:47373/mcp',
+      mcp_token: 'secret-token-value',
+      aiagent_states: ['planning', 'implementing', 'completed', 'idle'],
+      available_directories: [],
+    }));
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 102,
+      method: 'tools/call',
+      params: { name: 'session_info', arguments: {} },
+    });
+
+    const json = await response.json();
+    expect(json.result.content[0].text).toContain('Reminder: now call session_set_aiagent_state');
+    expect(json.result.structuredContent.mandatory_rules[0]).toContain('session_set_aiagent_state');
   });
 
   describe('plan_complete with documentation', () => {

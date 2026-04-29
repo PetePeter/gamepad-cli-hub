@@ -1146,6 +1146,7 @@ function onToolAdd(): void {
     continueCommand: '',
     renameCommand: '',
     handoffCommand: '',
+    helmInitialPrompt: false,
     initialPrompt: [],
   };
   setToolEditorCallback(async (values) => {
@@ -1193,6 +1194,7 @@ async function onToolEdit(key: string): Promise<void> {
       continueCommand: value.continueCommand || '',
       renameCommand: value.renameCommand || '',
       handoffCommand: value.handoffCommand || '',
+      helmInitialPrompt: Boolean(value.helmInitialPrompt),
       initialPrompt: Array.isArray(value.initialPrompt)
         ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))
         : [],
@@ -1226,6 +1228,7 @@ function buildToolEditorOptions(values: any): {
   spawnCommand?: string;
   resumeCommand?: string;
   continueCommand?: string;
+  helmInitialPrompt?: boolean;
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
 } {
   const fields = ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
@@ -1245,6 +1248,7 @@ function buildToolEditorOptions(values: any): {
   return {
     ...options,
     env,
+    helmInitialPrompt: Boolean(values.helmInitialPrompt),
     ...(pasteMode === 'pty' || pasteMode === 'ptyindividual' || pasteMode === 'sendkeys' || pasteMode === 'sendkeysindividual' || pasteMode === 'clippaste'
       ? { pasteMode }
       : {}),

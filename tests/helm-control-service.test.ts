@@ -343,6 +343,11 @@ describe('HelmControlService.getSessionInfo', () => {
 
     const info = service.getSessionInfo({ sessionId: 's1', sessionName: 'Claude' });
 
+    expect(info.mandatory_rules).toEqual(expect.arrayContaining([
+      expect.stringContaining('session_set_aiagent_state'),
+      expect.stringContaining('plan_set_state'),
+      expect.stringContaining('QUESTION:'),
+    ]));
     expect(info.agent_plan_guide?.required_description_sections).toEqual([
       'Problem Statement',
       'User POV',

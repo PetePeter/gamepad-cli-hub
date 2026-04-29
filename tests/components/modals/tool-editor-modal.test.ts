@@ -21,6 +21,7 @@ interface ToolEditorData {
   continueCommand: string;
   renameCommand: string;
   handoffCommand: string;
+  helmInitialPrompt: boolean;
   initialPrompt: Array<{ label: string; sequence: string }>;
 }
 
@@ -34,6 +35,7 @@ const DEFAULT_DATA: ToolEditorData = {
   continueCommand: '',
   renameCommand: '',
   handoffCommand: '',
+  helmInitialPrompt: false,
   initialPrompt: [],
 };
 
@@ -142,6 +144,7 @@ describe('ToolEditorModal.vue', () => {
         env: [{ name: 'COPILOT_MODEL', value: 'qwen' }],
         initialPromptDelay: 3000,
         pasteMode: 'sendkeys',
+        helmInitialPrompt: true,
         initialPrompt: [{ label: 'greet', sequence: 'hello' }],
       },
     });
@@ -156,7 +159,25 @@ describe('ToolEditorModal.vue', () => {
     expect(values.env).toEqual([{ name: 'COPILOT_MODEL', value: 'qwen' }]);
     expect(values.initialPromptDelay).toBe(3000);
     expect(values.pasteMode).toBe('sendkeys');
+    expect(values.helmInitialPrompt).toBe(true);
     expect(values._promptItems).toEqual([{ label: 'greet', sequence: 'hello' }]);
+    w.unmount();
+  });
+
+  it('round-trips the Helm initial prompt checkbox', async () => {
+    const w = factory({
+      initialData: { ...DEFAULT_DATA, helmInitialPrompt: true },
+    });
+    const checkbox = w.find('.te-checkbox-row input').element as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+
+    await w.find('.te-checkbox-row input').setValue(false);
+    const saveBtn = w.findAll('button').find(b => b.text() === 'Save')!;
+    await saveBtn.trigger('click');
+    await flushPromises();
+
+    const values = w.emitted('save')![0][0] as Record<string, unknown>;
+    expect(values.helmInitialPrompt).toBe(false);
     w.unmount();
   });
 

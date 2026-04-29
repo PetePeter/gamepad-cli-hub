@@ -211,6 +211,7 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
     continueCommand: value.continueCommand || '',
     renameCommand: value.renameCommand || '',
     handoffCommand: value.handoffCommand || '',
+    helmInitialPrompt: Boolean(value.helmInitialPrompt),
     initialPrompt: Array.isArray(value.initialPrompt)
       ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))
       : [],
@@ -237,7 +238,7 @@ async function showEditCliTypeForm(key: string, value: any): Promise<void> {
 }
 
 /** Build the optional command fields from tool editor result. Empty string = clear. */
-function buildCommandOptionsFromToolEditor(values: any): { env?: Array<{ name: string; value: string }>; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' } | undefined {
+function buildCommandOptionsFromToolEditor(values: any): { env?: Array<{ name: string; value: string }>; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; helmInitialPrompt?: boolean; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' } | undefined {
   const fields = ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
   const opts: Record<string, string> = {};
   let hasAny = false;
@@ -255,6 +256,8 @@ function buildCommandOptionsFromToolEditor(values: any): { env?: Array<{ name: s
       .filter((item: { name: string; value: string }) => item.name.length > 0)
     : [];
   (opts as any).env = env;
+  hasAny = true;
+  (opts as any).helmInitialPrompt = Boolean(values.helmInitialPrompt);
   hasAny = true;
   const pm = values.pasteMode;
   if (pm === 'pty' || pm === 'ptyindividual' || pm === 'sendkeys' || pm === 'sendkeysindividual' || pm === 'clippaste') {

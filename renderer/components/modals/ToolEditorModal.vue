@@ -27,6 +27,7 @@ export interface ToolEditorData {
   continueCommand: string;
   renameCommand: string;
   handoffCommand: string;
+  helmInitialPrompt: boolean;
   initialPrompt: Array<{ label: string; sequence: string }>;
 }
 
@@ -48,6 +49,7 @@ const emit = defineEmits<{
     continueCommand: string;
     renameCommand: string;
     handoffCommand: string;
+    helmInitialPrompt: boolean;
     _promptItems: Array<{ label: string; sequence: string }>;
   }): void;
   (e: 'cancel'): void;
@@ -66,6 +68,7 @@ const resumeCommand = ref('');
 const continueCommand = ref('');
 const renameCommand = ref('');
 const handoffCommand = ref('');
+const helmInitialPrompt = ref(false);
 
 interface SeqItem { label: string; sequence: string }
 const promptItems = ref<SeqItem[]>([]);
@@ -126,6 +129,7 @@ function initForm(): void {
   continueCommand.value = d.continueCommand ?? '';
   renameCommand.value = d.renameCommand ?? '';
   handoffCommand.value = d.handoffCommand ?? '';
+  helmInitialPrompt.value = Boolean(d.helmInitialPrompt);
   promptItems.value = Array.isArray(d.initialPrompt)
     ? d.initialPrompt.map(item => ({
         label: typeof item?.label === 'string' ? item.label : '',
@@ -165,6 +169,7 @@ function onSave(): void {
     continueCommand: continueCommand.value,
     renameCommand: renameCommand.value,
     handoffCommand: handoffCommand.value,
+    helmInitialPrompt: helmInitialPrompt.value,
     _promptItems: promptItems.value.map(i => ({ label: i.label, sequence: i.sequence })),
   });
   emit('update:visible', false);
@@ -369,6 +374,13 @@ defineExpose({ handleButton });
           <!-- ═══ Initial Prompts ═══ -->
           <fieldset class="te-section te-section--prompts">
             <legend class="te-section__legend">Initial Prompts</legend>
+            <label class="te-checkbox-row">
+              <input
+                v-model="helmInitialPrompt"
+                type="checkbox"
+              />
+              <span>Auto-include Helm session init</span>
+            </label>
             <div class="te-prompts-list">
               <div
                 v-for="(item, idx) in promptItems"
@@ -465,6 +477,20 @@ defineExpose({ handleButton });
 
 .te-env-value-row .te-input {
   flex: 1;
+}
+
+.te-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.te-checkbox-row input {
+  width: 16px;
+  height: 16px;
 }
 
 /* ── Close button ───────────────────────────────────────────────────────── */

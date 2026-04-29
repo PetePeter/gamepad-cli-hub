@@ -5,9 +5,12 @@ import type { SequenceListItem } from '../config/loader.js';
 export interface InitialPromptConfig {
   initialPrompt?: SequenceListItem[];
   initialPromptDelay?: number;
+  helmInitialPrompt?: boolean;
   /** Rename command to send after initial prompt completes (template with {cliSessionName} already replaced). */
   renameCommand?: string;
 }
+
+export const HELM_INIT_SEQUENCE = 'Call session_info to get Helm MCP AIAGENT state registry. Then immediately call session_set_aiagent_state for this session whenever your phase changes: planning before investigation, implementing before edits or tests, completed when done. If a Helm plan is assigned, claim it before implementation with plan_set_state status=coding and sessionId, then call session_set_working_plan. Output AIAGENT-* state as the first line of each response.{Enter}';
 
 /**
  * Convert a sequence action to PTY-writable data.
@@ -84,13 +87,17 @@ export function scheduleInitialPrompt(
   onComplete?: () => void,
 ): (() => void) | null {
   const { initialPrompt, initialPromptDelay = 2000 } = config;
+  const promptItems = [
+    ...(config.helmInitialPrompt ? [{ label: 'Helm session init', sequence: HELM_INIT_SEQUENCE }] : []),
+    ...(initialPrompt ?? []),
+  ];
   const deliverText = onComplete
     ? (deliverTextOrOnComplete as ((sessionId: string, text: string) => Promise<void>) | undefined)
     : undefined;
   const complete = onComplete ?? (deliverTextOrOnComplete as (() => void) | undefined);
   const deliver = deliverText ?? (async (sid: string, text: string) => { writeToPty(sid, text); });
 
-  if ((!initialPrompt || initialPrompt.length === 0) && !config.renameCommand) {
+  if (promptItems.length === 0 && !config.renameCommand) {
     return null;
   }
 
@@ -149,10 +156,10 @@ export function scheduleInitialPrompt(
   const execute = async () => {
     if (cancelled) return;
 
-    if (initialPrompt && initialPrompt.length > 0) {
-      logger.info(`[InitialPrompt] Pre-loading ${initialPrompt.length} item(s) for session ${sessionId}`);
+    if (promptItems.length > 0) {
+      logger.info(`[InitialPrompt] Pre-loading ${promptItems.length} item(s) for session ${sessionId}`);
 
-      for (const item of initialPrompt) {
+      for (const item of promptItems) {
         if (cancelled) break;
         if (!item) continue;
         await executeItem(item);

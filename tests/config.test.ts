@@ -799,6 +799,19 @@ describe('ConfigLoader', () => {
       expect(onDisk.tools['my-tool'].initialPromptDelay).toBe(5000);
     });
 
+    it('addCliType saves helmInitialPrompt option', () => {
+      loader.load();
+      loader.addCliType('my-tool', 'My Tool', [{ label: 'Prompt', sequence: 'hello' }], 5000, {
+        helmInitialPrompt: true,
+      });
+
+      const entry = loader.getCliTypeEntry('my-tool');
+      expect(entry!.helmInitialPrompt).toBe(true);
+
+      const onDisk = readYaml<any>('profiles/default.yaml');
+      expect(onDisk.tools['my-tool'].helmInitialPrompt).toBe(true);
+    });
+
     it('updateCliType with initialPromptDelay saves new value (not preserving old)', () => {
       const profileWithDelay = {
         ...DEFAULT_PROFILE,
@@ -826,6 +839,26 @@ describe('ConfigLoader', () => {
 
       const onDisk = readYaml<any>('profiles/default.yaml');
       expect(onDisk.tools['claude-code'].initialPromptDelay).toBe(7000);
+    });
+
+    it('updateCliType saves helmInitialPrompt option', () => {
+      loader.load();
+      loader.updateCliType('claude-code', 'Claude Code', [{ label: 'Prompt', sequence: 'hello' }], 1000, {
+        helmInitialPrompt: true,
+      });
+
+      let entry = loader.getCliTypeEntry('claude-code');
+      expect(entry!.helmInitialPrompt).toBe(true);
+
+      loader.updateCliType('claude-code', 'Claude Code', [{ label: 'Prompt', sequence: 'hello' }], 1000, {
+        helmInitialPrompt: false,
+      });
+
+      entry = loader.getCliTypeEntry('claude-code');
+      expect(entry!.helmInitialPrompt).toBe(false);
+
+      const onDisk = readYaml<any>('profiles/default.yaml');
+      expect(onDisk.tools['claude-code'].helmInitialPrompt).toBe(false);
     });
 
     it('updateCliType preserves sequences and other optional fields', () => {

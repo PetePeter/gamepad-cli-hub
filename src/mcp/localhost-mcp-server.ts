@@ -443,7 +443,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_set_working_plan',
     title: 'Set Session Working Plan',
-    description: 'Update which plan the session row should show as currently being worked on, assigning the plan to that session when allowed. planId accepts either the canonical UUID or P-00xx human-readable ID. Call this when the agent has moved on to a different plan item and you want the Helm session list to reflect that explicitly.',
+    description: 'Update which plan the session row should show as currently being worked on, assigning the plan to that session when allowed. planId accepts either the canonical UUID or P-00xx human-readable ID. WHEN: call this immediately after claiming implementation work with plan_set_state status=coding so Helm shows the active plan badge on the session row; also call it whenever you intentionally move to a different plan item.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -458,7 +458,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_info',
     title: 'Get Session Info',
-    description: 'Retrieve current session context including MCP endpoint URL, AIAGENT state registry, and working directories. Autocall at session startup to prime the AIAGENT state registry. Returns mcp_url and mcp_token for building MCP requests, plus the canonical list of valid AIAGENT-* state tags.',
+    description: 'Retrieve current session context including MCP endpoint URL, AIAGENT state registry, and working directories. WHEN: call this at session startup before other Helm workflow actions, then immediately call session_set_aiagent_state for your current phase. Returns mandatory_rules, mcp_url, mcp_token, and the canonical list of valid AIAGENT-* state tags.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -468,7 +468,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_set_aiagent_state',
     title: 'Set Session AIAGENT State',
-    description: 'Update the AIAGENT state for a session. This state persists across restarts and is controlled by external agents to show the current working state (planning, implementing, completed, idle).',
+    description: 'Update the AIAGENT state for a session. This state persists across restarts and is controlled by external agents to show the current working state (planning, implementing, completed, idle). WHEN: call planning before investigation or questions, implementing before edits/tests/execution, completed after verification and summary, and idle only when explicitly standing down.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1135,6 +1135,9 @@ function normalizeStructuredContent(value: unknown): Record<string, unknown> {
 }
 
 function getToolReminder(name: string): string {
+  if (name === 'session_info') {
+    return 'Reminder: now call session_set_aiagent_state for your current phase. If a Helm plan is assigned and you are implementing it, claim it with plan_set_state status=coding and sessionId, then call session_set_working_plan.';
+  }
   if (name === 'plan_create') {
     return `Reminder: creating a plan does not assign ownership. Plan descriptions should include: ${REQUIRED_PLAN_DESCRIPTION_SECTIONS.join(', ')}. For blocking questions, create a separate "QUESTION: ..." plan and link it to the original blocked plan with plan_nextplan_link. When you begin implementation, explicitly call plan_set_state with status "coding" and your sessionId, then call session_set_working_plan.`;
   }

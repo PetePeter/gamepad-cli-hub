@@ -158,6 +158,8 @@ export interface CliTypeConfig {
   env?: EnvVarEntry[];
   initialPrompt?: SequenceListItem[];
   initialPromptDelay?: number;
+  /** Prepend the canonical Helm MCP session init prompt on fresh spawn. */
+  helmInitialPrompt?: boolean;
   /** Named sequence groups — accessible via gamepad bindings and context menu */
   sequences?: Record<string, SequenceListItem[]>;
   /** Command written to PTY on pipeline handoff. If omitted, no command is sent. */
@@ -328,6 +330,7 @@ type CliTypeOptions = {
   spawnCommand?: string;
   resumeCommand?: string;
   continueCommand?: string;
+  helmInitialPrompt?: boolean;
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
 };
 
@@ -1157,6 +1160,7 @@ export class ConfigLoader {
     if (options?.spawnCommand) tool.spawnCommand = options.spawnCommand;
     if (options?.resumeCommand) tool.resumeCommand = options.resumeCommand;
     if (options?.continueCommand) tool.continueCommand = options.continueCommand;
+    if (options?.helmInitialPrompt !== undefined) tool.helmInitialPrompt = options.helmInitialPrompt;
     if (options?.pasteMode) tool.pasteMode = options.pasteMode;
     this.activeProfile!.tools[key] = tool;
     this.saveActiveProfile();
@@ -1201,6 +1205,9 @@ export class ConfigLoader {
         if (val === undefined) continue;
         if (val === '') { delete (existing as any)[field]; }
         else { (existing as any)[field] = val; }
+      }
+      if (options.helmInitialPrompt !== undefined) {
+        existing.helmInitialPrompt = options.helmInitialPrompt;
       }
     }
 

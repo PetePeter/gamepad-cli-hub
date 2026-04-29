@@ -25,7 +25,7 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
   ipcMain.handle('tools:addCliType', (
     _event, key: string, name: string,
     initialPrompt: SequenceListItem[], initialPromptDelay: number,
-    options?: { env?: EnvVarEntry[]; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' },
+    options?: { env?: EnvVarEntry[]; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; helmInitialPrompt?: boolean; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' },
   ) => {
     try {
       configLoader.addCliType(key, name, initialPrompt, initialPromptDelay, options);
@@ -39,7 +39,7 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
   ipcMain.handle('tools:updateCliType', (
     _event, key: string, name: string,
     initialPrompt: SequenceListItem[], initialPromptDelay: number,
-    options?: { env?: EnvVarEntry[]; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' },
+    options?: { env?: EnvVarEntry[]; handoffCommand?: string; renameCommand?: string; spawnCommand?: string; resumeCommand?: string; continueCommand?: string; helmInitialPrompt?: boolean; pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste' },
   ) => {
     try {
       configLoader.updateCliType(key, name, initialPrompt, initialPromptDelay, options);

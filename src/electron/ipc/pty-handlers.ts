@@ -27,7 +27,7 @@ function resolvePromptConfig(
   cliType: string | undefined,
   configLoader: ConfigLoader | undefined,
   cliSessionName?: string,
-): { initialPrompt?: import('../../config/loader.js').SequenceListItem[]; initialPromptDelay?: number; renameCommand?: string } {
+): { initialPrompt?: import('../../config/loader.js').SequenceListItem[]; initialPromptDelay?: number; helmInitialPrompt?: boolean; renameCommand?: string } {
   if (!cliType || !configLoader) return {};
   try {
     const cfg = configLoader.getCliTypeEntry?.(cliType);
@@ -38,6 +38,7 @@ function resolvePromptConfig(
       return {
         initialPrompt: cfg.initialPrompt,
         initialPromptDelay: cfg.initialPromptDelay,
+        helmInitialPrompt: cfg.helmInitialPrompt,
         renameCommand,
       };
     }
