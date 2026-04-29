@@ -61,6 +61,7 @@ import { setDirPickerBridge } from './screens/sessions-spawn.js';
 import { onViewChange, currentView, type MainView as ViewName } from './main-view/main-view-manager.js';
 import { useModalStack } from './composables/useModalStack.js';
 import { useEscProtection } from './composables/useEscProtection.js';
+import { useToast } from './composables/useToast.js';
 import {
   closeConfirm, getCloseConfirmCallback, setCloseConfirmCallback,
   contextMenu,
@@ -255,6 +256,7 @@ const schedulerPopupTaskId = ref<string | null>(null);
 const { splitterRef, panelRef } = usePanelResize({
   onResized: () => { getTerminalManager()?.fitActive(); },
 });
+const { addToast } = useToast();
 
 // ============================================================================
 // Computed props for components
@@ -1878,15 +1880,26 @@ async function onBackupDelete(snapshotPath: string): Promise<void> {
     await window.gamepadCli.planDeleteBackup(snapshotPath);
     const snapshots = await window.gamepadCli.planListBackups(backupRestore.dirPath);
     backupRestore.snapshots = snapshots;
-  } catch { /* ignore */ }
+    addToast({ message: 'Backup deleted', type: 'info' });
+  } catch (err) {
+    addToast({ message: err instanceof Error ? err.message : 'Failed to delete backup', type: 'error' });
+  }
 }
 
 async function onBackupNow(): Promise<void> {
   try {
-    await window.gamepadCli.planCreateBackupNow(backupRestore.dirPath);
+    const metadata = await window.gamepadCli.planCreateBackupNow(backupRestore.dirPath);
     const snapshots = await window.gamepadCli.planListBackups(backupRestore.dirPath);
     backupRestore.snapshots = snapshots;
-  } catch { /* ignore */ }
+    addToast({
+      message: metadata?.timestamp
+        ? `Backup created ${new Date(metadata.timestamp).toLocaleString()}`
+        : 'Backup created',
+      type: 'success',
+    });
+  } catch (err) {
+    addToast({ message: err instanceof Error ? err.message : 'Backup failed', type: 'error' });
+  }
 }
 
 function onBackupClose(): void {

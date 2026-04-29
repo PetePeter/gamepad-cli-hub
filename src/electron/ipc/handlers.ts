@@ -149,8 +149,8 @@ export function registerIPCHandlers(
     lastBackupByDir.set(dirPath, now);
     try {
       backupManager.createSnapshot(dirPath);
-    } catch {
-      // Don't let backup failures disrupt plan operations
+    } catch (error) {
+      logger.warn('Auto-backup failed', { dirPath, error: error instanceof Error ? error.message : String(error) });
     }
   });
 

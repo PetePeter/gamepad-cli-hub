@@ -59,6 +59,8 @@ export interface BackupConfig {
   snapshotIntervalMs: number;
   /** Optional list of directory paths to exclude from backups */
   excludePaths?: string[];
+  /** Custom backup root directory (defaults to config/plan-backups/) */
+  backupDir?: string;
 }
 
 /** Default configuration values */
@@ -67,6 +69,7 @@ export const DEFAULT_BACKUP_CONFIG: BackupConfig = {
   maxSnapshots: 10,
   snapshotIntervalMs: 3600000, // 1 hour
   excludePaths: [],
+  backupDir: undefined,
 };
 
 /**

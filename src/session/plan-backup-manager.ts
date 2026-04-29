@@ -52,7 +52,7 @@ export interface PlanBackupEvents {
 }
 
 export class PlanBackupManager extends EventEmitter {
-  private readonly backupsRootDir: string;
+  private backupsRootDir: string;
   private config: BackupConfig;
   private readonly configFilePath: string;
 
@@ -63,11 +63,24 @@ export class PlanBackupManager extends EventEmitter {
   ) {
     super();
     const resolvedConfigDir = configDir ?? getConfigDir(__dirname);
-    this.backupsRootDir = join(resolvedConfigDir, 'plan-backups');
     this.configFilePath = join(resolvedConfigDir, BACKUP_CONFIG_FILE);
     this.config = { ...this.getDefaultConfig(), ...config };
     this.loadConfig();
     this.validateConfig(this.config);
+    this.backupsRootDir = this.resolveBackupsRootDir(resolvedConfigDir);
+  }
+
+  private resolveBackupsRootDir(defaultConfigDir: string): string {
+    const custom = this.config.backupDir?.trim();
+    if (custom) {
+      try {
+        mkdirSync(custom, { recursive: true });
+        return custom;
+      } catch (error) {
+        logger.warn(`[PlanBackupManager] Custom backupDir "${custom}" invalid, using default: ${error}`);
+      }
+    }
+    return join(defaultConfigDir, 'plan-backups');
   }
 
   /** Get the current backup configuration */
@@ -80,6 +93,7 @@ export class PlanBackupManager extends EventEmitter {
     const next = { ...this.config, ...updates };
     this.validateConfig(next);
     this.config = next;
+    this.backupsRootDir = this.resolveBackupsRootDir(dirname(this.configFilePath));
     this.saveConfig();
     this.emit('config-changed', this.getConfig());
   }
@@ -118,6 +132,7 @@ export class PlanBackupManager extends EventEmitter {
       maxSnapshots: 10,
       snapshotIntervalMs: 3600000, // 1 hour
       excludePaths: [],
+      backupDir: undefined,
     };
   }
 

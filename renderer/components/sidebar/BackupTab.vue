@@ -14,11 +14,13 @@ interface BackupConfig {
   enabled: boolean;
   maxSnapshots: number;
   snapshotIntervalMs: number;
+  backupDir?: string;
 }
 
 const enabled = ref(true);
 const maxSnapshots = ref(10);
 const intervalHours = ref(1);
+const backupDir = ref('');
 const saving = ref(false);
 const backingUp = ref(false);
 const selectedDirPath = ref('');
@@ -34,6 +36,7 @@ onMounted(async () => {
     enabled.value = config.enabled;
     maxSnapshots.value = config.maxSnapshots;
     intervalHours.value = Math.round(config.snapshotIntervalMs / 3600000);
+    backupDir.value = config.backupDir ?? '';
   } catch { /* use defaults */ }
   try {
     workingDirs.value = await window.gamepadCli.configGetWorkingDirs() ?? [];
@@ -59,6 +62,7 @@ async function doSave(): Promise<void> {
       enabled: enabled.value,
       maxSnapshots: maxSnapshots.value,
       snapshotIntervalMs: intervalHours.value * 3600000,
+      backupDir: backupDir.value.trim() || undefined,
     });
     statusMessage.value = 'Backup settings saved';
   } catch (error) {
@@ -83,6 +87,18 @@ async function createBackupNow(): Promise<void> {
     backingUp.value = false;
   }
 }
+
+async function browseBackupDir(): Promise<void> {
+  try {
+    const selected = await window.gamepadCli.dialogOpenFolder();
+    if (selected) {
+      backupDir.value = selected;
+      scheduleSave();
+    }
+  } catch {
+    errorMessage.value = 'Could not open folder picker';
+  }
+}
 </script>
 
 <template>
@@ -98,6 +114,19 @@ async function createBackupNow(): Promise<void> {
     <div class="setting-row">
       <label>Interval (hours)</label>
       <input type="number" :value="intervalHours" min="1" max="168" @change="intervalHours = Number(($event.target as HTMLInputElement).value); scheduleSave()" />
+    </div>
+    <div class="setting-row setting-row--column">
+      <label>Backup Folder</label>
+      <div class="backup-dir-row">
+        <input
+          type="text"
+          :value="backupDir"
+          placeholder="Default: config/plan-backups/"
+          class="backup-dir-input"
+          @change="backupDir = ($event.target as HTMLInputElement).value; scheduleSave()"
+        />
+        <button class="btn btn--secondary btn--sm" @click="browseBackupDir">Browse</button>
+      </div>
     </div>
     <div class="setting-row">
       <label>Backup Directory</label>
@@ -131,6 +160,27 @@ async function createBackupNow(): Promise<void> {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+}
+.setting-row--column {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.backup-dir-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+.backup-dir-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
 }
 .setting-row label {
   color: var(--text-primary);
