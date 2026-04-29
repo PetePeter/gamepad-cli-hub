@@ -38,7 +38,7 @@ export class RendererTextDeliverer {
     });
   }
 
-  async deliver(sessionId: string, text: string): Promise<void> {
+  async deliver(sessionId: string, text: string, options?: { withReturn?: boolean }): Promise<void> {
     if (!text) return;
 
     const session = this.sessionManager.getSession(sessionId);
@@ -63,7 +63,7 @@ export class RendererTextDeliverer {
       this.pending.set(requestId, { resolve, reject, timer });
     });
 
-    win.webContents.send('text:deliver-request', { requestId, sessionId, text });
+    win.webContents.send('text:deliver-request', { requestId, sessionId, text, withReturn: options?.withReturn });
     await promise;
   }
 

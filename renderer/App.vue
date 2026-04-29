@@ -2036,17 +2036,15 @@ onMounted(async () => {
   }
 
   try {
-    offTextDeliver = window.gamepadCli.onTextDeliverRequest(async ({ requestId, sessionId, text }) => {
+    offTextDeliver = window.gamepadCli.onTextDeliverRequest(async ({ requestId, sessionId, text, withReturn }) => {
       try {
         const session = state.sessions.find(s => s.id === sessionId);
         const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
 
-        // Use clipboard+Ctrl+V only for 'clippaste' pasteMode (terminal paste mode)
         if (tool?.pasteMode === 'clippaste') {
           await deliverViaClipboardPaste(text);
         } else {
-          // Use standard delivery for other pasteMode options
-          await deliverBulkText(sessionId, text);
+          await deliverBulkText(sessionId, text, { withReturn });
         }
         await window.gamepadCli.textDeliverResponse(requestId, true);
       } catch (error) {

@@ -528,7 +528,7 @@ export class HelmControlService extends EventEmitter {
   async sendTextToSession(
     sessionRef: string,
     text: string,
-    options?: { submit?: boolean; senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean },
+    options?: { senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean },
   ): Promise<{ success: true; sessionId: string; name: string }> {
     const session = this.findSession(sessionRef);
     if (!session) {
@@ -558,18 +558,7 @@ export class HelmControlService extends EventEmitter {
       : '[HELM_MSG]';
     const message = `${tag}${envelope}\n${text}`;
 
-    await this.ptyManager.deliverText(session.id, message);
-
-    // Submit as a separate send action so the destination CLI keeps its normal
-    // paste mode for inserted text, then receives the same PTY-level "send"
-    // behavior as sequence parser {Send}.
-    if (options?.submit !== false) {
-      // Delay to ensure the target CLI has consumed the bracketed-paste text
-      // before sending Enter — without this the \r can race ahead and hit an
-      // empty prompt.
-      await new Promise((r) => setTimeout(r, 150));
-      this.ptyManager.write(session.id, '\r');
-    }
+    await this.ptyManager.deliverText(session.id, message, { withReturn: true });
 
     return { success: true, sessionId: session.id, name: session.name };
   }

@@ -71,17 +71,10 @@ describe('HelmControlService.sendTextToSession', () => {
     vi.restoreAllMocks();
   });
 
-  it('delivers text, then sends a separate submit action when submit is true', async () => {
+  it('delivers text atomically with withReturn option', async () => {
     const { service, ptyManager } = makeService();
     await service.sendTextToSession('s1', 'hello', { senderSessionId: 'sid', senderSessionName: 'Sender' });
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('hello'));
-    expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
-  });
-
-  it('does not send a submit action when submit is false', async () => {
-    const { service, ptyManager } = makeService();
-    await service.sendTextToSession('s1', 'hello', { submit: false, senderSessionId: 'sid', senderSessionName: 'Sender' });
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('hello'));
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('hello'), { withReturn: true });
     expect(ptyManager.write).not.toHaveBeenCalled();
   });
 

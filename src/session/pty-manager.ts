@@ -62,7 +62,7 @@ function escapeShellArg(arg: string): string {
 export class PtyManager extends EventEmitter {
   private ptys: Map<string, PtyProcess> = new Map();
   private factory: PtyFactory;
-  private textDeliveryHandler?: (sessionId: string, text: string) => Promise<void>;
+  private textDeliveryHandler?: (sessionId: string, text: string, options?: { withReturn?: boolean }) => Promise<void>;
   private terminalOutputBuffer = new TerminalOutputBuffer();
 
   constructor(factory?: PtyFactory) {
@@ -157,22 +157,22 @@ export class PtyManager extends EventEmitter {
   }
 
   /** Configure a higher-level text delivery path that can honor per-CLI insertion modes. */
-  setTextDeliveryHandler(handler: ((sessionId: string, text: string) => Promise<void>) | undefined): void {
+  setTextDeliveryHandler(handler: ((sessionId: string, text: string, options?: { withReturn?: boolean }) => Promise<void>) | undefined): void {
     this.textDeliveryHandler = handler;
   }
 
   /** Deliver bulk text using the preferred insertion mode when available. */
-  async deliverText(sessionId: string, text: string): Promise<void> {
+  async deliverText(sessionId: string, text: string, options?: { withReturn?: boolean }): Promise<void> {
     if (!text) return;
     if (this.textDeliveryHandler) {
       try {
-        await this.textDeliveryHandler(sessionId, text);
+        await this.textDeliveryHandler(sessionId, text, options);
         return;
       } catch (error) {
         logger.warn(`[PTY] Preferred text delivery failed for ${sessionId}, falling back to PTY write: ${error}`);
       }
     }
-    this.write(sessionId, text);
+    this.write(sessionId, options?.withReturn ? text + '\r' : text);
   }
 
   /** Resize a session's PTY. */

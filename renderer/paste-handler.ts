@@ -55,7 +55,7 @@ export async function deliverViaClipboardPaste(text: string): Promise<void> {
  *  OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode.
  *  When using PTY mode, wraps text in bracketed paste markers if the terminal
  *  has enabled bracketed paste mode (DEC private mode 2004). */
-export async function deliverBulkText(sessionId: string, text: string): Promise<void> {
+export async function deliverBulkText(sessionId: string, text: string, options?: { withReturn?: boolean }): Promise<void> {
   if (!text) return;
   const session = state.sessions.find(s => s.id === sessionId);
   const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
@@ -72,6 +72,9 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
         await window.gamepadCli.ptyWrite(sessionId, char);
         await new Promise(resolve => setTimeout(resolve, PTY_INDIVIDUAL_DELAY_MS));
       }
+      if (options?.withReturn) {
+        await window.gamepadCli.ptyWrite(sessionId, '\r');
+      }
       console.log(`[Paste] ptyindividual complete: ${text.length} chars sent`);
     } finally {
       ptyIndividualLock.delete(sessionId);
@@ -84,10 +87,16 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
       await window.gamepadCli.keyboardTypeString(char);
       await new Promise(resolve => setTimeout(resolve, SENDKEYS_INDIVIDUAL_DELAY_MS));
     }
+    if (options?.withReturn) {
+      await window.gamepadCli.keyboardTypeString('\r');
+    }
     return;
   }
   if (tool?.pasteMode === 'sendkeys' && window.gamepadCli?.keyboardTypeString) {
     await window.gamepadCli.keyboardTypeString(text);
+    if (options?.withReturn) {
+      await window.gamepadCli.keyboardTypeString('\r');
+    }
     return;
   }
 
@@ -103,7 +112,7 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
     }
 
     termSession.view.focus();
-    await window.gamepadCli.ptyWrite(sessionId, text);
+    await window.gamepadCli.ptyWrite(sessionId, options?.withReturn ? text + '\r' : text);
     console.log(`[Paste] clippaste complete: ${text.length} chars pasted via PTY`);
     return;
   }
@@ -114,9 +123,10 @@ export async function deliverBulkText(sessionId: string, text: string): Promise<
   const bracketedPasteEnabled = typeof view?.isBracketedPasteEnabled === 'function'
     ? view.isBracketedPasteEnabled()
     : false;
+  const suffix = options?.withReturn ? '\r' : '';
   const payload = bracketedPasteEnabled
-    ? `\x1b[200~${text}\x1b[201~`
-    : text;
+    ? `\x1b[200~${text}\x1b[201~${suffix}`
+    : `${text}${suffix}`;
   window.gamepadCli.ptyWrite(sessionId, payload);
 }
 

@@ -109,7 +109,7 @@ export function registerIPCHandlers(
 
   const incomingWatcher = new IncomingPlansWatcher(planManager);
   const textDeliverer = new RendererTextDeliverer(windowManager, sessionManager, configLoader);
-  ptyManager.setTextDeliveryHandler((sessionId, text) => textDeliverer.deliver(sessionId, text));
+  ptyManager.setTextDeliveryHandler((sessionId, text, options) => textDeliverer.deliver(sessionId, text, options));
   const localhostMcpServer = new LocalhostMcpServer(helmControlService, {
     enabled: configLoader.getMcpConfig().enabled,
     port: configLoader.getMcpConfig().port,

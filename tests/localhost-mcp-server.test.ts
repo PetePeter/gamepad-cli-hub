@@ -172,7 +172,7 @@ describe('LocalhostMcpServer', () => {
     expect(planSetStateTool.description).toContain('planning');
     expect(planSetStateTool.description).toContain('ready');
     expect(planSetStateTool.description).toContain('session_set_working_plan');
-    expect(sendTextTool.description).toContain('Always use submit=true/default');
+    expect(sendTextTool.description).toContain('always submitted atomically');
     expect(sendTextTool.description).toContain('session_read_terminal');
     expect(readTerminalTool.description).toContain('terminal tail');
     expect(readTerminalTool.description).toContain('verify the recipient received');
@@ -206,7 +206,7 @@ describe('LocalhostMcpServer', () => {
       'Mcp-Name': 'session_send_text',
     });
     const json = await response.json();
-    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { submit: true, senderSessionId: 's1', senderSessionName: 'Claude' });
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { senderSessionId: 's1', senderSessionName: 'Claude' });
     expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
   });
 
@@ -693,29 +693,6 @@ describe('LocalhostMcpServer', () => {
     expect(json.error.message).toBe('Session not found: missing-session');
   });
 
-  it('supports submit=false to send text without Enter', async () => {
-    const service = makeService();
-    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
-    servers.push(server);
-    await server.start();
-    const port = server.getAddress()!.port;
-
-    const response = await rpc(port, 'secret-token', {
-      jsonrpc: '2.0',
-      id: 37,
-      method: 'tools/call',
-      params: {
-        name: 'session_send_text',
-        arguments: { sessionId: 's1', text: 'hello', submit: false, senderSessionId: 's1' },
-      },
-    });
-    const json = await response.json();
-    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { submit: false, senderSessionId: 's1', senderSessionName: 'Claude' });
-    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
-    expect(json.result.content[0].text).toContain('submit must stay true/default');
-    expect(json.result.content[0].text).toContain('session_read_terminal');
-  });
-
   it('passes sender info into sendTextToSession', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
@@ -733,7 +710,7 @@ describe('LocalhostMcpServer', () => {
       },
     });
     const json = await response.json();
-    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { submit: true, senderSessionId: 's1', senderSessionName: 'Claude' });
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { senderSessionId: 's1', senderSessionName: 'Claude' });
     expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
   });
 
@@ -756,7 +733,6 @@ describe('LocalhostMcpServer', () => {
     });
     const json = await response.json();
     expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', {
-      submit: true,
       senderSessionId: 'sender-1',
       senderSessionName: 'Codex Session',
       expectsResponse: true,
@@ -781,7 +757,7 @@ describe('LocalhostMcpServer', () => {
       },
     });
     const json = await response.json();
-    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { submit: true, senderSessionId: 's1', senderSessionName: 'Claude', expectsResponse: true });
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { senderSessionId: 's1', senderSessionName: 'Claude', expectsResponse: true });
     expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
   });
 

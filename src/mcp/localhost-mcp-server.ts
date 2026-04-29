@@ -400,9 +400,8 @@ const TOOLS: McpTool[] = [
       'DESTINATION: Provide sessionId (the target session that will receive the text). ' +
       'SENDER: Provide senderSessionId (your own session ID from the HELM_SESSION_ID env var). ' +
       'IMPORTANT: Destination and sender MUST be different sessions — self-messages are rejected. ' +
-      'HANDOFF RULE: Always use submit=true/default for inter-LLM handoffs; submit=false only parks text in the recipient buffer without triggering work. ' +
+      'Text is always submitted atomically (Enter is appended automatically). ' +
       'After every inter-LLM send, call session_read_terminal on the recipient and verify the terminal tail shows the first words of the sent text, a new prompt, or a response starting; warn the user if no receipt evidence is visible. ' +
-      'When submit is true (default), Helm inserts the text and then issues a send/submit action separately. ' +
       'Optional expectsResponse marks HELM inter-LLM envelopes that expect a reply. ' +
       'RECEIVING RESPONSES: When the target session replies, Helm pastes a [HELM_MSG] envelope directly into the sender session\'s chatbox as a new user message — there is no polling or callback; the reply arrives as an inbound chat turn in your own session.',
     inputSchema: {
@@ -413,7 +412,6 @@ const TOOLS: McpTool[] = [
           description: '[DESTINATION] Target session ID — MUST be different from senderSessionId.',
         },
         text: { type: 'string' },
-        submit: { type: 'boolean', default: true },
         senderSessionId: {
           type: 'string',
           description:
@@ -936,7 +934,6 @@ export class LocalhostMcpServer {
           asString(args.sessionId, 'sessionId is required'),
           asString(args.text, 'text is required'),
           {
-            submit: typeof args.submit === 'boolean' ? args.submit : true,
             senderSessionId,
             senderSessionName,
             ...(typeof args.expectsResponse === 'boolean' ? { expectsResponse: args.expectsResponse } : {}),
