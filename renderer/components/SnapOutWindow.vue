@@ -240,18 +240,31 @@ onMounted(async () => {
     updateWindowTitle();
   }) ?? null;
 
-  // Fit and focus
-  view.fit();
-  view.focus();
+  // Double-RAF fit: ensures DOM has fully reflowed before FitAddon measures
+  let fitDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const debouncedFit = () => {
+    if (fitDebounceTimer !== null) clearTimeout(fitDebounceTimer);
+    fitDebounceTimer = setTimeout(() => {
+      fitDebounceTimer = null;
+      view?.fit();
+    }, 50);
+  };
 
-  // Force a resize to prompt CLI redraw (xterm.js starts blank)
-  setTimeout(() => {
-    view?.fit();
-    const dims = (view as any)?.getDimensions?.();
-    if (dims) {
-      window.gamepadCli?.ptyResize(props.sessionId, dims.cols, dims.rows);
-    }
-  }, 100);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      view?.fit();
+      view?.focus();
+    });
+  });
+
+  // ResizeObserver on container — catches layout shifts from chip bar etc.
+  const hasResizeObserver = typeof ResizeObserver !== 'undefined';
+  const resizeObserver = hasResizeObserver ? new ResizeObserver(() => debouncedFit()) : null;
+  if (resizeObserver && containerRef.value) resizeObserver.observe(containerRef.value);
+
+  // Handle window resize
+  const handleResize = () => debouncedFit();
+  window.addEventListener('resize', handleResize);
 
   // Load chip bar data for this session
   await chipBarStore.refresh(props.sessionId);
@@ -272,12 +285,6 @@ onMounted(async () => {
 
   setChipBarDraftEditorOpener(openDraftEditor);
   setChipBarPlanEditorOpener(() => { /* plan editor not supported in snap-out */ });
-
-  // Handle window resize
-  const handleResize = () => {
-    view?.fit();
-  };
-  window.addEventListener('resize', handleResize);
 
   // Right-click context menu
   const handleContextMenu = (e: MouseEvent) => {
@@ -310,6 +317,7 @@ onMounted(async () => {
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('keydown', handleKeydown);
     containerRef.value?.removeEventListener('contextmenu', handleContextMenu);
+    resizeObserver?.disconnect();
   });
 });
 
