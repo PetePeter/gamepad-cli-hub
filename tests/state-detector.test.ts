@@ -746,6 +746,26 @@ describe('StateDetector', () => {
 
       expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'active' }));
     });
+
+    it('switch then resize does not falsely promote via promoteIfRecentOutput', () => {
+      const handler = vi.fn();
+      detector.on('activity-change', handler);
+
+      // Simulate the real-world bug: switch triggers resize redraw
+      detector.markSwitching('s1');
+      detector.processOutput('s1', 'resize redraw prompt that is definitely long enough to pass the threshold');
+
+      // Resize fires during switching window (fit() runs 2 rAF frames after switch)
+      detector.markResizing('s1');
+
+      // Switching clears at 1s — does NOT call promoteIfRecentOutput
+      vi.advanceTimersByTime(1001);
+
+      // Resizing clears at 1s — calls promoteIfRecentOutput, but lastOutputAt
+      // was NOT updated during switching, so there's no "recent" output to promote
+      vi.advanceTimersByTime(1);
+      expect(handler).not.toHaveBeenCalled();
+    });
   });
 
   // -------------------------------------------------------------------------

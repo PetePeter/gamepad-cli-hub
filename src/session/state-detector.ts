@@ -246,7 +246,11 @@ export class StateDetector extends EventEmitter {
   /** Feed output data from a session's PTY. */
   processOutput(sessionId: string, data: string): void {
     const tracking = this.getOrCreate(sessionId);
-    tracking.lastOutputAt = Date.now();
+    // Don't update lastOutputAt during switching suppression — resize redraws
+    // during a switch would cause promoteIfRecentOutput to falsely go green.
+    if (!tracking.switching) {
+      tracking.lastOutputAt = Date.now();
+    }
 
     // Skip activity promotion during resize or restore (shell startup output is not new user activity)
     if (!tracking.resizing && !tracking.switching && !tracking.restoring) {
