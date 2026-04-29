@@ -344,14 +344,15 @@ describe('keyboard relay', () => {
       document.body.removeChild(overlay);
     });
 
-    it('blocks Ctrl+V paste when a modal overlay is visible', async () => {
+    it('allows Ctrl+V paste even when a modal overlay is visible (paste is terminal-directed)', async () => {
       getActiveSessionId.mockReturnValue('sess-1');
+      navigator.clipboard.readText.mockResolvedValue('hello');
 
       fireKey('v', { ctrlKey: true });
       await new Promise(r => setTimeout(r, 10));
 
-      expect(navigator.clipboard.readText).not.toHaveBeenCalled();
-      expect(mockPtyWrite).not.toHaveBeenCalled();
+      expect(navigator.clipboard.readText).toHaveBeenCalled();
+      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello');
     });
 
     it('blocks printable key relay when a modal overlay is visible', () => {

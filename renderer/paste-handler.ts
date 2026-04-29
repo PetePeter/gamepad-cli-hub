@@ -190,6 +190,33 @@ export function setupKeyboardRelay(
       return;
     }
 
+    // Ctrl+V paste — always intercept, even when xterm has focus
+    // (xterm.js doesn't reliably handle paste from clipboard)
+    // Placed before modal guard: paste is terminal-directed, and clippaste
+    // mode needs to reach deliverBulkText even when modals are visible.
+    // Still respects plan screen and draft editor blocks since those views
+    // consume keyboard input themselves.
+    if (e.ctrlKey && e.key === 'v') {
+      if (document.querySelector('.plan-screen.visible')) return;
+      if (isDraftEditorVisible()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (pasteInFlight) return;
+      pasteInFlight = true;
+      try {
+        const text = await navigator.clipboard.readText();
+        hasPendingQuestion(sessionId);
+        if (text.length > 0) {
+          await deliverBulkText(sessionId, text);
+        }
+      } catch (err) {
+        console.warn('[KeyRelay] clipboard read failed:', err);
+      } finally {
+        pasteInFlight = false;
+      }
+      return;
+    }
+
     // Block ALL keyboard relay when any modal overlay is visible
     if (document.querySelector('.modal-overlay.modal--visible')) {
       e.stopPropagation();
@@ -201,28 +228,6 @@ export function setupKeyboardRelay(
 
     // Block keyboard relay when the draft editor is open
     if (isDraftEditorVisible()) return;
-
-    // Ctrl+V paste — always intercept, even when xterm has focus
-    // (xterm.js doesn't reliably handle paste from clipboard)
-    if (e.ctrlKey && e.key === 'v') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (pasteInFlight) return;
-      pasteInFlight = true;
-      try {
-        const text = await navigator.clipboard.readText();
-        hasPendingQuestion(sessionId);
-        // Use sessionId captured before await — session may have switched during clipboard read
-        if (text.length > 0) {
-          await deliverBulkText(sessionId, text);
-        }
-      } catch (err) {
-        console.warn('[KeyRelay] clipboard read failed:', err);
-      } finally {
-        pasteInFlight = false;
-      }
-      return;
-    }
 
     // Ctrl+G — open external editor for prompt composition
     if (e.ctrlKey && e.key === 'g') {
