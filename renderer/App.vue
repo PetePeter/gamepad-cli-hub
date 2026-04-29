@@ -1482,10 +1482,10 @@ async function onTelegramUpdateField(field: string, value: string | boolean): Pr
       await window.gamepadCli.telegramSetConfig({ botToken: String(value) });
       settingsTelegramConfig.value.botToken = String(value);
     } else if (field === 'chatId') {
-      await window.gamepadCli.telegramSetConfig({ chatId: String(value) });
+      await window.gamepadCli.telegramSetConfig({ chatId: Number(value) || null });
       settingsTelegramConfig.value.chatId = String(value);
     } else if (field === 'allowedUsers') {
-      const ids = String(value).split(',').map(s => s.trim()).filter(Boolean);
+      const ids = String(value).split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
       await window.gamepadCli.telegramSetConfig({ allowedUserIds: ids });
       settingsTelegramConfig.value.allowedUsers = String(value);
     }
@@ -1496,7 +1496,7 @@ async function onTelegramUpdateField(field: string, value: string | boolean): Pr
 
 async function onTelegramStartBot(): Promise<void> {
   try {
-    await window.gamepadCli.telegramStartBot();
+    await window.gamepadCli.telegramStart();
     settingsTelegramBotRunning.value = true;
   } catch (error) {
     console.error('Failed to start Telegram bot:', error);
@@ -1505,7 +1505,7 @@ async function onTelegramStartBot(): Promise<void> {
 
 async function onTelegramStopBot(): Promise<void> {
   try {
-    await window.gamepadCli.telegramStopBot();
+    await window.gamepadCli.telegramStop();
     settingsTelegramBotRunning.value = false;
   } catch (error) {
     console.error('Failed to stop Telegram bot:', error);
