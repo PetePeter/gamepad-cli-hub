@@ -103,7 +103,9 @@ defineExpose({ handleButton });
       tabindex="-1"
     >
       <div class="modal">
-        <div class="modal-title">Select CLI type</div>
+        <div class="modal-header">
+          <div class="modal-title">Select CLI type</div>
+        </div>
         <div
           class="dir-picker-list"
           id="quickSpawnList"
