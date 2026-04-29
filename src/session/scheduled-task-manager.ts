@@ -260,7 +260,10 @@ export class ScheduledTaskManager extends EventEmitter {
         throw new Error(`Unknown CLI type: ${task.cliType}`);
       }
 
-      const rawCommand = cliConfig.spawnCommand?.replaceAll('{cliSessionName}', cliSessionName);
+      let rawCommand = cliConfig.spawnCommand?.replaceAll('{cliSessionName}', cliSessionName);
+      if (rawCommand && task.cliParams?.trim()) {
+        rawCommand = `${rawCommand} ${task.cliParams.trim()}`;
+      }
       const pty = this.ptyManager.spawn({
         sessionId,
         ...(rawCommand ? { rawCommand } : { command: task.cliType, args: task.cliParams ? splitCliParams(task.cliParams) : [] }),
