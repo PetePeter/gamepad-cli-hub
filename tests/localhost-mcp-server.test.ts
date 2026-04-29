@@ -870,6 +870,45 @@ describe('LocalhostMcpServer', () => {
     expect(response.status).toBe(405);
   });
 
+  it('session_info guide documents AIAGENT transitions, state systems, integration patterns, and errors', () => {
+    const service = new HelmControlService(
+      {} as any,
+      {
+        getSession: vi.fn(() => ({
+          id: 'sess-123',
+          name: 'Claude-Main',
+          cliType: 'claude-code',
+          processId: 42,
+          workingDir: 'X:\\coding\\gamepad-cli-hub',
+        })),
+      } as any,
+      {} as any,
+      {
+        getMcpConfig: vi.fn(() => ({ port: 47373, authToken: 'secret-token-value' })),
+        getWorkingDirectories: vi.fn(() => [{ path: 'X:\\coding\\gamepad-cli-hub', name: 'Helm' }]),
+      } as any,
+      {} as any,
+    );
+
+    const content = service.getSessionInfo({ sessionId: 'sess-123', sessionName: 'Claude-Main' });
+    const guide = content.aiagent_state_guide!;
+
+    expect(guide.validStates).toEqual(['planning', 'implementing', 'completed', 'idle']);
+    expect(guide.how_to_update.mcp_call).toBe('session_set_aiagent_state');
+    expect(guide.state_systems.map((system) => system.name)).toEqual(['aiagentState', 'sessionState', 'planState']);
+    expect(guide.state_transitions).toHaveLength(12);
+    expect(guide.state_transitions.every((transition) => transition.from && transition.to && transition.when)).toBe(true);
+    expect(guide.integration_patterns.map((pattern) => pattern.scenario)).toEqual([
+      'Starting implementation',
+      'Blocked by question',
+      'Completing work',
+    ]);
+    expect(guide.error_scenarios).toEqual(expect.arrayContaining([
+      expect.stringContaining('Invalid state'),
+      expect.stringContaining('Session not found'),
+    ]));
+  });
+
   it('session_info returns complete SessionInfo with MCP endpoint and state registry', async () => {
     const service = makeService();
     (service as any).getSessionInfo = vi.fn((authContext) => ({

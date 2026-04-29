@@ -301,7 +301,7 @@ export async function doSpawn(
 
     if (success) {
       logEvent(`Spawned embedded terminal: ${cliType}`);
-      useNavigationStore().activateSession(sessionId);
+      await useNavigationStore().navigateToSession(sessionId);
 
       setTimeout(async () => {
         try {
@@ -331,7 +331,7 @@ export async function doSpawnShell(command: string): Promise<void> {
 
     if (success) {
       logEvent('Spawned embedded shell terminal');
-      useNavigationStore().activateSession(sessionId);
+      await useNavigationStore().navigateToSession(sessionId);
 
       setTimeout(async () => {
         try {

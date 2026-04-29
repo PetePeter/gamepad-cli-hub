@@ -612,7 +612,8 @@ describe('Sessions Screen', () => {
       sessionsState.sessionsFocusIndex = 2; // first session card
       sessions.handleSessionsScreenButton('DPadDown');
 
-      expect(mockActivateSession).toHaveBeenCalledWith('s-1');
+      expect(mockNavigateToSession).toHaveBeenCalledWith('s-1');
+      expect(mockActivateSession).not.toHaveBeenCalled();
     });
 
     it('X falls through to config bindings (not consumed)', () => {

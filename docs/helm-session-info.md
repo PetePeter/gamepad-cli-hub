@@ -41,6 +41,14 @@ The tool returns a `SessionInfoResponse` object with these fields:
   
   The session detector in Helm scans PTY stdout for these keywords and updates the session's visual state (activity dots) and `state` field in session info.
 
+- **`aiagent_state_guide`** — Practical guide for the explicit AIAGENT state endpoint.
+  - **`validStates`** — The values accepted by `session_set_aiagent_state`: `planning`, `implementing`, `completed`, and `idle`.
+  - **`how_to_update`** — Tool name, usage example, and visual icon mapping for explicit AIAGENT state updates.
+  - **`state_systems`** — Explains the difference between explicit `aiagentState`, PTY-detected `sessionState`, and durable Helm `planState`.
+  - **`state_transitions`** — Advisory state-machine transitions with conditions for moving between states.
+  - **`integration_patterns`** — Common workflows for starting implementation, handling blockers, and completing work.
+  - **`error_scenarios`** — Expected failure modes such as invalid states, missing sessions, or plan ownership conflicts.
+
 ### Available Resources
 
 - **`available_tools`** (McpToolSummary[]) — List of tools exposed by the MCP server with `{ name, title, description }` fields. Use this to discover what operations are available before calling tools.
@@ -199,6 +207,14 @@ Two auth models:
 
 ## AIAGENT State Machine Integration
 
+Helm tracks three independent state systems. Keep them aligned when useful, but do not treat them as aliases:
+
+| System | Owner | Purpose |
+| --- | --- | --- |
+| `aiagentState` | External agents via `session_set_aiagent_state` | Durable agent-declared phase shown on session rows: planning, implementing, completed, or idle. |
+| `sessionState` | Helm `StateDetector` | Runtime pipeline state inferred from AIAGENT-* tags in PTY output and question markers. |
+| `planState` | Helm plan tools | Durable lifecycle for a plan item: planning, ready, coding, review, blocked, or done. |
+
 The session detector in Helm's main process scans PTY output for the four AIAGENT-* keywords and:
 
 1. Extracts the state from the first line of a response block.
@@ -209,6 +225,63 @@ The session detector in Helm's main process scans PTY output for the four AIAGEN
    - `state: 'planning'|'implementing'|'completed'` on keyword match.
 
 The `aiagent_states` registry from `session_info` provides the canonical list of states the detector recognizes — use these in response formatting to ensure your state transitions are recognized.
+
+The explicit state endpoint is:
+
+```json
+{
+  "name": "session_set_aiagent_state",
+  "arguments": {
+    "sessionId": "your-session-id",
+    "state": "implementing"
+  }
+}
+```
+
+### State Machine
+
+```mermaid
+stateDiagram-v2
+  [*] --> idle
+  idle --> planning: inspect context or ask questions
+  idle --> implementing: direct execution starts
+  idle --> completed: report-only task is done
+  planning --> implementing: enough context to edit or execute
+  planning --> completed: investigation-only work is done
+  planning --> idle: paused or cancelled
+  implementing --> planning: blocker or ambiguity appears
+  implementing --> completed: implementation and verification finish
+  implementing --> idle: paused or cancelled
+  completed --> planning: follow-up question or review starts
+  completed --> implementing: follow-up change starts
+  completed --> idle: accepted or stood down
+```
+
+### Integration Patterns
+
+Starting implementation:
+
+1. Call `plan_set_state` with `status: "coding"` and your `sessionId` when claiming a plan.
+2. Call `session_set_working_plan` so Helm shows the plan on the session row.
+3. Call `session_set_aiagent_state` with `state: "implementing"` when edits, commands, or other execution begins.
+
+Blocked by a question:
+
+1. Call `session_set_aiagent_state` with `state: "planning"` while deciding or asking.
+2. Create a separate `QUESTION: ...` plan if the blocker should survive chat history.
+3. Link the question plan to the blocked plan with `plan_nextplan_link`; set the original plan blocked when work cannot continue.
+
+Completing work:
+
+1. Run the relevant verification and collect concise completion notes.
+2. Call `plan_complete` with changed behavior, important files, tests or review, and remaining risk.
+3. Call `session_set_aiagent_state` with `state: "completed"` so the user can see the session is ready for review.
+
+Expected errors:
+
+- `session_set_aiagent_state` rejects values outside `planning`, `implementing`, `completed`, and `idle`.
+- Unknown session references fail with `Session not found`; use `HELM_SESSION_ID` from spawned sessions where possible.
+- Plan ownership calls may fail if another session already owns the plan.
 
 ## Example: Full Session Initialization
 

@@ -49,6 +49,7 @@ export const useNavigationStore = defineStore('navigation', () => {
   // ── Initialization ───────────────────────────────────────────────────
   let initialized = false;
   let unsubViewChange: (() => void) | null = null;
+  let navigationRequestId = 0;
 
   function init(): void {
     if (initialized) return;
@@ -108,6 +109,8 @@ export const useNavigationStore = defineStore('navigation', () => {
    * Use for: sidebar session click, notification click, overview card select.
    */
   async function navigateToSession(sessionId: string): Promise<void> {
+    const requestId = ++navigationRequestId;
+    const isLatestRequest = () => requestId === navigationRequestId;
     const cv = currentView();
 
     // Always clear restore context — we're navigating to a concrete session.
@@ -119,19 +122,20 @@ export const useNavigationStore = defineStore('navigation', () => {
     // 1. Dismiss overlays (skip their restore — we're going somewhere new)
     if (cv === 'overview') {
       const { setSelectedOnExit } = await import('../screens/group-overview.js');
+      if (!isLatestRequest()) return;
       setSelectedOnExit(true);
       await showView('terminal');
     } else if (cv === 'plan') {
-      const { hidePlanScreen } = await import('../plans/plan-screen.js');
-      hidePlanScreen();
       await showView('terminal');
     }
+    if (!isLatestRequest()) return;
 
     // 2. Clean up draft/editor/chip bar
     const [{ hideEditorPopup }, chipBarMod] = await Promise.all([
       import('../editor/editor-popup.js'),
       import('../stores/chip-bar.js'),
     ]);
+    if (!isLatestRequest()) return;
     const chipBarStore = chipBarMod.useChipBarStore();
     hideDraftEditor();
     hideEditorPopup();
@@ -145,6 +149,7 @@ export const useNavigationStore = defineStore('navigation', () => {
       } catch {
         // Ignore focus failures and still sync local selection state.
       }
+      if (!isLatestRequest()) return;
       state.activeSessionId = sessionId;
       syncSidebarToSession(sessionId);
       void chipBarStore.refresh(sessionId);
@@ -172,6 +177,7 @@ export const useNavigationStore = defineStore('navigation', () => {
    * Use for: D-pad auto-select, Ctrl+Tab cycling.
    */
   function activateSession(sessionId: string): void {
+    ++navigationRequestId;
     const tm = getTerminalManager();
     if (tm?.hasTerminal(sessionId)) {
       tm.switchTo(sessionId);
@@ -183,6 +189,7 @@ export const useNavigationStore = defineStore('navigation', () => {
   // ── Overlay lifecycle ────────────────────────────────────────────────
 
   async function openOverview(dirPath: string | null, initialSessionId?: string): Promise<void> {
+    ++navigationRequestId;
     // If transitioning from plan, its unmount runs during showView('overview') — no special flag needed.
 
     // Re-read legacy focus before saving (D-pad may have moved it)
@@ -205,8 +212,8 @@ export const useNavigationStore = defineStore('navigation', () => {
    * then reads back the result to update identity-based focus.
    */
   async function closeOverview(): Promise<void> {
-    const { hideOverview } = await import('../screens/group-overview.js');
-    hideOverview();
+    ++navigationRequestId;
+    await showView('terminal');
 
     // Overview unmount restores terminal + numeric sidebar focus.
     // Read back the restored index and update identity tracker.
@@ -224,6 +231,7 @@ export const useNavigationStore = defineStore('navigation', () => {
   }
 
   async function openPlan(dirPath: string): Promise<void> {
+    ++navigationRequestId;
     // If overview is open, tell it to skip restore
     if (currentView() === 'overview') {
       const { setSelectedOnExit } = await import('../screens/group-overview.js');
@@ -250,6 +258,7 @@ export const useNavigationStore = defineStore('navigation', () => {
    * store handles it entirely.
    */
   async function closePlan(): Promise<void> {
+    ++navigationRequestId;
     const savedPrev = _previousSessionId.value;
     const savedFocus = _savedFocusItem.value;
     _previousSessionId.value = null;

@@ -474,10 +474,11 @@ describe('useNavigationStore', () => {
   });
 
   describe('closeOverview', () => {
-    it('delegates to hideOverview', async () => {
+    it('delegates to the main view manager', async () => {
       currentMvmView = 'overview';
       await store.closeOverview();
-      expect(mockHideOverview).toHaveBeenCalled();
+      expect(showView).toHaveBeenCalledWith('terminal');
+      expect(mockHideOverview).not.toHaveBeenCalled();
     });
 
     it('reads back restored focus from sessionsState', async () => {

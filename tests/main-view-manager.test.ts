@@ -44,6 +44,29 @@ describe('MainViewManager', () => {
     expect(cb).toHaveBeenCalledWith('overview');
   });
 
+  it('notifies listeners before an async mount completes', async () => {
+    let releasePlanMount: (() => void) | null = null;
+    registerView('plan', {
+      mount: async () => {
+        await new Promise<void>((resolve) => {
+          releasePlanMount = resolve;
+        });
+      },
+      unmount: () => {},
+    });
+    const cb = vi.fn();
+    onViewChange(cb);
+
+    const pending = showView('plan');
+    await Promise.resolve();
+
+    expect(currentView()).toBe('plan');
+    expect(cb).toHaveBeenCalledWith('plan');
+
+    releasePlanMount?.();
+    await pending;
+  });
+
   it('does not fire onChange when view is unchanged', async () => {
     registerView('terminal', { mount: () => {}, unmount: () => {} });
     const cb = vi.fn();

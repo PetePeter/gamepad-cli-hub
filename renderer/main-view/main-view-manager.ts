@@ -59,6 +59,11 @@ export async function showView(view: MainView, params?: unknown): Promise<void> 
     try { prevHandlers.unmount(); } catch (err) { console.error('[MainView] unmount failed:', err); }
   }
   current = view;
+  if (prev !== view) {
+    for (const cb of listeners) {
+      try { cb(view); } catch (err) { console.error('[MainView] listener failed:', err); }
+    }
+  }
   const next = handlers.get(view);
   if (next) {
     const context: ViewMountContext = {
@@ -71,11 +76,6 @@ export async function showView(view: MainView, params?: unknown): Promise<void> 
     } catch (err) {
       console.error('[MainView] mount failed:', err);
       if (!context.isActive()) return;
-    }
-  }
-  if (prev !== view) {
-    for (const cb of listeners) {
-      try { cb(view); } catch (err) { console.error('[MainView] listener failed:', err); }
     }
   }
 }

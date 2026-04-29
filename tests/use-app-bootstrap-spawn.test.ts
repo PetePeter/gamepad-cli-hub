@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockActivateSession = vi.fn();
 const mockSyncSidebarToSession = vi.fn();
+const mockNavigateToSession = vi.fn().mockResolvedValue(undefined);
 const mockChipBarRefresh = vi.fn().mockResolvedValue(undefined);
 const mockCreateTerminal = vi.fn().mockResolvedValue(true);
 const mockGetSession = vi.fn();
@@ -97,7 +98,7 @@ vi.mock('../renderer/stores/navigation.js', () => ({
     activateSession: mockActivateSession,
     syncSidebarToSession: mockSyncSidebarToSession,
     onNavListRebuilt: vi.fn(),
-    navigateToSession: vi.fn(),
+    navigateToSession: mockNavigateToSession,
   }),
 }));
 
@@ -139,7 +140,8 @@ describe('useAppBootstrap doSpawn', () => {
 
     await mod.doSpawn('claude-code', '/repo');
 
-    expect(mockActivateSession).toHaveBeenCalledWith('pty-claude-code-1776705600000');
+    expect(mockNavigateToSession).toHaveBeenCalledWith('pty-claude-code-1776705600000');
+    expect(mockActivateSession).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(300);
 

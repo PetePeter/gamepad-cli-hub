@@ -17,8 +17,7 @@ import {
 import { refreshPlanBadges } from './sessions-plans.js';
 
 import { hideOverview } from './group-overview.js';
-import { currentView, registerView } from '../main-view/main-view-manager.js';
-import { hidePlanScreen, isPlanScreenVisible } from '../plans/plan-screen.js';
+import { registerView } from '../main-view/main-view-manager.js';
 import { useNavigationStore } from '../stores/navigation.js';
 import { isSpawnCollapsed, isPlannerCollapsed } from '../sidebar/section-collapse.js';
 
@@ -119,9 +118,8 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
 
       if (success) {
         logEvent(`Spawned embedded terminal: ${cliType}`);
-        showTerminalArea();
-        // Auto-select the new session
-        useNavigationStore().activateSession(sessionId);
+        // Auto-select the new session through the shared navigation owner.
+        await useNavigationStore().navigateToSession(sessionId);
 
         setTimeout(async () => {
           try {
@@ -212,13 +210,7 @@ export function autoSelectFocusedSession(): void {
   if (!session) return;
   const tm = getTerminalManager();
   if (tm && tm.hasTerminal(session.id)) {
-    const navStore = useNavigationStore();
-    if (currentView() === 'overview') {
-      void navStore.navigateToSession(session.id);
-      return;
-    }
-    navStore.activateSession(session.id);
-    showTerminalArea();
+    void useNavigationStore().navigateToSession(session.id);
   }
 }
 
