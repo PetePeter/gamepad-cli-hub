@@ -20,6 +20,7 @@ config/sessions.yaml
 config/plans.yaml
 config/plans.yaml.bak
 config/plans/
+config/plan-backups/
 config/plan-dependencies.json
 config-deploy/
 tmp/helm-work*
