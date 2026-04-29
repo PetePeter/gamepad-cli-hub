@@ -572,6 +572,7 @@ export async function loadSessionsData(): Promise<void> {
   // Build groups and flat navigation list
   sessionsState.groups = groupSessionsByDirectory(state.sessions, getSessionCwd, sessionsState.groupPrefs);
   sessionsState.navList = buildFlatNavList(sessionsState.groups);
+  useNavigationStore().onNavListRebuilt();
 
   try {
     sessionsState.cliTypes = await window.gamepadCli.configGetCliTypes();

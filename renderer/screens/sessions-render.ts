@@ -22,6 +22,7 @@ import {
   loadSessionsData, updateSessionsFocus,
   getSessionCwd, getTerminalManager,
 } from './sessions.js';
+import { useNavigationStore } from '../stores/navigation.js';
 
 // --- Constants ---
 
@@ -103,6 +104,7 @@ export async function initSessionsSortControl(): Promise<void> {
         // Rebuild groups and navList so the Vue sidebar reacts to the new order.
         sessionsState.groups = groupSessionsByDirectory(state.sessions, getSessionCwd, sessionsState.groupPrefs);
         sessionsState.navList = buildFlatNavList(sessionsState.groups);
+        useNavigationStore().onNavListRebuilt();
         updateSessionsFocus();
         if (isOverviewVisible()) refreshOverview();
         try {

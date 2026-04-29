@@ -47,6 +47,7 @@ vi.mock('../renderer/plans/plan-screen.js', () => ({
 vi.mock('../renderer/stores/navigation.js', () => ({
   useNavigationStore: () => ({
     openPlan: mockOpenPlan,
+    onNavListRebuilt: vi.fn(),
   }),
 }));
 
