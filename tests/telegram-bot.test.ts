@@ -732,4 +732,28 @@ describe('TelegramBotCore', () => {
       expect(await core.editForumTopic(42, 'Name')).toBe(false);
     });
   });
+
+  // =========================================================================
+  // API timeout — fail-fast
+  // =========================================================================
+
+  describe('API timeout', () => {
+    it('sendMessage returns null when the Telegram API hangs past timeout', async () => {
+      const core = startedBot();
+      shared.mockBotInstance!.sendMessage.mockReturnValueOnce(new Promise(() => {})); // never resolves
+      const result = core.sendMessage('hello');
+      vi.advanceTimersByTime(10_000);
+      await vi.runAllTimersAsync();
+      expect(await result).toBeNull();
+    });
+
+    it('createForumTopic returns null when the Telegram API hangs past timeout', async () => {
+      const core = startedBot();
+      shared.mockBotInstance!.createForumTopic.mockReturnValueOnce(new Promise(() => {}));
+      const result = core.createForumTopic('session-name');
+      vi.advanceTimersByTime(10_000);
+      await vi.runAllTimersAsync();
+      expect(await result).toBeNull();
+    });
+  });
 });

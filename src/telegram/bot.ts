@@ -29,6 +29,9 @@ interface PendingEdit {
 /** Minimum interval between edits to the same message (ms). */
 const EDIT_DEBOUNCE_MS = 1500;
 
+/** Fail-fast timeout for all Telegram Bot API calls (ms). */
+const API_TIMEOUT_MS = 10_000;
+
 /** Maximum edits per topic per minute. */
 const MAX_EDITS_PER_MIN = 20;
 
@@ -137,7 +140,7 @@ export class TelegramBotCore extends EventEmitter {
   ): Promise<TelegramBot.Message | null> {
     if (!this.bot || !this.chatId) return null;
     try {
-      return await this.bot.sendMessage(this.chatId, text, options);
+      return await this.withTimeout(this.bot.sendMessage(this.chatId, text, options), 'sendMessage');
     } catch (err) {
       logger.error(`[Telegram] sendMessage failed: ${err}`);
       return null;
@@ -201,7 +204,7 @@ export class TelegramBotCore extends EventEmitter {
   async answerCallback(callbackQueryId: string, text?: string): Promise<void> {
     if (!this.bot) return;
     try {
-      await this.bot.answerCallbackQuery(callbackQueryId, { text });
+      await this.withTimeout(this.bot.answerCallbackQuery(callbackQueryId, { text }), 'answerCallbackQuery');
     } catch (err) {
       logger.error(`[Telegram] answerCallback failed: ${err}`);
     }
@@ -222,11 +225,11 @@ export class TelegramBotCore extends EventEmitter {
   ): Promise<ForumTopic | null> {
     if (!this.bot || !this.chatId) return null;
     try {
-      const result = await this.bot.createForumTopic(
+      const result = await this.withTimeout(this.bot.createForumTopic(
         this.chatId,
         name,
         { icon_color: iconColor },
-      ) as unknown as ForumTopic;
+      ) as unknown as Promise<ForumTopic>, 'createForumTopic');
       return result;
     } catch (err) {
       logger.error(`[Telegram] createForumTopic failed: ${err}`);
@@ -238,7 +241,7 @@ export class TelegramBotCore extends EventEmitter {
   async closeForumTopic(topicId: number): Promise<boolean> {
     if (!this.bot || !this.chatId) return false;
     try {
-      await this.bot.closeForumTopic(this.chatId, topicId);
+      await this.withTimeout(this.bot.closeForumTopic(this.chatId, topicId), 'closeForumTopic');
       return true;
     } catch (err) {
       logger.error(`[Telegram] closeForumTopic failed: ${err}`);
@@ -250,7 +253,7 @@ export class TelegramBotCore extends EventEmitter {
   async reopenForumTopic(topicId: number): Promise<boolean> {
     if (!this.bot || !this.chatId) return false;
     try {
-      await this.bot.reopenForumTopic(this.chatId, topicId);
+      await this.withTimeout(this.bot.reopenForumTopic(this.chatId, topicId), 'reopenForumTopic');
       return true;
     } catch (err) {
       logger.error(`[Telegram] reopenForumTopic failed: ${err}`);
@@ -262,7 +265,7 @@ export class TelegramBotCore extends EventEmitter {
   async deleteForumTopic(topicId: number): Promise<boolean> {
     if (!this.bot || !this.chatId) return false;
     try {
-      await (this.bot as any).deleteForumTopic(this.chatId, topicId);
+      await this.withTimeout((this.bot as any).deleteForumTopic(this.chatId, topicId), 'deleteForumTopic');
       return true;
     } catch (err) {
       logger.error(`[Telegram] deleteForumTopic failed: ${err}`);
@@ -274,7 +277,7 @@ export class TelegramBotCore extends EventEmitter {
   async editForumTopic(topicId: number, name: string): Promise<boolean> {
     if (!this.bot || !this.chatId) return false;
     try {
-      await this.bot.editForumTopic(this.chatId, topicId, { name });
+      await this.withTimeout(this.bot.editForumTopic(this.chatId, topicId, { name }), 'editForumTopic');
       return true;
     } catch (err) {
       logger.error(`[Telegram] editForumTopic failed: ${err}`);
@@ -290,6 +293,16 @@ export class TelegramBotCore extends EventEmitter {
     if (!userId) return false;
     if (this.allowedUserIds.size === 0) return false;
     return this.allowedUserIds.has(userId);
+  }
+
+  /** Race an API promise against a fixed timeout. Rejects with a descriptive error on timeout. */
+  private withTimeout<T>(promise: Promise<T>, operation: string): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Telegram ${operation} timed out after ${API_TIMEOUT_MS}ms`)), API_TIMEOUT_MS),
+      ),
+    ]);
   }
 
   /** Check if a user has exceeded the inbound rate limit. */
@@ -371,11 +384,11 @@ export class TelegramBotCore extends EventEmitter {
     }
 
     try {
-      const result = await this.bot.editMessageText(pending.text, {
+      const result = await this.withTimeout(this.bot.editMessageText(pending.text, {
         chat_id: pending.chatId,
         message_id: pending.messageId,
         ...pending.options,
-      });
+      }), 'editMessageText');
       for (const resolve of pending.resolveList) resolve(result);
     } catch (err) {
       logger.error(`[Telegram] editMessageText failed: ${err}`);
