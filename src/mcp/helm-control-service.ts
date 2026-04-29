@@ -112,6 +112,7 @@ export interface SessionInfoResponse {
   session_send_text_guide?: {
     description: string;
     how_it_works: string;
+    inter_llm_handoff_protocol: string[];
     required_args: Record<string, string>;
     optional_args: Record<string, string>;
     examples: Array<{ scenario: string; payload: Record<string, unknown> }>;
@@ -703,6 +704,7 @@ export class HelmControlService extends EventEmitter {
         'ALWAYS claim assigned Helm implementation work before editing by calling plan_set_state with status=coding and your sessionId, then call session_set_working_plan with the same plan id.',
         'ALWAYS create a separate QUESTION: plan for blocking questions that must survive chat, link it to the blocked plan with plan_nextplan_link, and leave the original plan body intact unless explicitly asked to edit it.',
         'ALWAYS output the matching AIAGENT-* state tag as the first line of each user-facing response when the session prompt requires it.',
+        'ALWAYS send inter-LLM handoffs with session_send_text submit=true/default, then call session_read_terminal on the recipient and verify evidence of receipt before assuming delivery succeeded.',
       ],
       sessionId,
       sessionName: sessionName ?? sessionInfo?.name,
@@ -796,8 +798,13 @@ export class HelmControlService extends EventEmitter {
       session_send_text_guide: {
         description: 'Send text to another session from your session. This enables inter-LLM communication via Helm\'s embedded PTY system.',
         how_it_works: 'Text is delivered to the target session\'s PTY via stdin. Helm wraps your message in a [HELM_MSG] envelope with metadata. When expectsResponse=true, replies are pasted back into your session as new chat turns — no polling needed.',
+        inter_llm_handoff_protocol: [
+          'Always call session_send_text with submit=true, or omit submit because true is the default. Never use submit=false for inter-LLM handoffs.',
+          'After session_send_text succeeds, call session_read_terminal on the recipient session and inspect the tail for evidence the message landed: the first words of the sent text, a new prompt, or a new response starting.',
+          'If the recipient tail does not show evidence of receipt, warn the user instead of silently assuming success.',
+        ],
         required_args: { sessionId: '[DESTINATION] Target session ID — MUST be different from senderSessionId', text: 'The text to send', senderSessionId: '[SENDER] Your session ID — MUST equal the HELM_SESSION_ID environment variable injected by Helm at startup' },
-        optional_args: { submit: 'Boolean, default true. If true, Helm issues a send/submit action (like pressing Enter) after inserting the text', expectsResponse: 'Boolean, default false. If true, Helm routes the target session\'s reply back to your session' },
+        optional_args: { submit: 'Boolean, default true. For inter-LLM handoffs, leave this true; submit=false only parks text in the recipient buffer without triggering work.', expectsResponse: 'Boolean, default false. If true, Helm routes the target session\'s reply back to your session' },
         examples: [
           { scenario: 'Send prompt to session', payload: { sessionId: 'target-session-id', text: 'Analyze this file', senderSessionId: '$HELM_SESSION_ID', submit: true, expectsResponse: false } },
           { scenario: 'Send with auto-enter', payload: { sessionId: 'target-session-id', text: 'git status', senderSessionId: '$HELM_SESSION_ID', submit: true, expectsResponse: false } },

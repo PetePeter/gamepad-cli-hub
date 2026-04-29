@@ -400,6 +400,8 @@ const TOOLS: McpTool[] = [
       'DESTINATION: Provide sessionId (the target session that will receive the text). ' +
       'SENDER: Provide senderSessionId (your own session ID from the HELM_SESSION_ID env var). ' +
       'IMPORTANT: Destination and sender MUST be different sessions — self-messages are rejected. ' +
+      'HANDOFF RULE: Always use submit=true/default for inter-LLM handoffs; submit=false only parks text in the recipient buffer without triggering work. ' +
+      'After every inter-LLM send, call session_read_terminal on the recipient and verify the terminal tail shows the first words of the sent text, a new prompt, or a response starting; warn the user if no receipt evidence is visible. ' +
       'When submit is true (default), Helm inserts the text and then issues a send/submit action separately. ' +
       'Optional expectsResponse marks HELM inter-LLM envelopes that expect a reply. ' +
       'RECEIVING RESPONSES: When the target session replies, Helm pastes a [HELM_MSG] envelope directly into the sender session\'s chatbox as a new user message — there is no polling or callback; the reply arrives as an inbound chat turn in your own session.',
@@ -428,7 +430,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_read_terminal',
     title: 'Read Session Terminal',
-    description: 'Read the recent terminal tail for any known session by sessionId or exact name. lines must be 1..100; values over 100 are clamped and reported. mode controls raw ANSI output, ANSI-stripped output, or both.',
+    description: 'Read the recent terminal tail for any known session by sessionId or exact name. Use this immediately after session_send_text handoffs to verify the recipient received the message and started responding. lines must be 1..100; values over 100 are clamped and reported. mode controls raw ANSI output, ANSI-stripped output, or both.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1135,6 +1137,12 @@ function normalizeStructuredContent(value: unknown): Record<string, unknown> {
 }
 
 function getToolReminder(name: string): string {
+  if (name === 'session_send_text') {
+    return 'Reminder: for inter-LLM handoffs, submit must stay true/default. Now call session_read_terminal on the recipient and verify the tail shows the first words of the sent text, a new prompt, or a response starting; warn the user if no receipt evidence is visible.';
+  }
+  if (name === 'session_read_terminal') {
+    return 'Reminder: after a handoff, inspect this terminal tail for receipt evidence. If the sent text or new recipient activity is not visible, report that uncertainty to the user.';
+  }
   if (name === 'session_info') {
     return 'Reminder: now call session_set_aiagent_state for your current phase. If a Helm plan is assigned and you are implementing it, claim it with plan_set_state status=coding and sessionId, then call session_set_working_plan.';
   }

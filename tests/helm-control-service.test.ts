@@ -347,7 +347,10 @@ describe('HelmControlService.getSessionInfo', () => {
       expect.stringContaining('session_set_aiagent_state'),
       expect.stringContaining('plan_set_state'),
       expect.stringContaining('QUESTION:'),
+      expect.stringContaining('session_read_terminal'),
     ]));
+    expect(info.session_send_text_guide?.inter_llm_handoff_protocol.join(' ')).toContain('submit=true');
+    expect(info.session_send_text_guide?.inter_llm_handoff_protocol.join(' ')).toContain('session_read_terminal');
     expect(info.agent_plan_guide?.required_description_sections).toEqual([
       'Problem Statement',
       'User POV',

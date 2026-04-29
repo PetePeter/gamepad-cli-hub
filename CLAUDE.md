@@ -74,12 +74,6 @@ Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus, block
 Ctrl+G opens external editor (notepad with temp .md file) — on close, content is sent to active PTY via `editor:openExternal` IPC.
 ```
 
-## Inter-LLM Handoff Protocol
-
-1. Always call `session_send_text` with `submit: true` (the default). Never use `submit: false`.
-2. After send succeeds, call `session_read_terminal` on the recipient and check the tail for evidence the message landed and the session started responding.
-3. If no evidence of receipt, report to the user — do not silently assume success.
-
 ## Design Decisions
 
 1. **Browser Gamepad API only** — Single input path via Chromium's Gamepad API. Works with Xbox controllers (USB/Bluetooth, standard mapping → buttons 12-15 for D-pad) and generic/DirectInput gamepads (axes-based D-pad detection: dual-axis pairs then hat switch fallback). XInput/PowerShell path was removed for simplicity.

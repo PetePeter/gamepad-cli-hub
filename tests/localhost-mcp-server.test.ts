@@ -154,6 +154,7 @@ describe('LocalhostMcpServer', () => {
     const planCompleteTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_complete');
     const planNextLinkTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_nextplan_link');
     const planSetStateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_set_state');
+    const sendTextTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'session_send_text');
     const readTerminalTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'session_read_terminal');
     const attachmentAddTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_attachment_add');
     const attachmentGetTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_attachment_get');
@@ -171,7 +172,10 @@ describe('LocalhostMcpServer', () => {
     expect(planSetStateTool.description).toContain('planning');
     expect(planSetStateTool.description).toContain('ready');
     expect(planSetStateTool.description).toContain('session_set_working_plan');
+    expect(sendTextTool.description).toContain('Always use submit=true/default');
+    expect(sendTextTool.description).toContain('session_read_terminal');
     expect(readTerminalTool.description).toContain('terminal tail');
+    expect(readTerminalTool.description).toContain('verify the recipient received');
     expect(readTerminalTool.description).toContain('raw ANSI');
     expect(attachmentAddTool.description).toContain('10MB');
     expect(attachmentAddTool.description).toContain('Helm config');
@@ -708,6 +712,8 @@ describe('LocalhostMcpServer', () => {
     const json = await response.json();
     expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { submit: false, senderSessionId: 's1', senderSessionName: 'Claude' });
     expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
+    expect(json.result.content[0].text).toContain('submit must stay true/default');
+    expect(json.result.content[0].text).toContain('session_read_terminal');
   });
 
   it('passes sender info into sendTextToSession', async () => {
@@ -1001,6 +1007,28 @@ describe('LocalhostMcpServer', () => {
     const json = await response.json();
     expect(json.result.content[0].text).toContain('Reminder: now call session_set_aiagent_state');
     expect(json.result.structuredContent.mandatory_rules[0]).toContain('session_set_aiagent_state');
+  });
+
+  it('session_read_terminal response reminds agents to verify handoff receipt', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 103,
+      method: 'tools/call',
+      params: {
+        name: 'session_read_terminal',
+        arguments: { sessionId: 's1', lines: 20, mode: 'stripped' },
+      },
+    });
+
+    const json = await response.json();
+    expect(json.result.content[0].text).toContain('inspect this terminal tail for receipt evidence');
+    expect(json.result.content[0].text).toContain('report that uncertainty');
   });
 
   describe('plan_complete with documentation', () => {
