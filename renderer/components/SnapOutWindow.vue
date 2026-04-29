@@ -260,8 +260,14 @@ onMounted(async () => {
   setLegacyDraftEditorOpener(openDraftEditor);
   setLegacyPlanEditorOpener(() => { /* plan editor not supported in snap-out */ });
   setLegacyDraftEditorCloser(closeDraftEditor);
-  setLegacyDraftEditorVisibilityChecker(() => draftEditorVisible.value);
-  setLegacyDraftEditorButtonHandler((button: string) => draftEditorRef.value?.handleButton(button));
+  setLegacyDraftEditorVisibilityChecker(() => draftEditorVisible.value && draftEditorRef.value !== null);
+  setLegacyDraftEditorButtonHandler((button: string) => {
+    if (!draftEditorRef.value) {
+      console.warn('[DraftEditor] button handler called but ref is null');
+      return;
+    }
+    draftEditorRef.value.handleButton(button);
+  });
   setLegacyPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
 
   setChipBarDraftEditorOpener(openDraftEditor);

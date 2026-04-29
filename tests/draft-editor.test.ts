@@ -74,6 +74,16 @@ describe('draft editor bridge', () => {
     expect(handler).toHaveBeenCalledWith('DPadDown');
   });
 
+  it('logs warning when button handler is called without registration', async () => {
+    const mod = await getModule();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    mod.handleDraftEditorButton('DPadDown');
+
+    expect(warnSpy).toHaveBeenCalledWith('[DraftEditor] handleDraftEditorButton called but no handler registered');
+    warnSpy.mockRestore();
+  });
+
   it('keeps initDraftEditor as a harmless compatibility stub', async () => {
     const mod = await getModule();
 

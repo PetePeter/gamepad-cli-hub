@@ -2103,8 +2103,14 @@ onMounted(async () => {
     setLegacyDraftEditorOpener(openDraftEditor);
     setLegacyPlanEditorOpener(openPlanEditor);
     setLegacyDraftEditorCloser(closeDraftEditor);
-    setLegacyDraftEditorVisibilityChecker(() => draftEditorVisible.value);
-    setLegacyDraftEditorButtonHandler((button: string) => draftEditorRef.value?.handleButton(button));
+    setLegacyDraftEditorVisibilityChecker(() => draftEditorVisible.value && draftEditorRef.value !== null);
+    setLegacyDraftEditorButtonHandler((button: string) => {
+      if (!draftEditorRef.value) {
+        console.warn('[DraftEditor] button handler called but ref is null');
+        return;
+      }
+      draftEditorRef.value.handleButton(button);
+    });
     setLegacyPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
 
     setChipBarDraftEditorOpener(openDraftEditor);
@@ -2112,7 +2118,7 @@ onMounted(async () => {
 
     setPlanScreenPlanEditorOpener(openPlanEditor);
     setPlanScreenDraftEditorCloser(closeDraftEditor);
-    setPlanScreenDraftEditorVisibilityChecker(() => draftEditorVisible.value);
+    setPlanScreenDraftEditorVisibilityChecker(() => draftEditorVisible.value && draftEditorRef.value !== null);
     setPlanScreenPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
     setPlanScreenBackupRestoreOpener(openBackupRestore);
 

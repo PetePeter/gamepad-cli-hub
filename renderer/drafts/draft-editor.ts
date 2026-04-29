@@ -113,7 +113,11 @@ export function isDraftEditorVisible(): boolean {
 }
 
 export function handleDraftEditorButton(button: string): void {
-  draftEditorButtonHandler?.(button);
+  if (!draftEditorButtonHandler) {
+    console.warn('[DraftEditor] handleDraftEditorButton called but no handler registered');
+    return;
+  }
+  draftEditorButtonHandler(button);
 }
 
 export function hasUnsavedPlanChanges(): boolean {
