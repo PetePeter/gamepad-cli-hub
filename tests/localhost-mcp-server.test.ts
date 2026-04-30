@@ -437,22 +437,21 @@ describe('LocalhostMcpServer', () => {
       jsonrpc: '2.0',
       id: 71,
       method: 'tools/call',
-      params: { name: 'telegram_channel_create', arguments: { sessionId: 's1', expectsResponse: true } },
+      params: { name: 'telegram_channel_create', arguments: { sessionId: 's1' } },
     });
     const createJson = await createResponse.json();
-    expect((service.createTelegramChannel as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', true);
-    expect(createJson.result.structuredContent).toMatchObject({ id: 'tc1', expectsResponse: true });
+    expect((service.createTelegramChannel as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1');
+    expect(createJson.result.structuredContent).toMatchObject({ id: 'tc1' });
 
     const sendResponse = await rpc(port, 'secret-token', {
       jsonrpc: '2.0',
       id: 72,
       method: 'tools/call',
-      params: { name: 'telegram_send_to_user', arguments: { channelId: 'tc1', text: 'Need a quick decision?', expectsResponse: true } },
+      params: { name: 'telegram_send_to_user', arguments: { channelId: 'tc1', text: 'Need a quick decision?' } },
     });
     const sendJson = await sendResponse.json();
     expect((service.sendTelegramToUser as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(undefined, 'Need a quick decision?', {
       channelId: 'tc1',
-      expectsResponse: true,
     });
     expect(sendJson.result.structuredContent.sent).toBe(true);
 

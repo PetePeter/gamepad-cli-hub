@@ -4,7 +4,6 @@ export interface TelegramChannel {
   sessionName: string;
   topicId?: number;
   status: 'open' | 'closed';
-  expectsResponse: boolean;
   createdAt: number;
   updatedAt: number;
   lastMessageAt?: number;
@@ -23,19 +22,19 @@ export interface TelegramStatus {
 
 export interface TelegramChannelCreateInput {
   sessionId: string;
-  expectsResponse?: boolean;
 }
 
 export interface TelegramSendToUserInput {
   sessionId?: string;
   channelId?: string;
   text: string;
-  expectsResponse?: boolean;
+  attachment?: { name: string; data: string; mime: string };
 }
 
-export interface TelegramSendToUserResult {
-  sent: boolean;
-  channel: TelegramChannel;
+export type TelegramSendResult = { sent: boolean; reason?: string };
+
+export interface TelegramSendToUserResult extends TelegramSendResult {
+  channel?: TelegramChannel;
   messageId?: number;
 }
 

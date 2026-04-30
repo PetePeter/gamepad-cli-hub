@@ -565,7 +565,7 @@ describe('HelmControlService telegram channels', () => {
     const { service } = makeService();
     service.setTelegramBridge({
       isRunning: vi.fn(() => true),
-      listChannels: vi.fn(() => [{ id: 'tc1', sessionId: 's1', sessionName: 'Claude', status: 'open', expectsResponse: true, createdAt: 1, updatedAt: 1 }]),
+      listChannels: vi.fn(() => [{ id: 'tc1', sessionId: 's1', sessionName: 'Claude', status: 'open', createdAt: 1, updatedAt: 1 }]),
       createChannel: vi.fn(),
       closeChannel: vi.fn(),
       sendToUser: vi.fn(),
@@ -594,21 +594,21 @@ describe('HelmControlService telegram channels', () => {
     const bridge = {
       isRunning: vi.fn(() => true),
       listChannels: vi.fn(() => []),
-      createChannel: vi.fn(async () => ({ id: 'tc1', sessionId: 's1', sessionName: 'Claude', topicId: 42, status: 'open' as const, expectsResponse: true, createdAt: 1, updatedAt: 1 })),
+      createChannel: vi.fn(async () => ({ id: 'tc1', sessionId: 's1', sessionName: 'Claude', topicId: 42, status: 'open' as const, createdAt: 1, updatedAt: 1 })),
       closeChannel: vi.fn(),
       sendToUser: vi.fn(async () => ({
         sent: true,
-        channel: { id: 'tc1', sessionId: 's1', sessionName: 'Claude', topicId: 42, status: 'open' as const, expectsResponse: true, createdAt: 1, updatedAt: 2 },
+        channel: { id: 'tc1', sessionId: 's1', sessionName: 'Claude', topicId: 42, status: 'open' as const, createdAt: 1, updatedAt: 2 },
         messageId: 99,
       })),
     };
     service.setTelegramBridge(bridge);
 
-    const channel = await service.createTelegramChannel('s1', true);
-    const sent = await service.sendTelegramToUser('s1', 'Need a quick decision?', { expectsResponse: true });
+    const channel = await service.createTelegramChannel('s1');
+    const sent = await service.sendTelegramToUser('s1', 'Need a quick decision?');
 
-    expect(bridge.createChannel).toHaveBeenCalledWith({ sessionId: 's1', expectsResponse: true });
-    expect(bridge.sendToUser).toHaveBeenCalledWith({ sessionId: 's1', text: 'Need a quick decision?', expectsResponse: true });
+    expect(bridge.createChannel).toHaveBeenCalledWith({ sessionId: 's1' });
+    expect(bridge.sendToUser).toHaveBeenCalledWith({ sessionId: 's1', text: 'Need a quick decision?' });
     expect(channel.id).toBe('tc1');
     expect(sent.sent).toBe(true);
   });

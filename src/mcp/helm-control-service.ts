@@ -898,13 +898,13 @@ export class HelmControlService extends EventEmitter {
     return this.telegramBridge?.listChannels() ?? [];
   }
 
-  async createTelegramChannel(sessionRef: string, expectsResponse = false): Promise<TelegramChannel> {
+  async createTelegramChannel(sessionRef: string): Promise<TelegramChannel> {
     this.requireTelegramAvailable();
     const session = this.findSession(sessionRef);
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);
     }
-    return this.telegramBridge!.createChannel({ sessionId: session.id, expectsResponse });
+    return this.telegramBridge!.createChannel({ sessionId: session.id });
   }
 
   async closeTelegramChannel(channelId: string): Promise<TelegramChannel> {
@@ -919,7 +919,7 @@ export class HelmControlService extends EventEmitter {
   async sendTelegramToUser(
     sessionRef: string | undefined,
     text: string,
-    options?: { channelId?: string; expectsResponse?: boolean },
+    options?: { channelId?: string },
   ): Promise<TelegramSendToUserResult> {
     this.requireTelegramAvailable();
     validateMobileFriendlyTelegramText(text);
@@ -933,18 +933,7 @@ export class HelmControlService extends EventEmitter {
       ...(session ? { sessionId: session.id } : {}),
       ...(options?.channelId ? { channelId: options.channelId } : {}),
       text,
-      ...(typeof options?.expectsResponse === 'boolean' ? { expectsResponse: options.expectsResponse } : {}),
     });
-  }
-
-  /**
-   * Set Telegram output mode (relay or diagnostic).
-   * Called via telegram_set_output_mode MCP tool — allows CLI sessions to control how their output appears in Telegram.
-   */
-  setTelegramOutputMode(mode: 'relay' | 'diagnostic'): { mode: string } {
-    this.emit('telegram:set_mode', { mode });
-    logger.info(`[MCP] Telegram output mode set to: ${mode}`);
-    return { mode };
   }
 
   /**

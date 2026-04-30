@@ -976,7 +976,6 @@ export class LocalhostMcpServer {
       case 'telegram_channel_create':
         return this.service.createTelegramChannel(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),
-          typeof args.expectsResponse === 'boolean' ? args.expectsResponse : false,
         );
       case 'telegram_channel_close':
         return this.service.closeTelegramChannel(asString(args.channelId, 'channelId is required'));
@@ -988,7 +987,6 @@ export class LocalhostMcpServer {
           asString(args.text, 'text is required'),
           {
             ...(typeof args.channelId === 'string' ? { channelId: args.channelId } : {}),
-            ...(typeof args.expectsResponse === 'boolean' ? { expectsResponse: args.expectsResponse } : {}),
           },
         );
       case 'telegram_send': {
@@ -998,9 +996,8 @@ export class LocalhostMcpServer {
         return this.service.sendTelegramMessage(sessionId, text, { replyTo });
       }
       case 'telegram_set_output_mode':
-        return this.service.setTelegramOutputMode(
-          asString(args.mode, 'mode must be one of relay or diagnostic'),
-        );
+        // Output mode removed in Telegram redesign — no-op
+        return { mode: 'relay' };
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
