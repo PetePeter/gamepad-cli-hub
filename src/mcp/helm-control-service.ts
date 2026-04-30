@@ -208,6 +208,7 @@ export class HelmControlService extends EventEmitter {
   }
 
   createPlan(dirPath: string, title: string, description: string, type?: PlanType): PlanItem {
+    this.requireWorkingDirectory(dirPath);
     return this.planManager.createWithType(dirPath, title, description, type);
   }
 
@@ -352,6 +353,7 @@ export class HelmControlService extends EventEmitter {
   }
 
   createPlanSequence(input: { dirPath: string; title: string; missionStatement?: string; sharedMemory?: string }): PlanSequence {
+    this.requireWorkingDirectory(input.dirPath);
     return this.planManager.createSequence(input.dirPath, input.title, input.missionStatement ?? '', input.sharedMemory ?? '');
   }
 
@@ -574,7 +576,7 @@ export class HelmControlService extends EventEmitter {
       await this.ptyManager.deliverText(session.id, message, { withReturn: true });
     } else {
       // Send plain text only — no envelope
-      await this.ptyManager.deliverText(session.id, `${text}\n`, { withReturn: true });
+      await this.ptyManager.deliverText(session.id, text, { withReturn: true });
     }
 
     return { success: true, sessionId: session.id, name: session.name, preambleUsed: usePreamble };

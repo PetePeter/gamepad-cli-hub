@@ -37,6 +37,7 @@ const props = withDefaults(defineProps<{
     types: { bug: boolean; feature: boolean; research: boolean; untyped: boolean };
     statuses: { planning: boolean; ready: boolean; coding: boolean; review: boolean; blocked: boolean; done: boolean };
   };
+  attachmentHasAny?: Record<string, boolean>;
 }>(), {
   sequences: () => [],
   selectedIds: () => new Set<string>(),
@@ -644,6 +645,12 @@ function onSeqDeleteWithPlans(): void {
             stroke="#555"
             stroke-width="1"
           />
+          <text
+            v-if="attachmentHasAny?.[item.id]"
+            x="188" y="96"
+            text-anchor="end"
+            class="plan-node__attachment-icon"
+          >📎</text>
           <circle
             class="plan-node__connector plan-node__connector--out"
             cx="200"
@@ -785,6 +792,11 @@ function onSeqDeleteWithPlans(): void {
 }
 .plan-node__unlink:hover path {
   stroke: #f0f6ff;
+}
+.plan-node__attachment-icon {
+  font-size: 12px;
+  pointer-events: none;
+  user-select: none;
 }
 .plan-seq-edit-btn {
   cursor: pointer;

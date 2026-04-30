@@ -756,6 +756,7 @@ function onKeyDown(e: KeyboardEvent): void {
     if (key === 'p') {
       e.preventDefault();
       e.stopPropagation();
+      if (currentView() === 'overview') { hideOverview(); return; }
       void openCurrentSessionPlanShortcut();
       return;
     }
@@ -770,6 +771,7 @@ function onKeyDown(e: KeyboardEvent): void {
     if (key === 's') {
       e.preventDefault();
       e.stopPropagation();
+      if (currentView() === 'overview') { hideOverview(); return; }
       void switchToLastSelectedSessionShortcut();
       return;
     }

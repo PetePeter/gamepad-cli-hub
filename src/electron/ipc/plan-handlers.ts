@@ -164,6 +164,10 @@ export function setupPlanHandlers(
     return attachmentManager.list(planId);
   });
 
+  ipcMain.handle('plan:attachment-has-any', (_event, planIds: string[]) => {
+    return attachmentManager.hasAnyForPlanIds(planIds);
+  });
+
   ipcMain.handle('plan:attachment-add-file', (_event, planId: string, filePath: string) => {
     try {
       const content = readFileSync(filePath);

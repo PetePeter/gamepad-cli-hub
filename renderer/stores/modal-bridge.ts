@@ -189,9 +189,15 @@ export function getEditorPopupResolve(): (() => void) | null { return _editorPop
 // Tool Editor
 // ============================================================================
 
+export interface ToolEditorEnvEntry {
+  name: string;
+  value: string;
+  mode?: 'replace' | 'append' | 'prepend';
+}
+
 export interface ToolEditorBridgeData {
   name: string;
-  env: Array<{ name: string; value: string }>;
+  env: Array<ToolEditorEnvEntry>;
   initialPromptDelay: number;
   pasteMode: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   spawnCommand: string;
@@ -222,6 +228,43 @@ export function setToolEditorCallback(cb: ((values: any) => void) | null): void 
 export function getToolEditorCallback(): ((values: any) => void) | null { return _toolEditorOnSave; }
 
 export function resetToolEditorData(): ToolEditorBridgeData { return { ...EMPTY_TOOL_DATA }; }
+
+export function buildToolEditorOptions(values: Record<string, any>): {
+  env?: ToolEditorEnvEntry[];
+  handoffCommand?: string;
+  renameCommand?: string;
+  spawnCommand?: string;
+  resumeCommand?: string;
+  continueCommand?: string;
+  helmInitialPrompt?: boolean;
+  helmPreambleForInterSession?: boolean;
+  pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
+} {
+  const fields = ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
+  const options: Record<string, string> = {};
+  for (const field of fields) {
+    options[field] = typeof values[field] === 'string' ? values[field].trim() : '';
+  }
+  const env = Array.isArray(values.env)
+    ? values.env
+        .map((item: any) => ({
+          name: typeof item?.name === 'string' ? item.name.trim() : '',
+          value: typeof item?.value === 'string' ? item.value : '',
+          ...(item.mode === 'append' || item.mode === 'prepend' ? { mode: item.mode } : {}),
+        }))
+        .filter((item: ToolEditorEnvEntry) => item.name.length > 0)
+    : [];
+  const pasteMode = values.pasteMode;
+  return {
+    ...options,
+    env,
+    helmInitialPrompt: Boolean(values.helmInitialPrompt),
+    helmPreambleForInterSession: values.helmPreambleForInterSession !== false,
+    ...(pasteMode === 'pty' || pasteMode === 'ptyindividual' || pasteMode === 'sendkeys' || pasteMode === 'sendkeysindividual' || pasteMode === 'clippaste'
+      ? { pasteMode }
+      : {}),
+  };
+}
 
 // ============================================================================
 // Guard helper — check if ANY bridge modal is visible (for race condition guard)

@@ -183,7 +183,7 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="modal-overlay" @click.self="handleClose">
+    <div v-if="visible" class="modal-overlay modal--visible" @click.self="handleClose">
       <div class="backup-restore-modal">
         <div class="modal-header">
           <h2>Plan Backups</h2>

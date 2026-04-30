@@ -656,6 +656,10 @@ const gamepadCliAPI = {
   planAttachmentList: (planId: string) =>
     ipcRenderer.invoke('plan:attachment-list', planId),
 
+  /** Check which plan IDs have any attachments */
+  planAttachmentHasAny: (planIds: string[]): Promise<Record<string, boolean>> =>
+    ipcRenderer.invoke('plan:attachment-has-any', planIds),
+
   /** Copy a local file into plan-owned attachment storage */
   planAttachmentAddFile: (planId: string, filePath: string) =>
     ipcRenderer.invoke('plan:attachment-add-file', planId, filePath),

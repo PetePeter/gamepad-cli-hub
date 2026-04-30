@@ -210,6 +210,7 @@ describe('Folder Planner canvas gamepad navigation', () => {
       planRemoveDep: vi.fn(),
       planComplete: vi.fn(),
       planApply: vi.fn(),
+      planAttachmentHasAny: vi.fn().mockResolvedValue({}),
     };
 
     mod = await getModule();

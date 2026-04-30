@@ -36,6 +36,7 @@ export const planScreenState = reactive({
     types: { bug: true, feature: true, research: true, untyped: true },
     statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
   },
+  attachmentHasAny: {} as Record<string, boolean>,
 });
 
 interface SetPlanDataOptions {
@@ -226,6 +227,12 @@ async function loadPlanData(dirPath: string, context?: ViewMountContext, options
   ]);
   if (context && !context.isActive()) return;
   setPlanData(items, deps, sequences, options);
+  if (items.length > 0) {
+    const planIds = items.map((item) => item.id);
+    planScreenState.attachmentHasAny = await window.gamepadCli.planAttachmentHasAny(planIds);
+  } else {
+    planScreenState.attachmentHasAny = {};
+  }
   syncSelection();
   if (!planScreenState.selectedId && planScreenState.layout.nodes.length > 0) {
     const first = planScreenState.layout.nodes.find((node) => node.layer === 0 && node.order === 0) ?? planScreenState.layout.nodes[0];

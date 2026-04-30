@@ -42,6 +42,8 @@ const mockShowPlanScreen = vi.fn();
 let mockPlanScreenVisible = false;
 let mockCurrentPlanDirPath: string | null = null;
 
+const mockHideOverview = vi.fn();
+
 const mockActivateSession = vi.fn();
 const mockOpenOverview = vi.fn();
 const mockOpenPlan = vi.fn();
@@ -92,6 +94,14 @@ vi.mock('../renderer/plans/plan-screen.js', () => ({
   },
   isPlanScreenVisible: () => mockPlanScreenVisible,
   getCurrentPlanDirPath: () => mockCurrentPlanDirPath,
+}));
+
+vi.mock('../renderer/screens/group-overview.js', () => ({
+  getOverviewSessions: vi.fn(() => []),
+  handleOverviewInput: vi.fn(() => false),
+  hideOverview: mockHideOverview,
+  isOverviewVisible: vi.fn(() => false),
+  refreshOverview: vi.fn(),
 }));
 
 let mockCurrentView = 'terminal';
@@ -522,8 +532,30 @@ describe('Sessions Screen', () => {
       }));
       await flush();
 
-      expect(mockCloseOverview).toHaveBeenCalledTimes(1);
+      expect(mockHideOverview).toHaveBeenCalledTimes(1);
       expect(mockNavigateToSession).not.toHaveBeenCalled();
+      mockCurrentView = 'terminal';
+    });
+
+    it('Ctrl+Shift+P closes overview when in overview mode', async () => {
+      mockCurrentView = 'overview';
+      state.activeSessionId = null;
+      state.sessions = [
+        { id: 's-1', name: 'Session 1', cliType: 'claude-code', processId: 1, workingDir: '/projects/a' },
+      ];
+
+      mockHideOverview.mockClear();
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'P',
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockHideOverview).toHaveBeenCalledTimes(1);
+      expect(mockOpenPlan).not.toHaveBeenCalled();
       mockCurrentView = 'terminal';
     });
 

@@ -214,6 +214,32 @@ describe('HelmControlService plan sequences', () => {
   });
 });
 
+describe('HelmControlService directory validation', () => {
+  it('createPlan rejects unconfigured dirPath', () => {
+    const { service } = makeService();
+    expect(() => service.createPlan('/unconfigured', 'Title', 'Desc')).toThrow('not configured in Helm');
+  });
+
+  it('createPlan accepts configured dirPath', () => {
+    const { service, planManager } = makeService();
+    (planManager as any).createWithType = vi.fn(() => ({ id: 'p1', dirPath: '/work', title: 'Title', status: 'ready' }));
+    expect(() => service.createPlan('/work', 'Title', 'Desc')).not.toThrow();
+    expect((planManager as any).createWithType).toHaveBeenCalledWith('/work', 'Title', 'Desc', undefined);
+  });
+
+  it('createPlanSequence rejects unconfigured dirPath', () => {
+    const { service } = makeService();
+    expect(() => service.createPlanSequence({ dirPath: '/unconfigured', title: 'Seq' })).toThrow('not configured in Helm');
+  });
+
+  it('createPlanSequence accepts configured dirPath', () => {
+    const { service, planManager } = makeService();
+    (planManager as any).createSequence = vi.fn(() => ({ id: 's1', dirPath: '/work', title: 'Seq', missionStatement: '', sharedMemory: '', order: 0 }));
+    expect(() => service.createPlanSequence({ dirPath: '/work', title: 'Seq' })).not.toThrow();
+    expect((planManager as any).createSequence).toHaveBeenCalledWith('/work', 'Seq', '', '');
+  });
+});
+
 describe('HelmControlService.spawnCli', () => {
   it('injects Helm-managed environment variables into spawned CLI sessions', () => {
     const { service, ptyManager, configLoader } = makeService();
@@ -732,10 +758,12 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     });
 
     expect(result.preambleUsed).toBe(false);
+    expect(configLoader.getCliTypeEntry).toHaveBeenCalledWith('claude-code');
     const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
     const message = deliverCall[1] as string;
-    // Message should contain only the raw text with newline, no [HELM_MSG] or JSON
-    expect(message).toBe('hello from sender\n');
+    // Message should contain only the raw text; withReturn submits it.
+    expect(message).toBe('hello from sender');
+    expect(deliverCall[2]).toEqual({ withReturn: true });
     expect(message).not.toMatch(/^\[HELM_MSG\]/);
     expect(message).not.toContain('inter_llm_message');
   });
@@ -755,8 +783,9 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     expect(result.preambleUsed).toBe(false);
     const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
     const message = deliverCall[1] as string;
-    // Exact text + single newline, no modifications
-    expect(message).toBe(`${multilineText}\n`);
+    // Exact text, no modifications. Submission is owned by withReturn.
+    expect(message).toBe(multilineText);
+    expect(deliverCall[2]).toEqual({ withReturn: true });
   });
 
   it('sendTextToSession preamble=true includes sender info in envelope', async () => {
@@ -830,7 +859,8 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
     const message = deliverCall[1] as string;
     // Without preamble, the message should be plain text only — no mention of expectsResponse
-    expect(message).toBe('check status\n');
+    expect(message).toBe('check status');
+    expect(deliverCall[2]).toEqual({ withReturn: true });
     expect(message).not.toContain('expectsResponse');
   });
 });

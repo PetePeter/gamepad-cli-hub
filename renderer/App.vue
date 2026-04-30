@@ -74,7 +74,7 @@ import {
   formModal, getFormModalResolve,
   editorPopup, getEditorPopupOnSend, getEditorPopupResolve, setEditorPopupCallbacks,
   toolEditor, getToolEditorCallback, setToolEditorCallback,
-  isAnyBridgeModalVisible,
+  isAnyBridgeModalVisible, buildToolEditorOptions,
 } from './stores/modal-bridge.js';
 import { collectSequenceItems } from './modals/context-menu.js';
 import { showSequencePicker } from './modals/sequence-picker.js';
@@ -1146,6 +1146,7 @@ function onToolAdd(): void {
     renameCommand: '',
     handoffCommand: '',
     helmInitialPrompt: false,
+    helmPreambleForInterSession: true,
     initialPrompt: [],
   };
   setToolEditorCallback(async (values) => {
@@ -1194,6 +1195,7 @@ async function onToolEdit(key: string): Promise<void> {
       renameCommand: value.renameCommand || '',
       handoffCommand: value.handoffCommand || '',
       helmInitialPrompt: Boolean(value.helmInitialPrompt),
+      helmPreambleForInterSession: value.helmPreambleForInterSession !== false,
       initialPrompt: Array.isArray(value.initialPrompt)
         ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))
         : [],
@@ -1218,40 +1220,6 @@ async function onToolEdit(key: string): Promise<void> {
   } catch (error) {
     console.error('Failed to load tool for edit:', error);
   }
-}
-
-function buildToolEditorOptions(values: any): {
-  env?: Array<{ name: string; value: string }>;
-  handoffCommand?: string;
-  renameCommand?: string;
-  spawnCommand?: string;
-  resumeCommand?: string;
-  continueCommand?: string;
-  helmInitialPrompt?: boolean;
-  pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
-} {
-  const fields = ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
-  const options: Record<string, string> = {};
-  for (const field of fields) {
-    options[field] = typeof values[field] === 'string' ? values[field].trim() : '';
-  }
-  const env = Array.isArray(values.env)
-    ? values.env
-      .map((item: any) => ({
-        name: typeof item?.name === 'string' ? item.name.trim() : '',
-        value: typeof item?.value === 'string' ? item.value : '',
-      }))
-      .filter((item: { name: string; value: string }) => item.name.length > 0)
-    : [];
-  const pasteMode = values.pasteMode;
-  return {
-    ...options,
-    env,
-    helmInitialPrompt: Boolean(values.helmInitialPrompt),
-    ...(pasteMode === 'pty' || pasteMode === 'ptyindividual' || pasteMode === 'sendkeys' || pasteMode === 'sendkeysindividual' || pasteMode === 'clippaste'
-      ? { pasteMode }
-      : {}),
-  };
 }
 
 async function onToolDelete(key: string): Promise<void> {
@@ -2428,6 +2396,7 @@ onUnmounted(() => {
         :related-focus-ids="planScreenState.relatedFocusIds"
         :related-transient-ids="planScreenState.relatedTransientIds"
         :filters="planScreenState.filters"
+        :attachment-has-any="planScreenState.attachmentHasAny"
         @close="navStore.closePlan()"
         @add-node="onPlanAddNode()"
         @export-dir="onPlanExportDirectory()"

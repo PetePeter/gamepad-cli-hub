@@ -137,6 +137,23 @@ export class PlanAttachmentManager {
     return owned.length;
   }
 
+  hasAnyForPlanIds(planIds: string[]): Record<string, boolean> {
+    const result: Record<string, boolean> = {};
+    const index = this.loadIndex();
+    const planSet = new Set(planIds);
+    for (const attachment of index.attachments) {
+      if (planSet.has(attachment.planId)) {
+        result[attachment.planId] = true;
+        planSet.delete(attachment.planId);
+      }
+      if (planSet.size === 0) break;
+    }
+    for (const id of planIds) {
+      if (!(id in result)) result[id] = false;
+    }
+    return result;
+  }
+
   private requirePlan(planId: string): void {
     if (!this.planManager.getItem(planId)) {
       throw new Error(`Plan not found: ${planId}`);

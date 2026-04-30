@@ -240,6 +240,19 @@ watch(() => props.initialText, (val) => {
   if (props.visible) text.value = val;
 });
 
+watch(() => props.planId, () => {
+  if (!props.visible || !isPlan.value) return;
+  hydratingFromProps.value = true;
+  status.value = props.planStatus;
+  stateInfo.value = props.planStateInfo;
+  type.value = props.planType;
+  origStatus.value = props.planStatus;
+  origStateInfo.value = props.planStateInfo;
+  origType.value = props.planType;
+  saveStatus.value = 'clean';
+  nextTick(() => { hydratingFromProps.value = false; });
+});
+
 // Mark as unsaved on input
 watch([label, text, status, stateInfo, type], () => {
   if (!props.visible || hydratingFromProps.value) return;

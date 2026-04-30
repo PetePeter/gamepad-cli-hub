@@ -812,6 +812,41 @@ describe('ConfigLoader', () => {
       expect(onDisk.tools['my-tool'].helmInitialPrompt).toBe(true);
     });
 
+    it('addCliType saves disabled Helm inter-session preamble option', () => {
+      loader.load();
+      loader.addCliType('my-tool', 'My Tool', [{ label: 'Prompt', sequence: 'hello' }], 5000, {
+        helmPreambleForInterSession: false,
+      });
+
+      const entry = loader.getCliTypeEntry('my-tool');
+      expect(entry!.helmPreambleForInterSession).toBe(false);
+
+      const onDisk = readYaml<any>('profiles/default.yaml');
+      expect(onDisk.tools['my-tool'].helmPreambleForInterSession).toBe(false);
+    });
+
+    it('updateCliType persists disabled Helm inter-session preamble and omits enabled default', () => {
+      loader.load();
+
+      loader.updateCliType('claude-code', 'Claude Code', [{ label: 'Prompt', sequence: 'hello' }], 5000, {
+        helmPreambleForInterSession: false,
+      });
+
+      let entry = loader.getCliTypeEntry('claude-code');
+      expect(entry!.helmPreambleForInterSession).toBe(false);
+      let onDisk = readYaml<any>('profiles/default.yaml');
+      expect(onDisk.tools['claude-code'].helmPreambleForInterSession).toBe(false);
+
+      loader.updateCliType('claude-code', 'Claude Code', [{ label: 'Prompt', sequence: 'hello' }], 5000, {
+        helmPreambleForInterSession: true,
+      });
+
+      entry = loader.getCliTypeEntry('claude-code');
+      expect(entry!.helmPreambleForInterSession).toBeUndefined();
+      onDisk = readYaml<any>('profiles/default.yaml');
+      expect(onDisk.tools['claude-code'].helmPreambleForInterSession).toBeUndefined();
+    });
+
     it('updateCliType with initialPromptDelay saves new value (not preserving old)', () => {
       const profileWithDelay = {
         ...DEFAULT_PROFILE,

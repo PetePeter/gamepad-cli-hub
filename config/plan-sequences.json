@@ -1,25 +1,4 @@
 {
   "version": 1,
-  "sequences": [
-    {
-      "id": "1890d0af-1f9b-4327-ab1b-875fa12d3cf0",
-      "dirPath": "X:\\coding\\gamepad-cli-hub",
-      "title": "aa",
-      "missionStatement": "",
-      "sharedMemory": "",
-      "order": 0,
-      "createdAt": 1777505409082,
-      "updatedAt": 1777505409082
-    },
-    {
-      "id": "69a88b10-9992-4577-90cd-c7800c90dfb2",
-      "dirPath": "X:\\coding\\gamepad-cli-hub",
-      "title": "bb",
-      "missionStatement": "",
-      "sharedMemory": "",
-      "order": 1,
-      "createdAt": 1777505414688,
-      "updatedAt": 1777505414688
-    }
-  ]
+  "sequences": []
 }

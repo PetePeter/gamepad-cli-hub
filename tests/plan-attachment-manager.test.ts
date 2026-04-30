@@ -84,4 +84,38 @@ describe('PlanAttachmentManager', () => {
       content: Buffer.from('hello', 'utf8'),
     })).toThrow('Plan not found: missing');
   });
+
+  describe('hasAnyForPlanIds', () => {
+    it('returns false for all IDs when no attachments exist', () => {
+      planManager.getItem = vi.fn((id: string) => id === 'a' ? { id, dirPath: '/w' } : id === 'b' ? { id, dirPath: '/w' } : null);
+      const result = manager.hasAnyForPlanIds(['a', 'b']);
+      expect(result).toEqual({ a: false, b: false });
+    });
+
+    it('returns true only for plan IDs with attachments', () => {
+      planManager.getItem = vi.fn((id: string) => ({ id, dirPath: '/w' }));
+      manager.add('plan-1', { filename: 'f.txt', content: Buffer.from('x') });
+      const result = manager.hasAnyForPlanIds(['plan-1', 'plan-2']);
+      expect(result).toEqual({ 'plan-1': true, 'plan-2': false });
+    });
+
+    it('handles empty input array', () => {
+      expect(manager.hasAnyForPlanIds([])).toEqual({});
+    });
+
+    it('ignores IDs not in input', () => {
+      planManager.getItem = vi.fn((id: string) => ({ id, dirPath: '/w' }));
+      manager.add('other', { filename: 'f.txt', content: Buffer.from('x') });
+      const result = manager.hasAnyForPlanIds(['a']);
+      expect(result).toEqual({ a: false });
+    });
+
+    it('returns false after deleting all attachments for a plan', () => {
+      planManager.getItem = vi.fn((id: string) => ({ id, dirPath: '/w' }));
+      const att = manager.add('p', { filename: 'f.txt', content: Buffer.from('x') });
+      expect(manager.hasAnyForPlanIds(['p'])).toEqual({ p: true });
+      manager.delete('p', att.id);
+      expect(manager.hasAnyForPlanIds(['p'])).toEqual({ p: false });
+    });
+  });
 });

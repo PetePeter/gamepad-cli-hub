@@ -201,6 +201,7 @@ export function setupKeyboardRelay(
       const session = state.sessions.find(s => s.id === sessionId);
       const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
       if (document.querySelector('.modal-overlay.modal--visible') && tool?.pasteMode !== 'clippaste') {
+        if (isEditableOrModalFocused()) return;
         e.stopPropagation();
         return;
       }
@@ -222,7 +223,9 @@ export function setupKeyboardRelay(
     }
 
     // Block ALL keyboard relay when any modal overlay is visible
+    // Exception: if an editable element inside the modal has focus, let the event through.
     if (document.querySelector('.modal-overlay.modal--visible')) {
+      if (isEditableOrModalFocused()) return;
       e.stopPropagation();
       return;
     }

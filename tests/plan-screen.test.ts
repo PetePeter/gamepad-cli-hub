@@ -168,6 +168,7 @@ describe('plan screen bridge', () => {
       planWriteFile: mockPlanWriteFile,
       planReadFile: mockPlanReadFile,
       planClearCompleted: mockPlanClearCompleted,
+      planAttachmentHasAny: vi.fn().mockResolvedValue({}),
       writeTempContent: mockWriteTempContent,
       dialogShowSaveFile: mockDialogShowSaveFile,
       dialogShowOpenFile: mockDialogShowOpenFile,

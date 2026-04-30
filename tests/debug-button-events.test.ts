@@ -11,10 +11,6 @@ const mockConfigGetChipbarActions = vi.fn();
 const mockConfigSetChipbarActions = vi.fn();
 const mockShowFormModal = vi.fn();
 
-// Mocks for patterns button  
-const mockToolsGetAll = vi.fn();
-const mockToolsGetPatterns = vi.fn();
-
 vi.mock('../renderer/state.js', () => ({
   state: {
     activeSessionId: 'session-1',
@@ -56,8 +52,6 @@ function getMockWindow() {
     gamepadCli: {
       configGetChipbarActions: mockConfigGetChipbarActions,
       configSetChipbarActions: mockConfigSetChipbarActions,
-      toolsGetAll: mockToolsGetAll,
-      toolsGetPatterns: mockToolsGetPatterns,
     },
   };
 }
@@ -70,8 +64,6 @@ describe('Debug: Button Event Handlers', () => {
     mockConfigGetChipbarActions.mockReset();
     mockConfigSetChipbarActions.mockReset();
     mockShowFormModal.mockReset();
-    mockToolsGetAll.mockReset();
-    mockToolsGetPatterns.mockReset();
 
     // Set up mock return values
     mockConfigGetChipbarActions.mockResolvedValue({
@@ -81,17 +73,6 @@ describe('Debug: Button Event Handlers', () => {
       inboxDir: 'C:\\config\\plans\\incoming',
     });
     mockConfigSetChipbarActions.mockResolvedValue({ success: true });
-    mockToolsGetAll.mockResolvedValue({
-      cliTypes: {
-        'claude-code': {
-          name: 'Claude Code',
-          command: 'claude',
-        },
-      },
-    });
-    mockToolsGetPatterns.mockResolvedValue({
-      patterns: [],
-    });
 
     // Set up window before importing module
     (global as any).window = getMockWindow();
@@ -154,42 +135,6 @@ describe('Debug: Button Event Handlers', () => {
     };
     
     console.log('CLICK DEBUG INFO:', debugInfo);
-  });
-
-  it('patterns: should find patterns button after render', async () => {
-    const mod = await import('../renderer/screens/settings-tools.js');
-    await mod.renderToolsPanel();
-
-    const patternsBtn = Array.from(document.querySelectorAll('button'))
-      .find(btn => btn.textContent === 'Patterns') as HTMLButtonElement;
-    
-    console.log('Patterns button found:', !!patternsBtn);
-    console.log('Patterns button text:', patternsBtn?.textContent);
-    console.log('Patterns button has click listener:', patternsBtn ? patternsBtn.onclick || patternsBtn.addEventListener : 'N/A');
-    
-    expect(patternsBtn).toBeTruthy();
-  });
-
-  it('patterns: should manually trigger click handler work', async () => {
-    const mod = await import('../renderer/screens/settings-tools.js');
-    await mod.renderToolsPanel();
-
-    const patternsBtn = Array.from(document.querySelectorAll('button'))
-      .find(btn => btn.textContent === 'Patterns') as HTMLButtonElement;
-    
-    expect(patternsBtn).toBeTruthy();
-
-    // Spy on showPatternsPanel
-    const showPatternsPanelSpy = vi.spyOn(mod, 'showPatternsPanel' as any);
-
-    // Manually trigger the click
-    patternsBtn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-
-    // Wait for async operations
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    console.log('showPatternsPanelSpy calls:', showPatternsPanelSpy.mock.calls.length);
-    console.log('mockToolsGetPatterns calls:', mockToolsGetPatterns.mock.calls.length);
   });
 
   it('debug: check event listener attachment method', async () => {
