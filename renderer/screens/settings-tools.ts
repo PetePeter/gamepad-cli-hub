@@ -261,9 +261,8 @@ function buildCommandOptionsFromToolEditor(values: any): { env?: Array<{ name: s
   hasAny = true;
   (opts as any).helmInitialPrompt = Boolean(values.helmInitialPrompt);
   hasAny = true;
-  if (values.helmPreambleForInterSession === false) {
-    (opts as any).helmPreambleForInterSession = false;
-  }
+  (opts as any).helmPreambleForInterSession = values.helmPreambleForInterSession !== false;
+  hasAny = true;
   const pm = values.pasteMode;
   if (pm === 'pty' || pm === 'ptyindividual' || pm === 'sendkeys' || pm === 'sendkeysindividual' || pm === 'clippaste') {
     (opts as any).pasteMode = pm;
