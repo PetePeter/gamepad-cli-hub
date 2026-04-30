@@ -851,31 +851,6 @@ export class HelmControlService extends EventEmitter {
     };
   }
 
-  /**
-   * Send a message to a Telegram user from a CLI session.
-   * Called via telegram_send MCP tool — allows CLI sessions to send deliberate replies to Telegram users.
-   */
-  async sendTelegramMessage(
-    sessionRef: string,
-    text: string,
-    options?: { replyTo?: string },
-  ): Promise<{ success: boolean; topicId?: number }> {
-    const session = this.findSession(sessionRef);
-    if (!session) {
-      throw new Error(`Session not found: ${sessionRef}`);
-    }
-
-    // Emit event and let telegram layer handle it
-    this.emit('telegram:send', {
-      sessionId: session.id,
-      text,
-      replyTo: options?.replyTo,
-      timestamp: Date.now(),
-    });
-
-    return { success: true };
-  }
-
   getTelegramStatus(): TelegramStatus {
     const config = this.configLoader.getTelegramConfig();
     const chatConfigured = typeof config.chatId === 'number';
@@ -894,19 +869,6 @@ export class HelmControlService extends EventEmitter {
     };
   }
 
-  listTelegramChannels(): TelegramChannel[] {
-    return this.telegramBridge?.listChannels() ?? [];
-  }
-
-  async createTelegramChannel(sessionRef: string): Promise<TelegramChannel> {
-    this.requireTelegramAvailable();
-    const session = this.findSession(sessionRef);
-    if (!session) {
-      throw new Error(`Session not found: ${sessionRef}`);
-    }
-    return this.telegramBridge!.createChannel({ sessionId: session.id });
-  }
-
   async closeTelegramChannel(channelId: string): Promise<TelegramChannel> {
     this.requireTelegramBridge();
     const closed = this.telegramBridge!.closeChannel(channelId);
@@ -916,24 +878,18 @@ export class HelmControlService extends EventEmitter {
     return closed;
   }
 
-  async sendTelegramToUser(
-    sessionRef: string | undefined,
-    text: string,
-    options?: { channelId?: string },
-  ): Promise<TelegramSendToUserResult> {
-    this.requireTelegramAvailable();
-    validateMobileFriendlyTelegramText(text);
-    const session = options?.channelId
-      ? undefined
-      : this.findSession(requireString(sessionRef, 'sessionId or channelId is required'));
-    if (!options?.channelId && !session) {
-      throw new Error(`Session not found: ${sessionRef}`);
+  async sendTelegramChat(
+    sessionRef: string,
+    message: string,
+    attachment?: { name: string; data: string; mime: string },
+  ): Promise<{ sent: boolean; reason?: string }> {
+    if (!this.telegramBridge?.isRunning()) {
+      return { sent: false, reason: 'Telegram bot is not running' };
     }
-    return this.telegramBridge!.sendToUser({
-      ...(session ? { sessionId: session.id } : {}),
-      ...(options?.channelId ? { channelId: options.channelId } : {}),
-      text,
-    });
+    validateMobileFriendlyTelegramText(message);
+    const session = this.findSession(sessionRef);
+    if (!session) return { sent: false, reason: `Session not found: ${sessionRef}` };
+    return this.telegramBridge.sendToUser({ sessionId: session.id, text: message, attachment });
   }
 
   /**
@@ -981,12 +937,8 @@ export class HelmControlService extends EventEmitter {
       { name: 'session_close', title: 'Close Session', description: 'Close a Helm session and stop its PTY.' },
       { name: 'session_info', title: 'Get Session Info', description: 'Retrieve MCP endpoint, AIAGENT state registry, available tools, directories, and agent planning guidance.' },
       { name: 'telegram_status', title: 'Telegram Status', description: 'Report whether Telegram is enabled, configured, running, and available for urgent mobile-friendly user communication.' },
-      { name: 'telegram_channel_list', title: 'List Telegram Channels', description: 'List open and closed MCP Telegram communication channels without exposing Telegram secrets.' },
-      { name: 'telegram_channel_create', title: 'Create Telegram Channel', description: 'Create or reuse a Telegram communication channel for a session when user clarification is urgent or Telegram engagement already exists.' },
-      { name: 'telegram_channel_close', title: 'Close Telegram Channel', description: 'Close a Telegram communication channel without deleting unrelated session topics.' },
-      { name: 'telegram_send_to_user', title: 'Send Telegram Message To User', description: 'Send concise mobile-friendly text to the user via Telegram and optionally wait for a reply routed back to the session.' },
-      { name: 'telegram_send', title: 'Send Message to Telegram User', description: 'Send a deliberate Telegram reply from a CLI session.' },
-      { name: 'telegram_set_output_mode', title: 'Set Telegram Output Mode', description: 'Control how session output appears in Telegram.' },
+      { name: 'telegram_chat', title: 'Send Telegram Chat', description: 'Send concise mobile-friendly text to the user via Telegram. Provide sessionId or name. Lines must be short; do not send large wide logs, tables, or code blocks.' },
+      { name: 'telegram_channel_close', title: 'Close Telegram Channel', description: 'Close one MCP Telegram communication channel without deleting unrelated session topics.' },
     ];
   }
 

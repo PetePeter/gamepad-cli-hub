@@ -583,7 +583,7 @@ describe('HelmControlService telegram channels', () => {
     expect(JSON.stringify(status)).not.toContain('botToken');
   });
 
-  it('creates channels and sends mobile-friendly messages through the bridge', async () => {
+  it('sends mobile-friendly messages through the bridge via sendTelegramChat', async () => {
     const { service, sessionManager } = makeService();
     (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
       id: 's1',
@@ -594,39 +594,28 @@ describe('HelmControlService telegram channels', () => {
     const bridge = {
       isRunning: vi.fn(() => true),
       listChannels: vi.fn(() => []),
-      createChannel: vi.fn(async () => ({ id: 'tc1', sessionId: 's1', sessionName: 'Claude', topicId: 42, status: 'open' as const, createdAt: 1, updatedAt: 1 })),
       closeChannel: vi.fn(),
-      sendToUser: vi.fn(async () => ({
-        sent: true,
-        channel: { id: 'tc1', sessionId: 's1', sessionName: 'Claude', topicId: 42, status: 'open' as const, createdAt: 1, updatedAt: 2 },
-        messageId: 99,
-      })),
+      sendToUser: vi.fn(async () => ({ sent: true })),
     };
     service.setTelegramBridge(bridge);
 
-    const channel = await service.createTelegramChannel('s1');
-    const sent = await service.sendTelegramToUser('s1', 'Need a quick decision?');
+    const result = await service.sendTelegramChat('s1', 'Need a quick decision?');
 
-    expect(bridge.createChannel).toHaveBeenCalledWith({ sessionId: 's1' });
     expect(bridge.sendToUser).toHaveBeenCalledWith({ sessionId: 's1', text: 'Need a quick decision?' });
-    expect(channel.id).toBe('tc1');
-    expect(sent.sent).toBe(true);
+    expect(result.sent).toBe(true);
   });
 
-  it('rejects unavailable Telegram and wide messages', async () => {
+  it('rejects wide messages in sendTelegramChat', async () => {
     const { service } = makeService();
-
-    await expect(service.sendTelegramToUser('s1', 'hello')).rejects.toThrow('Telegram bridge');
 
     service.setTelegramBridge({
       isRunning: vi.fn(() => true),
       listChannels: vi.fn(() => []),
-      createChannel: vi.fn(),
       closeChannel: vi.fn(),
       sendToUser: vi.fn(),
     });
 
-    await expect(service.sendTelegramToUser('s1', 'x'.repeat(141))).rejects.toThrow('140 characters');
+    await expect(service.sendTelegramChat('s1', 'x'.repeat(141))).rejects.toThrow('140 characters');
   });
 });
 

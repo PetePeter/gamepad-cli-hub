@@ -68,14 +68,10 @@ function makeService(): HelmControlService {
       openChannels: 1,
       guidance: 'Use Telegram only for mobile-friendly urgent blockers.',
     })),
-    listTelegramChannels: vi.fn(() => [{ id: 'tc1', sessionId: 's1', sessionName: 'Claude', topicId: 42, status: 'open', expectsResponse: true, createdAt: 1, updatedAt: 2 }]),
-    createTelegramChannel: vi.fn(async (sessionRef: string, expectsResponse: boolean) => ({ id: 'tc1', sessionId: sessionRef, sessionName: 'Claude', topicId: 42, status: 'open', expectsResponse, createdAt: 1, updatedAt: 2 })),
-    closeTelegramChannel: vi.fn(async (channelId: string) => ({ id: channelId, sessionId: 's1', sessionName: 'Claude', topicId: 42, status: 'closed', expectsResponse: true, createdAt: 1, updatedAt: 3 })),
-    sendTelegramToUser: vi.fn(async (sessionRef: string | undefined, text: string, options?: { channelId?: string; expectsResponse?: boolean }) => ({
+    listTelegramChannels: vi.fn(() => []),
+    closeTelegramChannel: vi.fn(async (channelId: string) => ({ id: channelId, sessionId: 's1', sessionName: 'Claude', topicId: 42, status: 'closed', createdAt: 1, updatedAt: 3 })),
+    sendTelegramChat: vi.fn(async (sessionRef: string, message: string) => ({
       sent: true,
-      channel: { id: options?.channelId ?? 'tc1', sessionId: sessionRef ?? 's1', sessionName: 'Claude', topicId: 42, status: 'open', expectsResponse: options?.expectsResponse ?? false, createdAt: 1, updatedAt: 2 },
-      messageId: 99,
-      text,
     })),
   } as unknown as HelmControlService;
 }
@@ -159,7 +155,7 @@ describe('LocalhostMcpServer', () => {
     const attachmentAddTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_attachment_add');
     const attachmentGetTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_attachment_get');
     const telegramStatusTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'telegram_status');
-    const telegramSendTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'telegram_send_to_user');
+    const telegramChatTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'telegram_chat');
     expect(planCreateTool.description).toContain('Problem Statement');
     expect(planCreateTool.description).toContain('Acceptance Criteria');
     expect(planCreateTool.description).toContain('QUESTION:');
@@ -182,7 +178,7 @@ describe('LocalhostMcpServer', () => {
     expect(attachmentGetTool.description).toContain('temp file');
     expect(attachmentGetTool.description).toContain('inline');
     expect(telegramStatusTool.description).toContain('No bot token');
-    expect(telegramSendTool.description).toContain('mobile-friendly');
+    expect(telegramChatTool!.description).toContain('mobile-friendly');
   });
 
   it('dispatches tool calls into the shared service', async () => {
@@ -415,7 +411,7 @@ describe('LocalhostMcpServer', () => {
     expect(deleteJson.result.structuredContent).toEqual({ deleted: true });
   });
 
-  it('dispatches telegram channel tools through the MCP surface', async () => {
+  it('dispatches telegram tools through the MCP surface', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);
@@ -433,40 +429,19 @@ describe('LocalhostMcpServer', () => {
     expect(statusJson.result.structuredContent.available).toBe(true);
     expect(JSON.stringify(statusJson.result.structuredContent)).not.toContain('botToken');
 
-    const createResponse = await rpc(port, 'secret-token', {
+    const chatResponse = await rpc(port, 'secret-token', {
       jsonrpc: '2.0',
       id: 71,
       method: 'tools/call',
-      params: { name: 'telegram_channel_create', arguments: { sessionId: 's1' } },
+      params: { name: 'telegram_chat', arguments: { sessionId: 's1', message: 'Need a quick decision?' } },
     });
-    const createJson = await createResponse.json();
-    expect((service.createTelegramChannel as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1');
-    expect(createJson.result.structuredContent).toMatchObject({ id: 'tc1' });
-
-    const sendResponse = await rpc(port, 'secret-token', {
-      jsonrpc: '2.0',
-      id: 72,
-      method: 'tools/call',
-      params: { name: 'telegram_send_to_user', arguments: { channelId: 'tc1', text: 'Need a quick decision?' } },
-    });
-    const sendJson = await sendResponse.json();
-    expect((service.sendTelegramToUser as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(undefined, 'Need a quick decision?', {
-      channelId: 'tc1',
-    });
-    expect(sendJson.result.structuredContent.sent).toBe(true);
-
-    const listResponse = await rpc(port, 'secret-token', {
-      jsonrpc: '2.0',
-      id: 73,
-      method: 'tools/call',
-      params: { name: 'telegram_channel_list', arguments: {} },
-    });
-    const listJson = await listResponse.json();
-    expect(listJson.result.structuredContent.items[0].id).toBe('tc1');
+    const chatJson = await chatResponse.json();
+    expect((service.sendTelegramChat as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'Need a quick decision?', undefined);
+    expect(chatJson.result.structuredContent.sent).toBe(true);
 
     const closeResponse = await rpc(port, 'secret-token', {
       jsonrpc: '2.0',
-      id: 74,
+      id: 72,
       method: 'tools/call',
       params: { name: 'telegram_channel_close', arguments: { channelId: 'tc1' } },
     });
