@@ -31,8 +31,7 @@ import type { TopicManager } from '../src/telegram/topic-manager.js';
 import type { SessionManager } from '../src/session/manager.js';
 import type { PtyManager } from '../src/session/pty-manager.js';
 import type { ConfigLoader } from '../src/config/loader.js';
-import type { TextInputManager } from '../src/telegram/text-input.js';
-import type { OutputSummarizer } from '../src/telegram/output-summarizer.js';
+// TextInputManager and OutputSummarizer removed — stubbed with plain objects until Stage 7
 
 // ---------------------------------------------------------------------------
 // Mock factories
@@ -89,13 +88,13 @@ function createMockTextInput() {
     startInput: vi.fn(),
     confirmInput: vi.fn(),
     cancelInput: vi.fn(),
-  } as unknown as TextInputManager;
+  } as any;
 }
 
 function createMockOutputSummarizer() {
   return {
     getSummary: vi.fn(() => '📋 summary'),
-  } as unknown as OutputSummarizer;
+  } as any;
 }
 
 function makeQuery(data: string, chatId = 123, messageId = 456, threadId = 789) {

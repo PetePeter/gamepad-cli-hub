@@ -26,8 +26,7 @@ import type { TopicManager } from './topic-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
-import type { TextInputManager } from './text-input.js';
-import type { OutputSummarizer } from './output-summarizer.js';
+// TextInputManager and OutputSummarizer removed in Stage 1 — stubbed until Stage 7 rewire
 import {
   directoryListKeyboard,
   sessionListKeyboard,
@@ -65,8 +64,10 @@ export function setupCallbackHandler(
   sessionManager: SessionManager,
   ptyManager: PtyManager,
   configLoader: ConfigLoader,
-  textInput: TextInputManager,
-  outputSummarizer: OutputSummarizer,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  textInput: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  outputSummarizer: any,
   draftManager?: { clearSession(sessionId: string): void },
 ): () => void {
   const handler = async (query: TelegramBot.CallbackQuery) => {
@@ -104,8 +105,10 @@ async function routeCallback(
   sessionManager: SessionManager,
   ptyManager: PtyManager,
   configLoader: ConfigLoader,
-  textInput: TextInputManager,
-  outputSummarizer: OutputSummarizer,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  textInput: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  outputSummarizer: any,
   draftManager?: { clearSession(sessionId: string): void },
 ): Promise<void> {
   const [action, ...rest] = data.split(':');
@@ -257,11 +260,12 @@ async function handleAccept(
 
 async function handlePromptStart(
   bot: TelegramBotCore,
-  textInput: TextInputManager,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  textInput: any,
   sessionId: string,
   query: TelegramBot.CallbackQuery,
 ): Promise<void> {
-  textInput.startInput(sessionId, query.from.id);
+  textInput?.startInput(sessionId, query.from.id);
   await bot.answerCallback(query.id, '💬 Type your message in this chat');
 
   const msg = query.message;
@@ -276,7 +280,8 @@ async function handlePromptStart(
 
 async function handleSend(
   bot: TelegramBotCore,
-  textInput: TextInputManager,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  textInput: any,
   payload: string,
   query: TelegramBot.CallbackQuery,
 ): Promise<void> {
@@ -288,10 +293,10 @@ async function handleSend(
   const sessionId = payload.substring(colonIdx + 1);
 
   if (subAction === 'confirm') {
-    await textInput.confirmInput(sessionId);
+    await textInput?.confirmInput(sessionId);
     await bot.answerCallback(query.id, '✅ Sent!');
   } else {
-    textInput.cancelInput(sessionId);
+    textInput?.cancelInput(sessionId);
     await bot.answerCallback(query.id, '❌ Cancelled');
   }
 }
@@ -302,11 +307,12 @@ async function handleSend(
 
 async function handleOutput(
   bot: TelegramBotCore,
-  outputSummarizer: OutputSummarizer,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  outputSummarizer: any,
   sessionId: string,
   query: TelegramBot.CallbackQuery,
 ): Promise<void> {
-  const summary = outputSummarizer.getSummary(sessionId);
+  const summary = outputSummarizer?.getSummary(sessionId) ?? '(output summary unavailable)';
   const msg = query.message;
 
   if (msg) {

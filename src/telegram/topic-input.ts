@@ -4,20 +4,16 @@
  * Forwards Telegram messages to PTY stdin.
  *
  * When a user sends a message in a session's topic, the text is written
- * to that session's PTY. Messages in unmapped topics (e.g. General) fall
- * back to the active session. Supports safe mode (confirmation before send)
- * and filters out bot commands (starting with /).
+ * to that session's PTY. Messages in unmapped topics fall back to the
+ * active session. Filters out bot commands (starting with /).
  */
 
 import type TelegramBot from 'node-telegram-bot-api';
 import type { TelegramBotCore } from './bot.js';
 import type { TopicManager } from './topic-manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
-import type { TextInputManager } from './text-input.js';
-import type { TerminalMirror } from './terminal-mirror.js';
 import type { SessionManager } from '../session/manager.js';
 import type { TelegramRelayService } from './relay-service.js';
-import { isReplyKeyboardPress } from './reply-keyboard.js';
 import { escapeHtml } from './utils.js';
 import { logger } from '../utils/logger.js';
 
@@ -32,7 +28,7 @@ function deliverViaManager(ptyManager: PtyManager, sessionId: string, text: stri
 
 /**
  * Set up topic input forwarding.
- * Listens for messages and routes them to PTY — first by topic mapping,
+ * Routes non-command messages: first to RelayService, then by topic mapping,
  * then by falling back to the active session.
  * Returns a cleanup function.
  */
@@ -40,21 +36,17 @@ export function setupTopicInput(
   bot: TelegramBotCore,
   topicManager: TopicManager,
   ptyManager: PtyManager,
-  textInput: TextInputManager,
-  terminalMirror?: TerminalMirror,
   sessionManager?: SessionManager,
   relayService?: TelegramRelayService,
 ): () => void {
   const handler = async (msg: TelegramBot.Message) => {
     if (!msg.text) return;
     if (msg.text.startsWith('/')) return;
-    if (isReplyKeyboardPress(msg.text)) return;
 
     if (await relayService?.handleIncomingTelegramMessage(msg)) {
       return;
     }
 
-    // Try to find session from topic mapping
     let sessionId: string | null = null;
 
     if (msg.message_thread_id) {
@@ -62,7 +54,6 @@ export function setupTopicInput(
       if (session) sessionId = session.id;
     }
 
-    // Fall back to active session when not in a mapped topic
     if (!sessionId && sessionManager) {
       const active = sessionManager.getActiveSession();
       if (active) sessionId = active.id;
@@ -75,11 +66,7 @@ export function setupTopicInput(
       return;
     }
 
-    // Let TextInputManager handle if it has a pending confirmation flow
-    const consumed = await textInput.handleMessage(msg);
-    if (consumed) return;
-
-    await forwardToSession(bot, ptyManager, sessionId, msg.message_thread_id, msg.text, terminalMirror);
+    await forwardToSession(bot, ptyManager, sessionId, msg.message_thread_id, msg.text);
   };
 
   bot.on('message', handler);
@@ -96,9 +83,7 @@ async function forwardToSession(
   sessionId: string,
   replyTopicId: number | undefined,
   text: string,
-  terminalMirror?: TerminalMirror,
 ): Promise<void> {
-  terminalMirror?.registerEcho(sessionId, text);
   await deliverViaManager(ptyManager, sessionId, text + '\r');
 
   const echoText = `➡️ <code>${escapeHtml(text)}</code>`;
@@ -112,5 +97,3 @@ async function forwardToSession(
     `[TopicInput] Forwarded message to session ${sessionId}: ${text.substring(0, 50)}`,
   );
 }
-
-

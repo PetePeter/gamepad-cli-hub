@@ -177,8 +177,6 @@ export function registerIPCHandlers(
 
     if (!telegramBot.isRunning()) return;
     telegramNotifier.removeSession(event.sessionId);
-    telegramModules.terminalMirror.removeSession(event.sessionId);
-    telegramModules.outputSummarizer.clearBuffer(event.sessionId);
     if (event.session?.topicId) {
       topicManager.closeSessionTopic(event.session).catch(err =>
         logger.error(`[Telegram] Failed to close topic for ${event.sessionId}: ${err}`),
