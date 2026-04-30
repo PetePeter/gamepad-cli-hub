@@ -1072,4 +1072,304 @@ describe('LocalhostMcpServer', () => {
       expect(json.error.message).toContain('at least 10 characters');
     });
   });
+
+  describe('session_send_text MCP response — helmPreambleForInterSession', () => {
+    it('session_send_text MCP response when preambleUsed=true', async () => {
+      const service = makeService();
+      // Update mock to return two sessions
+      (service.listSessions as unknown as ReturnType<typeof vi.fn>).mockReturnValue([
+        { id: 's1', name: 'Claude', cliType: 'claude-code' },
+        { id: 's2', name: 'Worker', cliType: 'claude-code' },
+      ]);
+
+      const sendTextMock = (service.sendTextToSession as unknown as ReturnType<typeof vi.fn>);
+      sendTextMock.mockImplementationOnce(async () => ({
+        success: true,
+        sessionId: 's1',
+        name: 'Claude',
+        preambleUsed: true,
+      }));
+
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 80,
+        method: 'tools/call',
+        params: {
+          name: 'session_send_text',
+          arguments: { sessionId: 's1', text: 'hello', senderSessionId: 's2', expectsResponse: false },
+        },
+      });
+
+      expect(response.ok).toBe(true);
+      const json = await response.json();
+      expect(json).toBeDefined();
+
+      if (json.error) {
+        throw new Error(`MCP error: ${json.error.message}`);
+      }
+
+      expect(json.result).toBeDefined();
+      expect(json.result.structuredContent).toEqual({
+        success: true,
+        sessionId: 's1',
+        name: 'Claude',
+        preambleUsed: true,
+      });
+
+      // When preambleUsed=true, the response should NOT include the polling-specific text
+      const textContent = json.result.content[0].text;
+      expect(textContent).not.toContain('cannot reply via HELM_MSG');
+      // It should include the standard reminder (getToolReminder for session_send_text)
+      expect(textContent).toContain('session_read_terminal');
+    });
+
+    it('session_send_text MCP response when preambleUsed=false with expectsResponse=true', async () => {
+      const service = makeService();
+      // Update mock to return multiple sessions
+      (service.listSessions as unknown as ReturnType<typeof vi.fn>).mockReturnValue([
+        { id: 'target-sess', name: 'Recipient', cliType: 'claude-code' },
+        { id: 'sender-sess', name: 'Sender', cliType: 'claude-code' },
+      ]);
+
+      const sendTextMock = (service.sendTextToSession as unknown as ReturnType<typeof vi.fn>);
+      sendTextMock.mockImplementationOnce(async () => ({
+        success: true,
+        sessionId: 'target-sess',
+        name: 'Recipient',
+        preambleUsed: false,
+      }));
+
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 81,
+        method: 'tools/call',
+        params: {
+          name: 'session_send_text',
+          arguments: {
+            sessionId: 'target-sess',
+            text: 'what is the status?',
+            senderSessionId: 'sender-sess',
+            expectsResponse: true,
+          },
+        },
+      });
+      const json = await response.json();
+
+      expect(json.result.structuredContent).toEqual({
+        success: true,
+        sessionId: 'target-sess',
+        name: 'Recipient',
+        preambleUsed: false,
+      });
+
+      // When preambleUsed=false, the response should include the polling hint
+      const textContent = json.result.content[0].text;
+      expect(textContent).toContain('cannot reply via HELM_MSG');
+      expect(textContent).toContain("session_read_terminal with sessionId='target-sess'");
+      expect(textContent).toContain("lines=50, mode='stripped'");
+    });
+
+    it('session_send_text MCP response when preambleUsed=false includes exact sessionId in polling hint', async () => {
+      const service = makeService();
+      // Update mock to return multiple sessions
+      (service.listSessions as unknown as ReturnType<typeof vi.fn>).mockReturnValue([
+        { id: 'abc-123-xyz', name: 'MySession', cliType: 'claude-code' },
+        { id: 'sender1', name: 'Sender', cliType: 'claude-code' },
+      ]);
+
+      const sendTextMock = (service.sendTextToSession as unknown as ReturnType<typeof vi.fn>);
+      sendTextMock.mockImplementationOnce(async () => ({
+        success: true,
+        sessionId: 'abc-123-xyz',
+        name: 'MySession',
+        preambleUsed: false,
+      }));
+
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 82,
+        method: 'tools/call',
+        params: {
+          name: 'session_send_text',
+          arguments: {
+            sessionId: 'abc-123-xyz',
+            text: 'test message',
+            senderSessionId: 'sender1',
+          },
+        },
+      });
+      const json = await response.json();
+      const textContent = json.result.content[0].text;
+
+      // The polling hint must contain the exact sessionId for the read_terminal call
+      expect(textContent).toContain("sessionId='abc-123-xyz'");
+      expect(textContent).not.toContain('target-sess');
+    });
+
+    it('session_send_text text response is properly formatted when preambleUsed=false', async () => {
+      const service = makeService();
+      // Update mock to return multiple sessions
+      (service.listSessions as unknown as ReturnType<typeof vi.fn>).mockReturnValue([
+        { id: 's1', name: 'Claude', cliType: 'claude-code' },
+        { id: 's2', name: 'Worker', cliType: 'claude-code' },
+      ]);
+
+      const sendTextMock = (service.sendTextToSession as unknown as ReturnType<typeof vi.fn>);
+      sendTextMock.mockImplementationOnce(async () => ({
+        success: true,
+        sessionId: 's1',
+        name: 'Claude',
+        preambleUsed: false,
+      }));
+
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 83,
+        method: 'tools/call',
+        params: {
+          name: 'session_send_text',
+          arguments: {
+            sessionId: 's1',
+            text: 'message',
+            senderSessionId: 's2',
+            expectsResponse: false,
+          },
+        },
+      });
+      const json = await response.json();
+      const textContent = json.result.content[0].text;
+
+      // Should start with the JSON result
+      expect(textContent).toMatch(/^\{\s*"success"/);
+      // Should include the polling hint after the JSON
+      expect(textContent).toContain('cannot reply via HELM_MSG');
+    });
+
+    it('session_send_text with preambleUsed=true uses standard reminder text', async () => {
+      const service = makeService();
+      // Update mock to return multiple sessions
+      (service.listSessions as unknown as ReturnType<typeof vi.fn>).mockReturnValue([
+        { id: 's1', name: 'Claude', cliType: 'claude-code' },
+        { id: 's2', name: 'Worker', cliType: 'claude-code' },
+      ]);
+
+      const sendTextMock = (service.sendTextToSession as unknown as ReturnType<typeof vi.fn>);
+      sendTextMock.mockImplementationOnce(async () => ({
+        success: true,
+        sessionId: 's1',
+        name: 'Claude',
+        preambleUsed: true,
+      }));
+
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 84,
+        method: 'tools/call',
+        params: {
+          name: 'session_send_text',
+          arguments: {
+            sessionId: 's1',
+            text: 'hello with preamble',
+            senderSessionId: 's2',
+            expectsResponse: true,
+          },
+        },
+      });
+      const json = await response.json();
+      const textContent = json.result.content[0].text;
+
+      // The standard reminder for session_send_text mentions session_read_terminal
+      expect(textContent).toContain('session_read_terminal');
+      // But should NOT mention the no-preamble polling scenario
+      expect(textContent).not.toContain('cannot reply via HELM_MSG');
+    });
+
+    it('session_send_text distinguishes between preamble=true and preamble=false responses', async () => {
+      const service = makeService();
+      // Update mock to return multiple sessions
+      (service.listSessions as unknown as ReturnType<typeof vi.fn>).mockReturnValue([
+        { id: 's1', name: 'Claude', cliType: 'claude-code' },
+        { id: 's2', name: 'Worker', cliType: 'claude-code' },
+      ]);
+
+      const sendTextMock = (service.sendTextToSession as unknown as ReturnType<typeof vi.fn>);
+
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      // Call 1: with preamble
+      sendTextMock.mockImplementationOnce(async () => ({
+        success: true,
+        sessionId: 's1',
+        name: 'Claude',
+        preambleUsed: true,
+      }));
+
+      const response1 = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 85,
+        method: 'tools/call',
+        params: {
+          name: 'session_send_text',
+          arguments: { sessionId: 's1', text: 'msg1', senderSessionId: 's2' },
+        },
+      });
+      const json1 = await response1.json();
+      const text1 = json1.result.content[0].text;
+      const hasPreambleText1 = text1.includes('cannot reply via HELM_MSG');
+
+      // Call 2: without preamble
+      sendTextMock.mockImplementationOnce(async () => ({
+        success: true,
+        sessionId: 's1',
+        name: 'Claude',
+        preambleUsed: false,
+      }));
+
+      const response2 = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 86,
+        method: 'tools/call',
+        params: {
+          name: 'session_send_text',
+          arguments: { sessionId: 's1', text: 'msg2', senderSessionId: 's2' },
+        },
+      });
+      const json2 = await response2.json();
+      const text2 = json2.result.content[0].text;
+      const hasPreambleText2 = text2.includes('cannot reply via HELM_MSG');
+
+      // Response 1 should NOT have the polling hint (preamble was used)
+      expect(hasPreambleText1).toBe(false);
+      // Response 2 should HAVE the polling hint (preamble was not used)
+      expect(hasPreambleText2).toBe(true);
+    });
+  });
 });

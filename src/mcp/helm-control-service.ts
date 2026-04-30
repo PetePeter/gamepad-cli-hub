@@ -536,7 +536,7 @@ export class HelmControlService extends EventEmitter {
     sessionRef: string,
     text: string,
     options?: { senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean },
-  ): Promise<{ success: true; sessionId: string; name: string }> {
+  ): Promise<{ success: true; sessionId: string; name: string; preambleUsed: boolean }> {
     const session = this.findSession(sessionRef);
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);
@@ -551,23 +551,33 @@ export class HelmControlService extends EventEmitter {
       throw new Error('Cannot send a message from a session to itself — sender and receiver must be different sessions');
     }
 
-    const expectsResponse = options.expectsResponse ?? false;
-    const envelope = JSON.stringify({
-      type: 'inter_llm_message',
-      fromSessionId: options.senderSessionId,
-      fromSessionName: options.senderSessionName,
-      expectsResponse,
-      timestamp: new Date().toISOString(),
-    });
+    // Determine if recipient wants the Helm preamble
+    const recipientEntry = this.configLoader.getCliTypeEntry(session.cliType);
+    const usePreamble = recipientEntry?.helmPreambleForInterSession ?? true;
 
-    const tag = expectsResponse
-      ? `[HELM_MSG: expectsResponse=true. To reply, call MCP tool mcp__helm__session_send_text with: sessionId="${options.senderSessionId}", senderSessionId=<your env $HELM_SESSION_ID>, text="<your reply>". Your HELM_SESSION_ID is injected by Helm at startup.]`
-      : '[HELM_MSG]';
-    const message = `${tag}${envelope}\n${text}`;
+    if (usePreamble) {
+      // Send with [HELM_MSG] envelope
+      const expectsResponse = options.expectsResponse ?? false;
+      const envelope = JSON.stringify({
+        type: 'inter_llm_message',
+        fromSessionId: options.senderSessionId,
+        fromSessionName: options.senderSessionName,
+        expectsResponse,
+        timestamp: new Date().toISOString(),
+      });
 
-    await this.ptyManager.deliverText(session.id, message, { withReturn: true });
+      const tag = expectsResponse
+        ? `[HELM_MSG: expectsResponse=true. To reply, call MCP tool mcp__helm__session_send_text with: sessionId="${options.senderSessionId}", senderSessionId=<your env $HELM_SESSION_ID>, text="<your reply>". Your HELM_SESSION_ID is injected by Helm at startup.]`
+        : '[HELM_MSG]';
+      const message = `${tag}${envelope}\n${text}`;
 
-    return { success: true, sessionId: session.id, name: session.name };
+      await this.ptyManager.deliverText(session.id, message, { withReturn: true });
+    } else {
+      // Send plain text only — no envelope
+      await this.ptyManager.deliverText(session.id, `${text}\n`, { withReturn: true });
+    }
+
+    return { success: true, sessionId: session.id, name: session.name, preambleUsed: usePreamble };
   }
 
   setSessionWorkingPlan(
@@ -793,7 +803,7 @@ export class HelmControlService extends EventEmitter {
       },
       session_send_text_guide: {
         description: 'Send text to another session from your session. This enables inter-LLM communication via Helm\'s embedded PTY system.',
-        how_it_works: 'Text is delivered to the target session\'s PTY via stdin. Helm wraps your message in a [HELM_MSG] envelope with metadata. When expectsResponse=true, replies are pasted back into your session as new chat turns — no polling needed.',
+        how_it_works: 'Text is delivered to the target session\'s PTY via stdin. Helm wraps your message in a [HELM_MSG] envelope with metadata — unless the recipient tool has disabled preamble via \'helmPreambleForInterSession: false\', in which case you send raw text only. When expectsResponse=true, replies are pasted back into your session as new chat turns — no polling needed.',
         inter_llm_handoff_protocol: [
           'Always call session_send_text with submit=true, or omit submit because true is the default. Never use submit=false for inter-LLM handoffs.',
           'After session_send_text succeeds, call session_read_terminal on the recipient session and inspect the tail for evidence the message landed: the first words of the sent text, a new prompt, or a new response starting.',

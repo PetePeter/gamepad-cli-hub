@@ -35,6 +35,8 @@ tools:
     spawnCommand: cmd.exe
     initialPrompt: []
     initialPromptDelay: 2000
+    pasteMode: pty
+    helmInitialPrompt: false
   glm-cc:
     name: GLM + CC
     initialPrompt:

@@ -28,6 +28,7 @@ export interface ToolEditorData {
   renameCommand: string;
   handoffCommand: string;
   helmInitialPrompt: boolean;
+  helmPreambleForInterSession?: boolean;
   initialPrompt: Array<{ label: string; sequence: string }>;
 }
 
@@ -50,6 +51,7 @@ const emit = defineEmits<{
     renameCommand: string;
     handoffCommand: string;
     helmInitialPrompt: boolean;
+    helmPreambleForInterSession?: boolean;
     _promptItems: Array<{ label: string; sequence: string }>;
   }): void;
   (e: 'cancel'): void;
@@ -69,6 +71,7 @@ const continueCommand = ref('');
 const renameCommand = ref('');
 const handoffCommand = ref('');
 const helmInitialPrompt = ref(false);
+const helmPreambleForInterSession = ref(true);
 
 interface SeqItem { label: string; sequence: string }
 const promptItems = ref<SeqItem[]>([]);
@@ -131,6 +134,7 @@ function initForm(): void {
   renameCommand.value = d.renameCommand ?? '';
   handoffCommand.value = d.handoffCommand ?? '';
   helmInitialPrompt.value = Boolean(d.helmInitialPrompt);
+  helmPreambleForInterSession.value = d.helmPreambleForInterSession !== false;
   promptItems.value = Array.isArray(d.initialPrompt)
     ? d.initialPrompt.map(item => ({
         label: typeof item?.label === 'string' ? item.label : '',
@@ -175,6 +179,7 @@ function onSave(): void {
     renameCommand: renameCommand.value,
     handoffCommand: handoffCommand.value,
     helmInitialPrompt: helmInitialPrompt.value,
+    ...(helmPreambleForInterSession.value !== true ? { helmPreambleForInterSession: helmPreambleForInterSession.value } : {}),
     _promptItems: promptItems.value.map(i => ({ label: i.label, sequence: i.sequence })),
   });
   emit('update:visible', false);
@@ -384,6 +389,16 @@ defineExpose({ handleButton });
                 />
               </div>
             </div>
+            <label class="te-checkbox-row">
+              <input
+                v-model="helmPreambleForInterSession"
+                type="checkbox"
+              />
+              <span>Use Helm preamble for inter-session messages</span>
+            </label>
+            <p class="te-section__hint">
+              When enabled (default), inter-session messages are wrapped in a [HELM_MSG] envelope. When disabled, plain text only.
+            </p>
           </fieldset>
 
           <!-- ═══ Initial Prompts ═══ -->

@@ -200,13 +200,14 @@ export interface ToolEditorBridgeData {
   renameCommand: string;
   handoffCommand: string;
   helmInitialPrompt: boolean;
+  helmPreambleForInterSession?: boolean;
   initialPrompt: Array<{ label: string; sequence: string }>;
 }
 
 const EMPTY_TOOL_DATA: ToolEditorBridgeData = {
   name: '', env: [], initialPromptDelay: 2000,
   pasteMode: 'pty', spawnCommand: '', resumeCommand: '', continueCommand: '',
-  renameCommand: '', handoffCommand: '', helmInitialPrompt: false, initialPrompt: [],
+  renameCommand: '', handoffCommand: '', helmInitialPrompt: false, helmPreambleForInterSession: true, initialPrompt: [],
 };
 
 export const toolEditor = reactive({

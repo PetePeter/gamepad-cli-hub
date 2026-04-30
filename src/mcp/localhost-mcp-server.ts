@@ -740,8 +740,17 @@ export class LocalhostMcpServer {
           const args = asRecord(params.arguments);
           const result = await this.callTool(name, args, authContext);
           const structuredContent = normalizeStructuredContent(result);
-          const reminder = getToolReminder(name);
-          const text = `${JSON.stringify(result, null, 2)}${reminder ? `\n\n${reminder}` : ''}`;
+          let suffix = getToolReminder(name);
+
+          // Special handling for session_send_text when preambleUsed is false
+          if (name === 'session_send_text' && result && typeof result === 'object' && 'preambleUsed' in result) {
+            const sendResult = result as { success: boolean; sessionId: string; name: string; preambleUsed: boolean };
+            if (!sendResult.preambleUsed) {
+              suffix = `Message sent to [${sendResult.name}] without Helm preamble — recipient cannot reply via HELM_MSG. To check results, call: session_read_terminal with sessionId='${sendResult.sessionId}', lines=50, mode='stripped'`;
+            }
+          }
+
+          const text = `${JSON.stringify(result, null, 2)}${suffix ? `\n\n${suffix}` : ''}`;
           this.writeJsonRpcResult(res, id, {
             content: [{ type: 'text', text }],
             structuredContent,

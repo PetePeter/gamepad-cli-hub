@@ -190,6 +190,8 @@ export interface CliTypeConfig {
   initialPromptDelay?: number;
   /** Prepend the canonical Helm MCP session init prompt on fresh spawn. */
   helmInitialPrompt?: boolean;
+  /** Send [HELM_MSG] envelope when another Helm session sends text to this recipient. Default: true. When false, plain text only. */
+  helmPreambleForInterSession?: boolean;
   /** Named sequence groups — accessible via gamepad bindings and context menu */
   sequences?: Record<string, SequenceListItem[]>;
   /** Command written to PTY on pipeline handoff. If omitted, no command is sent. */
@@ -361,6 +363,7 @@ type CliTypeOptions = {
   resumeCommand?: string;
   continueCommand?: string;
   helmInitialPrompt?: boolean;
+  helmPreambleForInterSession?: boolean;
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
 };
 
@@ -1192,6 +1195,7 @@ export class ConfigLoader {
     if (options?.resumeCommand) tool.resumeCommand = options.resumeCommand;
     if (options?.continueCommand) tool.continueCommand = options.continueCommand;
     if (options?.helmInitialPrompt !== undefined) tool.helmInitialPrompt = options.helmInitialPrompt;
+    if (options?.helmPreambleForInterSession !== undefined) tool.helmPreambleForInterSession = options.helmPreambleForInterSession;
     if (options?.pasteMode) tool.pasteMode = options.pasteMode;
     this.activeProfile!.tools[key] = tool;
     this.saveActiveProfile();
@@ -1239,6 +1243,13 @@ export class ConfigLoader {
       }
       if (options.helmInitialPrompt !== undefined) {
         existing.helmInitialPrompt = options.helmInitialPrompt;
+      }
+      if (options.helmPreambleForInterSession !== undefined) {
+        if (options.helmPreambleForInterSession === true) {
+          delete (existing as any).helmPreambleForInterSession;  // omit default from YAML
+        } else {
+          existing.helmPreambleForInterSession = false;
+        }
       }
     }
 

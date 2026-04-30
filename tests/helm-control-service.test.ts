@@ -667,3 +667,170 @@ describe('HelmControlService.closeSession', () => {
     expect(result).toEqual({ sessionId: 's1', name: 'Claude' });
   });
 });
+
+describe('HelmControlService.sendTextToSession — helmPreambleForInterSession toggle', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('sendTextToSession with preamble enabled (default)', async () => {
+    const { service, ptyManager, configLoader } = makeService();
+    // Recipient tool config absent helmPreambleForInterSession field — defaults to true
+    (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+      name: 'Claude Code',
+      command: 'claude',
+      // helmPreambleForInterSession is undefined, should default to true
+    });
+
+    const result = await service.sendTextToSession('s1', 'hello', {
+      senderSessionId: 'sender1',
+      senderSessionName: 'Sender',
+    });
+
+    expect(result.preambleUsed).toBe(true);
+    const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
+    const message = deliverCall[1] as string;
+    expect(message).toMatch(/^\[HELM_MSG\]/);
+    expect(message).toContain('"type":"inter_llm_message"');
+    expect(message).toContain('hello');
+  });
+
+  it('sendTextToSession with preamble enabled (explicit true)', async () => {
+    const { service, ptyManager, configLoader } = makeService();
+    // Recipient tool config has helmPreambleForInterSession: true
+    (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+      name: 'Claude Code',
+      command: 'claude',
+      helmPreambleForInterSession: true,
+    });
+
+    const result = await service.sendTextToSession('s1', 'hello', {
+      senderSessionId: 'sender1',
+      senderSessionName: 'Sender',
+    });
+
+    expect(result.preambleUsed).toBe(true);
+    const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
+    const message = deliverCall[1] as string;
+    expect(message).toMatch(/^\[HELM_MSG\]/);
+    expect(message).toContain('"type":"inter_llm_message"');
+    expect(message).toContain('hello');
+  });
+
+  it('sendTextToSession with preamble disabled', async () => {
+    const { service, ptyManager, configLoader } = makeService();
+    // Recipient tool config has helmPreambleForInterSession: false
+    (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+      name: 'Claude Code',
+      command: 'claude',
+      helmPreambleForInterSession: false,
+    });
+
+    const result = await service.sendTextToSession('s1', 'hello from sender', {
+      senderSessionId: 'sender1',
+      senderSessionName: 'Sender',
+    });
+
+    expect(result.preambleUsed).toBe(false);
+    const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
+    const message = deliverCall[1] as string;
+    // Message should contain only the raw text with newline, no [HELM_MSG] or JSON
+    expect(message).toBe('hello from sender\n');
+    expect(message).not.toMatch(/^\[HELM_MSG\]/);
+    expect(message).not.toContain('inter_llm_message');
+  });
+
+  it('sendTextToSession preamble=false respects text content exactly', async () => {
+    const { service, ptyManager, configLoader } = makeService();
+    (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+      helmPreambleForInterSession: false,
+    });
+
+    const multilineText = 'Line 1\nLine 2\nSpecial chars: $, %, &, @';
+    const result = await service.sendTextToSession('s1', multilineText, {
+      senderSessionId: 'sender1',
+      senderSessionName: 'Sender',
+    });
+
+    expect(result.preambleUsed).toBe(false);
+    const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
+    const message = deliverCall[1] as string;
+    // Exact text + single newline, no modifications
+    expect(message).toBe(`${multilineText}\n`);
+  });
+
+  it('sendTextToSession preamble=true includes sender info in envelope', async () => {
+    const { service, ptyManager, configLoader } = makeService();
+    (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+      helmPreambleForInterSession: true,
+    });
+
+    await service.sendTextToSession('s1', 'test', {
+      senderSessionId: 'agent-1',
+      senderSessionName: 'Research Agent',
+      expectsResponse: true,
+    });
+
+    const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
+    const message = deliverCall[1] as string;
+    const envelopeMatch = message.match(/^\[HELM_MSG[^\]]*\](\{[^\n]+\})\n/);
+    expect(envelopeMatch).toBeTruthy();
+    const envelope = JSON.parse(envelopeMatch![1]);
+    expect(envelope.fromSessionId).toBe('agent-1');
+    expect(envelope.fromSessionName).toBe('Research Agent');
+    expect(envelope.expectsResponse).toBe(true);
+  });
+
+  it('sendTextToSession returns correct preambleUsed value in both cases', async () => {
+    const { service, configLoader } = makeService();
+
+    // Test with preamble disabled
+    (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+      helmPreambleForInterSession: false,
+    });
+    const noPreambleResult = await service.sendTextToSession('s1', 'msg', {
+      senderSessionId: 'sender1',
+      senderSessionName: 'Sender',
+    });
+    expect(noPreambleResult).toMatchObject({
+      success: true,
+      sessionId: 's1',
+      name: 'Claude',
+      preambleUsed: false,
+    });
+
+    // Test with preamble enabled
+    (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+      helmPreambleForInterSession: true,
+    });
+    const preambleResult = await service.sendTextToSession('s1', 'msg', {
+      senderSessionId: 'sender1',
+      senderSessionName: 'Sender',
+    });
+    expect(preambleResult).toMatchObject({
+      success: true,
+      sessionId: 's1',
+      name: 'Claude',
+      preambleUsed: true,
+    });
+  });
+
+  it('sendTextToSession with preamble=false does not include expectsResponse in text', async () => {
+    const { service, ptyManager, configLoader } = makeService();
+    (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+      helmPreambleForInterSession: false,
+    });
+
+    await service.sendTextToSession('s1', 'check status', {
+      senderSessionId: 'sender1',
+      senderSessionName: 'Sender',
+      expectsResponse: true,
+    });
+
+    const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
+    const message = deliverCall[1] as string;
+    // Without preamble, the message should be plain text only — no mention of expectsResponse
+    expect(message).toBe('check status\n');
+    expect(message).not.toContain('expectsResponse');
+  });
+});

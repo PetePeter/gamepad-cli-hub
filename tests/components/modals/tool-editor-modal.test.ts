@@ -168,10 +168,12 @@ describe('ToolEditorModal.vue', () => {
     const w = factory({
       initialData: { ...DEFAULT_DATA, helmInitialPrompt: true },
     });
-    const checkbox = w.find('.te-checkbox-row input').element as HTMLInputElement;
+    // Target the checkbox in the "Initial Prompts" section specifically
+    const checkboxes = w.findAll('.te-section--prompts .te-checkbox-row input');
+    const checkbox = checkboxes[0].element as HTMLInputElement;
     expect(checkbox.checked).toBe(true);
 
-    await w.find('.te-checkbox-row input').setValue(false);
+    await checkboxes[0].setValue(false);
     const saveBtn = w.findAll('button').find(b => b.text() === 'Save')!;
     await saveBtn.trigger('click');
     await flushPromises();
