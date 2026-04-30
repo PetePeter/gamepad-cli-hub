@@ -30,9 +30,10 @@ function formatDuration(ms: number): string {
 export function setupPowerMonitor(
   powerMonitor: PowerMonitorLike,
   deps: PowerMonitorDeps,
-): void {
+): { isScreenLocked: () => boolean } {
   const { sessionManager, ptyManager } = deps;
   let suspendTimestamp: number | null = null;
+  let screenLocked = false;
 
   powerMonitor.on('suspend', () => {
     suspendTimestamp = Date.now();
@@ -97,4 +98,16 @@ export function setupPowerMonitor(
       `[PowerMonitor] System shutting down — ${sessionCount} sessions active`,
     );
   });
+
+  powerMonitor.on('lock-screen', () => {
+    screenLocked = true;
+    logger.info('[PowerMonitor] Screen locked');
+  });
+
+  powerMonitor.on('unlock-screen', () => {
+    screenLocked = false;
+    logger.info('[PowerMonitor] Screen unlocked');
+  });
+
+  return { isScreenLocked: () => screenLocked };
 }

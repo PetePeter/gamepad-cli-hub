@@ -5,7 +5,7 @@
  * Manages window creation, IPC communication, and application lifecycle.
  */
 
-import { app, BrowserWindow, Menu, powerMonitor, crashReporter, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, crashReporter, ipcMain } from 'electron';
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { existsSync, readFileSync } from 'fs';
@@ -13,7 +13,6 @@ import { registerIPCHandlers } from './ipc/handlers.js';
 import { WindowManager } from './window-manager.js';
 import { resolveWindowIconPath } from './window-icon.js';
 import { buildSplashHtml } from './splash-html.js';
-import { setupPowerMonitor } from '../session/power-monitor.js';
 import { migrateOldPlans } from '../session/plan-migration.js';
 import { configLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
@@ -305,11 +304,6 @@ app.whenReady().then(async () => {
 
   // Start watching for incoming plan files from CLIs
   ipc.incomingWatcher.start();
-  // Power monitor with full session/PTY diagnostics
-  setupPowerMonitor(powerMonitor, {
-    sessionManager: ipc.sessionManager,
-    ptyManager: ipc.ptyManager,
-  });
 
   // Remove default application menu (no File/Edit/View/Window/Help needed)
   Menu.setApplicationMenu(null);

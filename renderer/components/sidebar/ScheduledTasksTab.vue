@@ -7,11 +7,14 @@
  * - Create Task form with CLI picker (QuickSpawnModal) and directory picker (DirPickerModal)
  * - Collapsible create form section
  * - Auto-refresh every 10s with live countdown display
+ * - Popup mode: editor-only overlay for quick task creation
  */
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, ref as templateRef } from 'vue';
 import type { ScheduledTask, ScheduledTaskMode, ScheduledTaskScheduleKind } from '../../../src/types/scheduled-task.js';
 import QuickSpawnModal from '../modals/QuickSpawnModal.vue';
 import DirPickerModal from '../modals/DirPickerModal.vue';
+import { useFocusTrap } from '../../composables/useFocusTrap.js';
+import { useModalStack, SELECTION_KEYS } from '../../composables/useModalStack.js';
 
 const emit = defineEmits<{
   'task-created': [task: ScheduledTask];
@@ -59,6 +62,13 @@ const availableCliTypes = ref<string[]>([]);
 const availableDirs = ref<{ name: string; path: string }[]>([]);
 const availableSessions = ref<Array<{ id: string; name: string; cliType: string; workingDir?: string }>>([]);
 
+// Popup root ref for focus trap
+const popupRoot = templateRef<HTMLElement | null>('popupRoot');
+const { onKeydown: trapOnKeydown } = useFocusTrap('.scheduled-tasks-tab--popup');
+
+// Modal stack for popup mode
+const modalStack = useModalStack();
+
 // ---------------------------------------------------------------------------
 // Computed
 // ---------------------------------------------------------------------------
@@ -84,6 +94,9 @@ const sortedTasks = computed(() => {
     new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime()
   );
 });
+
+// In popup mode, the form is always visible
+const formVisible = computed(() => props.popup || showCreateForm.value);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -264,9 +277,13 @@ async function createTask(): Promise<void> {
 
     if (result) {
       emit(editingTaskId.value ? 'task-updated' : 'task-created', result);
-      showCreateForm.value = false;
-      resetForm();
-      await loadTasks();
+      if (props.popup) {
+        emit('close');
+      } else {
+        showCreateForm.value = false;
+        resetForm();
+        await loadTasks();
+      }
     }
   } catch {
     // Silent fail -- form stays open for retry
@@ -314,11 +331,20 @@ onMounted(async () => {
   if (props.initialEditTaskId) {
     const task = tasks.value.find((item) => item.id === props.initialEditTaskId);
     if (task) editTask(task);
-  } else if (props.initialCreate) {
+  } else if (props.initialCreate || props.popup) {
     showCreateForm.value = true;
     startCreateForm();
   }
   refreshTimer = setInterval(loadTasks, 10000);
+
+  // Modal stack integration for popup mode
+  if (props.popup) {
+    modalStack.push({
+      id: 'scheduler-popup',
+      handler: () => true, // consume all gamepad input
+      interceptKeys: SELECTION_KEYS,
+    });
+  }
 });
 
 watch(() => props.initialCreate, (initialCreate) => {
@@ -336,23 +362,21 @@ watch(() => props.initialEditTaskId, async (taskId) => {
 
 onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer);
+  modalStack.pop('scheduler-popup');
 });
 </script>
 
 <template>
-  <div class="scheduled-tasks-tab" :class="{ 'scheduled-tasks-tab--popup': popup }">
-    <!-- Header -->
-    <div class="st-header">
+  <div
+    ref="popupRoot"
+    class="scheduled-tasks-tab"
+    :class="{ 'scheduled-tasks-tab--popup': popup }"
+    @keydown="popup ? trapOnKeydown($event) : undefined"
+  >
+    <!-- Header (hidden in popup mode) -->
+    <div v-if="!popup" class="st-header">
       <h2 class="st-title">Scheduled Tasks</h2>
       <span class="st-count">{{ tasks.length }} task{{ tasks.length !== 1 ? 's' : '' }}</span>
-      <button
-        v-if="popup"
-        class="st-close-btn focusable"
-        title="Close"
-        @click="emit('close')"
-      >
-        x
-      </button>
       <button
         class="st-create-btn focusable"
         :disabled="creating"
@@ -362,8 +386,8 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <!-- Create Form (collapsible) -->
-    <div v-if="showCreateForm" class="st-form">
+    <!-- Create Form -->
+    <div v-if="formVisible" class="st-form">
       <div class="st-form-row">
         <label class="st-label">Title *</label>
         <input
@@ -377,21 +401,12 @@ onUnmounted(() => {
 
       <div class="st-form-row">
         <label class="st-label">Description (optional)</label>
-        <input
+        <textarea
           v-model="formDescription"
-          type="text"
-          class="st-input focusable"
+          class="st-textarea focusable"
           placeholder="What this task does"
-          maxlength="500"
+          rows="2"
         />
-      </div>
-
-      <div class="st-form-row">
-        <label class="st-label">Mode</label>
-        <select v-model="formMode" class="st-input focusable" @change="onModeChange">
-          <option value="spawn">Spawn new session</option>
-          <option value="direct">Send to existing session</option>
-        </select>
       </div>
 
       <div class="st-form-row">
@@ -404,13 +419,6 @@ onUnmounted(() => {
         />
       </div>
 
-      <div v-if="formMode !== 'direct'" class="st-form-row st-form-row--picker">
-        <label class="st-label">CLI Type *</label>
-        <button class="st-picker-btn focusable" @click="openCliPicker">
-          {{ selectedCliType || 'Select CLI...' }}
-        </button>
-      </div>
-
       <div class="st-form-row st-form-row--picker">
         <label class="st-label">Working Directory *</label>
         <button class="st-picker-btn focusable" @click="openDirPickerModal">
@@ -419,40 +427,18 @@ onUnmounted(() => {
       </div>
 
       <div class="st-form-row">
-        <label class="st-label">Scheduled Time *</label>
-        <input
-          v-model="formTime"
-          type="datetime-local"
-          class="st-input focusable"
-        />
-      </div>
-
-      <div class="st-form-row">
-        <label class="st-label">Schedule</label>
-        <select v-model="scheduleKind" class="st-input focusable">
-          <option value="once">Once</option>
-          <option value="interval">Recurring interval</option>
+        <label class="st-label">Mode</label>
+        <select v-model="formMode" class="st-input focusable" @change="onModeChange">
+          <option value="spawn">Spawn new session</option>
+          <option value="direct">Send to existing session</option>
         </select>
       </div>
 
-      <div v-if="scheduleKind === 'interval'" class="st-form-row">
-        <label class="st-label">Repeat Every Minutes *</label>
-        <input
-          v-model.number="intervalMinutes"
-          type="number"
-          min="1"
-          class="st-input focusable"
-        />
-      </div>
-
-      <div v-if="formMode !== 'direct'" class="st-form-row">
-        <label class="st-label">CLI Params (optional)</label>
-        <input
-          v-model="formCliParams"
-          type="text"
-          class="st-input focusable"
-          placeholder="Additional CLI arguments"
-        />
+      <div v-if="formMode !== 'direct'" class="st-form-row st-form-row--picker">
+        <label class="st-label">CLI Type *</label>
+        <button class="st-picker-btn focusable" @click="openCliPicker">
+          {{ selectedCliType || 'Select CLI...' }}
+        </button>
       </div>
 
       <div v-if="formMode === 'direct'" class="st-form-row">
@@ -469,7 +455,60 @@ onUnmounted(() => {
         </select>
       </div>
 
-      <div class="st-form-actions">
+      <div v-if="formMode !== 'direct'" class="st-form-row">
+        <label class="st-label">CLI Params (optional)</label>
+        <input
+          v-model="formCliParams"
+          type="text"
+          class="st-input focusable"
+          placeholder="Additional CLI arguments"
+        />
+      </div>
+
+      <div class="st-form-row">
+        <label class="st-label">Scheduled Time *</label>
+        <input
+          v-model="formTime"
+          type="datetime-local"
+          class="st-input focusable"
+        />
+      </div>
+
+      <div class="st-form-row st-form-row--inline">
+        <div class="st-form-row">
+          <label class="st-label">Schedule</label>
+          <select v-model="scheduleKind" class="st-input focusable">
+            <option value="once">Once</option>
+            <option value="interval">Recurring interval</option>
+          </select>
+        </div>
+        <div v-if="scheduleKind === 'interval'" class="st-form-row">
+          <label class="st-label">Repeat Every (min) *</label>
+          <input
+            v-model.number="intervalMinutes"
+            type="number"
+            min="1"
+            class="st-input focusable"
+          />
+        </div>
+      </div>
+
+      <!-- Footer: Cancel + Save buttons -->
+      <div class="st-form-footer">
+        <button
+          v-if="!popup"
+          class="st-btn st-btn--secondary focusable"
+          @click="toggleCreateForm"
+        >
+          Cancel
+        </button>
+        <button
+          v-if="popup"
+          class="st-btn st-btn--secondary focusable"
+          @click="emit('close')"
+        >
+          Cancel
+        </button>
         <button
           class="st-btn st-btn--primary focusable"
           :disabled="!canCreate || creating"
@@ -480,9 +519,9 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Task List -->
-    <div class="st-task-list">
-      <div v-if="sortedTasks.length === 0" class="st-empty">
+    <!-- Task List (hidden in popup mode) -->
+    <div v-if="!popup" class="st-task-list">
+      <div v-if="sortedTasks.length === 0 && !showCreateForm" class="st-empty">
         No scheduled tasks yet. Click "+ Create Task" to add one.
       </div>
 
@@ -566,6 +605,8 @@ onUnmounted(() => {
   max-width: none;
   max-height: 78vh;
   overflow: auto;
+  border: 2px solid #44cc44;
+  border-radius: 8px;
 }
 
 /* Header */
@@ -595,15 +636,6 @@ onUnmounted(() => {
   font-weight: 500;
   font-size: 0.9rem;
 }
-.st-close-btn {
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--border-color);
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  border-radius: 4px;
-  cursor: pointer;
-}
 .st-create-btn:hover { opacity: 0.9; }
 .st-create-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -621,6 +653,13 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.st-form-row--inline {
+  flex-direction: row;
+  gap: 12px;
+}
+.st-form-row--inline > .st-form-row {
+  flex: 1;
 }
 .st-label {
   font-size: 0.8rem;
@@ -665,8 +704,15 @@ onUnmounted(() => {
 .st-picker-btn:hover:not(.st-picker-btn--disabled) {
   border-color: var(--accent-primary);
 }
-.st-form-actions {
+
+/* Form footer */
+.st-form-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
 }
 
 /* Buttons */
@@ -688,8 +734,7 @@ onUnmounted(() => {
   background: var(--bg-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
-  padding: 6px 12px;
-  font-size: 0.85rem;
+  padding: 10px 20px;
 }
 .st-btn--secondary:hover:not(:disabled) { border-color: var(--accent-primary); }
 .st-btn--danger {

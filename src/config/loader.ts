@@ -256,6 +256,7 @@ export interface SnapOutWindowPrefs {
 export type SessionSortField = 'state' | 'cliType' | 'directory' | 'name';
 export type BindingSortField = 'button' | 'action';
 export type SortDirection = 'asc' | 'desc';
+export type NotificationMode = 'off' | 'auto' | 'llm';
 
 export interface AreaSortPrefs {
   field: string;
@@ -329,6 +330,7 @@ export interface SettingsConfig {
   activeProfile: string;
   hapticFeedback: boolean;
   notifications: boolean;
+  notificationMode?: NotificationMode;
   escProtectionEnabled: boolean;
   sidebar?: SidebarPrefs;
   snapOutWindows?: Record<string, SnapOutWindowPrefs>;
@@ -545,6 +547,9 @@ export class ConfigLoader {
     }
     if (this.settings.notifications === undefined) {
       this.settings.notifications = true;
+    }
+    if (this.settings.notificationMode === undefined) {
+      this.settings.notificationMode = this.settings.notifications ? 'auto' : 'off';
     }
     if (!this.settings.telegram) {
       this.settings.telegram = { ...DEFAULT_TELEGRAM_CONFIG };
@@ -865,6 +870,18 @@ export class ConfigLoader {
   setNotifications(enabled: boolean): void {
     this.ensureLoaded();
     this.settings!.notifications = enabled;
+    this.saveSettings();
+  }
+
+  getNotificationMode(): NotificationMode {
+    this.ensureLoaded();
+    return this.settings!.notificationMode ?? 'auto';
+  }
+
+  setNotificationMode(mode: NotificationMode): void {
+    this.ensureLoaded();
+    this.settings!.notificationMode = mode;
+    this.settings!.notifications = mode !== 'off';
     this.saveSettings();
   }
 

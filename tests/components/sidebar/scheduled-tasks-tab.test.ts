@@ -77,7 +77,8 @@ describe('ScheduledTasksTab', () => {
     await flushPromises();
 
     await wrapper.find('.st-create-btn').trigger('click');
-    await wrapper.findAll('.st-picker-btn')[0].trigger('click');
+    // CLI Type picker button is the second picker (Working Dir is first in new order)
+    await wrapper.findAll('.st-picker-btn')[1].trigger('click');
     await flushPromises();
 
     const nextHour = new Date(2026, 3, 29, 10, 0, 0, 0);
@@ -94,14 +95,16 @@ describe('ScheduledTasksTab', () => {
     await inputs[0].setValue('Task');
     await wrapper.find('textarea').setValue('Prompt');
     await inputs.find((input) => input.attributes('type') === 'datetime-local')?.setValue('2026-04-29T10:00');
-    await wrapper.findAll('.st-picker-btn')[1].trigger('click');
+    // Working Dir picker is first in new order
+    await wrapper.findAll('.st-picker-btn')[0].trigger('click');
     await flushPromises();
     wrapper.findComponent(DirPickerModal).vm.$emit('select', 'X:\\coding\\gamepad-cli-hub');
     await wrapper.vm.$nextTick();
 
     expect(wrapper.find('.st-btn--primary').attributes('disabled')).toBeDefined();
 
-    await wrapper.findAll('.st-picker-btn')[0].trigger('click');
+    // CLI Type picker is second
+    await wrapper.findAll('.st-picker-btn')[1].trigger('click');
     await flushPromises();
     wrapper.findComponent(QuickSpawnModal).vm.$emit('select', 'codex');
     await wrapper.vm.$nextTick();
@@ -160,10 +163,11 @@ describe('ScheduledTasksTab', () => {
     );
     await scheduleSelect!.setValue('interval');
     await wrapper.find('input[type="number"]').setValue('15');
-    await wrapper.findAll('.st-picker-btn')[0].trigger('click');
+    // Working Dir picker is first, CLI Type picker is second
+    await wrapper.findAll('.st-picker-btn')[1].trigger('click');
     await flushPromises();
     wrapper.findComponent(QuickSpawnModal).vm.$emit('select', 'codex');
-    await wrapper.findAll('.st-picker-btn')[1].trigger('click');
+    await wrapper.findAll('.st-picker-btn')[0].trigger('click');
     await flushPromises();
     wrapper.findComponent(DirPickerModal).vm.$emit('select', 'X:\\coding\\gamepad-cli-hub');
     await wrapper.vm.$nextTick();

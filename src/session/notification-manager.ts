@@ -65,6 +65,9 @@ function buildContent(
 export class NotificationManager {
   private lastNotificationTime: Map<string, number> = new Map();
   private outputBuffers: Map<string, OutputBuffer> = new Map();
+  private screenLockChecker: (() => boolean) | null = null;
+  private telegramNotifier: ((sessionId: string, title: string, content: string) => Promise<boolean>) | null = null;
+  private activeSessionIdGetter: (() => string | null) | null = null;
 
   constructor(
     private windowManager: WindowManager,
@@ -72,6 +75,49 @@ export class NotificationManager {
     private configLoader: ConfigLoader,
     private getSessionState: (sessionId: string) => SessionState,
   ) {}
+
+  setScreenLockChecker(fn: () => boolean): void { this.screenLockChecker = fn; }
+  setTelegramNotifier(fn: (sessionId: string, title: string, content: string) => Promise<boolean>): void { this.telegramNotifier = fn; }
+  setActiveSessionIdGetter(fn: () => string | null): void { this.activeSessionIdGetter = fn; }
+
+  getAppVisibility(): 'visible-focused' | 'visible-background' | 'hidden' {
+    const focusedWin = BrowserWindow.getAllWindows().find(w => w.isFocused());
+    if (focusedWin && !focusedWin.isDestroyed()) return 'visible-focused';
+    const anyWin = BrowserWindow.getAllWindows().find(w => !w.isDestroyed() && w.isVisible());
+    if (anyWin) return 'visible-background';
+    return 'hidden';
+  }
+
+  notifyLlmDirected(sessionId: string, title: string, content: string): 'toast' | 'bubble' | 'telegram' | 'none' {
+    const mode = this.configLoader.getNotificationMode();
+    if (mode !== 'llm') return 'none';
+
+    const isLocked = this.screenLockChecker?.() ?? false;
+    if (isLocked) {
+      if (this.telegramNotifier) {
+        void this.telegramNotifier(sessionId, title, content);
+        return 'telegram';
+      }
+      return 'none';
+    }
+
+    const visibility = this.getAppVisibility();
+    if (visibility === 'hidden') {
+      this.showNotification({ title, body: content }, sessionId);
+      return 'toast';
+    }
+
+    if (visibility === 'visible-focused') {
+      const activeId = this.activeSessionIdGetter?.();
+      if (activeId === sessionId) return 'none';
+      const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed() && w.isVisible());
+      win?.webContents.send('notification:llmNotify', { sessionId, title, content });
+      return 'bubble';
+    }
+
+    this.showNotification({ title, body: content }, sessionId);
+    return 'toast';
+  }
 
   /** Feed raw PTY output to maintain a small ring buffer per session. */
   feedOutput(sessionId: string, data: string): void {
@@ -140,7 +186,8 @@ export class NotificationManager {
     if (!Notification.isSupported()) return false;
 
     try {
-      if (!this.configLoader.getNotifications()) return false;
+      const mode = this.configLoader.getNotificationMode();
+      if (mode === 'off') return false;
     } catch {
       return false;
     }

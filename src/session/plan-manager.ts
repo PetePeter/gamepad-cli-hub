@@ -479,17 +479,11 @@ export class PlanManager extends EventEmitter {
    */
   setState(id: string, status: Exclude<PlanStatus, 'done'>, stateInfo = '', sessionId?: string): PlanItem | null {
     // Validate status is a valid PlanStatus (not 'done')
-    const validStatuses: PlanStatus[] = ['planning', 'ready', 'coding', 'review', 'blocked', 'done'];
+    const validStatuses: Exclude<PlanStatus, 'done'>[] = ['planning', 'ready', 'coding', 'review', 'blocked'];
     if (!validStatuses.includes(status)) {
       logger.warn(`[PlanManager] setState rejected invalid status '${status}' for ${id} — must be one of: planning, ready, coding, review, blocked`);
       return null;
     }
-    // Reject 'done' explicitly — only plan_complete can transition to done
-    if (status === 'done') {
-      logger.warn(`[PlanManager] setState rejected transition to 'done' for ${id} — use plan_complete instead`);
-      return null;
-    }
-
     const item = this.items.get(id);
     if (!item || !this.canSetState(item, status as Exclude<PlanStatus, 'done'>)) return null;
 

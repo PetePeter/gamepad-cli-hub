@@ -141,6 +141,16 @@ const gamepadCliAPI = {
   configSetNotifications: (enabled: boolean) => ipcRenderer.invoke('config:setNotifications', enabled),
 
   /**
+   * Get notification mode setting
+   */
+  configGetNotificationMode: () => ipcRenderer.invoke('config:getNotificationMode'),
+
+  /**
+   * Set notification mode setting
+   */
+  configSetNotificationMode: (mode: string) => ipcRenderer.invoke('config:setNotificationMode', mode),
+
+  /**
    * Get localhost MCP server settings
    */
   configGetMcpConfig: () => ipcRenderer.invoke('config:getMcpConfig'),
@@ -347,6 +357,13 @@ const gamepadCliAPI = {
     const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
     ipcRenderer.on('notification:click', listener);
     return () => ipcRenderer.removeListener('notification:click', listener);
+  },
+
+  /** Subscribe to LLM-directed notification bubbles */
+  onLlmNotify: (callback: (data: { sessionId: string; title: string; content: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: { sessionId: string; title: string; content: string }) => callback(data);
+    ipcRenderer.on('notification:llmNotify', listener);
+    return () => ipcRenderer.removeListener('notification:llmNotify', listener);
   },
 
   /** Subscribe to externally-spawned session events (e.g. from Telegram) */

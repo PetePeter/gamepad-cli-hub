@@ -7,7 +7,7 @@
 
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { type ConfigLoader } from '../../config/loader.js';
+import { type ConfigLoader, type PlanFilterConfig, type NotificationMode } from '../../config/loader.js';
 import type { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
 import { logger } from '../../utils/logger.js';
 
@@ -192,6 +192,17 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
     }
   });
 
+  ipcMain.handle('config:getNotificationMode', () => {
+    return configLoader.getNotificationMode();
+  });
+
+  ipcMain.handle('config:setNotificationMode', (_event, mode: string) => {
+    const validModes = ['off', 'auto', 'llm'];
+    if (!validModes.includes(mode)) return { success: false, error: `Invalid mode: ${mode}` };
+    configLoader.setNotificationMode(mode as NotificationMode);
+    return { success: true };
+  });
+
   ipcMain.handle('config:getMcpConfig', () => {
     try {
       return configLoader.getMcpConfig();
@@ -279,7 +290,7 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
     }
   });
 
-  ipcMain.handle('config:setPlanFilters', (_event, filters: { types?: { bug?: boolean; feature?: boolean; research?: boolean; untyped?: boolean }; statuses?: { planning?: boolean; ready?: boolean; coding?: boolean; review?: boolean; blocked?: boolean; done?: boolean } }) => {
+  ipcMain.handle('config:setPlanFilters', (_event, filters: Partial<PlanFilterConfig>) => {
     try {
       configLoader.setPlanFilters(filters);
       return { success: true };

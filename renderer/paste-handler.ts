@@ -138,7 +138,7 @@ function isEditableOrModalFocused(): boolean {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
   if ((el as HTMLElement).isContentEditable) return true;
   // Check if inside a modal overlay
-  if (el.closest('.modal-overlay, .dir-picker-overlay, .binding-editor')) return true;
+  if (el.closest('.modal-overlay, .dir-picker-overlay, .binding-editor, .scheduler-popup-backdrop')) return true;
   return false;
 }
 
@@ -200,6 +200,7 @@ export function setupKeyboardRelay(
       if (isDraftEditorVisible()) return;
       const session = state.sessions.find(s => s.id === sessionId);
       const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
+      if (document.querySelector('.scheduler-popup-backdrop')) return;
       if (document.querySelector('.modal-overlay.modal--visible') && tool?.pasteMode !== 'clippaste') {
         if (isEditableOrModalFocused()) return;
         e.stopPropagation();
@@ -219,6 +220,13 @@ export function setupKeyboardRelay(
       } finally {
         pasteInFlight = false;
       }
+      return;
+    }
+
+    // Block keyboard relay when scheduler popup is open
+    if (document.querySelector('.scheduler-popup-backdrop')) {
+      if (isEditableOrModalFocused()) return;
+      e.stopPropagation();
       return;
     }
 

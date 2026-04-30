@@ -285,7 +285,7 @@ export function loadScheduledTasks(): ScheduledTask[] {
     if (!existsSync(SCHEDULED_TASKS_FILE)) return [];
     const content = readFileSync(SCHEDULED_TASKS_FILE, 'utf8');
     const parsed = YAML.parse(content) as { tasks?: Array<Omit<ScheduledTask, 'scheduledTime'> & { scheduledTime: string }> };
-    return parsed?.tasks.map(t => ({
+    return parsed?.tasks?.map(t => ({
       ...t,
       scheduledTime: new Date(t.scheduledTime),
       ...(typeof (t as any).nextRunAt === 'string' ? { nextRunAt: new Date((t as any).nextRunAt) } : {}),

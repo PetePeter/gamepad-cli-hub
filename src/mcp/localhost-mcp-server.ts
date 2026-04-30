@@ -925,8 +925,9 @@ export class LocalhostMcpServer {
       case 'telegram_chat': {
         const sessionRef = asString(args.sessionId ?? args.name, 'sessionId or name is required');
         const message = asString(args.message, 'message is required');
-        const attachment = typeof args.attachment === 'object' && args.attachment
-          ? { name: asString(args.attachment.name, 'attachment.name is required'), data: asString(args.attachment.data, 'attachment.data is required'), mime: asString(args.attachment.mime, 'attachment.mime is required') }
+        const att = args.attachment as Record<string, unknown> | undefined;
+        const attachment = typeof att === 'object' && att
+          ? { name: asString(att.name, 'attachment.name is required'), data: asString(att.data, 'attachment.data is required'), mime: asString(att.mime, 'attachment.mime is required') }
           : undefined;
         return this.service.sendTelegramChat(sessionRef, message, attachment);
       }

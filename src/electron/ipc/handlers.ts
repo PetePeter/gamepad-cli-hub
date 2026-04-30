@@ -6,7 +6,7 @@
  * are never imported directly by the application.
  */
 
-import { BrowserWindow, dialog, ipcMain } from 'electron';
+import { BrowserWindow, dialog, ipcMain, powerMonitor } from 'electron';
 import { SessionManager } from '../../session/manager.js';
 import { PtyManager } from '../../session/pty-manager.js';
 import { StateDetector } from '../../session/state-detector.js';
@@ -17,6 +17,7 @@ import { PlanManager } from '../../session/plan-manager.js';
 import { PlanBackupManager } from '../../session/plan-backup-manager.js';
 import { PatternMatcher } from '../../session/pattern-matcher.js';
 import { ScheduledTaskManager } from '../../session/scheduled-task-manager.js';
+import { setupPowerMonitor } from '../../session/power-monitor.js';
 import { configLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
 import { logger } from '../../utils/logger.js';
@@ -87,8 +88,14 @@ export function registerIPCHandlers(
     (sessionId) => stateDetector.getState(sessionId),
   );
 
+  // Power monitor with full session/PTY diagnostics and screen lock tracking
+  const powerMonitorResult = setupPowerMonitor(powerMonitor, { sessionManager, ptyManager });
+  notificationManager.setScreenLockChecker(powerMonitorResult.isScreenLocked);
+  notificationManager.setActiveSessionIdGetter(() => sessionManager.getActiveSession()?.id ?? null);
+
   // Create HelmControlService before Telegram modules (Telegram relay needs it)
   const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager, configLoader);
+  helmControlService.setNotificationManager(notificationManager);
 
   const telegramBot = new TelegramBotCore();
   const topicManager = new TopicManager(telegramBot, sessionManager, configLoader.getTelegramConfig().instanceName);
@@ -131,7 +138,7 @@ export function registerIPCHandlers(
   setupDraftHandlers(draftManager);
   setupPlanHandlers(planManager, windowManager, incomingWatcher);
   setupScheduledTaskHandlers(scheduledTaskManager, windowManager);
-  setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, patternMatcher);
+  setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
 
   // Wire automatic backup scheduling: backup a directory when plans change,

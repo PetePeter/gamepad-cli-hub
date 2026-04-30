@@ -18,6 +18,7 @@ import type {
 } from '../types/telegram-channel.js';
 import { PlanAttachmentManager } from '../session/plan-attachment-manager.js';
 import { mintSessionAuthToken } from './session-auth.js';
+import type { NotificationManager } from '../session/notification-manager.js';
 
 export interface SessionSummary {
   id: string;
@@ -140,6 +141,7 @@ const REQUIRED_PLAN_DESCRIPTION_SECTIONS = [
 
 export class HelmControlService extends EventEmitter {
   private telegramBridge: TelegramBridge | null = null;
+  private notificationManager: NotificationManager | null = null;
 
   constructor(
     private readonly planManager: PlanManager,
@@ -154,6 +156,8 @@ export class HelmControlService extends EventEmitter {
   setTelegramBridge(bridge: TelegramBridge | null): void {
     this.telegramBridge = bridge;
   }
+
+  setNotificationManager(nm: NotificationManager): void { this.notificationManager = nm; }
 
   listPlans(dirPath: string): PlanItem[] {
     return this.planManager.getForDirectory(dirPath);
