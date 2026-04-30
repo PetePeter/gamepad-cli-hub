@@ -131,7 +131,7 @@ export function registerIPCHandlers(
   setupDraftHandlers(draftManager);
   setupPlanHandlers(planManager, windowManager, incomingWatcher);
   setupScheduledTaskHandlers(scheduledTaskManager, windowManager);
-  setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, telegramModules.feedPtyOutput, telegramModules.handleActivityChange, telegramModules.trackInput, patternMatcher);
+  setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, patternMatcher);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
 
   // Wire automatic backup scheduling: backup a directory when plans change,
@@ -156,8 +156,6 @@ export function registerIPCHandlers(
 
   // Wire events ONCE (no-ops when bot not running — notifier checks isRunning)
   stateDetector.on('state-change', (transition) => telegramNotifier.handleStateChange(transition));
-  stateDetector.on('state-change', (transition) => telegramModules.handleStateChange(transition.sessionId, transition.newState));
-  stateDetector.on('question-detected', (event) => telegramModules.handleQuestionDetected(event.sessionId));
   sessionManager.on('session:added', async (event) => {
     // Push to renderer so it can adopt externally-spawned terminals (e.g. Telegram)
     const win = windowManager.getMainWindow();
