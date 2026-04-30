@@ -13,8 +13,6 @@ import {
   sessionControlKeyboard,
   spawnToolKeyboard,
   spawnDirKeyboard,
-  commandPaletteKeyboard,
-  confirmSendKeyboard,
   resolvePathIndex,
   _resetPathRegistry,
 } from '../src/telegram/keyboards.js';
@@ -67,15 +65,15 @@ describe('notificationKeyboard', () => {
     const kb = notificationKeyboard('sess-1', 'idle');
     const data = allCallbackData(kb);
     expect(data).toContain('topic:sess-1');
-    expect(data).toContain('prompt:sess-1');
     expect(data).toContain('sessions:list');
+    expect(data).not.toContain('prompt:sess-1');
   });
 
   it('creates keyboard for waiting state', () => {
     const kb = notificationKeyboard('sess-1', 'waiting');
     const data = allCallbackData(kb);
     expect(data).toContain('topic:sess-1');
-    expect(data).toContain('prompt:sess-1');
+    expect(data).not.toContain('prompt:sess-1');
   });
 
   it('creates keyboard for implementing (fallback)', () => {
@@ -89,7 +87,7 @@ describe('notificationKeyboard', () => {
     const kb = notificationKeyboard('abc', 'completed');
     const data = allCallbackData(kb);
     for (const d of data) {
-      expect(d).toMatch(/^(topic:|continue:|prompt:|sessions:)/);
+      expect(d).toMatch(/^(topic:|continue:|sessions:)/);
     }
   });
 });
@@ -207,38 +205,39 @@ describe('sessionControlKeyboard', () => {
     const data = allCallbackData(keyboard);
     expect(data).toContain(`cancel:${session.id}`);
     expect(data).toContain(`accept:${session.id}`);
-    expect(data).toContain(`output:${session.id}`);
-    expect(data).toContain(`commands:${session.id}`);
     expect(data).toContain('sessions:list');
+    expect(data).not.toContain(`output:${session.id}`);
+    expect(data).not.toContain(`commands:${session.id}`);
   });
 
-  it('includes continue/send for completed session', () => {
+  it('includes continue for completed session', () => {
     const session = makeSession({ state: 'completed' });
     const { keyboard } = sessionControlKeyboard(session);
 
     const data = allCallbackData(keyboard);
     expect(data).toContain(`continue:${session.id}`);
-    expect(data).toContain(`prompt:${session.id}`);
+    expect(data).not.toContain(`prompt:${session.id}`);
   });
 
-  it('includes send/continue for idle session', () => {
+  it('includes continue for idle session', () => {
     const session = makeSession({ state: 'idle' });
     const { keyboard } = sessionControlKeyboard(session);
 
     const data = allCallbackData(keyboard);
-    expect(data).toContain(`prompt:${session.id}`);
     expect(data).toContain(`continue:${session.id}`);
+    expect(data).not.toContain(`prompt:${session.id}`);
   });
 
-  it('always includes output, commands, and back', () => {
+  it('always includes back without stale output or command controls', () => {
     for (const state of ['implementing', 'completed', 'idle', 'waiting'] as const) {
       const session = makeSession({ state });
       const { keyboard } = sessionControlKeyboard(session);
       const data = allCallbackData(keyboard);
 
-      expect(data).toContain(`output:${session.id}`);
-      expect(data).toContain(`commands:${session.id}`);
       expect(data).toContain('sessions:list');
+      expect(data).not.toContain(`output:${session.id}`);
+      expect(data).not.toContain(`commands:${session.id}`);
+      expect(data).not.toContain(`prompt:${session.id}`);
     }
   });
 
@@ -327,59 +326,3 @@ describe('spawnDirKeyboard', () => {
   });
 });
 
-describe('commandPaletteKeyboard', () => {
-  it('creates buttons for each command', () => {
-    const commands = [
-      { label: 'Build', sequence: 'npm run build' },
-      { label: 'Test', sequence: 'npm test' },
-    ];
-    const kb = commandPaletteKeyboard('sess-1', commands);
-
-    const data = allCallbackData(kb);
-    expect(data).toContain('cmd:sess-1:Build');
-    expect(data).toContain('cmd:sess-1:Test');
-  });
-
-  it('includes back button to session', () => {
-    const kb = commandPaletteKeyboard('sess-1', [{ label: 'X', sequence: 'x' }]);
-    const lastRow = kb[kb.length - 1];
-    expect(lastRow.some((b: any) => b.callback_data === 'sess:sess-1')).toBe(true);
-  });
-
-  it('handles empty command list', () => {
-    const kb = commandPaletteKeyboard('sess-1', []);
-    const data = allCallbackData(kb);
-    expect(data).toContain('sess:sess-1');
-  });
-
-  it('callback_data uses cmd: prefix with session id', () => {
-    const kb = commandPaletteKeyboard('s1', [{ label: 'Run', sequence: 'go' }]);
-    const cmdButtons = allButtons(kb).filter((b: any) =>
-      b.callback_data?.startsWith('cmd:'),
-    );
-    expect(cmdButtons.length).toBe(1);
-    expect(cmdButtons[0].callback_data).toBe('cmd:s1:Run');
-  });
-});
-
-describe('confirmSendKeyboard', () => {
-  it('includes send and cancel buttons', () => {
-    const kb = confirmSendKeyboard('sess-1');
-
-    const data = allCallbackData(kb);
-    expect(data).toContain('send:confirm:sess-1');
-    expect(data).toContain('send:cancel:sess-1');
-  });
-
-  it('has exactly one row with two buttons', () => {
-    const kb = confirmSendKeyboard('sess-1');
-    expect(kb).toHaveLength(1);
-    expect(kb[0]).toHaveLength(2);
-  });
-
-  it('callback_data uses send: prefix', () => {
-    const kb = confirmSendKeyboard('test');
-    const data = allCallbackData(kb);
-    expect(data.every(d => d.startsWith('send:'))).toBe(true);
-  });
-});

@@ -9,6 +9,7 @@ import { useSessionsScreenStore } from '../../renderer/stores/sessions-screen.js
 import { useConfigStore } from '../../renderer/stores/config.js';
 import { useDraftsStore } from '../../renderer/stores/drafts.js';
 import { usePlansStore } from '../../renderer/stores/plans.js';
+import { useLlmNotificationsStore } from '../../renderer/stores/llmNotifications.js';
 import { state } from '../../renderer/state.js';
 import { sessionsState } from '../../renderer/screens/sessions-state.js';
 
@@ -206,5 +207,50 @@ describe('usePlansStore', () => {
     store.clearCounts();
     expect(store.getDoingCount('s1')).toBe(0);
     expect(store.getStartableCount('s1')).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// useLlmNotificationsStore
+// ---------------------------------------------------------------------------
+
+describe('useLlmNotificationsStore', () => {
+  it('adds notifications keyed by sessionId', () => {
+    const store = useLlmNotificationsStore();
+    store.add({ sessionId: 's1', title: 'Title 1', content: 'Content 1' });
+    expect(store.notifications.has('s1')).toBe(true);
+    const notif = store.notifications.get('s1');
+    expect(notif?.title).toBe('Title 1');
+    expect(notif?.content).toBe('Content 1');
+  });
+
+  it('generates unique id for each notification', () => {
+    const store = useLlmNotificationsStore();
+    store.add({ sessionId: 's1', title: 'T1', content: 'C1' });
+    store.add({ sessionId: 's1', title: 'T2', content: 'C2' });
+    const notif = store.notifications.get('s1');
+    expect(notif?.title).toBe('T2'); // Most recent overwrites
+  });
+
+  it('dismisses notifications by sessionId', () => {
+    const store = useLlmNotificationsStore();
+    store.add({ sessionId: 's1', title: 'Title', content: 'Content' });
+    expect(store.notifications.has('s1')).toBe(true);
+    store.dismiss('s1');
+    expect(store.notifications.has('s1')).toBe(false);
+  });
+
+  it('clears all notifications', () => {
+    const store = useLlmNotificationsStore();
+    store.add({ sessionId: 's1', title: 'T1', content: 'C1' });
+    store.add({ sessionId: 's2', title: 'T2', content: 'C2' });
+    store.clear();
+    expect(store.notifications.size).toBe(0);
+  });
+
+  it('bySession computed returns the notifications map', () => {
+    const store = useLlmNotificationsStore();
+    store.add({ sessionId: 's1', title: 'Title', content: 'Content' });
+    expect(store.bySession.has('s1')).toBe(true);
   });
 });

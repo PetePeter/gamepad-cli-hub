@@ -71,7 +71,6 @@ export function notificationKeyboard(
   } else if (state === 'idle' || state === 'waiting') {
     rows.push([
       { text: '📌 Go to Topic', callback_data: `topic:${sessionId}` },
-      { text: '💬 Send Prompt', callback_data: `prompt:${sessionId}` },
     ]);
   } else {
     rows.push([
@@ -192,19 +191,12 @@ export function sessionControlKeyboard(
   } else if (state === 'completed') {
     keyboard.push([
       { text: '🚀 Continue', callback_data: `continue:${session.id}` },
-      { text: '💬 Send', callback_data: `prompt:${session.id}` },
     ]);
   } else {
     keyboard.push([
-      { text: '💬 Send', callback_data: `prompt:${session.id}` },
       { text: '🚀 Continue', callback_data: `continue:${session.id}` },
     ]);
   }
-
-  keyboard.push([
-    { text: '📋 Output', callback_data: `output:${session.id}` },
-    { text: '⚡ Commands', callback_data: `commands:${session.id}` },
-  ]);
 
   keyboard.push([
     { text: '🔙 Back', callback_data: 'sessions:list' },
@@ -262,52 +254,6 @@ export function spawnDirKeyboard(
   rows.push([{ text: '🔙 Back', callback_data: 'spawn:start' }]);
 
   return rows;
-}
-
-/**
- * Build command palette keyboard from sequence groups.
- */
-export function commandPaletteKeyboard(
-  sessionId: string,
-  commands: Array<{ label: string; sequence: string }>,
-): TelegramBot.InlineKeyboardButton[][] {
-  const rows: TelegramBot.InlineKeyboardButton[][] = [];
-  const row: TelegramBot.InlineKeyboardButton[] = [];
-
-  for (const cmd of commands) {
-    // Telegram limits callback_data to 64 bytes; truncate label portion
-    const maxLabelLen = 64 - `cmd:${sessionId}:`.length;
-    const cbLabel = cmd.label.length > maxLabelLen
-      ? cmd.label.substring(0, maxLabelLen)
-      : cmd.label;
-    row.push({
-      text: truncLabel(cmd.label),
-      callback_data: `cmd:${sessionId}:${cbLabel}`,
-    });
-    if (row.length >= 2) {
-      rows.push([...row]);
-      row.length = 0;
-    }
-  }
-
-  if (row.length > 0) rows.push([...row]);
-  rows.push([{ text: '🔙 Back', callback_data: `sess:${sessionId}` }]);
-
-  return rows;
-}
-
-/**
- * Text input confirmation keyboard.
- */
-export function confirmSendKeyboard(
-  sessionId: string,
-): TelegramBot.InlineKeyboardButton[][] {
-  return [
-    [
-      { text: '✅ Send', callback_data: `send:confirm:${sessionId}` },
-      { text: '❌ Cancel', callback_data: `send:cancel:${sessionId}` },
-    ],
-  ];
 }
 
 // Helpers

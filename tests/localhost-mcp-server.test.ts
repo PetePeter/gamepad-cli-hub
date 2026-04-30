@@ -73,6 +73,8 @@ function makeService(): HelmControlService {
     sendTelegramChat: vi.fn(async (sessionRef: string, message: string) => ({
       sent: true,
     })),
+    notifyUser: vi.fn((sessionRef: string, title: string, content: string) => ({ delivered: 'bubble', sessionRef, title, content })),
+    getAppVisibility: vi.fn(() => ({ visibility: 'visible-focused', screenLocked: false, activeSessionId: 's1' })),
   } as unknown as HelmControlService;
 }
 
@@ -156,6 +158,8 @@ describe('LocalhostMcpServer', () => {
     const attachmentGetTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_attachment_get');
     const telegramStatusTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'telegram_status');
     const telegramChatTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'telegram_chat');
+    const notifyUserTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'notify_user');
+    const appVisibilityTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'get_app_visibility');
     expect(planCreateTool.description).toContain('Problem Statement');
     expect(planCreateTool.description).toContain('Acceptance Criteria');
     expect(planCreateTool.description).toContain('QUESTION:');
@@ -179,6 +183,8 @@ describe('LocalhostMcpServer', () => {
     expect(attachmentGetTool.description).toContain('inline');
     expect(telegramStatusTool.description).toContain('No bot token');
     expect(telegramChatTool!.description).toContain('mobile-friendly');
+    expect(notifyUserTool!.description).toContain('notificationMode=llm');
+    expect(appVisibilityTool!.description).toContain('screen-lock');
   });
 
   it('dispatches tool calls into the shared service', async () => {
@@ -448,6 +454,34 @@ describe('LocalhostMcpServer', () => {
     const closeJson = await closeResponse.json();
     expect((service.closeTelegramChannel as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('tc1');
     expect(closeJson.result.structuredContent.status).toBe('closed');
+  });
+
+  it('dispatches LLM notification tools through the MCP surface', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const notifyResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 73,
+      method: 'tools/call',
+      params: { name: 'notify_user', arguments: { sessionId: 's1', title: 'Need input', content: 'Choose one' } },
+    });
+    const notifyJson = await notifyResponse.json();
+    expect((service.notifyUser as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'Need input', 'Choose one');
+    expect(notifyJson.result.structuredContent.delivered).toBe('bubble');
+
+    const visibilityResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 74,
+      method: 'tools/call',
+      params: { name: 'get_app_visibility', arguments: {} },
+    });
+    const visibilityJson = await visibilityResponse.json();
+    expect((service.getAppVisibility as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
+    expect(visibilityJson.result.structuredContent).toMatchObject({ visibility: 'visible-focused', activeSessionId: 's1' });
   });
 
   it('clears plan type through plan_update when type is null', async () => {

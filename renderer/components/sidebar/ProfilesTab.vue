@@ -14,14 +14,14 @@ export interface ProfileItem {
 const props = defineProps<{
   profiles: ProfileItem[];
   activeProfile: string;
-  notificationsEnabled: boolean;
+  notificationMode: 'off' | 'auto' | 'llm';
 }>();
 
 const emit = defineEmits<{
   create: [];
   switch: [name: string];
   delete: [name: string];
-  toggleNotifications: [enabled: boolean];
+  updateNotificationMode: [mode: 'off' | 'auto' | 'llm'];
 }>();
 </script>
 
@@ -64,14 +64,28 @@ const emit = defineEmits<{
     </div>
 
     <div class="settings-notifications">
-      <label class="notification-toggle">
-        <input
-          type="checkbox"
-          :checked="notificationsEnabled"
-          @change="emit('toggleNotifications', ($event.target as HTMLInputElement).checked)"
-        />
-        Enable desktop notifications
-      </label>
+      <label class="settings-list-item__detail">Desktop notifications</label>
+      <div class="notification-mode-control" role="radiogroup" aria-label="Desktop notifications">
+        <label
+          v-for="option in [
+            { value: 'off', label: 'Off' },
+            { value: 'auto', label: 'Automatic' },
+            { value: 'llm', label: 'LLM-directed' },
+          ]"
+          :key="option.value"
+          class="notification-mode-option"
+          :class="{ active: notificationMode === option.value }"
+        >
+          <input
+            type="radio"
+            name="notificationMode"
+            :value="option.value"
+            :checked="notificationMode === option.value"
+            @change="emit('updateNotificationMode', option.value as 'off' | 'auto' | 'llm')"
+          />
+          {{ option.label }}
+        </label>
+      </div>
     </div>
   </div>
 </template>

@@ -58,6 +58,9 @@ vi.mock('../src/session/pipeline-queue.js', () => ({
 vi.mock('../src/session/notification-manager.js', () => ({
   NotificationManager: vi.fn(function (this: any) {
     this.dispose = vi.fn();
+    this.setScreenLockChecker = vi.fn();
+    this.setTelegramNotifier = vi.fn();
+    this.setActiveSessionIdGetter = vi.fn();
   }),
 }));
 
@@ -200,6 +203,7 @@ vi.mock('../src/electron/ipc/plan-handlers.js', () => ({
 vi.mock('../src/mcp/helm-control-service.js', () => ({
   HelmControlService: vi.fn(function (this: any) {
     this.on = vi.fn();
+    this.setNotificationManager = vi.fn();
   }),
 }));
 
@@ -222,6 +226,9 @@ vi.mock('../renderer/paste-handler.js', () => ({
 
 vi.mock('electron', () => ({
   ipcMain: { handle: vi.fn() },
+  powerMonitor: {
+    on: vi.fn(),
+  },
 }));
 
 import { registerIPCHandlers } from '../src/electron/ipc/handlers.js';

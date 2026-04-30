@@ -5,17 +5,12 @@
  * Callback data format (defined by keyboards.ts):
  *   topic:{sessionId}   — Navigate to topic
  *   continue:{sessionId} — Send Enter to session
- *   prompt:{sessionId}  — Enter text input mode
  *   sessions:list       — Show directory list
  *   dir:{path}          — Drill into directory
  *   sess:{sessionId}    — Show session controls
  *   spawn:start / spawn:tool:{name} / spawn:dir:{path} — Spawn wizard
- *   output:{sessionId}  — Show output summary
- *   commands:{sessionId} — Show command palette
- *   cmd:{sessionId}:{label} — Execute a command
  *   cancel:{sessionId}  — Ctrl+C
  *   accept:{sessionId}  — Enter (accept)
- *   send:confirm:{sessionId} / send:cancel:{sessionId} — Text input confirm/cancel
  *   status:all          — Full status overview
  */
 
@@ -26,12 +21,10 @@ import type { TopicManager } from './topic-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
-// TextInputManager and OutputSummarizer removed in Stage 1 — stubbed until Stage 7 rewire
 import {
   directoryListKeyboard,
   sessionListKeyboard,
   sessionControlKeyboard,
-  commandPaletteKeyboard,
   spawnToolKeyboard,
   spawnDirKeyboard,
   resolvePathIndex,
@@ -64,10 +57,6 @@ export function setupCallbackHandler(
   sessionManager: SessionManager,
   ptyManager: PtyManager,
   configLoader: ConfigLoader,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  textInput: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  outputSummarizer: any,
   draftManager?: { clearSession(sessionId: string): void },
 ): () => void {
   const handler = async (query: TelegramBot.CallbackQuery) => {
@@ -78,7 +67,7 @@ export function setupCallbackHandler(
       await routeCallback(
         data, query, bot, topicManager,
         sessionManager, ptyManager, configLoader,
-        textInput, outputSummarizer, draftManager,
+        draftManager,
       );
     } catch (err) {
       logger.error(`[CallbackHandler] Error processing ${data}: ${err}`);
@@ -105,10 +94,6 @@ async function routeCallback(
   sessionManager: SessionManager,
   ptyManager: PtyManager,
   configLoader: ConfigLoader,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  textInput: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  outputSummarizer: any,
   draftManager?: { clearSession(sessionId: string): void },
 ): Promise<void> {
   const [action, ...rest] = data.split(':');
@@ -130,32 +115,17 @@ async function routeCallback(
     case 'continue':
       await handleContinue(bot, ptyManager, payload, query);
       break;
-    case 'prompt':
-      await handlePromptStart(bot, textInput, payload, query);
-      break;
     case 'cancel':
       await handleCancel(bot, ptyManager, payload, query);
       break;
     case 'accept':
       await handleAccept(bot, ptyManager, payload, query);
       break;
-    case 'output':
-      await handleOutput(bot, outputSummarizer, payload, query);
-      break;
-    case 'commands':
-      await handleCommandPalette(bot, sessionManager, configLoader, payload, query);
-      break;
-    case 'cmd':
-      await handleCommandExec(bot, ptyManager, sessionManager, configLoader, payload, query);
-      break;
     case 'spawn':
       await handleSpawn(bot, topicManager, sessionManager, ptyManager, configLoader, payload, query);
       break;
     case 'talk':
       await handleTalk(bot, topicManager, sessionManager, ptyManager, payload, query);
-      break;
-    case 'send':
-      await handleSend(bot, textInput, payload, query);
       break;
     case 'status':
       await handleStatus(bot, sessionManager, query);
@@ -255,139 +225,6 @@ async function handleAccept(
 ): Promise<void> {
   ptyManager.write(sessionId, '\r');
   await bot.answerCallback(query.id, '✅ Sent accept (Enter)');
-}
-
-// ---------------------------------------------------------------------------
-// Text input
-// ---------------------------------------------------------------------------
-
-async function handlePromptStart(
-  bot: TelegramBotCore,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  textInput: any,
-  sessionId: string,
-  query: TelegramBot.CallbackQuery,
-): Promise<void> {
-  textInput?.startInput(sessionId, query.from.id);
-  await bot.answerCallback(query.id, '💬 Type your message in this chat');
-
-  const msg = query.message;
-  if (msg) {
-    await bot.getBot()?.sendMessage(
-      msg.chat.id,
-      '✏️ Type your message and I\'ll send it to the session.\nSend /cancel to abort.',
-      { message_thread_id: msg.message_thread_id },
-    );
-  }
-}
-
-async function handleSend(
-  bot: TelegramBotCore,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  textInput: any,
-  payload: string,
-  query: TelegramBot.CallbackQuery,
-): Promise<void> {
-  // payload = "confirm:{sessionId}" or "cancel:{sessionId}"
-  const colonIdx = payload.indexOf(':');
-  if (colonIdx === -1) return;
-
-  const subAction = payload.substring(0, colonIdx);
-  const sessionId = payload.substring(colonIdx + 1);
-
-  if (subAction === 'confirm') {
-    await textInput?.confirmInput(sessionId);
-    await bot.answerCallback(query.id, '✅ Sent!');
-  } else {
-    textInput?.cancelInput(sessionId);
-    await bot.answerCallback(query.id, '❌ Cancelled');
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Output summary
-// ---------------------------------------------------------------------------
-
-async function handleOutput(
-  bot: TelegramBotCore,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  outputSummarizer: any,
-  sessionId: string,
-  query: TelegramBot.CallbackQuery,
-): Promise<void> {
-  const summary = outputSummarizer?.getSummary(sessionId) ?? '(output summary unavailable)';
-  const msg = query.message;
-
-  if (msg) {
-    await bot.getBot()?.sendMessage(msg.chat.id, summary, {
-      message_thread_id: msg.message_thread_id,
-      parse_mode: 'HTML',
-    });
-  }
-  await bot.answerCallback(query.id);
-}
-
-// ---------------------------------------------------------------------------
-// Command palette
-// ---------------------------------------------------------------------------
-
-async function handleCommandPalette(
-  bot: TelegramBotCore,
-  sessionManager: SessionManager,
-  configLoader: ConfigLoader,
-  sessionId: string,
-  query: TelegramBot.CallbackQuery,
-): Promise<void> {
-  const session = sessionManager.getSession(sessionId);
-  if (!session) {
-    await bot.answerCallback(query.id, '❌ Session not found');
-    return;
-  }
-
-  const seqGroups = configLoader.getSequences(session.cliType);
-  const commands = flattenSequences(seqGroups);
-
-  if (commands.length === 0) {
-    await bot.answerCallback(query.id, 'No commands configured');
-    return;
-  }
-
-  const keyboard = commandPaletteKeyboard(sessionId, commands);
-
-  await editOriginalMessage(bot, query, `⚡ Commands for ${session.cliType}`, keyboard);
-  await bot.answerCallback(query.id);
-}
-
-async function handleCommandExec(
-  bot: TelegramBotCore,
-  ptyManager: PtyManager,
-  sessionManager: SessionManager,
-  configLoader: ConfigLoader,
-  payload: string,
-  query: TelegramBot.CallbackQuery,
-): Promise<void> {
-  // payload = "{sessionId}:{label}"
-  const colonIdx = payload.indexOf(':');
-  if (colonIdx === -1) return;
-
-  const sessionId = payload.substring(0, colonIdx);
-  const label = payload.substring(colonIdx + 1);
-
-  const session = sessionManager.getSession(sessionId);
-  if (!session) {
-    await bot.answerCallback(query.id, '❌ Session not found');
-    return;
-  }
-
-  const sequence = findSequenceByLabel(configLoader, session.cliType, label);
-  if (!sequence) {
-    await bot.answerCallback(query.id, '❌ Command not found');
-    return;
-  }
-
-  const ptyText = expandSequence(sequence);
-  await deliverViaManager(ptyManager, sessionId, ptyText);
-  await bot.answerCallback(query.id, `⚡ Sent: ${label}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -664,40 +501,6 @@ async function editOriginalMessage(
       logger.error(`[CallbackHandler] editOriginalMessage failed: ${err}`);
     }
   }
-}
-
-/** Flatten all sequence groups into a single command list. */
-function flattenSequences(
-  groups: Record<string, Array<{ label: string; sequence: string }>>,
-): Array<{ label: string; sequence: string }> {
-  const commands: Array<{ label: string; sequence: string }> = [];
-  for (const items of Object.values(groups)) {
-    for (const item of items) {
-      commands.push(item);
-    }
-  }
-  return commands;
-}
-
-/** Find a sequence item by its label (or truncated label prefix) across all groups. */
-function findSequenceByLabel(
-  configLoader: ConfigLoader,
-  cliType: string,
-  label: string,
-): string | null {
-  const groups = configLoader.getSequences(cliType);
-  for (const items of Object.values(groups)) {
-    const match = items.find(i => i.label === label || i.label.startsWith(label));
-    if (match) return match.sequence;
-  }
-  return null;
-}
-
-/** Expand {Enter}, {Ctrl+C} etc. into control characters. */
-function expandSequence(sequence: string): string {
-  return sequence
-    .replace(/\{Enter\}/g, '\r')
-    .replace(/\{Ctrl\+C\}/g, '\x03');
 }
 
 

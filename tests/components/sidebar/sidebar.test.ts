@@ -369,6 +369,7 @@ function makeSessionListProps(overrides: Record<string, any> = {}) {
     workingPlanTooltips: new Map([['s1', 'Plan A tooltip']]),
     pendingSchedules: new Map([['s1', 'tomorrow']]),
     snappedOutSessions: new Set<string>(),
+    llmNotifications: new Map(),
     getCliDisplayName: vi.fn((cliType: string) => cliType === 'claude-code' ? 'Claude' : cliType),
     resolveGroupDisplayName: vi.fn((dirPath: string) => dirPath.split('/').pop() || dirPath),
     isSessionHiddenFromOverview: vi.fn(() => false),
@@ -798,18 +799,18 @@ describe('ProfilesTab', () => {
   ];
 
   it('renders profile list', () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationsEnabled: false } });
+    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'off' } });
     const items = w.findAll('.settings-list-item');
     expect(items.length).toBe(2);
   });
 
   it('shows active badge on active profile', () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationsEnabled: false } });
+    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'off' } });
     expect(w.find('.profile-active-badge').text()).toBe('Active');
   });
 
   it('shows switch button on inactive profiles only', () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationsEnabled: false } });
+    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'off' } });
     const items = w.findAll('.settings-list-item');
     // Active profile should NOT have switch button
     expect(items[0].findAll('button').length).toBe(0);
@@ -818,13 +819,13 @@ describe('ProfilesTab', () => {
   });
 
   it('emits create on button click', async () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationsEnabled: false } });
+    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'off' } });
     await w.find('.settings-profile-actions button').trigger('click');
     expect(w.emitted('create')).toBeTruthy();
   });
 
   it('emits switch on switch button click', async () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationsEnabled: false } });
+    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'off' } });
     const items = w.findAll('.settings-list-item');
     const switchBtn = items[1].findAll('button')[0];
     await switchBtn.trigger('click');
@@ -832,17 +833,19 @@ describe('ProfilesTab', () => {
   });
 
   it('emits delete on delete button click', async () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationsEnabled: false } });
+    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'off' } });
     const items = w.findAll('.settings-list-item');
     const deleteBtn = items[1].findAll('button')[1];
     await deleteBtn.trigger('click');
     expect(w.emitted('delete')).toEqual([['gaming']]);
   });
 
-  it('renders notification toggle', () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationsEnabled: true } });
-    const checkbox = w.find('.notification-toggle input');
-    expect((checkbox.element as HTMLInputElement).checked).toBe(true);
+  it('renders notification mode selector', async () => {
+    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'llm' } });
+    const checked = w.find('input[value="llm"]');
+    expect((checked.element as HTMLInputElement).checked).toBe(true);
+    await w.find('input[value="auto"]').trigger('change');
+    expect(w.emitted('updateNotificationMode')).toEqual([['auto']]);
   });
 });
 

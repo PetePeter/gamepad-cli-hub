@@ -495,6 +495,32 @@ const TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'notify_user',
+    title: 'Notify User',
+    description: 'Send an LLM-directed notification with smart delivery routing. Requires notificationMode=llm. Returns delivered as toast, bubble, telegram, or none.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        name: { type: 'string' },
+        title: { type: 'string' },
+        content: { type: 'string' },
+      },
+      required: ['title', 'content'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'get_app_visibility',
+    title: 'Get App Visibility',
+    description: 'Return the current app visibility/focus bucket, screen-lock state, and activeSessionId for notification routing decisions.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'telegram_status',
     title: 'Telegram Status',
     description: 'Report whether Telegram is enabled, configured, running, and available. Agents should use Telegram only for concise mobile-friendly urgent blockers or after the user has already engaged through Telegram. No bot token is returned.',
@@ -920,6 +946,14 @@ export class LocalhostMcpServer {
         );
       case 'session_close':
         return this.service.closeSession(asString(args.sessionId ?? args.name, 'sessionId or name is required'));
+      case 'notify_user':
+        return this.service.notifyUser(
+          asString(args.sessionId ?? args.name, 'sessionId or name is required'),
+          asString(args.title, 'title is required'),
+          asString(args.content, 'content is required'),
+        );
+      case 'get_app_visibility':
+        return this.service.getAppVisibility();
       case 'telegram_status':
         return this.service.getTelegramStatus();
       case 'telegram_chat': {
@@ -1090,7 +1124,7 @@ function getToolReminder(name: string): string {
   if (name === 'plan_set_state') {
     return 'Reminder: ownership is explicit. Use session_set_working_plan after claiming work so Helm shows the session as working on this plan.';
   }
-  if (name === 'plan_get' || name.startsWith('plan_sequence_')) {
+  if (name === 'plan_sequence_list' || name === 'plan_sequence_update' || name === 'plan_sequence_memory_append') {
     return 'Reminder: sequence.sharedMemory is shared by every plan in that sequence. Re-read the sequence and pass expectedUpdatedAt when updating or appending to avoid overwriting another LLM.';
   }
   return '';

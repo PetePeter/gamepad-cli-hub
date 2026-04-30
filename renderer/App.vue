@@ -155,6 +155,7 @@ import ChipBar from './components/chips/ChipBar.vue';
 import ChipActionBar from './components/chips/ChipActionBar.vue';
 import { useChipBarStore } from './stores/chip-bar.js';
 import { useNavigationStore } from './stores/navigation.js';
+import { useLlmNotificationsStore } from './stores/llmNotifications.js';
 
 // ============================================================================
 // Reactive view state
@@ -165,6 +166,7 @@ const settingsVisible = ref(false);
 const terminalContainerRef = ref<HTMLElement | null>(null);
 const chipBarStore = useChipBarStore();
 const navStore = useNavigationStore();
+const llmNotificationsStore = useLlmNotificationsStore();
 
 // Draft editor state
 const draftEditorVisible = ref(false);
@@ -186,6 +188,7 @@ const draftEditorRef = ref<InstanceType<typeof DraftEditor> | null>(null);
 let offTextDeliver: (() => void) | null = null;
 let unsubSnapOut: (() => void) | null = null;
 let unsubSnapBack: (() => void) | null = null;
+let unsubLlmNotify: (() => void) | null = null;
 
 // Overview state
 const overviewCollapsedIds = ref<Set<string>>(new Set());
@@ -239,7 +242,7 @@ const settingsChipbarActions = ref<Array<{ label: string; sequence: string }>>([
 const settingsTelegramConfig = ref({ botToken: '', chatId: '', allowedUsers: '', notificationsEnabled: false });
 const settingsTelegramBotRunning = ref(false);
 const settingsMcpConfig = ref({ enabled: false, port: 47373, authToken: '' });
-const settingsNotificationsEnabled = ref(false);
+const settingsNotificationMode = ref<'off' | 'auto' | 'llm'>('auto');
 const settingsBindings = ref<Array<{ button: string; action: string; label: string; detail: string }>>([]);
 const settingsSequenceGroups = ref<Array<{ name: string; items: Array<{ label: string; sequence: string }> }>>([]);
 const settingsBindingSortField = ref<BindingSortField>('button');
@@ -573,6 +576,7 @@ function handleRelease(button: string): void {
 
 async function onSessionClick(sessionId: string): Promise<void> {
   if (isAnyBridgeModalVisible()) return;
+  llmNotificationsStore.dismiss(sessionId);
   void navStore.navigateToSession(sessionId);
 }
 
@@ -886,9 +890,9 @@ async function loadSettingsData(): Promise<void> {
 
   // Load notifications setting
   try {
-    settingsNotificationsEnabled.value = await window.gamepadCli.configGetNotifications();
+    settingsNotificationMode.value = await window.gamepadCli.configGetNotificationMode();
   } catch {
-    settingsNotificationsEnabled.value = false;
+    settingsNotificationMode.value = 'off';
   }
 
   // Load tools
@@ -1125,9 +1129,10 @@ async function onProfileDelete(name: string): Promise<void> {
   }
 }
 
-async function onToggleNotifications(enabled: boolean): Promise<void> {
-  await window.gamepadCli.configSetNotifications(enabled);
-  logEvent(`Notifications: ${enabled ? 'ON' : 'OFF'}`);
+async function onUpdateNotificationMode(mode: 'off' | 'auto' | 'llm'): Promise<void> {
+  await window.gamepadCli.configSetNotificationMode(mode);
+  settingsNotificationMode.value = mode;
+  logEvent(`Notifications: ${mode}`);
 }
 
 // ── Tools Tab Handlers ─────────────────────────────────────────────────────
@@ -2064,6 +2069,14 @@ onMounted(async () => {
           void restoreSnappedBackSession(sessionId);
         })
       : null;
+
+    // LLM notification IPC listener
+    unsubLlmNotify = window.gamepadCli?.onLlmNotify
+      ? window.gamepadCli.onLlmNotify(({ sessionId, title, content }) => {
+          llmNotificationsStore.add({ sessionId, title, content });
+        })
+      : null;
+
     onViewChange((view: ViewName) => {
       activeView.value = view;
     });
@@ -2113,6 +2126,8 @@ onUnmounted(() => {
   unsubSnapOut = null;
   unsubSnapBack?.();
   unsubSnapBack = null;
+  unsubLlmNotify?.();
+  unsubLlmNotify = null;
   teardown();
 });
 </script>
@@ -2173,6 +2188,7 @@ onUnmounted(() => {
             :working-plan-tooltips="state.workingPlanTooltips"
             :pending-schedules="state.pendingSchedules"
             :snapped-out-sessions="state.snappedOutSessions"
+            :llm-notifications="llmNotificationsStore.bySession"
             :get-cli-display-name="getCliDisplayName"
             :resolve-group-display-name="resolveGroupDisplayName"
             :is-session-hidden-from-overview="(session) => isSessionHiddenFromOverview(session, sessionsState.groupPrefs)"
@@ -2188,6 +2204,7 @@ onUnmounted(() => {
             @session-state-change="onSessionStateChange"
             @toggle-overview="onToggleOverview"
             @cancel-schedule="onCancelSchedule"
+            @dismiss-notification="llmNotificationsStore.dismiss"
           />
         </section>
 
@@ -2206,11 +2223,11 @@ onUnmounted(() => {
               v-if="activeTab === 'profiles'"
               :profiles="settingsProfiles"
               :active-profile="state.activeProfile"
-              :notifications-enabled="settingsNotificationsEnabled"
+              :notification-mode="settingsNotificationMode"
               @create="onProfileCreate"
               @switch="onProfileSwitch"
               @delete="onProfileDelete"
-              @toggle-notifications="onToggleNotifications"
+              @update-notification-mode="onUpdateNotificationMode"
             />
             <ToolsTab
               v-else-if="activeTab === 'tools'"

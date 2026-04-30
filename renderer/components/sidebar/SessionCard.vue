@@ -7,6 +7,7 @@
  */
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { getActivityColor } from '../../state-colors.js';
+import NotificationBubble from './NotificationBubble.vue';
 
 // --- Types ---
 
@@ -37,6 +38,7 @@ export interface SessionCardProps {
   isHiddenFromOverview: boolean;
   scheduledAt?: string | null;
   isSnappedOut?: boolean;
+  llmNotification?: { title: string; content: string } | null;
 }
 
 // --- Constants ---
@@ -64,6 +66,7 @@ const emit = defineEmits<{
   stateChange: [sessionId: string, newState: string];
   toggleOverview: [sessionId: string];
   cancelSchedule: [sessionId: string];
+  dismissNotification: [sessionId: string];
 }>();
 
 // --- Local state ---
@@ -248,5 +251,12 @@ function selectState(s: string): void {
         @click.stop="emit('cancelSchedule', session.id)"
       >×</button>
     </div>
+
+    <NotificationBubble
+      v-if="llmNotification"
+      :title="llmNotification.title"
+      :content="llmNotification.content"
+      @dismiss="emit('dismissNotification', session.id)"
+    />
   </div>
 </template>

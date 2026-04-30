@@ -93,7 +93,7 @@ describe('ScheduledTasksTab', () => {
 
     const inputs = wrapper.findAll('.st-input');
     await inputs[0].setValue('Task');
-    await wrapper.find('textarea').setValue('Prompt');
+    await wrapper.findAll('textarea')[1].setValue('Prompt');
     await inputs.find((input) => input.attributes('type') === 'datetime-local')?.setValue('2026-04-29T10:00');
     // Working Dir picker is first in new order
     await wrapper.findAll('.st-picker-btn')[0].trigger('click');
@@ -156,7 +156,7 @@ describe('ScheduledTasksTab', () => {
 
     const inputs = wrapper.findAll('.st-input');
     await inputs[0].setValue('Recurring');
-    await wrapper.find('textarea').setValue('Prompt');
+    await wrapper.findAll('textarea')[1].setValue('Prompt');
     await inputs.find((input) => input.attributes('type') === 'datetime-local')?.setValue('2026-04-29T10:00');
     const scheduleSelect = wrapper.findAll('select').find(s =>
       s.findAll('option').some(o => o.text() === 'Recurring interval'),
@@ -200,7 +200,7 @@ describe('ScheduledTasksTab', () => {
     await flushPromises();
 
     expect((wrapper.findAll('.st-input')[0].element as HTMLInputElement).value).toBe('Original');
-    await wrapper.find('.st-close-btn').trigger('click');
+    await wrapper.find('.st-btn--secondary').trigger('click');
     expect(wrapper.emitted('close')).toBeTruthy();
   });
 

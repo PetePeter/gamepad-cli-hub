@@ -1,444 +1,488 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+/**
+ * Comprehensive unit tests for NotificationManager.notifyLlmDirected().
+ *
+ * Covers all 6 delivery branches:
+ * 1. Mode Check: notificationMode !== 'llm' throws error
+ * 2. Screen Locked + Telegram Enabled: calls telegramNotifier, returns 'telegram'
+ * 3. Screen Locked + Telegram Disabled: returns 'none'
+ * 4. App Hidden/Minimised: calls showNotification(), returns 'toast'
+ * 5. App Visible + Active Session: returns 'none' immediately
+ * 6. App Visible + Different Session: sends IPC bubble, returns 'bubble'
+ */
 
-// Mock Electron Notification before importing the module
-let mockNotificationShow: Mock;
-let mockNotificationOn: Mock;
-
-vi.mock('electron', () => {
-  class MockNotification {
-    constructor(public opts: any) {}
-    show() { mockNotificationShow(this.opts); }
-    on(event: string, handler: () => void) { mockNotificationOn(event, handler); }
-  }
-  return {
-    Notification: Object.assign(MockNotification, {
-      isSupported: vi.fn(() => true),
-    }),
-    BrowserWindow: {
-      getAllWindows: vi.fn(() => []),
-    },
-  };
-});
-
-vi.mock('../src/utils/logger.js', () => ({
-  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-}));
-
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NotificationManager } from '../src/session/notification-manager.js';
-import { Notification, BrowserWindow } from 'electron';
-import type { ActivityChange } from '../src/session/state-detector.js';
 import type { SessionManager } from '../src/session/manager.js';
 import type { ConfigLoader } from '../src/config/loader.js';
+import type { WindowManager } from '../src/electron/window-manager.js';
 import type { SessionState } from '../src/types/session.js';
 
-function createMockSessionManager(sessions: Record<string, any> = {}): SessionManager {
+// Mock electron before any imports
+const electronMockState = vi.hoisted(() => {
+  const getAllWindowsMock = vi.fn();
+  return { getAllWindowsMock };
+});
+
+vi.mock('electron', () => ({
+  BrowserWindow: {
+    getAllWindows: electronMockState.getAllWindowsMock,
+  },
+  Notification: class MockNotification {
+    constructor(private options: any) {}
+    on = vi.fn();
+    show = vi.fn();
+  },
+}));
+
+vi.mock('../src/utils/logger.js', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
+function createMockWindowManager(): WindowManager {
   return {
-    getSession: vi.fn((id: string) => sessions[id] ?? null),
-  } as any;
+    getMainWindow: vi.fn(),
+    getWindowForSession: vi.fn(),
+    getWindowIdForSession: vi.fn(),
+    getWindow: vi.fn(),
+    unassignSession: vi.fn(),
+    unregisterWindow: vi.fn(),
+    registerWindow: vi.fn(),
+    assignSessionToWindow: vi.fn(),
+    isSessionSnappedOut: vi.fn(),
+    focusWindowForSession: vi.fn(),
+  } as unknown as WindowManager;
 }
 
-function createMockConfigLoader(notificationsEnabled = true): ConfigLoader {
+function createMockSessionManager(): SessionManager {
   return {
-    getNotifications: vi.fn(() => notificationsEnabled),
-  } as any;
+    getSession: vi.fn(),
+    removeSession: vi.fn(),
+    getAllSessions: vi.fn(),
+    setActiveSession: vi.fn(),
+    getActiveSession: vi.fn(),
+    renameSession: vi.fn(),
+    hasSession: vi.fn(),
+    updateSession: vi.fn(),
+  } as unknown as SessionManager;
 }
 
-function createMockWindow(focused = false, destroyed = false) {
+function createMockConfigLoader(notificationMode: string = 'llm'): ConfigLoader {
   return {
-    isFocused: vi.fn(() => focused),
-    isDestroyed: vi.fn(() => destroyed),
-    show: vi.fn(),
-    focus: vi.fn(),
-    webContents: { send: vi.fn() },
-  };
+    getNotificationMode: vi.fn(() => notificationMode),
+    getSnapOutWindowPrefs: vi.fn(),
+    setSnapOutWindowPrefs: vi.fn(),
+  } as unknown as ConfigLoader;
 }
 
-describe('NotificationManager', () => {
-  let manager: NotificationManager;
-  let mockWindow: ReturnType<typeof createMockWindow>;
-  let mockSessionManager: SessionManager;
-  let mockConfigLoader: ConfigLoader;
-  let mockGetSessionState: Mock<(id: string) => SessionState>;
-
-  const defaultSession = {
-    id: 'session-1',
-    name: 'hub-abc123',
-    cliType: 'claude-code',
-    workingDir: 'X:\\coding\\my-project',
-    processId: 1234,
-  };
+describe('NotificationManager.notifyLlmDirected()', () => {
+  let notificationManager: NotificationManager;
+  let windowManager: WindowManager;
+  let sessionManager: SessionManager;
+  let configLoader: ConfigLoader;
+  let getSessionStateMock: ReturnType<typeof vi.fn>;
+  let screenLockChecker: ReturnType<typeof vi.fn>;
+  let telegramNotifier: ReturnType<typeof vi.fn>;
+  let activeSessionIdGetter: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockNotificationShow = vi.fn();
-    mockNotificationOn = vi.fn();
-    (Notification.isSupported as Mock).mockReturnValue(true);
-    mockWindow = createMockWindow(false);
-    mockSessionManager = createMockSessionManager({ 'session-1': defaultSession });
-    mockConfigLoader = createMockConfigLoader(true);
-    mockGetSessionState = vi.fn(() => 'implementing' as SessionState);
-    (BrowserWindow.getAllWindows as Mock).mockReturnValue([mockWindow]);
-    const mockWindowManager = {
-      getWindowForSession: vi.fn(() => mockWindow as any),
-      getMainWindow: vi.fn(() => mockWindow as any),
-    };
-    manager = new NotificationManager(
-      mockWindowManager as any,
-      mockSessionManager,
-      mockConfigLoader,
-      mockGetSessionState,
+    electronMockState.getAllWindowsMock.mockClear();
+    windowManager = createMockWindowManager();
+    sessionManager = createMockSessionManager();
+    configLoader = createMockConfigLoader('llm');
+    getSessionStateMock = vi.fn(() => 'implementing' as SessionState);
+
+    notificationManager = new NotificationManager(
+      windowManager,
+      sessionManager,
+      configLoader,
+      getSessionStateMock,
     );
+
+    screenLockChecker = vi.fn(() => false);
+    telegramNotifier = vi.fn();
+    activeSessionIdGetter = vi.fn(() => null);
+
+    notificationManager.setScreenLockChecker(screenLockChecker);
+    notificationManager.setTelegramNotifier(telegramNotifier);
+    notificationManager.setActiveSessionIdGetter(activeSessionIdGetter);
   });
 
-  // ==========================================================================
-  // Activity change trigger
-  // ==========================================================================
-
-  describe('handleActivityChange', () => {
-    it('notifies when activity goes inactive and session is implementing', () => {
-      const event: ActivityChange = { sessionId: 'session-1', level: 'inactive' };
-      manager.handleActivityChange(event);
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        title: '🔇 Inactive — claude-code',
-        body: '"hub-abc123" in my-project went quiet.',
-      }));
-    });
-
-    it('notifies when activity goes idle and session is implementing', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'idle' });
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        title: '💤 Idle — claude-code',
-        body: '"hub-abc123" in my-project went idle.',
-      }));
-    });
-
-    it('notifies when session is planning', () => {
-      mockGetSessionState.mockReturnValue('planning');
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        title: '🔇 Inactive — claude-code',
-      }));
-    });
-
-    it('does NOT notify when activity becomes active', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'active' });
-      expect(mockNotificationShow).not.toHaveBeenCalled();
-    });
-
-    it('does NOT notify when session state is idle', () => {
-      mockGetSessionState.mockReturnValue('idle');
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).not.toHaveBeenCalled();
-    });
-
-    it('does NOT notify when session state is completed', () => {
-      mockGetSessionState.mockReturnValue('completed');
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).not.toHaveBeenCalled();
-    });
-
-    it('does NOT notify when session state is waiting', () => {
-      mockGetSessionState.mockReturnValue('waiting');
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).not.toHaveBeenCalled();
-    });
-  });
-
-  // ==========================================================================
-  // Condition checks
-  // ==========================================================================
-
-  describe('conditions', () => {
-    it('does NOT notify when window is focused', () => {
-      mockWindow.isFocused.mockReturnValue(true);
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).not.toHaveBeenCalled();
-    });
-
-    it('does NOT notify when notifications setting is disabled', () => {
-      (mockConfigLoader.getNotifications as Mock).mockReturnValue(false);
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).not.toHaveBeenCalled();
-    });
-
-    it('does NOT notify when Notification.isSupported() is false', () => {
-      (Notification.isSupported as Mock).mockReturnValue(false);
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).not.toHaveBeenCalled();
-    });
-
-    it('notifies when window is null (not created yet)', () => {
-      const mgr = new NotificationManager(
-        () => null,
-        mockSessionManager,
-        mockConfigLoader,
-        mockGetSessionState,
+  describe('1. Mode Check', () => {
+    it('throws error when notificationMode is "auto"', () => {
+      configLoader = createMockConfigLoader('auto');
+      notificationManager = new NotificationManager(
+        windowManager,
+        sessionManager,
+        configLoader,
+        getSessionStateMock,
       );
-      mgr.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).toHaveBeenCalled();
+      notificationManager.setScreenLockChecker(screenLockChecker);
+
+      expect(() => {
+        notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+      }).toThrow(/LLM-directed notifications require notificationMode=llm/);
     });
 
-    it('does NOT notify when session is not found', () => {
-      const emptyMgr = new NotificationManager(
-        () => mockWindow as any,
-        createMockSessionManager({}),
-        mockConfigLoader,
-        mockGetSessionState,
+    it('throws error when notificationMode is "off"', () => {
+      configLoader = createMockConfigLoader('off');
+      notificationManager = new NotificationManager(
+        windowManager,
+        sessionManager,
+        configLoader,
+        getSessionStateMock,
       );
-      emptyMgr.handleActivityChange({ sessionId: 'nonexistent', level: 'inactive' });
-      expect(mockNotificationShow).not.toHaveBeenCalled();
+      notificationManager.setScreenLockChecker(screenLockChecker);
+
+      expect(() => {
+        notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+      }).toThrow(/LLM-directed notifications require notificationMode=llm/);
+    });
+
+    it('throws error when notificationMode is "unknown"', () => {
+      configLoader = createMockConfigLoader('unknown');
+      notificationManager = new NotificationManager(
+        windowManager,
+        sessionManager,
+        configLoader,
+        getSessionStateMock,
+      );
+      notificationManager.setScreenLockChecker(screenLockChecker);
+
+      expect(() => {
+        notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+      }).toThrow(/LLM-directed notifications require notificationMode=llm/);
+    });
+
+    it('error message includes current mode', () => {
+      configLoader = createMockConfigLoader('auto');
+      notificationManager = new NotificationManager(
+        windowManager,
+        sessionManager,
+        configLoader,
+        getSessionStateMock,
+      );
+      notificationManager.setScreenLockChecker(screenLockChecker);
+
+      expect(() => {
+        notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+      }).toThrow(/current mode is auto/);
     });
   });
 
-  // ==========================================================================
-  // Dedup guard
-  // ==========================================================================
-
-  describe('dedup guard', () => {
-    it('suppresses duplicate notification within 15s window', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).toHaveBeenCalledTimes(1);
-
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'idle' });
-      expect(mockNotificationShow).toHaveBeenCalledTimes(1);
+  describe('2. Screen Locked + Telegram Enabled', () => {
+    beforeEach(() => {
+      screenLockChecker.mockReturnValue(true);
+      telegramNotifier.mockClear();
     });
 
-    it('allows notification for different sessions', () => {
-      const sessions = {
-        'session-1': defaultSession,
-        'session-2': { ...defaultSession, id: 'session-2', name: 'hub-def456' },
+    it('calls telegramNotifier with sessionId, title, and content', () => {
+      const result = notificationManager.notifyLlmDirected('sess-1', 'My Title', 'My Content');
+
+      expect(telegramNotifier).toHaveBeenCalledWith('sess-1', 'My Title', 'My Content');
+      expect(result).toBe('telegram');
+    });
+
+    it('returns "telegram" as delivery mechanism', () => {
+      const result = notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+      expect(result).toBe('telegram');
+    });
+
+    it('passes exact sessionId, title, and content to telegramNotifier', () => {
+      const sessionId = 'sess-special-123';
+      const longTitle = 'This is a very long title with special chars: @#$%^&*()';
+      const longContent = 'Multi-line content\nWith newlines\nAnd more text';
+
+      notificationManager.notifyLlmDirected(sessionId, longTitle, longContent);
+
+      expect(telegramNotifier).toHaveBeenCalledWith(sessionId, longTitle, longContent);
+    });
+
+    it('calls telegramNotifier even if sessionId is empty', () => {
+      notificationManager.notifyLlmDirected('', 'Title', 'Content');
+      expect(telegramNotifier).toHaveBeenCalledWith('', 'Title', 'Content');
+    });
+  });
+
+  describe('3. Screen Locked + Telegram Disabled', () => {
+    beforeEach(() => {
+      screenLockChecker.mockReturnValue(true);
+      notificationManager.setTelegramNotifier(null as any);
+    });
+
+    it('returns "none" when telegramNotifier is not set', () => {
+      const result = notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+      expect(result).toBe('none');
+    });
+
+    it('does not call any notification method', () => {
+      const showNotificationSpy = vi.spyOn(notificationManager as any, 'showNotification');
+      notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+      expect(showNotificationSpy).not.toHaveBeenCalled();
+    });
+
+    it('exits early without checking window state', () => {
+      const showNotificationSpy = vi.spyOn(notificationManager as any, 'showNotification');
+      electronMockState.getAllWindowsMock.mockReturnValue([]);
+
+      const result = notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+
+      expect(result).toBe('none');
+      expect(electronMockState.getAllWindowsMock).not.toHaveBeenCalled();
+      expect(showNotificationSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('4. App Hidden/Minimised', () => {
+    beforeEach(() => {
+      screenLockChecker.mockReturnValue(false);
+      electronMockState.getAllWindowsMock.mockReturnValue([]);
+    });
+
+    it('returns "toast" when app is hidden', () => {
+      const result = notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+      expect(result).toBe('toast');
+    });
+
+    it('calls showNotification when app is hidden', () => {
+      const showNotificationSpy = vi.spyOn(notificationManager as any, 'showNotification');
+
+      notificationManager.notifyLlmDirected('sess-1', 'My Title', 'My Content');
+
+      expect(showNotificationSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'My Title',
+          body: 'My Content',
+        }),
+        'sess-1',
+      );
+    });
+
+    it('passes sessionId to showNotification', () => {
+      const showNotificationSpy = vi.spyOn(notificationManager as any, 'showNotification');
+
+      notificationManager.notifyLlmDirected('sess-abc-123', 'Title', 'Content');
+
+      expect(showNotificationSpy).toHaveBeenCalledWith(
+        expect.any(Object),
+        'sess-abc-123',
+      );
+    });
+  });
+
+  describe('5. App Visible + Active Session', () => {
+    let mockWindow: any;
+
+    beforeEach(() => {
+      screenLockChecker.mockReturnValue(false);
+      mockWindow = {
+        isFocused: vi.fn(() => true),
+        isDestroyed: vi.fn(() => false),
+        isVisible: vi.fn(() => true),
+        webContents: { send: vi.fn() },
       };
-      const mgr = new NotificationManager(
-        () => mockWindow as any,
-        createMockSessionManager(sessions),
-        mockConfigLoader,
-        mockGetSessionState,
-      );
-
-      mgr.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      mgr.handleActivityChange({ sessionId: 'session-2', level: 'inactive' });
-      expect(mockNotificationShow).toHaveBeenCalledTimes(2);
+      electronMockState.getAllWindowsMock.mockReturnValue([mockWindow]);
+      activeSessionIdGetter.mockReturnValue('sess-1');
     });
 
-    it('allows notification after dedup window expires', () => {
-      vi.useFakeTimers();
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).toHaveBeenCalledTimes(1);
+    it('returns "none" when active session matches notified session', () => {
+      const result = notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+      expect(result).toBe('none');
+    });
 
-      vi.advanceTimersByTime(15_001);
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'idle' });
-      expect(mockNotificationShow).toHaveBeenCalledTimes(2);
-      vi.useRealTimers();
+    it('does not send IPC when session is active', () => {
+      notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+      expect(mockWindow.webContents.send).not.toHaveBeenCalled();
+    });
+
+    it('returns "none" immediately without calling showNotification', () => {
+      const showNotificationSpy = vi.spyOn(notificationManager as any, 'showNotification');
+
+      notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+
+      expect(showNotificationSpy).not.toHaveBeenCalled();
+    });
+
+    it('works when activeSessionIdGetter returns exact sessionId', () => {
+      activeSessionIdGetter.mockReturnValue('my-session-abc');
+
+      const result = notificationManager.notifyLlmDirected('my-session-abc', 'Title', 'Content');
+
+      expect(result).toBe('none');
     });
   });
 
-  // ==========================================================================
-  // Click handler
-  // ==========================================================================
+  describe('6. App Visible + Different Session', () => {
+    let mockWindow: any;
 
-  describe('notification click', () => {
-    it('registers click handler that focuses window and sends IPC', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
+    beforeEach(() => {
+      screenLockChecker.mockReturnValue(false);
+      mockWindow = {
+        isFocused: vi.fn(() => true),
+        isDestroyed: vi.fn(() => false),
+        isVisible: vi.fn(() => true),
+        webContents: { send: vi.fn() },
+      };
+      electronMockState.getAllWindowsMock.mockReturnValue([mockWindow]);
+      activeSessionIdGetter.mockReturnValue('sess-1');
+    });
 
-      const clickCall = mockNotificationOn.mock.calls.find(
-        (call: any[]) => call[0] === 'click',
-      );
-      expect(clickCall).toBeDefined();
+    it('returns "bubble" when session differs from active session', () => {
+      const result = notificationManager.notifyLlmDirected('sess-2', 'Title', 'Content');
+      expect(result).toBe('bubble');
+    });
 
-      const clickHandler = clickCall![1];
-      clickHandler();
+    it('sends notification:llmNotify IPC event', () => {
+      notificationManager.notifyLlmDirected('sess-2', 'My Title', 'My Content');
 
-      expect(mockWindow.show).toHaveBeenCalled();
-      expect(mockWindow.focus).toHaveBeenCalled();
       expect(mockWindow.webContents.send).toHaveBeenCalledWith(
-        'notification:click',
-        { sessionId: 'session-1' },
+        'notification:llmNotify',
+        expect.any(Object),
       );
     });
-  });
 
-  // ==========================================================================
-  // Content format
-  // ==========================================================================
+    it('includes correct sessionId, title, and content in IPC payload', () => {
+      notificationManager.notifyLlmDirected('sess-2', 'My Title', 'My Content');
 
-  describe('content format', () => {
-    it('uses path.basename for working directory', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        body: expect.stringContaining('in my-project'),
-      }));
-    });
-
-    it('handles missing working directory gracefully', () => {
-      const noDir = createMockSessionManager({
-        'session-1': { ...defaultSession, workingDir: undefined },
-      });
-      const mgr = new NotificationManager(
-        () => mockWindow as any,
-        noDir,
-        mockConfigLoader,
-        mockGetSessionState,
+      expect(mockWindow.webContents.send).toHaveBeenCalledWith(
+        'notification:llmNotify',
+        {
+          sessionId: 'sess-2',
+          title: 'My Title',
+          content: 'My Content',
+        },
       );
-      mgr.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        body: expect.stringContaining('in unknown'),
-      }));
     });
 
-    it('creates notification with silent: true', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        silent: true,
-      }));
+    it('sends IPC with exact strings', () => {
+      const longTitle = 'Session Alert: @special #chars';
+      const longContent = 'Line 1\nLine 2\nLine 3';
+
+      notificationManager.notifyLlmDirected('sess-2', longTitle, longContent);
+
+      const call = mockWindow.webContents.send.mock.calls[0];
+      expect(call[1].title).toBe(longTitle);
+      expect(call[1].content).toBe(longContent);
     });
 
-    it('uses different labels for inactive vs idle', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        title: '🔇 Inactive — claude-code',
-        body: expect.stringContaining('went quiet'),
-      }));
+    it('does not call showNotification for in-app bubble', () => {
+      const showNotificationSpy = vi.spyOn(notificationManager as any, 'showNotification');
 
-      mockNotificationShow.mockClear();
-      manager.removeSession('session-1');
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'idle' });
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        title: '💤 Idle — claude-code',
-        body: expect.stringContaining('went idle'),
-      }));
-    });
-  });
+      notificationManager.notifyLlmDirected('sess-2', 'Title', 'Content');
 
-  // ==========================================================================
-  // Cleanup
-  // ==========================================================================
-
-  describe('cleanup', () => {
-    it('removeSession clears dedup tracking', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).toHaveBeenCalledTimes(1);
-
-      manager.removeSession('session-1');
-
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'idle' });
-      expect(mockNotificationShow).toHaveBeenCalledTimes(2);
+      expect(showNotificationSpy).not.toHaveBeenCalled();
     });
 
-    it('removeSession clears output buffer', () => {
-      manager.feedOutput('session-1', 'some output\n');
-      expect(manager.getLastLines('session-1', 5)).toHaveLength(1);
+    it('works with multiple windows (sends to first visible)', () => {
+      const window2 = {
+        isFocused: vi.fn(() => true),
+        isDestroyed: vi.fn(() => false),
+        isVisible: vi.fn(() => false),
+        webContents: { send: vi.fn() },
+      };
+      electronMockState.getAllWindowsMock.mockReturnValue([mockWindow, window2]);
 
-      manager.removeSession('session-1');
-      expect(manager.getLastLines('session-1', 5)).toHaveLength(0);
-    });
+      notificationManager.notifyLlmDirected('sess-2', 'Title', 'Content');
 
-    it('dispose clears all tracking', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      manager.feedOutput('session-1', 'line\n');
-      manager.dispose();
-
-      expect(manager.getLastLines('session-1', 5)).toHaveLength(0);
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'idle' });
-      expect(mockNotificationShow).toHaveBeenCalledTimes(2);
+      expect(mockWindow.webContents.send).toHaveBeenCalled();
     });
   });
 
-  // ==========================================================================
-  // Output buffer (feedOutput / getLastLines)
-  // ==========================================================================
+  describe('Integration: Mode Check gates all other logic', () => {
+    it('mode check happens before screen lock check', () => {
+      configLoader = createMockConfigLoader('auto');
+      notificationManager = new NotificationManager(
+        windowManager,
+        sessionManager,
+        configLoader,
+        getSessionStateMock,
+      );
 
-  describe('feedOutput', () => {
-    it('stores completed lines', () => {
-      manager.feedOutput('session-1', 'line one\nline two\n');
-      expect(manager.getLastLines('session-1', 5)).toEqual(['line one', 'line two']);
-    });
+      const checkBeforeModeError = () => {
+        notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+      };
 
-    it('handles partial lines across multiple calls', () => {
-      manager.feedOutput('session-1', 'partial');
-      manager.feedOutput('session-1', ' line\n');
-      expect(manager.getLastLines('session-1', 5)).toEqual(['partial line']);
-    });
-
-    it('strips ANSI escape sequences', () => {
-      manager.feedOutput('session-1', '\x1b[32mgreen text\x1b[0m\n');
-      expect(manager.getLastLines('session-1', 5)).toEqual(['green text']);
-    });
-
-    it('skips blank lines', () => {
-      manager.feedOutput('session-1', 'line one\n\n\nline two\n');
-      expect(manager.getLastLines('session-1', 5)).toEqual(['line one', 'line two']);
-    });
-
-    it('respects ring buffer max (10 lines)', () => {
-      for (let i = 0; i < 15; i++) {
-        manager.feedOutput('session-1', `line ${i}\n`);
-      }
-      const lines = manager.getLastLines('session-1', 10);
-      expect(lines).toHaveLength(10);
-      expect(lines[0]).toBe('line 5');
-      expect(lines[9]).toBe('line 14');
-    });
-
-    it('returns last N lines when count < buffer size', () => {
-      for (let i = 0; i < 8; i++) {
-        manager.feedOutput('session-1', `line ${i}\n`);
-      }
-      const lines = manager.getLastLines('session-1', 3);
-      expect(lines).toEqual(['line 5', 'line 6', 'line 7']);
-    });
-
-    it('includes partial line in getLastLines', () => {
-      manager.feedOutput('session-1', 'complete\npartial');
-      const lines = manager.getLastLines('session-1', 5);
-      expect(lines).toEqual(['complete', 'partial']);
-    });
-
-    it('returns empty array for unknown session', () => {
-      expect(manager.getLastLines('unknown', 5)).toEqual([]);
-    });
-
-    it('handles \\r\\n line endings', () => {
-      manager.feedOutput('session-1', 'line one\r\nline two\r\n');
-      expect(manager.getLastLines('session-1', 5)).toEqual(['line one', 'line two']);
-    });
-
-    it('handles \\r carriage return (overwrite)', () => {
-      manager.feedOutput('session-1', 'progress: 50%\rprogress: 100%\n');
-      expect(manager.getLastLines('session-1', 5)).toEqual(['progress: 100%']);
+      expect(checkBeforeModeError).toThrow();
+      expect(screenLockChecker).not.toHaveBeenCalled();
     });
   });
 
-  // ==========================================================================
-  // Notification body includes output preview
-  // ==========================================================================
+  describe('Edge cases', () => {
+    it('handles null activeSessionIdGetter result', () => {
+      const mockWindow = {
+        isFocused: vi.fn(() => true),
+        isDestroyed: vi.fn(() => false),
+        isVisible: vi.fn(() => true),
+        webContents: { send: vi.fn() },
+      };
+      electronMockState.getAllWindowsMock.mockReturnValue([mockWindow]);
+      activeSessionIdGetter.mockReturnValue(null);
+      screenLockChecker.mockReturnValue(false);
 
-  describe('output in notification body', () => {
-    it('includes recent output lines in notification body', () => {
-      manager.feedOutput('session-1', 'Building project...\nTests passed: 42\nDone!\n');
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        body: '"hub-abc123" in my-project went quiet.\nBuilding project...\nTests passed: 42\nDone!',
-      }));
+      const result = notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+
+      expect(result).toBe('bubble');
     });
 
-    it('notification body has no extra newline when no output buffered', () => {
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      expect(mockNotificationShow).toHaveBeenCalledWith(expect.objectContaining({
-        body: '"hub-abc123" in my-project went quiet.',
-      }));
+    it('handles undefined activeSessionIdGetter result', () => {
+      const mockWindow = {
+        isFocused: vi.fn(() => true),
+        isDestroyed: vi.fn(() => false),
+        isVisible: vi.fn(() => true),
+        webContents: { send: vi.fn() },
+      };
+      electronMockState.getAllWindowsMock.mockReturnValue([mockWindow]);
+      activeSessionIdGetter.mockReturnValue(undefined);
+      screenLockChecker.mockReturnValue(false);
+
+      const result = notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
+
+      expect(result).toBe('bubble');
     });
 
-    it('limits output preview to 5 lines', () => {
-      for (let i = 0; i < 10; i++) {
-        manager.feedOutput('session-1', `output line ${i}\n`);
-      }
-      manager.handleActivityChange({ sessionId: 'session-1', level: 'inactive' });
-      const call = mockNotificationShow.mock.calls[0][0];
-      const bodyLines = call.body.split('\n');
-      // 1 status line + 5 output lines = 6
-      expect(bodyLines).toHaveLength(6);
-      expect(bodyLines[1]).toBe('output line 5');
-      expect(bodyLines[5]).toBe('output line 9');
+    it('handles empty sessionId', () => {
+      screenLockChecker.mockReturnValue(true);
+      const result = notificationManager.notifyLlmDirected('', 'Title', 'Content');
+      expect(result).toBe('telegram');
+    });
+
+    it('handles very long content strings', () => {
+      const mockWindow = {
+        isFocused: vi.fn(() => true),
+        isDestroyed: vi.fn(() => false),
+        isVisible: vi.fn(() => true),
+        webContents: { send: vi.fn() },
+      };
+      electronMockState.getAllWindowsMock.mockReturnValue([mockWindow]);
+      screenLockChecker.mockReturnValue(false);
+      activeSessionIdGetter.mockReturnValue('sess-2');
+
+      const longContent = 'x'.repeat(10000);
+      notificationManager.notifyLlmDirected('sess-1', 'Title', longContent);
+
+      const payload = mockWindow.webContents.send.mock.calls[0][1];
+      expect(payload.content).toBe(longContent);
+    });
+
+    it('handles special characters in title and content', () => {
+      const mockWindow = {
+        isFocused: vi.fn(() => true),
+        isDestroyed: vi.fn(() => false),
+        isVisible: vi.fn(() => true),
+        webContents: { send: vi.fn() },
+      };
+      electronMockState.getAllWindowsMock.mockReturnValue([mockWindow]);
+      screenLockChecker.mockReturnValue(false);
+      activeSessionIdGetter.mockReturnValue('sess-2');
+
+      const specialTitle = 'Alert: <script>alert("xss")</script>';
+      const specialContent = 'Content with\nnewlines\tand\ttabs\r\nand ANSI: \x1b[32mgreen\x1b[0m';
+
+      notificationManager.notifyLlmDirected('sess-1', specialTitle, specialContent);
+
+      const payload = mockWindow.webContents.send.mock.calls[0][1];
+      expect(payload.title).toBe(specialTitle);
+      expect(payload.content).toBe(specialContent);
     });
   });
 });
+

@@ -127,6 +127,8 @@ export interface SessionInfoResponse {
     required_description_sections: string[];
     question_plan_workflow: string[];
     completion_documentation: string[];
+    plan_attachment_guide: string[];
+    sequence_memory_guide: string[];
   };
 }
 
@@ -198,16 +200,12 @@ export class HelmControlService extends EventEmitter {
     });
   }
 
-  getPlan(id: string): (PlanItem & { sequence?: PlanSequence; sequenceMemoryGuide?: string }) | null {
+  getPlan(id: string): (PlanItem & { hasAttachments: boolean }) | null {
     const plan = this.resolvePlanRef(id, 'Plan')?.item ?? null;
     if (!plan) return null;
-    const sequence = plan.sequenceId ? this.planManager.getSequence(plan.sequenceId) ?? undefined : undefined;
     return {
       ...plan,
-      ...(sequence ? { sequence } : {}),
-      sequenceMemoryGuide: sequence
-        ? 'This plan belongs to the returned sequence. The sequence.sharedMemory field is the shared memory store for all plans in that sequence. Use plan_sequence_update or plan_sequence_memory_append with expectedUpdatedAt to avoid overwriting concurrent LLM updates.'
-        : 'This plan is not assigned to a sequence. Use plan_sequence_list for directory sequences or plan_sequence_assign to attach it to a shared memory sequence.',
+      hasAttachments: this.attachmentManager.list(plan.id).length > 0,
     };
   }
 
@@ -851,6 +849,17 @@ export class HelmControlService extends EventEmitter {
           'When calling plan_complete, document the implemented behavior, the important files changed, tests or review performed, and any remaining risk.',
           'Completion notes should be useful to the next agent or sleeping user without requiring chat history.',
         ],
+        plan_attachment_guide: [
+          'plan_get returns hasAttachments so agents can decide whether to call plan_attachment_list.',
+          'Use plan_attachment_list for metadata, and plan_attachment_get when actual content is needed via a temp path.',
+          'Use plan_attachment_add for durable supporting artifacts; attachments are stored inside Helm config-managed storage.',
+        ],
+        sequence_memory_guide: [
+          'plan_get returns sequenceId but does not inline sequence sharedMemory; call plan_sequence_list with planId when sequence context is needed.',
+          'Sequence sharedMemory is common memory for all member plans and can be read through plan_sequence_list.',
+          'Use plan_sequence_memory_append for additive updates, or plan_sequence_update for full edits.',
+          'Pass expectedUpdatedAt from the last read when writing to avoid overwriting concurrent changes.',
+        ],
       },
     };
   }
@@ -894,6 +903,26 @@ export class HelmControlService extends EventEmitter {
     const session = this.findSession(sessionRef);
     if (!session) return { sent: false, reason: `Session not found: ${sessionRef}` };
     return this.telegramBridge.sendToUser({ sessionId: session.id, text: message, attachment });
+  }
+
+  notifyUser(sessionRef: string, title: string, content: string): { delivered: 'toast' | 'bubble' | 'telegram' | 'none' } {
+    if (!this.notificationManager) {
+      throw new Error('Notification manager is not available');
+    }
+    const session = this.findSession(sessionRef);
+    if (!session) throw new Error(`Session not found: ${sessionRef}`);
+    return { delivered: this.notificationManager.notifyLlmDirected(session.id, title, content) };
+  }
+
+  getAppVisibility(): {
+    visibility: 'visible-focused' | 'visible-background' | 'hidden';
+    screenLocked: boolean;
+    activeSessionId: string | null;
+  } {
+    if (!this.notificationManager) {
+      throw new Error('Notification manager is not available');
+    }
+    return this.notificationManager.getAppVisibilityDetails();
   }
 
   /**
@@ -940,6 +969,8 @@ export class HelmControlService extends EventEmitter {
       { name: 'session_set_aiagent_state', title: 'Set Session AIAGENT State', description: 'Update the session AIAGENT state icon in Helm.' },
       { name: 'session_close', title: 'Close Session', description: 'Close a Helm session and stop its PTY.' },
       { name: 'session_info', title: 'Get Session Info', description: 'Retrieve MCP endpoint, AIAGENT state registry, available tools, directories, and agent planning guidance.' },
+      { name: 'notify_user', title: 'Notify User', description: 'Send an LLM-directed notification with smart delivery routing. Requires notificationMode=llm.' },
+      { name: 'get_app_visibility', title: 'Get App Visibility', description: 'Return app visibility, screen lock state, and activeSessionId for notification routing.' },
       { name: 'telegram_status', title: 'Telegram Status', description: 'Report whether Telegram is enabled, configured, running, and available for urgent mobile-friendly user communication.' },
       { name: 'telegram_chat', title: 'Send Telegram Chat', description: 'Send concise mobile-friendly text to the user via Telegram. Provide sessionId or name. Lines must be short; do not send large wide logs, tables, or code blocks.' },
       { name: 'telegram_channel_close', title: 'Close Telegram Channel', description: 'Close one MCP Telegram communication channel without deleting unrelated session topics.' },

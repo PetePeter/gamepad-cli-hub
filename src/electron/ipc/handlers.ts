@@ -101,6 +101,18 @@ export function registerIPCHandlers(
   const topicManager = new TopicManager(telegramBot, sessionManager, configLoader.getTelegramConfig().instanceName);
   const telegramNotifier = new TelegramNotifier(telegramBot, topicManager, sessionManager, () => configLoader.getTelegramConfig());
 
+  // Wire the Telegram notifier to the notification manager for LLM-directed notifications when screen is locked
+  notificationManager.setTelegramNotifier(async (_sessionId: string, title: string, content: string) => {
+    if (!telegramBot.isRunning()) return;
+    const config = configLoader.getTelegramConfig();
+    const text = `${title}\n\n${content}`;
+    try {
+      await telegramBot.sendMessage(text);
+    } catch (error) {
+      logger.error(`[IPC] Failed to send LLM notification via Telegram: ${error}`);
+    }
+  });
+
   // Initialize all telegram modules (Phase 1+2+3)
   const telegramModules = initTelegramModules(
     telegramBot, topicManager, telegramNotifier,

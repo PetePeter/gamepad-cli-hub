@@ -40,12 +40,9 @@ export function initTelegramModules(
   const relayService = new TelegramRelayService(bot, topicManager, sessionManager, ptyManager, helmControlService);
   helmControlService.setTelegramBridge(relayService);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const stubAny = null as any;
-
   const cleanupCallbacks = setupCallbackHandler(
     bot, topicManager, sessionManager, ptyManager,
-    configLoader, stubAny, stubAny, draftManager,
+    configLoader, draftManager,
   );
 
   const cleanupTopicInput = setupTopicInput(

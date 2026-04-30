@@ -19,6 +19,10 @@ interface PowerMonitorDeps {
   ptyManager: PtyManager;
 }
 
+export interface PowerMonitorHandle {
+  isScreenLocked(): boolean;
+}
+
 function formatDuration(ms: number): string {
   const totalSeconds = Math.round(ms / 1000);
   if (totalSeconds < 60) return `${totalSeconds}s`;
@@ -30,7 +34,7 @@ function formatDuration(ms: number): string {
 export function setupPowerMonitor(
   powerMonitor: PowerMonitorLike,
   deps: PowerMonitorDeps,
-): { isScreenLocked: () => boolean } {
+): PowerMonitorHandle {
   const { sessionManager, ptyManager } = deps;
   let suspendTimestamp: number | null = null;
   let screenLocked = false;
@@ -109,5 +113,11 @@ export function setupPowerMonitor(
     logger.info('[PowerMonitor] Screen unlocked');
   });
 
-  return { isScreenLocked: () => screenLocked };
+  const handle: PowerMonitorHandle = {
+    isScreenLocked(): boolean {
+      return screenLocked;
+    },
+  };
+
+  return handle;
 }

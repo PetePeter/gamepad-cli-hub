@@ -448,8 +448,42 @@ describe('HelmControlService.getSessionInfo', () => {
     expect(info.agent_plan_guide?.when_to_create_plan.join(' ')).toContain('follow-up work');
     expect(info.agent_plan_guide?.question_plan_workflow.join(' ')).toContain('plan_nextplan_link');
     expect(info.agent_plan_guide?.completion_documentation.join(' ')).toContain('tests or review');
+    expect(info.agent_plan_guide?.plan_attachment_guide.length).toBeGreaterThanOrEqual(3);
+    expect(info.agent_plan_guide?.plan_attachment_guide.join(' ')).toContain('hasAttachments');
+    expect(info.agent_plan_guide?.sequence_memory_guide.length).toBeGreaterThanOrEqual(4);
+    expect(info.agent_plan_guide?.sequence_memory_guide.join(' ')).toContain('plan_sequence_list');
 
     expect(info).not.toHaveProperty('available_tools');
+  });
+});
+
+describe('HelmControlService.getPlan', () => {
+  it('returns hasAttachments without inlining sequence data', () => {
+    const { planManager, sessionManager, ptyManager, configLoader } = makeService();
+    const plan = { id: 'plan-1', humanId: 'P-0001', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready', sequenceId: 'seq-1' };
+    (planManager.getItem as ReturnType<typeof vi.fn>).mockReturnValue(plan);
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
+    const attachmentManager = {
+      list: vi.fn(() => [{ id: 'a1', planId: 'plan-1', filename: 'note.txt', sizeBytes: 1, relativePath: 'plan-1/a1.txt', createdAt: 1, updatedAt: 1 }]),
+      add: vi.fn(),
+      delete: vi.fn(),
+      getToTempFile: vi.fn(),
+      deletePlanAttachments: vi.fn(),
+    };
+    const service = new HelmControlService(
+      planManager as unknown as import('../src/session/plan-manager.js').PlanManager,
+      sessionManager as unknown as import('../src/session/manager.js').SessionManager,
+      ptyManager as unknown as import('../src/session/pty-manager.js').PtyManager,
+      configLoader as unknown as import('../src/config/loader.js').ConfigLoader,
+      attachmentManager as any,
+    );
+
+    const result = service.getPlan('P-0001') as any;
+
+    expect(result.hasAttachments).toBe(true);
+    expect(result.sequenceId).toBe('seq-1');
+    expect(result.sequence).toBeUndefined();
+    expect(result.sequenceMemoryGuide).toBeUndefined();
   });
 });
 
@@ -635,6 +669,27 @@ describe('HelmControlService telegram channels', () => {
     for (const removed of removedToolNames) {
       expect(allToolNames).not.toContain(removed);
     }
+  });
+});
+
+describe('HelmControlService LLM notifications', () => {
+  it('routes notifyUser through NotificationManager using session refs', () => {
+    const { service, sessionManager } = makeService();
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 's1',
+      name: 'Claude',
+      cliType: 'claude-code',
+      workingDir: '/work',
+    });
+    const notificationManager = {
+      notifyLlmDirected: vi.fn(() => 'bubble'),
+      getAppVisibilityDetails: vi.fn(() => ({ visibility: 'visible-focused', screenLocked: false, activeSessionId: 's2' })),
+    };
+    service.setNotificationManager(notificationManager as any);
+
+    expect(service.notifyUser('s1', 'Need input', 'Please choose one')).toEqual({ delivered: 'bubble' });
+    expect(notificationManager.notifyLlmDirected).toHaveBeenCalledWith('s1', 'Need input', 'Please choose one');
+    expect(service.getAppVisibility()).toEqual({ visibility: 'visible-focused', screenLocked: false, activeSessionId: 's2' });
   });
 });
 

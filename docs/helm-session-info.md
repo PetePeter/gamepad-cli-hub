@@ -118,6 +118,17 @@ Response:
       ],
       "question_plan_workflow": [
         "Question plans should use a title that starts with QUESTION: ..."
+      ],
+      "plan_attachment_guide": [
+        "plan_get returns hasAttachments so agents can decide whether to call plan_attachment_list.",
+        "Use plan_attachment_list for metadata, and plan_attachment_get when actual content is needed via a temp path.",
+        "Use plan_attachment_add for durable supporting artifacts; attachments are stored inside Helm config-managed storage."
+      ],
+      "sequence_memory_guide": [
+        "plan_get returns sequenceId but does not inline sequence sharedMemory; call plan_sequence_list with planId when sequence context is needed.",
+        "Sequence sharedMemory is common memory for all member plans and can be read through plan_sequence_list.",
+        "Use plan_sequence_memory_append for additive updates, or plan_sequence_update for full edits.",
+        "Pass expectedUpdatedAt from the last read when writing to avoid overwriting concurrent changes."
       ]
     }
   }
@@ -177,6 +188,12 @@ The `available_tools` array lists all MCP tools currently exposed by Helm. Use t
 When an agent discovers follow-up work that should survive the current session, call `plan_create` with a description that includes the required sections from `agent_plan_guide.required_description_sections`. If the agent is blocked by a user question, create a separate plan titled `QUESTION: ...`, put the concrete question at the top of that plan, and link that question plan to the original blocked plan with `plan_nextplan_link` so the question must complete first.
 
 When a user mentions `P-0035` or another `P-00xx` value, treat it as a Helm plan reference. MCP plan tools that accept a plan id also accept these human-readable IDs; use `plans_summary` when you need to map the `P-00xx` value to the canonical UUID, title, status, or dependency context.
+
+### 6. Plan Attachments and Sequence Memory
+
+`plan_get` is intentionally lightweight. It returns the plan item plus `hasAttachments: boolean`; if that flag is true, call `plan_attachment_list` to inspect metadata and `plan_attachment_get` to copy a specific attachment to a Helm temp file. This keeps raw attachment content out of routine plan reads.
+
+Sequence memory is also explicit. A plan may include `sequenceId`, but `plan_get` does not inline the full sequence or its shared memory. Call `plan_sequence_list` with `planId` to see the sequence, member plans, and `sharedMemory`. When writing shared memory, pass `expectedUpdatedAt` from the previous read to `plan_sequence_update` or `plan_sequence_memory_append` when you need concurrency protection.
 
 ## Environment Variables (at Session Spawn)
 

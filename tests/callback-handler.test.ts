@@ -18,7 +18,6 @@ vi.mock('../src/telegram/keyboards.js', () => ({
     text: `🔨 ${session.name}`,
     keyboard: [[{ text: 'stub', callback_data: 'stub' }]],
   })),
-  commandPaletteKeyboard: vi.fn(() => [[{ text: 'stub', callback_data: 'stub' }]]),
   spawnToolKeyboard: vi.fn(() => [[{ text: 'stub', callback_data: 'stub' }]]),
   spawnDirKeyboard: vi.fn(() => [[{ text: 'stub', callback_data: 'stub' }]]),
   // Path registry: in tests, keys are raw paths; resolvePathIndex returns them as-is
@@ -31,7 +30,6 @@ import type { TopicManager } from '../src/telegram/topic-manager.js';
 import type { SessionManager } from '../src/session/manager.js';
 import type { PtyManager } from '../src/session/pty-manager.js';
 import type { ConfigLoader } from '../src/config/loader.js';
-// TextInputManager and OutputSummarizer removed — stubbed with plain objects until Stage 7
 
 // ---------------------------------------------------------------------------
 // Mock factories
@@ -83,20 +81,6 @@ function createMockConfigLoader(
   } as unknown as ConfigLoader;
 }
 
-function createMockTextInput() {
-  return {
-    startInput: vi.fn(),
-    confirmInput: vi.fn(),
-    cancelInput: vi.fn(),
-  } as any;
-}
-
-function createMockOutputSummarizer() {
-  return {
-    getSummary: vi.fn(() => '📋 summary'),
-  } as any;
-}
-
 function makeQuery(data: string, chatId = 123, messageId = 456, threadId = 789) {
   return {
     id: 'q1',
@@ -121,8 +105,6 @@ describe('setupCallbackHandler', () => {
   let sessionManager: ReturnType<typeof createMockSessionManager>;
   let ptyManager: ReturnType<typeof createMockPtyManager>;
   let configLoader: ReturnType<typeof createMockConfigLoader>;
-  let textInput: ReturnType<typeof createMockTextInput>;
-  let outputSummarizer: ReturnType<typeof createMockOutputSummarizer>;
   let handler: (query: any) => Promise<void>;
 
   beforeEach(() => {
@@ -130,8 +112,6 @@ describe('setupCallbackHandler', () => {
     sessionManager = createMockSessionManager();
     ptyManager = createMockPtyManager();
     configLoader = createMockConfigLoader();
-    textInput = createMockTextInput();
-    outputSummarizer = createMockOutputSummarizer();
 
     setupCallbackHandler(
       bot as any,
@@ -139,8 +119,6 @@ describe('setupCallbackHandler', () => {
       sessionManager as any,
       ptyManager as any,
       configLoader as any,
-      textInput as any,
-      outputSummarizer as any,
     );
 
     // Extract the handler that was registered
@@ -154,7 +132,7 @@ describe('setupCallbackHandler', () => {
   it('returns a dispose function that removes the listener', () => {
     const dispose = setupCallbackHandler(
       bot as any, createMockTopicManager(), sessionManager as any,
-      ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+      ptyManager as any, configLoader as any,
     );
 
     dispose();
@@ -172,7 +150,7 @@ describe('setupCallbackHandler', () => {
       sessionManager = createMockSessionManager(sessions);
       setupCallbackHandler(
         bot as any, createMockTopicManager(), sessionManager as any,
-        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+        ptyManager as any, configLoader as any,
       );
       handler = (bot.on as any).mock.calls.at(-1)[1];
 
@@ -191,7 +169,7 @@ describe('setupCallbackHandler', () => {
       sessionManager = createMockSessionManager(sessions);
       setupCallbackHandler(
         bot as any, createMockTopicManager(), sessionManager as any,
-        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+        ptyManager as any, configLoader as any,
       );
       handler = (bot.on as any).mock.calls.at(-1)[1];
 
@@ -206,7 +184,7 @@ describe('setupCallbackHandler', () => {
       sessionManager = createMockSessionManager(sessions);
       setupCallbackHandler(
         bot as any, createMockTopicManager(), sessionManager as any,
-        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+        ptyManager as any, configLoader as any,
       );
       handler = (bot.on as any).mock.calls.at(-1)[1];
 
@@ -238,7 +216,7 @@ describe('setupCallbackHandler', () => {
       sessionManager = createMockSessionManager(sessions);
       setupCallbackHandler(
         bot as any, mockTopicManager as any, sessionManager as any,
-        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+        ptyManager as any, configLoader as any,
       );
       handler = (bot.on as any).mock.calls.at(-1)[1];
 
@@ -279,98 +257,14 @@ describe('setupCallbackHandler', () => {
     });
   });
 
-  describe('prompt:{sessionId}', () => {
-    it('starts text input mode', async () => {
-      await handler(makeQuery('prompt:s1'));
-      expect(textInput.startInput).toHaveBeenCalledWith('s1', 1000);
-      expect(bot.answerCallback).toHaveBeenCalledWith('q1', '💬 Type your message in this chat');
-    });
-  });
-
-  describe('send:confirm / send:cancel', () => {
-    it('confirms text input', async () => {
-      await handler(makeQuery('send:confirm:s1'));
-      expect(textInput.confirmInput).toHaveBeenCalledWith('s1');
-      expect(bot.answerCallback).toHaveBeenCalledWith('q1', '✅ Sent!');
-    });
-
-    it('cancels text input', async () => {
-      await handler(makeQuery('send:cancel:s1'));
-      expect(textInput.cancelInput).toHaveBeenCalledWith('s1');
-      expect(bot.answerCallback).toHaveBeenCalledWith('q1', '❌ Cancelled');
-    });
-  });
-
-  describe('output:{sessionId}', () => {
-    it('sends output summary to topic', async () => {
-      await handler(makeQuery('output:s1'));
-      expect(outputSummarizer.getSummary).toHaveBeenCalledWith('s1');
-      expect(bot.answerCallback).toHaveBeenCalledWith('q1');
-    });
-  });
-
-  describe('commands:{sessionId}', () => {
-    it('shows command palette when sequences exist', async () => {
-      const sessions = { s1: { id: 's1', name: 'Test', cliType: 'claude' } };
-      sessionManager = createMockSessionManager(sessions);
-      configLoader = createMockConfigLoader([], {
-        common: [{ label: 'yes', sequence: 'y{Enter}' }],
-      });
-      setupCallbackHandler(
-        bot as any, createMockTopicManager(), sessionManager as any,
-        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
-      );
-      handler = (bot.on as any).mock.calls.at(-1)[1];
-
-      await handler(makeQuery('commands:s1'));
-      expect(configLoader.getSequences).toHaveBeenCalledWith('claude');
-      expect(bot.answerCallback).toHaveBeenCalledWith('q1');
-    });
-
-    it('answers with "No commands" when no sequences configured', async () => {
-      const sessions = { s1: { id: 's1', name: 'Test', cliType: 'claude' } };
-      sessionManager = createMockSessionManager(sessions);
-      setupCallbackHandler(
-        bot as any, createMockTopicManager(), sessionManager as any,
-        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
-      );
-      handler = (bot.on as any).mock.calls.at(-1)[1];
-
-      await handler(makeQuery('commands:s1'));
-      expect(bot.answerCallback).toHaveBeenCalledWith('q1', 'No commands configured');
-    });
-  });
-
-  describe('cmd:{sessionId}:{label}', () => {
-    it('writes expanded sequence to PTY', async () => {
-      const sessions = { s1: { id: 's1', name: 'Test', cliType: 'claude' } };
-      sessionManager = createMockSessionManager(sessions);
-      configLoader = createMockConfigLoader([], {
-        common: [{ label: 'yes', sequence: 'y{Enter}' }],
-      });
-      setupCallbackHandler(
-        bot as any, createMockTopicManager(), sessionManager as any,
-        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
-      );
-      handler = (bot.on as any).mock.calls.at(-1)[1];
-
-      await handler(makeQuery('cmd:s1:yes'));
-      expect(ptyManager.write).toHaveBeenCalledWith('s1', 'y\r');
-      expect(bot.answerCallback).toHaveBeenCalledWith('q1', '⚡ Sent: yes');
-    });
-
-    it('answers with error when command not found', async () => {
-      const sessions = { s1: { id: 's1', name: 'Test', cliType: 'claude' } };
-      sessionManager = createMockSessionManager(sessions);
-      setupCallbackHandler(
-        bot as any, createMockTopicManager(), sessionManager as any,
-        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
-      );
-      handler = (bot.on as any).mock.calls.at(-1)[1];
-
-      await handler(makeQuery('cmd:s1:nonexistent'));
-      expect(bot.answerCallback).toHaveBeenCalledWith('q1', '❌ Command not found');
-    });
+  describe('removed mirroring callbacks', () => {
+    it.each(['prompt:s1', 'send:confirm:s1', 'send:cancel:s1', 'output:s1', 'commands:s1', 'cmd:s1:yes'])(
+      'treats %s as unknown',
+      async (callbackData) => {
+        await handler(makeQuery(callbackData));
+        expect(bot.answerCallback).toHaveBeenCalledWith('q1', '❓ Unknown action');
+      },
+    );
   });
 
   describe('spawn:start / spawn:tool / spawn:dir', () => {
@@ -378,7 +272,7 @@ describe('setupCallbackHandler', () => {
       configLoader = createMockConfigLoader(['claude', 'codex']);
       setupCallbackHandler(
         bot as any, createMockTopicManager(), sessionManager as any,
-        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+        ptyManager as any, configLoader as any,
       );
       handler = (bot.on as any).mock.calls.at(-1)[1];
 
@@ -391,7 +285,7 @@ describe('setupCallbackHandler', () => {
       configLoader = createMockConfigLoader([], {}, [{ name: 'proj', path: '/proj' }]);
       setupCallbackHandler(
         bot as any, createMockTopicManager(), sessionManager as any,
-        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+        ptyManager as any, configLoader as any,
       );
       handler = (bot.on as any).mock.calls.at(-1)[1];
 
@@ -425,7 +319,7 @@ describe('setupCallbackHandler', () => {
 
       setupCallbackHandler(
         bot as any, mockTopicManager as any, mockSessionManager as any,
-        mockPtyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+        mockPtyManager as any, configLoader as any,
       );
       const spawnHandler = (bot.on as any).mock.calls.at(-1)[1];
 
@@ -465,7 +359,7 @@ describe('setupCallbackHandler', () => {
 
       setupCallbackHandler(
         bot as any, createMockTopicManager(), sessionManager as any,
-        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+        ptyManager as any, configLoader as any,
       );
       handler = (bot.on as any).mock.calls.at(-1)[1];
 
@@ -493,7 +387,7 @@ describe('setupCallbackHandler', () => {
 
       setupCallbackHandler(
         bot as any, createMockTopicManager(), sessionManager as any,
-        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+        ptyManager as any, configLoader as any,
       );
       handler = (bot.on as any).mock.calls.at(-1)[1];
 
@@ -521,7 +415,7 @@ describe('setupCallbackHandler', () => {
 
       setupCallbackHandler(
         bot as any, createMockTopicManager(), sessionManager as any,
-        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+        ptyManager as any, configLoader as any,
       );
       handler = (bot.on as any).mock.calls.at(-1)[1];
 

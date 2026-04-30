@@ -9,3 +9,4 @@ export { useDraftsStore } from './drafts.js';
 export { usePlansStore } from './plans.js';
 export { useChipBarStore } from './chip-bar.js';
 export { useNavigationStore } from './navigation.js';
+export { useLlmNotificationsStore } from './llmNotifications.js';
