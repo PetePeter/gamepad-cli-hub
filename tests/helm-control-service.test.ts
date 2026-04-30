@@ -455,6 +455,27 @@ describe('HelmControlService.getSessionInfo', () => {
 
     expect(info).not.toHaveProperty('available_tools');
   });
+
+  it('includes non-empty plan_attachment_guide and sequence_memory_guide arrays', () => {
+    const { service } = makeService();
+
+    const info = service.getSessionInfo();
+
+    expect(info.agent_plan_guide).toBeDefined();
+    expect(Array.isArray(info.agent_plan_guide?.plan_attachment_guide)).toBe(true);
+    expect(info.agent_plan_guide?.plan_attachment_guide!.length).toBeGreaterThanOrEqual(3);
+    expect(info.agent_plan_guide?.plan_attachment_guide!.every((item: string) => item.length > 0)).toBe(true);
+
+    expect(Array.isArray(info.agent_plan_guide?.sequence_memory_guide)).toBe(true);
+    expect(info.agent_plan_guide?.sequence_memory_guide!.length).toBeGreaterThanOrEqual(4);
+    expect(info.agent_plan_guide?.sequence_memory_guide!.every((item: string) => item.length > 0)).toBe(true);
+
+    // Verify content expectations
+    expect(info.agent_plan_guide?.plan_attachment_guide!.join(' ')).toContain('plan_attachment_list');
+    expect(info.agent_plan_guide?.plan_attachment_guide!.join(' ')).toContain('plan_attachment_get');
+    expect(info.agent_plan_guide?.sequence_memory_guide!.join(' ')).toContain('plan_sequence_list');
+    expect(info.agent_plan_guide?.sequence_memory_guide!.join(' ')).toContain('expectedUpdatedAt');
+  });
 });
 
 describe('HelmControlService.getPlan', () => {
@@ -484,6 +505,82 @@ describe('HelmControlService.getPlan', () => {
     expect(result.sequenceId).toBe('seq-1');
     expect(result.sequence).toBeUndefined();
     expect(result.sequenceMemoryGuide).toBeUndefined();
+  });
+
+  it('returns hasAttachments false when no attachments exist', () => {
+    const { planManager, sessionManager, ptyManager, configLoader } = makeService();
+    const plan = { id: 'plan-1', humanId: 'P-0001', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready' };
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
+    const attachmentManager = {
+      list: vi.fn(() => []),
+      add: vi.fn(),
+      delete: vi.fn(),
+      getToTempFile: vi.fn(),
+      deletePlanAttachments: vi.fn(),
+    };
+    const service = new HelmControlService(
+      planManager as unknown as import('../src/session/plan-manager.js').PlanManager,
+      sessionManager as unknown as import('../src/session/manager.js').SessionManager,
+      ptyManager as unknown as import('../src/session/pty-manager.js').PtyManager,
+      configLoader as unknown as import('../src/config/loader.js').ConfigLoader,
+      attachmentManager as any,
+    );
+
+    const result = service.getPlan('P-0001') as any;
+
+    expect(result.hasAttachments).toBe(false);
+  });
+
+  it('returns hasAttachments true after adding an attachment', () => {
+    const { planManager, sessionManager, ptyManager, configLoader } = makeService();
+    const plan = { id: 'plan-1', humanId: 'P-0001', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready' };
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
+    const attachments = [{ id: 'a1', planId: 'plan-1', filename: 'note.txt', sizeBytes: 5, relativePath: 'plan-1/a1.txt', createdAt: 1, updatedAt: 1 }];
+    const attachmentManager = {
+      list: vi.fn(() => attachments),
+      add: vi.fn(),
+      delete: vi.fn(),
+      getToTempFile: vi.fn(),
+      deletePlanAttachments: vi.fn(),
+    };
+    const service = new HelmControlService(
+      planManager as unknown as import('../src/session/plan-manager.js').PlanManager,
+      sessionManager as unknown as import('../src/session/manager.js').SessionManager,
+      ptyManager as unknown as import('../src/session/pty-manager.js').PtyManager,
+      configLoader as unknown as import('../src/config/loader.js').ConfigLoader,
+      attachmentManager as any,
+    );
+
+    const result = service.getPlan('P-0001') as any;
+
+    expect(result.hasAttachments).toBe(true);
+    expect(attachmentManager.list).toHaveBeenCalledWith('plan-1');
+  });
+
+  it('does not include sequence key even when plan has sequenceId', () => {
+    const { planManager, sessionManager, ptyManager, configLoader } = makeService();
+    const plan = { id: 'plan-1', humanId: 'P-0001', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready', sequenceId: 'seq-1' };
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
+    const attachmentManager = {
+      list: vi.fn(() => []),
+      add: vi.fn(),
+      delete: vi.fn(),
+      getToTempFile: vi.fn(),
+      deletePlanAttachments: vi.fn(),
+    };
+    const service = new HelmControlService(
+      planManager as unknown as import('../src/session/plan-manager.js').PlanManager,
+      sessionManager as unknown as import('../src/session/manager.js').SessionManager,
+      ptyManager as unknown as import('../src/session/pty-manager.js').PtyManager,
+      configLoader as unknown as import('../src/config/loader.js').ConfigLoader,
+      attachmentManager as any,
+    );
+
+    const result = service.getPlan('P-0001') as any;
+
+    expect(Object.prototype.hasOwnProperty.call(result, 'sequenceId')).toBe(true);
+    expect(result.sequenceId).toBe('seq-1');
+    expect(Object.prototype.hasOwnProperty.call(result, 'sequence')).toBe(false);
   });
 });
 

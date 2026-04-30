@@ -191,9 +191,70 @@ When a user mentions `P-0035` or another `P-00xx` value, treat it as a Helm plan
 
 ### 6. Plan Attachments and Sequence Memory
 
-`plan_get` is intentionally lightweight. It returns the plan item plus `hasAttachments: boolean`; if that flag is true, call `plan_attachment_list` to inspect metadata and `plan_attachment_get` to copy a specific attachment to a Helm temp file. This keeps raw attachment content out of routine plan reads.
+#### Plan Attachments
 
-Sequence memory is also explicit. A plan may include `sequenceId`, but `plan_get` does not inline the full sequence or its shared memory. Call `plan_sequence_list` with `planId` to see the sequence, member plans, and `sharedMemory`. When writing shared memory, pass `expectedUpdatedAt` from the previous read to `plan_sequence_update` or `plan_sequence_memory_append` when you need concurrency protection.
+`plan_get` is intentionally lightweight. It returns the plan item plus `hasAttachments: boolean` — a flag indicating whether the plan has any attached files. This design keeps raw attachment content out of routine plan reads.
+
+**Workflow:**
+1. Call `plan_get` to fetch a plan — the response includes `hasAttachments: true|false`.
+2. If `hasAttachments` is true, call `plan_attachment_list` to see metadata (filename, size, content type, timestamps).
+3. Call `plan_attachment_get` to retrieve a specific attachment — it is copied to a Helm temp file, and you receive the local temp path.
+4. Call `plan_attachment_add` to store durable supporting artifacts (code samples, screenshots, design docs); attachments are persisted inside Helm's config-managed storage and survive session restarts.
+
+Example:
+```javascript
+const plan = await mcp.callTool('plan_get', { id: 'P-0042' });
+if (plan.hasAttachments) {
+  const attachments = await mcp.callTool('plan_attachment_list', { planRef: 'P-0042' });
+  for (const attachment of attachments) {
+    const { tempPath } = await mcp.callTool('plan_attachment_get', {
+      planRef: 'P-0042',
+      attachmentId: attachment.id
+    });
+    // Read the file at tempPath...
+  }
+}
+```
+
+#### Sequence Memory (Shared State for Plan Groups)
+
+A sequence is a first-class shared-memory store that groups related plans into a coordinated swimlane. Plans can optionally join a sequence to track common progress, decisions, or accumulated context.
+
+**Key points:**
+- A plan may include `sequenceId` (returned by `plan_get`), but the full sequence and its shared memory are NOT inlined.
+- Call `plan_sequence_list` with `planId` to discover the sequence and see member plans, mission statement, and shared memory.
+- Shared memory is common state that all member plans can read and append to.
+
+**Workflow for reading:**
+```javascript
+const plan = await mcp.callTool('plan_get', { id: 'P-0042' });
+if (plan.sequenceId) {
+  const sequences = await mcp.callTool('plan_sequence_list', { planId: 'P-0042' });
+  const sequence = sequences[0]; // The sequence this plan belongs to
+  console.log('Shared Memory:', sequence.sharedMemory);
+  console.log('Member Plans:', sequence.memberHumanIds);
+}
+```
+
+**Workflow for writing shared memory atomically:**
+When multiple agents may write concurrently, use `expectedUpdatedAt` from the last read to prevent overwrites:
+```javascript
+const sequences = await mcp.callTool('plan_sequence_list', { planId: 'P-0042' });
+const sequence = sequences[0];
+
+// Later, when writing:
+const updated = await mcp.callTool('plan_sequence_memory_append', {
+  id: sequence.id,
+  text: 'Agent A completed the initial research phase.',
+  expectedUpdatedAt: sequence.updatedAt  // Mutex: fails if another agent wrote first
+});
+
+// If mutex fails, re-read and retry:
+// 1. Refetch the sequence with plan_sequence_list
+// 2. Append with the new expectedUpdatedAt
+```
+
+Alternatively, use `plan_sequence_update` for full edits or to change mission and title.
 
 ## Environment Variables (at Session Spawn)
 

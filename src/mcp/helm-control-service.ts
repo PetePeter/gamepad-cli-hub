@@ -200,12 +200,14 @@ export class HelmControlService extends EventEmitter {
     });
   }
 
-  getPlan(id: string): (PlanItem & { hasAttachments: boolean }) | null {
+  getPlan(id: string): (Omit<PlanItem, 'sequenceId'> & { hasAttachments: boolean; sequenceId?: string }) | null {
     const plan = this.resolvePlanRef(id, 'Plan')?.item ?? null;
     if (!plan) return null;
+    const { sequenceId, ...planWithoutSequence } = plan;
     return {
-      ...plan,
+      ...planWithoutSequence,
       hasAttachments: this.attachmentManager.list(plan.id).length > 0,
+      ...(sequenceId ? { sequenceId } : {}),
     };
   }
 
@@ -850,15 +852,15 @@ export class HelmControlService extends EventEmitter {
           'Completion notes should be useful to the next agent or sleeping user without requiring chat history.',
         ],
         plan_attachment_guide: [
-          'plan_get returns hasAttachments so agents can decide whether to call plan_attachment_list.',
-          'Use plan_attachment_list for metadata, and plan_attachment_get when actual content is needed via a temp path.',
-          'Use plan_attachment_add for durable supporting artifacts; attachments are stored inside Helm config-managed storage.',
+          'Use plan_attachment_list to fetch attachment metadata when plan_get returns hasAttachments=true.',
+          'Call plan_attachment_get to retrieve actual content via a temp file path when needed.',
+          'Call plan_attachment_add to store durable supporting artifacts; attachments are persisted inside Helm config-managed storage.',
         ],
         sequence_memory_guide: [
-          'plan_get returns sequenceId but does not inline sequence sharedMemory; call plan_sequence_list with planId when sequence context is needed.',
-          'Sequence sharedMemory is common memory for all member plans and can be read through plan_sequence_list.',
-          'Use plan_sequence_memory_append for additive updates, or plan_sequence_update for full edits.',
-          'Pass expectedUpdatedAt from the last read when writing to avoid overwriting concurrent changes.',
+          'A sequence is a first-class shared-memory store that groups related plans into a swimlane; call plan_sequence_list to discover sequences for a directory or specific plan.',
+          'plan_get returns sequenceId if the plan is a member; call plan_sequence_list with planId to fetch the full sequence including sharedMemory and other member plans.',
+          'Use plan_sequence_memory_append to add to shared memory atomically, or plan_sequence_update for full edits; always pass expectedUpdatedAt from the last read to prevent concurrent overwrites.',
+          'Sequences coordinate shared state across multiple related plans; use them when a group of plans needs to track common progress, decisions, or accumulated context.',
         ],
       },
     };
