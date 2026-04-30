@@ -187,6 +187,49 @@ describe('TopicManager', () => {
   });
 
   // =========================================================================
+  // deleteTopic
+  // =========================================================================
+
+  describe('deleteTopic', () => {
+    it('calls bot.deleteForumTopic() and clears session topicId', async () => {
+      session.topicId = 42;
+
+      await tm.deleteTopic('sess-1');
+
+      expect(bot.deleteForumTopic).toHaveBeenCalledWith(42);
+      expect(session.topicId).toBeUndefined();
+    });
+
+    it('no-ops when session has no topicId', async () => {
+      await tm.deleteTopic('sess-1');
+      expect(bot.deleteForumTopic).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
+  // handleTopicClosed
+  // =========================================================================
+
+  describe('handleTopicClosed', () => {
+    it('clears topicId without removing session', () => {
+      session.topicId = 42;
+
+      tm.handleTopicClosed(42);
+
+      expect(session.topicId).toBeUndefined();
+      expect(sessionManager.getSession).toHaveBeenCalledWith('sess-1'); // session still exists
+    });
+
+    it('no-ops when topicId does not match any session', () => {
+      session.topicId = 42;
+
+      tm.handleTopicClosed(999);
+
+      expect(session.topicId).toBe(42); // unchanged
+    });
+  });
+
+  // =========================================================================
   // renameSessionTopic
   // =========================================================================
 

@@ -617,6 +617,25 @@ describe('HelmControlService telegram channels', () => {
 
     await expect(service.sendTelegramChat('s1', 'x'.repeat(141))).rejects.toThrow('140 characters');
   });
+
+  it('getAvailableTools lists exactly 3 telegram tools and no removed tools', () => {
+    const { service } = makeService();
+
+    const tools = (service as any).getAvailableTools() as Array<{ name: string }>;
+    const tgTools = tools.filter((t: { name: string }) => t.name.startsWith('telegram_'));
+
+    expect(tgTools.map((t: { name: string }) => t.name)).toEqual(
+      expect.arrayContaining(['telegram_status', 'telegram_chat', 'telegram_channel_close']),
+    );
+    expect(tgTools).toHaveLength(3);
+
+    // Removed tools must NOT be present
+    const removedToolNames = ['telegram_send', 'telegram_set_output_mode', 'telegram_channel_create', 'telegram_channel_list'];
+    const allToolNames = tools.map((t: { name: string }) => t.name);
+    for (const removed of removedToolNames) {
+      expect(allToolNames).not.toContain(removed);
+    }
+  });
 });
 
 describe('HelmControlService.closeSession', () => {

@@ -152,7 +152,7 @@ async function routeCallback(
       await handleSpawn(bot, topicManager, sessionManager, ptyManager, configLoader, payload, query);
       break;
     case 'talk':
-      await handleTalk(bot, topicManager, ptyManager, payload, query);
+      await handleTalk(bot, topicManager, sessionManager, ptyManager, payload, query);
       break;
     case 'send':
       await handleSend(bot, textInput, payload, query);
@@ -397,6 +397,7 @@ async function handleCommandExec(
 async function handleTalk(
   bot: TelegramBotCore,
   topicManager: TopicManager,
+  sessionManager: SessionManager,
   ptyManager: PtyManager,
   sessionId: string,
   query: TelegramBot.CallbackQuery,

@@ -245,6 +245,50 @@ describe('PinnedDashboard text rendering', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Dashboard keyboard
+// ---------------------------------------------------------------------------
+
+describe('PinnedDashboard keyboard', () => {
+  it('includes Talk button per session', async () => {
+    const sessions = [
+      makeSession({ id: 's1', name: 'alpha', workingDir: '/projects/app', state: 'idle' }),
+      makeSession({ id: 's2', name: 'beta', workingDir: '/projects/app', state: 'implementing' }),
+    ];
+    const bot = makeMockBot();
+    const sm = makeMockSessionManager(sessions);
+    const dash = new PinnedDashboard(bot, sm, 'TestPC');
+
+    await dash.start();
+
+    const replyMarkup = bot.sendMessage.mock.calls[0][1] as any;
+    const keyboard = replyMarkup.reply_markup.inline_keyboard as any[][];
+    // Flatten all buttons and check for Talk buttons with correct session IDs
+    const allButtons = keyboard.flat();
+    const talkButtons = allButtons.filter((b: any) => b.text === '💬 Talk');
+    expect(talkButtons).toHaveLength(2);
+    expect(talkButtons[0].callback_data).toBe('talk:s1');
+    expect(talkButtons[1].callback_data).toBe('talk:s2');
+  });
+
+  it('includes static action buttons (Sessions, Spawn, Status, Close All)', async () => {
+    const bot = makeMockBot();
+    const sm = makeMockSessionManager();
+    const dash = new PinnedDashboard(bot, sm, 'TestPC');
+
+    await dash.start();
+
+    const replyMarkup = bot.sendMessage.mock.calls[0][1] as any;
+    const keyboard = replyMarkup.reply_markup.inline_keyboard as any[][];
+    const allButtons = keyboard.flat();
+    const buttonTexts = allButtons.map((b: any) => b.text);
+    expect(buttonTexts).toContain('📂 Sessions');
+    expect(buttonTexts).toContain('➕ Spawn');
+    expect(buttonTexts).toContain('📊 Status');
+    expect(buttonTexts).toContain('🗑️ Close All');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Error handling
 // ---------------------------------------------------------------------------
 

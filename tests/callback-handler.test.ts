@@ -228,6 +228,33 @@ describe('setupCallbackHandler', () => {
     });
   });
 
+  describe('talk:{sessionId}', () => {
+    it('ensures topic, writes nudge to PTY, and answers callback', async () => {
+      const mockTopicManager = {
+        ensureTopic: vi.fn(async () => 42),
+      } as unknown as TopicManager;
+
+      const sessions = { s1: { id: 's1', name: 'Test', cliType: 'claude' } };
+      sessionManager = createMockSessionManager(sessions);
+      setupCallbackHandler(
+        bot as any, mockTopicManager as any, sessionManager as any,
+        ptyManager as any, configLoader as any, textInput as any, outputSummarizer as any,
+      );
+      handler = (bot.on as any).mock.calls.at(-1)[1];
+
+      await handler(makeQuery('talk:s1'));
+
+      expect(mockTopicManager.ensureTopic).toHaveBeenCalled();
+      expect(ptyManager.write).toHaveBeenCalledWith('s1', expect.stringContaining('User is now available'));
+      expect(bot.answerCallback).toHaveBeenCalledWith('q1', expect.stringContaining('Test'));
+    });
+
+    it('answers with error when session not found', async () => {
+      await handler(makeQuery('talk:nonexistent'));
+      expect(bot.answerCallback).toHaveBeenCalledWith('q1', 'Session not found');
+    });
+  });
+
   describe('continue:{sessionId}', () => {
     it('writes carriage return to PTY', async () => {
       await handler(makeQuery('continue:s1'));
