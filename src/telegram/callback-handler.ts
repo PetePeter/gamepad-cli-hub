@@ -151,6 +151,9 @@ async function routeCallback(
     case 'spawn':
       await handleSpawn(bot, topicManager, sessionManager, ptyManager, configLoader, payload, query);
       break;
+    case 'talk':
+      await handleTalk(bot, topicManager, ptyManager, payload, query);
+      break;
     case 'send':
       await handleSend(bot, textInput, payload, query);
       break;
@@ -385,6 +388,29 @@ async function handleCommandExec(
   const ptyText = expandSequence(sequence);
   await deliverViaManager(ptyManager, sessionId, ptyText);
   await bot.answerCallback(query.id, `⚡ Sent: ${label}`);
+}
+
+// ---------------------------------------------------------------------------
+// Talk flow
+// ---------------------------------------------------------------------------
+
+async function handleTalk(
+  bot: TelegramBotCore,
+  topicManager: TopicManager,
+  ptyManager: PtyManager,
+  sessionId: string,
+  query: TelegramBot.CallbackQuery,
+): Promise<void> {
+  const session = sessionManager.getSession(sessionId);
+  if (!session) {
+    await bot.answerCallback(query.id, 'Session not found');
+    return;
+  }
+
+  await topicManager.ensureTopic(session);
+  const nudge = 'User is now available in Telegram. Give them a brief update on what you are doing. Keep it short and mobile-friendly.';
+  ptyManager.write(session.id, nudge + '\r');
+  await bot.answerCallback(query.id, `Opening ${session.name}`);
 }
 
 // ---------------------------------------------------------------------------

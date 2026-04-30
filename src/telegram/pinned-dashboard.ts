@@ -24,6 +24,7 @@ import type TelegramBot from 'node-telegram-bot-api';
 import type { SessionManager } from '../session/manager.js';
 import type { SessionInfo, SessionState } from '../types/session.js';
 import { escapeHtml } from './utils.js';
+import { sessionTalkButton } from './keyboards.js';
 import { logger } from '../utils/logger.js';
 import path from 'path';
 
@@ -159,7 +160,16 @@ export class PinnedDashboard {
 
   /** Inline keyboard buttons shown on the pinned dashboard message. */
   private buildDashboardKeyboard(): TelegramBot.InlineKeyboardButton[][] {
-    return [
+    const buttons: TelegramBot.InlineKeyboardButton[][] = [];
+
+    // Per-session Talk buttons
+    const sessions = this.sessionManager.getAllSessions();
+    for (const session of sessions) {
+      buttons.push([sessionTalkButton(session)]);
+    }
+
+    // Static action buttons
+    buttons.push(
       [
         { text: '📂 Sessions', callback_data: 'sessions:list' },
         { text: '➕ Spawn', callback_data: 'spawn:start' },
@@ -168,7 +178,9 @@ export class PinnedDashboard {
       [
         { text: '🗑️ Close All', callback_data: 'closeall' },
       ],
-    ];
+    );
+
+    return buttons;
   }
 
   private buildDashboardText(): string {

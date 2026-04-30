@@ -236,6 +236,11 @@ export function spawnToolKeyboard(
   return rows;
 }
 
+/** Build a Talk button for a session in the pinned dashboard. */
+export function sessionTalkButton(session: SessionInfo): TelegramBot.InlineKeyboardButton {
+  return { text: '💬 Talk', callback_data: `talk:${session.id}` };
+}
+
 /**
  * Build the spawn wizard step 2: directory selection keyboard.
  */
