@@ -93,6 +93,30 @@ export class TopicManager {
   }
 
   /**
+   * Delete a session's topic and clear the topicId so it can be recreated.
+   */
+  async deleteTopic(sessionId: string): Promise<void> {
+    const session = this.sessionManager.getSession(sessionId);
+    if (!session?.topicId) return;
+    await this.bot.deleteForumTopic(session.topicId);
+    this.updateSessionTopicId(sessionId, undefined);
+    logger.info(`[TopicManager] Deleted topic ${session.topicId} and cleared topicId for session ${sessionId}`);
+  }
+
+  /**
+   * Handle a forum_topic_closed event from Telegram.
+   * Clears the topicId so the next ensureTopic() creates a fresh topic.
+   * The session keeps running — only the Telegram topic is gone.
+   */
+  handleTopicClosed(topicId: number): void {
+    const session = this.findSessionByTopicId(topicId);
+    if (session) {
+      this.updateSessionTopicId(session.id, undefined);
+      logger.info(`[TopicManager] Topic ${topicId} closed by user, cleared topicId for session ${session.id}`);
+    }
+  }
+
+  /**
    * Rename a session's topic to match the new session name.
    */
   async renameSessionTopic(session: SessionInfo): Promise<void> {
@@ -149,7 +173,7 @@ export class TopicManager {
    * topicId on it updates the in-memory store. We then call saveSessions()
    * directly to flush to disk without needing a dedicated SessionManager method.
    */
-  private updateSessionTopicId(sessionId: string, topicId: number): void {
+  private updateSessionTopicId(sessionId: string, topicId: number | undefined): void {
     const session = this.sessionManager.getSession(sessionId);
     if (!session) return;
     session.topicId = topicId;

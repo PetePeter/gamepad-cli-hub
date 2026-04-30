@@ -64,6 +64,15 @@ export function initTelegramModules(
     bot, topicManager, ptyManager, sessionManager, relayService,
   );
 
+  // Listen for forum_topic_closed events from Telegram
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const topicClosedHandler = (msg: any) => {
+    if (msg.forum_topic_closed && msg.message_thread_id) {
+      topicManager.handleTopicClosed(msg.message_thread_id);
+    }
+  };
+  bot.on('message', topicClosedHandler);
+
   // No-op stubs for deleted module hooks (removed in Stage 7 from handlers.ts)
   const noop = () => {};
 
@@ -80,6 +89,7 @@ export function initTelegramModules(
     cleanup: () => {
       cleanupCallbacks();
       cleanupTopicInput();
+      bot.removeListener('message', topicClosedHandler);
       helmControlService.setTelegramBridge(null);
       dashboard.dispose();
       logger.info('[Telegram] All modules cleaned up');
