@@ -583,7 +583,11 @@ function setupTabCycling(): void {
       );
       if (nextId) {
         const navStore = useNavigationStore();
-        navStore.activateSession(nextId);
+        if (document.querySelector('.plan-screen.visible')) {
+          void navStore.navigateToSession(nextId);
+        } else {
+          navStore.activateSession(nextId);
+        }
         navStore.syncSidebarToSession(nextId);
       }
     }
