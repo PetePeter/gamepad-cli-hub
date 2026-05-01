@@ -95,6 +95,13 @@ describe('buildToolEditorOptions', () => {
     expect(buildToolEditorOptions({ helmPreambleForInterSession: false }).helmPreambleForInterSession).toBe(false);
   });
 
+  it('defaults submitSuffix to \\r when absent or non-string', () => {
+    expect(buildToolEditorOptions({}).submitSuffix).toBe('\\r');
+    expect(buildToolEditorOptions({ submitSuffix: undefined }).submitSuffix).toBe('\\r');
+    expect(buildToolEditorOptions({ submitSuffix: 42 }).submitSuffix).toBe('\\r');
+    expect(buildToolEditorOptions({ submitSuffix: '' }).submitSuffix).toBe('');   // empty string is valid, not treated as falsy
+  });
+
   it('includes valid pasteMode values, omits invalid ones', () => {
     const validModes = ['pty', 'ptyindividual', 'sendkeys', 'sendkeysindividual', 'clippaste'] as const;
     for (const mode of validModes) {
@@ -115,6 +122,7 @@ describe('buildToolEditorOptions', () => {
       helmInitialPrompt: true,
       helmPreambleForInterSession: false,
       pasteMode: 'sendkeysindividual',
+      submitSuffix: '\\r',
     };
     const result = buildToolEditorOptions(values);
     expect(result).toEqual({
@@ -127,6 +135,7 @@ describe('buildToolEditorOptions', () => {
       helmInitialPrompt: true,
       helmPreambleForInterSession: false,
       pasteMode: 'sendkeysindividual',
+      submitSuffix: '\\r',
     });
   });
 });

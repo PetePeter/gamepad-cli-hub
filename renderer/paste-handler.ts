@@ -14,6 +14,21 @@ import { showEditorPopup } from './editor/editor-popup.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
 
+/**
+ * Convert escape notation strings to actual characters.
+ * Supports: \r (CR), \n (LF), \t (TAB), \r\n (CRLF)
+ * @param suffix - Undefined, empty string, or escape notation like '\r', '\n', '\r\n'
+ * @returns Actual CR/LF/TAB characters, or default '\r' if undefined/empty
+ */
+export function parseSubmitSuffix(suffix?: string): string {
+  if (!suffix) return '\r';
+  if (suffix === '\\r') return '\r';
+  if (suffix === '\\n') return '\n';
+  if (suffix === '\\t') return '\t';
+  if (suffix === '\\r\\n') return '\r\n';
+  return suffix; // Return as-is if not a recognized escape sequence
+}
+
 type GetActiveSessionId = () => string | null;
 type HasPendingQuestion = (sessionId: string) => boolean;
 type GetEscProtectionEnabled = () => Promise<boolean>;
@@ -72,7 +87,12 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
         await window.gamepadCli.ptyWrite(sessionId, char);
         await new Promise(resolve => setTimeout(resolve, PTY_INDIVIDUAL_DELAY_MS));
       }
-      const suffix = options?.submitSuffix ?? (options?.withReturn ? '\r' : '');
+      const configuredSuffix = options?.withReturn
+        ? (state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix
+          ? parseSubmitSuffix(state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix)
+          : '\r')
+        : '';
+      const suffix = options?.submitSuffix ?? configuredSuffix;
       if (suffix) {
         await window.gamepadCli.ptyWrite(sessionId, suffix);
       }
@@ -88,7 +108,12 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
       await window.gamepadCli.keyboardTypeString(char);
       await new Promise(resolve => setTimeout(resolve, SENDKEYS_INDIVIDUAL_DELAY_MS));
     }
-    const suffix = options?.submitSuffix ?? (options?.withReturn ? '\r' : '');
+    const configuredSuffix = options?.withReturn
+      ? (state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix
+        ? parseSubmitSuffix(state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix)
+        : '\r')
+      : '';
+    const suffix = options?.submitSuffix ?? configuredSuffix;
     if (suffix) {
       await window.gamepadCli.keyboardTypeString(suffix);
     }
@@ -96,7 +121,12 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
   }
   if (tool?.pasteMode === 'sendkeys' && window.gamepadCli?.keyboardTypeString) {
     await window.gamepadCli.keyboardTypeString(text);
-    const suffix = options?.submitSuffix ?? (options?.withReturn ? '\r' : '');
+    const configuredSuffix = options?.withReturn
+      ? (state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix
+        ? parseSubmitSuffix(state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix)
+        : '\r')
+      : '';
+    const suffix = options?.submitSuffix ?? configuredSuffix;
     if (suffix) {
       await window.gamepadCli.keyboardTypeString(suffix);
     }
@@ -115,7 +145,12 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
     }
 
     termSession.view.focus();
-    const suffix = options?.submitSuffix ?? (options?.withReturn ? '\r' : '');
+    const configuredSuffix = options?.withReturn
+      ? (state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix
+        ? parseSubmitSuffix(state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix)
+        : '\r')
+      : '';
+    const suffix = options?.submitSuffix ?? configuredSuffix;
     await window.gamepadCli.ptyWrite(sessionId, text + suffix);
     console.log(`[Paste] clippaste complete: ${text.length} chars pasted via PTY`);
     return;
@@ -127,7 +162,12 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
   const bracketedPasteEnabled = typeof view?.isBracketedPasteEnabled === 'function'
     ? view.isBracketedPasteEnabled()
     : false;
-  const suffix = options?.submitSuffix ?? (options?.withReturn ? '\r' : '');
+  const configuredSuffix = options?.withReturn
+    ? (state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix
+      ? parseSubmitSuffix(state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix)
+      : '\r')
+    : '';
+  const suffix = options?.submitSuffix ?? configuredSuffix;
   const payload = bracketedPasteEnabled
     ? `\x1b[200~${text}\x1b[201~${suffix}`
     : `${text}${suffix}`;

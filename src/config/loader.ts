@@ -217,6 +217,8 @@ export interface CliTypeConfig {
    *  - 'clippaste'          — use xterm.js terminal paste handling (Ctrl+V-style paste
    *    semantics routed through the embedded terminal/PTTY path, not OS-level keys) */
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
+  /** Escape sequence sent after text delivery (e.g. '\r', '\n', or '\r\n'). Empty string clears/uses default. */
+  submitSuffix?: string;
   /** User-defined regex patterns that trigger automated actions when matched against PTY output. */
   patterns?: PatternRule[];
 }
@@ -367,6 +369,7 @@ type CliTypeOptions = {
   helmInitialPrompt?: boolean;
   helmPreambleForInterSession?: boolean;
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
+  submitSuffix?: string;
 };
 
 function isCliTypeOptions(value: unknown): value is CliTypeOptions {
@@ -1252,7 +1255,7 @@ export class ConfigLoader {
         if (options.env.length === 0) delete existing.env;
         else existing.env = options.env;
       }
-      for (const field of ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand', 'pasteMode'] as const) {
+      for (const field of ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand', 'pasteMode', 'submitSuffix'] as const) {
         const val = options[field];
         if (val === undefined) continue;
         if (val === '') { delete (existing as any)[field]; }

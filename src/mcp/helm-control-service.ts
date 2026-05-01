@@ -20,6 +20,21 @@ import { PlanAttachmentManager } from '../session/plan-attachment-manager.js';
 import { mintSessionAuthToken } from './session-auth.js';
 import type { NotificationManager } from '../session/notification-manager.js';
 
+/**
+ * Convert escape notation strings to actual characters.
+ * Supports: \r (CR), \n (LF), \t (TAB), \r\n (CRLF)
+ * @param suffix - Undefined, empty string, or escape notation like '\r', '\n', '\r\n'
+ * @returns Actual CR/LF/TAB characters, or default '\r' if undefined/empty
+ */
+export function parseSubmitSuffix(suffix?: string): string {
+  if (!suffix) return '\r';
+  if (suffix === '\\r') return '\r';
+  if (suffix === '\\n') return '\n';
+  if (suffix === '\\t') return '\t';
+  if (suffix === '\\r\\n') return '\r\n';
+  return suffix; // Return as-is if not a recognized escape sequence
+}
+
 export interface SessionSummary {
   id: string;
   name: string;
@@ -577,10 +592,12 @@ export class HelmControlService extends EventEmitter {
         : '[HELM_MSG]';
       const message = `${tag}${envelope}\n${text}`;
 
-      await this.ptyManager.deliverText(session.id, message, { submitSuffix: '\n' });
+      const submitSuffix = parseSubmitSuffix(recipientEntry?.submitSuffix);
+      await this.ptyManager.deliverText(session.id, message, { submitSuffix });
     } else {
       // Send plain text only — no envelope
-      await this.ptyManager.deliverText(session.id, text, { submitSuffix: '\n' });
+      const submitSuffix = parseSubmitSuffix(recipientEntry?.submitSuffix);
+      await this.ptyManager.deliverText(session.id, text, { submitSuffix });
     }
 
     return { success: true, sessionId: session.id, name: session.name, preambleUsed: usePreamble };

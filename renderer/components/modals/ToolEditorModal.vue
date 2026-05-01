@@ -29,6 +29,7 @@ export interface ToolEditorData {
   handoffCommand: string;
   helmInitialPrompt: boolean;
   helmPreambleForInterSession?: boolean;
+  submitSuffix: string;
   initialPrompt: Array<{ label: string; sequence: string }>;
 }
 
@@ -52,6 +53,7 @@ const emit = defineEmits<{
     handoffCommand: string;
     helmInitialPrompt: boolean;
     helmPreambleForInterSession?: boolean;
+    submitSuffix: string;
     _promptItems: Array<{ label: string; sequence: string }>;
   }): void;
   (e: 'cancel'): void;
@@ -72,6 +74,7 @@ const renameCommand = ref('');
 const handoffCommand = ref('');
 const helmInitialPrompt = ref(false);
 const helmPreambleForInterSession = ref(true);
+const submitSuffix = ref(props.initialData.submitSuffix);
 
 interface SeqItem { label: string; sequence: string }
 const promptItems = ref<SeqItem[]>([]);
@@ -135,6 +138,7 @@ function initForm(): void {
   handoffCommand.value = d.handoffCommand ?? '';
   helmInitialPrompt.value = Boolean(d.helmInitialPrompt);
   helmPreambleForInterSession.value = d.helmPreambleForInterSession !== false;
+  submitSuffix.value = d.submitSuffix ?? '\r';
   promptItems.value = Array.isArray(d.initialPrompt)
     ? d.initialPrompt.map(item => ({
         label: typeof item?.label === 'string' ? item.label : '',
@@ -180,6 +184,7 @@ function onSave(): void {
     handoffCommand: handoffCommand.value,
     helmInitialPrompt: helmInitialPrompt.value,
     ...(helmPreambleForInterSession.value !== true ? { helmPreambleForInterSession: helmPreambleForInterSession.value } : {}),
+    submitSuffix: submitSuffix.value || '\r',
     _promptItems: promptItems.value.map(i => ({ label: i.label, sequence: i.sequence })),
   });
   emit('update:visible', false);
@@ -388,6 +393,17 @@ defineExpose({ handleButton });
                   class="te-input"
                 />
               </div>
+            </div>
+            <div class="te-field">
+              <label for="te-submit-suffix">Submit Suffix</label>
+              <input
+                id="te-submit-suffix"
+                v-model="submitSuffix"
+                type="text"
+                placeholder="\r"
+                class="te-input te-input--mono"
+              />
+              <p class="te-section__hint">Escape sequence appended when submitting text. Default \r. Use \n for Copilot/Codex.</p>
             </div>
             <label class="te-checkbox-row">
               <input

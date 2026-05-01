@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HelmControlService } from '../src/mcp/helm-control-service.js';
+import { HelmControlService, parseSubmitSuffix } from '../src/mcp/helm-control-service.js';
 import { parseSessionAuthToken } from '../src/mcp/session-auth.js';
 import { logger } from '../src/utils/logger.js';
 
@@ -74,7 +74,7 @@ describe('HelmControlService.sendTextToSession', () => {
   it('delivers text atomically with submitSuffix for auto-execution', async () => {
     const { service, ptyManager } = makeService();
     await service.sendTextToSession('s1', 'hello', { senderSessionId: 'sid', senderSessionName: 'Sender' });
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('hello'), { submitSuffix: '\n' });
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('hello'), { submitSuffix: '\r' });
     expect(ptyManager.write).not.toHaveBeenCalled();
   });
 
@@ -924,7 +924,7 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     const options = deliverCall[2];
     // Helm inter-session messages use submitSuffix for auto-execution (applied outside bracketed paste)
     expect(message).toBe('hello from sender');
-    expect(options).toEqual({ submitSuffix: '\n' });
+    expect(options).toEqual({ submitSuffix: '\r' });
     expect(message).not.toMatch(/^\[HELM_MSG\]/);
     expect(message).not.toContain('inter_llm_message');
   });
@@ -947,7 +947,7 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     const options = deliverCall[2];
     // Helm inter-session messages use submitSuffix, not embedded newline
     expect(message).toBe(multilineText);
-    expect(options).toEqual({ submitSuffix: '\n' });
+    expect(options).toEqual({ submitSuffix: '\r' });
   });
 
   it('sendTextToSession preamble=true includes sender info in envelope', async () => {
@@ -1023,7 +1023,176 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     const options = deliverCall[2];
     // Without preamble, plain text with submitSuffix for auto-execution
     expect(message).toBe('check status');
-    expect(options).toEqual({ submitSuffix: '\n' });
+    expect(options).toEqual({ submitSuffix: '\r' });
     expect(message).not.toContain('expectsResponse');
+  });
+});
+
+// =============================================================================
+// parseSubmitSuffix — escape sequence parsing for submit behavior
+// =============================================================================
+
+describe('parseSubmitSuffix', () => {
+  describe('escape sequence parsing', () => {
+    it('converts escape notation \\r to CR character', () => {
+      expect(parseSubmitSuffix('\\r')).toBe('\r');
+    });
+
+    it('converts escape notation \\n to LF character', () => {
+      expect(parseSubmitSuffix('\\n')).toBe('\n');
+    });
+
+    it('converts escape notation \\t to TAB character', () => {
+      expect(parseSubmitSuffix('\\t')).toBe('\t');
+    });
+
+    it('converts escape notation \\r\\n to CRLF sequence', () => {
+      expect(parseSubmitSuffix('\\r\\n')).toBe('\r\n');
+    });
+
+    it('handles mixed sequences like \\r\\n\\r (passthrough)', () => {
+      // Only exact matches for \\r, \\n, \\t, \\r\\n are parsed.
+      // \\r\\n\\r is not an exact match, so it passes through as-is.
+      expect(parseSubmitSuffix('\\r\\n\\r')).toBe('\\r\\n\\r');
+    });
+  });
+
+  describe('default behavior', () => {
+    it('returns CR character when suffix is undefined', () => {
+      expect(parseSubmitSuffix()).toBe('\r');
+    });
+
+    it('returns CR character when suffix is empty string', () => {
+      expect(parseSubmitSuffix('')).toBe('\r');
+    });
+
+    it('returns CR character when suffix is null (falsy)', () => {
+      expect(parseSubmitSuffix(null as unknown as string)).toBe('\r');
+    });
+
+    it('passes through whitespace-only string (not empty/falsy)', () => {
+      // parseSubmitSuffix checks 'if (!suffix)', which is falsy check.
+      // Whitespace-only string '   ' is truthy, so it passes through.
+      expect(parseSubmitSuffix('   ')).toBe('   ');
+    });
+  });
+
+  describe('edge cases', () => {
+    it('passes through unrecognized strings as-is', () => {
+      expect(parseSubmitSuffix('foo')).toBe('foo');
+    });
+
+    it('passes through arbitrary text without parsing', () => {
+      expect(parseSubmitSuffix('hello world')).toBe('hello world');
+    });
+
+    it('preserves backslash in non-recognized sequences', () => {
+      expect(parseSubmitSuffix('\\x')).toBe('\\x');
+    });
+
+    it('does not parse sequences inside larger strings', () => {
+      // Only exact matches are parsed, e.g. just '\\r', not 'prefix\\rsuffix'
+      expect(parseSubmitSuffix('prefix\\r')).toBe('prefix\\r');
+    });
+
+    it('differentiates between \\r and \\r\\n', () => {
+      const cr = parseSubmitSuffix('\\r');
+      const crlf = parseSubmitSuffix('\\r\\n');
+      expect(cr).not.toBe(crlf);
+      expect(cr).toBe('\r');
+      expect(crlf).toBe('\r\n');
+    });
+
+    it('is case-sensitive (does not parse \\R as CR)', () => {
+      expect(parseSubmitSuffix('\\R')).toBe('\\R');
+    });
+
+    it('handles actual control characters in input', () => {
+      // If someone passes an actual CR character, it should pass through
+      expect(parseSubmitSuffix('\r')).toBe('\r');
+    });
+
+    it('handles actual LF character in input', () => {
+      expect(parseSubmitSuffix('\n')).toBe('\n');
+    });
+
+    it('handles actual TAB character in input', () => {
+      expect(parseSubmitSuffix('\t')).toBe('\t');
+    });
+
+    it('handles actual CRLF sequence in input', () => {
+      expect(parseSubmitSuffix('\r\n')).toBe('\r\n');
+    });
+  });
+
+  describe('idempotency and stability', () => {
+    it('returns consistent results for the same input', () => {
+      const input = '\\r';
+      expect(parseSubmitSuffix(input)).toBe(parseSubmitSuffix(input));
+    });
+
+    it('parsing twice does not change the result', () => {
+      // First parse: '\\r' → '\r'
+      const firstParse = parseSubmitSuffix('\\r');
+      // Second parse: '\r' → '\r' (passthrough, not a recognized escape sequence)
+      const secondParse = parseSubmitSuffix(firstParse);
+      expect(secondParse).toBe('\r');
+    });
+  });
+
+  describe('integration with sendTextToSession', () => {
+    it('parseSubmitSuffix is used by sendTextToSession to determine submit behavior', async () => {
+      const { service, ptyManager, configLoader } = makeService();
+      (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+        submitSuffix: '\\n',
+      });
+
+      await service.sendTextToSession('s1', 'command', {
+        senderSessionId: 'sender1',
+        senderSessionName: 'Sender',
+      });
+
+      // Should have called deliverText with LF (\n), not CR (\r)
+      expect(ptyManager.deliverText).toHaveBeenCalledWith(
+        's1',
+        expect.any(String),
+        { submitSuffix: '\n' },
+      );
+    });
+
+    it('sendTextToSession defaults to CR when no submitSuffix is configured', async () => {
+      const { service, ptyManager, configLoader } = makeService();
+      (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({});
+
+      await service.sendTextToSession('s1', 'command', {
+        senderSessionId: 'sender1',
+        senderSessionName: 'Sender',
+      });
+
+      expect(ptyManager.deliverText).toHaveBeenCalledWith(
+        's1',
+        expect.any(String),
+        { submitSuffix: '\r' },
+      );
+    });
+
+    it('sendTextToSession with preamble=false also uses parseSubmitSuffix', async () => {
+      const { service, ptyManager, configLoader } = makeService();
+      (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
+        helmPreambleForInterSession: false,
+        submitSuffix: '\\r\\n',
+      });
+
+      await service.sendTextToSession('s1', 'command', {
+        senderSessionId: 'sender1',
+        senderSessionName: 'Sender',
+      });
+
+      expect(ptyManager.deliverText).toHaveBeenCalledWith(
+        's1',
+        'command',
+        { submitSuffix: '\r\n' },
+      );
+    });
   });
 });

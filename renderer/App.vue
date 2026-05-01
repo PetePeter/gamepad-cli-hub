@@ -1152,6 +1152,7 @@ function onToolAdd(): void {
     handoffCommand: '',
     helmInitialPrompt: false,
     helmPreambleForInterSession: true,
+    submitSuffix: '\\r',
     initialPrompt: [],
   };
   setToolEditorCallback(async (values) => {
@@ -1201,6 +1202,7 @@ async function onToolEdit(key: string): Promise<void> {
       handoffCommand: value.handoffCommand || '',
       helmInitialPrompt: Boolean(value.helmInitialPrompt),
       helmPreambleForInterSession: value.helmPreambleForInterSession !== false,
+      submitSuffix: value.submitSuffix ?? '\\r',
       initialPrompt: Array.isArray(value.initialPrompt)
         ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))
         : [],

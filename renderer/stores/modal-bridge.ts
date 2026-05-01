@@ -207,13 +207,15 @@ export interface ToolEditorBridgeData {
   handoffCommand: string;
   helmInitialPrompt: boolean;
   helmPreambleForInterSession?: boolean;
+  submitSuffix: string;
   initialPrompt: Array<{ label: string; sequence: string }>;
 }
 
 const EMPTY_TOOL_DATA: ToolEditorBridgeData = {
   name: '', env: [], initialPromptDelay: 2000,
   pasteMode: 'pty', spawnCommand: '', resumeCommand: '', continueCommand: '',
-  renameCommand: '', handoffCommand: '', helmInitialPrompt: false, helmPreambleForInterSession: true, initialPrompt: [],
+  renameCommand: '', handoffCommand: '', helmInitialPrompt: false, helmPreambleForInterSession: true,
+  submitSuffix: '\\r', initialPrompt: [],
 };
 
 export const toolEditor = reactive({
@@ -239,6 +241,7 @@ export function buildToolEditorOptions(values: Record<string, any>): {
   helmInitialPrompt?: boolean;
   helmPreambleForInterSession?: boolean;
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
+  submitSuffix?: string;
 } {
   const fields = ['handoffCommand', 'renameCommand', 'spawnCommand', 'resumeCommand', 'continueCommand'] as const;
   const options: Record<string, string> = {};
@@ -260,6 +263,7 @@ export function buildToolEditorOptions(values: Record<string, any>): {
     env,
     helmInitialPrompt: Boolean(values.helmInitialPrompt),
     helmPreambleForInterSession: values.helmPreambleForInterSession !== false,
+    submitSuffix: typeof values.submitSuffix === 'string' ? values.submitSuffix : '\\r',
     ...(pasteMode === 'pty' || pasteMode === 'ptyindividual' || pasteMode === 'sendkeys' || pasteMode === 'sendkeysindividual' || pasteMode === 'clippaste'
       ? { pasteMode }
       : {}),
