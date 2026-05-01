@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { getDisplayTitle } from '../../types.js';
+import { formatDate } from '../../utils/date-format.js';
 import type { PlanDependency, PlanItem, PlanSequence } from '../../../src/types/plan.js';
 import type { LayoutResult } from '../../plans/plan-layout.js';
 
@@ -184,10 +185,6 @@ watch(() => [props.visible, canvasBounds.value.width, canvasBounds.value.height]
 
 function getNodeColor(status: string): string {
   return STATUS_COLORS[status] ?? STATUS_COLORS.planning;
-}
-
-function formatPlanDate(value?: number): string {
-  return value ? new Date(value).toLocaleDateString() : '';
 }
 
 function connectorPoint(id: string, side: 'in' | 'out'): { x: number; y: number } | null {
@@ -614,7 +611,7 @@ function onSeqDeleteWithPlans(): void {
           </foreignObject>
           <foreignObject x="8" y="26" width="184" height="14">
             <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__meta">
-              {{ item.humanId || 'Plan' }} · C {{ formatPlanDate(item.createdAt) }} · S {{ formatPlanDate(item.stateUpdatedAt || item.updatedAt) }}
+              {{ item.humanId || 'Plan' }} · C {{ formatDate(item.createdAt) }} · S {{ formatDate(item.stateUpdatedAt || item.updatedAt) }}
             </div>
           </foreignObject>
           <foreignObject x="8" y="42" width="184" :height="item.stateInfo ? 24 : 34">

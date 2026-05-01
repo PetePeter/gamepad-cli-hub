@@ -8,6 +8,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import type { PlanStatus } from '../../src/types/plan.js';
 import type { PlanAttachment } from '../../src/types/plan-attachment.js';
+import { formatDateTime } from '../../utils/date-format.js';
 
 export interface PlanCallbacks {
   onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: 'bug' | 'feature' | 'research' }) => void;
@@ -178,8 +179,8 @@ const planMetaText = computed(() => {
   if (!isPlan.value) return '';
   const parts: string[] = [];
   if (props.planHumanId) parts.push(props.planHumanId);
-  if (props.planCreatedAt) parts.push(`Created ${new Date(props.planCreatedAt).toLocaleString()}`);
-  if (props.planStateUpdatedAt) parts.push(`State ${new Date(props.planStateUpdatedAt).toLocaleString()}`);
+  if (props.planCreatedAt) parts.push(`Created ${formatDateTime(props.planCreatedAt)}`);
+  if (props.planStateUpdatedAt) parts.push(`State ${formatDateTime(props.planStateUpdatedAt)}`);
   return parts.join('  ·  ');
 });
 
