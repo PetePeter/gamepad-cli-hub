@@ -809,4 +809,83 @@ describe('deliverBulkText', () => {
       expect(mockPaste).not.toHaveBeenCalled();
     });
   });
+
+  // =========================================================================
+  // submitSuffix — Helm inter-session messages auto-execution
+  // =========================================================================
+
+  describe('submitSuffix option — auto-execution with bracketed paste', () => {
+    let mockTerminalManager: any;
+
+    beforeEach(() => {
+      mockTerminalManager = {
+        getSession: vi.fn((sessionId: string) => ({
+          id: sessionId,
+          view: {
+            isBracketedPasteEnabled: vi.fn().mockReturnValue(true),
+          },
+        })),
+      };
+      mockGetTerminalManager.mockReturnValue(mockTerminalManager);
+      mockState.sessions = [{ id: 'helm-test', cliType: 'claude-code' }];
+      mockState.cliToolsCache = { 'claude-code': { pasteMode: 'pty' } };
+    });
+
+    it('PTY mode: submitSuffix appended OUTSIDE bracketed paste markers', async () => {
+      await deliverBulkText('helm-test', 'hello', { submitSuffix: '\n' });
+
+      // Final payload should be: \x1b[200~hello\x1b[201~\n
+      expect(mockPtyWrite).toHaveBeenCalledWith('helm-test', '\x1b[200~hello\x1b[201~\n');
+    });
+
+    it('PTY mode: withReturn ignored when submitSuffix provided', async () => {
+      await deliverBulkText('helm-test', 'test', { withReturn: true, submitSuffix: '\n' });
+
+      // submitSuffix takes precedence over withReturn
+      expect(mockPtyWrite).toHaveBeenCalledWith('helm-test', '\x1b[200~test\x1b[201~\n');
+    });
+
+    it('PTY mode without bracketed paste: submitSuffix still appended', async () => {
+      const mockSession = {
+        id: 'helm-test',
+        view: {
+          isBracketedPasteEnabled: vi.fn().mockReturnValue(false),
+        },
+      };
+      mockTerminalManager.getSession.mockReturnValue(mockSession);
+
+      await deliverBulkText('helm-test', 'cmd', { submitSuffix: '\n' });
+
+      expect(mockPtyWrite).toHaveBeenCalledWith('helm-test', 'cmd\n');
+    });
+
+    it('ptyindividual mode: submitSuffix appended after all characters', async () => {
+      mockState.cliToolsCache = { 'claude-code': { pasteMode: 'ptyindividual' } };
+      mockPtyWrite.mockClear();
+
+      const promise = deliverBulkText('helm-test', 'hi', { submitSuffix: '\n' });
+      await vi.runAllTimersAsync();
+      await promise;
+
+      // Should write: 'h', 'i', '\n'
+      expect(mockPtyWrite.mock.calls).toEqual([
+        ['helm-test', 'h'],
+        ['helm-test', 'i'],
+        ['helm-test', '\n'],
+      ]);
+    });
+
+    it('sendkeys mode: submitSuffix appended after text', async () => {
+      mockState.cliToolsCache = { 'claude-code': { pasteMode: 'sendkeys' } };
+      const mockKeyboardTypeString = vi.fn().mockResolvedValue(undefined);
+      (window as any).gamepadCli.keyboardTypeString = mockKeyboardTypeString;
+
+      await deliverBulkText('helm-test', 'send', { submitSuffix: '\n' });
+
+      expect(mockKeyboardTypeString.mock.calls).toEqual([
+        ['send'],
+        ['\n'],
+      ]);
+    });
+  });
 });
