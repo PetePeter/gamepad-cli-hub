@@ -313,8 +313,8 @@ const gamepadCliAPI = {
   },
 
   /** Subscribe to main-process requests to deliver text through the renderer terminal path. */
-  onTextDeliverRequest: (callback: (event: { requestId: string; sessionId: string; text: string; withReturn?: boolean }) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, data: { requestId: string; sessionId: string; text: string; withReturn?: boolean }) => callback(data);
+  onTextDeliverRequest: (callback: (event: { requestId: string; sessionId: string; text: string; withReturn?: boolean; submitSuffix?: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: { requestId: string; sessionId: string; text: string; withReturn?: boolean; submitSuffix?: string }) => callback(data);
     ipcRenderer.on('text:deliver-request', listener);
     return () => ipcRenderer.removeListener('text:deliver-request', listener);
   },

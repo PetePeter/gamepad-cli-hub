@@ -2009,15 +2009,19 @@ onMounted(async () => {
   }
 
   try {
-    offTextDeliver = window.gamepadCli.onTextDeliverRequest(async ({ requestId, sessionId, text, withReturn }) => {
+    offTextDeliver = window.gamepadCli.onTextDeliverRequest(async ({ requestId, sessionId, text, withReturn, submitSuffix }) => {
       try {
         const session = state.sessions.find(s => s.id === sessionId);
         const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
 
         if (tool?.pasteMode === 'clippaste') {
           await deliverViaClipboardPaste(text);
+          // clippaste needs submit suffix applied after clipboard paste completes
+          if (submitSuffix) {
+            await window.gamepadCli.ptyWrite(sessionId, submitSuffix);
+          }
         } else {
-          await deliverBulkText(sessionId, text, { withReturn });
+          await deliverBulkText(sessionId, text, { withReturn, submitSuffix });
         }
         await window.gamepadCli.textDeliverResponse(requestId, true);
       } catch (error) {
