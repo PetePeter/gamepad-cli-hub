@@ -575,12 +575,13 @@ export class HelmControlService extends EventEmitter {
       const tag = expectsResponse
         ? `[HELM_MSG: expectsResponse=true. To reply, call MCP tool mcp__helm__session_send_text with: sessionId="${options.senderSessionId}", senderSessionId=<your env $HELM_SESSION_ID>, text="<your reply>". Your HELM_SESSION_ID is injected by Helm at startup.]`
         : '[HELM_MSG]';
-      const message = `${tag}${envelope}\n${text}`;
+      const message = `${tag}${envelope}\n${text}\n`;
 
-      await this.ptyManager.deliverText(session.id, message, { withReturn: true });
+      await this.ptyManager.deliverText(session.id, message);
     } else {
       // Send plain text only — no envelope
-      await this.ptyManager.deliverText(session.id, text, { withReturn: true });
+      const message = text + '\n';
+      await this.ptyManager.deliverText(session.id, message);
     }
 
     return { success: true, sessionId: session.id, name: session.name, preambleUsed: usePreamble };
