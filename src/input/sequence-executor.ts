@@ -40,7 +40,7 @@ export function actionToPtyData(action: SequenceAction): string | null {
     case 'text': return action.value;
     case 'key': return keyToPtySequence(action.key);
     case 'combo': return comboToPtySequence(action.keys);
-    case 'wait': case 'modDown': case 'modUp': return null;
+    case 'wait': case 'modDown': case 'modUp': case 'noSubmit': return null;
   }
 }
 
@@ -52,6 +52,7 @@ export async function executeSequenceString(options: ExecuteSequenceOptions): Pr
   let bufferedText = '';
   let sawAction = false;
   let submitted = false;
+  let suppressImpliedSubmit = false;
 
   const flush = async () => {
     if (!bufferedText) return;
@@ -75,6 +76,11 @@ export async function executeSequenceString(options: ExecuteSequenceOptions): Pr
       continue;
     }
 
+    if (action.type === 'noSubmit') {
+      suppressImpliedSubmit = true;
+      continue;
+    }
+
     if (action.type === 'key' && (action.key === 'Enter' || action.key === 'Send')) {
       await doSubmit();
       continue;
@@ -93,7 +99,7 @@ export async function executeSequenceString(options: ExecuteSequenceOptions): Pr
 
   await flush();
 
-  if (impliedSubmit && sawAction && !submitted && !isCancelled?.()) {
+  if (impliedSubmit && sawAction && !submitted && !suppressImpliedSubmit && !isCancelled?.()) {
     await submit(sessionId);
   }
 }
