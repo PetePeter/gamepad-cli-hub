@@ -4,7 +4,8 @@ export type SequenceAction =
   | { type: 'combo'; keys: string[] }
   | { type: 'modDown'; key: string }
   | { type: 'modUp'; key: string }
-  | { type: 'wait'; ms: number };
+  | { type: 'wait'; ms: number }
+  | { type: 'noSubmit' };
 
 export function parseSequence(input: string): SequenceAction[] {
   const actions: SequenceAction[] = [];
@@ -45,55 +46,25 @@ export function parseSequence(input: string): SequenceAction[] {
 
 function appendText(actions: SequenceAction[], text: string): void {
   const last = actions[actions.length - 1];
-  if (last && last.type === 'text') {
-    last.value += text;
-  } else {
-    actions.push({ type: 'text', value: text });
-  }
+  if (last && last.type === 'text') last.value += text;
+  else actions.push({ type: 'text', value: text });
 }
 
 const KEY_ALIASES: Record<string, string> = {
-  enter: 'Enter',
-  send: 'Send',
-  tab: 'Tab',
-  esc: 'Esc',
-  escape: 'Escape',
-  space: 'Space',
-  backspace: 'Backspace',
-  delete: 'Delete',
-  up: 'Up',
-  down: 'Down',
-  right: 'Right',
-  left: 'Left',
-  arrowup: 'ArrowUp',
-  arrowdown: 'ArrowDown',
-  arrowright: 'ArrowRight',
-  arrowleft: 'ArrowLeft',
-  home: 'Home',
-  end: 'End',
-  pageup: 'PageUp',
-  pagedown: 'PageDown',
-  insert: 'Insert',
-  capslock: 'CapsLock',
-  printscreen: 'PrintScreen',
+  enter: 'Enter', send: 'Send', tab: 'Tab', esc: 'Esc', escape: 'Escape', space: 'Space', backspace: 'Backspace', delete: 'Delete',
+  up: 'Up', down: 'Down', right: 'Right', left: 'Left', arrowup: 'ArrowUp', arrowdown: 'ArrowDown', arrowright: 'ArrowRight', arrowleft: 'ArrowLeft',
+  home: 'Home', end: 'End', pageup: 'PageUp', pagedown: 'PageDown', insert: 'Insert', capslock: 'CapsLock', printscreen: 'PrintScreen',
 };
-
 for (let i = 1; i <= 12; i++) KEY_ALIASES[`f${i}`] = `F${i}`;
 
 const MODIFIER_ALIASES: Record<string, string> = {
-  ctrl: 'Ctrl',
-  control: 'Ctrl',
-  alt: 'Alt',
-  shift: 'Shift',
-  win: 'Win',
-  meta: 'Win',
-  cmd: 'Win',
-  command: 'Win',
-  option: 'Alt',
+  ctrl: 'Ctrl', control: 'Ctrl', alt: 'Alt', shift: 'Shift', win: 'Win', meta: 'Win', cmd: 'Win', command: 'Win', option: 'Alt',
 };
 
 function parseToken(token: string): SequenceAction | null {
   if (token === '') return null;
+
+  if (/^(NoSend|NoEnter)$/i.test(token.trim())) return { type: 'noSubmit' };
 
   const waitMatch = token.match(/^Wait\s+(\d+)$/i);
   if (waitMatch) return { type: 'wait', ms: Math.min(parseInt(waitMatch[1], 10), 30000) };
@@ -134,5 +105,6 @@ function formatAction(action: SequenceAction): string {
     case 'modDown': return `${action.key} ↓`;
     case 'modUp': return `${action.key} ↑`;
     case 'wait': return `Wait ${action.ms}ms`;
+    case 'noSubmit': return 'No final submit';
   }
 }
