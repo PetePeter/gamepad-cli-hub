@@ -1,8 +1,6 @@
-import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { logger } from '../utils/logger.js';
-import { resolveEnvWithMode, type ConfigLoader } from '../config/loader.js';
-import { scheduleInitialPrompt } from '../session/initial-prompt.js';
+import type { ConfigLoader } from '../config/loader.js';
 import type { PlanManager, PlanRefResolution } from '../session/plan-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
@@ -17,8 +15,8 @@ import type {
   TelegramStatus,
 } from '../types/telegram-channel.js';
 import { PlanAttachmentManager } from '../session/plan-attachment-manager.js';
-import { mintSessionAuthToken } from './session-auth.js';
 import type { NotificationManager } from '../session/notification-manager.js';
+import { spawnConfiguredSession } from '../session/configured-session-spawn.js';
 
 /**
  * Convert escape notation strings to actual characters.
@@ -504,51 +502,23 @@ export class HelmControlService extends EventEmitter {
 
   spawnCli(cliType: string, dirPath: string, name: string, prompt?: string): SessionSummary {
     const workingDir = this.requireWorkingDirectory(dirPath);
-    const cliEntry = this.requireCliEntry(cliType);
-    const sessionId = randomUUID();
-    const cliSessionName = randomUUID();
-    const toolEnv = this.resolveToolEnv(cliType, {
-      sessionId,
-      sessionName: name.trim(),
-    });
-    let rawCommand: string | undefined;
-    let command: string | undefined;
-    let args: string[] | undefined;
-
-    if (cliEntry.spawnCommand) {
-      rawCommand = cliEntry.spawnCommand.replaceAll('{cliSessionName}', cliSessionName);
-    } else {
-      command = cliType;
-      args = [];
-    }
-
-    const pty = this.ptyManager.spawn({
-      sessionId,
-      rawCommand,
-      command,
-      args,
-      cwd: workingDir.path,
-      ...(toolEnv ? { env: toolEnv } : {}),
-    });
-
-    this.sessionManager.addSession({
-      id: sessionId,
-      name: name.trim(),
-      cliType,
-      processId: pty.pid,
-      workingDir: workingDir.path,
-      cliSessionName,
-    });
-
-    const promptConfig = this.resolveInitialPromptConfig(cliEntry, cliSessionName);
+    this.requireCliEntry(cliType);
+    const sessionName = name.trim();
     const mcpPrompt = prompt?.trim() || undefined;
-    const onComplete = mcpPrompt
-      ? () => { void this.ptyManager.deliverText(sessionId, mcpPrompt); }
-      : undefined;
-
-    scheduleInitialPrompt(sessionId, promptConfig, (sid, data) => {
-      this.ptyManager.write(sid, data);
-    }, undefined, onComplete);
+    let spawnedSessionId = '';
+    const { sessionId } = spawnConfiguredSession({
+      ptyManager: this.ptyManager,
+      sessionManager: this.sessionManager,
+      configLoader: this.configLoader,
+      cliType,
+      sessionName,
+      cwd: workingDir.path,
+      onPromptComplete: mcpPrompt
+        ? () => { void this.ptyManager.deliverText(spawnedSessionId, mcpPrompt); }
+        : undefined,
+      fallbackCompleteDelayMs: 500,
+    });
+    spawnedSessionId = sessionId;
 
     return this.toSessionSummary(requireResult(this.sessionManager.getSession(sessionId), `Session not found: ${sessionId}`));
   }
@@ -1063,43 +1033,6 @@ export class HelmControlService extends EventEmitter {
       throw new Error(`Working directory is not configured in Helm: ${dirPath}`);
     }
     return workingDir;
-  }
-
-  private resolveInitialPromptConfig(cliEntry: ReturnType<ConfigLoader['getCliTypeEntry']>, cliSessionName: string) {
-    if (!cliEntry) return {};
-    const renameCommand = cliEntry.renameCommand && cliSessionName
-      ? cliEntry.renameCommand.replace('{cliSessionName}', cliSessionName)
-      : undefined;
-    return {
-      initialPrompt: cliEntry.initialPrompt,
-      initialPromptDelay: cliEntry.initialPromptDelay,
-      helmInitialPrompt: cliEntry.helmInitialPrompt,
-      renameCommand,
-    };
-  }
-
-  private resolveToolEnv(cliType: string, helmSession?: { sessionId: string; sessionName: string }): Record<string, string> | undefined {
-    const envEntries = this.requireCliEntry(cliType).env;
-    const env = resolveEnvWithMode(envEntries ?? [], process.env as Record<string, string | undefined>, this.resolveEnvValue.bind(this));
-    if (helmSession) {
-      const mcpConfig = this.configLoader.getMcpConfig();
-      const mcpPort = mcpConfig.port ?? 47373;
-      env.HELM_MCP_TOKEN = mintSessionAuthToken(
-        mcpConfig.authToken,
-        helmSession.sessionId,
-        helmSession.sessionName,
-      );
-      env.HELM_SESSION_ID = helmSession.sessionId;
-      env.HELM_SESSION_NAME = helmSession.sessionName;
-      env.HELM_MCP_URL = `http://127.0.0.1:${mcpPort}/mcp`;
-    }
-    return Object.keys(env).length > 0 ? env : undefined;
-  }
-
-  private resolveEnvValue(value: string): string {
-    return value
-      .replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_match, envName: string) => process.env[envName] ?? '')
-      .replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (_match, envName: string) => process.env[envName] ?? '');
   }
 
   private requireTelegramBridge(): void {

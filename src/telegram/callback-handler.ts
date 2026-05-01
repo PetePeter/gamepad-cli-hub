@@ -12,10 +12,10 @@
  *   cancel:{sessionId}  — Ctrl+C
  *   accept:{sessionId}  — Enter (accept)
  *   status:all          — Full status overview
+ *   peek:{sessionId}    — Peek at session terminal output
  */
 
 import type TelegramBot from 'node-telegram-bot-api';
-import { randomUUID } from 'crypto';
 import type { TelegramBotCore } from './bot.js';
 import type { TopicManager } from './topic-manager.js';
 import type { SessionManager } from '../session/manager.js';
@@ -29,23 +29,10 @@ import {
   spawnDirKeyboard,
   resolvePathIndex,
 } from './keyboards.js';
+import { sendPeekOutput } from './command-handler.js';
 import { escapeHtml } from './utils.js';
-import { scheduleInitialPrompt } from '../session/initial-prompt.js';
+import { spawnConfiguredSession } from '../session/configured-session-spawn.js';
 import { logger } from '../utils/logger.js';
-
-function deliverViaManager(ptyManager: PtyManager, sessionId: string, text: string): Promise<void> {
-  const maybeDeliver = (ptyManager as Partial<PtyManager>).deliverText;
-  if (typeof maybeDeliver === 'function') {
-    return maybeDeliver.call(ptyManager, sessionId, text);
-  }
-  ptyManager.write(sessionId, text);
-  return Promise.resolve();
-}
-
-/** Generate a random session ID using UUID v4. */
-function randomId(): string {
-  return randomUUID();
-}
 
 /**
  * Register callback query handler on the bot.
@@ -132,6 +119,9 @@ async function routeCallback(
       break;
     case 'closeall':
       await handleCloseAll(bot, sessionManager, ptyManager, draftManager, query);
+      break;
+    case 'peek':
+      await handlePeek(bot, sessionManager, ptyManager, payload, query);
       break;
     default:
       logger.warn(`[CallbackHandler] Unknown callback: ${data}`);
@@ -332,56 +322,18 @@ async function handleSpawnExec(
   }
 
   try {
-    const sessionId = randomId();
-    const cliSessionName = randomId();
-    const cfg = configLoader.getCliTypeEntry(cliType);
-
-    // Resolve the spawn command: prefer spawnCommand template, fall back to the
-    // normalized spawn config if the template is unexpectedly absent.
-    let rawCommand: string | undefined;
-    let command: string | undefined;
-    let args: string[] | undefined;
-    if (cfg?.spawnCommand) {
-      rawCommand = cfg.spawnCommand.replaceAll('{cliSessionName}', cliSessionName);
-    } else {
-      const spawnConfig = configLoader.getSpawnConfig(cliType);
-      command = spawnConfig?.command || cliType;
-      args = spawnConfig?.args || [];
-    }
-
-    const pty = ptyManager.spawn({
-      sessionId,
-      command: rawCommand ? undefined : command,
-      args: rawCommand ? undefined : args,
-      rawCommand,
-      cwd: dirPath,
-    });
-
-    sessionManager.addSession({
-      id: sessionId,
-      name: cliType,
+    const spawnConfig = configLoader.getSpawnConfig(cliType);
+    const { sessionId } = spawnConfiguredSession({
+      ptyManager,
+      sessionManager,
+      configLoader,
       cliType,
-      processId: pty.pid,
-      workingDir: dirPath,
-      cliSessionName,
+      sessionName: cliType,
+      command: spawnConfig?.command || cliType,
+      args: spawnConfig?.args || [],
+      cwd: dirPath,
+      fallbackCompleteDelayMs: 500,
     });
-
-    // Schedule initial prompt (rename command, startup sequences)
-    const cliConfig = configLoader.getCliTypeEntry?.(cliType);
-    if (cliConfig) {
-      const renameCommand = cliConfig.renameCommand && cliSessionName
-        ? cliConfig.renameCommand.replace('{cliSessionName}', cliSessionName)
-        : undefined;
-      scheduleInitialPrompt(sessionId, {
-        initialPrompt: cliConfig.initialPrompt,
-        initialPromptDelay: cliConfig.initialPromptDelay,
-        renameCommand,
-      }, (sid, data) => {
-        ptyManager.write(sid, data);
-      }, (sid, text) => {
-        return deliverViaManager(ptyManager, sid, text);
-      });
-    }
 
     // Topic creation handled by session:added event in handlers.ts — no duplicate call here
 
@@ -473,6 +425,31 @@ async function handleCloseAll(
   }
 
   await bot.answerCallback(query.id, `🗑️ Closed ${closed} session(s)`);
+}
+
+// ---------------------------------------------------------------------------
+// Peek
+// ---------------------------------------------------------------------------
+
+async function handlePeek(
+  bot: TelegramBotCore,
+  sessionManager: SessionManager,
+  ptyManager: PtyManager,
+  sessionId: string,
+  query: TelegramBot.CallbackQuery,
+): Promise<void> {
+  const session = sessionManager.getSession(sessionId);
+  if (!session) {
+    await bot.answerCallback(query.id, '❌ Session not found');
+    return;
+  }
+
+  await bot.answerCallback(query.id);
+
+  const msg = query.message;
+  if (msg) {
+    await sendPeekOutput(bot, ptyManager, msg, { id: session.id, name: session.name });
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,10 @@ vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('../src/session/initial-prompt.js', () => ({
+  scheduleInitialPrompt: vi.fn(),
+}));
+
 // Mock keyboards module — return simple stubs
 vi.mock('../src/telegram/keyboards.js', () => ({
   directoryListKeyboard: vi.fn((sessions: any[]) => ({
@@ -25,6 +29,7 @@ vi.mock('../src/telegram/keyboards.js', () => ({
 }));
 
 import { setupCallbackHandler } from '../src/telegram/callback-handler.js';
+import { scheduleInitialPrompt } from '../src/session/initial-prompt.js';
 import type { TelegramBotCore } from '../src/telegram/bot.js';
 import type { TopicManager } from '../src/telegram/topic-manager.js';
 import type { SessionManager } from '../src/session/manager.js';
@@ -78,6 +83,9 @@ function createMockConfigLoader(
     getCliTypes: vi.fn(() => tools),
     getSequences: vi.fn(() => sequences),
     getWorkingDirectories: vi.fn(() => dirs),
+    getCliTypeEntry: vi.fn(),
+    getSpawnConfig: vi.fn(),
+    getMcpConfig: vi.fn(() => ({ enabled: true, port: 47373, authToken: 'helm-token' })),
   } as unknown as ConfigLoader;
 }
 
@@ -312,7 +320,16 @@ describe('setupCallbackHandler', () => {
       } as unknown as SessionManager;
 
       configLoader = createMockConfigLoader(['claude'], {}, [{ name: 'proj', path: '/proj' }]);
-      (configLoader as any).getCliTypeEntry = vi.fn(() => ({ command: 'claude', spawnCommand: 'claude --session-id {cliSessionName}' }));
+      (configLoader as any).getCliTypeEntry = vi.fn(() => ({
+        command: 'claude',
+        spawnCommand: 'claude --session-id {cliSessionName}',
+        helmInitialPrompt: true,
+        env: [
+          { name: 'TEST_LITERAL', value: 'literal-value' },
+          { name: 'TEST_REF', value: '%TELEGRAM_SPAWN_TEST_REF%' },
+        ],
+      }));
+      process.env.TELEGRAM_SPAWN_TEST_REF = 'resolved-value';
 
       const innerBot = { editMessageText: vi.fn(), sendMessage: vi.fn() };
       (bot.getBot as any).mockReturnValue(innerBot);
@@ -330,13 +347,31 @@ describe('setupCallbackHandler', () => {
       await spawnHandler(makeQuery('spawn:dir:/proj'));
 
       expect(mockPtyManager.spawn).toHaveBeenCalledWith(
-        expect.objectContaining({ cwd: '/proj' }),
+        expect.objectContaining({
+          cwd: '/proj',
+          env: expect.objectContaining({
+            TEST_LITERAL: 'literal-value',
+            TEST_REF: 'resolved-value',
+            HELM_SESSION_ID: expect.any(String),
+            HELM_SESSION_NAME: 'claude',
+            HELM_MCP_TOKEN: expect.any(String),
+            HELM_MCP_URL: 'http://127.0.0.1:47373/mcp',
+          }),
+        }),
       );
       expect(mockSessionManager.addSession).toHaveBeenCalledWith(
         expect.objectContaining({ cliType: 'claude', workingDir: '/proj' }),
       );
+      expect(scheduleInitialPrompt).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ helmInitialPrompt: true }),
+        expect.any(Function),
+        expect.any(Function),
+        expect.any(Function),
+      );
       // ensureTopic is handled by session:added event in handlers.ts, not by handleSpawnExec
       expect(bot.answerCallback).toHaveBeenCalledWith('q1', '🚀 Spawned claude!');
+      delete process.env.TELEGRAM_SPAWN_TEST_REF;
     });
 
     it('reports error when spawn:dir called without prior tool selection', async () => {

@@ -1,17 +1,15 @@
 import { ipcMain } from 'electron';
-import { randomUUID } from 'crypto';
 import type { PtyManager } from '../../session/pty-manager.js';
 import type { StateDetector } from '../../session/state-detector.js';
 import type { PatternMatcher } from '../../session/pattern-matcher.js';
 import type { SessionManager } from '../../session/manager.js';
 import type { PipelineQueue } from '../../session/pipeline-queue.js';
-import { resolveEnvWithMode, type ConfigLoader } from '../../config/loader.js';
+import type { ConfigLoader } from '../../config/loader.js';
 import { type SessionState, VALID_SESSION_STATES } from '../../types/session.js';
-import { scheduleInitialPrompt } from '../../session/initial-prompt.js';
 import type { NotificationManager } from '../../session/notification-manager.js';
+import { spawnConfiguredSession } from '../../session/configured-session-spawn.js';
 import { logger } from '../../utils/logger.js';
 import type { WindowManager } from '../window-manager.js';
-import { mintSessionAuthToken } from '../../mcp/session-auth.js';
 
 // Track cancel functions for initial prompt pre-loading per session
 const promptCancellers: Map<string, () => void> = new Map();
@@ -20,72 +18,6 @@ const promptCancellers: Map<string, () => void> = new Map();
 export function cancelAllPrompts(): void {
   for (const cancel of promptCancellers.values()) cancel();
   promptCancellers.clear();
-}
-
-/** Build InitialPromptConfig from the CLI type definition */
-function resolvePromptConfig(
-  cliType: string | undefined,
-  configLoader: ConfigLoader | undefined,
-  cliSessionName?: string,
-): { initialPrompt?: import('../../config/loader.js').SequenceListItem[]; initialPromptDelay?: number; helmInitialPrompt?: boolean; renameCommand?: string } {
-  if (!cliType || !configLoader) return {};
-  try {
-    const cfg = configLoader.getCliTypeEntry?.(cliType);
-    if (cfg) {
-      const renameCommand = cfg.renameCommand && cliSessionName
-        ? cfg.renameCommand.replace('{cliSessionName}', cliSessionName)
-        : undefined;
-      return {
-        initialPrompt: cfg.initialPrompt,
-        initialPromptDelay: cfg.initialPromptDelay,
-        helmInitialPrompt: cfg.helmInitialPrompt,
-        renameCommand,
-      };
-    }
-  } catch { /* config may not be loaded yet */ }
-  return {};
-}
-
-function resolveToolEnv(
-  cliType: string | undefined,
-  configLoader: ConfigLoader | undefined,
-  helmSession?: { sessionId: string; sessionName: string },
-): Record<string, string> | undefined {
-  if (!cliType || !configLoader) return buildHelmManagedEnv(configLoader, helmSession);
-  try {
-    const envEntries = configLoader.getCliTypeEntry?.(cliType)?.env;
-    const env = resolveEnvWithMode(envEntries ?? [], process.env as Record<string, string | undefined>, resolveEnvValue);
-    return buildHelmManagedEnv(configLoader, helmSession, env);
-  } catch {
-    return buildHelmManagedEnv(configLoader, helmSession);
-  }
-}
-
-function resolveEnvValue(value: string): string {
-  return value
-    .replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_match, name: string) => process.env[name] ?? '')
-    .replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (_match, name: string) => process.env[name] ?? '');
-}
-
-function buildHelmManagedEnv(
-  configLoader: ConfigLoader | undefined,
-  helmSession?: { sessionId: string; sessionName: string },
-  baseEnv?: Record<string, string>,
-): Record<string, string> | undefined {
-  if (!helmSession) {
-    return baseEnv && Object.keys(baseEnv).length > 0 ? baseEnv : undefined;
-  }
-  const env = {
-    ...(baseEnv ?? {}),
-    HELM_MCP_TOKEN: mintSessionAuthToken(
-      configLoader?.getMcpConfig?.().authToken ?? '',
-      helmSession.sessionId,
-      helmSession.sessionName,
-    ),
-    HELM_SESSION_ID: helmSession.sessionId,
-    HELM_SESSION_NAME: helmSession.sessionName,
-  };
-  return Object.keys(env).length > 0 ? env : undefined;
 }
 
 export function setupPtyHandlers(
@@ -101,116 +33,25 @@ export function setupPtyHandlers(
   onPtyInput?: (sessionId: string, data: string) => void,
   patternMatcher?: PatternMatcher,
 ): void {
-  const deliverText = (sessionId: string, text: string): Promise<void> => {
-    const maybeDeliver = (ptyManager as Partial<PtyManager>).deliverText;
-    if (typeof maybeDeliver === 'function') {
-      return maybeDeliver.call(ptyManager, sessionId, text);
-    }
-    ptyManager.write(sessionId, text);
-    return Promise.resolve();
-  };
-
   // pty:spawn - Spawn a new PTY process and register as session
   ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string, resumeSessionName?: string) => {
     logger.info(`[PTY IPC] pty:spawn called: sessionId=${sessionId}, command=${command}, args=${JSON.stringify(args)}, cwd=${cwd}, cliType=${cliType}, hasContext=${!!contextText}, resume=${resumeSessionName || 'none'}`);
     try {
-      // Generate CLI session name (UUID v4) for resume capability
-      const isResume = !!resumeSessionName;
-      const cliSessionName = resumeSessionName || randomUUID();
-
-      // Resolve actual command: resume > spawnCommand > base command+args
-      let rawCommand: string | undefined;
-      const toolEnv = resolveToolEnv(cliType, configLoader, {
+      const { pty } = spawnConfiguredSession({
+        ptyManager,
+        sessionManager,
+        configLoader,
         sessionId,
-        sessionName: cliType || 'unknown',
-      });
-
-      if (isResume && cliType && configLoader) {
-        const cfg = configLoader.getCliTypeEntry?.(cliType);
-        if (cfg?.resumeCommand && resumeSessionName) {
-          rawCommand = cfg.resumeCommand.replaceAll('{cliSessionName}', resumeSessionName);
-          if (rawCommand === cfg.resumeCommand) {
-            logger.warn(`[PTY IPC] resumeCommand has no {cliSessionName} placeholder: ${cfg.resumeCommand}`);
-          }
-          logger.info(`[PTY IPC] Resuming with: ${rawCommand}`);
-        } else if (cfg?.continueCommand) {
-          rawCommand = cfg.continueCommand;
-          logger.info(`[PTY IPC] Continuing with: ${rawCommand}`);
-        }
-      } else if (cliType && configLoader) {
-        const cfg = configLoader.getCliTypeEntry?.(cliType);
-        if (cfg?.spawnCommand) {
-          rawCommand = cfg.spawnCommand.replaceAll('{cliSessionName}', cliSessionName);
-          if (rawCommand === cfg.spawnCommand) {
-            logger.warn(`[PTY IPC] spawnCommand has no {cliSessionName} placeholder: ${cfg.spawnCommand}`);
-          }
-          logger.info(`[PTY IPC] Fresh spawn with spawnCommand: ${rawCommand}`);
-        }
-      }
-
-      const pty = ptyManager.spawn({
-        sessionId,
-        command: rawCommand ? undefined : command,
-        args: rawCommand ? undefined : args,
-        rawCommand,
+        command,
+        args,
         cwd,
-        ...(toolEnv ? { env: toolEnv } : {}),
+        cliType,
+        sessionName: cliType || 'unknown',
+        contextText,
+        resumeSessionName,
+        markRestored: sid => stateDetector.markRestored(sid),
+        onPromptCancel: cancel => promptCancellers.set(sessionId, cancel),
       });
-
-      // Register with SessionManager so rename/state/persistence work
-      // Include cliSessionName in addSession() so it's persisted atomically
-      sessionManager.addSession({
-        id: sessionId,
-        name: cliType || 'unknown',
-        cliType: cliType || 'unknown',
-        processId: pty.pid,
-        ...(cwd ? { workingDir: cwd } : {}),
-        cliSessionName,
-      });
-
-      // On resume: skip context text and initial prompt, only send rename command
-      if (isResume) {
-        // Suppress activity promotion during shell startup
-        stateDetector.markRestored(sessionId);
-
-        const promptConfig = resolvePromptConfig(cliType, configLoader, cliSessionName);
-        // Only send rename command (no initial prompt items)
-        if (promptConfig.renameCommand) {
-          const cancel = scheduleInitialPrompt(sessionId, {
-            initialPromptDelay: promptConfig.initialPromptDelay,
-            renameCommand: promptConfig.renameCommand,
-          }, (sid, data) => {
-            ptyManager.write(sid, data);
-          }, (sid, text) => {
-            return deliverText(sid, text);
-          });
-          if (cancel) {
-            promptCancellers.set(sessionId, cancel);
-          }
-        }
-      } else {
-        // Fresh spawn: normal initial prompt + context text flow
-        const writeContextText = () => {
-          if (contextText && contextText.trim()) {
-            void deliverText(sessionId, contextText);
-            logger.info(`[PTY IPC] Context text written to ${sessionId} (${contextText.length} chars)`);
-          }
-        };
-
-        const promptConfig = resolvePromptConfig(cliType, configLoader, cliSessionName);
-        const cancel = scheduleInitialPrompt(sessionId, promptConfig, (sid, data) => {
-          ptyManager.write(sid, data);
-        }, (sid, text) => {
-          return deliverText(sid, text);
-        }, writeContextText);
-        if (cancel) {
-          promptCancellers.set(sessionId, cancel);
-        } else if (contextText && contextText.trim()) {
-          // No initial prompt configured — send context text after a short delay
-          const fallbackTimeout = setTimeout(writeContextText, 500);
-          promptCancellers.set(sessionId, () => clearTimeout(fallbackTimeout));
-        }
-      }
 
       logger.info(`[PTY IPC] Spawn success: pid=${pty.pid}`);
       return { success: true, pid: pty.pid };

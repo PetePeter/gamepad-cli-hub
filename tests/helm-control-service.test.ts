@@ -287,7 +287,7 @@ describe('HelmControlService.spawnCli', () => {
       vi.advanceTimersByTime(1000);
       await vi.runAllTimersAsync();
 
-      expect(ptyManager.write).toHaveBeenCalledWith(
+      expect(ptyManager.deliverText).toHaveBeenCalledWith(
         expect.any(String),
         'Hello world\r',
       );
@@ -306,7 +306,7 @@ describe('HelmControlService.spawnCli', () => {
       vi.advanceTimersByTime(500);
       await vi.runAllTimersAsync();
 
-      expect(ptyManager.write).toHaveBeenCalledWith(
+      expect(ptyManager.deliverText).toHaveBeenCalledWith(
         expect.any(String),
         expect.stringContaining('session_info'),
       );
@@ -325,7 +325,10 @@ describe('HelmControlService.spawnCli', () => {
       vi.advanceTimersByTime(500);
       await vi.runAllTimersAsync();
 
-      expect(ptyManager.write).toHaveBeenCalled();
+      expect(ptyManager.deliverText).toHaveBeenCalledWith(
+        expect.any(String),
+        'init\r',
+      );
       expect(ptyManager.deliverText).toHaveBeenCalledWith(
         expect.any(String),
         'custom prompt',
