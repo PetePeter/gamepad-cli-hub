@@ -7,7 +7,7 @@
 import { ref, watch, computed } from 'vue';
 import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
-import { getSequenceSyntaxHelpText } from '../../utils.js';
+import PromptTextarea from '../common/PromptTextarea.vue';
 
 const MODAL_ID = 'tool-editor-modal';
 const HELM_AUTOFILLED_ENV_ITEMS = [
@@ -72,8 +72,6 @@ const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void;
 }>();
 
-/* ── Form state ─────────────────────────────────────────────────────────── */
-
 const name = ref('');
 type EnvItem = { id: number; name: string; value: string; mode: 'replace' | 'append' | 'prepend' };
 const envItems = ref<EnvItem[]>([]);
@@ -91,21 +89,13 @@ const submitSuffix = ref<SubmitSuffixOption>('\\r');
 interface SeqItem { label: string; sequence: string }
 const promptItems = ref<SeqItem[]>([]);
 
-/* ── Section state ──────────────────────────────────────────────────────── */
-
-const syntaxHelpExpanded = ref(false);
-const syntaxHelpText = getSequenceSyntaxHelpText();
 const overlayRef = ref<HTMLElement | null>(null);
 const { onKeydown } = useFocusTrap(overlayRef);
 let nextEnvId = 1;
 
-/* ── Modal title ────────────────────────────────────────────────────────── */
-
 const title = computed(() =>
   props.mode === 'add' ? 'Add CLI Type' : `Edit CLI Type: ${props.editKey}`,
 );
-
-/* ── Modal stack integration ────────────────────────────────────────────── */
 
 const modalStack = useModalStack();
 
@@ -124,10 +114,8 @@ function handleButton(button: string): boolean {
     emit('update:visible', false);
     return true;
   }
-  return true; // swallow all gamepad input while modal is open
+  return true;
 }
-
-/* ── Form initialisation ────────────────────────────────────────────────── */
 
 function initForm(): void {
   const d = props.initialData;
@@ -159,8 +147,6 @@ function initForm(): void {
     : [];
 }
 
-/* ── Prompt items helpers ───────────────────────────────────────────────── */
-
 function addPromptItem(): void {
   promptItems.value.push({ label: '', sequence: '' });
 }
@@ -176,8 +162,6 @@ function addEnvItem(): void {
 function removeEnvItem(index: number): void {
   envItems.value.splice(index, 1);
 }
-
-/* ── Save / Cancel ──────────────────────────────────────────────────────── */
 
 function onSave(): void {
   emit('save', {
@@ -221,26 +205,17 @@ defineExpose({ handleButton });
       @keydown="onKeydown"
     >
       <div class="modal tool-editor-modal">
-        <!-- Header -->
         <div class="modal-header">
           <h3 class="modal-title">{{ title }}</h3>
           <button class="te-close-btn" title="Close" @click="onCancel">✕</button>
         </div>
 
-        <!-- Body -->
         <div class="modal-body">
-          <!-- ═══ Basic ═══ -->
           <fieldset class="te-section">
             <legend class="te-section__legend">Basic</legend>
             <div class="te-field">
               <label for="te-name">Name</label>
-              <input
-                id="te-name"
-                v-model="name"
-                type="text"
-                placeholder="e.g. Claude Code"
-                class="te-input"
-              />
+              <input id="te-name" v-model="name" type="text" placeholder="e.g. Claude Code" class="te-input" />
             </div>
           </fieldset>
 
@@ -253,134 +228,38 @@ defineExpose({ handleButton });
               <code>COPILOT_PROVIDER_BASE_URL = ${AZURE_API_BASE}</code>.
             </p>
             <div class="te-env-list te-env-list--managed">
-              <div
-                v-for="item in HELM_AUTOFILLED_ENV_ITEMS"
-                :key="item.name"
-                class="te-env-item te-grid-2col te-env-item--readonly"
-              >
-                <input
-                  :value="item.name"
-                  type="text"
-                  class="te-input te-input--mono"
-                  readonly
-                  disabled
-                />
-                <input
-                  :value="item.value"
-                  type="text"
-                  class="te-input te-input--mono"
-                  readonly
-                  disabled
-                />
+              <div v-for="item in HELM_AUTOFILLED_ENV_ITEMS" :key="item.name" class="te-env-item te-grid-2col te-env-item--readonly">
+                <input :value="item.name" type="text" class="te-input te-input--mono" readonly disabled />
+                <input :value="item.value" type="text" class="te-input te-input--mono" readonly disabled />
               </div>
             </div>
-            <p class="te-section__hint">
-              Helm injects these values at runtime for every spawned CLI session. They are read-only here.
-            </p>
+            <p class="te-section__hint">Helm injects these values at runtime for every spawned CLI session. They are read-only here.</p>
             <div class="te-env-list">
-              <div
-                v-for="(item, idx) in envItems"
-                :key="item.id"
-                class="te-env-item te-grid-3col"
-              >
-                <input
-                  :id="`te-env-name-${idx}`"
-                  type="text"
-                  class="te-input te-input--mono"
-                  placeholder="Variable name, e.g. PATH"
-                  :value="item.name"
-                  @input="item.name = ($event.target as HTMLInputElement).value"
-                />
+              <div v-for="(item, idx) in envItems" :key="item.id" class="te-env-item te-grid-3col">
+                <input :id="`te-env-name-${idx}`" type="text" class="te-input te-input--mono" placeholder="Variable name, e.g. PATH" :value="item.name" @input="item.name = ($event.target as HTMLInputElement).value" />
                 <div class="te-env-value-row">
-                  <input
-                    :id="`te-env-value-${idx}`"
-                  type="text"
-                  class="te-input te-input--mono"
-                  placeholder="Value or env ref like %AZURE_API_KEY% or ${AZURE_API_KEY}"
-                  :value="item.value"
-                    @input="item.value = ($event.target as HTMLInputElement).value"
-                  />
-                  <button
-                    type="button"
-                    class="btn btn--small btn--danger"
-                    title="Remove"
-                    @click="removeEnvItem(idx)"
-                  >✕</button>
+                  <input :id="`te-env-value-${idx}`" type="text" class="te-input te-input--mono" placeholder="Value or env ref like %AZURE_API_KEY% or ${AZURE_API_KEY}" :value="item.value" @input="item.value = ($event.target as HTMLInputElement).value" />
+                  <button type="button" class="btn btn--small btn--danger" title="Remove" @click="removeEnvItem(idx)">✕</button>
                 </div>
-                <select
-                  :id="`te-env-mode-${idx}`"
-                  class="te-input te-input--mode"
-                  :value="item.mode"
-                  @change="item.mode = ($event.target as HTMLSelectElement).value as 'replace' | 'append' | 'prepend'"
-                >
+                <select :id="`te-env-mode-${idx}`" class="te-input te-input--mode" :value="item.mode" @change="item.mode = ($event.target as HTMLSelectElement).value as 'replace' | 'append' | 'prepend'">
                   <option value="replace">Replace</option>
                   <option value="prepend">Prepend</option>
                   <option value="append">Append</option>
                 </select>
               </div>
             </div>
-            <button
-              type="button"
-              class="btn btn--secondary"
-              @click="addEnvItem"
-            >+ Add Variable</button>
+            <button type="button" class="btn btn--secondary" @click="addEnvItem">+ Add Variable</button>
           </fieldset>
 
           <fieldset class="te-section">
             <legend class="te-section__legend">Launch</legend>
-            <div class="te-field">
-              <label for="te-spawn">Spawn Command</label>
-              <input
-                id="te-spawn"
-                v-model="spawnCommand"
-                type="text"
-                placeholder="e.g. codex --dangerously-bypass-approvals-and-sandbox"
-                class="te-input te-input--mono"
-              />
-            </div>
-            <div class="te-field">
-              <label for="te-resume">Resume Command</label>
-              <input
-                id="te-resume"
-                v-model="resumeCommand"
-                type="text"
-                placeholder="Template for resuming sessions"
-                class="te-input te-input--mono"
-              />
-            </div>
-            <div class="te-field">
-              <label for="te-continue">Continue Command</label>
-              <input
-                id="te-continue"
-                v-model="continueCommand"
-                type="text"
-                placeholder="Template for continuing sessions"
-                class="te-input te-input--mono"
-              />
-            </div>
-            <div class="te-field">
-              <label for="te-rename">Rename Command</label>
-              <input
-                id="te-rename"
-                v-model="renameCommand"
-                type="text"
-                placeholder="Template for renaming sessions"
-                class="te-input te-input--mono"
-              />
-            </div>
-            <div class="te-field">
-              <label for="te-handoff">Handoff Command</label>
-              <input
-                id="te-handoff"
-                v-model="handoffCommand"
-                type="text"
-                placeholder="Template for handoff between sessions"
-                class="te-input te-input--mono"
-              />
-            </div>
+            <div class="te-field"><label for="te-spawn">Spawn Command</label><input id="te-spawn" v-model="spawnCommand" type="text" placeholder="e.g. codex --dangerously-bypass-approvals-and-sandbox" class="te-input te-input--mono" /></div>
+            <div class="te-field"><label for="te-resume">Resume Command</label><input id="te-resume" v-model="resumeCommand" type="text" placeholder="Template for resuming sessions" class="te-input te-input--mono" /></div>
+            <div class="te-field"><label for="te-continue">Continue Command</label><input id="te-continue" v-model="continueCommand" type="text" placeholder="Template for continuing sessions" class="te-input te-input--mono" /></div>
+            <div class="te-field"><label for="te-rename">Rename Command</label><input id="te-rename" v-model="renameCommand" type="text" placeholder="Template for renaming sessions" class="te-input te-input--mono" /></div>
+            <div class="te-field"><label for="te-handoff">Handoff Command</label><input id="te-handoff" v-model="handoffCommand" type="text" placeholder="Template for handoff between sessions" class="te-input te-input--mono" /></div>
           </fieldset>
 
-          <!-- ═══ Behavior ═══ -->
           <fieldset class="te-section">
             <legend class="te-section__legend">Behavior</legend>
             <div class="te-grid-2col">
@@ -396,96 +275,42 @@ defineExpose({ handleButton });
               </div>
               <div class="te-field">
                 <label for="te-delay">Initial Prompt Delay (ms)</label>
-                <input
-                  id="te-delay"
-                  v-model.number="initialPromptDelay"
-                  type="number"
-                  min="0"
-                  step="100"
-                  class="te-input"
-                />
+                <input id="te-delay" v-model.number="initialPromptDelay" type="number" min="0" step="100" class="te-input" />
               </div>
             </div>
             <div class="te-field">
               <label for="te-submit-suffix">Submit Suffix</label>
               <select id="te-submit-suffix" v-model="submitSuffix" class="te-select">
-                <option
-                  v-for="option in SUBMIT_SUFFIX_OPTIONS"
-                  :key="option.value"
-                  :value="option.value"
-                >{{ option.label }}</option>
+                <option v-for="option in SUBMIT_SUFFIX_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option>
               </select>
               <p class="te-section__hint">Character sequence sent when submitting text for this CLI type.</p>
             </div>
-            <label class="te-checkbox-row">
-              <input
-                v-model="helmPreambleForInterSession"
-                type="checkbox"
-              />
-              <span>Use Helm preamble for inter-session messages</span>
-            </label>
-            <p class="te-section__hint">
-              When enabled (default), inter-session messages are wrapped in a [HELM_MSG] envelope. When disabled, plain text only.
-            </p>
+            <label class="te-checkbox-row"><input v-model="helmPreambleForInterSession" type="checkbox" /><span>Use Helm preamble for inter-session messages</span></label>
+            <p class="te-section__hint">When enabled (default), inter-session messages are wrapped in a [HELM_MSG] envelope. When disabled, plain text only.</p>
           </fieldset>
 
-          <!-- ═══ Initial Prompts ═══ -->
           <fieldset class="te-section te-section--prompts">
             <legend class="te-section__legend">Initial Prompts</legend>
-            <label class="te-checkbox-row">
-              <input
-                v-model="helmInitialPrompt"
-                type="checkbox"
-              />
-              <span>Auto-include Helm session init</span>
-            </label>
+            <label class="te-checkbox-row"><input v-model="helmInitialPrompt" type="checkbox" /><span>Auto-include Helm session init</span></label>
             <div class="te-prompts-list">
-              <div
-                v-for="(item, idx) in promptItems"
-                :key="idx"
-                class="te-prompt-item"
-              >
+              <div v-for="(item, idx) in promptItems" :key="idx" class="te-prompt-item">
                 <div class="te-prompt-item__header">
-                  <input
-                    type="text"
-                    class="te-input te-input--sm"
-                    placeholder="Label, e.g. commit"
-                    :value="item.label"
-                    @input="item.label = ($event.target as HTMLInputElement).value"
-                  />
-                  <button
-                    type="button"
-                    class="btn btn--small btn--danger"
-                    title="Remove"
-                    @click="removePromptItem(idx)"
-                  >✕</button>
+                  <input type="text" class="te-input te-input--sm" placeholder="Label, e.g. commit" :value="item.label" @input="item.label = ($event.target as HTMLInputElement).value" />
+                  <button type="button" class="btn btn--small btn--danger" title="Remove" @click="removePromptItem(idx)">✕</button>
                 </div>
-                <textarea
-                  class="sequence-textarea"
-                  placeholder="Sequence, e.g. use skill(commit){Enter}"
-                  :value="item.sequence"
-                  rows="2"
-                  @input="item.sequence = ($event.target as HTMLTextAreaElement).value"
+                <PromptTextarea
+                  v-model="item.sequence"
+                  placeholder="Sequence, e.g. use skill(commit){Send}"
+                  :rows="2"
+                  :min-rows="2"
+                  :max-rows="10"
                 />
               </div>
             </div>
-            <button
-              type="button"
-              class="btn btn--secondary sequence-list-add"
-              @click="addPromptItem"
-            >+ Add Item</button>
-            <div class="te-syntax-help">
-              <button
-                type="button"
-                class="te-syntax-help__toggle"
-                @click="syntaxHelpExpanded = !syntaxHelpExpanded"
-              >{{ syntaxHelpExpanded ? '▾' : '▸' }} Syntax Reference</button>
-              <pre v-if="syntaxHelpExpanded" class="te-syntax-help__content">{{ syntaxHelpText }}</pre>
-            </div>
+            <button type="button" class="btn btn--secondary sequence-list-add" @click="addPromptItem">+ Add Item</button>
           </fieldset>
         </div>
 
-        <!-- Footer -->
         <div class="modal-footer">
           <button class="btn btn--secondary" @click="onCancel">Cancel</button>
           <button class="btn btn--primary" @click="onSave">Save</button>
@@ -496,251 +321,32 @@ defineExpose({ handleButton });
 </template>
 
 <style scoped>
-/* ── Modal size override ────────────────────────────────────────────────── */
-
-.tool-editor-modal {
-  max-width: 720px;
-  max-height: 90vh;
-}
-
-.tool-editor-modal .modal-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-}
-
-.te-env-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.te-env-item {
-  align-items: center;
-}
-
-.te-env-item--readonly {
-  opacity: 0.85;
-}
-
-.te-env-list--managed {
-  margin-bottom: var(--spacing-xs);
-}
-
-.te-env-value-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-}
-
-.te-env-value-row .te-input {
-  flex: 1;
-}
-
-.te-checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  margin-bottom: var(--spacing-sm);
-  color: var(--text-primary);
-  font-size: 13px;
-}
-
-.te-checkbox-row input {
-  width: 16px;
-  height: 16px;
-}
-
-/* ── Close button ───────────────────────────────────────────────────────── */
-
-.te-close-btn {
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-size: var(--font-size-lg);
-  cursor: pointer;
-  padding: var(--spacing-xs);
-  line-height: 1;
-  transition: color 0.15s;
-}
-
-.te-close-btn:hover {
-  color: var(--text-primary);
-}
-
-/* ── Sections ───────────────────────────────────────────────────────────── */
-
-.te-section {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--spacing-md);
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.te-section__hint {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--text-dim);
-  line-height: 1.4;
-}
-
-.te-section__legend {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--accent);
-  padding: 0 var(--spacing-xs);
-  user-select: none;
-}
-
-.te-section__legend--collapsible {
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-.te-section__legend--collapsible:hover {
-  color: var(--accent-hover);
-}
-
-.te-section__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-/* ── Two-column grid ────────────────────────────────────────────────────── */
-
-.te-grid-2col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-sm);
-}
-
-.te-grid-3col {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  gap: var(--spacing-sm);
-  align-items: center;
-}
-
-.te-input--mode {
-  width: 90px;
-  padding: 4px 6px;
-  font-size: 11px;
-  background: var(--input-bg, #2a2a2a);
-  color: var(--text-secondary, #aaa);
-  border: 1px solid var(--border, #444);
-  border-radius: 4px;
-}
-
-/* ── Field layout ───────────────────────────────────────────────────────── */
-
-.te-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.te-field label {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-/* ── Input / Select ─────────────────────────────────────────────────────── */
-
-.te-input,
-.te-select {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  color: var(--text-primary);
-  font-size: var(--font-size-md);
-  font-family: inherit;
-  width: 100%;
-}
-
-.te-input:focus,
-.te-select:focus {
-  border-color: var(--accent);
-  outline: none;
-}
-
-.te-input--mono {
-  font-family: 'Consolas', 'Courier New', monospace;
-  font-size: var(--font-size-sm);
-}
-
-.te-input--sm {
-  font-size: 11px;
-  padding: var(--spacing-xs) var(--spacing-sm);
-}
-
-/* ── Prompts section (resizable) ────────────────────────────────────────── */
-
-.te-section--prompts .te-prompts-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-  max-height: 240px;
-  overflow-y: auto;
-  resize: vertical;
-  min-height: 60px;
-  padding-right: var(--spacing-xs);
-}
-
-.te-prompt-item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-sm);
-  background: var(--bg-secondary);
-  border-radius: var(--radius-sm);
-}
-
-.te-prompt-item__header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.te-prompt-item__header .te-input--sm {
-  flex: 1;
-}
-
-/* ── Syntax help ────────────────────────────────────────────────────────── */
-
-.te-syntax-help {
-  margin-top: var(--spacing-xs);
-}
-
-.te-syntax-help__toggle {
-  font-size: 0.75rem;
-  cursor: pointer;
-  color: var(--text-secondary);
-  background: none;
-  border: none;
-  padding: 2px 0;
-  user-select: none;
-}
-
-.te-syntax-help__toggle:hover {
-  color: var(--text-primary);
-}
-
-.te-syntax-help__content {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--spacing-sm) 10px;
-  margin-top: 6px;
-  font-family: 'Consolas', 'Courier New', monospace;
-  font-size: 0.72rem;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-}
+.tool-editor-modal { max-width: 720px; max-height: 90vh; }
+.tool-editor-modal .modal-body { display: flex; flex-direction: column; gap: var(--spacing-md); }
+.te-env-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.te-env-item { align-items: center; }
+.te-env-item--readonly { opacity: 0.85; }
+.te-env-list--managed { margin-bottom: var(--spacing-xs); }
+.te-env-value-row { display: flex; align-items: center; gap: var(--spacing-sm); }
+.te-env-value-row .te-input { flex: 1; }
+.te-checkbox-row { display: flex; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-sm); color: var(--text-primary); font-size: 13px; }
+.te-checkbox-row input { width: 16px; height: 16px; }
+.te-close-btn { background: none; border: none; color: var(--text-dim); font-size: var(--font-size-lg); cursor: pointer; padding: var(--spacing-xs); line-height: 1; transition: color 0.15s; }
+.te-close-btn:hover { color: var(--text-primary); }
+.te-section { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--spacing-md); margin: 0; display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.te-section__hint { margin: 0; font-size: var(--font-size-sm); color: var(--text-dim); line-height: 1.4; }
+.te-section__legend { font-size: var(--font-size-sm); font-weight: 600; color: var(--accent); padding: 0 var(--spacing-xs); user-select: none; }
+.te-grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm); }
+.te-grid-3col { display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--spacing-sm); align-items: center; }
+.te-input--mode { width: 90px; padding: 4px 6px; font-size: 11px; background: var(--input-bg, #2a2a2a); color: var(--text-secondary, #aaa); border: 1px solid var(--border, #444); border-radius: 4px; }
+.te-field { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.te-field label { font-size: var(--font-size-sm); color: var(--text-secondary); font-weight: 500; }
+.te-input, .te-select { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--spacing-sm) var(--spacing-md); color: var(--text-primary); font-size: var(--font-size-md); font-family: inherit; width: 100%; }
+.te-input:focus, .te-select:focus { border-color: var(--accent); outline: none; }
+.te-input--mono { font-family: 'Consolas', 'Courier New', monospace; font-size: var(--font-size-sm); }
+.te-input--sm { font-size: 11px; padding: var(--spacing-xs) var(--spacing-sm); }
+.te-section--prompts .te-prompts-list { display: flex; flex-direction: column; gap: var(--spacing-xs); max-height: 360px; overflow-y: auto; resize: vertical; min-height: 60px; padding-right: var(--spacing-xs); }
+.te-prompt-item { display: flex; flex-direction: column; gap: var(--spacing-xs); padding: var(--spacing-sm); background: var(--bg-secondary); border-radius: var(--radius-sm); }
+.te-prompt-item__header { display: flex; align-items: center; gap: 6px; }
+.te-prompt-item__header .te-input--sm { flex: 1; }
 </style>
