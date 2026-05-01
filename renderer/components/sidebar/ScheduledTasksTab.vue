@@ -1,18 +1,12 @@
 <script setup lang="ts">
 /**
  * ScheduledTasksTab.vue -- UI for creating and managing scheduled tasks.
- *
- * Features:
- * - Task list with countdown timers, status badges, cancel action
- * - Create Task form with CLI picker (QuickSpawnModal) and directory picker (DirPickerModal)
- * - Collapsible create form section
- * - Auto-refresh every 10s with live countdown display
- * - Popup mode: editor-only overlay for quick task creation
  */
 import { ref, computed, onMounted, onUnmounted, watch, ref as templateRef } from 'vue';
 import type { ScheduledTask, ScheduledTaskMode, ScheduledTaskScheduleKind } from '../../../src/types/scheduled-task.js';
 import QuickSpawnModal from '../modals/QuickSpawnModal.vue';
 import DirPickerModal from '../modals/DirPickerModal.vue';
+import PromptTextarea from '../common/PromptTextarea.vue';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import { useModalStack, SELECTION_KEYS } from '../../composables/useModalStack.js';
 
@@ -27,22 +21,14 @@ const props = withDefaults(defineProps<{
   initialEditTaskId?: string | null;
   initialCreate?: boolean;
   popup?: boolean;
-}>(), {
-  initialEditTaskId: null,
-  initialCreate: false,
-  popup: false,
-});
+}>(), { initialEditTaskId: null, initialCreate: false, popup: false });
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
 const tasks = ref<ScheduledTask[]>([]);
 const creating = ref(false);
 const showCreateForm = ref(false);
 const editingTaskId = ref<string | null>(null);
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-// Form state
 const formTitle = ref('');
 const formDescription = ref('');
 const formInitialPrompt = ref('');
@@ -55,52 +41,30 @@ const formTime = ref('');
 const scheduleKind = ref<ScheduledTaskScheduleKind>('once');
 const intervalMinutes = ref(60);
 
-// Picker modal state
 const cliPickerVisible = ref(false);
 const dirPickerVisible = ref(false);
 const availableCliTypes = ref<string[]>([]);
 const availableDirs = ref<{ name: string; path: string }[]>([]);
 const availableSessions = ref<Array<{ id: string; name: string; cliType: string; workingDir?: string }>>([]);
 
-// Popup root ref for focus trap
 const popupRoot = templateRef<HTMLElement | null>('popupRoot');
 const { onKeydown: trapOnKeydown } = useFocusTrap('.scheduled-tasks-tab--popup');
-
-// Modal stack for popup mode
 const modalStack = useModalStack();
 
-// ---------------------------------------------------------------------------
-// Computed
-// ---------------------------------------------------------------------------
 const sessionsForDir = computed(() => {
   if (formMode.value !== 'direct' || !selectedDirPath.value) return [];
   return availableSessions.value.filter(s => s.workingDir === selectedDirPath.value);
 });
 
 const canCreate = computed(() => {
-  const hasBasics = formTitle.value.trim() !== '' &&
-    formInitialPrompt.value.trim() !== '' &&
-    formTime.value !== '' &&
-    selectedDirPath.value.trim() !== '' &&
-    (scheduleKind.value !== 'interval' || intervalMinutes.value >= 1);
-  if (formMode.value === 'direct') {
-    return hasBasics && selectedTargetSessionId.value !== '';
-  }
+  const hasBasics = formTitle.value.trim() !== '' && formInitialPrompt.value.trim() !== '' && formTime.value !== '' && selectedDirPath.value.trim() !== '' && (scheduleKind.value !== 'interval' || intervalMinutes.value >= 1);
+  if (formMode.value === 'direct') return hasBasics && selectedTargetSessionId.value !== '';
   return hasBasics && selectedCliType.value.trim() !== '';
 });
 
-const sortedTasks = computed(() => {
-  return [...tasks.value].sort((a, b) =>
-    new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime()
-  );
-});
-
-// In popup mode, the form is always visible
+const sortedTasks = computed(() => [...tasks.value].sort((a, b) => new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime()));
 const formVisible = computed(() => props.popup || showCreateForm.value);
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 function shortenPath(path: string): string {
   const parts = path.replace(/\\/g, '/').split('/');
   if (parts.length <= 2) return path;
@@ -109,8 +73,7 @@ function shortenPath(path: string): string {
 
 function formatCountdown(scheduledTime: Date | string): string {
   const target = new Date(scheduledTime).getTime();
-  const now = Date.now();
-  const diff = target - now;
+  const diff = target - Date.now();
   if (diff <= 0) return 'overdue';
   const hours = Math.floor(diff / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
@@ -131,46 +94,21 @@ function getStatusBadge(status: string): { label: string; cssClass: string } {
   }
 }
 
-function formatTime(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleString();
-}
-
-function formatNextRun(task: ScheduledTask): string {
-  return formatCountdown(task.nextRunAt ?? task.scheduledTime);
-}
-
+function formatTime(date: Date | string): string { return (typeof date === 'string' ? new Date(date) : date).toLocaleString(); }
+function formatNextRun(task: ScheduledTask): string { return formatCountdown(task.nextRunAt ?? task.scheduledTime); }
 function toLocalDateTimeInputValue(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0');
-  return [
-    date.getFullYear(),
-    pad(date.getMonth() + 1),
-    pad(date.getDate()),
-  ].join('-') + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return [date.getFullYear(), pad(date.getMonth() + 1), pad(date.getDate())].join('-') + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-// ---------------------------------------------------------------------------
-// Data loading
-// ---------------------------------------------------------------------------
 async function loadTasks(): Promise<void> {
-  try {
-    const result = await window.gamepadCli.scheduledTaskList();
-    tasks.value = result || [];
-  } catch {
-    // Empty on failure -- list will appear empty, user can retry
-  }
+  try { tasks.value = await window.gamepadCli.scheduledTaskList() || []; } catch {}
 }
 
-// ---------------------------------------------------------------------------
-// Form toggle + reset
-// ---------------------------------------------------------------------------
 function toggleCreateForm(): void {
   showCreateForm.value = !showCreateForm.value;
-  if (showCreateForm.value) {
-    startCreateForm();
-  } else {
-    resetForm();
-  }
+  if (showCreateForm.value) startCreateForm();
+  else resetForm();
 }
 
 function startCreateForm(): void {
@@ -195,62 +133,24 @@ function resetForm(): void {
   intervalMinutes.value = 60;
 }
 
-// ---------------------------------------------------------------------------
-// Picker modals
-// ---------------------------------------------------------------------------
 async function openCliPicker(): Promise<void> {
-  try {
-    const clis = await window.gamepadCli.configGetCliTypes() as string[];
-    availableCliTypes.value = clis;
-    cliPickerVisible.value = true;
-  } catch {
-    // Ignore -- picker won't open
-  }
+  try { availableCliTypes.value = await window.gamepadCli.configGetCliTypes() as string[]; cliPickerVisible.value = true; } catch {}
 }
-
-function onCliSelected(cliType: string): void {
-  selectedCliType.value = cliType;
-  cliPickerVisible.value = false;
-}
-
-function onModeChange(): void {
-  selectedTargetSessionId.value = '';
-  if (formMode.value === 'direct') {
-    loadSessions();
-  }
-}
-
+function onCliSelected(cliType: string): void { selectedCliType.value = cliType; cliPickerVisible.value = false; }
+function onModeChange(): void { selectedTargetSessionId.value = ''; if (formMode.value === 'direct') loadSessions(); }
 async function openDirPickerModal(): Promise<void> {
   try {
     const dirs = await window.gamepadCli.configGetWorkingDirs() as Array<{ path: string; name?: string }>;
     availableDirs.value = dirs.map((d) => ({ name: d.name ?? d.path, path: d.path }));
     dirPickerVisible.value = true;
-  } catch {
-    // Ignore -- picker won't open
-  }
+  } catch {}
 }
-
-function onDirSelected(path: string): void {
-  selectedDirPath.value = path;
-  selectedTargetSessionId.value = '';
-  dirPickerVisible.value = false;
-  if (formMode.value === 'direct') {
-    loadSessions();
-  }
-}
-
+function onDirSelected(path: string): void { selectedDirPath.value = path; selectedTargetSessionId.value = ''; dirPickerVisible.value = false; if (formMode.value === 'direct') loadSessions(); }
 async function loadSessions(): Promise<void> {
-  try {
-    const sessions = await window.gamepadCli.sessionGetAll() as Array<{ id: string; name: string; cliType: string; workingDir?: string }>;
-    availableSessions.value = sessions;
-  } catch {
-    availableSessions.value = [];
-  }
+  try { availableSessions.value = await window.gamepadCli.sessionGetAll() as Array<{ id: string; name: string; cliType: string; workingDir?: string }>; }
+  catch { availableSessions.value = []; }
 }
 
-// ---------------------------------------------------------------------------
-// Task CRUD
-// ---------------------------------------------------------------------------
 async function createTask(): Promise<void> {
   if (!canCreate.value) return;
   creating.value = true;
@@ -260,9 +160,7 @@ async function createTask(): Promise<void> {
       description: formDescription.value.trim() || undefined,
       planIds: [],
       initialPrompt: formInitialPrompt.value.trim(),
-      cliType: formMode.value === 'direct'
-        ? (availableSessions.value.find(s => s.id === selectedTargetSessionId.value)?.cliType ?? selectedCliType.value)
-        : selectedCliType.value,
+      cliType: formMode.value === 'direct' ? (availableSessions.value.find(s => s.id === selectedTargetSessionId.value)?.cliType ?? selectedCliType.value) : selectedCliType.value,
       cliParams: formCliParams.value.trim() || undefined,
       scheduledTime: new Date(formTime.value),
       scheduleKind: scheduleKind.value,
@@ -271,25 +169,13 @@ async function createTask(): Promise<void> {
       mode: formMode.value,
       targetSessionId: formMode.value === 'direct' ? selectedTargetSessionId.value : undefined,
     };
-    const result = editingTaskId.value
-      ? await window.gamepadCli.scheduledTaskUpdate(editingTaskId.value, payload)
-      : await window.gamepadCli.scheduledTaskCreate(payload);
-
+    const result = editingTaskId.value ? await window.gamepadCli.scheduledTaskUpdate(editingTaskId.value, payload) : await window.gamepadCli.scheduledTaskCreate(payload);
     if (result) {
       emit(editingTaskId.value ? 'task-updated' : 'task-created', result);
-      if (props.popup) {
-        emit('close');
-      } else {
-        showCreateForm.value = false;
-        resetForm();
-        await loadTasks();
-      }
+      if (props.popup) emit('close');
+      else { showCreateForm.value = false; resetForm(); await loadTasks(); }
     }
-  } catch {
-    // Silent fail -- form stays open for retry
-  } finally {
-    creating.value = false;
-  }
+  } catch {} finally { creating.value = false; }
 }
 
 function editTask(task: ScheduledTask): void {
@@ -306,26 +192,13 @@ function editTask(task: ScheduledTask): void {
   scheduleKind.value = task.scheduleKind ?? 'once';
   intervalMinutes.value = Math.max(1, Math.round((task.intervalMs ?? 3600000) / 60000));
   showCreateForm.value = true;
-  if (formMode.value === 'direct') {
-    loadSessions();
-  }
+  if (formMode.value === 'direct') loadSessions();
 }
 
 async function cancelTask(taskId: string): Promise<void> {
-  try {
-    const success = await window.gamepadCli.scheduledTaskCancel(taskId);
-    if (success) {
-      emit('task-cancelled', taskId);
-      await loadTasks();
-    }
-  } catch {
-    // Silent fail
-  }
+  try { if (await window.gamepadCli.scheduledTaskCancel(taskId)) { emit('task-cancelled', taskId); await loadTasks(); } } catch {}
 }
 
-// ---------------------------------------------------------------------------
-// Lifecycle
-// ---------------------------------------------------------------------------
 onMounted(async () => {
   await Promise.all([loadTasks(), loadSessions()]);
   if (props.initialEditTaskId) {
@@ -336,515 +209,105 @@ onMounted(async () => {
     startCreateForm();
   }
   refreshTimer = setInterval(loadTasks, 10000);
-
-  // Modal stack integration for popup mode
-  if (props.popup) {
-    modalStack.push({
-      id: 'scheduler-popup',
-      handler: () => true, // consume all gamepad input
-      interceptKeys: SELECTION_KEYS,
-    });
-  }
+  if (props.popup) modalStack.push({ id: 'scheduler-popup', handler: () => true, interceptKeys: SELECTION_KEYS });
 });
 
-watch(() => props.initialCreate, (initialCreate) => {
-  if (!initialCreate || props.initialEditTaskId) return;
-  showCreateForm.value = true;
-  startCreateForm();
-});
-
-watch(() => props.initialEditTaskId, async (taskId) => {
-  if (!taskId) return;
-  await loadTasks();
-  const task = tasks.value.find((item) => item.id === taskId);
-  if (task) editTask(task);
-});
-
-onUnmounted(() => {
-  if (refreshTimer) clearInterval(refreshTimer);
-  modalStack.pop('scheduler-popup');
-});
+watch(() => props.initialCreate, (initialCreate) => { if (!initialCreate || props.initialEditTaskId) return; showCreateForm.value = true; startCreateForm(); });
+watch(() => props.initialEditTaskId, async (taskId) => { if (!taskId) return; await loadTasks(); const task = tasks.value.find((item) => item.id === taskId); if (task) editTask(task); });
+onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer); modalStack.pop('scheduler-popup'); });
 </script>
 
 <template>
-  <div
-    ref="popupRoot"
-    class="scheduled-tasks-tab"
-    :class="{ 'scheduled-tasks-tab--popup': popup }"
-    @keydown="popup ? trapOnKeydown($event) : undefined"
-  >
-    <!-- Header (hidden in popup mode) -->
+  <div ref="popupRoot" class="scheduled-tasks-tab" :class="{ 'scheduled-tasks-tab--popup': popup }" @keydown="popup ? trapOnKeydown($event) : undefined">
     <div v-if="!popup" class="st-header">
       <h2 class="st-title">Scheduled Tasks</h2>
       <span class="st-count">{{ tasks.length }} task{{ tasks.length !== 1 ? 's' : '' }}</span>
-      <button
-        class="st-create-btn focusable"
-        :disabled="creating"
-        @click="toggleCreateForm"
-      >
-        {{ showCreateForm ? 'Cancel' : '+ Create Task' }}
-      </button>
+      <button class="st-create-btn focusable" :disabled="creating" @click="toggleCreateForm">{{ showCreateForm ? 'Cancel' : '+ Create Task' }}</button>
     </div>
 
-    <!-- Create Form -->
     <div v-if="formVisible" class="st-form">
+      <div class="st-form-row"><label class="st-label">Title *</label><input v-model="formTitle" type="text" class="st-input focusable" placeholder="Task name" maxlength="100" /></div>
+      <div class="st-form-row"><label class="st-label">Description (optional)</label><textarea v-model="formDescription" class="st-textarea focusable" placeholder="What this task does" rows="2" /></div>
       <div class="st-form-row">
-        <label class="st-label">Title *</label>
-        <input
-          v-model="formTitle"
-          type="text"
-          class="st-input focusable"
-          placeholder="Task name"
-          maxlength="100"
-        />
+        <PromptTextarea v-model="formInitialPrompt" label="Prompt *" placeholder="What to send to the CLI" :rows="3" :min-rows="3" :max-rows="14" />
       </div>
-
-      <div class="st-form-row">
-        <label class="st-label">Description (optional)</label>
-        <textarea
-          v-model="formDescription"
-          class="st-textarea focusable"
-          placeholder="What this task does"
-          rows="2"
-        />
-      </div>
-
-      <div class="st-form-row">
-        <label class="st-label">Prompt *</label>
-        <textarea
-          v-model="formInitialPrompt"
-          class="st-textarea focusable"
-          placeholder="What to send to the CLI"
-          rows="3"
-        />
-      </div>
-
-      <div class="st-form-row st-form-row--picker">
-        <label class="st-label">Working Directory *</label>
-        <button class="st-picker-btn focusable" @click="openDirPickerModal">
-          {{ selectedDirPath ? shortenPath(selectedDirPath) : 'Select Directory...' }}
-        </button>
-      </div>
-
-      <div class="st-form-row">
-        <label class="st-label">Mode</label>
-        <select v-model="formMode" class="st-input focusable" @change="onModeChange">
-          <option value="spawn">Spawn new session</option>
-          <option value="direct">Send to existing session</option>
-        </select>
-      </div>
-
-      <div v-if="formMode !== 'direct'" class="st-form-row st-form-row--picker">
-        <label class="st-label">CLI Type *</label>
-        <button class="st-picker-btn focusable" @click="openCliPicker">
-          {{ selectedCliType || 'Select CLI...' }}
-        </button>
-      </div>
-
-      <div v-if="formMode === 'direct'" class="st-form-row">
-        <label class="st-label">Target Session *</label>
-        <select
-          v-model="selectedTargetSessionId"
-          class="st-input focusable"
-          :disabled="sessionsForDir.length === 0"
-        >
-          <option value="" disabled>{{ sessionsForDir.length === 0 ? 'No sessions in this directory' : 'Select session...' }}</option>
-          <option v-for="s in sessionsForDir" :key="s.id" :value="s.id">
-            {{ s.name }} ({{ s.cliType }})
-          </option>
-        </select>
-      </div>
-
-      <div v-if="formMode !== 'direct'" class="st-form-row">
-        <label class="st-label">CLI Params (optional)</label>
-        <input
-          v-model="formCliParams"
-          type="text"
-          class="st-input focusable"
-          placeholder="Additional CLI arguments"
-        />
-      </div>
-
-      <div class="st-form-row">
-        <label class="st-label">Scheduled Time *</label>
-        <input
-          v-model="formTime"
-          type="datetime-local"
-          class="st-input focusable"
-        />
-      </div>
-
-      <div class="st-form-row st-form-row--inline">
-        <div class="st-form-row">
-          <label class="st-label">Schedule</label>
-          <select v-model="scheduleKind" class="st-input focusable">
-            <option value="once">Once</option>
-            <option value="interval">Recurring interval</option>
-          </select>
-        </div>
-        <div v-if="scheduleKind === 'interval'" class="st-form-row">
-          <label class="st-label">Repeat Every (min) *</label>
-          <input
-            v-model.number="intervalMinutes"
-            type="number"
-            min="1"
-            class="st-input focusable"
-          />
-        </div>
-      </div>
-
-      <!-- Footer: Cancel + Save buttons -->
-      <div class="st-form-footer">
-        <button
-          v-if="!popup"
-          class="st-btn st-btn--secondary focusable"
-          @click="toggleCreateForm"
-        >
-          Cancel
-        </button>
-        <button
-          v-if="popup"
-          class="st-btn st-btn--secondary focusable"
-          @click="emit('close')"
-        >
-          Cancel
-        </button>
-        <button
-          class="st-btn st-btn--primary focusable"
-          :disabled="!canCreate || creating"
-          @click="createTask"
-        >
-          {{ creating ? (editingTaskId ? 'Saving...' : 'Creating...') : (editingTaskId ? 'Save' : 'Create') }}
-        </button>
-      </div>
+      <div class="st-form-row st-form-row--picker"><label class="st-label">Working Directory *</label><button class="st-picker-btn focusable" @click="openDirPickerModal">{{ selectedDirPath ? shortenPath(selectedDirPath) : 'Select Directory...' }}</button></div>
+      <div class="st-form-row"><label class="st-label">Mode</label><select v-model="formMode" class="st-input focusable" @change="onModeChange"><option value="spawn">Spawn new session</option><option value="direct">Send to existing session</option></select></div>
+      <div v-if="formMode !== 'direct'" class="st-form-row st-form-row--picker"><label class="st-label">CLI Type *</label><button class="st-picker-btn focusable" @click="openCliPicker">{{ selectedCliType || 'Select CLI...' }}</button></div>
+      <div v-if="formMode === 'direct'" class="st-form-row"><label class="st-label">Target Session *</label><select v-model="selectedTargetSessionId" class="st-input focusable" :disabled="sessionsForDir.length === 0"><option value="" disabled>{{ sessionsForDir.length === 0 ? 'No sessions in this directory' : 'Select session...' }}</option><option v-for="s in sessionsForDir" :key="s.id" :value="s.id">{{ s.name }} ({{ s.cliType }})</option></select></div>
+      <div v-if="formMode !== 'direct'" class="st-form-row"><label class="st-label">CLI Params (optional)</label><input v-model="formCliParams" type="text" class="st-input focusable" placeholder="Additional CLI arguments" /></div>
+      <div class="st-form-row"><label class="st-label">Scheduled Time *</label><input v-model="formTime" type="datetime-local" class="st-input focusable" /></div>
+      <div class="st-form-row st-form-row--inline"><div class="st-form-row"><label class="st-label">Schedule</label><select v-model="scheduleKind" class="st-input focusable"><option value="once">Once</option><option value="interval">Recurring interval</option></select></div><div v-if="scheduleKind === 'interval'" class="st-form-row"><label class="st-label">Repeat Every (min) *</label><input v-model.number="intervalMinutes" type="number" min="1" class="st-input focusable" /></div></div>
+      <div class="st-form-footer"><button v-if="!popup" class="st-btn st-btn--secondary focusable" @click="toggleCreateForm">Cancel</button><button v-if="popup" class="st-btn st-btn--secondary focusable" @click="emit('close')">Cancel</button><button class="st-btn st-btn--primary focusable" :disabled="!canCreate || creating" @click="createTask">{{ creating ? (editingTaskId ? 'Saving...' : 'Creating...') : (editingTaskId ? 'Save' : 'Create') }}</button></div>
     </div>
 
-    <!-- Task List (hidden in popup mode) -->
     <div v-if="!popup" class="st-task-list">
-      <div v-if="sortedTasks.length === 0 && !showCreateForm" class="st-empty">
-        No scheduled tasks yet. Click "+ Create Task" to add one.
-      </div>
-
-      <div
-        v-for="task in sortedTasks"
-        :key="task.id"
-        class="st-task-card"
-        :class="'st-task-card--' + task.status"
-      >
-        <div class="st-task-header">
-          <h4 class="st-task-title">{{ task.title }}</h4>
-          <span
-            class="st-task-badge"
-            :class="getStatusBadge(task.status).cssClass"
-          >
-            {{ getStatusBadge(task.status).label }}
-          </span>
-        </div>
-
+      <div v-if="sortedTasks.length === 0 && !showCreateForm" class="st-empty">No scheduled tasks yet. Click "+ Create Task" to add one.</div>
+      <div v-for="task in sortedTasks" :key="task.id" class="st-task-card" :class="'st-task-card--' + task.status">
+        <div class="st-task-header"><h4 class="st-task-title">{{ task.title }}</h4><span class="st-task-badge" :class="getStatusBadge(task.status).cssClass">{{ getStatusBadge(task.status).label }}</span></div>
         <p v-if="task.description" class="st-task-description">{{ task.description }}</p>
-
-        <div class="st-task-meta">
-          <span class="st-task-chip">{{ task.cliType }}</span>
-          <span class="st-task-chip">{{ shortenPath(task.dirPath) }}</span>
-          <span v-if="task.status === 'pending'" class="st-task-countdown">
-            {{ formatNextRun(task) }}
-          </span>
-          <span v-else-if="task.status === 'executing'" class="st-task-countdown st-task-countdown--running">
-            running...
-          </span>
-          <span v-else class="st-task-time">{{ formatTime(task.scheduledTime) }}</span>
-        </div>
-
+        <div class="st-task-meta"><span class="st-task-chip">{{ task.cliType }}</span><span class="st-task-chip">{{ shortenPath(task.dirPath) }}</span><span v-if="task.status === 'pending'" class="st-task-countdown">{{ formatNextRun(task) }}</span><span v-else-if="task.status === 'executing'" class="st-task-countdown st-task-countdown--running">running...</span><span v-else class="st-task-time">{{ formatTime(task.scheduledTime) }}</span></div>
         <div v-if="task.error" class="st-task-error">{{ task.error }}</div>
-
-        <div v-if="task.status === 'pending'" class="st-task-actions">
-          <button
-            class="st-btn st-btn--secondary focusable"
-            :disabled="creating"
-            @click="editTask(task)"
-          >
-            Edit
-          </button>
-          <button
-            class="st-btn st-btn--danger focusable"
-            :disabled="creating"
-            @click="cancelTask(task.id)"
-          >
-            Cancel Task
-          </button>
-        </div>
+        <div v-if="task.status === 'pending'" class="st-task-actions"><button class="st-btn st-btn--secondary focusable" :disabled="creating" @click="editTask(task)">Edit</button><button class="st-btn st-btn--danger focusable" :disabled="creating" @click="cancelTask(task.id)">Cancel Task</button></div>
       </div>
     </div>
 
-    <!-- Inline picker modals (self-contained, not via App.vue bridge) -->
-    <QuickSpawnModal
-      :visible="cliPickerVisible"
-      :cli-types="availableCliTypes"
-      @select="onCliSelected"
-      @cancel="cliPickerVisible = false"
-      @update:visible="cliPickerVisible = $event"
-    />
-    <DirPickerModal
-      :visible="dirPickerVisible"
-      :cli-type="selectedCliType || ''"
-      :items="availableDirs"
-      @select="onDirSelected"
-      @cancel="dirPickerVisible = false"
-      @update:visible="dirPickerVisible = $event"
-    />
+    <QuickSpawnModal :visible="cliPickerVisible" :cli-types="availableCliTypes" @select="onCliSelected" @cancel="cliPickerVisible = false" @update:visible="cliPickerVisible = $event" />
+    <DirPickerModal :visible="dirPickerVisible" :cli-type="selectedCliType || ''" :items="availableDirs" @select="onDirSelected" @cancel="dirPickerVisible = false" @update:visible="dirPickerVisible = $event" />
   </div>
 </template>
 
 <style scoped>
-.scheduled-tasks-tab {
-  padding: 16px;
-  max-width: 800px;
-  margin: 0 auto;
-}
-.scheduled-tasks-tab--popup {
-  max-width: none;
-  max-height: 78vh;
-  overflow: auto;
-  border: 2px solid #44cc44;
-  border-radius: 8px;
-}
-
-/* Header */
-.st-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-.st-title {
-  margin: 0;
-  font-size: 1.5rem;
-  color: var(--text-primary);
-}
-.st-count {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-.st-create-btn {
-  margin-left: auto;
-  padding: 8px 16px;
-  background: var(--accent-primary);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 0.9rem;
-}
+.scheduled-tasks-tab { padding: 16px; max-width: 800px; margin: 0 auto; }
+.scheduled-tasks-tab--popup { max-width: none; max-height: 78vh; overflow: auto; border: 2px solid #44cc44; border-radius: 8px; }
+.st-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.st-title { margin: 0; font-size: 1.5rem; color: var(--text-primary); }
+.st-count { color: var(--text-secondary); font-size: 0.85rem; }
+.st-create-btn { margin-left: auto; padding: 8px 16px; background: var(--accent-primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 0.9rem; }
 .st-create-btn:hover { opacity: 0.9; }
 .st-create-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* Form */
-.st-form {
-  background: var(--bg-secondary);
-  padding: 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.st-form-row {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.st-form-row--inline {
-  flex-direction: row;
-  gap: 12px;
-}
-.st-form-row--inline > .st-form-row {
-  flex: 1;
-}
-.st-label {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-.st-input,
-.st-textarea {
-  padding: 8px 12px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-size: 0.95rem;
-  box-sizing: border-box;
-}
-.st-textarea {
-  resize: vertical;
-  min-height: 60px;
-  font-family: inherit;
-}
-.st-form-row--picker {
-  margin-bottom: 2px;
-}
-.st-picker-btn {
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.9rem;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-.st-picker-btn--disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.st-picker-btn:hover:not(.st-picker-btn--disabled) {
-  border-color: var(--accent-primary);
-}
-
-/* Form footer */
-.st-form-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 4px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-color);
-}
-
-/* Buttons */
-.st-btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  font-size: 0.95rem;
-}
-.st-btn--primary {
-  background: var(--accent-primary);
-  color: white;
-}
+.st-form { background: var(--bg-secondary); padding: 20px; border-radius: 8px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 14px; }
+.st-form-row { display: flex; flex-direction: column; gap: 4px; }
+.st-form-row--inline { flex-direction: row; gap: 12px; }
+.st-form-row--inline > .st-form-row { flex: 1; }
+.st-label { font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px; }
+.st-input, .st-textarea { padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); font-size: 0.95rem; box-sizing: border-box; }
+.st-textarea { resize: vertical; min-height: 60px; font-family: inherit; }
+.st-form-row--picker { margin-bottom: 2px; }
+.st-picker-btn { padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem; text-align: left; cursor: pointer; transition: border-color 0.2s; }
+.st-picker-btn--disabled { opacity: 0.5; cursor: default; }
+.st-picker-btn:hover:not(.st-picker-btn--disabled) { border-color: var(--accent-primary); }
+.st-form-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border-color); }
+.st-btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 0.95rem; }
+.st-btn--primary { background: var(--accent-primary); color: white; }
 .st-btn--primary:hover:not(:disabled) { opacity: 0.9; }
 .st-btn--primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.st-btn--secondary {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  padding: 10px 20px;
-}
+.st-btn--secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); padding: 10px 20px; }
 .st-btn--secondary:hover:not(:disabled) { border-color: var(--accent-primary); }
-.st-btn--danger {
-  background: #ff4444;
-  color: white;
-  padding: 6px 12px;
-  font-size: 0.85rem;
-}
+.st-btn--danger { background: #ff4444; color: white; padding: 6px 12px; font-size: 0.85rem; }
 .st-btn--danger:hover:not(:disabled) { background: #cc0000; }
-
-/* Task list */
-.st-empty {
-  text-align: center;
-  padding: 40px;
-  color: var(--text-secondary);
-}
-.st-task-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* Task card */
-.st-task-card {
-  background: var(--bg-secondary);
-  border-radius: 8px;
-  padding: 16px;
-  border-left: 4px solid var(--text-secondary);
-}
+.st-empty { text-align: center; padding: 40px; color: var(--text-secondary); }
+.st-task-list { display: flex; flex-direction: column; gap: 12px; }
+.st-task-card { background: var(--bg-secondary); border-radius: 8px; padding: 16px; border-left: 4px solid var(--text-secondary); }
 .st-task-card--pending { border-left-color: #4488ff; }
 .st-task-card--executing { border-left-color: #ff9f1a; }
 .st-task-card--completed { border-left-color: #44cc44; opacity: 0.6; }
 .st-task-card--cancelled { border-left-color: #555; opacity: 0.5; }
 .st-task-card--failed { border-left-color: #ff4444; }
-
-.st-task-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-.st-task-title {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Status badge */
-.st-task-badge {
-  font-size: 0.75rem;
-  padding: 2px 8px;
-  border-radius: 3px;
-  font-weight: 500;
-  flex-shrink: 0;
-}
+.st-task-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
+.st-task-title { margin: 0; font-size: 1.1rem; font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-task-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 3px; font-weight: 500; flex-shrink: 0; }
 .badge--pending { background: rgba(68,136,255,0.15); color: #4488ff; }
 .badge--executing { background: rgba(255,159,26,0.15); color: #ff9f1a; }
 .badge--completed { background: rgba(68,204,68,0.15); color: #44cc44; }
 .badge--cancelled { background: rgba(85,85,85,0.15); color: #555; }
 .badge--failed { background: rgba(255,68,68,0.15); color: #ff4444; }
-
-.st-task-description {
-  margin: 0 0 4px;
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.st-task-meta {
-  display: flex;
-  gap: 8px;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  flex-wrap: wrap;
-  align-items: center;
-}
-.st-task-chip {
-  background: var(--bg-tertiary);
-  padding: 1px 6px;
-  border-radius: 3px;
-}
-.st-task-countdown {
-  margin-left: auto;
-  font-weight: 500;
-  color: var(--accent-primary);
-}
-.st-task-countdown--running {
-  color: #ff9f1a;
-}
-.st-task-time {
-  margin-left: auto;
-  color: var(--text-secondary);
-}
-.st-task-error {
-  margin-top: 8px;
-  padding: 8px;
-  background: rgba(255, 68, 68, 0.1);
-  border-radius: 4px;
-  color: #ff4444;
-  font-size: 0.9rem;
-}
-.st-task-actions {
-  margin-top: 12px;
-  display: flex;
-  gap: 8px;
-}
+.st-task-description { margin: 0 0 4px; font-size: 0.9rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-task-meta { display: flex; gap: 8px; font-size: 0.8rem; color: var(--text-secondary); flex-wrap: wrap; align-items: center; }
+.st-task-chip { background: var(--bg-tertiary); padding: 1px 6px; border-radius: 3px; }
+.st-task-countdown { margin-left: auto; font-weight: 500; color: var(--accent-primary); }
+.st-task-countdown--running { color: #ff9f1a; }
+.st-task-time { margin-left: auto; color: var(--text-secondary); }
+.st-task-error { margin-top: 8px; padding: 8px; background: rgba(255, 68, 68, 0.1); border-radius: 4px; color: #ff4444; font-size: 0.9rem; }
+.st-task-actions { margin-top: 12px; display: flex; gap: 8px; }
 </style>
