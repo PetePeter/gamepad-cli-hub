@@ -24,10 +24,12 @@ Helm is an Electron desktop app that lets you control multiple AI coding CLI ses
 - **Scheduled tasks** — One-time or recurring prompts with spawn or direct-to-session delivery
 - **Drafts + chip bar** — Keep prompt drafts beside the active terminal and trigger reusable quick actions with template expansions
 - **Telegram bot** — Remote session control, activity-gated output monitoring, and spawning from your phone
+- **LLM notifications** — Smart delivery routing: sessions can direct notifications to other sessions, Telegram, or Windows toasts
 - **Plan backups** — Rolling snapshots per directory with one-click restore
 - **Voice control ready** — Designed to work with OpenWhisper for voice-to-text input
 - **Session recovery** — Sessions survive app crashes and restarts, with per-CLI resume commands and snapped-out window recovery
 - **Helm MCP server** — Control sessions from Claude Code or other AI agents via MCP tools (send text, read terminal, manage plans)
+- **Configurable submit suffix** — Per-CLI text terminator (CR/LF/CRLF) for inter-session messaging and paste delivery
 
 ---
 
@@ -38,7 +40,21 @@ npm install
 npm start
 ```
 
-Plug in a controller (USB or Bluetooth). The app detects it automatically — Xbox controllers and generic/DirectInput gamepads are supported.
+Plug in a controller (USB or Bluetooth). The app detects it automatically — Xbox controllers and generic/DirectInput gamepads are supported. Head to Settings to configure CLI tools, working directories, and button bindings.
+
+### First Session Workflow
+
+1. **Settings** → add a CLI tool (e.g. Claude Code with command `claude`)
+2. **Left Trigger** (or Back/Start) → spawns a new session in the selected directory
+3. **D-pad** → switch between sessions, start typing immediately
+4. **Right stick** → scroll the terminal buffer
+
+### Remote Control (Telegram)
+
+1. **Settings** → Telegram → follow the setup guide (token + chat ID)
+2. Bot appears with a pinned dashboard of all sessions
+3. `/spawn` to create sessions, `/send` to send prompts, type in topic threads for direct input
+4. Activity-gated output: buffered while sessions are busy, flushed when they go quiet
 
 ---
 
@@ -126,11 +142,17 @@ The app also watches for `AIAGENT-*` keywords in PTY output to detect CLI state 
 
 **Windows toast notifications** fire when a session goes inactive while implementing or planning — so you know when a long task finishes without staring at the screen.
 
+**LLM-directed notifications** let sessions route notifications to other sessions, Telegram, or Windows toasts with smart delivery — the AI decides where the notification goes based on context and urgency.
+
 ---
 
 ## Telegram Bot
 
-Control your sessions remotely via a Telegram bot with forum topics. Each session gets its own topic thread.
+Control your sessions remotely via a Telegram bot with forum topics. Each session gets its own topic thread that mirrors terminal output and forwards your input directly to the PTY.
+
+### Setup
+
+Settings → Telegram → follow the collapsible setup guide (bot token + chat ID). The bot creates forum topics automatically — one per session.
 
 ### Commands
 
@@ -140,17 +162,15 @@ Control your sessions remotely via a Telegram bot with forum topics. Each sessio
 | `/status` | Show all session states at a glance |
 | `/spawn` | 3-step wizard: pick CLI tool → pick directory → session created |
 | `/send <text>` | Send text directly to the active session's PTY |
-| `/output` | Smart output summary (tests, errors, modified files, recent lines) |
 | `/close` | Close the current topic's session |
 
 ### Features
 
-- **Activity-gated output** — Terminal output streams to Telegram, but batched intelligently: buffers while the session is active, flushes when it goes quiet (>10s silence). No more wall-of-text spam during builds
-- **Prompt echo** — User input sent from the app appears as `📝 typed text` in the topic
-- **Session control** — Continue (Enter), Cancel (Ctrl+C), Send Prompt with confirmation
-- **Command palette** — Execute preconfigured CLI sequences from inline buttons
-- **Pinned dashboard** — Auto-updating message with all sessions grouped by directory
+- **Activity-gated output** — Terminal output streams to Telegram, but batched intelligently: buffers while the session is active, flushes when it goes quiet (>10s silence)
 - **Topic input forwarding** — Type in a session's topic and it goes straight to the PTY
+- **Pinned dashboard** — Auto-updating message with all sessions grouped by directory, Talk button for quick access
+- **Topic lifecycle sync** — Closing a session automatically closes its Telegram topic
+- **MCP tool consolidation** — Three MCP tools (`status`, `chat`, `close`) for programmatic bot control
 
 ---
 
@@ -289,6 +309,27 @@ Automatic rolling-window snapshots of plan data per directory. Restore from the 
 
 Control sessions from Claude Code or other AI agents via MCP tools (send text, read terminal, manage plans, etc.). The MCP server starts automatically with the app.
 
+### Quick Start
+
+Agents call `session_info` on startup to get the MCP endpoint URL, auth token, and AIAGENT state registry. From there they can send text between sessions, read terminal output, manage plans, and coordinate work.
+
+### Key Concepts
+
+- **Inter-session messaging** — Send instructions between CLI sessions via `[HELM_MSG]` envelopes with reply routing
+- **AIAGENT state** — Sessions declare their work phase (planning/implementing/completed/idle) visible in the Helm UI
+- **Plan coordination** — Create, link, and complete plan items from any session with dependency-aware DAG validation
+- **Plan attachments** — Attach files (text, JSON, images) to plan items for cross-session reference
+- **Plan sequences** — Group related plans into swimlanes with shared memory for coordinated multi-step work
+
+### Documentation
+
+| Document | Content |
+|----------|---------|
+| [helm-mcp-protocol.md](docs/helm-mcp-protocol.md) | Inter-session coordination, plan workflow, environment variables |
+| [helm-envelope-reference.md](docs/helm-envelope-reference.md) | `[HELM_MSG]` envelope format for sending and receiving instructions |
+| [helm-mcp-client-guide.md](docs/helm-mcp-client-guide.md) | Client implementation guide for parsing envelopes and replying |
+| [helm-session-info.md](docs/helm-session-info.md) | `session_info` tool reference, AIAGENT state registry, plan/attachment guides |
+
 ## Build & Test
 
 ```bash
@@ -310,6 +351,11 @@ User-facing docs are in `docs/`:
 | [group-overview.md](docs/group-overview.md) | Session preview grid — entry/exit, navigation, live previews |
 | [directory-plans.md](docs/directory-plans.md) | Planner canvas, plan lifecycle, persistence, and chips |
 | [config-system.md](docs/config-system.md) | Profile setup, bindings, tool configuration, and sequences |
+| [plan-backup-restore.md](docs/plan-backup-restore.md) | Plan backup snapshots, restore workflow, configuration |
+| [helm-mcp-protocol.md](docs/helm-mcp-protocol.md) | Inter-session coordination, plan workflow, environment variables |
+| [helm-envelope-reference.md](docs/helm-envelope-reference.md) | `[HELM_MSG]` envelope format quick reference |
+| [helm-mcp-client-guide.md](docs/helm-mcp-client-guide.md) | Client implementation guide for MCP envelope parsing |
+| [helm-session-info.md](docs/helm-session-info.md) | `session_info` tool, AIAGENT states, plan attachments |
 | [CHANGELOG.md](CHANGELOG.md) | Versioned release notes |
 
 ---
