@@ -2,12 +2,15 @@ import { parseSequence, type SequenceAction } from './sequence-parser.js';
 
 export type SequenceWrite = (sessionId: string, data: string) => void | Promise<void>;
 export type SequenceDeliverText = (sessionId: string, text: string) => Promise<void>;
+export type SequenceSubmit = (sessionId: string) => void | Promise<void>;
 
 export interface ExecuteSequenceOptions {
   sessionId: string;
   input: string;
   write: SequenceWrite;
   deliverText: SequenceDeliverText;
+  submit?: SequenceSubmit;
+  impliedSubmit?: boolean;
   isCancelled?: () => boolean;
 }
 
@@ -43,8 +46,12 @@ export function actionToPtyData(action: SequenceAction): string | null {
 
 export async function executeSequenceString(options: ExecuteSequenceOptions): Promise<void> {
   const { sessionId, input, write, deliverText, isCancelled } = options;
+  const submit = options.submit ?? ((sid: string) => write(sid, '\r'));
+  const impliedSubmit = options.impliedSubmit ?? true;
   const actions = parseSequence(input);
   let bufferedText = '';
+  let sawAction = false;
+  let submitted = false;
 
   const flush = async () => {
     if (!bufferedText) return;
@@ -53,26 +60,23 @@ export async function executeSequenceString(options: ExecuteSequenceOptions): Pr
     await deliverText(sessionId, text);
   };
 
-  let sentExplicitSubmit = false;
+  const doSubmit = async () => {
+    await flush();
+    await submit(sessionId);
+    submitted = true;
+  };
 
   for (const action of actions) {
     if (isCancelled?.()) break;
+    sawAction = true;
 
     if (action.type === 'text') {
       bufferedText += action.value;
       continue;
     }
 
-    if (action.type === 'key' && action.key === 'Enter') {
-      bufferedText += '\r';
-      sentExplicitSubmit = true;
-      continue;
-    }
-
-    if (action.type === 'key' && action.key === 'Send') {
-      await flush();
-      await write(sessionId, '\r');
-      sentExplicitSubmit = true;
+    if (action.type === 'key' && (action.key === 'Enter' || action.key === 'Send')) {
+      await doSubmit();
       continue;
     }
 
@@ -89,8 +93,7 @@ export async function executeSequenceString(options: ExecuteSequenceOptions): Pr
 
   await flush();
 
-  // implied send if none occurred
-  if (!sentExplicitSubmit) {
-    await write(sessionId, '\r');
+  if (impliedSubmit && sawAction && !submitted && !isCancelled?.()) {
+    await submit(sessionId);
   }
 }
