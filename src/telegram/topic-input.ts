@@ -17,12 +17,13 @@ import type { TelegramRelayService } from './relay-service.js';
 import { escapeHtml } from './utils.js';
 import { logger } from '../utils/logger.js';
 
-function deliverViaManager(ptyManager: PtyManager, sessionId: string, text: string): Promise<void> {
+function deliverViaManager(ptyManager: PtyManager, sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }): Promise<void> {
   const maybeDeliver = (ptyManager as Partial<PtyManager>).deliverText;
   if (typeof maybeDeliver === 'function') {
-    return maybeDeliver.call(ptyManager, sessionId, text);
+    return maybeDeliver.call(ptyManager, sessionId, text, options);
   }
-  ptyManager.write(sessionId, text);
+  const suffix = options?.submitSuffix ?? (options?.withReturn ? '\r' : '');
+  ptyManager.write(sessionId, text + suffix);
   return Promise.resolve();
 }
 
@@ -66,7 +67,7 @@ export function setupTopicInput(
       return;
     }
 
-    await forwardToSession(bot, ptyManager, sessionId, msg.message_thread_id, msg.text);
+    await forwardToSession(bot, ptyManager, sessionId, msg.message_thread_id, msg.text, msg);
   };
 
   bot.on('message', handler);
@@ -83,8 +84,11 @@ async function forwardToSession(
   sessionId: string,
   replyTopicId: number | undefined,
   text: string,
+  msg: TelegramBot.Message,
 ): Promise<void> {
-  await deliverViaManager(ptyManager, sessionId, text + '\r');
+  const from = msg.from?.username ? `@${msg.from.username}` : 'unknown';
+  const wrapped = `[HELM_TELEGRAM from:${from} chat:${msg.chat.id}]\n${text}\n[/HELM_TELEGRAM]\nReply via Telegram to chat ${msg.chat.id} when done.`;
+  await deliverViaManager(ptyManager, sessionId, wrapped, { submitSuffix: '\r' });
 
   const echoText = `➡️ <code>${escapeHtml(text)}</code>`;
   if (replyTopicId) {

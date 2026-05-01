@@ -599,7 +599,7 @@ describe('HelmControlService.readSessionTerminal', () => {
 
     const result = service.readSessionTerminal('s1', 120, 'both');
 
-    expect(ptyManager.getTerminalTail).toHaveBeenCalledWith('s1', 100, 'both');
+    expect(ptyManager.getTerminalTail).toHaveBeenCalledWith('s1', 120, 'both');
     expect(result).toEqual({
       sessionId: 's1',
       name: 'Claude',
@@ -607,8 +607,6 @@ describe('HelmControlService.readSessionTerminal', () => {
       workingDir: '/work',
       requestedLines: 120,
       returnedLines: 1,
-      clamped: true,
-      maxLines: 100,
       mode: 'both',
       ptyRunning: true,
       lastOutputAt: 1234,
@@ -619,7 +617,7 @@ describe('HelmControlService.readSessionTerminal', () => {
 
   it('rejects invalid line counts', () => {
     const { service } = makeService();
-    expect(() => service.readSessionTerminal('s1', 0, 'raw')).toThrow('lines must be an integer from 1 to 100');
+    expect(() => service.readSessionTerminal('s1', 0, 'raw')).toThrow('lines must be a positive integer');
   });
 });
 

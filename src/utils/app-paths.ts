@@ -3,7 +3,7 @@
  *
  * When packaged inside an Electron app.asar archive, relative paths
  * point into the read-only install directory (e.g. C:\Program Files\).
- * This module detects packaging and redirects to %APPDATA%/gamepad-cli-hub/.
+ * This module detects packaging and redirects to %APPDATA%/Helm/.
  *
  * Note: fs.copyFileSync is NOT patched by Electron for asar reads.
  * We use readFileSync + writeFileSync instead, which ARE patched.
@@ -12,7 +12,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
-const APP_NAME = 'gamepad-cli-hub';
+const APP_NAME = 'Helm';
 
 /**
  * Detect whether the app is running from a packaged Electron asar archive.
@@ -23,7 +23,7 @@ export function isPackaged(dirname: string): boolean {
 
 /**
  * Resolve the user-data base directory.
- * Packaged: %APPDATA%/gamepad-cli-hub (or $HOME fallback)
+ * Packaged: %APPDATA%/Helm (or $HOME fallback)
  */
 function getUserDataDir(appData?: string): string {
   const base = appData || process.env.APPDATA || process.env.HOME || '.';
@@ -33,7 +33,7 @@ function getUserDataDir(appData?: string): string {
 /**
  * Return the writable log directory.
  * Dev:      <project>/logs  (relative to dist-electron/)
- * Packaged: %APPDATA%/gamepad-cli-hub/logs
+ * Packaged: %APPDATA%/Helm/logs
  */
 export function getLogDir(dirname: string, appData?: string): string {
   if (isPackaged(dirname)) {
@@ -45,7 +45,7 @@ export function getLogDir(dirname: string, appData?: string): string {
 /**
  * Return the writable config directory.
  * Dev:      <cwd>/config
- * Packaged: %APPDATA%/gamepad-cli-hub/config
+ * Packaged: %APPDATA%/Helm/config
  */
 export function getConfigDir(dirname: string, appData?: string): string {
   if (isPackaged(dirname)) {
@@ -73,7 +73,7 @@ export function getAppRootDir(dirname: string): string {
 /**
  * Return a writable temp directory for app-specific scratch files
  * (e.g. Ctrl+G external editor prompts).
- * Packaged: %APPDATA%/gamepad-cli-hub/tmp
+ * Packaged: %APPDATA%/Helm/tmp
  * Dev:      <cwd>/tmp
  */
 export function getTempDir(dirname: string, appData?: string): string {

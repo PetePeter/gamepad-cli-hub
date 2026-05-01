@@ -49,8 +49,6 @@ function makeService(): HelmControlService {
       cliType: 'claude-code',
       requestedLines: lines,
       returnedLines: 1,
-      clamped: lines > 100,
-      maxLines: 100,
       mode,
       ptyRunning: true,
       raw: ['\x1b[32mhello\x1b[0m'],
@@ -261,8 +259,6 @@ describe('LocalhostMcpServer', () => {
     expect(json.result.structuredContent).toMatchObject({
       sessionId: 'Claude',
       requestedLines: 120,
-      clamped: true,
-      maxLines: 100,
       raw: ['\x1b[32mhello\x1b[0m'],
       stripped: ['hello'],
     });

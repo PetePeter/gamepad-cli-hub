@@ -2,7 +2,7 @@
  * App paths unit tests — packaged vs dev path resolution.
  *
  * When the app is installed (packaged inside app.asar), writable paths
- * (logs, config) must point to %APPDATA%/gamepad-cli-hub/ instead of
+ * (logs, config) must point to %APPDATA%/Helm/ instead of
  * relative paths inside the read-only install directory.
  */
 
@@ -65,7 +65,7 @@ describe('getLogDir', () => {
 
   it('returns APPDATA-based path when packaged', () => {
     const result = getLogDir(PACKAGED_DIRNAME, FAKE_APPDATA);
-    expect(result).toBe(path.join(FAKE_APPDATA, 'gamepad-cli-hub', 'logs'));
+    expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'logs'));
   });
 
   it('uses process.env.APPDATA when appData param not provided', () => {
@@ -73,7 +73,7 @@ describe('getLogDir', () => {
     try {
       process.env.APPDATA = FAKE_APPDATA;
       const result = getLogDir(PACKAGED_DIRNAME);
-      expect(result).toBe(path.join(FAKE_APPDATA, 'gamepad-cli-hub', 'logs'));
+      expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'logs'));
     } finally {
       process.env.APPDATA = originalAppData;
     }
@@ -86,7 +86,7 @@ describe('getLogDir', () => {
       delete process.env.APPDATA;
       delete process.env.HOME;
       const result = getLogDir(PACKAGED_DIRNAME);
-      expect(result).toBe(path.join('.', 'gamepad-cli-hub', 'logs'));
+      expect(result).toBe(path.join('.', 'Helm', 'logs'));
     } finally {
       process.env.APPDATA = originalAppData;
       process.env.HOME = originalHome;
@@ -106,7 +106,7 @@ describe('getConfigDir', () => {
 
   it('returns APPDATA-based path when packaged', () => {
     const result = getConfigDir(PACKAGED_DIRNAME, FAKE_APPDATA);
-    expect(result).toBe(path.join(FAKE_APPDATA, 'gamepad-cli-hub', 'config'));
+    expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'config'));
   });
 
   it('uses process.env.APPDATA when appData param not provided', () => {
@@ -114,7 +114,7 @@ describe('getConfigDir', () => {
     try {
       process.env.APPDATA = FAKE_APPDATA;
       const result = getConfigDir(PACKAGED_DIRNAME);
-      expect(result).toBe(path.join(FAKE_APPDATA, 'gamepad-cli-hub', 'config'));
+      expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'config'));
     } finally {
       process.env.APPDATA = originalAppData;
     }
@@ -127,7 +127,7 @@ describe('getConfigDir', () => {
       delete process.env.APPDATA;
       delete process.env.HOME;
       const result = getConfigDir(PACKAGED_DIRNAME);
-      expect(result).toBe(path.join('.', 'gamepad-cli-hub', 'config'));
+      expect(result).toBe(path.join('.', 'Helm', 'config'));
     } finally {
       process.env.APPDATA = originalAppData;
       process.env.HOME = originalHome;
@@ -141,7 +141,7 @@ describe('getConfigDir', () => {
 
 describe('seedConfigIfNeeded', () => {
   const sourceConfigDir = path.join(FAKE_APPDATA, 'source-config');
-  const targetConfigDir = path.join(FAKE_APPDATA, 'gamepad-cli-hub', 'config');
+  const targetConfigDir = path.join(FAKE_APPDATA, 'Helm', 'config');
 
   beforeEach(() => {
     // Create a fake source config directory (simulating app.asar/config/)

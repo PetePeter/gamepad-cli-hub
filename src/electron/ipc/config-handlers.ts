@@ -215,10 +215,14 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
   ipcMain.handle('config:setMcpConfig', async (_event, updates: { enabled?: boolean; port?: number; authToken?: string }) => {
     try {
       configLoader.setMcpConfig(updates);
-      if (localhostMcpServer) {
-        await localhostMcpServer.applyConfig(configLoader.getMcpConfig());
-      }
       logger.info(`[IPC] MCP config updated: ${JSON.stringify({ enabled: updates.enabled, port: updates.port, authToken: updates.authToken ? '[redacted]' : undefined })}`);
+      if (localhostMcpServer) {
+        try {
+          await localhostMcpServer.applyConfig(configLoader.getMcpConfig());
+        } catch (applyErr) {
+          logger.warn(`[IPC] MCP server hot-apply failed after config update: ${applyErr}`);
+        }
+      }
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to set MCP config: ${error}`);
@@ -230,10 +234,15 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
     try {
       const token = `${randomUUID().replace(/-/g, '')}${randomUUID().replace(/-/g, '')}`;
       configLoader.setMcpConfig({ authToken: token });
-      if (localhostMcpServer) {
-        await localhostMcpServer.applyConfig(configLoader.getMcpConfig());
-      }
       logger.info('[IPC] Generated new MCP auth token');
+      // Hot-apply to running server — don't let failure prevent token from being returned
+      if (localhostMcpServer) {
+        try {
+          await localhostMcpServer.applyConfig(configLoader.getMcpConfig());
+        } catch (applyErr) {
+          logger.warn(`[IPC] MCP server hot-apply failed after token generation: ${applyErr}`);
+        }
+      }
       return { success: true, token };
     } catch (error) {
       logger.error(`[IPC] Failed to generate MCP auth token: ${error}`);

@@ -85,6 +85,34 @@ describe('PlanAttachmentManager', () => {
     })).toThrow('Plan not found: missing');
   });
 
+  describe('deletePlanAttachments', () => {
+    it('removes all attachments for a plan and returns count', () => {
+      planManager.getItem = vi.fn((id: string) => ({ id, dirPath: '/w' }));
+      manager.add('plan-1', { filename: 'a.txt', content: Buffer.from('aaa') });
+      manager.add('plan-1', { filename: 'b.txt', content: Buffer.from('bbb') });
+
+      const removed = manager.deletePlanAttachments('plan-1');
+
+      expect(removed).toBe(2);
+      expect(manager.list('plan-1')).toEqual([]);
+    });
+
+    it('returns 0 when plan has no attachments', () => {
+      expect(manager.deletePlanAttachments('no-such-plan')).toBe(0);
+    });
+
+    it('does not affect attachments of other plans', () => {
+      planManager.getItem = vi.fn((id: string) => ({ id, dirPath: '/w' }));
+      manager.add('plan-a', { filename: 'keep.txt', content: Buffer.from('x') });
+      manager.add('plan-b', { filename: 'remove.txt', content: Buffer.from('y') });
+
+      manager.deletePlanAttachments('plan-b');
+
+      expect(manager.list('plan-a')).toHaveLength(1);
+      expect(manager.list('plan-b')).toEqual([]);
+    });
+  });
+
   describe('hasAnyForPlanIds', () => {
     it('returns false for all IDs when no attachments exist', () => {
       planManager.getItem = vi.fn((id: string) => id === 'a' ? { id, dirPath: '/w' } : id === 'b' ? { id, dirPath: '/w' } : null);

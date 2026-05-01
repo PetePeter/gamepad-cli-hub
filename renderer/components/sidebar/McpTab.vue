@@ -67,7 +67,6 @@ function normalizePort(value: string): number {
 
 const endpoint = computed(() => `http://127.0.0.1:${localPort.value}/mcp`);
 const tokenLiteral = computed(() => localToken.value.trim() || '<paste-token-here>');
-const powerShellToken = computed(() => tokenLiteral.value.replace(/'/g, "''"));
 
 const statusText = computed(() => {
   if (!localEnabled.value) return 'Disabled in Helm settings';
@@ -165,7 +164,6 @@ const statusText = computed(() => {
     <McpCliSetup
       :endpoint="endpoint"
       :token-literal="tokenLiteral"
-      :power-shell-token="powerShellToken"
       @run-in-cmd="emit('run-in-cmd', $event)"
     />
   </div>

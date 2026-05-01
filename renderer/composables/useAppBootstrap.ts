@@ -581,13 +581,15 @@ function setupTabCycling(): void {
       const nextId = resolveNextTerminalId(
         tabCycleIds, tm.getSessionIds(), tm.getActiveSessionId(), e.shiftKey ? -1 : 1,
       );
-      if (nextId) {
-        const navStore = useNavigationStore();
-        if (document.querySelector('.plan-screen.visible')) {
-          void navStore.navigateToSession(nextId);
-        } else {
-          navStore.activateSession(nextId);
+      const navStore = useNavigationStore();
+      if (document.querySelector('.plan-screen.visible')) {
+        const currentId = tm.getActiveSessionId();
+        if (currentId) {
+          void navStore.navigateToSession(currentId);
+          navStore.syncSidebarToSession(currentId);
         }
+      } else if (nextId) {
+        navStore.activateSession(nextId);
         navStore.syncSidebarToSession(nextId);
       }
     }

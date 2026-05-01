@@ -2,19 +2,20 @@
 /**
  * McpCliSetup.vue — Extracts Global CLI Setup section from McpTab.vue
  * with env var awareness, copy button, and run-in-cmd.exe button per snippet.
+ * All instructions use cmd.exe syntax (the PTY default shell on Windows).
  */
 import { ref, computed, onMounted } from 'vue';
 
 const props = defineProps<{
   endpoint: string;
   tokenLiteral: string;
-  powerShellToken: string;
 }>();
 
 const emit = defineEmits<{
   'run-in-cmd': [command: string];
 }>();
 
+const useEnvVar = ref(true);
 const cliEnvs = ref(new Map<string, Array<{ name: string; value: string }>>());
 
 onMounted(async () => {
@@ -38,17 +39,22 @@ function envForCli(...keys: string[]): Array<{ name: string; value: string }> {
 }
 
 function envSetupLines(entries: Array<{ name: string; value: string }>): string {
-  return entries.map((e) => `$env:${e.name} = '${e.value.replace(/'/g, "''")}'`).join('\n');
+  return entries.map((e) => `set ${e.name}=${e.value}`).join('\n');
 }
 
 const codexEnv = computed(() => envForCli('codex'));
 const codexSetup = computed(() => {
   const env = envSetupLines(codexEnv.value);
-  const cmd = [
-    `$env:HELM_MCP_TOKEN = '${props.powerShellToken}'`,
-    `setx HELM_MCP_TOKEN "${props.tokenLiteral}"`,
-    `codex mcp add helm --url ${props.endpoint} --bearer-token-env-var HELM_MCP_TOKEN`,
-  ].join('\n');
+  let cmd: string;
+  if (useEnvVar.value) {
+    cmd = [
+      `set HELM_MCP_TOKEN=${props.tokenLiteral}`,
+      `setx HELM_MCP_TOKEN "${props.tokenLiteral}"`,
+      `codex mcp add helm --url ${props.endpoint} --bearer-token-env-var HELM_MCP_TOKEN`,
+    ].join('\n');
+  } else {
+    cmd = `codex mcp add helm --url ${props.endpoint} --bearer-token ${props.tokenLiteral}`;
+  }
   return env ? `${env}\n${cmd}` : cmd;
 });
 
@@ -69,12 +75,21 @@ const copilotSetup = computed(() => {
 const opencodeEnv = computed(() => envForCli('opencode'));
 const opencodeSetup = computed(() => {
   const env = envSetupLines(opencodeEnv.value);
+  const configDir = '%USERPROFILE%\\.config\\opencode';
+  const json = JSON.stringify({
+    $schema: 'https://opencode.ai/config.json',
+    mcp: {
+      helm: {
+        type: 'remote',
+        url: props.endpoint,
+        enabled: true,
+        headers: { Authorization: `Bearer ${props.tokenLiteral}` },
+      },
+    },
+  });
   const cmd = [
-    '$configDir = Join-Path $HOME ".config/opencode"',
-    '$configPath = Join-Path $configDir "opencode.json"',
-    'New-Item -ItemType Directory -Force -Path $configDir | Out-Null',
-    `$json = @'\n{\n  "$schema": "https://opencode.ai/config.json",\n  "mcp": {\n    "helm": {\n      "type": "remote",\n      "url": "${props.endpoint}",\n      "enabled": true,\n      "headers": {\n        "Authorization": "Bearer ${props.tokenLiteral}"\n      }\n    }\n  }\n}\n'@`,
-    'Set-Content -Path $configPath -Value $json',
+    `if not exist "${configDir}" mkdir "${configDir}"`,
+    `powershell -Command "Set-Content -Path '${configDir}\\opencode.json' -Value '${json.replace(/'/g, "''")}'"`,
   ].join('\n');
   return env ? `${env}\n${cmd}` : cmd;
 });
@@ -91,8 +106,16 @@ function onRunInCmd(command: string): void {
 <template>
   <div class="tg-section">
     <h3 class="tg-section-title">Global CLI Setup</h3>
+    <div class="tg-form-row">
+      <label class="tg-label">Codex: use env var</label>
+      <input
+        v-model="useEnvVar"
+        type="checkbox"
+        class="focusable"
+      />
+    </div>
     <p class="settings-form__hint">
-      These commands are based on each CLI's current local <code>mcp --help</code> interface. Run them in PowerShell to add or remove Helm as a global MCP.
+      All commands use cmd.exe syntax. Run them in your terminal to register Helm as an MCP.
     </p>
 
     <div class="settings-list-item">

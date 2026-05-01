@@ -16,6 +16,7 @@ import { PinnedDashboard } from './pinned-dashboard.js';
 import { TelegramRelayService } from './relay-service.js';
 import { setupCallbackHandler } from './callback-handler.js';
 import { setupTopicInput } from './topic-input.js';
+import { setupCommandHandler } from './command-handler.js';
 import { logger } from '../utils/logger.js';
 import type { HelmControlService } from '../mcp/helm-control-service.js';
 
@@ -49,6 +50,8 @@ export function initTelegramModules(
     bot, topicManager, ptyManager, sessionManager, relayService,
   );
 
+  const cleanupCommands = setupCommandHandler(bot, sessionManager, ptyManager);
+
   // Listen for forum_topic_closed events from Telegram
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const topicClosedHandler = (msg: any) => {
@@ -66,6 +69,7 @@ export function initTelegramModules(
     cleanup: () => {
       cleanupCallbacks();
       cleanupTopicInput();
+      cleanupCommands();
       bot.removeListener('message', topicClosedHandler);
       helmControlService.setTelegramBridge(null);
       dashboard.dispose();

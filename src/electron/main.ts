@@ -14,6 +14,7 @@ import { WindowManager } from './window-manager.js';
 import { resolveWindowIconPath } from './window-icon.js';
 import { buildSplashHtml } from './splash-html.js';
 import { migrateOldPlans } from '../session/plan-migration.js';
+import { migrateUserDataFolder } from './user-data-migration.js';
 import { configLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
 import { getRendererHtmlPath, isPackaged, seedConfigIfNeeded, getConfigDir } from '../utils/app-paths.js';
@@ -279,6 +280,9 @@ function createWindow(): void {
 app.whenReady().then(async () => {
   logger.info('[Main] App ready');
   logger.info(`[Main] Crash dumps directory: ${app.getPath('crashDumps')}`);
+
+  // Migrate user data folder from old name to new name (packaged builds only)
+  migrateUserDataFolder(process.env.APPDATA || process.env.HOME || '.', app.isPackaged);
 
   // Belt-and-suspenders: seed config from main.ts in case module-level seed didn't run
   if (isPackaged(__dirname)) {

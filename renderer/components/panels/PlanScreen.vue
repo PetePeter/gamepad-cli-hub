@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch, onUnmounted } from 'vue';
 import { getDisplayTitle } from '../../types.js';
 import { formatDate } from '../../utils/date-format.js';
 import type { PlanDependency, PlanItem, PlanSequence } from '../../../src/types/plan.js';
@@ -80,6 +80,50 @@ const svgRef = ref<SVGSVGElement | null>(null);
 const viewBox = ref({ x: 0, y: 0, w: 800, h: 600 });
 const isPanning = ref(false);
 const panStart = ref({ x: 0, y: 0, vbx: 0, vby: 0 });
+
+// ── Viewport persistence (zoom/pan per directory) ────────────────────────────
+
+interface SavedViewport {
+  zoomScale: number;
+  panFracX: number;
+  panFracY: number;
+}
+
+function viewportKey(dirPath: string): string {
+  return `plan-viewport:${btoa(dirPath)}`;
+}
+
+function savePlanViewport(dirPath: string): void {
+  if (!dirPath || !canvasBounds.value.width) return;
+  const cw = canvasBounds.value.width;
+  const ch = canvasBounds.value.height;
+  const vb = viewBox.value;
+  try {
+    const entry: SavedViewport = {
+      zoomScale: cw / (vb.w || cw),
+      panFracX: vb.x / cw,
+      panFracY: vb.y / ch,
+    };
+    localStorage.setItem(viewportKey(dirPath), JSON.stringify(entry));
+  } catch { /* quota exceeded — ignore */ }
+}
+
+function loadPlanViewport(dirPath: string): SavedViewport | null {
+  if (!dirPath) return null;
+  try {
+    const raw = localStorage.getItem(viewportKey(dirPath));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+let viewportSaveTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleViewportSave(): void {
+  if (viewportSaveTimer) clearTimeout(viewportSaveTimer);
+  viewportSaveTimer = setTimeout(() => {
+    viewportSaveTimer = null;
+    savePlanViewport(props.dirPath);
+  }, 300);
+}
 const dragState = ref<{ fromId: string; x: number; y: number } | null>(null);
 const seqDragState = ref<{ ids: string[]; x: number; y: number; hoveredSeqId: string | null } | null>(null);
 
@@ -175,13 +219,30 @@ const dragPath = computed(() => {
 
 watch(() => [props.visible, canvasBounds.value.width, canvasBounds.value.height], () => {
   if (!props.visible) return;
-  viewBox.value = {
-    x: 0,
-    y: 0,
-    w: canvasBounds.value.width,
-    h: canvasBounds.value.height,
-  };
+  const cw = canvasBounds.value.width;
+  const ch = canvasBounds.value.height;
+  const saved = loadPlanViewport(props.dirPath);
+  if (saved && saved.zoomScale > 0) {
+    const restoredW = cw / saved.zoomScale;
+    const restoredH = ch / saved.zoomScale;
+    const restoredX = saved.panFracX * cw;
+    const restoredY = saved.panFracY * ch;
+    // Fall back to content-fit if restored viewport is entirely outside content
+    if (restoredX + restoredW > 0 && restoredY + restoredH > 0 &&
+        restoredX < cw && restoredY < ch) {
+      viewBox.value = { x: restoredX, y: restoredY, w: restoredW, h: restoredH };
+      return;
+    }
+  }
+  viewBox.value = { x: 0, y: 0, w: cw, h: ch };
 }, { immediate: true });
+
+watch([() => viewBox.value.x, () => viewBox.value.y, () => viewBox.value.w, () => viewBox.value.h], () => {
+  if (props.visible && !isPanning.value) scheduleViewportSave();
+});
+watch(isPanning, (panning) => {
+  if (!panning && props.visible) savePlanViewport(props.dirPath);
+});
 
 function getNodeColor(status: string): string {
   return STATUS_COLORS[status] ?? STATUS_COLORS.planning;
@@ -421,6 +482,10 @@ function onSeqDeleteWithPlans(): void {
   emit('deleteSequenceWithPlans', seqDraft.id);
   seqModalVisible.value = false;
 }
+
+onUnmounted(() => {
+  if (viewportSaveTimer) clearTimeout(viewportSaveTimer);
+});
 </script>
 
 <template>

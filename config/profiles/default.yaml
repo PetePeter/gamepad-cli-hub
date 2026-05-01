@@ -16,10 +16,13 @@ tools:
         - label: commit
           sequence: use skill(commit)
     pasteMode: pty
+    submitSuffix: \rg
+    helmInitialPrompt: false
   codex:
     name: codex
     spawnCommand: codex --dangerously-bypass-approvals-and-sandbox
     handoffCommand: go implement it
+    submitSuffix: \n
     initialPrompt:
       - label: ""
         sequence: Call session_info to get helm MCP AIAGENT state registry, then output

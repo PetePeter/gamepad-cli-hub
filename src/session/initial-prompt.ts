@@ -70,6 +70,66 @@ function comboToPtySequence(keys: string[]): string | null {
 }
 
 /**
+ * Execute a sequence-parsed string against a PTY session.
+ *
+ * Parses the input with parseSequence(), buffers text chunks, flushes
+ * before keys/waits, and handles delays. Used by scheduleInitialPrompt
+ * and ScheduledTaskManager.
+ */
+export async function executeSequenceString(
+  sessionId: string,
+  text: string,
+  writeToPty: (sessionId: string, data: string) => void,
+  deliverText: (sessionId: string, text: string) => Promise<void>,
+  isCancelled?: () => boolean,
+): Promise<void> {
+  const actions = parseSequence(text);
+  let bufferedText = '';
+
+  const flush = async () => {
+    if (!bufferedText) return;
+    const t = bufferedText;
+    bufferedText = '';
+    await deliverText(sessionId, t);
+  };
+
+  for (const action of actions) {
+    if (isCancelled?.()) break;
+
+    if (action.type === 'wait') {
+      await flush();
+      await new Promise(resolve => setTimeout(resolve, action.ms));
+      continue;
+    }
+
+    if (action.type === 'text') {
+      bufferedText += action.value;
+      continue;
+    }
+
+    if (action.type === 'key' && action.key === 'Enter') {
+      bufferedText += '\r';
+      continue;
+    }
+
+    if (action.type === 'key' && action.key === 'Send') {
+      await flush();
+      writeToPty(sessionId, '\r');
+      continue;
+    }
+
+    await flush();
+
+    const data = actionToPtyData(action);
+    if (data !== null) {
+      writeToPty(sessionId, data);
+    }
+  }
+
+  await flush();
+}
+
+/**
  * Schedule initial prompt pre-loading for a session.
  *
  * After initialPromptDelay ms, writes each item's sequence to the PTY stdin
@@ -106,51 +166,7 @@ export function scheduleInitialPrompt(
 
   const executeItem = async (item: SequenceListItem) => {
     if (cancelled || !item.sequence || item.sequence.trim() === '') return;
-
-    const actions = parseSequence(item.sequence);
-    let bufferedText = '';
-
-    const flushBufferedText = async () => {
-      if (!bufferedText) return;
-      const text = bufferedText;
-      bufferedText = '';
-      await deliver(sessionId, text);
-    };
-
-    for (const action of actions) {
-      if (cancelled) break;
-
-      if (action.type === 'wait') {
-        await flushBufferedText();
-        await new Promise(resolve => setTimeout(resolve, action.ms));
-        continue;
-      }
-
-      if (action.type === 'text') {
-        bufferedText += action.value;
-        continue;
-      }
-
-      if (action.type === 'key' && action.key === 'Enter') {
-        bufferedText += '\r';
-        continue;
-      }
-
-      if (action.type === 'key' && action.key === 'Send') {
-        await flushBufferedText();
-        writeToPty(sessionId, '\r');
-        continue;
-      }
-
-      await flushBufferedText();
-
-      const data = actionToPtyData(action);
-      if (data !== null) {
-        writeToPty(sessionId, data);
-      }
-    }
-
-    await flushBufferedText();
+    await executeSequenceString(sessionId, item.sequence, writeToPty, deliver, () => cancelled);
   };
 
   const execute = async () => {

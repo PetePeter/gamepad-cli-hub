@@ -15,7 +15,7 @@ import type { SessionManager } from './manager.js';
 import type { PtyManager } from './pty-manager.js';
 import type { PlanManager } from './plan-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
-import { scheduleInitialPrompt } from './initial-prompt.js';
+import { scheduleInitialPrompt, executeSequenceString } from './initial-prompt.js';
 import { mintSessionAuthToken } from '../mcp/session-auth.js';
 
 const PENDING_STATUSES = new Set<ScheduledTaskStatus>(['pending', 'executing']);
@@ -239,7 +239,12 @@ export class ScheduledTaskManager extends EventEmitter {
 
       const trimmed = prompt.trim();
       if (trimmed.length > 0) {
-        await this.ptyManager.deliverText(targetId, trimmed, { withReturn: true });
+        await executeSequenceString(
+          targetId,
+          trimmed + '\n',
+          (sid, data) => this.ptyManager.write(sid, data),
+          (sid, text) => this.ptyManager.deliverText(sid, text),
+        );
       }
 
       task.lastRunAt = Date.now();
@@ -335,7 +340,14 @@ export class ScheduledTaskManager extends EventEmitter {
         : undefined;
 
       const deliverTaskPrompt = trimmed.length > 0
-        ? () => { void this.ptyManager.deliverText(sessionId, trimmed); }
+        ? () => {
+          void executeSequenceString(
+            sessionId,
+            trimmed,
+            (sid, data) => this.ptyManager.write(sid, data),
+            (sid, text) => this.ptyManager.deliverText(sid, text),
+          );
+        }
         : undefined;
 
       const cancel = scheduleInitialPrompt(

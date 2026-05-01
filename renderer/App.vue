@@ -2066,7 +2066,7 @@ onMounted(async () => {
       ? window.gamepadCli.onSnapOut((sessionId: string) => {
           state.snappedOutSessions.add(sessionId);
           const tm = getTerminalManager();
-          if (tm) tm.detachTerminal(sessionId);
+          if (tm) tm.detachTerminal(sessionId, true);
         })
       : null;
     unsubSnapBack = window.gamepadCli?.onSnapBack

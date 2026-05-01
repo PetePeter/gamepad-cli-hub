@@ -31,6 +31,7 @@ export class TerminalManager {
   private fitDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private fitWatchdog: ReturnType<typeof setInterval> | null = null;
   private outputBuffer: PtyOutputBuffer;
+  private snapBackBuffer: Map<string, string[]> = new Map();
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -182,6 +183,13 @@ export class TerminalManager {
 
     this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd });
 
+    // Flush any PTY data that arrived during the snap-back gap
+    const buffered = this.snapBackBuffer.get(sessionId);
+    if (buffered?.length) {
+      for (const chunk of buffered) view.write(chunk);
+    }
+    this.snapBackBuffer.delete(sessionId);
+
     element.addEventListener('mousedown', (e) => {
       if (e.button === 2) {
         e.stopPropagation();
@@ -244,6 +252,15 @@ export class TerminalManager {
             beforeFit.cols === afterFit.cols &&
             beforeFit.rows === afterFit.rows) {
           window.gamepadCli.ptyResize(sessionId, afterFit.cols, afterFit.rows);
+        }
+
+        // Fallback fit retry for snap-back: if dimensions are still zero,
+        // the container may not have been in the layout yet. Retry after 100ms.
+        if (afterFit.cols === 0 || afterFit.rows === 0) {
+          setTimeout(() => {
+            if (this.activeSessionId !== sessionId) return;
+            session.view.fit();
+          }, 100);
         }
       });
     });
@@ -333,8 +350,9 @@ export class TerminalManager {
   }
 
   /** Detach a terminal from this manager without killing the PTY.
-   *  Used when a session is snapped out to a child window. */
-  detachTerminal(sessionId: string): void {
+   *  Used when a session is snapped out to a child window.
+   *  When buffer=true, PTY data arriving during the gap is buffered for flush on adoptTerminal. */
+  detachTerminal(sessionId: string, buffer = false): void {
     const session = this.terminals.get(sessionId);
     if (!session) return;
 
@@ -342,6 +360,7 @@ export class TerminalManager {
     session.element.remove();
     this.terminals.delete(sessionId);
     this.outputBuffer.clear(sessionId);
+    if (buffer) this.snapBackBuffer.set(sessionId, []);
 
     // Switch to another terminal if active one was detached
     if (this.activeSessionId === sessionId) {
@@ -360,6 +379,11 @@ export class TerminalManager {
     const session = this.terminals.get(sessionId);
     if (session) {
       session.view.write(data);
+    } else if (this.snapBackBuffer.has(sessionId)) {
+      // Buffer PTY data during the snap-back gap (detach → adopt)
+      const chunks = this.snapBackBuffer.get(sessionId)!;
+      chunks.push(data);
+      if (chunks.length > 200) chunks.shift(); // cap buffer to prevent unbounded growth
     }
   }
 

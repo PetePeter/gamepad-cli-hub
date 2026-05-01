@@ -65,11 +65,16 @@ export function setupPlanHandlers(
   });
 
   ipcMain.handle('plan:delete', (_event, id: string) => {
-    return planManager.delete(id);
+    const result = planManager.delete(id);
+    if (result) attachmentManager.deletePlanAttachments(id);
+    return result;
   });
 
   ipcMain.handle('plan:clearCompleted', (_event, dirPath: string) => {
-    return planManager.deleteCompletedForDirectory(dirPath);
+    const doneItems = planManager.getForDirectory(dirPath).filter(i => i.status === 'done');
+    const count = planManager.deleteCompletedForDirectory(dirPath);
+    for (const item of doneItems) attachmentManager.deletePlanAttachments(item.id);
+    return count;
   });
 
   ipcMain.handle('plan:addDep', (_event, fromId: string, toId: string) => {

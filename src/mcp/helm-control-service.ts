@@ -68,8 +68,6 @@ export interface SessionTerminalTailResponse {
   workingDir?: string;
   requestedLines: number;
   returnedLines: number;
-  clamped: boolean;
-  maxLines: number;
   mode: TerminalOutputMode;
   ptyRunning: boolean;
   lastOutputAt?: number;
@@ -638,12 +636,10 @@ export class HelmControlService extends EventEmitter {
       throw new Error(`Session not found: ${sessionRef}`);
     }
     if (!Number.isInteger(requestedLines) || requestedLines < 1) {
-      throw new Error('lines must be an integer from 1 to 100');
+      throw new Error('lines must be a positive integer');
     }
 
-    const maxLines = 100;
-    const lines = Math.min(requestedLines, maxLines);
-    const tail = this.ptyManager.getTerminalTail(session.id, lines, mode);
+    const tail = this.ptyManager.getTerminalTail(session.id, requestedLines, mode);
     const rawLength = tail.raw?.length ?? 0;
     const strippedLength = tail.stripped?.length ?? 0;
 
@@ -654,8 +650,6 @@ export class HelmControlService extends EventEmitter {
       workingDir: session.workingDir,
       requestedLines,
       returnedLines: Math.max(rawLength, strippedLength),
-      clamped: requestedLines > maxLines,
-      maxLines,
       mode,
       ptyRunning: this.ptyManager.has(session.id),
       ...(tail.lastOutputAt !== undefined ? { lastOutputAt: tail.lastOutputAt } : {}),

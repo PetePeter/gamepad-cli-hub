@@ -199,6 +199,7 @@ export function sessionControlKeyboard(
   }
 
   keyboard.push([
+    { text: '📺 Peek', callback_data: `peek:${session.id}` },
     { text: '🔙 Back', callback_data: 'sessions:list' },
   ]);
 
@@ -279,4 +280,35 @@ function bestStateEmoji(sessions: SessionInfo[]): string {
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * Build a session picker keyboard for the /peek command
+ * when multiple sessions exist and no name was given.
+ */
+export function peekSessionPickerKeyboard(
+  sessions: SessionInfo[],
+): { text: string; keyboard: TelegramBot.InlineKeyboardButton[][] } {
+  let text = `📺 Peek at which session?\n\n`;
+  const buttons: TelegramBot.InlineKeyboardButton[][] = [];
+  const row: TelegramBot.InlineKeyboardButton[] = [];
+
+  for (const s of sessions) {
+    const emoji = stateEmoji(s.state);
+    text += `${emoji} ${s.name}\n`;
+
+    row.push({
+      text: `${emoji} ${truncLabel(s.name)}`,
+      callback_data: `peek:${s.id}`,
+    });
+
+    if (row.length >= 3) {
+      buttons.push([...row]);
+      row.length = 0;
+    }
+  }
+
+  if (row.length > 0) buttons.push([...row]);
+
+  return { text, keyboard: buttons };
 }

@@ -244,9 +244,13 @@ watch(() => props.initialText, (val) => {
 watch(() => props.planId, () => {
   if (!props.visible || !isPlan.value) return;
   hydratingFromProps.value = true;
+  label.value = props.initialLabel;
+  text.value = props.initialText;
   status.value = props.planStatus;
   stateInfo.value = props.planStateInfo;
   type.value = props.planType;
+  origLabel.value = props.initialLabel;
+  origText.value = props.initialText;
   origStatus.value = props.planStatus;
   origStateInfo.value = props.planStateInfo;
   origType.value = props.planType;

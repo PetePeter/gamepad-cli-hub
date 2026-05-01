@@ -428,7 +428,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_read_terminal',
     title: 'Read Session Terminal',
-    description: 'Read the recent terminal tail for any known session by sessionId or exact name. Use this immediately after session_send_text handoffs to verify the recipient received the message and started responding. lines must be 1..100; values over 100 are clamped and reported. mode controls raw ANSI output, ANSI-stripped output, or both.',
+    description: 'Read the recent terminal tail for any known session by sessionId or exact name. Use this immediately after session_send_text handoffs to verify the recipient received the message and started responding. lines must be a positive integer (buffer holds up to 500). mode controls raw ANSI output, ANSI-stripped output, or both.',
     inputSchema: {
       type: 'object',
       properties: {
