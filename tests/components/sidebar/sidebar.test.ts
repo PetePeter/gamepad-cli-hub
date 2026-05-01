@@ -1023,6 +1023,7 @@ describe('TelegramTab', () => {
     chatId: '12345',
     allowedUsers: 'user1, user2',
     notificationsEnabled: true,
+    autoStart: false,
   };
 
   it('renders connection fields', () => {
@@ -1069,5 +1070,15 @@ describe('TelegramTab', () => {
     const w = mount(TelegramTab, { props: { config, botRunning: false } });
     const checkbox = w.find('.notification-toggle input');
     expect((checkbox.element as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('renders autostart checkbox and emits updates', async () => {
+    const w = mount(TelegramTab, { props: { config: { ...config, autoStart: true }, botRunning: false } });
+    const checkboxes = w.findAll('.notification-toggle input');
+    expect((checkboxes[1].element as HTMLInputElement).checked).toBe(true);
+
+    await checkboxes[1].setValue(false);
+
+    expect(w.emitted('updateField')).toContainEqual(['autoStart', false]);
   });
 });

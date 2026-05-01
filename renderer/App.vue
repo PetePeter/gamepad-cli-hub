@@ -239,7 +239,7 @@ const settingsProfiles = ref<Array<{ name: string; isActive: boolean }>>([]);
 const settingsTools = ref<Array<{ key: string; name: string; command: string; hasInitialPrompt: boolean; initialPromptCount: number }>>([]);
 const settingsDirectories = ref<Array<{ name: string; path: string }>>([]);
 const settingsChipbarActions = ref<Array<{ label: string; sequence: string }>>([]);
-const settingsTelegramConfig = ref({ botToken: '', chatId: '', allowedUsers: '', notificationsEnabled: false });
+const settingsTelegramConfig = ref({ botToken: '', chatId: '', allowedUsers: '', notificationsEnabled: false, autoStart: false });
 const settingsTelegramBotRunning = ref(false);
 const settingsMcpConfig = ref({ enabled: false, port: 47373, authToken: '' });
 const settingsNotificationMode = ref<'off' | 'auto' | 'llm'>('auto');
@@ -936,10 +936,11 @@ async function loadSettingsData(): Promise<void> {
       chatId: tgConfig?.chatId ? String(tgConfig.chatId) : '',
       allowedUsers: (tgConfig?.allowedUserIds || []).join(', '),
       notificationsEnabled: tgConfig?.enabled || false,
+      autoStart: tgConfig?.autoStart || false,
     };
     settingsTelegramBotRunning.value = await window.gamepadCli.telegramIsRunning();
   } catch {
-    settingsTelegramConfig.value = { botToken: '', chatId: '', allowedUsers: '', notificationsEnabled: false };
+    settingsTelegramConfig.value = { botToken: '', chatId: '', allowedUsers: '', notificationsEnabled: false, autoStart: false };
     settingsTelegramBotRunning.value = false;
   }
 
@@ -1453,6 +1454,9 @@ async function onTelegramUpdateField(field: string, value: string | boolean): Pr
     if (field === 'notificationsEnabled') {
       await window.gamepadCli.telegramSetConfig({ enabled: Boolean(value) });
       settingsTelegramConfig.value.notificationsEnabled = Boolean(value);
+    } else if (field === 'autoStart') {
+      await window.gamepadCli.telegramSetConfig({ autoStart: Boolean(value) });
+      settingsTelegramConfig.value.autoStart = Boolean(value);
     } else if (field === 'botToken') {
       await window.gamepadCli.telegramSetConfig({ botToken: String(value) });
       settingsTelegramConfig.value.botToken = String(value);

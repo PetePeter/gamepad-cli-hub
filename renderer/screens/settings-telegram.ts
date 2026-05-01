@@ -11,6 +11,7 @@
  */
 interface TelegramConfig {
   enabled: boolean;
+  autoStart: boolean;
   botToken: string;
   instanceName: string;
   chatId: number | null;
@@ -24,6 +25,7 @@ interface TelegramConfig {
 
 const DEFAULT_CONFIG: TelegramConfig = {
   enabled: false,
+  autoStart: false,
   botToken: '',
   instanceName: 'Home',
   chatId: null,
@@ -171,14 +173,14 @@ function buildInstanceNameRow(): HTMLElement {
 }
 
 function buildEnabledRow(): HTMLElement {
-  const row = createFormRow('Auto-start on launch');
+  const row = createFormRow('Auto-start 60 seconds after launch');
 
   const toggle = document.createElement('input');
   toggle.type = 'checkbox';
   toggle.className = 'focusable';
-  toggle.checked = currentConfig.enabled;
+  toggle.checked = currentConfig.autoStart;
   toggle.tabIndex = 0;
-  toggle.addEventListener('change', () => saveField('enabled', toggle.checked));
+  toggle.addEventListener('change', () => saveField('autoStart', toggle.checked));
   row.appendChild(toggle);
 
   return row;

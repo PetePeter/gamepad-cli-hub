@@ -1,15 +1,4 @@
 {
   "version": 1,
-  "sequences": [
-    {
-      "id": "4f1da611-a23a-47b5-bef2-f805e8215740",
-      "dirPath": "X:\\coding\\gamepad-cli-hub",
-      "title": "Telegram Redesign — Conversation-First",
-      "missionStatement": "Replace the terminal-mirror/slash-command Telegram integration with a CLI-initiated conversation model. CLIs message the user via helm MCP; user replies are auto-injected into PTY stdin. Topic lifecycle syncs with session lifecycle. General Chat dashboard shows all sessions with Talk buttons.",
-      "sharedMemory": "## Key Decisions\\n- No terminal mirroring. CLIs call telegram_chat MCP tool to send messages.\\n- No slash commands. All UX via inline keyboard buttons.\\n- Every reply in a topic is always PTY-injected (no expectsResponse flag).\\n- Bot offline → telegram_chat returns { sent: false, reason } so CLI handles gracefully.\\n- Session removed → deleteForumTopic() in bot.ts (already exists).\\n- Topic deleted by user → clear topicId from session; recreated on next CLI chat.\\n\\n## MCP Tools (3 total after consolidation)\\n- telegram_status\\n- telegram_chat (renamed from sendTelegramToUser, absorbs channel_create/send)\\n- telegram_channel_close\\n\\n## Files being deleted\\n- src/telegram/terminal-mirror.ts\\n- src/telegram/commands.ts\\n- src/telegram/output-summarizer.ts\\n- src/telegram/reply-keyboard.ts\\n- src/telegram/text-input.ts\\n+ matching test files\\n\\n## bot.ts already has deleteForumTopic() — reuse it, do not reimplement.\n\n\n## Stage 1-3 Complete\n- Stages 1-3 committed. Deleted old modules, added setup guide, rewrote RelayService.\n- Key types changed: TelegramChannel no longer has expectsResponse. TelegramSendResult = { sent: boolean; reason?: string }.\n- callback-handler.ts has stub params (any) for TextInputManager/OutputSummarizer — full rewire in Stage 7.\n- orchestrator.ts has no-op stubs for feedPtyOutput/handleActivityChange etc — full rewire in Stage 7.\n- helm-control-service.ts still has sendTelegramMessage (dead code, emits telegram:send) and createTelegramChannel/closeTelegramChannel — Stage 5 removes MCP tools.\n- localhost-mcp-server.ts: telegram_set_output_mode dispatch returns no-op { mode: 'relay' }.\n",
-      "order": 0,
-      "createdAt": 1777577447974,
-      "updatedAt": 1777578059174
-    }
-  ]
+  "sequences": []
 }

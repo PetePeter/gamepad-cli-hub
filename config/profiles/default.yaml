@@ -21,8 +21,10 @@ tools:
   codex:
     name: codex
     spawnCommand: codex --dangerously-bypass-approvals-and-sandbox
+    resumeCommand: codex --dangerously-bypass-approvals-and-sandbox resume {cliSessionName}
+    renameCommand: /rename {cliSessionName}
     handoffCommand: go implement it
-    submitSuffix: \n
+    submitSuffix: \r
     initialPrompt:
       - label: ""
         sequence: Call session_info to get helm MCP AIAGENT state registry, then output
@@ -41,6 +43,8 @@ tools:
     initialPromptDelay: 2000
     pasteMode: pty
     helmInitialPrompt: false
+    submitSuffix: \r
+    helmPreambleForInterSession: false
   glm-cc:
     name: GLM + CC
     initialPrompt:

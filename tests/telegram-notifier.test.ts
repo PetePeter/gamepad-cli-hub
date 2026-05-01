@@ -53,6 +53,7 @@ function makeMockSessionManager(sessions: SessionInfo[]) {
 function defaultConfig(overrides: Partial<TelegramConfig> = {}): TelegramConfig {
   return {
     enabled: true,
+    autoStart: false,
     botToken: 'test-token',
     instanceName: 'Home',
     chatId: -100123,

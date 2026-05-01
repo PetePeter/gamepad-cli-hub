@@ -1,6 +1,8 @@
 import { EventEmitter } from 'events';
 import type { PatternRule } from '../config/loader.js';
 import { parseScheduledTime } from '../utils/time-parser.js';
+import { parseSequence, type SequenceAction } from '../input/sequence-parser.js';
+import { actionToPtyData } from './initial-prompt.js';
 import logger from '../utils/logger.js';
 
 // ============================================================================
@@ -178,9 +180,28 @@ export class PatternMatcher extends EventEmitter {
       logger.warn(`[PatternMatcher] send-text rule has no sequence`);
       return;
     }
-    Promise.resolve(this.ptyWriteFn(sessionId, seq)).catch((err) => {
+    const actions = parseSequence(seq);
+    const output = this.sequenceToString(actions);
+    Promise.resolve(this.ptyWriteFn(sessionId, output)).catch((err) => {
       logger.error(`[PatternMatcher] ptyWriteFn failed:`, err);
     });
+  }
+
+  private sequenceToString(actions: SequenceAction[]): string {
+    let result = '';
+    for (const action of actions) {
+      if (action.type === 'text') {
+        result += action.value;
+      } else if (action.type === 'key') {
+        const esc = actionToPtyData(action);
+        if (esc) result += esc;
+      } else if (action.type === 'combo') {
+        const esc = actionToPtyData(action);
+        if (esc) result += esc;
+      }
+      // wait and modifiers are ignored in suffix context
+    }
+    return result;
   }
 
   private executeWaitUntil(
@@ -224,7 +245,9 @@ export class PatternMatcher extends EventEmitter {
       this.pendingSchedules.delete(sessionId);
       const seq = rule.onResume ?? '';
       if (seq) {
-        Promise.resolve(this.ptyWriteFn(sessionId, seq)).catch((err) => {
+        const actions = parseSequence(seq);
+        const output = this.sequenceToString(actions);
+        Promise.resolve(this.ptyWriteFn(sessionId, output)).catch((err) => {
           logger.error(`[PatternMatcher] scheduled ptyWriteFn failed:`, err);
         });
       }

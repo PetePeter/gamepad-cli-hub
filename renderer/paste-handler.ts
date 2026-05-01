@@ -9,6 +9,7 @@
  */
 
 import { keyToPtyEscape, comboToPtyEscape } from './bindings.js';
+import { parseSequence, type SequenceAction } from '../src/input/sequence-parser.js';
 import { isDraftEditorVisible } from './drafts/draft-editor.js';
 import { showEditorPopup } from './editor/editor-popup.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
@@ -16,17 +17,50 @@ import { state } from './state.js';
 
 /**
  * Convert escape notation strings to actual characters.
- * Supports: \r (CR), \n (LF), \t (TAB), \r\n (CRLF)
- * @param suffix - Undefined, empty string, or escape notation like '\r', '\n', '\r\n'
- * @returns Actual CR/LF/TAB characters, or default '\r' if undefined/empty
+ * Supports: \r (CR), \n (LF), \t (TAB), \r\n (CRLF), or full sequence syntax like {Enter}, {F1}, {Ctrl+C}, etc.
+ * @param suffix - Undefined, empty string, escape notation like '\r', '\n', or sequence like {Enter}, {Send}
+ * @returns Actual CR/LF/TAB characters, PTY escape sequences, or default '\r' if undefined/empty
  */
 export function parseSubmitSuffix(suffix?: string): string {
   if (!suffix) return '\r';
+
+  // Handle escape notation (backslash + character, e.g., '\\r', '\\n')
   if (suffix === '\\r') return '\r';
   if (suffix === '\\n') return '\n';
   if (suffix === '\\t') return '\t';
   if (suffix === '\\r\\n') return '\r\n';
-  return suffix; // Return as-is if not a recognized escape sequence
+
+  // Only parse as sequence syntax if it contains curly braces
+  // This preserves actual control characters (e.g., real \r, \n, \t) unchanged
+  if (suffix.includes('{')) {
+    const actions = parseSequence(suffix);
+    let result = '';
+
+    for (const action of actions) {
+      if (action.type === 'text') {
+        result += action.value;
+      } else if (action.type === 'key') {
+        if (action.key === 'Enter' || action.key === 'Send') {
+          result += keyToPtyEscape('enter');
+        } else {
+          const esc = keyToPtyEscape(action.key);
+          result += esc;
+        }
+      } else if (action.type === 'combo') {
+        if (action.keys.length === 2 && action.keys[0].toLowerCase() === 'ctrl') {
+          const k = action.keys[1].toUpperCase();
+          if (k.length === 1 && k >= 'A' && k <= 'Z') {
+            result += String.fromCharCode(k.charCodeAt(0) - 64);
+          }
+        }
+      }
+      // Wait and modifiers are ignored in suffix context
+    }
+
+    return result || suffix; // Return result, or original if parsing yielded nothing
+  }
+
+  return suffix; // Return as-is if no escape notation or sequence syntax
 }
 
 type GetActiveSessionId = () => string | null;

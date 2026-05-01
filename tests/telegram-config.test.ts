@@ -86,6 +86,7 @@ describe('ConfigLoader — TelegramConfig', () => {
       const tg = loader.getTelegramConfig();
 
       expect(tg.enabled).toBe(false);
+      expect(tg.autoStart).toBe(false);
       expect(tg.botToken).toBe('');
       expect(tg.instanceName).toBe('Home');
       expect(tg.chatId).toBeNull();
@@ -116,6 +117,7 @@ describe('ConfigLoader — TelegramConfig', () => {
     it('returns saved config when telegram section exists', () => {
       const telegramSection: TelegramConfig = {
         enabled: true,
+        autoStart: true,
         botToken: 'my-token',
         instanceName: 'Work',
         chatId: -100999,
@@ -133,6 +135,7 @@ describe('ConfigLoader — TelegramConfig', () => {
       const tg = loader.getTelegramConfig();
 
       expect(tg.enabled).toBe(true);
+      expect(tg.autoStart).toBe(true);
       expect(tg.botToken).toBe('my-token');
       expect(tg.instanceName).toBe('Work');
       expect(tg.chatId).toBe(-100999);
@@ -140,6 +143,29 @@ describe('ConfigLoader — TelegramConfig', () => {
       expect(tg.safeModeDefault).toBe(false);
       expect(tg.notifyOnIdle).toBe(false);
       expect(tg.notifyOnCrash).toBe(false);
+    });
+
+    it('migrates legacy enabled telegram config to autoStart', () => {
+      setupTestFiles({
+        telegram: {
+          enabled: true,
+          botToken: 'legacy-token',
+          instanceName: 'Legacy',
+          chatId: -100999,
+          allowedUserIds: [42],
+          safeModeDefault: true,
+          notifyOnComplete: true,
+          notifyOnIdle: true,
+          notifyOnError: true,
+          notifyOnCrash: true,
+        },
+      });
+      loader = new ConfigLoader(TEST_DIR);
+      loader.load();
+
+      const tg = loader.getTelegramConfig();
+      expect(tg.enabled).toBe(true);
+      expect(tg.autoStart).toBe(true);
     });
   });
 
@@ -157,6 +183,7 @@ describe('ConfigLoader — TelegramConfig', () => {
 
       const tg = loader.getTelegramConfig();
       expect(tg.enabled).toBe(true);
+      expect(tg.autoStart).toBe(false);
       expect(tg.botToken).toBe('new-token');
       // Unchanged defaults preserved
       expect(tg.instanceName).toBe('Home');
@@ -166,6 +193,7 @@ describe('ConfigLoader — TelegramConfig', () => {
     it('merges partial updates into existing saved config', () => {
       const existing: TelegramConfig = {
         enabled: true,
+        autoStart: false,
         botToken: 'old-token',
         instanceName: 'Work',
         chatId: -100,
@@ -187,6 +215,7 @@ describe('ConfigLoader — TelegramConfig', () => {
       expect(tg.notifyOnIdle).toBe(false);
       // Preserved from existing
       expect(tg.enabled).toBe(true);
+      expect(tg.autoStart).toBe(false);
       expect(tg.instanceName).toBe('Work');
       expect(tg.chatId).toBe(-100);
     });
@@ -203,6 +232,18 @@ describe('ConfigLoader — TelegramConfig', () => {
       expect(saved.telegram).toBeDefined();
       expect(saved.telegram.enabled).toBe(true);
       expect(saved.telegram.botToken).toBe('persist-test');
+    });
+
+    it('persists autoStart separately from notifications', () => {
+      setupTestFiles();
+      loader = new ConfigLoader(TEST_DIR);
+      loader.load();
+
+      loader.setTelegramConfig({ autoStart: true, enabled: false });
+
+      const saved = readYaml<any>('settings.yaml');
+      expect(saved.telegram.autoStart).toBe(true);
+      expect(saved.telegram.enabled).toBe(false);
     });
 
     it('persisted config survives reload', () => {

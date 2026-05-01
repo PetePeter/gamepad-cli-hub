@@ -50,6 +50,16 @@ describe('setupCommandHandler', () => {
     expect(bot.on).toHaveBeenCalledWith('command:peek', expect.any(Function));
   });
 
+  it('registers a command:help listener on the bot', () => {
+    const { bot } = makeBot();
+    const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+
+    setupCommandHandler(bot, sm, pm);
+
+    expect(bot.on).toHaveBeenCalledWith('command:help', expect.any(Function));
+  });
+
   it('cleanup removes the listener', () => {
     const { bot } = makeBot();
     const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
@@ -58,7 +68,35 @@ describe('setupCommandHandler', () => {
     const cleanup = setupCommandHandler(bot, sm, pm);
     cleanup();
 
+    expect(bot.removeListener).toHaveBeenCalledWith('command:help', expect.any(Function));
     expect(bot.removeListener).toHaveBeenCalledWith('command:peek', expect.any(Function));
+  });
+});
+
+describe('command:help handler', () => {
+  it('sends all available slash commands', async () => {
+    const { bot, sendMessage } = makeBot();
+    const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+
+    setupCommandHandler(bot, sm, pm);
+
+    const helpHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0] === 'command:help',
+    )?.[1];
+
+    expect(helpHandler).toBeDefined();
+    await helpHandler!({ message_thread_id: 42 } as any, '');
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const [text, options] = sendMessage.mock.calls[0];
+    expect(text).toContain('/help');
+    expect(text).toContain('/peek [session]');
+    expect(text).toContain('Plain text');
+    expect(options).toMatchObject({
+      message_thread_id: 42,
+      parse_mode: 'HTML',
+    });
   });
 });
 

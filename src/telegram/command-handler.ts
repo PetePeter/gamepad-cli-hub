@@ -15,6 +15,11 @@ import { logger } from '../utils/logger.js';
 const PEEK_LINE_COUNT = 30;
 const TELEGRAM_MSG_LIMIT = 4096;
 
+export const TELEGRAM_COMMANDS: ReadonlyArray<{ command: string; description: string }> = [
+  { command: '/help', description: 'List available Telegram commands' },
+  { command: '/peek [session]', description: 'Show recent output for one session, or pick a session' },
+];
+
 export function setupCommandHandler(
   bot: TelegramBotCore,
   sessionManager: SessionManager,
@@ -28,12 +33,40 @@ export function setupCommandHandler(
       await bot.sendMessage('❌ Failed to peek at session');
     }
   };
+  const helpHandler = async (msg: TelegramBot.Message) => {
+    try {
+      await handleHelp(bot, msg);
+    } catch (err) {
+      logger.error(`[CommandHandler] /help failed: ${err}`);
+      await bot.sendMessage('Failed to show help');
+    }
+  };
 
+  bot.on('command:help', helpHandler);
   bot.on('command:peek', peekHandler);
 
   return () => {
+    bot.removeListener('command:help', helpHandler);
     bot.removeListener('command:peek', peekHandler);
   };
+}
+
+async function handleHelp(
+  bot: TelegramBotCore,
+  msg: TelegramBot.Message,
+): Promise<void> {
+  const lines = [
+    '<b>Helm Telegram commands</b>',
+    '',
+    ...TELEGRAM_COMMANDS.map((entry) => `<code>${escapeHtml(entry.command)}</code> - ${escapeHtml(entry.description)}`),
+    '',
+    'Plain text sent in a session topic is forwarded to that session.',
+  ];
+
+  await bot.sendMessage(lines.join('\n'), {
+    message_thread_id: msg.message_thread_id,
+    parse_mode: 'HTML',
+  });
 }
 
 async function handlePeek(

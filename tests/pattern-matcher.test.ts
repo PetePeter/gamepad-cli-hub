@@ -47,7 +47,8 @@ describe('PatternMatcher', () => {
     it('calls ptyWrite immediately on match', () => {
       const { pm, ptyWrite } = makeMatcher([makeRule()]);
       pm.processOutput('s1', 'claude-code', 'we hit the rate limit now');
-      expect(ptyWrite).toHaveBeenCalledWith('s1', 'retry{Enter}');
+      // Sequence 'retry{Enter}' is parsed: text 'retry' + key 'Enter' (\r)
+      expect(ptyWrite).toHaveBeenCalledWith('s1', 'retry\r');
     });
 
     it('does not fire when pattern does not match', () => {
@@ -99,14 +100,14 @@ describe('PatternMatcher', () => {
       const { pm, ptyWrite } = makeMatcher([makeRule()]);
       const ansiDecorated = '\x1b[31mwe hit the rate limit now\x1b[0m';
       pm.processOutput('s1', 'claude-code', ansiDecorated);
-      expect(ptyWrite).toHaveBeenCalledWith('s1', 'retry{Enter}');
+      expect(ptyWrite).toHaveBeenCalledWith('s1', 'retry\r');
     });
 
     it('strips OSC title sequences before matching', () => {
       const { pm, ptyWrite } = makeMatcher([makeRule()]);
       const withOsc = '\x1b]0;terminal title\x07rate limit detected';
       pm.processOutput('s1', 'claude-code', withOsc);
-      expect(ptyWrite).toHaveBeenCalledWith('s1', 'retry{Enter}');
+      expect(ptyWrite).toHaveBeenCalledWith('s1', 'retry\r');
     });
   });
 
@@ -125,7 +126,8 @@ describe('PatternMatcher', () => {
       const { pm, ptyWrite } = makeMatcher([makeWaitRule()]);
       pm.processOutput('s1', 'claude-code', 'try again at 9pm');
       vi.runAllTimers();
-      expect(ptyWrite).toHaveBeenCalledWith('s1', '/resume{Enter}');
+      // Sequence 'onResume' is parsed: text '/resume' + key 'Enter' (\r)
+      expect(ptyWrite).toHaveBeenCalledWith('s1', '/resume\r');
     });
 
     it('emits schedule-fired after timer fires', () => {
@@ -156,7 +158,7 @@ describe('PatternMatcher', () => {
       const { pm, ptyWrite } = makeMatcher([rule]);
       pm.processOutput('s1', 'claude-code', 'try again at 9pm');
       vi.advanceTimersByTime(3_600_001);
-      expect(ptyWrite).toHaveBeenCalledWith('s1', '/resume{Enter}');
+      expect(ptyWrite).toHaveBeenCalledWith('s1', '/resume\r');
     });
 
     it('skips rule when neither timeGroup match nor waitMs', () => {
@@ -240,8 +242,8 @@ describe('PatternMatcher', () => {
       ];
       const { pm, ptyWrite } = makeMatcher(rules);
       pm.processOutput('s1', 'claude-code', 'rule one and rule two hit');
-      expect(ptyWrite).toHaveBeenCalledWith('s1', 'one{Enter}');
-      expect(ptyWrite).toHaveBeenCalledWith('s1', 'two{Enter}');
+      expect(ptyWrite).toHaveBeenCalledWith('s1', 'one\r');
+      expect(ptyWrite).toHaveBeenCalledWith('s1', 'two\r');
     });
 
     it('getPatterns called with correct cliType', () => {
@@ -285,13 +287,13 @@ describe('PatternMatcher', () => {
       it('rate limit pattern sends immediate cancel+retry', () => {
         const { pm, ptyWrite } = makeMatcher(claudeCodePatterns);
         pm.processOutput('s1', 'claude-code', 'Error: rate limit exceeded');
-        expect(ptyWrite).toHaveBeenCalledWith('s1', '{Ctrl+c}retry{Enter}');
+        expect(ptyWrite).toHaveBeenCalledWith('s1', '\x03retry\r');
       });
 
       it('too many requests pattern sends immediate cancel+retry', () => {
         const { pm, ptyWrite } = makeMatcher(claudeCodePatterns);
         pm.processOutput('s1', 'claude-code', 'Error: too many requests, please slow down');
-        expect(ptyWrite).toHaveBeenCalledWith('s1', '{Ctrl+c}retry{Enter}');
+        expect(ptyWrite).toHaveBeenCalledWith('s1', '\x03retry\r');
       });
 
       it('scheduled retry parses time from capture group', () => {
@@ -301,21 +303,21 @@ describe('PatternMatcher', () => {
         pm.processOutput('s1', 'claude-code', 'Please try again at 9:30pm');
         expect(handler).toHaveBeenCalled();
         vi.runAllTimers();
-        expect(ptyWrite).toHaveBeenCalledWith('s1', 'resume{Enter}');
+        expect(ptyWrite).toHaveBeenCalledWith('s1', 'resume\r');
       });
 
       it('usage limit pattern waits 1 hour then cancels and retries', () => {
         const { pm, ptyWrite } = makeMatcher(claudeCodePatterns);
         pm.processOutput('s1', 'claude-code', 'Usage limit reached for this hour');
         vi.advanceTimersByTime(3600001);
-        expect(ptyWrite).toHaveBeenCalledWith('s1', '{Ctrl+c}retry{Enter}');
+        expect(ptyWrite).toHaveBeenCalledWith('s1', '\x03retry\r');
       });
 
       it('quota exceeded pattern waits 1 hour then cancels and retries', () => {
         const { pm, ptyWrite } = makeMatcher(claudeCodePatterns);
         pm.processOutput('s1', 'claude-code', 'Quota exceeded, please try again later');
         vi.advanceTimersByTime(3600001);
-        expect(ptyWrite).toHaveBeenCalledWith('s1', '{Ctrl+c}retry{Enter}');
+        expect(ptyWrite).toHaveBeenCalledWith('s1', '\x03retry\r');
       });
     });
 
@@ -339,20 +341,20 @@ describe('PatternMatcher', () => {
       it('rate limit pattern sends immediate cancel+retry', () => {
         const { pm, ptyWrite } = makeMatcher(copilotPatterns);
         pm.processOutput('s1', 'copilot-cli', 'Error: rate limit exceeded');
-        expect(ptyWrite).toHaveBeenCalledWith('s1', '{Ctrl+c}retry{Enter}');
+        expect(ptyWrite).toHaveBeenCalledWith('s1', '\x03retry\r');
       });
 
       it('rate-limit pattern also matches', () => {
         const { pm, ptyWrite } = makeMatcher(copilotPatterns);
         pm.processOutput('s1', 'copilot-cli', 'rate-limit exceeded, try again later');
-        expect(ptyWrite).toHaveBeenCalledWith('s1', '{Ctrl+c}retry{Enter}');
+        expect(ptyWrite).toHaveBeenCalledWith('s1', '\x03retry\r');
       });
 
       it('scheduled retry parses time from "try again at 9pm"', () => {
         const { pm, ptyWrite } = makeMatcher(copilotPatterns);
         pm.processOutput('s1', 'copilot-cli', 'Please try again at 9pm');
         vi.runAllTimers();
-        expect(ptyWrite).toHaveBeenCalledWith('s1', 'retry{Enter}');
+        expect(ptyWrite).toHaveBeenCalledWith('s1', 'retry\r');
       });
 
       it('"try again in 5 minutes" matches but has no timeGroup, so uses fallback', () => {

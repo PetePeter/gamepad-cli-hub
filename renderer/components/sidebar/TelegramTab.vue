@@ -12,6 +12,7 @@ export interface TelegramConfig {
   chatId: string;
   allowedUsers: string;
   notificationsEnabled: boolean;
+  autoStart: boolean;
 }
 
 const props = defineProps<{
@@ -114,6 +115,18 @@ function immediateEmit(field: string, value: string): void {
           @change="emit('updateField', 'notificationsEnabled', ($event.target as HTMLInputElement).checked)"
         />
         Enable Telegram notifications
+      </label>
+    </section>
+
+    <section class="telegram-section">
+      <h4>Startup</h4>
+      <label class="notification-toggle">
+        <input
+          type="checkbox"
+          :checked="config.autoStart"
+          @change="emit('updateField', 'autoStart', ($event.target as HTMLInputElement).checked)"
+        />
+        Auto-start bot 60 seconds after launch
       </label>
     </section>
 

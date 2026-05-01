@@ -11,14 +11,52 @@ const { mockShowEditorPopup, mockState, mockGetTerminalManager } = vi.hoisted(()
   mockGetTerminalManager: vi.fn().mockReturnValue(null),
 }));
 
+// Mock sequence parser module before importing paste-handler
+vi.mock('../src/input/sequence-parser', () => ({
+  parseSequence: (input: string) => {
+    const actions: any[] = [];
+    let i = 0;
+    while (i < input.length) {
+      if (input[i] === '{') {
+        const closeIdx = input.indexOf('}', i + 1);
+        if (closeIdx === -1) break;
+        const token = input.slice(i + 1, closeIdx);
+        if (token.includes('+')) {
+          const keys = token.split('+').map(k => k.trim());
+          actions.push({ type: 'combo', keys });
+        } else {
+          actions.push({ type: 'key', key: token });
+        }
+        i = closeIdx + 1;
+      } else {
+        let text = '';
+        while (i < input.length && input[i] !== '{') {
+          text += input[i];
+          i++;
+        }
+        if (text) actions.push({ type: 'text', value: text });
+      }
+    }
+    return actions;
+  },
+}));
+
 // Mock bindings module before importing paste-handler
 vi.mock('../renderer/bindings', () => ({
   keyToPtyEscape: (key: string) => {
     const map: Record<string, string> = {
-      'Enter': '\r', 'Tab': '\t', 'Escape': '\x1b', 'Backspace': '\x7f',
-      'Up': '\x1b[A', 'Down': '\x1b[B', 'Left': '\x1b[D', 'Right': '\x1b[C',
+      'enter': '\r', 'send': '\r', 'tab': '\t', 'escape': '\x1b', 'esc': '\x1b', 'backspace': '\x7f',
+      'delete': '\x1b[3~',
+      'up': '\x1b[A', 'down': '\x1b[B', 'left': '\x1b[D', 'right': '\x1b[C',
+      'arrowup': '\x1b[A', 'arrowdown': '\x1b[B', 'arrowleft': '\x1b[D', 'arrowright': '\x1b[C',
+      'home': '\x1b[H', 'end': '\x1b[F', 'pageup': '\x1b[5~', 'pagedown': '\x1b[6~',
+      'insert': '\x1b[2~',
+      'f1': '\x1bOP', 'f2': '\x1bOQ', 'f3': '\x1bOR', 'f4': '\x1bOS',
+      'f5': '\x1b[15~', 'f6': '\x1b[17~', 'f7': '\x1b[18~', 'f8': '\x1b[19~',
+      'f9': '\x1b[20~', 'f10': '\x1b[21~', 'f11': '\x1b[23~', 'f12': '\x1b[24~',
+      'space': ' ',
     };
-    return map[key] ?? key;
+    return map[key.toLowerCase()] ?? key;
   },
   comboToPtyEscape: (keys: string[]) => {
     if (keys.length === 2 && keys[0].toLowerCase() === 'ctrl') {
@@ -51,7 +89,7 @@ vi.mock('../renderer/composables/useEscProtection.js', () => ({
   }),
 }));
 
-import { setupKeyboardRelay, teardownKeyboardRelay, deliverBulkText } from '../renderer/paste-handler';
+import { setupKeyboardRelay, teardownKeyboardRelay, deliverBulkText, parseSubmitSuffix } from '../renderer/paste-handler';
 
 // ============================================================================
 // Tests
@@ -907,6 +945,97 @@ describe('deliverBulkText', () => {
         ['send'],
         ['\n'],
       ]);
+    });
+  });
+
+  // =========================================================================
+  // parseSubmitSuffix — sequence syntax support
+  // =========================================================================
+
+  describe('parseSubmitSuffix', () => {
+    it('undefined — defaults to carriage return', () => {
+      expect(parseSubmitSuffix(undefined)).toBe('\r');
+    });
+
+    it('empty string — defaults to carriage return', () => {
+      expect(parseSubmitSuffix('')).toBe('\r');
+    });
+
+    it('escape notation \\r — returns carriage return', () => {
+      expect(parseSubmitSuffix('\\r')).toBe('\r');
+    });
+
+    it('escape notation \\n — returns line feed', () => {
+      expect(parseSubmitSuffix('\\n')).toBe('\n');
+    });
+
+    it('escape notation \\t — returns tab', () => {
+      expect(parseSubmitSuffix('\\t')).toBe('\t');
+    });
+
+    it('escape notation \\r\\n — returns CRLF', () => {
+      expect(parseSubmitSuffix('\\r\\n')).toBe('\r\n');
+    });
+
+    it('{Enter} — returns carriage return', () => {
+      expect(parseSubmitSuffix('{Enter}')).toBe('\r');
+    });
+
+    it('{enter} lowercase — returns carriage return', () => {
+      expect(parseSubmitSuffix('{enter}')).toBe('\r');
+    });
+
+    it('{Send} — returns carriage return (identical to Enter)', () => {
+      expect(parseSubmitSuffix('{Send}')).toBe('\r');
+    });
+
+    it('{send} lowercase — returns carriage return', () => {
+      expect(parseSubmitSuffix('{send}')).toBe('\r');
+    });
+
+    it('{F1} — returns F1 escape sequence', () => {
+      expect(parseSubmitSuffix('{F1}')).toBe('\x1bOP');
+    });
+
+    it('{Tab} — returns tab character', () => {
+      expect(parseSubmitSuffix('{Tab}')).toBe('\t');
+    });
+
+    it('{Escape} — returns escape character', () => {
+      expect(parseSubmitSuffix('{Escape}')).toBe('\x1b');
+    });
+
+    it('unrecognized sequence {Unknown} — falls back to keyToPtyEscape', () => {
+      // keyToPtyEscape will return 'Unknown' as-is if not recognized
+      const result = parseSubmitSuffix('{Unknown}');
+      expect(result).toBe('Unknown');
+    });
+
+    it('malformed sequence (no closing brace) — returns as-is', () => {
+      expect(parseSubmitSuffix('{Enter')).toBe('{Enter');
+    });
+
+    it('text without braces — returns as-is', () => {
+      expect(parseSubmitSuffix('some text')).toBe('some text');
+    });
+
+    it('text with spaces — accepted and returned as-is', () => {
+      expect(parseSubmitSuffix('hello world')).toBe('hello world');
+    });
+
+    it('{Ctrl+C} — returns Ctrl+C escape sequence', () => {
+      const result = parseSubmitSuffix('{Ctrl+C}');
+      expect(result).toBe('\x03');
+    });
+
+    it('mixed sequence and text {Enter}hello — parses correctly', () => {
+      const result = parseSubmitSuffix('{Enter}hello');
+      expect(result).toBe('\rhello');
+    });
+
+    it('multiple sequences {Enter}{Tab} — parses all', () => {
+      const result = parseSubmitSuffix('{Enter}{Tab}');
+      expect(result).toBe('\r\t');
     });
   });
 });

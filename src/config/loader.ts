@@ -287,6 +287,7 @@ const DEFAULT_PLAN_FILTERS: PlanFilterConfig = {
 
 export interface TelegramConfig {
   enabled: boolean;
+  autoStart: boolean;
   botToken: string;
   instanceName: string;
   chatId: number | null;
@@ -300,6 +301,7 @@ export interface TelegramConfig {
 
 const DEFAULT_TELEGRAM_CONFIG: TelegramConfig = {
   enabled: false,
+  autoStart: false,
   botToken: '',
   instanceName: 'Home',
   chatId: null,
@@ -554,9 +556,14 @@ export class ConfigLoader {
     if (this.settings.notificationMode === undefined) {
       this.settings.notificationMode = this.settings.notifications ? 'auto' : 'off';
     }
-    if (!this.settings.telegram) {
-      this.settings.telegram = { ...DEFAULT_TELEGRAM_CONFIG };
-    }
+    const savedTelegram = this.settings.telegram;
+    this.settings.telegram = {
+      ...DEFAULT_TELEGRAM_CONFIG,
+      ...(savedTelegram ?? {}),
+      autoStart: typeof savedTelegram?.autoStart === 'boolean'
+        ? savedTelegram.autoStart
+        : savedTelegram?.enabled === true,
+    };
     this.settings.mcp = {
       ...DEFAULT_MCP_CONFIG,
       ...(this.settings.mcp ?? {}),
