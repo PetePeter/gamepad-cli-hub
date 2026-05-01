@@ -161,10 +161,14 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     const topicId = msg.message_thread_id;
     if (!topicId) return false;
 
+    const from = msg.from?.username ? `@${msg.from.username}` : 'unknown';
+    const chatId = msg.chat.id;
+    const wrapped = wrapTelegramEnvelope(msg.text, from, chatId);
+
     // Find session by topic mapping
     const session = this.topicManager.findSessionByTopicId(topicId);
     if (session) {
-      this.ptyManager.write(session.id, msg.text + '\r');
+      await this.ptyManager.deliverText(session.id, wrapped, { submitSuffix: '\r' });
       logger.info(`[TelegramRelay] Injected user message to session ${session.id}`);
       return true;
     }
@@ -172,7 +176,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     // Fall back to active session
     const active = this.sessionManager.getActiveSession();
     if (active) {
-      this.ptyManager.write(active.id, msg.text + '\r');
+      await this.ptyManager.deliverText(active.id, wrapped, { submitSuffix: '\r' });
       logger.info(`[TelegramRelay] Injected user message to active session ${active.id} (unmapped topic ${topicId})`);
       return true;
     }
@@ -187,6 +191,10 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     }
     return channel;
   }
+}
+
+function wrapTelegramEnvelope(text: string, from: string, chatId: number): string {
+  return `[HELM_TELEGRAM from:${from} chat:${chatId}]\n${text}\n[/HELM_TELEGRAM]\nReply via Telegram to chat ${chatId} when done.`;
 }
 
 function formatMessageForTelegram(text: string): string {

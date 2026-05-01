@@ -171,7 +171,7 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
   const payload = bracketedPasteEnabled
     ? `\x1b[200~${text}\x1b[201~${suffix}`
     : `${text}${suffix}`;
-  window.gamepadCli.ptyWrite(sessionId, payload);
+  await window.gamepadCli.ptyWrite(sessionId, payload);
 }
 
 /** Returns true if the focused element is an input field, textarea, or inside a modal. */

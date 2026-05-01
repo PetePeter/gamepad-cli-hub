@@ -25,6 +25,7 @@ function makeRelay() {
   };
   const ptyManager = {
     write: vi.fn(),
+    deliverText: vi.fn().mockResolvedValue(undefined),
   };
   const helmControl = {};
   const relay = new TelegramRelayService(
@@ -62,30 +63,39 @@ describe('TelegramRelayService', () => {
     expect(result.reason).toBe('Telegram bot is not running');
   });
 
-  it('handleIncomingTelegramMessage() writes text+\\r to mapped session PTY', async () => {
+  it('handleIncomingTelegramMessage() wraps text in HELM_TELEGRAM envelope', async () => {
     const { relay, ptyManager } = makeRelay();
 
     const consumed = await relay.handleIncomingTelegramMessage({
       message_id: 77,
       message_thread_id: 42,
       text: 'Yes, ship it',
+      chat: { id: 12345 },
+      from: { username: 'testuser' },
     } as any);
 
     expect(consumed).toBe(true);
-    expect(ptyManager.write).toHaveBeenCalledWith('s1', 'Yes, ship it\r');
+    const callArgs = ptyManager.deliverText.mock.calls[0];
+    expect(callArgs[0]).toBe('s1');
+    expect(callArgs[1]).toContain('[HELM_TELEGRAM from:@testuser');
+    expect(callArgs[1]).toContain('Yes, ship it');
+    expect(callArgs[1]).toContain('[/HELM_TELEGRAM]');
+    expect(callArgs[2]).toEqual({ submitSuffix: '\r' });
   });
 
-  it('handleIncomingTelegramMessage() writes to active session when topic not mapped', async () => {
+  it('handleIncomingTelegramMessage() wraps active-session messages in envelope too', async () => {
     const { relay, ptyManager } = makeRelay();
 
     const consumed = await relay.handleIncomingTelegramMessage({
       message_id: 78,
       message_thread_id: 999,
       text: 'Unmapped topic message',
+      chat: { id: 12345 },
+      from: { username: 'someone' },
     } as any);
 
     expect(consumed).toBe(true);
-    expect(ptyManager.write).toHaveBeenCalledWith('s1', 'Unmapped topic message\r');
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM from:@someone'), { submitSuffix: '\r' });
   });
 
   it('sends General Chat nudge after successful topic message', async () => {

@@ -58,6 +58,7 @@ export class RendererTextDeliverer {
     const promise = new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);
+        logger.warn(`[TextDelivery] Renderer delivery timed out after ${REQUEST_TIMEOUT_MS}ms for session ${sessionId} - falling back to sync PTY write`);
         reject(new Error(`Renderer delivery timed out after ${REQUEST_TIMEOUT_MS}ms`));
       }, REQUEST_TIMEOUT_MS);
       this.pending.set(requestId, { resolve, reject, timer });

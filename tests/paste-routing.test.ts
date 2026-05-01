@@ -859,6 +859,27 @@ describe('deliverBulkText', () => {
       expect(mockPtyWrite).toHaveBeenCalledWith('helm-test', 'cmd\n');
     });
 
+    it('PTY mode waits for ptyWrite before resolving', async () => {
+      let resolveWrite!: () => void;
+      mockPtyWrite.mockReturnValue(new Promise<void>(resolve => {
+        resolveWrite = resolve;
+      }));
+
+      let resolved = false;
+      const promise = deliverBulkText('helm-test', 'cmd', { submitSuffix: '\n' }).then(() => {
+        resolved = true;
+      });
+
+      await Promise.resolve();
+      expect(resolved).toBe(false);
+
+      resolveWrite();
+      await promise;
+
+      expect(resolved).toBe(true);
+      expect(mockPtyWrite).toHaveBeenCalledWith('helm-test', '\x1b[200~cmd\x1b[201~\n');
+    });
+
     it('ptyindividual mode: submitSuffix appended after all characters', async () => {
       mockState.cliToolsCache = { 'claude-code': { pasteMode: 'ptyindividual' } };
       mockPtyWrite.mockClear();
