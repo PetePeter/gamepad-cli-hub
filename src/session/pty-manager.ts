@@ -162,7 +162,7 @@ export class PtyManager extends EventEmitter {
   }
 
   /** Deliver bulk text using the preferred insertion mode when available. */
-  async deliverText(sessionId: string, text: string, options?: { withReturn?: boolean }): Promise<void> {
+  async deliverText(sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }): Promise<void> {
     if (!text) return;
     if (this.textDeliveryHandler) {
       try {
@@ -172,7 +172,8 @@ export class PtyManager extends EventEmitter {
         logger.warn(`[PTY] Preferred text delivery failed for ${sessionId}, falling back to PTY write: ${error}`);
       }
     }
-    this.write(sessionId, options?.withReturn ? text + '\r' : text);
+    const suffix = options?.submitSuffix ?? (options?.withReturn ? '\r' : '');
+    this.write(sessionId, text + suffix);
   }
 
   /** Resize a session's PTY. */

@@ -71,10 +71,10 @@ describe('HelmControlService.sendTextToSession', () => {
     vi.restoreAllMocks();
   });
 
-  it('delivers text atomically with auto-execution suffix', async () => {
+  it('delivers text atomically with submitSuffix for auto-execution', async () => {
     const { service, ptyManager } = makeService();
     await service.sendTextToSession('s1', 'hello', { senderSessionId: 'sid', senderSessionName: 'Sender' });
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('hello\n'));
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('hello'), { submitSuffix: '\n' });
     expect(ptyManager.write).not.toHaveBeenCalled();
   });
 
@@ -921,8 +921,10 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     expect(configLoader.getCliTypeEntry).toHaveBeenCalledWith('claude-code');
     const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
     const message = deliverCall[1] as string;
-    // Helm inter-session messages include \n\r for auto-execution on cmd.exe
-    expect(message).toBe('hello from sender\n');
+    const options = deliverCall[2];
+    // Helm inter-session messages use submitSuffix for auto-execution (applied outside bracketed paste)
+    expect(message).toBe('hello from sender');
+    expect(options).toEqual({ submitSuffix: '\n' });
     expect(message).not.toMatch(/^\[HELM_MSG\]/);
     expect(message).not.toContain('inter_llm_message');
   });
@@ -942,8 +944,10 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     expect(result.preambleUsed).toBe(false);
     const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
     const message = deliverCall[1] as string;
-    // Helm inter-session messages append \n\r for auto-execution
-    expect(message).toBe(multilineText + '\n');
+    const options = deliverCall[2];
+    // Helm inter-session messages use submitSuffix, not embedded newline
+    expect(message).toBe(multilineText);
+    expect(options).toEqual({ submitSuffix: '\n' });
   });
 
   it('sendTextToSession preamble=true includes sender info in envelope', async () => {
@@ -1016,8 +1020,10 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
 
     const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
     const message = deliverCall[1] as string;
-    // Without preamble, the message is plain text + \n\r for auto-execution
-    expect(message).toBe('check status\n');
+    const options = deliverCall[2];
+    // Without preamble, plain text with submitSuffix for auto-execution
+    expect(message).toBe('check status');
+    expect(options).toEqual({ submitSuffix: '\n' });
     expect(message).not.toContain('expectsResponse');
   });
 });
