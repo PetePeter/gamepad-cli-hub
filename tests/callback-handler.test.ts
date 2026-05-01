@@ -45,6 +45,7 @@ function createMockBot() {
     on: vi.fn(),
     removeListener: vi.fn(),
     answerCallback: vi.fn(),
+    getChatId: vi.fn(() => null),
     getBot: vi.fn(() => ({
       editMessageText: vi.fn(),
       sendMessage: vi.fn(),
@@ -211,6 +212,65 @@ describe('setupCallbackHandler', () => {
     it('just acknowledges', async () => {
       await handler(makeQuery('topic:s1'));
       expect(bot.answerCallback).toHaveBeenCalledWith('q1', '📌 Go to topic');
+    });
+  });
+
+  describe('topic_create:{sessionId}', () => {
+    it('creates the topic, refreshes the keyboard, and acknowledges', async () => {
+      const ensureTopic = vi.fn(async () => 99);
+      const mockTopicManager = { ensureTopic } as unknown as TopicManager;
+
+      const session = { id: 's1', name: 'Test', cliType: 'claude', state: 'idle' };
+      const sessions: Record<string, any> = { s1: session };
+      sessionManager = createMockSessionManager(sessions);
+
+      const innerBot = { editMessageText: vi.fn(), sendMessage: vi.fn() };
+      (bot.getBot as any).mockReturnValue(innerBot);
+      (bot as any).getChatId = vi.fn(() => -1003706536310);
+
+      setupCallbackHandler(
+        bot as any, mockTopicManager as any, sessionManager as any,
+        ptyManager as any, configLoader as any,
+      );
+      handler = (bot.on as any).mock.calls.at(-1)[1];
+
+      await handler(makeQuery('topic_create:s1'));
+
+      expect(ensureTopic).toHaveBeenCalledWith(session);
+      expect(innerBot.editMessageText).toHaveBeenCalled();
+      expect(bot.answerCallback).toHaveBeenCalledWith('q1', '📌 Topic ready — tap Go to Topic');
+    });
+
+    it('answers with error when session not found', async () => {
+      const mockTopicManager = { ensureTopic: vi.fn() } as unknown as TopicManager;
+      setupCallbackHandler(
+        bot as any, mockTopicManager as any, sessionManager as any,
+        ptyManager as any, configLoader as any,
+      );
+      handler = (bot.on as any).mock.calls.at(-1)[1];
+
+      await handler(makeQuery('topic_create:nonexistent'));
+
+      expect((mockTopicManager as any).ensureTopic).not.toHaveBeenCalled();
+      expect(bot.answerCallback).toHaveBeenCalledWith('q1', '❌ Session not found');
+    });
+
+    it('reports failure when topic creation returns null', async () => {
+      const ensureTopic = vi.fn(async () => null);
+      const mockTopicManager = { ensureTopic } as unknown as TopicManager;
+      const sessions = { s1: { id: 's1', name: 'Test', cliType: 'claude' } };
+      sessionManager = createMockSessionManager(sessions);
+
+      setupCallbackHandler(
+        bot as any, mockTopicManager as any, sessionManager as any,
+        ptyManager as any, configLoader as any,
+      );
+      handler = (bot.on as any).mock.calls.at(-1)[1];
+
+      await handler(makeQuery('topic_create:s1'));
+
+      expect(ensureTopic).toHaveBeenCalled();
+      expect(bot.answerCallback).toHaveBeenCalledWith('q1', '❌ Failed to create topic');
     });
   });
 

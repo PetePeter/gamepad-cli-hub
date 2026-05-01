@@ -248,6 +248,83 @@ describe('sessionControlKeyboard', () => {
     expect(text).toContain('🔨');
     expect(text).toContain('Implementing');
   });
+
+  describe('topic button', () => {
+    const CHAT_ID = -1003706536310;
+
+    it('renders Go-to-Topic url button when topicId and chatId are set', () => {
+      const session = makeSession({ topicId: 42 });
+      const { keyboard } = sessionControlKeyboard(session, CHAT_ID);
+
+      const goButton = allButtons(keyboard).find(b => b.text === '📌 Go to Topic');
+      expect(goButton).toBeDefined();
+      expect(goButton.url).toBe('https://t.me/c/3706536310/42');
+      expect(goButton.callback_data).toBeUndefined();
+    });
+
+    it('renders Create-Topic callback button when topicId is missing', () => {
+      const session = makeSession({ topicId: undefined });
+      const { keyboard } = sessionControlKeyboard(session, CHAT_ID);
+
+      const createButton = allButtons(keyboard).find(b => b.text === '📌 Create Topic');
+      expect(createButton).toBeDefined();
+      expect(createButton.callback_data).toBe(`topic_create:${session.id}`);
+      expect(createButton.url).toBeUndefined();
+    });
+
+    it('falls back to Create-Topic when chatId is null even if topicId is set', () => {
+      const session = makeSession({ topicId: 42 });
+      const { keyboard } = sessionControlKeyboard(session, null);
+
+      const createButton = allButtons(keyboard).find(b => b.text === '📌 Create Topic');
+      expect(createButton).toBeDefined();
+      const goButton = allButtons(keyboard).find(b => b.text === '📌 Go to Topic');
+      expect(goButton).toBeUndefined();
+    });
+
+    it('topic button sits in its own row, separate from Continue/Peek/Back', () => {
+      const session = makeSession({ topicId: 42, state: 'completed' });
+      const { keyboard } = sessionControlKeyboard(session, CHAT_ID);
+
+      const topicRow = keyboard.find(row =>
+        row.some(b => b.text === '📌 Go to Topic' || b.text === '📌 Create Topic'),
+      );
+      expect(topicRow).toBeDefined();
+      expect(topicRow!.length).toBe(1);
+      const rowData = topicRow!.map(b => b.callback_data ?? '').join(',');
+      expect(rowData).not.toContain('continue');
+      expect(rowData).not.toContain('peek');
+      expect(rowData).not.toContain('sessions:list');
+    });
+
+    it('topic button is independent of session state', () => {
+      for (const state of ['idle', 'planning', 'implementing', 'completed', 'waiting'] as const) {
+        const session = makeSession({ topicId: 42, state });
+        const { keyboard } = sessionControlKeyboard(session, CHAT_ID);
+
+        const found = allButtons(keyboard).some(b => b.text === '📌 Go to Topic');
+        expect(found, `state=${state} should still show topic button`).toBe(true);
+      }
+    });
+
+    it('preserves existing Continue and Peek/Back rows', () => {
+      const session = makeSession({ state: 'idle' });
+      const { keyboard } = sessionControlKeyboard(session, CHAT_ID);
+
+      const data = allCallbackData(keyboard);
+      expect(data).toContain(`continue:${session.id}`);
+      expect(data).toContain(`peek:${session.id}`);
+      expect(data).toContain('sessions:list');
+    });
+
+    it('strips -100 prefix from supergroup chat ids when building url', () => {
+      const session = makeSession({ topicId: 7 });
+      const { keyboard } = sessionControlKeyboard(session, -1009999999999);
+
+      const goButton = allButtons(keyboard).find(b => b.text === '📌 Go to Topic');
+      expect(goButton.url).toBe('https://t.me/c/9999999999/7');
+    });
+  });
 });
 
 describe('spawnToolKeyboard', () => {

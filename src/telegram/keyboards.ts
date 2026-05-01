@@ -172,10 +172,39 @@ export function sessionListKeyboard(
 }
 
 /**
+ * Build the supergroup forum topic deep-link URL.
+ * Telegram supergroups have chat IDs of the form -100XXXXXXXXXX; the public
+ * t.me/c/{n}/{thread} form drops the -100 prefix.
+ */
+function buildTopicUrl(chatId: number, topicId: number): string {
+  const stripped = String(chatId).replace(/^-100/, '');
+  return `https://t.me/c/${stripped}/${topicId}`;
+}
+
+/**
+ * Build the topic-row button for the session control keyboard.
+ * - Topic exists + chatId known → url button (one-tap navigation)
+ * - Otherwise → callback button that creates the topic on tap
+ */
+function topicButton(
+  session: SessionInfo,
+  chatId: number | null,
+): TelegramBot.InlineKeyboardButton {
+  if (session.topicId != null && chatId != null) {
+    return { text: '📌 Go to Topic', url: buildTopicUrl(chatId, session.topicId) };
+  }
+  return { text: '📌 Create Topic', callback_data: `topic_create:${session.id}` };
+}
+
+/**
  * Build session control keyboard (context-aware based on state).
+ *
+ * @param chatId Supergroup chat id used to build the t.me/c URL when a topic
+ *   exists. Pass `null` to force the create-topic fallback.
  */
 export function sessionControlKeyboard(
   session: SessionInfo,
+  chatId: number | null = null,
 ): { text: string; keyboard: TelegramBot.InlineKeyboardButton[][] } {
   const emoji = stateEmoji(session.state);
   const text = `${emoji} ${session.cliType} — ${path.basename(session.workingDir ?? 'unknown')}\nSession: "${session.name}"  ${emoji} ${capitalize(session.state ?? 'idle')}`;
@@ -183,14 +212,12 @@ export function sessionControlKeyboard(
   const keyboard: TelegramBot.InlineKeyboardButton[][] = [];
   const state = session.state ?? 'idle';
 
+  keyboard.push([topicButton(session, chatId)]);
+
   if (state === 'implementing' || state === 'planning') {
     keyboard.push([
       { text: '✋ Cancel', callback_data: `cancel:${session.id}` },
       { text: '✅ Accept', callback_data: `accept:${session.id}` },
-    ]);
-  } else if (state === 'completed') {
-    keyboard.push([
-      { text: '🚀 Continue', callback_data: `continue:${session.id}` },
     ]);
   } else {
     keyboard.push([

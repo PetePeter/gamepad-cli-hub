@@ -3,7 +3,8 @@
  * Routes button presses to the appropriate action.
  *
  * Callback data format (defined by keyboards.ts):
- *   topic:{sessionId}   — Navigate to topic
+ *   topic:{sessionId}   — Navigate to topic (legacy toast-only)
+ *   topic_create:{sessionId} — Create the session's topic, then refresh the keyboard
  *   reply:{sessionId}   — Return to session control panel from relay message
  *   continue:{sessionId} — Send Enter to session
  *   sessions:list       — Show directory list
@@ -100,6 +101,9 @@ async function routeCallback(
     case 'topic':
       await bot.answerCallback(query.id, '📌 Go to topic');
       break;
+    case 'topic_create':
+      await handleTopicCreate(bot, topicManager, sessionManager, payload, query);
+      break;
     case 'reply':
       await handleReply(bot, sessionManager, payload, query);
       break;
@@ -181,7 +185,7 @@ async function handleSessionSelect(
     return;
   }
 
-  const { text, keyboard } = sessionControlKeyboard(session);
+  const { text, keyboard } = sessionControlKeyboard(session, bot.getChatId());
 
   await editOriginalMessage(bot, query, text, keyboard);
   await bot.answerCallback(query.id);
@@ -207,10 +211,40 @@ async function handleReply(
     return;
   }
 
-  const { text, keyboard } = sessionControlKeyboard(session);
+  const { text, keyboard } = sessionControlKeyboard(session, bot.getChatId());
 
   await editOriginalMessage(bot, query, text, keyboard);
   await bot.answerCallback(query.id, '📝 Reply to session');
+}
+
+/**
+ * Create the forum topic for a session, then re-render the same control
+ * keyboard so the topic button flips from "Create Topic" (callback) to
+ * "Go to Topic" (url) and the user can tap it again to navigate.
+ */
+async function handleTopicCreate(
+  bot: TelegramBotCore,
+  topicManager: TopicManager,
+  sessionManager: SessionManager,
+  sessionId: string,
+  query: TelegramBot.CallbackQuery,
+): Promise<void> {
+  const session = sessionManager.getSession(sessionId);
+  if (!session) {
+    await bot.answerCallback(query.id, '❌ Session not found');
+    return;
+  }
+
+  const topicId = await topicManager.ensureTopic(session);
+  if (topicId == null) {
+    await bot.answerCallback(query.id, '❌ Failed to create topic');
+    return;
+  }
+
+  const refreshed = sessionManager.getSession(sessionId) ?? session;
+  const { text, keyboard } = sessionControlKeyboard(refreshed, bot.getChatId());
+  await editOriginalMessage(bot, query, text, keyboard);
+  await bot.answerCallback(query.id, '📌 Topic ready — tap Go to Topic');
 }
 
 async function handleContinue(
