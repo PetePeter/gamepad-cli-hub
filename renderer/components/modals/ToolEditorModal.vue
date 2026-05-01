@@ -16,6 +16,18 @@ const HELM_AUTOFILLED_ENV_ITEMS = [
   { name: 'HELM_SESSION_NAME', value: '<autofilled by helm>' },
 ] as const;
 const HELM_AUTOFILLED_ENV_NAMES = new Set(HELM_AUTOFILLED_ENV_ITEMS.map((item) => item.name));
+const SUBMIT_SUFFIX_OPTIONS = [
+  { label: 'Carriage Return (CR / \\r)', value: '\\r' },
+  { label: 'Line Feed (LF / \\n)', value: '\\n' },
+  { label: 'Both (CRLF / \\r\\n)', value: '\\r\\n' },
+] as const;
+type SubmitSuffixOption = typeof SUBMIT_SUFFIX_OPTIONS[number]['value'];
+
+function normalizeSubmitSuffix(value?: string): SubmitSuffixOption {
+  if (value === '\\n' || value === '\n') return '\\n';
+  if (value === '\\r\\n' || value === '\r\n') return '\\r\\n';
+  return '\\r';
+}
 
 export interface ToolEditorData {
   name: string;
@@ -74,7 +86,7 @@ const renameCommand = ref('');
 const handoffCommand = ref('');
 const helmInitialPrompt = ref(false);
 const helmPreambleForInterSession = ref(true);
-const submitSuffix = ref(props.initialData.submitSuffix);
+const submitSuffix = ref<SubmitSuffixOption>('\\r');
 
 interface SeqItem { label: string; sequence: string }
 const promptItems = ref<SeqItem[]>([]);
@@ -138,7 +150,7 @@ function initForm(): void {
   handoffCommand.value = d.handoffCommand ?? '';
   helmInitialPrompt.value = Boolean(d.helmInitialPrompt);
   helmPreambleForInterSession.value = d.helmPreambleForInterSession !== false;
-  submitSuffix.value = d.submitSuffix ?? '\r';
+  submitSuffix.value = normalizeSubmitSuffix(d.submitSuffix);
   promptItems.value = Array.isArray(d.initialPrompt)
     ? d.initialPrompt.map(item => ({
         label: typeof item?.label === 'string' ? item.label : '',
@@ -184,7 +196,7 @@ function onSave(): void {
     handoffCommand: handoffCommand.value,
     helmInitialPrompt: helmInitialPrompt.value,
     ...(helmPreambleForInterSession.value !== true ? { helmPreambleForInterSession: helmPreambleForInterSession.value } : {}),
-    submitSuffix: submitSuffix.value || '\r',
+    submitSuffix: submitSuffix.value,
     _promptItems: promptItems.value.map(i => ({ label: i.label, sequence: i.sequence })),
   });
   emit('update:visible', false);
@@ -396,14 +408,14 @@ defineExpose({ handleButton });
             </div>
             <div class="te-field">
               <label for="te-submit-suffix">Submit Suffix</label>
-              <input
-                id="te-submit-suffix"
-                v-model="submitSuffix"
-                type="text"
-                placeholder="\r"
-                class="te-input te-input--mono"
-              />
-              <p class="te-section__hint">Escape sequence appended when submitting text. Default \r. Use \n for Copilot/Codex.</p>
+              <select id="te-submit-suffix" v-model="submitSuffix" class="te-select">
+                <option
+                  v-for="option in SUBMIT_SUFFIX_OPTIONS"
+                  :key="option.value"
+                  :value="option.value"
+                >{{ option.label }}</option>
+              </select>
+              <p class="te-section__hint">Character sequence sent when submitting text for this CLI type.</p>
             </div>
             <label class="te-checkbox-row">
               <input
