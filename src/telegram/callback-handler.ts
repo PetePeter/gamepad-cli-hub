@@ -4,6 +4,7 @@
  *
  * Callback data format (defined by keyboards.ts):
  *   topic:{sessionId}   — Navigate to topic
+ *   reply:{sessionId}   — Return to session control panel from relay message
  *   continue:{sessionId} — Send Enter to session
  *   sessions:list       — Show directory list
  *   dir:{path}          — Drill into directory
@@ -99,6 +100,9 @@ async function routeCallback(
     case 'topic':
       await bot.answerCallback(query.id, '📌 Go to topic');
       break;
+    case 'reply':
+      await handleReply(bot, sessionManager, payload, query);
+      break;
     case 'continue':
       await handleContinue(bot, ptyManager, payload, query);
       break;
@@ -186,6 +190,28 @@ async function handleSessionSelect(
 // ---------------------------------------------------------------------------
 // Session actions
 // ---------------------------------------------------------------------------
+
+/**
+ * Handle reply button from relay messages.
+ * Navigates back to the session control view where users can interact with the session.
+ */
+async function handleReply(
+  bot: TelegramBotCore,
+  sessionManager: SessionManager,
+  sessionId: string,
+  query: TelegramBot.CallbackQuery,
+): Promise<void> {
+  const session = sessionManager.getSession(sessionId);
+  if (!session) {
+    await bot.answerCallback(query.id, '❌ Session not found');
+    return;
+  }
+
+  const { text, keyboard } = sessionControlKeyboard(session);
+
+  await editOriginalMessage(bot, query, text, keyboard);
+  await bot.answerCallback(query.id, '📝 Reply to session');
+}
 
 async function handleContinue(
   bot: TelegramBotCore,

@@ -312,3 +312,117 @@ export function peekSessionPickerKeyboard(
 
   return { text, keyboard: buttons };
 }
+
+/**
+ * Build help command keyboard with quick access to main features.
+ */
+export function helpKeyboard(
+  sessionManager?: { getAllSessions(): SessionInfo[] },
+): { keyboard: TelegramBot.InlineKeyboardButton[][] } {
+  const sessions = sessionManager?.getAllSessions() ?? [];
+  const buttons: TelegramBot.InlineKeyboardButton[][] = [];
+
+  // Quick access row
+  buttons.push([
+    { text: '📂 Sessions', callback_data: 'sessions:list' },
+    { text: '➕ Spawn', callback_data: 'spawn:start' },
+    { text: '📊 Status', callback_data: 'status:all' },
+  ]);
+
+  // Peek row (only if sessions exist)
+  if (sessions.length > 0) {
+    buttons.push([
+      { text: '📺 Peek', callback_data: 'peek:sessions' },
+      { text: '🗑️ Close All', callback_data: 'closeall' },
+    ]);
+  }
+
+  return { keyboard: buttons };
+}
+
+/**
+ * Build persistent buttons for relay messages sent to topic channels.
+ * Creates two buttons in one row:
+ *   - "Go to Topic" (navigates to the topic via callback_data topic:{topicId})
+ *   - "Reply" (for returning to reply in the session via callback_data reply:{sessionId})
+ */
+export function relayMessageKeyboard(
+  sessionId: string,
+  topicId: number,
+): TelegramBot.InlineKeyboardButton[][] {
+  return [
+    [
+      { text: '📌 Go to Topic', callback_data: `topic:${topicId}` },
+      { text: '📝 Reply', callback_data: `reply:${sessionId}` },
+    ],
+  ];
+}
+
+/**
+ * Sort sessions by state priority: implementing/planning first (active work),
+ * then completed/waiting, then idle (least active).
+ * Within each tier, maintain original order.
+ */
+function sortSessionsByState(sessions: SessionInfo[]): SessionInfo[] {
+  const priority: Record<string, number> = {
+    implementing: 0,
+    planning: 0,
+    completed: 1,
+    waiting: 1,
+    idle: 2,
+  };
+
+  return [...sessions].sort((a, b) => {
+    const aPriority = priority[a.state ?? 'idle'] ?? 2;
+    const bPriority = priority[b.state ?? 'idle'] ?? 2;
+    return aPriority - bPriority;
+  });
+}
+
+/**
+ * Build dashboard keyboard with topic navigation buttons for relay workflows.
+ * For each session, adds:
+ *   - Talk button (for Telegram interaction)
+ *   - Topic link button (if topicId is mapped for this session)
+ *
+ * Sessions are sorted by state: implementing/planning first, idle last.
+ * Static action buttons appear at the bottom.
+ */
+export function buildDashboardKeyboardWithTopics(
+  sessions: SessionInfo[],
+  topicMap: Map<string, number>,
+): TelegramBot.InlineKeyboardButton[][] {
+  const buttons: TelegramBot.InlineKeyboardButton[][] = [];
+  const sortedSessions = sortSessionsByState(sessions);
+
+  // Add session controls: talk button + optional topic button
+  for (const session of sortedSessions) {
+    const topicId = topicMap.get(session.id);
+
+    // Talk button always present (in its own row)
+    buttons.push([
+      { text: '💬 Talk', callback_data: `talk:${session.id}` },
+    ]);
+
+    // Topic button only if topic is mapped (in its own row)
+    if (topicId != null) {
+      buttons.push([
+        { text: '📌 Go to Topic', callback_data: `topic:${topicId}` },
+      ]);
+    }
+  }
+
+  // Static action buttons at bottom: Sessions/Spawn/Status in one row
+  buttons.push([
+    { text: '📂 Sessions', callback_data: 'sessions:list' },
+    { text: '➕ Spawn', callback_data: 'spawn:start' },
+    { text: '📊 Status', callback_data: 'status:all' },
+  ]);
+
+  // Close All in its own row
+  buttons.push([
+    { text: '🗑️ Close All', callback_data: 'closeall' },
+  ]);
+
+  return buttons;
+}

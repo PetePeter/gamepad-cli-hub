@@ -87,7 +87,8 @@ async function forwardToSession(
   msg: TelegramBot.Message,
 ): Promise<void> {
   const from = msg.from?.username ? `@${msg.from.username}` : 'unknown';
-  const wrapped = `[HELM_TELEGRAM from:${from} chat:${msg.chat.id}]\n${text}\n[/HELM_TELEGRAM]\nReply via Telegram to chat ${msg.chat.id} when done.`;
+  const fromTag = from === 'unknown' ? '' : ` from:${from}`;
+  const wrapped = `[HELM_TELEGRAM${fromTag} chat:${msg.chat.id}]\n${text}\n[/HELM_TELEGRAM]`;
   await deliverViaManager(ptyManager, sessionId, wrapped, { submitSuffix: '\r' });
 
   const echoText = `➡️ <code>${escapeHtml(text)}</code>`;

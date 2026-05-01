@@ -90,12 +90,18 @@ describe('command:help handler', () => {
 
     expect(sendMessage).toHaveBeenCalledTimes(1);
     const [text, options] = sendMessage.mock.calls[0];
-    expect(text).toContain('/help');
-    expect(text).toContain('/peek [session]');
-    expect(text).toContain('Plain text');
+    expect(text).toContain('help');
+    expect(text).toContain('peek');
+    expect(text).toContain('spawn');
+    expect(text).toContain('status');
+    expect(text).toContain('sessions');
+    expect(text).toContain('plain text');
     expect(options).toMatchObject({
       message_thread_id: 42,
       parse_mode: 'HTML',
+      reply_markup: expect.objectContaining({
+        inline_keyboard: expect.any(Array),
+      }),
     });
   });
 });
@@ -193,6 +199,143 @@ describe('command:peek handler', () => {
     await peekHandler!({} as any, '');
 
     expect(sendMessage).toHaveBeenCalledWith('No active sessions');
+  });
+});
+
+describe('command:sessions handler', () => {
+  it('shows directory list when sessions exist', async () => {
+    const { bot, sendMessage } = makeBot();
+    const sessions = [makeSession('s1', 'worker')];
+    const sm = { getAllSessions: vi.fn(() => sessions) } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+
+    setupCommandHandler(bot, sm, pm);
+
+    const sessionsHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0] === 'command:sessions',
+    )?.[1];
+
+    expect(sessionsHandler).toBeDefined();
+    await sessionsHandler!({ message_thread_id: 42 } as any, '');
+
+    expect(sendMessage).toHaveBeenCalled();
+    const [text, options] = sendMessage.mock.calls[0];
+    expect(text).toContain('Your Sessions');
+    expect(text).toContain('idle');
+    expect(options).toMatchObject({ parse_mode: 'HTML' });
+  });
+
+  it('shows help message when no sessions exist', async () => {
+    const { bot, sendMessage } = makeBot();
+    const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+
+    setupCommandHandler(bot, sm, pm);
+
+    const sessionsHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0] === 'command:sessions',
+    )?.[1];
+
+    await sessionsHandler!({ message_thread_id: 42 } as any, '');
+
+    expect(sendMessage).toHaveBeenCalledWith('No active sessions. Use /spawn to create one.', expect.anything());
+  });
+});
+
+describe('command:spawn handler', () => {
+  it('sends spawn button', async () => {
+    const { bot, sendMessage } = makeBot();
+    const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+
+    setupCommandHandler(bot, sm, pm);
+
+    const spawnHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0] === 'command:spawn',
+    )?.[1];
+
+    await spawnHandler!({ message_thread_id: 42 } as any, '');
+
+    expect(sendMessage).toHaveBeenCalled();
+    const options = sendMessage.mock.calls[0][1];
+    expect(options.reply_markup.inline_keyboard).toBeDefined();
+  });
+});
+
+describe('command:status handler', () => {
+  it('shows status of all sessions', async () => {
+    const { bot, sendMessage } = makeBot();
+    const sessions = [makeSession('s1', 'worker', 'claude-code'), makeSession('s2', 'planner', 'copilot')];
+    const sm = { getAllSessions: vi.fn(() => sessions) } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+
+    setupCommandHandler(bot, sm, pm);
+
+    const statusHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0] === 'command:status',
+    )?.[1];
+
+    await statusHandler!({ message_thread_id: 42 } as any, '');
+
+    expect(sendMessage).toHaveBeenCalled();
+    const text = sendMessage.mock.calls[0][0];
+    expect(text).toContain('worker');
+    expect(text).toContain('planner');
+    expect(text).toContain('claude-code');
+  });
+
+  it('shows message when no sessions exist', async () => {
+    const { bot, sendMessage } = makeBot();
+    const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+
+    setupCommandHandler(bot, sm, pm);
+
+    const statusHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0] === 'command:status',
+    )?.[1];
+
+    await statusHandler!({ message_thread_id: 42 } as any, '');
+
+    expect(sendMessage).toHaveBeenCalledWith('No active sessions.', expect.anything());
+  });
+});
+
+describe('command:closeall handler', () => {
+  it('shows confirmation when sessions exist', async () => {
+    const { bot, sendMessage } = makeBot();
+    const sessions = [makeSession('s1', 'worker'), makeSession('s2', 'planner')];
+    const sm = { getAllSessions: vi.fn(() => sessions) } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+
+    setupCommandHandler(bot, sm, pm);
+
+    const closeHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0] === 'command:closeall',
+    )?.[1];
+
+    await closeHandler!({ message_thread_id: 42 } as any, '');
+
+    expect(sendMessage).toHaveBeenCalled();
+    const text = sendMessage.mock.calls[0][0];
+    expect(text).toContain('2');
+    expect(text).toContain('session');
+  });
+
+  it('shows message when no sessions exist', async () => {
+    const { bot, sendMessage } = makeBot();
+    const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+
+    setupCommandHandler(bot, sm, pm);
+
+    const closeHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0] === 'command:closeall',
+    )?.[1];
+
+    await closeHandler!({ message_thread_id: 42 } as any, '');
+
+    expect(sendMessage).toHaveBeenCalledWith('No sessions to close.', expect.anything());
   });
 });
 

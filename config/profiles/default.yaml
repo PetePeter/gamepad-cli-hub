@@ -21,8 +21,6 @@ tools:
   codex:
     name: codex
     spawnCommand: codex --dangerously-bypass-approvals-and-sandbox
-    resumeCommand: codex --dangerously-bypass-approvals-and-sandbox resume {cliSessionName}
-    renameCommand: /rename {cliSessionName}
     handoffCommand: go implement it
     submitSuffix: \r
     initialPrompt:
@@ -71,6 +69,37 @@ tools:
     spawnCommand: claude --session-id {cliSessionName}
     resumeCommand: claude --resume={cliSessionName}
     continueCommand: claude --resume={cliSessionName}
+  lm-studio:
+    name: lm studio
+    initialPrompt: []
+    initialPromptDelay: 0
+    spawnCommand: claude --session-id {cliSessionName} --model qwen/qwen3.6-27b
+    env:
+      - name: ANTHROPIC_BASE_URL
+        value: http://localhost:1234
+      - name: ANTHROPIC_AUTH_TOKEN
+        value: lmstudio
+      - name: CLAUDE_CODE_DISABLE_1M_CONTEXT
+        value: "1"
+    helmInitialPrompt: true
+    pasteMode: pty
+    submitSuffix: \r
+    resumeCommand: claude --resume={cliSessionName}  --model qwen/qwen3.6-27b
+    continueCommand: claude --continue
+  kimi-cc:
+    name: Kimi+CC
+    initialPrompt: []
+    initialPromptDelay: 0
+    spawnCommand: claude --session-id {cliSessionName}
+    env:
+      - name: ANTHROPIC_BASE_URL
+        value: https://api.kimi.com/coding/
+      - name: ANTHROPIC_AUTH_TOKEN
+        value: sk-kimi-nJX6FysG0IGdQCYWDhVgVLbSHJyQYREDRrNLwXCQomCEXTH2GkgVFpEfSuUmjnfA
+    helmInitialPrompt: true
+    pasteMode: pty
+    submitSuffix: \r
+    resumeCommand: claude --resume={cliSessionName}
 workingDirectories:
   - name: Helm
     path: X:\coding\gamepad-cli-hub

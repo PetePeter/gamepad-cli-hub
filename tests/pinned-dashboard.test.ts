@@ -249,7 +249,7 @@ describe('PinnedDashboard text rendering', () => {
 // ---------------------------------------------------------------------------
 
 describe('PinnedDashboard keyboard', () => {
-  it('includes Talk button per session', async () => {
+  it('includes Talk button per session (sorted by state: implementing first)', async () => {
     const sessions = [
       makeSession({ id: 's1', name: 'alpha', workingDir: '/projects/app', state: 'idle' }),
       makeSession({ id: 's2', name: 'beta', workingDir: '/projects/app', state: 'implementing' }),
@@ -266,8 +266,9 @@ describe('PinnedDashboard keyboard', () => {
     const allButtons = keyboard.flat();
     const talkButtons = allButtons.filter((b: any) => b.text === '💬 Talk');
     expect(talkButtons).toHaveLength(2);
-    expect(talkButtons[0].callback_data).toBe('talk:s1');
-    expect(talkButtons[1].callback_data).toBe('talk:s2');
+    // s2 (implementing) should come first due to state-based sorting
+    expect(talkButtons[0].callback_data).toBe('talk:s2');
+    expect(talkButtons[1].callback_data).toBe('talk:s1');
   });
 
   it('includes static action buttons (Sessions, Spawn, Status, Close All)', async () => {

@@ -115,10 +115,16 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     let messageId: number | undefined;
 
     if (channel.topicId) {
-      const message = await this.telegramBot.sendToTopic(channel.topicId, text, { parse_mode: 'HTML' });
+      const message = await this.telegramBot.sendToTopic(channel.topicId, text, {
+        parse_mode: 'HTML',
+        reply_markup: input.keyboard ? { inline_keyboard: input.keyboard } : undefined,
+      });
       if (message) messageId = message.message_id;
     } else {
-      const message = await this.telegramBot.sendMessage(text, { parse_mode: 'HTML' });
+      const message = await this.telegramBot.sendMessage(text, {
+        parse_mode: 'HTML',
+        reply_markup: input.keyboard ? { inline_keyboard: input.keyboard } : undefined,
+      });
       if (message) messageId = message.message_id;
     }
 
@@ -194,7 +200,8 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
 }
 
 function wrapTelegramEnvelope(text: string, from: string, chatId: number): string {
-  return `[HELM_TELEGRAM from:${from} chat:${chatId}]\n${text}\n[/HELM_TELEGRAM]\nReply via Telegram to chat ${chatId} when done.`;
+  const fromTag = from === 'unknown' ? '' : ` from:${from}`;
+  return `[HELM_TELEGRAM${fromTag} chat:${chatId}]\n${text}\n[/HELM_TELEGRAM]`;
 }
 
 function formatMessageForTelegram(text: string): string {

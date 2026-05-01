@@ -98,6 +98,24 @@ describe('TelegramRelayService', () => {
     expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM from:@someone'), { submitSuffix: '\r' });
   });
 
+  it('handleIncomingTelegramMessage() omits from tag when username is missing', async () => {
+    const { relay, ptyManager } = makeRelay();
+
+    const consumed = await relay.handleIncomingTelegramMessage({
+      message_id: 79,
+      message_thread_id: 42,
+      text: 'No username here',
+      chat: { id: 12345 },
+      from: {},
+    } as any);
+
+    expect(consumed).toBe(true);
+    const callArgs = ptyManager.deliverText.mock.calls[0];
+    expect(callArgs[1]).toContain('[HELM_TELEGRAM chat:12345]');
+    expect(callArgs[1]).not.toContain('from:unknown');
+    expect(callArgs[1]).toContain('No username here');
+  });
+
   it('sends General Chat nudge after successful topic message', async () => {
     const { relay, bot } = makeRelay();
     const innerBot = bot.getBot();

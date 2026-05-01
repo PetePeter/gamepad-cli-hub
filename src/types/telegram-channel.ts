@@ -1,3 +1,5 @@
+import type TelegramBot from 'node-telegram-bot-api';
+
 export interface TelegramChannel {
   id: string;
   sessionId: string;
@@ -29,6 +31,7 @@ export interface TelegramSendToUserInput {
   channelId?: string;
   text: string;
   attachment?: { name: string; data: string; mime: string };
+  keyboard?: TelegramBot.InlineKeyboardButton[][];
 }
 
 export type TelegramSendResult = { sent: boolean; reason?: string };

@@ -24,7 +24,7 @@ import type TelegramBot from 'node-telegram-bot-api';
 import type { SessionManager } from '../session/manager.js';
 import type { SessionInfo, SessionState } from '../types/session.js';
 import { escapeHtml } from './utils.js';
-import { sessionTalkButton } from './keyboards.js';
+import { sessionTalkButton, buildDashboardKeyboardWithTopics } from './keyboards.js';
 import { logger } from '../utils/logger.js';
 import path from 'path';
 
@@ -160,27 +160,18 @@ export class PinnedDashboard {
 
   /** Inline keyboard buttons shown on the pinned dashboard message. */
   private buildDashboardKeyboard(): TelegramBot.InlineKeyboardButton[][] {
-    const buttons: TelegramBot.InlineKeyboardButton[][] = [];
-
-    // Per-session Talk buttons
     const sessions = this.sessionManager.getAllSessions();
+
+    // Build topic ID map from sessions that have topicId set
+    const topicMap = new Map<string, number>();
     for (const session of sessions) {
-      buttons.push([sessionTalkButton(session)]);
+      if (session.topicId != null) {
+        topicMap.set(session.id, session.topicId);
+      }
     }
 
-    // Static action buttons
-    buttons.push(
-      [
-        { text: '📂 Sessions', callback_data: 'sessions:list' },
-        { text: '➕ Spawn', callback_data: 'spawn:start' },
-        { text: '📊 Status', callback_data: 'status:all' },
-      ],
-      [
-        { text: '🗑️ Close All', callback_data: 'closeall' },
-      ],
-    );
-
-    return buttons;
+    // Use the new function which handles state-based sorting and topic buttons
+    return buildDashboardKeyboardWithTopics(sessions, topicMap);
   }
 
   private buildDashboardText(): string {
