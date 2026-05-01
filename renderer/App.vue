@@ -2014,12 +2014,11 @@ onMounted(async () => {
         const session = state.sessions.find(s => s.id === sessionId);
         const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
 
-        if (tool?.pasteMode === 'clippaste') {
+        // clippaste fast path only works for simple pastes without submission.
+        // For Helm inter-session messages with submitSuffix, route through deliverBulkText
+        // to avoid race conditions where suffix executes before paste completes.
+        if (tool?.pasteMode === 'clippaste' && !submitSuffix) {
           await deliverViaClipboardPaste(text);
-          // clippaste needs submit suffix applied after clipboard paste completes
-          if (submitSuffix) {
-            await window.gamepadCli.ptyWrite(sessionId, submitSuffix);
-          }
         } else {
           await deliverBulkText(sessionId, text, { withReturn, submitSuffix });
         }

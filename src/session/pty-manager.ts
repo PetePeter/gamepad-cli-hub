@@ -62,7 +62,7 @@ function escapeShellArg(arg: string): string {
 export class PtyManager extends EventEmitter {
   private ptys: Map<string, PtyProcess> = new Map();
   private factory: PtyFactory;
-  private textDeliveryHandler?: (sessionId: string, text: string, options?: { withReturn?: boolean }) => Promise<void>;
+  private textDeliveryHandler?: (sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }) => Promise<void>;
   private terminalOutputBuffer = new TerminalOutputBuffer();
 
   constructor(factory?: PtyFactory) {
@@ -157,7 +157,7 @@ export class PtyManager extends EventEmitter {
   }
 
   /** Configure a higher-level text delivery path that can honor per-CLI insertion modes. */
-  setTextDeliveryHandler(handler: ((sessionId: string, text: string, options?: { withReturn?: boolean }) => Promise<void>) | undefined): void {
+  setTextDeliveryHandler(handler: ((sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }) => Promise<void>) | undefined): void {
     this.textDeliveryHandler = handler;
   }
 
