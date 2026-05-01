@@ -479,6 +479,23 @@ describe('HelmControlService.getSessionInfo', () => {
     expect(info.agent_plan_guide?.sequence_memory_guide!.join(' ')).toContain('plan_sequence_list');
     expect(info.agent_plan_guide?.sequence_memory_guide!.join(' ')).toContain('expectedUpdatedAt');
   });
+
+  it('includes notification_guide explaining when and how to notify the user', () => {
+    const { service } = makeService();
+    const info = service.getSessionInfo();
+
+    expect(info.notification_guide).toBeDefined();
+    expect(info.notification_guide?.when_to_notify.length).toBeGreaterThanOrEqual(3);
+    expect(info.notification_guide?.when_not_to_notify.length).toBeGreaterThanOrEqual(2);
+    expect(info.notification_guide?.preferred_tool).toContain('notify_user');
+    expect(info.notification_guide?.when_not_to_notify.join(' ')).toContain('get_app_visibility');
+    const routing = JSON.stringify(info.notification_guide?.routing_outcomes);
+    expect(routing).toContain('toast');
+    expect(routing).toContain('bubble');
+    expect(routing).toContain('telegram');
+    expect(routing).toContain('none');
+    expect(info.notification_guide?.telegram_usage.join(' ')).toContain('mobile');
+  });
 });
 
 describe('HelmControlService.getPlan', () => {

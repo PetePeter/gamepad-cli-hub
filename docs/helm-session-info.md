@@ -64,6 +64,18 @@ The tool returns a `SessionInfoResponse` object with these fields:
   - **`question_plan_workflow`** — Blocking questions should become separate `QUESTION: ...` plans linked to the original task with `plan_nextplan_link`, using the question plan as the prerequisite.
   - **`completion_documentation`** — Completion notes should cover implemented behavior, changed files, tests or review, and remaining risk.
 
+### Notification Guidance
+
+- **`notification_guide`** — Advice for LLM agents on *when* to notify the user and *how* the notification will be routed. Lets a calling agent predict whether `notify_user` will surface as a toast, in-app bubble, Telegram message, or be suppressed entirely.
+  - **`description`** — One-line summary of the field's purpose.
+  - **`preferred_tool`** — Names `notify_user` as the smart router; mentions that it picks toast / bubble / telegram / none from current visibility + screen-lock state.
+  - **`pre_flight`** — Pre-call checklist items, e.g. call `get_app_visibility` first to predict routing, ensure `notificationMode === 'llm'`.
+  - **`when_to_notify`** — Bulleted reasons it's worth pulling the user's attention (long-running task done, blocking question, unrecoverable error, scheduled event).
+  - **`when_not_to_notify`** — Bulleted suppression cases (focused on same session, routine chatter, tight loops, mode != llm).
+  - **`routing_outcomes`** — Object keyed by `toast` / `bubble` / `telegram` / `none`, each with a short description of the routing path.
+  - **`telegram_usage`** — Mobile-friendly content rules for Telegram-bound notifications (concise, plain text, lead with action item).
+  - **`examples`** — Scenario / tool / rationale rows showing typical decisions.
+
 ## Usage Pattern
 
 ### 1. Startup Initialization
@@ -129,6 +141,43 @@ Response:
         "Sequence sharedMemory is common memory for all member plans and can be read through plan_sequence_list.",
         "Use plan_sequence_memory_append for additive updates, or plan_sequence_update for full edits.",
         "Pass expectedUpdatedAt from the last read when writing to avoid overwriting concurrent changes."
+      ]
+    },
+    "notification_guide": {
+      "description": "When you need to pull the user's attention to this session, prefer notify_user...",
+      "preferred_tool": "notify_user — smart router that picks toast / bubble / telegram / none from current visibility + screen-lock state.",
+      "pre_flight": [
+        "Call get_app_visibility first if you want to predict the routing outcome.",
+        "Notifications require notificationMode === 'llm' in Helm settings; otherwise notify_user errors."
+      ],
+      "when_to_notify": [
+        "Long-running task completed and the user likely walked away.",
+        "Blocking question that needs user input before work can resume.",
+        "Unrecoverable error or unexpected state worth surfacing immediately.",
+        "Scheduled event or timer fired (e.g. a wait-until pattern reached its time)."
+      ],
+      "when_not_to_notify": [
+        "App is visible-focused and activeSessionId matches this session — the user is already watching.",
+        "Routine progress chatter that does not require user action.",
+        "Inside a tight loop or per-token output path.",
+        "notificationMode is not 'llm'."
+      ],
+      "routing_outcomes": {
+        "toast": "Native OS toast (window hidden or background, screen unlocked).",
+        "bubble": "In-app bubble in the focused window for a different session.",
+        "telegram": "Telegram message (screen locked + Telegram configured).",
+        "none": "Suppressed (focused on the same session, or screen locked without Telegram)."
+      },
+      "telegram_usage": [
+        "Keep Telegram-bound content concise and mobile-friendly.",
+        "Prefer plain text — no large logs, wide tables, or code blocks.",
+        "Lead with the action item; the user is on a phone and may be glancing."
+      ],
+      "examples": [
+        { "scenario": "Build finished after 8 minutes; user has minimized the window.", "tool": "notify_user", "rationale": "Long task done, app hidden → toast." },
+        { "scenario": "Need a yes/no on a destructive migration.", "tool": "notify_user", "rationale": "Blocking question, surface regardless of visibility." },
+        { "scenario": "Streaming routine progress every few seconds.", "tool": "(none)", "rationale": "Routine chatter — do not notify." },
+        { "scenario": "Pattern matcher's wait-until just fired at 09:00.", "tool": "notify_user", "rationale": "Scheduled event the user wanted to know about." }
       ]
     }
   }
