@@ -1,7 +1,6 @@
 import { EventEmitter } from 'node:events';
-import { logger } from '../utils/logger.js';
 import type { ConfigLoader } from '../config/loader.js';
-import type { PlanManager, PlanRefResolution } from '../session/plan-manager.js';
+import type { PlanManager } from '../session/plan-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { TerminalOutputMode } from '../session/terminal-output-buffer.js';
@@ -16,8 +15,14 @@ import type {
 } from '../types/telegram-channel.js';
 import { PlanAttachmentManager } from '../session/plan-attachment-manager.js';
 import type { NotificationManager } from '../session/notification-manager.js';
-import { spawnConfiguredSession } from '../session/configured-session-spawn.js';
-import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js';
+import { HelmSessionDeliveryService } from './services/helm-session-delivery-service.js';
+import { HelmSessionService } from './services/helm-session-service.js';
+import { HelmPlanService } from './services/helm-plan-service.js';
+import { HelmPlanSequenceService } from './services/helm-plan-sequence-service.js';
+import { HelmPlanAttachmentService } from './services/helm-plan-attachment-service.js';
+import { HelmDirectoryService } from './services/helm-directory-service.js';
+import { HelmTelegramService } from './services/helm-telegram-service.js';
+import { getSessionInfo, getAvailableTools } from './guides/session-info-guide.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
 
 export interface SessionSummary {
@@ -140,18 +145,19 @@ export interface SessionInfoResponse {
   };
 }
 
-const REQUIRED_PLAN_DESCRIPTION_SECTIONS = [
-  'Problem Statement',
-  'User POV',
-  'Done Statement',
-  'Files / Classes Affected',
-  'TDD Suggestions',
-  'Acceptance Criteria',
-];
-
+/**
+ * Thin facade that delegates all MCP tool operations to domain-focused service classes.
+ * The constructor signature and public method names are preserved for backward compatibility.
+ */
 export class HelmControlService extends EventEmitter {
-  private telegramBridge: TelegramBridge | null = null;
-  private notificationManager: NotificationManager | null = null;
+  // Composed services
+  private readonly sessionDelivery: HelmSessionDeliveryService;
+  private readonly sessionService: HelmSessionService;
+  private readonly planService: HelmPlanService;
+  private readonly planSequenceService: HelmPlanSequenceService;
+  private readonly planAttachmentService: HelmPlanAttachmentService;
+  private readonly directoryService: HelmDirectoryService;
+  private readonly telegramService: HelmTelegramService;
 
   constructor(
     private readonly planManager: PlanManager,
@@ -161,102 +167,61 @@ export class HelmControlService extends EventEmitter {
     private readonly attachmentManager: PlanAttachmentManager = new PlanAttachmentManager(planManager),
   ) {
     super();
+    this.sessionDelivery = new HelmSessionDeliveryService(sessionManager, ptyManager, configLoader);
+    this.sessionService = new HelmSessionService(sessionManager, ptyManager, configLoader, planManager);
+    this.planService = new HelmPlanService(planManager, configLoader, attachmentManager);
+    this.planSequenceService = new HelmPlanSequenceService(planManager, configLoader);
+    this.planAttachmentService = new HelmPlanAttachmentService(planManager, attachmentManager);
+    this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager);
+    this.telegramService = new HelmTelegramService(configLoader, sessionManager);
   }
+
+  // ---------------------------------------------------------------------------
+  // Telegram bridge / notification manager injection (mutates telegramService)
+  // ---------------------------------------------------------------------------
 
   setTelegramBridge(bridge: TelegramBridge | null): void {
-    this.telegramBridge = bridge;
+    this.telegramService.setTelegramBridge(bridge);
   }
 
-  setNotificationManager(nm: NotificationManager): void { this.notificationManager = nm; }
+  setNotificationManager(nm: NotificationManager): void {
+    this.telegramService.setNotificationManager(nm);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Plan CRUD
+  // ---------------------------------------------------------------------------
 
   listPlans(dirPath: string): PlanItem[] {
-    return this.planManager.getForDirectory(dirPath);
+    return this.planService.listPlans(dirPath);
   }
 
   plansSummary(dirPath: string) {
-    const exported = this.planManager.exportDirectory(dirPath);
-    if (!exported) return [];
-    const { items, dependencies } = exported;
-    const idToHumanId = new Map(items.map((i) => [i.id, i.humanId ?? i.id]));
-    return items.map((item) => ({
-      id: item.id,
-      humanId: item.humanId ?? item.id,
-      title: item.title,
-      type: item.type,
-      status: item.status,
-      stateUpdatedAt: item.stateUpdatedAt,
-      blockedBy: dependencies
-        .filter((d) => d.toId === item.id)
-        .map((d) => idToHumanId.get(d.fromId) ?? d.fromId),
-      blocks: dependencies
-        .filter((d) => d.fromId === item.id)
-        .map((d) => idToHumanId.get(d.toId) ?? d.toId),
-    }));
-  }
-
-  listClis(): CliSummary[] {
-    const supportedDirPaths = this.configLoader.getWorkingDirectories().map((entry) => entry.path);
-    return this.configLoader.getCliTypes().map((cliType) => {
-      const entry = this.requireCliEntry(cliType);
-      return {
-        cliType,
-        name: entry.name,
-        command: entry.spawnCommand ?? '',
-        supportsResume: Boolean(entry.spawnCommand || entry.resumeCommand || entry.continueCommand),
-        supportedDirPaths,
-      };
-    });
+    return this.planService.plansSummary(dirPath);
   }
 
   getPlan(id: string): (Omit<PlanItem, 'sequenceId'> & { hasAttachments: boolean; sequenceId?: string }) | null {
-    const plan = this.resolvePlanRef(id, 'Plan')?.item ?? null;
-    if (!plan) return null;
-    const { sequenceId, ...planWithoutSequence } = plan;
-    return {
-      ...planWithoutSequence,
-      hasAttachments: this.attachmentManager.list(plan.id).length > 0,
-      ...(sequenceId ? { sequenceId } : {}),
-    };
+    return this.planService.getPlan(id);
   }
 
   createPlan(dirPath: string, title: string, description: string, type?: PlanType): PlanItem {
-    this.requireWorkingDirectory(dirPath);
-    return this.planManager.createWithType(dirPath, title, description, type);
+    return this.planService.createPlan(dirPath, title, description, type);
   }
 
   updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType | null }): PlanItem | null {
-    const plan = this.resolvePlanRef(id, 'Plan');
-    if (!plan) return null;
-    const nextUpdates: { title?: string; description?: string; type?: PlanType } = {
-      ...(updates.title !== undefined ? { title: updates.title } : {}),
-      ...(updates.description !== undefined ? { description: updates.description } : {}),
-    };
-    if (Object.prototype.hasOwnProperty.call(updates, 'type')) {
-      nextUpdates.type = updates.type ?? undefined;
-    }
-    return this.planManager.updateWithType(plan.item.id, nextUpdates);
+    return this.planService.updatePlan(id, updates);
   }
 
   deletePlan(id: string): boolean {
-    const plan = this.resolvePlanRef(id, 'Plan');
-    if (!plan) return false;
-    const deleted = this.planManager.delete(plan.item.id);
-    if (deleted) {
-      this.attachmentManager.deletePlanAttachments(plan.item.id);
-    }
-    return deleted;
+    return this.planService.deletePlan(id);
   }
 
   completePlan(id: string, completionNotes?: string): PlanItem | null {
-    logger.info(`[MCP:Service] completePlan id=${id}`);
-    const plan = this.resolvePlanRef(id, 'Plan');
-    return plan ? this.planManager.completeItem(plan.item.id, completionNotes) : null;
+    return this.planService.completePlan(id, completionNotes);
   }
 
   reopenPlan(id: string): PlanItem | null {
-    logger.info(`[MCP:Service] reopenPlan id=${id}`);
-    const plan = this.resolvePlanRef(id, 'Plan');
-    return plan ? this.planManager.reopenItem(plan.item.id) : null;
+    return this.planService.reopenPlan(id);
   }
 
   setPlanState(
@@ -265,671 +230,164 @@ export class HelmControlService extends EventEmitter {
     stateInfo?: string,
     sessionId?: string,
   ): PlanItem | null {
-    logger.info(`[MCP:Service] setPlanState id=${id} status=${status} sessionId=${sessionId ?? '-'}`);
-    const plan = this.resolvePlanRef(id, 'Plan');
-    return plan ? this.planManager.setState(plan.item.id, status, stateInfo, sessionId) : null;
+    return this.planService.setPlanState(id, status, stateInfo, sessionId);
   }
 
   linkPlans(fromId: string, toId: string): void {
-    if (fromId === toId) {
-      throw new Error('Cannot link a plan to itself');
-    }
-    const from = this.resolvePlanRef(fromId, 'Source plan');
-    const to = this.resolvePlanRef(toId, 'Target plan');
-    if (!from) {
-      throw new Error(`Source plan not found: ${fromId}`);
-    }
-    if (!to) {
-      throw new Error(`Target plan not found: ${toId}`);
-    }
-    if (from.item.id === to.item.id) {
-      throw new Error('Cannot link a plan to itself');
-    }
-    if (from.item.dirPath !== to.item.dirPath) {
-      throw new Error('Cannot link plans across different directories');
-    }
-
-    const exported = this.planManager.exportDirectory(from.item.dirPath);
-    const existing = exported?.dependencies.some((d) => d.fromId === from.item.id && d.toId === to.item.id);
-    if (existing) {
-      throw new Error('Link already exists between these plans');
-    }
-
-    // Check for cycle: adding fromId→toId would create a cycle if toId can already reach fromId
-    const deps = exported?.dependencies ?? [];
-    const visited = new Set<string>();
-    const stack = [to.item.id];
-    while (stack.length > 0) {
-      const current = stack.pop()!;
-      if (current === from.item.id) {
-        throw new Error('Link would create a cycle (circular ordering is not allowed)');
-      }
-      if (visited.has(current)) continue;
-      visited.add(current);
-      for (const dep of deps) {
-        if (dep.fromId === current) {
-          stack.push(dep.toId);
-        }
-      }
-    }
-
-    const success = this.planManager.addDependency(from.item.id, to.item.id);
-    if (!success) {
-      throw new Error('Failed to link plans');
-    }
+    return this.planService.linkPlans(fromId, toId);
   }
 
   unlinkPlans(fromId: string, toId: string): void {
-    const from = this.resolvePlanRef(fromId, 'Source plan');
-    const to = this.resolvePlanRef(toId, 'Target plan');
-    if (!from) {
-      throw new Error(`Source plan not found: ${fromId}`);
-    }
-    if (!to) {
-      throw new Error(`Target plan not found: ${toId}`);
-    }
-    const success = this.planManager.removeDependency(from.item.id, to.item.id);
-    if (!success) {
-      throw new Error('Link not found between these plans');
-    }
+    return this.planService.unlinkPlans(fromId, toId);
   }
 
   exportDirectory(dirPath: string): { dirPath: string; items: PlanItem[]; dependencies: { fromId: string; toId: string }[] } | null {
-    return this.planManager.exportDirectory(dirPath);
+    return this.planService.exportDirectory(dirPath);
   }
 
   exportItem(id: string): { item: PlanItem; dependencies: { fromId: string; toId: string }[] } | null {
-    const plan = this.resolvePlanRef(id, 'Plan');
-    return plan ? this.planManager.exportItem(plan.item.id) : null;
+    return this.planService.exportItem(id);
   }
 
+  // ---------------------------------------------------------------------------
+  // Plan sequences
+  // ---------------------------------------------------------------------------
+
   listPlanSequences(input: { dirPath?: string; planRef?: string }): Array<PlanSequence & { memberPlanIds: string[]; memberHumanIds: string[]; selectedForPlan?: boolean }> {
-    const plan = input.planRef ? this.resolvePlanRef(input.planRef, 'Plan')?.item ?? null : null;
-    if (input.planRef && !plan) {
-      throw new Error(`Plan not found: ${input.planRef}`);
-    }
-    const dirPath = input.dirPath ?? plan?.dirPath;
-    if (!dirPath) {
-      throw new Error('dirPath or planId is required');
-    }
-    const items = this.planManager.getForDirectory(dirPath);
-    return this.planManager.getSequencesForDirectory(dirPath).map((sequence) => {
-      const members = items.filter((item) => item.sequenceId === sequence.id);
-      return {
-        ...sequence,
-        memberPlanIds: members.map((item) => item.id),
-        memberHumanIds: members.map((item) => item.humanId ?? item.id),
-        ...(plan ? { selectedForPlan: plan.sequenceId === sequence.id } : {}),
-      };
-    });
+    return this.planSequenceService.listPlanSequences(input);
   }
 
   createPlanSequence(input: { dirPath: string; title: string; missionStatement?: string; sharedMemory?: string }): PlanSequence {
-    this.requireWorkingDirectory(input.dirPath);
-    return this.planManager.createSequence(input.dirPath, input.title, input.missionStatement ?? '', input.sharedMemory ?? '');
+    return this.planSequenceService.createPlanSequence(input);
   }
 
   updatePlanSequence(
     id: string,
     updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number; expectedUpdatedAt?: number },
   ): PlanSequence {
-    const sequence = this.planManager.getSequence(id);
-    if (!sequence) {
-      throw new Error(`Sequence not found: ${id}`);
-    }
-    this.assertSequenceMutex(sequence, updates.expectedUpdatedAt);
-    const updated = this.planManager.updateSequence(id, updates);
-    if (!updated) {
-      throw new Error(`Sequence not found: ${id}`);
-    }
-    return updated;
+    return this.planSequenceService.updatePlanSequence(id, updates);
   }
 
   appendPlanSequenceMemory(id: string, text: string, expectedUpdatedAt?: number): PlanSequence {
-    const sequence = this.planManager.getSequence(id);
-    if (!sequence) {
-      throw new Error(`Sequence not found: ${id}`);
-    }
-    this.assertSequenceMutex(sequence, expectedUpdatedAt);
-    const separator = sequence.sharedMemory.trim().length > 0 ? '\n\n' : '';
-    const updated = this.planManager.updateSequence(id, {
-      sharedMemory: `${sequence.sharedMemory}${separator}${text}`,
-    });
-    if (!updated) {
-      throw new Error(`Sequence not found: ${id}`);
-    }
-    return updated;
+    return this.planSequenceService.appendPlanSequenceMemory(id, text, expectedUpdatedAt);
   }
 
   deletePlanSequence(id: string): boolean {
-    return this.planManager.deleteSequence(id);
+    return this.planSequenceService.deletePlanSequence(id);
   }
 
   assignPlanSequence(planRef: string, sequenceId: string | null): PlanItem {
-    const plan = this.resolvePlanRef(planRef, 'Plan')?.item ?? null;
-    if (!plan) {
-      throw new Error(`Plan not found: ${planRef}`);
-    }
-    const updated = this.planManager.assignSequence(plan.id, sequenceId);
-    if (!updated) {
-      throw new Error(sequenceId ? `Sequence not found or not in plan directory: ${sequenceId}` : `Plan not found: ${planRef}`);
-    }
-    return updated;
+    return this.planSequenceService.assignPlanSequence(planRef, sequenceId);
   }
 
+  // ---------------------------------------------------------------------------
+  // Plan attachments
+  // ---------------------------------------------------------------------------
+
   listPlanAttachments(planRef: string): PlanAttachment[] {
-    const plan = this.resolvePlanRef(planRef, 'Plan');
-    if (!plan) {
-      throw new Error(`Plan not found: ${planRef}`);
-    }
-    return this.attachmentManager.list(plan.item.id);
+    return this.planAttachmentService.listPlanAttachments(planRef);
   }
 
   addPlanAttachment(
     planRef: string,
     input: { filename: string; contentBase64?: string; text?: string; contentType?: string },
   ): PlanAttachment {
-    const plan = this.resolvePlanRef(planRef, 'Plan');
-    if (!plan) {
-      throw new Error(`Plan not found: ${planRef}`);
-    }
-    const hasBase64 = typeof input.contentBase64 === 'string';
-    const hasText = typeof input.text === 'string';
-    if (hasBase64 === hasText) {
-      throw new Error('Provide exactly one of contentBase64 or text');
-    }
-    const content = hasBase64
-      ? decodeBase64Content(input.contentBase64!)
-      : Buffer.from(input.text!, 'utf8');
-    return this.attachmentManager.add(plan.item.id, {
-      filename: input.filename,
-      content,
-      ...(input.contentType ? { contentType: input.contentType } : {}),
-    });
+    return this.planAttachmentService.addPlanAttachment(planRef, input);
   }
 
   deletePlanAttachment(planRef: string, attachmentId: string): boolean {
-    const plan = this.resolvePlanRef(planRef, 'Plan');
-    if (!plan) {
-      throw new Error(`Plan not found: ${planRef}`);
-    }
-    return this.attachmentManager.delete(plan.item.id, attachmentId);
+    return this.planAttachmentService.deletePlanAttachment(planRef, attachmentId);
   }
 
   getPlanAttachment(planRef: string, attachmentId: string): PlanAttachmentTempFile {
-    const plan = this.resolvePlanRef(planRef, 'Plan');
-    if (!plan) {
-      throw new Error(`Plan not found: ${planRef}`);
-    }
-    return this.attachmentManager.getToTempFile(plan.item.id, attachmentId);
+    return this.planAttachmentService.getPlanAttachment(planRef, attachmentId);
   }
 
-  listDirectories(): DirectorySummary[] {
-    const configured = this.configLoader.getWorkingDirectories();
-    const sessions = this.sessionManager.getAllSessions();
-    return configured
-      .map((entry) => {
-        const source: Array<'config' | 'plans' | 'sessions'> = ['config'];
-        if (this.planManager.getForDirectory(entry.path).length > 0) source.push('plans');
-        if (sessions.some((session) => session.workingDir === entry.path)) source.push('sessions');
-        return {
-          dirPath: entry.path,
-          name: entry.name,
-          source,
-          planCount: this.planManager.getForDirectory(entry.path).length,
-          sessionCount: sessions.filter((session) => session.workingDir === entry.path).length,
-        };
-      })
-      .sort((a, b) => a.dirPath.localeCompare(b.dirPath));
+  // ---------------------------------------------------------------------------
+  // Directory & CLI listing
+  // ---------------------------------------------------------------------------
+
+  listDirectories() {
+    return this.directoryService.listDirectories();
   }
 
-  listSessions(dirPath?: string): SessionSummary[] {
-    return this.sessionManager
-      .getAllSessions()
-      .filter((session) => !dirPath || session.workingDir === dirPath)
-      .map((session) => this.toSessionSummary(session));
+  listClis() {
+    return this.directoryService.listClis();
   }
 
-  getSession(sessionRef: string): SessionSummary | null {
-    const session = this.findSession(sessionRef);
-    return session ? this.toSessionSummary(session) : null;
+  // ---------------------------------------------------------------------------
+  // Session lifecycle
+  // ---------------------------------------------------------------------------
+
+  listSessions(dirPath?: string) {
+    return this.sessionService.listSessions(dirPath);
   }
 
-  spawnCli(cliType: string, dirPath: string, name: string, prompt?: string): SessionSummary {
-    const workingDir = this.requireWorkingDirectory(dirPath);
-    this.requireCliEntry(cliType);
-    const sessionName = name.trim();
-    const mcpPrompt = prompt?.trim() || undefined;
-    let spawnedSessionId = '';
-    const { sessionId } = spawnConfiguredSession({
-      ptyManager: this.ptyManager,
-      sessionManager: this.sessionManager,
-      configLoader: this.configLoader,
-      cliType,
-      sessionName,
-      cwd: workingDir.path,
-      onPromptComplete: mcpPrompt
-        ? () => {
-            void deliverPromptSequenceToSession({
-              sessionId: spawnedSessionId,
-              text: mcpPrompt,
-              ptyManager: this.ptyManager,
-              sessionManager: this.sessionManager,
-              configLoader: this.configLoader,
-              rawInput: true,
-            });
-          }
-        : undefined,
-      fallbackCompleteDelayMs: 500,
-    });
-    spawnedSessionId = sessionId;
-
-    return this.toSessionSummary(requireResult(this.sessionManager.getSession(sessionId), `Session not found: ${sessionId}`));
+  getSession(sessionRef: string) {
+    return this.sessionService.getSession(sessionRef);
   }
+
+  spawnCli(cliType: string, dirPath: string, name: string, prompt?: string) {
+    return this.sessionService.spawnCli(cliType, dirPath, name, prompt);
+  }
+
+  closeSession(sessionRef: string) {
+    return this.sessionService.closeSession(sessionRef);
+  }
+
+  setAiagentState(sessionRef: string, state: 'planning' | 'implementing' | 'completed' | 'idle') {
+    return this.sessionService.setAiagentState(sessionRef, state);
+  }
+
+  readSessionTerminal(sessionRef: string, requestedLines?: number, mode?: TerminalOutputMode) {
+    return this.sessionService.readSessionTerminal(sessionRef, requestedLines, mode);
+  }
+
+  setSessionWorkingPlan(sessionRef: string, planId: string) {
+    return this.sessionService.setSessionWorkingPlan(sessionRef, planId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Session text delivery
+  // ---------------------------------------------------------------------------
 
   async sendTextToSession(
     sessionRef: string,
     text: string,
     options?: { senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean },
-  ): Promise<{ success: true; sessionId: string; name: string; preambleUsed: boolean }> {
-    const session = this.findSession(sessionRef);
-    if (!session) {
-      throw new Error(`Session not found: ${sessionRef}`);
-    }
-    if (!this.ptyManager.has(session.id)) {
-      throw new Error(`Session PTY is not running: ${session.id}`);
-    }
-    if (!options?.senderSessionId || !options?.senderSessionName) {
-      throw new Error('senderSessionId and senderSessionName are required — anonymous messages are not allowed');
-    }
-    if (session.id === options.senderSessionId) {
-      throw new Error('Cannot send a message from a session to itself — sender and receiver must be different sessions');
-    }
-
-    // Determine if recipient wants the Helm preamble
-    const recipientEntry = this.configLoader.getCliTypeEntry(session.cliType);
-    const usePreamble = recipientEntry?.helmPreambleForInterSession ?? true;
-
-    if (usePreamble) {
-      // Send with [HELM_MSG] envelope
-      const expectsResponse = options.expectsResponse ?? false;
-      const envelope = JSON.stringify({
-        type: 'inter_llm_message',
-        fromSessionId: options.senderSessionId,
-        fromSessionName: options.senderSessionName,
-        expectsResponse,
-        timestamp: new Date().toISOString(),
-      });
-
-      const tag = expectsResponse
-        ? `[HELM_MSG: expectsResponse=true. To reply, call MCP tool mcp__helm__session_send_text with: sessionId="${options.senderSessionId}", senderSessionId=<your env $HELM_SESSION_ID>, text="<your reply>". Your HELM_SESSION_ID is injected by Helm at startup.]`
-        : '[HELM_MSG]';
-      // Escape braces in envelope only so the sequence parser doesn't consume JSON.
-      // User text after \n is NOT escaped — sequence tokens like {Send} must work.
-      const escapedEnvelope = envelope.replace(/\{/g, '{{').replace(/\}/g, '}}');
-      const message = `${tag}${escapedEnvelope}\n${text}`;
-
-      await deliverPromptSequenceToSession({
-        sessionId: session.id,
-        text: message,
-        ptyManager: this.ptyManager,
-        sessionManager: this.sessionManager,
-        configLoader: this.configLoader,
-        rawInput: true,
-      });
-    } else {
-      // Send plain text only — no envelope. Sequence tokens in user text work as-is.
-      await deliverPromptSequenceToSession({
-        sessionId: session.id,
-        text,
-        ptyManager: this.ptyManager,
-        sessionManager: this.sessionManager,
-        configLoader: this.configLoader,
-        rawInput: true,
-      });
-    }
-
-    return { success: true, sessionId: session.id, name: session.name, preambleUsed: usePreamble };
+  ) {
+    return this.sessionDelivery.sendTextToSession(sessionRef, text, options);
   }
 
-  setSessionWorkingPlan(
-    sessionRef: string,
-    planId: string,
-  ): { sessionId: string; name: string; planId: string; planTitle: string; planStatus: PlanStatus } {
-    logger.info(`[MCP:Service] setSessionWorkingPlan session=${sessionRef} plan=${planId}`);
-    const session = this.findSession(sessionRef);
-    if (!session) {
-      throw new Error(`Session not found: ${sessionRef}`);
-    }
-
-    const plan = this.resolvePlanRef(planId, 'Plan')?.item;
-    if (!plan) {
-      throw new Error(`Plan not found: ${planId}`);
-    }
-    if (session.workingDir && plan.dirPath !== session.workingDir) {
-      throw new Error(`Plan ${planId} does not belong to session directory ${session.workingDir}`);
-    }
-    if (plan.status === 'done' || plan.status === 'planning') {
-      throw new Error(`Plan ${planId} is not active or ready`);
-    }
-
-    const planIsAlreadyOwnedBySession =
-      plan.sessionId === session.id &&
-      (plan.status === 'coding' || plan.status === 'review' || plan.status === 'blocked');
-
-    const updatedPlan = planIsAlreadyOwnedBySession
-      ? plan
-      : (() => {
-          if (plan.sessionId && plan.sessionId !== session.id) {
-            throw new Error(`Plan ${planId} is already assigned to session ${plan.sessionId}`);
-          }
-          return this.planManager.setState(plan.id, 'coding', undefined, session.id)
-            ?? (() => { throw new Error(`Plan ${planId} could not be assigned to session ${session.id}`); })();
-        })();
-
-    this.sessionManager.updateSession(session.id, { currentPlanId: updatedPlan.id });
-    return {
-      sessionId: session.id,
-      name: session.name,
-      planId: updatedPlan.id,
-      planTitle: updatedPlan.title,
-      planStatus: updatedPlan.status,
-    };
-  }
-
-  setAiagentState(sessionRef: string, state: 'planning' | 'implementing' | 'completed' | 'idle'): { sessionId: string; name: string; state: string } {
-    const session = this.findSession(sessionRef);
-    if (!session) {
-      throw new Error(`Session not found: ${sessionRef}`);
-    }
-
-    this.sessionManager.updateSession(session.id, { aiagentState: state });
-    return { sessionId: session.id, name: session.name, state };
-  }
-
-  readSessionTerminal(
-    sessionRef: string,
-    requestedLines = 50,
-    mode: TerminalOutputMode = 'both',
-  ): SessionTerminalTailResponse {
-    const session = this.findSession(sessionRef);
-    if (!session) {
-      throw new Error(`Session not found: ${sessionRef}`);
-    }
-    if (!Number.isInteger(requestedLines) || requestedLines < 1) {
-      throw new Error('lines must be a positive integer');
-    }
-
-    const tail = this.ptyManager.getTerminalTail(session.id, requestedLines, mode);
-    const rawLength = tail.raw?.length ?? 0;
-    const strippedLength = tail.stripped?.length ?? 0;
-
-    return {
-      sessionId: session.id,
-      name: session.name,
-      cliType: session.cliType,
-      workingDir: session.workingDir,
-      requestedLines,
-      returnedLines: Math.max(rawLength, strippedLength),
-      mode,
-      ptyRunning: this.ptyManager.has(session.id),
-      ...(tail.lastOutputAt !== undefined ? { lastOutputAt: tail.lastOutputAt } : {}),
-      ...(tail.raw ? { raw: tail.raw } : {}),
-      ...(tail.stripped ? { stripped: tail.stripped } : {}),
-    };
-  }
-
-  closeSession(sessionRef: string): { sessionId: string; name: string } {
-    const session = this.findSession(sessionRef);
-    if (!session) {
-      throw new Error(`Session not found: ${sessionRef}`);
-    }
-    try {
-      this.ptyManager.kill(session.id);
-    } catch (killError) {
-      logger.warn(`[HelmControlService] Failed to kill PTY for session ${session.id}: ${killError}`);
-    }
-    this.sessionManager.removeSession(session.id);
-    return { sessionId: session.id, name: session.name };
-  }
+  // ---------------------------------------------------------------------------
+  // Session info guide
+  // ---------------------------------------------------------------------------
 
   /**
    * Get session info with MCP endpoint and AIAGENT state registry.
    * Called via session_info MCP tool — autocall endpoint provides context to AI agents.
    */
   getSessionInfo(authContext?: { sessionId?: string; sessionName?: string }): SessionInfoResponse {
-    const mcpConfig = this.configLoader.getMcpConfig();
-    const mcpPort = mcpConfig.port ?? 47373;
-    const mcpUrl = `http://127.0.0.1:${mcpPort}/mcp`;
-
-    // Extract sessionId from auth context (set-scoped token) or default to undefined
-    const sessionId = authContext?.sessionId;
-    const sessionName = authContext?.sessionName;
-
-    // Get session info if authenticated with session token
-    let sessionInfo: SessionInfo | undefined;
-    if (sessionId) {
-      sessionInfo = this.sessionManager.getSession(sessionId) ?? undefined;
-    }
-
-    return {
-      mandatory_rules: [
-        'ALWAYS call session_set_aiagent_state when your phase changes: planning before investigation, implementing before edits or tests, and completed when the requested work is ready for review.',
-        'ALWAYS claim assigned Helm implementation work before editing by calling plan_set_state with status=coding and your sessionId, then call session_set_working_plan with the same plan id.',
-        'ALWAYS create a separate QUESTION: plan for blocking questions that must survive chat, link it to the blocked plan with plan_nextplan_link, and leave the original plan body intact unless explicitly asked to edit it.',
-        'ALWAYS output the matching AIAGENT-* state tag as the first line of each user-facing response when the session prompt requires it.',
-        'ALWAYS send inter-LLM handoffs with session_send_text submit=true/default, then call session_read_terminal on the recipient and verify evidence of receipt before assuming delivery succeeded.',
-      ],
-      sessionId,
-      sessionName: sessionName ?? sessionInfo?.name,
-      cliType: sessionInfo?.cliType,
-      workingDir: sessionInfo?.workingDir,
-      mcp_url: mcpUrl,
-      mcp_token: mcpConfig.authToken ?? '',
-      aiagent_states: this.getAiagentStates(),
-      available_directories: this.getAvailableDirectories(),
-      aiagent_state_guide: {
-        validStates: ['planning', 'implementing', 'completed', 'idle'],
-        how_to_update: {
-          description: 'Update the session\'s AIAGENT state icon in Helm. This state persists across restarts and is controlled by external agents.',
-          mcp_call: 'session_set_aiagent_state',
-          usage_example: { sessionId: 'your-session-id', state: 'implementing' },
-          state_icons: { planning: '⚙️', implementing: '🟢', completed: '✅', idle: '⚪' },
-        },
-        state_systems: [
-          {
-            name: 'aiagentState',
-            purpose: 'Agent-declared work phase shown on the session row. This is durable agent intent, not automatic terminal activity.',
-            owner: 'External agents via session_set_aiagent_state, or Helm when restoring saved session metadata.',
-            tools_or_fields: ['session_set_aiagent_state', 'SessionInfo.aiagentState'],
-          },
-          {
-            name: 'sessionState',
-            purpose: 'Pipeline state inferred from AIAGENT-* tags in PTY output and question markers.',
-            owner: 'Helm StateDetector scans terminal output and updates this automatically.',
-            tools_or_fields: ['AIAGENT-PLANNING', 'AIAGENT-IMPLEMENTING', 'AIAGENT-COMPLETED', 'AIAGENT-IDLE', 'SessionInfo.state', 'SessionInfo.questionPending'],
-          },
-          {
-            name: 'planState',
-            purpose: 'Durable lifecycle of a Helm plan item, independent of whether the session is busy, done, or waiting.',
-            owner: 'Plan tools and explicit user or agent actions.',
-            tools_or_fields: ['plan_set_state', 'plan_complete', 'session_set_working_plan', 'PlanItem.status', 'PlanItem.sessionId'],
-          },
-        ],
-        state_transitions: [
-          { from: 'idle', to: 'planning', when: 'You start reading context, asking clarifying questions, or preparing a plan before code changes.' },
-          { from: 'idle', to: 'implementing', when: 'The user gives a direct execution task and you begin making changes immediately.' },
-          { from: 'idle', to: 'completed', when: 'You only needed to report a result and no further work is pending.' },
-          { from: 'planning', to: 'idle', when: 'Planning stops because the user pauses, cancels, or no durable work is active.' },
-          { from: 'planning', to: 'implementing', when: 'You have enough context and begin editing files, running migrations, or executing the requested work.' },
-          { from: 'planning', to: 'completed', when: 'The task was investigation-only or plan-only and the deliverable is ready.' },
-          { from: 'implementing', to: 'idle', when: 'Implementation is paused or cancelled before a completed deliverable exists.' },
-          { from: 'implementing', to: 'planning', when: 'You hit ambiguity, need more investigation, or must ask the user before continuing safely.' },
-          { from: 'implementing', to: 'completed', when: 'Implementation and verification are done and the result is ready for review.' },
-          { from: 'completed', to: 'idle', when: 'The user accepts the result or explicitly asks the session to stand down.' },
-          { from: 'completed', to: 'planning', when: 'Follow-up feedback opens a new question or review pass.' },
-          { from: 'completed', to: 'implementing', when: 'Follow-up feedback directly requests another concrete change.' },
-        ],
-        integration_patterns: [
-          {
-            scenario: 'Starting implementation',
-            steps: [
-              'Call plan_set_state with status=coding and sessionId to claim the plan when ownership is required.',
-              'Call session_set_working_plan with the same sessionId and planId so Helm shows the active work.',
-              'Call session_set_aiagent_state with state=implementing when edits, test runs, or other execution begins.',
-            ],
-          },
-          {
-            scenario: 'Blocked by question',
-            steps: [
-              'Call session_set_aiagent_state with state=planning while deciding or asking the question.',
-              'Create a separate QUESTION: plan if the blocker must survive the chat.',
-              'Link the QUESTION plan to the blocked plan with plan_nextplan_link and set the original plan blocked when work cannot continue.',
-            ],
-          },
-          {
-            scenario: 'Completing work',
-            steps: [
-              'Run the relevant verification and collect concise notes about changed behavior, files, tests, and remaining risk.',
-              'Call plan_complete with completion documentation when a Helm plan is finished.',
-              'Call session_set_aiagent_state with state=completed so the user can see the session is ready for review.',
-            ],
-          },
-        ],
-        error_scenarios: [
-          'Invalid state: session_set_aiagent_state only accepts planning, implementing, completed, or idle.',
-          'Session not found: pass the Helm session id or exact session name; HELM_SESSION_ID is the safest sender identity inside a spawned session.',
-          'Plan already assigned: plan_set_state/session_set_working_plan can reject ownership changes when another session owns the plan.',
-          'State systems disagree: reconcile by updating the explicit aiagentState or plan state; PTY-derived sessionState will continue to follow terminal output.',
-        ],
-        notes: [
-          'State persists across restarts',
-          'Updates trigger session:changed event',
-          'Only external agents should set this state — activity dots (green/blue/grey) are based on PTY I/O timing and are managed automatically',
-          'When LLM starts to make changes, mark it as implementing. When done, mark it as completed for the user to review. If questions arise, mark it as planning and make follow-up plans with the questions. Only the user should mark it as idle, or the LLM if explicitly requested.',
-        ],
-      },
-      session_send_text_guide: {
-        description: 'Send text to another session from your session. This enables inter-LLM communication via Helm\'s embedded PTY system.',
-        how_it_works: 'Text is delivered to the target session\'s PTY via stdin. Helm wraps your message in a [HELM_MSG] envelope with metadata — unless the recipient tool has disabled preamble via \'helmPreambleForInterSession: false\', in which case you send raw text only. When expectsResponse=true, replies are pasted back into your session as new chat turns — no polling needed.',
-        inter_llm_handoff_protocol: [
-          'Always call session_send_text with submit=true, or omit submit because true is the default. Never use submit=false for inter-LLM handoffs.',
-          'After session_send_text succeeds, call session_read_terminal on the recipient session and inspect the tail for evidence the message landed: the first words of the sent text, a new prompt, or a new response starting.',
-          'If the recipient tail does not show evidence of receipt, warn the user instead of silently assuming success.',
-        ],
-        required_args: { sessionId: '[DESTINATION] Target session ID — MUST be different from senderSessionId', text: 'The text to send', senderSessionId: '[SENDER] Your session ID — MUST equal the HELM_SESSION_ID environment variable injected by Helm at startup' },
-        optional_args: { submit: 'Boolean, default true. For inter-LLM handoffs, leave this true; submit=false only parks text in the recipient buffer without triggering work.', expectsResponse: 'Boolean, default false. If true, Helm routes the target session\'s reply back to your session' },
-        examples: [
-          { scenario: 'Send prompt to session', payload: { sessionId: 'target-session-id', text: 'Analyze this file', senderSessionId: '$HELM_SESSION_ID', submit: true, expectsResponse: false } },
-          { scenario: 'Send with auto-enter', payload: { sessionId: 'target-session-id', text: 'git status', senderSessionId: '$HELM_SESSION_ID', submit: true, expectsResponse: false } },
-          { scenario: 'Send and await response', payload: { sessionId: 'target-session-id', text: 'What is the current git branch?', senderSessionId: '$HELM_SESSION_ID', submit: true, expectsResponse: true } },
-        ],
-        error_scenarios: [
-          'senderSessionId must be from HELM_SESSION_ID env var',
-          'senderSessionId must be different from the destination sessionId',
-          'Unknown sender session — senderSessionId does not match any active Helm session',
-          'Destination session not found or PTY not running',
-        ],
-        receiving_responses: 'When expectsResponse=true, Helm pastes [HELM_MSG] envelope as new chat turn in sender session. Reply using session_send_text with sessionId set to the original senderSessionId.',
-      },
-      agent_plan_guide: {
-        plan_identifier_semantics: [
-          'Values like P-0035 are Helm human-readable plan IDs (PlanItem.humanId), not chat message IDs.',
-          'MCP plan tools accept either the canonical UUID id or the P-00xx humanId wherever a plan id/ref is requested.',
-          'Use plans_summary or plans_list when you need to map between a P-id, canonical UUID, title, status, and dependency context.',
-        ],
-        when_to_create_plan: [
-          'Create a new Helm plan when you discover follow-up work that should survive the current session or be handled later.',
-          'Create a new Helm plan for blockers that need user input, upstream investigation, or another agent, instead of burying them in chat only.',
-          'Do not overwrite the original plan when a new question or follow-up appears; preserve the original context and create a separate linked plan.',
-        ],
-        required_description_sections: REQUIRED_PLAN_DESCRIPTION_SECTIONS,
-        question_plan_workflow: [
-          'Question plans should use a title that starts with QUESTION: and a description whose first lines contain the concrete question.',
-          'After creating a question plan, call plan_nextplan_link from the question plan to the blocked/original plan so the question must be resolved first.',
-          'Keep the rest of the original plan description unchanged unless the user explicitly asks for an edit.',
-        ],
-        completion_documentation: [
-          'When calling plan_complete, document the implemented behavior, the important files changed, tests or review performed, and any remaining risk.',
-          'Completion notes should be useful to the next agent or sleeping user without requiring chat history.',
-        ],
-        plan_attachment_guide: [
-          'Use plan_attachment_list to fetch attachment metadata when plan_get returns hasAttachments=true.',
-          'Call plan_attachment_get to retrieve actual content via a temp file path when needed.',
-          'Call plan_attachment_add to store durable supporting artifacts; attachments are persisted inside Helm config-managed storage.',
-        ],
-        sequence_memory_guide: [
-          'A sequence is a first-class shared-memory store that groups related plans into a swimlane; call plan_sequence_list to discover sequences for a directory or specific plan.',
-          'plan_get returns sequenceId if the plan is a member; call plan_sequence_list with planId to fetch the full sequence including sharedMemory and other member plans.',
-          'Use plan_sequence_memory_append to add to shared memory atomically, or plan_sequence_update for full edits; always pass expectedUpdatedAt from the last read to prevent concurrent overwrites.',
-          'Sequences coordinate shared state across multiple related plans; use them when a group of plans needs to track common progress, decisions, or accumulated context.',
-        ],
-      },
-      notification_guide: {
-        description: 'When you need to pull the user\'s attention to this session, prefer notify_user — Helm picks the right channel (toast, in-app bubble, or Telegram) based on screen-lock state and which session the user is actively viewing.',
-        preferred_tool: 'notify_user — single smart-router entry point. Helm chooses delivery from existing app/lock state. Avoid telegram_chat unless the user has already engaged via Telegram or the message is explicitly mobile-friendly and urgent.',
-        pre_flight: [
-          'Optionally call get_app_visibility first; if visibility is "visible-focused" AND activeSessionId equals your sessionId, the user is already watching this session — skip the notification.',
-          'Notifications require notificationMode=llm in Helm settings; otherwise notify_user throws. Do not silently swallow that error — surface it to the user once and stop retrying.',
-        ],
-        when_to_notify: [
-          'A long-running task you started has just finished and the user is likely away from this session.',
-          'You are blocked on a question or decision the user must answer before you can continue.',
-          'An unexpected error or unsafe operation has stopped progress and needs human acknowledgement.',
-          'A scheduled or background event the user asked to be told about has occurred (build green, deploy done, watcher fired).',
-        ],
-        when_not_to_notify: [
-          'The user is clearly engaged: get_app_visibility returns visibility="visible-focused" with activeSessionId equal to this session — they will see your reply directly, so a notification is just noise.',
-          'For routine progress chatter, intermediate step logs, or any content that does not need immediate attention.',
-          'In a tight loop or on every tool result — Helm has no per-session rate limit on notify_user, so spamming the user is on you.',
-          'When notificationMode is not "llm" — call get_app_visibility / read the error from notify_user once and stop instead of retrying.',
-        ],
-        routing_outcomes: {
-          toast: 'Window hidden or unfocused (and screen unlocked) — Helm shows a native OS toast. Click focuses the window and switches to this session.',
-          bubble: 'Window focused on a different session — Helm shows an in-app bubble inside that window so the user notices without losing focus on whatever they are looking at.',
-          telegram: 'Screen is locked AND Telegram bot is configured/running — Helm sends the message to the user\'s Telegram chat instead of the desktop.',
-          none: 'User is already viewing this session (visible-focused + matching activeSessionId), or screen is locked with no Telegram configured — notification is suppressed.',
-        },
-        telegram_usage: [
-          'Reach for telegram_chat only when the message is genuinely mobile-friendly: short lines, no wide tables, no large code blocks. The validator will reject oversize content.',
-          'Prefer telegram_chat over notify_user only when the user has already engaged through Telegram in this session, or when the user explicitly asked for a Telegram update.',
-          'For urgent blockers where the user may be away from the desktop, notify_user already routes to Telegram automatically when the screen is locked — you usually do not need to pick Telegram explicitly.',
-        ],
-        examples: [
-          { scenario: 'Long build finished while user was away', tool: 'notify_user', rationale: 'Helm picks toast when window is hidden, or Telegram if the screen is locked — agent does not need to know which.' },
-          { scenario: 'Need user decision before destructive action', tool: 'notify_user', rationale: 'Title summarises the question; body keeps it short. Stop and wait for the user; do not re-fire the notification.' },
-          { scenario: 'User has been chatting on Telegram and asks for status', tool: 'telegram_chat', rationale: 'Direct mobile-friendly reply on the channel they are already using.' },
-          { scenario: 'Routine progress update mid-task', tool: 'none', rationale: 'Skip — this is what the session output and AIAGENT-* state are for.' },
-        ],
-      },
-    };
+    return getSessionInfo(this.configLoader, this.sessionManager, authContext);
   }
 
+  /**
+   * Get list of available MCP tools with names and titles.
+   */
+  private getAvailableTools(): McpToolSummary[] {
+    return getAvailableTools();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Telegram & notifications
+  // ---------------------------------------------------------------------------
+
   getTelegramStatus(): TelegramStatus {
-    const config = this.configLoader.getTelegramConfig();
-    const chatConfigured = typeof config.chatId === 'number';
-    const allowedUsersConfigured = Array.isArray(config.allowedUserIds) && config.allowedUserIds.length > 0;
-    const configured = Boolean(config.botToken && chatConfigured && allowedUsersConfigured);
-    const running = this.telegramBridge?.isRunning() ?? false;
-    return {
-      enabled: config.enabled,
-      configured,
-      running,
-      available: config.enabled && configured && running,
-      chatConfigured,
-      allowedUsersConfigured,
-      openChannels: this.telegramBridge?.listChannels().filter((channel) => channel.status === 'open').length ?? 0,
-      guidance: 'Use Telegram only for mobile-friendly urgent blockers or after the user has already engaged through Telegram.',
-    };
+    return this.telegramService.getTelegramStatus();
   }
 
   async closeTelegramChannel(channelId: string): Promise<TelegramChannel> {
-    this.requireTelegramBridge();
-    const closed = this.telegramBridge!.closeChannel(channelId);
-    if (!closed) {
-      throw new Error(`Telegram channel not found: ${channelId}`);
-    }
-    return closed;
+    return this.telegramService.closeTelegramChannel(channelId);
   }
 
   async sendTelegramChat(
@@ -937,22 +395,11 @@ export class HelmControlService extends EventEmitter {
     message: string,
     attachment?: { name: string; data: string; mime: string },
   ): Promise<{ sent: boolean; reason?: string }> {
-    if (!this.telegramBridge?.isRunning()) {
-      return { sent: false, reason: 'Telegram bot is not running' };
-    }
-    validateMobileFriendlyTelegramText(message);
-    const session = this.findSession(sessionRef);
-    if (!session) return { sent: false, reason: `Session not found: ${sessionRef}` };
-    return this.telegramBridge.sendToUser({ sessionId: session.id, text: message, attachment });
+    return this.telegramService.sendTelegramChat(sessionRef, message, attachment);
   }
 
   notifyUser(sessionRef: string, title: string, content: string): { delivered: 'toast' | 'bubble' | 'telegram' | 'none' } {
-    if (!this.notificationManager) {
-      throw new Error('Notification manager is not available');
-    }
-    const session = this.findSession(sessionRef);
-    if (!session) throw new Error(`Session not found: ${sessionRef}`);
-    return { delivered: this.notificationManager.notifyLlmDirected(session.id, title, content) };
+    return this.telegramService.notifyUser(sessionRef, title, content);
   }
 
   getAppVisibility(): {
@@ -960,180 +407,6 @@ export class HelmControlService extends EventEmitter {
     screenLocked: boolean;
     activeSessionId: string | null;
   } {
-    if (!this.notificationManager) {
-      throw new Error('Notification manager is not available');
-    }
-    return this.notificationManager.getAppVisibilityDetails();
-  }
-
-  /**
-   * Get list of valid AIAGENT state tags for the state registry.
-   * Registered states are: planning, implementing, completed, idle.
-   */
-  private getAiagentStates(): string[] {
-    return ['planning', 'implementing', 'completed', 'idle'];
-  }
-
-  /**
-   * Get list of available MCP tools with names and titles.
-   */
-  private getAvailableTools(): McpToolSummary[] {
-    return [
-      { name: 'tools_list', title: 'List CLI Types', description: 'List CLI types configured in Helm and the configured working directories they can be spawned into.' },
-      { name: 'plans_list', title: 'List Plans', description: 'List all plan items for a directory before editing or assigning work. Returned humanId values such as P-0035 are Helm plan IDs.' },
-      { name: 'plans_summary', title: 'Plans Summary', description: 'List compact plan status, canonical IDs, human-readable P-ids, and dependency relationships before claiming work.' },
-      { name: 'plan_get', title: 'Get Plan', description: 'Get full plan details before changing state, editing content, or asking about a plan. The id argument accepts either UUID or P-00xx humanId.' },
-      { name: 'plan_create', title: 'Create Plan', description: `Create durable follow-up or question plans. Descriptions should include: ${REQUIRED_PLAN_DESCRIPTION_SECTIONS.join(', ')}.` },
-      { name: 'plan_update', title: 'Update Plan', description: 'Update a plan title, description, and/or type while preserving existing context unless the edit is intentional. The id argument accepts UUID or P-00xx humanId.' },
-      { name: 'plan_delete', title: 'Delete Plan', description: 'Delete a plan item by UUID or P-00xx humanId.' },
-      { name: 'plan_set_state', title: 'Set Plan State', description: 'Set plan lifecycle state by UUID or P-00xx humanId. Pass sessionId when claiming coding work and then call session_set_working_plan.' },
-      { name: 'plan_complete', title: 'Complete Plan', description: 'Mark a coding or review plan as done by UUID or P-00xx humanId with documentation of behavior changed, files, tests/review, and remaining risk.' },
-      { name: 'plan_nextplan_link', title: 'Link Next Plan', description: 'Link one plan as a prerequisite for another using UUIDs or P-00xx humanIds. For blocker questions, link the QUESTION plan to the original blocked plan.' },
-      { name: 'plan_nextplan_unlink', title: 'Unlink Next Plan', description: 'Remove a prerequisite link between two plan items using UUIDs or P-00xx humanIds.' },
-      { name: 'plan_sequence_list', title: 'List Plan Sequences', description: 'List sequence/shared-memory stores for a directory or plan, including member plan IDs and sharedMemory.' },
-      { name: 'plan_sequence_create', title: 'Create Plan Sequence', description: 'Create a sequence/shared-memory store that plans can join.' },
-      { name: 'plan_sequence_update', title: 'Update Plan Sequence', description: 'Update sequence title, mission, sharedMemory, or order. Pass expectedUpdatedAt for mutex-style write protection.' },
-      { name: 'plan_sequence_memory_append', title: 'Append Sequence Memory', description: 'Append to a sequence sharedMemory store with optional expectedUpdatedAt concurrency protection.' },
-      { name: 'plan_sequence_delete', title: 'Delete Plan Sequence', description: 'Delete a sequence and clear membership from member plans.' },
-      { name: 'plan_sequence_assign', title: 'Assign Plan Sequence', description: 'Assign or unlink a plan from a sequence without deleting the sequence.' },
-      { name: 'plan_attachment_list', title: 'List Plan Attachments', description: 'List files attached to a plan by UUID or P-00xx humanId.' },
-      { name: 'plan_attachment_add', title: 'Add Plan Attachment', description: 'Attach text, JSON, image, or binary content up to 10MB to a plan. Binary content is supplied as base64 and stored inside Helm config.' },
-      { name: 'plan_attachment_delete', title: 'Delete Plan Attachment', description: 'Delete one stored attachment from a plan by attachment ID.' },
-      { name: 'plan_attachment_get', title: 'Get Plan Attachment Temp File', description: 'Copy an attachment to a Helm temp file and return the local temp path instead of inline content.' },
-      { name: 'directories_list', title: 'List Directories', description: 'List known configured working directories before creating plans or sessions.' },
-      { name: 'session_create', title: 'Create Session', description: 'Spawn a new CLI session in a configured working directory with a stable display name.' },
-      { name: 'sessions_list', title: 'List Sessions', description: 'List currently known Helm sessions, optionally filtered to one working directory.' },
-      { name: 'session_get', title: 'Get Session', description: 'Get a session by ID or exact display name.' },
-      { name: 'session_send_text', title: 'Send Text To Session', description: 'Send text to a running session PTY, with optional reply routing through HELM_MSG metadata.' },
-      { name: 'session_read_terminal', title: 'Read Session Terminal', description: 'Read the recent terminal tail for any known session by ID or exact display name, with raw, stripped, or both output modes.' },
-      { name: 'session_set_working_plan', title: 'Set Session Working Plan', description: 'Update the session row to show the plan currently being worked on.' },
-      { name: 'session_set_aiagent_state', title: 'Set Session AIAGENT State', description: 'Update the session AIAGENT state icon in Helm.' },
-      { name: 'session_close', title: 'Close Session', description: 'Close a Helm session and stop its PTY.' },
-      { name: 'session_info', title: 'Get Session Info', description: 'Retrieve MCP endpoint, AIAGENT state registry, available tools, directories, and agent planning guidance.' },
-      { name: 'notify_user', title: 'Notify User', description: 'Send an LLM-directed notification with smart delivery routing. Requires notificationMode=llm.' },
-      { name: 'get_app_visibility', title: 'Get App Visibility', description: 'Return app visibility, screen lock state, and activeSessionId for notification routing.' },
-      { name: 'telegram_status', title: 'Telegram Status', description: 'Report whether Telegram is enabled, configured, running, and available for urgent mobile-friendly user communication.' },
-      { name: 'telegram_chat', title: 'Send Telegram Chat', description: 'Send concise mobile-friendly text to the user via Telegram. Provide sessionId or name. Lines must be short; do not send large wide logs, tables, or code blocks.' },
-      { name: 'telegram_channel_close', title: 'Close Telegram Channel', description: 'Close one MCP Telegram communication channel without deleting unrelated session topics.' },
-    ];
-  }
-
-  /**
-   * Get list of available working directories with names.
-   */
-  private getAvailableDirectories(): DirectoryInfo[] {
-    return this.configLoader.getWorkingDirectories().map((entry) => ({
-      path: entry.path,
-      name: entry.name,
-    }));
-  }
-
-  private toSessionSummary(session: SessionInfo): SessionSummary {
-    return {
-      id: session.id,
-      name: session.name,
-      cliType: session.cliType,
-      workingDir: session.workingDir,
-      state: session.state,
-      questionPending: session.questionPending,
-      cliSessionName: session.cliSessionName,
-      currentPlanId: session.currentPlanId,
-      windowId: session.windowId,
-    };
-  }
-
-  private resolvePlanRef(ref: string, label: string): Extract<PlanRefResolution, { status: 'found' }> | null {
-    const resolution = this.planManager.resolveItemRef(ref);
-    if (resolution.status === 'found') return resolution;
-    if (resolution.status === 'ambiguous') {
-      const matches = resolution.matches
-        .map((item) => `${item.humanId ?? item.id} (${item.id}) in ${item.dirPath}`)
-        .join(', ');
-      throw new Error(`${label} reference is ambiguous: ${ref}. Matching plans: ${matches}`);
-    }
-    return null;
-  }
-
-  private assertSequenceMutex(sequence: PlanSequence, expectedUpdatedAt?: number): void {
-    if (expectedUpdatedAt === undefined) return;
-    if (sequence.updatedAt !== expectedUpdatedAt) {
-      throw new Error(`Sequence ${sequence.id} was updated concurrently. Expected updatedAt=${expectedUpdatedAt}, current updatedAt=${sequence.updatedAt}. Re-read it before writing sharedMemory.`);
-    }
-  }
-
-  private findSession(sessionRef: string): SessionInfo | null {
-    const nameMatches = this.sessionManager.getAllSessions().filter((session) => session.name === sessionRef);
-    if (nameMatches.length > 1) {
-      throw new Error(`Multiple sessions found with name: ${sessionRef}. Use sessionId instead.`);
-    }
-    // Names are user-facing handles, so resolve exact names before IDs to avoid
-    // routing a handoff to an unrelated session when a ref could be interpreted both ways.
-    if (nameMatches.length === 1) return nameMatches[0];
-    return this.sessionManager.getSession(sessionRef);
-  }
-
-  private requireCliEntry(cliType: string) {
-    const entry = this.configLoader.getCliTypeEntry(cliType);
-    if (!entry) {
-      throw new Error(`Unknown CLI type: ${cliType}`);
-    }
-    return entry;
-  }
-
-  private requireWorkingDirectory(dirPath: string) {
-    const workingDir = this.configLoader.getWorkingDirectories().find((entry) => entry.path === dirPath);
-    if (!workingDir) {
-      throw new Error(`Working directory is not configured in Helm: ${dirPath}`);
-    }
-    return workingDir;
-  }
-
-  private requireTelegramBridge(): void {
-    if (!this.telegramBridge) {
-      throw new Error('Telegram bridge is not available');
-    }
-  }
-
-  private requireTelegramAvailable(): void {
-    this.requireTelegramBridge();
-    const status = this.getTelegramStatus();
-    if (!status.available) {
-      throw new Error('Telegram is not available: enable Telegram, configure chat and allowed users, and start the bot first');
-    }
-  }
-}
-
-function requireResult<T>(value: T | null, message: string): T {
-  if (value === null) {
-    throw new Error(message);
-  }
-  return value;
-}
-
-function decodeBase64Content(value: string): Buffer {
-  const normalized = value.replace(/\s/g, '');
-  if (normalized.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) {
-    throw new Error('contentBase64 must be valid base64');
-  }
-  return Buffer.from(normalized, 'base64');
-}
-
-function requireString(value: string | undefined, errorMessage: string): string {
-  if (!value) {
-    throw new Error(errorMessage);
-  }
-  return value;
-}
-
-function validateMobileFriendlyTelegramText(text: string): void {
-  if (text.trim().length === 0) {
-    throw new Error('Telegram message text is required');
-  }
-  if (text.length > 1600) {
-    throw new Error('Telegram message must be 1600 characters or fewer');
-  }
-  const wideLine = text.split(/\r?\n/).find((line) => line.length > 140);
-  if (wideLine) {
-    throw new Error('Telegram message lines must be 140 characters or fewer for mobile readability');
+    return this.telegramService.getAppVisibility();
   }
 }
