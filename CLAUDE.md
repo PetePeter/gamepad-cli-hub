@@ -166,3 +166,13 @@ Detailed reference docs are in `docs/`:
 | [docs/file-structure.md](docs/file-structure.md) | Complete directory tree with per-file descriptions |
 | [docs/group-overview.md](docs/group-overview.md) | Group overview grid — entry/exit, navigation, live previews, architecture |
 | [docs/directory-plans.md](docs/directory-plans.md) | Directory Plans (NCN) — DAG work items, lifecycle, canvas, layout, badges |
+
+## graphify
+
+This project has a graphify knowledge graph at graphify-out/.
+
+Rules:
+- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
+- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)

@@ -121,6 +121,8 @@ workingDirectories:
     path: X:\coding\Vitido
   - name: cyberfile
     path: X:\coding\CyberfileSystems
+  - name: TogetherGames
+    path: X:\coding\togethergames
 chipActions:
   - label: 💾 Save Plan
     sequence: 'Write exactly one JSON file into {inboxDir}/ and do not write it
