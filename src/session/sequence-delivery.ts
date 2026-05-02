@@ -32,14 +32,52 @@ function isRecognizedToken(token: string): boolean {
 
 /**
  * Escape brace groups that are NOT recognized Helm sequence tokens.
- * Recognized tokens like {Send}, {NoSend}, {Wait 500}, {Ctrl+C} are preserved.
- * Unrecognized groups like {"type":"test"} or {variable} have their braces
- * escaped to {{/}} so they render as literal text through the sequence parser.
+ * Handles nested braces (JSON, code) by tracking depth and escaping
+ * the outermost unmatched group. Recognized tokens like {Send}, {NoSend},
+ * {Wait 500}, {Ctrl+C} are preserved. Unrecognized groups have their outer
+ * braces escaped to {{/}} so they render as literal text through the parser.
  */
 function escapeUnrecognizedBraces(text: string): string {
-  return text.replace(/\{([^{}]*)\}/g, (match, content) => {
-    return isRecognizedToken(content) ? match : '{{' + content + '}}';
-  });
+  let result = '';
+  let i = 0;
+
+  while (i < text.length) {
+    if (text[i] === '{') {
+      // Find matching closing brace by tracking raw depth
+      const start = i;
+      let depth = 1;
+      let j = i + 1;
+      while (j < text.length && depth > 0) {
+        if (text[j] === '{') depth++;
+        else if (text[j] === '}') depth--;
+        if (depth > 0) j++;
+      }
+
+      if (depth !== 0) {
+        // Unmatched brace — emit as-is
+        result += text.slice(start);
+        break;
+      }
+
+      const content = text.slice(start + 1, j);
+
+      if (isRecognizedToken(content)) {
+        // Recognized token — preserve as-is
+        result += text.slice(start, j + 1);
+      } else {
+        // Escape outer braces to {{/}}, recursively process inner content
+        const inner = escapeUnrecognizedBraces(content);
+        result += '{{' + inner + '}}';
+      }
+
+      i = j + 1;
+    } else {
+      result += text[i];
+      i++;
+    }
+  }
+
+  return result;
 }
 
 /**

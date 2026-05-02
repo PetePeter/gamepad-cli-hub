@@ -206,4 +206,56 @@ describe('deliverPromptSequenceToSession', () => {
 
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'plain text no braces');
   });
+
+  describe('nested literal braces', () => {
+    it('preserves nested JSON like {"a":{"b":1}}', async () => {
+      const mocks = makeMocks();
+      await deliver('{"a":{"b":1}}', mocks);
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '{"a":{"b":1}}');
+    });
+
+    it('preserves code with nested object literals', async () => {
+      const mocks = makeMocks();
+      await deliver('function x() { return { a: 1 }; }', mocks);
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'function x() { return { a: 1 }; }');
+    });
+
+    it('preserves HELM_MSG-like nested JSON envelope', async () => {
+      const mocks = makeMocks();
+      const envelope = '[HELM_MSG] {"type":"reply","sessionId":"s1","data":{"key":"val"}} [/HELM_MSG]';
+      await deliver(envelope, mocks);
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', envelope);
+    });
+
+    it('preserves nested JSON and still honors trailing {NoSend}', async () => {
+      const mocks = makeMocks();
+      await deliver('{"a":{"b":1}}{NoSend}', mocks);
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '{"a":{"b":1}}');
+      expect(mocks.ptyManager.write).not.toHaveBeenCalledWith('s1', '\r');
+    });
+
+    it('preserves nested JSON and still honors trailing {Send}', async () => {
+      const mocks = makeMocks();
+      await deliver('{"a":{"b":1}}{Send}more text', mocks);
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '{"a":{"b":1}}');
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'more text');
+      const submitCalls = mocks.ptyManager.write.mock.calls.filter(
+        (c: any[]) => c[0] === 's1' && c[1] === '\r',
+      );
+      expect(submitCalls).toHaveLength(1);
+    });
+
+    it('preserves deeply nested JSON (3 levels)', async () => {
+      const mocks = makeMocks();
+      await deliver('{"a":{"b":{"c":1}}}', mocks);
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '{"a":{"b":{"c":1}}}');
+    });
+
+    it('handles mixed text, nested JSON, and recognized tokens', async () => {
+      const mocks = makeMocks();
+      await deliver('check {"config":{"debug":true}} and {Enter}continue', mocks);
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'check {"config":{"debug":true}} and ');
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'continue');
+    });
+  });
 });
