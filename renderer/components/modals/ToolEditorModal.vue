@@ -345,7 +345,7 @@ defineExpose({ handleButton });
 .te-input:focus, .te-select:focus { border-color: var(--accent); outline: none; }
 .te-input--mono { font-family: 'Consolas', 'Courier New', monospace; font-size: var(--font-size-sm); }
 .te-input--sm { font-size: 11px; padding: var(--spacing-xs) var(--spacing-sm); }
-.te-section--prompts .te-prompts-list { display: flex; flex-direction: column; gap: var(--spacing-xs); max-height: 360px; overflow-y: auto; resize: vertical; min-height: 60px; padding-right: var(--spacing-xs); }
+.te-section--prompts .te-prompts-list { display: flex; flex-direction: column; gap: var(--spacing-xs); min-height: 60px; padding-right: var(--spacing-xs); }
 .te-prompt-item { display: flex; flex-direction: column; gap: var(--spacing-xs); padding: var(--spacing-sm); background: var(--bg-secondary); border-radius: var(--radius-sm); }
 .te-prompt-item__header { display: flex; align-items: center; gap: 6px; }
 .te-prompt-item__header .te-input--sm { flex: 1; }

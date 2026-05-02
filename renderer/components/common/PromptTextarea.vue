@@ -6,7 +6,7 @@
  * This component is edit/preview-only. Execution is intentionally handled later
  * by the paste/PTY delivery pipeline.
  */
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { parseSequence, formatSequencePreview } from '../../../src/input/sequence-parser.js';
 import { getSequenceSyntaxHelpText } from '../../utils.js';
 
@@ -36,6 +36,9 @@ const emit = defineEmits<{
 const syntaxHelpExpanded = ref(false);
 const syntaxHelpText = getSequenceSyntaxHelpText();
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const manualHeight = ref<number | null>(null);
+let resizeStartY = 0;
+let resizeStartHeight = 0;
 
 const preview = computed(() => {
   if (!props.modelValue.trim()) return '';
@@ -49,7 +52,7 @@ function autosize(): void {
   const lineHeight = parseFloat(getComputedStyle(el).lineHeight || '18');
   const minHeight = lineHeight * props.minRows;
   const maxHeight = lineHeight * props.maxRows;
-  const nextHeight = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight);
+  const nextHeight = Math.min(Math.max(el.scrollHeight, manualHeight.value ?? 0, minHeight), maxHeight);
   el.style.height = `${nextHeight}px`;
   el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden';
 }
@@ -75,8 +78,43 @@ function insertToken(token: string): void {
   });
 }
 
+function clampHeight(height: number): number {
+  const el = textareaRef.value;
+  if (!el) return height;
+  const lineHeight = parseFloat(getComputedStyle(el).lineHeight || '18');
+  return Math.min(Math.max(height, lineHeight * props.minRows), lineHeight * props.maxRows);
+}
+
+function onResizeMove(event: PointerEvent): void {
+  manualHeight.value = clampHeight(resizeStartHeight + event.clientY - resizeStartY);
+  autosize();
+}
+
+function stopResize(): void {
+  window.removeEventListener('pointermove', onResizeMove);
+  window.removeEventListener('pointerup', stopResize);
+}
+
+function startResize(event: PointerEvent): void {
+  const el = textareaRef.value;
+  if (!el) return;
+  event.preventDefault();
+  resizeStartY = event.clientY;
+  resizeStartHeight = el.getBoundingClientRect().height;
+  manualHeight.value = resizeStartHeight;
+  window.addEventListener('pointermove', onResizeMove);
+  window.addEventListener('pointerup', stopResize, { once: true });
+}
+
+function focus(): void {
+  textareaRef.value?.focus();
+}
+
 onMounted(autosize);
+onBeforeUnmount(stopResize);
 watch(() => props.modelValue, () => nextTick(autosize));
+
+defineExpose({ focus });
 </script>
 
 <template>
@@ -102,6 +140,16 @@ watch(() => props.modelValue, () => nextTick(autosize));
         aria-label="Prompt syntax help"
         @click="syntaxHelpExpanded = !syntaxHelpExpanded"
       >i</button>
+      <div
+        class="prompt-textarea__resize-grip"
+        role="separator"
+        aria-label="Resize prompt field vertically"
+        aria-orientation="horizontal"
+        title="Resize prompt field"
+        @pointerdown="startResize"
+      >
+        <span></span>
+      </div>
     </div>
 
     <div class="prompt-textarea__chips" aria-label="Insert prompt command">
@@ -146,7 +194,7 @@ watch(() => props.modelValue, () => nextTick(autosize));
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: var(--font-size-sm);
   line-height: 1.45;
-  padding: var(--spacing-sm) 34px var(--spacing-sm) var(--spacing-md);
+  padding: var(--spacing-sm) 34px 18px var(--spacing-md);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.025);
 }
 
@@ -176,6 +224,32 @@ watch(() => props.modelValue, () => nextTick(autosize));
 .prompt-textarea__info:hover {
   background: var(--accent);
   color: var(--bg-primary);
+}
+
+.prompt-textarea__resize-grip {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 5px;
+  height: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.prompt-textarea__resize-grip span {
+  width: 42px;
+  height: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  opacity: 0.75;
+}
+
+.prompt-textarea__resize-grip:hover span {
+  opacity: 1;
+  border-color: var(--accent);
 }
 
 .prompt-textarea__chips {

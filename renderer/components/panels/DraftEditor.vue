@@ -84,6 +84,7 @@ const labelInputRef = ref<HTMLInputElement | null>(null);
 const stateSelectRef = ref<HTMLSelectElement | null>(null);
 const stateInfoRef = ref<HTMLInputElement | null>(null);
 const typeSelectRef = ref<HTMLSelectElement | null>(null);
+const bodyPromptRef = ref<InstanceType<typeof PromptTextarea> | null>(null);
 
 const attachments = ref<PlanAttachment[]>([]);
 const attachmentsLoading = ref(false);
@@ -137,14 +138,18 @@ const planMetaText = computed(() => {
   return parts.join('  ·  ');
 });
 
-const focusableElements = computed(() => {
+type FocusableTarget = HTMLElement | { focus: () => void };
+
+const focusableElements = computed<FocusableTarget[]>(() => {
   const elements: (HTMLElement | null)[] = [labelInputRef.value];
   if (showPlanStateSelect.value) {
     elements.push(typeSelectRef.value);
     elements.push(stateSelectRef.value);
   }
   if (showPlanStateInfo.value) elements.push(stateInfoRef.value);
-  return elements.filter(Boolean) as HTMLElement[];
+  const focusables: FocusableTarget[] = elements.filter(Boolean) as HTMLElement[];
+  if (bodyPromptRef.value) focusables.push(bodyPromptRef.value);
+  return focusables;
 });
 
 watch(() => props.visible, (visible) => {
@@ -370,6 +375,7 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
     </div>
 
     <PromptTextarea
+      ref="bodyPromptRef"
       v-model="text"
       placeholder="Enter your prompt..."
       :rows="4"

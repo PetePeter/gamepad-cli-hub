@@ -318,7 +318,6 @@ button {
 .editor-popup__textarea {
   width: 100%;
   min-height: 320px;
-  resize: vertical;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-secondary);
@@ -1509,7 +1508,6 @@ kbd {
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 6px 8px;
-  resize: vertical;
 }
 
 .sequence-textarea:focus {
@@ -2329,8 +2327,6 @@ kbd {
   flex-direction: column;
   gap: 4px;
   margin-bottom: 8px;
-  max-height: 200px;
-  overflow-y: auto;
 }
 
 .sequence-list-row {
@@ -3393,7 +3389,6 @@ kbd {
   color: var(--text-primary);
   font-size: 12px;
   font-family: 'Consolas', 'Courier New', monospace;
-  resize: vertical;
   min-height: 60px;
   max-height: 50vh;
   outline: none;

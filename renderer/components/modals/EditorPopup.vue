@@ -135,6 +135,8 @@ defineExpose({ handleButton });
               :min-rows="8"
               :max-rows="24"
               textarea-class="editor-popup__textarea"
+              @keydown.ctrl.enter.prevent="onSend"
+              @keydown.escape.prevent="onClose"
             />
           </section>
 
