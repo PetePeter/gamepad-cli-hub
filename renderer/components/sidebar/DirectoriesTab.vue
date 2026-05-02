@@ -19,6 +19,7 @@ const emit = defineEmits<{
   add: [name: string, path: string];
   edit: [index: number, name: string, path: string];
   delete: [index: number];
+  move: [index: number, direction: 'up' | 'down'];
 }>();
 
 const showAddForm = ref(false);
@@ -128,6 +129,18 @@ function onBrowse(): void {
           <span class="settings-list-item__detail">{{ dir.path }}</span>
         </div>
         <div class="settings-list-item__actions">
+          <button
+            class="btn btn--ghost btn--sm focusable"
+            :disabled="index === 0"
+            title="Move up"
+            @click="emit('move', index, 'up')"
+          >&#9650;</button>
+          <button
+            class="btn btn--ghost btn--sm focusable"
+            :disabled="index === directories.length - 1"
+            title="Move down"
+            @click="emit('move', index, 'down')"
+          >&#9660;</button>
           <button class="btn btn--secondary btn--sm focusable" @click="$emit('edit', index, dir.name, dir.path)">
             Edit
           </button>

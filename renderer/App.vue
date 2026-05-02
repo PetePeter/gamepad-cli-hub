@@ -1249,6 +1249,26 @@ async function onToolDelete(key: string): Promise<void> {
   }
 }
 
+async function onToolReorder(key: string, direction: 'up' | 'down'): Promise<void> {
+  try {
+    const index = state.cliTypes.indexOf(key);
+    if (index < 0) return;
+    const result = await window.gamepadCli.toolsReorderCliType(index, direction);
+    if (result.success) {
+      state.cliTypes = await window.gamepadCli.configGetCliTypes();
+      state.availableSpawnTypes = state.cliTypes;
+      await initConfigCache();
+      loadSessions();
+      void loadSettingsData();
+      logEvent(`Reordered CLI type: ${key} (${direction})`);
+    } else {
+      logEvent(`Failed to reorder: ${result.error || 'unknown error'}`);
+    }
+  } catch (error) {
+    console.error('Reorder CLI type failed:', error);
+  }
+}
+
 // ── Directories Tab Handlers ───────────────────────────────────────────────
 
 async function onDirectoryAdd(name: string, path: string): Promise<void> {
@@ -1304,6 +1324,22 @@ async function onDirectoryDelete(index: number): Promise<void> {
     }
   } catch (error) {
     console.error('Delete directory failed:', error);
+  }
+}
+
+async function onDirectoryReorder(index: number, direction: 'up' | 'down'): Promise<void> {
+  try {
+    const result = await window.gamepadCli.configReorderWorkingDir(index, direction);
+    if (result.success) {
+      const dirs = await window.gamepadCli.configGetWorkingDirs();
+      settingsDirectories.value = dirs || [];
+      sessionsState.directories = dirs || [];
+      logEvent(`Reordered directory: ${direction}`);
+    } else {
+      logEvent(`Failed to reorder directory: ${result.error || 'unknown error'}`);
+    }
+  } catch (error) {
+    console.error('Reorder directory failed:', error);
   }
 }
 
@@ -2244,6 +2280,7 @@ onUnmounted(() => {
               @add="onToolAdd"
               @edit="onToolEdit"
               @delete="onToolDelete"
+              @move="onToolReorder"
             />
             <DirectoriesTab
               v-else-if="activeTab === 'directories'"
@@ -2251,6 +2288,7 @@ onUnmounted(() => {
               @add="onDirectoryAdd"
               @edit="onDirectoryEdit"
               @delete="onDirectoryDelete"
+              @move="onDirectoryReorder"
             />
             <ChipbarActionsTab
               v-else-if="activeTab === 'chipbar-actions'"

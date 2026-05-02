@@ -152,6 +152,16 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
     }
   });
 
+  ipcMain.handle('config:reorderWorkingDir', (_event, index: number, direction: 'up' | 'down') => {
+    try {
+      configLoader.reorderWorkingDirectory(index, direction);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to reorder working dir: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle('config:getHapticFeedback', () => {
     try {
       return configLoader.getHapticFeedback();

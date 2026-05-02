@@ -406,6 +406,8 @@ const gamepadCliAPI = {
   configAddWorkingDir: (name: string, dirPath: string) => ipcRenderer.invoke('config:addWorkingDir', name, dirPath),
   configUpdateWorkingDir: (index: number, name: string, dirPath: string) => ipcRenderer.invoke('config:updateWorkingDir', index, name, dirPath),
   configRemoveWorkingDir: (index: number) => ipcRenderer.invoke('config:removeWorkingDir', index),
+  configReorderWorkingDir: (index: number, direction: 'up' | 'down') =>
+    ipcRenderer.invoke('config:reorderWorkingDir', index, direction),
 
   // ========================================================================
   // Profile Management
@@ -451,6 +453,8 @@ const gamepadCliAPI = {
     },
   ) => ipcRenderer.invoke('tools:updateCliType', key, name, initialPrompt, initialPromptDelay, options),
   toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),
+  toolsReorderCliType: (index: number, direction: 'up' | 'down') =>
+    ipcRenderer.invoke('tools:reorderCliType', index, direction),
   toolsGetPatterns: (cliType: string) => ipcRenderer.invoke('tools:getPatterns', cliType),
   toolsAddPattern: (cliType: string, rule: object) => ipcRenderer.invoke('tools:addPattern', cliType, rule),
   toolsUpdatePattern: (cliType: string, index: number, rule: object) => ipcRenderer.invoke('tools:updatePattern', cliType, index, rule),

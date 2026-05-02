@@ -22,6 +22,7 @@ const emit = defineEmits<{
   add: [];
   edit: [key: string];
   delete: [key: string];
+  move: [key: string, direction: 'up' | 'down'];
 }>();
 </script>
 
@@ -29,7 +30,7 @@ const emit = defineEmits<{
   <div class="settings-tools-panel">
     <div class="settings-list">
       <div
-        v-for="tool in tools"
+        v-for="(tool, index) in tools"
         :key="tool.key"
         class="settings-list-item"
       >
@@ -41,6 +42,18 @@ const emit = defineEmits<{
           </span>
         </div>
         <div class="tool-actions">
+          <button
+            class="focusable"
+            :disabled="index === 0"
+            title="Move up"
+            @click="emit('move', tool.key, 'up')"
+          >&#9650;</button>
+          <button
+            class="focusable"
+            :disabled="index === tools.length - 1"
+            title="Move down"
+            @click="emit('move', tool.key, 'down')"
+          >&#9660;</button>
           <button class="focusable" @click="emit('edit', tool.key)">Edit</button>
           <button class="focusable danger" @click="emit('delete', tool.key)">Delete</button>
         </div>

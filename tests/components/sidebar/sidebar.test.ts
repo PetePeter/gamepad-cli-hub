@@ -999,15 +999,28 @@ describe('ToolsTab', () => {
   it('emits edit on edit button click', async () => {
     const w = mount(ToolsTab, { props: { tools } });
     const items = w.findAll('.settings-list-item');
-    await items[0].findAll('button')[0].trigger('click');
+    await items[0].findAll('button')[2].trigger('click');
     expect(w.emitted('edit')).toEqual([['claude-code']]);
   });
 
   it('emits delete on delete button click', async () => {
     const w = mount(ToolsTab, { props: { tools } });
     const items = w.findAll('.settings-list-item');
-    await items[0].findAll('button')[1].trigger('click');
+    await items[0].findAll('button')[3].trigger('click');
     expect(w.emitted('delete')).toEqual([['claude-code']]);
+  });
+
+  it('emits move on up/down buttons', async () => {
+    const w = mount(ToolsTab, { props: { tools } });
+    const items = w.findAll('.settings-list-item');
+    // First item: Up is disabled (index 0), Down is enabled (index 1)
+    expect(items[0].findAll('button')[0].attributes('disabled')).toBeDefined();
+    await items[0].findAll('button')[1].trigger('click');
+    expect(w.emitted('move')).toEqual([['claude-code', 'down']]);
+    // Second item: Up is enabled (index 0), Down is disabled (index 1)
+    expect(items[1].findAll('button')[1].attributes('disabled')).toBeDefined();
+    await items[1].findAll('button')[0].trigger('click');
+    expect(w.emitted('move')).toEqual([['claude-code', 'down'], ['copilot-cli', 'up']]);
   });
 });
 

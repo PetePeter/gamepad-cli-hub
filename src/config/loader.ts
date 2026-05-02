@@ -1189,6 +1189,15 @@ export class ConfigLoader {
     this.saveActiveProfile();
   }
 
+  reorderWorkingDirectory(index: number, direction: 'up' | 'down'): void {
+    this.ensureLoaded();
+    const dirs = this.activeProfile!.workingDirectories;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= dirs.length) return;
+    [dirs[index], dirs[targetIndex]] = [dirs[targetIndex], dirs[index]];
+    this.saveActiveProfile();
+  }
+
   // ---------- Tools CRUD -----------------------------------------------
 
   addCliType(
@@ -1289,6 +1298,17 @@ export class ConfigLoader {
       throw new Error(`CLI type not found: ${key}`);
     }
     delete this.activeProfile!.tools[key];
+    this.saveActiveProfile();
+  }
+
+  reorderCliType(index: number, direction: 'up' | 'down'): void {
+    this.ensureLoaded();
+    const keys = Object.keys(this.activeProfile!.tools);
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= keys.length) return;
+    const entries = Object.entries(this.activeProfile!.tools);
+    [entries[index], entries[targetIndex]] = [entries[targetIndex], entries[index]];
+    this.activeProfile!.tools = Object.fromEntries(entries);
     this.saveActiveProfile();
   }
 

@@ -60,6 +60,16 @@ export function setupToolsHandlers(configLoader: ConfigLoader): void {
     }
   });
 
+  ipcMain.handle('tools:reorderCliType', (_event, index: number, direction: 'up' | 'down') => {
+    try {
+      configLoader.reorderCliType(index, direction);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to reorder CLI type: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   // ---------- Pattern rule CRUD -------------------------------------------
 
   ipcMain.handle('tools:getPatterns', (_event, cliType: string) => {
