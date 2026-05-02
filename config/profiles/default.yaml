@@ -90,7 +90,7 @@ tools:
   kimi-cc:
     name: Kimi+CC
     initialPrompt: []
-    initialPromptDelay: 0
+    initialPromptDelay: 1000
     spawnCommand: claude --session-id {cliSessionName}
     env:
       - name: ANTHROPIC_BASE_URL
