@@ -7,12 +7,12 @@
 
 import { app, BrowserWindow, Menu, crashReporter, ipcMain } from 'electron';
 import { join, dirname } from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
-import { existsSync, readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 import { registerIPCHandlers } from './ipc/handlers.js';
 import { WindowManager } from './window-manager.js';
 import { resolveWindowIconPath } from './window-icon.js';
 import { buildSplashHtml } from './splash-html.js';
+import { resolveSplashLogoUrl } from './splash-logo.js';
 import { migrateOldPlans } from '../session/plan-migration.js';
 import { migrateUserDataFolder } from './user-data-migration.js';
 import { configLoader } from '../config/loader.js';
@@ -59,29 +59,6 @@ function readWindowBounds(): void {
   }
 }
 
-function resolveSplashLogoUrl(): string | undefined {
-  const svgCandidates = [
-    join(app.getAppPath(), 'dist', 'renderer', 'assets', 'helm-paper-boat.svg'),
-    join(app.getAppPath(), 'renderer', 'assets', 'helm-paper-boat.svg'),
-    join(process.resourcesPath, 'app.asar', 'dist', 'renderer', 'assets', 'helm-paper-boat.svg'),
-    join(process.cwd(), 'renderer', 'assets', 'helm-paper-boat.svg'),
-    join(__dirname, '..', '..', 'renderer', 'assets', 'helm-paper-boat.svg'),
-  ];
-  const svgPath = svgCandidates.find(p => existsSync(p));
-  if (svgPath) {
-    const svg = readFileSync(svgPath, 'utf8');
-    return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-  }
-
-  const pngCandidates = [
-    join(process.resourcesPath, 'build', 'icon.png'),
-    join(process.cwd(), 'build', 'icon.png'),
-    join(__dirname, '..', '..', 'build', 'icon.png'),
-  ];
-  const logoPath = pngCandidates.find(p => existsSync(p));
-  return logoPath ? pathToFileURL(logoPath).href : undefined;
-}
-
 function clearStartupFallbackTimer(): void {
   if (!startupFallbackTimer) return;
   clearTimeout(startupFallbackTimer);
@@ -115,7 +92,10 @@ function maybeShowMainWindow(): void {
 
 function createSplashWindow(windowIcon?: string): void {
   closeSplashWindow();
-  const splashLogoUrl = resolveSplashLogoUrl();
+  const splashLogoUrl = resolveSplashLogoUrl({
+    appPath: app.getAppPath(),
+    baseDir: __dirname,
+  });
 
   splashWindow = new BrowserWindow({
     width: 460,
