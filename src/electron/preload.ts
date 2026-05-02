@@ -573,7 +573,7 @@ const gamepadCliAPI = {
   draftCount: (sessionId: string) =>
     ipcRenderer.invoke('draft:count', sessionId),
 
-  // ─── Directory Plans (NCN) ────────────────────────────
+  // ─── Directory Plans ────────────────────────────────────
 
   /** Get all plan items for a directory */
   planList: (dirPath: string) =>

@@ -1,6 +1,6 @@
 /**
- * Types for Directory Plans (NCN — Network Connected Nodes).
- * Per-directory DAG of work items with dependency tracking.
+ * Types for Directory Plans.
+ * Per-directory acyclic directed graph of work items with dependency tracking.
  */
 
 /** Lifecycle status of a plan item.

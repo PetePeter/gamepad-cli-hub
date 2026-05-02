@@ -1,6 +1,6 @@
 # Plans File Structure
 
-Describes the on-disk layout for Directory Plans (NCN) after the Phase 1 storage refactoring.
+Describes the on-disk layout for Directory Plans after the Phase 1 storage refactoring.
 
 ---
 

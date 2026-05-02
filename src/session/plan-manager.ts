@@ -1,5 +1,5 @@
 /**
- * PlanManager — Per-directory DAG of work items (NCN).
+ * PlanManager — Per-directory acyclic directed graph of work items.
  * CRUD, dependency management, cycle prevention, startable computation.
  * Persists to individual config/plans/*.json files + config/plan-dependencies.json.
  */

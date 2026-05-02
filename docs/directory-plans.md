@@ -1,6 +1,6 @@
-# Directory Plans (NCN — Network Connected Nodes)
+# Directory Plans
 
-Per-directory DAG of work items with dependency arrows and a 4-state lifecycle. Plans are folder-level (not session-level like drafts) and persist to individual JSON files under `config/plans/` (not per-profile).
+Per-directory acyclic directed graph of work items with dependency arrows and a 4-state lifecycle. Plans are folder-level (not session-level like drafts) and persist to individual JSON files under `config/plans/` (not per-profile).
 
 ## Overview
 

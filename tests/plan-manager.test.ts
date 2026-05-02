@@ -1,5 +1,5 @@
 /**
- * PlanManager unit tests — Phase 1 data layer for Directory Plans (NCN).
+ * PlanManager unit tests — Phase 1 data layer for Directory Plans.
  * TDD: tests written first, implementation follows.
  */
 
