@@ -13,7 +13,9 @@ import type { TelegramBotCore } from './bot.js';
 import type { TopicManager } from './topic-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
+import type { ConfigLoader } from '../config/loader.js';
 import type { HelmControlService } from '../mcp/helm-control-service.js';
+import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js';
 import type {
   TelegramBridge,
   TelegramChannel,
@@ -30,6 +32,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     private topicManager: TopicManager,
     private sessionManager: SessionManager,
     private ptyManager: PtyManager,
+    private configLoader: ConfigLoader,
     private helmControl: HelmControlService,
   ) {
     super();
@@ -174,9 +177,13 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     // Find session by topic mapping
     const session = this.topicManager.findSessionByTopicId(topicId);
     if (session) {
-      // Raw PTY delivery: Telegram user message injection. Uses hardcoded \r suffix.
-      // TODO: Route through deliverPromptSequenceToSession for per-CLI submit suffix and {Send}/{NoSend} support.
-      await this.ptyManager.deliverText(session.id, wrapped, { submitSuffix: '\r' });
+      await deliverPromptSequenceToSession({
+        sessionId: session.id,
+        text: wrapped,
+        ptyManager: this.ptyManager,
+        sessionManager: this.sessionManager,
+        configLoader: this.configLoader,
+      });
       logger.info(`[TelegramRelay] Injected user message to session ${session.id}`);
       return true;
     }
@@ -184,8 +191,13 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     // Fall back to active session
     const active = this.sessionManager.getActiveSession();
     if (active) {
-      // Raw PTY delivery: Telegram user message injection (unmapped topic fallback). See TODO above.
-      await this.ptyManager.deliverText(active.id, wrapped, { submitSuffix: '\r' });
+      await deliverPromptSequenceToSession({
+        sessionId: active.id,
+        text: wrapped,
+        ptyManager: this.ptyManager,
+        sessionManager: this.sessionManager,
+        configLoader: this.configLoader,
+      });
       logger.info(`[TelegramRelay] Injected user message to active session ${active.id} (unmapped topic ${topicId})`);
       return true;
     }

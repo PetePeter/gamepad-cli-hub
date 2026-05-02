@@ -22,7 +22,7 @@ function makeMocks(overrides?: { submitSuffix?: string; cliType?: string }) {
   return { ptyManager, sessionManager, configLoader };
 }
 
-function deliver(input: string, mocks: ReturnType<typeof makeMocks>, opts?: { rawInput?: boolean; impliedSubmit?: boolean }) {
+function deliver(input: string, mocks: ReturnType<typeof makeMocks>, opts?: { impliedSubmit?: boolean }) {
   return deliverPromptSequenceToSession({
     sessionId: 's1',
     text: input,
@@ -46,8 +46,8 @@ describe('deliverPromptSequenceToSession', () => {
   it('{NoSend} suppresses implied submit', async () => {
     const mocks = makeMocks();
 
-    // rawInput=true so {NoSend} is parsed as a token, not escaped to literal text
-    await deliver('hello{NoSend}', mocks, { rawInput: true });
+    // {NoSend} is a recognized token — smart escaping preserves it
+    await deliver('hello{NoSend}', mocks);
 
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
     expect(mocks.ptyManager.write).not.toHaveBeenCalledWith('s1', '\r');
@@ -56,7 +56,8 @@ describe('deliverPromptSequenceToSession', () => {
   it('{Send} submits at token position with no extra final submit', async () => {
     const mocks = makeMocks();
 
-    await deliver('part1{Send}part2', mocks, { rawInput: true });
+    // {Send} is a recognized token — smart escaping preserves it
+    await deliver('part1{Send}part2', mocks);
 
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'part1');
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'part2');
@@ -71,7 +72,7 @@ describe('deliverPromptSequenceToSession', () => {
     vi.useFakeTimers();
     const mocks = makeMocks();
 
-    const promise = deliver('before{Wait 500}after', mocks, { rawInput: true });
+    const promise = deliver('before{Wait 500}after', mocks);
 
     // 'before' is delivered immediately, then the wait starts
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'before');
@@ -95,31 +96,24 @@ describe('deliverPromptSequenceToSession', () => {
     expect(mocks.ptyManager.write).toHaveBeenCalledWith('s1', '\n');
   });
 
-  it('rawInput=true passes braces through to the sequence parser unescaped', async () => {
+  it('JSON braces in text are preserved as literal text', async () => {
     const mocks = makeMocks();
 
-    // With rawInput=true, the sequence parser receives raw braces.
-    // For {"type":"test"}, the entire content between { and } is consumed
-    // as a single token by the parser. Since it's not a recognized token,
-    // it becomes a key action that produces no PTY data. The result is
-    // no text delivered (only the implied submit fires).
-    await deliver('{"type":"test"}', mocks, { rawInput: true });
-
-    // The entire JSON was consumed as one unrecognized token -- no text delivered
-    expect(mocks.ptyManager.deliverText).not.toHaveBeenCalled();
-    // Only the implied submit fires (sawAction=true, submitted=false)
-    expect(mocks.ptyManager.write).toHaveBeenCalledWith('s1', '\r');
-  });
-
-  it('rawInput=false (default) escapes braces so JSON is preserved as text', async () => {
-    const mocks = makeMocks();
-
-    // Braces get escaped to {{ and }} before parsing.
-    // Parser treats {{ and }} as literal braces, so deliverText
-    // receives the original text with braces preserved.
+    // {"key":"value"} is NOT a recognized token — smart escaping escapes braces
+    // to {{"key":"value"}}, which the parser renders as literal {"key":"value"}
     await deliver('{"key":"value"}', mocks);
 
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '{"key":"value"}');
+  });
+
+  it('mixed JSON and {Send} token both work correctly', async () => {
+    const mocks = makeMocks();
+
+    // JSON gets escaped, {Send} is preserved as a recognized token
+    await deliver('analyze {"a":1} then {Enter}', mocks);
+
+    expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'analyze {"a":1} then ');
+    expect(mocks.ptyManager.deliverText).not.toHaveBeenCalledWith('s1', 'analyze {"a":1} then \n');
   });
 
   it('throws when session not found', async () => {
@@ -132,7 +126,7 @@ describe('deliverPromptSequenceToSession', () => {
   it('multiple {Send} tokens submit at each position', async () => {
     const mocks = makeMocks();
 
-    await deliver('a{Send}b{Send}c', mocks, { rawInput: true });
+    await deliver('a{Send}b{Send}c', mocks);
 
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'a');
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'b');
@@ -148,7 +142,7 @@ describe('deliverPromptSequenceToSession', () => {
   it('{Enter} behaves same as {Send}', async () => {
     const mocks = makeMocks();
 
-    await deliver('hello{Enter}world', mocks, { rawInput: true });
+    await deliver('hello{Enter}world', mocks);
 
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'world');
@@ -158,5 +152,58 @@ describe('deliverPromptSequenceToSession', () => {
       (c: any[]) => c[0] === 's1' && c[1] === '\r',
     );
     expect(submitCalls).toHaveLength(1);
+  });
+
+  it('combo tokens like {Ctrl+C} are preserved and executed', async () => {
+    const mocks = makeMocks();
+
+    await deliver('{Ctrl+C}', mocks);
+
+    // Ctrl+C maps to \x03 via comboToPtySequence
+    expect(mocks.ptyManager.write).toHaveBeenCalledWith('s1', '\x03');
+  });
+
+  it('modifier tokens like {Ctrl Down} are preserved', async () => {
+    const mocks = makeMocks();
+
+    await deliver('{Ctrl Down}text{Ctrl Up}', mocks);
+
+    // modifier actions produce no PTY data (actionToPtyData returns null)
+    // but text 'text' should be delivered
+    expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'text');
+  });
+
+  it('F-key tokens are preserved', async () => {
+    const mocks = makeMocks();
+
+    await deliver('{F5}', mocks);
+
+    // F5 maps to \x1b[15~
+    expect(mocks.ptyManager.write).toHaveBeenCalledWith('s1', '\x1b[15~');
+  });
+
+  it('{NoEnter} suppresses implied submit (alias for NoSend)', async () => {
+    const mocks = makeMocks();
+
+    await deliver('hello{NoEnter}', mocks);
+
+    expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
+    expect(mocks.ptyManager.write).not.toHaveBeenCalledWith('s1', '\r');
+  });
+
+  it('unrecognized brace groups like {variable} are escaped to literal text', async () => {
+    const mocks = makeMocks();
+
+    await deliver('value: {variable} end', mocks);
+
+    expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'value: {variable} end');
+  });
+
+  it('text with no braces passes through unchanged', async () => {
+    const mocks = makeMocks();
+
+    await deliver('plain text no braces', mocks);
+
+    expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'plain text no braces');
   });
 });

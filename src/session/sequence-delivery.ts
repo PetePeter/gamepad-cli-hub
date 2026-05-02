@@ -4,19 +4,42 @@ import type { ConfigLoader } from '../config/loader.js';
 import type { PtyManager } from './pty-manager.js';
 import type { SessionManager } from './manager.js';
 
+/** Token patterns the sequence parser recognizes as actions, not literal text. */
+const RECOGNIZED_TOKEN_PATTERNS = [
+  /^(NoSend|NoEnter)$/i,
+  /^Wait\s+\d+$/i,
+  /^\S+\s+(Down|Up)$/i,
+  /.+\+.+/, // combos like Ctrl+C
+];
+
+/** Key names the sequence parser resolves to PTY escape sequences. */
+const CANONICAL_KEYS = new Set([
+  'enter', 'send', 'tab', 'esc', 'escape', 'space', 'backspace', 'delete',
+  'up', 'down', 'right', 'left', 'arrowup', 'arrowdown', 'arrowright', 'arrowleft',
+  'home', 'end', 'pageup', 'pagedown', 'insert', 'capslock', 'printscreen',
+]);
+
+/** Check whether a brace-group content string is a recognized Helm sequence token. */
+function isRecognizedToken(token: string): boolean {
+  if (!token) return false;
+  for (const re of RECOGNIZED_TOKEN_PATTERNS) {
+    if (re.test(token)) return true;
+  }
+  if (/^F\d+$/i.test(token)) return true;
+  if (CANONICAL_KEYS.has(token.toLowerCase())) return true;
+  return false;
+}
+
 /**
- * Escape curly braces that are part of literal text (e.g. JSON) so the
- * sequence parser does not interpret them as sequence tokens.
- * The parser treats {{ and }} as literal braces.
+ * Escape brace groups that are NOT recognized Helm sequence tokens.
+ * Recognized tokens like {Send}, {NoSend}, {Wait 500}, {Ctrl+C} are preserved.
+ * Unrecognized groups like {"type":"test"} or {variable} have their braces
+ * escaped to {{/}} so they render as literal text through the sequence parser.
  */
-function escapeLiteralBraces(text: string): string {
-  // Only escape { and } that are NOT already part of {{ or }} sequences,
-  // and are NOT part of recognized tokens like {Enter}, {Wait 500}, etc.
-  // Safe approach: escape all { and } that are NOT followed/preceded by
-  // the same brace (which would be the escape sequence itself).
-  return text
-    .replace(/(?<!\{)\{(?!\{)/g, '{{')
-    .replace(/(?<!\})\}(?!\})/g, '}}');
+function escapeUnrecognizedBraces(text: string): string {
+  return text.replace(/\{([^{}]*)\}/g, (match, content) => {
+    return isRecognizedToken(content) ? match : '{{' + content + '}}';
+  });
 }
 
 /**
@@ -25,8 +48,8 @@ function escapeLiteralBraces(text: string): string {
  *
  * This is the main-process counterpart of renderer/sequence-delivery.ts.
  * It enables {Send}, {NoSend}, {Wait} tokens in MCP inter-session text.
- * Literal curly braces in the text (e.g. JSON envelopes) are escaped to
- * prevent the sequence parser from consuming them.
+ * Literal curly braces in the text (e.g. JSON envelopes) are smart-escaped:
+ * recognized tokens are preserved, unrecognized brace groups are escaped.
  */
 export async function deliverPromptSequenceToSession(input: {
   sessionId: string;
@@ -35,19 +58,15 @@ export async function deliverPromptSequenceToSession(input: {
   sessionManager: SessionManager;
   configLoader: ConfigLoader;
   impliedSubmit?: boolean;
-  /** When true, skip brace escaping (caller handles it). */
-  rawInput?: boolean;
 }): Promise<void> {
-  const { sessionId, text, ptyManager, sessionManager, configLoader, impliedSubmit, rawInput } = input;
+  const { sessionId, text, ptyManager, sessionManager, configLoader, impliedSubmit } = input;
   const session = sessionManager.getSession(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
   const cliEntry = configLoader.getCliTypeEntry(session.cliType);
   const submitSuffix = parseSubmitSuffix(cliEntry?.submitSuffix);
 
-  // Escape literal braces so JSON and other content isn't consumed by the
-  // sequence parser. Skip when the caller provides pre-parsed sequence input.
-  const processedText = rawInput ? text : escapeLiteralBraces(text);
+  const processedText = escapeUnrecognizedBraces(text);
 
   await executeSequenceString({
     sessionId,

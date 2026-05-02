@@ -27,12 +27,16 @@ function makeRelay() {
     write: vi.fn(),
     deliverText: vi.fn().mockResolvedValue(undefined),
   };
+  const configLoader = {
+    getCliTypeEntry: vi.fn(() => ({ submitSuffix: '\\r' })),
+  };
   const helmControl = {};
   const relay = new TelegramRelayService(
     bot as any,
     topicManager as any,
     sessionManager as any,
     ptyManager as any,
+    configLoader as any,
     helmControl as any,
   );
   return { relay, bot, topicManager, sessionManager, ptyManager };
@@ -40,7 +44,7 @@ function makeRelay() {
 
 describe('TelegramRelayService', () => {
   it('sendToUser() creates topic if none exists and sends message', async () => {
-    const { relay, bot, topicManager, sessionManager } = makeRelay();
+    const { relay, bot, topicManager } = makeRelay();
 
     const result = await relay.sendToUser({ sessionId: 's1', text: 'Hello from CLI' });
 
@@ -63,7 +67,7 @@ describe('TelegramRelayService', () => {
     expect(result.reason).toBe('Telegram bot is not running');
   });
 
-  it('handleIncomingTelegramMessage() wraps text in HELM_TELEGRAM envelope', async () => {
+  it('handleIncomingTelegramMessage() wraps text in HELM_TELEGRAM envelope and delivers via sequence', async () => {
     const { relay, ptyManager } = makeRelay();
 
     const consumed = await relay.handleIncomingTelegramMessage({
@@ -75,12 +79,8 @@ describe('TelegramRelayService', () => {
     } as any);
 
     expect(consumed).toBe(true);
-    const callArgs = ptyManager.deliverText.mock.calls[0];
-    expect(callArgs[0]).toBe('s1');
-    expect(callArgs[1]).toContain('[HELM_TELEGRAM from:@testuser');
-    expect(callArgs[1]).toContain('Yes, ship it');
-    expect(callArgs[1]).toContain('[/HELM_TELEGRAM]');
-    expect(callArgs[2]).toEqual({ submitSuffix: '\r' });
+    // Now routed through deliverPromptSequenceToSession which uses deliverText for text content
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM from:@testuser'));
   });
 
   it('handleIncomingTelegramMessage() wraps active-session messages in envelope too', async () => {
@@ -95,7 +95,7 @@ describe('TelegramRelayService', () => {
     } as any);
 
     expect(consumed).toBe(true);
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM from:@someone'), { submitSuffix: '\r' });
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM from:@someone'));
   });
 
   it('handleIncomingTelegramMessage() omits from tag when username is missing', async () => {

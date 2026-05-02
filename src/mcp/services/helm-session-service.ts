@@ -63,7 +63,6 @@ export class HelmSessionService {
               ptyManager: this.ptyManager,
               sessionManager: this.sessionManager,
               configLoader: this.configLoader,
-              rawInput: true,
             });
           }
         : undefined,

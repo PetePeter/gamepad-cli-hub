@@ -38,7 +38,7 @@ export function initTelegramModules(
 ): TelegramModules {
   const instanceName = configLoader.getTelegramConfig().instanceName;
   const dashboard = new PinnedDashboard(bot, sessionManager, instanceName);
-  const relayService = new TelegramRelayService(bot, topicManager, sessionManager, ptyManager, helmControlService);
+  const relayService = new TelegramRelayService(bot, topicManager, sessionManager, ptyManager, configLoader, helmControlService);
   helmControlService.setTelegramBridge(relayService);
 
   const cleanupCallbacks = setupCallbackHandler(

@@ -57,10 +57,10 @@ export class HelmSessionDeliveryService {
       const tag = expectsResponse
         ? `[HELM_MSG: expectsResponse=true. To reply, call MCP tool mcp__helm__session_send_text with: sessionId="${options.senderSessionId}", senderSessionId=<your env $HELM_SESSION_ID>, text="<your reply>". Your HELM_SESSION_ID is injected by Helm at startup.]`
         : '[HELM_MSG]';
-      // Escape braces in envelope only so the sequence parser doesn't consume JSON.
-      // User text after \n is NOT escaped — sequence tokens like {Send} must work.
-      const escapedEnvelope = envelope.replace(/\{/g, '{{').replace(/\}/g, '}}');
-      const message = `${tag}${escapedEnvelope}\n${text}`;
+      // Envelope JSON braces will be smart-escaped by escapeUnrecognizedBraces
+      // (unrecognized brace groups get {{/}}), while user text tokens like {Send}
+      // are preserved since they are recognized tokens.
+      const message = `${tag}${envelope}\n${text}`;
 
       await deliverPromptSequenceToSession({
         sessionId: session.id,
@@ -68,17 +68,15 @@ export class HelmSessionDeliveryService {
         ptyManager: this.ptyManager,
         sessionManager: this.sessionManager,
         configLoader: this.configLoader,
-        rawInput: true,
       });
     } else {
-      // Send plain text only — no envelope. Sequence tokens in user text work as-is.
+      // Send plain text only — no envelope. Smart escaping handles both tokens and literals.
       await deliverPromptSequenceToSession({
         sessionId: session.id,
         text,
         ptyManager: this.ptyManager,
         sessionManager: this.sessionManager,
         configLoader: this.configLoader,
-        rawInput: true,
       });
     }
 
