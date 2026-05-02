@@ -45,5 +45,10 @@ export function getAvailableTools(): McpToolSummary[] {
     { name: 'telegram_status', title: 'Telegram Status', description: 'Report whether Telegram is enabled, configured, running, and available for urgent mobile-friendly user communication.' },
     { name: 'telegram_chat', title: 'Send Telegram Chat', description: 'Send concise mobile-friendly text to the user via Telegram. Provide sessionId or name. Lines must be short; do not send large wide logs, tables, or code blocks.' },
     { name: 'telegram_channel_close', title: 'Close Telegram Channel', description: 'Close one MCP Telegram communication channel without deleting unrelated session topics.' },
+    { name: 'scheduled_task_create', title: 'Create Scheduled Task', description: 'Create a scheduled task that spawns a CLI session at a specific time with a prompt. Supports once and interval modes.' },
+    { name: 'scheduled_task_list', title: 'List Scheduled Tasks', description: 'List all scheduled tasks.' },
+    { name: 'scheduled_task_get', title: 'Get Scheduled Task', description: 'Get a scheduled task by ID.' },
+    { name: 'scheduled_task_update', title: 'Update Scheduled Task', description: 'Update a pending scheduled task. Only pending tasks can be updated.' },
+    { name: 'scheduled_task_cancel', title: 'Cancel Scheduled Task', description: 'Cancel a pending scheduled task.' },
   ];
 }

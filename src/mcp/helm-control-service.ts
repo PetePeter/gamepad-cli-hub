@@ -22,6 +22,9 @@ import { HelmPlanSequenceService } from './services/helm-plan-sequence-service.j
 import { HelmPlanAttachmentService } from './services/helm-plan-attachment-service.js';
 import { HelmDirectoryService } from './services/helm-directory-service.js';
 import { HelmTelegramService } from './services/helm-telegram-service.js';
+import { HelmSchedulerService } from './services/helm-scheduler-service.js';
+import type { ScheduledTaskManager } from '../session/scheduled-task-manager.js';
+import type { CreateScheduledTaskParams, ScheduledTask, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
 import { getSessionInfo, getAvailableTools } from './guides/session-info-guide.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
 
@@ -160,6 +163,7 @@ export class HelmControlService extends EventEmitter {
   private readonly planAttachmentService: HelmPlanAttachmentService;
   private readonly directoryService: HelmDirectoryService;
   private readonly telegramService: HelmTelegramService;
+  private readonly schedulerService: HelmSchedulerService | null;
 
   constructor(
     private readonly planManager: PlanManager,
@@ -167,6 +171,7 @@ export class HelmControlService extends EventEmitter {
     private readonly ptyManager: PtyManager,
     private readonly configLoader: ConfigLoader,
     private readonly attachmentManager: PlanAttachmentManager = new PlanAttachmentManager(planManager),
+    schedulerManager?: ScheduledTaskManager,
   ) {
     super();
     this.sessionDelivery = new HelmSessionDeliveryService(sessionManager, ptyManager, configLoader);
@@ -176,6 +181,7 @@ export class HelmControlService extends EventEmitter {
     this.planAttachmentService = new HelmPlanAttachmentService(planManager, attachmentManager);
     this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager);
     this.telegramService = new HelmTelegramService(configLoader, sessionManager);
+    this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager) : null;
   }
 
   // ---------------------------------------------------------------------------
@@ -410,5 +416,34 @@ export class HelmControlService extends EventEmitter {
     activeSessionId: string | null;
   } {
     return this.telegramService.getAppVisibility();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Scheduler CRUD
+  // ---------------------------------------------------------------------------
+
+  createScheduledTask(params: Omit<CreateScheduledTaskParams, 'scheduledTime'> & { scheduledTime: string }): ScheduledTask {
+    return this.requireScheduler().createTask(params);
+  }
+
+  listScheduledTasks(): ScheduledTask[] {
+    return this.requireScheduler().listTasks();
+  }
+
+  getScheduledTask(id: string): ScheduledTask | null {
+    return this.requireScheduler().getTask(id);
+  }
+
+  updateScheduledTask(id: string, updates: Omit<UpdateScheduledTaskParams, 'scheduledTime'> & { scheduledTime?: string }): ScheduledTask | null {
+    return this.requireScheduler().updateTask(id, updates);
+  }
+
+  cancelScheduledTask(id: string): boolean {
+    return this.requireScheduler().cancelTask(id);
+  }
+
+  private requireScheduler(): HelmSchedulerService {
+    if (!this.schedulerService) throw new Error('Scheduler is not available');
+    return this.schedulerService;
   }
 }
