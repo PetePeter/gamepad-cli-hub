@@ -104,11 +104,11 @@ tools:
   codex-abuelo:
     name: codex-abuelo
     initialPrompt: []
-    initialPromptDelay: 0
+    initialPromptDelay: 1000
     spawnCommand: codex-profiles load --label abuelo && codex
       --dangerously-bypass-approvals-and-sandbox
     helmInitialPrompt: true
-    pasteMode: pty
+    pasteMode: sendkeys
     submitSuffix: \r
 workingDirectories:
   - name: Helm

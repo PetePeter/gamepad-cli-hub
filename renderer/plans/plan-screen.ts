@@ -57,6 +57,8 @@ let planChangesChecker: (() => boolean) | null = null;
 let backupRestoreOpener: (() => void) | null = null;
 let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
+const PLAN_SCREEN_KEY_HANDLER_KEY = Symbol.for('helm.planScreen.keyHandler');
+
 async function loadFilterPreferences(): Promise<void> {
   try {
     const saved = await window.gamepadCli.configGetPlanFilters();
@@ -361,7 +363,7 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
     return;
   }
 
-  if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
+  if (e.key.toLowerCase() === 'n' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
     void handleAddNode({ fromShortcut: true });
     return;
@@ -389,7 +391,12 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
   }
 }
 
+const previousPlanScreenKeyHandler = (globalThis as { [PLAN_SCREEN_KEY_HANDLER_KEY]?: typeof planScreenKeyHandler })[PLAN_SCREEN_KEY_HANDLER_KEY];
+if (previousPlanScreenKeyHandler) {
+  document.removeEventListener('keydown', previousPlanScreenKeyHandler, true);
+}
 document.addEventListener('keydown', planScreenKeyHandler, true);
+(globalThis as { [PLAN_SCREEN_KEY_HANDLER_KEY]?: typeof planScreenKeyHandler })[PLAN_SCREEN_KEY_HANDLER_KEY] = planScreenKeyHandler;
 
 export async function showPlanScreen(dirPath: string): Promise<void> {
   await showView('plan', { dir: dirPath });
@@ -575,7 +582,7 @@ async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
 }
 
 async function handleAddNode(options?: { fromShortcut?: boolean }): Promise<void> {
-  if (planScreenState.editingId && options?.fromShortcut && (planChangesChecker?.() ?? false)) {
+  if (planScreenState.editingId && options?.fromShortcut) {
     showBriefNotice('Finish or cancel current edits before creating a new plan');
     return;
   }

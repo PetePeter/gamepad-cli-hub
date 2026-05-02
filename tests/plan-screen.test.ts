@@ -104,6 +104,10 @@ function planItem(id: string, title = id) {
   return { id, dirPath: '/test/dir', title, description: title, status: 'planning', createdAt: 1, updatedAt: 1 };
 }
 
+async function flushAsyncHandlers(): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, 0));
+}
+
 async function getModule() {
   return await import('../renderer/plans/plan-screen.js');
 }
@@ -224,6 +228,54 @@ describe('plan screen bridge', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
 
     expect(mod.planScreenState.selectedIds.size).toBe(0);
+  });
+
+  it('Ctrl+N creates a new plan only while the planner is visible', async () => {
+    const mod = await getModule();
+    const opener = vi.fn();
+    const initialItems = [planItem('a')];
+    const createdItems = [...initialItems, planItem('n', 'New Plan')];
+    mockPlanList
+      .mockResolvedValueOnce(initialItems)
+      .mockResolvedValueOnce(createdItems);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockImplementation((layoutItems: typeof initialItems) => fakeLayout(layoutItems.map((item) => item.id)));
+    mockPlanCreate.mockResolvedValue({ id: 'n' });
+    mod.setPlanEditorOpener(opener);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'N', ctrlKey: true, bubbles: true, cancelable: true }));
+    await flushAsyncHandlers();
+    expect(mockPlanCreate).not.toHaveBeenCalled();
+
+    await mod.showPlanScreen('/test/dir');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'N', ctrlKey: true, bubbles: true, cancelable: true }));
+    await flushAsyncHandlers();
+
+    expect(mockPlanCreate).toHaveBeenCalledWith('/test/dir', 'New Plan', '');
+    expect(opener).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({ id: 'n', title: 'New Plan' }),
+      expect.objectContaining({ onSave: expect.any(Function), onDelete: expect.any(Function) }),
+    );
+  });
+
+  it('Ctrl+N is a no-op when a plan editor is already open', async () => {
+    const mod = await getModule();
+    const opener = vi.fn();
+    const item = planItem('a');
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    mod.setPlanEditorOpener(opener);
+
+    await mod.showPlanScreen('/test/dir');
+    mod.handlePlanScreenAction('A');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true, cancelable: true }));
+    await flushAsyncHandlers();
+
+    expect(mockPlanCreate).not.toHaveBeenCalled();
+    expect(opener).toHaveBeenCalledTimes(1);
+    expect(mod.planScreenState.notice).toBe('Finish or cancel current edits before creating a new plan');
   });
 
   it('computes related focus across dependency chains in either direction', async () => {
