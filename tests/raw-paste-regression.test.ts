@@ -125,12 +125,14 @@ describe('deliverBulkText preserves literal text in clippaste mode', () => {
   let mockPtyWrite: ReturnType<typeof vi.fn>;
   let mockFocus: ReturnType<typeof vi.fn>;
   let mockPaste: ReturnType<typeof vi.fn>;
+  let mockKeyboardSendKeyCombo: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     mockPtyWrite = vi.fn().mockResolvedValue({ success: true });
     mockFocus = vi.fn();
     mockPaste = vi.fn();
-    (window as any).gamepadCli = { ptyWrite: mockPtyWrite };
+    mockKeyboardSendKeyCombo = vi.fn().mockResolvedValue(undefined);
+    (window as any).gamepadCli = { ptyWrite: mockPtyWrite, keyboardSendKeyCombo: mockKeyboardSendKeyCombo };
     mockState.sessions = [{ id: 'sess-1', cliType: 'claude-code' }];
     mockState.cliToolsCache = { 'claude-code': { pasteMode: 'clippaste' } };
     mockGetTerminalManager.mockReturnValue({
@@ -142,17 +144,26 @@ describe('deliverBulkText preserves literal text in clippaste mode', () => {
         },
       }),
     });
+    // clippaste uses simulateClipboardPaste which calls navigator.clipboard.writeText
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('sends literal text through PTY-owned clippaste', async () => {
+  it('sends literal text through clipboard paste path in clippaste mode', async () => {
     await deliverBulkText('sess-1', 'hello{Enter}');
 
     expect(mockFocus).toHaveBeenCalled();
-    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello{Enter}');
+    // clippaste routes text through clipboard.writeText + keyboardSendKeyCombo, not ptyWrite
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('hello{Enter}');
+    expect(mockKeyboardSendKeyCombo).toHaveBeenCalledWith(['ctrl', 'v']);
+    expect(mockPtyWrite).not.toHaveBeenCalled();
     expect(mockPaste).not.toHaveBeenCalled();
   });
 });

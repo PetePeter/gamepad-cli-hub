@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { scheduleInitialPrompt, actionToPtyData, KEY_TO_ESCAPE, HELM_INIT_SEQUENCE } from '../src/session/initial-prompt';
+import { scheduleInitialPrompt, HELM_INIT_SEQUENCE } from '../src/session/initial-prompt';
+import { actionToPtyData, KEY_TO_PTY_ESCAPE } from '../src/input/sequence-executor';
 import type { SequenceAction } from '../src/input/sequence-parser';
 import type { SequenceListItem } from '../src/config/loader';
 
@@ -119,9 +120,9 @@ describe('actionToPtyData', () => {
   });
 });
 
-describe('KEY_TO_ESCAPE', () => {
+describe('KEY_TO_PTY_ESCAPE', () => {
   it('contains Enter mapping to \\r', () => {
-    expect(KEY_TO_ESCAPE['Enter']).toBe('\r');
+    expect(KEY_TO_PTY_ESCAPE['Enter']).toBe('\r');
   });
 
   it('contains all expected keys', () => {
@@ -133,7 +134,7 @@ describe('KEY_TO_ESCAPE', () => {
       'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
     ];
     for (const key of expectedKeys) {
-      expect(KEY_TO_ESCAPE).toHaveProperty(key);
+      expect(KEY_TO_PTY_ESCAPE).toHaveProperty(key);
     }
   });
 });
@@ -167,9 +168,12 @@ describe('scheduleInitialPrompt', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(writeFn).toHaveBeenCalledTimes(2);
-    expect(writeFn.mock.calls[0]).toEqual(['s1', HELM_INIT_SEQUENCE.replace('{Enter}', '\r')]);
-    expect(writeFn.mock.calls[1]).toEqual(['s1', 'hello']);
+    expect(writeFn).toHaveBeenCalledTimes(4);
+    const helmText = HELM_INIT_SEQUENCE.replace('{Enter}', '');
+    expect(writeFn.mock.calls[0]).toEqual(['s1', helmText]);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', '\r']);
+    expect(writeFn.mock.calls[2]).toEqual(['s1', 'hello']);
+    expect(writeFn.mock.calls[3]).toEqual(['s1', '\r']);
   });
 
   it('does not prepend Helm init sequence when disabled', async () => {
@@ -182,8 +186,9 @@ describe('scheduleInitialPrompt', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn).toHaveBeenCalledTimes(2);
     expect(writeFn.mock.calls[0]).toEqual(['s1', 'hello']);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', '\r']);
   });
 
   it('returns a cancel function for valid prompt', () => {
@@ -202,6 +207,7 @@ describe('scheduleInitialPrompt', () => {
     expect(writeFn).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1000);
     expect(writeFn).toHaveBeenCalledWith('s1', 'hello world');
+    expect(writeFn).toHaveBeenCalledWith('s1', '\r');
   });
 
   it('uses default delay of 2000ms', async () => {
@@ -215,7 +221,7 @@ describe('scheduleInitialPrompt', () => {
     expect(writeFn).toHaveBeenCalledWith('s1', 'test');
   });
 
-  it('writes Enter as \\r — Enter is no longer stripped', async () => {
+  it('writes Enter as \\r — Enter triggers doSubmit (flush + submit)', async () => {
     const writeFn = vi.fn();
     scheduleInitialPrompt('s1', {
       initialPrompt: [{ label: 'Test', sequence: 'hello{Enter}' }],
@@ -224,8 +230,9 @@ describe('scheduleInitialPrompt', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(writeFn).toHaveBeenCalledTimes(1);
-    expect(writeFn.mock.calls[0]).toEqual(['s1', 'hello\r']);
+    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', 'hello']);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', '\r']);
   });
 
   it('cancel function prevents writing', async () => {
@@ -271,10 +278,11 @@ describe('scheduleInitialPrompt', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(writeFn).toHaveBeenCalledTimes(3);
+    expect(writeFn).toHaveBeenCalledTimes(4);
     expect(writeFn.mock.calls[0]).toEqual(['s1', 'hello']);
     expect(writeFn.mock.calls[1]).toEqual(['s1', '\t']);
     expect(writeFn.mock.calls[2]).toEqual(['s1', 'world']);
+    expect(writeFn.mock.calls[3]).toEqual(['s1', '\r']);
   });
 
   it('zero delay works (immediate execution)', async () => {
@@ -297,8 +305,9 @@ describe('scheduleInitialPrompt', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(writeFn).toHaveBeenCalledTimes(1);
-    expect(writeFn.mock.calls[0]).toEqual(['s1', '\r\r']);
+    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', '\r']);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', '\r']);
   });
 
   it('handles Wait actions with delay between writes', async () => {
@@ -313,8 +322,9 @@ describe('scheduleInitialPrompt', () => {
     expect(writeFn).toHaveBeenCalledWith('s1', 'a');
 
     await vi.advanceTimersByTimeAsync(500);
-    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(writeFn).toHaveBeenCalledTimes(3);
     expect(writeFn.mock.calls[1]).toEqual(['s1', 'b']);
+    expect(writeFn.mock.calls[2]).toEqual(['s1', '\r']);
   });
 
   it('complex prompt with text + special keys + waits', async () => {
@@ -330,9 +340,10 @@ describe('scheduleInitialPrompt', () => {
     expect(writeFn.mock.calls[1]).toEqual(['s1', '\t']);
 
     await vi.advanceTimersByTimeAsync(200);
-    expect(writeFn).toHaveBeenCalledTimes(4);
+    expect(writeFn).toHaveBeenCalledTimes(5);
     expect(writeFn.mock.calls[2]).toEqual(['s1', 'yes']);
     expect(writeFn.mock.calls[3]).toEqual(['s1', '\x13']);
+    expect(writeFn.mock.calls[4]).toEqual(['s1', '\r']);
   });
 
   it('cancellation during wait prevents subsequent writes', async () => {
@@ -358,8 +369,9 @@ describe('scheduleInitialPrompt', () => {
     }, writeFn);
 
     await vi.advanceTimersByTimeAsync(0);
-    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn).toHaveBeenCalledTimes(2);
     expect(writeFn).toHaveBeenCalledWith('s1', 'x');
+    expect(writeFn).toHaveBeenCalledWith('s1', '\r');
   });
 
   // ---- {Send} tests ----
@@ -397,7 +409,7 @@ describe('scheduleInitialPrompt', () => {
     expect(writeFn).toHaveBeenCalledWith('s1', '\r');
   });
 
-  it('mixed {Enter} and {Send} — Enter coalesces, Send flushes separately', async () => {
+  it('mixed {Enter} and {Send} — both trigger doSubmit', async () => {
     const writeFn = vi.fn();
     const deliverFn = vi.fn().mockResolvedValue(undefined);
     const onComplete = vi.fn();
@@ -408,10 +420,12 @@ describe('scheduleInitialPrompt', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(deliverFn).toHaveBeenCalledTimes(1);
-    expect(deliverFn).toHaveBeenCalledWith('s1', 'hello\rworld');
-    expect(writeFn).toHaveBeenCalledTimes(1);
-    expect(writeFn).toHaveBeenCalledWith('s1', '\r');
+    expect(deliverFn).toHaveBeenCalledTimes(2);
+    expect(deliverFn).toHaveBeenNthCalledWith(1, 's1', 'hello');
+    expect(deliverFn).toHaveBeenNthCalledWith(2, 's1', 'world');
+    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(writeFn).toHaveBeenNthCalledWith(1, 's1', '\r');
+    expect(writeFn).toHaveBeenNthCalledWith(2, 's1', '\r');
   });
 
   it('treats {tokens} case-insensitively across enter, wait, combo, and send', async () => {
@@ -425,13 +439,14 @@ describe('scheduleInitialPrompt', () => {
 
     await vi.advanceTimersByTimeAsync(0);
     expect(deliverFn).toHaveBeenCalledTimes(1);
-    expect(deliverFn).toHaveBeenCalledWith('s1', 'hello\r');
-    expect(writeFn).not.toHaveBeenCalled();
+    expect(deliverFn).toHaveBeenCalledWith('s1', 'hello');
+    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn).toHaveBeenCalledWith('s1', '\r');
 
     await vi.advanceTimersByTimeAsync(50);
-    expect(writeFn).toHaveBeenCalledTimes(2);
-    expect(writeFn).toHaveBeenNthCalledWith(1, 's1', '\x03');
-    expect(writeFn).toHaveBeenNthCalledWith(2, 's1', '\r');
+    expect(writeFn).toHaveBeenCalledTimes(3);
+    expect(writeFn).toHaveBeenNthCalledWith(2, 's1', '\x03');
+    expect(writeFn).toHaveBeenNthCalledWith(3, 's1', '\r');
   });
 
   // ---- Multi-item tests ----
@@ -448,9 +463,11 @@ describe('scheduleInitialPrompt', () => {
 
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(writeFn).toHaveBeenCalledTimes(2);
-    expect(writeFn.mock.calls[0]).toEqual(['s1', '/allow-all\r']);
-    expect(writeFn.mock.calls[1]).toEqual(['s1', 'hello world']);
+    expect(writeFn).toHaveBeenCalledTimes(4);
+    expect(writeFn.mock.calls[0]).toEqual(['s1', '/allow-all']);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', '\r']);
+    expect(writeFn.mock.calls[2]).toEqual(['s1', 'hello world']);
+    expect(writeFn.mock.calls[3]).toEqual(['s1', '\r']);
   });
 
   it('handles Wait between items', async () => {
@@ -468,8 +485,10 @@ describe('scheduleInitialPrompt', () => {
     expect(writeFn.mock.calls[0]).toEqual(['s1', 'a']);
 
     await vi.advanceTimersByTimeAsync(500);
-    expect(writeFn).toHaveBeenCalledTimes(2);
-    expect(writeFn.mock.calls[1]).toEqual(['s1', 'b']);
+    expect(writeFn).toHaveBeenCalledTimes(4);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', '\r']);
+    expect(writeFn.mock.calls[2]).toEqual(['s1', 'b']);
+    expect(writeFn.mock.calls[3]).toEqual(['s1', '\r']);
   });
 
   it('cancellation between items prevents subsequent items', async () => {
@@ -501,8 +520,9 @@ describe('scheduleInitialPrompt', () => {
     }, writeFn);
 
     await vi.advanceTimersByTimeAsync(0);
-    expect(writeFn).toHaveBeenCalledTimes(1);
+    expect(writeFn).toHaveBeenCalledTimes(2);
     expect(writeFn.mock.calls[0]).toEqual(['s1', 'hello']);
+    expect(writeFn.mock.calls[1]).toEqual(['s1', '\r']);
   });
 
   // ---- onComplete callback tests ----
@@ -535,7 +555,7 @@ describe('scheduleInitialPrompt', () => {
     expect(onComplete).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(500);
-    expect(writeFn).toHaveBeenCalledTimes(2);
+    expect(writeFn).toHaveBeenCalledTimes(4);
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
@@ -602,8 +622,9 @@ describe('rename command in scheduleInitialPrompt', () => {
 
     await vi.advanceTimersByTimeAsync(100);
 
-    // First call: initial prompt text, second call: rename command
+    expect(writeToPty).toHaveBeenCalledTimes(3);
     expect(writeToPty).toHaveBeenCalledWith('s1', 'hello');
+    expect(writeToPty).toHaveBeenCalledWith('s1', '\r');
     expect(writeToPty).toHaveBeenCalledWith('s1', '/rename hub-s1\r');
   });
 
@@ -634,8 +655,9 @@ describe('rename command in scheduleInitialPrompt', () => {
 
     await vi.advanceTimersByTimeAsync(100);
 
-    expect(writeToPty).toHaveBeenCalledTimes(1);
+    expect(writeToPty).toHaveBeenCalledTimes(2);
     expect(writeToPty).toHaveBeenCalledWith('s1', 'hello');
+    expect(writeToPty).toHaveBeenCalledWith('s1', '\r');
   });
 
   it('calls onComplete after rename command', async () => {

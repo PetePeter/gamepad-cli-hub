@@ -76,26 +76,30 @@ afterEach(() => {
 // ============================================================================
 
 describe('executeSequenceForSession — text routing', () => {
-  it('routes plain text through deliverBulkText', async () => {
+  it('routes plain text through deliverBulkText and sends implied Enter', async () => {
     await executeSequenceForSession('sess-1', 'hello world');
 
     expect(mockDeliverBulkText).toHaveBeenCalledWith('sess-1', 'hello world');
-    expect(mockPtyWrite).not.toHaveBeenCalled();
+    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\r');
   });
 
-  it('coalesces text plus Enter into one bulk delivery', async () => {
+  it('flushes text via deliverBulkText then sends Enter via ptyWrite', async () => {
     await executeSequenceForSession('sess-1', 'hello{Enter}');
 
     expect(mockDeliverBulkText).toHaveBeenCalledTimes(1);
-    expect(mockDeliverBulkText).toHaveBeenCalledWith('sess-1', 'hello\r');
-    expect(mockPtyWrite).not.toHaveBeenCalled();
+    expect(mockDeliverBulkText).toHaveBeenCalledWith('sess-1', 'hello');
+    expect(mockPtyWrite).toHaveBeenCalledTimes(1);
+    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\r');
   });
 
-  it('coalesces multiple Enter tokens with surrounding text', async () => {
+  it('flushes text then sends Enter for each {Enter} token', async () => {
     await executeSequenceForSession('sess-1', 'line1{Enter}line2{Enter}');
 
     expect(callOrder).toEqual([
-      { fn: 'deliverBulkText', args: ['sess-1', 'line1\rline2\r'] },
+      { fn: 'deliverBulkText', args: ['sess-1', 'line1'] },
+      { fn: 'ptyWrite', args: ['sess-1', '\r'] },
+      { fn: 'deliverBulkText', args: ['sess-1', 'line2'] },
+      { fn: 'ptyWrite', args: ['sess-1', '\r'] },
     ]);
   });
 
@@ -128,22 +132,26 @@ describe('executeSequenceForSession — {Send} routing', () => {
     expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\r');
   });
 
-  it('mixed {Enter} and {Send}', async () => {
+  it('mixed {Enter} and {Send} each flush text then send \\r', async () => {
     await executeSequenceForSession('sess-1', 'cmd{Enter}arg{Send}');
 
-    expect(mockDeliverBulkText).toHaveBeenCalledTimes(1);
-    expect(mockDeliverBulkText).toHaveBeenCalledWith('sess-1', 'cmd\rarg');
-    expect(mockPtyWrite).toHaveBeenCalledTimes(1);
-    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\r');
+    expect(callOrder).toEqual([
+      { fn: 'deliverBulkText', args: ['sess-1', 'cmd'] },
+      { fn: 'ptyWrite', args: ['sess-1', '\r'] },
+      { fn: 'deliverBulkText', args: ['sess-1', 'arg'] },
+      { fn: 'ptyWrite', args: ['sess-1', '\r'] },
+    ]);
   });
 
   it('treats {send} and other named tokens case-insensitively', async () => {
     await executeSequenceForSession('sess-1', 'cmd{enter}arg{send}');
 
-    expect(mockDeliverBulkText).toHaveBeenCalledTimes(1);
-    expect(mockDeliverBulkText).toHaveBeenCalledWith('sess-1', 'cmd\rarg');
-    expect(mockPtyWrite).toHaveBeenCalledTimes(1);
-    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', '\r');
+    expect(callOrder).toEqual([
+      { fn: 'deliverBulkText', args: ['sess-1', 'cmd'] },
+      { fn: 'ptyWrite', args: ['sess-1', '\r'] },
+      { fn: 'deliverBulkText', args: ['sess-1', 'arg'] },
+      { fn: 'ptyWrite', args: ['sess-1', '\r'] },
+    ]);
   });
 });
 
@@ -201,13 +209,14 @@ describe('executeSequenceForSession — combo routing', () => {
 // ============================================================================
 
 describe('executeSequenceForSession — mixed sequences', () => {
-  it('flushes text before key actions', async () => {
+  it('flushes text before key actions and sends implied Enter at end', async () => {
     await executeSequenceForSession('sess-1', 'hello{Tab}world');
 
     expect(callOrder).toEqual([
       { fn: 'deliverBulkText', args: ['sess-1', 'hello'] },
       { fn: 'ptyWrite', args: ['sess-1', '\t'] },
       { fn: 'deliverBulkText', args: ['sess-1', 'world'] },
+      { fn: 'ptyWrite', args: ['sess-1', '\r'] },
     ]);
   });
 
@@ -215,7 +224,8 @@ describe('executeSequenceForSession — mixed sequences', () => {
     await executeSequenceForSession('sess-1', 'cmd{Enter}{Tab}next');
 
     expect(callOrder).toEqual([
-      { fn: 'deliverBulkText', args: ['sess-1', 'cmd\r'] },
+      { fn: 'deliverBulkText', args: ['sess-1', 'cmd'] },
+      { fn: 'ptyWrite', args: ['sess-1', '\r'] },
       { fn: 'ptyWrite', args: ['sess-1', '\t'] },
       { fn: 'deliverBulkText', args: ['sess-1', 'next'] },
     ]);
@@ -226,8 +236,9 @@ describe('executeSequenceForSession — mixed sequences', () => {
 
     expect(callOrder[0]).toEqual({ fn: 'deliverBulkText', args: ['sess-1', 'text'] });
     expect(callOrder[1]).toEqual({ fn: 'ptyWrite', args: ['sess-1', '\x03'] });
-    // after the wait: Enter coalesces with text
-    expect(callOrder[2]).toEqual({ fn: 'deliverBulkText', args: ['sess-1', 'more\r'] });
+    // after the wait: Enter flushes text then sends \r separately
+    expect(callOrder[2]).toEqual({ fn: 'deliverBulkText', args: ['sess-1', 'more'] });
+    expect(callOrder[3]).toEqual({ fn: 'ptyWrite', args: ['sess-1', '\r'] });
   });
 });
 
@@ -312,8 +323,8 @@ describe('executeSequence — thin wrapper', () => {
 
     await executeSequence('hello{Enter}');
 
-    expect(mockDeliverBulkText).toHaveBeenCalledWith('active-123', 'hello\r');
-    expect(mockPtyWrite).not.toHaveBeenCalled();
+    expect(mockDeliverBulkText).toHaveBeenCalledWith('active-123', 'hello');
+    expect(mockPtyWrite).toHaveBeenCalledWith('active-123', '\r');
   });
 
   it('returns early when no active terminal', async () => {

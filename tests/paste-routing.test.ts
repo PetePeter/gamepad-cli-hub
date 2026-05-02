@@ -115,7 +115,7 @@ describe('keyboard relay', () => {
 
     // Polyfill navigator.clipboard for jsdom
     Object.defineProperty(navigator, 'clipboard', {
-      value: { readText: vi.fn().mockResolvedValue('pasted text') },
+      value: { readText: vi.fn().mockResolvedValue('pasted text'), writeText: vi.fn().mockResolvedValue(undefined) },
       writable: true,
       configurable: true,
     });
@@ -398,22 +398,27 @@ describe('keyboard relay', () => {
     });
 
     it('allows Ctrl+V paste for clippaste mode when a modal overlay is visible', async () => {
+      const mockFocus = vi.fn();
       const paste = vi.fn();
       getActiveSessionId.mockReturnValue('sess-1');
       mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
       mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
       mockGetTerminalManager.mockReturnValue({
         getSession: vi.fn().mockReturnValue({
-          view: { focus: vi.fn(), paste },
+          view: { focus: mockFocus, paste },
         }),
       });
       navigator.clipboard.readText.mockResolvedValue('hello');
+      (window as any).gamepadCli.keyboardSendKeyCombo = vi.fn().mockResolvedValue(undefined);
 
       fireKey('v', { ctrlKey: true });
       await new Promise(r => setTimeout(r, 10));
 
       expect(navigator.clipboard.readText).toHaveBeenCalled();
-      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello');
+      expect(mockFocus).toHaveBeenCalled();
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('hello');
+      expect((window as any).gamepadCli.keyboardSendKeyCombo).toHaveBeenCalledWith(['ctrl', 'v']);
+      expect(mockPtyWrite).not.toHaveBeenCalled();
       expect(paste).not.toHaveBeenCalled();
     });
 
@@ -765,11 +770,13 @@ describe('deliverBulkText', () => {
   describe('clippaste mode', () => {
     let mockFocus: ReturnType<typeof vi.fn>;
     let mockPaste: ReturnType<typeof vi.fn>;
+    let mockKeyboardSendKeyCombo: ReturnType<typeof vi.fn>;
     let mockSession: any;
 
     beforeEach(() => {
       mockFocus = vi.fn();
       mockPaste = vi.fn();
+      mockKeyboardSendKeyCombo = vi.fn().mockResolvedValue(undefined);
 
       mockSession = {
         id: 'sess-1',
@@ -784,20 +791,32 @@ describe('deliverBulkText', () => {
       };
 
       mockGetTerminalManager.mockReturnValue(mockTerminalManager);
+
+      // clippaste uses simulateClipboardPaste which calls navigator.clipboard.writeText
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { readText: vi.fn().mockResolvedValue(''), writeText: vi.fn().mockResolvedValue(undefined) },
+        writable: true,
+        configurable: true,
+      });
+
+      // Add keyboardSendKeyCombo to the gamepadCli mock for clippaste
+      (window as any).gamepadCli.keyboardSendKeyCombo = mockKeyboardSendKeyCombo;
     });
 
     afterEach(() => {
       vi.restoreAllMocks();
     });
 
-    it('pasteMode clippaste — focuses terminal and writes through PTY', async () => {
+    it('pasteMode clippaste — focuses terminal and pastes via clipboard', async () => {
       mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
       mockState.cliToolsCache = { copilot: { pasteMode: 'clippaste' } };
 
       await deliverBulkText('sess-1', 'test123');
 
       expect(mockFocus).toHaveBeenCalledOnce();
-      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'test123');
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('test123');
+      expect(mockKeyboardSendKeyCombo).toHaveBeenCalledWith(['ctrl', 'v']);
+      expect(mockPtyWrite).not.toHaveBeenCalled();
       expect(mockPaste).not.toHaveBeenCalled();
     });
 
@@ -821,7 +840,9 @@ describe('deliverBulkText', () => {
       await deliverBulkText('sess-1', specialText);
 
       expect(mockFocus).toHaveBeenCalledOnce();
-      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', specialText);
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(specialText);
+      expect(mockKeyboardSendKeyCombo).toHaveBeenCalledWith(['ctrl', 'v']);
+      expect(mockPtyWrite).not.toHaveBeenCalled();
       expect(mockPaste).not.toHaveBeenCalled();
     });
 
@@ -843,7 +864,9 @@ describe('deliverBulkText', () => {
       await deliverBulkText('sess-1', 'test123');
 
       expect(mockFocus).toHaveBeenCalledOnce();
-      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'test123');
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('test123');
+      expect(mockKeyboardSendKeyCombo).toHaveBeenCalledWith(['ctrl', 'v']);
+      expect(mockPtyWrite).not.toHaveBeenCalled();
       expect(mockPaste).not.toHaveBeenCalled();
     });
   });
@@ -872,15 +895,19 @@ describe('deliverBulkText', () => {
     it('PTY mode: submitSuffix appended OUTSIDE bracketed paste markers', async () => {
       await deliverBulkText('helm-test', 'hello', { submitSuffix: '\n' });
 
-      // Final payload should be: \x1b[200~hello\x1b[201~\n
-      expect(mockPtyWrite).toHaveBeenCalledWith('helm-test', '\x1b[200~hello\x1b[201~\n');
+      // writePtySubmitSuffix sends suffix as a separate ptyWrite call
+      expect(mockPtyWrite).toHaveBeenCalledTimes(2);
+      expect(mockPtyWrite).toHaveBeenNthCalledWith(1, 'helm-test', '\x1b[200~hello\x1b[201~');
+      expect(mockPtyWrite).toHaveBeenNthCalledWith(2, 'helm-test', '\n');
     });
 
     it('PTY mode: withReturn ignored when submitSuffix provided', async () => {
       await deliverBulkText('helm-test', 'test', { withReturn: true, submitSuffix: '\n' });
 
-      // submitSuffix takes precedence over withReturn
-      expect(mockPtyWrite).toHaveBeenCalledWith('helm-test', '\x1b[200~test\x1b[201~\n');
+      // submitSuffix takes precedence over withReturn; suffix sent as separate call
+      expect(mockPtyWrite).toHaveBeenCalledTimes(2);
+      expect(mockPtyWrite).toHaveBeenNthCalledWith(1, 'helm-test', '\x1b[200~test\x1b[201~');
+      expect(mockPtyWrite).toHaveBeenNthCalledWith(2, 'helm-test', '\n');
     });
 
     it('PTY mode without bracketed paste: submitSuffix still appended', async () => {
@@ -894,7 +921,10 @@ describe('deliverBulkText', () => {
 
       await deliverBulkText('helm-test', 'cmd', { submitSuffix: '\n' });
 
-      expect(mockPtyWrite).toHaveBeenCalledWith('helm-test', 'cmd\n');
+      // Text and suffix are separate ptyWrite calls
+      expect(mockPtyWrite).toHaveBeenCalledTimes(2);
+      expect(mockPtyWrite).toHaveBeenNthCalledWith(1, 'helm-test', 'cmd');
+      expect(mockPtyWrite).toHaveBeenNthCalledWith(2, 'helm-test', '\n');
     });
 
     it('PTY mode waits for ptyWrite before resolving', async () => {
@@ -911,11 +941,14 @@ describe('deliverBulkText', () => {
       await Promise.resolve();
       expect(resolved).toBe(false);
 
+      // Both ptyWrite calls share the same mock promise; resolving once unblocks both
       resolveWrite();
       await promise;
 
       expect(resolved).toBe(true);
-      expect(mockPtyWrite).toHaveBeenCalledWith('helm-test', '\x1b[200~cmd\x1b[201~\n');
+      expect(mockPtyWrite).toHaveBeenCalledTimes(2);
+      expect(mockPtyWrite).toHaveBeenNthCalledWith(1, 'helm-test', '\x1b[200~cmd\x1b[201~');
+      expect(mockPtyWrite).toHaveBeenNthCalledWith(2, 'helm-test', '\n');
     });
 
     it('ptyindividual mode: submitSuffix appended after all characters', async () => {
@@ -937,14 +970,15 @@ describe('deliverBulkText', () => {
     it('sendkeys mode: submitSuffix appended after text', async () => {
       mockState.cliToolsCache = { 'claude-code': { pasteMode: 'sendkeys' } };
       const mockKeyboardTypeString = vi.fn().mockResolvedValue(undefined);
+      const mockKeyboardKeyTap = vi.fn().mockResolvedValue(undefined);
       (window as any).gamepadCli.keyboardTypeString = mockKeyboardTypeString;
+      (window as any).gamepadCli.keyboardKeyTap = mockKeyboardKeyTap;
 
       await deliverBulkText('helm-test', 'send', { submitSuffix: '\n' });
 
-      expect(mockKeyboardTypeString.mock.calls).toEqual([
-        ['send'],
-        ['\n'],
-      ]);
+      // sendKeyboardSubmitSuffix routes '\n' through keyboardKeyTap('enter')
+      expect(mockKeyboardTypeString).toHaveBeenCalledWith('send');
+      expect(mockKeyboardKeyTap).toHaveBeenCalledWith('enter');
     });
   });
 

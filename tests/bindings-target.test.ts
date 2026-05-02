@@ -150,7 +150,7 @@ describe('binding action routing', () => {
       expect(mockGamepadCli.ptyWrite).toHaveBeenCalledWith('session-1', 'hello');
     });
 
-    it('coalesces text plus Enter into one bulk PTY insertion', async () => {
+    it('sends text, Enter, more text as separate PTY calls', async () => {
       state.cliBindingsCache['claude-code'] = {
         B: { action: 'keyboard', sequence: 'hello{Enter}world' },
       };
@@ -158,8 +158,13 @@ describe('binding action routing', () => {
       processConfigBinding('B');
       await new Promise(r => setTimeout(r, 10));
 
-      expect(mockGamepadCli.ptyWrite).toHaveBeenCalledTimes(1);
-      expect(mockGamepadCli.ptyWrite).toHaveBeenCalledWith('session-1', 'hello\rworld');
+      // executeSequenceString flushes buffered text before each key action,
+      // sends the key escape separately, then flushes remaining text.
+      // The explicit {Enter} satisfies the submit requirement, so impliedSubmit is skipped.
+      expect(mockGamepadCli.ptyWrite).toHaveBeenCalledTimes(3);
+      expect(mockGamepadCli.ptyWrite).toHaveBeenNthCalledWith(1, 'session-1', 'hello');
+      expect(mockGamepadCli.ptyWrite).toHaveBeenNthCalledWith(2, 'session-1', '\r');
+      expect(mockGamepadCli.ptyWrite).toHaveBeenNthCalledWith(3, 'session-1', 'world');
     });
 
     it('does not call any voice/OS-level key methods', async () => {
