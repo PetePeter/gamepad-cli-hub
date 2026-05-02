@@ -1051,13 +1051,14 @@ export class HelmControlService extends EventEmitter {
   }
 
   private findSession(sessionRef: string): SessionInfo | null {
-    const byId = this.sessionManager.getSession(sessionRef);
-    if (byId) return byId;
-    const matches = this.sessionManager.getAllSessions().filter((session) => session.name === sessionRef);
-    if (matches.length > 1) {
+    const nameMatches = this.sessionManager.getAllSessions().filter((session) => session.name === sessionRef);
+    if (nameMatches.length > 1) {
       throw new Error(`Multiple sessions found with name: ${sessionRef}. Use sessionId instead.`);
     }
-    return matches[0] ?? null;
+    // Names are user-facing handles, so resolve exact names before IDs to avoid
+    // routing a handoff to an unrelated session when a ref could be interpreted both ways.
+    if (nameMatches.length === 1) return nameMatches[0];
+    return this.sessionManager.getSession(sessionRef);
   }
 
   private requireCliEntry(cliType: string) {

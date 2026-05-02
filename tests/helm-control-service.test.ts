@@ -146,6 +146,56 @@ describe('HelmControlService.sendTextToSession', () => {
       service.sendTextToSession('s1', 'hello', { senderSessionId: 's1', senderSessionName: 'Same' }),
     ).rejects.toThrow('Cannot send a message from a session to itself — sender and receiver must be different sessions');
   });
+
+  it('prefers exact session name matches over ID lookup results', async () => {
+    const { service, ptyManager, sessionManager } = makeService();
+    (sessionManager.getAllSessions as ReturnType<typeof vi.fn>).mockReturnValue([
+      { id: 'codex-1', name: 'codex', cliType: 'codex' },
+      { id: 'potato-4', name: 'potato', cliType: 'claude-code' },
+    ]);
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockImplementation((ref: string) => (
+      ref === 'potato' ? { id: 'codex-1', name: 'codex', cliType: 'codex' } : null
+    ));
+
+    const result = await service.sendTextToSession('potato', 'hello potato', {
+      senderSessionId: 'sender',
+      senderSessionName: 'Sender',
+    });
+
+    expect(result.sessionId).toBe('potato-4');
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('potato-4', expect.stringContaining('hello potato'), { submitSuffix: '\r' });
+  });
+
+  it('resolves exact session IDs when no name matches', async () => {
+    const { service, ptyManager, sessionManager } = makeService();
+    (sessionManager.getAllSessions as ReturnType<typeof vi.fn>).mockReturnValue([
+      { id: 'potato-4', name: 'potato', cliType: 'claude-code' },
+    ]);
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockImplementation((ref: string) => (
+      ref === 'codex-1' ? { id: 'codex-1', name: 'codex', cliType: 'codex' } : null
+    ));
+
+    const result = await service.sendTextToSession('codex-1', 'hello codex', {
+      senderSessionId: 'sender',
+      senderSessionName: 'Sender',
+    });
+
+    expect(result.sessionId).toBe('codex-1');
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('codex-1', expect.stringContaining('hello codex'), { submitSuffix: '\r' });
+  });
+
+  it('rejects ambiguous session names before falling back to IDs', async () => {
+    const { service, sessionManager } = makeService();
+    (sessionManager.getAllSessions as ReturnType<typeof vi.fn>).mockReturnValue([
+      { id: 'first', name: 'potato', cliType: 'claude-code' },
+      { id: 'second', name: 'potato', cliType: 'codex' },
+    ]);
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'third', name: 'other', cliType: 'codex' });
+
+    await expect(
+      service.sendTextToSession('potato', 'hello', { senderSessionId: 'sender', senderSessionName: 'Sender' }),
+    ).rejects.toThrow('Multiple sessions found with name: potato. Use sessionId instead.');
+  });
 });
 
 describe('HelmControlService plan sequences', () => {
@@ -289,8 +339,9 @@ describe('HelmControlService.spawnCli', () => {
 
       expect(ptyManager.deliverText).toHaveBeenCalledWith(
         expect.any(String),
-        'Hello world\r',
+        'Hello world',
       );
+      expect(ptyManager.write).toHaveBeenCalledWith(expect.any(String), '\r');
     });
 
     it('sends helmInitialPrompt when configured', async () => {
@@ -327,8 +378,9 @@ describe('HelmControlService.spawnCli', () => {
 
       expect(ptyManager.deliverText).toHaveBeenCalledWith(
         expect.any(String),
-        'init\r',
+        'init',
       );
+      expect(ptyManager.write).toHaveBeenCalledWith(expect.any(String), '\r');
       expect(ptyManager.deliverText).toHaveBeenCalledWith(
         expect.any(String),
         'custom prompt',
