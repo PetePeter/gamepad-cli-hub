@@ -154,23 +154,16 @@ describe('parseSequence', () => {
   });
 
   describe('newlines', () => {
-    it('converts \\n to Enter key', () => {
-      expect(parseSequence('\n')).toEqual([{ type: 'key', key: 'Enter' }]);
+    it('preserves \\n as literal text', () => {
+      expect(parseSequence('\n')).toEqual([{ type: 'text', value: '\n' }]);
     });
 
-    it('splits text around newlines', () => {
-      expect(parseSequence('a\nb')).toEqual([
-        { type: 'text', value: 'a' },
-        { type: 'key', key: 'Enter' },
-        { type: 'text', value: 'b' },
-      ]);
+    it('keeps text with embedded newlines together', () => {
+      expect(parseSequence('a\nb')).toEqual([{ type: 'text', value: 'a\nb' }]);
     });
 
-    it('handles multiple consecutive newlines', () => {
-      expect(parseSequence('\n\n')).toEqual([
-        { type: 'key', key: 'Enter' },
-        { type: 'key', key: 'Enter' },
-      ]);
+    it('preserves multiple consecutive newlines as literal text', () => {
+      expect(parseSequence('\n\n')).toEqual([{ type: 'text', value: '\n\n' }]);
     });
   });
 
@@ -200,21 +193,15 @@ describe('parseSequence', () => {
   });
 
   describe('multi-line sequences', () => {
-    it('parses /allow-all\\nsomething\\n{Ctrl+S}', () => {
+    it('preserves literal newlines while parsing explicit tokens', () => {
       expect(parseSequence('/allow-all\nsomething\n{Ctrl+S}')).toEqual([
-        { type: 'text', value: '/allow-all' },
-        { type: 'key', key: 'Enter' },
-        { type: 'text', value: 'something' },
-        { type: 'key', key: 'Enter' },
+        { type: 'text', value: '/allow-all\nsomething\n' },
         { type: 'combo', keys: ['Ctrl', 'S'] },
       ]);
     });
 
-    it('handles trailing newline', () => {
-      expect(parseSequence('hello\n')).toEqual([
-        { type: 'text', value: 'hello' },
-        { type: 'key', key: 'Enter' },
-      ]);
+    it('preserves trailing newline as literal text', () => {
+      expect(parseSequence('hello\n')).toEqual([{ type: 'text', value: 'hello\n' }]);
     });
   });
 

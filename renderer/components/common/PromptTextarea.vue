@@ -2,12 +2,8 @@
 /**
  * PromptTextarea — reusable editor for prompt/sequence fields that support
  * non-text commands such as {Enter}, {Send}, {Wait 500}, and {Ctrl+C}.
- *
- * This component is edit/preview-only. Execution is intentionally handled later
- * by the paste/PTY delivery pipeline.
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { parseSequence, formatSequencePreview } from '../../../src/input/sequence-parser.js';
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { getSequenceSyntaxHelpText } from '../../utils.js';
 
 const props = withDefaults(defineProps<{
@@ -19,14 +15,12 @@ const props = withDefaults(defineProps<{
   minRows?: number;
   maxRows?: number;
   textareaClass?: string;
-  showPreview?: boolean;
 }>(), {
   modelValue: '',
   rows: 3,
   minRows: 3,
   maxRows: 14,
   textareaClass: '',
-  showPreview: true,
 });
 
 const emit = defineEmits<{
@@ -39,11 +33,6 @@ const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const manualHeight = ref<number | null>(null);
 let resizeStartY = 0;
 let resizeStartHeight = 0;
-
-const preview = computed(() => {
-  if (!props.modelValue.trim()) return '';
-  return formatSequencePreview(parseSequence(props.modelValue));
-});
 
 function autosize(): void {
   const el = textareaRef.value;
@@ -159,8 +148,6 @@ defineExpose({ focus });
       <button type="button" class="prompt-textarea__chip" @click="insertToken('{Ctrl+C}')">Ctrl+C</button>
     </div>
 
-    <p v-if="showPreview && preview" class="prompt-textarea__preview">{{ preview }}</p>
-
     <pre v-if="syntaxHelpExpanded" class="prompt-textarea__syntax-content">{{ syntaxHelpText }}</pre>
   </div>
 </template>
@@ -271,13 +258,6 @@ defineExpose({ focus });
 .prompt-textarea__chip:hover {
   color: var(--text-primary);
   border-color: var(--accent);
-}
-
-.prompt-textarea__preview {
-  margin: 0;
-  font-size: 0.72rem;
-  color: var(--text-dim);
-  line-height: 1.35;
 }
 
 .prompt-textarea__syntax-content {
