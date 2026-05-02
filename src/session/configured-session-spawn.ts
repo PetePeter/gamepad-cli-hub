@@ -34,6 +34,7 @@ export interface ConfiguredSessionSpawnResult {
 }
 
 export function spawnConfiguredSession(params: ConfiguredSessionSpawnParams): ConfiguredSessionSpawnResult {
+  const now = Date.now();
   const sessionId = params.sessionId ?? randomUUID();
   const cliType = params.cliType || 'unknown';
   const sessionName = params.sessionName?.trim() || cliType;
@@ -69,6 +70,7 @@ export function spawnConfiguredSession(params: ConfiguredSessionSpawnParams): Co
     processId: pty.pid,
     ...(params.cwd ? { workingDir: params.cwd } : {}),
     cliSessionName,
+    lastOutputAt: now,
   });
 
   scheduleConfiguredInitialPrompt({

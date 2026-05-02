@@ -86,6 +86,7 @@ describe('pty:spawn resume logic', () => {
       addSession: vi.fn((info: any) => sessions.set(info.id, info)),
       getSession: vi.fn((id: string) => sessions.get(id) || null),
       hasSession: vi.fn((id: string) => sessions.has(id)),
+      updateSession: vi.fn((id: string, updates: any) => Object.assign(sessions.get(id) ?? {}, updates)),
       removeSession: vi.fn(),
       on: vi.fn(),
     };
@@ -505,6 +506,8 @@ describe('pty:spawn resume logic', () => {
   });
 
   it('includes cliSessionName in addSession call atomically', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-20T17:20:00Z'));
     configLoader.getCliTypeEntry.mockReturnValue({
       name: 'Claude Code',
       command: 'claude',
@@ -518,7 +521,9 @@ describe('pty:spawn resume logic', () => {
       expect.objectContaining({
         id: 'sid-1',
         cliSessionName: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
+        lastOutputAt: Date.now(),
       }),
     );
+    vi.useRealTimers();
   });
 });

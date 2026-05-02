@@ -202,6 +202,9 @@ export class StateDetector extends EventEmitter {
    *  Clears the scrolling flag since this is real user input. */
   markActive(sessionId: string): void {
     const tracking = this.getOrCreate(sessionId);
+    if (tracking.lastOutputAt <= 0) {
+      tracking.lastOutputAt = Date.now();
+    }
 
     // Real user input clears scrolling and resizing flags
     tracking.scrolling = false;

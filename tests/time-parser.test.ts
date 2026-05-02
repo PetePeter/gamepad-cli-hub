@@ -120,6 +120,11 @@ describe('formatElapsed', () => {
     expect(formatElapsed(-1)).toBe('');
   });
 
+  it('returns empty string for non-finite values', () => {
+    expect(formatElapsed(Number.NaN)).toBe('');
+    expect(formatElapsed(Number.POSITIVE_INFINITY)).toBe('');
+  });
+
   it('formats very recent times as just now', () => {
     expect(formatElapsed(0)).toBe('just now');
     expect(formatElapsed(4_000)).toBe('just now');

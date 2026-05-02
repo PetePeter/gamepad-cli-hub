@@ -243,6 +243,10 @@ export function setupPtyHandlers(
 
   // Forward activity change events to renderer
   stateDetector.on('activity-change', (event) => {
+    if (event.lastOutputAt !== undefined && event.lastOutputAt > 0 && sessionManager.hasSession(event.sessionId)) {
+      sessionManager.updateSession(event.sessionId, { lastOutputAt: event.lastOutputAt });
+    }
+
     const win = windowManager.getWindowForSession(event.sessionId);
     if (win && !win.isDestroyed()) {
       win.webContents.send('pty:activity-change', event);

@@ -137,11 +137,14 @@ describe('useAppBootstrap doSpawn', () => {
 
   it('refreshes the chip bar again after the delayed post-spawn session refresh', async () => {
     const mod = await import('../renderer/composables/useAppBootstrap.js');
+    const { state } = await import('../renderer/state.js');
+    state.lastOutputTimes.clear();
 
     await mod.doSpawn('claude-code', '/repo');
 
     expect(mockNavigateToSession).toHaveBeenCalledWith('pty-claude-code-1776705600000');
     expect(mockActivateSession).not.toHaveBeenCalled();
+    expect(state.lastOutputTimes.get('pty-claude-code-1776705600000')).toBe(Date.now());
 
     await vi.advanceTimersByTimeAsync(300);
 

@@ -16,6 +16,7 @@ export interface Session {
   title?: string;
   cliSessionName?: string;
   currentPlanId?: string;
+  lastOutputAt?: number;
   windowId?: number;
 }
 

@@ -1069,7 +1069,8 @@ describe('StateDetector', () => {
       });
     });
 
-    it('markActive on fresh session includes lastOutputAt 0', () => {
+    it('markActive on fresh session initializes lastOutputAt to now', () => {
+      const now = Date.now();
       const handler = vi.fn();
       detector.on('activity-change', handler);
 
@@ -1078,7 +1079,7 @@ describe('StateDetector', () => {
       expect(handler).toHaveBeenCalledWith({
         sessionId: 's1',
         level: 'active',
-        lastOutputAt: 0,
+        lastOutputAt: now,
       });
     });
 

@@ -300,6 +300,7 @@ export async function doSpawn(
     );
 
     if (success) {
+      state.lastOutputTimes.set(sessionId, Date.now());
       logEvent(`Spawned embedded terminal: ${cliType}`);
       await useNavigationStore().navigateToSession(sessionId);
 
@@ -330,6 +331,7 @@ export async function doSpawnShell(command: string): Promise<void> {
     const success = await tm.createTerminal(sessionId, 'shell', 'cmd.exe', [], undefined);
 
     if (success) {
+      state.lastOutputTimes.set(sessionId, Date.now());
       logEvent('Spawned embedded shell terminal');
       await useNavigationStore().navigateToSession(sessionId);
 
@@ -443,7 +445,7 @@ function setupIpcListeners(): void {
   });
 
   window.gamepadCli.onPtyActivityChange((event) => {
-    if (event.lastOutputAt !== undefined) {
+    if (event.lastOutputAt !== undefined && event.lastOutputAt > 0) {
       state.lastOutputTimes.set(event.sessionId, event.lastOutputAt);
     }
     const previous = state.sessionActivityLevels.get(event.sessionId) ?? 'idle';
@@ -469,6 +471,7 @@ function setupIpcListeners(): void {
     const tm = getTerminalManager();
     if (!tm || tm.has(session.id)) return;
     console.log(`[ExternalSpawn] Adopting session: ${session.id} (${session.cliType})`);
+    state.lastOutputTimes.set(session.id, session.lastOutputAt ?? Date.now());
     await window.gamepadCli.configGetSpawnCommand(session.cliType);
     tm.adoptTerminal(session.id, session.cliType, session.workingDir);
     await refreshSessions();

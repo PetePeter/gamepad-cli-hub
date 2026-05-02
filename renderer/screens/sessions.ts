@@ -534,7 +534,7 @@ export async function loadSessionsData(): Promise<void> {
   // each firing loadSessions via setSessionState) would all reset to [] then
   // push N entries each, yielding N×callers duplicates on the session list.
   const nextSessions: Session[] = [];
-  let persistedSessions: Array<{ id: string; cliSessionName?: string }> = [];
+  let persistedSessions: Array<{ id: string; cliSessionName?: string; lastOutputAt?: number }> = [];
   try {
     persistedSessions = (await window.gamepadCli.sessionGetAll()) || [];
   } catch (e) {
@@ -555,7 +555,11 @@ export async function loadSessionsData(): Promise<void> {
         workingDir: session?.cwd || '',
         title: session?.title,
         cliSessionName: persisted?.cliSessionName,
+        lastOutputAt: persisted?.lastOutputAt,
       } as Session);
+      if (!state.lastOutputTimes.has(id) && persisted?.lastOutputAt && persisted.lastOutputAt > 0) {
+        state.lastOutputTimes.set(id, persisted.lastOutputAt);
+      }
     }
   }
 

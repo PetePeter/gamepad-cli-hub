@@ -37,6 +37,8 @@ export interface SessionInfo {
   currentPlanId?: string;
   /** Telegram forum topic ID for this session's topic thread */
   topicId?: number;
+  /** Last real PTY output or session/input activity timestamp for elapsed timers. */
+  lastOutputAt?: number;
   /** BrowserWindow ID if this session is snapped out to a child window. Undefined/null means main window. */
   windowId?: number;
   /** AIAGENT state controlled by external agents (planning, implementing, completed, idle). Persists across restarts. */

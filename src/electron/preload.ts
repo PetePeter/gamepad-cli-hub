@@ -367,7 +367,7 @@ const gamepadCliAPI = {
   },
 
   /** Subscribe to externally-spawned session events (e.g. from Telegram) */
-  onSessionSpawned: (callback: (session: { id: string; name: string; cliType: string; processId: number; workingDir?: string; cliSessionName?: string }) => void) => {
+  onSessionSpawned: (callback: (session: { id: string; name: string; cliType: string; processId: number; workingDir?: string; cliSessionName?: string; lastOutputAt?: number }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
     ipcRenderer.on('session:spawned-externally', listener);
     return () => ipcRenderer.removeListener('session:spawned-externally', listener);
