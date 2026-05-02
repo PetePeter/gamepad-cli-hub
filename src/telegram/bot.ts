@@ -159,6 +159,72 @@ export class TelegramBotCore extends EventEmitter {
     });
   }
 
+  /** Send a document (PDF, text, etc.) to the configured chat or a specific topic. */
+  async sendDocument(
+    buffer: Buffer,
+    filename: string,
+    options?: { caption?: string; topicId?: number },
+  ): Promise<TelegramBot.Message | null> {
+    if (!this.bot || !this.chatId) return null;
+    try {
+      const sendOptions: TelegramBot.SendDocumentOptions = {
+        caption: options?.caption,
+      };
+      if (options?.topicId != null) {
+        sendOptions.message_thread_id = options.topicId;
+      }
+      return await this.withTimeout(
+        this.bot.sendDocument(this.chatId, buffer, { filename, ...sendOptions }),
+        'sendDocument',
+      );
+    } catch (err) {
+      logger.error(`[Telegram] sendDocument failed: ${err}`);
+      return null;
+    }
+  }
+
+  /** Send a photo to the configured chat or a specific topic. */
+  async sendPhoto(
+    buffer: Buffer,
+    options?: { caption?: string; topicId?: number },
+  ): Promise<TelegramBot.Message | null> {
+    if (!this.bot || !this.chatId) return null;
+    try {
+      const sendOptions: TelegramBot.SendPhotoOptions = { caption: options?.caption };
+      if (options?.topicId != null) {
+        sendOptions.message_thread_id = options.topicId;
+      }
+      return await this.withTimeout(
+        this.bot.sendPhoto(this.chatId, buffer, sendOptions),
+        'sendPhoto',
+      );
+    } catch (err) {
+      logger.error(`[Telegram] sendPhoto failed: ${err}`);
+      return null;
+    }
+  }
+
+  /** Send a video to the configured chat or a specific topic. */
+  async sendVideo(
+    buffer: Buffer,
+    options?: { caption?: string; topicId?: number },
+  ): Promise<TelegramBot.Message | null> {
+    if (!this.bot || !this.chatId) return null;
+    try {
+      const sendOptions: TelegramBot.SendVideoOptions = { caption: options?.caption };
+      if (options?.topicId != null) {
+        sendOptions.message_thread_id = options.topicId;
+      }
+      return await this.withTimeout(
+        this.bot.sendVideo(this.chatId, buffer, sendOptions),
+        'sendVideo',
+      );
+    } catch (err) {
+      logger.error(`[Telegram] sendVideo failed: ${err}`);
+      return null;
+    }
+  }
+
   /**
    * Edit a message with debounce + rate limiting.
    * Rapid edits to the same message are coalesced — only the latest text is sent.

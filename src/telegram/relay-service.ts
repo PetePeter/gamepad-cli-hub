@@ -24,6 +24,9 @@ import type {
   TelegramSendToUserResult,
 } from '../types/telegram-channel.js';
 
+/** Telegram's max upload size is 50MB. */
+const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+
 export class TelegramRelayService extends EventEmitter implements TelegramBridge {
   private channels = new Map<string, TelegramChannel>();
 
@@ -131,8 +134,15 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
       if (message) messageId = message.message_id;
     }
 
-    if (!messageId) {
+    if (!messageId && !input.attachment) {
       return { sent: false, reason: 'Failed to send message' };
+    }
+
+    // Send attachment if present
+    if (input.attachment) {
+      const attachmentResult = await this.sendAttachment(input.attachment, channel.topicId, input.text);
+      if (!attachmentResult.sent) return attachmentResult;
+      messageId = attachmentResult.documentId ?? messageId;
     }
 
     // Nudge General Chat with first 80 chars + link to topic
@@ -203,6 +213,44 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     }
 
     return false;
+  }
+
+  private async sendAttachment(
+    attachment: { name: string; data: string; mime: string },
+    topicId?: number,
+    caption?: string,
+  ): Promise<TelegramSendToUserResult> {
+    let buffer: Buffer;
+    try {
+      buffer = Buffer.from(attachment.data, 'base64');
+    } catch {
+      return { sent: false, reason: 'Attachment data is not valid base64' };
+    }
+
+    if (buffer.length > MAX_ATTACHMENT_BYTES) {
+      const mb = (buffer.length / (1024 * 1024)).toFixed(1);
+      return { sent: false, reason: `Attachment too large (${mb}MB). Telegram limit is 50MB.` };
+    }
+
+    const captionHtml = caption ? formatMessageForTelegram(caption) : undefined;
+    const opts = { caption: captionHtml, topicId };
+
+    let message: Awaited<ReturnType<typeof this.telegramBot.sendDocument>> | null = null;
+    const mime = attachment.mime.toLowerCase();
+
+    if (mime.startsWith('image/')) {
+      message = await this.telegramBot.sendPhoto(buffer, opts);
+    } else if (mime.startsWith('video/')) {
+      message = await this.telegramBot.sendVideo(buffer, opts);
+    } else {
+      message = await this.telegramBot.sendDocument(buffer, attachment.name, opts);
+    }
+
+    if (!message) {
+      return { sent: false, reason: 'Failed to send attachment via Telegram API' };
+    }
+
+    return { sent: true, documentId: message.message_id };
   }
 
   private requireOpenChannel(channelId: string): TelegramChannel {

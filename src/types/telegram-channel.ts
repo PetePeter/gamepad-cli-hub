@@ -39,6 +39,7 @@ export type TelegramSendResult = { sent: boolean; reason?: string };
 export interface TelegramSendToUserResult extends TelegramSendResult {
   channel?: TelegramChannel;
   messageId?: number;
+  documentId?: number;
 }
 
 export interface TelegramBridge {
