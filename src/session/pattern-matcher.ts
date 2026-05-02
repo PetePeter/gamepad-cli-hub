@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import type { PatternRule } from '../config/loader.js';
 import { parseScheduledTime } from '../utils/time-parser.js';
 import { parseSequence, type SequenceAction } from '../input/sequence-parser.js';
-import { actionToPtyData } from './initial-prompt.js';
+import { actionToPtyData } from '../input/sequence-executor.js';
 import logger from '../utils/logger.js';
 
 // ============================================================================

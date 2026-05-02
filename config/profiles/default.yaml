@@ -7,33 +7,28 @@ tools:
     continueCommand: claude --continue
     handoffCommand: go implement it
     initialPromptDelay: 3000
-    initialPrompt:
-      - label: ""
-        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
-          AIAGENT state as first line of each response.{Enter}
+    initialPrompt: []
     sequences:
       prompts:
         - label: commit
           sequence: use skill(commit)
     pasteMode: pty
     submitSuffix: \rg
-    helmInitialPrompt: false
+    helmInitialPrompt: true
   codex:
-    name: codex
-    spawnCommand: codex --dangerously-bypass-approvals-and-sandbox
+    name: codex-oscar
+    spawnCommand: codex-profiles load --label oscar && codex
+      --dangerously-bypass-approvals-and-sandbox
     handoffCommand: go implement it
-    submitSuffix: \r
-    initialPrompt:
-      - label: ""
-        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
-          AIAGENT state as first line of each response.{Enter}
+    submitSuffix: "{Send}"
+    initialPrompt: []
     initialPromptDelay: 1000
     pasteMode: pty
     sequences:
       prompts:
         - label: commit
           sequence: use skill(commit)
-    helmInitialPrompt: false
+    helmInitialPrompt: true
   cmd:
     name: cmd
     spawnCommand: cmd.exe
@@ -43,6 +38,12 @@ tools:
     helmInitialPrompt: false
     submitSuffix: \r
     helmPreambleForInterSession: false
+    sequences:
+      profile-switch:
+        - label: To Oscar
+          sequence: codex-profiles load --label oscar
+        - label: To Abuelo
+          sequence: codex-profiles load --label abuelo
   glm-cc:
     name: GLM + CC
     initialPrompt:
@@ -100,6 +101,15 @@ tools:
     pasteMode: pty
     submitSuffix: \r
     resumeCommand: claude --resume={cliSessionName}
+  codex-abuelo:
+    name: codex-abuelo
+    initialPrompt: []
+    initialPromptDelay: 0
+    spawnCommand: codex-profiles load --label abuelo && codex
+      --dangerously-bypass-approvals-and-sandbox
+    helmInitialPrompt: true
+    pasteMode: pty
+    submitSuffix: \r
 workingDirectories:
   - name: Helm
     path: X:\coding\gamepad-cli-hub

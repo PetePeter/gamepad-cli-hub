@@ -57,7 +57,7 @@ const sessionsForDir = computed(() => {
 });
 
 const canCreate = computed(() => {
-  const hasBasics = formTitle.value.trim() !== '' && formInitialPrompt.value.trim() !== '' && formTime.value !== '' && selectedDirPath.value.trim() !== '' && (scheduleKind.value !== 'interval' || intervalMinutes.value >= 1);
+  const hasBasics = formTitle.value.trim() !== '' && formInitialPrompt.value.length > 0 && formTime.value !== '' && selectedDirPath.value.trim() !== '' && (scheduleKind.value !== 'interval' || intervalMinutes.value >= 1);
   if (formMode.value === 'direct') return hasBasics && selectedTargetSessionId.value !== '';
   return hasBasics && selectedCliType.value.trim() !== '';
 });
@@ -159,7 +159,7 @@ async function createTask(): Promise<void> {
       title: formTitle.value.trim(),
       description: formDescription.value.trim() || undefined,
       planIds: [],
-      initialPrompt: formInitialPrompt.value.trim(),
+      initialPrompt: formInitialPrompt.value,
       cliType: formMode.value === 'direct' ? (availableSessions.value.find(s => s.id === selectedTargetSessionId.value)?.cliType ?? selectedCliType.value) : selectedCliType.value,
       cliParams: formCliParams.value.trim() || undefined,
       scheduledTime: new Date(formTime.value),

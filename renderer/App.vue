@@ -1904,16 +1904,16 @@ function onQuickSpawnSelect(cliType: string): void {
 }
 
 // Binding editor handlers
-function onEditBinding(button: string, cliType: string): void {
+function onEditBinding(button: string, cliType: string, binding: any = { action: 'keyboard', sequence: '' }): void {
   bindingEditorButton.value = button;
   bindingEditorCliType.value = cliType;
-  bindingEditorBinding.value = { action: 'keyboard', sequence: '' };
+  bindingEditorBinding.value = { ...binding };
   bindingEditorVisible.value = true;
 }
 
 // Bridge function for legacy binding editor
 function openLegacyBindingEditor(button: string, cliType: string, binding: any): void {
-  onEditBinding(button, cliType);
+  onEditBinding(button, cliType, binding);
 }
 
 // Make this function available globally for legacy code
@@ -1950,7 +1950,7 @@ function isEditableElement(element: Element | null): element is HTMLElement {
 }
 
 function isEditableElementInsideModal(element: Element | null): element is HTMLElement {
-  return isEditableElement(element) && !!element.closest('.modal-overlay.modal--visible');
+  return isEditableElement(element) && !!element.closest('.modal-overlay.modal--visible, .scheduled-tasks-tab--popup');
 }
 
 function handleModalKeyboardBridge(e: KeyboardEvent): void {

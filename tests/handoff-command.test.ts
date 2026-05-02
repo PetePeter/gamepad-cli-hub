@@ -38,6 +38,7 @@ class MockPtyManager extends EventEmitter {
   kill = vi.fn();
   killAll = vi.fn();
   resize = vi.fn();
+  deliverText = vi.fn();
   getPid = vi.fn();
   getSessionIds = vi.fn(() => []);
   on = vi.fn((event: string, listener: Function) => {
@@ -163,7 +164,7 @@ describe('Handoff command configuration', () => {
 
     triggerHandoff('source-session', 'target-session');
 
-    expect(ptyManager.write).toHaveBeenCalledWith('target-session', 'please implement\r');
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('target-session', 'please implement\r');
   });
 
   it('skips write when handoffCommand is not defined in CLI type config', () => {

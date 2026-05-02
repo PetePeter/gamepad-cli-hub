@@ -119,6 +119,31 @@ describe('ScheduledTasksTab', () => {
     }));
   });
 
+  it('preserves literal spaces in the scheduler prompt when creating a task', async () => {
+    const wrapper = mountTab();
+    await flushPromises();
+    await wrapper.find('.st-create-btn').trigger('click');
+
+    const inputs = wrapper.findAll('.st-input');
+    await inputs[0].setValue('Task');
+    await wrapper.findAll('textarea')[1].setValue('  prompt with spaces  ');
+    await inputs.find((input) => input.attributes('type') === 'datetime-local')?.setValue('2026-04-29T10:00');
+    await wrapper.findAll('.st-picker-btn')[0].trigger('click');
+    await flushPromises();
+    wrapper.findComponent(DirPickerModal).vm.$emit('select', 'X:\\coding\\gamepad-cli-hub');
+    await wrapper.findAll('.st-picker-btn')[1].trigger('click');
+    await flushPromises();
+    wrapper.findComponent(QuickSpawnModal).vm.$emit('select', 'codex');
+    await wrapper.vm.$nextTick();
+
+    await wrapper.find('.st-btn--primary').trigger('click');
+    await flushPromises();
+
+    expect(mockScheduledTaskCreate).toHaveBeenCalledWith(expect.objectContaining({
+      initialPrompt: '  prompt with spaces  ',
+    }));
+  });
+
   it('opens pending tasks for edit and saves through scheduledTaskUpdate', async () => {
     const task = {
       id: 'task-1',

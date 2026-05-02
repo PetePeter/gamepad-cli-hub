@@ -10,6 +10,7 @@ import { nextTick, ref, watch } from 'vue';
 import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import { getRequiredFormFieldError, getSequenceSyntaxHelpText } from '../../utils.js';
+import PromptTextarea from '../common/PromptTextarea.vue';
 
 export interface FormField {
   key: string;
@@ -252,16 +253,17 @@ defineExpose({ handleButton });
             </select>
 
             <!-- Textarea -->
-            <textarea
+            <PromptTextarea
               v-else-if="field.type === 'textarea'"
               :id="`form-${field.key}`"
-              :value="formValues[field.key]"
+              :model-value="formValues[field.key]"
+              :label="undefined"
               :placeholder="field.placeholder"
-              class="form-textarea"
-              rows="4"
-              :aria-invalid="validationErrors[field.key] ? 'true' : undefined"
-              :aria-describedby="validationErrors[field.key] ? getFieldErrorId(field.key) : undefined"
-              @input="setFieldValue(field.key, ($event.target as HTMLTextAreaElement).value)"
+              :rows="4"
+              :min-rows="3"
+              :max-rows="12"
+              textarea-class="form-textarea"
+              @update:model-value="setFieldValue(field.key, $event)"
             />
 
             <!-- Checkbox -->
@@ -303,13 +305,14 @@ defineExpose({ handleButton });
                       @click="removeSequenceItem(field.key, idx)"
                     >✕</button>
                   </div>
-                  <textarea
-                    class="sequence-textarea"
+                  <PromptTextarea
+                    :model-value="item.sequence"
                     :placeholder="field.showLabels !== false ? 'Sequence, e.g. use skill(commit){Enter}' : 'Sequence, e.g. /allow-all{Enter}'"
-                    :value="item.sequence"
-                    rows="2"
-                    style="font-size: 11px;"
-                    @input="updateSequenceItem(field.key, idx, 'sequence', ($event.target as HTMLTextAreaElement).value)"
+                    :rows="2"
+                    :min-rows="2"
+                    :max-rows="8"
+                    textarea-class="sequence-textarea"
+                    @update:model-value="updateSequenceItem(field.key, idx, 'sequence', $event)"
                   />
                 </div>
               </div>

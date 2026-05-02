@@ -15,7 +15,8 @@ import type { SessionManager } from './manager.js';
 import type { PtyManager } from './pty-manager.js';
 import type { PlanManager } from './plan-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
-import { scheduleInitialPrompt, executeSequenceString } from './initial-prompt.js';
+import { scheduleInitialPrompt } from './initial-prompt.js';
+import { executeSequenceString } from '../input/sequence-executor.js';
 import { mintSessionAuthToken } from '../mcp/session-auth.js';
 
 const PENDING_STATUSES = new Set<ScheduledTaskStatus>(['pending', 'executing']);
@@ -237,14 +238,9 @@ export class ScheduledTaskManager extends EventEmitter {
         prompt = `${task.initialPrompt}\n\nPlan references:\n${planRefs}`;
       }
 
-      const trimmed = prompt.trim();
-      if (trimmed.length > 0) {
-        await executeSequenceString(
-          targetId,
-          trimmed + '\n',
-          (sid, data) => this.ptyManager.write(sid, data),
-          (sid, text) => this.ptyManager.deliverText(sid, text),
-        );
+      if (prompt.length > 0) {
+        const recipientConfig = this.configLoader.getCliTypeEntry(session.cliType ?? task.cliType);
+        await this.deliverScheduledPrompt(targetId, prompt, recipientConfig?.submitSuffix);
       }
 
       task.lastRunAt = Date.now();
@@ -331,7 +327,6 @@ export class ScheduledTaskManager extends EventEmitter {
         const planRefs = task.planIds.map(id => `- ${id}`).join('\n');
         prompt = `${task.initialPrompt}\n\nPlan references:\n${planRefs}`;
       }
-      const trimmed = prompt.trim();
 
       // CLI init sequences (helmInitialPrompt + profile initialPrompt + rename) fire first.
       // Task user prompt fires as onComplete callback — after CLI is ready.
@@ -339,14 +334,9 @@ export class ScheduledTaskManager extends EventEmitter {
         ? cliConfig.renameCommand.replaceAll('{cliSessionName}', cliSessionName)
         : undefined;
 
-      const deliverTaskPrompt = trimmed.length > 0
+      const deliverTaskPrompt = prompt.length > 0
         ? () => {
-          void executeSequenceString(
-            sessionId,
-            trimmed,
-            (sid, data) => this.ptyManager.write(sid, data),
-            (sid, text) => this.ptyManager.deliverText(sid, text),
-          );
+          void this.deliverScheduledPrompt(sessionId, prompt, cliConfig.submitSuffix);
         }
         : undefined;
 
@@ -448,8 +438,28 @@ export class ScheduledTaskManager extends EventEmitter {
     this.emit('task:changed', task);
     logger.info(`[ScheduledTaskManager] Task "${task.title}" finished in background session ${sessionId}`);
   }
+
+  private async deliverScheduledPrompt(sessionId: string, prompt: string, submitSuffix?: string): Promise<void> {
+    const resolvedSubmitSuffix = parseSubmitSuffix(submitSuffix);
+    await executeSequenceString({
+      sessionId,
+      input: prompt,
+      write: (sid, data) => this.ptyManager.write(sid, data),
+      deliverText: (sid, text) => this.ptyManager.deliverText(sid, text),
+      submit: (sid) => this.ptyManager.write(sid, resolvedSubmitSuffix),
+    });
+  }
 }
 
 function splitCliParams(params: string): string[] {
   return params.trim().length > 0 ? params.trim().split(/\s+/) : [];
+}
+
+function parseSubmitSuffix(suffix?: string): string {
+  if (!suffix) return '\r';
+  if (suffix === '\\r') return '\r';
+  if (suffix === '\\n') return '\n';
+  if (suffix === '\\t') return '\t';
+  if (suffix === '\\r\\n') return '\r\n';
+  return suffix;
 }

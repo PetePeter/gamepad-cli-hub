@@ -1327,6 +1327,7 @@ describe('FormModal.vue', () => {
 // ============================================================================
 
 import BindingEditorModal from '../../../renderer/components/modals/BindingEditorModal.vue';
+import { state } from '../../../renderer/state.js';
 
 describe('BindingEditorModal.vue', () => {
   let modalStack: ReturnType<typeof useModalStack>;
@@ -1334,6 +1335,7 @@ describe('BindingEditorModal.vue', () => {
   beforeEach(() => {
     modalStack = useModalStack();
     modalStack.clear();
+    state.cliSequencesCache = {};
   });
 
   function factory(props: Record<string, any> = {}) {
@@ -1388,6 +1390,45 @@ describe('BindingEditorModal.vue', () => {
     const w = factory({ binding: { action: 'scroll', direction: 'down', lines: 10 } });
     expect(w.find('#be-direction').exists()).toBe(true);
     expect(w.find('#be-lines').exists()).toBe(true);
+    w.unmount();
+  });
+
+  it('saves inline sequence-list items through the Vue editor', async () => {
+    const w = factory({
+      binding: {
+        action: 'sequence-list',
+        items: [{ label: 'Clear', sequence: '/clear{Enter}' }],
+      },
+    });
+
+    expect(w.find('.sequence-list-editor').exists()).toBe(true);
+    const textareas = w.findAll('textarea');
+    await textareas[0].setValue('/help{Enter}');
+    const saveBtn = w.findAll('button').find(b => b.text() === 'Save')!;
+    await saveBtn.trigger('click');
+
+    const emitted = w.emitted('save')?.[0]?.[0] as any;
+    expect(emitted).toEqual({
+      action: 'sequence-list',
+      items: [{ label: 'Clear', sequence: '/help{Enter}' }],
+    });
+    w.unmount();
+  });
+
+  it('saves sequence-list group references through the Vue editor', async () => {
+    state.cliSequencesCache['claude-code'] = {
+      prompts: [{ label: 'Commit', sequence: 'use skill(commit){Send}' }],
+    };
+    const w = factory({
+      binding: { action: 'sequence-list', sequenceGroup: 'prompts' },
+    });
+
+    expect((w.find('#be-sequence-group').element as HTMLSelectElement).value).toBe('prompts');
+    const saveBtn = w.findAll('button').find(b => b.text() === 'Save')!;
+    await saveBtn.trigger('click');
+
+    const emitted = w.emitted('save')?.[0]?.[0] as any;
+    expect(emitted).toEqual({ action: 'sequence-list', sequenceGroup: 'prompts' });
     w.unmount();
   });
 

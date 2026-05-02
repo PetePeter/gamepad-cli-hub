@@ -91,6 +91,8 @@ class FakePlanManager {
 }
 
 class FakeConfigLoader {
+  submitSuffixByCli = new Map<string, string>();
+
   getCliTypeEntry(cliType: string) {
     return {
       cliType,
@@ -103,6 +105,7 @@ class FakeConfigLoader {
       sessions: {},
       bindings: {},
       sequences: {},
+      submitSuffix: this.submitSuffixByCli.get(cliType),
       stickConfig: { mode: 'cursor' },
       dpadConfig: { autoRepeat: true },
     };
@@ -615,6 +618,52 @@ describe('ScheduledTaskManager', () => {
       expect(ptyManager.getWrites(targetId)).toEqual(
         expect.arrayContaining([expect.stringContaining('do the thing')]),
       );
+    });
+
+    it('preserves scheduled prompt spaces and uses the target CLI submit suffix', async () => {
+      const targetId = 'session-direct-spaces';
+      sessionManager.addSession({ id: targetId, cliType: 'claude-code', workingDir: 'X:\\\\coding\\\\test' });
+      ptyManager.spawn({ sessionId: targetId });
+      configLoader.submitSuffixByCli.set('claude-code', '\\n');
+
+      manager.createTask({
+        title: 'Space Prompt',
+        planIds: [],
+        initialPrompt: '  keep spaces  ',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() - 1000),
+        dirPath: 'X:\\\\coding\\\\test',
+        mode: 'direct',
+        targetSessionId: targetId,
+      });
+
+      manager.start();
+      await vi.runOnlyPendingTimersAsync();
+
+      expect(ptyManager.getWrites(targetId)).toEqual(['  keep spaces  ', '\n']);
+    });
+
+    it('parses scheduler sequence tokens before applying the target CLI submit suffix', async () => {
+      const targetId = 'session-direct-sequence';
+      sessionManager.addSession({ id: targetId, cliType: 'claude-code', workingDir: 'X:\\\\coding\\\\test' });
+      ptyManager.spawn({ sessionId: targetId });
+      configLoader.submitSuffixByCli.set('claude-code', '\\r\\n');
+
+      manager.createTask({
+        title: 'Sequence Prompt',
+        planIds: [],
+        initialPrompt: 'hello{Enter}there{Space}',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() - 1000),
+        dirPath: 'X:\\\\coding\\\\test',
+        mode: 'direct',
+        targetSessionId: targetId,
+      });
+
+      manager.start();
+      await vi.runOnlyPendingTimersAsync();
+
+      expect(ptyManager.getWrites(targetId)).toEqual(['hello', '\r\n', 'there', ' ']);
     });
   });
 });
