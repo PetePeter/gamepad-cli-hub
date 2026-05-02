@@ -372,13 +372,36 @@ describe('useNavigationStore', () => {
       expect(ctx.savedFocusItem).toBeNull();
     });
 
-    it('sets activeSessionId even when terminal has no matching pane yet', async () => {
+    it('does NOT commit activeSessionId when terminal has no matching pane', async () => {
       mockTm.hasTerminal.mockReturnValue(false);
+      state.activeSessionId = 'sess-1';
 
-      await store.navigateToSession('nonexistent');
+      const result = await store.navigateToSession('nonexistent');
 
       expect(mockTm.switchTo).not.toHaveBeenCalled();
-      expect(state.activeSessionId).toBe('nonexistent');
+      expect(state.activeSessionId).toBe('sess-1');
+      expect(result.kind).toBe('unavailable');
+    });
+
+    it('returns ActivationResult for each branch', async () => {
+      // local-terminal
+      mockTm.hasTerminal.mockReturnValue(true);
+      let result = await store.navigateToSession('sess-1');
+      expect(result.kind).toBe('local-terminal');
+      expect(result.sessionId).toBe('sess-1');
+
+      // snapped-out
+      state.snappedOutSessions.add('sess-2');
+      result = await store.navigateToSession('sess-2');
+      expect(result.kind).toBe('snapped-out');
+      expect(result.sessionId).toBe('sess-2');
+      state.snappedOutSessions.delete('sess-2');
+
+      // unavailable
+      mockTm.hasTerminal.mockReturnValue(false);
+      result = await store.navigateToSession('nonexistent');
+      expect(result.kind).toBe('unavailable');
+      expect(result.sessionId).toBe('nonexistent');
     });
   });
 
@@ -424,11 +447,13 @@ describe('useNavigationStore', () => {
     it('does not call switchTo when terminal has no matching session', () => {
       mockTm.hasTerminal.mockReturnValue(false);
 
-      store.activateSession('nonexistent');
+      const result = store.activateSession('nonexistent');
 
       expect(mockTm.switchTo).not.toHaveBeenCalled();
       expect(state.activeSessionId).toBeNull();
       expect(mockChipBarRefresh).not.toHaveBeenCalled();
+      expect(result.kind).toBe('unavailable');
+      expect(result.sessionId).toBe('nonexistent');
     });
   });
 

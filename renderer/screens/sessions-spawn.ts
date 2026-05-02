@@ -208,10 +208,9 @@ export function autoSelectFocusedSession(): void {
 
   const session = state.sessions.find(s => s.id === navItem.id);
   if (!session) return;
-  const tm = getTerminalManager();
-  if (tm && tm.hasTerminal(session.id)) {
-    void useNavigationStore().navigateToSession(session.id);
-  }
+  const navStore = useNavigationStore();
+  navStore.activateSession(session.id);
+  navStore.syncSidebarToSession(session.id);
 }
 
 // ============================================================================

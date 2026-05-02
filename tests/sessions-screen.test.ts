@@ -272,6 +272,10 @@ describe('Sessions Screen', () => {
     mockCloseOverview.mockReset();
     mockNavigateToSession.mockReset();
     mockActivateSession.mockReset();
+    mockActivateSession.mockImplementation((sessionId: string) => {
+      state.activeSessionId = sessionId;
+      return { kind: 'local-terminal', sessionId };
+    });
     mockSwitchTo.mockReset();
     mockCurrentView = 'terminal';
     state.recentSessionId = null;
@@ -607,15 +611,15 @@ describe('Sessions Screen', () => {
       expect(sessionsState.sessionsFocusIndex).toBe(4);
     });
 
-    it('DPadDown from overview routes session auto-select through full navigation', () => {
+    it('DPadDown from overview routes session auto-select through activateSession', () => {
       mockCurrentView = 'overview';
       sessionsState.sessionsFocusIndex = 2; // first session card
 
       sessions.handleSessionsScreenButton('DPadDown');
 
       expect(sessionsState.sessionsFocusIndex).toBe(3);
-      expect(mockNavigateToSession).toHaveBeenCalledWith('s-1');
-      expect(mockActivateSession).not.toHaveBeenCalled();
+      expect(mockActivateSession).toHaveBeenCalledWith('s-1');
+      expect(mockNavigateToSession).not.toHaveBeenCalled();
       expect(mockSwitchTo).not.toHaveBeenCalled();
     });
 
@@ -670,8 +674,8 @@ describe('Sessions Screen', () => {
       sessionsState.sessionsFocusIndex = 2; // first session card
       sessions.handleSessionsScreenButton('DPadDown');
 
-      expect(mockNavigateToSession).toHaveBeenCalledWith('s-1');
-      expect(mockActivateSession).not.toHaveBeenCalled();
+      expect(mockActivateSession).toHaveBeenCalledWith('s-1');
+      expect(mockNavigateToSession).not.toHaveBeenCalled();
     });
 
     it('X falls through to config bindings (not consumed)', () => {

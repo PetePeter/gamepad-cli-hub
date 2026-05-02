@@ -30,6 +30,12 @@ import { findNavIndexBySessionId } from '../session-groups.js';
 import { getTerminalManager } from '../runtime/terminal-provider.js';
 import { useChipBarStore } from './chip-bar.js';
 
+export type ActivationResult =
+  | { kind: 'local-terminal'; sessionId: string }
+  | { kind: 'snapped-out'; sessionId: string }
+  | { kind: 'unavailable'; sessionId: string }
+  | { kind: 'failed'; sessionId: string; error: unknown };
+
 export const useNavigationStore = defineStore('navigation', () => {
   // ── Panel view (mirrors main-view-manager) ───────────────────────────
   // Not a competing ref — updated exclusively via onViewChange listener.
@@ -108,7 +114,7 @@ export const useNavigationStore = defineStore('navigation', () => {
    *
    * Use for: sidebar session click, notification click, overview card select.
    */
-  async function navigateToSession(sessionId: string): Promise<void> {
+  async function navigateToSession(sessionId: string): Promise<ActivationResult> {
     const requestId = ++navigationRequestId;
     const isLatestRequest = () => requestId === navigationRequestId;
     const cv = currentView();
@@ -122,20 +128,20 @@ export const useNavigationStore = defineStore('navigation', () => {
     // 1. Dismiss overlays (skip their restore — we're going somewhere new)
     if (cv === 'overview') {
       const { setSelectedOnExit } = await import('../screens/group-overview.js');
-      if (!isLatestRequest()) return;
+      if (!isLatestRequest()) return { kind: 'failed', sessionId, error: 'stale request' };
       setSelectedOnExit(true);
       await showView('terminal');
     } else if (cv === 'plan') {
       await showView('terminal');
     }
-    if (!isLatestRequest()) return;
+    if (!isLatestRequest()) return { kind: 'failed', sessionId, error: 'stale request' };
 
     // 2. Clean up draft/editor/chip bar
     const [{ hideEditorPopup }, chipBarMod] = await Promise.all([
       import('../editor/editor-popup.js'),
       import('../stores/chip-bar.js'),
     ]);
-    if (!isLatestRequest()) return;
+    if (!isLatestRequest()) return { kind: 'failed', sessionId, error: 'stale request' };
     const chipBarStore = chipBarMod.useChipBarStore();
     hideDraftEditor();
     hideEditorPopup();
@@ -149,27 +155,25 @@ export const useNavigationStore = defineStore('navigation', () => {
       } catch {
         // Ignore focus failures and still sync local selection state.
       }
-      if (!isLatestRequest()) return;
+      if (!isLatestRequest()) return { kind: 'failed', sessionId, error: 'stale request' };
       state.activeSessionId = sessionId;
       syncSidebarToSession(sessionId);
       void chipBarStore.refresh(sessionId);
-      return;
+      return { kind: 'snapped-out', sessionId };
     }
 
-    // 3. Switch terminal
+    // 4. Switch terminal — only commit state when tm confirms the switch
     const tm = getTerminalManager();
     if (tm?.hasTerminal(sessionId)) {
       tm.switchTo(sessionId);
       state.activeSessionId = sessionId;
-    } else {
-      state.activeSessionId = sessionId;
+      syncSidebarToSession(sessionId);
+      void chipBarStore.refresh(sessionId);
+      return { kind: 'local-terminal', sessionId };
     }
 
-    // 4. Sync sidebar focus
-    syncSidebarToSession(sessionId);
-
-    // 5. Refresh chip bar for new session
-    void chipBarStore.refresh(sessionId);
+    // No local terminal and not snapped-out — unavailable
+    return { kind: 'unavailable', sessionId };
   }
 
   /**
@@ -178,14 +182,23 @@ export const useNavigationStore = defineStore('navigation', () => {
    *
    * Use for: D-pad auto-select, Ctrl+Tab cycling.
    */
-  function activateSession(sessionId: string): void {
+  function activateSession(sessionId: string): ActivationResult {
     ++navigationRequestId;
+
+    if (state.snappedOutSessions.has(sessionId)) {
+      state.activeSessionId = sessionId;
+      void useChipBarStore().refresh(sessionId);
+      return { kind: 'snapped-out', sessionId };
+    }
+
     const tm = getTerminalManager();
     if (tm?.hasTerminal(sessionId)) {
       tm.switchTo(sessionId);
       state.activeSessionId = sessionId;
       void useChipBarStore().refresh(sessionId);
+      return { kind: 'local-terminal', sessionId };
     }
+    return { kind: 'unavailable', sessionId };
   }
 
   // ── Overlay lifecycle ────────────────────────────────────────────────
