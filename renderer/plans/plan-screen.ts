@@ -242,6 +242,7 @@ async function loadPlanData(dirPath: string, context?: ViewMountContext, options
   if (items.length > 0) {
     const planIds = items.map((item) => item.id);
     planScreenState.attachmentHasAny = await window.gamepadCli.planAttachmentHasAny(planIds);
+    refreshLayout();
   } else {
     planScreenState.attachmentHasAny = {};
   }
