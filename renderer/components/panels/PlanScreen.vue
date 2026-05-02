@@ -37,6 +37,7 @@ const props = withDefaults(defineProps<{
   filters?: {
     types: { bug: boolean; feature: boolean; research: boolean; untyped: boolean };
     statuses: { planning: boolean; ready: boolean; coding: boolean; review: boolean; blocked: boolean; done: boolean };
+    hasAttachment?: { yes: boolean; no: boolean };
   };
   attachmentHasAny?: Record<string, boolean>;
 }>(), {
@@ -48,6 +49,7 @@ const props = withDefaults(defineProps<{
   filters: () => ({
     types: { bug: true, feature: true, research: true, untyped: true },
     statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
+    hasAttachment: { yes: true, no: true },
   }),
 });
 
@@ -71,6 +73,7 @@ const emit = defineEmits<{
   toggleRelatedFocus: [];
   toggleTypeFilter: [type: 'bug' | 'feature' | 'research' | 'untyped'];
   toggleStatusFilter: [status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done'];
+  toggleHasAttachmentFilter: [value: 'yes' | 'no'];
   resetFilters: [];
   openBackups: [];
 }>();
@@ -529,6 +532,14 @@ onUnmounted(() => {
         </label>
         <label class="plan-header__filter">
           <input type="checkbox" :checked="filters.statuses.done" @change="emit('toggleStatusFilter', 'done')"> Done
+        </label>
+
+        <span class="plan-header__filter-label plan-header__filter-label--status">Attachment:</span>
+        <label class="plan-header__filter">
+          <input type="checkbox" :checked="filters.hasAttachment?.yes" @change="emit('toggleHasAttachmentFilter', 'yes')"> Has
+        </label>
+        <label class="plan-header__filter">
+          <input type="checkbox" :checked="filters.hasAttachment?.no" @change="emit('toggleHasAttachmentFilter', 'no')"> None
         </label>
 
         <button class="plan-header__btn plan-header__btn--reset" @click="emit('resetFilters')">Reset</button>

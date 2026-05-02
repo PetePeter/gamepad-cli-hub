@@ -35,6 +35,7 @@ export const planScreenState = reactive({
   filters: {
     types: { bug: true, feature: true, research: true, untyped: true },
     statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
+    hasAttachment: { yes: true, no: true },
   },
   attachmentHasAny: {} as Record<string, boolean>,
 });
@@ -64,6 +65,9 @@ async function loadFilterPreferences(): Promise<void> {
     const saved = await window.gamepadCli.configGetPlanFilters();
     planScreenState.filters.types = saved.types;
     planScreenState.filters.statuses = saved.statuses;
+    if (saved.hasAttachment) {
+      planScreenState.filters.hasAttachment = saved.hasAttachment;
+    }
   } catch (err) {
     console.error('[PlanScreen] Failed to load filter preferences:', err);
   }
@@ -105,13 +109,19 @@ function getSelectedItem(): PlanItem | null {
 }
 
 function matchesFilters(item: PlanItem): boolean {
-  const { filters } = planScreenState;
-  
+  const { filters, attachmentHasAny } = planScreenState;
+
   const typeMatch = !item.type ? filters.types.untyped : filters.types[item.type] ?? true;
   if (!typeMatch) return false;
-  
+
   const statusMatch = filters.statuses[item.status] ?? false;
-  return statusMatch;
+  if (!statusMatch) return false;
+
+  const hasAtt = attachmentHasAny[item.id] ?? false;
+  if (hasAtt && !filters.hasAttachment.yes) return false;
+  if (!hasAtt && !filters.hasAttachment.no) return false;
+
+  return true;
 }
 
 function getFilteredItems(): PlanItem[] {
@@ -811,6 +821,13 @@ export function toggleStatusGroup(group: 'active' | 'terminal' | 'planning'): vo
 export function resetFilters(): void {
   planScreenState.filters.types = { bug: true, feature: true, research: true, untyped: true };
   planScreenState.filters.statuses = { planning: true, ready: true, coding: true, review: true, blocked: true, done: true };
+  planScreenState.filters.hasAttachment = { yes: true, no: true };
+  refreshLayout();
+  void saveFilterPreferences();
+}
+
+export function toggleHasAttachmentFilter(value: 'yes' | 'no'): void {
+  planScreenState.filters.hasAttachment[value] = !planScreenState.filters.hasAttachment[value];
   refreshLayout();
   void saveFilterPreferences();
 }

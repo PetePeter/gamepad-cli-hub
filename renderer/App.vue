@@ -52,6 +52,7 @@ import {
   toggleStatusFilter,
   toggleRelatedFocus,
   resetFilters,
+  toggleHasAttachmentFilter,
   refreshCanvasIfVisible,
 } from './plans/plan-screen.js';
 import { handleSessionsScreenButton, toggleSessionOverviewVisibility, setSessionState, toggleGroupCollapse } from './screens/sessions.js';
@@ -1853,6 +1854,10 @@ function onResetFilters(): void {
   resetFilters();
 }
 
+function onToggleHasAttachmentFilter(value: 'yes' | 'no'): void {
+  toggleHasAttachmentFilter(value);
+}
+
 function onToggleRelatedFocus(): void {
   toggleRelatedFocus();
 }
@@ -2481,6 +2486,7 @@ onUnmounted(() => {
         @toggle-type-filter="onToggleTypeFilter"
         @toggle-status-filter="onToggleStatusFilter"
         @reset-filters="onResetFilters"
+        @toggle-has-attachment-filter="onToggleHasAttachmentFilter"
         @open-backups="openBackupRestore()"
       />
       <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">

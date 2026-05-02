@@ -273,6 +273,7 @@ export interface SortingConfig {
 export interface PlanFilterConfig {
   types: { bug: boolean; feature: boolean; research: boolean; untyped: boolean };
   statuses: { planning: boolean; ready: boolean; coding: boolean; review: boolean; blocked: boolean; done: boolean };
+  hasAttachment: { yes: boolean; no: boolean };
 }
 
 const DEFAULT_SORTING: SortingConfig = {
@@ -283,6 +284,7 @@ const DEFAULT_SORTING: SortingConfig = {
 const DEFAULT_PLAN_FILTERS: PlanFilterConfig = {
   types: { bug: true, feature: true, research: true, untyped: true },
   statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
+  hasAttachment: { yes: true, no: true },
 };
 
 export interface TelegramConfig {
