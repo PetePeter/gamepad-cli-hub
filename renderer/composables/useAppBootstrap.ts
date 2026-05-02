@@ -271,6 +271,7 @@ export async function doSpawn(
   workingDir?: string,
   contextText?: string,
   resumeSessionName?: string,
+  sessionId?: string,
 ): Promise<void> {
   const resolvedContextText = resumeSessionName
     ? undefined
@@ -293,24 +294,24 @@ export async function doSpawn(
       return;
     }
 
-    const sessionId = `pty-${cliType}-${Date.now()}`;
+    const resolvedSessionId = sessionId || `pty-${cliType}-${Date.now()}`;
     const success = await tm.createTerminal(
-      sessionId, cliType, spawnInfo.command, spawnInfo.args || [],
+      resolvedSessionId, cliType, spawnInfo.command, spawnInfo.args || [],
       workingDir, resolvedContextText, resumeSessionName,
     );
 
     if (success) {
-      state.lastOutputTimes.set(sessionId, Date.now());
+      state.lastOutputTimes.set(resolvedSessionId, Date.now());
       logEvent(`Spawned embedded terminal: ${cliType}`);
-      await useNavigationStore().navigateToSession(sessionId);
+      await useNavigationStore().navigateToSession(resolvedSessionId);
 
       setTimeout(async () => {
         try {
           await refreshSessions();
           const navStore = useNavigationStore();
-          navStore.syncSidebarToSession(sessionId);
+          navStore.syncSidebarToSession(resolvedSessionId);
           sessionsState.activeFocus = 'sessions';
-          await useChipBarStore().refresh(sessionId);
+          await useChipBarStore().refresh(resolvedSessionId);
         } catch (e) { console.error('[Bootstrap] Post-spawn refresh failed:', e); }
       }, 300);
     } else {
@@ -760,7 +761,7 @@ async function autoResumeSessions(tm: TerminalManager): Promise<void> {
       if (session.cliSessionName && !terminalIds.includes(session.id)) {
         try {
           console.log(`[AutoResume] Resuming session: ${session.id} (${session.cliType}) with name ${session.cliSessionName}`);
-          await doSpawn(session.cliType, session.workingDir, undefined, session.cliSessionName);
+          await doSpawn(session.cliType, session.workingDir, undefined, session.cliSessionName, session.id);
           const newId = tm.getActiveSessionId();
           if (newId && session.name && session.name !== session.cliType) {
             await window.gamepadCli?.sessionRename(newId, session.name);

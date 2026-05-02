@@ -151,4 +151,40 @@ describe('useAppBootstrap doSpawn', () => {
     expect(mockSyncSidebarToSession).toHaveBeenCalledWith('pty-claude-code-1776705600000');
     expect(mockChipBarRefresh).toHaveBeenCalledWith('pty-claude-code-1776705600000');
   });
+
+  it('doSpawn reuses provided sessionId instead of generating new one', async () => {
+    const mod = await import('../renderer/composables/useAppBootstrap.js');
+    const { state } = await import('../renderer/state.js');
+    state.lastOutputTimes.clear();
+
+    await mod.doSpawn('claude-code', '/repo', undefined, undefined, 'my-custom-session-id');
+
+    expect(mockCreateTerminal).toHaveBeenCalledWith(
+      'my-custom-session-id',
+      'claude-code',
+      expect.any(String),
+      expect.any(Array),
+      '/repo',
+      undefined,
+      undefined,
+    );
+  });
+
+  it('doSpawn generates sessionId when not provided', async () => {
+    const mod = await import('../renderer/composables/useAppBootstrap.js');
+    const { state } = await import('../renderer/state.js');
+    state.lastOutputTimes.clear();
+
+    await mod.doSpawn('claude-code', '/repo');
+
+    expect(mockCreateTerminal).toHaveBeenCalledWith(
+      expect.stringMatching(/^pty-claude-code-\d+$/),
+      'claude-code',
+      expect.any(String),
+      expect.any(Array),
+      '/repo',
+      undefined,
+      undefined,
+    );
+  });
 });

@@ -526,4 +526,18 @@ describe('pty:spawn resume logic', () => {
     );
     vi.useRealTimers();
   });
+
+  it('sets HELM_SESSION_ID to the provided sessionId on resume', async () => {
+    configLoader.getCliTypeEntry.mockReturnValue({
+      name: 'Claude Code',
+      command: 'claude',
+      resumeCommand: 'claude --resume "{cliSessionName}"',
+    } as CliTypeConfig);
+
+    const handler = handlers.get('pty:spawn')!;
+    await handler({}, 'original-session-123', 'claude', [], '/work', 'claude-code', undefined, 'hub-session-abc');
+
+    const env = (ptyManager.spawn as ReturnType<typeof vi.fn>).mock.calls[0][0].env;
+    expect(env.HELM_SESSION_ID).toBe('original-session-123');
+  });
 });

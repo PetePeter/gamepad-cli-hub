@@ -82,7 +82,7 @@ export function clamp(value: number, min: number, max: number): number {
 // Spawn flow
 // ============================================================================
 
-export async function doSpawn(cliType: string, workingDir?: string, contextText?: string, resumeSessionName?: string): Promise<void> {
+export async function doSpawn(cliType: string, workingDir?: string, contextText?: string, resumeSessionName?: string, sessionId?: string): Promise<void> {
   // Resume spawns never use context text (it was one-time context for the original spawn)
   const resolvedContextText = resumeSessionName
     ? undefined
@@ -105,9 +105,9 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
         return;
       }
 
-      const sessionId = `pty-${cliType}-${Date.now()}`;
+      const resolvedSessionId = sessionId || `pty-${cliType}-${Date.now()}`;
       const success = await tm.createTerminal(
-        sessionId,
+        resolvedSessionId,
         cliType,
         spawnInfo.command,
         spawnInfo.args || [],
@@ -119,14 +119,14 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
       if (success) {
         logEvent(`Spawned embedded terminal: ${cliType}`);
         // Auto-select the new session through the shared navigation owner.
-        await useNavigationStore().navigateToSession(sessionId);
+        await useNavigationStore().navigateToSession(resolvedSessionId);
 
         setTimeout(async () => {
           try {
             await loadSessions();
             await refreshPlanBadges();
             // Focus the newly spawned session in the navList
-            const newIndex = findNavIndexBySessionId(sessionsState.navList, sessionId);
+            const newIndex = findNavIndexBySessionId(sessionsState.navList, resolvedSessionId);
             if (newIndex >= 0) {
               sessionsState.sessionsFocusIndex = newIndex;
               sessionsState.activeFocus = 'sessions';
