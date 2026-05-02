@@ -5,15 +5,8 @@
 import { state } from './state.js';
 import { formModal as formModalBridge, setFormModalResolve } from './stores/modal-bridge.js';
 
-/** Whether the generic form modal is currently visible (used by navigation.ts for gamepad interception). */
 export let formModalVisible = false;
 
-// ============================================================================
-// Directional button normalisation
-// ============================================================================
-
-/** Maps D-pad buttons to a cardinal direction for UI navigation.
- *  Left/right sticks are excluded — they're used for CLI bindings only. */
 const DIRECTION_MAP: Record<string, 'up' | 'down' | 'left' | 'right'> = {
   DPadUp: 'up',
   DPadDown: 'down',
@@ -21,32 +14,21 @@ const DIRECTION_MAP: Record<string, 'up' | 'down' | 'left' | 'right'> = {
   DPadRight: 'right',
 };
 
-/** Returns the cardinal direction for any directional button, or null for non-directional buttons. */
 export function toDirection(button: string): 'up' | 'down' | 'left' | 'right' | null {
   return DIRECTION_MAP[button] ?? null;
 }
-
-// ============================================================================
-// Event Logging
-// ============================================================================
 
 export function logEvent(event: string): void {
   const now = new Date();
   const time = now.toLocaleTimeString('en-US', { hour12: false });
   state.eventLog.unshift({ time, event });
-
-  // Keep only last 50 events
-  if (state.eventLog.length > 50) {
-    state.eventLog.pop();
-  }
-
+  if (state.eventLog.length > 50) state.eventLog.pop();
   renderEventLog();
 }
 
 export function renderEventLog(): void {
   const logEl = document.getElementById('eventLog');
   if (!logEl) return;
-
   logEl.innerHTML = state.eventLog.slice(0, 20).map(e => `
     <div class="event-log-item">
       <span class="event-log-item--time">[${e.time}]</span> ${e.event}
@@ -56,13 +38,9 @@ export function renderEventLog(): void {
 
 export function showScreen(screenName: string): void {
   document.querySelectorAll('.screen').forEach(s => {
-    // Keep sessions visible when settings is shown (slide-over)
-    if (s.id === 'screen-sessions' && screenName === 'settings') {
-      return;
-    }
+    if (s.id === 'screen-sessions' && screenName === 'settings') return;
     s.classList.remove('screen--active');
   });
-
   const targetScreen = document.getElementById(`screen-${screenName}`);
   if (targetScreen) {
     targetScreen.classList.add('screen--active');
@@ -70,10 +48,6 @@ export function showScreen(screenName: string): void {
     logEvent(`Screen: ${screenName}`);
   }
 }
-
-// ============================================================================
-// Profile Display
-// ============================================================================
 
 export async function updateProfileDisplay(): Promise<void> {
   try {
@@ -87,10 +61,6 @@ export async function updateProfileDisplay(): Promise<void> {
   }
 }
 
-// ============================================================================
-// CLI Display Helpers
-// ============================================================================
-
 export function getCliIcon(cliType: string): string {
   const icons: Record<string, string> = {
     'claude-code': '🤖',
@@ -103,9 +73,7 @@ export function getCliIcon(cliType: string): string {
 
 export function getCliDisplayName(cliType: string): string {
   const configuredName = state.cliToolsCache?.[cliType]?.name;
-  if (typeof configuredName === 'string' && configuredName.trim().length > 0) {
-    return configuredName.trim();
-  }
+  if (typeof configuredName === 'string' && configuredName.trim().length > 0) return configuredName.trim();
   const names: Record<string, string> = {
     'claude-code': 'Claude',
     'copilot-cli': 'Copilot',
@@ -115,10 +83,6 @@ export function getCliDisplayName(cliType: string): string {
   return names[cliType] || cliType;
 }
 
-// ============================================================================
-// Focus helpers
-// ============================================================================
-
 export function getFocusableElements(): HTMLElement[] {
   return Array.from(document.querySelectorAll('.focusable:not([hidden])'));
 }
@@ -126,36 +90,24 @@ export function getFocusableElements(): HTMLElement[] {
 export function navigateFocus(direction: number): void {
   const focusable = getFocusableElements();
   if (focusable.length === 0) return;
-
   const currentIndex = focusable.findIndex(el => el === document.activeElement);
   let nextIndex = currentIndex + direction;
-
-  // Wrap around
   if (nextIndex < 0) nextIndex = focusable.length - 1;
   if (nextIndex >= focusable.length) nextIndex = 0;
-
   const target = focusable[nextIndex];
   target.focus();
   target.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
 }
 
-// ============================================================================
-// Binding details formatter (shared by settings + binding editor)
-// ============================================================================
-
 export function formatBindingDetails(binding: any): string {
   switch (binding.action) {
     case 'keyboard': {
       if (!binding.sequence) return '—';
-      const preview = binding.sequence.length > 40
-        ? binding.sequence.substring(0, 37) + '...'
-        : binding.sequence;
+      const preview = binding.sequence.length > 40 ? binding.sequence.substring(0, 37) + '...' : binding.sequence;
       return `seq: ${preview.replace(/\n/g, '↵')}`;
     }
     case 'voice':
-      return binding.key
-        ? `${binding.mode || 'tap'}: ${binding.key}`
-        : '—';
+      return binding.key ? `${binding.mode || 'tap'}: ${binding.key}` : '—';
     case 'scroll':
       return `scroll: ${binding.direction || 'down'}${binding.lines ? ` (${binding.lines} lines)` : ''}`;
     default:
@@ -163,15 +115,7 @@ export function formatBindingDetails(binding: any): string {
   }
 }
 
-// ============================================================================
-// Form Modal (shared utility for profile/tools/directories)
-// ============================================================================
-
-export interface FormFieldOption {
-  value: string;
-  label: string;
-}
-
+export interface FormFieldOption { value: string; label: string; }
 export interface FormField {
   key: string;
   label: string;
@@ -179,49 +123,34 @@ export interface FormField {
   placeholder?: string;
   type?: 'text' | 'select' | 'textarea' | 'checkbox' | 'sequence-items';
   options?: FormFieldOption[];
-  /** Block save when the value is empty/unchecked and show inline validation. */
   required?: boolean;
-  /** Show a native OS folder-picker button next to the text input. */
   browse?: boolean;
-  /** Show label inputs for each item in sequence-items fields. Default true. */
   showLabels?: boolean;
 }
 
 export function getRequiredFormFieldError(field: Pick<FormField, 'label' | 'required' | 'type'>, value?: string): string | null {
   if (!field.required) return null;
-
-  if (field.type === 'checkbox') {
-    return value === 'true' ? null : `${field.label} is required.`;
-  }
-
+  if (field.type === 'checkbox') return value === 'true' ? null : `${field.label} is required.`;
   if (field.type === 'sequence-items') {
     if (!value) return `${field.label} is required.`;
     try {
       const parsed = JSON.parse(value);
       if (!Array.isArray(parsed)) return `${field.label} is required.`;
-      const hasContent = parsed.some((item: any) =>
-        typeof item?.sequence === 'string' && item.sequence.trim().length > 0,
-      );
+      const hasContent = parsed.some((item: any) => typeof item?.sequence === 'string' && item.sequence.trim().length > 0);
       return hasContent ? null : `${field.label} is required.`;
     } catch {
       return `${field.label} is required.`;
     }
   }
-
   return value?.trim() ? null : `${field.label} is required.`;
 }
 
-/** Extract folder basename from a path (handles both / and \). */
 function folderBasename(folderPath: string): string {
   const parts = folderPath.replace(/\\/g, '/').split('/');
   return parts[parts.length - 1] || parts[parts.length - 2] || '';
 }
 
-/** Create a 📁 browse button that opens a native folder picker and fills the given input. */
-export function createBrowseButton(
-  pathInput: HTMLInputElement,
-  nameInput?: HTMLInputElement | null,
-): HTMLButtonElement {
+export function createBrowseButton(pathInput: HTMLInputElement, nameInput?: HTMLInputElement | null): HTMLButtonElement {
   const btn = document.createElement('button');
   btn.textContent = '📁';
   btn.title = 'Browse…';
@@ -232,9 +161,7 @@ export function createBrowseButton(
       pathInput.value = selected;
       pathInput.dispatchEvent(new Event('input', { bubbles: true }));
       const nameEl = nameInput ?? document.getElementById('formField_name') as HTMLInputElement | null;
-      if (nameEl && !nameEl.value.trim()) {
-        nameEl.value = folderBasename(selected);
-      }
+      if (nameEl && !nameEl.value.trim()) nameEl.value = folderBasename(selected);
     }
   });
   return btn;
@@ -255,7 +182,6 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
       browse: f.browse,
       showLabels: f.showLabels,
     }));
-
     formModalVisible = true;
     setFormModalResolve((values: Record<string, string> | null) => {
       formModalVisible = false;
@@ -265,44 +191,37 @@ export function showFormModal(title: string, fields: FormField[]): Promise<Recor
   });
 }
 
-// ============================================================================
-// Sequence syntax help (shared by binding editor + CLI type settings form)
-// ============================================================================
-
-/** Returns the plain-text syntax reference for the sequence input language. */
 export function getSequenceSyntaxHelpText(): string {
   return `SYNTAX REFERENCE
 
-Plain text     \u2192 Typed literally
-{Enter}        \u2192 Newline (stays in prompt)
-{Send}         \u2192 Submit / send prompt
-{Ctrl+S}       \u2192 Key combo
-{Ctrl+Shift+P} \u2192 Multi-modifier combo
-{Ctrl Down}    \u2192 Press & hold modifier
-{Ctrl Up}      \u2192 Release modifier
-{Wait 500}     \u2192 Pause 500ms
-{{ or }}        \u2192 Literal { or }
-Newline        \u2192 Enter key press
+Plain text     → Typed literally. Newlines stay in text.
+{Enter}        → Submit using this CLI's submit suffix
+{Send}         → Submit using this CLI's submit suffix
+{NoSend}       → Suppress the final implied submit
+{NoEnter}      → Alias for {NoSend}
+{Ctrl+S}       → Key combo
+{Ctrl+Shift+P} → Multi-modifier combo
+{Ctrl Down}    → Press & hold modifier
+{Ctrl Up}      → Release modifier
+{Wait 500}     → Pause 500ms
+{{ or }}       → Literal { or }
 
 All {tokens} are case-insensitive.
 
 MODIFIERS: Ctrl, Alt, Shift, Win
 
-SPECIAL KEYS: Enter, Send, Tab, Esc, Space, Backspace, Delete,
-  Insert, Home, End, PageUp, PageDown, Up, Down, Left,
-  Right, F1\u2013F12, CapsLock, PrintScreen
+SPECIAL KEYS: Enter, Send, NoSend, NoEnter, Tab, Esc, Space,
+  Backspace, Delete, Insert, Home, End, PageUp, PageDown,
+  Up, Down, Left, Right, F1–F12, CapsLock, PrintScreen
 
 EXAMPLE:
-  /allow-all{Send}{Wait 3000}prompt text here`;
+  /allow-all{Send}{Wait 3000}prompt text here
+
+NOTE:
+  If no {Send}, {Enter}, {NoSend}, or {NoEnter} appears, Helm sends once at the end.`;
 }
 
-/**
- * Creates a collapsible syntax help panel (toggle button + panel div).
- * Returns the wrapper element to append into a form field container.
- */
 export function createSequenceSyntaxHelp(): HTMLElement {
-  const wrapper = document.createDocumentFragment() as unknown as HTMLElement;
-
   const helpToggle = document.createElement('button');
   helpToggle.type = 'button';
   helpToggle.className = 'sequence-help-toggle focusable';
@@ -317,7 +236,6 @@ export function createSequenceSyntaxHelp(): HTMLElement {
     helpPanel.classList.toggle('sequence-help--visible');
   });
 
-  // Return as a container div
   const container = document.createElement('div');
   container.className = 'sequence-syntax-help-container';
   container.appendChild(helpToggle);
@@ -325,7 +243,6 @@ export function createSequenceSyntaxHelp(): HTMLElement {
   return container;
 }
 
-/** Escape HTML special characters to prevent XSS when using innerHTML. */
 export function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

@@ -9,6 +9,7 @@ import { ref, watch, computed } from 'vue';
 import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import { getCliDisplayName } from '../../utils.js';
+import PromptTextarea from '../common/PromptTextarea.vue';
 
 const MODAL_ID = 'binding-editor';
 
@@ -154,13 +155,12 @@ defineExpose({ handleButton });
           <!-- Keyboard params -->
           <template v-if="actionType === 'keyboard'">
             <div class="binding-editor-field">
-              <label for="be-sequence">Sequence</label>
-              <textarea
+              <PromptTextarea
                 id="be-sequence"
                 v-model="sequence"
+                label="Sequence"
                 placeholder="{Send}, text, {Ctrl+C}"
-                class="form-textarea"
-                rows="3"
+                :rows="3"
               />
             </div>
           </template>

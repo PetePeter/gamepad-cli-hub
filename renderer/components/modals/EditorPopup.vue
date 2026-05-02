@@ -10,6 +10,7 @@
 import { ref, computed, watch, nextTick } from 'vue';
 import { type InterceptKey, useModalStack } from '../../composables/useModalStack.js';
 import { toDirection } from '../../utils.js';
+import PromptTextarea from '../common/PromptTextarea.vue';
 import {
   addEditorHistoryEntry,
   loadEditorHistory,
@@ -36,7 +37,6 @@ const text = ref('');
 const history = ref<string[]>([]);
 const selectedHistory = ref<string | null>(null);
 const focusTarget = ref<FocusTarget>('textarea');
-const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const modalStack = useModalStack();
 const EDITOR_POPUP_KEYS = new Set<InterceptKey>(['arrows', 'escape']);
 
@@ -49,19 +49,10 @@ watch(() => props.visible, async (v) => {
     focusTarget.value = 'textarea';
     history.value = await loadEditorHistory();
     modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: EDITOR_POPUP_KEYS });
-    await nextTick();
-    focusTextareaEnd();
   } else {
     modalStack.pop(MODAL_ID);
   }
 }, { immediate: true });
-
-function focusTextareaEnd(): void {
-  const ta = textareaRef.value;
-  if (!ta) return;
-  ta.focus();
-  ta.setSelectionRange(ta.value.length, ta.value.length);
-}
 
 function handleButton(button: string): boolean {
   const dir = toDirection(button);
@@ -108,34 +99,13 @@ function onHistorySelect(entry: string): void {
 function onHistoryInsert(): void {
   const entry = selectedHistory.value;
   if (!entry) return;
-  const ta = textareaRef.value;
-  if (!ta) {
-    text.value += entry;
-    nextTick(() => focusTextareaEnd());
-    return;
-  }
-  const start = ta.selectionStart ?? text.value.length;
-  const end = ta.selectionEnd ?? start;
-  text.value = `${text.value.slice(0, start)}${entry}${text.value.slice(end)}`;
-  nextTick(() => {
-    ta.focus();
-    ta.setSelectionRange(start + entry.length, start + entry.length);
-  });
+  text.value += text.value && !text.value.endsWith('\n') ? `\n${entry}` : entry;
+  nextTick(() => { focusTarget.value = 'textarea'; });
 }
 
 function onHistoryDblClick(entry: string): void {
   selectedHistory.value = entry;
   onHistoryInsert();
-}
-
-function handleKeydown(e: KeyboardEvent): void {
-  if (e.ctrlKey && e.key === 'Enter') {
-    e.preventDefault();
-    void onSend();
-  } else if (e.key === 'Escape') {
-    e.preventDefault();
-    onClose();
-  }
 }
 
 defineExpose({ handleButton });
@@ -158,13 +128,13 @@ defineExpose({ handleButton });
 
         <div class="editor-popup__body">
           <section class="editor-popup__composer">
-            <textarea
-              ref="textareaRef"
+            <PromptTextarea
               v-model="text"
-              class="editor-popup__textarea"
-              rows="12"
               placeholder="Enter your prompt…"
-              @keydown="handleKeydown"
+              :rows="12"
+              :min-rows="8"
+              :max-rows="24"
+              textarea-class="editor-popup__textarea"
             />
           </section>
 
@@ -209,7 +179,7 @@ defineExpose({ handleButton });
             >Cancel</button>
           </div>
           <div class="editor-popup__footer-hint">
-            Ctrl+Enter send · Esc cancel · Double-click history to insert
+            Send button submits · Esc/click outside cancel · Double-click history to insert
           </div>
         </div>
       </div>

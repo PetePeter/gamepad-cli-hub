@@ -24,14 +24,11 @@ import { state } from './state.js';
 export function parseSubmitSuffix(suffix?: string): string {
   if (!suffix) return '\r';
 
-  // Handle escape notation (backslash + character, e.g., '\\r', '\\n')
   if (suffix === '\\r') return '\r';
   if (suffix === '\\n') return '\n';
   if (suffix === '\\t') return '\t';
   if (suffix === '\\r\\n') return '\r\n';
 
-  // Only parse as sequence syntax if it contains curly braces
-  // This preserves actual control characters (e.g., real \r, \n, \t) unchanged
   if (suffix.includes('{')) {
     const actions = parseSequence(suffix);
     let result = '';
@@ -40,12 +37,9 @@ export function parseSubmitSuffix(suffix?: string): string {
       if (action.type === 'text') {
         result += action.value;
       } else if (action.type === 'key') {
-        if (action.key === 'Enter' || action.key === 'Send') {
-          result += keyToPtyEscape('enter');
-        } else {
-          const esc = keyToPtyEscape(action.key);
-          result += esc;
-        }
+        result += action.key === 'Enter' || action.key === 'Send'
+          ? keyToPtyEscape('enter')
+          : keyToPtyEscape(action.key);
       } else if (action.type === 'combo') {
         if (action.keys.length === 2 && action.keys[0].toLowerCase() === 'ctrl') {
           const k = action.keys[1].toUpperCase();
@@ -54,13 +48,12 @@ export function parseSubmitSuffix(suffix?: string): string {
           }
         }
       }
-      // Wait and modifiers are ignored in suffix context
     }
 
-    return result || suffix; // Return result, or original if parsing yielded nothing
+    return result || suffix;
   }
 
-  return suffix; // Return as-is if no escape notation or sequence syntax
+  return suffix;
 }
 
 type GetActiveSessionId = () => string | null;
@@ -72,27 +65,46 @@ let pasteInFlight = false;
 let editorInFlight = false;
 let clipboardPasteInFlight = false;
 let getEscProtectionEnabled: GetEscProtectionEnabled = async () => true;
-/** Per-session lock to prevent interleaved character-by-character paste */
 const ptyIndividualLock = new Set<string>();
 
 const SENDKEYS_INDIVIDUAL_DELAY_MS = 20;
 const PTY_INDIVIDUAL_DELAY_MS = 30;
 
-/** Deliver text via clipboard + Ctrl+V keystroke (for app-initiated pastes).
- *  Sets clipboard, then sends Ctrl+V which the keyboard relay intercepts,
- *  reads clipboard, and delivers via normal pasteMode logic.
- *  Reliable for Ink-based forms that need keystroke events. */
+function getConfiguredSubmitSuffix(sessionId: string, withReturn?: boolean, override?: string): string {
+  if (override !== undefined) return override;
+  if (!withReturn) return '';
+  const session = state.sessions.find(s => s.id === sessionId);
+  const configured = session ? state.cliToolsCache?.[session.cliType]?.submitSuffix : undefined;
+  return configured ? parseSubmitSuffix(configured) : '\r';
+}
+
+async function writePtySubmitSuffix(sessionId: string, suffix: string): Promise<void> {
+  if (!suffix) return;
+  await window.gamepadCli.ptyWrite(sessionId, suffix);
+}
+
+async function sendKeyboardSubmitSuffix(suffix: string): Promise<void> {
+  if (!suffix) return;
+
+  if (suffix === '\r' || suffix === '\n' || suffix === '\r\n') {
+    await window.gamepadCli.keyboardKeyTap('enter');
+    return;
+  }
+
+  await window.gamepadCli.keyboardTypeString(suffix);
+}
+
+async function simulateClipboardPaste(text: string): Promise<void> {
+  await navigator.clipboard.writeText(text);
+  await window.gamepadCli.keyboardSendKeyCombo(['ctrl', 'v']);
+}
+
 export async function deliverViaClipboardPaste(text: string): Promise<void> {
   if (!text || clipboardPasteInFlight) return;
   clipboardPasteInFlight = true;
   try {
-    // Write to system clipboard
-    await navigator.clipboard.writeText(text);
-    console.log(`[Paste] clipboard set: ${text.length} chars`);
-
-    // Send Ctrl+V keystroke — keyboard relay will intercept and read clipboard
-    await window.gamepadCli.keyboardTypeString('\u0016'); // Ctrl+V as ASCII control code
-    console.log(`[Paste] clipboard+Ctrl+V sent, relay will handle`);
+    await simulateClipboardPaste(text);
+    console.log(`[Paste] clipboard+Ctrl+V sent: ${text.length} chars`);
   } catch (err) {
     console.error('[Paste] clipboard paste failed:', err);
   } finally {
@@ -100,36 +112,26 @@ export async function deliverViaClipboardPaste(text: string): Promise<void> {
   }
 }
 
-/** Deliver bulk text to the active session — either via PTY write or
- *  OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode.
- *  When using PTY mode, wraps text in bracketed paste markers if the terminal
- *  has enabled bracketed paste mode (DEC private mode 2004). */
+/** Deliver bulk text to the active session — either via PTY write, clipboard paste,
+ *  or OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode. */
 export async function deliverBulkText(sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }): Promise<void> {
   if (!text) return;
   const session = state.sessions.find(s => s.id === sessionId);
   const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
+  const suffix = getConfiguredSubmitSuffix(sessionId, options?.withReturn, options?.submitSuffix);
 
   console.log(`[Paste] mode=${tool?.pasteMode ?? 'pty(default)'} cliType=${session?.cliType} chars=${text.length}`);
 
-  // PTY individual — write each character with delay to mimic real typing (for Ink-based CLIs)
   if (tool?.pasteMode === 'ptyindividual') {
-    if (ptyIndividualLock.has(sessionId)) return; // paste already in progress
+    if (ptyIndividualLock.has(sessionId)) return;
     ptyIndividualLock.add(sessionId);
     try {
       for (const char of text) {
-        if (!state.sessions.find(s => s.id === sessionId)) break; // session closed
+        if (!state.sessions.find(s => s.id === sessionId)) break;
         await window.gamepadCli.ptyWrite(sessionId, char);
         await new Promise(resolve => setTimeout(resolve, PTY_INDIVIDUAL_DELAY_MS));
       }
-      const configuredSuffix = options?.withReturn
-        ? (state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix
-          ? parseSubmitSuffix(state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix)
-          : '\r')
-        : '';
-      const suffix = options?.submitSuffix ?? configuredSuffix;
-      if (suffix) {
-        await window.gamepadCli.ptyWrite(sessionId, suffix);
-      }
+      await writePtySubmitSuffix(sessionId, suffix);
       console.log(`[Paste] ptyindividual complete: ${text.length} chars sent`);
     } finally {
       ptyIndividualLock.delete(sessionId);
@@ -142,33 +144,16 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
       await window.gamepadCli.keyboardTypeString(char);
       await new Promise(resolve => setTimeout(resolve, SENDKEYS_INDIVIDUAL_DELAY_MS));
     }
-    const configuredSuffix = options?.withReturn
-      ? (state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix
-        ? parseSubmitSuffix(state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix)
-        : '\r')
-      : '';
-    const suffix = options?.submitSuffix ?? configuredSuffix;
-    if (suffix) {
-      await window.gamepadCli.keyboardTypeString(suffix);
-    }
-    return;
-  }
-  if (tool?.pasteMode === 'sendkeys' && window.gamepadCli?.keyboardTypeString) {
-    await window.gamepadCli.keyboardTypeString(text);
-    const configuredSuffix = options?.withReturn
-      ? (state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix
-        ? parseSubmitSuffix(state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix)
-        : '\r')
-      : '';
-    const suffix = options?.submitSuffix ?? configuredSuffix;
-    if (suffix) {
-      await window.gamepadCli.keyboardTypeString(suffix);
-    }
+    await sendKeyboardSubmitSuffix(suffix);
     return;
   }
 
-  // Clippaste mode — keep the terminal focused, but write via the app-owned
-  // PTY path so Copilot paste semantics remain explicit and observable.
+  if (tool?.pasteMode === 'sendkeys' && window.gamepadCli?.keyboardTypeString) {
+    await window.gamepadCli.keyboardTypeString(text);
+    await sendKeyboardSubmitSuffix(suffix);
+    return;
+  }
+
   if (tool?.pasteMode === 'clippaste') {
     const tm = getTerminalManager();
     const termSession = tm?.getSession?.(sessionId);
@@ -179,48 +164,35 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
     }
 
     termSession.view.focus();
-    const configuredSuffix = options?.withReturn
-      ? (state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix
-        ? parseSubmitSuffix(state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix)
-        : '\r')
-      : '';
-    const suffix = options?.submitSuffix ?? configuredSuffix;
-    await window.gamepadCli.ptyWrite(sessionId, text + suffix);
-    console.log(`[Paste] clippaste complete: ${text.length} chars pasted via PTY`);
+    await simulateClipboardPaste(text);
+    await writePtySubmitSuffix(sessionId, suffix);
+    console.log(`[Paste] clippaste complete: ${text.length} chars pasted via clipboard, suffix via PTY`);
     return;
   }
 
-  // PTY mode — wrap in bracketed paste markers if the terminal requests it
   const tm = getTerminalManager();
   const view = tm?.getSession?.(sessionId)?.view;
   const bracketedPasteEnabled = typeof view?.isBracketedPasteEnabled === 'function'
     ? view.isBracketedPasteEnabled()
     : false;
-  const configuredSuffix = options?.withReturn
-    ? (state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix
-      ? parseSubmitSuffix(state.cliToolsCache?.[session?.cliType ?? '']?.submitSuffix)
-      : '\r')
-    : '';
-  const suffix = options?.submitSuffix ?? configuredSuffix;
   const payload = bracketedPasteEnabled
-    ? `\x1b[200~${text}\x1b[201~${suffix}`
-    : `${text}${suffix}`;
+    ? `\x1b[200~${text}\x1b[201~`
+    : text;
+
   await window.gamepadCli.ptyWrite(sessionId, payload);
+  await writePtySubmitSuffix(sessionId, suffix);
 }
 
-/** Returns true if the focused element is an input field, textarea, or inside a modal. */
 function isEditableOrModalFocused(): boolean {
   const el = document.activeElement;
   if (!el) return false;
   const tag = el.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
   if ((el as HTMLElement).isContentEditable) return true;
-  // Check if inside a modal overlay
   if (el.closest('.modal-overlay, .dir-picker-overlay, .binding-editor, .scheduler-popup-backdrop')) return true;
   return false;
 }
 
-/** Returns true if the event target is inside an xterm.js terminal container. */
 function isXtermTarget(e: KeyboardEvent): boolean {
   const target = e.target;
   if (!(target instanceof HTMLElement)) return false;
@@ -232,7 +204,7 @@ export function setupKeyboardRelay(
   hasPendingQuestion: HasPendingQuestion = () => false,
   getEscProtectionEnabledFn: GetEscProtectionEnabled = async () => true,
 ): void {
-  if (registeredHandler) return; // idempotent
+  if (registeredHandler) return;
 
   getEscProtectionEnabled = getEscProtectionEnabledFn;
 
@@ -242,13 +214,11 @@ export function setupKeyboardRelay(
 
     if (e.key === 'Escape') {
       e.preventDefault();
-      e.stopPropagation(); // Must happen before any await so xterm never sees the key.
+      e.stopPropagation();
 
       const { useEscProtection } = await import('./composables/useEscProtection.js');
       const escProtection = useEscProtection();
 
-      // ESC protection confirm path must run before overlay blocking so the
-      // guard can be confirmed while its own modal is visible.
       if (escProtection.isProtecting.value) {
         window.gamepadCli.ptyWrite(sessionId, '\x1b');
         escProtection.dismissProtection();
@@ -256,7 +226,6 @@ export function setupKeyboardRelay(
       }
     }
 
-    // Ctrl+Shift+R — rename active session inline (allow even when modals visible)
     if (e.ctrlKey && e.shiftKey && e.key === 'R') {
       e.preventDefault();
       e.stopPropagation();
@@ -269,11 +238,8 @@ export function setupKeyboardRelay(
       return;
     }
 
-    // Ctrl+V paste — always intercept, even when xterm has focus
-    // (xterm.js doesn't reliably handle paste from clipboard). Clippaste
-    // needs to pass through visible modals so it can focus the terminal sink,
-    // but normal paste modes must keep modal guards authoritative.
     if (e.ctrlKey && e.key === 'v') {
+      if (clipboardPasteInFlight) return;
       if (document.querySelector('.plan-screen.visible')) return;
       if (isDraftEditorVisible()) return;
       const session = state.sessions.find(s => s.id === sessionId);
@@ -301,28 +267,21 @@ export function setupKeyboardRelay(
       return;
     }
 
-    // Block keyboard relay when scheduler popup is open
     if (document.querySelector('.scheduler-popup-backdrop')) {
       if (isEditableOrModalFocused()) return;
       e.stopPropagation();
       return;
     }
 
-    // Block ALL keyboard relay when any modal overlay is visible
-    // Exception: if an editable element inside the modal has focus, let the event through.
     if (document.querySelector('.modal-overlay.modal--visible')) {
       if (isEditableOrModalFocused()) return;
       e.stopPropagation();
       return;
     }
 
-    // Block keyboard relay when the plan canvas is visible
     if (document.querySelector('.plan-screen.visible')) return;
-
-    // Block keyboard relay when the draft editor is open
     if (isDraftEditorVisible()) return;
 
-    // Ctrl+G — open external editor for prompt composition
     if (e.ctrlKey && e.key === 'g') {
       e.preventDefault();
       e.stopPropagation();
@@ -342,8 +301,6 @@ export function setupKeyboardRelay(
       return;
     }
 
-    // ESC key protection — run before xterm early return so terminal focus does
-    // not bypass the first-press guard.
     if (e.key === 'Escape') {
       const protected_ = await getEscProtectionEnabled();
       if (protected_) {
@@ -354,23 +311,17 @@ export function setupKeyboardRelay(
         return;
       }
 
-      // Protection disabled — send ESC directly
       window.gamepadCli.ptyWrite(sessionId, '\x1b');
       return;
     }
 
-    // Let xterm.js handle its own input (except paste, handled above)
     if (isXtermTarget(e)) return;
-
-    // Don't intercept when editing a form field or inside a modal
     if (isEditableOrModalFocused()) return;
 
-    // Ctrl/Alt/Meta combos — let browser handle
     if (e.metaKey) return;
     if (e.altKey) return;
     if (e.ctrlKey) {
       if (e.key.toLowerCase() === 'n') return;
-      // Ctrl+letter combos → send as control character to PTY
       if (e.key.length === 1) {
         e.preventDefault();
         window.gamepadCli.ptyWrite(sessionId, comboToPtyEscape(['Ctrl', e.key]));
@@ -378,30 +329,25 @@ export function setupKeyboardRelay(
       return;
     }
 
-    // Skip modifier-only keys
     if (['Control', 'Shift', 'Alt', 'Meta', 'CapsLock', 'NumLock', 'ScrollLock',
          'Dead', 'Unidentified', 'Process', 'Compose'].includes(e.key)) return;
 
-    // Named keys (Enter, Tab, arrows, etc.)
     const esc = keyToPtyEscape(e.key);
     if (esc !== e.key || e.key.length > 1) {
-      // Known named key or multi-char key name → send escape sequence
       e.preventDefault();
       window.gamepadCli.ptyWrite(sessionId, esc);
       return;
     }
 
-    // Printable single character (from real typing or simulated by OpenWhisper etc.)
     if (e.key.length === 1) {
       e.preventDefault();
       window.gamepadCli.ptyWrite(sessionId, e.key);
     }
   };
 
-  document.addEventListener('keydown', registeredHandler, true); // capture phase — fires before xterm.js can stopPropagation
+  document.addEventListener('keydown', registeredHandler, true);
 }
 
-/** Remove the relay (for testing). */
 export function teardownKeyboardRelay(): void {
   if (registeredHandler) {
     document.removeEventListener('keydown', registeredHandler, true);
