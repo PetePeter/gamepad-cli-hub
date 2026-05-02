@@ -1,14 +1,14 @@
 import { logger } from '../../utils/logger.js';
 import type { ConfigLoader } from '../../config/loader.js';
-import type { PlanManager, PlanRefResolution } from '../../session/plan-manager.js';
 import type { SessionManager } from '../../session/manager.js';
 import type { PtyManager } from '../../session/pty-manager.js';
 import type { TerminalOutputMode } from '../../session/terminal-output-buffer.js';
-import type { PlanItem, PlanStatus } from '../../types/plan.js';
+import type { PlanStatus } from '../../types/plan.js';
 import type { SessionInfo } from '../../types/session.js';
 import type { SessionSummary, SessionTerminalTailResponse } from '../helm-control-service.js';
 import { spawnConfiguredSession } from '../../session/configured-session-spawn.js';
 import { deliverPromptSequenceToSession } from '../../session/sequence-delivery.js';
+import { HelmSessionPlanService } from './helm-session-plan-service.js';
 
 /** Throw if value is null, otherwise return it. */
 function requireResult<T>(value: T | null, message: string): T {
@@ -19,16 +19,20 @@ function requireResult<T>(value: T | null, message: string): T {
 }
 
 /**
- * Session lifecycle: list, get, spawn, close, read terminal, set AIAGENT state,
- * and assign working plans to sessions.
+ * Session lifecycle: list, get, spawn, close, read terminal, set AIAGENT state.
+ * Plan assignment delegated to HelmSessionPlanService.
  */
 export class HelmSessionService {
+  readonly planService: HelmSessionPlanService;
+
   constructor(
     private readonly sessionManager: SessionManager,
     private readonly ptyManager: PtyManager,
     private readonly configLoader: ConfigLoader,
-    private readonly planManager: PlanManager,
-  ) {}
+    planManager: import('../../session/plan-manager.js').PlanManager,
+  ) {
+    this.planService = new HelmSessionPlanService(sessionManager, planManager, configLoader);
+  }
 
   listSessions(dirPath?: string): SessionSummary[] {
     return this.sessionManager
@@ -133,45 +137,7 @@ export class HelmSessionService {
     sessionRef: string,
     planId: string,
   ): { sessionId: string; name: string; planId: string; planTitle: string; planStatus: PlanStatus } {
-    logger.info(`[MCP:Service] setSessionWorkingPlan session=${sessionRef} plan=${planId}`);
-    const session = this.findSession(sessionRef);
-    if (!session) {
-      throw new Error(`Session not found: ${sessionRef}`);
-    }
-
-    const plan = this.resolvePlanRef(planId, 'Plan')?.item;
-    if (!plan) {
-      throw new Error(`Plan not found: ${planId}`);
-    }
-    if (session.workingDir && plan.dirPath !== session.workingDir) {
-      throw new Error(`Plan ${planId} does not belong to session directory ${session.workingDir}`);
-    }
-    if (plan.status === 'done' || plan.status === 'planning') {
-      throw new Error(`Plan ${planId} is not active or ready`);
-    }
-
-    const planIsAlreadyOwnedBySession =
-      plan.sessionId === session.id &&
-      (plan.status === 'coding' || plan.status === 'review' || plan.status === 'blocked');
-
-    const updatedPlan = planIsAlreadyOwnedBySession
-      ? plan
-      : (() => {
-          if (plan.sessionId && plan.sessionId !== session.id) {
-            throw new Error(`Plan ${planId} is already assigned to session ${plan.sessionId}`);
-          }
-          return this.planManager.setState(plan.id, 'coding', undefined, session.id)
-            ?? (() => { throw new Error(`Plan ${planId} could not be assigned to session ${session.id}`); })();
-        })();
-
-    this.sessionManager.updateSession(session.id, { currentPlanId: updatedPlan.id });
-    return {
-      sessionId: session.id,
-      name: session.name,
-      planId: updatedPlan.id,
-      planTitle: updatedPlan.title,
-      planStatus: updatedPlan.status,
-    };
+    return this.planService.setWorkingPlan(sessionRef, planId);
   }
 
   private toSessionSummary(session: SessionInfo): SessionSummary {
@@ -197,18 +163,6 @@ export class HelmSessionService {
     // routing a handoff to an unrelated session when a ref could be interpreted both ways.
     if (nameMatches.length === 1) return nameMatches[0];
     return this.sessionManager.getSession(sessionRef);
-  }
-
-  private resolvePlanRef(ref: string, label: string): Extract<PlanRefResolution, { status: 'found' }> | null {
-    const resolution = this.planManager.resolveItemRef(ref);
-    if (resolution.status === 'found') return resolution;
-    if (resolution.status === 'ambiguous') {
-      const matches = resolution.matches
-        .map((item) => `${item.humanId ?? item.id} (${item.id}) in ${item.dirPath}`)
-        .join(', ');
-      throw new Error(`${label} reference is ambiguous: ${ref}. Matching plans: ${matches}`);
-    }
-    return null;
   }
 
   private requireCliEntry(cliType: string) {
