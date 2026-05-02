@@ -117,6 +117,8 @@ export interface SessionInfoResponse {
   session_send_text_guide?: {
     description: string;
     how_it_works: string;
+    sequence_tokens?: string[];
+    submit_suffix_behavior?: string;
     inter_llm_handoff_protocol: string[];
     required_args: Record<string, string>;
     optional_args: Record<string, string>;
