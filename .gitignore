@@ -35,3 +35,6 @@ config/plan-backups/
 config/plan-dependencies.json
 config-deploy/
 tmp/helm-work*
+tmp/helm-attachment*
+config/plan-attachments/*
+config/plan-sequences.json
