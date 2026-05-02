@@ -201,6 +201,7 @@ export function setupPtyHandlers(
           const targetCliType = targetSession?.cliType;
           const targetConfig = targetCliType && configLoader ? configLoader.getCliTypeEntry(targetCliType) : null;
           if (targetConfig?.handoffCommand) {
+            // Raw PTY delivery: handoff command is a configured CLI command, not prompt DSL input.
             void ptyManager.deliverText(handoff.toSessionId, targetConfig.handoffCommand);
           } else {
             logger.debug(`[PTY IPC] No handoffCommand configured for CLI type '${targetCliType}', skipping command write`);

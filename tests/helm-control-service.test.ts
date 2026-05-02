@@ -74,8 +74,8 @@ describe('HelmControlService.sendTextToSession', () => {
   it('delivers text atomically with submitSuffix for auto-execution', async () => {
     const { service, ptyManager } = makeService();
     await service.sendTextToSession('s1', 'hello', { senderSessionId: 'sid', senderSessionName: 'Sender' });
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('hello'), { submitSuffix: '\r' });
-    expect(ptyManager.write).not.toHaveBeenCalled();
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('hello'));
+    expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
   });
 
   it('wraps text in HELM_MSG envelope with sender info and metadata', async () => {
@@ -153,9 +153,11 @@ describe('HelmControlService.sendTextToSession', () => {
       { id: 'codex-1', name: 'codex', cliType: 'codex' },
       { id: 'potato-4', name: 'potato', cliType: 'claude-code' },
     ]);
-    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockImplementation((ref: string) => (
-      ref === 'potato' ? { id: 'codex-1', name: 'codex', cliType: 'codex' } : null
-    ));
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockImplementation((ref: string) => {
+      if (ref === 'potato') return { id: 'codex-1', name: 'codex', cliType: 'codex' };
+      if (ref === 'potato-4') return { id: 'potato-4', name: 'potato', cliType: 'claude-code' };
+      return null;
+    });
 
     const result = await service.sendTextToSession('potato', 'hello potato', {
       senderSessionId: 'sender',
@@ -163,7 +165,7 @@ describe('HelmControlService.sendTextToSession', () => {
     });
 
     expect(result.sessionId).toBe('potato-4');
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('potato-4', expect.stringContaining('hello potato'), { submitSuffix: '\r' });
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('potato-4', expect.stringContaining('hello potato'));
   });
 
   it('resolves exact session IDs when no name matches', async () => {
@@ -181,7 +183,7 @@ describe('HelmControlService.sendTextToSession', () => {
     });
 
     expect(result.sessionId).toBe('codex-1');
-    expect(ptyManager.deliverText).toHaveBeenCalledWith('codex-1', expect.stringContaining('hello codex'), { submitSuffix: '\r' });
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('codex-1', expect.stringContaining('hello codex'));
   });
 
   it('rejects ambiguous session names before falling back to IDs', async () => {
@@ -991,10 +993,9 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     expect(configLoader.getCliTypeEntry).toHaveBeenCalledWith('claude-code');
     const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
     const message = deliverCall[1] as string;
-    const options = deliverCall[2];
-    // Helm inter-session messages use submitSuffix for auto-execution (applied outside bracketed paste)
+    // Submit suffix is now sent via ptyManager.write separately
     expect(message).toBe('hello from sender');
-    expect(options).toEqual({ submitSuffix: '\r' });
+    expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
     expect(message).not.toMatch(/^\[HELM_MSG\]/);
     expect(message).not.toContain('inter_llm_message');
   });
@@ -1014,10 +1015,9 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     expect(result.preambleUsed).toBe(false);
     const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
     const message = deliverCall[1] as string;
-    const options = deliverCall[2];
-    // Helm inter-session messages use submitSuffix, not embedded newline
+    // Submit suffix is now sent via ptyManager.write separately
     expect(message).toBe(multilineText);
-    expect(options).toEqual({ submitSuffix: '\r' });
+    expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
   });
 
   it('sendTextToSession preamble=true includes sender info in envelope', async () => {
@@ -1090,10 +1090,9 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
 
     const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
     const message = deliverCall[1] as string;
-    const options = deliverCall[2];
-    // Without preamble, plain text with submitSuffix for auto-execution
+    // Without preamble, plain text — submit goes through ptyManager.write
     expect(message).toBe('check status');
-    expect(options).toEqual({ submitSuffix: '\r' });
+    expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
     expect(message).not.toContain('expectsResponse');
   });
 });
@@ -1222,12 +1221,9 @@ describe('parseSubmitSuffix', () => {
         senderSessionName: 'Sender',
       });
 
-      // Should have called deliverText with LF (\n), not CR (\r)
-      expect(ptyManager.deliverText).toHaveBeenCalledWith(
-        's1',
-        expect.any(String),
-        { submitSuffix: '\n' },
-      );
+      // Should have called ptyManager.write with LF (\n) as the submit suffix, not CR (\r)
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('command'));
+      expect(ptyManager.write).toHaveBeenCalledWith('s1', '\n');
     });
 
     it('sendTextToSession defaults to CR when no submitSuffix is configured', async () => {
@@ -1239,11 +1235,8 @@ describe('parseSubmitSuffix', () => {
         senderSessionName: 'Sender',
       });
 
-      expect(ptyManager.deliverText).toHaveBeenCalledWith(
-        's1',
-        expect.any(String),
-        { submitSuffix: '\r' },
-      );
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('command'));
+      expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
     });
 
     it('sendTextToSession with preamble=false also uses parseSubmitSuffix', async () => {
@@ -1258,11 +1251,8 @@ describe('parseSubmitSuffix', () => {
         senderSessionName: 'Sender',
       });
 
-      expect(ptyManager.deliverText).toHaveBeenCalledWith(
-        's1',
-        'command',
-        { submitSuffix: '\r\n' },
-      );
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', 'command');
+      expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r\n');
     });
   });
 });

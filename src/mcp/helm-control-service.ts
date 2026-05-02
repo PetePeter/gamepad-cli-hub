@@ -17,21 +17,8 @@ import type {
 import { PlanAttachmentManager } from '../session/plan-attachment-manager.js';
 import type { NotificationManager } from '../session/notification-manager.js';
 import { spawnConfiguredSession } from '../session/configured-session-spawn.js';
-
-/**
- * Convert escape notation strings to actual characters.
- * Supports: \r (CR), \n (LF), \t (TAB), \r\n (CRLF)
- * @param suffix - Undefined, empty string, or escape notation like '\r', '\n', '\r\n'
- * @returns Actual CR/LF/TAB characters, or default '\r' if undefined/empty
- */
-export function parseSubmitSuffix(suffix?: string): string {
-  if (!suffix) return '\r';
-  if (suffix === '\\r') return '\r';
-  if (suffix === '\\n') return '\n';
-  if (suffix === '\\t') return '\t';
-  if (suffix === '\\r\\n') return '\r\n';
-  return suffix; // Return as-is if not a recognized escape sequence
-}
+import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js';
+export { parseSubmitSuffix } from './submit-suffix.js';
 
 export interface SessionSummary {
   id: string;
@@ -522,7 +509,16 @@ export class HelmControlService extends EventEmitter {
       sessionName,
       cwd: workingDir.path,
       onPromptComplete: mcpPrompt
-        ? () => { void this.ptyManager.deliverText(spawnedSessionId, mcpPrompt); }
+        ? () => {
+            void deliverPromptSequenceToSession({
+              sessionId: spawnedSessionId,
+              text: mcpPrompt,
+              ptyManager: this.ptyManager,
+              sessionManager: this.sessionManager,
+              configLoader: this.configLoader,
+              rawInput: true,
+            });
+          }
         : undefined,
       fallbackCompleteDelayMs: 500,
     });
@@ -568,14 +564,29 @@ export class HelmControlService extends EventEmitter {
       const tag = expectsResponse
         ? `[HELM_MSG: expectsResponse=true. To reply, call MCP tool mcp__helm__session_send_text with: sessionId="${options.senderSessionId}", senderSessionId=<your env $HELM_SESSION_ID>, text="<your reply>". Your HELM_SESSION_ID is injected by Helm at startup.]`
         : '[HELM_MSG]';
-      const message = `${tag}${envelope}\n${text}`;
+      // Escape braces in envelope only so the sequence parser doesn't consume JSON.
+      // User text after \n is NOT escaped — sequence tokens like {Send} must work.
+      const escapedEnvelope = envelope.replace(/\{/g, '{{').replace(/\}/g, '}}');
+      const message = `${tag}${escapedEnvelope}\n${text}`;
 
-      const submitSuffix = parseSubmitSuffix(recipientEntry?.submitSuffix);
-      await this.ptyManager.deliverText(session.id, message, { submitSuffix });
+      await deliverPromptSequenceToSession({
+        sessionId: session.id,
+        text: message,
+        ptyManager: this.ptyManager,
+        sessionManager: this.sessionManager,
+        configLoader: this.configLoader,
+        rawInput: true,
+      });
     } else {
-      // Send plain text only — no envelope
-      const submitSuffix = parseSubmitSuffix(recipientEntry?.submitSuffix);
-      await this.ptyManager.deliverText(session.id, text, { submitSuffix });
+      // Send plain text only — no envelope. Sequence tokens in user text work as-is.
+      await deliverPromptSequenceToSession({
+        sessionId: session.id,
+        text,
+        ptyManager: this.ptyManager,
+        sessionManager: this.sessionManager,
+        configLoader: this.configLoader,
+        rawInput: true,
+      });
     }
 
     return { success: true, sessionId: session.id, name: session.name, preambleUsed: usePreamble };

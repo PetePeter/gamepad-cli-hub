@@ -137,6 +137,8 @@ export function registerIPCHandlers(
     token: configLoader.getMcpConfig().authToken,
   });
 
+  // Pattern matcher uses raw deliverText for send-text rule actions.
+  // TODO: Route through deliverPromptSequenceToSession for {Send}/{NoSend}/{Wait} support in pattern rules.
   const patternMatcher = new PatternMatcher(
     (sessionId, data) => ptyManager.deliverText(sessionId, data),
     (cliType) => configLoader.getPatterns(cliType),
