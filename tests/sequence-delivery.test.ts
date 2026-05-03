@@ -34,13 +34,14 @@ function deliver(input: string, mocks: ReturnType<typeof makeMocks>, opts?: { im
 }
 
 describe('deliverPromptSequenceToSession', () => {
-  it('plain text delivers via deliverText and submits via write with \\r', async () => {
+  it('plain text delivers via deliverText and submits via deliverText with submitSuffix', async () => {
     const mocks = makeMocks();
 
     await deliver('hello', mocks);
 
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
-    expect(mocks.ptyManager.write).toHaveBeenCalledWith('s1', '\r');
+    expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
+    expect(mocks.ptyManager.write).not.toHaveBeenCalledWith('s1', '\r');
   });
 
   it('{NoSend} suppresses implied submit', async () => {
@@ -50,7 +51,7 @@ describe('deliverPromptSequenceToSession', () => {
     await deliver('hello{NoSend}', mocks);
 
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
-    expect(mocks.ptyManager.write).not.toHaveBeenCalledWith('s1', '\r');
+    expect(mocks.ptyManager.deliverText).not.toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
   });
 
   it('{Send} submits at token position with no extra final submit', async () => {
@@ -62,8 +63,8 @@ describe('deliverPromptSequenceToSession', () => {
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'part1');
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'part2');
     // Only one submit for the explicit {Send}, no final implied submit
-    const submitCalls = mocks.ptyManager.write.mock.calls.filter(
-      (c: any[]) => c[0] === 's1' && c[1] === '\r',
+    const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter(
+      (c: any[]) => c[0] === 's1' && c[2]?.submitSuffix === '\r',
     );
     expect(submitCalls).toHaveLength(1);
   });
@@ -83,7 +84,7 @@ describe('deliverPromptSequenceToSession', () => {
     await promise;
 
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'after');
-    expect(mocks.ptyManager.write).toHaveBeenCalledWith('s1', '\r');
+    expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
 
     vi.useRealTimers();
   });
@@ -93,7 +94,7 @@ describe('deliverPromptSequenceToSession', () => {
 
     await deliver('hello', mocks);
 
-    expect(mocks.ptyManager.write).toHaveBeenCalledWith('s1', '\n');
+    expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\n' });
   });
 
   it('JSON braces in text are preserved as literal text', async () => {
@@ -133,8 +134,8 @@ describe('deliverPromptSequenceToSession', () => {
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'c');
 
     // Two explicit {Send} submissions, no final implied submit
-    const submitCalls = mocks.ptyManager.write.mock.calls.filter(
-      (c: any[]) => c[0] === 's1' && c[1] === '\r',
+    const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter(
+      (c: any[]) => c[0] === 's1' && c[2]?.submitSuffix === '\r',
     );
     expect(submitCalls).toHaveLength(2);
   });
@@ -148,8 +149,8 @@ describe('deliverPromptSequenceToSession', () => {
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'world');
 
     // One submit for {Enter}, no final implied submit
-    const submitCalls = mocks.ptyManager.write.mock.calls.filter(
-      (c: any[]) => c[0] === 's1' && c[1] === '\r',
+    const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter(
+      (c: any[]) => c[0] === 's1' && c[2]?.submitSuffix === '\r',
     );
     expect(submitCalls).toHaveLength(1);
   });
@@ -188,7 +189,7 @@ describe('deliverPromptSequenceToSession', () => {
     await deliver('hello{NoEnter}', mocks);
 
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
-    expect(mocks.ptyManager.write).not.toHaveBeenCalledWith('s1', '\r');
+    expect(mocks.ptyManager.deliverText).not.toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
   });
 
   it('unrecognized brace groups like {variable} are escaped to literal text', async () => {
@@ -231,7 +232,7 @@ describe('deliverPromptSequenceToSession', () => {
       const mocks = makeMocks();
       await deliver('{"a":{"b":1}}{NoSend}', mocks);
       expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '{"a":{"b":1}}');
-      expect(mocks.ptyManager.write).not.toHaveBeenCalledWith('s1', '\r');
+      expect(mocks.ptyManager.deliverText).not.toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
     });
 
     it('preserves nested JSON and still honors trailing {Send}', async () => {
@@ -239,8 +240,8 @@ describe('deliverPromptSequenceToSession', () => {
       await deliver('{"a":{"b":1}}{Send}more text', mocks);
       expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '{"a":{"b":1}}');
       expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'more text');
-      const submitCalls = mocks.ptyManager.write.mock.calls.filter(
-        (c: any[]) => c[0] === 's1' && c[1] === '\r',
+      const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter(
+        (c: any[]) => c[0] === 's1' && c[2]?.submitSuffix === '\r',
       );
       expect(submitCalls).toHaveLength(1);
     });
@@ -256,6 +257,35 @@ describe('deliverPromptSequenceToSession', () => {
       await deliver('check {"config":{"debug":true}} and {Enter}continue', mocks);
       expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'check {"config":{"debug":true}} and ');
       expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'continue');
+    });
+  });
+
+  describe('submit routing', () => {
+    it('implied submit routes through deliverText with submitSuffix option, not write', async () => {
+      const mocks = makeMocks();
+      await deliver('hello', mocks);
+
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
+      expect(mocks.ptyManager.write).not.toHaveBeenCalledWith('s1', '\r');
+    });
+
+    it('no submit when impliedSubmit is false and no explicit {Send}', async () => {
+      const mocks = makeMocks();
+      await deliver('hello', mocks, { impliedSubmit: false });
+
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello');
+      expect(mocks.ptyManager.deliverText).not.toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
+      expect(mocks.ptyManager.write).not.toHaveBeenCalledWith('s1', '\r');
+    });
+
+    it('explicit {Send} submit passes correct submitSuffix per CLI config', async () => {
+      const mocks = makeMocks({ submitSuffix: '\\r\\n' });
+      await deliver('go{Send}', mocks);
+
+      const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter(
+        (c: any[]) => c[0] === 's1' && c[2]?.submitSuffix === '\r\n',
+      );
+      expect(submitCalls).toHaveLength(1);
     });
   });
 });

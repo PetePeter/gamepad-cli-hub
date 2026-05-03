@@ -163,7 +163,7 @@ export class PtyManager extends EventEmitter {
 
   /** Deliver bulk text using the preferred insertion mode when available. */
   async deliverText(sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }): Promise<void> {
-    if (!text) return;
+    if (!text && !options?.submitSuffix) return;
     if (this.textDeliveryHandler) {
       try {
         await this.textDeliveryHandler(sessionId, text, options);

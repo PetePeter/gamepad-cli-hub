@@ -115,10 +115,21 @@ export async function deliverViaClipboardPaste(text: string): Promise<void> {
 /** Deliver bulk text to the active session — either via PTY write, clipboard paste,
  *  or OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode. */
 export async function deliverBulkText(sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }): Promise<void> {
-  if (!text) return;
   const session = state.sessions.find(s => s.id === sessionId);
   const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
   const suffix = getConfiguredSubmitSuffix(sessionId, options?.withReturn, options?.submitSuffix);
+
+  // Submit-only: no text but submitSuffix present — route through paste-mode-appropriate submit
+  if (!text && suffix) {
+    if (tool?.pasteMode === 'clippaste' || tool?.pasteMode === 'sendkeys' || tool?.pasteMode === 'sendkeysindividual') {
+      await sendKeyboardSubmitSuffix(suffix);
+    } else {
+      await writePtySubmitSuffix(sessionId, suffix);
+    }
+    return;
+  }
+
+  if (!text) return;
 
   console.log(`[Paste] mode=${tool?.pasteMode ?? 'pty(default)'} cliType=${session?.cliType} chars=${text.length}`);
 

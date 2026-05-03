@@ -111,7 +111,7 @@ export async function deliverPromptSequenceToSession(input: {
     input: processedText,
     write: (sid, data) => ptyManager.write(sid, data),
     deliverText: (sid, chunk) => ptyManager.deliverText(sid, chunk),
-    submit: (sid) => ptyManager.write(sid, submitSuffix),
+    submit: (sid) => ptyManager.deliverText(sid, '', { submitSuffix }),
     impliedSubmit: impliedSubmit ?? true,
   });
 }

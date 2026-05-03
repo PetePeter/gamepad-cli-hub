@@ -75,7 +75,7 @@ describe('HelmControlService.sendTextToSession', () => {
     const { service, ptyManager } = makeService();
     await service.sendTextToSession('s1', 'hello', { senderSessionId: 'sid', senderSessionName: 'Sender' });
     expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('hello'));
-    expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
   });
 
   it('wraps text in HELM_MSG envelope with sender info and metadata', async () => {
@@ -382,7 +382,7 @@ describe('HelmControlService.spawnCli', () => {
         expect.any(String),
         'init',
       );
-      expect(ptyManager.write).toHaveBeenCalledWith(expect.any(String), '\r');
+      expect(ptyManager.deliverText).toHaveBeenCalledWith(expect.any(String), '', { submitSuffix: '\r' });
       expect(ptyManager.deliverText).toHaveBeenCalledWith(
         expect.any(String),
         'custom prompt',
@@ -1020,9 +1020,9 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     expect(configLoader.getCliTypeEntry).toHaveBeenCalledWith('claude-code');
     const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
     const message = deliverCall[1] as string;
-    // Submit suffix is now sent via ptyManager.write separately
+    // Submit suffix is now sent via ptyManager.deliverText with submitSuffix option
     expect(message).toBe('hello from sender');
-    expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
     expect(message).not.toMatch(/^\[HELM_MSG\]/);
     expect(message).not.toContain('inter_llm_message');
   });
@@ -1042,9 +1042,9 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
     expect(result.preambleUsed).toBe(false);
     const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
     const message = deliverCall[1] as string;
-    // Submit suffix is now sent via ptyManager.write separately
+    // Submit suffix is now sent via ptyManager.deliverText with submitSuffix option
     expect(message).toBe(multilineText);
-    expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
   });
 
   it('sendTextToSession preamble=true includes sender info in envelope', async () => {
@@ -1117,9 +1117,9 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
 
     const deliverCall = (ptyManager.deliverText as ReturnType<typeof vi.fn>).mock.calls[0];
     const message = deliverCall[1] as string;
-    // Without preamble, plain text — submit goes through ptyManager.write
+    // Without preamble, plain text — submit goes through ptyManager.deliverText
     expect(message).toBe('check status');
-    expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
     expect(message).not.toContain('expectsResponse');
   });
 });
@@ -1248,9 +1248,9 @@ describe('parseSubmitSuffix', () => {
         senderSessionName: 'Sender',
       });
 
-      // Should have called ptyManager.write with LF (\n) as the submit suffix, not CR (\r)
+      // Should have called ptyManager.deliverText with LF (\n) as the submit suffix, not CR (\r)
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('command'));
-      expect(ptyManager.write).toHaveBeenCalledWith('s1', '\n');
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\n' });
     });
 
     it('sendTextToSession defaults to CR when no submitSuffix is configured', async () => {
@@ -1263,7 +1263,7 @@ describe('parseSubmitSuffix', () => {
       });
 
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('command'));
-      expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r');
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
     });
 
     it('sendTextToSession with preamble=false also uses parseSubmitSuffix', async () => {
@@ -1279,7 +1279,7 @@ describe('parseSubmitSuffix', () => {
       });
 
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', 'command');
-      expect(ptyManager.write).toHaveBeenCalledWith('s1', '\r\n');
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r\n' });
     });
   });
 });
