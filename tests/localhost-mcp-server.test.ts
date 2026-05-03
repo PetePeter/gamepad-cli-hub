@@ -73,6 +73,12 @@ function makeService(): HelmControlService {
     })),
     notifyUser: vi.fn((sessionRef: string, title: string, content: string) => ({ delivered: 'bubble', sessionRef, title, content })),
     getAppVisibility: vi.fn(() => ({ visibility: 'visible-focused', screenLocked: false, activeSessionId: 's1' })),
+    createScheduledTask: vi.fn((params: Record<string, unknown>) => ({ id: 'task-1', status: 'pending', ...params })),
+    listScheduledTasks: vi.fn(() => [{ id: 'task-1', title: 'Follow up', status: 'pending' }]),
+    getScheduledTask: vi.fn((id: string) => ({ id, title: 'Follow up', status: 'pending' })),
+    updateScheduledTask: vi.fn((id: string, updates: Record<string, unknown>) => ({ id, title: 'Updated', status: 'pending', ...updates })),
+    cancelScheduledTask: vi.fn(() => true),
+    deleteScheduledTask: vi.fn(() => true),
   } as unknown as HelmControlService;
 }
 
@@ -156,6 +162,8 @@ describe('LocalhostMcpServer', () => {
     const attachmentGetTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_attachment_get');
     const telegramStatusTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'telegram_status');
     const telegramChatTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'telegram_chat');
+    const schedulerCreateAlias = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'scheduler:create');
+    const schedulerDeleteAlias = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'scheduler:delete');
     const notifyUserTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'notify_user');
     const appVisibilityTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'get_app_visibility');
     expect(planCreateTool.description).toContain('Problem Statement');
@@ -181,6 +189,8 @@ describe('LocalhostMcpServer', () => {
     expect(attachmentGetTool.description).toContain('inline');
     expect(telegramStatusTool.description).toContain('No bot token');
     expect(telegramChatTool!.description).toContain('mobile-friendly');
+    expect(schedulerCreateAlias!.description).toContain('scheduled_task_create');
+    expect(schedulerDeleteAlias!.description).toContain('Delete');
     expect(notifyUserTool!.description).toContain('notificationMode=llm');
     expect(appVisibilityTool!.description).toContain('screen-lock');
   });
@@ -441,6 +451,15 @@ describe('LocalhostMcpServer', () => {
     expect((service.sendTelegramChat as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'Need a quick decision?', undefined);
     expect(chatJson.result.structuredContent.sent).toBe(true);
 
+    const attachment = { name: 'log.txt', data: 'aGVsbG8=', mime: 'text/plain' };
+    await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 711,
+      method: 'tools/call',
+      params: { name: 'telegram_chat', arguments: { sessionId: 's1', message: 'See log', attachment } },
+    });
+    expect((service.sendTelegramChat as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'See log', attachment);
+
     const closeResponse = await rpc(port, 'secret-token', {
       jsonrpc: '2.0',
       id: 72,
@@ -478,6 +497,58 @@ describe('LocalhostMcpServer', () => {
     const visibilityJson = await visibilityResponse.json();
     expect((service.getAppVisibility as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
     expect(visibilityJson.result.structuredContent).toMatchObject({ visibility: 'visible-focused', activeSessionId: 's1' });
+  });
+
+  it('dispatches scheduler alias tools through the MCP surface', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 81,
+      method: 'tools/call',
+      params: {
+        name: 'scheduler:create',
+        arguments: {
+          title: 'Follow up',
+          initialPrompt: 'check status',
+          cliType: 'claude-code',
+          dirPath: 'X:\\coding\\gamepad-cli-hub',
+          scheduledTime: '2026-05-04T10:00:00Z',
+        },
+      },
+    });
+    expect((service.createScheduledTask as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Follow up',
+      scheduledTime: '2026-05-04T10:00:00Z',
+    }));
+
+    await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 82,
+      method: 'tools/call',
+      params: { name: 'scheduler:list', arguments: {} },
+    });
+    expect((service.listScheduledTasks as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
+
+    await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 83,
+      method: 'tools/call',
+      params: { name: 'scheduler:update', arguments: { id: 'task-1', title: 'Updated' } },
+    });
+    expect((service.updateScheduledTask as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('task-1', { title: 'Updated' });
+
+    await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 84,
+      method: 'tools/call',
+      params: { name: 'scheduler:delete', arguments: { id: 'task-1' } },
+    });
+    expect((service.deleteScheduledTask as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('task-1');
   });
 
   it('clears plan type through plan_update when type is null', async () => {

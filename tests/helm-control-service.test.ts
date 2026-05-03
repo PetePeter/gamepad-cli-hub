@@ -821,6 +821,33 @@ describe('HelmControlService telegram channels', () => {
     await expect(service.sendTelegramChat('s1', 'x'.repeat(141))).rejects.toThrow('140 characters');
   });
 
+  it('rejects invalid base64 attachments in sendTelegramChat before bridge delivery', async () => {
+    const { service, sessionManager } = makeService();
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 's1',
+      name: 'Claude',
+      cliType: 'claude-code',
+      workingDir: '/work',
+    });
+    const bridge = {
+      isRunning: vi.fn(() => true),
+      listChannels: vi.fn(() => []),
+      closeChannel: vi.fn(),
+      sendToUser: vi.fn(async () => ({ sent: true })),
+    };
+    service.setTelegramBridge(bridge);
+
+    const result = await service.sendTelegramChat('s1', 'see attached', {
+      name: 'log.txt',
+      data: 'not valid base64!',
+      mime: 'text/plain',
+    });
+
+    expect(result.sent).toBe(false);
+    expect(result.reason).toContain('valid base64');
+    expect(bridge.sendToUser).not.toHaveBeenCalled();
+  });
+
   it('getAvailableTools lists exactly 3 telegram tools and no removed tools', () => {
     const { service } = makeService();
 

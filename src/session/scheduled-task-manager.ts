@@ -116,6 +116,20 @@ export class ScheduledTaskManager extends EventEmitter {
     return true;
   }
 
+  /** Delete a task and cancel any pending timer. Returns false if already executing. */
+  deleteTask(id: string): boolean {
+    const task = this.tasks.get(id);
+    if (!task) return false;
+    if (task.status === 'executing') return false;
+
+    this.clearTimer(id);
+    this.tasks.delete(id);
+    this.saveTasks();
+    this.emit('task:deleted', id);
+    logger.info(`[ScheduledTaskManager] Deleted task "${task.title}" (${id})`);
+    return true;
+  }
+
   /** Start the manager: load pending tasks and restore timers. */
   start(): void {
     const loaded = loadScheduledTasks();

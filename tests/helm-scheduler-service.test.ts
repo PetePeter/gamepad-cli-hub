@@ -40,6 +40,7 @@ function makeMockScheduler() {
       task.status = 'cancelled';
       return true;
     }),
+    deleteTask: vi.fn((id: string) => tasks.delete(id)),
   };
 
   return scheduler;
@@ -102,6 +103,13 @@ describe('HelmSchedulerService', () => {
     const service = new HelmSchedulerService(scheduler as any);
     service.cancelTask('task-1');
     expect(scheduler.cancelTask).toHaveBeenCalledWith('task-1');
+  });
+
+  it('deleteTask delegates with id', () => {
+    const scheduler = makeMockScheduler();
+    const service = new HelmSchedulerService(scheduler as any);
+    service.deleteTask('task-1');
+    expect(scheduler.deleteTask).toHaveBeenCalledWith('task-1');
   });
 
   it('createTask passes all params including interval mode', () => {

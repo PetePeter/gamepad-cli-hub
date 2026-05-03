@@ -442,6 +442,10 @@ export class HelmControlService extends EventEmitter {
     return this.requireScheduler().cancelTask(id);
   }
 
+  deleteScheduledTask(id: string): boolean {
+    return this.requireScheduler().deleteTask(id);
+  }
+
   private requireScheduler(): HelmSchedulerService {
     if (!this.schedulerService) throw new Error('Scheduler is not available');
     return this.schedulerService;

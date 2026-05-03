@@ -50,5 +50,10 @@ export function getAvailableTools(): McpToolSummary[] {
     { name: 'scheduled_task_get', title: 'Get Scheduled Task', description: 'Get a scheduled task by ID.' },
     { name: 'scheduled_task_update', title: 'Update Scheduled Task', description: 'Update a pending scheduled task. Only pending tasks can be updated.' },
     { name: 'scheduled_task_cancel', title: 'Cancel Scheduled Task', description: 'Cancel a pending scheduled task.' },
+    { name: 'scheduler:create', title: 'Create Scheduler Entry', description: 'Alias for scheduled_task_create.' },
+    { name: 'scheduler:list', title: 'List Scheduler Entries', description: 'Alias for scheduled_task_list.' },
+    { name: 'scheduler:get', title: 'Get Scheduler Entry', description: 'Alias for scheduled_task_get.' },
+    { name: 'scheduler:update', title: 'Update Scheduler Entry', description: 'Alias for scheduled_task_update.' },
+    { name: 'scheduler:delete', title: 'Delete Scheduler Entry', description: 'Delete a scheduled task and cancel its pending run.' },
   ];
 }

@@ -16,6 +16,7 @@ import type { PtyManager } from '../session/pty-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
 import type { HelmControlService } from '../mcp/helm-control-service.js';
 import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js';
+import { decodeBase64Strict } from '../utils/base64.js';
 import type {
   TelegramBridge,
   TelegramChannel,
@@ -112,7 +113,6 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
       return { sent: false, reason: 'No session or channel specified' };
     }
 
-    const text = formatMessageForTelegram(input.text);
     const chatId = this.telegramBot.getChatId();
     if (!chatId) {
       return { sent: false, reason: 'Telegram chat not configured' };
@@ -120,29 +120,26 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
 
     let messageId: number | undefined;
 
-    if (channel.topicId) {
-      const message = await this.telegramBot.sendToTopic(channel.topicId, text, {
-        parse_mode: 'HTML',
-        reply_markup: input.keyboard ? { inline_keyboard: input.keyboard } : undefined,
-      });
-      if (message) messageId = message.message_id;
-    } else {
-      const message = await this.telegramBot.sendMessage(text, {
-        parse_mode: 'HTML',
-        reply_markup: input.keyboard ? { inline_keyboard: input.keyboard } : undefined,
-      });
-      if (message) messageId = message.message_id;
-    }
-
-    if (!messageId && !input.attachment) {
-      return { sent: false, reason: 'Failed to send message' };
-    }
-
-    // Send attachment if present
     if (input.attachment) {
       const attachmentResult = await this.sendAttachment(input.attachment, channel.topicId, input.text);
       if (!attachmentResult.sent) return attachmentResult;
-      messageId = attachmentResult.documentId ?? messageId;
+      messageId = attachmentResult.documentId;
+    } else {
+      const text = formatMessageForTelegram(input.text);
+      const message = channel.topicId
+        ? await this.telegramBot.sendToTopic(channel.topicId, text, {
+            parse_mode: 'HTML',
+            reply_markup: input.keyboard ? { inline_keyboard: input.keyboard } : undefined,
+          })
+        : await this.telegramBot.sendMessage(text, {
+            parse_mode: 'HTML',
+            reply_markup: input.keyboard ? { inline_keyboard: input.keyboard } : undefined,
+          });
+      if (message) messageId = message.message_id;
+    }
+
+    if (!messageId) {
+      return { sent: false, reason: 'Failed to send message' };
     }
 
     // Nudge General Chat with first 80 chars + link to topic
@@ -220,10 +217,8 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     topicId?: number,
     caption?: string,
   ): Promise<TelegramSendToUserResult> {
-    let buffer: Buffer;
-    try {
-      buffer = Buffer.from(attachment.data, 'base64');
-    } catch {
+    const buffer = decodeBase64Strict(attachment.data);
+    if (!buffer) {
       return { sent: false, reason: 'Attachment data is not valid base64' };
     }
 

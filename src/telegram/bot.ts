@@ -174,7 +174,7 @@ export class TelegramBotCore extends EventEmitter {
         sendOptions.message_thread_id = options.topicId;
       }
       return await this.withTimeout(
-        this.bot.sendDocument(this.chatId, buffer, { filename, ...sendOptions }),
+        this.bot.sendDocument(this.chatId, buffer, sendOptions, { filename }),
         'sendDocument',
       );
     } catch (err) {

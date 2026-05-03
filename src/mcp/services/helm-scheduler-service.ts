@@ -33,4 +33,8 @@ export class HelmSchedulerService {
   cancelTask(id: string): boolean {
     return this.scheduler.cancelTask(id);
   }
+
+  deleteTask(id: string): boolean {
+    return this.scheduler.deleteTask(id);
+  }
 }

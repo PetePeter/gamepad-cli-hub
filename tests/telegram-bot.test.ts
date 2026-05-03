@@ -48,6 +48,15 @@ vi.mock('node-telegram-bot-api', () => {
     sendMessage = vi.fn().mockImplementation((chatId: number, text: string) =>
       Promise.resolve({ message_id: 1, chat: { id: chatId }, text, date: Date.now() }),
     );
+    sendDocument = vi.fn().mockImplementation((chatId: number) =>
+      Promise.resolve({ message_id: 2, chat: { id: chatId }, document: {}, date: Date.now() }),
+    );
+    sendPhoto = vi.fn().mockImplementation((chatId: number) =>
+      Promise.resolve({ message_id: 3, chat: { id: chatId }, photo: [], date: Date.now() }),
+    );
+    sendVideo = vi.fn().mockImplementation((chatId: number) =>
+      Promise.resolve({ message_id: 4, chat: { id: chatId }, video: {}, date: Date.now() }),
+    );
 
     editMessageText = vi.fn().mockResolvedValue(true);
     answerCallbackQuery = vi.fn().mockResolvedValue(true);
@@ -579,6 +588,41 @@ describe('TelegramBotCore', () => {
         CHAT_ID,
         'Topic message',
         expect.objectContaining({ message_thread_id: 42, parse_mode: 'Markdown' }),
+      );
+    });
+  });
+
+  describe('file sending', () => {
+    it('sends documents with filename in fileOptions and topic in send options', async () => {
+      const core = startedBot();
+      const buffer = Buffer.from('hello');
+
+      await core.sendDocument(buffer, 'log.txt', { caption: 'Log', topicId: 42 });
+
+      expect(shared.mockBotInstance!.sendDocument).toHaveBeenCalledWith(
+        CHAT_ID,
+        buffer,
+        { caption: 'Log', message_thread_id: 42 },
+        { filename: 'log.txt' },
+      );
+    });
+
+    it('sends photos and videos with topic in send options', async () => {
+      const core = startedBot();
+      const buffer = Buffer.from('media');
+
+      await core.sendPhoto(buffer, { caption: 'Photo', topicId: 42 });
+      await core.sendVideo(buffer, { caption: 'Video', topicId: 43 });
+
+      expect(shared.mockBotInstance!.sendPhoto).toHaveBeenCalledWith(
+        CHAT_ID,
+        buffer,
+        { caption: 'Photo', message_thread_id: 42 },
+      );
+      expect(shared.mockBotInstance!.sendVideo).toHaveBeenCalledWith(
+        CHAT_ID,
+        buffer,
+        { caption: 'Video', message_thread_id: 43 },
       );
     });
   });

@@ -8,6 +8,7 @@ import type {
   TelegramStatus,
 } from '../../types/telegram-channel.js';
 import type { NotificationManager } from '../../session/notification-manager.js';
+import { decodeBase64Strict } from '../../utils/base64.js';
 
 /** Validate that Telegram text is mobile-friendly: short lines, under 1600 chars. */
 function validateMobileFriendlyTelegramText(text: string): void {
@@ -83,14 +84,13 @@ export class HelmTelegramService {
       if (!attachment.name || !attachment.data || !attachment.mime) {
         return { sent: false, reason: 'Attachment requires name, data (base64), and mime fields' };
       }
-      try {
-        const size = Buffer.byteLength(attachment.data, 'base64');
-        if (size > 50 * 1024 * 1024) {
-          const mb = (size / (1024 * 1024)).toFixed(1);
-          return { sent: false, reason: `Attachment too large (${mb}MB). Telegram limit is 50MB.` };
-        }
-      } catch {
+      const decoded = decodeBase64Strict(attachment.data);
+      if (!decoded) {
         return { sent: false, reason: 'Attachment data is not valid base64' };
+      }
+      if (decoded.length > 50 * 1024 * 1024) {
+        const mb = (decoded.length / (1024 * 1024)).toFixed(1);
+        return { sent: false, reason: `Attachment too large (${mb}MB). Telegram limit is 50MB.` };
       }
     }
     if (!attachment) {

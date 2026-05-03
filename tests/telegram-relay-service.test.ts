@@ -160,6 +160,7 @@ describe('TelegramRelayService', () => {
       const { relay, bot } = makeRelay();
       const result = await relay.sendToUser({ sessionId: 's1', text: 'See report', attachment: pdfAttachment });
       expect(result.sent).toBe(true);
+      expect(bot.sendToTopic).not.toHaveBeenCalled();
       expect(bot.sendDocument).toHaveBeenCalledWith(
         expect.any(Buffer),
         'report.pdf',
@@ -202,17 +203,16 @@ describe('TelegramRelayService', () => {
     });
 
     it('returns failure when attachment base64 is invalid', async () => {
-      const { relay } = makeRelay();
-      // Use non-base64 characters — Buffer.from won't throw but the decode will produce garbage.
-      // We test the base64 path by sending valid base64 that decodes fine.
-      // The "invalid base64" path is hard to trigger since Buffer.from is permissive.
-      // Instead test that the flow works end-to-end with valid data.
+      const { relay, bot } = makeRelay();
       const result = await relay.sendToUser({
         sessionId: 's1',
         text: 'OK',
-        attachment: { name: 'file.txt', data: 'aGVsbG8=', mime: 'text/plain' },
+        attachment: { name: 'file.txt', data: 'not valid base64!', mime: 'text/plain' },
       });
-      expect(result.sent).toBe(true);
+      expect(result.sent).toBe(false);
+      expect(result.reason).toContain('valid base64');
+      expect(bot.sendToTopic).not.toHaveBeenCalled();
+      expect(bot.sendDocument).not.toHaveBeenCalled();
     });
 
     it('returns failure when Telegram API fails to send attachment', async () => {

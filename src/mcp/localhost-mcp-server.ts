@@ -646,6 +646,81 @@ const TOOLS: McpTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'scheduler:create',
+    title: 'Create Scheduler Entry',
+    description: 'Alias for scheduled_task_create. Create a one-shot or interval scheduled task.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Task title' },
+        description: { type: 'string', description: 'Optional task description' },
+        initialPrompt: { type: 'string', description: 'Prompt to send to the CLI session' },
+        cliType: { type: 'string', description: 'CLI type to spawn (e.g. claude-code)' },
+        dirPath: { type: 'string', description: 'Working directory for the session' },
+        scheduledTime: { type: 'string', description: 'ISO 8601 datetime for first execution' },
+        scheduleKind: { type: 'string', enum: ['once', 'interval'], description: 'once or interval (default: once)' },
+        intervalMs: { type: 'number', description: 'Interval in ms for recurring tasks (min 60000)' },
+        planIds: { type: 'array', items: { type: 'string' }, description: 'Associated plan IDs' },
+        mode: { type: 'string', enum: ['spawn', 'direct'], description: 'spawn new session or send to existing (default: spawn)' },
+        targetSessionId: { type: 'string', description: 'Session ID for direct mode' },
+      },
+      required: ['title', 'initialPrompt', 'cliType', 'dirPath', 'scheduledTime'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'scheduler:list',
+    title: 'List Scheduler Entries',
+    description: 'Alias for scheduled_task_list. List all scheduled tasks.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'scheduler:get',
+    title: 'Get Scheduler Entry',
+    description: 'Alias for scheduled_task_get. Get a scheduled task by ID.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string', description: 'Task ID' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'scheduler:update',
+    title: 'Update Scheduler Entry',
+    description: 'Alias for scheduled_task_update. Update a pending scheduled task.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Task ID' },
+        title: { type: 'string' },
+        description: { type: 'string' },
+        initialPrompt: { type: 'string' },
+        cliType: { type: 'string' },
+        dirPath: { type: 'string' },
+        scheduledTime: { type: 'string', description: 'ISO 8601 datetime' },
+        scheduleKind: { type: 'string', enum: ['once', 'interval'] },
+        intervalMs: { type: 'number' },
+        planIds: { type: 'array', items: { type: 'string' } },
+        mode: { type: 'string', enum: ['spawn', 'direct'] },
+        targetSessionId: { type: 'string' },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'scheduler:delete',
+    title: 'Delete Scheduler Entry',
+    description: 'Delete a scheduled task and cancel its pending run.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string', description: 'Task ID' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
 ];
 
 export interface LocalhostMcpServerOptions {
@@ -1050,7 +1125,8 @@ export class LocalhostMcpServer {
       }
       case 'telegram_channel_close':
         return this.service.closeTelegramChannel(asString(args.channelId, 'channelId is required'));
-      case 'scheduled_task_create': {
+      case 'scheduled_task_create':
+      case 'scheduler:create': {
         const planIds = (args.planIds as string[] | undefined) ?? [];
         return this.service.createScheduledTask({
           title: asString(args.title, 'title is required'),
@@ -1067,10 +1143,13 @@ export class LocalhostMcpServer {
         });
       }
       case 'scheduled_task_list':
+      case 'scheduler:list':
         return this.service.listScheduledTasks();
       case 'scheduled_task_get':
+      case 'scheduler:get':
         return this.service.getScheduledTask(asString(args.id, 'id is required'));
-      case 'scheduled_task_update': {
+      case 'scheduled_task_update':
+      case 'scheduler:update': {
         const id = asString(args.id, 'id is required');
         const updates: Record<string, unknown> = { ...args };
         delete updates.id;
@@ -1079,6 +1158,8 @@ export class LocalhostMcpServer {
       }
       case 'scheduled_task_cancel':
         return this.service.cancelScheduledTask(asString(args.id, 'id is required'));
+      case 'scheduler:delete':
+        return this.service.deleteScheduledTask(asString(args.id, 'id is required'));
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
