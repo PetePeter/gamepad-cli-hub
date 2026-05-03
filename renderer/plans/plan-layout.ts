@@ -36,10 +36,13 @@ export interface LayoutOptions {
   nodeWidth?: number;
   /** Node height for centering (px). Default: 102 */
   nodeHeight?: number;
-  /** Extra vertical gap between sequence bands and non-members (px). Default: 68 */
+  /** Extra vertical gap between sequence bands and non-members (px). Default: 74 */
   sequenceGroupGap?: number;
 }
 
+// Sequence box rectangles in PlanScreen.vue extend 42px above the topmost
+// node and 26px below the bottommost node (=68px total). A bare 68 here makes
+// adjacent boxes abut. 74 leaves a 6px clear gap between sequence box edges.
 const DEFAULTS: Required<LayoutOptions> = {
   horizontalSpacing: 280,
   verticalSpacing: 150,
@@ -47,7 +50,7 @@ const DEFAULTS: Required<LayoutOptions> = {
   paddingY: 60,
   nodeWidth: 200,
   nodeHeight: 102,
-  sequenceGroupGap: 68,
+  sequenceGroupGap: 74,
 };
 
 /**
