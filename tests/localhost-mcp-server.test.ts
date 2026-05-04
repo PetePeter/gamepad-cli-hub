@@ -528,6 +528,30 @@ describe('LocalhostMcpServer', () => {
 
     await rpc(port, 'secret-token', {
       jsonrpc: '2.0',
+      id: 811,
+      method: 'tools/call',
+      params: {
+        name: 'scheduled_task_create',
+        arguments: {
+          title: 'Weekday report',
+          initialPrompt: 'report',
+          cliType: 'claude-code',
+          dirPath: 'X:\\coding\\gamepad-cli-hub',
+          scheduledTime: '2026-05-04T08:00:00Z',
+          scheduleKind: 'cron',
+          cronExpression: '0 9 * * 1-5',
+          endDate: '2026-12-31T23:59:59Z',
+        },
+      },
+    });
+    expect((service.createScheduledTask as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(expect.objectContaining({
+      scheduleKind: 'cron',
+      cronExpression: '0 9 * * 1-5',
+      endDate: '2026-12-31T23:59:59Z',
+    }));
+
+    await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
       id: 82,
       method: 'tools/call',
       params: { name: 'scheduler:list', arguments: {} },

@@ -174,6 +174,40 @@ describe('ScheduledTasksTab', () => {
     expect(mockScheduledTaskCreate).not.toHaveBeenCalled();
   });
 
+  it('clones an edited task into a new create payload', async () => {
+    const task = {
+      id: 'task-1',
+      title: 'Original',
+      planIds: [],
+      initialPrompt: '  Original prompt  ',
+      cliType: 'codex',
+      cliParams: '--fast',
+      scheduledTime: new Date(2026, 3, 29, 11, 0, 0, 0),
+      dirPath: 'X:\\coding\\gamepad-cli-hub',
+      status: 'pending',
+      createdAt: Date.now(),
+    };
+    mockScheduledTaskList.mockResolvedValue([task]);
+    const wrapper = mount(ScheduledTasksTab, {
+      props: { popup: true, initialEditTaskId: 'task-1' },
+    });
+    await flushPromises();
+
+    await wrapper.findAll('button').find((button) => button.text() === 'Clone')!.trigger('click');
+    await wrapper.findAll('.st-input')[0].setValue('Clone title');
+    await wrapper.find('.st-btn--primary').trigger('click');
+    await flushPromises();
+
+    expect(mockScheduledTaskCreate).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Clone title',
+      initialPrompt: '  Original prompt  ',
+      cliType: 'codex',
+      cliParams: '--fast',
+      dirPath: 'X:\\coding\\gamepad-cli-hub',
+    }));
+    expect(mockScheduledTaskUpdate).not.toHaveBeenCalled();
+  });
+
   it('submits interval scheduling options', async () => {
     const wrapper = mountTab();
     await flushPromises();
@@ -203,6 +237,54 @@ describe('ScheduledTasksTab', () => {
       scheduleKind: 'interval',
       intervalMs: 900000,
     }));
+  });
+
+  it('submits cron scheduling options from presets with optional end date', async () => {
+    const wrapper = mountTab();
+    await flushPromises();
+    await wrapper.find('.st-create-btn').trigger('click');
+
+    const inputs = wrapper.findAll('.st-input');
+    await inputs[0].setValue('Weekday Report');
+    await wrapper.findAll('textarea')[1].setValue('Prompt');
+    await inputs.find((input) => input.attributes('type') === 'datetime-local')?.setValue('2026-05-04T08:00');
+    const scheduleSelect = wrapper.findAll('select').find(s =>
+      s.findAll('option').some(o => o.text() === 'Cron calendar'),
+    );
+    await scheduleSelect!.setValue('cron');
+    await wrapper.findAll('.st-preset-btn').find(b => b.text() === 'Weekdays 9am')!.trigger('click');
+    await wrapper.find('input[type="date"]').setValue('2026-12-31');
+    await wrapper.findAll('.st-picker-btn')[1].trigger('click');
+    await flushPromises();
+    wrapper.findComponent(QuickSpawnModal).vm.$emit('select', 'codex');
+    await wrapper.findAll('.st-picker-btn')[0].trigger('click');
+    await flushPromises();
+    wrapper.findComponent(DirPickerModal).vm.$emit('select', 'X:\\coding\\gamepad-cli-hub');
+    await wrapper.vm.$nextTick();
+    await wrapper.find('.st-btn--primary').trigger('click');
+    await flushPromises();
+
+    expect(mockScheduledTaskCreate).toHaveBeenCalledWith(expect.objectContaining({
+      scheduleKind: 'cron',
+      cronExpression: '0 9 * * 1-5',
+      endDate: expect.any(Date),
+    }));
+  });
+
+  it('disables creation for invalid cron expressions', async () => {
+    const wrapper = mountTab();
+    await flushPromises();
+    await wrapper.find('.st-create-btn').trigger('click');
+
+    const scheduleSelect = wrapper.findAll('select').find(s =>
+      s.findAll('option').some(o => o.text() === 'Cron calendar'),
+    );
+    await scheduleSelect!.setValue('cron');
+    await wrapper.findAll('input[type="text"]').at(-1)!.setValue('invalid');
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('.st-cron-status--invalid').exists()).toBe(true);
+    expect(wrapper.find('.st-btn--primary').attributes('disabled')).toBeDefined();
   });
 
   it('opens the requested task for editing when mounted as a popup', async () => {

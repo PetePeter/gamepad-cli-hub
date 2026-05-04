@@ -17,6 +17,8 @@ function makeMockScheduler() {
         dirPath: params.dirPath,
         scheduleKind: params.scheduleKind,
         intervalMs: params.intervalMs,
+        cronExpression: params.cronExpression,
+        endDate: params.endDate,
         mode: params.mode,
         targetSessionId: params.targetSessionId,
         status: 'pending',
@@ -138,5 +140,28 @@ describe('HelmSchedulerService', () => {
         targetSessionId: 'sess-1',
       }),
     );
+  });
+
+  it('passes cron fields and converts endDate', () => {
+    const scheduler = makeMockScheduler();
+    const service = new HelmSchedulerService(scheduler as any);
+
+    service.createTask({
+      title: 'Weekday report',
+      initialPrompt: 'report',
+      cliType: 'claude-code',
+      dirPath: '/tmp',
+      scheduledTime: '2026-05-04T08:00:00Z',
+      scheduleKind: 'cron',
+      cronExpression: '0 9 * * 1-5',
+      endDate: '2026-12-31T23:59:59Z',
+    });
+
+    expect(scheduler.createTask).toHaveBeenCalledWith(expect.objectContaining({
+      scheduleKind: 'cron',
+      cronExpression: '0 9 * * 1-5',
+      endDate: expect.any(Date),
+    }));
+    expect(scheduler.createTask.mock.calls[0][0].endDate?.toISOString()).toBe('2026-12-31T23:59:59.000Z');
   });
 });

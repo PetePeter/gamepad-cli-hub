@@ -25,6 +25,14 @@ export function setupScheduledTaskHandlers(
     }
   });
 
+  taskManager.on('task:deleted', (id) => {
+    for (const win of getTargetWindows()) {
+      if (!win.isDestroyed()) {
+        win.webContents.send('scheduled-task:changed', { id, title: '', status: 'deleted' });
+      }
+    }
+  });
+
   ipcMain.handle('scheduled_task:create', async (_event, params: CreateScheduledTaskParams) => {
     try {
       return taskManager.createTask(params);
@@ -66,6 +74,15 @@ export function setupScheduledTaskHandlers(
       return taskManager.cancelTask(id);
     } catch (err) {
       logger.error(`[scheduled_task:cancel] Failed: ${err}`);
+      return false;
+    }
+  });
+
+  ipcMain.handle('scheduled_task:delete', (_event, id: string) => {
+    try {
+      return taskManager.deleteTask(id);
+    } catch (err) {
+      logger.error(`[scheduled_task:delete] Failed: ${err}`);
       return false;
     }
   });

@@ -862,7 +862,13 @@ const gamepadCliAPI = {
     cliType: string;
     cliParams?: string;
     scheduledTime: Date;
+    scheduleKind?: 'once' | 'interval' | 'cron';
+    intervalMs?: number;
+    cronExpression?: string;
+    endDate?: Date;
     dirPath: string;
+    mode?: 'spawn' | 'direct';
+    targetSessionId?: string;
   }) => ipcRenderer.invoke('scheduled_task:create', params),
 
   /** List all scheduled tasks */
@@ -880,11 +886,20 @@ const gamepadCliAPI = {
     cliType?: string;
     cliParams?: string;
     scheduledTime?: Date;
+    scheduleKind?: 'once' | 'interval' | 'cron';
+    intervalMs?: number;
+    cronExpression?: string;
+    endDate?: Date;
     dirPath?: string;
+    mode?: 'spawn' | 'direct';
+    targetSessionId?: string;
   }) => ipcRenderer.invoke('scheduled_task:update', id, updates),
 
   /** Cancel a pending scheduled task */
   scheduledTaskCancel: (id: string) => ipcRenderer.invoke('scheduled_task:cancel', id),
+
+  /** Delete a scheduled task */
+  scheduledTaskDelete: (id: string) => ipcRenderer.invoke('scheduled_task:delete', id),
 
   /** Subscribe to scheduled task change events */
   onScheduledTaskChanged: (callback: (task: { id: string; title: string; status: string }) => void) => {

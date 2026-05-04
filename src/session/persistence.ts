@@ -272,6 +272,7 @@ export function saveScheduledTasks(tasks: ScheduledTask[]): void {
       ...t,
       scheduledTime: t.scheduledTime.toISOString(),
       ...(t.nextRunAt ? { nextRunAt: t.nextRunAt.toISOString() } : {}),
+      ...(t.endDate ? { endDate: t.endDate.toISOString() } : {}),
     }))};
     writeFileSync(SCHEDULED_TASKS_FILE, YAML.stringify(data), 'utf8');
   } catch (err) {
@@ -289,6 +290,7 @@ export function loadScheduledTasks(): ScheduledTask[] {
       ...t,
       scheduledTime: new Date(t.scheduledTime),
       ...(typeof (t as any).nextRunAt === 'string' ? { nextRunAt: new Date((t as any).nextRunAt) } : {}),
+      ...(typeof (t as any).endDate === 'string' ? { endDate: new Date((t as any).endDate) } : {}),
     })) ?? [];
   } catch (err) {
     logger.error(`Failed to load scheduled tasks: ${err}`);

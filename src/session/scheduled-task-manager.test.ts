@@ -354,6 +354,37 @@ describe('ScheduledTaskManager', () => {
       newManager.stop();
     });
 
+    it('should preserve cron fields when loading pending tasks from persistence', () => {
+      manager.createTask({
+        title: 'Persisted Cron',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(2026, 4, 4, 8, 0, 0),
+        scheduleKind: 'cron',
+        cronExpression: '0 9 * * 1-5',
+        endDate: new Date(2026, 11, 31, 23, 59, 59),
+        dirPath: 'X:\\\\coding\\\\test',
+      });
+      manager.stop();
+
+      const newManager = new ScheduledTaskManager(
+        sessionManager as any,
+        ptyManager as any,
+        planManager as any,
+        configLoader as any,
+      );
+      newManager.start();
+
+      const loaded = newManager.listTasks()[0];
+      expect(loaded.scheduleKind).toBe('cron');
+      expect(loaded.cronExpression).toBe('0 9 * * 1-5');
+      expect(loaded.endDate).toBeInstanceOf(Date);
+      expect(loaded.nextRunAt).toBeInstanceOf(Date);
+
+      newManager.stop();
+    });
+
     it('should execute tasks with past scheduledTime immediately', async () => {
       const params: CreateScheduledTaskParams = {
         title: 'Past Task',
@@ -549,6 +580,63 @@ describe('ScheduledTaskManager', () => {
       const updated = manager.getTask(task.id);
       expect(updated?.status).toBe('pending');
       expect(updated?.nextRunAt?.getTime()).toBeGreaterThan(Date.now());
+    });
+
+    it('should reschedule cron tasks after execution', async () => {
+      vi.setSystemTime(new Date(2026, 4, 4, 8, 59, 0));
+      const task = manager.createTask({
+        title: 'Cron Report',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(2026, 4, 4, 8, 59, 0),
+        scheduleKind: 'cron',
+        cronExpression: '0 9 * * 1-5',
+        dirPath: 'X:\\\\coding\\\\test',
+      });
+
+      expect(task.nextRunAt?.getHours()).toBe(9);
+      expect(task.nextRunAt?.getMinutes()).toBe(0);
+      manager.start();
+      vi.advanceTimersByTime(61_000);
+      await vi.runOnlyPendingTimersAsync();
+
+      const running = manager.getTask(task.id);
+      expect(running?.status).toBe('executing');
+      vi.setSystemTime(new Date(2026, 4, 4, 9, 1, 0));
+      ptyManager.emitExit(running!.sessionId!);
+      const updated = manager.getTask(task.id);
+      expect(updated?.status).toBe('pending');
+      expect(updated?.nextRunAt?.getDate()).toBe(5);
+      expect(updated?.nextRunAt?.getHours()).toBe(9);
+      expect(updated?.nextRunAt?.getMinutes()).toBe(0);
+    });
+
+    it('should complete cron tasks when the next run is past endDate', async () => {
+      vi.setSystemTime(new Date(2026, 4, 4, 8, 59, 0));
+      const task = manager.createTask({
+        title: 'Cron Ends',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(2026, 4, 4, 8, 59, 0),
+        scheduleKind: 'cron',
+        cronExpression: '0 9 * * *',
+        endDate: new Date(2026, 4, 4, 9, 30, 0),
+        dirPath: 'X:\\\\coding\\\\test',
+      });
+
+      manager.start();
+      vi.advanceTimersByTime(61_000);
+      await vi.runOnlyPendingTimersAsync();
+
+      const running = manager.getTask(task.id);
+      expect(running?.status).toBe('executing');
+      vi.setSystemTime(new Date(2026, 4, 4, 9, 1, 0));
+      ptyManager.emitExit(running!.sessionId!);
+      const completed = manager.getTask(task.id);
+      expect(completed?.status).toBe('completed');
+      expect(completed?.sessionId).toBeUndefined();
     });
   });
 

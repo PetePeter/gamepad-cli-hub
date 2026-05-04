@@ -18,6 +18,7 @@ import type { ConfigLoader } from '../config/loader.js';
 import { scheduleInitialPrompt } from './initial-prompt.js';
 import { executeSequenceString } from '../input/sequence-executor.js';
 import { mintSessionAuthToken } from '../mcp/session-auth.js';
+import { CronEngine } from '../utils/cron-engine.js';
 
 const PENDING_STATUSES = new Set<ScheduledTaskStatus>(['pending', 'executing']);
 const MIN_INTERVAL_MS = 60_000;
@@ -39,6 +40,8 @@ export class ScheduledTaskManager extends EventEmitter {
   /** Create a new scheduled task. */
   createTask(params: CreateScheduledTaskParams): ScheduledTask {
     const now = Date.now();
+    const scheduleKind = params.scheduleKind ?? 'once';
+    const nextRunAt = this.computeInitialNextRunAt(scheduleKind, params.scheduledTime, params.cronExpression, params.endDate);
     const task: ScheduledTask = {
       id: randomUUID(),
       title: params.title,
@@ -48,9 +51,11 @@ export class ScheduledTaskManager extends EventEmitter {
       cliType: params.cliType,
       cliParams: params.cliParams,
       scheduledTime: params.scheduledTime,
-      scheduleKind: params.scheduleKind ?? 'once',
+      scheduleKind,
       ...(params.intervalMs !== undefined ? { intervalMs: params.intervalMs } : {}),
-      nextRunAt: params.scheduledTime,
+      ...(params.cronExpression !== undefined ? { cronExpression: params.cronExpression } : {}),
+      ...(params.endDate !== undefined ? { endDate: params.endDate } : {}),
+      nextRunAt,
       dirPath: params.dirPath,
       mode: params.mode,
       targetSessionId: params.targetSessionId,
@@ -90,8 +95,10 @@ export class ScheduledTaskManager extends EventEmitter {
     if (updates.scheduledTime !== undefined) task.scheduledTime = updates.scheduledTime;
     if (updates.scheduleKind !== undefined) task.scheduleKind = updates.scheduleKind;
     if (Object.prototype.hasOwnProperty.call(updates, 'intervalMs')) task.intervalMs = updates.intervalMs;
+    if (Object.prototype.hasOwnProperty.call(updates, 'cronExpression')) task.cronExpression = updates.cronExpression;
+    if (Object.prototype.hasOwnProperty.call(updates, 'endDate')) task.endDate = updates.endDate;
     if (updates.dirPath !== undefined) task.dirPath = updates.dirPath;
-    task.nextRunAt = task.scheduledTime;
+    task.nextRunAt = this.computeInitialNextRunAt(task.scheduleKind ?? 'once', task.scheduledTime, task.cronExpression, task.endDate);
 
     this.saveTasks();
     this.scheduleTask(task);
@@ -139,7 +146,7 @@ export class ScheduledTaskManager extends EventEmitter {
       // Only restore tasks that were still pending
       if (PENDING_STATUSES.has(task.status)) {
         task.scheduleKind ??= 'once';
-        task.nextRunAt ??= task.scheduledTime;
+        task.nextRunAt ??= this.computeInitialNextRunAt(task.scheduleKind, task.scheduledTime, task.cronExpression, task.endDate);
         this.tasks.set(task.id, task);
       }
     }
@@ -259,6 +266,8 @@ export class ScheduledTaskManager extends EventEmitter {
 
       task.lastRunAt = Date.now();
       this.completeOrReschedule(task);
+      this.saveTasks();
+      this.emit('task:changed', task);
       logger.info(`[ScheduledTaskManager] Direct task "${task.title}" sent to session ${targetId}`);
 
     } catch (err) {
@@ -412,6 +421,23 @@ export class ScheduledTaskManager extends EventEmitter {
     return task.nextRunAt ?? task.scheduledTime;
   }
 
+  private computeInitialNextRunAt(
+    scheduleKind: ScheduledTask['scheduleKind'],
+    scheduledTime: Date,
+    cronExpression?: string,
+    endDate?: Date,
+  ): Date {
+    if (scheduleKind !== 'cron') return scheduledTime;
+    if (!cronExpression?.trim()) {
+      throw new Error('Cron schedules require cronExpression');
+    }
+    const nextRunAt = CronEngine.nextRunTimeBeforeDate(cronExpression, scheduledTime, endDate);
+    if (!nextRunAt) {
+      throw new Error('Cron schedule has no next run before endDate');
+    }
+    return nextRunAt;
+  }
+
   private completeOrReschedule(task: ScheduledTask): void {
     if (task.scheduleKind === 'interval') {
       const intervalMs = task.intervalMs ?? 0;
@@ -422,6 +448,28 @@ export class ScheduledTaskManager extends EventEmitter {
         return;
       }
       const nextRunAt = new Date(Date.now() + intervalMs);
+      task.status = 'pending';
+      task.scheduledTime = nextRunAt;
+      task.nextRunAt = nextRunAt;
+      task.sessionId = undefined;
+      task.error = undefined;
+      this.scheduleTask(task);
+      return;
+    }
+    if (task.scheduleKind === 'cron') {
+      if (!task.cronExpression?.trim()) {
+        task.status = 'failed';
+        task.error = 'Cron schedules require cronExpression';
+        task.completedAt = Date.now();
+        return;
+      }
+      const nextRunAt = CronEngine.nextRunTimeBeforeDate(task.cronExpression, new Date(), task.endDate);
+      if (!nextRunAt) {
+        task.status = 'completed';
+        task.completedAt = Date.now();
+        task.sessionId = undefined;
+        return;
+      }
       task.status = 'pending';
       task.scheduledTime = nextRunAt;
       task.nextRunAt = nextRunAt;

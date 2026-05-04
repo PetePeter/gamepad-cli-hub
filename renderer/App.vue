@@ -774,6 +774,12 @@ function openSchedulerPopup(taskId: string | null): void {
   schedulerPopupVisible.value = true;
 }
 
+async function deleteScheduledTask(task: ScheduledTask): Promise<void> {
+  const confirmed = window.confirm(`Delete scheduled task "${task.title}"?`);
+  if (!confirmed) return;
+  await window.gamepadCli.scheduledTaskDelete(task.id);
+}
+
 // Spawn
 function onSpawn(cliType: string): void {
   const dirs = sessionsState.directories;
@@ -2353,6 +2359,7 @@ onUnmounted(() => {
         <SchedulerSection
           :collapsed="schedulerCollapsed"
           @open="openSchedulerPopup"
+          @delete="deleteScheduledTask"
         />
       </div>
 

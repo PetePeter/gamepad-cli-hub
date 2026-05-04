@@ -8,10 +8,11 @@ import type { CreateScheduledTaskParams, ScheduledTask, UpdateScheduledTaskParam
 export class HelmSchedulerService {
   constructor(private readonly scheduler: ScheduledTaskManager) {}
 
-  createTask(params: Omit<CreateScheduledTaskParams, 'scheduledTime'> & { scheduledTime: string }): ScheduledTask {
+  createTask(params: Omit<CreateScheduledTaskParams, 'scheduledTime' | 'endDate'> & { scheduledTime: string; endDate?: string }): ScheduledTask {
     return this.scheduler.createTask({
       ...params,
       scheduledTime: new Date(params.scheduledTime),
+      endDate: params.endDate ? new Date(params.endDate) : undefined,
     });
   }
 
@@ -23,11 +24,15 @@ export class HelmSchedulerService {
     return this.scheduler.getTask(id);
   }
 
-  updateTask(id: string, updates: Omit<UpdateScheduledTaskParams, 'scheduledTime'> & { scheduledTime?: string }): ScheduledTask | null {
-    return this.scheduler.updateTask(id, {
+  updateTask(id: string, updates: Omit<UpdateScheduledTaskParams, 'scheduledTime' | 'endDate'> & { scheduledTime?: string; endDate?: string }): ScheduledTask | null {
+    const converted: UpdateScheduledTaskParams = {
       ...updates,
       scheduledTime: updates.scheduledTime ? new Date(updates.scheduledTime) : undefined,
-    });
+    };
+    if (Object.prototype.hasOwnProperty.call(updates, 'endDate')) {
+      converted.endDate = updates.endDate ? new Date(updates.endDate) : undefined;
+    }
+    return this.scheduler.updateTask(id, converted);
   }
 
   cancelTask(id: string): boolean {
