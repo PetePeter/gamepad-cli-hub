@@ -92,19 +92,11 @@ export interface SessionInfoResponse {
   aiagent_states: string[];
   available_directories: DirectoryInfo[];
   aiagent_state_guide?: {
-    validStates: string[];
     how_to_update: {
       description: string;
-      mcp_call: string;
       usage_example: { sessionId: string; state: string };
       state_icons: Record<string, string>;
     };
-    state_systems: Array<{
-      name: string;
-      purpose: string;
-      owner: string;
-      tools_or_fields: string[];
-    }>;
     state_transitions: Array<{
       from: string;
       to: string;
@@ -114,39 +106,28 @@ export interface SessionInfoResponse {
       scenario: string;
       steps: string[];
     }>;
-    error_scenarios: string[];
-    notes: string[];
   };
   session_send_text_guide?: {
     description: string;
-    how_it_works: string;
-    sequence_tokens?: string[];
-    submit_suffix_behavior?: string;
     inter_llm_handoff_protocol: string[];
     required_args: Record<string, string>;
     optional_args: Record<string, string>;
     examples: Array<{ scenario: string; payload: Record<string, unknown> }>;
-    error_scenarios: string[];
-    receiving_responses: string;
   };
   agent_plan_guide?: {
-    plan_identifier_semantics: string[];
     when_to_create_plan: string[];
     required_description_sections: string[];
     question_plan_workflow: string[];
-    completion_documentation: string[];
-    plan_attachment_guide: string[];
-    sequence_memory_guide: string[];
+    completion_notes: string;
   };
   notification_guide?: {
     description: string;
     preferred_tool: string;
-    pre_flight: string[];
     when_to_notify: string[];
     when_not_to_notify: string[];
     routing_outcomes: Record<string, string>;
-    telegram_usage: string[];
     examples: Array<{ scenario: string; tool: string; rationale: string }>;
+    llm_triggers: Array<{ trigger: string; action: string }>;
   };
 }
 

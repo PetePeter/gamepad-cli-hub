@@ -40,11 +40,8 @@ tools:
     submitSuffix: \r
   glm-cc:
     name: GLM + CC
-    initialPrompt:
-      - label: ""
-        sequence: Call session_info to get helm MCP AIAGENT state registry, then output
-          AIAGENT state as first line of each response.{Enter}
-    initialPromptDelay: 3000
+    initialPrompt: []
+    initialPromptDelay: 1000
     env:
       - name: ANTHROPIC_BASE_URL
         value: https://api.z.ai/api/anthropic
@@ -64,6 +61,8 @@ tools:
     spawnCommand: claude --session-id {cliSessionName}
     resumeCommand: claude --resume={cliSessionName}
     continueCommand: claude --resume={cliSessionName}
+    submitSuffix: \r
+    helmInitialPrompt: true
   kimi-cc:
     name: Kimi+CC
     initialPrompt: []
