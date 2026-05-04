@@ -46,11 +46,14 @@ const DEFAULT_WIDTH = 800;
 const DEFAULT_HEIGHT = 400;
 const MIN_WIDTH = 300;
 const MIN_HEIGHT = 200;
-const MAX_VIEWPORT_RATIO = 0.85;
+const MAX_WIDTH_VIEWPORT_RATIO = 0.94;
+const MAX_HEIGHT_VIEWPORT_RATIO = 0.85;
 
 const editorWidth = ref(DEFAULT_WIDTH);
 const editorHeight = ref(DEFAULT_HEIGHT);
-let isResizing = false;
+const editorLeft = ref(0);
+const editorTop = ref(0);
+let activeResizePointerId: number | null = null;
 let resizeStartX = 0;
 let resizeStartY = 0;
 let resizeStartWidth = 0;
@@ -67,8 +70,12 @@ const isEmpty = computed(() => !text.value.trim());
 const hasUnsent = computed(() => text.value !== lastSentDraft.value);
 
 const modalStyle = computed(() => ({
+  left: `${editorLeft.value}px`,
+  top: `${editorTop.value}px`,
   width: `${editorWidth.value}px`,
   height: `${editorHeight.value}px`,
+  maxWidth: 'none',
+  maxHeight: 'none',
 }));
 
 watch(() => props.visible, async (v) => {
@@ -80,6 +87,7 @@ watch(() => props.visible, async (v) => {
     history.value = await loadEditorHistory(getEditorScope());
     modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: EDITOR_POPUP_KEYS });
     await loadEditorDimensions();
+    centerEditorPopup();
   } else {
     modalStack.pop(MODAL_ID);
     if (autoSaveTimer) {
@@ -92,12 +100,27 @@ watch(() => props.visible, async (v) => {
 async function loadEditorDimensions(): Promise<void> {
   try {
     const prefs = await window.gamepadCli.configGetEditorPrefs();
-    if (prefs.editorPopupWidth) editorWidth.value = Math.max(MIN_WIDTH, Math.min(prefs.editorPopupWidth, window.innerWidth * MAX_VIEWPORT_RATIO));
-    else editorWidth.value = Math.max(MIN_WIDTH, Math.min(DEFAULT_WIDTH, window.innerWidth * MAX_VIEWPORT_RATIO));
-    if (prefs.editorPopupHeight) editorHeight.value = Math.max(MIN_HEIGHT, Math.min(prefs.editorPopupHeight, window.innerHeight * MAX_VIEWPORT_RATIO));
+    if (prefs.editorPopupWidth) editorWidth.value = Math.max(MIN_WIDTH, Math.min(prefs.editorPopupWidth, window.innerWidth * MAX_WIDTH_VIEWPORT_RATIO));
+    else editorWidth.value = Math.max(MIN_WIDTH, Math.min(DEFAULT_WIDTH, window.innerWidth * MAX_WIDTH_VIEWPORT_RATIO));
+    if (prefs.editorPopupHeight) editorHeight.value = Math.max(MIN_HEIGHT, Math.min(prefs.editorPopupHeight, window.innerHeight * MAX_HEIGHT_VIEWPORT_RATIO));
+    else editorHeight.value = Math.max(MIN_HEIGHT, Math.min(DEFAULT_HEIGHT, window.innerHeight * MAX_HEIGHT_VIEWPORT_RATIO));
   } catch (err) {
     console.warn('[EditorPopup] Failed to load dimensions:', err);
   }
+}
+
+function clampEditorPosition(): void {
+  const margin = 8;
+  const maxLeft = Math.max(margin, window.innerWidth - editorWidth.value - margin);
+  const maxTop = Math.max(margin, window.innerHeight - editorHeight.value - margin);
+  editorLeft.value = Math.min(Math.max(editorLeft.value, margin), maxLeft);
+  editorTop.value = Math.min(Math.max(editorTop.value, margin), maxTop);
+}
+
+function centerEditorPopup(): void {
+  editorLeft.value = Math.round((window.innerWidth - editorWidth.value) / 2);
+  editorTop.value = Math.round((window.innerHeight - editorHeight.value) / 2);
+  clampEditorPosition();
 }
 
 async function saveEditorDimensions(): Promise<void> {
@@ -111,36 +134,39 @@ async function saveEditorDimensions(): Promise<void> {
   }
 }
 
-function onResizeMouseDown(e: MouseEvent): void {
-  if (e.button !== 0) return; // only left-click
-  e.preventDefault();
-  isResizing = true;
-  resizeStartX = e.clientX;
-  resizeStartY = e.clientY;
+function onResizePointerDown(event: PointerEvent): void {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  activeResizePointerId = event.pointerId;
+  resizeStartX = event.clientX;
+  resizeStartY = event.clientY;
   resizeStartWidth = editorWidth.value;
   resizeStartHeight = editorHeight.value;
-
-  document.addEventListener('mousemove', onResizeMouseMove);
-  document.addEventListener('mouseup', onResizeMouseUp);
+  (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+  window.addEventListener('pointermove', onResizePointerMove);
+  window.addEventListener('pointerup', onResizePointerUp);
+  window.addEventListener('pointercancel', onResizePointerUp);
 }
 
-function onResizeMouseMove(e: MouseEvent): void {
-  if (!isResizing) return;
-  const deltaX = e.clientX - resizeStartX;
-  const deltaY = e.clientY - resizeStartY;
+function onResizePointerMove(event: PointerEvent): void {
+  if (activeResizePointerId !== event.pointerId) return;
+  const deltaX = event.clientX - resizeStartX;
+  const deltaY = event.clientY - resizeStartY;
 
-  const newWidth = Math.max(MIN_WIDTH, Math.min(resizeStartWidth + deltaX, window.innerWidth * MAX_VIEWPORT_RATIO));
-  const newHeight = Math.max(MIN_HEIGHT, Math.min(resizeStartHeight + deltaY, window.innerHeight * MAX_VIEWPORT_RATIO));
+  const newWidth = Math.max(MIN_WIDTH, Math.min(resizeStartWidth + deltaX, window.innerWidth * MAX_WIDTH_VIEWPORT_RATIO));
+  const newHeight = Math.max(MIN_HEIGHT, Math.min(resizeStartHeight + deltaY, window.innerHeight * MAX_HEIGHT_VIEWPORT_RATIO));
 
   editorWidth.value = newWidth;
   editorHeight.value = newHeight;
+  centerEditorPopup();
 }
 
-function onResizeMouseUp(): void {
-  if (!isResizing) return;
-  isResizing = false;
-  document.removeEventListener('mousemove', onResizeMouseMove);
-  document.removeEventListener('mouseup', onResizeMouseUp);
+function onResizePointerUp(event: PointerEvent): void {
+  if (activeResizePointerId !== event.pointerId) return;
+  activeResizePointerId = null;
+  window.removeEventListener('pointermove', onResizePointerMove);
+  window.removeEventListener('pointerup', onResizePointerUp);
+  window.removeEventListener('pointercancel', onResizePointerUp);
   void saveEditorDimensions();
 }
 
@@ -207,8 +233,9 @@ watch(text, () => {
 });
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', onResizeMouseMove);
-  document.removeEventListener('mouseup', onResizeMouseUp);
+  window.removeEventListener('pointermove', onResizePointerMove);
+  window.removeEventListener('pointerup', onResizePointerUp);
+  window.removeEventListener('pointercancel', onResizePointerUp);
   if (autoSaveTimer) clearTimeout(autoSaveTimer);
 });
 
@@ -327,6 +354,7 @@ defineExpose({ handleButton });
               :rows="12"
               :min-rows="8"
               :max-rows="24"
+              fill
               textarea-class="editor-popup__textarea"
               @keydown.ctrl.enter.prevent="onSend"
               @keydown.escape.prevent.stop="onClose"
@@ -378,7 +406,7 @@ defineExpose({ handleButton });
           </div>
         </div>
 
-        <div class="editor-popup__resize-handle" @mousedown="onResizeMouseDown" title="Drag to resize"></div>
+        <div class="editor-popup__resize-handle" @pointerdown="onResizePointerDown" title="Drag to resize"></div>
 
         <EditorPopupConfirmDialog
           v-model:visible="showConfirmDismiss"

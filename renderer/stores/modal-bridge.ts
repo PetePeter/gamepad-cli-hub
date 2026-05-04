@@ -165,27 +165,6 @@ export function setFormModalResolve(cb: ((values: Record<string, string> | null)
 export function getFormModalResolve(): ((values: Record<string, string> | null) => void) | null { return _formModalResolve; }
 
 // ============================================================================
-// Editor Popup
-// ============================================================================
-
-export const editorPopup = reactive({
-  visible: false,
-  initialText: '',
-});
-
-let _editorPopupOnSend: ((text: string) => void) | null = null;
-let _editorPopupResolve: (() => void) | null = null;
-export function setEditorPopupCallbacks(
-  onSend: ((text: string) => void) | null,
-  resolve: (() => void) | null,
-): void {
-  _editorPopupOnSend = onSend;
-  _editorPopupResolve = resolve;
-}
-export function getEditorPopupOnSend(): ((text: string) => void) | null { return _editorPopupOnSend; }
-export function getEditorPopupResolve(): (() => void) | null { return _editorPopupResolve; }
-
-// ============================================================================
 // Tool Editor
 // ============================================================================
 
@@ -277,11 +256,13 @@ export function buildToolEditorOptions(values: Record<string, any>): {
 export function isAnyBridgeModalVisible(): boolean {
   // Import inside function to avoid circular dependency
   const { useEscProtection } = require('../composables/useEscProtection.js');
+  const { useEditorPopupStore } = require('./editor-popup.js');
   const escProtection = useEscProtection();
+  const editorPopupStore = useEditorPopupStore();
 
   return closeConfirm.visible || contextMenu.visible || planDeleteConfirm.visible ||
     clearDonePlans.visible || sequencePicker.visible || quickSpawn.visible || dirPicker.visible ||
-    draftSubmenu.visible || formModal.visible || editorPopup.visible || toolEditor.visible ||
+    draftSubmenu.visible || formModal.visible || editorPopupStore.visible || toolEditor.visible ||
     escProtection.isProtecting.value;
 }
 

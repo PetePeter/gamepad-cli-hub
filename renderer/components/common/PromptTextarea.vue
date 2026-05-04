@@ -15,12 +15,14 @@ const props = withDefaults(defineProps<{
   minRows?: number;
   maxRows?: number;
   textareaClass?: string;
+  fill?: boolean;
 }>(), {
   modelValue: '',
   rows: 3,
   minRows: 3,
   maxRows: 14,
   textareaClass: '',
+  fill: false,
 });
 
 const emit = defineEmits<{
@@ -37,6 +39,11 @@ let resizeStartHeight = 0;
 function autosize(): void {
   const el = textareaRef.value;
   if (!el) return;
+  if (props.fill) {
+    el.style.height = '100%';
+    el.style.overflowY = 'auto';
+    return;
+  }
   el.style.height = 'auto';
   const lineHeight = parseFloat(getComputedStyle(el).lineHeight || '18');
   const minHeight = lineHeight * props.minRows;
@@ -107,10 +114,10 @@ defineExpose({ focus });
 </script>
 
 <template>
-  <div class="prompt-textarea">
+  <div class="prompt-textarea" :class="{ 'prompt-textarea--fill': props.fill }">
     <label v-if="label" :for="id" class="prompt-textarea__label">{{ label }}</label>
 
-    <div class="prompt-textarea__editor-shell">
+    <div class="prompt-textarea__editor-shell" :class="{ 'prompt-textarea__editor-shell--fill': props.fill }">
       <textarea
         :id="id"
         ref="textareaRef"
@@ -118,7 +125,7 @@ defineExpose({ focus });
         :placeholder="placeholder"
         :rows="rows"
         class="prompt-textarea__editor"
-        :class="textareaClass"
+        :class="[textareaClass, { 'prompt-textarea__editor--fill': props.fill }]"
         spellcheck="false"
         @input="onInput"
       />
@@ -130,6 +137,7 @@ defineExpose({ focus });
         @click="syntaxHelpExpanded = !syntaxHelpExpanded"
       >i</button>
       <div
+        v-if="!props.fill"
         class="prompt-textarea__resize-grip"
         role="separator"
         aria-label="Resize prompt field vertically"
@@ -157,6 +165,12 @@ defineExpose({ focus });
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
+}
+
+.prompt-textarea--fill {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .prompt-textarea__label {
@@ -167,9 +181,16 @@ defineExpose({ focus });
 
 .prompt-textarea__editor-shell {
   position: relative;
+  min-width: 0;
+}
+
+.prompt-textarea__editor-shell--fill {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .prompt-textarea__editor {
+  display: block;
   width: 100%;
   min-height: 0;
   resize: none;
@@ -183,6 +204,10 @@ defineExpose({ focus });
   line-height: 1.45;
   padding: var(--spacing-sm) 34px 18px var(--spacing-md);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,0.025);
+}
+
+.prompt-textarea__editor--fill {
+  height: 100%;
 }
 
 .prompt-textarea__editor:focus {

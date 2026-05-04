@@ -73,7 +73,6 @@ import {
   dirPicker, openDirPicker, closeDirPicker,
   draftSubmenu,
   formModal, getFormModalResolve,
-  editorPopup, getEditorPopupOnSend, getEditorPopupResolve, setEditorPopupCallbacks,
   toolEditor, getToolEditorCallback, setToolEditorCallback,
   isAnyBridgeModalVisible, buildToolEditorOptions,
 } from './stores/modal-bridge.js';
@@ -81,6 +80,7 @@ import { collectSequenceItems } from './modals/context-menu.js';
 import { showSequencePicker } from './modals/sequence-picker.js';
 import { showDraftSubmenu } from './modals/draft-submenu.js';
 import { showEditorPopup } from './editor/editor-popup.js';
+import { useEditorPopupStore } from './stores/editor-popup.js';
 import DraftEditor from './components/panels/DraftEditor.vue';
 import type { PlanStatus, PlanType } from '../../src/types/plan.js';
 import type { ScheduledTask } from '../../src/types/scheduled-task.js';
@@ -168,6 +168,7 @@ const terminalContainerRef = ref<HTMLElement | null>(null);
 const chipBarStore = useChipBarStore();
 const navStore = useNavigationStore();
 const llmNotificationsStore = useLlmNotificationsStore();
+const editorPopupStore = useEditorPopupStore();
 
 // Draft editor state
 const draftEditorVisible = ref(false);
@@ -1827,19 +1828,6 @@ function onToolEditorCancel(): void {
   toolEditor.visible = false;
 }
 
-// Editor popup callbacks
-function onEditorSend(text: string): void {
-  const cb = getEditorPopupOnSend();
-  cb?.(text);
-}
-
-function onEditorClose(): void {
-  const resolve = getEditorPopupResolve();
-  setEditorPopupCallbacks(null, null);
-  resolve?.();
-}
-
-
 // Plan delete confirm
 function onPlanDeleteConfirm(): void {
   planDeleteConfirm.visible = false;
@@ -2596,10 +2584,11 @@ onUnmounted(() => {
     />
 
     <EditorPopup
-      v-model:visible="editorPopup.visible"
-      :initial-text="editorPopup.initialText"
-      @send="onEditorSend"
-      @close="onEditorClose"
+      :visible="editorPopupStore.visible"
+      :initial-text="editorPopupStore.initialText"
+      @update:visible="editorPopupStore.setVisible"
+      @send="editorPopupStore.handleSend"
+      @close="editorPopupStore.handleClose"
     />
 
     <BindingEditorModal

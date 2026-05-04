@@ -262,18 +262,19 @@ button {
 }
 
 .editor-popup-overlay {
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
 }
 
 .editor-popup {
-  position: relative;
-  width: min(800px, 85vw);
-  max-width: 85vw;
+  position: absolute;
+  width: min(800px, 94vw);
+  max-width: 94vw;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
   max-height: calc(100vh - 48px);
+  margin: 0;
 }
 
 .editor-popup__header,
@@ -319,7 +320,7 @@ button {
 
 .editor-popup__body {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+  grid-template-columns: minmax(0, 1fr) clamp(220px, 24vw, 300px);
   gap: var(--spacing-md);
   flex: 1 1 auto;
   min-height: 0;
@@ -332,18 +333,21 @@ button {
   gap: var(--spacing-sm);
   flex: 1;
   min-height: 0;
+  min-width: 0;
 }
 
 .editor-popup__history {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
+  min-width: 0;
 }
 
 .editor-popup__textarea {
   width: 100%;
   flex: 1;
   min-height: 0;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-secondary);
