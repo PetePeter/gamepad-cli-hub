@@ -237,9 +237,14 @@ const gamepadCliAPI = {
   configSetCollapsePrefs: (prefs: { spawnCollapsed?: boolean; plannerCollapsed?: boolean; schedulerCollapsed?: boolean }) =>
     ipcRenderer.invoke('config:setCollapsePrefs', prefs),
 
-  configGetEditorPrefs: () => ipcRenderer.invoke('config:getEditorPrefs') as Promise<{ draftEditorHeight?: number; planEditorHeight?: number }>,
+  configGetEditorPrefs: () => ipcRenderer.invoke('config:getEditorPrefs') as Promise<{
+    draftEditorHeight?: number;
+    planEditorHeight?: number;
+    editorPopupWidth?: number;
+    editorPopupHeight?: number;
+  }>,
 
-  configSetEditorPrefs: (prefs: { draftEditorHeight?: number; planEditorHeight?: number }) =>
+  configSetEditorPrefs: (prefs: { draftEditorHeight?: number; planEditorHeight?: number; editorPopupWidth?: number; editorPopupHeight?: number }) =>
     ipcRenderer.invoke('config:setEditorPrefs', prefs),
 
   // ========================================================================

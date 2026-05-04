@@ -49,4 +49,13 @@ describe('editor history', () => {
     await saveEditorHistory(['first prompt', 'second prompt']);
     await expect(loadEditorHistory()).resolves.toEqual(['first prompt', 'second prompt']);
   });
+
+  it('stores histories separately per working directory', async () => {
+    await addEditorHistoryEntry('alpha prompt', 'X:\\coding\\alpha');
+    await addEditorHistoryEntry('beta prompt', 'X:\\coding\\beta');
+    await addEditorHistoryEntry('alpha follow-up', 'X:\\coding\\alpha');
+
+    await expect(loadEditorHistory('X:\\coding\\alpha')).resolves.toEqual(['alpha follow-up', 'alpha prompt']);
+    await expect(loadEditorHistory('X:\\coding\\beta')).resolves.toEqual(['beta prompt']);
+  });
 });

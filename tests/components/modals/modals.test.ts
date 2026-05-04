@@ -1604,6 +1604,14 @@ describe('EditorPopup.vue', () => {
   beforeEach(() => {
     modalStack = useModalStack();
     modalStack.clear();
+    (window as any).gamepadCli = {
+      configGetEditorPrefs: vi.fn().mockResolvedValue({}),
+      configSetEditorPrefs: vi.fn().mockResolvedValue(undefined),
+      draftList: vi.fn().mockResolvedValue([]),
+      draftCreate: vi.fn().mockResolvedValue({ id: 'draft-1' }),
+      draftUpdate: vi.fn().mockResolvedValue(undefined),
+      draftDelete: vi.fn().mockResolvedValue(undefined),
+    };
   });
 
   function factory(props: Record<string, any> = {}) {
@@ -1664,6 +1672,40 @@ describe('EditorPopup.vue', () => {
     expect(modalStack.has('editor-popup')).toBe(true);
     await w.setProps({ visible: false });
     expect(modalStack.has('editor-popup')).toBe(false);
+    w.unmount();
+  });
+
+  it('uses shared confirm dialog for unsent close actions', async () => {
+    const w = factory({ initialText: 'draft text' });
+    await flushPromises();
+    await w.find('.icon-button').trigger('click');
+    await flushPromises();
+    expect(w.findComponent(ConfirmDialog).exists()).toBe(true);
+    await w.findAll('button').find(b => b.text() === 'Keep Editing')!.trigger('click');
+    expect(w.emitted('close')).toBeUndefined();
+    w.unmount();
+  });
+
+  it('auto-saves programmatic text changes and treats saved text as clean', async () => {
+    vi.useFakeTimers();
+    const { state } = await import('../../../renderer/state.js');
+    state.activeSessionId = 'session-1';
+    state.sessions = [{ id: 'session-1', name: 'main', cliType: 'codex', processId: 1, workingDir: 'X:\\coding\\project' }];
+    const w = factory();
+    await flushPromises();
+
+    (w.vm as any).text = 'from history';
+    await vi.advanceTimersByTimeAsync(2000);
+    await flushPromises();
+
+    expect((window as any).gamepadCli.draftCreate).toHaveBeenCalledWith('X:\\coding\\project', 'ctrl-g-draft', 'from history');
+    await w.find('.icon-button').trigger('click');
+    await flushPromises();
+    expect(w.find('.editor-popup-confirm-dialog').exists()).toBe(false);
+    expect(w.emitted('close')).toHaveLength(1);
+    state.activeSessionId = null;
+    state.sessions = [];
+    vi.useRealTimers();
     w.unmount();
   });
 });

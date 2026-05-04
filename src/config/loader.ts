@@ -330,6 +330,8 @@ const DEFAULT_MCP_CONFIG: McpConfig = {
 export interface EditorPrefs {
   draftEditorHeight?: number;
   planEditorHeight?: number;
+  editorPopupWidth?: number;
+  editorPopupHeight?: number;
 }
 
 export interface SettingsConfig {

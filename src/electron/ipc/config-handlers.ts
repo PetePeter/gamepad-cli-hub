@@ -7,7 +7,7 @@
 
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { type ConfigLoader, type PlanFilterConfig, type NotificationMode } from '../../config/loader.js';
+import { type ConfigLoader, type PlanFilterConfig, type NotificationMode, type EditorPrefs } from '../../config/loader.js';
 import type { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
 import { logger } from '../../utils/logger.js';
 
@@ -442,7 +442,7 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
     }
   });
 
-  ipcMain.handle('config:setEditorPrefs', (_event, prefs: Partial<{ draftEditorHeight?: number; planEditorHeight?: number }>) => {
+  ipcMain.handle('config:setEditorPrefs', (_event, prefs: Partial<EditorPrefs>) => {
     try {
       configLoader.setEditorPrefs(prefs);
       logger.info(`[IPC] Editor prefs updated: ${JSON.stringify(prefs)}`);

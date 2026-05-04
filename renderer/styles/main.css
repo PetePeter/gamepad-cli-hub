@@ -267,11 +267,13 @@ button {
 }
 
 .editor-popup {
-  width: min(960px, calc(100vw - 48px));
-  max-height: calc(100vh - 48px);
+  position: relative;
+  width: min(800px, 85vw);
+  max-width: 85vw;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
+  max-height: calc(100vh - 48px);
 }
 
 .editor-popup__header,
@@ -286,6 +288,22 @@ button {
   flex-direction: column;
   align-items: flex-start;
   gap: var(--spacing-sm);
+}
+
+.editor-popup__title-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.editor-popup__unsaved-badge {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--accent);
+  background: rgba(255, 192, 61, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
 }
 
 .editor-popup__footer-buttons {
@@ -308,7 +326,14 @@ button {
   overflow: auto;
 }
 
-.editor-popup__composer,
+.editor-popup__composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  flex: 1;
+  min-height: 0;
+}
+
 .editor-popup__history {
   display: flex;
   flex-direction: column;
@@ -317,13 +342,15 @@ button {
 
 .editor-popup__textarea {
   width: 100%;
-  min-height: 320px;
+  flex: 1;
+  min-height: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-secondary);
   color: var(--text-primary);
   padding: var(--spacing-md);
   font: inherit;
+  resize: none;
 }
 
 .editor-popup__textarea:focus {
@@ -400,6 +427,21 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-xs);
+}
+
+.editor-popup__resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, transparent 50%, var(--border) 50%);
+  cursor: se-resize;
+  user-select: none;
+}
+
+.editor-popup__resize-handle:hover {
+  background: linear-gradient(135deg, transparent 50%, var(--accent) 50%);
 }
 
 /* Settings slide-over (slides from right, sessions stays visible behind) */
