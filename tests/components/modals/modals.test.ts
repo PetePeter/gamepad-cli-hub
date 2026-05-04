@@ -16,6 +16,86 @@ import { useModalStack } from '../../../renderer/composables/useModalStack.js';
 const GLOBAL_STUBS = { teleport: true } as const;
 
 // ============================================================================
+// ConfirmDialog
+// ============================================================================
+
+import ConfirmDialog from '../../../renderer/components/modals/ConfirmDialog.vue';
+
+describe('ConfirmDialog.vue', () => {
+  let modalStack: ReturnType<typeof useModalStack>;
+
+  beforeEach(() => {
+    modalStack = useModalStack();
+    modalStack.clear();
+  });
+
+  function factory(props: Record<string, any> = {}) {
+    return mount(ConfirmDialog, {
+      props: {
+        visible: true,
+        modalId: 'test-confirm',
+        title: 'Confirm Thing',
+        ariaLabel: 'Confirm thing',
+        buttons: [
+          { id: 'cancel', label: 'Cancel' },
+          { id: 'save', label: 'Save', variant: 'primary' },
+          { id: 'delete', label: 'Delete', variant: 'danger' },
+        ],
+        selectedIndex: 0,
+        cancelActionId: 'cancel',
+        ...props,
+      },
+      attachTo: document.body,
+      global: { stubs: GLOBAL_STUBS },
+      slots: { default: '<div class="confirm-body">Body text</div>' },
+    });
+  }
+
+  it('renders title, body, and configured buttons', () => {
+    const w = factory();
+    expect(w.text()).toContain('Confirm Thing');
+    expect(w.text()).toContain('Body text');
+    expect(w.findAll('button').map(b => b.text())).toEqual(['Cancel', 'Save', 'Delete']);
+    w.unmount();
+  });
+
+  it('emits action when a non-cancel button is clicked', async () => {
+    const w = factory();
+    await w.findAll('button')[1].trigger('click');
+    expect(w.emitted('action')?.[0]).toEqual(['save']);
+    expect(w.emitted('update:visible')?.[0]).toEqual([false]);
+    w.unmount();
+  });
+
+  it('emits cancel when the configured cancel button is clicked', async () => {
+    const w = factory();
+    await w.findAll('button')[0].trigger('click');
+    expect(w.emitted('cancel')).toHaveLength(1);
+    expect(w.emitted('update:visible')?.[0]).toEqual([false]);
+    w.unmount();
+  });
+
+  it('handles gamepad selection across three buttons', async () => {
+    const w = factory();
+    await w.setProps({ selectedIndex: 0 });
+    (w.vm as any).handleButton('DPadDown');
+    expect(w.emitted('update:selectedIndex')?.[1]).toEqual([1]);
+    await w.setProps({ selectedIndex: 1 });
+    (w.vm as any).handleButton('DPadDown');
+    expect(w.emitted('update:selectedIndex')?.[2]).toEqual([2]);
+    w.unmount();
+  });
+
+  it('B emits cancel and closes', () => {
+    const w = factory();
+    (w.vm as any).handleButton('B');
+    expect(w.emitted('cancel')).toHaveLength(1);
+    expect(w.emitted('update:visible')?.[0]).toEqual([false]);
+    w.unmount();
+  });
+});
+
+// ============================================================================
 // CloseConfirmModal
 // ============================================================================
 

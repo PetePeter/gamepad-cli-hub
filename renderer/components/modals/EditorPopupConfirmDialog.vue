@@ -1,31 +1,29 @@
 <script setup lang="ts">
 /**
- * Plan delete confirmation modal.
- *
- * Confirms deletion of a plan item. Two buttons: Cancel / Delete.
- * Gamepad D-pad any direction toggles selection, A confirms, B cancels.
+ * Confirmation dialog for dismissing the Ctrl+G editor with unsent content.
  */
 import { ref } from 'vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 
-const MODAL_ID = 'plan-delete-confirm';
+const MODAL_ID = 'editor-popup-confirm';
 
-const props = defineProps<{
+defineProps<{
   visible: boolean;
-  planTitle: string;
 }>();
 
 const emit = defineEmits<{
-  (e: 'confirm'): void;
-  (e: 'cancel'): void;
+  (e: 'keep-editing'): void;
+  (e: 'save-discard'): void;
+  (e: 'discard'): void;
   (e: 'update:visible', value: boolean): void;
 }>();
 
 const selectedIndex = ref(0);
 const dialog = ref<InstanceType<typeof ConfirmDialog> | null>(null);
 const buttons = [
-  { id: 'cancel', label: 'Cancel' },
-  { id: 'delete', label: 'Delete', variant: 'danger' },
+  { id: 'keep-editing', label: 'Keep Editing', variant: 'primary' },
+  { id: 'save-discard', label: 'Save Draft + Discard', variant: 'secondary' },
+  { id: 'discard', label: 'Discard', variant: 'ghost' },
 ] as const;
 
 function handleButton(button: string): boolean {
@@ -34,7 +32,8 @@ function handleButton(button: string): boolean {
 }
 
 function onAction(action: string): void {
-  if (action === 'delete') emit('confirm');
+  if (action === 'save-discard') emit('save-discard');
+  else if (action === 'discard') emit('discard');
 }
 
 defineExpose({ handleButton, selectedIndex });
@@ -45,17 +44,16 @@ defineExpose({ handleButton, selectedIndex });
     ref="dialog"
     :visible="visible"
     :modal-id="MODAL_ID"
-    title="Delete Plan Item"
-    aria-label="Delete plan confirmation"
+    title="Discard unsent content?"
+    aria-label="Discard unsent editor content"
+    modal-class="editor-popup-confirm-dialog"
     :buttons="buttons"
     v-model:selected-index="selectedIndex"
-    cancel-action-id="cancel"
+    cancel-action-id="keep-editing"
     @action="onAction"
-    @cancel="emit('cancel')"
+    @cancel="emit('keep-editing')"
     @update:visible="emit('update:visible', $event)"
   >
-    <div id="planDeleteConfirmBody">
-      <div>Delete plan item <strong>{{ planTitle }}</strong>?</div>
-    </div>
+    <p class="editor-popup-confirm-message">You have unsent changes. What would you like to do?</p>
   </ConfirmDialog>
 </template>

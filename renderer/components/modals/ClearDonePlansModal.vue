@@ -5,9 +5,8 @@
  * Confirms bulk deletion of completed plan items for a directory.
  * Two buttons: Cancel / Clear. Gamepad D-pad toggles selection, A confirms, B cancels.
  */
-import { ref, watch } from 'vue';
-import { SELECTION_KEYS, useModalStack } from '../../composables/useModalStack.js';
-import { toDirection } from '../../utils.js';
+import { ref } from 'vue';
+import ConfirmDialog from './ConfirmDialog.vue';
 
 const MODAL_ID = 'clear-done-plans-confirm';
 
@@ -23,100 +22,45 @@ const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void;
 }>();
 
-const selectedIndex = ref(0); // 0 = Cancel, 1 = Clear
-const modalStack = useModalStack();
-
-watch(() => props.visible, (v) => {
-  if (v) {
-    selectedIndex.value = 0;
-    modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: SELECTION_KEYS });
-  } else {
-    modalStack.pop(MODAL_ID);
-  }
-}, { immediate: true });
+const selectedIndex = ref(0);
+const dialog = ref<InstanceType<typeof ConfirmDialog> | null>(null);
+const buttons = [
+  { id: 'cancel', label: 'Cancel' },
+  { id: 'clear', label: 'Clear', variant: 'danger' },
+] as const;
 
 function handleButton(button: string): boolean {
-  const dir = toDirection(button);
-  if (dir) {
-    selectedIndex.value = selectedIndex.value === 0 ? 1 : 0;
-    return true;
-  }
-  if (button === 'Tab' || button === 'ShiftTab') {
-    selectedIndex.value = selectedIndex.value === 0 ? 1 : 0;
-    return true;
-  }
-  if (button === 'A') {
-    if (selectedIndex.value === 1) {
-      emit('confirm');
-    } else {
-      emit('cancel');
-    }
-    emit('update:visible', false);
-    return true;
-  }
-  if (button === 'B') {
-    emit('cancel');
-    emit('update:visible', false);
-    return true;
-  }
-  return true;
+  dialog.value?.syncSelectedIndex(selectedIndex.value);
+  return dialog.value?.handleButton(button) ?? true;
 }
 
-function onCancel(): void {
-  emit('cancel');
-  emit('update:visible', false);
+function onAction(action: string): void {
+  if (action === 'clear') emit('confirm');
 }
 
-function onClear(): void {
-  emit('confirm');
-  emit('update:visible', false);
-}
-
-function suppressActivationKey(e: KeyboardEvent): void {
-  if (e.key === ' ' || e.key === 'Spacebar') {
-    e.preventDefault();
-  }
-}
-
-defineExpose({ handleButton });
+defineExpose({ handleButton, selectedIndex });
 </script>
 
 <template>
-  <Teleport to="body">
-    <div
-      v-if="visible"
-      class="modal-overlay modal--visible"
-      role="dialog"
-      aria-label="Clear completed plans confirmation"
-    >
-      <div class="modal close-confirm-modal">
-        <div class="modal-header">
-          <h3 class="modal-title">Clear Completed Plans</h3>
-        </div>
-        <div id="clearDonePlansBody">
-          <div>
-            Clear <strong>{{ count }}</strong> completed plan{{ count === 1 ? '' : 's' }}
-            in <strong>{{ dirName }}</strong>?
-          </div>
-          <div class="modal-warning">This cannot be undone.</div>
-        </div>
-        <div class="modal-footer">
-          <button
-            class="btn"
-            :class="{ 'btn--focused': selectedIndex === 0 }"
-            tabindex="-1"
-            @keydown="suppressActivationKey"
-            @click="onCancel"
-          >Cancel</button>
-          <button
-            class="btn btn--danger"
-            :class="{ 'btn--focused': selectedIndex === 1 }"
-            tabindex="-1"
-            @keydown="suppressActivationKey"
-            @click="onClear"
-          >Clear</button>
-        </div>
+  <ConfirmDialog
+    ref="dialog"
+    :visible="visible"
+    :modal-id="MODAL_ID"
+    title="Clear Completed Plans"
+    aria-label="Clear completed plans confirmation"
+    :buttons="buttons"
+    v-model:selected-index="selectedIndex"
+    cancel-action-id="cancel"
+    @action="onAction"
+    @cancel="emit('cancel')"
+    @update:visible="emit('update:visible', $event)"
+  >
+    <div id="clearDonePlansBody">
+      <div>
+        Clear <strong>{{ count }}</strong> completed plan{{ count === 1 ? '' : 's' }}
+        in <strong>{{ dirName }}</strong>?
       </div>
+      <div class="modal-warning">This cannot be undone.</div>
     </div>
-  </Teleport>
+  </ConfirmDialog>
 </template>
