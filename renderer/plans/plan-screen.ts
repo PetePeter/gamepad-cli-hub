@@ -108,6 +108,10 @@ function getSelectedItem(): PlanItem | null {
     : null;
 }
 
+function getPlanItemById(planId: string): PlanItem | null {
+  return planScreenState.items.find((item) => item.id === planId) ?? null;
+}
+
 function matchesFilters(item: PlanItem): boolean {
   const { filters, attachmentHasAny } = planScreenState;
 
@@ -286,7 +290,7 @@ function openNodeEditor(item: PlanItem): void {
   const targetSessionId = resolvePlanTargetSessionId(item) ?? '';
 
   planEditorOpener?.(targetSessionId, item, {
-    onSave: handleSave,
+    onSave: (updates) => handleSave(item.id, updates),
     onDelete: () => handleDelete(item.id),
     onDone: item.status === 'coding' || item.status === 'review'
       ? () => openNodeCompletionEditor(item)
@@ -307,7 +311,7 @@ function openNodeCompletionEditor(item: PlanItem): void {
   planScreenState.editingId = item.id;
   const targetSessionId = resolvePlanTargetSessionId(item) ?? '';
   planEditorOpener?.(targetSessionId, { ...item, status: 'done', stateInfo: '' }, {
-    onSave: handleSave,
+    onSave: (updates) => handleSave(item.id, updates),
     onDelete: () => handleDelete(item.id),
     onApply: targetSessionId ? () => handleApplyFromCanvas(item) : undefined,
     onClose: () => { planScreenState.editingId = null; },
@@ -516,17 +520,17 @@ export function handlePlanScreenAction(button: string): boolean {
   return false;
 }
 
-async function handleSave(updates: { title: string; description: string; status: PlanItem['status']; stateInfo?: string; type?: PlanType }): Promise<void> {
-  if (!planScreenState.selectedId) return;
+async function handleSave(planId: string, updates: { title: string; description: string; status: PlanItem['status']; stateInfo?: string; type?: PlanType }): Promise<void> {
+  const current = getPlanItemById(planId);
+  if (!current) return;
   try {
-    await window.gamepadCli.planUpdate(planScreenState.selectedId, updates);
-    const current = getSelectedItem();
+    await window.gamepadCli.planUpdate(planId, updates);
     if (current && updates.status === 'done' && current.status !== 'done') {
       if (current.status !== 'coding' && current.status !== 'review') {
         showBriefNotice('Only coding or review plans can be marked done');
         return;
       }
-      await window.gamepadCli.planComplete(planScreenState.selectedId, updates.stateInfo);
+      await window.gamepadCli.planComplete(planId, updates.stateInfo);
     } else if (current && updates.status !== 'done') {
       const targetSessionId = resolvePlanTargetSessionId(current);
       if (updates.status === 'coding' && !targetSessionId) {
@@ -539,7 +543,7 @@ async function handleSave(updates: { title: string; description: string; status:
         ? targetSessionId ?? undefined
         : undefined;
       await window.gamepadCli.planSetState(
-        planScreenState.selectedId,
+        planId,
         updates.status,
         updates.stateInfo,
         ownerSessionId,

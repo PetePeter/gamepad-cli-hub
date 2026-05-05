@@ -421,6 +421,38 @@ describe('plan screen bridge', () => {
     );
   });
 
+  it('keeps saving the originally opened plan after selection moves to another node', async () => {
+    const mod = await getModule();
+    const opener = vi.fn();
+    const items = [
+      planItem('a', 'Plan A'),
+      planItem('b', 'Plan B'),
+    ];
+    mockPlanList.mockResolvedValue(items);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a', 'b']));
+    mod.setPlanEditorOpener(opener);
+
+    await mod.showPlanScreen('/test/dir');
+    mod.onPlanNodeEdit('a');
+
+    const callbacks = opener.mock.calls[0][2];
+    mod.onPlanNodeClick('b');
+    await callbacks.onSave({
+      title: 'Plan A updated',
+      description: 'Still editing A',
+      status: 'planning',
+    });
+
+    expect(mod.getSelectedPlanId()).toBe('b');
+    expect(mockPlanUpdate).toHaveBeenCalledWith('a', {
+      title: 'Plan A updated',
+      description: 'Still editing A',
+      status: 'planning',
+    });
+    expect(mockPlanSetState).toHaveBeenCalledWith('a', 'planning', undefined, undefined);
+  });
+
   it('saves plan edits through the editor callback', async () => {
     const mod = await getModule();
     const opener = vi.fn();
