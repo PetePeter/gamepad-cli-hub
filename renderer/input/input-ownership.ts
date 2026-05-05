@@ -2,6 +2,7 @@ export type InputOwnershipContext = 'editable-field' | 'terminal' | 'modal-navig
 
 export const EDITABLE_ELEMENT_SELECTOR = 'input, textarea, select, [contenteditable], [contenteditable=""], [contenteditable="true"]';
 export const TERMINAL_ELEMENT_SELECTOR = '.xterm';
+export const MODAL_NAVIGATION_SELECTOR = '.modal-overlay.modal--visible, .scheduled-tasks-tab--popup, .scheduler-popup-backdrop';
 
 function asElement(value: EventTarget | Element | null | undefined): Element | null {
   return value instanceof Element ? value : null;

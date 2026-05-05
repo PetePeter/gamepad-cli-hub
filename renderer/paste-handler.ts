@@ -12,7 +12,13 @@ import { keyToPtyEscape, comboToPtyEscape } from './bindings.js';
 import { parseSequence, type SequenceAction } from '../src/input/sequence-parser.js';
 import { isDraftEditorVisible } from './drafts/draft-editor.js';
 import { showEditorPopup } from './editor/editor-popup.js';
-import { isEditableElement, isElementWithinSelectors, isTerminalTargetFromEvent } from './input/input-ownership.js';
+import {
+  getActiveInputContext,
+  isEditableElement,
+  isElementWithinSelectors,
+  isTerminalTargetFromEvent,
+  MODAL_NAVIGATION_SELECTOR,
+} from './input/input-ownership.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
 
@@ -250,11 +256,18 @@ export function setupKeyboardRelay(
       if (clipboardPasteInFlight) return;
       if (document.querySelector('.plan-screen.visible')) return;
       if (isDraftEditorVisible()) return;
+      const activeContext = getActiveInputContext({
+        activeElement: document.activeElement,
+        modalNavigationSelectors: MODAL_NAVIGATION_SELECTOR,
+      });
+      if (activeContext === 'editable-field') return;
       const session = state.sessions.find(s => s.id === sessionId);
       const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
-      if (document.querySelector('.scheduler-popup-backdrop')) return;
+      if (document.querySelector('.scheduler-popup-backdrop')) {
+        e.stopPropagation();
+        return;
+      }
       if (document.querySelector('.modal-overlay.modal--visible') && tool?.pasteMode !== 'clippaste') {
-        if (isEditableOrModalFocused()) return;
         e.stopPropagation();
         return;
       }
@@ -276,13 +289,19 @@ export function setupKeyboardRelay(
     }
 
     if (document.querySelector('.scheduler-popup-backdrop')) {
-      if (isEditableOrModalFocused()) return;
+      if (getActiveInputContext({
+        activeElement: document.activeElement,
+        modalNavigationSelectors: MODAL_NAVIGATION_SELECTOR,
+      }) === 'editable-field') return;
       e.stopPropagation();
       return;
     }
 
     if (document.querySelector('.modal-overlay.modal--visible')) {
-      if (isEditableOrModalFocused()) return;
+      if (getActiveInputContext({
+        activeElement: document.activeElement,
+        modalNavigationSelectors: MODAL_NAVIGATION_SELECTOR,
+      }) === 'editable-field') return;
       e.stopPropagation();
       return;
     }
@@ -325,7 +344,10 @@ export function setupKeyboardRelay(
     }
 
     if (isXtermTarget(e)) return;
-    if (isEditableOrModalFocused()) return;
+    if (getActiveInputContext({
+      activeElement: document.activeElement,
+      modalNavigationSelectors: MODAL_NAVIGATION_SELECTOR,
+    }) === 'editable-field') return;
 
     if (e.metaKey) return;
     if (e.altKey) return;

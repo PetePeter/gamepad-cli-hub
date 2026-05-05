@@ -106,7 +106,12 @@ import {
   setBackupRestoreOpener as setPlanScreenBackupRestoreOpener,
 } from './plans/plan-screen.js';
 import { deliverBulkText, deliverViaClipboardPaste } from './paste-handler.js';
-import { isEditableElement, isEditableElementInContainer } from './input/input-ownership.js';
+import {
+  getActiveInputContext,
+  isEditableElement,
+  isEditableElementInContainer,
+  MODAL_NAVIGATION_SELECTOR,
+} from './input/input-ownership.js';
 import { deliverPromptSequence } from './sequence-delivery.js';
 import { startRename, commitRename, cancelRename } from './screens/sessions-render.js';
 
@@ -1983,7 +1988,11 @@ function handleModalKeyboardBridge(e: KeyboardEvent): void {
   if (!stack.isOpen.value) return;
 
   const active = document.activeElement;
-  const editableInModal = isEditableElementInsideModal(active);
+  const activeContext = getActiveInputContext({
+    activeElement: active,
+    modalNavigationSelectors: MODAL_NAVIGATION_SELECTOR,
+  });
+  const editableInModal = activeContext === 'editable-field' && isEditableElementInsideModal(active);
   const interceptKeys = stack.topInterceptKeys.value;
   const escProtection = useEscProtection();
 

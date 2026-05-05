@@ -205,6 +205,40 @@ describe('keyboard relay', () => {
       expect(e.defaultPrevented).toBe(true);
     });
 
+    it('does not intercept Ctrl+V when an input field has focus', async () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      input.focus();
+
+      const e = fireKey('v', { ctrlKey: true });
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(e.defaultPrevented).toBe(false);
+      expect(navigator.clipboard.readText).not.toHaveBeenCalled();
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+
+      document.body.removeChild(input);
+    });
+
+    it('does not intercept Ctrl+V when a textarea has focus', async () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+
+      const textarea = document.createElement('textarea');
+      document.body.appendChild(textarea);
+      textarea.focus();
+
+      const e = fireKey('v', { ctrlKey: true });
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(e.defaultPrevented).toBe(false);
+      expect(navigator.clipboard.readText).not.toHaveBeenCalled();
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+
+      document.body.removeChild(textarea);
+    });
+
     it('still writes clipboard text when a question is pending', async () => {
       getActiveSessionId.mockReturnValue('sess-1');
       hasPendingQuestion.mockReturnValue(true);
@@ -420,6 +454,23 @@ describe('keyboard relay', () => {
       expect((window as any).gamepadCli.keyboardSendKeyCombo).toHaveBeenCalledWith(['ctrl', 'v']);
       expect(mockPtyWrite).not.toHaveBeenCalled();
       expect(paste).not.toHaveBeenCalled();
+    });
+
+    it('does not intercept Ctrl+V when a modal input has focus', async () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+      mockState.sessions = [{ id: 'sess-1', cliType: 'codex' }];
+      navigator.clipboard.readText.mockResolvedValue('hello');
+
+      const input = document.createElement('input');
+      overlay.appendChild(input);
+      input.focus();
+
+      const e = fireKey('v', { ctrlKey: true });
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(e.defaultPrevented).toBe(false);
+      expect(navigator.clipboard.readText).not.toHaveBeenCalled();
+      expect(mockPtyWrite).not.toHaveBeenCalled();
     });
 
     it('blocks printable key relay when a modal overlay is visible', () => {
