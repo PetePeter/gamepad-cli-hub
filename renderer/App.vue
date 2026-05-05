@@ -106,6 +106,7 @@ import {
   setBackupRestoreOpener as setPlanScreenBackupRestoreOpener,
 } from './plans/plan-screen.js';
 import { deliverBulkText, deliverViaClipboardPaste } from './paste-handler.js';
+import { isEditableElement, isEditableElementInContainer } from './input/input-ownership.js';
 import { deliverPromptSequence } from './sequence-delivery.js';
 import { startRename, commitRename, cancelRename } from './screens/sessions-render.js';
 
@@ -1970,17 +1971,11 @@ async function onBindingEditorSave(binding: any): Promise<void> {
   }
 }
 
-function isEditableElement(element: Element | null): element is HTMLElement {
-  return !!element && (
-    element.tagName === 'INPUT' ||
-    element.tagName === 'TEXTAREA' ||
-    element.tagName === 'SELECT' ||
-    (element as HTMLElement).isContentEditable
-  );
-}
-
 function isEditableElementInsideModal(element: Element | null): element is HTMLElement {
-  return isEditableElement(element) && !!element.closest('.modal-overlay.modal--visible, .scheduled-tasks-tab--popup');
+  return isEditableElement(element) && isEditableElementInContainer(
+    element,
+    '.modal-overlay.modal--visible, .scheduled-tasks-tab--popup',
+  );
 }
 
 function handleModalKeyboardBridge(e: KeyboardEvent): void {

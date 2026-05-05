@@ -12,6 +12,7 @@ import { keyToPtyEscape, comboToPtyEscape } from './bindings.js';
 import { parseSequence, type SequenceAction } from '../src/input/sequence-parser.js';
 import { isDraftEditorVisible } from './drafts/draft-editor.js';
 import { showEditorPopup } from './editor/editor-popup.js';
+import { isEditableElement, isElementWithinSelectors, isTerminalTargetFromEvent } from './input/input-ownership.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
 
@@ -197,17 +198,13 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
 function isEditableOrModalFocused(): boolean {
   const el = document.activeElement;
   if (!el) return false;
-  const tag = el.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-  if ((el as HTMLElement).isContentEditable) return true;
-  if (el.closest('.modal-overlay, .dir-picker-overlay, .binding-editor, .scheduler-popup-backdrop')) return true;
+  if (isEditableElement(el)) return true;
+  if (isElementWithinSelectors(el, '.modal-overlay, .dir-picker-overlay, .binding-editor, .scheduler-popup-backdrop')) return true;
   return false;
 }
 
 function isXtermTarget(e: KeyboardEvent): boolean {
-  const target = e.target;
-  if (!(target instanceof HTMLElement)) return false;
-  return !!target.closest('.xterm');
+  return isTerminalTargetFromEvent(e);
 }
 
 export function setupKeyboardRelay(
