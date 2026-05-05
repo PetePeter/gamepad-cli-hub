@@ -48,6 +48,13 @@ const subtitle = computed(() => {
   }
   return '';
 });
+
+function onCardClick(e: MouseEvent): void {
+  const sessionId = (e.currentTarget as HTMLElement).getAttribute('data-session-id');
+  if (sessionId) {
+    emit('select', sessionId);
+  }
+}
 </script>
 
 <template>
@@ -59,7 +66,7 @@ const subtitle = computed(() => {
       'overview-card--active': isActive,
     }"
     :data-session-id="session.id"
-    @click="emit('select', session.id)"
+    @click="onCardClick"
   >
     <div class="overview-card-header">
       <span class="session-activity-dot" :style="{ background: dotColor }" />

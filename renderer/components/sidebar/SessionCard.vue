@@ -134,6 +134,13 @@ function selectState(s: string): void {
   emit('stateChange', props.session.id, s);
 }
 
+function onCardClick(e: MouseEvent): void {
+  const sessionId = (e.currentTarget as HTMLElement).getAttribute('data-session-id');
+  if (sessionId) {
+    emit('click', sessionId);
+  }
+}
+
 </script>
 
 <template>
@@ -143,7 +150,7 @@ function selectState(s: string): void {
     :class="{ active: isActive, focused: isFocused, 'snapped-out': isSnappedOut }"
     :data-session-id="session.id"
     :data-nav-index="navIndex"
-    @click="emit('click', session.id)"
+    @click="onCardClick"
   >
     <!-- Line 1: top row -->
     <div class="session-top-row">
