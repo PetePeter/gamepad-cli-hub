@@ -8,6 +8,7 @@ import { mount, flushPromises } from '@vue/test-utils';
 import ScheduledTasksTab from '../../../renderer/components/sidebar/ScheduledTasksTab.vue';
 import QuickSpawnModal from '../../../renderer/components/modals/QuickSpawnModal.vue';
 import DirPickerModal from '../../../renderer/components/modals/DirPickerModal.vue';
+import { FORM_KEYS, useModalStack } from '../../../renderer/composables/useModalStack.js';
 
 const mockScheduledTaskList = vi.fn();
 const mockScheduledTaskCreate = vi.fn();
@@ -31,9 +32,12 @@ function mountTab() {
 }
 
 describe('ScheduledTasksTab', () => {
+  const modalStack = useModalStack();
+
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 3, 29, 9, 15, 0, 0));
+    modalStack.clear();
     mockScheduledTaskList.mockReset().mockResolvedValue([]);
     mockScheduledTaskCreate.mockReset().mockResolvedValue({
       id: 'task-new',
@@ -70,6 +74,7 @@ describe('ScheduledTasksTab', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    modalStack.clear();
   });
 
   it('uses configured CLI string keys and a local next-hour datetime default', async () => {
@@ -321,6 +326,16 @@ describe('ScheduledTasksTab', () => {
     expect((wrapper.find('input[type="datetime-local"]').element as HTMLInputElement).value).toBe(
       localDateTimeInputValue(new Date(2026, 3, 29, 10, 0, 0, 0)),
     );
+  });
+
+  it('registers popup mode as a form-style modal policy', async () => {
+    mount(ScheduledTasksTab, {
+      props: { popup: true, initialCreate: true },
+    });
+    await flushPromises();
+
+    expect(modalStack.topId.value).toBe('scheduler-popup');
+    expect([...modalStack.topInterceptKeys.value]).toEqual([...FORM_KEYS]);
   });
 
   it('calls sessionGetAll (not listSessions) and loads sessions on mount', async () => {

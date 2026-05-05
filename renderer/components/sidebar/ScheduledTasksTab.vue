@@ -9,7 +9,7 @@ import QuickSpawnModal from '../modals/QuickSpawnModal.vue';
 import DirPickerModal from '../modals/DirPickerModal.vue';
 import PromptTextarea from '../common/PromptTextarea.vue';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
-import { useModalStack, SELECTION_KEYS } from '../../composables/useModalStack.js';
+import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
 
 const emit = defineEmits<{
   'task-created': [task: ScheduledTask];
@@ -259,7 +259,7 @@ onMounted(async () => {
     startCreateForm();
   }
   refreshTimer = setInterval(loadTasks, 10000);
-  if (props.popup) modalStack.push({ id: 'scheduler-popup', handler: () => true, interceptKeys: SELECTION_KEYS });
+  if (props.popup) modalStack.push({ id: 'scheduler-popup', handler: () => true, interceptKeys: FORM_KEYS });
 });
 
 watch(() => props.initialCreate, (initialCreate) => { if (!initialCreate || props.initialEditTaskId) return; showCreateForm.value = true; startCreateForm(); });
