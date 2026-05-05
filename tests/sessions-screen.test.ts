@@ -404,6 +404,93 @@ describe('Sessions Screen', () => {
       mockCurrentView = 'terminal';
     });
 
+    it('Ctrl+N does not create plan when xterm has DOM focus', async () => {
+      sessionsState.navList = [{ type: 'group-header', id: '/projects/a', groupIndex: 0 }];
+      sessionsState.groups = [{
+        dirPath: '/projects/a',
+        displayName: 'a',
+        sessions: [],
+        collapsed: false,
+      }];
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.activeFocus = 'sessions';
+
+      const xtermEl = document.createElement('div');
+      xtermEl.className = 'xterm';
+      const textarea = document.createElement('textarea');
+      xtermEl.appendChild(textarea);
+      document.body.appendChild(xtermEl);
+      textarea.focus();
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'n',
+        ctrlKey: true,
+        shiftKey: false,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockPlanCreate).not.toHaveBeenCalled();
+      document.body.removeChild(xtermEl);
+    });
+
+    it('Ctrl+N does not create plan when INPUT element has focus', async () => {
+      sessionsState.navList = [{ type: 'group-header', id: '/projects/a', groupIndex: 0 }];
+      sessionsState.groups = [{
+        dirPath: '/projects/a',
+        displayName: 'a',
+        sessions: [],
+        collapsed: false,
+      }];
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.activeFocus = 'sessions';
+
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      input.focus();
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'n',
+        ctrlKey: true,
+        shiftKey: false,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockPlanCreate).not.toHaveBeenCalled();
+      document.body.removeChild(input);
+    });
+
+    it('Ctrl+N does not create plan when TEXTAREA element has focus', async () => {
+      sessionsState.navList = [{ type: 'group-header', id: '/projects/a', groupIndex: 0 }];
+      sessionsState.groups = [{
+        dirPath: '/projects/a',
+        displayName: 'a',
+        sessions: [],
+        collapsed: false,
+      }];
+      sessionsState.sessionsFocusIndex = 0;
+      sessionsState.activeFocus = 'sessions';
+
+      const textarea = document.createElement('textarea');
+      document.body.appendChild(textarea);
+      textarea.focus();
+
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'n',
+        ctrlKey: true,
+        shiftKey: false,
+        bubbles: true,
+        cancelable: true,
+      }));
+      await flush();
+
+      expect(mockPlanCreate).not.toHaveBeenCalled();
+      document.body.removeChild(textarea);
+    });
+
     it('Ctrl+Shift+P opens the planner for the current session folder', async () => {
       state.activeSessionId = 's-1';
       state.recentSessionId = 's-1';

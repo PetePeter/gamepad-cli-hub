@@ -788,6 +788,8 @@ function onKeyDown(e: KeyboardEvent): void {
     if (draftEditor && draftEditor.style.display !== 'none') return;
     // Let the plan screen own Ctrl+N while it's focused (adds a node).
     if (view === 'plan') return;
+    if (active && active.closest('.xterm')) return;
+    if (active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA' || active?.tagName === 'SELECT') return;
     // On overview or sidebar focus, Ctrl+N creates a plan for the current directory.
     e.preventDefault();
     e.stopPropagation();
