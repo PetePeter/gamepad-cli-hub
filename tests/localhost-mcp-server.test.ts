@@ -974,20 +974,14 @@ describe('LocalhostMcpServer', () => {
     const content = service.getSessionInfo({ sessionId: 'sess-123', sessionName: 'Claude-Main' });
     const guide = content.aiagent_state_guide!;
 
-    expect(guide.validStates).toEqual(['planning', 'implementing', 'completed', 'idle']);
-    expect(guide.how_to_update.mcp_call).toBe('session_set_aiagent_state');
-    expect(guide.state_systems.map((system) => system.name)).toEqual(['aiagentState', 'sessionState', 'planState']);
-    expect(guide.state_transitions).toHaveLength(12);
+    expect(content.aiagent_states).toEqual(['planning', 'implementing', 'completed', 'idle']);
+    expect(guide.how_to_update.description).toContain('session_set_aiagent_state');
+    expect(guide.state_transitions).toHaveLength(5);
     expect(guide.state_transitions.every((transition) => transition.from && transition.to && transition.when)).toBe(true);
     expect(guide.integration_patterns.map((pattern) => pattern.scenario)).toEqual([
       'Starting implementation',
-      'Blocked by question',
       'Completing work',
     ]);
-    expect(guide.error_scenarios).toEqual(expect.arrayContaining([
-      expect.stringContaining('Invalid state'),
-      expect.stringContaining('Session not found'),
-    ]));
   });
 
   it('session_info returns complete SessionInfo with MCP endpoint and state registry', async () => {

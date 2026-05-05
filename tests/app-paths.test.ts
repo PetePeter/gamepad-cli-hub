@@ -11,7 +11,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 // Import the module under test
-import { isPackaged, getLogDir, getConfigDir, getRendererHtmlPath, getAppRootDir, seedConfigIfNeeded } from '../src/utils/app-paths.js';
+import { isPackaged, getLogDir, getConfigDir, getTempDir, getRendererHtmlPath, getAppRootDir, seedConfigIfNeeded } from '../src/utils/app-paths.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -58,9 +58,9 @@ describe('isPackaged', () => {
 // ---------------------------------------------------------------------------
 
 describe('getLogDir', () => {
-  it('returns relative path in dev mode', () => {
-    const result = getLogDir(DEV_DIRNAME);
-    expect(result).toBe(path.join(DEV_DIRNAME, '..', 'logs'));
+  it('returns APPDATA-based path in dev mode', () => {
+    const result = getLogDir(DEV_DIRNAME, FAKE_APPDATA);
+    expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'logs'));
   });
 
   it('returns APPDATA-based path when packaged', () => {
@@ -68,7 +68,18 @@ describe('getLogDir', () => {
     expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'logs'));
   });
 
-  it('uses process.env.APPDATA when appData param not provided', () => {
+  it('uses process.env.APPDATA when appData param not provided (dev)', () => {
+    const originalAppData = process.env.APPDATA;
+    try {
+      process.env.APPDATA = FAKE_APPDATA;
+      const result = getLogDir(DEV_DIRNAME);
+      expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'logs'));
+    } finally {
+      process.env.APPDATA = originalAppData;
+    }
+  });
+
+  it('uses process.env.APPDATA when appData param not provided (packaged)', () => {
     const originalAppData = process.env.APPDATA;
     try {
       process.env.APPDATA = FAKE_APPDATA;
@@ -99,9 +110,9 @@ describe('getLogDir', () => {
 // ---------------------------------------------------------------------------
 
 describe('getConfigDir', () => {
-  it('returns cwd-based path in dev mode', () => {
-    const result = getConfigDir(DEV_DIRNAME);
-    expect(result).toBe(path.join(process.cwd(), 'config'));
+  it('returns APPDATA-based path in dev mode', () => {
+    const result = getConfigDir(DEV_DIRNAME, FAKE_APPDATA);
+    expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'config'));
   });
 
   it('returns APPDATA-based path when packaged', () => {
@@ -109,7 +120,18 @@ describe('getConfigDir', () => {
     expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'config'));
   });
 
-  it('uses process.env.APPDATA when appData param not provided', () => {
+  it('uses process.env.APPDATA when appData param not provided (dev)', () => {
+    const originalAppData = process.env.APPDATA;
+    try {
+      process.env.APPDATA = FAKE_APPDATA;
+      const result = getConfigDir(DEV_DIRNAME);
+      expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'config'));
+    } finally {
+      process.env.APPDATA = originalAppData;
+    }
+  });
+
+  it('uses process.env.APPDATA when appData param not provided (packaged)', () => {
     const originalAppData = process.env.APPDATA;
     try {
       process.env.APPDATA = FAKE_APPDATA;
@@ -131,6 +153,61 @@ describe('getConfigDir', () => {
     } finally {
       process.env.APPDATA = originalAppData;
       process.env.HOME = originalHome;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getTempDir
+// ---------------------------------------------------------------------------
+
+describe('getTempDir', () => {
+  it('returns APPDATA-based path in dev mode', () => {
+    const result = getTempDir(DEV_DIRNAME, FAKE_APPDATA);
+    expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'tmp'));
+  });
+
+  it('returns APPDATA-based path when packaged', () => {
+    const result = getTempDir(PACKAGED_DIRNAME, FAKE_APPDATA);
+    expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'tmp'));
+  });
+
+  it('uses process.env.APPDATA when appData param not provided (dev)', () => {
+    const originalAppData = process.env.APPDATA;
+    try {
+      process.env.APPDATA = FAKE_APPDATA;
+      const result = getTempDir(DEV_DIRNAME);
+      expect(result).toBe(path.join(FAKE_APPDATA, 'Helm', 'tmp'));
+    } finally {
+      process.env.APPDATA = originalAppData;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cross-cutting guards: writable paths must always live under appData/Helm
+// and must never leak the repo cwd. Catches regressions where someone
+// re-introduces dev/cwd branching in the path resolvers.
+// ---------------------------------------------------------------------------
+
+describe('writable path guards', () => {
+  it('never returns a cwd/repo-rooted path in any mode', () => {
+    // The old dev-mode paths were repo-relative; they must never come back
+    expect(getConfigDir(DEV_DIRNAME, FAKE_APPDATA)).not.toBe(path.join(process.cwd(), 'config'));
+    expect(getConfigDir(PACKAGED_DIRNAME, FAKE_APPDATA)).not.toBe(path.join(process.cwd(), 'config'));
+    expect(getLogDir(DEV_DIRNAME, FAKE_APPDATA)).not.toBe(path.join(process.cwd(), 'logs'));
+    expect(getLogDir(PACKAGED_DIRNAME, FAKE_APPDATA)).not.toBe(path.join(process.cwd(), 'logs'));
+    expect(getTempDir(DEV_DIRNAME, FAKE_APPDATA)).not.toBe(path.join(process.cwd(), 'tmp'));
+    expect(getTempDir(PACKAGED_DIRNAME, FAKE_APPDATA)).not.toBe(path.join(process.cwd(), 'tmp'));
+  });
+
+  it('roots all writable paths at appData/Helm', () => {
+    const expectedPrefix = path.join(FAKE_APPDATA, 'Helm');
+    for (const fn of [getConfigDir, getLogDir, getTempDir]) {
+      for (const dirname of [DEV_DIRNAME, PACKAGED_DIRNAME]) {
+        const result = fn(dirname, FAKE_APPDATA);
+        expect(result.startsWith(expectedPrefix)).toBe(true);
+      }
     }
   });
 });

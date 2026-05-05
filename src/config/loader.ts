@@ -517,15 +517,11 @@ const __loader_dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CONFIG_DIR = getConfigDir(__loader_dirname);
 
 // Seed user-data config from bundled defaults on first launch
-if (isPackaged(__loader_dirname)) {
-  // Packaged: seed from bundled asar archive
-  const bundledConfigDir = path.join(__loader_dirname, '..', 'config');
-  seedConfigIfNeeded(bundledConfigDir, DEFAULT_CONFIG_DIR);
-} else {
-  // Dev: seed from src/config in the source tree (cwd-relative)
-  const srcConfigDir = path.join(process.cwd(), 'src', 'config');
-  seedConfigIfNeeded(srcConfigDir, DEFAULT_CONFIG_DIR);
-}
+// Source differs (asar vs source tree) but target is always %APPDATA%/Helm/config
+const sourceConfigDir = isPackaged(__loader_dirname)
+  ? path.join(__loader_dirname, '..', 'config')
+  : path.join(process.cwd(), 'src', 'config');
+seedConfigIfNeeded(sourceConfigDir, DEFAULT_CONFIG_DIR);
 
 export class ConfigLoader {
   private configDir: string;

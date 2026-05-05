@@ -26,15 +26,7 @@ src/**/*.js.map
 
 # Release artifacts (large EXEs)
 release/
-config/settings.yaml
-config/sessions.yaml
-config/plans.yaml
-config/plans.yaml.bak
-config/plans/
-config/plan-backups/
-config/plan-dependencies.json
+/config/
 config-deploy/
 tmp/helm-work*
 tmp/helm-attachment*
-config/plan-attachments/*
-config/plan-sequences.json

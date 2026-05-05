@@ -32,26 +32,18 @@ function getUserDataDir(appData?: string): string {
 
 /**
  * Return the writable log directory.
- * Dev:      <project>/logs  (relative to dist-electron/)
- * Packaged: %APPDATA%/Helm/logs
+ * Always: %APPDATA%/Helm/logs
  */
-export function getLogDir(dirname: string, appData?: string): string {
-  if (isPackaged(dirname)) {
-    return path.join(getUserDataDir(appData), 'logs');
-  }
-  return path.join(dirname, '..', 'logs');
+export function getLogDir(_dirname: string, appData?: string): string {
+  return path.join(getUserDataDir(appData), 'logs');
 }
 
 /**
  * Return the writable config directory.
- * Dev:      <cwd>/config
- * Packaged: %APPDATA%/Helm/config
+ * Always: %APPDATA%/Helm/config
  */
-export function getConfigDir(dirname: string, appData?: string): string {
-  if (isPackaged(dirname)) {
-    return path.join(getUserDataDir(appData), 'config');
-  }
-  return path.join(process.cwd(), 'config');
+export function getConfigDir(_dirname: string, appData?: string): string {
+  return path.join(getUserDataDir(appData), 'config');
 }
 
 /**
@@ -73,14 +65,10 @@ export function getAppRootDir(dirname: string): string {
 /**
  * Return a writable temp directory for app-specific scratch files
  * (e.g. Ctrl+G external editor prompts).
- * Packaged: %APPDATA%/Helm/tmp
- * Dev:      <cwd>/tmp
+ * Always: %APPDATA%/Helm/tmp
  */
-export function getTempDir(dirname: string, appData?: string): string {
-  if (isPackaged(dirname)) {
-    return path.join(getUserDataDir(appData), 'tmp');
-  }
-  return path.join(process.cwd(), 'tmp');
+export function getTempDir(_dirname: string, appData?: string): string {
+  return path.join(getUserDataDir(appData), 'tmp');
 }
 
 /**

@@ -265,11 +265,11 @@ app.whenReady().then(async () => {
   migrateUserDataFolder(process.env.APPDATA || process.env.HOME || '.', app.isPackaged);
 
   // Belt-and-suspenders: seed config from main.ts in case module-level seed didn't run
-  if (isPackaged(__dirname)) {
-    const bundled = join(__dirname, '..', 'config');
-    const target = getConfigDir(__dirname);
-    seedConfigIfNeeded(bundled, target);
-  }
+  const bundled = isPackaged(__dirname)
+    ? join(__dirname, '..', 'config')
+    : join(process.cwd(), 'src', 'config');
+  const target = getConfigDir(__dirname);
+  seedConfigIfNeeded(bundled, target);
 
   // Migrate monolithic plans.yaml → individual files if still present
   try {

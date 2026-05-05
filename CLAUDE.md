@@ -104,6 +104,21 @@ Ctrl+G opens external editor (notepad with temp .md file) — on close, content 
 
 24. **Plan Backup & Restore** — Per-directory rolling-window snapshots of plan data, managed by `PlanBackupManager` (EventEmitter, CRUD, rolling window pruning). Snapshots are timestamped JSON files in `config/plan-backups/`. Automatic scheduling on `plan:changed` events with per-directory interval debounce. Configurable via `config/plan-backups.yaml` or Settings → 💾 Backups tab. Restore workflow: plan screen → R key / 💾 Backups button → select snapshot → restore. IPC: 8 channels (`plan:listBackups/getBackupSummary/restoreBackup/deleteBackup/createBackupNow/getBackupConfig/setBackupConfig/deleteAllBackups`). See [docs/plan-backup-restore.md](docs/plan-backup-restore.md).
 
+25. **Config boundary — repo ships defaults only, runtime lives in %APPDATA%/Helm/** — Writable config, logs, and temp files are always resolved to `%APPDATA%/Helm/{config,logs,tmp}` regardless of dev or packaged mode. The repo `config/` directory was removed from git tracking; only seed stubs remain in `src/config/` (settings.yaml, sessions.yaml, drafts.yaml, profiles/default.yaml, scheduled-tasks.yaml). On first launch, `seedConfigIfNeeded` copies these seeds to the user data dir if the target does not yet exist. This prevents dev builds from accidentally writing to the repo working tree and ensures packaged and dev behavior are identical.
+
+    ```mermaid
+    graph LR
+        subgraph "Repo (read-only)"
+            SEED[src/config/ seeds]
+        end
+        subgraph "User machine (writable)"
+            CONF[%APPDATA%/Helm/config]
+            LOGS[%APPDATA%/Helm/logs]
+            TMP[%APPDATA%/Helm/tmp]
+        end
+        SEED --"first launch\ncopy if absent"--> CONF
+    ```
+
 ## Architecture Principles
 
 - DRY, YAGNI, KISS

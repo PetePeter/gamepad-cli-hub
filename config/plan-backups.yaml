@@ -1,5 +1,0 @@
-enabled: true
-maxSnapshots: 10
-snapshotIntervalMs: 3600000
-excludePaths: []
-backupDir: C:\Users\oscar\Desktop\test

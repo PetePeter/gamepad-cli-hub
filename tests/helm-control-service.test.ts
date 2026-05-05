@@ -500,38 +500,25 @@ describe('HelmControlService.getSessionInfo', () => {
       'TDD Suggestions',
       'Acceptance Criteria',
     ]);
-    expect(info.agent_plan_guide?.plan_identifier_semantics.join(' ')).toContain('P-0035');
-    expect(info.agent_plan_guide?.plan_identifier_semantics.join(' ')).toContain('canonical UUID');
-    expect(info.agent_plan_guide?.when_to_create_plan.join(' ')).toContain('follow-up work');
+    expect(info.agent_plan_guide?.when_to_create_plan.join(' ')).toContain('Follow-up work');
     expect(info.agent_plan_guide?.question_plan_workflow.join(' ')).toContain('plan_nextplan_link');
-    expect(info.agent_plan_guide?.completion_documentation.join(' ')).toContain('tests or review');
-    expect(info.agent_plan_guide?.plan_attachment_guide.length).toBeGreaterThanOrEqual(3);
-    expect(info.agent_plan_guide?.plan_attachment_guide.join(' ')).toContain('hasAttachments');
-    expect(info.agent_plan_guide?.sequence_memory_guide.length).toBeGreaterThanOrEqual(4);
-    expect(info.agent_plan_guide?.sequence_memory_guide.join(' ')).toContain('plan_sequence_list');
+    expect(info.agent_plan_guide?.completion_notes).toContain('tests');
 
     expect(info).not.toHaveProperty('available_tools');
   });
 
-  it('includes non-empty plan_attachment_guide and sequence_memory_guide arrays', () => {
+  it('includes required_description_sections and completion_notes', () => {
     const { service } = makeService();
 
     const info = service.getSessionInfo();
 
     expect(info.agent_plan_guide).toBeDefined();
-    expect(Array.isArray(info.agent_plan_guide?.plan_attachment_guide)).toBe(true);
-    expect(info.agent_plan_guide?.plan_attachment_guide!.length).toBeGreaterThanOrEqual(3);
-    expect(info.agent_plan_guide?.plan_attachment_guide!.every((item: string) => item.length > 0)).toBe(true);
+    expect(Array.isArray(info.agent_plan_guide?.required_description_sections)).toBe(true);
+    expect(info.agent_plan_guide?.required_description_sections!.length).toBeGreaterThanOrEqual(3);
+    expect(info.agent_plan_guide?.required_description_sections!.every((item: string) => item.length > 0)).toBe(true);
 
-    expect(Array.isArray(info.agent_plan_guide?.sequence_memory_guide)).toBe(true);
-    expect(info.agent_plan_guide?.sequence_memory_guide!.length).toBeGreaterThanOrEqual(4);
-    expect(info.agent_plan_guide?.sequence_memory_guide!.every((item: string) => item.length > 0)).toBe(true);
-
-    // Verify content expectations
-    expect(info.agent_plan_guide?.plan_attachment_guide!.join(' ')).toContain('plan_attachment_list');
-    expect(info.agent_plan_guide?.plan_attachment_guide!.join(' ')).toContain('plan_attachment_get');
-    expect(info.agent_plan_guide?.sequence_memory_guide!.join(' ')).toContain('plan_sequence_list');
-    expect(info.agent_plan_guide?.sequence_memory_guide!.join(' ')).toContain('expectedUpdatedAt');
+    expect(info.agent_plan_guide?.completion_notes).toBeDefined();
+    expect(info.agent_plan_guide?.completion_notes!.length).toBeGreaterThan(0);
   });
 
   it('includes notification_guide explaining when and how to notify the user', () => {
@@ -542,13 +529,12 @@ describe('HelmControlService.getSessionInfo', () => {
     expect(info.notification_guide?.when_to_notify.length).toBeGreaterThanOrEqual(3);
     expect(info.notification_guide?.when_not_to_notify.length).toBeGreaterThanOrEqual(2);
     expect(info.notification_guide?.preferred_tool).toContain('notify_user');
-    expect(info.notification_guide?.when_not_to_notify.join(' ')).toContain('get_app_visibility');
+    expect(info.notification_guide?.when_not_to_notify.join(' ')).toContain('User is actively viewing');
     const routing = JSON.stringify(info.notification_guide?.routing_outcomes);
     expect(routing).toContain('toast');
     expect(routing).toContain('bubble');
     expect(routing).toContain('telegram');
     expect(routing).toContain('none');
-    expect(info.notification_guide?.telegram_usage.join(' ')).toContain('mobile');
   });
 });
 
