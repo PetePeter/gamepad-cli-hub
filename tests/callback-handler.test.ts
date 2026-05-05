@@ -8,6 +8,11 @@ vi.mock('../src/session/initial-prompt.js', () => ({
   scheduleInitialPrompt: vi.fn(),
 }));
 
+const mockDeliverPromptSequenceToSession = vi.fn();
+vi.mock('../src/session/sequence-delivery.js', () => ({
+  deliverPromptSequenceToSession: (...args: any[]) => mockDeliverPromptSequenceToSession(...args),
+}));
+
 // Mock keyboards module — return simple stubs
 vi.mock('../src/telegram/keyboards.js', () => ({
   directoryListKeyboard: vi.fn((sessions: any[]) => ({
@@ -275,7 +280,7 @@ describe('setupCallbackHandler', () => {
   });
 
   describe('talk:{sessionId}', () => {
-    it('ensures topic, writes nudge to PTY, and answers callback', async () => {
+    it('ensures topic, delivers nudge as a prompt sequence, and answers callback', async () => {
       const mockTopicManager = {
         ensureTopic: vi.fn(async () => 42),
       } as unknown as TopicManager;
@@ -291,7 +296,13 @@ describe('setupCallbackHandler', () => {
       await handler(makeQuery('talk:s1'));
 
       expect(mockTopicManager.ensureTopic).toHaveBeenCalled();
-      expect(ptyManager.write).toHaveBeenCalledWith('s1', expect.stringContaining('User is now available'));
+      expect(mockDeliverPromptSequenceToSession).toHaveBeenCalledWith(expect.objectContaining({
+        sessionId: 's1',
+        text: expect.stringContaining('User is now available'),
+        ptyManager,
+        sessionManager,
+        configLoader,
+      }));
       expect(bot.answerCallback).toHaveBeenCalledWith('q1', expect.stringContaining('Test'));
     });
 

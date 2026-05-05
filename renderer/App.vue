@@ -106,6 +106,7 @@ import {
   setBackupRestoreOpener as setPlanScreenBackupRestoreOpener,
 } from './plans/plan-screen.js';
 import { deliverBulkText, deliverViaClipboardPaste } from './paste-handler.js';
+import { deliverPromptSequence } from './sequence-delivery.js';
 import { startRename, commitRename, cancelRename } from './screens/sessions-render.js';
 
 // Sidebar components
@@ -822,7 +823,7 @@ function onContextMenuAction(action: string): void {
       break;
     case 'editor':
       void showEditorPopup((text) => {
-        if (state.activeSessionId) void deliverBulkText(state.activeSessionId, text);
+        if (state.activeSessionId) void deliverPromptSequence(state.activeSessionId, text);
       });
       break;
     case 'new-session':
@@ -1733,13 +1734,7 @@ async function onDraftApply(payload: { label: string; text: string }): Promise<v
   closeDraftEditor();
   if (payload.text && sessionId) {
     try {
-      const session = state.sessions.find(s => s.id === sessionId);
-      const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
-      if (tool?.pasteMode === 'clippaste') {
-        await deliverViaClipboardPaste(payload.text);
-      } else {
-        await deliverBulkText(sessionId, payload.text);
-      }
+      await deliverPromptSequence(sessionId, payload.text);
     } catch (err) {
       console.error('[App] Failed to apply draft:', err);
     }
@@ -1788,7 +1783,7 @@ function onPlanDelete(): void {
 async function onDraftSubmenuApply(draft: { id: string; text: string }): Promise<void> {
   draftSubmenu.visible = false;
   if (state.activeSessionId && draft.text) {
-    void deliverBulkText(state.activeSessionId, draft.text);
+    void deliverPromptSequence(state.activeSessionId, draft.text);
   }
   await window.gamepadCli?.draftDelete(draft.id);
 }

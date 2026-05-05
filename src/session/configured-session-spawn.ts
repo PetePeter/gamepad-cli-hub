@@ -4,6 +4,7 @@ import { mintSessionAuthToken } from '../mcp/session-auth.js';
 import type { SessionManager } from './manager.js';
 import { scheduleInitialPrompt } from './initial-prompt.js';
 import type { PtyManager, PtyProcess } from './pty-manager.js';
+import { deliverPromptSequenceToSession } from './sequence-delivery.js';
 import { logger } from '../utils/logger.js';
 
 export interface ConfiguredSessionSpawnParams {
@@ -134,16 +135,28 @@ function scheduleConfiguredInitialPrompt(params: ConfiguredSessionSpawnParams & 
 }
 
 function buildPromptCompleteHandler(
-  params: ConfiguredSessionSpawnParams & { sessionId: string },
+  params: ConfiguredSessionSpawnParams & { sessionId: string; sessionManager: SessionManager; ptyManager: PtyManager },
   deliverText: (sessionId: string, text: string) => Promise<void>,
 ): (() => void) | undefined {
-  const contextText = params.contextText?.trim() ? params.contextText : undefined;
+  const contextText = typeof params.contextText === 'string' && params.contextText.length > 0
+    ? params.contextText
+    : undefined;
   const callbacks: Array<() => void> = [];
 
   if (contextText) {
     callbacks.push(() => {
-      void deliverText(params.sessionId, contextText);
-      logger.info(`[ConfiguredSessionSpawn] Context text written to ${params.sessionId} (${contextText.length} chars)`);
+      if (params.configLoader) {
+        void deliverPromptSequenceToSession({
+          sessionId: params.sessionId,
+          text: contextText,
+          ptyManager: params.ptyManager,
+          sessionManager: params.sessionManager,
+          configLoader: params.configLoader,
+        });
+      } else {
+        void deliverText(params.sessionId, contextText);
+      }
+      logger.info(`[ConfiguredSessionSpawn] Context prompt delivered to ${params.sessionId} (${contextText.length} chars)`);
     });
   }
 

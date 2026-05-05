@@ -299,9 +299,10 @@ export function setupKeyboardRelay(
       if (editorInFlight) return;
       editorInFlight = true;
       try {
+        const { deliverPromptSequence } = await import('./sequence-delivery.js');
         await showEditorPopup(async (t) => {
-          if (t && t.trim()) {
-            await deliverBulkText(sessionId, t);
+          if (t && t.length > 0) {
+            await deliverPromptSequence(sessionId, t);
           }
         });
       } catch (err) {

@@ -27,7 +27,7 @@ const mockPlanClearCompleted = vi.fn();
 const mockWriteTempContent = vi.fn();
 const mockDialogShowSaveFile = vi.fn();
 const mockDialogShowOpenFile = vi.fn();
-const mockDeliverBulkText = vi.fn();
+const mockDeliverPromptSequence = vi.fn();
 const mockShowPlanDeleteConfirm = vi.fn();
 const mockHidePlanDeleteConfirm = vi.fn();
 const mockShowPlanHelpModal = vi.fn();
@@ -46,8 +46,8 @@ vi.mock('../renderer/plans/plan-layout.js', () => ({
   computeLayout: (...args: unknown[]) => mockComputeLayout(...args),
 }));
 
-vi.mock('../renderer/paste-handler.js', () => ({
-  deliverBulkText: (...args: unknown[]) => mockDeliverBulkText(...args),
+vi.mock('../renderer/sequence-delivery.js', () => ({
+  deliverPromptSequence: (...args: unknown[]) => mockDeliverPromptSequence(...args),
 }));
 
 vi.mock('../renderer/modals/plan-delete-confirm.js', () => ({
@@ -144,7 +144,7 @@ describe('plan screen bridge', () => {
     mockWriteTempContent.mockReset();
     mockDialogShowSaveFile.mockReset();
     mockDialogShowOpenFile.mockReset();
-    mockDeliverBulkText.mockReset();
+    mockDeliverPromptSequence.mockReset();
     mockShowPlanDeleteConfirm.mockReset();
     mockHidePlanDeleteConfirm.mockReset();
     mockShowPlanHelpModal.mockReset();
@@ -606,7 +606,7 @@ describe('plan screen bridge', () => {
     await callbacks.onApply();
 
     expect(mockWriteTempContent).toHaveBeenCalledWith('Alpha');
-    expect(mockDeliverBulkText).toHaveBeenCalledWith('session-1', 'work for you to do is here: /tmp/helm-work.txt\n');
+    expect(mockDeliverPromptSequence).toHaveBeenCalledWith('session-1', 'work for you to do is here: /tmp/helm-work.txt{Send}');
     expect(mockPlanApply).toHaveBeenCalledWith('a', 'session-1');
   });
 

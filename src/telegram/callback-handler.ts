@@ -32,6 +32,7 @@ import {
   resolvePathIndex,
 } from './keyboards.js';
 import { sendPeekOutput } from './command-handler.js';
+import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js';
 import { escapeHtml } from './utils.js';
 import { spawnConfiguredSession } from '../session/configured-session-spawn.js';
 import { logger } from '../utils/logger.js';
@@ -120,7 +121,7 @@ async function routeCallback(
       await handleSpawn(bot, topicManager, sessionManager, ptyManager, configLoader, payload, query);
       break;
     case 'talk':
-      await handleTalk(bot, topicManager, sessionManager, ptyManager, payload, query);
+      await handleTalk(bot, topicManager, sessionManager, ptyManager, configLoader, payload, query);
       break;
     case 'status':
       await handleStatus(bot, sessionManager, query);
@@ -286,6 +287,7 @@ async function handleTalk(
   topicManager: TopicManager,
   sessionManager: SessionManager,
   ptyManager: PtyManager,
+  configLoader: ConfigLoader,
   sessionId: string,
   query: TelegramBot.CallbackQuery,
 ): Promise<void> {
@@ -297,7 +299,13 @@ async function handleTalk(
 
   await topicManager.ensureTopic(session);
   const nudge = 'User is now available in Telegram. Give them a brief update on what you are doing. Keep it short and mobile-friendly.';
-  ptyManager.write(session.id, nudge + '\r');
+  await deliverPromptSequenceToSession({
+    sessionId: session.id,
+    text: nudge,
+    ptyManager,
+    sessionManager,
+    configLoader,
+  });
   await bot.answerCallback(query.id, `Opening ${session.name}`);
 }
 

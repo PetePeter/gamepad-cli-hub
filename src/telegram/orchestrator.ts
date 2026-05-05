@@ -47,7 +47,7 @@ export function initTelegramModules(
   );
 
   const cleanupTopicInput = setupTopicInput(
-    bot, topicManager, ptyManager, sessionManager, relayService,
+    bot, topicManager, ptyManager, configLoader, sessionManager, relayService,
   );
 
   const cleanupCommands = setupCommandHandler(bot, sessionManager, ptyManager);

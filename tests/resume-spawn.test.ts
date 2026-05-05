@@ -23,6 +23,11 @@ vi.mock('../src/session/initial-prompt.js', () => ({
   scheduleInitialPrompt: (...args: any[]) => mockScheduleInitialPrompt(...args),
 }));
 
+const mockDeliverPromptSequenceToSession = vi.fn();
+vi.mock('../src/session/sequence-delivery.js', () => ({
+  deliverPromptSequenceToSession: (...args: any[]) => mockDeliverPromptSequenceToSession(...args),
+}));
+
 import { setupPtyHandlers } from '../src/electron/ipc/pty-handlers.js';
 import type { SessionManager } from '../src/session/manager.js';
 import type { ConfigLoader, CliTypeConfig } from '../src/config/loader.js';
@@ -217,8 +222,33 @@ describe('pty:spawn resume logic', () => {
     const handler = handlers.get('pty:spawn')!;
     await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code', 'some context text', 'hub-sid-1');
 
-    // Context text should not be written
+    // Context prompt should not be delivered during resume
     expect(ptyManager.write).not.toHaveBeenCalledWith('sid-1', 'some context text');
+    expect(mockDeliverPromptSequenceToSession).not.toHaveBeenCalled();
+  });
+
+  it('delivers fresh-spawn contextText through prompt-sequence delivery', async () => {
+    configLoader.getCliTypeEntry.mockReturnValue({
+      name: 'Claude Code',
+      command: 'claude',
+      submitSuffix: '\\n',
+      initialPromptDelay: 100,
+    } as CliTypeConfig);
+
+    const handler = handlers.get('pty:spawn')!;
+    await handler({}, 'sid-1', 'claude', [], '/work', 'claude-code', '  context{Send}  ');
+
+    const onComplete = mockScheduleInitialPrompt.mock.calls[0][4] as (() => void) | undefined;
+    expect(onComplete).toBeTypeOf('function');
+    onComplete?.();
+
+    expect(mockDeliverPromptSequenceToSession).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'sid-1',
+      text: '  context{Send}  ',
+      ptyManager,
+      sessionManager,
+      configLoader,
+    }));
   });
 
   it('sends renameCommand on resume (via scheduleInitialPrompt)', async () => {

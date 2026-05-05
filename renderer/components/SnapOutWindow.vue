@@ -111,10 +111,7 @@ async function onDraftApply(payload: { label: string; text: string }): Promise<v
   closeDraftEditor();
   if (payload.text && sessionId) {
     try {
-      const session = state.sessions.find(s => s.id === sessionId);
-      const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
-      if (tool?.pasteMode === 'clippaste') await deliverViaClipboardPaste(payload.text);
-      else await deliverPromptSequence(sessionId, payload.text);
+      await deliverPromptSequence(sessionId, payload.text);
     } catch (err) {
       console.error('[SnapOut] Failed to apply draft:', err);
     }

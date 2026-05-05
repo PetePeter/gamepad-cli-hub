@@ -18,6 +18,7 @@ import type { ConfigLoader } from '../config/loader.js';
 import { scheduleInitialPrompt } from './initial-prompt.js';
 import { executeSequenceString } from '../input/sequence-executor.js';
 import { mintSessionAuthToken } from '../mcp/session-auth.js';
+import { parseSubmitSuffix } from '../mcp/submit-suffix.js';
 import { CronEngine } from '../utils/cron-engine.js';
 
 const PENDING_STATUSES = new Set<ScheduledTaskStatus>(['pending', 'executing']);
@@ -515,13 +516,4 @@ export class ScheduledTaskManager extends EventEmitter {
 
 function splitCliParams(params: string): string[] {
   return params.trim().length > 0 ? params.trim().split(/\s+/) : [];
-}
-
-function parseSubmitSuffix(suffix?: string): string {
-  if (!suffix) return '\r';
-  if (suffix === '\\r') return '\r';
-  if (suffix === '\\n') return '\n';
-  if (suffix === '\\t') return '\t';
-  if (suffix === '\\r\\n') return '\r\n';
-  return suffix;
 }

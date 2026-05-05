@@ -2,7 +2,7 @@ import { reactive } from 'vue';
 import type { PlanDependency, PlanItem, PlanSequence, PlanStatus, PlanType } from '../../src/types/plan.js';
 import type { LayoutNode, LayoutResult } from './plan-layout.js';
 import { computeLayout } from './plan-layout.js';
-import { deliverBulkText } from '../paste-handler.js';
+import { deliverPromptSequence } from '../sequence-delivery.js';
 import { hidePlanDeleteConfirm, showPlanDeleteConfirm } from '../modals/plan-delete-confirm.js';
 import { clearDonePlans, setClearDonePlansCallback } from '../stores/modal-bridge.js';
 import { state } from '../state.js';
@@ -581,7 +581,7 @@ async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
       return;
     }
 
-    await deliverBulkText(targetSessionId, `work for you to do is here: ${result.path}\n`);
+    await deliverPromptSequence(targetSessionId, `work for you to do is here: ${result.path}{Send}`);
     if (item.status === 'ready') {
       await window.gamepadCli.planApply(item.id, targetSessionId);
     }

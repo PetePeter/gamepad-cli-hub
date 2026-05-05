@@ -35,7 +35,7 @@ export function getSessionInfo(
       'ALWAYS claim assigned Helm implementation work before editing by calling plan_set_state with status=coding and your sessionId, then call session_set_working_plan with the same plan id.',
       'ALWAYS create a separate QUESTION: plan for blocking questions that must survive chat, link it to the blocked plan with plan_nextplan_link, and leave the original plan body intact unless explicitly asked to edit it.',
       'ALWAYS output the matching AIAGENT-* state tag as the first line of each user-facing response when the session prompt requires it.',
-      'ALWAYS send inter-LLM handoffs with session_send_text submit=true/default, then call session_read_terminal on the recipient and verify evidence of receipt before assuming delivery succeeded.',
+      'ALWAYS send inter-LLM handoffs with session_send_text, then call session_read_terminal on the recipient and verify evidence of receipt before assuming delivery succeeded.',
     ],
     sessionId,
     sessionName: sessionName ?? sessionInfo?.name,

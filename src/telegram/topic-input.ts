@@ -14,18 +14,10 @@ import type { TopicManager } from './topic-manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { TelegramRelayService } from './relay-service.js';
+import type { ConfigLoader } from '../config/loader.js';
+import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js';
 import { escapeHtml } from './utils.js';
 import { logger } from '../utils/logger.js';
-
-function deliverViaManager(ptyManager: PtyManager, sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }): Promise<void> {
-  const maybeDeliver = (ptyManager as Partial<PtyManager>).deliverText;
-  if (typeof maybeDeliver === 'function') {
-    return maybeDeliver.call(ptyManager, sessionId, text, options);
-  }
-  const suffix = options?.submitSuffix ?? (options?.withReturn ? '\r' : '');
-  ptyManager.write(sessionId, text + suffix);
-  return Promise.resolve();
-}
 
 /**
  * Set up topic input forwarding.
@@ -37,6 +29,7 @@ export function setupTopicInput(
   bot: TelegramBotCore,
   topicManager: TopicManager,
   ptyManager: PtyManager,
+  configLoader: ConfigLoader,
   sessionManager?: SessionManager,
   relayService?: TelegramRelayService,
 ): () => void {
@@ -67,7 +60,7 @@ export function setupTopicInput(
       return;
     }
 
-    await forwardToSession(bot, ptyManager, sessionId, msg.message_thread_id, msg.text, msg);
+    await forwardToSession(bot, ptyManager, configLoader, sessionManager, sessionId, msg.message_thread_id, msg.text, msg);
   };
 
   bot.on('message', handler);
@@ -81,6 +74,8 @@ export function setupTopicInput(
 async function forwardToSession(
   bot: TelegramBotCore,
   ptyManager: PtyManager,
+  configLoader: ConfigLoader,
+  sessionManager: SessionManager | undefined,
   sessionId: string,
   replyTopicId: number | undefined,
   text: string,
@@ -89,7 +84,14 @@ async function forwardToSession(
   const from = msg.from?.username ? `@${msg.from.username}` : 'unknown';
   const fromTag = from === 'unknown' ? '' : ` from:${from}`;
   const wrapped = `[HELM_TELEGRAM${fromTag} chat:${msg.chat.id}]\n${text}\n[/HELM_TELEGRAM]`;
-  await deliverViaManager(ptyManager, sessionId, wrapped, { submitSuffix: '\r' });
+  if (!sessionManager) throw new Error('SessionManager is required for Telegram prompt delivery');
+  await deliverPromptSequenceToSession({
+    sessionId,
+    text: wrapped,
+    ptyManager,
+    sessionManager,
+    configLoader,
+  });
 
   const echoText = `➡️ <code>${escapeHtml(text)}</code>`;
   if (replyTopicId) {
