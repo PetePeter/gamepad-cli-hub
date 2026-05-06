@@ -14,6 +14,7 @@ import { PipelineQueue } from '../../session/pipeline-queue.js';
 import { NotificationManager } from '../../session/notification-manager.js';
 import { DraftManager } from '../../session/draft-manager.js';
 import { PlanManager } from '../../session/plan-manager.js';
+import { ContextManager } from '../../session/context-manager.js';
 import { PlanBackupManager } from '../../session/plan-backup-manager.js';
 import { PatternMatcher } from '../../session/pattern-matcher.js';
 import { ScheduledTaskManager } from '../../session/scheduled-task-manager.js';
@@ -83,6 +84,7 @@ export function registerIPCHandlers(
   const pipelineQueue = new PipelineQueue();
   const draftManager = new DraftManager();
   const planManager = new PlanManager();
+  const contextManager = new ContextManager(planManager);
   const backupManager = new PlanBackupManager(planManager);
   const scheduledTaskManager = new ScheduledTaskManager(sessionManager, ptyManager, planManager, configLoader);
   const notificationManager = new NotificationManager(
@@ -96,7 +98,7 @@ export function registerIPCHandlers(
   notificationManager.setActiveSessionIdGetter(() => sessionManager.getActiveSession()?.id ?? null);
 
   // Create HelmControlService before Telegram modules (Telegram relay needs it)
-  const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager, configLoader, undefined, scheduledTaskManager);
+  const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager, configLoader, undefined, contextManager, scheduledTaskManager);
   helmControlService.setNotificationManager(notificationManager);
 
   const telegramBot = new TelegramBotCore();
@@ -151,7 +153,7 @@ export function registerIPCHandlers(
   setupKeyboardHandlers(keyboard);
   setupSystemHandlers(dirname ?? process.cwd());
   setupDraftHandlers(draftManager);
-  setupPlanHandlers(planManager, windowManager, incomingWatcher);
+  setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher);
   setupScheduledTaskHandlers(scheduledTaskManager, windowManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);

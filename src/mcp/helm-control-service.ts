@@ -20,11 +20,14 @@ import { HelmSessionService } from './services/helm-session-service.js';
 import { HelmPlanService } from './services/helm-plan-service.js';
 import { HelmPlanSequenceService } from './services/helm-plan-sequence-service.js';
 import { HelmPlanAttachmentService } from './services/helm-plan-attachment-service.js';
+import { HelmContextService } from './services/helm-context-service.js';
 import { HelmDirectoryService } from './services/helm-directory-service.js';
 import { HelmTelegramService } from './services/helm-telegram-service.js';
 import { HelmSchedulerService } from './services/helm-scheduler-service.js';
 import type { ScheduledTaskManager } from '../session/scheduled-task-manager.js';
 import type { CreateScheduledTaskParams, ScheduledTask, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
+import type { ContextBindingTargetType, ContextNode, ContextPermission } from '../types/context.js';
+import { ContextManager } from '../session/context-manager.js';
 import { getSessionInfo, getAvailableTools } from './guides/session-info-guide.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
 
@@ -141,6 +144,7 @@ export class HelmControlService extends EventEmitter {
   private readonly sessionService: HelmSessionService;
   private readonly planService: HelmPlanService;
   private readonly planSequenceService: HelmPlanSequenceService;
+  private readonly contextService: HelmContextService;
   private readonly planAttachmentService: HelmPlanAttachmentService;
   private readonly directoryService: HelmDirectoryService;
   private readonly telegramService: HelmTelegramService;
@@ -152,13 +156,15 @@ export class HelmControlService extends EventEmitter {
     private readonly ptyManager: PtyManager,
     private readonly configLoader: ConfigLoader,
     private readonly attachmentManager: PlanAttachmentManager = new PlanAttachmentManager(planManager),
+    private readonly contextManager: ContextManager = new ContextManager(planManager),
     schedulerManager?: ScheduledTaskManager,
   ) {
     super();
     this.sessionDelivery = new HelmSessionDeliveryService(sessionManager, ptyManager, configLoader);
     this.sessionService = new HelmSessionService(sessionManager, ptyManager, configLoader, planManager);
-    this.planService = new HelmPlanService(planManager, configLoader, attachmentManager);
-    this.planSequenceService = new HelmPlanSequenceService(planManager, configLoader);
+    this.planService = new HelmPlanService(planManager, configLoader, attachmentManager, contextManager);
+    this.planSequenceService = new HelmPlanSequenceService(planManager, configLoader, contextManager);
+    this.contextService = new HelmContextService(this.contextManager, configLoader);
     this.planAttachmentService = new HelmPlanAttachmentService(planManager, attachmentManager);
     this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager);
     this.telegramService = new HelmTelegramService(configLoader, sessionManager);
@@ -189,7 +195,7 @@ export class HelmControlService extends EventEmitter {
     return this.planService.plansSummary(dirPath);
   }
 
-  getPlan(id: string): (Omit<PlanItem, 'sequenceId'> & { hasAttachments: boolean; sequenceId?: string }) | null {
+  getPlan(id: string): (Omit<PlanItem, 'sequenceId'> & { hasAttachments: boolean; sequenceId?: string; sequenceContextMetadata?: Array<{ id: string; title: string; type: string; permission: ContextPermission }> }) | null {
     return this.planService.getPlan(id);
   }
 
@@ -267,6 +273,64 @@ export class HelmControlService extends EventEmitter {
 
   assignPlanSequence(planRef: string, sequenceId: string | null): PlanItem {
     return this.planSequenceService.assignPlanSequence(planRef, sequenceId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Context nodes
+  // ---------------------------------------------------------------------------
+
+  listContexts(dirPath: string): Array<ContextNode & { sequenceIds: string[]; planIds: string[] }> {
+    return this.contextService.listContexts(dirPath);
+  }
+
+  getContext(id: string): (ContextNode & { sequenceIds: string[]; planIds: string[] }) | null {
+    return this.contextService.getContext(id);
+  }
+
+  createContext(input: {
+    dirPath: string;
+    title: string;
+    type?: string;
+    permission?: ContextPermission;
+    content?: string;
+    x?: number | null;
+    y?: number | null;
+  }): ContextNode {
+    return this.contextService.createContext(input);
+  }
+
+  updateContext(
+    id: string,
+    updates: {
+      title?: string;
+      type?: string;
+      permission?: ContextPermission;
+      content?: string;
+      x?: number | null;
+      y?: number | null;
+    },
+  ): ContextNode {
+    return this.contextService.updateContext(id, updates);
+  }
+
+  deleteContext(id: string): boolean {
+    return this.contextService.deleteContext(id);
+  }
+
+  appendContext(id: string, text: string, expectedUpdatedAt?: number): ContextNode {
+    return this.contextService.appendContext(id, text, expectedUpdatedAt);
+  }
+
+  setContextPosition(id: string, x: number | null, y: number | null): ContextNode {
+    return this.contextService.setContextPosition(id, x, y);
+  }
+
+  bindContext(id: string, targetType: ContextBindingTargetType, targetId: string): boolean {
+    return this.contextService.bindContext(id, targetType, targetId);
+  }
+
+  unbindContext(id: string, targetType: ContextBindingTargetType, targetId: string): boolean {
+    return this.contextService.unbindContext(id, targetType, targetId);
   }
 
   // ---------------------------------------------------------------------------

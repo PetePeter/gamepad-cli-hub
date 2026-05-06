@@ -33,9 +33,18 @@ import {
   handlePlanScreenDpad,
   handlePlanScreenAction,
   onPlanAddDependency,
+  onPlanAddContext,
   onPlanAddNode,
   onPlanClearDone,
   onPlanAssignSequence,
+  onPlanContextBind,
+  onPlanContextBindTarget,
+  onPlanContextClick,
+  onPlanContextDelete,
+  onPlanContextMove,
+  onPlanContextSave,
+  onPlanContextSelectPlan,
+  onPlanContextUnbind,
   onPlanCreateSequence,
   onPlanExportDirectory,
   onPlanNodeApply,
@@ -2451,8 +2460,10 @@ onUnmounted(() => {
         :items="planScreenState.items"
         :deps="planScreenState.deps"
         :sequences="planScreenState.sequences"
+        :contexts="planScreenState.contexts"
         :layout="planScreenState.layout"
         :selected-id="planScreenState.selectedId"
+        :selected-context-id="planScreenState.selectedContextId"
         :selected-ids="planScreenState.selectedIds"
         :notice="planScreenState.notice"
         :related-focus-root-id="planScreenState.relatedFocusRootId"
@@ -2462,6 +2473,7 @@ onUnmounted(() => {
         :attachment-has-any="planScreenState.attachmentHasAny"
         @close="navStore.closePlan()"
         @add-node="onPlanAddNode()"
+        @add-context="onPlanAddContext()"
         @export-dir="onPlanExportDirectory()"
         @clear-done="onPlanClearDone()"
         @create-sequence="onPlanCreateSequence"
@@ -2470,6 +2482,14 @@ onUnmounted(() => {
         @delete-sequence="onPlanDeleteSequence"
         @delete-sequence-with-plans="onPlanDeleteSequenceWithPlans"
         @node-click="onPlanNodeClick"
+        @context-click="onPlanContextClick"
+        @context-move="onPlanContextMove"
+        @context-bind="onPlanContextBind"
+        @context-bind-target="onPlanContextBindTarget"
+        @context-unbind="onPlanContextUnbind"
+        @context-select-plan="onPlanContextSelectPlan"
+        @context-save="onPlanContextSave"
+        @context-delete="onPlanContextDelete"
         @edit-node="onPlanNodeEdit"
         @apply-node="onPlanNodeApply"
         @complete-node="onPlanNodeComplete"

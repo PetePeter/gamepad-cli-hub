@@ -678,6 +678,46 @@ const gamepadCliAPI = {
   planSequenceDeleteWithPlans: (id: string): Promise<boolean> =>
     ipcRenderer.invoke('plan:sequence-delete-with-plans', id),
 
+  /** List context nodes for a directory */
+  planContextList: (dirPath: string) =>
+    ipcRenderer.invoke('plan:context-list', dirPath),
+
+  /** Create a context node */
+  planContextCreate: (
+    dirPath: string,
+    input: { title: string; type?: string; permission?: 'readonly' | 'writable'; content?: string; x?: number | null; y?: number | null },
+  ) => ipcRenderer.invoke('plan:context-create', dirPath, input),
+
+  /** Update a context node */
+  planContextUpdate: (
+    id: string,
+    updates: { title?: string; type?: string; permission?: 'readonly' | 'writable'; content?: string; x?: number | null; y?: number | null },
+  ) => ipcRenderer.invoke('plan:context-update', id, updates),
+
+  /** Delete a context node */
+  planContextDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:context-delete', id),
+
+  /** Get one context node */
+  planContextGet: (id: string) =>
+    ipcRenderer.invoke('plan:context-get', id),
+
+  /** Append text to a writable context node */
+  planContextAppend: (id: string, text: string, expectedUpdatedAt?: number) =>
+    ipcRenderer.invoke('plan:context-append', id, text, expectedUpdatedAt),
+
+  /** Persist the X/Y position of a context node */
+  planContextSetPosition: (id: string, x: number | null, y: number | null) =>
+    ipcRenderer.invoke('plan:context-set-position', id, x, y),
+
+  /** Bind a context node to a sequence or plan */
+  planContextBind: (id: string, targetType: 'sequence' | 'plan', targetId: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:context-bind', id, targetType, targetId),
+
+  /** Unbind a context node from a sequence or plan */
+  planContextUnbind: (id: string, targetType: 'sequence' | 'plan', targetId: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:context-unbind', id, targetType, targetId),
+
   /** List files attached to a plan */
   planAttachmentList: (planId: string) =>
     ipcRenderer.invoke('plan:attachment-list', planId),

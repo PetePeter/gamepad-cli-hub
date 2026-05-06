@@ -30,6 +30,7 @@ function makeService() {
   const planManager = {
     getForDirectory: vi.fn(() => []),
     getItem: vi.fn(),
+    exportAll: vi.fn(() => ({})),
     resolveItemRef: vi.fn((ref: string) => {
       const item = planManager.getItem(ref);
       return item ? { status: 'found' as const, item } : { status: 'missing' as const };

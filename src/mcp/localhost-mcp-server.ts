@@ -284,6 +284,113 @@ const TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'context_list',
+    title: 'List Context Nodes',
+    description: 'List context nodes for a configured directory. Use this to discover available shared context cards before requesting full content from a specific one.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dirPath: { type: 'string' },
+      },
+      required: ['dirPath'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'context_create',
+    title: 'Create Context Node',
+    description: 'Create a context node in a configured directory. Context nodes can later be bound to sequences through the Helm UI.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dirPath: { type: 'string' },
+        title: { type: 'string' },
+        type: { type: 'string' },
+        permission: { type: 'string', enum: ['readonly', 'writable'] },
+        content: { type: 'string' },
+        x: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+        y: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+      },
+      required: ['dirPath', 'title'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'context_update',
+    title: 'Update Context Node',
+    description: 'Update a context node by ID. This can change the title, free-text type, permission mode, content, or stored position.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        title: { type: 'string' },
+        type: { type: 'string' },
+        permission: { type: 'string', enum: ['readonly', 'writable'] },
+        content: { type: 'string' },
+        x: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+        y: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'context_delete',
+    title: 'Delete Context Node',
+    description: 'Delete a context node by ID and remove all of its sequence bindings.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'context_get',
+    title: 'Get Context Node',
+    description: 'Fetch a context node by ID, including full content. Use this after inspecting plan_get sequenceContextMetadata or context_list.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'context_append',
+    title: 'Append Context Content',
+    description: 'Append text to a writable context node. Pass expectedUpdatedAt from the last read to make the append mutexable and fail on concurrent changes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        text: { type: 'string' },
+        expectedUpdatedAt: { type: 'number' },
+      },
+      required: ['id', 'text'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'context_set_position',
+    title: 'Set Context Position',
+    description: 'Persist the X/Y canvas position for a context node so user-placed context cards stay where they were dragged.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        x: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+        y: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+      },
+      required: ['id', 'x', 'y'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'plan_attachment_list',
     title: 'List Plan Attachments',
     description: 'List files attached to a plan by UUID or P-00xx human-readable ID. Attachments are stored inside Helm config, not as fragile external references.',
@@ -1014,6 +1121,51 @@ export class LocalhostMcpServer {
         return this.service.assignPlanSequence(
           asString(args.planId, 'planId is required'),
           args.sequenceId === null ? null : asString(args.sequenceId, 'sequenceId is required or null'),
+        );
+      case 'context_list':
+        return this.service.listContexts(asString(args.dirPath, 'dirPath is required'));
+      case 'context_create':
+        return this.service.createContext({
+          dirPath: asString(args.dirPath, 'dirPath is required'),
+          title: asString(args.title, 'title is required'),
+          ...(typeof args.type === 'string' ? { type: args.type } : {}),
+          ...(args.permission === 'readonly' || args.permission === 'writable' ? { permission: args.permission } : {}),
+          ...(typeof args.content === 'string' ? { content: args.content } : {}),
+          ...(typeof args.x === 'number' || args.x === null ? { x: args.x as number | null } : {}),
+          ...(typeof args.y === 'number' || args.y === null ? { y: args.y as number | null } : {}),
+        });
+      case 'context_update':
+        return this.service.updateContext(asString(args.id, 'id is required'), {
+          ...(typeof args.title === 'string' ? { title: args.title } : {}),
+          ...(typeof args.type === 'string' ? { type: args.type } : {}),
+          ...(args.permission === 'readonly' || args.permission === 'writable' ? { permission: args.permission } : {}),
+          ...(typeof args.content === 'string' ? { content: args.content } : {}),
+          ...(typeof args.x === 'number' || args.x === null ? { x: args.x as number | null } : {}),
+          ...(typeof args.y === 'number' || args.y === null ? { y: args.y as number | null } : {}),
+        });
+      case 'context_delete':
+        return {
+          deleted: requireBooleanResult(
+            this.service.deleteContext(asString(args.id, 'id is required')),
+            `Context not found: ${asString(args.id, 'id is required')}`,
+          ),
+        };
+      case 'context_get':
+        return requireResult(
+          this.service.getContext(asString(args.id, 'id is required')),
+          `Context not found: ${asString(args.id, 'id is required')}`,
+        );
+      case 'context_append':
+        return this.service.appendContext(
+          asString(args.id, 'id is required'),
+          asString(args.text, 'text is required'),
+          typeof args.expectedUpdatedAt === 'number' ? args.expectedUpdatedAt : undefined,
+        );
+      case 'context_set_position':
+        return this.service.setContextPosition(
+          asString(args.id, 'id is required'),
+          typeof args.x === 'number' || args.x === null ? args.x as number | null : null,
+          typeof args.y === 'number' || args.y === null ? args.y as number | null : null,
         );
       case 'plan_attachment_list':
         return this.service.listPlanAttachments(asString(args.planId, 'planId is required'));

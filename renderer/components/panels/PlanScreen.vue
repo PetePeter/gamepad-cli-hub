@@ -3,7 +3,9 @@ import { computed, reactive, ref, watch, onUnmounted } from 'vue';
 import { getDisplayTitle } from '../../types.js';
 import { formatDate } from '../../utils/date-format.js';
 import type { PlanDependency, PlanItem, PlanSequence } from '../../../src/types/plan.js';
+import type { ContextBindingTargetType, ContextNode } from '../../../src/types/context.js';
 import type { LayoutResult } from '../../plans/plan-layout.js';
+import SplitAddButton from '../buttons/SplitAddButton.vue';
 
 const NODE_W = 200;
 const NODE_H = 102;
@@ -11,6 +13,8 @@ const CONNECTOR_R = 6;
 const CONNECTOR_SNAP_TOLERANCE_PX = 16;
 const EMPTY_SEQ_W = 260;
 const EMPTY_SEQ_H = 80;
+const CONTEXT_W = 230;
+const CONTEXT_H = 130;
 
 const STATUS_COLORS: Record<string, string> = {
   planning: '#555555',
@@ -27,8 +31,10 @@ const props = withDefaults(defineProps<{
   items: PlanItem[];
   deps: PlanDependency[];
   sequences?: PlanSequence[];
+  contexts?: Array<ContextNode & { sequenceIds?: string[]; planIds?: string[] }>;
   layout: LayoutResult;
   selectedId: string | null;
+  selectedContextId?: string | null;
   selectedIds?: Set<string>;
   notice?: string;
   relatedFocusRootId?: string | null;
@@ -42,6 +48,8 @@ const props = withDefaults(defineProps<{
   attachmentHasAny?: Record<string, boolean>;
 }>(), {
   sequences: () => [],
+  contexts: () => [],
+  selectedContextId: null,
   selectedIds: () => new Set<string>(),
   relatedFocusRootId: null,
   relatedFocusIds: () => new Set<string>(),
@@ -56,6 +64,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   close: [];
   addNode: [];
+  addContext: [];
   exportDir: [];
   clearDone: [];
   createSequence: [title: string, missionStatement: string, sharedMemory: string];
@@ -64,6 +73,14 @@ const emit = defineEmits<{
   deleteSequence: [id: string];
   deleteSequenceWithPlans: [id: string];
   nodeClick: [id: string, event?: MouseEvent];
+  contextClick: [id: string];
+  contextMove: [id: string, x: number | null, y: number | null];
+  contextBind: [id: string, sequenceId: string];
+  contextBindTarget: [id: string, targetType: ContextBindingTargetType, targetId: string];
+  contextUnbind: [id: string, targetType: ContextBindingTargetType, targetId: string];
+  contextSelectPlan: [planId: string];
+  contextSave: [id: string, updates: { title?: string; type?: string; permission?: 'readonly' | 'writable'; content?: string }];
+  contextDelete: [id: string];
   editNode: [id: string];
   applyNode: [id: string];
   completeNode: [id: string];
@@ -129,6 +146,15 @@ function scheduleViewportSave(): void {
 }
 const dragState = ref<{ fromId: string; x: number; y: number } | null>(null);
 const seqDragState = ref<{ ids: string[]; x: number; y: number; hoveredSeqId: string | null } | null>(null);
+const contextDragState = ref<{
+  id: string;
+  x: number;
+  y: number;
+  hoveredSeqId: string | null;
+  hoveredPlanId: string | null;
+  offsetX: number;
+  offsetY: number;
+} | null>(null);
 
 const seqModalVisible = ref(false);
 const seqModalMode = ref<'create' | 'edit'>('create');
@@ -154,6 +180,40 @@ const positionedItems = computed(() =>
 const selectedItem = computed(() =>
   props.selectedId ? props.items.find((item) => item.id === props.selectedId) ?? null : null,
 );
+
+const positionedContexts = computed(() =>
+  (props.contexts ?? []).map((context, index) => ({
+    ...context,
+    x: context.x ?? 40 + (index % 3) * (CONTEXT_W + 24),
+    y: context.y ?? Math.max(props.layout.height, 600) + 120 + Math.floor(index / 3) * (CONTEXT_H + 20),
+  })),
+);
+
+const selectedContext = computed(() =>
+  props.selectedContextId ? positionedContexts.value.find((context) => context.id === props.selectedContextId) ?? null : null,
+);
+
+const selectedContextSequences = computed(() =>
+  props.sequences.filter((sequence) => selectedContext.value?.sequenceIds?.includes(sequence.id)),
+);
+
+const selectedContextPlans = computed(() =>
+  props.items.filter((item) => selectedContext.value?.planIds?.includes(item.id)),
+);
+
+const contextDraft = reactive({
+  title: '',
+  type: '',
+  permission: 'readonly' as 'readonly' | 'writable',
+  content: '',
+});
+
+watch(selectedContext, (value) => {
+  contextDraft.title = value?.title ?? '';
+  contextDraft.type = value?.type ?? 'Knowledge';
+  contextDraft.permission = value?.permission ?? 'readonly';
+  contextDraft.content = value?.content ?? '';
+}, { immediate: true });
 
 const sequenceBoxes = computed(() => {
   const populated: { sequence: PlanSequence; x: number; y: number; width: number; height: number; isEmpty: false }[] = [];
@@ -188,6 +248,10 @@ const canvasBounds = computed(() => {
   for (const box of sequenceBoxes.value) {
     width = Math.max(width, box.x + box.width + 40);
     height = Math.max(height, box.y + box.height + 40);
+  }
+  for (const context of positionedContexts.value) {
+    width = Math.max(width, context.x + CONTEXT_W + 40);
+    height = Math.max(height, context.y + CONTEXT_H + 40);
   }
   return { width, height };
 });
@@ -346,6 +410,17 @@ function onCanvasMouseMove(e: MouseEvent): void {
     };
     return;
   }
+  if (contextDragState.value) {
+    const pt = svgPoint(e.clientX, e.clientY);
+    contextDragState.value = {
+      ...contextDragState.value,
+      x: pt.x - contextDragState.value.offsetX,
+      y: pt.y - contextDragState.value.offsetY,
+      hoveredSeqId: findSeqBoxAtPoint(pt.x, pt.y),
+      hoveredPlanId: findPlanAtPoint(pt.x, pt.y),
+    };
+    return;
+  }
   if (seqDragState.value) {
     const pt = svgPoint(e.clientX, e.clientY);
     seqDragState.value = {
@@ -383,6 +458,15 @@ function onCanvasMouseUp(e: MouseEvent): void {
     }
     seqDragState.value = null;
   }
+  if (contextDragState.value) {
+    emit('contextMove', contextDragState.value.id, contextDragState.value.x, contextDragState.value.y);
+    if (contextDragState.value.hoveredPlanId) {
+      emit('contextBindTarget', contextDragState.value.id, 'plan', contextDragState.value.hoveredPlanId);
+    } else if (contextDragState.value.hoveredSeqId) {
+      emit('contextBind', contextDragState.value.id, contextDragState.value.hoveredSeqId);
+    }
+    contextDragState.value = null;
+  }
   isPanning.value = false;
 }
 
@@ -417,10 +501,35 @@ function onNodeBodyMouseDown(id: string, e: MouseEvent): void {
   seqDragState.value = { ids, x: pt.x, y: pt.y, hoveredSeqId: null };
 }
 
+function onContextMouseDown(id: string, e: MouseEvent): void {
+  e.stopPropagation();
+  const pt = svgPoint(e.clientX, e.clientY);
+  const context = positionedContexts.value.find((entry) => entry.id === id);
+  if (!context) return;
+  contextDragState.value = {
+    id,
+    x: context.x,
+    y: context.y,
+    hoveredSeqId: null,
+    hoveredPlanId: null,
+    offsetX: pt.x - context.x,
+    offsetY: pt.y - context.y,
+  };
+}
+
 function findSeqBoxAtPoint(x: number, y: number): string | null {
   for (const box of sequenceBoxes.value) {
     if (x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height) {
       return box.sequence.id;
+    }
+  }
+  return null;
+}
+
+function findPlanAtPoint(x: number, y: number): string | null {
+  for (const item of positionedItems.value) {
+    if (x >= item.x && x <= item.x + NODE_W && y >= item.y && y <= item.y + NODE_H) {
+      return item.id;
     }
   }
   return null;
@@ -440,6 +549,36 @@ function openSeqCreate(): void {
   seqModalDeleteWithPlansConfirm.value = false;
   seqModalMode.value = 'create';
   seqModalVisible.value = true;
+}
+
+function handleAddSelection(value: 'plan' | 'context' | 'sequence'): void {
+  if (value === 'plan') emit('addNode');
+  else if (value === 'context') emit('addContext');
+  else openSeqCreate();
+}
+
+function saveContext(): void {
+  if (!selectedContext.value) return;
+  emit('contextSave', selectedContext.value.id, {
+    title: contextDraft.title,
+    type: contextDraft.type,
+    permission: contextDraft.permission,
+    content: contextDraft.content,
+  });
+}
+
+function deleteContext(): void {
+  if (!selectedContext.value) return;
+  emit('contextDelete', selectedContext.value.id);
+}
+
+function unbindContext(targetType: ContextBindingTargetType, targetId: string): void {
+  if (!selectedContext.value) return;
+  emit('contextUnbind', selectedContext.value.id, targetType, targetId);
+}
+
+function selectContextPlan(planId: string): void {
+  emit('contextSelectPlan', planId);
 }
 
 function openSeqEdit(sequence: PlanSequence): void {
@@ -495,8 +634,7 @@ onUnmounted(() => {
   <div v-show="visible" class="plan-screen" :class="{ visible }">
     <div class="plan-header">
       <button class="plan-header__btn" @click="emit('close')">← Back</button>
-      <button class="plan-header__btn plan-header__btn--add" @click="emit('addNode')">+ Add Node</button>
-      <button class="plan-header__btn plan-header__btn--secondary" @click="openSeqCreate">+ Sequence</button>
+      <SplitAddButton @primary="emit('addNode')" @select="handleAddSelection" />
       <span class="plan-header__title">{{ dirPath }} - Plans</span>
 
       <div class="plan-header__filters">
@@ -584,7 +722,7 @@ onUnmounted(() => {
           class="plan-sequence-lane"
           :class="{
             'plan-sequence-lane--empty': box.isEmpty,
-            'plan-sequence-lane--drop-target': seqDragState?.hoveredSeqId === box.sequence.id,
+            'plan-sequence-lane--drop-target': seqDragState?.hoveredSeqId === box.sequence.id || contextDragState?.hoveredSeqId === box.sequence.id,
           }"
           :transform="`translate(${box.x}, ${box.y})`"
         >
@@ -598,7 +736,7 @@ onUnmounted(() => {
             <div
               xmlns="http://www.w3.org/1999/xhtml"
               class="plan-sequence-lane__title"
-            >{{ box.sequence.title }}</div>
+            >{{ box.sequence.title }}<span v-if="box.sequence.contextIds?.length" class="plan-sequence-lane__context-dot">{{ box.sequence.contextIds.length }}</span></div>
           </foreignObject>
           <g
             class="plan-seq-edit-btn"
@@ -658,6 +796,7 @@ onUnmounted(() => {
             'plan-node--selected': item.id === selectedId,
             'plan-node--multiselected': selectedIds.has(item.id) && item.id !== selectedId,
             'plan-node--done': item.status === 'done',
+            'plan-node--drop-target': contextDragState?.hoveredPlanId === item.id,
             'plan-node--related-background': isRelatedBackground(item.id),
             'plan-node--related-transient': relatedTransientIds.has(item.id),
           }"
@@ -736,6 +875,36 @@ onUnmounted(() => {
           />
         </g>
 
+        <g
+          v-for="context in positionedContexts"
+          :key="context.id"
+          class="plan-context-card"
+          :class="{ 'plan-context-card--selected': context.id === selectedContextId }"
+          :transform="`translate(${contextDragState?.id === context.id ? contextDragState.x : context.x}, ${contextDragState?.id === context.id ? contextDragState.y : context.y})`"
+          @click.stop="emit('contextClick', context.id)"
+          @mousedown="onContextMouseDown(context.id, $event)"
+        >
+          <rect :width="CONTEXT_W" :height="CONTEXT_H" rx="12" ry="12" />
+          <foreignObject x="12" y="10" :width="CONTEXT_W - 24" height="22">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-context-card__title">{{ context.title }}</div>
+          </foreignObject>
+          <foreignObject x="12" y="34" :width="CONTEXT_W - 24" height="18">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-context-card__meta">
+              <span>{{ context.type }}</span>
+              <span class="plan-context-card__permission">{{ context.permission }}</span>
+            </div>
+          </foreignObject>
+          <foreignObject x="12" y="56" :width="CONTEXT_W - 24" height="48">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-context-card__content">{{ context.content }}</div>
+          </foreignObject>
+          <foreignObject x="12" y="108" :width="CONTEXT_W - 24" height="16">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-context-card__bound">
+              Bound to {{ (context.sequenceIds?.length ?? 0) + (context.planIds?.length ?? 0) }}
+              target<span v-if="((context.sequenceIds?.length ?? 0) + (context.planIds?.length ?? 0)) !== 1">s</span>
+            </div>
+          </foreignObject>
+        </g>
+
         <text v-if="items.length === 0" class="plan-canvas-empty" x="50%" y="45%" text-anchor="middle">
           No plan items yet
         </text>
@@ -756,10 +925,10 @@ onUnmounted(() => {
       <span>F focus related</span>
     </div>
 
-    <div v-if="selectedItem" class="plan-inspector">
+    <div v-if="selectedItem || selectedContext" class="plan-inspector">
       <div class="plan-inspector__header">
-        <span class="plan-inspector__title">{{ selectedItem.title }}</span>
-        <div class="plan-header__controls">
+        <span class="plan-inspector__title">{{ selectedContext ? selectedContext.title : selectedItem?.title }}</span>
+        <div v-if="selectedItem" class="plan-header__controls">
           <button class="plan-header__btn" @click="emit('editNode', selectedItem.id)">Edit</button>
           <button
             v-if="selectedItem.status !== 'done'"
@@ -772,6 +941,59 @@ onUnmounted(() => {
             @click="emit('completeNode', selectedItem.id)"
           >Done</button>
           <button class="plan-header__btn plan-header__btn--secondary" @click="emit('deleteNode', selectedItem.id)">Delete</button>
+        </div>
+        <div v-else-if="selectedContext" class="plan-header__controls">
+          <button type="button" class="plan-header__btn" @mousedown.stop @click.stop="saveContext">Save</button>
+          <button type="button" class="plan-header__btn plan-header__btn--secondary" @mousedown.stop @click.stop="deleteContext">Delete</button>
+        </div>
+      </div>
+      <div v-if="selectedContext" class="plan-inspector__body">
+        <label class="plan-context-form">
+          <span>Content</span>
+          <textarea v-model="contextDraft.content" class="plan-context-form__textarea plan-context-form__textarea--content" rows="10" />
+        </label>
+        <label class="plan-context-form">
+          <span>Title</span>
+          <input v-model="contextDraft.title" class="plan-context-form__input">
+        </label>
+        <label class="plan-context-form">
+          <span>Type</span>
+          <input v-model="contextDraft.type" class="plan-context-form__input" list="context-type-options">
+          <datalist id="context-type-options">
+            <option value="Testing" />
+            <option value="Coding" />
+            <option value="Review" />
+            <option value="Knowledge" />
+          </datalist>
+        </label>
+        <label class="plan-context-form">
+          <span>Permission</span>
+          <select v-model="contextDraft.permission" class="plan-context-form__input">
+            <option value="readonly">readonly</option>
+            <option value="writable">writable</option>
+          </select>
+        </label>
+        <div class="plan-context-form">
+          <span>Bound To</span>
+          <div class="plan-context-form__bound-list">
+            <div
+              v-for="plan in selectedContextPlans"
+              :key="`plan-${plan.id}`"
+              class="plan-context-form__bound-chip"
+            >
+              <button type="button" class="plan-context-form__bound-chip-label" @click="selectContextPlan(plan.id)">{{ getDisplayTitle(plan.title, plan.type) }}</button>
+              <button type="button" class="plan-context-form__bound-chip-remove" @click="unbindContext('plan', plan.id)">×</button>
+            </div>
+            <div
+              v-for="sequence in selectedContextSequences"
+              :key="`sequence-${sequence.id}`"
+              class="plan-context-form__bound-chip"
+            >
+              <span class="plan-context-form__bound-chip-label plan-context-form__bound-chip-label--static">{{ sequence.title }}</span>
+              <button type="button" class="plan-context-form__bound-chip-remove" @click="unbindContext('sequence', sequence.id)">×</button>
+            </div>
+            <span v-if="!selectedContext.sequenceIds?.length && !selectedContext.planIds?.length" class="plan-context-form__empty">Drag this card onto a sequence lane or plan card to bind it.</span>
+          </div>
         </div>
       </div>
     </div>
@@ -841,6 +1063,10 @@ onUnmounted(() => {
 .plan-node--multiselected rect:first-child {
   stroke: #4488ff;
   stroke-width: 2;
+}
+.plan-node--drop-target rect:first-child {
+  stroke: #ffbf8a;
+  stroke-width: 2.5;
 }
 .plan-node__unlink {
   cursor: pointer;
@@ -915,10 +1141,127 @@ onUnmounted(() => {
 .plan-sequence-lane__title:hover {
   color: #4488ff;
 }
+.plan-sequence-lane__context-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 8px;
+  border-radius: 999px;
+  background: rgba(255, 158, 84, 0.18);
+  color: #ffbf8a;
+  font-size: 11px;
+  font-weight: 700;
+}
 .plan-unlinked-label {
   fill: #666;
   font-size: 13px;
   font-weight: 600;
   user-select: none;
+}
+.plan-context-card {
+  cursor: grab;
+}
+.plan-context-card rect {
+  fill: rgba(255, 158, 84, 0.08);
+  stroke: rgba(255, 158, 84, 0.72);
+  stroke-width: 1.5;
+}
+.plan-context-card--selected rect {
+  stroke: #ffbf8a;
+  stroke-width: 2.5;
+}
+.plan-context-card__title {
+  color: #fff2e5;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.plan-context-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f1caab;
+  font-size: 11px;
+}
+.plan-context-card__permission {
+  color: #ffbf8a;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.plan-context-card__content {
+  color: #e5d7ca;
+  font-size: 11px;
+  line-height: 14px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+.plan-context-card__bound {
+  color: #d8af8b;
+  font-size: 10px;
+}
+.plan-context-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #ccc;
+  font-size: 12px;
+}
+.plan-context-form__input,
+.plan-context-form__textarea {
+  background: #171717;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #eee;
+  padding: 8px 10px;
+  font: inherit;
+}
+.plan-context-form__textarea {
+  resize: vertical;
+}
+.plan-context-form__textarea--content {
+  min-height: 220px;
+}
+.plan-context-form__bound-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.plan-context-form__bound-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 158, 84, 0.12);
+  border: 1px solid rgba(255, 158, 84, 0.35);
+  color: #ffd1ab;
+}
+.plan-context-form__bound-chip-label {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.plan-context-form__bound-chip-label--static {
+  cursor: default;
+}
+.plan-context-form__bound-chip-remove {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  line-height: 1;
+}
+.plan-context-form__empty {
+  color: #888;
 }
 </style>

@@ -3,6 +3,8 @@ import type { ConfigLoader } from '../../config/loader.js';
 import type { PlanManager, PlanRefResolution } from '../../session/plan-manager.js';
 import type { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
 import type { PlanItem, PlanStatus, PlanType } from '../../types/plan.js';
+import type { ContextManager } from '../../session/context-manager.js';
+import type { SequenceContextMetadata } from '../../types/context.js';
 
 /**
  * Plan CRUD: create, read, update, delete, complete, reopen, state changes,
@@ -13,6 +15,7 @@ export class HelmPlanService {
     private readonly planManager: PlanManager,
     private readonly configLoader: ConfigLoader,
     private readonly attachmentManager: PlanAttachmentManager,
+    private readonly contextManager?: ContextManager,
   ) {}
 
   listPlans(dirPath: string): PlanItem[] {
@@ -40,7 +43,7 @@ export class HelmPlanService {
     }));
   }
 
-  getPlan(id: string): (Omit<PlanItem, 'sequenceId'> & { hasAttachments: boolean; sequenceId?: string }) | null {
+  getPlan(id: string): (Omit<PlanItem, 'sequenceId'> & { hasAttachments: boolean; sequenceId?: string; sequenceContextMetadata?: SequenceContextMetadata[] }) | null {
     const plan = this.resolvePlanRef(id, 'Plan')?.item ?? null;
     if (!plan) return null;
     const { sequenceId, ...planWithoutSequence } = plan;
@@ -48,6 +51,9 @@ export class HelmPlanService {
       ...planWithoutSequence,
       hasAttachments: this.attachmentManager.list(plan.id).length > 0,
       ...(sequenceId ? { sequenceId } : {}),
+      ...(this.contextManager
+        ? { sequenceContextMetadata: this.contextManager.getContextMetadataForPlanWithSequence(plan.id, sequenceId) }
+        : {}),
     };
   }
 

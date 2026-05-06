@@ -4,6 +4,7 @@ import { dirname, join, basename } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import type { PlanManager } from '../../session/plan-manager.js';
 import type { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
+import type { ContextManager } from '../../session/context-manager.js';
 import { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
 import { logger } from '../../utils/logger.js';
 import type { PlanItem, PlanDependency } from '../../types/plan.js';
@@ -12,6 +13,7 @@ import type { WindowManager } from '../window-manager.js';
 
 export function setupPlanHandlers(
   planManager: PlanManager,
+  contextManager?: ContextManager,
   windowManager?: WindowManager,
   incomingWatcher?: IncomingPlansWatcher,
 ): void {
@@ -20,6 +22,13 @@ export function setupPlanHandlers(
 
   // Forward plan:changed events to all windows (PlanManager self-saves to disk)
   planManager.on('plan:changed', (dirPath: string) => {
+    for (const win of getTargetWindows()) {
+      if (!win.isDestroyed()) {
+        win.webContents.send('plan:changed', dirPath);
+      }
+    }
+  });
+  contextManager?.on('context:changed', (dirPath: string) => {
     for (const win of getTargetWindows()) {
       if (!win.isDestroyed()) {
         win.webContents.send('plan:changed', dirPath);
@@ -127,7 +136,10 @@ export function setupPlanHandlers(
   });
 
   ipcMain.handle('plan:sequence-list', (_event, dirPath: string) => {
-    return planManager.getSequencesForDirectory(dirPath);
+    return planManager.getSequencesForDirectory(dirPath).map((sequence) => ({
+      ...sequence,
+      ...(contextManager ? { contextIds: contextManager.getContextsForSequence(sequence.id).map((context) => context.id) } : {}),
+    }));
   });
 
   ipcMain.handle(
@@ -158,6 +170,60 @@ export function setupPlanHandlers(
 
   ipcMain.handle('plan:bulkAssignSequence', (_event, planIds: string[], sequenceId: string | null) => {
     return planManager.bulkAssignSequence(planIds, sequenceId);
+  });
+
+  ipcMain.handle('plan:context-list', (_event, dirPath: string) => {
+    return contextManager?.listForDirectory(dirPath).map((context) => ({
+      ...context,
+      sequenceIds: contextManager.getSequenceIdsForContext(context.id),
+      planIds: contextManager.getPlanIdsForContext(context.id),
+    })) ?? [];
+  });
+
+  ipcMain.handle(
+    'plan:context-create',
+    (_event, dirPath: string, input: { title: string; type?: string; permission?: 'readonly' | 'writable'; content?: string; x?: number | null; y?: number | null }) =>
+      contextManager?.create(dirPath, input) ?? null,
+  );
+
+  ipcMain.handle(
+    'plan:context-update',
+    (_event, id: string, updates: { title?: string; type?: string; permission?: 'readonly' | 'writable'; content?: string; x?: number | null; y?: number | null }) =>
+      contextManager?.update(id, updates) ?? null,
+  );
+
+  ipcMain.handle('plan:context-delete', (_event, id: string) => {
+    return contextManager?.delete(id) ?? false;
+  });
+
+  ipcMain.handle('plan:context-get', (_event, id: string) => {
+    const context = contextManager?.get(id) ?? null;
+    if (!context || !contextManager) return null;
+    return {
+      ...context,
+      sequenceIds: contextManager.getSequenceIdsForContext(id),
+      planIds: contextManager.getPlanIdsForContext(id),
+    };
+  });
+
+  ipcMain.handle('plan:context-append', (_event, id: string, text: string, expectedUpdatedAt?: number) => {
+    return contextManager?.append(id, text, expectedUpdatedAt) ?? null;
+  });
+
+  ipcMain.handle('plan:context-set-position', (_event, id: string, x: number | null, y: number | null) => {
+    return contextManager?.setPosition(id, x, y) ?? null;
+  });
+
+  ipcMain.handle('plan:context-bind', (_event, id: string, targetTypeOrTargetId: string, maybeTargetId?: string) => {
+    const targetType = maybeTargetId ? targetTypeOrTargetId as 'sequence' | 'plan' : 'sequence';
+    const targetId = maybeTargetId ?? targetTypeOrTargetId;
+    return contextManager?.bind(id, targetType, targetId) ?? false;
+  });
+
+  ipcMain.handle('plan:context-unbind', (_event, id: string, targetTypeOrTargetId: string, maybeTargetId?: string) => {
+    const targetType = maybeTargetId ? targetTypeOrTargetId as 'sequence' | 'plan' : 'sequence';
+    const targetId = maybeTargetId ?? targetTypeOrTargetId;
+    return contextManager?.unbind(id, targetType, targetId) ?? false;
   });
 
   ipcMain.handle('plan:attachment-list', (_event, planId: string) => {

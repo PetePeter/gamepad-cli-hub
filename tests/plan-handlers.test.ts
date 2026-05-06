@@ -35,6 +35,10 @@ vi.mock('../src/session/persistence.js', () => ({
   cleanupOrphanDependencies: vi.fn(() => ({ removed: 0, deps: [] })),
   loadPlanSequences: vi.fn(() => []),
   savePlanSequences: vi.fn(),
+  loadPlanContexts: vi.fn(() => []),
+  savePlanContexts: vi.fn(),
+  loadPlanContextBindings: vi.fn(() => []),
+  savePlanContextBindings: vi.fn(),
 }));
 
 import { setupPlanHandlers } from '../src/electron/ipc/plan-handlers.js';

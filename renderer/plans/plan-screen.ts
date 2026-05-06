@@ -1,5 +1,6 @@
 import { reactive } from 'vue';
 import type { PlanDependency, PlanItem, PlanSequence, PlanStatus, PlanType } from '../../src/types/plan.js';
+import type { ContextBindingTargetType, ContextNode } from '../../src/types/context.js';
 import type { LayoutNode, LayoutResult } from './plan-layout.js';
 import { computeLayout } from './plan-layout.js';
 import { deliverPromptSequence } from '../sequence-delivery.js';
@@ -24,8 +25,10 @@ export const planScreenState = reactive({
   items: [] as PlanItem[],
   deps: [] as PlanDependency[],
   sequences: [] as PlanSequence[],
+  contexts: [] as Array<ContextNode & { sequenceIds?: string[]; planIds?: string[] }>,
   layout: { nodes: [], width: 0, height: 0 } as LayoutResult,
   selectedId: null as string | null,
+  selectedContextId: null as string | null,
   selectedIds: new Set<string>(),
   editingId: null as string | null,
   notice: '',
@@ -105,6 +108,12 @@ function getNavigableLayoutNodes(): LayoutNode[] {
 function getSelectedItem(): PlanItem | null {
   return planScreenState.selectedId
     ? planScreenState.items.find((item) => item.id === planScreenState.selectedId) ?? null
+    : null;
+}
+
+function getSelectedContext(): (ContextNode & { sequenceIds?: string[]; planIds?: string[] }) | null {
+  return planScreenState.selectedContextId
+    ? planScreenState.contexts.find((context) => context.id === planScreenState.selectedContextId) ?? null
     : null;
 }
 
@@ -197,13 +206,20 @@ export function isPlanRelatedBackground(id: string): boolean {
   return !isPlanRelatedForeground(id);
 }
 
-function setPlanData(items: PlanItem[], deps: PlanDependency[], sequences: PlanSequence[] = [], options?: SetPlanDataOptions): void {
+function setPlanData(
+  items: PlanItem[],
+  deps: PlanDependency[],
+  sequences: PlanSequence[] = [],
+  contexts: Array<ContextNode & { sequenceIds?: string[]; planIds?: string[] }> = [],
+  options?: SetPlanDataOptions,
+): void {
   if (!options?.preserveTransientFocus) {
     setRelatedTransientIds([]);
   }
   planScreenState.items = items;
   planScreenState.deps = deps;
   planScreenState.sequences = sequences;
+  planScreenState.contexts = contexts;
   refreshRelatedFocus();
   const filteredItems = getFilteredItems();
   const filteredDeps = getFilteredDeps(deps);
@@ -228,21 +244,24 @@ function showBriefNotice(message: string): void {
 }
 
 function syncSelection(): void {
-  if (!planScreenState.selectedId) return;
-  if (!planScreenState.items.some((item) => item.id === planScreenState.selectedId)) {
+  if (planScreenState.selectedId && !planScreenState.items.some((item) => item.id === planScreenState.selectedId)) {
     planScreenState.selectedId = null;
     planScreenState.editingId = null;
+  }
+  if (planScreenState.selectedContextId && !planScreenState.contexts.some((context) => context.id === planScreenState.selectedContextId)) {
+    planScreenState.selectedContextId = null;
   }
 }
 
 async function loadPlanData(dirPath: string, context?: ViewMountContext, options?: SetPlanDataOptions): Promise<void> {
-  const [items, deps, sequences] = await Promise.all([
+  const [items, deps, sequences, contexts] = await Promise.all([
     window.gamepadCli.planList(dirPath),
     window.gamepadCli.planDeps(dirPath),
     window.gamepadCli.planSequenceList?.(dirPath) ?? Promise.resolve([]),
+    window.gamepadCli.planContextList?.(dirPath) ?? Promise.resolve([]),
   ]);
   if (context && !context.isActive()) return;
-  setPlanData(items, deps, sequences, options);
+  setPlanData(items, deps, sequences, contexts, options);
   if (items.length > 0) {
     const planIds = items.map((item) => item.id);
     planScreenState.attachmentHasAny = await window.gamepadCli.planAttachmentHasAny(planIds);
@@ -265,8 +284,17 @@ async function loadPlanData(dirPath: string, context?: ViewMountContext, options
 function selectNodeById(id: string | null): void {
   planScreenState.selectedIds.clear();
   planScreenState.selectedId = id;
+  planScreenState.selectedContextId = null;
   if (id === null) {
     planScreenState.editingId = null;
+  }
+}
+
+function selectContextById(id: string | null): void {
+  planScreenState.selectedIds.clear();
+  planScreenState.selectedContextId = id;
+  if (id) {
+    planScreenState.selectedId = null;
   }
 }
 
@@ -332,8 +360,10 @@ function closePlannerOverlay(): void {
   planScreenState.items = [];
   planScreenState.deps = [];
   planScreenState.sequences = [];
+  planScreenState.contexts = [];
   planScreenState.layout = { nodes: [], width: 0, height: 0 };
   planScreenState.selectedId = null;
+  planScreenState.selectedContextId = null;
   planScreenState.selectedIds.clear();
   planScreenState.editingId = null;
   planScreenState.relatedFocusRootId = null;
@@ -364,7 +394,12 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
     if (planScreenState.editingId) {
       draftEditorCloser?.();
       planScreenState.selectedId = null;
+      planScreenState.selectedContextId = null;
       planScreenState.editingId = null;
+      return;
+    }
+    if (planScreenState.selectedContextId) {
+      planScreenState.selectedContextId = null;
       return;
     }
     if (planScreenState.selectedId) {
@@ -403,6 +438,9 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
   if (e.key === 'Delete' && planScreenState.selectedId) {
     e.preventDefault();
     requestDelete(planScreenState.selectedId);
+  } else if (e.key === 'Delete' && planScreenState.selectedContextId) {
+    e.preventDefault();
+    void onPlanContextDelete(planScreenState.selectedContextId);
   }
 }
 
@@ -421,6 +459,7 @@ async function mountPlanScreen(params?: unknown, context?: ViewMountContext): Pr
   const dirPath = (params as { dir?: string } | undefined)?.dir ?? '';
   planScreenState.currentDir = dirPath;
   planScreenState.selectedId = null;
+  planScreenState.selectedContextId = null;
   planScreenState.selectedIds.clear();
   planScreenState.editingId = null;
   hidePlanDeleteConfirm();
@@ -463,6 +502,10 @@ export function getSelectedPlanId(): string | null {
   return planScreenState.selectedId;
 }
 
+export function getSelectedContextId(): string | null {
+  return planScreenState.selectedContextId;
+}
+
 export function handlePlanScreenDpad(dir: string): boolean {
   planScreenState.selectedIds.clear();
   const layoutNodes = getNavigableLayoutNodes();
@@ -496,6 +539,9 @@ export function handlePlanScreenDpad(dir: string): boolean {
 
 export function handlePlanScreenAction(button: string): boolean {
   if (button === 'A') {
+    if (planScreenState.selectedContextId) {
+      return true;
+    }
     if (planScreenState.selectedId) {
       const item = getSelectedItem();
       if (item) openNodeEditor(item);
@@ -508,7 +554,11 @@ export function handlePlanScreenAction(button: string): boolean {
   }
 
   if (button === 'X') {
-    if (planScreenState.selectedId) requestDelete(planScreenState.selectedId);
+    if (planScreenState.selectedContextId) {
+      void onPlanContextDelete(planScreenState.selectedContextId);
+    } else if (planScreenState.selectedId) {
+      requestDelete(planScreenState.selectedId);
+    }
     return true;
   }
 
@@ -596,13 +646,30 @@ async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
   }
 }
 
-async function handleAddNode(options?: { fromShortcut?: boolean }): Promise<void> {
+async function handleAddNode(options?: { fromShortcut?: boolean; kind?: 'plan' | 'context' }): Promise<void> {
   if (planScreenState.editingId && options?.fromShortcut) {
     showBriefNotice('Finish or cancel current edits before creating a new plan');
     return;
   }
 
   try {
+    if (options?.kind === 'context') {
+      const created = await window.gamepadCli.planContextCreate?.(planScreenState.currentDir, {
+        title: 'New Context',
+        type: 'Knowledge',
+        permission: 'readonly',
+        content: '',
+        x: null,
+        y: null,
+      });
+      const createdId = created && typeof created === 'object' && 'id' in created ? String(created.id) : null;
+      await refreshCanvas({ preserveTransientFocus: true });
+      if (createdId) {
+        selectContextById(createdId);
+      }
+      return;
+    }
+
     const created = await window.gamepadCli.planCreate(planScreenState.currentDir, 'New Plan', '');
     const createdId = created && typeof created === 'object' && 'id' in created ? String(created.id) : null;
     if (createdId && planScreenState.relatedFocusRootId) {
@@ -726,6 +793,10 @@ export function onPlanAddNode(): Promise<void> {
   return handleAddNode();
 }
 
+export function onPlanAddContext(): Promise<void> {
+  return handleAddNode({ kind: 'context' });
+}
+
 export function onPlanAddDependency(fromId: string, toId: string): Promise<void> {
   return handleAddDep(fromId, toId);
 }
@@ -777,6 +848,55 @@ export async function onPlanDeleteSequence(id: string): Promise<void> {
 
 export async function onPlanDeleteSequenceWithPlans(id: string): Promise<void> {
   await window.gamepadCli.planSequenceDeleteWithPlans?.(id);
+  await refreshCanvas();
+}
+
+export function onPlanContextClick(id: string): void {
+  selectContextById(id);
+}
+
+export async function onPlanContextMove(id: string, x: number | null, y: number | null): Promise<void> {
+  await window.gamepadCli.planContextSetPosition?.(id, x, y);
+  await refreshCanvas();
+}
+
+export async function onPlanContextBind(id: string, sequenceId: string): Promise<void> {
+  await window.gamepadCli.planContextBind?.(id, 'sequence', sequenceId);
+  await refreshCanvas();
+}
+
+export async function onPlanContextBindTarget(id: string, targetType: ContextBindingTargetType, targetId: string): Promise<void> {
+  await window.gamepadCli.planContextBind?.(id, targetType, targetId);
+  await refreshCanvas();
+}
+
+export async function onPlanContextUnbind(id: string, targetType: ContextBindingTargetType, targetId: string): Promise<void> {
+  await window.gamepadCli.planContextUnbind?.(id, targetType, targetId);
+  await refreshCanvas();
+}
+
+export function onPlanContextSelectPlan(planId: string): void {
+  selectNodeById(planId);
+}
+
+export async function onPlanContextSave(
+  id: string,
+  updates: { title?: string; type?: string; permission?: 'readonly' | 'writable'; content?: string },
+): Promise<void> {
+  await window.gamepadCli.planContextUpdate?.(id, updates);
+  await refreshCanvas();
+  selectContextById(id);
+}
+
+export async function onPlanContextDelete(id: string): Promise<void> {
+  const deleted = await window.gamepadCli.planContextDelete?.(id);
+  if (!deleted) {
+    showBriefNotice('Could not delete context');
+    return;
+  }
+  if (planScreenState.selectedContextId === id) {
+    planScreenState.selectedContextId = null;
+  }
   await refreshCanvas();
 }
 

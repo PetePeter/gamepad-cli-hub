@@ -24,6 +24,10 @@ const mockPlanExportDirectory = vi.fn();
 const mockPlanWriteFile = vi.fn();
 const mockPlanReadFile = vi.fn();
 const mockPlanClearCompleted = vi.fn();
+const mockPlanContextList = vi.fn();
+const mockPlanContextDelete = vi.fn();
+const mockPlanContextBind = vi.fn();
+const mockPlanContextUnbind = vi.fn();
 const mockWriteTempContent = vi.fn();
 const mockDialogShowSaveFile = vi.fn();
 const mockDialogShowOpenFile = vi.fn();
@@ -141,6 +145,10 @@ describe('plan screen bridge', () => {
     mockPlanWriteFile.mockReset();
     mockPlanReadFile.mockReset();
     mockPlanClearCompleted.mockReset();
+    mockPlanContextList.mockReset();
+    mockPlanContextDelete.mockReset();
+    mockPlanContextBind.mockReset();
+    mockPlanContextUnbind.mockReset();
     mockWriteTempContent.mockReset();
     mockDialogShowSaveFile.mockReset();
     mockDialogShowOpenFile.mockReset();
@@ -152,6 +160,7 @@ describe('plan screen bridge', () => {
     mockIsPlanHelpVisible.mockReturnValue(false);
     mockComputeLayout.mockReset();
     mockPlanSequenceList.mockResolvedValue([]);
+    mockPlanContextList.mockResolvedValue([]);
 
     (window as any).gamepadCli = {
       planList: mockPlanList,
@@ -172,6 +181,10 @@ describe('plan screen bridge', () => {
       planWriteFile: mockPlanWriteFile,
       planReadFile: mockPlanReadFile,
       planClearCompleted: mockPlanClearCompleted,
+      planContextList: mockPlanContextList,
+      planContextDelete: mockPlanContextDelete,
+      planContextBind: mockPlanContextBind,
+      planContextUnbind: mockPlanContextUnbind,
       planAttachmentHasAny: vi.fn().mockResolvedValue({}),
       writeTempContent: mockWriteTempContent,
       dialogShowSaveFile: mockDialogShowSaveFile,
@@ -400,6 +413,37 @@ describe('plan screen bridge', () => {
 
     await mod.onPlanUpdateSequence('seq-1', { title: 'Updated Mission' });
     expect(mockPlanSequenceUpdate).toHaveBeenCalledWith('seq-1', { title: 'Updated Mission' });
+  });
+
+  it('selects a related plan when a context chip targets it', async () => {
+    const mod = await getModule();
+    const items = [planItem('a', 'Plan A'), planItem('b', 'Plan B')];
+    mockPlanList.mockResolvedValue(items);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a', 'b']));
+    mockPlanContextList.mockResolvedValue([
+      {
+        id: 'ctx-1',
+        dirPath: '/test/dir',
+        title: 'Testing Strategy',
+        type: 'Knowledge',
+        permission: 'readonly',
+        content: '',
+        x: null,
+        y: null,
+        createdAt: 1,
+        updatedAt: 1,
+        sequenceIds: [],
+        planIds: ['b'],
+      },
+    ]);
+
+    await mod.showPlanScreen('/test/dir');
+    mod.onPlanContextClick('ctx-1');
+    mod.onPlanContextSelectPlan('b');
+
+    expect(mod.getSelectedPlanId()).toBe('b');
+    expect(mod.getSelectedContextId()).toBeNull();
   });
 
   it('opens the Vue-owned editor through the registered opener', async () => {

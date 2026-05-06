@@ -186,6 +186,10 @@ vi.mock('../src/session/incoming-plans-watcher.js', () => ({
 vi.mock('../src/session/persistence.js', () => ({
   loadDrafts: vi.fn().mockReturnValue([]),
   loadScheduledTasks: vi.fn().mockReturnValue([]),
+  loadPlanContexts: vi.fn(() => []),
+  savePlanContexts: vi.fn(),
+  loadPlanContextBindings: vi.fn(() => []),
+  savePlanContextBindings: vi.fn(),
 }));
 
 vi.mock('../src/electron/ipc/editor-handlers.js', () => ({

@@ -7,6 +7,7 @@ import { getConfigDir } from '../utils/app-paths.js';
 import type { SessionInfo, DraftPrompt } from '../types/session.js';
 import type { PlanItem, PlanDependency, DirectoryPlan, PlanSequence } from '../types/plan.js';
 import type { ScheduledTask } from '../types/scheduled-task.js';
+import type { ContextBinding, ContextNode } from '../types/context.js';
 
 const __persistence_dirname = dirname(fileURLToPath(import.meta.url));
 const SESSIONS_FILE = join(getConfigDir(__persistence_dirname), 'sessions.yaml');
@@ -15,6 +16,8 @@ const PLANS_FILE = join(getConfigDir(__persistence_dirname), 'plans.yaml');
 const DEFAULT_PLANS_DIR = join(getConfigDir(__persistence_dirname), 'plans');
 const DEFAULT_PLAN_DEPS_FILE = join(getConfigDir(__persistence_dirname), 'plan-dependencies.json');
 const DEFAULT_PLAN_SEQUENCES_FILE = join(getConfigDir(__persistence_dirname), 'plan-sequences.json');
+const DEFAULT_PLAN_CONTEXTS_FILE = join(getConfigDir(__persistence_dirname), 'plan-contexts.json');
+const DEFAULT_PLAN_CONTEXT_BINDINGS_FILE = join(getConfigDir(__persistence_dirname), 'plan-context-bindings.json');
 const SCHEDULED_TASKS_FILE = join(getConfigDir(__persistence_dirname), 'scheduled-tasks.yaml');
 
 /** Persist current sessions to disk so they survive restarts. */
@@ -259,6 +262,48 @@ export function loadPlanSequences(sequencesFile = DEFAULT_PLAN_SEQUENCES_FILE): 
     return Array.isArray(raw?.sequences) ? raw.sequences : [];
   } catch (err) {
     logger.error(`Failed to load plan sequences: ${err}`);
+    return [];
+  }
+}
+
+/** Write the global context registry to disk. */
+export function savePlanContexts(contexts: ContextNode[], contextsFile = DEFAULT_PLAN_CONTEXTS_FILE): void {
+  try {
+    writeFileSync(contextsFile, JSON.stringify({ version: 1, contexts }, null, 2), 'utf8');
+  } catch (err) {
+    logger.error(`Failed to save plan contexts: ${err}`);
+  }
+}
+
+/** Load the global context registry from disk. Returns [] if not found. */
+export function loadPlanContexts(contextsFile = DEFAULT_PLAN_CONTEXTS_FILE): ContextNode[] {
+  try {
+    if (!existsSync(contextsFile)) return [];
+    const raw = JSON.parse(readFileSync(contextsFile, 'utf8'));
+    return Array.isArray(raw?.contexts) ? raw.contexts : [];
+  } catch (err) {
+    logger.error(`Failed to load plan contexts: ${err}`);
+    return [];
+  }
+}
+
+/** Write the global context binding registry to disk. */
+export function savePlanContextBindings(bindings: ContextBinding[], bindingsFile = DEFAULT_PLAN_CONTEXT_BINDINGS_FILE): void {
+  try {
+    writeFileSync(bindingsFile, JSON.stringify({ version: 1, bindings }, null, 2), 'utf8');
+  } catch (err) {
+    logger.error(`Failed to save plan context bindings: ${err}`);
+  }
+}
+
+/** Load the global context binding registry from disk. Returns [] if not found. */
+export function loadPlanContextBindings(bindingsFile = DEFAULT_PLAN_CONTEXT_BINDINGS_FILE): ContextBinding[] {
+  try {
+    if (!existsSync(bindingsFile)) return [];
+    const raw = JSON.parse(readFileSync(bindingsFile, 'utf8'));
+    return Array.isArray(raw?.bindings) ? raw.bindings : [];
+  } catch (err) {
+    logger.error(`Failed to load plan context bindings: ${err}`);
     return [];
   }
 }

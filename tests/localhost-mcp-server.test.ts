@@ -21,6 +21,13 @@ function makeService(): HelmControlService {
     setPlanState: vi.fn((id: string, status: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status })),
     linkPlans: vi.fn(),
     unlinkPlans: vi.fn(),
+    listContexts: vi.fn((dirPath: string) => [{ id: 'ctx-1', dirPath, title: 'Testing Strategy', type: 'Testing', permission: 'readonly', content: 'Use vitest', x: null, y: null, createdAt: 1, updatedAt: 1, sequenceIds: ['seq-1'] }]),
+    getContext: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Testing Strategy', type: 'Testing', permission: 'readonly', content: 'Use vitest', x: null, y: null, createdAt: 1, updatedAt: 1, sequenceIds: ['seq-1'] })),
+    createContext: vi.fn((input: Record<string, unknown>) => ({ id: 'ctx-1', createdAt: 1, updatedAt: 1, x: null, y: null, content: '', type: 'Knowledge', permission: 'readonly', ...input })),
+    updateContext: vi.fn((id: string, updates: Record<string, unknown>) => ({ id, dirPath: '/proj', title: 'Updated Context', type: 'Knowledge', permission: 'readonly', content: '', x: null, y: null, createdAt: 1, updatedAt: 2, ...updates })),
+    deleteContext: vi.fn(() => true),
+    appendContext: vi.fn((id: string, text: string) => ({ id, dirPath: '/proj', title: 'Running Notes', type: 'Knowledge', permission: 'writable', content: `Before\n\n${text}`, x: null, y: null, createdAt: 1, updatedAt: 2 })),
+    setContextPosition: vi.fn((id: string, x: number | null, y: number | null) => ({ id, dirPath: '/proj', title: 'Visual Anchor', type: 'Knowledge', permission: 'readonly', content: '', x, y, createdAt: 1, updatedAt: 2 })),
     listPlanAttachments: vi.fn(() => [{ id: 'a1', planId: 'p1', filename: 'note.txt', sizeBytes: 5, relativePath: 'p1/a1.txt', createdAt: 1, updatedAt: 1 }]),
     addPlanAttachment: vi.fn((planId: string, input: { filename: string; text?: string; contentBase64?: string; contentType?: string }) => ({
       id: 'a1',
@@ -218,6 +225,44 @@ describe('LocalhostMcpServer', () => {
     const json = await response.json();
     expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { senderSessionId: 's1', senderSessionName: 'Claude' });
     expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
+  });
+
+  it('dispatches context tools through the MCP surface', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const listResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 34,
+      method: 'tools/call',
+      params: {
+        name: 'context_list',
+        arguments: { dirPath: '/proj' },
+      },
+    });
+    const listJson = await listResponse.json();
+    expect((service.listContexts as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('/proj');
+    expect(listJson.result.structuredContent.items[0].id).toBe('ctx-1');
+
+    const createResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 35,
+      method: 'tools/call',
+      params: {
+        name: 'context_create',
+        arguments: { dirPath: '/proj', title: 'Testing Strategy', permission: 'readonly' },
+      },
+    });
+    const createJson = await createResponse.json();
+    expect((service.createContext as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith({
+      dirPath: '/proj',
+      title: 'Testing Strategy',
+      permission: 'readonly',
+    });
+    expect(createJson.result.structuredContent.title).toBe('Testing Strategy');
   });
 
   it('dispatches session_set_working_plan through the MCP surface', async () => {

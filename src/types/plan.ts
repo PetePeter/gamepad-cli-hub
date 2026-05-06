@@ -70,6 +70,8 @@ export interface PlanSequence {
   sharedMemory: string;
   /** Display order among sequences in the same directory. */
   order: number;
+  /** Computed IDs of bound context nodes when returned by services/UI. */
+  contextIds?: string[];
   /** Creation timestamp. */
   createdAt: number;
   /** Last update timestamp. */
