@@ -10,8 +10,10 @@ import {
 import type {
   ContextBinding,
   ContextBindingTargetType,
+  ContextRef,
   ContextNode,
   ContextPermission,
+  PlanContextRef,
   SequenceContextMetadata,
 } from '../types/context.js';
 
@@ -195,6 +197,55 @@ export class ContextManager extends EventEmitter {
       }
     }
     return [...byId.values()];
+  }
+
+  getContextRefsForSequence(sequenceId: string): ContextRef[] {
+    return this.getContextsForSequence(sequenceId).map((context) => ({
+      id: context.id,
+      type: context.type,
+    }));
+  }
+
+  getContextRefsForPlan(planId: string): ContextRef[] {
+    return this.getContextsForPlan(planId).map((context) => ({
+      id: context.id,
+      type: context.type,
+    }));
+  }
+
+  getContextRefsForPlanWithSequence(planId: string, sequenceId?: string): ContextRef[] {
+    const byId = new Map<string, ContextRef>();
+    for (const context of this.getContextsForPlan(planId)) {
+      byId.set(context.id, { id: context.id, type: context.type });
+    }
+    if (sequenceId) {
+      for (const context of this.getContextsForSequence(sequenceId)) {
+        byId.set(context.id, { id: context.id, type: context.type });
+      }
+    }
+    return [...byId.values()];
+  }
+
+  getEffectiveContextRefsForPlan(planId: string, sequenceId?: string): PlanContextRef[] {
+    const refs = new Map<string, PlanContextRef>();
+    for (const context of this.getContextsForPlan(planId)) {
+      refs.set(context.id, {
+        id: context.id,
+        type: context.type,
+        source: 'plan',
+      });
+    }
+    if (sequenceId) {
+      for (const context of this.getContextsForSequence(sequenceId)) {
+        const existing = refs.get(context.id);
+        refs.set(context.id, {
+          id: context.id,
+          type: context.type,
+          source: existing ? 'both' : 'sequence',
+        });
+      }
+    }
+    return [...refs.values()];
   }
 
   getSequenceIdsForContext(contextId: string): string[] {

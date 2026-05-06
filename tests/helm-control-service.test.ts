@@ -267,6 +267,57 @@ describe('HelmControlService plan sequences', () => {
   });
 });
 
+describe('HelmControlService effective plan context', () => {
+  it('lists deduped effective context refs for a plan with source metadata', () => {
+    const { service, planManager } = makeService();
+    const plan = {
+      id: 'plan-1',
+      humanId: 'P-0001',
+      dirPath: '/work',
+      title: 'Plan',
+      description: 'Body',
+      status: 'ready',
+      sequenceId: 'seq-1',
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    (planManager.getItem as ReturnType<typeof vi.fn>).mockReturnValue(plan);
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
+    (planManager as any).getSequence = vi.fn((id: string) => id === 'seq-1'
+      ? { id: 'seq-1', dirPath: '/work', title: 'Sequence', missionStatement: '', sharedMemory: '', order: 0, createdAt: 1, updatedAt: 1 }
+      : null);
+    (planManager.getForDirectory as ReturnType<typeof vi.fn>).mockReturnValue([plan]);
+    (planManager.exportAll as ReturnType<typeof vi.fn>).mockReturnValue({
+      '/work': {
+        dirPath: '/work',
+        items: [plan],
+        dependencies: [],
+        sequences: [{ id: 'seq-1', dirPath: '/work', title: 'Sequence', missionStatement: '', sharedMemory: '', order: 0, createdAt: 1, updatedAt: 1 }],
+      },
+    });
+    const contextManager = (service as any).contextManager;
+    contextManager.create('/work', { title: 'Plan only', type: 'Coding' });
+    contextManager.create('/work', { title: 'Sequence only', type: 'Testing' });
+    contextManager.create('/work', { title: 'Shared', type: 'Review' });
+    const contexts = contextManager.listForDirectory('/work');
+    const planOnly = contexts.find((ctx: any) => ctx.title === 'Plan only');
+    const seqOnly = contexts.find((ctx: any) => ctx.title === 'Sequence only');
+    const shared = contexts.find((ctx: any) => ctx.title === 'Shared');
+    contextManager.bind(planOnly.id, 'plan', 'plan-1');
+    contextManager.bind(seqOnly.id, 'sequence', 'seq-1');
+    contextManager.bind(shared.id, 'plan', 'plan-1');
+    contextManager.bind(shared.id, 'sequence', 'seq-1');
+
+    const result = service.listPlanContexts('P-0001');
+
+    expect(result).toEqual([
+      expect.objectContaining({ id: planOnly.id, type: 'Coding', source: 'plan' }),
+      expect.objectContaining({ id: shared.id, type: 'Review', source: 'both' }),
+      expect.objectContaining({ id: seqOnly.id, type: 'Testing', source: 'sequence' }),
+    ]);
+  });
+});
+
 describe('HelmControlService directory validation', () => {
   it('createPlan rejects unconfigured dirPath', () => {
     const { service } = makeService();

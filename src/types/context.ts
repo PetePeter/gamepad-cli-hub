@@ -26,6 +26,15 @@ export interface ContextBinding {
   createdAt: number;
 }
 
+export interface ContextRef {
+  id: string;
+  type: string;
+}
+
+export interface PlanContextRef extends ContextRef {
+  source: 'plan' | 'sequence' | 'both';
+}
+
 export interface SequenceContextMetadata {
   id: string;
   title: string;

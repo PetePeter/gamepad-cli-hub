@@ -14,6 +14,8 @@ function makeService(): HelmControlService {
     listPlans: vi.fn((dirPath: string) => [{ id: 'p1', dirPath, title: 'Task', description: 'Desc', status: 'ready' }]),
     plansSummary: vi.fn(() => [{ id: 'p1', humanId: 'P-0001', title: 'Task', status: 'ready', blockedBy: [], blocks: [] }]),
     getPlan: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'ready' })),
+    listPlanContexts: vi.fn((_planId: string) => [{ id: 'ctx-1', type: 'Testing', source: 'both' }]),
+    getPlanSequence: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Sequence', missionStatement: 'Mission', sharedMemory: 'Shared', order: 0, createdAt: 1, updatedAt: 1, memberPlanIds: ['p1'], memberHumanIds: ['P-0001'] })),
     createPlan: vi.fn((dirPath: string, title: string, description: string, type?: string) => ({ id: 'created', dirPath, title, description, status: 'ready', ...(type ? { type } : {}) })),
     updatePlan: vi.fn((id: string, updates: { title?: string; description?: string; type?: string | null }) => ({ id, dirPath: '/proj', title: updates.title ?? 'Task', description: updates.description ?? 'Desc', status: 'ready', ...(updates.type ? { type: updates.type } : {}) })),
     deletePlan: vi.fn(() => true),
@@ -21,8 +23,8 @@ function makeService(): HelmControlService {
     setPlanState: vi.fn((id: string, status: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status })),
     linkPlans: vi.fn(),
     unlinkPlans: vi.fn(),
-    listContexts: vi.fn((dirPath: string) => [{ id: 'ctx-1', dirPath, title: 'Testing Strategy', type: 'Testing', permission: 'readonly', content: 'Use vitest', x: null, y: null, createdAt: 1, updatedAt: 1, sequenceIds: ['seq-1'] }]),
-    getContext: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Testing Strategy', type: 'Testing', permission: 'readonly', content: 'Use vitest', x: null, y: null, createdAt: 1, updatedAt: 1, sequenceIds: ['seq-1'] })),
+    listContexts: vi.fn((dirPath: string) => [{ id: 'ctx-1', dirPath, title: 'Testing Strategy', type: 'Testing', permission: 'readonly', content: 'Use vitest', x: null, y: null, createdAt: 1, updatedAt: 1, sequenceIds: ['seq-1'], planIds: ['p1'] }]),
+    getContext: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Testing Strategy', type: 'Testing', permission: 'readonly', content: 'Use vitest', x: null, y: null, createdAt: 1, updatedAt: 1, sequenceIds: ['seq-1'], planIds: ['p1'] })),
     createContext: vi.fn((input: Record<string, unknown>) => ({ id: 'ctx-1', createdAt: 1, updatedAt: 1, x: null, y: null, content: '', type: 'Knowledge', permission: 'readonly', ...input })),
     updateContext: vi.fn((id: string, updates: Record<string, unknown>) => ({ id, dirPath: '/proj', title: 'Updated Context', type: 'Knowledge', permission: 'readonly', content: '', x: null, y: null, createdAt: 1, updatedAt: 2, ...updates })),
     deleteContext: vi.fn(() => true),
@@ -263,6 +265,27 @@ describe('LocalhostMcpServer', () => {
       permission: 'readonly',
     });
     expect(createJson.result.structuredContent.title).toBe('Testing Strategy');
+  });
+
+  it('dispatches effective plan context listing through the MCP surface', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 36,
+      method: 'tools/call',
+      params: {
+        name: 'plan_context_list',
+        arguments: { planId: 'P-0001' },
+      },
+    });
+    const json = await response.json();
+    expect((service.listPlanContexts as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('P-0001');
+    expect(json.result.structuredContent.items).toEqual([{ id: 'ctx-1', type: 'Testing', source: 'both' }]);
   });
 
   it('dispatches session_set_working_plan through the MCP surface', async () => {

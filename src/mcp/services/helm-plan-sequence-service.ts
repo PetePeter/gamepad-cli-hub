@@ -1,7 +1,6 @@
 import type { ConfigLoader } from '../../config/loader.js';
 import type { PlanManager, PlanRefResolution } from '../../session/plan-manager.js';
 import type { PlanItem, PlanSequence } from '../../types/plan.js';
-import type { ContextManager } from '../../session/context-manager.js';
 
 /**
  * Plan sequence (shared-memory store) operations: list, create, update,
@@ -11,7 +10,6 @@ export class HelmPlanSequenceService {
   constructor(
     private readonly planManager: PlanManager,
     private readonly configLoader: ConfigLoader,
-    private readonly contextManager?: ContextManager,
   ) {}
 
   listPlanSequences(input: { dirPath?: string; planRef?: string }): Array<PlanSequence & { memberPlanIds: string[]; memberHumanIds: string[]; selectedForPlan?: boolean }> {
@@ -28,12 +26,23 @@ export class HelmPlanSequenceService {
       const members = items.filter((item) => item.sequenceId === sequence.id);
       return {
         ...sequence,
-        ...(this.contextManager ? { contextIds: this.contextManager.getContextsForSequence(sequence.id).map((context) => context.id) } : {}),
         memberPlanIds: members.map((item) => item.id),
         memberHumanIds: members.map((item) => item.humanId ?? item.id),
         ...(plan ? { selectedForPlan: plan.sequenceId === sequence.id } : {}),
       };
     });
+  }
+
+  getPlanSequence(id: string): (PlanSequence & { memberPlanIds: string[]; memberHumanIds: string[] }) | null {
+    const sequence = this.planManager.getSequence(id);
+    if (!sequence) return null;
+    const items = this.planManager.getForDirectory(sequence.dirPath);
+    const members = items.filter((item) => item.sequenceId === sequence.id);
+    return {
+      ...sequence,
+      memberPlanIds: members.map((item) => item.id),
+      memberHumanIds: members.map((item) => item.humanId ?? item.id),
+    };
   }
 
   createPlanSequence(input: { dirPath: string; title: string; missionStatement?: string; sharedMemory?: string }): PlanSequence {

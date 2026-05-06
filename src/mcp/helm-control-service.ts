@@ -26,7 +26,7 @@ import { HelmTelegramService } from './services/helm-telegram-service.js';
 import { HelmSchedulerService } from './services/helm-scheduler-service.js';
 import type { ScheduledTaskManager } from '../session/scheduled-task-manager.js';
 import type { CreateScheduledTaskParams, ScheduledTask, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
-import type { ContextBindingTargetType, ContextNode, ContextPermission } from '../types/context.js';
+import type { ContextBindingTargetType, ContextNode, ContextPermission, PlanContextRef } from '../types/context.js';
 import { ContextManager } from '../session/context-manager.js';
 import { getSessionInfo, getAvailableTools } from './guides/session-info-guide.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
@@ -162,9 +162,9 @@ export class HelmControlService extends EventEmitter {
     super();
     this.sessionDelivery = new HelmSessionDeliveryService(sessionManager, ptyManager, configLoader);
     this.sessionService = new HelmSessionService(sessionManager, ptyManager, configLoader, planManager);
-    this.planService = new HelmPlanService(planManager, configLoader, attachmentManager, contextManager);
-    this.planSequenceService = new HelmPlanSequenceService(planManager, configLoader, contextManager);
-    this.contextService = new HelmContextService(this.contextManager, configLoader);
+    this.planService = new HelmPlanService(planManager, configLoader, attachmentManager);
+    this.planSequenceService = new HelmPlanSequenceService(planManager, configLoader);
+    this.contextService = new HelmContextService(this.contextManager, planManager, configLoader);
     this.planAttachmentService = new HelmPlanAttachmentService(planManager, attachmentManager);
     this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager);
     this.telegramService = new HelmTelegramService(configLoader, sessionManager);
@@ -195,7 +195,7 @@ export class HelmControlService extends EventEmitter {
     return this.planService.plansSummary(dirPath);
   }
 
-  getPlan(id: string): (Omit<PlanItem, 'sequenceId'> & { hasAttachments: boolean; sequenceId?: string; sequenceContextMetadata?: Array<{ id: string; title: string; type: string; permission: ContextPermission }> }) | null {
+  getPlan(id: string): (Omit<PlanItem, 'sequenceId'> & { hasAttachments: boolean; sequenceId?: string }) | null {
     return this.planService.getPlan(id);
   }
 
@@ -250,6 +250,10 @@ export class HelmControlService extends EventEmitter {
 
   listPlanSequences(input: { dirPath?: string; planRef?: string }): Array<PlanSequence & { memberPlanIds: string[]; memberHumanIds: string[]; selectedForPlan?: boolean }> {
     return this.planSequenceService.listPlanSequences(input);
+  }
+
+  getPlanSequence(id: string): (PlanSequence & { memberPlanIds: string[]; memberHumanIds: string[] }) | null {
+    return this.planSequenceService.getPlanSequence(id);
   }
 
   createPlanSequence(input: { dirPath: string; title: string; missionStatement?: string; sharedMemory?: string }): PlanSequence {
@@ -331,6 +335,10 @@ export class HelmControlService extends EventEmitter {
 
   unbindContext(id: string, targetType: ContextBindingTargetType, targetId: string): boolean {
     return this.contextService.unbindContext(id, targetType, targetId);
+  }
+
+  listPlanContexts(planRef: string): PlanContextRef[] {
+    return this.contextService.listPlanContexts(planRef);
   }
 
   // ---------------------------------------------------------------------------

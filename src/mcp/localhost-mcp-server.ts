@@ -76,7 +76,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_get',
     title: 'Get Plan',
-    description: 'Get a single plan item by UUID or P-00xx human-readable ID. Use this when you need full plan details, including human-readable ID and timestamps, before changing state, preserving existing description content, or discussing a plan with the user.',
+    description: 'Get a single plan item by UUID or P-00xx human-readable ID. Use plan_context_list when you need the effective context set for this plan.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -169,6 +169,17 @@ const TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'plan_context_list',
+    title: 'List Effective Plan Context',
+    description: 'List the effective context refs for one plan by UUID or P-00xx human-readable ID. This merges direct plan context plus inherited parent-sequence context into one deduped set, with source telling you whether each context comes from the plan, the sequence, or both. Call context_get separately for any context whose full content you need.',
+    inputSchema: {
+      type: 'object',
+      properties: { planId: { type: 'string' } },
+      required: ['planId'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'plan_nextplan_link',
     title: 'Link Next Plan',
     description: 'Link one plan item as a prerequisite for another by UUID or P-00xx human-readable ID. A plan can have many outgoing links (to many next plans) and many incoming links (from many previous plans). The source plan must complete before the target plan can start. Use this for blocking questions by linking the separate QUESTION plan to the original blocked plan.',
@@ -206,6 +217,19 @@ const TOOLS: McpTool[] = [
         dirPath: { type: 'string' },
         planId: { type: 'string' },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'plan_sequence_get',
+    title: 'Get Plan Sequence',
+    description: 'Get one sequence/shared-memory store by ID.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+      },
+      required: ['id'],
       additionalProperties: false,
     },
   },
@@ -299,7 +323,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'context_create',
     title: 'Create Context Node',
-    description: 'Create a context node in a configured directory. Context nodes can later be bound to sequences through the Helm UI.',
+    description: 'Create a context node in a configured directory. Context nodes can later be associated with plans or sequences, while agents retrieve the full content through context_get only when needed.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -337,7 +361,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'context_delete',
     title: 'Delete Context Node',
-    description: 'Delete a context node by ID and remove all of its sequence bindings.',
+    description: 'Delete a context node by ID and remove all of its plan and sequence bindings.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -350,7 +374,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'context_get',
     title: 'Get Context Node',
-    description: 'Fetch a context node by ID, including full content. Use this after inspecting plan_get sequenceContextMetadata or context_list.',
+    description: 'Fetch a context node by ID, including full content. Use this after inspecting plan_context_list or context_list.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1064,6 +1088,8 @@ export class LocalhostMcpServer {
           asString(args.id, 'id is required'),
           asString(args.documentation, 'documentation is required (minimum 10 characters)'),
         );
+      case 'plan_context_list':
+        return this.service.listPlanContexts(asString(args.planId, 'planId is required'));
       case 'plan_reopen':
         return requireResult(
           this.service.reopenPlan(asString(args.id, 'id is required')),
@@ -1086,6 +1112,11 @@ export class LocalhostMcpServer {
           ...(typeof args.dirPath === 'string' ? { dirPath: args.dirPath } : {}),
           ...(typeof args.planId === 'string' ? { planRef: args.planId } : {}),
         });
+      case 'plan_sequence_get':
+        return requireResult(
+          this.service.getPlanSequence(asString(args.id, 'id is required')),
+          `Sequence not found: ${asString(args.id, 'id is required')}`,
+        );
       case 'plan_sequence_create':
         return this.service.createPlanSequence({
           dirPath: asString(args.dirPath, 'dirPath is required'),

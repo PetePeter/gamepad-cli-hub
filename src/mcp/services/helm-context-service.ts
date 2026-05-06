@@ -1,10 +1,12 @@
 import type { ConfigLoader } from '../../config/loader.js';
 import type { ContextManager } from '../../session/context-manager.js';
-import type { ContextBindingTargetType, ContextNode, ContextPermission } from '../../types/context.js';
+import type { PlanManager, PlanRefResolution } from '../../session/plan-manager.js';
+import type { ContextBindingTargetType, ContextNode, ContextPermission, PlanContextRef } from '../../types/context.js';
 
 export class HelmContextService {
   constructor(
     private readonly contextManager: ContextManager,
+    private readonly planManager: PlanManager,
     private readonly configLoader: ConfigLoader,
   ) {}
 
@@ -76,11 +78,31 @@ export class HelmContextService {
     return this.contextManager.unbind(id, targetType, targetId);
   }
 
+  listPlanContexts(planRef: string): PlanContextRef[] {
+    const plan = this.resolvePlanRef(planRef, 'Plan')?.item ?? null;
+    if (!plan) {
+      throw new Error(`Plan not found: ${planRef}`);
+    }
+    return this.contextManager.getEffectiveContextRefsForPlan(plan.id, plan.sequenceId);
+  }
+
   private requireWorkingDirectory(dirPath: string) {
     const workingDir = this.configLoader.getWorkingDirectories().find((entry) => entry.path === dirPath);
     if (!workingDir) {
       throw new Error(`Working directory is not configured in Helm: ${dirPath}`);
     }
     return workingDir;
+  }
+
+  private resolvePlanRef(ref: string, label: string): Extract<PlanRefResolution, { status: 'found' }> | null {
+    const resolution = this.planManager.resolveItemRef(ref);
+    if (resolution.status === 'found') return resolution;
+    if (resolution.status === 'ambiguous') {
+      const matches = resolution.matches
+        .map((item) => `${item.humanId ?? item.id} (${item.id}) in ${item.dirPath}`)
+        .join(', ');
+      throw new Error(`${label} reference is ambiguous: ${ref}. Matching plans: ${matches}`);
+    }
+    return null;
   }
 }
