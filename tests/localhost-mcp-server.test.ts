@@ -171,8 +171,8 @@ describe('LocalhostMcpServer', () => {
     const attachmentGetTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_attachment_get');
     const telegramStatusTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'telegram_status');
     const telegramChatTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'telegram_chat');
-    const schedulerCreateAlias = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'scheduler:create');
-    const schedulerDeleteAlias = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'scheduler:delete');
+    const schedulerCreateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'scheduler_create');
+    const schedulerDeleteTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'scheduler_delete');
     const notifyUserTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'notify_user');
     const appVisibilityTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'get_app_visibility');
     expect(planCreateTool.description).toContain('Problem Statement');
@@ -198,8 +198,8 @@ describe('LocalhostMcpServer', () => {
     expect(attachmentGetTool.description).toContain('inline');
     expect(telegramStatusTool.description).toContain('No bot token');
     expect(telegramChatTool!.description).toContain('mobile-friendly');
-    expect(schedulerCreateAlias!.description).toContain('scheduled_task_create');
-    expect(schedulerDeleteAlias!.description).toContain('Delete');
+    expect(schedulerCreateTool!.description).toContain('scheduled task');
+    expect(schedulerDeleteTool!.description).toContain('Delete');
     expect(notifyUserTool!.description).toContain('notificationMode=llm');
     expect(appVisibilityTool!.description).toContain('screen-lock');
   });
@@ -567,7 +567,7 @@ describe('LocalhostMcpServer', () => {
     expect(visibilityJson.result.structuredContent).toMatchObject({ visibility: 'visible-focused', activeSessionId: 's1' });
   });
 
-  it('dispatches scheduler alias tools through the MCP surface', async () => {
+  it('dispatches scheduler tools through the MCP surface', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);
@@ -579,7 +579,7 @@ describe('LocalhostMcpServer', () => {
       id: 81,
       method: 'tools/call',
       params: {
-        name: 'scheduler:create',
+        name: 'scheduler_create',
         arguments: {
           title: 'Follow up',
           initialPrompt: 'check status',
@@ -599,7 +599,7 @@ describe('LocalhostMcpServer', () => {
       id: 811,
       method: 'tools/call',
       params: {
-        name: 'scheduled_task_create',
+        name: 'scheduler_create',
         arguments: {
           title: 'Weekday report',
           initialPrompt: 'report',
@@ -622,7 +622,7 @@ describe('LocalhostMcpServer', () => {
       jsonrpc: '2.0',
       id: 82,
       method: 'tools/call',
-      params: { name: 'scheduler:list', arguments: {} },
+      params: { name: 'scheduler_list', arguments: {} },
     });
     expect((service.listScheduledTasks as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalled();
 
@@ -630,7 +630,7 @@ describe('LocalhostMcpServer', () => {
       jsonrpc: '2.0',
       id: 83,
       method: 'tools/call',
-      params: { name: 'scheduler:update', arguments: { id: 'task-1', title: 'Updated' } },
+      params: { name: 'scheduler_update', arguments: { id: 'task-1', title: 'Updated' } },
     });
     expect((service.updateScheduledTask as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('task-1', { title: 'Updated' });
 
@@ -638,7 +638,7 @@ describe('LocalhostMcpServer', () => {
       jsonrpc: '2.0',
       id: 84,
       method: 'tools/call',
-      params: { name: 'scheduler:delete', arguments: { id: 'task-1' } },
+      params: { name: 'scheduler_delete', arguments: { id: 'task-1' } },
     });
     expect((service.deleteScheduledTask as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('task-1');
   });

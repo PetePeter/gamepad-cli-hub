@@ -208,8 +208,8 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'plan_sequence_list',
-    title: 'List Plan Sequences',
+    name: 'sequence_list',
+    title: 'List Sequences',
     description: 'List sequence/shared-memory stores for a directory, or for a specific plan by UUID/P-id. Returned sharedMemory is the common memory for all member plans; use expectedUpdatedAt on writes to avoid concurrent overwrite.',
     inputSchema: {
       type: 'object',
@@ -221,8 +221,8 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'plan_sequence_get',
-    title: 'Get Plan Sequence',
+    name: 'sequence_get',
+    title: 'Get Sequence',
     description: 'Get one sequence/shared-memory store by ID.',
     inputSchema: {
       type: 'object',
@@ -234,9 +234,9 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'plan_sequence_create',
-    title: 'Create Plan Sequence',
-    description: 'Create a first-class sequence/shared-memory store in a directory. Plans can be assigned to it with plan_sequence_assign.',
+    name: 'sequence_create',
+    title: 'Create Sequence',
+    description: 'Create a first-class sequence/shared-memory store in a directory. Plans can be assigned to it with sequence_assign.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -250,9 +250,9 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'plan_sequence_update',
-    title: 'Update Plan Sequence',
-    description: 'Update sequence title, mission, sharedMemory, or order. Pass expectedUpdatedAt from plan_sequence_list/get-style responses for mutex-style protection against concurrent LLM writes.',
+    name: 'sequence_update',
+    title: 'Update Sequence',
+    description: 'Update sequence title, mission, sharedMemory, or order. Pass expectedUpdatedAt from sequence_list/get-style responses for mutex-style protection against concurrent LLM writes.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -268,7 +268,7 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'plan_sequence_memory_append',
+    name: 'sequence_memory_append',
     title: 'Append Sequence Memory',
     description: 'Append text to a sequence sharedMemory store. Pass expectedUpdatedAt from the last read to make the append mutexable and fail on concurrent changes.',
     inputSchema: {
@@ -283,8 +283,8 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'plan_sequence_delete',
-    title: 'Delete Plan Sequence',
+    name: 'sequence_delete',
+    title: 'Delete Sequence',
     description: 'Delete a sequence/shared-memory store and clear sequence membership from its member plans.',
     inputSchema: {
       type: 'object',
@@ -294,8 +294,8 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'plan_sequence_assign',
-    title: 'Assign Plan Sequence',
+    name: 'sequence_assign',
+    title: 'Assign Sequence',
     description: 'Assign a plan by UUID/P-id to a sequence in the same directory, or pass null sequenceId to unlink the plan from its sequence without deleting the sequence.',
     inputSchema: {
       type: 'object',
@@ -695,8 +695,8 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'scheduled_task_create',
-    title: 'Create Scheduled Task',
+    name: 'scheduler_create',
+    title: 'Create Scheduler Entry',
     description: 'Create a new scheduled task. The task will spawn a CLI session at the specified time with the given prompt. Use scheduleKind "once", "interval" (min 1 minute interval), or "cron" with a cronExpression. scheduledTime is an ISO 8601 date string.',
     inputSchema: {
       type: 'object',
@@ -720,8 +720,8 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'scheduled_task_list',
-    title: 'List Scheduled Tasks',
+    name: 'scheduler_list',
+    title: 'List Scheduler Entries',
     description: 'List all scheduled tasks.',
     inputSchema: {
       type: 'object',
@@ -730,8 +730,8 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'scheduled_task_get',
-    title: 'Get Scheduled Task',
+    name: 'scheduler_get',
+    title: 'Get Scheduler Entry',
     description: 'Get a scheduled task by ID.',
     inputSchema: {
       type: 'object',
@@ -743,8 +743,8 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'scheduled_task_update',
-    title: 'Update Scheduled Task',
+    name: 'scheduler_update',
+    title: 'Update Scheduler Entry',
     description: 'Update a pending scheduled task. Only pending tasks can be updated. scheduledTime is an ISO 8601 date string.',
     inputSchema: {
       type: 'object',
@@ -769,8 +769,8 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'scheduled_task_cancel',
-    title: 'Cancel Scheduled Task',
+    name: 'scheduler_cancel',
+    title: 'Cancel Scheduler Entry',
     description: 'Cancel a pending scheduled task. Only pending tasks can be cancelled.',
     inputSchema: {
       type: 'object',
@@ -782,75 +782,7 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'scheduler:create',
-    title: 'Create Scheduler Entry',
-    description: 'Alias for scheduled_task_create. Create a one-shot, interval, or cron scheduled task.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        title: { type: 'string', description: 'Task title' },
-        description: { type: 'string', description: 'Optional task description' },
-        initialPrompt: { type: 'string', description: 'Prompt to send to the CLI session' },
-        cliType: { type: 'string', description: 'CLI type to spawn (e.g. claude-code)' },
-        dirPath: { type: 'string', description: 'Working directory for the session' },
-        scheduledTime: { type: 'string', description: 'ISO 8601 datetime for first execution' },
-        scheduleKind: { type: 'string', enum: ['once', 'interval', 'cron'], description: 'once, interval, or cron (default: once)' },
-        intervalMs: { type: 'number', description: 'Interval in ms for recurring tasks (min 60000)' },
-        cronExpression: { type: 'string', description: 'Cron expression for cron schedules, e.g. 0 9 * * 1-5' },
-        endDate: { type: 'string', description: 'Optional ISO 8601 end date for cron schedules' },
-        planIds: { type: 'array', items: { type: 'string' }, description: 'Associated plan IDs' },
-        mode: { type: 'string', enum: ['spawn', 'direct'], description: 'spawn new session or send to existing (default: spawn)' },
-        targetSessionId: { type: 'string', description: 'Session ID for direct mode' },
-      },
-      required: ['title', 'initialPrompt', 'cliType', 'dirPath', 'scheduledTime'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'scheduler:list',
-    title: 'List Scheduler Entries',
-    description: 'Alias for scheduled_task_list. List all scheduled tasks.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-  },
-  {
-    name: 'scheduler:get',
-    title: 'Get Scheduler Entry',
-    description: 'Alias for scheduled_task_get. Get a scheduled task by ID.',
-    inputSchema: {
-      type: 'object',
-      properties: { id: { type: 'string', description: 'Task ID' } },
-      required: ['id'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'scheduler:update',
-    title: 'Update Scheduler Entry',
-    description: 'Alias for scheduled_task_update. Update a pending scheduled task.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Task ID' },
-        title: { type: 'string' },
-        description: { type: 'string' },
-        initialPrompt: { type: 'string' },
-        cliType: { type: 'string' },
-        dirPath: { type: 'string' },
-        scheduledTime: { type: 'string', description: 'ISO 8601 datetime' },
-        scheduleKind: { type: 'string', enum: ['once', 'interval', 'cron'] },
-        intervalMs: { type: 'number' },
-        cronExpression: { type: 'string' },
-        endDate: { type: 'string' },
-        planIds: { type: 'array', items: { type: 'string' } },
-        mode: { type: 'string', enum: ['spawn', 'direct'] },
-        targetSessionId: { type: 'string' },
-      },
-      required: ['id'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'scheduler:delete',
+    name: 'scheduler_delete',
     title: 'Delete Scheduler Entry',
     description: 'Delete a scheduled task and cancel its pending run.',
     inputSchema: {
@@ -1107,24 +1039,24 @@ export class LocalhostMcpServer {
           asString(args.toId, 'toId is required'),
         );
         return { unlinked: true };
-      case 'plan_sequence_list':
+      case 'sequence_list':
         return this.service.listPlanSequences({
           ...(typeof args.dirPath === 'string' ? { dirPath: args.dirPath } : {}),
           ...(typeof args.planId === 'string' ? { planRef: args.planId } : {}),
         });
-      case 'plan_sequence_get':
+      case 'sequence_get':
         return requireResult(
           this.service.getPlanSequence(asString(args.id, 'id is required')),
           `Sequence not found: ${asString(args.id, 'id is required')}`,
         );
-      case 'plan_sequence_create':
+      case 'sequence_create':
         return this.service.createPlanSequence({
           dirPath: asString(args.dirPath, 'dirPath is required'),
           title: asString(args.title, 'title is required'),
           ...(typeof args.missionStatement === 'string' ? { missionStatement: args.missionStatement } : {}),
           ...(typeof args.sharedMemory === 'string' ? { sharedMemory: args.sharedMemory } : {}),
         });
-      case 'plan_sequence_update':
+      case 'sequence_update':
         return this.service.updatePlanSequence(
           asString(args.id, 'id is required'),
           {
@@ -1135,20 +1067,20 @@ export class LocalhostMcpServer {
             ...(typeof args.expectedUpdatedAt === 'number' ? { expectedUpdatedAt: args.expectedUpdatedAt } : {}),
           },
         );
-      case 'plan_sequence_memory_append':
+      case 'sequence_memory_append':
         return this.service.appendPlanSequenceMemory(
           asString(args.id, 'id is required'),
           asString(args.text, 'text is required'),
           typeof args.expectedUpdatedAt === 'number' ? args.expectedUpdatedAt : undefined,
         );
-      case 'plan_sequence_delete':
+      case 'sequence_delete':
         return {
           deleted: requireBooleanResult(
             this.service.deletePlanSequence(asString(args.id, 'id is required')),
             `Sequence not found: ${asString(args.id, 'id is required')}`,
           ),
         };
-      case 'plan_sequence_assign':
+      case 'sequence_assign':
         return this.service.assignPlanSequence(
           asString(args.planId, 'planId is required'),
           args.sequenceId === null ? null : asString(args.sequenceId, 'sequenceId is required or null'),
@@ -1316,8 +1248,7 @@ export class LocalhostMcpServer {
       }
       case 'telegram_channel_close':
         return this.service.closeTelegramChannel(asString(args.channelId, 'channelId is required'));
-      case 'scheduled_task_create':
-      case 'scheduler:create': {
+      case 'scheduler_create': {
         const planIds = (args.planIds as string[] | undefined) ?? [];
         return this.service.createScheduledTask({
           title: asString(args.title, 'title is required'),
@@ -1335,23 +1266,20 @@ export class LocalhostMcpServer {
           targetSessionId: args.targetSessionId as string | undefined,
         });
       }
-      case 'scheduled_task_list':
-      case 'scheduler:list':
+      case 'scheduler_list':
         return this.service.listScheduledTasks();
-      case 'scheduled_task_get':
-      case 'scheduler:get':
+      case 'scheduler_get':
         return this.service.getScheduledTask(asString(args.id, 'id is required'));
-      case 'scheduled_task_update':
-      case 'scheduler:update': {
+      case 'scheduler_update': {
         const id = asString(args.id, 'id is required');
         const updates: Record<string, unknown> = { ...args };
         delete updates.id;
         if (typeof updates.planIds === 'undefined') delete updates.planIds;
         return this.service.updateScheduledTask(id, updates as Parameters<typeof this.service.updateScheduledTask>[1]);
       }
-      case 'scheduled_task_cancel':
+      case 'scheduler_cancel':
         return this.service.cancelScheduledTask(asString(args.id, 'id is required'));
-      case 'scheduler:delete':
+      case 'scheduler_delete':
         return this.service.deleteScheduledTask(asString(args.id, 'id is required'));
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -1510,7 +1438,7 @@ function getToolReminder(name: string): string {
   if (name === 'plan_set_state') {
     return 'Reminder: ownership is explicit. Use session_set_working_plan after claiming work so Helm shows the session as working on this plan.';
   }
-  if (name === 'plan_sequence_list' || name === 'plan_sequence_update' || name === 'plan_sequence_memory_append') {
+  if (name === 'sequence_list' || name === 'sequence_update' || name === 'sequence_memory_append') {
     return 'Reminder: sequence.sharedMemory is shared by every plan in that sequence. Re-read the sequence and pass expectedUpdatedAt when updating or appending to avoid overwriting another LLM.';
   }
   return '';
