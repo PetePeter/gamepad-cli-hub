@@ -90,6 +90,9 @@ watch(() => props.visible, async (v) => {
     centerEditorPopup();
   } else {
     modalStack.pop(MODAL_ID);
+    text.value = '';
+    selectedHistory.value = null;
+    focusTarget.value = 'textarea';
     if (autoSaveTimer) {
       clearTimeout(autoSaveTimer);
       autoSaveTimer = null;
@@ -182,6 +185,7 @@ async function loadEditorDraft(): Promise<void> {
       lastSentDraft.value = draft.text;
     } else {
       currentDraftId.value = null;
+      text.value = '';
       lastSentDraft.value = '';
     }
   } catch (err) {

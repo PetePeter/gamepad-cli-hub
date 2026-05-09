@@ -880,7 +880,7 @@ function onContextMenuAction(action: string): void {
 
 // Settings
 function onOpenLogsFolder(): void {
-  window.gamepadCli?.openLogsFolder();
+  void window.gamepadCli?.systemOpenLogsFolder();
 }
 
 async function loadSettingsData(): Promise<void> {

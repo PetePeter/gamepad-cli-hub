@@ -1056,6 +1056,11 @@ button {
   transform: scale(0.98);
 }
 
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .btn--primary {
   background: var(--accent);
   color: white;

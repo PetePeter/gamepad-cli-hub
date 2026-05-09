@@ -1708,4 +1708,21 @@ describe('EditorPopup.vue', () => {
     vi.useRealTimers();
     w.unmount();
   });
+
+  it('reopens blank after sent content when no draft remains', async () => {
+    const w = factory({ initialText: 'send me' });
+    await flushPromises();
+
+    await w.find('.btn--primary').trigger('click');
+    await flushPromises();
+
+    await w.setProps({ visible: false });
+    await flushPromises();
+    await w.setProps({ visible: true, initialText: '' });
+    await flushPromises();
+
+    const textarea = w.find('textarea');
+    expect((textarea.element as HTMLTextAreaElement).value).toBe('');
+    w.unmount();
+  });
 });
