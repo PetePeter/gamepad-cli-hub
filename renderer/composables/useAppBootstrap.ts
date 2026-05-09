@@ -63,11 +63,15 @@ function getSessionActivity(sessionId: string): string {
   return state.sessionActivityLevels.get(sessionId) ?? 'idle';
 }
 
+function getPersistedSessionCwd(sessionId: string): string {
+  return state.sessions.find(session => session.id === sessionId)?.workingDir || '';
+}
+
 function getSessionCwd(sessionId: string): string {
   const tm = getTerminalManager();
   const terminalSession = tm?.getSession(sessionId);
   if (terminalSession?.cwd) return terminalSession.cwd;
-  return state.sessions.find(session => session.id === sessionId)?.workingDir || '';
+  return getPersistedSessionCwd(sessionId);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -199,35 +203,43 @@ async function refreshPlanCounts(): Promise<void> {
   state.planDirReviewCounts.clear();
   state.planDirPlanningCounts.clear();
 
-  const tm = getTerminalManager();
+  const countedDirs = new Map<string, number>();
 
-  if (tm) {
-    for (const id of tm.getSessionIds()) {
-      const cwd = getSessionCwd(id);
-      if (!cwd) continue;
+  for (const session of state.sessions) {
+    const cwd = getSessionCwd(session.id) || getPersistedSessionCwd(session.id);
+    if (!cwd) continue;
 
+    let startableCount = countedDirs.get(cwd);
+    if (startableCount === undefined) {
       try {
-        const startable = await window.gamepadCli.planStartableForDir(cwd);
-        if (startable.length > 0) state.planStartableCounts.set(id, startable.length);
-      } catch { /* ignore */ }
+        startableCount = (await window.gamepadCli.planStartableForDir(cwd)).length;
+      } catch {
+        startableCount = 0;
+      }
+      countedDirs.set(cwd, startableCount);
+    }
+    if (startableCount > 0) {
+      state.planStartableCounts.set(session.id, startableCount);
+    }
 
-      try {
-        const doing = await window.gamepadCli.planDoingForSession(id);
-        if (doing.length > 0) state.planCodingCounts.set(id, doing.length);
-        const session = state.sessions.find((entry) => entry.id === id);
-        const plan = session?.currentPlanId
-          ? (doing.find((entry) => entry.id === session.currentPlanId) ?? doing[0])
-          : doing[0];
-        if (plan) {
-          const prefix = plan.status === 'blocked' ? '⛔' : plan.status === 'review' ? '⏳' : '🗺️';
-          const planRef = plan.humanId ? `${plan.humanId} · ${plan.title}` : plan.title;
-          state.workingPlanLabels.set(id, `${prefix} ${planRef}`);
-          state.workingPlanTooltips.set(id, plan.stateInfo ? `${planRef}\n${plan.stateInfo}` : planRef);
-        } else {
-          state.workingPlanLabels.delete(id);
-          state.workingPlanTooltips.delete(id);
-        }
-      } catch { /* ignore */ }
+    try {
+      const doing = await window.gamepadCli.planDoingForSession(session.id);
+      if (doing.length > 0) state.planCodingCounts.set(session.id, doing.length);
+      const plan = session.currentPlanId
+        ? (doing.find((entry) => entry.id === session.currentPlanId) ?? doing[0])
+        : doing[0];
+      if (plan) {
+        const prefix = plan.status === 'blocked' ? '⛔' : plan.status === 'review' ? '⏳' : '🗺️';
+        const planRef = plan.humanId ? `${plan.humanId} · ${plan.title}` : plan.title;
+        state.workingPlanLabels.set(session.id, `${prefix} ${planRef}`);
+        state.workingPlanTooltips.set(session.id, plan.stateInfo ? `${planRef}\n${plan.stateInfo}` : planRef);
+      } else {
+        state.workingPlanLabels.delete(session.id);
+        state.workingPlanTooltips.delete(session.id);
+      }
+    } catch {
+      state.workingPlanLabels.delete(session.id);
+      state.workingPlanTooltips.delete(session.id);
     }
   }
 

@@ -30,6 +30,21 @@ const ACTIVITY_PRIORITY: Record<string, number> = {
   active: 3,
 };
 
+function compareText(a: string | undefined, b: string | undefined): number {
+  return (a || '').localeCompare(b || '');
+}
+
+function compareSessionTieBreakers(
+  a: Session,
+  b: Session,
+  getSessionDirectory: (id: string) => string,
+): number {
+  return compareText(a.name, b.name)
+    || compareText(a.cliType, b.cliType)
+    || compareText(getSessionDirectory(a.id), getSessionDirectory(b.id))
+    || a.id.localeCompare(b.id);
+}
+
 /**
  * Sort sessions by a given field and direction.
  * Returns a new sorted array (does not mutate input).
@@ -52,22 +67,28 @@ export function sortSessions(
         const stateA = STATE_PRIORITY[getSessionState(a.id)] ?? 3;
         const stateB = STATE_PRIORITY[getSessionState(b.id)] ?? 3;
         cmp = stateA - stateB;
+        if (cmp === 0) cmp = compareSessionTieBreakers(a, b, getSessionDirectory);
         break;
       }
       case 'activity': {
         const actA = ACTIVITY_PRIORITY[getSessionActivity?.(a.id) ?? 'idle'] ?? 1;
         const actB = ACTIVITY_PRIORITY[getSessionActivity?.(b.id) ?? 'idle'] ?? 1;
         cmp = actA - actB;
+        if (cmp === 0) cmp = compareSessionTieBreakers(a, b, getSessionDirectory);
         break;
       }
       case 'cliType':
-        cmp = (a.cliType || '').localeCompare(b.cliType || '');
+        cmp = compareText(a.cliType, b.cliType);
+        if (cmp === 0) cmp = compareSessionTieBreakers(a, b, getSessionDirectory);
         break;
-      case 'directory':
-        cmp = getSessionDirectory(a.id).localeCompare(getSessionDirectory(b.id));
+      case 'directory': {
+        cmp = compareText(getSessionDirectory(a.id), getSessionDirectory(b.id));
+        if (cmp === 0) cmp = compareSessionTieBreakers(a, b, getSessionDirectory);
         break;
+      }
       case 'name':
-        cmp = (a.name || '').localeCompare(b.name || '');
+        cmp = compareText(a.name, b.name);
+        if (cmp === 0) cmp = compareSessionTieBreakers(a, b, getSessionDirectory);
         break;
     }
     return cmp * dir;

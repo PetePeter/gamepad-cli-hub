@@ -674,8 +674,7 @@ button {
 
 /* State icon — removed, state shown via dropdown button only */
 
-.session-card .session-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-.session-card .session-name:hover { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 2px; }
+.session-card .session-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: inherit; }
 .session-card .session-meta { font-size: 11px; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Pending schedule chip */

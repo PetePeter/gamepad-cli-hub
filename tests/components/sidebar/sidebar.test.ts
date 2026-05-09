@@ -131,6 +131,13 @@ describe('SessionCard', () => {
     expect(w.emitted('rename')).toEqual([['s1']]);
   });
 
+  it('clicking the session name selects the row instead of opening rename', async () => {
+    const w = mount(SessionCard, { props: makeCardProps() });
+    await w.find('.session-name').trigger('click');
+    expect(w.emitted('click')).toEqual([['s1']]);
+    expect(w.emitted('rename')).toBeUndefined();
+  });
+
   it('emits close on close button click', async () => {
     const w = mount(SessionCard, { props: makeCardProps() });
     await w.find('.session-close').trigger('click');

@@ -164,4 +164,23 @@ describe('useAppBootstrap restoreSnappedBackSession', () => {
     expect(mockAdoptTerminal).not.toHaveBeenCalled();
     expect(mockSwitchTo).toHaveBeenCalledWith('sess-1');
   });
+
+  it('keeps snapped-out persisted sessions in the sidebar refresh even without a local terminal', async () => {
+    (globalThis as typeof globalThis & { window: any }).window.gamepadCli.sessionGetAll.mockResolvedValue([
+      {
+        id: 'snap-1',
+        name: 'Snapped Session',
+        cliType: 'claude-code',
+        processId: 321,
+        workingDir: 'X:\\coding\\gamepad-cli-hub',
+        windowId: 777,
+      },
+    ]);
+
+    const mod = await import('../renderer/composables/useAppBootstrap.js');
+    await mod.refreshSessions();
+
+    expect(state.sessions.map((s) => s.id)).toEqual(['snap-1']);
+    expect(state.snappedOutSessions.has('snap-1')).toBe(true);
+  });
 });

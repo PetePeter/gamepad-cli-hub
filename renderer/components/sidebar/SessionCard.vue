@@ -233,7 +233,7 @@ function onCardClick(e: MouseEvent): void {
         <button class="session-rename-cancel" title="Cancel (Escape)" @click.stop="emit('cancelRename')">×</button>
       </template>
       <template v-else>
-        <span class="session-name" @click.stop="emit('rename', session.id)">{{ displayName }}</span>
+        <span class="session-name">{{ displayName }}</span>
         <span
           v-if="workingPlanLabel"
           class="session-working-plan"

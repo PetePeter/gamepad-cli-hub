@@ -201,6 +201,21 @@ describe('sortSessions', () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('only');
   });
+
+  it('breaks ties deterministically by name, cliType, directory, then id', () => {
+    const sessions = [
+      makeSession({ id: 'b', name: 'Same', cliType: 'claude-code' }),
+      makeSession({ id: 'a', name: 'Same', cliType: 'claude-code' }),
+      makeSession({ id: 'c', name: 'Same', cliType: 'copilot-cli' }),
+    ];
+    const getDir = (id: string): string => id === 'c' ? '/workspace/b' : '/workspace/a';
+
+    const byState = sortSessions(sessions, 'state', 'asc', noopState, getDir);
+    expect(byState.map((session) => session.id)).toEqual(['a', 'b', 'c']);
+
+    const byName = sortSessions(sessions, 'name', 'asc', noopState, getDir);
+    expect(byName.map((session) => session.id)).toEqual(['a', 'b', 'c']);
+  });
 });
 
 // ============================================================================
