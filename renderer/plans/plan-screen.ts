@@ -60,6 +60,7 @@ let draftEditorVisibilityChecker: (() => boolean) | null = null;
 let planChangesChecker: (() => boolean) | null = null;
 let backupRestoreOpener: (() => void) | null = null;
 let noticeTimer: ReturnType<typeof setTimeout> | null = null;
+let latestPlanDataLoadToken = 0;
 
 const PLAN_SCREEN_KEY_HANDLER_KEY = Symbol.for('helm.planScreen.keyHandler');
 
@@ -254,17 +255,19 @@ function syncSelection(): void {
 }
 
 async function loadPlanData(dirPath: string, context?: ViewMountContext, options?: SetPlanDataOptions): Promise<void> {
+  const loadToken = ++latestPlanDataLoadToken;
   const [items, deps, sequences, contexts] = await Promise.all([
     window.gamepadCli.planList(dirPath),
     window.gamepadCli.planDeps(dirPath),
     window.gamepadCli.planSequenceList?.(dirPath) ?? Promise.resolve([]),
     window.gamepadCli.planContextList?.(dirPath) ?? Promise.resolve([]),
   ]);
-  if (context && !context.isActive()) return;
+  if ((context && !context.isActive()) || loadToken !== latestPlanDataLoadToken) return;
   setPlanData(items, deps, sequences, contexts, options);
   if (items.length > 0) {
-    const planIds = items.map((item) => item.id);
-    planScreenState.attachmentHasAny = await window.gamepadCli.planAttachmentHasAny(planIds);
+    const attachmentHasAny = await window.gamepadCli.planAttachmentHasAny(items.map((item) => item.id));
+    if ((context && !context.isActive()) || loadToken !== latestPlanDataLoadToken) return;
+    planScreenState.attachmentHasAny = attachmentHasAny;
     refreshLayout();
   } else {
     planScreenState.attachmentHasAny = {};
