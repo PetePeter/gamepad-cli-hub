@@ -497,6 +497,31 @@ describe('plan screen bridge', () => {
     expect(mockPlanSetState).toHaveBeenCalledWith('a', 'planning', undefined, undefined);
   });
 
+  it('loads and saves attachment filters without dropping them back to defaults', async () => {
+    const mod = await getModule();
+    const item = planItem('a');
+    const configGetPlanFilters = vi.fn().mockResolvedValue({
+      types: { bug: true, feature: false, research: true, untyped: true },
+      statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: false },
+      hasAttachment: { yes: false, no: true },
+    });
+    const configSetPlanFilters = vi.fn().mockResolvedValue(undefined);
+    (window as any).gamepadCli.configGetPlanFilters = configGetPlanFilters;
+    (window as any).gamepadCli.configSetPlanFilters = configSetPlanFilters;
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+
+    await mod.showPlanScreen('/test/dir');
+
+    expect(mod.planScreenState.filters.hasAttachment).toEqual({ yes: false, no: true });
+
+    mod.toggleHasAttachmentFilter('yes');
+    expect(configSetPlanFilters).toHaveBeenCalledWith(expect.objectContaining({
+      hasAttachment: { yes: true, no: true },
+    }));
+  });
+
   it('saves plan edits through the editor callback', async () => {
     const mod = await getModule();
     const opener = vi.fn();

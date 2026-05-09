@@ -33,6 +33,7 @@ const syntaxHelpExpanded = ref(false);
 const syntaxHelpText = getSequenceSyntaxHelpText();
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const manualHeight = ref<number | null>(null);
+let activeResizePointerId: number | null = null;
 let resizeStartY = 0;
 let resizeStartHeight = 0;
 
@@ -82,24 +83,30 @@ function clampHeight(height: number): number {
 }
 
 function onResizeMove(event: PointerEvent): void {
+  if (activeResizePointerId !== null && event.pointerId !== activeResizePointerId) return;
   manualHeight.value = clampHeight(resizeStartHeight + event.clientY - resizeStartY);
   autosize();
 }
 
 function stopResize(): void {
+  activeResizePointerId = null;
   window.removeEventListener('pointermove', onResizeMove);
   window.removeEventListener('pointerup', stopResize);
+  window.removeEventListener('pointercancel', stopResize);
 }
 
 function startResize(event: PointerEvent): void {
   const el = textareaRef.value;
   if (!el) return;
   event.preventDefault();
+  activeResizePointerId = event.pointerId;
   resizeStartY = event.clientY;
   resizeStartHeight = el.getBoundingClientRect().height;
   manualHeight.value = resizeStartHeight;
+  (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
   window.addEventListener('pointermove', onResizeMove);
   window.addEventListener('pointerup', stopResize, { once: true });
+  window.addEventListener('pointercancel', stopResize, { once: true });
 }
 
 function focus(): void {

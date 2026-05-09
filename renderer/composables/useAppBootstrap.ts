@@ -35,6 +35,7 @@ import {
 } from '../screens/group-overview.js';
 import {
   setPlanScreenFitCallback, setPlanScreenCloseCallback, setPlanScreenOpenCallback,
+  refreshCanvasIfVisible,
 } from '../plans/plan-screen.js';
 
 import { refreshPlanBadges } from '../screens/sessions-plans.js';
@@ -483,6 +484,7 @@ function setupIpcListeners(): void {
     window.gamepadCli.onPlanChanged((dirPath: string) => {
       const chipBarStore = useChipBarStore();
       void refreshSessions();  // Calls refreshPlanCounts() internally
+      void refreshCanvasIfVisible();
       const activeSessionId = state.activeSessionId;
       if (activeSessionId && getSessionCwd(activeSessionId) === dirPath) {
         void chipBarStore.refresh(activeSessionId);

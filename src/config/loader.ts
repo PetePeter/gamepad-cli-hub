@@ -978,15 +978,40 @@ export class ConfigLoader {
 
   getPlanFilters(): PlanFilterConfig {
     this.ensureLoaded();
-    if (this.settings!.planFilters) {
-      return { ...this.settings!.planFilters };
-    }
-    return { ...DEFAULT_PLAN_FILTERS };
+    const saved = this.settings!.planFilters;
+    return {
+      types: {
+        ...DEFAULT_PLAN_FILTERS.types,
+        ...(saved?.types ?? {}),
+      },
+      statuses: {
+        ...DEFAULT_PLAN_FILTERS.statuses,
+        ...(saved?.statuses ?? {}),
+      },
+      hasAttachment: {
+        ...DEFAULT_PLAN_FILTERS.hasAttachment,
+        ...(saved?.hasAttachment ?? {}),
+      },
+    };
   }
 
   setPlanFilters(filters: Partial<PlanFilterConfig>): void {
     this.ensureLoaded();
-    this.settings!.planFilters = { ...this.getPlanFilters(), ...filters };
+    const current = this.getPlanFilters();
+    this.settings!.planFilters = {
+      types: {
+        ...current.types,
+        ...(filters.types ?? {}),
+      },
+      statuses: {
+        ...current.statuses,
+        ...(filters.statuses ?? {}),
+      },
+      hasAttachment: {
+        ...current.hasAttachment,
+        ...(filters.hasAttachment ?? {}),
+      },
+    };
     this.saveSettings();
   }
 

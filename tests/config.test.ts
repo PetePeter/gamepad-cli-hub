@@ -241,6 +241,25 @@ describe('ConfigLoader', () => {
     });
   });
 
+  describe('plan filters', () => {
+    it('deep-merges partial plan filter updates without resetting sibling fields', () => {
+      loader.load();
+      loader.setPlanFilters({
+        types: { feature: false },
+        hasAttachment: { no: false },
+      });
+      loader.setPlanFilters({
+        statuses: { done: false },
+      });
+
+      expect(loader.getPlanFilters()).toEqual({
+        types: { bug: true, feature: false, research: true, untyped: true },
+        statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: false },
+        hasAttachment: { yes: true, no: false },
+      });
+    });
+  });
+
   // =========================================================================
   // setBinding (backward compatible)
   // =========================================================================
