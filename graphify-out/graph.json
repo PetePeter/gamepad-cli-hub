@@ -6375,7 +6375,7 @@
       "label": "mapSession()",
       "file_type": "code",
       "source_file": "renderer\\App.vue",
-      "source_location": "L388",
+      "source_location": "L380",
       "id": "renderer_app_mapsession",
       "community": 57,
       "norm_label": "mapsession()"
@@ -6384,7 +6384,7 @@
       "label": "if()",
       "file_type": "code",
       "source_file": "renderer\\App.vue",
-      "source_location": "L506",
+      "source_location": "L498",
       "id": "renderer_app_if",
       "community": 57,
       "norm_label": "if()"
@@ -6393,7 +6393,7 @@
       "label": "handlePlanScreenDpad()",
       "file_type": "code",
       "source_file": "renderer\\App.vue",
-      "source_location": "L528",
+      "source_location": "L520",
       "id": "renderer_app_handleplanscreendpad",
       "community": 57,
       "norm_label": "handleplanscreendpad()"
@@ -6402,7 +6402,7 @@
       "label": "onTerminalSwitch()",
       "file_type": "code",
       "source_file": "renderer\\App.vue",
-      "source_location": "L2110",
+      "source_location": "L2093",
       "id": "renderer_app_onterminalswitch",
       "community": 57,
       "norm_label": "onterminalswitch()"
@@ -6411,7 +6411,7 @@
       "label": "onTerminalEmpty()",
       "file_type": "code",
       "source_file": "renderer\\App.vue",
-      "source_location": "L2114",
+      "source_location": "L2097",
       "id": "renderer_app_onterminalempty",
       "community": 57,
       "norm_label": "onterminalempty()"
@@ -6420,7 +6420,7 @@
       "label": "onTerminalTitleChange()",
       "file_type": "code",
       "source_file": "renderer\\App.vue",
-      "source_location": "L2118",
+      "source_location": "L2101",
       "id": "renderer_app_onterminaltitlechange",
       "community": 57,
       "norm_label": "onterminaltitlechange()"
@@ -12351,7 +12351,7 @@
       "label": "setDraftEditorOpener()",
       "file_type": "code",
       "source_file": "renderer\\stores\\chip-bar.ts",
-      "source_location": "L14",
+      "source_location": "L13",
       "id": "stores_chip_bar_setdrafteditoropener",
       "community": 7,
       "norm_label": "setdrafteditoropener()"
@@ -12360,7 +12360,7 @@
       "label": "setPlanEditorOpener()",
       "file_type": "code",
       "source_file": "renderer\\stores\\chip-bar.ts",
-      "source_location": "L17",
+      "source_location": "L16",
       "id": "stores_chip_bar_setplaneditoropener",
       "community": 7,
       "norm_label": "setplaneditoropener()"
@@ -12369,7 +12369,7 @@
       "label": "loadDrafts()",
       "file_type": "code",
       "source_file": "renderer\\stores\\chip-bar.ts",
-      "source_location": "L116",
+      "source_location": "L100",
       "id": "stores_chip_bar_loaddrafts",
       "community": 7,
       "norm_label": "loaddrafts()"
@@ -12378,7 +12378,7 @@
       "label": "loadPlans()",
       "file_type": "code",
       "source_file": "renderer\\stores\\chip-bar.ts",
-      "source_location": "L118",
+      "source_location": "L102",
       "id": "stores_chip_bar_loadplans",
       "community": 7,
       "norm_label": "loadplans()"
@@ -12387,7 +12387,7 @@
       "label": "loadActionConfig()",
       "file_type": "code",
       "source_file": "renderer\\stores\\chip-bar.ts",
-      "source_location": "L131",
+      "source_location": "L115",
       "id": "stores_chip_bar_loadactionconfig",
       "community": 7,
       "norm_label": "loadactionconfig()"
@@ -12396,7 +12396,7 @@
       "label": "toChipStatus()",
       "file_type": "code",
       "source_file": "renderer\\stores\\chip-bar.ts",
-      "source_location": "L136",
+      "source_location": "L120",
       "id": "stores_chip_bar_tochipstatus",
       "community": 7,
       "norm_label": "tochipstatus()"
@@ -12405,7 +12405,7 @@
       "label": "buildTemplateContext()",
       "file_type": "code",
       "source_file": "renderer\\stores\\chip-bar.ts",
-      "source_location": "L141",
+      "source_location": "L125",
       "id": "stores_chip_bar_buildtemplatecontext",
       "community": 7,
       "norm_label": "buildtemplatecontext()"
