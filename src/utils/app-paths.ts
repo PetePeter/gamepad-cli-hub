@@ -12,7 +12,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
-const APP_NAME = 'Helm';
+export const APP_NAME = 'Helm';
 
 /**
  * Detect whether the app is running from a packaged Electron asar archive.
@@ -25,7 +25,7 @@ export function isPackaged(dirname: string): boolean {
  * Resolve the user-data base directory.
  * Packaged: %APPDATA%/Helm (or $HOME fallback)
  */
-function getUserDataDir(appData?: string): string {
+export function getUserDataDir(appData?: string): string {
   const base = appData || process.env.APPDATA || process.env.HOME || '.';
   return path.join(base, APP_NAME);
 }
@@ -44,6 +44,14 @@ export function getLogDir(_dirname: string, appData?: string): string {
  */
 export function getConfigDir(_dirname: string, appData?: string): string {
   return path.join(getUserDataDir(appData), 'config');
+}
+
+/**
+ * Return the runtime browser/session-data directory used by Electron/Chromium.
+ * Always: %APPDATA%/Helm/session-data
+ */
+export function getSessionDataDir(_dirname: string, appData?: string): string {
+  return path.join(getUserDataDir(appData), 'session-data');
 }
 
 /**

@@ -11,7 +11,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 // Import the module under test
-import { isPackaged, getLogDir, getConfigDir, getTempDir, getRendererHtmlPath, getAppRootDir, seedConfigIfNeeded } from '../src/utils/app-paths.js';
+import { isPackaged, getLogDir, getConfigDir, getSessionDataDir, getTempDir, getRendererHtmlPath, getAppRootDir, seedConfigIfNeeded, getUserDataDir } from '../src/utils/app-paths.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -158,6 +158,22 @@ describe('getConfigDir', () => {
 });
 
 // ---------------------------------------------------------------------------
+// getUserDataDir / getSessionDataDir
+// ---------------------------------------------------------------------------
+
+describe('runtime data dirs', () => {
+  it('roots Electron userData at APPDATA/Helm', () => {
+    expect(getUserDataDir(FAKE_APPDATA)).toBe(path.join(FAKE_APPDATA, 'Helm'));
+  });
+
+  it('roots Electron sessionData at APPDATA/Helm/session-data', () => {
+    expect(getSessionDataDir(PACKAGED_DIRNAME, FAKE_APPDATA)).toBe(
+      path.join(FAKE_APPDATA, 'Helm', 'session-data')
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // getTempDir
 // ---------------------------------------------------------------------------
 
@@ -203,7 +219,7 @@ describe('writable path guards', () => {
 
   it('roots all writable paths at appData/Helm', () => {
     const expectedPrefix = path.join(FAKE_APPDATA, 'Helm');
-    for (const fn of [getConfigDir, getLogDir, getTempDir]) {
+    for (const fn of [getConfigDir, getLogDir, getSessionDataDir, getTempDir]) {
       for (const dirname of [DEV_DIRNAME, PACKAGED_DIRNAME]) {
         const result = fn(dirname, FAKE_APPDATA);
         expect(result.startsWith(expectedPrefix)).toBe(true);

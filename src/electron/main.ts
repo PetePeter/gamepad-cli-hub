@@ -15,6 +15,7 @@ import { buildSplashHtml } from './splash-html.js';
 import { resolveSplashLogoUrl } from './splash-logo.js';
 import { migrateOldPlans } from '../session/plan-migration.js';
 import { migrateUserDataFolder } from './user-data-migration.js';
+import { configureElectronAppIdentity } from './app-identity.js';
 import { configLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
 import { getRendererHtmlPath, isPackaged, seedConfigIfNeeded, getConfigDir } from '../utils/app-paths.js';
@@ -26,6 +27,8 @@ app.commandLine.appendSwitch('enable-features', 'WebGamepad');
 app.commandLine.appendSwitch('disable-gpu-sandbox');
 // Don't kill app after repeated GPU process crashes
 app.commandLine.appendSwitch('disable-gpu-process-crash-limit');
+
+configureElectronAppIdentity(app, app.getPath('appData'));
 
 // Enable crash reporter to capture native crash dumps for diagnosis
 crashReporter.start({
