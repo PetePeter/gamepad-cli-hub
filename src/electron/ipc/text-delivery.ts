@@ -39,7 +39,7 @@ export class RendererTextDeliverer {
   }
 
   async deliver(sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }): Promise<void> {
-    if (!text) return;
+    if (!text && !options?.submitSuffix) return;
 
     const session = this.sessionManager.getSession(sessionId);
     const pasteMode = session
