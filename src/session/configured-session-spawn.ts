@@ -64,7 +64,7 @@ export function spawnConfiguredSession(params: ConfiguredSessionSpawnParams): Co
     ...(env ? { env } : {}),
   });
 
-  params.sessionManager.addSession({
+  const sessionInfo = {
     id: sessionId,
     name: sessionName,
     cliType,
@@ -72,7 +72,13 @@ export function spawnConfiguredSession(params: ConfiguredSessionSpawnParams): Co
     ...(params.cwd ? { workingDir: params.cwd } : {}),
     cliSessionName,
     lastOutputAt: now,
-  });
+  };
+
+  if (isResume && params.sessionManager.hasSession(sessionId)) {
+    params.sessionManager.updateSession(sessionId, sessionInfo);
+  } else {
+    params.sessionManager.addSession(sessionInfo);
+  }
 
   scheduleConfiguredInitialPrompt({
     ...params,

@@ -285,7 +285,7 @@ export async function doSpawn(
   contextText?: string,
   resumeSessionName?: string,
   sessionId?: string,
-): Promise<void> {
+): Promise<boolean> {
   const resolvedContextText = resumeSessionName
     ? undefined
     : (contextText ?? pendingContextText ?? undefined);
@@ -295,16 +295,16 @@ export async function doSpawn(
     logEvent(`Spawning ${cliType}${workingDir ? ` in ${workingDir}` : ''}...`);
     if (!window.gamepadCli) {
       logEvent('Spawn failed: gamepadCli not available');
-      return;
+      return false;
     }
 
     const tm = getTerminalManager();
-    if (!tm) return;
+    if (!tm) return false;
 
     const spawnInfo = await window.gamepadCli.configGetSpawnCommand(cliType);
     if (!spawnInfo) {
       logEvent(`Spawn failed: no command configured for ${cliType}`);
-      return;
+      return false;
     }
 
     const resolvedSessionId = sessionId || `pty-${cliType}-${Date.now()}`;
@@ -327,12 +327,15 @@ export async function doSpawn(
           await useChipBarStore().refresh(resolvedSessionId);
         } catch (e) { console.error('[Bootstrap] Post-spawn refresh failed:', e); }
       }, 300);
+      return true;
     } else {
       logEvent(`Spawn FAILED: PTY creation returned false for ${cliType}`);
+      return false;
     }
   } catch (error) {
     console.error('[Bootstrap] Failed to spawn session:', error);
     logEvent('Spawn failed');
+    return false;
   }
 }
 
@@ -747,11 +750,11 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
     }
   } catch { /* ignore */ }
 
-  // Load sessions
-  await refreshSessions();
-
   // Auto-resume
   await autoResumeSessions(tm);
+
+  // Load reconciled session state after resume attempts settle.
+  await refreshSessions();
 
   // Timer refresh
   startTimerRefresh();
@@ -762,26 +765,29 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
 
 async function autoResumeSessions(tm: TerminalManager): Promise<void> {
   try {
-  const restoredSessions = await window.gamepadCli?.sessionGetAll();
-  if (!restoredSessions || restoredSessions.length === 0) return;
+    const restoredSessions = await window.gamepadCli?.sessionGetAll();
+    if (!restoredSessions || restoredSessions.length === 0) return;
 
-    const terminalIds = tm.getSessionIds();
+    const terminalIds = new Set(tm.getSessionIds());
     for (const session of restoredSessions) {
       // Skip sessions that are snapped out to child windows
       if (session.windowId !== undefined) {
         state.snappedOutSessions.add(session.id);
         continue;
       }
-      if (session.cliSessionName && !terminalIds.includes(session.id)) {
+      if (session.cliSessionName && !terminalIds.has(session.id)) {
         try {
           console.log(`[AutoResume] Resuming session: ${session.id} (${session.cliType}) with name ${session.cliSessionName}`);
-          await doSpawn(session.cliType, session.workingDir, undefined, session.cliSessionName, session.id);
-          const newId = tm.getActiveSessionId();
-          if (newId && session.name && session.name !== session.cliType) {
-            await window.gamepadCli?.sessionRename(newId, session.name);
-            tm.renameSession(newId, session.name);
+          const resumed = await doSpawn(session.cliType, session.workingDir, undefined, session.cliSessionName, session.id);
+          if (!resumed) {
+            console.warn(`[AutoResume] Resume failed for session ${session.id}; keeping persisted entry visible`);
+            continue;
           }
-          await window.gamepadCli?.sessionRemove(session.id);
+          terminalIds.add(session.id);
+          if (session.name && session.name !== session.cliType) {
+            await window.gamepadCli?.sessionRename(session.id, session.name);
+            tm.renameSession(session.id, session.name);
+          }
         } catch (err) {
           console.error(`[AutoResume] Failed to resume session ${session.id}:`, err);
         }
