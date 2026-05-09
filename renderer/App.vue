@@ -607,7 +607,10 @@ function handleRelease(button: string): void {
 async function onSessionClick(sessionId: string): Promise<void> {
   if (isAnyBridgeModalVisible()) return;
   llmNotificationsStore.dismissSession(sessionId);
-  void navStore.navigateToSession(sessionId);
+  if (activeView.value === 'overview') {
+    await navStore.closeOverview();
+  }
+  await navStore.navigateToSession(sessionId);
 }
 
 function onSessionRename(sessionId: string): void {

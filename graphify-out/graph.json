@@ -6402,7 +6402,7 @@
       "label": "onTerminalSwitch()",
       "file_type": "code",
       "source_file": "renderer\\App.vue",
-      "source_location": "L2107",
+      "source_location": "L2110",
       "id": "renderer_app_onterminalswitch",
       "community": 57,
       "norm_label": "onterminalswitch()"
@@ -6411,7 +6411,7 @@
       "label": "onTerminalEmpty()",
       "file_type": "code",
       "source_file": "renderer\\App.vue",
-      "source_location": "L2111",
+      "source_location": "L2114",
       "id": "renderer_app_onterminalempty",
       "community": 57,
       "norm_label": "onterminalempty()"
@@ -6420,7 +6420,7 @@
       "label": "onTerminalTitleChange()",
       "file_type": "code",
       "source_file": "renderer\\App.vue",
-      "source_location": "L2115",
+      "source_location": "L2118",
       "id": "renderer_app_onterminaltitlechange",
       "community": 57,
       "norm_label": "onterminaltitlechange()"
@@ -24546,7 +24546,7 @@
       "label": "makeItems()",
       "file_type": "code",
       "source_file": "tests\\components\\panels\\panels.test.ts",
-      "source_location": "L563",
+      "source_location": "L564",
       "id": "panels_panels_test_makeitems",
       "community": 13,
       "norm_label": "makeitems()"
@@ -30808,9 +30808,9 @@
       "weight": 1.0,
       "_src": "dist_electron_main_js",
       "_tgt": "dist_electron_main_dispatchllminappnotification",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_js",
-      "target": "dist_electron_main_dispatchllminappnotification",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_dispatchllminappnotification"
     },
     {
       "relation": "contains",
@@ -40336,9 +40336,9 @@
       "weight": 1.0,
       "_src": "dist_electron_main_notifyllmdirected",
       "_tgt": "dist_electron_main_dispatchllminappnotification",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_notifyllmdirected",
-      "target": "dist_electron_main_dispatchllminappnotification",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_dispatchllminappnotification"
     },
     {
       "relation": "calls",
@@ -40384,9 +40384,9 @@
       "weight": 1.0,
       "_src": "dist_electron_main_dispatchllminappnotification",
       "_tgt": "dist_electron_main_getallwindows",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_dispatchllminappnotification",
-      "target": "dist_electron_main_getallwindows",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_getallwindows"
     },
     {
       "relation": "calls",
@@ -42614,11 +42614,11 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L21232",
       "weight": 1.0,
-      "_src": "dist_electron_main_completeplanwithvalidation",
-      "_tgt": "dist_electron_main_exportdirectory",
+      "_src": "dist_electron_main_exportdirectory",
+      "_tgt": "dist_electron_main_completeplanwithvalidation",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_exportdirectory",
-      "target": "dist_electron_main_completeplanwithvalidation",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_completeplanwithvalidation"
     },
     {
       "relation": "calls",
@@ -55804,9 +55804,9 @@
       "weight": 1.0,
       "_src": "renderer_components_panels_drafteditor_vue",
       "_tgt": "panels_drafteditor_if",
+      "confidence_score": 1.0,
       "source": "renderer_components_panels_drafteditor_vue",
-      "target": "panels_drafteditor_if",
-      "confidence_score": 1.0
+      "target": "panels_drafteditor_if"
     },
     {
       "relation": "imports_from",
@@ -67216,9 +67216,9 @@
       "weight": 1.0,
       "_src": "renderer_stores_llmnotifications_ts",
       "_tgt": "stores_llmnotifications_loadpersisted",
+      "confidence_score": 1.0,
       "source": "renderer_stores_llmnotifications_ts",
-      "target": "stores_llmnotifications_loadpersisted",
-      "confidence_score": 1.0
+      "target": "stores_llmnotifications_loadpersisted"
     },
     {
       "relation": "contains",
@@ -67228,9 +67228,9 @@
       "weight": 1.0,
       "_src": "renderer_stores_llmnotifications_ts",
       "_tgt": "stores_llmnotifications_persist",
+      "confidence_score": 1.0,
       "source": "renderer_stores_llmnotifications_ts",
-      "target": "stores_llmnotifications_persist",
-      "confidence_score": 1.0
+      "target": "stores_llmnotifications_persist"
     },
     {
       "relation": "imports_from",
@@ -83284,9 +83284,9 @@
       "weight": 1.0,
       "_src": "session_notification_manager_notificationmanager",
       "_tgt": "session_notification_manager_notificationmanager_dispatchllminappnotification",
+      "confidence_score": 1.0,
       "source": "session_notification_manager_notificationmanager",
-      "target": "session_notification_manager_notificationmanager_dispatchllminappnotification",
-      "confidence_score": 1.0
+      "target": "session_notification_manager_notificationmanager_dispatchllminappnotification"
     },
     {
       "relation": "method",
@@ -83428,9 +83428,9 @@
       "weight": 1.0,
       "_src": "session_notification_manager_notificationmanager_notifyllmdirected",
       "_tgt": "session_notification_manager_notificationmanager_dispatchllminappnotification",
+      "confidence_score": 1.0,
       "source": "session_notification_manager_notificationmanager_notifyllmdirected",
-      "target": "session_notification_manager_notificationmanager_dispatchllminappnotification",
-      "confidence_score": 1.0
+      "target": "session_notification_manager_notificationmanager_dispatchllminappnotification"
     },
     {
       "relation": "calls",

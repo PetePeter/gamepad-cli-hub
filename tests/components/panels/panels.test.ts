@@ -350,6 +350,7 @@ describe('DraftEditor', () => {
         status: 'blocked',
         stateInfo: 'Waiting on API key',
         type: undefined,
+        autoImplement: false,
       },
     ]]);
   });
