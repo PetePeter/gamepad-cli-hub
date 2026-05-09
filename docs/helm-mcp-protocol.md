@@ -14,6 +14,8 @@ When an agent is blocked by an important question, create a separate plan titled
 
 When completing a plan, `plan_complete` documentation should summarize implemented behavior, important files changed, tests or review performed, and any remaining risk.
 
+Prefer `context_*` tools for durable memory that should survive across sessions. Sequences are primarily coordination lanes; their `sharedMemory` field is legacy and should be maintained only when updating existing sequence notes. For new durable notes, decisions, and collected evidence, create context and associate it with the relevant plan or sequence.
+
 ## Environment Variables
 
 When a session is spawned by Helm, three environment variables are automatically injected:

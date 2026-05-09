@@ -210,7 +210,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'sequence_list',
     title: 'List Sequences',
-    description: 'List sequence/shared-memory stores for a directory, or for a specific plan by UUID/P-id. Returned sharedMemory is the common memory for all member plans; use expectedUpdatedAt on writes to avoid concurrent overwrite.',
+    description: 'List sequence coordination lanes for a directory, or for a specific plan by UUID/P-id. Returned sharedMemory is legacy common memory for member plans; prefer context_* tools for new durable memory and use expectedUpdatedAt on writes to avoid concurrent overwrite.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -223,7 +223,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'sequence_get',
     title: 'Get Sequence',
-    description: 'Get one sequence/shared-memory store by ID.',
+    description: 'Get one sequence coordination lane by ID, including its legacy sharedMemory.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -236,7 +236,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'sequence_create',
     title: 'Create Sequence',
-    description: 'Create a first-class sequence/shared-memory store in a directory. Plans can be assigned to it with sequence_assign.',
+    description: 'Create a first-class sequence coordination lane in a directory. Plans can be assigned to it with sequence_assign; prefer context_* tools over sharedMemory for new durable notes.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -252,7 +252,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'sequence_update',
     title: 'Update Sequence',
-    description: 'Update sequence title, mission, sharedMemory, or order. Pass expectedUpdatedAt from sequence_list/get-style responses for mutex-style protection against concurrent LLM writes.',
+    description: 'Update sequence title, mission, sharedMemory, or order. sharedMemory is a legacy coordination field; prefer context_* tools for new durable memory. Pass expectedUpdatedAt from sequence_list/get-style responses for mutex-style protection against concurrent LLM writes.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -270,7 +270,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'sequence_memory_append',
     title: 'Append Sequence Memory',
-    description: 'Append text to a sequence sharedMemory store. Pass expectedUpdatedAt from the last read to make the append mutexable and fail on concurrent changes.',
+    description: 'Append text to a sequence sharedMemory store when maintaining existing legacy memory. Prefer context_* tools for new durable notes. Pass expectedUpdatedAt from the last read to make the append mutexable and fail on concurrent changes.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -589,7 +589,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_info',
     title: 'Get Session Info',
-    description: 'Retrieve current session context including MCP endpoint URL, AIAGENT state registry, and working directories. WHEN: call this at session startup before other Helm workflow actions, then immediately call session_set_aiagent_state for your current phase. Returns mandatory_rules, mcp_url, mcp_token, and the canonical list of valid AIAGENT-* state tags.',
+    description: 'Retrieve current session context including MCP endpoint URL, AIAGENT state registry, working directories, and durable-context guidance. WHEN: call this at session startup before other Helm workflow actions, then immediately call session_set_aiagent_state for your current phase. Returns mandatory_rules, mcp_url, mcp_token, and the canonical list of valid AIAGENT-* state tags.',
     inputSchema: {
       type: 'object',
       properties: {},

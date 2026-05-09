@@ -4,6 +4,8 @@
 
 The `session_info` MCP tool is an **autocall endpoint** that provides AI agents with session context, MCP connectivity information, and the canonical AIAGENT state registry. Call this tool on session startup to prime the state machine.
 
+It is also the main place Helm teaches agents about durable memory: prefer `context_*` tools for notes that should survive this session, and treat sequence `sharedMemory` as legacy coordination text rather than the default place to accumulate new knowledge.
+
 ## Tool Definition
 
 **Name:** `session_info`  
@@ -59,10 +61,12 @@ The tool returns a `SessionInfoResponse` object with these fields:
 
 - **`agent_plan_guide`** — Guidance for LLM agents that create, claim, complete, or link Helm plans.
   - **`plan_identifier_semantics`** — Values like `P-0035` are Helm human-readable plan IDs, and MCP plan tools accept either the canonical UUID or the `P-00xx` human ID.
+  - **`durable_context_guide`** — Prefer `context_*` tools for durable memory, and link context to plans or sequences where that relationship matters.
   - **`when_to_create_plan`** — When follow-up work, blockers, or later cleanup should become durable Helm plans.
   - **`required_description_sections`** — Required plan description headings: `Problem Statement`, `User POV`, `Done Statement`, `Files / Classes Affected`, `TDD Suggestions`, and `Acceptance Criteria`.
   - **`question_plan_workflow`** — Blocking questions should become separate `QUESTION: ...` plans linked to the original task with `plan_nextplan_link`, using the question plan as the prerequisite.
   - **`completion_documentation`** — Completion notes should cover implemented behavior, changed files, tests or review, and remaining risk.
+  - **`sequence_memory_guide`** — Sequence `sharedMemory` is legacy coordination text; prefer context for new durable notes.
 
 ### Notification Guidance
 

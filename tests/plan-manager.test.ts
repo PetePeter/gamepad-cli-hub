@@ -172,6 +172,26 @@ describe('PlanManager', () => {
       expect(pm.resolveItemRef('P-9999')).toEqual({ status: 'missing' });
     });
 
+    it('continues allocating humanIds past P-9999 without rollover truncation', () => {
+      (persistence.listPlanFiles as unknown as ReturnType<typeof vi.fn>).mockReturnValue(['legacy.json']);
+      (persistence.loadPlanFile as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        id: 'legacy-id',
+        humanId: 'P-10000',
+        dirPath: '/d',
+        title: 'Legacy',
+        description: 'Older plan',
+        status: 'ready',
+        createdAt: 100,
+        updatedAt: 101,
+      });
+
+      pm = new PlanManager();
+      const created = pm.create('/d', 'Next', 'Still increments');
+
+      expect(created.humanId).toBe('P-10001');
+      expect(pm.resolveItemRef('P-10001')).toEqual({ status: 'found', item: created });
+    });
+
     it('reports ambiguous P-id references', () => {
       (persistence.listPlanFiles as unknown as ReturnType<typeof vi.fn>).mockReturnValue(['a.json', 'b.json']);
       (persistence.loadPlanFile as unknown as ReturnType<typeof vi.fn>)

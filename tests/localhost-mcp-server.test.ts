@@ -1050,6 +1050,8 @@ describe('LocalhostMcpServer', () => {
       'Starting implementation',
       'Completing work',
     ]);
+    expect(content.agent_plan_guide.durable_context_guide[0]).toContain('context_list');
+    expect(content.agent_plan_guide.sequence_memory_guide[0]).toContain('legacy');
   });
 
   it('session_info returns complete SessionInfo with MCP endpoint and state registry', async () => {
@@ -1114,7 +1116,7 @@ describe('LocalhostMcpServer', () => {
     expect(sessionInfoTool).toBeDefined();
     expect(sessionInfoTool.title).toBe('Get Session Info');
     expect(sessionInfoTool.description).toContain('AIAGENT state registry');
-    expect(sessionInfoTool.description).toContain('MCP endpoint URL');
+    expect(sessionInfoTool.description).toContain('durable-context guidance');
     expect(sessionInfoTool.description).toContain('WHEN:');
     expect(sessionInfoTool.description).toContain('session_set_aiagent_state');
     expect(sessionInfoTool.inputSchema.properties).toEqual({});
