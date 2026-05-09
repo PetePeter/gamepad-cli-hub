@@ -68,6 +68,7 @@ const draftEditorPlanId = ref<string | null>(null);
 const draftEditorPlanStatus = ref<PlanStatus>('planning');
 const draftEditorPlanStateInfo = ref('');
 const draftEditorPlanType = ref<PlanType | undefined>(undefined);
+const draftEditorPlanAutoImplement = ref(false);
 const draftEditorPlanHumanId = ref('');
 const draftEditorPlanCreatedAt = ref<number | null>(null);
 const draftEditorPlanStateUpdatedAt = ref<number | null>(null);
@@ -90,7 +91,7 @@ let offSessionSpawned: (() => void) | null = null;
 
 function openPlanEditor(
   sessionId: string,
-  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
+  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
   callbacks: PlanCallbacks,
 ): void {
   draftEditorMode.value = 'plan';
@@ -99,6 +100,7 @@ function openPlanEditor(
   draftEditorPlanStatus.value = plan.status;
   draftEditorPlanStateInfo.value = plan.stateInfo ?? '';
   draftEditorPlanType.value = plan.type;
+  draftEditorPlanAutoImplement.value = Boolean(plan.autoImplement);
   draftEditorPlanHumanId.value = plan.humanId ?? '';
   draftEditorPlanCreatedAt.value = plan.createdAt ?? null;
   draftEditorPlanStateUpdatedAt.value = plan.stateUpdatedAt ?? plan.createdAt ?? null;
@@ -157,7 +159,7 @@ async function closeWindow(): Promise<void> {
   window.close();
 }
 
-async function onPlanSave(updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType }): Promise<void> {
+async function onPlanSave(updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean }): Promise<void> {
   await draftEditorPlanCallbacks.value?.onSave?.(updates);
 }
 
@@ -225,6 +227,7 @@ onUnmounted(() => {
       :plan-status="draftEditorPlanStatus"
       :plan-state-info="draftEditorPlanStateInfo"
       :plan-type="draftEditorPlanType"
+      :plan-auto-implement="draftEditorPlanAutoImplement"
       :plan-human-id="draftEditorPlanHumanId"
       :plan-created-at="draftEditorPlanCreatedAt"
       :plan-state-updated-at="draftEditorPlanStateUpdatedAt"

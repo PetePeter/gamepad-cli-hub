@@ -17,7 +17,7 @@ function makeService(): HelmControlService {
     listPlanContexts: vi.fn((_planId: string) => [{ id: 'ctx-1', type: 'Testing', source: 'both' }]),
     getPlanSequence: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Sequence', missionStatement: 'Mission', sharedMemory: 'Shared', order: 0, createdAt: 1, updatedAt: 1, memberPlanIds: ['p1'], memberHumanIds: ['P-0001'] })),
     createPlan: vi.fn((dirPath: string, title: string, description: string, type?: string) => ({ id: 'created', dirPath, title, description, status: 'ready', ...(type ? { type } : {}) })),
-    updatePlan: vi.fn((id: string, updates: { title?: string; description?: string; type?: string | null }) => ({ id, dirPath: '/proj', title: updates.title ?? 'Task', description: updates.description ?? 'Desc', status: 'ready', ...(updates.type ? { type: updates.type } : {}) })),
+    updatePlan: vi.fn((id: string, updates: { title?: string; description?: string; type?: string | null; autoImplement?: boolean }) => ({ id, dirPath: '/proj', title: updates.title ?? 'Task', description: updates.description ?? 'Desc', status: 'ready', ...(updates.type ? { type: updates.type } : {}), ...(updates.autoImplement !== undefined ? { autoImplement: updates.autoImplement } : {}) })),
     deletePlan: vi.fn(() => true),
     completePlan: vi.fn((id: string, _notes?: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done' })),
     setPlanState: vi.fn((id: string, status: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status })),
@@ -410,7 +410,7 @@ describe('LocalhostMcpServer', () => {
       },
     });
     const createJson = await createResponse.json();
-    expect((service.createPlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('/proj', 'Task', 'Desc', 'bug');
+    expect((service.createPlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('/proj', 'Task', 'Desc', 'bug', undefined);
     expect(createJson.result.structuredContent.type).toBe('bug');
 
     const updateResponse = await rpc(port, 'secret-token', {
@@ -1175,6 +1175,18 @@ describe('LocalhostMcpServer', () => {
       const service = makeService();
       (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'coding' });
       (service.completePlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done', completionNotes: 'All tests pass and feature works' });
+      (service.exportDirectory as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        dirPath: '/proj',
+        items: [
+          { id: 'p1', humanId: 'P-0001', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done' },
+          { id: 'p2', humanId: 'P-0002', dirPath: '/proj', title: 'Follow up', description: 'More', status: 'ready', autoImplement: true },
+          { id: 'p3', humanId: 'P-0003', dirPath: '/proj', title: 'Manual QA', description: 'Check', status: 'planning' },
+        ],
+        dependencies: [
+          { fromId: 'p1', toId: 'p2' },
+          { fromId: 'p1', toId: 'p3' },
+        ],
+      });
 
       const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
       servers.push(server);
@@ -1193,6 +1205,15 @@ describe('LocalhostMcpServer', () => {
       const json = await response.json();
       expect((service.completePlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('p1', 'All tests pass and feature works');
       expect(json.result.structuredContent.completionNotes).toBe('All tests pass and feature works');
+      expect(json.result.structuredContent.followUpPlans).toEqual([
+        { id: 'p2', humanId: 'P-0002', title: 'Follow up', status: 'ready', autoImplement: true },
+        { id: 'p3', humanId: 'P-0003', title: 'Manual QA', status: 'planning', autoImplement: false },
+      ]);
+      expect(json.result.structuredContent.autoFollowUpPlans).toEqual([
+        { id: 'p2', humanId: 'P-0002', title: 'Follow up', status: 'ready', autoImplement: true },
+      ]);
+      expect(json.result.structuredContent.continueWithAutoFollowUps).toBe(true);
+      expect(json.result.structuredContent.testingInstructionsReminder).toContain('Notify the user');
     });
 
     it('rejects missing documentation param', async () => {

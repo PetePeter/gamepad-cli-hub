@@ -12,7 +12,7 @@ import { hidePlanHelpModal, isPlanHelpVisible, showPlanHelpModal } from './plan-
 import { showPlanInEditor as legacyShowPlanInEditor } from '../drafts/draft-editor.js';
 
 export interface PlanEditorCallbacks {
-  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType }) => void | Promise<void>;
+  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean }) => void | Promise<void>;
   onDelete: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
   onApply?: () => void | Promise<void>;
@@ -573,7 +573,7 @@ export function handlePlanScreenAction(button: string): boolean {
   return false;
 }
 
-async function handleSave(planId: string, updates: { title: string; description: string; status: PlanItem['status']; stateInfo?: string; type?: PlanType }): Promise<void> {
+async function handleSave(planId: string, updates: { title: string; description: string; status: PlanItem['status']; stateInfo?: string; type?: PlanType; autoImplement?: boolean }): Promise<void> {
   const current = getPlanItemById(planId);
   if (!current) return;
   try {

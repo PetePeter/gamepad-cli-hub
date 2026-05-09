@@ -838,6 +838,9 @@ onUnmounted(() => {
               {{ item.humanId || 'Plan' }} · C {{ formatDate(item.createdAt) }} · S {{ formatDate(item.stateUpdatedAt || item.updatedAt) }}
             </div>
           </foreignObject>
+          <foreignObject v-if="item.autoImplement" x="146" y="6" width="46" height="16">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__auto-badge">Auto</div>
+          </foreignObject>
           <foreignObject x="8" y="42" width="184" :height="item.stateInfo ? 24 : 34">
             <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__desc">{{ item.description }}</div>
           </foreignObject>
@@ -1105,6 +1108,19 @@ onUnmounted(() => {
   font-size: 12px;
   pointer-events: none;
   user-select: none;
+}
+.plan-node__auto-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(68, 204, 68, 0.18);
+  border: 1px solid rgba(68, 204, 68, 0.45);
+  color: #8ff0a4;
+  font-size: 10px;
+  font-weight: 700;
 }
 .plan-seq-edit-btn {
   cursor: pointer;

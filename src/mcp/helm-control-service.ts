@@ -199,11 +199,11 @@ export class HelmControlService extends EventEmitter {
     return this.planService.getPlan(id);
   }
 
-  createPlan(dirPath: string, title: string, description: string, type?: PlanType): PlanItem {
-    return this.planService.createPlan(dirPath, title, description, type);
+  createPlan(dirPath: string, title: string, description: string, type?: PlanType, autoImplement?: boolean): PlanItem {
+    return this.planService.createPlan(dirPath, title, description, type, autoImplement);
   }
 
-  updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType | null }): PlanItem | null {
+  updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType | null; autoImplement?: boolean }): PlanItem | null {
     return this.planService.updatePlan(id, updates);
   }
 

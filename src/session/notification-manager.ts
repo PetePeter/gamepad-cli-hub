@@ -142,6 +142,7 @@ export class NotificationManager {
     }
 
     const visibility = this.getAppVisibility();
+    this.dispatchLlmInAppNotification(sessionId, title, content);
     if (visibility === 'hidden') {
       this.showNotification({ title, body: content }, sessionId);
       return 'toast';
@@ -150,15 +151,19 @@ export class NotificationManager {
     if (visibility === 'visible-focused') {
       const activeId = this.activeSessionIdGetter?.();
       if (activeId === sessionId) return 'none';
-      const windows = BrowserWindow.getAllWindows();
-      const win = windows.find(w => !w.isDestroyed() && w.isFocused())
-        ?? windows.find(w => !w.isDestroyed() && (typeof w.isVisible !== 'function' || w.isVisible()));
-      win?.webContents.send('notification:llmNotify', { sessionId, title, content });
       return 'bubble';
     }
 
     this.showNotification({ title, body: content }, sessionId);
     return 'toast';
+  }
+
+  private dispatchLlmInAppNotification(sessionId: string, title: string, content: string): void {
+    const windows = BrowserWindow.getAllWindows();
+    const targetWindows = windows.filter((window) => !window.isDestroyed());
+    for (const window of targetWindows) {
+      window.webContents.send('notification:llmNotify', { sessionId, title, content });
+    }
   }
 
   /** Feed raw PTY output to maintain a small ring buffer per session. */

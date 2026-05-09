@@ -115,7 +115,7 @@ export class PlanManager extends EventEmitter {
   }
 
   /** Create a new plan item with optional type. New items start as 'planning', transition to 'ready' when deps satisfied. */
-  createWithType(dirPath: string, title: string, description: string, type?: PlanType): PlanItem {
+  createWithType(dirPath: string, title: string, description: string, type?: PlanType, autoImplement?: boolean): PlanItem {
     const now = Date.now();
     const item: PlanItem = {
       id: randomUUID(),
@@ -125,6 +125,7 @@ export class PlanManager extends EventEmitter {
       description,
       status: 'planning',
       type,
+      autoImplement: autoImplement ? true : undefined,
       createdAt: now,
       stateUpdatedAt: now,
       updatedAt: now,
@@ -148,7 +149,7 @@ export class PlanManager extends EventEmitter {
   }
 
   /** Update an existing plan item's title, description, and/or type. */
-  updateWithType(id: string, updates: { title?: string; description?: string; type?: PlanType }): PlanItem | null {
+  updateWithType(id: string, updates: { title?: string; description?: string; type?: PlanType; autoImplement?: boolean }): PlanItem | null {
     const item = this.items.get(id);
     if (!item) return null;
 
@@ -156,6 +157,9 @@ export class PlanManager extends EventEmitter {
     if (updates.description !== undefined) item.description = updates.description;
     if (Object.prototype.hasOwnProperty.call(updates, 'type')) {
       item.type = updates.type;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'autoImplement')) {
+      item.autoImplement = updates.autoImplement ? true : undefined;
     }
     item.updatedAt = Date.now();
 

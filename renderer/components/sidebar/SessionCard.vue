@@ -38,7 +38,7 @@ export interface SessionCardProps {
   isHiddenFromOverview: boolean;
   scheduledAt?: string | null;
   isSnappedOut?: boolean;
-  llmNotification?: { title: string; content: string } | null;
+  llmNotifications?: Array<{ id: string; title: string; content: string }>;
 }
 
 // --- Constants ---
@@ -66,7 +66,7 @@ const emit = defineEmits<{
   stateChange: [sessionId: string, newState: string];
   toggleOverview: [sessionId: string];
   cancelSchedule: [sessionId: string];
-  dismissNotification: [sessionId: string];
+  dismissNotification: [notificationId: string];
 }>();
 
 // --- Local state ---
@@ -260,10 +260,12 @@ function onCardClick(e: MouseEvent): void {
     </div>
 
     <NotificationBubble
-      v-if="llmNotification"
-      :title="llmNotification.title"
-      :content="llmNotification.content"
-      @dismiss="emit('dismissNotification', session.id)"
+      v-for="notification in llmNotifications ?? []"
+      :key="notification.id"
+      :id="notification.id"
+      :title="notification.title"
+      :content="notification.content"
+      @dismiss="emit('dismissNotification', $event)"
     />
   </div>
 </template>

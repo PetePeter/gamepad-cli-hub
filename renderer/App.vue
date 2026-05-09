@@ -198,6 +198,7 @@ const draftEditorPlanId = ref<string | null>(null);
 const draftEditorPlanStatus = ref<PlanStatus>('planning');
 const draftEditorPlanStateInfo = ref('');
 const draftEditorPlanType = ref<PlanType | undefined>(undefined);
+const draftEditorPlanAutoImplement = ref(false);
 const draftEditorPlanHumanId = ref('');
 const draftEditorPlanCreatedAt = ref<number | null>(null);
 const draftEditorPlanStateUpdatedAt = ref<number | null>(null);
@@ -605,7 +606,7 @@ function handleRelease(button: string): void {
 
 async function onSessionClick(sessionId: string): Promise<void> {
   if (isAnyBridgeModalVisible()) return;
-  llmNotificationsStore.dismiss(sessionId);
+  llmNotificationsStore.dismissSession(sessionId);
   void navStore.navigateToSession(sessionId);
 }
 
@@ -642,7 +643,7 @@ function openDraftEditor(sessionId: string, draft?: { id: string; label: string;
 
 function openPlanEditor(
   sessionId: string,
-  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
+  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
   callbacks: PlanCallbacks,
 ) {
   draftEditorMode.value = 'plan';
@@ -651,6 +652,7 @@ function openPlanEditor(
   draftEditorPlanStatus.value = plan.status;
   draftEditorPlanStateInfo.value = plan.stateInfo ?? '';
   draftEditorPlanType.value = plan.type;
+  draftEditorPlanAutoImplement.value = Boolean(plan.autoImplement);
   draftEditorPlanHumanId.value = plan.humanId ?? '';
   draftEditorPlanCreatedAt.value = plan.createdAt ?? null;
   draftEditorPlanStateUpdatedAt.value = plan.stateUpdatedAt ?? plan.createdAt ?? null;
@@ -1795,8 +1797,8 @@ function onDraftClose(): void {
   closeDraftEditor();
 }
 
-async function onPlanSave(updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType }): Promise<void> {
-  draftEditorPlanCallbacks.value?.onSave?.(updates);
+async function onPlanSave(updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean }): Promise<void> {
+  await draftEditorPlanCallbacks.value?.onSave?.(updates);
 }
 
 function onPlanApply(): void {
@@ -2442,6 +2444,7 @@ onUnmounted(() => {
         :plan-status="draftEditorPlanStatus"
         :plan-state-info="draftEditorPlanStateInfo"
         :plan-type="draftEditorPlanType"
+        :plan-auto-implement="draftEditorPlanAutoImplement"
         :plan-human-id="draftEditorPlanHumanId"
         :plan-created-at="draftEditorPlanCreatedAt"
         :plan-state-updated-at="draftEditorPlanStateUpdatedAt"

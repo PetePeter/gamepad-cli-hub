@@ -1,11 +1,12 @@
 <script setup lang="ts">
 defineProps<{
+  id: string;
   title: string;
   content: string;
 }>();
 
 const emit = defineEmits<{
-  dismiss: [];
+  dismiss: [notificationId: string];
 }>();
 </script>
 
@@ -18,7 +19,7 @@ const emit = defineEmits<{
     <button
       class="notification-bubble__dismiss"
       title="Dismiss notification"
-      @click.stop="emit('dismiss')"
+      @click.stop="emit('dismiss', id)"
     >
       x
     </button>

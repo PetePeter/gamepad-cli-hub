@@ -95,6 +95,7 @@ const TOOLS: McpTool[] = [
         title: { type: 'string' },
         description: { type: 'string' },
         type: { type: 'string', enum: ['bug', 'feature', 'research'] },
+        autoImplement: { type: 'boolean' },
       },
       required: ['dirPath', 'title', 'description'],
       additionalProperties: false,
@@ -111,6 +112,7 @@ const TOOLS: McpTool[] = [
         title: { type: 'string' },
         description: { type: 'string' },
         type: { anyOf: [{ type: 'string', enum: ['bug', 'feature', 'research'] }, { type: 'null' }] },
+        autoImplement: { type: 'boolean' },
       },
       required: ['id'],
       additionalProperties: false,
@@ -991,6 +993,7 @@ export class LocalhostMcpServer {
           asString(args.title, 'title is required'),
           asString(args.description, 'description is required'),
           typeof args.type === 'string' ? (args.type as 'bug' | 'feature' | 'research') : undefined,
+          typeof args.autoImplement === 'boolean' ? args.autoImplement : undefined,
         );
       case 'plan_update':
         return requireResult(
@@ -998,6 +1001,7 @@ export class LocalhostMcpServer {
             ...(typeof args.title === 'string' ? { title: args.title } : {}),
             ...(typeof args.description === 'string' ? { description: args.description } : {}),
             ...(Object.prototype.hasOwnProperty.call(args, 'type') ? { type: asPlanTypeOrNull(args.type) } : {}),
+            ...(typeof args.autoImplement === 'boolean' ? { autoImplement: args.autoImplement } : {}),
           }),
           `Plan not found: ${asString(args.id, 'id is required')}`,
         );
@@ -1306,11 +1310,31 @@ export class LocalhostMcpServer {
     if (documentation.trim().length < 10) {
       throw new Error('documentation must be at least 10 characters');
     }
-    requireResult(this.service.getPlan(id), `Plan not found: ${id}`);
-    return requireResult(
+    const current = requireResult(this.service.getPlan(id), `Plan not found: ${id}`);
+    const completed = requireResult(
       this.service.completePlan(id, documentation),
       `Plan ${id} could not be completed from its current state`,
     );
+    const exported = this.service.exportDirectory(current.dirPath);
+    const followUpPlans = (exported?.dependencies ?? [])
+      .filter((dependency) => dependency.fromId === completed.id)
+      .map((dependency) => exported?.items.find((item) => item.id === dependency.toId) ?? null)
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .map((item) => ({
+        id: item.id,
+        humanId: item.humanId ?? item.id,
+        title: item.title,
+        status: item.status,
+        autoImplement: Boolean(item.autoImplement),
+      }));
+    const autoFollowUpPlans = followUpPlans.filter((item) => item.autoImplement && item.status === 'ready');
+    return {
+      ...completed,
+      testingInstructionsReminder: 'Notify the user with concrete steps they can run to test this completed plan, and keep that notification visible in Helm until they dismiss it.',
+      followUpPlans,
+      autoFollowUpPlans,
+      continueWithAutoFollowUps: autoFollowUpPlans.length > 0,
+    };
   }
 
   private getAuthContext(req: IncomingMessage): AuthContext | null {
@@ -1437,6 +1461,9 @@ function getToolReminder(name: string): string {
   }
   if (name === 'plan_set_state') {
     return 'Reminder: ownership is explicit. Use session_set_working_plan after claiming work so Helm shows the session as working on this plan.';
+  }
+  if (name === 'plan_complete') {
+    return 'Reminder: tell the user exactly what to test, then inspect followUpPlans and continue with any ready autoFollowUpPlans.';
   }
   if (name === 'sequence_list' || name === 'sequence_update' || name === 'sequence_memory_append') {
     return 'Reminder: sequence.sharedMemory is shared by every plan in that sequence. Re-read the sequence and pass expectedUpdatedAt when updating or appending to avoid overwriting another LLM.';

@@ -12,7 +12,7 @@ import { formatDateTime } from '../../utils/date-format.js';
 import PromptTextarea from '../common/PromptTextarea.vue';
 
 export interface PlanCallbacks {
-  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: 'bug' | 'feature' | 'research' }) => void;
+  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: 'bug' | 'feature' | 'research'; autoImplement?: boolean }) => void;
   onDelete: () => void;
   onDone?: () => void;
   onApply?: () => void;
@@ -33,6 +33,7 @@ export interface DraftEditorProps {
   planCreatedAt?: number | null;
   planStateUpdatedAt?: number | null;
   planType?: 'bug' | 'feature' | 'research';
+  planAutoImplement?: boolean;
   planCallbacks?: PlanCallbacks | null;
   completionNotes?: string;
 }
@@ -48,6 +49,7 @@ const props = withDefaults(defineProps<DraftEditorProps>(), {
   planCreatedAt: null,
   planStateUpdatedAt: null,
   planType: undefined,
+  planAutoImplement: false,
   planCallbacks: null,
   completionNotes: '',
 });
@@ -58,7 +60,7 @@ const emit = defineEmits<{
   apply: [{ label: string; text: string }];
   delete: [];
   close: [];
-  'plan-save': [updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: 'bug' | 'feature' | 'research' }];
+  'plan-save': [updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: 'bug' | 'feature' | 'research'; autoImplement?: boolean }];
   'plan-apply': [];
   'plan-done': [];
   'plan-delete': [];
@@ -69,6 +71,7 @@ const text = ref(props.initialText);
 const status = ref<PlanStatus>(props.planStatus);
 const stateInfo = ref(props.planStateInfo);
 const type = ref<'bug' | 'feature' | 'research' | undefined>(props.planType);
+const autoImplement = ref(Boolean(props.planAutoImplement));
 const saveStatus = ref<'clean' | 'unsaved' | 'saving' | 'saved'>('clean');
 const autoSaveTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const focusIndex = ref(0);
@@ -79,6 +82,7 @@ const origText = ref(props.initialText);
 const origStatus = ref<PlanStatus>(props.planStatus);
 const origStateInfo = ref(props.planStateInfo);
 const origType = ref<'bug' | 'feature' | 'research' | undefined>(props.planType);
+const origAutoImplement = ref(Boolean(props.planAutoImplement));
 
 const labelInputRef = ref<HTMLInputElement | null>(null);
 const stateSelectRef = ref<HTMLSelectElement | null>(null);
@@ -124,7 +128,7 @@ const applyButtonText = computed(() => isDraft.value ? 'Apply' : (activePlanStat
 
 const hasUnsavedChanges = computed(() => {
   if (isDraft.value) return label.value.trim() !== origLabel.value || text.value !== origText.value;
-  return label.value !== origLabel.value || text.value !== origText.value || status.value !== origStatus.value || stateInfo.value !== origStateInfo.value || type.value !== origType.value;
+  return label.value !== origLabel.value || text.value !== origText.value || status.value !== origStatus.value || stateInfo.value !== origStateInfo.value || type.value !== origType.value || autoImplement.value !== origAutoImplement.value;
 });
 
 const saveStatusText = computed(() => ({ unsaved: '● Unsaved', saving: '◑ Saving…', saved: '✓ Saved' }[saveStatus.value] ?? ''));
@@ -160,11 +164,13 @@ watch(() => props.visible, (visible) => {
     status.value = props.planStatus;
     stateInfo.value = props.planStateInfo;
     type.value = props.planType;
+    autoImplement.value = Boolean(props.planAutoImplement);
     origLabel.value = props.initialLabel;
     origText.value = props.initialText;
     origStatus.value = props.planStatus;
     origStateInfo.value = props.planStateInfo;
     origType.value = props.planType;
+    origAutoImplement.value = Boolean(props.planAutoImplement);
     saveStatus.value = 'clean';
     focusIndex.value = 0;
     nextTick(() => {
@@ -192,16 +198,18 @@ watch(() => props.planId, () => {
   status.value = props.planStatus;
   stateInfo.value = props.planStateInfo;
   type.value = props.planType;
+  autoImplement.value = Boolean(props.planAutoImplement);
   origLabel.value = props.initialLabel;
   origText.value = props.initialText;
   origStatus.value = props.planStatus;
   origStateInfo.value = props.planStateInfo;
   origType.value = props.planType;
+  origAutoImplement.value = Boolean(props.planAutoImplement);
   saveStatus.value = 'clean';
   nextTick(() => { hydratingFromProps.value = false; });
 });
 
-watch([label, text, status, stateInfo, type], () => {
+watch([label, text, status, stateInfo, type, autoImplement], () => {
   if (!props.visible || hydratingFromProps.value) return;
   if (saveStatus.value === 'clean' || saveStatus.value === 'saved') saveStatus.value = 'unsaved';
   scheduleAutoSave();
@@ -229,7 +237,7 @@ function onSave(): void {
     emit('close');
   } else {
     if (!canSavePlan.value) { stateInfoRef.value?.focus(); return; }
-    emit('plan-save', { title: label.value, description: text.value, status: status.value, stateInfo: stateInfo.value.trim(), type: type.value });
+    emit('plan-save', { title: label.value, description: text.value, status: status.value, stateInfo: stateInfo.value.trim(), type: type.value, autoImplement: autoImplement.value });
     emit('close');
   }
 }
@@ -242,7 +250,7 @@ function onApply(): void {
 function onDone(): void {
   status.value = 'done';
   if (!canSavePlan.value) { stateInfoRef.value?.focus(); return; }
-  emit('plan-save', { title: label.value, description: text.value, status: 'done', stateInfo: stateInfo.value.trim(), type: type.value });
+  emit('plan-save', { title: label.value, description: text.value, status: 'done', stateInfo: stateInfo.value.trim(), type: type.value, autoImplement: autoImplement.value });
   emit('close');
 }
 
@@ -266,8 +274,8 @@ function doAutoSave(): void {
   } else {
     if (!props.planCallbacks?.onSave || !canSavePlan.value) return;
     saveStatus.value = 'saving';
-    props.planCallbacks.onSave({ title: label.value, description: text.value, status: status.value, stateInfo: stateInfo.value.trim(), type: type.value });
-    origLabel.value = label.value; origText.value = text.value; origStatus.value = status.value; origStateInfo.value = stateInfo.value.trim(); origType.value = type.value; saveStatus.value = 'saved';
+    props.planCallbacks.onSave({ title: label.value, description: text.value, status: status.value, stateInfo: stateInfo.value.trim(), type: type.value, autoImplement: autoImplement.value });
+    origLabel.value = label.value; origText.value = text.value; origStatus.value = status.value; origStateInfo.value = stateInfo.value.trim(); origType.value = type.value; origAutoImplement.value = autoImplement.value; saveStatus.value = 'saved';
   }
   setTimeout(() => { if (saveStatus.value === 'saved') saveStatus.value = 'clean'; }, 2000);
 }
@@ -368,6 +376,10 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
       <select v-if="isPlan" ref="typeSelectRef" v-model="type" class="draft-editor-plan-select draft-editor-type-select">
         <option :value="undefined">None</option><option value="bug">Bug</option><option value="feature">Feature</option><option value="research">Research</option>
       </select>
+      <label v-if="isPlan" class="draft-editor-plan-checkbox">
+        <input v-model="autoImplement" type="checkbox">
+        <span>Auto</span>
+      </label>
       <select v-if="showPlanStateSelect" ref="stateSelectRef" v-model="status" class="draft-editor-plan-select draft-editor-status-select" @change="onStateSelectChange">
         <option value="planning">⏸ Planning</option><option value="ready">▶ Ready</option><option value="coding">🔄 Coding</option><option value="review">⏳ Review</option><option value="blocked">⛔ Blocked</option><option value="done">✓ Done</option>
       </select>
@@ -415,6 +427,7 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
 .draft-editor-attachments__row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: 6px; padding: 5px 8px; background: #151515; border: 1px solid #2a2a2a; border-radius: 4px; }
 .draft-editor-attachments__name { font-size: 12px; color: #ddd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .draft-editor-attachments__size { font-size: 11px; color: #666; white-space: nowrap; }
+.draft-editor-plan-checkbox { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
 .draft-editor__completion-notes { margin-top: 12px; padding: 12px; background: var(--bg-tertiary); border-radius: 4px; border-left: 3px solid #44cc44; }
 .draft-editor__completion-notes label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
 .draft-editor__completion-notes-text { margin: 0; font-size: 0.9rem; color: var(--text-primary); white-space: pre-wrap; line-height: 1.5; }

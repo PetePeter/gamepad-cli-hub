@@ -38,6 +38,8 @@ export interface PlanItem {
   completionNotes?: string;
   /** Type classification: bug, feature, or research */
   type?: PlanType;
+  /** When true, unlocked follow-up work can be continued automatically after completion. */
+  autoImplement?: boolean;
   /** Optional first-class sequence/swimlane membership. */
   sequenceId?: string;
   /** Creation timestamp */

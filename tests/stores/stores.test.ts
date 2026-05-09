@@ -2,7 +2,7 @@
  * Pinia store tests — verify stores work with the reactive state singletons.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useAppStore } from '../../renderer/stores/app.js';
 import { useSessionsScreenStore } from '../../renderer/stores/sessions-screen.js';
@@ -13,7 +13,21 @@ import { useLlmNotificationsStore } from '../../renderer/stores/llmNotifications
 import { state } from '../../renderer/state.js';
 import { sessionsState } from '../../renderer/screens/sessions-state.js';
 
+const memoryStorage = (() => {
+  const backing = new Map<string, string>();
+  return {
+    getItem: (key: string) => backing.get(key) ?? null,
+    setItem: (key: string, value: string) => { backing.set(key, value); },
+    removeItem: (key: string) => { backing.delete(key); },
+    clear: () => { backing.clear(); },
+  };
+})();
+
 beforeEach(() => {
+  vi.stubGlobal('localStorage', memoryStorage);
+  localStorage.clear();
+  setActivePinia(createPinia());
+
   // Reset state between tests
   state.sessions = [];
   state.activeSessionId = null;
@@ -215,29 +229,43 @@ describe('usePlansStore', () => {
 // ---------------------------------------------------------------------------
 
 describe('useLlmNotificationsStore', () => {
-  it('adds notifications keyed by sessionId', () => {
+  it('adds notifications and groups them by sessionId', () => {
     const store = useLlmNotificationsStore();
     store.add({ sessionId: 's1', title: 'Title 1', content: 'Content 1' });
-    expect(store.notifications.has('s1')).toBe(true);
-    const notif = store.notifications.get('s1');
+    expect(store.notifications).toHaveLength(1);
+    expect(store.bySession.get('s1')).toHaveLength(1);
+    const notif = store.bySession.get('s1')?.[0];
     expect(notif?.title).toBe('Title 1');
     expect(notif?.content).toBe('Content 1');
   });
 
-  it('generates unique id for each notification', () => {
+  it('prepends newer notifications instead of overwriting older ones', () => {
     const store = useLlmNotificationsStore();
     store.add({ sessionId: 's1', title: 'T1', content: 'C1' });
     store.add({ sessionId: 's1', title: 'T2', content: 'C2' });
-    const notif = store.notifications.get('s1');
-    expect(notif?.title).toBe('T2'); // Most recent overwrites
+    const notifications = store.bySession.get('s1') ?? [];
+    expect(notifications).toHaveLength(2);
+    expect(notifications[0]?.title).toBe('T2');
+    expect(notifications[1]?.title).toBe('T1');
   });
 
-  it('dismisses notifications by sessionId', () => {
+  it('dismisses notifications by notification id', () => {
     const store = useLlmNotificationsStore();
     store.add({ sessionId: 's1', title: 'Title', content: 'Content' });
-    expect(store.notifications.has('s1')).toBe(true);
-    store.dismiss('s1');
-    expect(store.notifications.has('s1')).toBe(false);
+    const notificationId = store.notifications[0]?.id;
+    expect(notificationId).toBeTruthy();
+    store.dismiss(notificationId!);
+    expect(store.notifications).toHaveLength(0);
+  });
+
+  it('dismisses all notifications for one session', () => {
+    const store = useLlmNotificationsStore();
+    store.add({ sessionId: 's1', title: 'T1', content: 'C1' });
+    store.add({ sessionId: 's1', title: 'T2', content: 'C2' });
+    store.add({ sessionId: 's2', title: 'T3', content: 'C3' });
+    store.dismissSession('s1');
+    expect(store.bySession.has('s1')).toBe(false);
+    expect(store.bySession.get('s2')).toHaveLength(1);
   });
 
   it('clears all notifications', () => {
@@ -245,12 +273,14 @@ describe('useLlmNotificationsStore', () => {
     store.add({ sessionId: 's1', title: 'T1', content: 'C1' });
     store.add({ sessionId: 's2', title: 'T2', content: 'C2' });
     store.clear();
-    expect(store.notifications.size).toBe(0);
+    expect(store.notifications).toHaveLength(0);
   });
 
-  it('bySession computed returns the notifications map', () => {
+  it('persists notifications into localStorage', () => {
     const store = useLlmNotificationsStore();
     store.add({ sessionId: 's1', title: 'Title', content: 'Content' });
     expect(store.bySession.has('s1')).toBe(true);
+    const raw = localStorage.getItem('helm.llmNotifications.v1');
+    expect(raw).toContain('"sessionId":"s1"');
   });
 });

@@ -48,7 +48,7 @@ const props = defineProps<{
   workingPlanTooltips: Map<string, string>;
   pendingSchedules: Map<string, string>;
   snappedOutSessions: Set<string>;
-  llmNotifications: Map<string, { title: string; content: string }>;
+  llmNotifications: Map<string, Array<{ id: string; title: string; content: string }>>;
   getCliDisplayName: (cliType: string) => string;
   resolveGroupDisplayName: (dirPath: string, directories: SessionListDirectory[]) => string;
   isSessionHiddenFromOverview: (session: SessionListGroupSession) => boolean;
@@ -67,7 +67,7 @@ const emit = defineEmits<{
   sessionStateChange: [sessionId: string, newState: string];
   toggleOverview: [sessionId: string];
   cancelSchedule: [sessionId: string];
-  dismissNotification: [sessionId: string];
+  dismissNotification: [notificationId: string];
 }>();
 
 function onCommitRename(sessionId: string, newName: string): void {
@@ -135,7 +135,7 @@ function onSessionStateChange(sessionId: string, newState: string): void {
               :is-hidden-from-overview="isSessionHiddenFromOverview(session)"
               :scheduled-at="pendingSchedules.get(session.id) ?? null"
               :is-snapped-out="snappedOutSessions.has(session.id)"
-              :llm-notification="llmNotifications.get(session.id) ?? null"
+              :llm-notifications="llmNotifications.get(session.id) ?? []"
               @click="emit('sessionClick', $event)"
               @rename="emit('sessionRename', $event)"
               @commit-rename="onCommitRename"

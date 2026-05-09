@@ -289,9 +289,16 @@ describe('NotificationManager.notifyLlmDirected()', () => {
       expect(result).toBe('none');
     });
 
-    it('does not send IPC when session is active', () => {
+    it('still sends IPC so the in-app notification list can persist it', () => {
       notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
-      expect(mockWindow.webContents.send).not.toHaveBeenCalled();
+      expect(mockWindow.webContents.send).toHaveBeenCalledWith(
+        'notification:llmNotify',
+        {
+          sessionId: 'sess-1',
+          title: 'Title',
+          content: 'Content',
+        },
+      );
     });
 
     it('returns "none" immediately without calling showNotification', () => {

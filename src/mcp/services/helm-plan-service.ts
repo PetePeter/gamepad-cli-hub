@@ -51,20 +51,23 @@ export class HelmPlanService {
     };
   }
 
-  createPlan(dirPath: string, title: string, description: string, type?: PlanType): PlanItem {
+  createPlan(dirPath: string, title: string, description: string, type?: PlanType, autoImplement?: boolean): PlanItem {
     this.requireWorkingDirectory(dirPath);
-    return this.planManager.createWithType(dirPath, title, description, type);
+    return this.planManager.createWithType(dirPath, title, description, type, autoImplement);
   }
 
-  updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType | null }): PlanItem | null {
+  updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType | null; autoImplement?: boolean }): PlanItem | null {
     const plan = this.resolvePlanRef(id, 'Plan');
     if (!plan) return null;
-    const nextUpdates: { title?: string; description?: string; type?: PlanType } = {
+    const nextUpdates: { title?: string; description?: string; type?: PlanType; autoImplement?: boolean } = {
       ...(updates.title !== undefined ? { title: updates.title } : {}),
       ...(updates.description !== undefined ? { description: updates.description } : {}),
     };
     if (Object.prototype.hasOwnProperty.call(updates, 'type')) {
       nextUpdates.type = updates.type ?? undefined;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'autoImplement')) {
+      nextUpdates.autoImplement = updates.autoImplement;
     }
     return this.planManager.updateWithType(plan.item.id, nextUpdates);
   }
