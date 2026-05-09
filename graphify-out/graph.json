@@ -5907,7 +5907,7 @@
       "label": "buildNotificationGuide()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L19513",
+      "source_location": "L19531",
       "id": "dist_electron_main_buildnotificationguide",
       "community": 0,
       "norm_label": "buildnotificationguide()"
@@ -5916,7 +5916,7 @@
       "label": "getAvailableTools()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L19547",
+      "source_location": "L19565",
       "id": "dist_electron_main_getavailabletools",
       "community": 0,
       "norm_label": "getavailabletools()"
@@ -5925,7 +5925,7 @@
       "label": "getSessionInfo()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L19597",
+      "source_location": "L19615",
       "id": "dist_electron_main_getsessioninfo",
       "community": 0,
       "norm_label": "getsessioninfo()"
@@ -5934,7 +5934,7 @@
       "label": "getAvailableDirectories()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L19629",
+      "source_location": "L19648",
       "id": "dist_electron_main_getavailabledirectories",
       "community": 0,
       "norm_label": "getavailabledirectories()"
@@ -5943,7 +5943,7 @@
       "label": "createScheduledTask()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L19865",
+      "source_location": "L19884",
       "id": "dist_electron_main_createscheduledtask",
       "community": 0,
       "norm_label": "createscheduledtask()"
@@ -5952,7 +5952,7 @@
       "label": "listScheduledTasks()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L19868",
+      "source_location": "L19887",
       "id": "dist_electron_main_listscheduledtasks",
       "community": 0,
       "norm_label": "listscheduledtasks()"
@@ -5961,7 +5961,7 @@
       "label": "getScheduledTask()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L19871",
+      "source_location": "L19890",
       "id": "dist_electron_main_getscheduledtask",
       "community": 0,
       "norm_label": "getscheduledtask()"
@@ -5970,7 +5970,7 @@
       "label": "updateScheduledTask()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L19874",
+      "source_location": "L19893",
       "id": "dist_electron_main_updatescheduledtask",
       "community": 0,
       "norm_label": "updatescheduledtask()"
@@ -5979,7 +5979,7 @@
       "label": "cancelScheduledTask()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L19877",
+      "source_location": "L19896",
       "id": "dist_electron_main_cancelscheduledtask",
       "community": 0,
       "norm_label": "cancelscheduledtask()"
@@ -5988,7 +5988,7 @@
       "label": "deleteScheduledTask()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L19880",
+      "source_location": "L19899",
       "id": "dist_electron_main_deletescheduledtask",
       "community": 0,
       "norm_label": "deletescheduledtask()"
@@ -5997,7 +5997,7 @@
       "label": "requireScheduler()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L19883",
+      "source_location": "L19902",
       "id": "dist_electron_main_requirescheduler",
       "community": 0,
       "norm_label": "requirescheduler()"
@@ -6006,7 +6006,7 @@
       "label": "isEnabled()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L20663",
+      "source_location": "L20682",
       "id": "dist_electron_main_isenabled",
       "community": 0,
       "norm_label": "isenabled()"
@@ -6015,7 +6015,7 @@
       "label": "applyConfig()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L20683",
+      "source_location": "L20702",
       "id": "dist_electron_main_applyconfig",
       "community": 0,
       "norm_label": "applyconfig()"
@@ -6024,7 +6024,7 @@
       "label": "getAddress()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L20711",
+      "source_location": "L20730",
       "id": "dist_electron_main_getaddress",
       "community": 0,
       "norm_label": "getaddress()"
@@ -6033,7 +6033,7 @@
       "label": "handleRequest()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L20715",
+      "source_location": "L20734",
       "id": "dist_electron_main_handlerequest",
       "community": 0,
       "norm_label": "handlerequest()"
@@ -6042,7 +6042,7 @@
       "label": "callTool()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L20798",
+      "source_location": "L20817",
       "id": "dist_electron_main_calltool",
       "community": 0,
       "norm_label": "calltool()"
@@ -6051,7 +6051,7 @@
       "label": "setPlanStateWithValidation()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21107",
+      "source_location": "L21126",
       "id": "dist_electron_main_setplanstatewithvalidation",
       "community": 0,
       "norm_label": "setplanstatewithvalidation()"
@@ -6060,7 +6060,7 @@
       "label": "completePlanWithValidation()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21117",
+      "source_location": "L21136",
       "id": "dist_electron_main_completeplanwithvalidation",
       "community": 0,
       "norm_label": "completeplanwithvalidation()"
@@ -6069,7 +6069,7 @@
       "label": "getAuthContext()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21127",
+      "source_location": "L21146",
       "id": "dist_electron_main_getauthcontext",
       "community": 0,
       "norm_label": "getauthcontext()"
@@ -6078,7 +6078,7 @@
       "label": "readBody()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21138",
+      "source_location": "L21157",
       "id": "dist_electron_main_readbody",
       "community": 0,
       "norm_label": "readbody()"
@@ -6087,7 +6087,7 @@
       "label": "writeJsonRpcResult()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21146",
+      "source_location": "L21165",
       "id": "dist_electron_main_writejsonrpcresult",
       "community": 0,
       "norm_label": "writejsonrpcresult()"
@@ -6096,7 +6096,7 @@
       "label": "writeJsonRpcError()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21149",
+      "source_location": "L21168",
       "id": "dist_electron_main_writejsonrpcerror",
       "community": 0,
       "norm_label": "writejsonrpcerror()"
@@ -6105,7 +6105,7 @@
       "label": "writeJson()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21152",
+      "source_location": "L21171",
       "id": "dist_electron_main_writejson",
       "community": 0,
       "norm_label": "writejson()"
@@ -6114,7 +6114,7 @@
       "label": "parsePort()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21160",
+      "source_location": "L21179",
       "id": "dist_electron_main_parseport",
       "community": 0,
       "norm_label": "parseport()"
@@ -6123,7 +6123,7 @@
       "label": "asRecord()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21166",
+      "source_location": "L21185",
       "id": "dist_electron_main_asrecord",
       "community": 0,
       "norm_label": "asrecord()"
@@ -6132,7 +6132,7 @@
       "label": "asString()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21169",
+      "source_location": "L21188",
       "id": "dist_electron_main_asstring",
       "community": 0,
       "norm_label": "asstring()"
@@ -6141,7 +6141,7 @@
       "label": "asPlanStatus()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21175",
+      "source_location": "L21194",
       "id": "dist_electron_main_asplanstatus",
       "community": 0,
       "norm_label": "asplanstatus()"
@@ -6150,7 +6150,7 @@
       "label": "asPlanTypeOrNull()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21181",
+      "source_location": "L21200",
       "id": "dist_electron_main_asplantypeornull",
       "community": 0,
       "norm_label": "asplantypeornull()"
@@ -6159,7 +6159,7 @@
       "label": "asAiagentState()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21187",
+      "source_location": "L21206",
       "id": "dist_electron_main_asaiagentstate",
       "community": 0,
       "norm_label": "asaiagentstate()"
@@ -6168,7 +6168,7 @@
       "label": "asTerminalOutputMode()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21193",
+      "source_location": "L21212",
       "id": "dist_electron_main_asterminaloutputmode",
       "community": 0,
       "norm_label": "asterminaloutputmode()"
@@ -6177,7 +6177,7 @@
       "label": "requireResult2()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21198",
+      "source_location": "L21217",
       "id": "dist_electron_main_requireresult2",
       "community": 0,
       "norm_label": "requireresult2()"
@@ -6186,7 +6186,7 @@
       "label": "requireBooleanResult()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21204",
+      "source_location": "L21223",
       "id": "dist_electron_main_requirebooleanresult",
       "community": 0,
       "norm_label": "requirebooleanresult()"
@@ -6195,7 +6195,7 @@
       "label": "normalizeStructuredContent()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21210",
+      "source_location": "L21229",
       "id": "dist_electron_main_normalizestructuredcontent",
       "community": 0,
       "norm_label": "normalizestructuredcontent()"
@@ -6204,7 +6204,7 @@
       "label": "getToolReminder()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21219",
+      "source_location": "L21238",
       "id": "dist_electron_main_gettoolreminder",
       "community": 0,
       "norm_label": "gettoolreminder()"
@@ -6213,7 +6213,7 @@
       "label": "registerIPCHandlers()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21243",
+      "source_location": "L21262",
       "id": "dist_electron_main_registeripchandlers",
       "community": 0,
       "norm_label": "registeripchandlers()"
@@ -6222,7 +6222,7 @@
       "label": "escapeHtml3()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21433",
+      "source_location": "L21452",
       "id": "dist_electron_main_escapehtml3",
       "community": 0,
       "norm_label": "escapehtml3()"
@@ -6231,7 +6231,7 @@
       "label": "buildSplashHtml()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21436",
+      "source_location": "L21455",
       "id": "dist_electron_main_buildsplashhtml",
       "community": 0,
       "norm_label": "buildsplashhtml()"
@@ -6240,7 +6240,7 @@
       "label": "getSplashLogoCandidates()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21548",
+      "source_location": "L21567",
       "id": "dist_electron_main_getsplashlogocandidates",
       "community": 0,
       "norm_label": "getsplashlogocandidates()"
@@ -6249,7 +6249,7 @@
       "label": "resolveSplashLogoUrl()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21569",
+      "source_location": "L21588",
       "id": "dist_electron_main_resolvesplashlogourl",
       "community": 0,
       "norm_label": "resolvesplashlogourl()"
@@ -6258,7 +6258,7 @@
       "label": "migrateOldPlans()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21604",
+      "source_location": "L21623",
       "id": "dist_electron_main_migrateoldplans",
       "community": 0,
       "norm_label": "migrateoldplans()"
@@ -6267,7 +6267,7 @@
       "label": "migrateUserDataFolder()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21636",
+      "source_location": "L21655",
       "id": "dist_electron_main_migrateuserdatafolder",
       "community": 0,
       "norm_label": "migrateuserdatafolder()"
@@ -6276,7 +6276,7 @@
       "label": "configureElectronAppIdentity()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21654",
+      "source_location": "L21673",
       "id": "dist_electron_main_configureelectronappidentity",
       "community": 0,
       "norm_label": "configureelectronappidentity()"
@@ -6285,7 +6285,7 @@
       "label": "readWindowBounds()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21688",
+      "source_location": "L21707",
       "id": "dist_electron_main_readwindowbounds",
       "community": 13,
       "norm_label": "readwindowbounds()"
@@ -6294,7 +6294,7 @@
       "label": "clearStartupFallbackTimer()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21700",
+      "source_location": "L21719",
       "id": "dist_electron_main_clearstartupfallbacktimer",
       "community": 0,
       "norm_label": "clearstartupfallbacktimer()"
@@ -6303,7 +6303,7 @@
       "label": "closeSplashWindow()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21705",
+      "source_location": "L21724",
       "id": "dist_electron_main_closesplashwindow",
       "community": 0,
       "norm_label": "closesplashwindow()"
@@ -6312,7 +6312,7 @@
       "label": "maybeShowMainWindow()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21714",
+      "source_location": "L21733",
       "id": "dist_electron_main_maybeshowmainwindow",
       "community": 0,
       "norm_label": "maybeshowmainwindow()"
@@ -6321,7 +6321,7 @@
       "label": "createSplashWindow()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21727",
+      "source_location": "L21746",
       "id": "dist_electron_main_createsplashwindow",
       "community": 0,
       "norm_label": "createsplashwindow()"
@@ -6330,7 +6330,7 @@
       "label": "createWindow()",
       "file_type": "code",
       "source_file": "dist-electron\\main.js",
-      "source_location": "L21756",
+      "source_location": "L21775",
       "id": "dist_electron_main_createwindow",
       "community": 0,
       "norm_label": "createwindow()"
@@ -15888,7 +15888,7 @@
       "label": "getAvailableDirectories()",
       "file_type": "code",
       "source_file": "src\\mcp\\guides\\session-info-guide.ts",
-      "source_location": "L56",
+      "source_location": "L57",
       "id": "guides_session_info_guide_getavailabledirectories",
       "community": 39,
       "norm_label": "getavailabledirectories()"
