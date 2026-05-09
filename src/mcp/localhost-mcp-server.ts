@@ -76,7 +76,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_get',
     title: 'Get Plan',
-    description: 'Get a single plan item by UUID or P-00xx human-readable ID. Use plan_context_list when you need the effective context set for this plan.',
+    description: 'Get a single plan item by UUID or P-00xx human-readable ID, including lightweight sequenceContextMetadata when contexts are attached. Use plan_context_list when you need the effective context set with source details for this plan.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },

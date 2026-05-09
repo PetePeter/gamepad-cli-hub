@@ -13,7 +13,15 @@ function makeService(): HelmControlService {
     listDirectories: vi.fn(() => [{ dirPath: 'X:\\coding\\gamepad-cli-hub', name: 'Helm', source: ['config', 'plans'], planCount: 8, sessionCount: 0 }]),
     listPlans: vi.fn((dirPath: string) => [{ id: 'p1', dirPath, title: 'Task', description: 'Desc', status: 'ready' }]),
     plansSummary: vi.fn(() => [{ id: 'p1', humanId: 'P-0001', title: 'Task', status: 'ready', blockedBy: [], blocks: [] }]),
-    getPlan: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'ready' })),
+    getPlan: vi.fn((id: string) => ({
+      id,
+      dirPath: '/proj',
+      title: 'Task',
+      description: 'Desc',
+      status: 'ready',
+      sequenceId: 'seq-1',
+      sequenceContextMetadata: [{ id: 'ctx-1', title: 'Testing Strategy', type: 'Testing', permission: 'readonly' }],
+    })),
     listPlanContexts: vi.fn((_planId: string) => [{ id: 'ctx-1', type: 'Testing', source: 'both' }]),
     getPlanSequence: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Sequence', missionStatement: 'Mission', sharedMemory: 'Shared', order: 0, createdAt: 1, updatedAt: 1, memberPlanIds: ['p1'], memberHumanIds: ['P-0001'] })),
     createPlan: vi.fn((dirPath: string, title: string, description: string, type?: string) => ({ id: 'created', dirPath, title, description, status: 'ready', ...(type ? { type } : {}) })),
@@ -286,6 +294,31 @@ describe('LocalhostMcpServer', () => {
     const json = await response.json();
     expect((service.listPlanContexts as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('P-0001');
     expect(json.result.structuredContent.items).toEqual([{ id: 'ctx-1', type: 'Testing', source: 'both' }]);
+  });
+
+  it('plan_get includes lightweight context metadata in its structured response', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 37,
+      method: 'tools/call',
+      params: {
+        name: 'plan_get',
+        arguments: { id: 'P-0001' },
+      },
+    });
+    const json = await response.json();
+
+    expect((service.getPlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('P-0001');
+    expect(json.result.structuredContent.sequenceId).toBe('seq-1');
+    expect(json.result.structuredContent.sequenceContextMetadata).toEqual([
+      { id: 'ctx-1', title: 'Testing Strategy', type: 'Testing', permission: 'readonly' },
+    ]);
   });
 
   it('dispatches session_set_working_plan through the MCP surface', async () => {

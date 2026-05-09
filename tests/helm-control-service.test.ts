@@ -328,7 +328,7 @@ describe('HelmControlService directory validation', () => {
     const { service, planManager } = makeService();
     (planManager as any).createWithType = vi.fn(() => ({ id: 'p1', dirPath: '/work', title: 'Title', status: 'ready' }));
     expect(() => service.createPlan('/work', 'Title', 'Desc')).not.toThrow();
-    expect((planManager as any).createWithType).toHaveBeenCalledWith('/work', 'Title', 'Desc', undefined);
+    expect((planManager as any).createWithType).toHaveBeenCalledWith('/work', 'Title', 'Desc', undefined, undefined);
   });
 
   it('createPlanSequence rejects unconfigured dirPath', () => {
@@ -693,6 +693,48 @@ describe('HelmControlService.getPlan', () => {
     expect(Object.prototype.hasOwnProperty.call(result, 'sequenceId')).toBe(true);
     expect(result.sequenceId).toBe('seq-1');
     expect(Object.prototype.hasOwnProperty.call(result, 'sequence')).toBe(false);
+  });
+
+  it('includes lightweight context metadata when the plan has bound or inherited contexts', () => {
+    const { service, planManager } = makeService();
+    const plan = {
+      id: 'plan-1',
+      humanId: 'P-0001',
+      dirPath: '/work',
+      title: 'Task',
+      description: 'Desc',
+      status: 'ready',
+      sequenceId: 'seq-1',
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    (planManager.getItem as ReturnType<typeof vi.fn>).mockReturnValue(plan);
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
+    (planManager as any).getSequence = vi.fn((id: string) => id === 'seq-1'
+      ? { id: 'seq-1', dirPath: '/work', title: 'Sequence', missionStatement: '', sharedMemory: '', order: 0, createdAt: 1, updatedAt: 1 }
+      : null);
+    (planManager.getForDirectory as ReturnType<typeof vi.fn>).mockReturnValue([plan]);
+    (planManager.exportAll as ReturnType<typeof vi.fn>).mockReturnValue({
+      '/work': {
+        dirPath: '/work',
+        items: [plan],
+        dependencies: [],
+        sequences: [{ id: 'seq-1', dirPath: '/work', title: 'Sequence', missionStatement: '', sharedMemory: '', order: 0, createdAt: 1, updatedAt: 1 }],
+      },
+    });
+
+    const contextManager = (service as any).contextManager;
+    const seqContext = contextManager.create('/work', { title: 'Testing Strategy', type: 'Testing', permission: 'readonly' });
+    const planContext = contextManager.create('/work', { title: 'Scratchpad', type: 'Coding', permission: 'writable' });
+    contextManager.bind(seqContext.id, 'sequence', 'seq-1');
+    contextManager.bind(planContext.id, 'plan', 'plan-1');
+
+    const result = service.getPlan('P-0001') as any;
+
+    expect(result.sequenceContextMetadata).toEqual([
+      { id: planContext.id, title: 'Scratchpad', type: 'Coding', permission: 'writable' },
+      { id: seqContext.id, title: 'Testing Strategy', type: 'Testing', permission: 'readonly' },
+    ]);
   });
 });
 

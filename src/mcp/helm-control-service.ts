@@ -162,7 +162,7 @@ export class HelmControlService extends EventEmitter {
     super();
     this.sessionDelivery = new HelmSessionDeliveryService(sessionManager, ptyManager, configLoader);
     this.sessionService = new HelmSessionService(sessionManager, ptyManager, configLoader, planManager);
-    this.planService = new HelmPlanService(planManager, configLoader, attachmentManager);
+    this.planService = new HelmPlanService(planManager, configLoader, attachmentManager, this.contextManager);
     this.planSequenceService = new HelmPlanSequenceService(planManager, configLoader);
     this.contextService = new HelmContextService(this.contextManager, planManager, configLoader);
     this.planAttachmentService = new HelmPlanAttachmentService(planManager, attachmentManager);
@@ -195,7 +195,16 @@ export class HelmControlService extends EventEmitter {
     return this.planService.plansSummary(dirPath);
   }
 
-  getPlan(id: string): (Omit<PlanItem, 'sequenceId'> & { hasAttachments: boolean; sequenceId?: string }) | null {
+  getPlan(id: string): (Omit<PlanItem, 'sequenceId'> & {
+    hasAttachments: boolean;
+    sequenceId?: string;
+    sequenceContextMetadata?: Array<{
+      id: string;
+      title: string;
+      type: string;
+      permission: ContextPermission;
+    }>;
+  }) | null {
     return this.planService.getPlan(id);
   }
 
