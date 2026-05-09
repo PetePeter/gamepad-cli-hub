@@ -16,6 +16,7 @@ declare global {
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { state } from './state.js';
 import SnapOutWindow from './components/SnapOutWindow.vue';
+import PlannerPopOutWindow from './components/PlannerPopOutWindow.vue';
 import { sessionsState } from './screens/sessions-state.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { getCliDisplayName, getCliIcon, toDirection } from './utils.js';
@@ -213,9 +214,14 @@ const overviewCollapsedIds = ref<Set<string>>(new Set());
 const overviewGroupLabel = ref('');
 
 // Snap-out mode detection
-const isSnapOut = computed(() => {
+const isSessionSnapOut = computed(() => {
   const params = new URLSearchParams(window.location.search);
   return params.get('snapOut') === '1';
+});
+
+const isPlannerPopOut = computed(() => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('plannerPopOut') === '1';
 });
 
 // Backup restore modal state
@@ -241,6 +247,11 @@ const backupRestore = reactive({
 const snapOutSessionId = computed(() => {
   const params = new URLSearchParams(window.location.search);
   return params.get('sessionId') || '';
+});
+
+const plannerPopOutDirPath = computed(() => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('dirPath') || '';
 });
 
 // Non-modal local state
@@ -1720,6 +1731,14 @@ function onChipBarPlanClick(planId: string): void {
   void chipBarStore.openPlan(planId);
 }
 
+async function onPlanPopOut(): Promise<void> {
+  if (!planScreenState.currentDir) return;
+  const result = await window.gamepadCli.planPopOut(planScreenState.currentDir);
+  if (!result?.success) {
+    console.error('[App] Failed to pop out planner:', result?.error ?? 'unknown error');
+  }
+}
+
 function onChipBarNewDraft(): void {
   const sessionId = state.activeSessionId ?? chipBarStore.activeSessionId ?? '';
   if (sessionId) openDraftEditor(sessionId);
@@ -2186,8 +2205,12 @@ onUnmounted(() => {
 
 <template>
   <SnapOutWindow
-    v-if="isSnapOut"
+    v-if="isSessionSnapOut"
     :session-id="snapOutSessionId"
+  />
+  <PlannerPopOutWindow
+    v-else-if="isPlannerPopOut"
+    :dir-path="plannerPopOutDirPath"
   />
   <template v-else>
     <!-- Left panel: sessions/settings -->
@@ -2472,6 +2495,7 @@ onUnmounted(() => {
         :filters="planScreenState.filters"
         :attachment-has-any="planScreenState.attachmentHasAny"
         @close="navStore.closePlan()"
+        @pop-out="onPlanPopOut()"
         @add-node="onPlanAddNode()"
         @add-context="onPlanAddContext()"
         @export-dir="onPlanExportDirectory()"

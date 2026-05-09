@@ -46,6 +46,7 @@ const props = withDefaults(defineProps<{
     hasAttachment?: { yes: boolean; no: boolean };
   };
   attachmentHasAny?: Record<string, boolean>;
+  canPopOut?: boolean;
 }>(), {
   sequences: () => [],
   contexts: () => [],
@@ -59,6 +60,7 @@ const props = withDefaults(defineProps<{
     statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
     hasAttachment: { yes: true, no: true },
   }),
+  canPopOut: true,
 });
 
 const emit = defineEmits<{
@@ -67,6 +69,7 @@ const emit = defineEmits<{
   addContext: [];
   exportDir: [];
   clearDone: [];
+  popOut: [];
   createSequence: [title: string, missionStatement: string, sharedMemory: string];
   assignSequence: [planId: string, sequenceId: string | null];
   updateSequence: [id: string, updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number }];
@@ -690,6 +693,12 @@ onUnmounted(() => {
           title="Focus related plans (F)"
           @click="emit('toggleRelatedFocus')"
         >{{ relatedFocusActive ? 'Clear Focus' : 'Focus Related' }}</button>
+        <button
+          v-if="canPopOut"
+          class="plan-header__btn plan-header__btn--secondary"
+          title="Open this planner in a detached window"
+          @click="emit('popOut')"
+        >↗ Pop Out</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('exportDir')">⬆ Export Dir</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('clearDone')">🧹 Clear Done</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openBackups')" title="Backups (R)">💾 Backups</button>

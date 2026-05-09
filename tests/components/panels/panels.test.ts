@@ -683,7 +683,7 @@ describe('PlanScreen', () => {
 
   it('emits addNode on + Add button click', async () => {
     const w = mount(PlanScreen, { props: baseProps });
-    await w.findAll('.plan-header__btn')[1].trigger('click');
+    await w.find('.split-add__primary').trigger('click');
     expect(w.emitted('addNode')).toHaveLength(1);
   });
 
@@ -728,6 +728,13 @@ describe('PlanScreen', () => {
   it('shows planner notices', () => {
     const w = mount(PlanScreen, { props: { ...baseProps, notice: 'Imported 2 plan items' } });
     expect(w.find('.plan-notice').text()).toContain('Imported 2 plan items');
+  });
+
+  it('emits popOut from the toolbar button', async () => {
+    const w = mount(PlanScreen, { props: baseProps });
+    const button = w.findAll('.plan-header__controls button').find((entry) => entry.text() === '↗ Pop Out');
+    await button!.trigger('click');
+    expect(w.emitted('popOut')).toHaveLength(1);
   });
 });
 

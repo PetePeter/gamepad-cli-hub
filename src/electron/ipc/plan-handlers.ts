@@ -2,6 +2,7 @@ import { ipcMain, shell, BrowserWindow } from 'electron';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
 import { mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { PlanManager } from '../../session/plan-manager.js';
 import type { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
 import type { ContextManager } from '../../session/context-manager.js';
@@ -9,16 +10,30 @@ import { PlanAttachmentManager } from '../../session/plan-attachment-manager.js'
 import { logger } from '../../utils/logger.js';
 import type { PlanItem, PlanDependency } from '../../types/plan.js';
 import type { WindowManager } from '../window-manager.js';
+import { getRendererHtmlPath } from '../../utils/app-paths.js';
+import { resolveWindowIconPath } from '../window-icon.js';
 
 
 export function setupPlanHandlers(
   planManager: PlanManager,
   contextManager?: ContextManager,
-  windowManager?: WindowManager,
-  incomingWatcher?: IncomingPlansWatcher,
+  windowManagerOrWatcher?: WindowManager | IncomingPlansWatcher,
+  incomingWatcherArg?: IncomingPlansWatcher,
 ): void {
+  const windowManager = isWindowManagerLike(windowManagerOrWatcher) ? windowManagerOrWatcher : undefined;
+  const incomingWatcher = isIncomingWatcherLike(windowManagerOrWatcher)
+    ? windowManagerOrWatcher
+    : incomingWatcherArg;
   const getTargetWindows = () => windowManager?.getAllWindows() ?? BrowserWindow.getAllWindows();
   const attachmentManager = new PlanAttachmentManager(planManager);
+  const plannerWindowIds = new Map<string, number>();
+
+  const getFolderLabel = (dirPath: string): string => {
+    const parts = dirPath.split(/[\\/]+/).filter(Boolean);
+    return parts[parts.length - 1] || dirPath;
+  };
+
+  const formatPlannerWindowTitle = (dirPath: string): string => `Planner - ${getFolderLabel(dirPath)}`;
 
   // Forward plan:changed events to all windows (PlanManager self-saves to disk)
   planManager.on('plan:changed', (dirPath: string) => {
@@ -333,6 +348,75 @@ export function setupPlanHandlers(
     }
   });
 
+  ipcMain.handle('plan:popOut', async (_event, dirPath: string) => {
+    try {
+      if (!dirPath) {
+        return { success: false, error: 'Directory path is required' };
+      }
+
+      const existingWindowId = plannerWindowIds.get(dirPath);
+      if (existingWindowId !== undefined) {
+        const existingWindow = windowManager?.getWindow(existingWindowId);
+        if (existingWindow && !existingWindow.isDestroyed()) {
+          if (existingWindow.isMinimized()) existingWindow.restore();
+          existingWindow.show();
+          existingWindow.focus();
+          return { success: true, windowId: existingWindow.id, reused: true };
+        }
+        plannerWindowIds.delete(dirPath);
+      }
+
+      const __dirname = dirname(fileURLToPath(import.meta.url));
+      const preloadPath = join(__dirname, 'preload.cjs');
+      const rendererPath = getRendererHtmlPath(__dirname);
+      const windowIcon = resolveWindowIconPath(__dirname);
+      const childWindow = new BrowserWindow({
+        width: 1400,
+        height: 900,
+        minWidth: 900,
+        minHeight: 640,
+        title: formatPlannerWindowTitle(dirPath),
+        icon: windowIcon,
+        webPreferences: {
+          preload: preloadPath,
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: false,
+        },
+      });
+
+      childWindow.loadFile(rendererPath, {
+        query: { plannerPopOut: '1', dirPath },
+      });
+
+      windowManager?.registerWindow(childWindow.id, childWindow);
+      plannerWindowIds.set(dirPath, childWindow.id);
+
+      childWindow.on('closed', () => {
+        plannerWindowIds.delete(dirPath);
+        windowManager?.unregisterWindow(childWindow.id);
+      });
+
+      logger.info(`[Plan] Popped out planner for ${dirPath} to window ${childWindow.id}`);
+      return { success: true, windowId: childWindow.id, reused: false };
+    } catch (error) {
+      logger.error(`[Plan] Pop-out failed: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   logger.info('[IPC] Plan handlers registered');
+}
+
+function isWindowManagerLike(value: unknown): value is WindowManager {
+  return typeof value === 'object'
+    && value !== null
+    && typeof (value as WindowManager).getAllWindows === 'function';
+}
+
+function isIncomingWatcherLike(value: unknown): value is IncomingPlansWatcher {
+  return typeof value === 'object'
+    && value !== null
+    && typeof (value as IncomingPlansWatcher).listFiles === 'function';
 }
 

@@ -805,6 +805,10 @@ const gamepadCliAPI = {
   planDeleteAllBackups: (dirPath: string): Promise<number> =>
     ipcRenderer.invoke('plan:deleteAllBackups', dirPath),
 
+  /** Open a detached planner window for a directory. */
+  planPopOut: (dirPath: string): Promise<{ success: boolean; windowId?: number; reused?: boolean; error?: string }> =>
+    ipcRenderer.invoke('plan:popOut', dirPath),
+
   /** Subscribe to backup snapshot creation events */
   onPlanBackupCreated: (callback: (metadata: { timestamp: string; dirPath: string; planCount: number; dependencyCount: number; status: string; index: number }, snapshotPath: string) => void) => {
     const listener = (_event: unknown, metadata: { timestamp: string; dirPath: string; planCount: number; dependencyCount: number; status: string; index: number }, snapshotPath: string) => callback(metadata, snapshotPath);

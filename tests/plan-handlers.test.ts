@@ -9,15 +9,33 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock electron ipcMain before importing handler
 const handlers = new Map<string, Function>();
+const electronMockState = vi.hoisted(() => {
+  const browserWindowInstances: Array<any> = [];
+  const BrowserWindowMock = vi.fn(function BrowserWindow(this: any, options: Record<string, unknown>) {
+    this.id = browserWindowInstances.length + 201;
+    this.options = options;
+    this.loadFile = vi.fn();
+    this.on = vi.fn();
+    this.isDestroyed = vi.fn(() => false);
+    this.isMinimized = vi.fn(() => false);
+    this.restore = vi.fn();
+    this.show = vi.fn();
+    this.focus = vi.fn();
+    browserWindowInstances.push(this);
+  });
+  const getAllWindows = vi.fn(() => []);
+  return { browserWindowInstances, BrowserWindowMock, getAllWindows };
+});
+
 vi.mock('electron', () => ({
   ipcMain: {
     handle: vi.fn((channel: string, handler: Function) => {
       handlers.set(channel, handler);
     }),
   },
-  BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
-  },
+  BrowserWindow: Object.assign(electronMockState.BrowserWindowMock, {
+    getAllWindows: electronMockState.getAllWindows,
+  }),
 }));
 
 vi.mock('../src/utils/logger.js', () => ({
@@ -49,6 +67,9 @@ describe('plan IPC handlers', () => {
 
   beforeEach(() => {
     handlers.clear();
+    electronMockState.browserWindowInstances.length = 0;
+    electronMockState.BrowserWindowMock.mockClear();
+    electronMockState.getAllWindows.mockClear();
     planManager = new PlanManager();
     setupPlanHandlers(planManager);
   });
@@ -59,7 +80,7 @@ describe('plan IPC handlers', () => {
     const expected = [
       'plan:list', 'plan:create', 'plan:update', 'plan:delete',
       'plan:addDep', 'plan:removeDep', 'plan:apply', 'plan:complete',
-      'plan:setState', 'plan:startableForDir', 'plan:doingForSession',
+      'plan:setState', 'plan:startableForDir', 'plan:doingForSession', 'plan:popOut',
       'plan:getAllDoingForDir', 'plan:deps', 'plan:getItem',
     ];
     for (const channel of expected) {
@@ -208,6 +229,18 @@ describe('plan IPC handlers', () => {
     const updated = await handlers.get('plan:setState')!({}, item.id, 'blocked', 'Waiting on API', 'sess-1');
     expect(updated.status).toBe('blocked');
     expect(updated.stateInfo).toBe('Waiting on API');
+  });
+
+  it('plan:popOut opens a detached planner window', async () => {
+    const result = await handlers.get('plan:popOut')!({}, 'X:\\coding\\gamepad-cli-hub');
+    expect(result).toEqual({ success: true, windowId: 201, reused: false });
+    expect(electronMockState.BrowserWindowMock).toHaveBeenCalledTimes(1);
+    expect(electronMockState.browserWindowInstances[0]?.loadFile).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        query: { plannerPopOut: '1', dirPath: 'X:\\coding\\gamepad-cli-hub' },
+      }),
+    );
   });
 
   // ─── Queries ───────────────────────────────────────────
