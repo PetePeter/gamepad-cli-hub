@@ -4,7 +4,6 @@ import { state } from '../state.js';
 import { resolveChipbarTemplates } from '../drafts/chipbar-templates.js';
 import { executeSequenceForSession } from '../bindings.js';
 import type { PlanStatus, PlanType } from '../../src/types/plan.js';
-import { deliverPromptSequence } from '../sequence-delivery.js';
 import {
   showDraftEditor as legacyShowDraftEditor,
   showPlanInEditor as legacyShowPlanInEditor,
@@ -17,7 +16,7 @@ let planEditorOpener: ((sessionId: string, plan: any, callbacks: any) => void) |
 export function setPlanEditorOpener(fn: typeof planEditorOpener) { planEditorOpener = fn; }
 
 export interface ChipBarDraft { id: string; label: string; text: string; }
-export interface ChipBarPlan { id: string; title: string; type?: 'bug' | 'feature' | 'research'; status: 'ready' | 'coding' | 'review' | 'blocked' | 'planning'; }
+export interface ChipBarPlan { id: string; humanId?: string; title: string; type?: 'bug' | 'feature' | 'research'; status: 'ready' | 'coding' | 'review' | 'blocked' | 'planning'; }
 export interface ChipBarAction { label: string; sequence: string; preview: string; }
 interface ChipBarActionConfig { actions: Array<{ label: string; sequence: string }>; inboxDir: string; }
 
@@ -88,23 +87,8 @@ export const useChipBarStore = defineStore('chip-bar', () => {
       };
 
       const onDelete = async () => { await window.gamepadCli.planDelete(planId); await refresh(sessionId); };
-      const onDone = plan.status === 'coding' || plan.status === 'review'
-        ? async () => { await window.gamepadCli.planComplete(planId, 'Completed via draft chip bar'); await refresh(sessionId); }
-        : undefined;
 
-      const onApply = async () => {
-        if (!state.activeSessionId) return;
-        const result = await window.gamepadCli.writeTempContent(item.description);
-        if (!result?.success || !result.path) {
-          console.error('[ChipBarStore] Failed to write temp file:', result?.error);
-          return;
-        }
-        await deliverPromptSequence(state.activeSessionId, `${result.path}{Send}`);
-        if (plan.status === 'ready') await window.gamepadCli.planApply(planId, state.activeSessionId);
-        await refresh(sessionId);
-      };
-
-      planEditorOpener?.(sessionId, item, { onSave, onDelete, onDone, onApply });
+      planEditorOpener?.(sessionId, item, { onSave, onDelete });
     } catch (error) {
       console.error('[ChipBarStore] Failed to open plan:', error);
     }
@@ -118,13 +102,13 @@ async function loadDrafts(sessionId: string): Promise<ChipBarDraft[]> { try { re
 async function loadPlans(sessionId: string): Promise<ChipBarPlan[]> {
   const session = state.sessions.find((item) => item.id === sessionId);
   const cwd = session?.workingDir ?? '';
-  let activePlans: Array<{ id: string; title: string; type?: string; status: string }> = [];
-  let readyPlans: Array<{ id: string; title: string; type?: string }> = [];
+  let activePlans: Array<{ id: string; humanId?: string; title: string; type?: string; status: string }> = [];
+  let readyPlans: Array<{ id: string; humanId?: string; title: string; type?: string }> = [];
   try { activePlans = cwd && window.gamepadCli.planGetAllDoingForDir ? await window.gamepadCli.planGetAllDoingForDir(cwd) : await window.gamepadCli.planDoingForSession(sessionId); } catch { activePlans = []; }
   try { if (cwd) readyPlans = await window.gamepadCli.planStartableForDir(cwd); } catch { readyPlans = []; }
   return [
-    ...activePlans.filter((plan) => ACTIVE_PLAN_STATUSES.has(toChipStatus(plan.status))).map((plan) => ({ id: plan.id, title: plan.title, type: plan.type as 'bug' | 'feature' | 'research' | undefined, status: toChipStatus(plan.status) })),
-    ...readyPlans.map((plan) => ({ id: plan.id, title: plan.title, type: plan.type as 'bug' | 'feature' | 'research' | undefined, status: 'ready' as const })),
+    ...activePlans.filter((plan) => ACTIVE_PLAN_STATUSES.has(toChipStatus(plan.status))).map((plan) => ({ id: plan.id, humanId: plan.humanId, title: plan.title, type: plan.type as 'bug' | 'feature' | 'research' | undefined, status: toChipStatus(plan.status) })),
+    ...readyPlans.map((plan) => ({ id: plan.id, humanId: plan.humanId, title: plan.title, type: plan.type as 'bug' | 'feature' | 'research' | undefined, status: 'ready' as const })),
   ];
 }
 

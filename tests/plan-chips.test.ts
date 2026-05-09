@@ -40,8 +40,8 @@ describe('Plan chip components', () => {
       props: {
         drafts: [],
         planChips: [
-          { id: 'p1', title: 'Setup DB', status: 'planning' },
-          { id: 'p2', title: 'Write API', status: 'coding' },
+          { id: 'p1', humanId: 'P-0001', title: 'Setup DB', status: 'planning' },
+          { id: 'p2', humanId: 'P-0002', title: 'Write API', status: 'coding' },
         ],
         actions: [],
         visible: true,
@@ -126,7 +126,7 @@ describe('Plan chip store integration', () => {
     expect(mockShowPlanInEditor).toHaveBeenCalledWith(
       'session-1',
       expect.objectContaining({ id: 'start-1', status: 'ready' }),
-      expect.objectContaining({ onSave: expect.any(Function), onApply: expect.any(Function) }),
+      expect.objectContaining({ onSave: expect.any(Function), onDelete: expect.any(Function) }),
     );
   });
 

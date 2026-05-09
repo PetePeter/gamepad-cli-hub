@@ -56,6 +56,7 @@ const hasContent = computed(() =>
     <PlanChip
       v-for="chip in planChips"
       :key="chip.id"
+      :human-id="chip.humanId"
       :title="chip.title"
       :type="chip.type"
       :status="chip.status"

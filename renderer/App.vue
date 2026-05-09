@@ -353,16 +353,8 @@ const chipBarVisible = computed(() =>
   !!state.activeSessionId,
 );
 
-const chipBarDrafts = computed(() =>
-  chipBarStore.drafts.map((draft) => ({
-    id: draft.id,
-    title: draft.label,
-  })),
-);
-
 const chipBarPlans = computed(() => chipBarStore.plans);
 const chipBarHasPills = computed(() =>
-  chipBarDrafts.value.length > 0 ||
   chipBarPlans.value.length > 0,
 );
 const settingsAddableButtons = computed(() => {
@@ -1728,10 +1720,6 @@ function onDraftNewDraft(): void {
   openDraftEditor(state.activeSessionId);
 }
 
-function onChipBarDraftClick(draftId: string): void {
-  chipBarStore.openDraft(draftId);
-}
-
 function onChipBarPlanClick(planId: string): void {
   void chipBarStore.openPlan(planId);
 }
@@ -1742,11 +1730,6 @@ async function onPlanPopOut(): Promise<void> {
   if (!result?.success) {
     console.error('[App] Failed to pop out planner:', result?.error ?? 'unknown error');
   }
-}
-
-function onChipBarNewDraft(): void {
-  const sessionId = state.activeSessionId ?? chipBarStore.activeSessionId ?? '';
-  if (sessionId) openDraftEditor(sessionId);
 }
 
 function onChipBarAction(sequence: string): void {
@@ -2424,14 +2407,12 @@ onUnmounted(() => {
     <div class="panel-right" id="mainArea">
       <ChipBar
         id="draftStrip"
-        :drafts="chipBarDrafts"
+        :drafts="[]"
         :plan-chips="chipBarPlans"
         :actions="[]"
         :visible="chipBarVisible && activeView !== 'overview'"
         :show-new-draft="false"
-        @draft-click="onChipBarDraftClick"
         @plan-chip-click="onChipBarPlanClick"
-        @new-draft="onChipBarNewDraft"
         @action-click="onChipBarAction"
       />
       <DraftEditor
@@ -2536,8 +2517,7 @@ onUnmounted(() => {
       <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
         <ChipActionBar
           :actions="chipBarStore.actions"
-          :show-new-draft="true"
-          @new-draft="onChipBarNewDraft"
+          :show-new-draft="false"
           @action-click="onChipBarAction"
         />
       </div>

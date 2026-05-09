@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { getDisplayTitle } from '../../types.js';
 
 const props = defineProps<{
+  humanId?: string;
   title: string;
   type?: 'bug' | 'feature' | 'research';
   status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done';
@@ -23,7 +24,8 @@ const STATUS_ICONS: Record<typeof props.status, string> = {
 
 const displayTitle = computed(() => {
   const titleWithPrefix = getDisplayTitle(props.title, props.type);
-  return truncateTitle(titleWithPrefix);
+  const withHumanId = props.humanId ? `${props.humanId} ${titleWithPrefix}` : titleWithPrefix;
+  return truncateTitle(withHumanId);
 });
 
 function truncateTitle(title: string): string {
@@ -36,7 +38,7 @@ function truncateTitle(title: string): string {
     type="button"
     class="plan-chip"
     :class="`plan-chip--${status}`"
-    :title="title"
+    :title="humanId ? `${humanId} ${title}` : title"
     @click="emit('click')"
   >
     <span>{{ STATUS_ICONS[status] }}</span>

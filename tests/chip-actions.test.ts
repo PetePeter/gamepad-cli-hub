@@ -131,7 +131,6 @@ describe('Chip-bar action store behavior', () => {
       expect.objectContaining({
         onSave: expect.any(Function),
         onDelete: expect.any(Function),
-        onDone: expect.any(Function),
       }),
     );
   });

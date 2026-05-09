@@ -38,6 +38,14 @@ describe('Chip components', () => {
     expect(wrapper.attributes('title')).toBe('abcdefghijklmnopqrstuvwxyz');
   });
 
+  it('includes the humanId in plan chip text when provided', () => {
+    const wrapper = mount(PlanChip, {
+      props: { humanId: 'P-0193', title: 'Refine chip bar', status: 'coding' },
+    });
+    expect(wrapper.text()).toContain('P-0193');
+    expect(wrapper.attributes('title')).toBe('P-0193 Refine chip bar');
+  });
+
   it('renders action button previews as tooltips', () => {
     const wrapper = mount(ChipActionBar, {
       props: {
