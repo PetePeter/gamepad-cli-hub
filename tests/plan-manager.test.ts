@@ -151,6 +151,22 @@ describe('PlanManager', () => {
       expect(pm.getItem(item.id)?.sequenceId).toBeUndefined();
     });
 
+    it('allows sequence assignment across worktrees when both belong to one project', () => {
+      const projectStore = {
+        resolveForPath: vi.fn((dirPath: string) => ({
+          id: dirPath.includes('repo') ? 'project-1' : 'project-2',
+        })),
+        save: vi.fn(),
+      } as any;
+      const withProjects = new PlanManager(projectStore);
+      const item = withProjects.create('X:\\coding\\repo-a', 'Step', 'Do it');
+      const sequence = withProjects.createSequence('X:\\coding\\repo-b', 'Shared mission');
+
+      const assigned = withProjects.assignSequence(item.id, sequence.id);
+
+      expect(assigned?.sequenceId).toBe(sequence.id);
+    });
+
     it('exports directory sequences with member plans', () => {
       const item = pm.create('/d', 'Step', 'Do it');
       const sequence = pm.createSequence('/d', 'Mission');
@@ -618,6 +634,24 @@ describe('PlanManager', () => {
       const fe = pm.getForDirectory('/frontend');
       expect(fe).toHaveLength(2);
       expect(fe.every(i => i.dirPath === '/frontend')).toBe(true);
+    });
+
+    it('aggregates same-project plans across worktrees when a project store is provided', () => {
+      const projectStore = {
+        resolveForPath: vi.fn((dirPath: string) => ({
+          id: dirPath.includes('repo') ? 'project-1' : 'project-2',
+        })),
+        save: vi.fn(),
+      } as any;
+      const withProjects = new PlanManager(projectStore);
+      const a = withProjects.create('X:\\coding\\repo-a', 'A', '');
+      const b = withProjects.create('X:\\coding\\repo-b', 'B', '');
+      withProjects.create('X:\\coding\\other', 'C', '');
+
+      const items = withProjects.getForDirectory('X:\\coding\\repo-a');
+
+      expect(items.map((item) => item.id)).toEqual(expect.arrayContaining([a.id, b.id]));
+      expect(items).toHaveLength(2);
     });
 
     it('getStartableForDirectory returns only startable items', () => {

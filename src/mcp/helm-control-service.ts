@@ -29,6 +29,7 @@ import type { CreateScheduledTaskParams, ScheduledTask, UpdateScheduledTaskParam
 import type { ContextBindingTargetType, ContextNode, ContextPermission, PlanContextRef } from '../types/context.js';
 import { ContextManager } from '../session/context-manager.js';
 import { getSessionInfo, getAvailableTools } from './guides/session-info-guide.js';
+import type { ProjectStore } from '../session/project-store.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
 
 export interface SessionSummary {
@@ -36,6 +37,8 @@ export interface SessionSummary {
   name: string;
   cliType: string;
   workingDir?: string;
+  projectId?: string;
+  projectPath?: string;
   state?: string;
   questionPending?: boolean;
   cliSessionName?: string;
@@ -45,6 +48,7 @@ export interface SessionSummary {
 
 export interface DirectorySummary {
   dirPath: string;
+  projectId?: string;
   name?: string;
   source: Array<'config' | 'plans' | 'sessions'>;
   planCount: number;
@@ -158,6 +162,7 @@ export class HelmControlService extends EventEmitter {
     private readonly attachmentManager: PlanAttachmentManager = new PlanAttachmentManager(planManager),
     private readonly contextManager: ContextManager = new ContextManager(planManager),
     schedulerManager?: ScheduledTaskManager,
+    projectStore?: ProjectStore,
   ) {
     super();
     this.sessionDelivery = new HelmSessionDeliveryService(sessionManager, ptyManager, configLoader);
@@ -166,7 +171,7 @@ export class HelmControlService extends EventEmitter {
     this.planSequenceService = new HelmPlanSequenceService(planManager, configLoader);
     this.contextService = new HelmContextService(this.contextManager, planManager, configLoader);
     this.planAttachmentService = new HelmPlanAttachmentService(planManager, attachmentManager);
-    this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager);
+    this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager, projectStore);
     this.telegramService = new HelmTelegramService(configLoader, sessionManager);
     this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager) : null;
   }

@@ -29,6 +29,8 @@ export interface SessionInfo {
   workingDir?: string;
   /** First-class project identity for the session's current repo/product context. */
   projectId?: string;
+  /** Canonical project path used for shared backlog grouping across worktrees. */
+  projectPath?: string;
   /** Pipeline state detected from PTY output */
   state?: SessionState;
   /** True when AIAGENT-QUESTION detected; clears on next non-question output */

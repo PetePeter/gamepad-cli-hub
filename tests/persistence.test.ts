@@ -115,6 +115,18 @@ describe('persistence', () => {
       expect(parsed.sessions[0].projectId).toBe('project-123');
     });
 
+    it('persists projectPath when present', () => {
+      const sessionWithProjectPath: SessionInfo = {
+        ...mockSession1,
+        projectPath: 'X:\\coding\\repo-a',
+      };
+      saveSessions([sessionWithProjectPath]);
+
+      const [, content] = (fs.writeFileSync as any).mock.calls[0];
+      const parsed = YAML.parse(content);
+      expect(parsed.sessions[0].projectPath).toBe('X:\\coding\\repo-a');
+    });
+
     it('omits cliSessionName when not present', () => {
       saveSessions([mockSession1]);
 
@@ -186,6 +198,16 @@ describe('persistence', () => {
 
       const result = loadSessions();
       expect(result[0].projectId).toBe('project-123');
+    });
+
+    it('loads projectPath from persisted data', () => {
+      (fs.existsSync as any).mockReturnValue(true);
+      (fs.readFileSync as any).mockReturnValue(
+        YAML.stringify({ sessions: [{ ...mockSession1, projectPath: 'X:\\coding\\repo-a' }] })
+      );
+
+      const result = loadSessions();
+      expect(result[0].projectPath).toBe('X:\\coding\\repo-a');
     });
   });
 
@@ -337,7 +359,7 @@ describe('SessionManager persistence integration', () => {
 
   it('assigns projectId during addSession when a project store is provided', () => {
     const projectStore = {
-      resolveForPath: vi.fn(() => ({ id: 'project-1' })),
+      resolveForPath: vi.fn(() => ({ id: 'project-1', canonicalPath: 'X:\\coding\\repo-a' })),
       save: vi.fn(),
     } as any;
     const projectManager = new SessionManager(projectStore);
@@ -345,6 +367,7 @@ describe('SessionManager persistence integration', () => {
     projectManager.addSession({ ...mockSession1, workingDir: 'X:\\coding\\repo-a' });
 
     expect(projectManager.getSession(mockSession1.id)?.projectId).toBe('project-1');
+    expect(projectManager.getSession(mockSession1.id)?.projectPath).toBe('X:\\coding\\repo-a');
     expect(projectStore.resolveForPath).toHaveBeenCalledWith('X:\\coding\\repo-a');
   });
 

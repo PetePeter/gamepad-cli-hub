@@ -13,6 +13,8 @@ export interface Session {
   cliType: string;
   processId: number;
   workingDir?: string;
+  projectId?: string;
+  projectPath?: string;
   title?: string;
   cliSessionName?: string;
   currentPlanId?: string;

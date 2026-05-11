@@ -2,6 +2,7 @@ import type { ConfigLoader } from '../../config/loader.js';
 import type { PlanManager } from '../../session/plan-manager.js';
 import type { SessionManager } from '../../session/manager.js';
 import type { DirectorySummary, CliSummary } from '../helm-control-service.js';
+import type { ProjectStore } from '../../session/project-store.js';
 
 /**
  * Directory and CLI type listing for the MCP surface.
@@ -11,24 +12,39 @@ export class HelmDirectoryService {
     private readonly configLoader: ConfigLoader,
     private readonly sessionManager: SessionManager,
     private readonly planManager: PlanManager,
+    private readonly projectStore?: ProjectStore,
   ) {}
 
   listDirectories(): DirectorySummary[] {
     const configured = this.configLoader.getWorkingDirectories();
     const sessions = this.sessionManager.getAllSessions();
-    return configured
-      .map((entry) => {
-        const source: Array<'config' | 'plans' | 'sessions'> = ['config'];
-        if (this.planManager.getForDirectory(entry.path).length > 0) source.push('plans');
-        if (sessions.some((session) => session.workingDir === entry.path)) source.push('sessions');
-        return {
-          dirPath: entry.path,
-          name: entry.name,
-          source,
-          planCount: this.planManager.getForDirectory(entry.path).length,
-          sessionCount: sessions.filter((session) => session.workingDir === entry.path).length,
-        };
-      })
+    const consolidated = new Map<string, DirectorySummary>();
+
+    for (const entry of configured) {
+      const project = this.projectStore?.resolveForPath(entry.path);
+      const dirPath = project?.canonicalPath ?? entry.path;
+      const existing = consolidated.get(dirPath);
+      const projectId = project?.id;
+      const planCount = this.planManager.getForDirectory(dirPath).length;
+      const sessionCount = sessions.filter((session) => {
+        if (session.projectPath) return session.projectPath === dirPath;
+        return session.workingDir === entry.path;
+      }).length;
+      const source = new Set<Array<'config' | 'plans' | 'sessions'>[number]>(existing?.source ?? []);
+      source.add('config');
+      if (planCount > 0) source.add('plans');
+      if (sessionCount > 0) source.add('sessions');
+      consolidated.set(dirPath, {
+        dirPath,
+        ...(projectId ? { projectId } : {}),
+        name: existing?.name ?? entry.name,
+        source: [...source],
+        planCount: Math.max(existing?.planCount ?? 0, planCount),
+        sessionCount: Math.max(existing?.sessionCount ?? 0, sessionCount),
+      });
+    }
+
+    return [...consolidated.values()]
       .sort((a, b) => a.dirPath.localeCompare(b.dirPath));
   }
 

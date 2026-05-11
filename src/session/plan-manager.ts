@@ -108,9 +108,7 @@ export class PlanManager extends EventEmitter {
 
   /** Save all items for a directory + the dependency list. */
   private saveDir(dirPath: string): void {
-    for (const item of this.items.values()) {
-      if (item.dirPath === dirPath) savePlanFile(item);
-    }
+    for (const item of this.getForDirectory(dirPath)) savePlanFile(item);
     saveDependencies(this.dependencies);
     savePlanSequences([...this.sequences.values()]);
     this.projectStore?.save();
@@ -201,8 +199,12 @@ export class PlanManager extends EventEmitter {
 
   /** Get all sequences for a directory. */
   getSequencesForDirectory(dirPath: string): PlanSequence[] {
+    const projectId = this.resolveProjectId(dirPath);
     return [...this.sequences.values()]
-      .filter(sequence => sequence.dirPath === dirPath)
+      .filter((sequence) => {
+        if (projectId && sequence.projectId) return sequence.projectId === projectId;
+        return sequence.dirPath === dirPath;
+      })
       .sort((a, b) => a.order - b.order || a.createdAt - b.createdAt || a.title.localeCompare(b.title));
   }
 
@@ -266,7 +268,7 @@ export class PlanManager extends EventEmitter {
     if (!item) return null;
     if (sequenceId) {
       const sequence = this.sequences.get(sequenceId);
-      if (!sequence || sequence.dirPath !== item.dirPath) return null;
+      if (!sequence || !this.areInSameProject(item, sequence)) return null;
       item.sequenceId = sequenceId;
     } else {
       item.sequenceId = undefined;
@@ -289,7 +291,7 @@ export class PlanManager extends EventEmitter {
       if (!item || item.dirPath !== dirPath) continue;
       if (sequenceId) {
         const sequence = this.sequences.get(sequenceId);
-        if (!sequence || sequence.dirPath !== item.dirPath) continue;
+        if (!sequence || !this.areInSameProject(item, sequence)) continue;
         item.sequenceId = sequenceId;
       } else {
         item.sequenceId = undefined;
@@ -363,7 +365,11 @@ export class PlanManager extends EventEmitter {
 
   /** Get all plan items for a directory. */
   getForDirectory(dirPath: string): PlanItem[] {
-    return [...this.items.values()].filter(i => i.dirPath === dirPath);
+    const projectId = this.resolveProjectId(dirPath);
+    return [...this.items.values()].filter((item) => {
+      if (projectId && item.projectId) return item.projectId === projectId;
+      return item.dirPath === dirPath;
+    });
   }
 
   /** Get startable items for a directory (computed: items with status 'ready' or items where dependencies are all done). */
@@ -741,10 +747,25 @@ export class PlanManager extends EventEmitter {
     const from = this.items.get(fromId);
     const to = this.items.get(toId);
     if (!from || !to) return false;
-    if (from.dirPath !== to.dirPath) return false;
+    if (!this.areInSameProject(from, to)) return false;
     if (this.dependencies.some(d => d.fromId === fromId && d.toId === toId)) return false;
     if (this.wouldCreateCycle(fromId, toId)) return false;
     return true;
+  }
+
+  private resolveProjectId(dirPath: string): string | null {
+    if (!this.projectStore) return null;
+    return this.projectStore.resolveForPath(dirPath).id;
+  }
+
+  private areInSameProject(
+    left: Pick<PlanItem, 'dirPath' | 'projectId'>,
+    right: Pick<PlanItem | PlanSequence, 'dirPath' | 'projectId'>,
+  ): boolean {
+    if (!this.projectStore) return left.dirPath === right.dirPath;
+    const leftProjectId = left.projectId ?? this.resolveProjectId(left.dirPath);
+    const rightProjectId = right.projectId ?? this.resolveProjectId(right.dirPath);
+    return leftProjectId !== null && leftProjectId === rightProjectId;
   }
 
   /** Check if adding fromId→toId would create a cycle via DFS. */

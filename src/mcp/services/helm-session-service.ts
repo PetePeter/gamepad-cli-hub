@@ -146,6 +146,8 @@ export class HelmSessionService {
       name: session.name,
       cliType: session.cliType,
       workingDir: session.workingDir,
+      projectId: session.projectId,
+      projectPath: session.projectPath,
       state: session.state,
       questionPending: session.questionPending,
       cliSessionName: session.cliSessionName,

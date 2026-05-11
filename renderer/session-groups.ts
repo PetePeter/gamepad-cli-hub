@@ -86,7 +86,7 @@ export function groupSessionsByDirectory(
   // Bucket sessions by directory
   const buckets = new Map<string, Session[]>();
   for (const session of sessions) {
-    const dir = getDir(session.id) || session.workingDir || '';
+    const dir = getDir(session.id) || session.projectPath || session.workingDir || '';
     if (!buckets.has(dir)) buckets.set(dir, []);
     buckets.get(dir)!.push(session);
   }

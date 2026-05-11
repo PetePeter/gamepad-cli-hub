@@ -94,6 +94,17 @@ describe('group-overview', () => {
     expect(getOverviewSessions().map((session) => session.id)).toEqual(['s1', 's3']);
   });
 
+  it('returns grouped sessions by canonical project path across worktrees', () => {
+    state.sessions = [
+      { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/repo-a/app', projectPath: '/repo-a', processId: 0 },
+      { id: 's2', name: 'Two', cliType: 'claude-code', workingDir: '/repo-b/api', projectPath: '/repo-a', processId: 0 },
+    ];
+
+    showOverview('/repo-a');
+
+    expect(getOverviewSessions().map((session) => session.id)).toEqual(['s1', 's2']);
+  });
+
   it('returns visible sessions across groups for the global overview', () => {
     state.sessions = [
       { id: 's1', name: 'One', cliType: 'claude-code', workingDir: '/project-a', processId: 0 },

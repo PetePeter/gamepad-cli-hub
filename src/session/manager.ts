@@ -309,6 +309,8 @@ export class SessionManager extends EventEmitter {
 
   private applyProjectIdentity(session: SessionInfo): void {
     if (!this.projectStore || !session.workingDir) return;
-    session.projectId = this.projectStore.resolveForPath(session.workingDir).id;
+    const project = this.projectStore.resolveForPath(session.workingDir);
+    session.projectId = project.id;
+    session.projectPath = project.canonicalPath;
   }
 }

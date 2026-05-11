@@ -316,9 +316,9 @@ function startRenameForFocused(): void {
 }
 
 function getDirPathForSession(sessionId: string): string | null {
-  const cwd = getSessionCwd(sessionId);
-  if (cwd) return cwd;
-  return state.sessions.find(session => session.id === sessionId)?.workingDir ?? null;
+  const session = state.sessions.find(item => item.id === sessionId);
+  if (session?.projectPath) return session.projectPath;
+  return session?.workingDir ?? getSessionCwd(sessionId) ?? null;
 }
 
 function isSessionHiddenFromOverview(session: Session): boolean {
@@ -566,6 +566,8 @@ export async function loadSessionsData(): Promise<void> {
         cliType,
         processId: 0,
         workingDir: session?.cwd || '',
+        projectId: persisted?.projectId,
+        projectPath: persisted?.projectPath,
         title: session?.title,
         cliSessionName: persisted?.cliSessionName,
         lastOutputAt: persisted?.lastOutputAt,

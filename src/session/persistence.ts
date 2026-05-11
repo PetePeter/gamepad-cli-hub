@@ -32,6 +32,7 @@ export function saveSessions(sessions: SessionInfo[], sessionsFile = SESSIONS_FI
       processId: s.processId,
       ...(s.workingDir ? { workingDir: s.workingDir } : {}),
       ...(s.projectId ? { projectId: s.projectId } : {}),
+      ...(s.projectPath ? { projectPath: s.projectPath } : {}),
       ...(s.cliSessionName ? { cliSessionName: s.cliSessionName } : {}),
       ...(s.currentPlanId ? { currentPlanId: s.currentPlanId } : {}),
       ...(s.topicId != null ? { topicId: s.topicId } : {}),
