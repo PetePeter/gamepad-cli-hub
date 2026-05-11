@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import type { SessionInfo, SessionChangeEvent, SessionAddedEvent, SessionRemovedEvent } from '../types/session.js';
 import { saveSessions, loadSessions } from './persistence.js';
 import { logger } from '../utils/logger.js';
+import type { ProjectStore } from './project-store.js';
 
 /**
  * Manages CLI sessions, tracking active sessions and handling focus switching.
@@ -21,7 +22,7 @@ export class SessionManager extends EventEmitter {
   private activeSessionId: string | null = null;
   private sessionOrder: string[] = [];
 
-  constructor() {
+  constructor(private readonly projectStore?: ProjectStore) {
     super();
   }
 
@@ -30,6 +31,7 @@ export class SessionManager extends EventEmitter {
    * @param sessionInfo - Session information
    */
   addSession(sessionInfo: SessionInfo, skipPersist = false): void {
+    this.applyProjectIdentity(sessionInfo);
     const { id } = sessionInfo;
 
     if (this.sessions.has(id)) {
@@ -188,6 +190,7 @@ export class SessionManager extends EventEmitter {
       throw new Error(`Session with id "${sessionId}" does not exist`);
     }
     Object.assign(session, updates);
+    this.applyProjectIdentity(session);
     this.persistSessions();
   }
 
@@ -300,6 +303,12 @@ export class SessionManager extends EventEmitter {
 
   /** Write current session list to disk. */
   private persistSessions(): void {
+    this.projectStore?.save();
     saveSessions(this.getAllSessions());
+  }
+
+  private applyProjectIdentity(session: SessionInfo): void {
+    if (!this.projectStore || !session.workingDir) return;
+    session.projectId = this.projectStore.resolveForPath(session.workingDir).id;
   }
 }

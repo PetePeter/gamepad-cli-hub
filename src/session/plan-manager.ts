@@ -20,6 +20,7 @@ import {
 } from './persistence.js';
 import type { PlanItem, PlanDependency, DirectoryPlan, PlanStatus, PlanType, PlanSequence } from '../types/plan.js';
 import { isStartable } from '../types/plan.js';
+import type { ProjectStore } from './project-store.js';
 
 const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['coding', 'review', 'blocked']);
 const PAUSED_PLAN_STATUSES = new Set<PlanStatus>(['review', 'blocked']);
@@ -40,7 +41,7 @@ export class PlanManager extends EventEmitter {
   private sequences = new Map<string, PlanSequence>();
   private nextHumanId = 1;
 
-  constructor() {
+  constructor(private readonly projectStore?: ProjectStore) {
     super();
     this.loadFromDisk();
   }
@@ -84,10 +85,15 @@ export class PlanManager extends EventEmitter {
     const validIds = new Set(this.items.keys());
     const { deps: cleanedDeps } = cleanupOrphanDependencies(validIds);
     this.dependencies = cleanedDeps;
+    let sequencesChanged = false;
     for (const sequence of loadPlanSequences()) {
+      sequencesChanged = this.ensureSequenceProject(sequence) || sequencesChanged;
       this.sequences.set(sequence.id, sequence);
     }
     this.cleanupOrphanSequenceMemberships();
+    if (sequencesChanged) {
+      savePlanSequences([...this.sequences.values()]);
+    }
 
     const dirs = new Set<string>();
     for (const item of this.items.values()) dirs.add(item.dirPath);
@@ -107,6 +113,7 @@ export class PlanManager extends EventEmitter {
     }
     saveDependencies(this.dependencies);
     savePlanSequences([...this.sequences.values()]);
+    this.projectStore?.save();
   }
 
   /** Create a new plan item. New items start as 'planning', transition to 'ready' when deps satisfied. */
@@ -120,6 +127,7 @@ export class PlanManager extends EventEmitter {
     const item: PlanItem = {
       id: randomUUID(),
       humanId: this.allocateHumanId(),
+      ...(this.projectStore ? { projectId: this.projectStore.resolveForPath(dirPath).id } : {}),
       dirPath,
       title,
       description,
@@ -175,6 +183,7 @@ export class PlanManager extends EventEmitter {
     const existing = this.getSequencesForDirectory(dirPath);
     const sequence: PlanSequence = {
       id: randomUUID(),
+      ...(this.projectStore ? { projectId: this.projectStore.resolveForPath(dirPath).id } : {}),
       dirPath,
       title,
       missionStatement,
@@ -565,9 +574,11 @@ export class PlanManager extends EventEmitter {
     for (const plan of Object.values(data)) {
       const sequenceIds = new Set((plan.sequences ?? []).map(sequence => sequence.id));
       for (const sequence of plan.sequences ?? []) {
+        this.ensureSequenceProject(sequence);
         this.sequences.set(sequence.id, { ...sequence, dirPath: sequence.dirPath || plan.dirPath });
       }
       for (const item of plan.items) {
+        this.ensurePlanMetadata(item);
         this.items.set(item.id, { ...item, sequenceId: item.sequenceId && sequenceIds.has(item.sequenceId) ? item.sequenceId : undefined });
       }
       this.dependencies.push(...plan.dependencies);
@@ -695,7 +706,23 @@ export class PlanManager extends EventEmitter {
       item.stateUpdatedAt = item.updatedAt ?? item.createdAt ?? Date.now();
       changed = true;
     }
+    if (this.projectStore) {
+      const projectId = this.projectStore.resolveForPath(item.dirPath).id;
+      if (item.projectId !== projectId) {
+        item.projectId = projectId;
+        changed = true;
+      }
+    }
     return changed;
+  }
+
+  private ensureSequenceProject(sequence: PlanSequence): boolean {
+    if (!this.projectStore) return false;
+    const projectId = this.projectStore.resolveForPath(sequence.dirPath).id;
+    if (sequence.projectId === projectId) return false;
+    sequence.projectId = projectId;
+    sequence.updatedAt = Date.now();
+    return true;
   }
 
   private cleanupOrphanSequenceMemberships(): void {

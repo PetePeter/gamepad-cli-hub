@@ -73,6 +73,19 @@ describe('PlanManager', () => {
       expect(b.id).not.toBe(c.id);
       expect(a.id).not.toBe(c.id);
     });
+
+    it('assigns projectId immediately when a project store is provided', () => {
+      const projectStore = {
+        resolveForPath: vi.fn(() => ({ id: 'project-1' })),
+        save: vi.fn(),
+      } as any;
+      const withProjects = new PlanManager(projectStore);
+
+      const item = withProjects.create('/projects/backend', 'Build Auth', 'JWT middleware');
+
+      expect(item.projectId).toBe('project-1');
+      expect(projectStore.resolveForPath).toHaveBeenCalledWith('/projects/backend');
+    });
   });
 
   describe('update', () => {
@@ -100,6 +113,19 @@ describe('PlanManager', () => {
   });
 
   describe('sequences', () => {
+    it('assigns projectId to new sequences when a project store is provided', () => {
+      const projectStore = {
+        resolveForPath: vi.fn(() => ({ id: 'project-1' })),
+        save: vi.fn(),
+      } as any;
+      const withProjects = new PlanManager(projectStore);
+
+      const sequence = withProjects.createSequence('/d', 'Mission', 'Ship the thing', 'Remember constraints');
+
+      expect(sequence.projectId).toBe('project-1');
+      expect(projectStore.resolveForPath).toHaveBeenCalledWith('/d');
+    });
+
     it('creates sequences and assigns plans in the same directory', () => {
       const item = pm.create('/d', 'Step', 'Do it');
       const sequence = pm.createSequence('/d', 'Mission', 'Ship the thing', 'Remember constraints');

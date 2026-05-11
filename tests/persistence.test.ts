@@ -335,6 +335,19 @@ describe('SessionManager persistence integration', () => {
     expect(restored?.name).toBe('My Custom Name');
   });
 
+  it('assigns projectId during addSession when a project store is provided', () => {
+    const projectStore = {
+      resolveForPath: vi.fn(() => ({ id: 'project-1' })),
+      save: vi.fn(),
+    } as any;
+    const projectManager = new SessionManager(projectStore);
+
+    projectManager.addSession({ ...mockSession1, workingDir: 'X:\\coding\\repo-a' });
+
+    expect(projectManager.getSession(mockSession1.id)?.projectId).toBe('project-1');
+    expect(projectStore.resolveForPath).toHaveBeenCalledWith('X:\\coding\\repo-a');
+  });
+
   it('rename + persist + restore round-trips the custom name', () => {
     manager.addSession(mockSession1);
     manager.renameSession(mockSession1.id, 'Renamed Session');

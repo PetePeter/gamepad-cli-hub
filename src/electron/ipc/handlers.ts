@@ -14,6 +14,7 @@ import { PipelineQueue } from '../../session/pipeline-queue.js';
 import { NotificationManager } from '../../session/notification-manager.js';
 import { DraftManager } from '../../session/draft-manager.js';
 import { PlanManager } from '../../session/plan-manager.js';
+import { ProjectStore } from '../../session/project-store.js';
 import { ContextManager } from '../../session/context-manager.js';
 import { PlanBackupManager } from '../../session/plan-backup-manager.js';
 import { PatternMatcher } from '../../session/pattern-matcher.js';
@@ -78,12 +79,13 @@ export function registerIPCHandlers(
   }
 
   // SessionManager is created here and shared via dependency injection
-  const sessionManager = new SessionManager();
+  const projectStore = new ProjectStore();
+  const sessionManager = new SessionManager(projectStore);
   const ptyManager = new PtyManager();
   const stateDetector = new StateDetector();
   const pipelineQueue = new PipelineQueue();
   const draftManager = new DraftManager();
-  const planManager = new PlanManager();
+  const planManager = new PlanManager(projectStore);
   const contextManager = new ContextManager(planManager);
   const backupManager = new PlanBackupManager(planManager);
   const scheduledTaskManager = new ScheduledTaskManager(sessionManager, ptyManager, planManager, configLoader);
