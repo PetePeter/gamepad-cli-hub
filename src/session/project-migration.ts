@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getConfigDir } from '../utils/app-paths.js';
@@ -16,6 +16,36 @@ export interface ProjectMigrationResult {
   updatedSessions: number;
 }
 
+interface ProjectMigrationMarker {
+  version: number;
+  status: 'running' | 'completed';
+  startedAt: number;
+  completedAt?: number;
+  backupDir: string;
+}
+
+const PROJECT_MIGRATION_VERSION = 1;
+
+function readMarker(markerFile: string): ProjectMigrationMarker | null {
+  if (!existsSync(markerFile)) return null;
+  try {
+    return JSON.parse(readFileSync(markerFile, 'utf8')) as ProjectMigrationMarker;
+  } catch {
+    return null;
+  }
+}
+
+function writeMarker(markerFile: string, marker: ProjectMigrationMarker): void {
+  mkdirSync(dirname(markerFile), { recursive: true });
+  writeFileSync(markerFile, JSON.stringify(marker, null, 2), 'utf8');
+}
+
+function ensureBackupCopy(sourcePath: string, backupPath: string): void {
+  if (!existsSync(sourcePath) || existsSync(backupPath)) return;
+  mkdirSync(dirname(backupPath), { recursive: true });
+  cpSync(sourcePath, backupPath, { recursive: true });
+}
+
 /**
  * First-run project migration:
  * - creates stable Project records from existing plans/sequences/sessions
@@ -30,12 +60,27 @@ export function migrateProjects(configDir?: string, runGit?: GitRunner): Project
   const sequencesFile = join(resolvedConfigDir, 'plan-sequences.json');
   const sessionsFile = join(resolvedConfigDir, 'sessions.yaml');
   const projectsFile = join(resolvedConfigDir, 'projects.json');
+  const markerFile = join(resolvedConfigDir, 'project-migration-state.json');
+  const backupDir = join(resolvedConfigDir, 'project-migration-backup');
 
   const store = new ProjectStore(runGit, projectsFile);
+  const existingMarker = readMarker(markerFile);
+  const marker: ProjectMigrationMarker = existingMarker ?? {
+    version: PROJECT_MIGRATION_VERSION,
+    status: 'running',
+    startedAt: Date.now(),
+    backupDir,
+  };
+  writeMarker(markerFile, { ...marker, status: 'running', completedAt: undefined });
   const beforeCount = store.list().length;
   let updatedPlans = 0;
   let updatedSequences = 0;
   let updatedSessions = 0;
+
+  ensureBackupCopy(plansDir, join(backupDir, 'plans'));
+  ensureBackupCopy(sequencesFile, join(backupDir, 'plan-sequences.json'));
+  ensureBackupCopy(sessionsFile, join(backupDir, 'sessions.yaml'));
+  ensureBackupCopy(projectsFile, join(backupDir, 'projects.json'));
 
   if (existsSync(plansDir)) {
     for (const filename of listPlanFiles(plansDir)) {
@@ -89,6 +134,12 @@ export function migrateProjects(configDir?: string, runGit?: GitRunner): Project
     store.save();
     logger.info(`[ProjectMigration] Projects=${afterCount} plans=${updatedPlans} sequences=${updatedSequences} sessions=${updatedSessions}`);
   }
+
+  writeMarker(markerFile, {
+    ...marker,
+    status: 'completed',
+    completedAt: Date.now(),
+  });
 
   return {
     migratedProjects: Math.max(0, afterCount - beforeCount),

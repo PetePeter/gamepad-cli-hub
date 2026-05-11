@@ -103,4 +103,41 @@ describe('migrateProjects', () => {
     expect(second.updatedSessions).toBe(0);
     expect(loadProjectRecords(path.join(tmpDir, 'projects.json'))).toHaveLength(1);
   });
+
+  it('writes a migration marker and recoverable backups for touched files', () => {
+    savePlanFile(makePlan('aaaa0001-0000-0000-0000-000000000001', 'X:\\coding\\repo-a'), path.join(tmpDir, 'plans'));
+    fs.writeFileSync(path.join(tmpDir, 'sessions.yaml'), YAML.stringify({
+      sessions: [{
+        id: 's1',
+        name: 'Codex',
+        cliType: 'codex',
+        processId: 1,
+        workingDir: 'X:\\coding\\repo-a',
+      } satisfies SessionInfo],
+    }), 'utf8');
+
+    migrateProjects(tmpDir, () => null);
+
+    const marker = JSON.parse(fs.readFileSync(path.join(tmpDir, 'project-migration-state.json'), 'utf8'));
+    expect(marker.status).toBe('completed');
+    expect(fs.existsSync(path.join(tmpDir, 'project-migration-backup', 'plans'))).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, 'project-migration-backup', 'sessions.yaml'))).toBe(true);
+  });
+
+  it('can resume safely after an interrupted migration marker is left behind', () => {
+    savePlanFile(makePlan('aaaa0001-0000-0000-0000-000000000001', 'X:\\coding\\repo-a'), path.join(tmpDir, 'plans'));
+    fs.writeFileSync(path.join(tmpDir, 'project-migration-state.json'), JSON.stringify({
+      version: 1,
+      status: 'running',
+      startedAt: 1,
+      backupDir: path.join(tmpDir, 'project-migration-backup'),
+    }, null, 2), 'utf8');
+
+    const result = migrateProjects(tmpDir, () => null);
+    const marker = JSON.parse(fs.readFileSync(path.join(tmpDir, 'project-migration-state.json'), 'utf8'));
+
+    expect(result.updatedPlans).toBe(1);
+    expect(marker.status).toBe('completed');
+    expect(loadProjectRecords(path.join(tmpDir, 'projects.json'))).toHaveLength(1);
+  });
 });
