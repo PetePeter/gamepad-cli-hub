@@ -86,6 +86,32 @@ describe('migrateProjects', () => {
     expect(sessions[0]?.projectId).toBe(projects[0].id);
   });
 
+  it('keeps session workingDir intact while consolidating the owning project to the worktree root', () => {
+    fs.writeFileSync(path.join(tmpDir, 'sessions.yaml'), YAML.stringify({
+      sessions: [{
+        id: 's1',
+        name: 'Codex',
+        cliType: 'codex',
+        processId: 1,
+        workingDir: 'X:\\coding\\repo-a\\packages\\ui',
+      } satisfies SessionInfo],
+    }), 'utf8');
+
+    migrateProjects(tmpDir, (_cwd, args) => {
+      if (args.includes('--show-toplevel')) return 'X:\\coding\\repo-a';
+      if (args.includes('--git-common-dir')) return 'X:\\coding\\repo\\.git';
+      return null;
+    });
+
+    const projects = loadProjectRecords(path.join(tmpDir, 'projects.json'));
+    const sessions = loadSessions(path.join(tmpDir, 'sessions.yaml'));
+
+    expect(projects[0]?.canonicalPath).toBe('x:\\coding\\repo-a');
+    expect(projects[0]?.alternatePaths).toEqual([]);
+    expect(sessions[0]?.workingDir).toBe('X:\\coding\\repo-a\\packages\\ui');
+    expect(sessions[0]?.projectId).toBe(projects[0]?.id);
+  });
+
   it('is idempotent on repeat startup', () => {
     savePlanFile(makePlan('aaaa0001-0000-0000-0000-000000000001', 'X:\\coding\\repo-a'), path.join(tmpDir, 'plans'));
     const runGit = (cwd: string, args: string[]) => {

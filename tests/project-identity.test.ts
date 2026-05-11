@@ -22,6 +22,17 @@ describe('inspectProjectIdentity', () => {
     expect(identity.repoRootPath).toBe('x:\\coding\\repo-worktree-a\\repo-root');
   });
 
+  it('keeps repoRootPath distinct from a deeper cwd inside the repo', () => {
+    const identity = inspectProjectIdentity('X:\\coding\\repo-worktree-a\\packages\\ui', (_cwd, args) => {
+      if (args.includes('--show-toplevel')) return 'X:\\coding\\repo-worktree-a';
+      if (args.includes('--git-common-dir')) return 'X:\\coding\\repo\\.git';
+      return null;
+    });
+
+    expect(identity.repoRootPath).toBe('x:\\coding\\repo-worktree-a');
+    expect(identity.canonicalPathHint).toBe('x:\\coding\\repo-worktree-a');
+  });
+
   it('falls back to normalized path identity outside git repos', () => {
     const identity = inspectProjectIdentity('X:\\coding\\standalone', () => null);
 

@@ -61,11 +61,11 @@ export class ProjectStore {
   }
 
   resolveForPath(dirPath: string): ProjectRecord {
-    const normalizedPath = normalizeProjectPath(dirPath);
     const identity = inspectProjectIdentity(dirPath, this.runGit);
+    const observedProjectPath = identity.repoRootPath ?? normalizeProjectPath(dirPath);
 
     let record = this.records.find((candidate) => candidate.key === identity.key)
-      ?? findProjectByPath(this.records, normalizedPath);
+      ?? findProjectByPath(this.records, observedProjectPath);
 
     if (!record) {
       const now = Date.now();
@@ -74,7 +74,7 @@ export class ProjectStore {
         key: identity.key,
         name: dirDisplayNameFromPath(identity.canonicalPathHint),
         canonicalPath: identity.canonicalPathHint,
-        alternatePaths: normalizedPath === identity.canonicalPathHint ? [] : [normalizedPath],
+        alternatePaths: observedProjectPath === identity.canonicalPathHint ? [] : [observedProjectPath],
         rootKind: identity.rootKind,
         gitCommonDir: identity.gitCommonDir,
         repoRootPath: identity.repoRootPath,
@@ -86,7 +86,7 @@ export class ProjectStore {
       return record;
     }
 
-    if (mergeProjectPath(record, identity, normalizedPath)) {
+    if (mergeProjectPath(record, identity, observedProjectPath)) {
       this.dirty = true;
     }
     return record;
