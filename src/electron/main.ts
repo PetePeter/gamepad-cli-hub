@@ -14,6 +14,7 @@ import { resolveWindowIconPath } from './window-icon.js';
 import { buildSplashHtml } from './splash-html.js';
 import { resolveSplashLogoUrl } from './splash-logo.js';
 import { migrateOldPlans } from '../session/plan-migration.js';
+import { migrateProjects } from '../session/project-migration.js';
 import { migrateUserDataFolder } from './user-data-migration.js';
 import { configureElectronAppIdentity } from './app-identity.js';
 import { configLoader } from '../config/loader.js';
@@ -282,6 +283,15 @@ app.whenReady().then(async () => {
     }
   } catch (err) {
     logger.error(`[Main] Plan migration failed: ${err}`);
+  }
+
+  try {
+    const r = migrateProjects();
+    if (r.migratedProjects > 0 || r.updatedPlans > 0 || r.updatedSequences > 0 || r.updatedSessions > 0) {
+      logger.info(`[Main] Project migration: ${r.migratedProjects} project(s), ${r.updatedPlans} plan(s), ${r.updatedSequences} sequence(s), ${r.updatedSessions} session(s)`);
+    }
+  } catch (err) {
+    logger.error(`[Main] Project migration failed: ${err}`);
   }
 
   // Register IPC handlers (passes __dirname for temp file cleanup on startup)

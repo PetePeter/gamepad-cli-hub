@@ -22,6 +22,8 @@ export interface PlanItem {
   id: string;
   /** Human-readable stable identifier for UI/MCP references (for example, P-0007). */
   humanId?: string;
+  /** First-class owning project identity. */
+  projectId?: string;
   /** Directory this plan belongs to */
   dirPath: string;
   /** Short title displayed on the node */
@@ -62,6 +64,8 @@ export interface PlanDependency {
 export interface PlanSequence {
   /** Unique identifier (UUID v4). */
   id: string;
+  /** First-class owning project identity. */
+  projectId?: string;
   /** Directory this sequence belongs to. */
   dirPath: string;
   /** Short name displayed on the swimlane. */

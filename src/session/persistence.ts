@@ -6,6 +6,7 @@ import { logger } from '../utils/logger.js';
 import { getConfigDir } from '../utils/app-paths.js';
 import type { SessionInfo, DraftPrompt } from '../types/session.js';
 import type { PlanItem, PlanDependency, DirectoryPlan, PlanSequence } from '../types/plan.js';
+import type { ProjectRecord } from '../types/project.js';
 import type { ScheduledTask } from '../types/scheduled-task.js';
 import type { ContextBinding, ContextNode } from '../types/context.js';
 
@@ -16,12 +17,13 @@ const PLANS_FILE = join(getConfigDir(__persistence_dirname), 'plans.yaml');
 const DEFAULT_PLANS_DIR = join(getConfigDir(__persistence_dirname), 'plans');
 const DEFAULT_PLAN_DEPS_FILE = join(getConfigDir(__persistence_dirname), 'plan-dependencies.json');
 const DEFAULT_PLAN_SEQUENCES_FILE = join(getConfigDir(__persistence_dirname), 'plan-sequences.json');
+const DEFAULT_PROJECTS_FILE = join(getConfigDir(__persistence_dirname), 'projects.json');
 const DEFAULT_PLAN_CONTEXTS_FILE = join(getConfigDir(__persistence_dirname), 'plan-contexts.json');
 const DEFAULT_PLAN_CONTEXT_BINDINGS_FILE = join(getConfigDir(__persistence_dirname), 'plan-context-bindings.json');
 const SCHEDULED_TASKS_FILE = join(getConfigDir(__persistence_dirname), 'scheduled-tasks.yaml');
 
 /** Persist current sessions to disk so they survive restarts. */
-export function saveSessions(sessions: SessionInfo[]): void {
+export function saveSessions(sessions: SessionInfo[], sessionsFile = SESSIONS_FILE): void {
   try {
     const data = { sessions: sessions.map(s => ({
       id: s.id,
@@ -29,23 +31,24 @@ export function saveSessions(sessions: SessionInfo[]): void {
       cliType: s.cliType,
       processId: s.processId,
       ...(s.workingDir ? { workingDir: s.workingDir } : {}),
+      ...(s.projectId ? { projectId: s.projectId } : {}),
       ...(s.cliSessionName ? { cliSessionName: s.cliSessionName } : {}),
       ...(s.currentPlanId ? { currentPlanId: s.currentPlanId } : {}),
       ...(s.topicId != null ? { topicId: s.topicId } : {}),
       ...(s.aiagentState ? { aiagentState: s.aiagentState } : {}),
       // windowId is intentionally NOT persisted — it's ephemeral
     }))};
-    writeFileSync(SESSIONS_FILE, YAML.stringify(data), 'utf8');
+    writeFileSync(sessionsFile, YAML.stringify(data), 'utf8');
   } catch (err) {
     logger.error(`Failed to save sessions: ${err}`);
   }
 }
 
 /** Load previously persisted sessions from disk. */
-export function loadSessions(): SessionInfo[] {
+export function loadSessions(sessionsFile = SESSIONS_FILE): SessionInfo[] {
   try {
-    if (!existsSync(SESSIONS_FILE)) return [];
-    const content = readFileSync(SESSIONS_FILE, 'utf8');
+    if (!existsSync(sessionsFile)) return [];
+    const content = readFileSync(sessionsFile, 'utf8');
     const parsed = YAML.parse(content) as { sessions?: SessionInfo[] };
     return parsed?.sessions ?? [];
   } catch (err) {
@@ -55,10 +58,10 @@ export function loadSessions(): SessionInfo[] {
 }
 
 /** Wipe the persisted sessions file. */
-export function clearPersistedSessions(): void {
+export function clearPersistedSessions(sessionsFile = SESSIONS_FILE): void {
   try {
-    if (existsSync(SESSIONS_FILE)) {
-      writeFileSync(SESSIONS_FILE, YAML.stringify({ sessions: [] }), 'utf8');
+    if (existsSync(sessionsFile)) {
+      writeFileSync(sessionsFile, YAML.stringify({ sessions: [] }), 'utf8');
     }
   } catch (err) {
     logger.error(`Failed to clear persisted sessions: ${err}`);
@@ -262,6 +265,28 @@ export function loadPlanSequences(sequencesFile = DEFAULT_PLAN_SEQUENCES_FILE): 
     return Array.isArray(raw?.sequences) ? raw.sequences : [];
   } catch (err) {
     logger.error(`Failed to load plan sequences: ${err}`);
+    return [];
+  }
+}
+
+/** Write the global project registry to disk. */
+export function saveProjectRecords(projects: ProjectRecord[], projectsFile = DEFAULT_PROJECTS_FILE): void {
+  try {
+    mkdirSync(dirname(projectsFile), { recursive: true });
+    writeFileSync(projectsFile, JSON.stringify({ version: 1, projects }, null, 2), 'utf8');
+  } catch (err) {
+    logger.error(`Failed to save projects: ${err}`);
+  }
+}
+
+/** Load the global project registry from disk. Returns [] if not found. */
+export function loadProjectRecords(projectsFile = DEFAULT_PROJECTS_FILE): ProjectRecord[] {
+  try {
+    if (!existsSync(projectsFile)) return [];
+    const raw = JSON.parse(readFileSync(projectsFile, 'utf8'));
+    return Array.isArray(raw?.projects) ? raw.projects : [];
+  } catch (err) {
+    logger.error(`Failed to load projects: ${err}`);
     return [];
   }
 }

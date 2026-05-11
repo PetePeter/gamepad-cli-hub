@@ -3,9 +3,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { saveSessions, loadSessions, clearPersistedSessions } from '../src/session/persistence.js';
+import { saveSessions, loadSessions, clearPersistedSessions, saveProjectRecords, loadProjectRecords } from '../src/session/persistence.js';
 import { SessionManager } from '../src/session/manager.js';
 import type { SessionInfo } from '../src/types/session.js';
+import type { ProjectRecord } from '../src/types/project.js';
 import * as fs from 'node:fs';
 import * as YAML from 'yaml';
 
@@ -14,6 +15,7 @@ vi.mock('node:fs', () => ({
   readFileSync: vi.fn(),
   writeFileSync: vi.fn(),
   existsSync: vi.fn(),
+  mkdirSync: vi.fn(),
 }));
 
 // Mock logger to silence output during tests
@@ -101,6 +103,18 @@ describe('persistence', () => {
       expect(parsed.sessions[0].currentPlanId).toBe('plan-123');
     });
 
+    it('persists projectId when present', () => {
+      const sessionWithProject: SessionInfo = {
+        ...mockSession1,
+        projectId: 'project-123',
+      };
+      saveSessions([sessionWithProject]);
+
+      const [, content] = (fs.writeFileSync as any).mock.calls[0];
+      const parsed = YAML.parse(content);
+      expect(parsed.sessions[0].projectId).toBe('project-123');
+    });
+
     it('omits cliSessionName when not present', () => {
       saveSessions([mockSession1]);
 
@@ -162,6 +176,45 @@ describe('persistence', () => {
 
       const result = loadSessions();
       expect(result[0].currentPlanId).toBe('plan-123');
+    });
+
+    it('loads projectId from persisted data', () => {
+      (fs.existsSync as any).mockReturnValue(true);
+      (fs.readFileSync as any).mockReturnValue(
+        YAML.stringify({ sessions: [{ ...mockSession1, projectId: 'project-123' }] })
+      );
+
+      const result = loadSessions();
+      expect(result[0].projectId).toBe('project-123');
+    });
+  });
+
+  describe('project records', () => {
+    const mockProject: ProjectRecord = {
+      id: 'project-1',
+      key: 'git:x:\\coding\\repo\\.git',
+      name: 'repo',
+      canonicalPath: 'x:\\coding\\repo',
+      alternatePaths: ['x:\\coding\\repo-worktree'],
+      rootKind: 'git',
+      gitCommonDir: 'x:\\coding\\repo\\.git',
+      repoRootPath: 'x:\\coding\\repo',
+      createdAt: 1,
+      updatedAt: 2,
+    };
+
+    it('saves project records as json', () => {
+      saveProjectRecords([mockProject]);
+      const [, content] = (fs.writeFileSync as any).mock.calls[0];
+      const parsed = JSON.parse(content);
+      expect(parsed.projects[0].id).toBe('project-1');
+      expect(parsed.projects[0].alternatePaths).toEqual(['x:\\coding\\repo-worktree']);
+    });
+
+    it('loads project records from json', () => {
+      (fs.existsSync as any).mockReturnValue(true);
+      (fs.readFileSync as any).mockReturnValue(JSON.stringify({ projects: [mockProject] }));
+      expect(loadProjectRecords()).toEqual([mockProject]);
     });
   });
 

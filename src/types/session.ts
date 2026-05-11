@@ -27,6 +27,8 @@ export interface SessionInfo {
   processId: number;
   /** Working directory the session was spawned in */
   workingDir?: string;
+  /** First-class project identity for the session's current repo/product context. */
+  projectId?: string;
   /** Pipeline state detected from PTY output */
   state?: SessionState;
   /** True when AIAGENT-QUESTION detected; clears on next non-question output */
