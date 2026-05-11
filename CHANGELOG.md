@@ -2,6 +2,40 @@
 
 All notable changes to gamepad-cli-hub are documented in this file.
 
+## [1.5.0] - 2026-05-11
+
+### Features
+
+- **First-class Project identity** — Helm planning data now belongs to stable Projects instead of raw directory paths, so related work can survive repo moves and multi-worktree setups
+- **Automatic project migration** — Existing plans, sequences, and persisted sessions migrate on first run into the new project-aware model with recovery markers and safety backups
+- **Multi-worktree project consolidation** — Multiple worktrees of the same git repo now resolve to one shared project backlog while sessions keep their real branch/worktree execution directory
+- **Project-aware MCP and UI surfaces** — MCP session and directory summaries plus the sessions UI, overview, and planner shortcuts now prefer canonical project identity over raw cwd grouping
+- **Detachable planner window** — The planner can open in a fully usable pop-out window
+- **Persistent Helm completion notifications** — Completed plan flows can surface stronger in-app guidance for testing and next-step follow-ups
+
+### Improvements
+
+- **Planner editor correctness** — Better resize behavior, edit-target ownership, refresh timing, and filter persistence in the plan editor flow
+- **Context card reliability** — Context CRUD, binding, persistence, and inspector ordering are more stable and predictable
+- **Session list behavior** — Selection, ordering, snap-out state, and startup restore are more coherent across reloads and view switches
+- **Chip bar simplification** — Removed obsolete draft/apply affordances and tightened remaining plan-chip behavior
+- **Helm MCP plan guidance** — `plan_get` exposes better lightweight context metadata and project-aware planning surfaces behave more consistently for agents
+
+### Fixes
+
+- Fixed planner popup reset and debug-button behavior
+- Fixed planner context refresh races and stale context UI updates
+- Fixed session-list hit testing, ordering drift, and overview click-to-session navigation regressions
+- Fixed startup session restore flicker and silent disappearance issues
+- Fixed packaged-install identity paths so Helm data stays out of legacy locations
+- Fixed MCP delivery and plan-follow-up behavior around plan completion workflows
+
+### Migration Notes
+
+- On first launch after upgrading, Helm migrates legacy dir-owned planning data into project-aware ownership and writes `projects.json`
+- Existing sessions keep their exact `workingDir`, but shared planning/grouping can now follow canonical project roots across worktrees
+- Multi-worktree repos should now appear as one shared planning backlog instead of separate per-worktree backlogs
+
 ## [1.4.6] - 2026-05-01
 
 ### Features
