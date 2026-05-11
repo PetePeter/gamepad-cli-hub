@@ -321,6 +321,11 @@ function getDirPathForSession(sessionId: string): string | null {
   return state.sessions.find(session => session.id === sessionId)?.workingDir ?? null;
 }
 
+function isSessionHiddenFromOverview(session: Session): boolean {
+  const hidden = new Set(sessionsState.groupPrefs.overviewHidden ?? []);
+  return getSessionOverviewAliases(session).some(key => hidden.has(key));
+}
+
 function getFocusedGroupDirPath(): string | null {
   const navItem = sessionsState.navList[sessionsState.sessionsFocusIndex];
   if (navItem?.type === 'group-header') return navItem.id;
@@ -511,13 +516,20 @@ export function syncSessionHighlight(sessionId: string): void {
  * terminal sessions hidden inside collapsed groups so they're still reachable.
  */
 export function getTabCycleSessionIds(): string[] {
+  const hiddenIds = new Set(
+    state.sessions
+      .filter(session => isSessionHiddenFromOverview(session))
+      .map(session => session.id),
+  );
   const visibleIds = sessionsState.navList
-    .filter(item => item.type === 'session-card')
+    .filter(item => item.type === 'session-card' && !hiddenIds.has(item.id))
     .map(item => item.id);
 
   const visibleSet = new Set(visibleIds);
-  const allIds = state.sessions.map(s => s.id);
-  const collapsedIds = allIds.filter(id => !visibleSet.has(id));
+  const eligibleIds = state.sessions
+    .filter(session => !hiddenIds.has(session.id))
+    .map(session => session.id);
+  const collapsedIds = eligibleIds.filter(id => !visibleSet.has(id));
 
   return [...visibleIds, ...collapsedIds];
 }

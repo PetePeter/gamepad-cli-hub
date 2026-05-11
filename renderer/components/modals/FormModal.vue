@@ -47,6 +47,18 @@ const validationErrors = ref<Record<string, string>>({});
 const { onKeydown } = useFocusTrap(overlayRef);
 
 interface SeqItem { label: string; sequence: string }
+interface SequenceRow extends SeqItem { rowId: string }
+
+let nextSequenceRowId = 0;
+
+function makeSequenceRow(item?: Partial<SeqItem>): SequenceRow {
+  nextSequenceRowId += 1;
+  return {
+    rowId: `sequence-row-${nextSequenceRowId}`,
+    label: item?.label ?? '',
+    sequence: item?.sequence ?? '',
+  };
+}
 
 function parseSequenceItems(raw: string): SeqItem[] {
   if (!raw) return [];
@@ -60,12 +72,20 @@ function parseSequenceItems(raw: string): SeqItem[] {
   } catch { return []; }
 }
 
-function getSequenceItems(fieldKey: string): SeqItem[] {
-  return parseSequenceItems(formValues.value[fieldKey]);
+const sequenceRowsByField = ref<Record<string, SequenceRow[]>>({});
+
+function serializeSequenceRows(rows: SequenceRow[]): string {
+  return JSON.stringify(rows.map(({ label, sequence }) => ({ label, sequence })));
+}
+
+function getSequenceItems(fieldKey: string): SequenceRow[] {
+  return sequenceRowsByField.value[fieldKey] ?? [];
 }
 
 function setSequenceItems(fieldKey: string, items: SeqItem[]): void {
-  formValues.value[fieldKey] = JSON.stringify(items);
+  const rows = items.map(item => makeSequenceRow(item));
+  sequenceRowsByField.value[fieldKey] = rows;
+  formValues.value[fieldKey] = serializeSequenceRows(rows);
   revalidateFieldByKey(fieldKey);
 }
 
@@ -73,35 +93,47 @@ function updateSequenceItem(fieldKey: string, index: number, prop: 'label' | 'se
   const items = getSequenceItems(fieldKey);
   if (index >= 0 && index < items.length) {
     items[index][prop] = value;
-    setSequenceItems(fieldKey, items);
+    formValues.value[fieldKey] = serializeSequenceRows(items);
+    revalidateFieldByKey(fieldKey);
   }
 }
 
 function addSequenceItem(fieldKey: string): void {
   const items = getSequenceItems(fieldKey);
-  items.push({ label: '', sequence: '' });
-  setSequenceItems(fieldKey, items);
+  items.push(makeSequenceRow());
+  formValues.value[fieldKey] = serializeSequenceRows(items);
+  revalidateFieldByKey(fieldKey);
 }
 
 function removeSequenceItem(fieldKey: string, index: number): void {
   const items = getSequenceItems(fieldKey);
   items.splice(index, 1);
-  setSequenceItems(fieldKey, items);
+  formValues.value[fieldKey] = serializeSequenceRows(items);
+  revalidateFieldByKey(fieldKey);
 }
 
 watch(() => props.visible, (v) => {
   if (v) {
     // Initialize form values from defaults
     const vals: Record<string, string> = {};
+    const nextSequenceRows: Record<string, SequenceRow[]> = {};
     for (const field of props.fields) {
+      if (field.type === 'sequence-items') {
+        const rows = parseSequenceItems(field.defaultValue ?? '').map(item => makeSequenceRow(item));
+        nextSequenceRows[field.key] = rows;
+        vals[field.key] = serializeSequenceRows(rows);
+        continue;
+      }
       vals[field.key] = field.defaultValue ?? '';
     }
+    sequenceRowsByField.value = nextSequenceRows;
     formValues.value = vals;
     validationErrors.value = {};
     syntaxHelpExpanded.value = false;
     modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: FORM_KEYS });
   } else {
     validationErrors.value = {};
+    sequenceRowsByField.value = {};
     modalStack.pop(MODAL_ID);
   }
 }, { immediate: true });
@@ -284,13 +316,14 @@ defineExpose({ handleButton });
               <div class="sequence-list-items">
                 <div
                   v-for="(item, idx) in getSequenceItems(field.key)"
-                  :key="idx"
+                  :key="item.rowId"
                   class="sequence-list-row"
                   style="flex-direction: column; align-items: stretch;"
                 >
                   <div style="display: flex; align-items: center; gap: 6px;">
                     <input
                       v-if="field.showLabels !== false"
+                      :id="`form-${field.key}-label-${item.rowId}`"
                       type="text"
                       class="settings-input"
                       placeholder="Label, e.g. commit"
@@ -306,6 +339,7 @@ defineExpose({ handleButton });
                     >✕</button>
                   </div>
                   <PromptTextarea
+                    :id="`form-${field.key}-sequence-${item.rowId}`"
                     :model-value="item.sequence"
                     :placeholder="field.showLabels !== false ? 'Sequence, e.g. use skill(commit){Enter}' : 'Sequence, e.g. /allow-all{Enter}'"
                     :rows="2"

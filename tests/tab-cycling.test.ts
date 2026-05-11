@@ -50,6 +50,14 @@ describe('Tab cycling (Ctrl+Tab order)', () => {
       expect(resolveNextTerminalId(sortedIds, terminalIds, 'Z', 1)).toBeNull();
     });
 
+    it('falls back to the first eligible session when the active session is excluded', () => {
+      expect(resolveNextTerminalId(['A', 'B'], ['hidden', 'A', 'B'], 'hidden', 1)).toBe('A');
+    });
+
+    it('falls back to the last eligible session on reverse cycling when the active session is excluded', () => {
+      expect(resolveNextTerminalId(['A', 'B'], ['hidden', 'A', 'B'], 'hidden', -1)).toBe('B');
+    });
+
     it('returns null when terminal list is empty', () => {
       expect(resolveNextTerminalId(sortedIds, [], 'A', 1)).toBeNull();
     });

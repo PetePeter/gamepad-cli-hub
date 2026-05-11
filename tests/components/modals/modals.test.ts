@@ -1343,6 +1343,27 @@ describe('FormModal.vue', () => {
       w.unmount();
     });
 
+    it('Remove keeps the surviving row values aligned with the displayed row', async () => {
+      const items = [{ label: 'first', sequence: 'alpha' }, { label: 'second', sequence: 'beta' }];
+      const w = mount(FormModal, {
+        props: {
+          visible: true, title: 'Seq', fields: [
+            { key: '_items', label: 'Items', type: 'sequence-items' as const, defaultValue: JSON.stringify(items) },
+          ],
+        },
+        attachTo: document.body,
+        global: { stubs: GLOBAL_STUBS },
+      });
+
+      await w.find('.btn--danger').trigger('click');
+
+      const labelInput = w.find('.settings-input');
+      const textarea = w.find('.sequence-textarea');
+      expect((labelInput.element as HTMLInputElement).value).toBe('second');
+      expect((textarea.element as HTMLTextAreaElement).value).toBe('beta');
+      w.unmount();
+    });
+
     it('Save emits items as JSON string', async () => {
       const items = [{ label: 'Go', sequence: '/run{Enter}' }];
       const w = mount(FormModal, {

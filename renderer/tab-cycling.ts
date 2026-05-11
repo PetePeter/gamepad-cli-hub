@@ -24,7 +24,10 @@ export function resolveNextTerminalId(
   if (sorted.length <= 1 || !activeId) return null;
 
   const currentIdx = sorted.indexOf(activeId);
-  if (currentIdx === -1) return null;
+  if (currentIdx === -1) {
+    if (!terminalSet.has(activeId)) return null;
+    return direction === 1 ? (sorted[0] ?? null) : (sorted[sorted.length - 1] ?? null);
+  }
 
   const newIdx = (currentIdx + direction + sorted.length) % sorted.length;
   return sorted[newIdx];

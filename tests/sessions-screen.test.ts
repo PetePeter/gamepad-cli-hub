@@ -1684,6 +1684,20 @@ describe('Sessions Screen', () => {
       });
     });
 
+    it('getTabCycleSessionIds excludes overview-hidden sessions from Ctrl+Tab order', async () => {
+      const data = [
+        { ...makeSessions(1)[0], id: 's-0', cliSessionName: 'cli-0' },
+        { ...makeSessions(1)[0], id: 's-1', name: 'Session 1', cliSessionName: 'cli-1' },
+      ];
+      mockSessionGetAll.mockResolvedValue(data);
+      setMockTerminalSessions(data as any);
+      sessionsState.groupPrefs.overviewHidden = ['cli-0'];
+
+      await loadAndFlush(sessions);
+
+      expect(sessions.getTabCycleSessionIds()).toEqual(['s-1']);
+    });
+
     it('UP/DOWN at col=2 is no-op', () => {
       sessionsState.cardColumn = 2;
       const indexBefore = sessionsState.sessionsFocusIndex;

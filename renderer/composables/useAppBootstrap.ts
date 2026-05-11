@@ -25,7 +25,7 @@ import '../screens/group-overview.js';
 import '../plans/plan-screen.js';
 import '../screens/sessions-spawn.js';
 import { setTerminalManagerGetter as setSpawnTerminalManagerGetter } from '../screens/sessions-spawn.js';
-import { updateSessionsFocus } from '../screens/sessions.js';
+import { getTabCycleSessionIds, updateSessionsFocus } from '../screens/sessions.js';
 
 // Overview/plan setup functions
 import {
@@ -591,16 +591,8 @@ function setupTabCycling(): void {
       const tm = getTerminalManager();
       if (!tm) return;
 
-      const visibleIds = sessionsState.navList
-        .filter(item => item.type === 'session-card')
-        .map(item => item.id);
-      const visibleSet = new Set(visibleIds);
-      const allIds = state.sessions.map(s => s.id);
-      const collapsedIds = allIds.filter(id => !visibleSet.has(id));
-      const tabCycleIds = [...visibleIds, ...collapsedIds];
-
       const nextId = resolveNextTerminalId(
-        tabCycleIds, tm.getSessionIds(), tm.getActiveSessionId(), e.shiftKey ? -1 : 1,
+        getTabCycleSessionIds(), tm.getSessionIds(), tm.getActiveSessionId(), e.shiftKey ? -1 : 1,
       );
       const navStore = useNavigationStore();
       if (document.querySelector('.plan-screen.visible')) {
