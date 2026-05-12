@@ -485,6 +485,57 @@ const TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'projects_list',
+    title: 'List Projects',
+    description: 'List all known projects with their IDs, names, canonical paths, directories, and root kinds. Use this to discover which projects Helm tracks before managing project directories.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'project_dirs_list',
+    title: 'List Project Directories',
+    description: 'List all directories (canonical and alternate) for a project by its ID.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string' },
+      },
+      required: ['projectId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'project_dir_add',
+    title: 'Add Project Directory',
+    description: 'Add an alternate directory path to a project. The directory must not be the canonical path. Changes are persisted immediately.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string' },
+        dirPath: { type: 'string' },
+      },
+      required: ['projectId', 'dirPath'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'project_dir_remove',
+    title: 'Remove Project Directory',
+    description: 'Remove an alternate directory path from a project. Cannot remove the canonical path. Changes are persisted immediately.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string' },
+        dirPath: { type: 'string' },
+      },
+      required: ['projectId', 'dirPath'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'session_create',
     title: 'Create Session',
     description: 'Spawn a new CLI session in a configured working directory and give it a stable display name for later lookup. Call this when no suitable session exists yet and you need Helm to launch one.',
@@ -1163,6 +1214,20 @@ export class LocalhostMcpServer {
         );
       case 'directories_list':
         return this.service.listDirectories();
+      case 'projects_list':
+        return this.service.listProjects();
+      case 'project_dirs_list':
+        return this.service.listProjectDirs(asString(args.projectId, 'projectId is required'));
+      case 'project_dir_add':
+        return this.service.addProjectDir(
+          asString(args.projectId, 'projectId is required'),
+          asString(args.dirPath, 'dirPath is required'),
+        );
+      case 'project_dir_remove':
+        return this.service.removeProjectDir(
+          asString(args.projectId, 'projectId is required'),
+          asString(args.dirPath, 'dirPath is required'),
+        );
       case 'session_create':
         return this.service.spawnCli(
           asString(args.cliType, 'cliType is required'),

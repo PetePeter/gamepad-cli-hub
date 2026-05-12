@@ -24,6 +24,7 @@ import { HelmContextService } from './services/helm-context-service.js';
 import { HelmDirectoryService } from './services/helm-directory-service.js';
 import { HelmTelegramService } from './services/helm-telegram-service.js';
 import { HelmSchedulerService } from './services/helm-scheduler-service.js';
+import { HelmProjectService } from './services/helm-project-service.js';
 import type { ScheduledTaskManager } from '../session/scheduled-task-manager.js';
 import type { CreateScheduledTaskParams, ScheduledTask, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
 import type { ContextBindingTargetType, ContextNode, ContextPermission, PlanContextRef } from '../types/context.js';
@@ -153,6 +154,7 @@ export class HelmControlService extends EventEmitter {
   private readonly directoryService: HelmDirectoryService;
   private readonly telegramService: HelmTelegramService;
   private readonly schedulerService: HelmSchedulerService | null;
+  private readonly projectService: HelmProjectService;
 
   constructor(
     private readonly planManager: PlanManager,
@@ -174,6 +176,7 @@ export class HelmControlService extends EventEmitter {
     this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager, projectStore);
     this.telegramService = new HelmTelegramService(configLoader, sessionManager);
     this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager) : null;
+    this.projectService = projectStore ? new HelmProjectService(projectStore) : null!;
   }
 
   // ---------------------------------------------------------------------------
@@ -388,6 +391,26 @@ export class HelmControlService extends EventEmitter {
 
   listClis() {
     return this.directoryService.listClis();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Project management
+  // ---------------------------------------------------------------------------
+
+  listProjects() {
+    return this.projectService.listProjects();
+  }
+
+  listProjectDirs(projectId: string) {
+    return this.projectService.listProjectDirs(projectId);
+  }
+
+  addProjectDir(projectId: string, dirPath: string) {
+    return this.projectService.addProjectDir(projectId, dirPath);
+  }
+
+  removeProjectDir(projectId: string, dirPath: string) {
+    return this.projectService.removeProjectDir(projectId, dirPath);
   }
 
   // ---------------------------------------------------------------------------

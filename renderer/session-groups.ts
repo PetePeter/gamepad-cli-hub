@@ -57,14 +57,40 @@ export function dirDisplayName(dirPath: string): string {
 }
 
 /**
+ * Case-insensitive path equality check on Windows.
+ * Lowercases both sides when running on win32 so that mixed-case paths
+ * from different sources (project store vs session config) match reliably.
+ */
+function pathsMatch(a: string, b: string): boolean {
+  if (process.platform === 'win32') {
+    return a.toLowerCase() === b.toLowerCase();
+  }
+  return a === b;
+}
+
+/**
  * Resolve the best display name for a directory path.
- * Prefers a custom name from the loaded config; falls back to the path tail.
+ * Priority: configured directory name > project name > path tail.
  */
 export function resolveGroupDisplayName(
   dirPath: string,
   directories: Array<{ name: string; path: string }>,
+  projects?: Array<{ name: string; canonicalPath: string; alternatePaths: string[] }>,
 ): string {
-  return directories.find(d => d.path === dirPath)?.name ?? dirDisplayName(dirPath);
+  // 1. Configured directory name (existing behavior)
+  const dirMatch = directories.find(d => pathsMatch(d.path, dirPath));
+  if (dirMatch) return dirMatch.name;
+
+  // 2. Project name match against canonical + alternate paths
+  if (projects) {
+    for (const project of projects) {
+      if (pathsMatch(project.canonicalPath, dirPath)) return project.name;
+      if (project.alternatePaths.some(alt => pathsMatch(alt, dirPath))) return project.name;
+    }
+  }
+
+  // 3. Fallback to last path segment
+  return dirDisplayName(dirPath);
 }
 
 /**

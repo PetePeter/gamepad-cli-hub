@@ -415,6 +415,31 @@ const gamepadCliAPI = {
     ipcRenderer.invoke('config:reorderWorkingDir', index, direction),
 
   // ========================================================================
+  // Project Management
+  // ========================================================================
+
+  /** List all project records */
+  projectList: () => ipcRenderer.invoke('project:list'),
+
+  /** Get a single project record by ID */
+  projectGet: (id: string) => ipcRenderer.invoke('project:get', id),
+
+  /** Update a project's display name */
+  projectUpdate: (id: string, patch: { name: string }) =>
+    ipcRenderer.invoke('project:update', id, patch),
+
+  /** Delete a project record */
+  projectDelete: (id: string) => ipcRenderer.invoke('project:delete', id),
+
+  /** Add a directory path to a project's alternatePaths */
+  projectAddDir: (id: string, dirPath: string) =>
+    ipcRenderer.invoke('project:addDir', id, dirPath),
+
+  /** Remove a directory path from a project's alternatePaths */
+  projectRemoveDir: (id: string, dirPath: string) =>
+    ipcRenderer.invoke('project:removeDir', id, dirPath),
+
+  // ========================================================================
   // Profile Management
   // ========================================================================
 

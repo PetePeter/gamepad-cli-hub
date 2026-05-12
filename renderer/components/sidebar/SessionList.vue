@@ -14,6 +14,12 @@ interface SessionListDirectory {
   path: string;
 }
 
+interface SessionListProject {
+  name: string;
+  canonicalPath: string;
+  alternatePaths: string[];
+}
+
 interface SessionListGroupSession {
   id: string;
   name: string;
@@ -34,6 +40,7 @@ const props = defineProps<{
   hasSessions: boolean;
   groups: SessionListGroup[];
   directories: SessionListDirectory[];
+  projects?: SessionListProject[];
   navIndexMap: Map<string, number>;
   activeFocus: string;
   sessionsFocusIndex: number;
@@ -50,7 +57,7 @@ const props = defineProps<{
   snappedOutSessions: Set<string>;
   llmNotifications: Map<string, Array<{ id: string; title: string; content: string }>>;
   getCliDisplayName: (cliType: string) => string;
-  resolveGroupDisplayName: (dirPath: string, directories: SessionListDirectory[]) => string;
+  resolveGroupDisplayName: (dirPath: string, directories: SessionListDirectory[], projects?: SessionListProject[]) => string;
   isSessionHiddenFromOverview: (session: SessionListGroupSession) => boolean;
   sessionElapsedText: (sessionId: string) => string;
 }>();
@@ -101,7 +108,7 @@ function onSessionStateChange(sessionId: string, newState: string): void {
           <SessionGroup
             :group="{
               dirPath: group.dirPath,
-              displayName: resolveGroupDisplayName(group.dirPath, directories),
+              displayName: resolveGroupDisplayName(group.dirPath, directories, projects),
               collapsed: group.collapsed,
               sessionCount: group.sessions.length,
             }"

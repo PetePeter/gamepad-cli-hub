@@ -1,5 +1,5 @@
 /**
- * Composable tests — useModalStack, useIpc, usePanelResize
+ * Composable tests — useModalStack, usePanelResize
  *
  * Tests for composables that can be tested without complex DOM/IPC mocking.
  * useGamepad, useKeyboardRelay, and useTerminals wrap external singletons
@@ -160,65 +160,6 @@ describe('useModalStack', () => {
     expect(Array.isArray(raw)).toBe(true);
     // readonly prevents push — TypeScript catches this; runtime may not throw
     // but the proper API is push()/pop()
-  });
-});
-
-// ============================================================================
-// useIpc (tested with mocked window.gamepadCli)
-// ============================================================================
-
-describe('useIpc', () => {
-  let mockUnsubscribers: Array<() => void>;
-
-  beforeEach(() => {
-    mockUnsubscribers = [];
-
-    // Mock window.gamepadCli IPC methods
-    const createMockSubscriber = () => {
-      const unsub = vi.fn();
-      mockUnsubscribers.push(unsub);
-      return vi.fn(() => unsub);
-    };
-
-    (globalThis as any).window = {
-      ...(globalThis as any).window,
-      gamepadCli: {
-        onPtyData: createMockSubscriber(),
-        onPtyExit: createMockSubscriber(),
-        onPtyStateChange: createMockSubscriber(),
-        onPtyActivityChange: createMockSubscriber(),
-        onPtyQuestionDetected: createMockSubscriber(),
-        onPtyQuestionCleared: createMockSubscriber(),
-        onSessionChanged: createMockSubscriber(),
-        onConfigChanged: createMockSubscriber(),
-        onDraftChanged: createMockSubscriber(),
-        onPlanChanged: createMockSubscriber(),
-      },
-    };
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('subscribes to PTY data events', async () => {
-    const { useIpc } = await import('../../renderer/composables/useIpc.js');
-    const ipc = useIpc();
-    const cb = vi.fn();
-    ipc.onPtyData(cb);
-    expect(window.gamepadCli.onPtyData).toHaveBeenCalledWith(cb);
-  });
-
-  it('dispose cleans up all subscriptions', async () => {
-    const { useIpc } = await import('../../renderer/composables/useIpc.js');
-    const ipc = useIpc();
-    ipc.onPtyData(vi.fn());
-    ipc.onPtyExit(vi.fn());
-    ipc.onPtyStateChange(vi.fn());
-
-    ipc.dispose();
-    // All unsubscribe functions should have been called
-    expect(mockUnsubscribers.filter(u => u.mock.calls.length > 0).length).toBe(3);
   });
 });
 

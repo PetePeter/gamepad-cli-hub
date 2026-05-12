@@ -190,6 +190,7 @@ vi.mock('../src/session/persistence.js', () => ({
   savePlanContexts: vi.fn(),
   loadPlanContextBindings: vi.fn(() => []),
   savePlanContextBindings: vi.fn(),
+  loadProjectRecords: vi.fn(() => []),
 }));
 
 vi.mock('../src/electron/ipc/editor-handlers.js', () => ({

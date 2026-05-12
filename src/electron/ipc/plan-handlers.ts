@@ -142,8 +142,8 @@ export function setupPlanHandlers(
   });
 
   ipcMain.handle('plan:deps', (_event, dirPath: string) => {
-    const exported = planManager.exportAll();
-    return exported[dirPath]?.dependencies ?? [];
+    const exported = planManager.exportDirectory(dirPath);
+    return exported?.dependencies ?? [];
   });
 
   ipcMain.handle('plan:getItem', (_event, id: string) => {

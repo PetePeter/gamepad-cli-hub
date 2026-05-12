@@ -145,6 +145,7 @@ import ProfilesTab from './components/sidebar/ProfilesTab.vue';
 import ToolsTab from './components/sidebar/ToolsTab.vue';
 import TelegramTab from './components/sidebar/TelegramTab.vue';
 import DirectoriesTab from './components/sidebar/DirectoriesTab.vue';
+import ProjectsTab from './components/sidebar/ProjectsTab.vue';
 import ChipbarActionsTab from './components/sidebar/ChipbarActionsTab.vue';
 import McpTab from './components/sidebar/McpTab.vue';
 import ScheduledTasksTab from './components/sidebar/ScheduledTasksTab.vue';
@@ -268,6 +269,7 @@ const settingsCliTypes = ref<string[]>([]);
 const settingsProfiles = ref<Array<{ name: string; isActive: boolean }>>([]);
 const settingsTools = ref<Array<{ key: string; name: string; command: string; hasInitialPrompt: boolean; initialPromptCount: number }>>([]);
 const settingsDirectories = ref<Array<{ name: string; path: string }>>([]);
+const settingsProjects = ref<Array<{ name: string; canonicalPath: string; alternatePaths: string[] }>>([]);
 const settingsChipbarActions = ref<Array<{ label: string; sequence: string }>>([]);
 const settingsTelegramConfig = ref({ botToken: '', chatId: '', allowedUsers: '', notificationsEnabled: false, autoStart: false });
 const settingsTelegramBotRunning = ref(false);
@@ -404,7 +406,7 @@ const overviewSessions = computed(() => {
     return sessionsState.groups
       .map((group) => ({
         id: group.dirPath,
-        label: resolveGroupDisplayName(group.dirPath, sessionsState.directories),
+        label: resolveGroupDisplayName(group.dirPath, sessionsState.directories, settingsProjects.value),
         sessions: getVisibleSessions([group], sessionsState.groupPrefs).map(mapSession),
       }))
       .filter((section) => section.sessions.length > 0);
@@ -422,7 +424,7 @@ watch(() => activeView.value, (view) => {
     if (sessionsState.overviewIsGlobal) {
       overviewGroupLabel.value = 'All Sessions';
     } else if (sessionsState.overviewGroup) {
-      overviewGroupLabel.value = resolveGroupDisplayName(sessionsState.overviewGroup, sessionsState.directories);
+      overviewGroupLabel.value = resolveGroupDisplayName(sessionsState.overviewGroup, sessionsState.directories, settingsProjects.value);
     } else {
       overviewGroupLabel.value = 'Sessions';
     }
@@ -904,6 +906,7 @@ async function loadSettingsData(): Promise<void> {
     'tools',
     'chipbar-actions',
     'directories',
+    'projects',
     'telegram',
     'backups',
     'mcp',
@@ -950,6 +953,18 @@ async function loadSettingsData(): Promise<void> {
   } catch {
     settingsDirectories.value = [];
     sessionsState.directories = [];
+  }
+
+  // Load projects
+  try {
+    const projects = await window.gamepadCli.projectList();
+    settingsProjects.value = (projects || []).map((p: any) => ({
+      name: p.name,
+      canonicalPath: p.canonicalPath,
+      alternatePaths: p.alternatePaths || [],
+    }));
+  } catch {
+    settingsProjects.value = [];
   }
 
   // Load chipbar actions
@@ -1003,7 +1018,7 @@ async function loadSettingsData(): Promise<void> {
 
 async function loadCurrentTabBindings(): Promise<void> {
   const tab = settingsTab.value;
-  if (tab === 'profiles' || tab === 'tools' || tab === 'chipbar-actions' || tab === 'directories' || tab === 'telegram' || tab === 'mcp' || tab === 'backups') {
+  if (tab === 'profiles' || tab === 'tools' || tab === 'chipbar-actions' || tab === 'directories' || tab === 'projects' || tab === 'telegram' || tab === 'mcp' || tab === 'backups') {
     settingsBindings.value = [];
     settingsSequenceGroups.value = [];
     return;
@@ -1056,7 +1071,7 @@ function buildSettingsTabs() {
     })),
     { id: 'tools', label: '🔧 Tools' },
     { id: 'chipbar-actions', label: '⚡ Quick Actions' },
-    { id: 'directories', label: '📁 Dirs' },
+    { id: 'projects', label: '📁 Projects' },
     { id: 'telegram', label: '📨 Telegram' },
     { id: 'backups', label: '💾 Backups' },
     { id: 'mcp', label: '🧩 MCP' },
@@ -2237,6 +2252,7 @@ onUnmounted(() => {
             :has-sessions="state.sessions.length > 0"
             :groups="sessionsState.groups"
             :directories="sessionsState.directories"
+            :projects="settingsProjects"
             :nav-index-map="navIndexMap"
             :active-focus="sessionsState.activeFocus"
             :sessions-focus-index="sessionsState.sessionsFocusIndex"
@@ -2300,13 +2316,8 @@ onUnmounted(() => {
               @delete="onToolDelete"
               @move="onToolReorder"
             />
-            <DirectoriesTab
-              v-else-if="activeTab === 'directories'"
-              :directories="settingsDirectories"
-              @add="onDirectoryAdd"
-              @edit="onDirectoryEdit"
-              @delete="onDirectoryDelete"
-              @move="onDirectoryReorder"
+            <ProjectsTab
+              v-else-if="activeTab === 'projects'"
             />
             <ChipbarActionsTab
               v-else-if="activeTab === 'chipbar-actions'"

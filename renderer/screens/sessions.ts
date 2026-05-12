@@ -91,7 +91,6 @@ export function setPlanStartableCountCache(sessionId: string, count: number): vo
   planStartableCounts.set(sessionId, count);
 }
 
-let removePlanChangedListener: (() => void) | null = null;
 
 export function getSessionState(sessionId: string): string {
   return sessionStates.get(sessionId) || 'idle';
@@ -414,7 +413,6 @@ export async function triggerNewPlanShortcut(preferredSessionId?: string): Promi
 // ============================================================================
 
 export async function loadSessions(): Promise<void> {
-  ensurePlanChangedListener();
   await initSessionGroupPrefs();
   await loadSessionsData();
   await initSessionsSortControl();
@@ -423,20 +421,6 @@ export async function loadSessions(): Promise<void> {
   updateStatusCounts();
 }
 
-function ensurePlanChangedListener(): void {
-  if (removePlanChangedListener) {
-    removePlanChangedListener();
-    removePlanChangedListener = null;
-  }
-  if (!window.gamepadCli?.onPlanChanged) return;
-  removePlanChangedListener = window.gamepadCli.onPlanChanged((dirPath: string) => {
-    void refreshPlanBadges();
-
-    const activeSessionId = state.activeSessionId;
-    if (!activeSessionId || getSessionCwd(activeSessionId) !== dirPath) return;
-    void useChipBarStore().refresh(activeSessionId);
-  });
-}
 
 export function handleSessionsScreenButton(button: string): boolean {
   // State dropdown intercepts all input when open

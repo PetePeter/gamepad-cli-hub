@@ -380,16 +380,6 @@ describe('Sessions Plans Grid', () => {
       expect(onPlanChanged).not.toHaveBeenCalled();
     });
 
-    it('loadSessions registers exactly one onPlanChanged listener per call', async () => {
-      const onPlanChanged = (window as any).gamepadCli.onPlanChanged;
-      onPlanChanged.mockClear();
-
-      await sessions.loadSessions();
-      await flush();
-
-      // sessions.ts ensurePlanChangedListener registers exactly one
-      expect(onPlanChanged).toHaveBeenCalledTimes(1);
-    });
   });
 
   // ==========================================================================

@@ -80,6 +80,34 @@ describe('resolveGroupDisplayName', () => {
   it('returns path tail for empty directories list', () => {
     expect(resolveGroupDisplayName('X:\\coding\\project-a', [])).toBe('project-a');
   });
+
+  describe('project matching', () => {
+    const projects = [
+      { name: 'Helm Hub', canonicalPath: 'X:\\coding\\helm-hub', alternatePaths: ['X:\\coding\\helm-hub-worktree'] },
+      { name: 'Work App', canonicalPath: '/home/user/work', alternatePaths: ['/home/user/work-v2'] },
+    ];
+
+    it('returns project name when canonicalPath matches', () => {
+      expect(resolveGroupDisplayName('X:\\coding\\helm-hub', [], projects)).toBe('Helm Hub');
+    });
+
+    it('returns project name when alternatePaths matches', () => {
+      expect(resolveGroupDisplayName('X:\\coding\\helm-hub-worktree', [], projects)).toBe('Helm Hub');
+    });
+
+    it('directory name takes priority over project name', () => {
+      expect(resolveGroupDisplayName('X:\\coding\\helm-hub', [{ name: 'Custom Dir Name', path: 'X:\\coding\\helm-hub' }], projects)).toBe('Custom Dir Name');
+    });
+
+    it('falls back to path tail when no project matches', () => {
+      expect(resolveGroupDisplayName('X:\\coding\\unknown', [], projects)).toBe('unknown');
+    });
+
+    it('works without projects param (backward compatible)', () => {
+      expect(resolveGroupDisplayName('X:\\coding\\project-a', dirs)).toBe('My Project');
+      expect(resolveGroupDisplayName('X:\\coding\\unknown', [])).toBe('unknown');
+    });
+  });
 });
 
 

@@ -4,6 +4,9 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import * as os from 'node:os';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -24,9 +27,12 @@ vi.mock('../src/session/persistence.js', () => ({
   savePlanContexts: vi.fn(),
   loadPlanContextBindings: vi.fn(() => []),
   savePlanContextBindings: vi.fn(),
+  loadProjectRecords: vi.fn(() => []),
+  saveProjectRecords: vi.fn(),
 }));
 
 import { PlanManager } from '../src/session/plan-manager.js';
+import { ProjectStore } from '../src/session/project-store.js';
 import * as persistence from '../src/session/persistence.js';
 
 describe('PlanManager', () => {
@@ -85,6 +91,44 @@ describe('PlanManager', () => {
 
       expect(item.projectId).toBe('project-1');
       expect(projectStore.resolveForPath).toHaveBeenCalledWith('/projects/backend');
+    });
+
+    it('skips resolveForPath on load when item already has projectId', () => {
+      let gitCallCount = 0;
+      const gitRunner = vi.fn(() => {
+        gitCallCount++;
+        return '/projects/backend';
+      });
+
+      const tmpProjectsFile = path.join(os.tmpdir(), `helm-test-projects-${Date.now()}.json`);
+      const projectStore = new ProjectStore(gitRunner, tmpProjectsFile);
+
+      // Pre-load an item that already has projectId
+      (persistence.listPlanFiles as unknown as ReturnType<typeof vi.fn>).mockReturnValue(['test.json']);
+      (persistence.loadPlanFile as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        id: 'pre-existing',
+        dirPath: '/projects/backend',
+        title: 'Existing',
+        description: '',
+        status: 'pending',
+        humanId: 'P-0001',
+        projectId: 'project-1',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const withProjects = new PlanManager(projectStore);
+
+      // ensurePlanMetadata skipped git (item has projectId)
+      // Only recomputeStartable → getForDirectory → resolveProjectId triggers git once
+      expect(gitCallCount).toBe(2); // 2 git calls for that one resolveForPath
+
+      // Subsequent getForDirectory calls are cached — no new git calls
+      withProjects.getForDirectory('/projects/backend');
+      expect(gitCallCount).toBe(2);
+
+      // Cleanup
+      fs.rmSync(tmpProjectsFile, { force: true });
     });
   });
 

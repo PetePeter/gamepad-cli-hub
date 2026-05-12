@@ -106,11 +106,15 @@ export class PlanManager extends EventEmitter {
     }
   }
 
-  /** Save all items for a directory + the dependency list. */
-  private saveDir(dirPath: string): void {
+  /** Save all items for a directory + the dependency list.
+   *  @param options.skipSequences Skip writing sequences file (for dep-only/status-only changes).
+   */
+  private saveDir(dirPath: string, options?: { skipSequences?: boolean }): void {
     for (const item of this.getForDirectory(dirPath)) savePlanFile(item);
     saveDependencies(this.dependencies);
-    savePlanSequences([...this.sequences.values()]);
+    if (!options?.skipSequences) {
+      savePlanSequences([...this.sequences.values()]);
+    }
     this.projectStore?.save();
   }
 
@@ -399,7 +403,7 @@ export class PlanManager extends EventEmitter {
     this.dependencies.push({ fromId, toId });
     const from = this.items.get(fromId)!;
     this.recomputeStartable(from.dirPath);
-    this.saveDir(from.dirPath);
+    this.saveDir(from.dirPath, { skipSequences: true });
     this.emit('plan:changed', from.dirPath);
     logger.info(`[PlanManager] Added dependency ${fromId} → ${toId}`);
     return true;
@@ -416,7 +420,7 @@ export class PlanManager extends EventEmitter {
     const dirPath = from?.dirPath ?? this.items.get(toId)?.dirPath;
     if (dirPath) {
       this.recomputeStartable(dirPath);
-      this.saveDir(dirPath);
+      this.saveDir(dirPath, { skipSequences: true });
       this.emit('plan:changed', dirPath);
     }
     logger.info(`[PlanManager] Removed dependency ${fromId} → ${toId}`);
@@ -462,7 +466,7 @@ export class PlanManager extends EventEmitter {
     item.stateUpdatedAt = item.updatedAt;
 
     this.recomputeStartable(item.dirPath);
-    this.saveDir(item.dirPath);
+    this.saveDir(item.dirPath, { skipSequences: true });
     this.emit('plan:changed', item.dirPath);
     logger.info(`[PlanManager] Completed plan "${item.title}" (${id}) [${item.dirPath}] — was ${prevStatus}`);
     return item;
@@ -485,7 +489,7 @@ export class PlanManager extends EventEmitter {
     item.stateUpdatedAt = item.updatedAt;
 
     this.recomputeStartable(item.dirPath);
-    this.saveDir(item.dirPath);
+    this.saveDir(item.dirPath, { skipSequences: true });
     this.emit('plan:changed', item.dirPath);
     logger.info(`[PlanManager] Reopened plan "${item.title}" (${id}) → ${item.status}`);
     return item;
@@ -712,7 +716,7 @@ export class PlanManager extends EventEmitter {
       item.stateUpdatedAt = item.updatedAt ?? item.createdAt ?? Date.now();
       changed = true;
     }
-    if (this.projectStore) {
+    if (this.projectStore && !item.projectId) {
       const projectId = this.projectStore.resolveForPath(item.dirPath).id;
       if (item.projectId !== projectId) {
         item.projectId = projectId;
@@ -723,7 +727,7 @@ export class PlanManager extends EventEmitter {
   }
 
   private ensureSequenceProject(sequence: PlanSequence): boolean {
-    if (!this.projectStore) return false;
+    if (!this.projectStore || sequence.projectId) return false;
     const projectId = this.projectStore.resolveForPath(sequence.dirPath).id;
     if (sequence.projectId === projectId) return false;
     sequence.projectId = projectId;

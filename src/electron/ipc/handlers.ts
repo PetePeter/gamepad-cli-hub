@@ -42,6 +42,7 @@ import { setupDraftHandlers } from './draft-handlers.js';
 import { setupPlanHandlers } from './plan-handlers.js';
 import { setupScheduledTaskHandlers } from './scheduled-task-handlers.js';
 import { setupBackupPlanHandlers } from './plan-backup-handlers.js';
+import { setupProjectHandlers } from './project-handlers.js';
 import { RendererTextDeliverer } from './text-delivery.js';
 import { loadDrafts } from '../../session/persistence.js';
 import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
@@ -155,6 +156,7 @@ export function registerIPCHandlers(
   setupKeyboardHandlers(keyboard);
   setupSystemHandlers(dirname ?? process.cwd());
   setupDraftHandlers(draftManager);
+  setupProjectHandlers(projectStore);
   setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher);
   setupScheduledTaskHandlers(scheduledTaskManager, windowManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);

@@ -263,15 +263,16 @@ async function loadPlanData(dirPath: string, context?: ViewMountContext, options
     window.gamepadCli.planContextList?.(dirPath) ?? Promise.resolve([]),
   ]);
   if ((context && !context.isActive()) || loadToken !== latestPlanDataLoadToken) return;
+
+  // Fetch attachments before setPlanData to avoid a second layout pass
+  const attachmentHasAny = items.length > 0
+    ? await window.gamepadCli.planAttachmentHasAny(items.map((item) => item.id))
+    : {};
+  if ((context && !context.isActive()) || loadToken !== latestPlanDataLoadToken) return;
+
+  planScreenState.attachmentHasAny = attachmentHasAny;
   setPlanData(items, deps, sequences, contexts, options);
-  if (items.length > 0) {
-    const attachmentHasAny = await window.gamepadCli.planAttachmentHasAny(items.map((item) => item.id));
-    if ((context && !context.isActive()) || loadToken !== latestPlanDataLoadToken) return;
-    planScreenState.attachmentHasAny = attachmentHasAny;
-    refreshLayout();
-  } else {
-    planScreenState.attachmentHasAny = {};
-  }
+
   syncSelection();
   if (!planScreenState.selectedId && planScreenState.layout.nodes.length > 0) {
     const first = planScreenState.layout.nodes.find((node) => node.layer === 0 && node.order === 0) ?? planScreenState.layout.nodes[0];

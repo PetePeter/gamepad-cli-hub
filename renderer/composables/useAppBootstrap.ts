@@ -494,16 +494,26 @@ function setupIpcListeners(): void {
     await refreshSessions();
   });
 
-  // Plan change listener
+  // Plan change listener — debounced to coalesce rapid events
   if (window.gamepadCli.onPlanChanged) {
+    let planDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const pendingPlanDirs = new Set<string>();
     window.gamepadCli.onPlanChanged((dirPath: string) => {
-      const chipBarStore = useChipBarStore();
-      void refreshSessions();  // Calls refreshPlanCounts() internally
-      void refreshCanvasIfVisible();
-      const activeSessionId = state.activeSessionId;
-      if (activeSessionId && getSessionCwd(activeSessionId) === dirPath) {
-        void chipBarStore.refresh(activeSessionId);
-      }
+      pendingPlanDirs.add(dirPath);
+      if (planDebounceTimer) clearTimeout(planDebounceTimer);
+      planDebounceTimer = setTimeout(() => {
+        planDebounceTimer = null;
+        const chipBarStore = useChipBarStore();
+        void refreshSessions();
+        void refreshCanvasIfVisible();
+        const activeSessionId = state.activeSessionId;
+        for (const dp of pendingPlanDirs) {
+          if (activeSessionId && getSessionCwd(activeSessionId) === dp) {
+            void chipBarStore.refresh(activeSessionId);
+          }
+        }
+        pendingPlanDirs.clear();
+      }, 50);
     });
   }
 
