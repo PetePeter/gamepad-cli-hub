@@ -5,6 +5,7 @@ import type { PlanCallbacks, ContextCallbacks } from './panels/DraftEditor.vue';
 import PlanScreen from './panels/PlanScreen.vue';
 import DraftEditor from './panels/DraftEditor.vue';
 import BackupRestoreModal from './modals/BackupRestoreModal.vue';
+import { backupsClient, eventsClient, sessionsClient } from '../ipc/clients.js';
 import {
   showPlanScreen,
   hidePlanScreen,
@@ -191,7 +192,7 @@ async function openBackupRestore(): Promise<void> {
   backupRestore.loading = true;
   backupRestore.visible = true;
   try {
-    backupRestore.snapshots = await window.gamepadCli.planListBackups(backupRestore.dirPath);
+    backupRestore.snapshots = await backupsClient.planListBackups(backupRestore.dirPath);
   } catch {
     backupRestore.snapshots = [];
   } finally {
@@ -201,7 +202,7 @@ async function openBackupRestore(): Promise<void> {
 
 async function onRestoreBackup(snapshotPath: string): Promise<void> {
   const snapshot = backupRestore.snapshots.find((entry) => entry.snapshotPath === snapshotPath);
-  const result = await window.gamepadCli.planRestoreBackup(snapshotPath);
+  const result = await backupsClient.planRestoreBackup(snapshotPath);
   if (result && snapshot?.dirPath === planScreenState.currentDir) {
     await refreshCanvasIfVisible();
   }
@@ -209,18 +210,18 @@ async function onRestoreBackup(snapshotPath: string): Promise<void> {
 }
 
 async function onDeleteBackup(snapshotPath: string): Promise<void> {
-  await window.gamepadCli.planDeleteBackup(snapshotPath);
-  backupRestore.snapshots = await window.gamepadCli.planListBackups(backupRestore.dirPath);
+  await backupsClient.planDeleteBackup(snapshotPath);
+  backupRestore.snapshots = await backupsClient.planListBackups(backupRestore.dirPath);
 }
 
 async function onBackupNow(): Promise<void> {
-  await window.gamepadCli.planCreateBackupNow(backupRestore.dirPath);
-  backupRestore.snapshots = await window.gamepadCli.planListBackups(backupRestore.dirPath);
+  await backupsClient.planCreateBackupNow(backupRestore.dirPath);
+  backupRestore.snapshots = await backupsClient.planListBackups(backupRestore.dirPath);
 }
 
 async function loadSessions(): Promise<void> {
   state.sessions = await loadStoredSessions();
-  state.activeSessionId = (await window.gamepadCli.sessionGetActive())?.id ?? null;
+  state.activeSessionId = (await sessionsClient.sessionGetActive())?.id ?? null;
 }
 
 async function closeWindow(): Promise<void> {
@@ -264,15 +265,15 @@ onMounted(async () => {
   await loadSessions();
   await showPlanScreen(props.dirPath);
 
-  offPlanChanged = window.gamepadCli.onPlanChanged((dirPath: string) => {
+  offPlanChanged = eventsClient.onPlanChanged((dirPath: string) => {
     if (dirPath === planScreenState.currentDir) {
       void refreshCanvasIfVisible();
     }
   });
-  offSessionUpdated = window.gamepadCli.onSessionUpdated?.(() => {
+  offSessionUpdated = eventsClient.onSessionUpdated?.(() => {
     void loadSessions();
   }) ?? null;
-  offSessionSpawned = window.gamepadCli.onSessionSpawned?.(() => {
+  offSessionSpawned = eventsClient.onSessionSpawned?.(() => {
     void loadSessions();
   }) ?? null;
   window.addEventListener('focus', loadSessions);

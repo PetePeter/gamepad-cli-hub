@@ -8,6 +8,7 @@
  */
 import { onMounted, onUnmounted } from 'vue';
 import { useToast } from '../composables/useToast.js';
+import { eventsClient, incomingClient } from '../ipc/clients.js';
 
 const { toasts, removeToast, addToast, removeByKey } = useToast();
 
@@ -15,21 +16,21 @@ const cleanups: (() => void)[] = [];
 
 onMounted(() => {
   cleanups.push(
-    window.gamepadCli.onPlanIncomingImported(({ title, filename }) => {
+    eventsClient.onPlanIncomingImported(({ title, filename }) => {
       // Auto-clear any previous error toast for this file
       removeByKey(filename);
       addToast({ message: `📥 Plan imported: "${title}"`, type: 'success' });
     }),
-    window.gamepadCli.onPlanIncomingError(({ filename, error }) => {
+    eventsClient.onPlanIncomingError(({ filename, error }) => {
       addToast({
         message: `⚠️ Import failed: ${filename} — ${error}`,
         type: 'error',
         persistent: true,
         key: filename,
-        onClick: () => { window.gamepadCli.planIncomingOpen(filename); },
+        onClick: () => { incomingClient.planIncomingOpen(filename); },
       });
     }),
-    window.gamepadCli.onPlanIncomingErrorCleared(({ filename }) => {
+    eventsClient.onPlanIncomingErrorCleared(({ filename }) => {
       removeByKey(filename);
     }),
   );

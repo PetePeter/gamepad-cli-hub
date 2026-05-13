@@ -29,7 +29,7 @@ import {
   setPlanChangesChecker as setLegacyPlanChangesChecker,
 } from '../drafts/draft-editor.js';
 import { saveDraftWithStableId } from '../drafts/draft-save.js';
-import { eventsClient, sessionsClient, terminalClient } from '../ipc/clients.js';
+import { configClient, draftsClient, eventsClient, sessionsClient, terminalClient } from '../ipc/clients.js';
 
 const props = defineProps<{ sessionId: string }>();
 const containerRef = ref<HTMLElement | null>(null);
@@ -60,7 +60,7 @@ const contextMenuHasSelection = ref(false);
 const contextMenuSelectedText = ref('');
 
 async function getEscProtectionEnabled(): Promise<boolean> {
-  try { return await window.gamepadCli.configGetEscProtectionEnabled(); }
+  try { return await configClient.configGetEscProtectionEnabled(); }
   catch (error) { console.error('Failed to get ESC protection setting for snapped-out window:', error); return true; }
 }
 
@@ -97,7 +97,7 @@ async function onDraftSave(payload: { label: string; text: string }): Promise<vo
   const sessionId = draftEditorSessionId.value;
   const draftId = draftEditorDraftId.value;
   try {
-    const savedDraftId = await saveDraftWithStableId(window.gamepadCli, sessionId, draftId, payload);
+    const savedDraftId = await saveDraftWithStableId(draftsClient, sessionId, draftId, payload);
     if (!draftId && savedDraftId) draftEditorDraftId.value = savedDraftId;
   } catch (err) {
     console.error('[SnapOut] Failed to save draft:', err);
@@ -117,7 +117,7 @@ async function onDraftApply(payload: { label: string; text: string }): Promise<v
     }
   }
   if (draftId) {
-    try { await window.gamepadCli?.draftDelete(draftId); }
+    try { await draftsClient.draftDelete(draftId); }
     catch (err) { console.error('[SnapOut] Failed to delete draft after apply:', err); }
   }
   await chipBarStore.refresh(sessionId);
@@ -128,7 +128,7 @@ async function onDraftDelete(): Promise<void> {
   const draftId = draftEditorDraftId.value;
   closeDraftEditor();
   if (draftId) {
-    try { await window.gamepadCli?.draftDelete(draftId); }
+    try { await draftsClient.draftDelete(draftId); }
     catch (err) { console.error('[SnapOut] Failed to delete draft:', err); }
   }
   await chipBarStore.refresh(sessionId);
@@ -254,15 +254,15 @@ async function onContextMenuAction(action: string): Promise<void> {
       break;
     case 'drafts': {
       const { showDraftSubmenu } = await import('../modals/draft-submenu.js');
-      const drafts = await window.gamepadCli.draftList(props.sessionId);
+      const drafts = await draftsClient.draftList(props.sessionId);
       showDraftSubmenu(drafts, {
         onNewDraft: () => openDraftEditor(props.sessionId),
         onApply: (draft) => {
           if (draft.text) void deliverPromptSequence(props.sessionId, draft.text);
-          void window.gamepadCli.draftDelete(draft.id);
+          void draftsClient.draftDelete(draft.id);
         },
         onEdit: (draft) => openDraftEditor(props.sessionId, draft),
-        onDelete: (draft) => window.gamepadCli.draftDelete(draft.id),
+        onDelete: (draft) => draftsClient.draftDelete(draft.id),
       });
       break;
     }

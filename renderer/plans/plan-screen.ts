@@ -10,6 +10,14 @@ import { state } from '../state.js';
 import { registerView, showView, currentView, type ViewMountContext } from '../main-view/main-view-manager.js';
 import { hidePlanHelpModal, isPlanHelpVisible, showPlanHelpModal } from './plan-help-modal.js';
 import { showPlanInEditor as legacyShowPlanInEditor } from '../drafts/draft-editor.js';
+import {
+  attachmentsClient,
+  configClient,
+  contextsClient,
+  dialogClient,
+  incomingClient,
+  plansClient,
+} from '../ipc/clients.js';
 
 export interface PlanEditorCallbacks {
   onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean }) => void | Promise<void>;
@@ -117,7 +125,7 @@ watch(
 
 async function loadFilterPreferences(): Promise<void> {
   try {
-    const saved = await window.gamepadCli.configGetPlanFilters();
+    const saved = await configClient.configGetPlanFilters();
     planScreenState.filters.types = saved.types ?? planScreenState.filters.types;
     planScreenState.filters.statuses = saved.statuses ?? planScreenState.filters.statuses;
     if (saved.hasAttachment) {
@@ -132,7 +140,7 @@ async function loadFilterPreferences(): Promise<void> {
 
 async function saveFilterPreferences(): Promise<void> {
   try {
-    await window.gamepadCli.configSetPlanFilters(snapshotFilterPreferences());
+    await configClient.configSetPlanFilters(snapshotFilterPreferences());
   } catch (err) {
     console.error('[PlanScreen] Failed to save filter preferences:', err);
   }
@@ -314,16 +322,16 @@ function syncSelection(): void {
 async function loadPlanData(dirPath: string, context?: ViewMountContext, options?: SetPlanDataOptions): Promise<void> {
   const loadToken = ++latestPlanDataLoadToken;
   const [items, deps, sequences, contexts] = await Promise.all([
-    window.gamepadCli.planList(dirPath),
-    window.gamepadCli.planDeps(dirPath),
-    window.gamepadCli.planSequenceList?.(dirPath) ?? Promise.resolve([]),
-    window.gamepadCli.planContextList?.(dirPath) ?? Promise.resolve([]),
+    plansClient.planList(dirPath),
+    plansClient.planDeps(dirPath),
+    plansClient.planSequenceList?.(dirPath) ?? Promise.resolve([]),
+    contextsClient.planContextList?.(dirPath) ?? Promise.resolve([]),
   ]);
   if ((context && !context.isActive()) || loadToken !== latestPlanDataLoadToken) return;
 
   // Fetch attachments before setPlanData to avoid a second layout pass
   const attachmentHasAny = items.length > 0
-    ? await window.gamepadCli.planAttachmentHasAny(items.map((item) => item.id))
+    ? await attachmentsClient.planAttachmentHasAny(items.map((item) => item.id))
     : {};
   if ((context && !context.isActive()) || loadToken !== latestPlanDataLoadToken) return;
 
@@ -650,13 +658,13 @@ async function handleSave(planId: string, updates: { title: string; description:
   const current = getPlanItemById(planId);
   if (!current) return;
   try {
-    await window.gamepadCli.planUpdate(planId, updates);
+    await plansClient.planUpdate(planId, updates);
     if (current && updates.status === 'done' && current.status !== 'done') {
       if (current.status !== 'coding' && current.status !== 'review') {
         showBriefNotice('Only coding or review plans can be marked done');
         return;
       }
-      await window.gamepadCli.planComplete(planId, updates.stateInfo);
+      await plansClient.planComplete(planId, updates.stateInfo);
     } else if (current && updates.status !== 'done') {
       const targetSessionId = resolvePlanTargetSessionId(current);
       if (updates.status === 'coding' && !targetSessionId) {
@@ -668,7 +676,7 @@ async function handleSave(planId: string, updates: { title: string; description:
       const ownerSessionId = updates.status === 'coding'
         ? targetSessionId ?? undefined
         : undefined;
-      await window.gamepadCli.planSetState(
+      await plansClient.planSetState(
         planId,
         updates.status,
         updates.stateInfo,
@@ -683,7 +691,7 @@ async function handleSave(planId: string, updates: { title: string; description:
 
 async function handleDelete(id: string): Promise<void> {
   try {
-    await window.gamepadCli.planDelete(id);
+    await plansClient.planDelete(id);
     planScreenState.selectedId = null;
     planScreenState.editingId = null;
     getWindowCallbacks().draftEditorCloser?.();
@@ -701,7 +709,7 @@ async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
       return;
     }
 
-    const result = await window.gamepadCli.writeTempContent(item.description);
+    const result = await dialogClient.writeTempContent(item.description);
     if (!result?.success || !result.path) {
       console.error('[PlanScreen] Failed to write temp file:', result?.error);
       return;
@@ -709,7 +717,7 @@ async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
 
     await deliverPromptSequence(targetSessionId, `work for you to do is here: ${result.path}{Send}`);
     if (item.status === 'ready') {
-      await window.gamepadCli.planApply(item.id, targetSessionId);
+      await plansClient.planApply(item.id, targetSessionId);
     }
 
     planScreenState.selectedId = null;
@@ -730,7 +738,7 @@ async function handleAddNode(options?: { fromShortcut?: boolean; kind?: 'plan' |
 
   try {
     if (options?.kind === 'context') {
-      const created = await window.gamepadCli.planContextCreate?.(planScreenState.currentDir, {
+      const created = await contextsClient.planContextCreate?.(planScreenState.currentDir, {
         title: 'New Context',
         type: 'Knowledge',
         permission: 'readonly',
@@ -748,7 +756,7 @@ async function handleAddNode(options?: { fromShortcut?: boolean; kind?: 'plan' |
       return;
     }
 
-    const created = await window.gamepadCli.planCreate(planScreenState.currentDir, 'New Plan', '');
+    const created = await plansClient.planCreate(planScreenState.currentDir, 'New Plan', '');
     const createdId = created && typeof created === 'object' && 'id' in created ? String(created.id) : null;
     if (createdId && planScreenState.relatedFocusRootId) {
       setRelatedTransientIds([...planScreenState.relatedTransientIds, createdId]);
@@ -771,7 +779,7 @@ async function handleAddNode(options?: { fromShortcut?: boolean; kind?: 'plan' |
 
 async function handleRemoveDep(dep: PlanDependency): Promise<void> {
   try {
-    await window.gamepadCli.planRemoveDep(dep.fromId, dep.toId);
+    await plansClient.planRemoveDep(dep.fromId, dep.toId);
     await refreshCanvas();
   } catch (err) {
     console.error('[PlanScreen] Remove dep failed:', err);
@@ -780,7 +788,7 @@ async function handleRemoveDep(dep: PlanDependency): Promise<void> {
 
 async function handleAddDep(fromId: string, toId: string): Promise<void> {
   try {
-    await window.gamepadCli.planAddDep(fromId, toId);
+    await plansClient.planAddDep(fromId, toId);
     await refreshCanvas({ preserveTransientFocus: true });
   } catch (err) {
     console.error('[PlanScreen] Add dep failed:', err);
@@ -799,12 +807,12 @@ export async function refreshCanvasIfVisible(): Promise<void> {
 
 async function handleExportDirectory(): Promise<void> {
   try {
-    const json = await window.gamepadCli.planExportDirectory(planScreenState.currentDir);
+    const json = await incomingClient.planExportDirectory(planScreenState.currentDir);
     if (!json) return;
     const folderName = planScreenState.currentDir.split(/[/\\]/).filter(Boolean).pop() ?? 'plans';
-    const savePath = await window.gamepadCli.dialogShowSaveFile(`${folderName}-plans.json`);
+    const savePath = await dialogClient.dialogShowSaveFile(`${folderName}-plans.json`);
     if (!savePath) return;
-    const ok = await window.gamepadCli.planWriteFile(savePath, json);
+    const ok = await incomingClient.planWriteFile(savePath, json);
     if (ok) showBriefNotice('Plans exported ✓');
   } catch (err) {
     console.error('[PlanScreen] Export directory failed:', err);
@@ -813,7 +821,7 @@ async function handleExportDirectory(): Promise<void> {
 
 async function handleClearDone(): Promise<void> {
   try {
-    const items = await window.gamepadCli.planList(planScreenState.currentDir);
+    const items = await plansClient.planList(planScreenState.currentDir);
     const doneItems = items.filter((item: PlanItem) => item.status === 'done');
     if (doneItems.length === 0) return;
     const parts = planScreenState.currentDir.replace(/\\/g, '/').split('/');
@@ -821,7 +829,7 @@ async function handleClearDone(): Promise<void> {
     clearDonePlans.dirName = parts[parts.length - 1] || planScreenState.currentDir;
     clearDonePlans.visible = true;
     setClearDonePlansCallback(async () => {
-      await window.gamepadCli.planClearCompleted(planScreenState.currentDir);
+      await plansClient.planClearCompleted(planScreenState.currentDir);
       await refreshCanvas();
     });
   } catch (err) {
@@ -894,20 +902,20 @@ export function onPlanClearDone(): void {
 export async function onPlanCreateSequence(title: string, missionStatement: string, sharedMemory: string): Promise<void> {
   const selected = getSelectedItem();
   if (!selected) return;
-  const sequence = await window.gamepadCli.planSequenceCreate?.(
+  const sequence = await plansClient.planSequenceCreate?.(
     planScreenState.currentDir,
     title || 'New Sequence',
     missionStatement,
     sharedMemory,
   );
   if (sequence?.id) {
-    await window.gamepadCli.planSequenceAssign?.(selected.id, sequence.id);
+    await plansClient.planSequenceAssign?.(selected.id, sequence.id);
     await refreshCanvas();
   }
 }
 
 export async function onPlanAssignSequence(planId: string, sequenceId: string | null): Promise<void> {
-  await window.gamepadCli.planSequenceAssign?.(planId, sequenceId);
+  await plansClient.planSequenceAssign?.(planId, sequenceId);
   await refreshCanvas();
 }
 
@@ -915,17 +923,17 @@ export async function onPlanUpdateSequence(
   id: string,
   updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number },
 ): Promise<void> {
-  await window.gamepadCli.planSequenceUpdate?.(id, updates);
+  await plansClient.planSequenceUpdate?.(id, updates);
   await refreshCanvas();
 }
 
 export async function onPlanDeleteSequence(id: string): Promise<void> {
-  await window.gamepadCli.planSequenceDelete?.(id);
+  await plansClient.planSequenceDelete?.(id);
   await refreshCanvas();
 }
 
 export async function onPlanDeleteSequenceWithPlans(id: string): Promise<void> {
-  await window.gamepadCli.planSequenceDeleteWithPlans?.(id);
+  await plansClient.planSequenceDeleteWithPlans?.(id);
   await refreshCanvas();
 }
 
@@ -940,22 +948,22 @@ export function onPlanContextEdit(id: string): void {
 }
 
 export async function onPlanContextMove(id: string, x: number | null, y: number | null): Promise<void> {
-  await window.gamepadCli.planContextSetPosition?.(id, x, y);
+  await contextsClient.planContextSetPosition?.(id, x, y);
   await refreshCanvas();
 }
 
 export async function onPlanContextBind(id: string, sequenceId: string): Promise<void> {
-  await window.gamepadCli.planContextBind?.(id, 'sequence', sequenceId);
+  await contextsClient.planContextBind?.(id, 'sequence', sequenceId);
   await refreshCanvas();
 }
 
 export async function onPlanContextBindTarget(id: string, targetType: ContextBindingTargetType, targetId: string): Promise<void> {
-  await window.gamepadCli.planContextBind?.(id, targetType, targetId);
+  await contextsClient.planContextBind?.(id, targetType, targetId);
   await refreshCanvas();
 }
 
 export async function onPlanContextUnbind(id: string, targetType: ContextBindingTargetType, targetId: string): Promise<void> {
-  await window.gamepadCli.planContextUnbind?.(id, targetType, targetId);
+  await contextsClient.planContextUnbind?.(id, targetType, targetId);
   await refreshCanvas();
 }
 
@@ -968,16 +976,16 @@ export async function onPlanContextSave(
   updates: { title?: string; type?: string; permission?: 'readonly' | 'writable'; content?: string },
   pendingUnbinds: Array<{ targetType: ContextBindingTargetType; targetId: string }> = [],
 ): Promise<void> {
-  await window.gamepadCli.planContextUpdate?.(id, updates);
+  await contextsClient.planContextUpdate?.(id, updates);
   for (const entry of pendingUnbinds) {
-    await window.gamepadCli.planContextUnbind?.(id, entry.targetType, entry.targetId);
+    await contextsClient.planContextUnbind?.(id, entry.targetType, entry.targetId);
   }
   await refreshCanvas();
   selectContextById(id);
 }
 
 export async function onPlanContextDelete(id: string): Promise<void> {
-  const deleted = await window.gamepadCli.planContextDelete?.(id);
+  const deleted = await contextsClient.planContextDelete?.(id);
   if (!deleted) {
     showBriefNotice('Could not delete context');
     return;

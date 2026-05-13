@@ -9,6 +9,7 @@ import { sessionsState } from './sessions-state.js';
 import { useNavigationStore } from '../stores/navigation.js';
 import { isSpawnCollapsed } from '../sidebar/section-collapse.js';
 import { state } from '../state.js';
+import { plansClient } from '../ipc/clients.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import { updateAllFocus } from './sessions.js';
@@ -113,13 +114,11 @@ export function updatePlansFocus(): void {
 // ============================================================================
 
 export async function refreshPlanBadges(): Promise<void> {
-  if (!window.gamepadCli) return;
-
   for (const dir of sessionsState.directories) {
     try {
       const [startableItems, allItems] = await Promise.all([
-        window.gamepadCli.planStartableForDir(dir.path),
-        window.gamepadCli.planList(dir.path),
+        plansClient.planStartableForDir(dir.path),
+        plansClient.planList(dir.path),
       ]);
 
       const items: Array<{ status: string }> = allItems ?? [];

@@ -18,6 +18,7 @@ import {
   getEditorHistoryPreview,
 } from '../../editor/editor-history.js';
 import EditorPopupConfirmDialog from './EditorPopupConfirmDialog.vue';
+import { configClient, draftsClient } from '../../ipc/clients.js';
 
 const MODAL_ID = 'editor-popup';
 
@@ -102,7 +103,7 @@ watch(() => props.visible, async (v) => {
 
 async function loadEditorDimensions(): Promise<void> {
   try {
-    const prefs = await window.gamepadCli.configGetEditorPrefs();
+    const prefs = await configClient.configGetEditorPrefs();
     if (prefs.editorPopupWidth) editorWidth.value = Math.max(MIN_WIDTH, Math.min(prefs.editorPopupWidth, window.innerWidth * MAX_WIDTH_VIEWPORT_RATIO));
     else editorWidth.value = Math.max(MIN_WIDTH, Math.min(DEFAULT_WIDTH, window.innerWidth * MAX_WIDTH_VIEWPORT_RATIO));
     if (prefs.editorPopupHeight) editorHeight.value = Math.max(MIN_HEIGHT, Math.min(prefs.editorPopupHeight, window.innerHeight * MAX_HEIGHT_VIEWPORT_RATIO));
@@ -128,7 +129,7 @@ function centerEditorPopup(): void {
 
 async function saveEditorDimensions(): Promise<void> {
   try {
-    await window.gamepadCli.configSetEditorPrefs({
+    await configClient.configSetEditorPrefs({
       editorPopupWidth: editorWidth.value,
       editorPopupHeight: editorHeight.value,
     });
@@ -177,7 +178,7 @@ async function loadEditorDraft(): Promise<void> {
   const scope = getEditorScope();
   if (!scope) return;
   try {
-    const drafts = await window.gamepadCli.draftList(scope);
+    const drafts = await draftsClient.draftList(scope);
     const draft = drafts.find((d: any) => d.label === 'ctrl-g-draft');
     if (draft) {
       currentDraftId.value = draft.id;
@@ -201,9 +202,9 @@ async function saveEditorDraft(): Promise<void> {
   }
   try {
     if (currentDraftId.value) {
-      await window.gamepadCli.draftUpdate(currentDraftId.value, { text: text.value });
+      await draftsClient.draftUpdate(currentDraftId.value, { text: text.value });
     } else {
-      const draft = await window.gamepadCli.draftCreate(scope, 'ctrl-g-draft', text.value);
+      const draft = await draftsClient.draftCreate(scope, 'ctrl-g-draft', text.value);
       if (draft) currentDraftId.value = draft.id;
     }
     lastSentDraft.value = text.value;
@@ -215,7 +216,7 @@ async function saveEditorDraft(): Promise<void> {
 async function deleteEditorDraft(): Promise<void> {
   if (!currentDraftId.value) return;
   try {
-    await window.gamepadCli.draftDelete(currentDraftId.value);
+    await draftsClient.draftDelete(currentDraftId.value);
     currentDraftId.value = null;
     lastSentDraft.value = '';
   } catch (err) {

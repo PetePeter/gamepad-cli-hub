@@ -73,7 +73,7 @@ import { onViewChange, currentView, type MainView as ViewName } from './main-vie
 import { useModalStack } from './composables/useModalStack.js';
 import { useEscProtection } from './composables/useEscProtection.js';
 import { useToast } from './composables/useToast.js';
-import { appClient, deliveryClient, eventsClient, sessionsClient } from './ipc/clients.js';
+import { appClient, backupsClient, deliveryClient, draftsClient, eventsClient, plansClient, sessionsClient } from './ipc/clients.js';
 import {
   closeConfirm, getCloseConfirmCallback, setCloseConfirmCallback,
   contextMenu,
@@ -1824,7 +1824,7 @@ function onChipBarPlanClick(planId: string): void {
 
 async function onPlanPopOut(): Promise<void> {
   if (!planScreenState.currentDir) return;
-  const result = await window.gamepadCli.planPopOut(planScreenState.currentDir);
+  const result = await plansClient.planPopOut(planScreenState.currentDir);
   if (!result?.success) {
     console.error('[App] Failed to pop out planner:', result?.error ?? 'unknown error');
   }
@@ -1838,7 +1838,7 @@ async function onDraftSave(payload: { label: string; text: string }): Promise<vo
   const sessionId = draftEditorSessionId.value;
   const draftId = draftEditorDraftId.value;
   try {
-    const savedDraftId = await saveDraftWithStableId(window.gamepadCli, sessionId, draftId, payload);
+    const savedDraftId = await saveDraftWithStableId(draftsClient, sessionId, draftId, payload);
     if (!draftId && savedDraftId) {
       draftEditorDraftId.value = savedDraftId;
     }
@@ -1860,7 +1860,7 @@ async function onDraftApply(payload: { label: string; text: string }): Promise<v
     }
   }
   if (draftId) {
-    try { await window.gamepadCli?.draftDelete(draftId); }
+    try { await draftsClient.draftDelete(draftId); }
     catch (err) { console.error('[App] Failed to delete draft after apply:', err); }
   }
   await chipBarStore.refresh(sessionId);
@@ -1871,7 +1871,7 @@ async function onDraftDelete(): Promise<void> {
   const draftId = draftEditorDraftId.value;
   closeDraftEditor();
   if (draftId) {
-    try { await window.gamepadCli?.draftDelete(draftId); }
+    try { await draftsClient.draftDelete(draftId); }
     catch (err) { console.error('[App] Failed to delete draft:', err); }
   }
   await chipBarStore.refresh(sessionId);
@@ -1910,7 +1910,7 @@ async function onDraftSubmenuApply(draft: { id: string; text: string }): Promise
   if (state.activeSessionId && draft.text) {
     void deliverPromptSequence(state.activeSessionId, draft.text);
   }
-  await window.gamepadCli?.draftDelete(draft.id);
+  await draftsClient.draftDelete(draft.id);
 }
 
 function onDraftSubmenuEdit(draft: { id: string; label: string; text: string }): void {
@@ -1921,7 +1921,7 @@ function onDraftSubmenuEdit(draft: { id: string; label: string; text: string }):
 
 async function onDraftSubmenuDelete(draft: { id: string }): Promise<void> {
   draftSubmenu.visible = false;
-  await window.gamepadCli?.draftDelete(draft.id);
+  await draftsClient.draftDelete(draft.id);
 }
 
 // Form modal callbacks
@@ -1989,7 +1989,7 @@ async function openBackupRestore(): Promise<void> {
   backupRestore.loading = true;
   backupRestore.visible = true;
   try {
-    const snapshots = await window.gamepadCli.planListBackups(backupRestore.dirPath);
+    const snapshots = await backupsClient.planListBackups(backupRestore.dirPath);
     backupRestore.snapshots = snapshots;
   } catch {
     backupRestore.snapshots = [];
@@ -2001,7 +2001,7 @@ async function openBackupRestore(): Promise<void> {
 async function onBackupRestore(snapshotPath: string): Promise<void> {
   try {
     const snapshot = backupRestore.snapshots.find((entry) => entry.snapshotPath === snapshotPath);
-    const result = await window.gamepadCli.planRestoreBackup(snapshotPath);
+    const result = await backupsClient.planRestoreBackup(snapshotPath);
     if (result && typeof result === 'object' && 'success' in result && result.success) {
       const timestamp = snapshot?.timestamp ? new Date(snapshot.timestamp).toLocaleString() : '';
       planScreenState.notice = timestamp ? `Restored backup from ${timestamp}` : 'Restored from backup';
@@ -2015,8 +2015,8 @@ async function onBackupRestore(snapshotPath: string): Promise<void> {
 
 async function onBackupDelete(snapshotPath: string): Promise<void> {
   try {
-    await window.gamepadCli.planDeleteBackup(snapshotPath);
-    const snapshots = await window.gamepadCli.planListBackups(backupRestore.dirPath);
+    await backupsClient.planDeleteBackup(snapshotPath);
+    const snapshots = await backupsClient.planListBackups(backupRestore.dirPath);
     backupRestore.snapshots = snapshots;
     addToast({ message: 'Backup deleted', type: 'info' });
   } catch (err) {
@@ -2026,8 +2026,8 @@ async function onBackupDelete(snapshotPath: string): Promise<void> {
 
 async function onBackupNow(): Promise<void> {
   try {
-    const metadata = await window.gamepadCli.planCreateBackupNow(backupRestore.dirPath);
-    const snapshots = await window.gamepadCli.planListBackups(backupRestore.dirPath);
+    const metadata = await backupsClient.planCreateBackupNow(backupRestore.dirPath);
+    const snapshots = await backupsClient.planListBackups(backupRestore.dirPath);
     backupRestore.snapshots = snapshots;
     addToast({
       message: metadata?.timestamp

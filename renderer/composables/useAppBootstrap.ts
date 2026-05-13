@@ -26,7 +26,7 @@ import '../plans/plan-screen.js';
 import '../screens/sessions-spawn.js';
 import { setTerminalManagerGetter as setSpawnTerminalManagerGetter } from '../screens/sessions-spawn.js';
 import { getTabCycleSessionIds, updateSessionsFocus } from '../screens/sessions.js';
-import { eventsClient, sessionsClient, terminalClient } from '../ipc/clients.js';
+import { draftsClient, eventsClient, plansClient, sessionsClient, terminalClient } from '../ipc/clients.js';
 
 // Overview/plan setup functions
 import {
@@ -210,9 +210,9 @@ export async function refreshSessions(): Promise<void> {
 }
 
 async function refreshDraftCounts(): Promise<void> {
-  if (!window.gamepadCli?.draftList) return;
+  if (!draftsClient.draftList) return;
   try {
-    const allDrafts = await window.gamepadCli.draftList();
+    const allDrafts = await draftsClient.draftList();
     state.draftCounts.clear();
     for (const draft of allDrafts) {
       const count = state.draftCounts.get(draft.sessionId) ?? 0;
@@ -222,7 +222,7 @@ async function refreshDraftCounts(): Promise<void> {
 }
 
 async function refreshPlanCounts(): Promise<void> {
-  if (!window.gamepadCli?.planStartableForDir) return;
+  if (!plansClient.planStartableForDir) return;
   state.planCodingCounts.clear();
   state.planStartableCounts.clear();
   state.planDirStartableCounts.clear();
@@ -240,7 +240,7 @@ async function refreshPlanCounts(): Promise<void> {
     let startableCount = countedDirs.get(cwd);
     if (startableCount === undefined) {
       try {
-        startableCount = (await window.gamepadCli.planStartableForDir(cwd)).length;
+        startableCount = (await plansClient.planStartableForDir(cwd)).length;
       } catch {
         startableCount = 0;
       }
@@ -251,7 +251,7 @@ async function refreshPlanCounts(): Promise<void> {
     }
 
     try {
-      const doing = await window.gamepadCli.planDoingForSession(session.id);
+      const doing = await plansClient.planDoingForSession(session.id);
       if (doing.length > 0) state.planCodingCounts.set(session.id, doing.length);
       const plan = session.currentPlanId
         ? (doing.find((entry) => entry.id === session.currentPlanId) ?? doing[0])
@@ -522,10 +522,10 @@ function setupIpcListeners(): void {
   });
 
   // Plan change listener — debounced to coalesce rapid events
-  if (window.gamepadCli.onPlanChanged) {
+  if (eventsClient.onPlanChanged) {
     let planDebounceTimer: ReturnType<typeof setTimeout> | null = null;
     const pendingPlanDirs = new Set<string>();
-    window.gamepadCli.onPlanChanged((dirPath: string) => {
+    eventsClient.onPlanChanged((dirPath: string) => {
       pendingPlanDirs.add(dirPath);
       if (planDebounceTimer) clearTimeout(planDebounceTimer);
       planDebounceTimer = setTimeout(() => {

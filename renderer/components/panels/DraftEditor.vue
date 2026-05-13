@@ -11,6 +11,7 @@ import type { PlanAttachment } from '../../src/types/plan-attachment.js';
 import { formatDateTime } from '../../utils/date-format.js';
 import { getDisplayTitle } from '../../types.js';
 import PromptTextarea from '../common/PromptTextarea.vue';
+import { attachmentsClient, dialogClient } from '../../ipc/clients.js';
 
 type ContextBoundPlan = {
   id: string;
@@ -406,7 +407,7 @@ async function loadAttachments(): Promise<void> {
   const planId = props.planId;
   if (!planId || !isPlan.value) { attachments.value = []; return; }
   attachmentsLoading.value = true; attachmentError.value = '';
-  try { attachments.value = await window.gamepadCli.planAttachmentList?.(planId) ?? []; }
+  try { attachments.value = await attachmentsClient.planAttachmentList?.(planId) ?? []; }
   catch { attachmentError.value = 'Could not load attachments'; attachments.value = []; }
   finally { attachmentsLoading.value = false; }
 }
@@ -415,9 +416,9 @@ async function addAttachment(): Promise<void> {
   const planId = props.planId;
   if (!planId) return;
   attachmentError.value = '';
-  const filePath = await window.gamepadCli.dialogShowOpenFile?.([{ name: 'All Files', extensions: ['*'] }]);
+  const filePath = await dialogClient.dialogShowOpenFile?.([{ name: 'All Files', extensions: ['*'] }]);
   if (!filePath) return;
-  const result = await window.gamepadCli.planAttachmentAddFile?.(planId, filePath);
+  const result = await attachmentsClient.planAttachmentAddFile?.(planId, filePath);
   if (!result) { attachmentError.value = 'Could not attach file (max 10 MB)'; return; }
   await loadAttachments();
 }
@@ -426,7 +427,7 @@ async function openAttachment(att: PlanAttachment): Promise<void> {
   const planId = props.planId;
   if (!planId) return;
   attachmentBusyId.value = att.id; attachmentError.value = '';
-  try { const ok = await window.gamepadCli.planAttachmentOpen?.(planId, att.id); if (!ok) attachmentError.value = 'Could not open attachment'; }
+  try { const ok = await attachmentsClient.planAttachmentOpen?.(planId, att.id); if (!ok) attachmentError.value = 'Could not open attachment'; }
   finally { attachmentBusyId.value = null; }
 }
 
@@ -434,7 +435,7 @@ async function deleteAttachment(att: PlanAttachment): Promise<void> {
   const planId = props.planId;
   if (!planId) return;
   attachmentBusyId.value = att.id; attachmentError.value = '';
-  try { const ok = await window.gamepadCli.planAttachmentDelete?.(planId, att.id); if (!ok) { attachmentError.value = 'Could not delete attachment'; return; } await loadAttachments(); }
+  try { const ok = await attachmentsClient.planAttachmentDelete?.(planId, att.id); if (!ok) { attachmentError.value = 'Could not delete attachment'; return; } await loadAttachments(); }
   finally { attachmentBusyId.value = null; }
 }
 
