@@ -7,7 +7,7 @@ import type { SessionInfo } from '../../types/session.js';
 
 function normalizeDirectoryPath(dirPath: string): string {
   const normalized = dirPath.replace(/\\/g, '/').replace(/\/+$/, '');
-  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+  return /^[a-z]:\//i.test(normalized) ? normalized.toLowerCase() : normalized;
 }
 
 /**
