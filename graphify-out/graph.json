@@ -57637,9 +57637,9 @@
       "weight": 1.0,
       "_src": "renderer_components_plannerpopoutwindow_vue",
       "_tgt": "components_plannerpopoutwindow_if",
+      "confidence_score": 1.0,
       "source": "renderer_components_plannerpopoutwindow_vue",
-      "target": "components_plannerpopoutwindow_if",
-      "confidence_score": 1.0
+      "target": "components_plannerpopoutwindow_if"
     },
     {
       "relation": "imports_from",

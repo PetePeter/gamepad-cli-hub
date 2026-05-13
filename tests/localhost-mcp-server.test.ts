@@ -492,6 +492,37 @@ describe('LocalhostMcpServer', () => {
     expect(updateJson.result.structuredContent.type).toBe('research');
   });
 
+  it('advertises and sets autoImplement through plan_update MCP calls', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const toolsResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 401,
+      method: 'tools/list',
+    });
+    const toolsJson = await toolsResponse.json();
+    const planUpdate = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_update');
+    expect(planUpdate.description).toContain('auto-implement');
+    expect(planUpdate.description).toContain('autoImplement true or false');
+
+    const updateResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 402,
+      method: 'tools/call',
+      params: {
+        name: 'plan_update',
+        arguments: { id: 'p1', autoImplement: true },
+      },
+    });
+    const updateJson = await updateResponse.json();
+    expect((service.updatePlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('p1', { autoImplement: true });
+    expect(updateJson.result.structuredContent.autoImplement).toBe(true);
+  });
+
   it('dispatches plan attachment tools through the MCP surface', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });

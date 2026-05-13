@@ -88,7 +88,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_create',
     title: 'Create Plan',
-    description: `Create a plan item in a directory when follow-up work, later cleanup, or a blocking question should survive the current session. Optionally set type to "bug", "feature", or "research". The description should include these sections: ${REQUIRED_PLAN_DESCRIPTION_SECTIONS.join(', ')}. For blocking questions, create a separate plan titled "QUESTION: ..." and link it to the original blocked plan with plan_nextplan_link so the question must be resolved first. The new plan starts in "planning" status with no session owner. When you begin working on this plan, claim it by calling plan_set_state with status "coding" and your sessionId, then call session_set_working_plan.`,
+    description: `Create a plan item in a directory when follow-up work, later cleanup, or a blocking question should survive the current session. Optionally set type to "bug", "feature", or "research", and set autoImplement=true when this ready follow-up may be picked up automatically after its prerequisite is completed. The description should include these sections: ${REQUIRED_PLAN_DESCRIPTION_SECTIONS.join(', ')}. For blocking questions, create a separate plan titled "QUESTION: ..." and link it to the original blocked plan with plan_nextplan_link so the question must be resolved first. The new plan starts in "planning" status with no session owner. When you begin working on this plan, claim it by calling plan_set_state with status "coding" and your sessionId, then call session_set_working_plan.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -105,7 +105,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_update',
     title: 'Update Plan',
-    description: 'Update a plan item title, description, and/or type by UUID or P-00xx human-readable ID. Set type to "bug", "feature", or "research"; pass null to clear the type.',
+    description: 'Update a plan item title, description, type, and/or auto-implement flag by UUID or P-00xx human-readable ID. Set type to "bug", "feature", or "research"; pass null to clear the type. Set autoImplement true or false to control whether a ready follow-up plan may be picked up automatically after its prerequisite is completed.',
     inputSchema: {
       type: 'object',
       properties: {
