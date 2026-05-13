@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../../ipc/clients.js';
 /**
  * McpCliSetup.vue — Extracts Global CLI Setup section from McpTab.vue
  * with env var awareness, copy button, and run-in-cmd.exe button per snippet.
@@ -20,9 +21,9 @@ const cliEnvs = ref(new Map<string, Array<{ name: string; value: string }>>());
 
 onMounted(async () => {
   try {
-    const cliTypes = await window.gamepadCli.configGetCliTypes();
+    const cliTypes = await configClient.configGetCliTypes();
     for (const cliType of cliTypes) {
-      const env = await window.gamepadCli.configGetCliTypeEnv(cliType);
+      const env = await configClient.configGetCliTypeEnv(cliType);
       cliEnvs.value.set(cliType, env || []);
     }
   } catch (error) {

@@ -1,3 +1,4 @@
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
 /**
  * Settings screen — profile management tab (CRUD, rendering).
  */
@@ -22,15 +23,15 @@ import { loadSettingsScreen } from './settings.js';
 
 export async function renderProfilesPanel(): Promise<void> {
   const container = document.getElementById('bindingsDisplay');
-  if (!container || !window.gamepadCli) return;
+  if (!container) return;
 
   const actionBar = document.getElementById('bindingActionBar');
   if (actionBar) actionBar.innerHTML = '';
 
   container.innerHTML = '';
 
-  const profiles = await window.gamepadCli.profileList();
-  const active = await window.gamepadCli.profileGetActive();
+  const profiles = await profilesClient.profileList();
+  const active = await profilesClient.profileGetActive();
 
   const panel = document.createElement('div');
   panel.className = 'settings-panel';
@@ -95,8 +96,8 @@ export async function renderProfilesPanel(): Promise<void> {
           }
         }
 
-        await window.gamepadCli.profileSwitch(name);
-        state.cliTypes = await window.gamepadCli.configGetCliTypes();
+        await profilesClient.profileSwitch(name);
+        state.cliTypes = await configClient.configGetCliTypes();
         state.availableSpawnTypes = state.cliTypes;
         await initConfigCache();
         useChipBarStore().invalidateActions();
@@ -125,7 +126,7 @@ export async function renderProfilesPanel(): Promise<void> {
         }
         confirmPending = false;
         try {
-          const result = await window.gamepadCli.profileDelete(name);
+          const result = await profilesClient.profileDelete(name);
           if (result.success) {
             logEvent(`Deleted profile: ${name}`);
             loadSettingsScreen();
@@ -160,7 +161,7 @@ export async function renderProfilesPanel(): Promise<void> {
   // Notifications toggle
   const notifItem = document.createElement('div');
   notifItem.className = 'settings-list-item';
-  const notifEnabled = await window.gamepadCli.configGetNotifications();
+  const notifEnabled = await configClient.configGetNotifications();
   notifItem.innerHTML = `
     <div class="settings-list-item__info">
       <span class="settings-list-item__name">🔔 Notifications</span>
@@ -174,8 +175,8 @@ export async function renderProfilesPanel(): Promise<void> {
   notifToggle.tabIndex = 0;
   notifToggle.textContent = notifEnabled ? 'ON' : 'OFF';
   notifToggle.addEventListener('click', async () => {
-    const current = await window.gamepadCli.configGetNotifications();
-    await window.gamepadCli.configSetNotifications(!current);
+    const current = await configClient.configGetNotifications();
+    await configClient.configSetNotifications(!current);
     logEvent(`Notifications: ${!current ? 'ON' : 'OFF'}`);
     loadSettingsScreen();
   });
@@ -199,7 +200,7 @@ async function showCreateProfilePrompt(existingProfiles: string[]): Promise<void
   if (!result || !result.name) return;
 
   try {
-    const createResult = await window.gamepadCli.profileCreate(result.name, result.copyFrom || undefined);
+    const createResult = await profilesClient.profileCreate(result.name, result.copyFrom || undefined);
     if (createResult.success) {
       logEvent(`Created profile: ${result.name}`);
       loadSettingsScreen();

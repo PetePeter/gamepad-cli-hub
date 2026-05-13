@@ -1,3 +1,4 @@
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
 /**
  * Sessions screen helpers for sort controls, rename state, and the state dropdown.
  *
@@ -65,7 +66,7 @@ export async function initSessionsSortControl(): Promise<void> {
   // Load saved prefs (only on first call or when no control exists)
   if (!sessionsSortControl) {
     try {
-      const prefs = await window.gamepadCli.configGetSortPrefs('sessions');
+      const prefs = await configClient.configGetSortPrefs('sessions');
       if (prefs) {
         sessionsSortField = (prefs.field as SessionSortField) || 'state';
         sessionsSortDirection = (prefs.direction as SortDirection) || 'asc';
@@ -108,7 +109,7 @@ export async function initSessionsSortControl(): Promise<void> {
         updateSessionsFocus();
         if (isOverviewVisible()) refreshOverview();
         try {
-          await window.gamepadCli.configSetSortPrefs('sessions', { field, direction });
+          await configClient.configSetSortPrefs('sessions', { field, direction });
         } catch (e) {
           console.error('[Sessions] Failed to save sort prefs:', e);
         }
@@ -146,8 +147,7 @@ export async function commitRename(sessionId: string, newName: string): Promise<
   }
 
   try {
-    if (!window.gamepadCli) return;
-    const result = await window.gamepadCli.sessionRename(sessionId, trimmed);
+        const result = await sessionsClient.sessionRename(sessionId, trimmed);
     if (result.success) {
       logEvent(`Renamed to: ${trimmed}`);
       sessionsState.editingSessionId = null;

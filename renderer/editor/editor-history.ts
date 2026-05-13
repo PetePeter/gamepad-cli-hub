@@ -1,10 +1,11 @@
 const STORAGE_KEY = 'gamepad-cli-editor-history';
 const MAX_ENTRIES = 10;
+import { draftsClient } from '../ipc/clients.js';
 
 export async function loadEditorHistory(workingDir?: string): Promise<string[]> {
-  if (!workingDir && window.gamepadCli?.editorGetHistory) {
+  if (!workingDir && draftsClient.editorGetHistory) {
     try {
-      const entries = await window.gamepadCli.editorGetHistory();
+      const entries = await draftsClient.editorGetHistory();
       return Array.isArray(entries)
         ? entries.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
         : [];
@@ -26,9 +27,9 @@ export async function loadEditorHistory(workingDir?: string): Promise<string[]> 
 
 export async function saveEditorHistory(entries: string[], workingDir?: string): Promise<void> {
   const sanitized = entries.slice(0, MAX_ENTRIES);
-  if (!workingDir && window.gamepadCli?.editorSetHistory) {
+  if (!workingDir && draftsClient.editorSetHistory) {
     try {
-      await window.gamepadCli.editorSetHistory(sanitized);
+      await draftsClient.editorSetHistory(sanitized);
       return;
     } catch {
       // Fall through to localStorage fallback.

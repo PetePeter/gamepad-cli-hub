@@ -1,3 +1,4 @@
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
 /**
  * Settings screen — bindings tab (global + per-CLI binding rendering and editing).
  */
@@ -22,7 +23,7 @@ import { initConfigCache } from '../bindings.js';
 // ============================================================================
 
 async function refreshSequencesCache(cliType: string): Promise<void> {
-  const fresh = await window.gamepadCli.configGetSequences(cliType);
+  const fresh = await configClient.configGetSequences(cliType);
   state.cliSequencesCache[cliType] = (fresh && Object.keys(fresh).length > 0) ? fresh : {};
 }
 
@@ -91,7 +92,7 @@ export async function renderBindingsDisplay(bindings: Record<string, any>, _labe
         const source = copyBtn.value;
         if (!source) return;
         try {
-          const result = await window.gamepadCli?.configCopyCliBindings(source, currentTab);
+          const result = await configClient.configCopyCliBindings(source, currentTab);
           if (result?.success) {
             logEvent(`Copied ${result.count} binding(s) from ${getCliDisplayName(source)}`);
             await initConfigCache();
@@ -109,7 +110,7 @@ export async function renderBindingsDisplay(bindings: Record<string, any>, _labe
     // Sort control
     if (!bindingsSortInitialized) {
       try {
-        const prefs = await window.gamepadCli.configGetSortPrefs('bindings');
+        const prefs = await configClient.configGetSortPrefs('bindings');
         if (prefs) {
           bindingsSortField = (prefs.field as BindingSortField) || 'button';
           bindingsSortDirection = (prefs.direction as SortDirection) || 'asc';
@@ -135,7 +136,7 @@ export async function renderBindingsDisplay(bindings: Record<string, any>, _labe
         bindingsSortField = field as BindingSortField;
         bindingsSortDirection = direction;
         try {
-          await window.gamepadCli.configSetSortPrefs('bindings', { field, direction });
+          await configClient.configSetSortPrefs('bindings', { field, direction });
         } catch (e) {
           console.error('[Settings] Failed to save binding sort prefs:', e);
         }
@@ -192,7 +193,7 @@ export async function renderBindingsDisplay(bindings: Record<string, any>, _labe
       confirmPending = false;
       try {
         const cliType = state.settingsTab;
-        const result = await window.gamepadCli.configRemoveBinding(button, cliType);
+        const result = await configClient.configRemoveBinding(button, cliType);
         if (result.success) {
           logEvent(`Removed binding: ${button}`);
           if (state.cliBindingsCache[cliType]) {
@@ -272,11 +273,11 @@ function showAddBindingPicker(unmappedButtons: readonly string[]): void {
 /** Render the sequence groups section below bindings in per-CLI tabs. */
 export async function renderSequenceGroups(cliType: string): Promise<void> {
   const container = document.getElementById('bindingsDisplay');
-  if (!container || !window.gamepadCli) return;
+  if (!container) return;
 
   let sequences: Record<string, Array<{ label: string; sequence: string }>>;
   try {
-    sequences = await window.gamepadCli.configGetSequences(cliType);
+    sequences = await configClient.configGetSequences(cliType);
   } catch {
     return;
   }
@@ -352,7 +353,7 @@ function createSequenceGroupCard(
     }
     confirmPending = false;
     try {
-      const result = await window.gamepadCli.configRemoveSequenceGroup(cliType, groupId);
+      const result = await configClient.configRemoveSequenceGroup(cliType, groupId);
       if (result.success) {
         logEvent(`Removed sequence group: ${groupId}`);
         await refreshSequencesCache(cliType);
@@ -422,7 +423,7 @@ async function showAddSequenceGroupForm(cliType: string): Promise<void> {
 
   const validItems = parseSeqItems(result._items);
   try {
-    const res = await window.gamepadCli.configSetSequenceGroup(cliType, groupId, validItems);
+    const res = await configClient.configSetSequenceGroup(cliType, groupId, validItems);
     if (res.success) {
       logEvent(`Added sequence group: ${groupId}`);
       await refreshSequencesCache(cliType);
@@ -450,9 +451,9 @@ async function showEditSequenceGroupForm(
   try {
     // If renamed, remove old group first
     if (newGroupId !== groupId) {
-      await window.gamepadCli.configRemoveSequenceGroup(cliType, groupId);
+      await configClient.configRemoveSequenceGroup(cliType, groupId);
     }
-    const res = await window.gamepadCli.configSetSequenceGroup(cliType, newGroupId, validItems);
+    const res = await configClient.configSetSequenceGroup(cliType, newGroupId, validItems);
     if (res.success) {
       logEvent(`Updated sequence group: ${newGroupId}`);
       await refreshSequencesCache(cliType);

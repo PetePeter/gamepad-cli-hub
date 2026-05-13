@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../../ipc/clients.js';
 /**
  * Dynamic form modal — renders form fields from a descriptor array.
  *
@@ -159,7 +160,7 @@ function onCancel(): void {
 }
 
 async function onBrowse(fieldKey: string): Promise<void> {
-  const path = await window.gamepadCli?.dialogOpenFolder?.();
+  const path = await dialogClient.dialogOpenFolder?.();
   if (path) {
     formValues.value[fieldKey] = path;
     revalidateFieldByKey(fieldKey);

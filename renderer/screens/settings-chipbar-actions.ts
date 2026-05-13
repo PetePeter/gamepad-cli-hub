@@ -1,3 +1,4 @@
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
 /**
  * Settings screen — Chipbar Actions panel (quick-action button CRUD).
  */
@@ -19,7 +20,7 @@ import { CHIPBAR_TEMPLATE_DEFINITIONS } from '../drafts/chipbar-templates.js';
 
 export async function renderChipbarActionsPanel(): Promise<void> {
   const container = document.getElementById('bindingsDisplay');
-  if (!container || !window.gamepadCli) return;
+  if (!container) return;
 
   const actionBar = document.getElementById('bindingActionBar');
   if (actionBar) actionBar.innerHTML = '';
@@ -28,7 +29,7 @@ export async function renderChipbarActionsPanel(): Promise<void> {
 
   let chipbarData: { actions: Array<{ label: string; sequence: string }>; inboxDir: string };
   try {
-    chipbarData = await window.gamepadCli.configGetChipbarActions();
+    chipbarData = await configClient.configGetChipbarActions();
   } catch {
     container.innerHTML = '<p style="color: var(--text-dim);">Failed to load chipbar actions config</p>';
     return;
@@ -244,9 +245,9 @@ async function showEditChipbarActionForm(index: number, existing: { label: strin
 }
 
 async function addChipbarAction(action: { label: string; sequence: string }): Promise<void> {
-  const chipbarData = await window.gamepadCli.configGetChipbarActions();
+  const chipbarData = await configClient.configGetChipbarActions();
   const updatedActions = [...chipbarData.actions, action];
-  const result = await window.gamepadCli.configSetChipbarActions(updatedActions);
+  const result = await configClient.configSetChipbarActions(updatedActions);
   if (!result.success) {
     throw new Error(result.error || 'Failed to add chip bar action');
   }
@@ -257,10 +258,10 @@ async function addChipbarAction(action: { label: string; sequence: string }): Pr
 }
 
 async function updateChipbarAction(index: number, action: { label: string; sequence: string }): Promise<void> {
-  const chipbarData = await window.gamepadCli.configGetChipbarActions();
+  const chipbarData = await configClient.configGetChipbarActions();
   const updatedActions = [...chipbarData.actions];
   updatedActions[index] = action;
-  const result = await window.gamepadCli.configSetChipbarActions(updatedActions);
+  const result = await configClient.configSetChipbarActions(updatedActions);
   if (!result.success) {
     throw new Error(result.error || 'Failed to update chip bar action');
   }
@@ -271,9 +272,9 @@ async function updateChipbarAction(index: number, action: { label: string; seque
 }
 
 async function deleteChipbarAction(index: number): Promise<void> {
-  const chipbarData = await window.gamepadCli.configGetChipbarActions();
+  const chipbarData = await configClient.configGetChipbarActions();
   const updatedActions = chipbarData.actions.filter((_, i) => i !== index);
-  const result = await window.gamepadCli.configSetChipbarActions(updatedActions);
+  const result = await configClient.configSetChipbarActions(updatedActions);
   if (!result.success) {
     throw new Error(result.error || 'Failed to delete chip bar action');
   }
@@ -284,14 +285,14 @@ async function deleteChipbarAction(index: number): Promise<void> {
 }
 
 async function moveChipbarAction(fromIndex: number, toIndex: number): Promise<void> {
-  const chipbarData = await window.gamepadCli.configGetChipbarActions();
+  const chipbarData = await configClient.configGetChipbarActions();
   const actions = [...chipbarData.actions];
   
   // Move the action
   const [movedAction] = actions.splice(fromIndex, 1);
   actions.splice(toIndex, 0, movedAction);
   
-  const result = await window.gamepadCli.configSetChipbarActions(actions);
+  const result = await configClient.configSetChipbarActions(actions);
   if (!result.success) {
     throw new Error(result.error || 'Failed to reorder chip bar action');
   }

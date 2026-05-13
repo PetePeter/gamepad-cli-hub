@@ -823,7 +823,7 @@ function onToggleOverview(sessionId: string): void {
 
 async function onCancelSchedule(sessionId: string): Promise<void> {
   try {
-    await window.gamepadCli.patternCancelSchedule(sessionId);
+    await patternsClient.patternCancelSchedule(sessionId);
   } catch { /* ignore */ }
 }
 
@@ -846,7 +846,7 @@ async function onSessionSnapBack(sessionId: string): Promise<void> {
 // Section collapse
 async function loadCollapsePrefs(): Promise<void> {
   try {
-    const prefs = await window.gamepadCli.configGetCollapsePrefs();
+    const prefs = await configClient.configGetCollapsePrefs();
     if (prefs) {
       spawnCollapsed.value = prefs.spawnCollapsed ?? false;
       plannerCollapsed.value = prefs.plannerCollapsed ?? false;
@@ -861,7 +861,7 @@ async function loadCollapsePrefs(): Promise<void> {
 function toggleSpawnCollapse(): void {
   spawnCollapsed.value = !spawnCollapsed.value;
   setSpawnCollapsed(spawnCollapsed.value);
-  window.gamepadCli.configSetCollapsePrefs({
+  configClient.configSetCollapsePrefs({
     spawnCollapsed: spawnCollapsed.value,
     plannerCollapsed: plannerCollapsed.value,
     schedulerCollapsed: schedulerCollapsed.value,
@@ -871,7 +871,7 @@ function toggleSpawnCollapse(): void {
 function togglePlannerCollapse(): void {
   plannerCollapsed.value = !plannerCollapsed.value;
   setPlannerCollapsed(plannerCollapsed.value);
-  window.gamepadCli.configSetCollapsePrefs({
+  configClient.configSetCollapsePrefs({
     spawnCollapsed: spawnCollapsed.value,
     plannerCollapsed: plannerCollapsed.value,
     schedulerCollapsed: schedulerCollapsed.value,
@@ -880,7 +880,7 @@ function togglePlannerCollapse(): void {
 
 function toggleSchedulerCollapse(): void {
   schedulerCollapsed.value = !schedulerCollapsed.value;
-  window.gamepadCli.configSetCollapsePrefs({
+  configClient.configSetCollapsePrefs({
     spawnCollapsed: spawnCollapsed.value,
     plannerCollapsed: plannerCollapsed.value,
     schedulerCollapsed: schedulerCollapsed.value,
@@ -895,7 +895,7 @@ function openSchedulerPopup(taskId: string | null): void {
 async function deleteScheduledTask(task: ScheduledTask): Promise<void> {
   const confirmed = window.confirm(`Delete scheduled task "${task.title}"?`);
   if (!confirmed) return;
-  await window.gamepadCli.scheduledTaskDelete(task.id);
+  await schedulerClient.scheduledTaskDelete(task.id);
 }
 
 // Spawn
@@ -982,16 +982,15 @@ function onContextMenuAction(action: string): void {
 
 // Settings
 function onOpenLogsFolder(): void {
-  void window.gamepadCli?.systemOpenLogsFolder();
+  void systemClient.systemOpenLogsFolder();
 }
 
 async function loadSettingsData(): Promise<void> {
-  if (!window.gamepadCli) return;
 
   // Load CLI types
   settingsCliTypes.value = state.cliTypes.length > 0
     ? state.cliTypes
-    : (await window.gamepadCli.configGetCliTypes());
+    : (await configClient.configGetCliTypes());
   const validTabs = new Set([
     'profiles',
     ...settingsCliTypes.value,
@@ -1008,8 +1007,8 @@ async function loadSettingsData(): Promise<void> {
   }
 
   // Load profiles
-  const profiles = await window.gamepadCli.profileList();
-  const activeProfile = await window.gamepadCli.profileGetActive();
+  const profiles = await profilesClient.profileList();
+  const activeProfile = await profilesClient.profileGetActive();
   settingsProfiles.value = profiles.map((name: string) => ({
     name,
     isActive: name === activeProfile,
@@ -1017,14 +1016,14 @@ async function loadSettingsData(): Promise<void> {
 
   // Load notifications setting
   try {
-    settingsNotificationMode.value = await window.gamepadCli.configGetNotificationMode();
+    settingsNotificationMode.value = await configClient.configGetNotificationMode();
   } catch {
     settingsNotificationMode.value = 'off';
   }
 
   // Load tools
   try {
-    const toolsData = await window.gamepadCli.toolsGetAll();
+    const toolsData = await toolsClient.toolsGetAll();
     const cliTypes = toolsData?.cliTypes || {};
     settingsTools.value = Object.entries(cliTypes).map(([key, value]: [string, any]) => ({
       key,
@@ -1039,7 +1038,7 @@ async function loadSettingsData(): Promise<void> {
 
   // Load directories
   try {
-    const dirs = await window.gamepadCli.configGetWorkingDirs();
+    const dirs = await configClient.configGetWorkingDirs();
     settingsDirectories.value = dirs || [];
     sessionsState.directories = dirs || [];
   } catch {
@@ -1052,7 +1051,7 @@ async function loadSettingsData(): Promise<void> {
 
   // Load chipbar actions
   try {
-    const chipbarData = await window.gamepadCli.configGetChipbarActions();
+    const chipbarData = await configClient.configGetChipbarActions();
     settingsChipbarActions.value = chipbarData?.actions || [];
   } catch {
     settingsChipbarActions.value = [];
@@ -1060,7 +1059,7 @@ async function loadSettingsData(): Promise<void> {
 
   // Load telegram config
   try {
-    const tgConfig = await window.gamepadCli.telegramGetConfig();
+    const tgConfig = await telegramClient.telegramGetConfig();
     settingsTelegramConfig.value = {
       botToken: tgConfig?.botToken || '',
       chatId: tgConfig?.chatId ? String(tgConfig.chatId) : '',
@@ -1068,7 +1067,7 @@ async function loadSettingsData(): Promise<void> {
       notificationsEnabled: tgConfig?.enabled || false,
       autoStart: tgConfig?.autoStart || false,
     };
-    settingsTelegramBotRunning.value = await window.gamepadCli.telegramIsRunning();
+    settingsTelegramBotRunning.value = await telegramClient.telegramIsRunning();
   } catch {
     settingsTelegramConfig.value = { botToken: '', chatId: '', allowedUsers: '', notificationsEnabled: false, autoStart: false };
     settingsTelegramBotRunning.value = false;
@@ -1076,7 +1075,7 @@ async function loadSettingsData(): Promise<void> {
 
   // Load MCP config
   try {
-    const mcpConfig = await window.gamepadCli.configGetMcpConfig();
+    const mcpConfig = await configClient.configGetMcpConfig();
     settingsMcpConfig.value = {
       enabled: mcpConfig?.enabled ?? false,
       port: mcpConfig?.port ?? 47373,
@@ -1088,7 +1087,7 @@ async function loadSettingsData(): Promise<void> {
 
   // Load current tab bindings
   try {
-    const prefs = await window.gamepadCli.configGetSortPrefs('bindings');
+    const prefs = await configClient.configGetSortPrefs('bindings');
     settingsBindingSortField.value = (prefs?.field as BindingSortField) || 'button';
     settingsBindingSortDirection.value = (prefs?.direction as SortDirection) || 'asc';
   } catch {
@@ -1108,8 +1107,8 @@ async function loadCurrentTabBindings(): Promise<void> {
   }
 
   let bindings = state.cliBindingsCache[tab];
-  if (!bindings && window.gamepadCli) {
-    bindings = await window.gamepadCli.configGetBindings(tab);
+  if (!bindings) {
+    bindings = await configClient.configGetBindings(tab);
     if (bindings) state.cliBindingsCache[tab] = bindings;
   }
 
@@ -1130,7 +1129,7 @@ async function loadCurrentTabBindings(): Promise<void> {
 
   // Load sequence groups
   try {
-    const sequences = state.cliSequencesCache[tab] || await window.gamepadCli.configGetSequences(tab);
+    const sequences = state.cliSequencesCache[tab] || await configClient.configGetSequences(tab);
     if (sequences) {
       state.cliSequencesCache[tab] = sequences;
       settingsSequenceGroups.value = Object.entries(sequences).map(([name, items]: [string, any]) => ({
@@ -1199,7 +1198,7 @@ async function onProfileCreate(): Promise<void> {
   if (!result || !result.name) return;
 
   try {
-    const createResult = await window.gamepadCli.profileCreate(result.name, result.copyFrom || undefined);
+    const createResult = await profilesClient.profileCreate(result.name, result.copyFrom || undefined);
     if (createResult.success) {
       logEvent(`Created profile: ${result.name}`);
       void loadSettingsData();
@@ -1236,8 +1235,8 @@ async function onProfileSwitch(name: string): Promise<void> {
     }
   }
 
-  await window.gamepadCli.profileSwitch(name);
-  state.cliTypes = await window.gamepadCli.configGetCliTypes();
+  await profilesClient.profileSwitch(name);
+  state.cliTypes = await configClient.configGetCliTypes();
   state.availableSpawnTypes = state.cliTypes;
   await initConfigCache();
   useChipBarStore().invalidateActions();
@@ -1250,7 +1249,7 @@ async function onProfileSwitch(name: string): Promise<void> {
 
 async function onProfileDelete(name: string): Promise<void> {
   try {
-    const result = await window.gamepadCli.profileDelete(name);
+    const result = await profilesClient.profileDelete(name);
     if (result.success) {
       logEvent(`Deleted profile: ${name}`);
       void loadSettingsData();
@@ -1261,7 +1260,7 @@ async function onProfileDelete(name: string): Promise<void> {
 }
 
 async function onUpdateNotificationMode(mode: 'off' | 'auto' | 'llm'): Promise<void> {
-  await window.gamepadCli.configSetNotificationMode(mode);
+  await configClient.configSetNotificationMode(mode);
   settingsNotificationMode.value = mode;
   logEvent(`Notifications: ${mode}`);
 }
@@ -1296,10 +1295,10 @@ function onToolAdd(): void {
     const validItems = (values._promptItems || []).filter((item: { sequence: string }) => item.sequence.trim());
     const initialPromptDelay = values.initialPromptDelay || 0;
     const options = buildToolEditorOptions(values);
-    const addResult = await window.gamepadCli.toolsAddCliType(key, name, validItems, initialPromptDelay, options);
+    const addResult = await toolsClient.toolsAddCliType(key, name, validItems, initialPromptDelay, options);
     if (addResult.success) {
       logEvent(`Added CLI type: ${key}`);
-      state.cliTypes = await window.gamepadCli.configGetCliTypes();
+      state.cliTypes = await configClient.configGetCliTypes();
       state.availableSpawnTypes = state.cliTypes;
       await initConfigCache();
       loadSessions();
@@ -1313,7 +1312,7 @@ function onToolAdd(): void {
 
 async function onToolEdit(key: string): Promise<void> {
   try {
-    const toolsData = await window.gamepadCli.toolsGetAll();
+    const toolsData = await toolsClient.toolsGetAll();
     const value = toolsData?.cliTypes?.[key];
     if (!value) return;
 
@@ -1342,10 +1341,10 @@ async function onToolEdit(key: string): Promise<void> {
       const validItems = (values._promptItems || []).filter((item: { sequence: string }) => item.sequence.trim());
       const initialPromptDelay = values.initialPromptDelay || 0;
       const options = buildToolEditorOptions(values);
-      const updateResult = await window.gamepadCli.toolsUpdateCliType(key, values.name, validItems, initialPromptDelay, options);
+      const updateResult = await toolsClient.toolsUpdateCliType(key, values.name, validItems, initialPromptDelay, options);
       if (updateResult.success) {
         logEvent(`Updated CLI type: ${key}`);
-        state.cliTypes = await window.gamepadCli.configGetCliTypes();
+        state.cliTypes = await configClient.configGetCliTypes();
         state.availableSpawnTypes = state.cliTypes;
         await initConfigCache();
         loadSessions();
@@ -1362,12 +1361,12 @@ async function onToolEdit(key: string): Promise<void> {
 
 async function onToolDelete(key: string): Promise<void> {
   try {
-    const result = await window.gamepadCli.toolsRemoveCliType(key);
+    const result = await toolsClient.toolsRemoveCliType(key);
     if (result.success) {
       logEvent(`Deleted CLI type: ${key}`);
       delete state.cliBindingsCache[key];
       delete state.cliSequencesCache[key];
-      state.cliTypes = await window.gamepadCli.configGetCliTypes();
+      state.cliTypes = await configClient.configGetCliTypes();
       state.availableSpawnTypes = state.cliTypes;
       loadSessions();
       void loadSettingsData();
@@ -1383,9 +1382,9 @@ async function onToolReorder(key: string, direction: 'up' | 'down'): Promise<voi
   try {
     const index = state.cliTypes.indexOf(key);
     if (index < 0) return;
-    const result = await window.gamepadCli.toolsReorderCliType(index, direction);
+    const result = await toolsClient.toolsReorderCliType(index, direction);
     if (result.success) {
-      state.cliTypes = await window.gamepadCli.configGetCliTypes();
+      state.cliTypes = await configClient.configGetCliTypes();
       state.availableSpawnTypes = state.cliTypes;
       await initConfigCache();
       loadSessions();
@@ -1403,9 +1402,9 @@ async function onToolReorder(key: string, direction: 'up' | 'down'): Promise<voi
 
 async function onDirectoryAdd(name: string, path: string): Promise<void> {
   try {
-    const result = await window.gamepadCli.configAddWorkingDir(name, path);
+    const result = await configClient.configAddWorkingDir(name, path);
     if (result.success) {
-      const dirs = await window.gamepadCli.configGetWorkingDirs();
+      const dirs = await configClient.configGetWorkingDirs();
       settingsDirectories.value = dirs || [];
       sessionsState.directories = dirs || [];
       logEvent(`Added directory: ${name}`);
@@ -1429,9 +1428,9 @@ async function onDirectoryEdit(index: number, _name: string, _path: string): Pro
 
   if (!result) return;
 
-  const updateResult = await window.gamepadCli.configUpdateWorkingDir(index, result.name, result.path);
+  const updateResult = await configClient.configUpdateWorkingDir(index, result.name, result.path);
   if (updateResult.success) {
-    const dirs = await window.gamepadCli.configGetWorkingDirs();
+    const dirs = await configClient.configGetWorkingDirs();
     settingsDirectories.value = dirs || [];
     sessionsState.directories = dirs || [];
     logEvent(`Updated directory: ${result.name}`);
@@ -1445,9 +1444,9 @@ async function onDirectoryDelete(index: number): Promise<void> {
   if (!dir) return;
 
   try {
-    const result = await window.gamepadCli.configRemoveWorkingDir(index);
+    const result = await configClient.configRemoveWorkingDir(index);
     if (result.success) {
-      const dirs = await window.gamepadCli.configGetWorkingDirs();
+      const dirs = await configClient.configGetWorkingDirs();
       settingsDirectories.value = dirs || [];
       sessionsState.directories = dirs || [];
       logEvent(`Deleted directory: ${dir.name}`);
@@ -1459,9 +1458,9 @@ async function onDirectoryDelete(index: number): Promise<void> {
 
 async function onDirectoryReorder(index: number, direction: 'up' | 'down'): Promise<void> {
   try {
-    const result = await window.gamepadCli.configReorderWorkingDir(index, direction);
+    const result = await configClient.configReorderWorkingDir(index, direction);
     if (result.success) {
-      const dirs = await window.gamepadCli.configGetWorkingDirs();
+      const dirs = await configClient.configGetWorkingDirs();
       settingsDirectories.value = dirs || [];
       sessionsState.directories = dirs || [];
       logEvent(`Reordered directory: ${direction}`);
@@ -1505,9 +1504,9 @@ async function onChipbarActionAdd(): Promise<void> {
   }
 
   try {
-    const chipbarData = await window.gamepadCli.configGetChipbarActions();
+    const chipbarData = await configClient.configGetChipbarActions();
     const updatedActions = [...(chipbarData?.actions || []), { label, sequence }];
-    const saveResult = await window.gamepadCli.configSetChipbarActions(updatedActions);
+    const saveResult = await configClient.configSetChipbarActions(updatedActions);
     if (saveResult.success) {
       settingsChipbarActions.value = updatedActions;
       useChipBarStore().invalidateActions();
@@ -1557,7 +1556,7 @@ async function onChipbarActionEdit(index: number): Promise<void> {
   try {
     const updatedActions = [...settingsChipbarActions.value];
     updatedActions[index] = { label, sequence };
-    const saveResult = await window.gamepadCli.configSetChipbarActions(updatedActions);
+    const saveResult = await configClient.configSetChipbarActions(updatedActions);
     if (saveResult.success) {
       settingsChipbarActions.value = updatedActions;
       useChipBarStore().invalidateActions();
@@ -1578,7 +1577,7 @@ async function onChipbarActionDelete(index: number): Promise<void> {
 
   try {
     const updatedActions = settingsChipbarActions.value.filter((_, i) => i !== index);
-    const result = await window.gamepadCli.configSetChipbarActions(updatedActions);
+    const result = await configClient.configSetChipbarActions(updatedActions);
     if (result.success) {
       settingsChipbarActions.value = updatedActions;
       useChipBarStore().invalidateActions();
@@ -1599,7 +1598,7 @@ async function onChipbarActionMove(fromIndex: number, toIndex: number): Promise<
   actions.splice(toIndex, 0, moved);
 
   try {
-    const result = await window.gamepadCli.configSetChipbarActions(actions);
+    const result = await configClient.configSetChipbarActions(actions);
     if (result.success) {
       settingsChipbarActions.value = actions;
       useChipBarStore().invalidateActions();
@@ -1618,20 +1617,20 @@ async function onChipbarActionMove(fromIndex: number, toIndex: number): Promise<
 async function onTelegramUpdateField(field: string, value: string | boolean): Promise<void> {
   try {
     if (field === 'notificationsEnabled') {
-      await window.gamepadCli.telegramSetConfig({ enabled: Boolean(value) });
+      await telegramClient.telegramSetConfig({ enabled: Boolean(value) });
       settingsTelegramConfig.value.notificationsEnabled = Boolean(value);
     } else if (field === 'autoStart') {
-      await window.gamepadCli.telegramSetConfig({ autoStart: Boolean(value) });
+      await telegramClient.telegramSetConfig({ autoStart: Boolean(value) });
       settingsTelegramConfig.value.autoStart = Boolean(value);
     } else if (field === 'botToken') {
-      await window.gamepadCli.telegramSetConfig({ botToken: String(value) });
+      await telegramClient.telegramSetConfig({ botToken: String(value) });
       settingsTelegramConfig.value.botToken = String(value);
     } else if (field === 'chatId') {
-      await window.gamepadCli.telegramSetConfig({ chatId: Number(value) || null });
+      await telegramClient.telegramSetConfig({ chatId: Number(value) || null });
       settingsTelegramConfig.value.chatId = String(value);
     } else if (field === 'allowedUsers') {
       const ids = String(value).split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
-      await window.gamepadCli.telegramSetConfig({ allowedUserIds: ids });
+      await telegramClient.telegramSetConfig({ allowedUserIds: ids });
       settingsTelegramConfig.value.allowedUsers = String(value);
     }
   } catch (error) {
@@ -1641,7 +1640,7 @@ async function onTelegramUpdateField(field: string, value: string | boolean): Pr
 
 async function onTelegramStartBot(): Promise<void> {
   try {
-    await window.gamepadCli.telegramStart();
+    await telegramClient.telegramStart();
     settingsTelegramBotRunning.value = true;
   } catch (error) {
     console.error('Failed to start Telegram bot:', error);
@@ -1650,7 +1649,7 @@ async function onTelegramStartBot(): Promise<void> {
 
 async function onTelegramStopBot(): Promise<void> {
   try {
-    await window.gamepadCli.telegramStop();
+    await telegramClient.telegramStop();
     settingsTelegramBotRunning.value = false;
   } catch (error) {
     console.error('Failed to stop Telegram bot:', error);
@@ -1675,7 +1674,7 @@ async function onScheduledTaskCancelled(taskId: string): Promise<void> {
 
 async function onMcpUpdate(updates: Partial<{ enabled: boolean; port: number; authToken: string }>): Promise<void> {
   try {
-    await window.gamepadCli.configSetMcpConfig(updates);
+    await configClient.configSetMcpConfig(updates);
     settingsMcpConfig.value = { ...settingsMcpConfig.value, ...updates };
   } catch (error) {
     console.error('Failed to update MCP config:', error);
@@ -1684,10 +1683,10 @@ async function onMcpUpdate(updates: Partial<{ enabled: boolean; port: number; au
 
 async function onMcpGenerateToken(): Promise<void> {
   try {
-    const result = await window.gamepadCli.configGenerateMcpToken();
+    const result = await configClient.configGenerateMcpToken();
     if (result?.success && typeof result.token === 'string') {
       settingsMcpConfig.value.authToken = result.token;
-      await window.gamepadCli.configSetMcpConfig({ authToken: result.token });
+      await configClient.configSetMcpConfig({ authToken: result.token });
     }
   } catch (error) {
     console.error('Failed to generate MCP token:', error);
@@ -1713,7 +1712,7 @@ function onBindingAdd(button?: string): void {
 
 async function onBindingDelete(button: string): Promise<void> {
   try {
-    const result = await window.gamepadCli.configSetBinding(button, settingsTab.value, null);
+    const result = await configClient.configSetBinding(button, settingsTab.value, null);
     if (result.success) {
       await initConfigCache();
       void loadCurrentTabBindings();
@@ -1726,7 +1725,7 @@ async function onBindingDelete(button: string): Promise<void> {
 
 async function onBindingCopyFrom(sourceCli: string): Promise<void> {
   try {
-    const result = await window.gamepadCli.configCopyCliBindings(sourceCli, settingsTab.value);
+    const result = await configClient.configCopyCliBindings(sourceCli, settingsTab.value);
     if (result.success) {
       await initConfigCache();
       void loadCurrentTabBindings();
@@ -1743,7 +1742,7 @@ async function onBindingSortChange(field: string, direction: 'asc' | 'desc'): Pr
   settingsBindingSortField.value = field as BindingSortField;
   settingsBindingSortDirection.value = direction;
   try {
-    await window.gamepadCli.configSetSortPrefs('bindings', { field, direction });
+    await configClient.configSetSortPrefs('bindings', { field, direction });
   } catch (error) {
     console.error('Failed to save binding sort prefs:', error);
   }
@@ -1764,7 +1763,7 @@ async function onAddSequenceGroup(): Promise<void> {
   try { items = JSON.parse(result._items).filter((i: any) => i?.sequence?.trim()); } catch { /* ignore */ }
 
   try {
-    await window.gamepadCli.configSetSequenceGroup(settingsTab.value, groupId, items);
+    await configClient.configSetSequenceGroup(settingsTab.value, groupId, items);
     delete state.cliSequencesCache[settingsTab.value];
     await loadCurrentTabBindings();
     logEvent(`Added sequence group: ${groupId}`);
@@ -1789,9 +1788,9 @@ async function onEditSequenceGroup(groupName: string): Promise<void> {
 
   try {
     if (newGroupId !== groupName) {
-      try { await window.gamepadCli.configRemoveSequenceGroup(settingsTab.value, groupName); } catch { /* proceed to set */ }
+      try { await configClient.configRemoveSequenceGroup(settingsTab.value, groupName); } catch { /* proceed to set */ }
     }
-    await window.gamepadCli.configSetSequenceGroup(settingsTab.value, newGroupId, validItems);
+    await configClient.configSetSequenceGroup(settingsTab.value, newGroupId, validItems);
     delete state.cliSequencesCache[settingsTab.value];
     await loadCurrentTabBindings();
     logEvent(`Updated sequence group: ${newGroupId}`);
@@ -1802,7 +1801,7 @@ async function onEditSequenceGroup(groupName: string): Promise<void> {
 
 async function onDeleteSequenceGroup(groupName: string): Promise<void> {
   try {
-    await window.gamepadCli.configRemoveSequenceGroup(settingsTab.value, groupName);
+    await configClient.configRemoveSequenceGroup(settingsTab.value, groupName);
     delete state.cliSequencesCache[settingsTab.value];
     await loadCurrentTabBindings();
     logEvent(`Deleted sequence group: ${groupName}`);
@@ -2077,7 +2076,7 @@ window.openLegacyBindingEditor = openLegacyBindingEditor;
 // Binding editor save
 async function onBindingEditorSave(binding: any): Promise<void> {
   try {
-    const result = await window.gamepadCli.configSetBinding(
+    const result = await configClient.configSetBinding(
       bindingEditorButton.value,
       bindingEditorCliType.value,
       binding

@@ -26,7 +26,16 @@ import '../plans/plan-screen.js';
 import '../screens/sessions-spawn.js';
 import { setTerminalManagerGetter as setSpawnTerminalManagerGetter } from '../screens/sessions-spawn.js';
 import { getTabCycleSessionIds, updateSessionsFocus } from '../screens/sessions.js';
-import { draftsClient, eventsClient, plansClient, sessionsClient, terminalClient } from '../ipc/clients.js';
+import {
+  configClient,
+  draftsClient,
+  eventsClient,
+  plansClient,
+  profilesClient,
+  projectsClient,
+  sessionsClient,
+  terminalClient,
+} from '../ipc/clients.js';
 
 // Overview/plan setup functions
 import {
@@ -95,9 +104,9 @@ function findProjectForPath(dirPath?: string): RendererProjectRecord | undefined
 }
 
 export async function refreshProjects(): Promise<void> {
-  if (!window.gamepadCli?.projectList) return;
+  if (!projectsClient.projectList) return;
   try {
-    const projects = (await window.gamepadCli.projectList()) || [];
+    const projects = (await projectsClient.projectList()) || [];
     state.projects = projects.map((project: RendererProjectRecord) => ({
       id: project.id,
       name: project.name,
@@ -127,7 +136,6 @@ function logEvent(event: string): void {
 // ============================================================================
 
 export async function refreshSessions(): Promise<void> {
-  if (!window.gamepadCli) return;
 
   await initGroupPrefs();
 
@@ -187,11 +195,11 @@ export async function refreshSessions(): Promise<void> {
   try { useNavigationStore().onNavListRebuilt(); } catch { /* store may not be initialized yet */ }
 
   try {
-    sessionsState.cliTypes = await window.gamepadCli.configGetCliTypes();
+    sessionsState.cliTypes = await configClient.configGetCliTypes();
   } catch (e) { console.error('[Bootstrap] Failed to load CLI types:', e); }
 
   try {
-    sessionsState.directories = (await window.gamepadCli.configGetWorkingDirs()) || [];
+    sessionsState.directories = (await configClient.configGetWorkingDirs()) || [];
   } catch (e) { console.error('[Bootstrap] Failed to load directories:', e); }
 
   // Clamp focus indices
@@ -281,8 +289,7 @@ let groupPrefsLoaded = false;
 async function initGroupPrefs(): Promise<void> {
   if (groupPrefsLoaded) return;
   try {
-    if (!window.gamepadCli) return;
-    const prefs = await window.gamepadCli.configGetSessionGroupPrefs();
+        const prefs = await configClient.configGetSessionGroupPrefs();
     if (prefs) {
       sessionsState.groupPrefs = {
         order: prefs.order ?? [],
@@ -321,7 +328,7 @@ export async function doSpawn(
 
   try {
     logEvent(`Spawning ${cliType}${workingDir ? ` in ${workingDir}` : ''}...`);
-    if (!window.gamepadCli) {
+    if (!configClient.configGetSpawnCommand) {
       logEvent('Spawn failed: gamepadCli not available');
       return false;
     }
@@ -329,7 +336,7 @@ export async function doSpawn(
     const tm = getTerminalManager();
     if (!tm) return false;
 
-    const spawnInfo = await window.gamepadCli.configGetSpawnCommand(cliType);
+    const spawnInfo = await configClient.configGetSpawnCommand(cliType);
     if (!spawnInfo) {
       logEvent(`Spawn failed: no command configured for ${cliType}`);
       return false;
@@ -516,7 +523,7 @@ function setupIpcListeners(): void {
     if (!tm || tm.has(session.id)) return;
     console.log(`[ExternalSpawn] Adopting session: ${session.id} (${session.cliType})`);
     state.lastOutputTimes.set(session.id, session.lastOutputAt ?? Date.now());
-    await window.gamepadCli.configGetSpawnCommand(session.cliType);
+    await configClient.configGetSpawnCommand(session.cliType);
     tm.adoptTerminal(session.id, session.cliType, session.workingDir);
     await refreshSessions();
   });
@@ -545,19 +552,19 @@ function setupIpcListeners(): void {
   }
 
   // Pattern schedule listeners
-  if (window.gamepadCli.onPatternScheduleCreated) {
-    window.gamepadCli.onPatternScheduleCreated(({ sessionId, scheduledAt }) => {
+  if (eventsClient.onPatternScheduleCreated) {
+    eventsClient.onPatternScheduleCreated(({ sessionId, scheduledAt }) => {
       const formatted = new Date(scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       state.pendingSchedules.set(sessionId, formatted);
     });
   }
-  if (window.gamepadCli.onPatternScheduleFired) {
-    window.gamepadCli.onPatternScheduleFired(({ sessionId }) => {
+  if (eventsClient.onPatternScheduleFired) {
+    eventsClient.onPatternScheduleFired(({ sessionId }) => {
       state.pendingSchedules.delete(sessionId);
     });
   }
-  if (window.gamepadCli.onPatternScheduleCancelled) {
-    window.gamepadCli.onPatternScheduleCancelled(({ sessionId }) => {
+  if (eventsClient.onPatternScheduleCancelled) {
+    eventsClient.onPatternScheduleCancelled(({ sessionId }) => {
       state.pendingSchedules.delete(sessionId);
     });
   }
@@ -595,10 +602,10 @@ function setupGamepad(
 
 async function loadRepeatConfig(): Promise<void> {
   try {
-    if (!window.gamepadCli?.configGetDpadConfig || !window.gamepadCli?.configGetStickConfig) return;
-    const dpadConfig = await window.gamepadCli.configGetDpadConfig();
-    const leftStick = await window.gamepadCli.configGetStickConfig('left');
-    const rightStick = await window.gamepadCli.configGetStickConfig('right');
+    if (!configClient.configGetDpadConfig || !configClient.configGetStickConfig) return;
+    const dpadConfig = await configClient.configGetDpadConfig();
+    const leftStick = await configClient.configGetStickConfig('left');
+    const rightStick = await configClient.configGetStickConfig('right');
 
     browserGamepad.setRepeatConfig({
       dpad: {
@@ -686,17 +693,15 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
 
   // Config warmup
   try {
-    await window.gamepadCli?.configGetAll();
+    await configClient.configGetAll();
   } catch (error) {
     console.warn('[Bootstrap] Failed to warm up config:', error);
   }
 
   // CLI types
   try {
-    if (window.gamepadCli) {
-      state.cliTypes = await window.gamepadCli.configGetCliTypes();
-      state.availableSpawnTypes = state.cliTypes;
-    }
+    state.cliTypes = await configClient.configGetCliTypes();
+    state.availableSpawnTypes = state.cliTypes;
   } catch (error) {
     console.error('[Bootstrap] Failed to load CLI types:', error);
   }
@@ -738,7 +743,7 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
     },
     async () => {
       try {
-        return await window.gamepadCli.configGetEscProtectionEnabled();
+        return await configClient.configGetEscProtectionEnabled();
       } catch (err) {
         console.error('Failed to get ESC protection setting:', err);
         return true;
@@ -774,9 +779,7 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
 
   // Profile
   try {
-    if (window.gamepadCli) {
-      state.activeProfile = await window.gamepadCli.profileGetActive();
-    }
+    state.activeProfile = await profilesClient.profileGetActive();
   } catch { /* ignore */ }
 
   // Auto-resume

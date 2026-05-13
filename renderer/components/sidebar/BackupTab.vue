@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../../ipc/clients.js';
 /**
  * BackupTab.vue — Settings panel tab for plan backup configuration.
  *
@@ -30,7 +31,7 @@ const canBackupNow = computed(() => !backingUp.value);
 
 onMounted(async () => {
   try {
-    const config = await window.gamepadCli.planGetBackupConfig();
+    const config = await backupsClient.planGetBackupConfig();
     enabled.value = config.enabled;
     maxSnapshots.value = config.maxSnapshots;
     intervalHours.value = Math.round(config.snapshotIntervalMs / 3600000);
@@ -50,7 +51,7 @@ async function doSave(): Promise<void> {
   errorMessage.value = '';
   statusMessage.value = '';
   try {
-    await window.gamepadCli.planSetBackupConfig({
+    await backupsClient.planSetBackupConfig({
       enabled: enabled.value,
       maxSnapshots: maxSnapshots.value,
       snapshotIntervalMs: intervalHours.value * 3600000,
@@ -69,14 +70,14 @@ async function createBackupNow(): Promise<void> {
   errorMessage.value = '';
   statusMessage.value = '';
   try {
-    const dirs = await window.gamepadCli.configGetWorkingDirs() ?? [];
+    const dirs = await configClient.configGetWorkingDirs() ?? [];
     if (dirs.length === 0) {
       statusMessage.value = 'No configured folders to back up';
       return;
     }
     let succeeded = 0;
     for (const dir of dirs) {
-      await window.gamepadCli.planCreateBackupNow(dir.path);
+      await backupsClient.planCreateBackupNow(dir.path);
       succeeded++;
     }
     statusMessage.value = `Backed up ${succeeded} folder${succeeded > 1 ? 's' : ''}`;
@@ -89,7 +90,7 @@ async function createBackupNow(): Promise<void> {
 
 async function browseBackupDir(): Promise<void> {
   try {
-    const selected = await window.gamepadCli.dialogOpenFolder();
+    const selected = await dialogClient.dialogOpenFolder();
     if (selected) {
       backupDir.value = selected;
       scheduleSave();

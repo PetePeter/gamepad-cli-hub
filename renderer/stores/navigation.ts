@@ -1,3 +1,4 @@
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
 /**
  * Navigation store — centralized view routing + sidebar focus.
  *
@@ -151,7 +152,7 @@ export const useNavigationStore = defineStore('navigation', () => {
     // window is activated instead of assuming the terminal lives locally.
     if (state.snappedOutSessions.has(sessionId)) {
       try {
-        await window.gamepadCli?.sessionSetActive(sessionId);
+        await sessionsClient.sessionSetActive(sessionId);
       } catch {
         // Ignore focus failures and still sync local selection state.
       }

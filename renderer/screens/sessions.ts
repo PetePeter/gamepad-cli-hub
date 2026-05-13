@@ -1,3 +1,4 @@
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
 /**
  * Sessions screen — sidebar state, navigation handlers, and public API.
  *
@@ -102,8 +103,8 @@ export async function setSessionState(sessionId: string, newState: string): Prom
   if (previous === newState) return;
 
   try {
-    if (!window.gamepadCli?.sessionSetState) return;
-    const result = await window.gamepadCli.sessionSetState(sessionId, newState);
+    if (!sessionsClient.sessionSetState) return;
+    const result = await sessionsClient.sessionSetState(sessionId, newState);
     if (result?.success === false) {
       logEvent(`State change failed: ${result.error}`);
       return;
@@ -155,10 +156,9 @@ function cleanupRendererSession(sessionId: string): void {
 }
 
 export async function doCloseSession(sessionId: string): Promise<void> {
-  if (!window.gamepadCli) return;
 
   try {
-    const result = await window.gamepadCli.sessionClose(sessionId);
+    const result = await sessionsClient.sessionClose(sessionId);
     if (!result?.success && result?.error !== 'Session not found') {
       console.error(`[Sessions] Failed to close session ${sessionId}:`, result?.error ?? 'unknown error');
       return;
@@ -181,8 +181,7 @@ let groupPrefsLoaded = false;
 async function initSessionGroupPrefs(): Promise<void> {
   if (groupPrefsLoaded) return;
   try {
-    if (!window.gamepadCli) return;
-    const prefs = await window.gamepadCli.configGetSessionGroupPrefs();
+        const prefs = await configClient.configGetSessionGroupPrefs();
     if (prefs) {
       sessionsState.groupPrefs = normalizeGroupPrefs(prefs);
     }
@@ -204,8 +203,7 @@ function normalizeGroupPrefs(prefs: Partial<typeof sessionsState.groupPrefs>): t
 /** Ensure order array contains all current dir paths (appends missing ones). */
 async function saveGroupPrefs(): Promise<void> {
   try {
-    if (!window.gamepadCli) return;
-    await window.gamepadCli.configSetSessionGroupPrefs({
+        await configClient.configSetSessionGroupPrefs({
       order: [...sessionsState.groupPrefs.order],
       collapsed: [...sessionsState.groupPrefs.collapsed],
       overviewHidden: [...sessionsState.groupPrefs.overviewHidden],
@@ -257,7 +255,7 @@ export async function toggleGroupCollapse(dirPath: string): Promise<void> {
 /** Remove a directory bookmark — empty group header disappears. */
 export async function removeBookmark(dirPath: string): Promise<void> {
   try {
-    if (window.gamepadCli) await window.gamepadCli.configRemoveBookmarkedDir(dirPath);
+    await configClient.configRemoveBookmarkedDir(dirPath);
     const bookmarked = sessionsState.groupPrefs.bookmarked ?? [];
     sessionsState.groupPrefs = {
       ...sessionsState.groupPrefs,
@@ -399,9 +397,9 @@ async function switchToLastSelectedSessionShortcut(): Promise<void> {
 
 export async function triggerNewPlanShortcut(preferredSessionId?: string): Promise<void> {
   const dirPath = resolvePlanShortcutDirPath(preferredSessionId);
-  if (!dirPath || !window.gamepadCli?.planCreate) return;
+  if (!dirPath || !plansClient.planCreate) return;
   try {
-    await window.gamepadCli.planCreate(dirPath, 'New Plan', '');
+    await plansClient.planCreate(dirPath, 'New Plan', '');
     await loadSessions();
     void refreshPlanBadges();
   } catch (err) {
@@ -524,7 +522,6 @@ export function getTabCycleSessionIds(): string[] {
 // ============================================================================
 
 export async function loadSessionsData(): Promise<void> {
-  if (!window.gamepadCli) return;
 
   // Build the list in a local array and assign atomically at the end.
   // Previously we did `state.sessions = []` up-front and pushed after awaits,
@@ -567,11 +564,11 @@ export async function loadSessionsData(): Promise<void> {
   useNavigationStore().onNavListRebuilt();
 
   try {
-    sessionsState.cliTypes = await window.gamepadCli.configGetCliTypes();
+    sessionsState.cliTypes = await configClient.configGetCliTypes();
   } catch (e) { console.error('[Sessions] Failed to load CLI types:', e); }
 
   try {
-    sessionsState.directories = (await window.gamepadCli.configGetWorkingDirs()) || [];
+    sessionsState.directories = (await configClient.configGetWorkingDirs()) || [];
   } catch (e) { console.error('[Sessions] Failed to load directories:', e); }
 
   // Clamp focus indices after data reload

@@ -1,11 +1,11 @@
 # Graph Report - gamepad-cli-hub  (2026-05-14)
 
 ## Corpus Check
-- 385 files · ~3,151,145 words
+- 385 files · ~3,151,547 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3270 nodes · 6465 edges · 81 communities detected
+- 3270 nodes · 6477 edges · 81 communities detected
 - Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 341 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
@@ -64,8 +64,8 @@
 - [[_COMMUNITY_Community 51|Community 51]]
 - [[_COMMUNITY_Community 52|Community 52]]
 - [[_COMMUNITY_Community 53|Community 53]]
-- [[_COMMUNITY_Community 54|Community 54]]
 - [[_COMMUNITY_Community 55|Community 55]]
+- [[_COMMUNITY_Community 56|Community 56]]
 - [[_COMMUNITY_Community 58|Community 58]]
 - [[_COMMUNITY_Community 59|Community 59]]
 - [[_COMMUNITY_Community 60|Community 60]]
@@ -136,11 +136,11 @@ Nodes (579): absoluteStoragePath(), actionToPtyData(), add(), addDependency(), a
 
 ### Community 1 - "Community 1"
 Cohesion: 0.01
-Nodes (188): createSortControl(), autoResumeSessions(), bootstrap(), clamp(), cleanupRendererSession(), doCloseSession(), doSpawn(), doSpawnShell() (+180 more)
+Nodes (186): autoResumeSessions(), bootstrap(), clamp(), cleanupRendererSession(), doCloseSession(), doSpawn(), doSpawnShell(), findProjectForPath() (+178 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.01
-Nodes (98): resolveEnvWithMode(), setupConfigHandlers(), setupDraftHandlers(), setupEditorHandlers(), registerIPCHandlers(), setupAppHandlers(), setupConfigHandlers(), setupGamepadHandlers() (+90 more)
+Nodes (95): resolveEnvWithMode(), setupConfigHandlers(), setupDraftHandlers(), setupEditorHandlers(), registerIPCHandlers(), setupAppHandlers(), setupConfigHandlers(), setupGamepadHandlers() (+87 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.04
@@ -152,11 +152,11 @@ Nodes (36): useEscProtection(), useModalStack(), useNavigation(), handleBindingE
 
 ### Community 5 - "Community 5"
 Cohesion: 0.05
-Nodes (21): cleanupOrphanDependencies(), clearPersistedSessions(), decodeFilename(), deletePlanFile(), encodeFilename(), listPlanFiles(), loadDependencies(), loadDrafts() (+13 more)
+Nodes (9): buildLegacySpawnCommand(), ConfigLoader, isCliTypeOptions(), normalizeMcpPort(), normalizeToolConfig(), parseCliArgs(), parseCommandTemplate(), slugify() (+1 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.05
-Nodes (9): buildLegacySpawnCommand(), ConfigLoader, isCliTypeOptions(), normalizeMcpPort(), normalizeToolConfig(), parseCliArgs(), parseCommandTemplate(), slugify() (+1 more)
+Nodes (21): cleanupOrphanDependencies(), clearPersistedSessions(), decodeFilename(), deletePlanFile(), encodeFilename(), listPlanFiles(), loadDependencies(), loadDrafts() (+13 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.05
@@ -168,7 +168,7 @@ Nodes (5): decodeBase64Content(), HelmControlService, parseSubmitSuffix(), requi
 
 ### Community 9 - "Community 9"
 Cohesion: 0.05
-Nodes (56): createBrowseButton(), showFormModal(), applyWorkingDirectories(), parseSeqItems(), refreshSequencesCache(), renderSequenceGroups(), showAddSequenceGroupForm(), showEditSequenceGroupForm() (+48 more)
+Nodes (59): createSortControl(), sortBindingEntries(), createBrowseButton(), showFormModal(), applyWorkingDirectories(), parseSeqItems(), refreshSequencesCache(), renderBindingsDisplay() (+51 more)
 
 ### Community 10 - "Community 10"
 Cohesion: 0.06
@@ -176,11 +176,11 @@ Nodes (22): actionToPtyData(), executeSequenceString(), appendText(), canonicali
 
 ### Community 11 - "Community 11"
 Cohesion: 0.06
-Nodes (55): addBookmarkedDir(), addCliType(), addPattern(), addWorkingDirectory(), clearSnapOutWindowPrefs(), copyCliBindings(), ensureLoaded(), getActivityTimeout() (+47 more)
+Nodes (28): clearStartupFallbackTimer(), closeSplashWindow(), createSplashWindow(), createWindow(), maybeShowMainWindow(), readWindowBounds(), resolveSplashLogoUrl(), buildSplashHtml() (+20 more)
 
 ### Community 12 - "Community 12"
 Cohesion: 0.06
-Nodes (24): clearStartupFallbackTimer(), closeSplashWindow(), createSplashWindow(), createWindow(), maybeShowMainWindow(), readWindowBounds(), resolveSplashLogoUrl(), buildSplashHtml() (+16 more)
+Nodes (55): addBookmarkedDir(), addCliType(), addPattern(), addWorkingDirectory(), clearSnapOutWindowPrefs(), copyCliBindings(), ensureLoaded(), getActivityTimeout() (+47 more)
 
 ### Community 13 - "Community 13"
 Cohesion: 0.05
@@ -191,24 +191,24 @@ Cohesion: 0.06
 Nodes (9): applyFocus(), doAutoSave(), handleButton(), onCancel(), onKeyDown(), onLabelKeyDown(), onSave(), makeSections() (+1 more)
 
 ### Community 15 - "Community 15"
-Cohesion: 0.11
-Nodes (16): asAiagentState(), asContextBindingTargetType(), asPlanStatus(), asPlanTypeOrNull(), asRecord(), asString(), asTerminalOutputMode(), getToolReminder() (+8 more)
-
-### Community 16 - "Community 16"
 Cohesion: 0.09
 Nodes (2): loadStoredSessions(), TerminalManager
 
-### Community 17 - "Community 17"
+### Community 16 - "Community 16"
 Cohesion: 0.11
 Nodes (5): ContextManager, loadPlanContextBindings(), loadPlanContexts(), savePlanContextBindings(), savePlanContexts()
 
-### Community 18 - "Community 18"
+### Community 17 - "Community 17"
 Cohesion: 0.12
 Nodes (19): bump_version(), check_git_clean(), cleanup_deploy_configs(), create_deploy_configs(), main(), patch_native_modules(), Remove the config-deploy/ staging directory., Abort if working tree is dirty. (+11 more)
 
-### Community 19 - "Community 19"
+### Community 18 - "Community 18"
 Cohesion: 0.08
 Nodes (31): GitHub App Update Provider, Deploy Config Stripping, Two Step Release Workflow, Localhost MCP Server, Self Contained Profile Model, Directory Plan Controls, Default Profile, Profile Bindings Config (+23 more)
+
+### Community 19 - "Community 19"
+Cohesion: 0.15
+Nodes (13): asAiagentState(), asContextBindingTargetType(), asPlanStatus(), asPlanTypeOrNull(), asRecord(), asString(), asTerminalOutputMode(), getToolReminder() (+5 more)
 
 ### Community 20 - "Community 20"
 Cohesion: 0.14
@@ -259,12 +259,12 @@ Cohesion: 0.14
 Nodes (1): WindowManager
 
 ### Community 32 - "Community 32"
-Cohesion: 0.19
-Nodes (1): KeyboardSimulator
-
-### Community 33 - "Community 33"
 Cohesion: 0.21
 Nodes (1): HelmPlanService
+
+### Community 33 - "Community 33"
+Cohesion: 0.19
+Nodes (1): KeyboardSimulator
 
 ### Community 34 - "Community 34"
 Cohesion: 0.2
@@ -346,11 +346,11 @@ Nodes (1): DraftManager
 Cohesion: 0.31
 Nodes (1): TerminalOutputBuffer
 
-### Community 54 - "Community 54"
+### Community 55 - "Community 55"
 Cohesion: 0.25
 Nodes (2): createHelmPreloadApi(), createPreloadDomains()
 
-### Community 55 - "Community 55"
+### Community 56 - "Community 56"
 Cohesion: 0.28
 Nodes (1): FakePtyManager
 
@@ -363,20 +363,20 @@ Cohesion: 0.39
 Nodes (5): addEditorHistoryEntry(), getScopedEntries(), loadEditorHistory(), safeParseHistory(), saveEditorHistory()
 
 ### Community 60 - "Community 60"
+Cohesion: 0.39
+Nodes (2): decodeBase64Content(), HelmPlanAttachmentService
+
+### Community 61 - "Community 61"
 Cohesion: 0.25
 Nodes (1): HelmSchedulerService
 
-### Community 61 - "Community 61"
+### Community 62 - "Community 62"
 Cohesion: 0.29
 Nodes (1): CronEngine
 
-### Community 62 - "Community 62"
+### Community 63 - "Community 63"
 Cohesion: 0.32
 Nodes (1): ProcessSpawner
-
-### Community 63 - "Community 63"
-Cohesion: 0.29
-Nodes (1): PtyOutputBuffer
 
 ### Community 64 - "Community 64"
 Cohesion: 0.29
@@ -419,12 +419,12 @@ Cohesion: 0.67
 Nodes (2): applyPtyFilters(), stripAltScreen()
 
 ### Community 78 - "Community 78"
-Cohesion: 0.83
-Nodes (3): actionToPtyData(), comboToPtySequence(), keyToPtySequence()
-
-### Community 79 - "Community 79"
 Cohesion: 0.67
 Nodes (2): getMockWindow(), getModule()
+
+### Community 79 - "Community 79"
+Cohesion: 0.83
+Nodes (3): actionToPtyData(), comboToPtySequence(), keyToPtySequence()
 
 ### Community 82 - "Community 82"
 Cohesion: 0.67
@@ -465,7 +465,7 @@ Nodes (1): File Structure Module Map
 ## Knowledge Gaps
 - **74 isolated node(s):** `Run shell command, printing output in real-time.`, `Patch node-pty .gyp files to disable Spectre mitigation requirement.      VS 2`, `Bump version in package.json and return (old_version, new_version).`, `Create stripped config files in config-deploy/ for packaging.      Original co`, `Remove the config-deploy/ staging directory.` (+69 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `Community 16`** (35 nodes): `loadStoredSessions()`, `TerminalManager`, `.adoptTerminal()`, `.constructor()`, `.createTerminal()`, `.deselect()`, `.destroyTerminal()`, `.detachTerminal()`, `.dispose()`, `.fitActive()`, `.fitAll()`, `.focusActive()`, `.getActiveSessionId()`, `.getActiveView()`, `.getCount()`, `.getManagedSessions()`, `.getOutputBuffer()`, `.getSession()`, `.getSessionIds()`, `.getTerminalLines()`, `.getTitle()`, `.has()`, `.hasTerminal()`, `.hydrateFromStore()`, `.hydrateSessions()`, `.removeManagedSession()`, `.renameSession()`, `.setOnEmpty()`, `.setOnSwitch()`, `.setOnTitleChange()`, `.setupIpcListeners()`, `.setupResizeObserver()`, `.switchTo()`, `.upsertManagedSession()`, `.writeToTerminal()`
+- **Thin community `Community 15`** (35 nodes): `loadStoredSessions()`, `TerminalManager`, `.adoptTerminal()`, `.constructor()`, `.createTerminal()`, `.deselect()`, `.destroyTerminal()`, `.detachTerminal()`, `.dispose()`, `.fitActive()`, `.fitAll()`, `.focusActive()`, `.getActiveSessionId()`, `.getActiveView()`, `.getCount()`, `.getManagedSessions()`, `.getOutputBuffer()`, `.getSession()`, `.getSessionIds()`, `.getTerminalLines()`, `.getTitle()`, `.has()`, `.hasTerminal()`, `.hydrateFromStore()`, `.hydrateSessions()`, `.removeManagedSession()`, `.renameSession()`, `.setOnEmpty()`, `.setOnSwitch()`, `.setOnTitleChange()`, `.setupIpcListeners()`, `.setupResizeObserver()`, `.switchTo()`, `.upsertManagedSession()`, `.writeToTerminal()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 20`** (27 nodes): `BrowserGamepadPoller`, `.checkDpad()`, `.checkDpadAxes()`, `.checkDpadButtons()`, `.checkRepeats()`, `.checkStickVirtualButtons()`, `.constructor()`, `.decodeHatAxis()`, `.emitConnectionEvent()`, `.emitDpadDirection()`, `.findDualAxisPair()`, `.findHatAxisIndex()`, `.getCount()`, `.getRepeatConfig()`, `.handleButtonPress()`, `.handleButtonRelease()`, `.logAxesDiagnostic()`, `.logGamepadState()`, `.onButton()`, `.onRelease()`, `.poll()`, `.processGamepad()`, `.requestGamepadAccess()`, `.setRepeatConfig()`, `.setupEvents()`, `.start()`, `.stop()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -485,9 +485,9 @@ Nodes (1): File Structure Module Map
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 31`** (17 nodes): `WindowManager`, `.assignSessionToWindow()`, `.closeAllChildWindows()`, `.focusWindowForSession()`, `.getAllWindows()`, `.getChildWindowIds()`, `.getMainWindow()`, `.getSessionsInWindow()`, `.getSnappedOutSessions()`, `.getWindow()`, `.getWindowForSession()`, `.getWindowIdForSession()`, `.isSessionSnappedOut()`, `.registerWindow()`, `.setMainWindow()`, `.unassignSession()`, `.unregisterWindow()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 32`** (17 nodes): `keyboard.js`, `keyboard.js`, `KeyboardSimulator`, `.comboDown()`, `.comboUp()`, `.constructor()`, `.getKeyDelay()`, `.keyDown()`, `.keyTap()`, `.keyUp()`, `.longPress()`, `.normalizeKey()`, `.sendKey()`, `.sendKeyCombo()`, `.sendKeys()`, `.setKeyDelay()`, `.typeString()`
+- **Thin community `Community 32`** (17 nodes): `HelmPlanService`, `.completePlan()`, `.constructor()`, `.createPlan()`, `.deletePlan()`, `.exportDirectory()`, `.exportItem()`, `.getPlan()`, `.linkPlans()`, `.listPlans()`, `.plansSummary()`, `.reopenPlan()`, `.requireWorkingDirectory()`, `.resolvePlanRef()`, `.setPlanState()`, `.unlinkPlans()`, `.updatePlan()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 33`** (17 nodes): `HelmPlanService`, `.completePlan()`, `.constructor()`, `.createPlan()`, `.deletePlan()`, `.exportDirectory()`, `.exportItem()`, `.getPlan()`, `.linkPlans()`, `.listPlans()`, `.plansSummary()`, `.reopenPlan()`, `.requireWorkingDirectory()`, `.resolvePlanRef()`, `.setPlanState()`, `.unlinkPlans()`, `.updatePlan()`
+- **Thin community `Community 33`** (17 nodes): `keyboard.js`, `keyboard.js`, `KeyboardSimulator`, `.comboDown()`, `.comboUp()`, `.constructor()`, `.getKeyDelay()`, `.keyDown()`, `.keyTap()`, `.keyUp()`, `.longPress()`, `.normalizeKey()`, `.sendKey()`, `.sendKeyCombo()`, `.sendKeys()`, `.setKeyDelay()`, `.typeString()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 34`** (17 nodes): `topic-manager.js`, `TopicManager`, `.closeSessionTopic()`, `.constructor()`, `.createTopicForSession()`, `.deleteTopic()`, `.ensureAllTopics()`, `.ensureTopic()`, `.findSessionByTopicId()`, `.formatTopicName()`, `.getSessionIdByTopic()`, `.getTopicId()`, `.handleTopicClosed()`, `.probeTopic()`, `.renameSessionTopic()`, `.setInstanceName()`, `.updateSessionTopicId()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -517,19 +517,19 @@ Nodes (1): File Structure Module Map
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 53`** (10 nodes): `TerminalOutputBuffer`, `.append()`, `.appendToLineBuffer()`, `.clear()`, `.clearAll()`, `.collapseCarriageReturn()`, `.constructor()`, `.getLines()`, `.getOrCreate()`, `.tail()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 54`** (9 nodes): `getPreloadApiDomain()`, `createGamepadCliCompatibilityApi()`, `createHelmPreloadApi()`, `createPreloadDomains()`, `pickDomainApi()`, `preload-api-contract.ts`, `domain-bridge.ts`, `domain-builders.ts`, `preload.ts`
+- **Thin community `Community 55`** (9 nodes): `getPreloadApiDomain()`, `createGamepadCliCompatibilityApi()`, `createHelmPreloadApi()`, `createPreloadDomains()`, `pickDomainApi()`, `preload-api-contract.ts`, `domain-bridge.ts`, `domain-builders.ts`, `preload.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 55`** (9 nodes): `FakePtyManager`, `.constructor()`, `.deliverText()`, `.emitExit()`, `.getWrites()`, `.has()`, `.spawn()`, `.spawnCommand()`, `.write()`
+- **Thin community `Community 56`** (9 nodes): `FakePtyManager`, `.constructor()`, `.deliverText()`, `.emitExit()`, `.getWrites()`, `.has()`, `.spawn()`, `.spawnCommand()`, `.write()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 58`** (8 nodes): `McpTab.vue`, `normalizePort()`, `onClearToken()`, `onGenerateToken()`, `onPortBlur()`, `onToggleEnabled()`, `onTokenBlur()`, `mcp-tab.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 60`** (8 nodes): `HelmSchedulerService`, `.cancelTask()`, `.constructor()`, `.createTask()`, `.deleteTask()`, `.getTask()`, `.listTasks()`, `.updateTask()`
+- **Thin community `Community 60`** (8 nodes): `decodeBase64Content()`, `HelmPlanAttachmentService`, `.addPlanAttachment()`, `.constructor()`, `.deletePlanAttachment()`, `.getPlanAttachment()`, `.listPlanAttachments()`, `.resolvePlanRef()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 61`** (8 nodes): `cron-engine.test.ts`, `cron-engine.ts`, `CronEngine`, `.isValid()`, `.nextRunTime()`, `.nextRunTimeBeforeDate()`, `.validate()`, `expectLocalDateTime()`
+- **Thin community `Community 61`** (8 nodes): `HelmSchedulerService`, `.cancelTask()`, `.constructor()`, `.createTask()`, `.deleteTask()`, `.getTask()`, `.listTasks()`, `.updateTask()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 62`** (8 nodes): `spawner.js`, `ProcessSpawner`, `.getAllProcesses()`, `.getProcess()`, `.getProcessesByCliType()`, `.kill()`, `.killAll()`, `.spawn()`
+- **Thin community `Community 62`** (8 nodes): `cron-engine.test.ts`, `cron-engine.ts`, `CronEngine`, `.isValid()`, `.nextRunTime()`, `.nextRunTimeBeforeDate()`, `.validate()`, `expectLocalDateTime()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 63`** (7 nodes): `PtyOutputBuffer`, `.append()`, `.clear()`, `.constructor()`, `.getLastLines()`, `.offUpdate()`, `.onUpdate()`
+- **Thin community `Community 63`** (8 nodes): `spawner.js`, `ProcessSpawner`, `.getAllProcesses()`, `.getProcess()`, `.getProcessesByCliType()`, `.kill()`, `.killAll()`, `.spawn()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 64`** (7 nodes): `FakeSessionManager`, `.addSession()`, `.getActiveSession()`, `.getSession()`, `.removeSession()`, `.setActiveSession()`, `.spawn()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -549,7 +549,7 @@ Nodes (1): File Structure Module Map
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 77`** (4 nodes): `pty-filter.ts`, `applyPtyFilters()`, `stripAltScreen()`, `pty-filter.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 79`** (4 nodes): `buildSettingsDom()`, `getMockWindow()`, `getModule()`, `chipbar-actions-settings.test.ts`
+- **Thin community `Community 78`** (4 nodes): `buildSettingsDom()`, `getMockWindow()`, `getModule()`, `chipbar-actions-settings.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 103`** (2 nodes): `Electron MIT License`, `Chromium Third Party Credits`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -575,9 +575,9 @@ _Questions this graph is uniquely positioned to answer:_
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
 - **Why does `HelmControlService` connect `Community 8` to `Community 2`?**
   _High betweenness centrality (0.040) - this node is a cross-community bridge._
-- **Why does `ConfigLoader` connect `Community 6` to `Community 2`?**
+- **Why does `ConfigLoader` connect `Community 5` to `Community 2`?**
   _High betweenness centrality (0.034) - this node is a cross-community bridge._
-- **Why does `PlanManager` connect `Community 5` to `Community 2`?**
+- **Why does `PlanManager` connect `Community 6` to `Community 2`?**
   _High betweenness centrality (0.021) - this node is a cross-community bridge._
 - **What connects `Run shell command, printing output in real-time.`, `Patch node-pty .gyp files to disable Spectre mitigation requirement.      VS 2`, `Bump version in package.json and return (old_version, new_version).` to the rest of the system?**
   _74 weakly-connected nodes found - possible documentation gaps or missing edges._

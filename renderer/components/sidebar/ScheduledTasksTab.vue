@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../../ipc/clients.js';
 /**
  * ScheduledTasksTab.vue -- UI for creating and managing scheduled tasks.
  */
@@ -140,7 +141,7 @@ function parseEndDate(): Date | undefined {
 }
 
 async function loadTasks(): Promise<void> {
-  try { tasks.value = await window.gamepadCli.scheduledTaskList() || []; } catch {}
+  try { tasks.value = await schedulerClient.scheduledTaskList() || []; } catch {}
 }
 
 function toggleCreateForm(): void {
@@ -174,13 +175,13 @@ function resetForm(): void {
 }
 
 async function openCliPicker(): Promise<void> {
-  try { availableCliTypes.value = await window.gamepadCli.configGetCliTypes() as string[]; cliPickerVisible.value = true; } catch {}
+  try { availableCliTypes.value = await configClient.configGetCliTypes() as string[]; cliPickerVisible.value = true; } catch {}
 }
 function onCliSelected(cliType: string): void { selectedCliType.value = cliType; cliPickerVisible.value = false; }
 function onModeChange(): void { selectedTargetSessionId.value = ''; if (formMode.value === 'direct') loadSessions(); }
 async function openDirPickerModal(): Promise<void> {
   try {
-    const dirs = await window.gamepadCli.configGetWorkingDirs() as Array<{ path: string; name?: string }>;
+    const dirs = await configClient.configGetWorkingDirs() as Array<{ path: string; name?: string }>;
     availableDirs.value = dirs.map((d) => ({ name: d.name ?? d.path, path: d.path }));
     dirPickerVisible.value = true;
   } catch {}
@@ -211,7 +212,7 @@ async function createTask(): Promise<void> {
       mode: formMode.value,
       targetSessionId: formMode.value === 'direct' ? selectedTargetSessionId.value : undefined,
     };
-    const result = editingTaskId.value ? await window.gamepadCli.scheduledTaskUpdate(editingTaskId.value, payload) : await window.gamepadCli.scheduledTaskCreate(payload);
+    const result = editingTaskId.value ? await schedulerClient.scheduledTaskUpdate(editingTaskId.value, payload) : await schedulerClient.scheduledTaskCreate(payload);
     if (result) {
       emit(editingTaskId.value ? 'task-updated' : 'task-created', result);
       if (props.popup) emit('close');
@@ -247,7 +248,7 @@ function cloneTask(): void {
 }
 
 async function cancelTask(taskId: string): Promise<void> {
-  try { if (await window.gamepadCli.scheduledTaskCancel(taskId)) { emit('task-cancelled', taskId); await loadTasks(); } } catch {}
+  try { if (await schedulerClient.scheduledTaskCancel(taskId)) { emit('task-cancelled', taskId); await loadTasks(); } } catch {}
 }
 
 onMounted(async () => {

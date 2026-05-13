@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../../ipc/clients.js';
 /**
  * DirectoriesTab.vue — Working directories CRUD.
  *
@@ -69,8 +70,8 @@ function onDeleteClick(index: number): void {
 }
 
 function onBrowse(): void {
-  if (!window.gamepadCli?.dialogOpenFolder) return;
-  void window.gamepadCli.dialogOpenFolder().then((result: string | null) => {
+  if (!dialogClient.dialogOpenFolder) return;
+  void dialogClient.dialogOpenFolder().then((result: string | null) => {
     if (result) newDirPath.value = result;
   });
 }

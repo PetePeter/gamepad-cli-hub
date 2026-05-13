@@ -1,3 +1,4 @@
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
 /**
  * Sessions screen — spawn flow, PTY creation, and terminal area management.
  *
@@ -91,7 +92,7 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
 
   try {
     logEvent(`Spawning ${cliType}${workingDir ? ` in ${workingDir}` : ''}...`);
-    if (!window.gamepadCli) {
+    if (!configClient.configGetSpawnCommand) {
       logEvent('Spawn failed: gamepadCli not available');
       return;
     }
@@ -99,7 +100,7 @@ export async function doSpawn(cliType: string, workingDir?: string, contextText?
     const tm = getTerminalManager();
     if (tm) {
       // Embedded terminal path — use PTY
-      const spawnInfo = await window.gamepadCli.configGetSpawnCommand(cliType);
+      const spawnInfo = await configClient.configGetSpawnCommand(cliType);
       if (!spawnInfo) {
         logEvent(`Spawn failed: no command configured for ${cliType}`);
         return;
@@ -174,11 +175,11 @@ export async function spawnNewSession(cliType?: string, preselectedPath?: string
   const resolvedType = cliType || state.availableSpawnTypes[0] || 'generic-terminal';
 
   try {
-    if (!window.gamepadCli) {
+    if (!configClient.configGetWorkingDirs) {
       logEvent('Spawn failed: gamepadCli not available');
       return;
     }
-    const dirs = await window.gamepadCli.configGetWorkingDirs();
+    const dirs = await configClient.configGetWorkingDirs();
     if (dirs && dirs.length > 0 && dirPickerBridge) {
       // pendingContextText survives through dirPicker — doSpawn consumes it
       dirPickerBridge(resolvedType, dirs, preselectedPath);

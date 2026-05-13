@@ -1,3 +1,4 @@
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
 /**
  * Settings screen — Tools panel (legacy DOM) + Patterns panel.
  *
@@ -48,12 +49,12 @@ const PATTERN_HELP_HTML = `
 
 export async function showPatternsPanel(cliType: string, cliName: string): Promise<void> {
   const container = document.getElementById('bindingsDisplay');
-  if (!container || !window.gamepadCli) return;
+  if (!container) return;
 
   const renderPanel = async () => {
     let patterns: any[] = [];
     try {
-      const response = await window.gamepadCli.toolsGetPatterns(cliType);
+      const response = await toolsClient.toolsGetPatterns(cliType);
       patterns = response?.patterns ?? [];
     } catch { /* none */ }
 
@@ -169,7 +170,7 @@ function createPatternItem(cliType: string, rule: any, index: number, refresh: (
     }
     confirmPending = false;
     try {
-      const result = await window.gamepadCli.toolsRemovePattern(cliType, index);
+      const result = await toolsClient.toolsRemovePattern(cliType, index);
       if (result.success) {
         logEvent(`Deleted pattern at index ${index}`);
         refresh();
@@ -195,7 +196,7 @@ async function showAddPatternForm(cliType: string): Promise<void> {
   if (!result) return;
   const rule = buildPatternRule(result);
   if (!rule) return;
-  await window.gamepadCli.toolsAddPattern(cliType, rule);
+  await toolsClient.toolsAddPattern(cliType, rule);
 }
 
 async function showEditPatternForm(cliType: string, index: number, existing: any): Promise<void> {
@@ -203,7 +204,7 @@ async function showEditPatternForm(cliType: string, index: number, existing: any
   if (!result) return;
   const rule = buildPatternRule(result);
   if (!rule) return;
-  await window.gamepadCli.toolsUpdatePattern(cliType, index, rule);
+  await toolsClient.toolsUpdatePattern(cliType, index, rule);
 }
 
 function buildPatternFormFields(existing: any | null): any[] {

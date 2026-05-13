@@ -1,3 +1,4 @@
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
 /**
  * Settings screen — tab switching orchestrator, state management, directories tab, public API.
  *
@@ -31,7 +32,7 @@ export async function loadSettingsScreen(): Promise<void> {
   try {
     const cliTypes = state.cliTypes.length > 0
       ? state.cliTypes
-      : (window.gamepadCli ? await window.gamepadCli.configGetCliTypes() : []);
+      : (await configClient.configGetCliTypes());
 
     renderSettingsTabs(cliTypes);
 
@@ -59,8 +60,8 @@ export async function loadSettingsScreen(): Promise<void> {
       await renderDirectoriesPanel();
     } else {
       let bindings = state.cliBindingsCache[state.settingsTab];
-      if (!bindings && window.gamepadCli) {
-        bindings = await window.gamepadCli.configGetBindings(state.settingsTab);
+      if (!bindings) {
+        bindings = await configClient.configGetBindings(state.settingsTab);
         if (bindings) state.cliBindingsCache[state.settingsTab] = bindings;
       }
       await renderBindingsDisplay(bindings || {}, `${getCliDisplayName(state.settingsTab)} Bindings`);
@@ -79,7 +80,7 @@ function applyWorkingDirectories(dirs: Array<{ name: string; path: string }>): v
 }
 
 async function refreshWorkingDirectoriesState(): Promise<Array<{ name: string; path: string }>> {
-  const dirs = (await window.gamepadCli.configGetWorkingDirs()) || [];
+  const dirs = (await configClient.configGetWorkingDirs()) || [];
   applyWorkingDirectories(dirs);
   return dirs;
 }
@@ -128,7 +129,7 @@ function renderSettingsTabs(cliTypes: string[]): void {
 
 async function renderDirectoriesPanel(): Promise<void> {
   const container = document.getElementById('bindingsDisplay');
-  if (!container || !window.gamepadCli) return;
+  if (!container) return;
 
   const actionBar = document.getElementById('bindingActionBar');
   if (actionBar) actionBar.innerHTML = '';
@@ -211,7 +212,7 @@ function createDirectoryItem(dir: { name: string; path: string }, index: number)
     }
     dirConfirmPending = false;
     try {
-      const result = await window.gamepadCli.configRemoveWorkingDir(index);
+      const result = await configClient.configRemoveWorkingDir(index);
       if (result.success) {
         await refreshWorkingDirectoriesState();
         logEvent(`Deleted directory: ${dir.name}`);
@@ -319,7 +320,7 @@ function showAddDirectoryForm(panel: HTMLElement): void {
     const dirPath = pathInput.value.trim();
 
     try {
-      const result = await window.gamepadCli.configAddWorkingDir(name, dirPath);
+      const result = await configClient.configAddWorkingDir(name, dirPath);
       if (result.success) {
         await refreshWorkingDirectoriesState();
         logEvent(`Added directory: ${name}`);
@@ -348,7 +349,7 @@ async function showEditDirectoryPrompt(dir: { name: string; path: string }, inde
 
   if (!result) return;
 
-  const updateResult = await window.gamepadCli.configUpdateWorkingDir(index, result.name, result.path);
+  const updateResult = await configClient.configUpdateWorkingDir(index, result.name, result.path);
   if (updateResult.success) {
     await refreshWorkingDirectoriesState();
     logEvent(`Updated directory: ${result.name}`);

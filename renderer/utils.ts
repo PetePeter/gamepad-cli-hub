@@ -1,3 +1,4 @@
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from './ipc/clients.js';
 /**
  * Shared UI helpers used across multiple modules.
  */
@@ -51,8 +52,7 @@ export function showScreen(screenName: string): void {
 
 export async function updateProfileDisplay(): Promise<void> {
   try {
-    if (!window.gamepadCli) return;
-    const active = await window.gamepadCli.profileGetActive();
+        const active = await profilesClient.profileGetActive();
     state.activeProfile = active;
     const nameEl = document.getElementById('profileName');
     if (nameEl) nameEl.textContent = active;
@@ -156,7 +156,7 @@ export function createBrowseButton(pathInput: HTMLInputElement, nameInput?: HTML
   btn.title = 'Browse…';
   btn.type = 'button';
   btn.addEventListener('click', async () => {
-    const selected = await window.gamepadCli.dialogOpenFolder();
+    const selected = await dialogClient.dialogOpenFolder();
     if (selected) {
       pathInput.value = selected;
       pathInput.dispatchEvent(new Event('input', { bubbles: true }));

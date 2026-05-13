@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../../ipc/clients.js';
 /**
  * ProjectsTab.vue — Project list CRUD with expandable directory management.
  *
@@ -35,7 +36,7 @@ const emit = defineEmits<{
 
 async function refresh(): Promise<void> {
   try {
-    projects.value = await window.gamepadCli.projectList();
+    projects.value = await projectsClient.projectList();
     state.projects = projects.value.map(project => ({
       id: project.id,
       name: project.name,
@@ -78,7 +79,7 @@ async function commitEdit(): Promise<void> {
   if (!id || !name) return;
 
   try {
-    const result = await window.gamepadCli.projectUpdate(id, { name });
+    const result = await projectsClient.projectUpdate(id, { name });
     if (result?.success === false) errorMessage.value = result.error || 'Project rename failed';
   } catch (error) { errorMessage.value = String(error); }
   await refresh();
@@ -113,7 +114,7 @@ function onDeleteClick(id: string): void {
 
 async function doDelete(id: string): Promise<void> {
   try {
-    const result = await window.gamepadCli.projectDelete(id);
+    const result = await projectsClient.projectDelete(id);
     if (result?.success === false) errorMessage.value = result.error || 'Project delete failed';
   } catch (error) { errorMessage.value = String(error); }
   await refresh();
@@ -124,9 +125,9 @@ async function doDelete(id: string): Promise<void> {
 async function onAddProject(): Promise<void> {
   try {
     errorMessage.value = '';
-    const dirPath = await window.gamepadCli.dialogOpenFolder();
+    const dirPath = await dialogClient.dialogOpenFolder();
     if (!dirPath) return;
-    const result = await window.gamepadCli.projectCreate(dirPath);
+    const result = await projectsClient.projectCreate(dirPath);
     if (result?.success === false) {
       errorMessage.value = result.error || 'Project creation failed';
     }
@@ -139,9 +140,9 @@ async function onAddProject(): Promise<void> {
 async function onAddDir(projectId: string): Promise<void> {
   try {
     errorMessage.value = '';
-    const dirPath = await window.gamepadCli.dialogOpenFolder();
+    const dirPath = await dialogClient.dialogOpenFolder();
     if (!dirPath) return;
-    const result = await window.gamepadCli.projectAddDir(projectId, dirPath);
+    const result = await projectsClient.projectAddDir(projectId, dirPath);
     if (result?.success === false) errorMessage.value = result.error || 'Directory add failed';
   } catch (error) { errorMessage.value = String(error); }
   await refresh();
@@ -150,7 +151,7 @@ async function onAddDir(projectId: string): Promise<void> {
 async function onRemoveDir(projectId: string, dirPath: string): Promise<void> {
   try {
     errorMessage.value = '';
-    const result = await window.gamepadCli.projectRemoveDir(projectId, dirPath);
+    const result = await projectsClient.projectRemoveDir(projectId, dirPath);
     if (result?.success === false) errorMessage.value = result.error || 'Directory remove failed';
   } catch (error) { errorMessage.value = String(error); }
   await refresh();

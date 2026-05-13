@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../../ipc/clients.js';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import type { ScheduledTask } from '../../../src/types/scheduled-task.js';
 
@@ -22,7 +23,7 @@ const visibleTasks = computed(() => tasks.value
 
 async function loadTasks(): Promise<void> {
   try {
-    tasks.value = await window.gamepadCli.scheduledTaskList() ?? [];
+    tasks.value = await schedulerClient.scheduledTaskList() ?? [];
   } catch {
     tasks.value = [];
   }
@@ -46,7 +47,7 @@ function timeRemaining(task: ScheduledTask): string {
 onMounted(() => {
   void loadTasks();
   refreshTimer = setInterval(loadTasks, 15000);
-  offChanged = window.gamepadCli.onScheduledTaskChanged?.(() => {
+  offChanged = eventsClient.onScheduledTaskChanged?.(() => {
     void loadTasks();
   }) ?? null;
 });

@@ -11,6 +11,7 @@
 import { logEvent } from '../utils.js';
 import { draftSubmenu } from '../stores/modal-bridge.js';
 import { state } from '../state.js';
+import { draftsClient } from '../ipc/clients.js';
 
 // ============================================================================
 // Draft Submenu State — kept for legacy readers
@@ -35,7 +36,7 @@ export const draftSubmenuState: DraftSubmenuState = {
 export async function showDraftSubmenu(): Promise<void> {
   if (!state.activeSessionId) return;
 
-  const drafts = await window.gamepadCli?.draftList(state.activeSessionId) ?? [];
+  const drafts = await draftsClient.draftList?.(state.activeSessionId) ?? [];
   draftSubmenuState.drafts = drafts;
   draftSubmenuState.visible = true;
   draftSubmenuState.selectedIndex = 0;
