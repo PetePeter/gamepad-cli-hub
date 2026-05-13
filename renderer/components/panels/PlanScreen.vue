@@ -202,6 +202,18 @@ const contextCountByPlanId = computed(() => {
   return counts;
 });
 
+const contextsBySequenceId = computed(() => {
+  const map = new Map<string, Array<ContextNode & { sequenceIds?: string[]; planIds?: string[] }>>();
+  for (const context of props.contexts) {
+    for (const sequenceId of (context.sequenceIds ?? [])) {
+      const existing = map.get(sequenceId) ?? [];
+      existing.push(context);
+      map.set(sequenceId, existing);
+    }
+  }
+  return map;
+});
+
 const sequenceBoxes = computed(() => {
   const populated: { sequence: PlanSequence; x: number; y: number; width: number; height: number; isEmpty: false }[] = [];
   const empty: { sequence: PlanSequence; x: number; y: number; width: number; height: number; isEmpty: true }[] = [];
@@ -544,6 +556,17 @@ function handleAddSelection(value: 'plan' | 'context' | 'sequence'): void {
   else openSeqCreate();
 }
 
+function sequenceContextTitle(sequenceId: string): string {
+  const contexts = contextsBySequenceId.value.get(sequenceId) ?? [];
+  if (contexts.length === 0) return '';
+  return contexts.map((context) => `${context.title} (${context.type})`).join('\n');
+}
+
+function onSequenceContextClick(sequenceId: string): void {
+  const context = contextsBySequenceId.value.get(sequenceId)?.[0];
+  if (context) emit('contextClick', context.id);
+}
+
 function deleteContext(): void {
   if (!props.selectedContextId) return;
   emit('contextDelete', props.selectedContextId);
@@ -710,7 +733,16 @@ onUnmounted(() => {
             <div
               xmlns="http://www.w3.org/1999/xhtml"
               class="plan-sequence-lane__title"
-            >{{ box.sequence.title }}<span v-if="box.sequence.contextIds?.length" class="plan-sequence-lane__context-dot">{{ box.sequence.contextIds.length }}</span></div>
+            >
+              {{ box.sequence.title }}
+              <button
+                v-if="box.sequence.contextIds?.length"
+                type="button"
+                class="plan-sequence-lane__context-dot"
+                :title="sequenceContextTitle(box.sequence.id)"
+                @click.stop="onSequenceContextClick(box.sequence.id)"
+              >{{ box.sequence.contextIds.length }}</button>
+            </div>
           </foreignObject>
           <g
             class="plan-seq-edit-btn"
@@ -1113,17 +1145,26 @@ onUnmounted(() => {
   color: #4488ff;
 }
 .plan-sequence-lane__context-dot {
+  border: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 18px;
   height: 18px;
+  padding: 0 6px;
   margin-left: 8px;
   border-radius: 999px;
   background: rgba(255, 158, 84, 0.18);
   color: #ffbf8a;
+  cursor: pointer;
   font-size: 11px;
   font-weight: 700;
+}
+.plan-sequence-lane__context-dot:hover,
+.plan-sequence-lane__context-dot:focus-visible {
+  background: rgba(255, 158, 84, 0.32);
+  color: #ffd8b8;
+  outline: 1px solid rgba(255, 191, 138, 0.7);
 }
 .plan-unlinked-label {
   fill: #666;

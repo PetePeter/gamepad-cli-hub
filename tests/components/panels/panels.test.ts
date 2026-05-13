@@ -1010,6 +1010,35 @@ describe('PlanScreen', () => {
     expect(w.findAll('.plan-context-card')).toHaveLength(1);
   });
 
+  it('selects a sequence-bound context from the sequence context indicator', async () => {
+    const propsWithSequenceContext = {
+      ...contextProps,
+      sequences: [{
+        id: 'seq-1',
+        title: 'Auth Sequence',
+        missionStatement: '',
+        sharedMemory: '',
+        contextIds: ['ctx-1'],
+        order: 0,
+        createdAt: 1,
+        updatedAt: 1,
+      }],
+      contexts: [
+        { id: 'ctx-1', title: 'API Notes', type: 'Knowledge', permission: 'readonly' as const, content: 'Use v2', sequenceIds: ['seq-1'], planIds: [] },
+      ],
+    };
+    const w = mount(PlanScreen, { props: propsWithSequenceContext });
+    const dot = w.find('.plan-sequence-lane__context-dot');
+
+    expect(dot.exists()).toBe(true);
+    expect(dot.text()).toBe('1');
+    expect(dot.attributes('title')).toContain('API Notes (Knowledge)');
+
+    await dot.trigger('click');
+
+    expect(w.emitted('contextClick')).toEqual([['ctx-1']]);
+  });
+
   // --- Plan node context count badge ---
   it('shows context count badge on plan node when contexts are bound to it', () => {
     const propsWithContexts = {
