@@ -31,13 +31,15 @@ function makeService(): HelmControlService {
     setPlanState: vi.fn((id: string, status: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status })),
     linkPlans: vi.fn(),
     unlinkPlans: vi.fn(),
-    listContexts: vi.fn((dirPath: string) => [{ id: 'ctx-1', dirPath, title: 'Testing Strategy', type: 'Testing', permission: 'readonly', content: 'Use vitest', x: null, y: null, createdAt: 1, updatedAt: 1, sequenceIds: ['seq-1'], planIds: ['p1'] }]),
-    getContext: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Testing Strategy', type: 'Testing', permission: 'readonly', content: 'Use vitest', x: null, y: null, createdAt: 1, updatedAt: 1, sequenceIds: ['seq-1'], planIds: ['p1'] })),
+    listContexts: vi.fn((projectId: string) => [{ id: 'ctx-1', projectId, title: 'Testing Strategy', type: 'Testing', permission: 'readonly', content: 'Use vitest', x: null, y: null, createdAt: 1, updatedAt: 1, sequenceIds: ['seq-1'], planIds: ['p1'] }]),
+    getContext: vi.fn((id: string) => ({ id, projectId: 'proj-1', title: 'Testing Strategy', type: 'Testing', permission: 'readonly', content: 'Use vitest', x: null, y: null, createdAt: 1, updatedAt: 1, sequenceIds: ['seq-1'], planIds: ['p1'] })),
     createContext: vi.fn((input: Record<string, unknown>) => ({ id: 'ctx-1', createdAt: 1, updatedAt: 1, x: null, y: null, content: '', type: 'Knowledge', permission: 'readonly', ...input })),
-    updateContext: vi.fn((id: string, updates: Record<string, unknown>) => ({ id, dirPath: '/proj', title: 'Updated Context', type: 'Knowledge', permission: 'readonly', content: '', x: null, y: null, createdAt: 1, updatedAt: 2, ...updates })),
+    updateContext: vi.fn((id: string, updates: Record<string, unknown>) => ({ id, projectId: 'proj-1', title: 'Updated Context', type: 'Knowledge', permission: 'readonly', content: '', x: null, y: null, createdAt: 1, updatedAt: 2, ...updates })),
     deleteContext: vi.fn(() => true),
-    appendContext: vi.fn((id: string, text: string) => ({ id, dirPath: '/proj', title: 'Running Notes', type: 'Knowledge', permission: 'writable', content: `Before\n\n${text}`, x: null, y: null, createdAt: 1, updatedAt: 2 })),
-    setContextPosition: vi.fn((id: string, x: number | null, y: number | null) => ({ id, dirPath: '/proj', title: 'Visual Anchor', type: 'Knowledge', permission: 'readonly', content: '', x, y, createdAt: 1, updatedAt: 2 })),
+    appendContext: vi.fn((id: string, text: string) => ({ id, projectId: 'proj-1', title: 'Running Notes', type: 'Knowledge', permission: 'writable', content: `Before\n\n${text}`, x: null, y: null, createdAt: 1, updatedAt: 2 })),
+    setContextPosition: vi.fn((id: string, x: number | null, y: number | null) => ({ id, projectId: 'proj-1', title: 'Visual Anchor', type: 'Knowledge', permission: 'readonly', content: '', x, y, createdAt: 1, updatedAt: 2 })),
+    bindContext: vi.fn(() => true),
+    unbindContext: vi.fn(() => true),
     listPlanAttachments: vi.fn(() => [{ id: 'a1', planId: 'p1', filename: 'note.txt', sizeBytes: 5, relativePath: 'p1/a1.txt', createdAt: 1, updatedAt: 1 }]),
     addPlanAttachment: vi.fn((planId: string, input: { filename: string; text?: string; contentBase64?: string; contentType?: string }) => ({
       id: 'a1',
@@ -183,6 +185,8 @@ describe('LocalhostMcpServer', () => {
     const schedulerDeleteTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'scheduler_delete');
     const notifyUserTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'notify_user');
     const appVisibilityTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'get_app_visibility');
+    const contextBindTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'context_bind');
+    const contextUnbindTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'context_unbind');
     expect(planCreateTool.description).toContain('Problem Statement');
     expect(planCreateTool.description).toContain('Acceptance Criteria');
     expect(planCreateTool.description).toContain('QUESTION:');
@@ -210,6 +214,8 @@ describe('LocalhostMcpServer', () => {
     expect(schedulerDeleteTool!.description).toContain('Delete');
     expect(notifyUserTool!.description).toContain('notificationMode=llm');
     expect(appVisibilityTool!.description).toContain('screen-lock');
+    expect(contextBindTool!.description).toContain('plan or sequence');
+    expect(contextUnbindTool!.description).toContain('without deleting');
   });
 
   it('dispatches tool calls into the shared service', async () => {
@@ -250,11 +256,11 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'context_list',
-        arguments: { dirPath: '/proj' },
+        arguments: { projectId: 'proj-1' },
       },
     });
     const listJson = await listResponse.json();
-    expect((service.listContexts as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('/proj');
+    expect((service.listContexts as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('proj-1');
     expect(listJson.result.structuredContent.items[0].id).toBe('ctx-1');
 
     const createResponse = await rpc(port, 'secret-token', {
@@ -263,16 +269,42 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'context_create',
-        arguments: { dirPath: '/proj', title: 'Testing Strategy', permission: 'readonly' },
+        arguments: { projectId: 'proj-1', title: 'Testing Strategy', permission: 'readonly' },
       },
     });
     const createJson = await createResponse.json();
     expect((service.createContext as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith({
-      dirPath: '/proj',
+      projectId: 'proj-1',
       title: 'Testing Strategy',
       permission: 'readonly',
     });
     expect(createJson.result.structuredContent.title).toBe('Testing Strategy');
+
+    const bindResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 38,
+      method: 'tools/call',
+      params: {
+        name: 'context_bind',
+        arguments: { id: 'ctx-1', targetType: 'sequence', targetId: 'seq-1' },
+      },
+    });
+    const bindJson = await bindResponse.json();
+    expect((service.bindContext as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('ctx-1', 'sequence', 'seq-1');
+    expect(bindJson.result.structuredContent.bound).toBe(true);
+
+    const unbindResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 39,
+      method: 'tools/call',
+      params: {
+        name: 'context_unbind',
+        arguments: { id: 'ctx-1', targetType: 'sequence', targetId: 'seq-1' },
+      },
+    });
+    const unbindJson = await unbindResponse.json();
+    expect((service.unbindContext as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('ctx-1', 'sequence', 'seq-1');
+    expect(unbindJson.result.structuredContent.unbound).toBe(true);
   });
 
   it('dispatches effective plan context listing through the MCP surface', async () => {

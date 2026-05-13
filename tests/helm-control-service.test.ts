@@ -30,6 +30,8 @@ function makeService() {
   const planManager = {
     getForDirectory: vi.fn(() => []),
     getItem: vi.fn(),
+    getProjectIdForDirectory: vi.fn((dirPath: string) => dirPath === '/work' ? 'project-1' : null),
+    getDirectoryForProject: vi.fn((projectId: string) => projectId === 'project-1' ? '/work' : null),
     exportAll: vi.fn(() => ({})),
     resolveItemRef: vi.fn((ref: string) => {
       const item = planManager.getItem(ref);
@@ -212,6 +214,7 @@ describe('HelmControlService plan sequences', () => {
       description: 'Body',
       status: 'ready',
       sequenceId: 'seq-1',
+      projectId: 'project-1',
       createdAt: 1,
       updatedAt: 1,
     };
@@ -278,13 +281,14 @@ describe('HelmControlService effective plan context', () => {
       description: 'Body',
       status: 'ready',
       sequenceId: 'seq-1',
+      projectId: 'project-1',
       createdAt: 1,
       updatedAt: 1,
     };
     (planManager.getItem as ReturnType<typeof vi.fn>).mockReturnValue(plan);
     (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
     (planManager as any).getSequence = vi.fn((id: string) => id === 'seq-1'
-      ? { id: 'seq-1', dirPath: '/work', title: 'Sequence', missionStatement: '', sharedMemory: '', order: 0, createdAt: 1, updatedAt: 1 }
+      ? { id: 'seq-1', projectId: 'project-1', dirPath: '/work', title: 'Sequence', missionStatement: '', sharedMemory: '', order: 0, createdAt: 1, updatedAt: 1 }
       : null);
     (planManager.getForDirectory as ReturnType<typeof vi.fn>).mockReturnValue([plan]);
     (planManager.exportAll as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -292,14 +296,14 @@ describe('HelmControlService effective plan context', () => {
         dirPath: '/work',
         items: [plan],
         dependencies: [],
-        sequences: [{ id: 'seq-1', dirPath: '/work', title: 'Sequence', missionStatement: '', sharedMemory: '', order: 0, createdAt: 1, updatedAt: 1 }],
+        sequences: [{ id: 'seq-1', projectId: 'project-1', dirPath: '/work', title: 'Sequence', missionStatement: '', sharedMemory: '', order: 0, createdAt: 1, updatedAt: 1 }],
       },
     });
     const contextManager = (service as any).contextManager;
-    contextManager.create('/work', { title: 'Plan only', type: 'Coding' });
-    contextManager.create('/work', { title: 'Sequence only', type: 'Testing' });
-    contextManager.create('/work', { title: 'Shared', type: 'Review' });
-    const contexts = contextManager.listForDirectory('/work');
+    contextManager.create('project-1', { title: 'Plan only', type: 'Coding' });
+    contextManager.create('project-1', { title: 'Sequence only', type: 'Testing' });
+    contextManager.create('project-1', { title: 'Shared', type: 'Review' });
+    const contexts = contextManager.listForProject('project-1');
     const planOnly = contexts.find((ctx: any) => ctx.title === 'Plan only');
     const seqOnly = contexts.find((ctx: any) => ctx.title === 'Sequence only');
     const shared = contexts.find((ctx: any) => ctx.title === 'Shared');
@@ -705,13 +709,14 @@ describe('HelmControlService.getPlan', () => {
       description: 'Desc',
       status: 'ready',
       sequenceId: 'seq-1',
+      projectId: 'project-1',
       createdAt: 1,
       updatedAt: 1,
     };
     (planManager.getItem as ReturnType<typeof vi.fn>).mockReturnValue(plan);
     (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
     (planManager as any).getSequence = vi.fn((id: string) => id === 'seq-1'
-      ? { id: 'seq-1', dirPath: '/work', title: 'Sequence', missionStatement: '', sharedMemory: '', order: 0, createdAt: 1, updatedAt: 1 }
+      ? { id: 'seq-1', projectId: 'project-1', dirPath: '/work', title: 'Sequence', missionStatement: '', sharedMemory: '', order: 0, createdAt: 1, updatedAt: 1 }
       : null);
     (planManager.getForDirectory as ReturnType<typeof vi.fn>).mockReturnValue([plan]);
     (planManager.exportAll as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -719,13 +724,13 @@ describe('HelmControlService.getPlan', () => {
         dirPath: '/work',
         items: [plan],
         dependencies: [],
-        sequences: [{ id: 'seq-1', dirPath: '/work', title: 'Sequence', missionStatement: '', sharedMemory: '', order: 0, createdAt: 1, updatedAt: 1 }],
+        sequences: [{ id: 'seq-1', projectId: 'project-1', dirPath: '/work', title: 'Sequence', missionStatement: '', sharedMemory: '', order: 0, createdAt: 1, updatedAt: 1 }],
       },
     });
 
     const contextManager = (service as any).contextManager;
-    const seqContext = contextManager.create('/work', { title: 'Testing Strategy', type: 'Testing', permission: 'readonly' });
-    const planContext = contextManager.create('/work', { title: 'Scratchpad', type: 'Coding', permission: 'writable' });
+    const seqContext = contextManager.create('project-1', { title: 'Testing Strategy', type: 'Testing', permission: 'readonly' });
+    const planContext = contextManager.create('project-1', { title: 'Scratchpad', type: 'Coding', permission: 'writable' });
     contextManager.bind(seqContext.id, 'sequence', 'seq-1');
     contextManager.bind(planContext.id, 'plan', 'plan-1');
 

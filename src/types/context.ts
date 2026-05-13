@@ -6,7 +6,7 @@ export type DefaultContextType = typeof DEFAULT_CONTEXT_TYPES[number];
 
 export interface ContextNode {
   id: string;
-  dirPath: string;
+  projectId: string;
   title: string;
   type: string;
   permission: ContextPermission;

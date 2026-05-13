@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { timingSafeEqual } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type { McpConfig } from '../config/loader.js';
+import type { ContextBindingTargetType } from '../types/context.js';
 import { logger } from '../utils/logger.js';
 import { HelmControlService } from './helm-control-service.js';
 import { parseSessionAuthToken } from './session-auth.js';
@@ -312,24 +313,24 @@ const TOOLS: McpTool[] = [
   {
     name: 'context_list',
     title: 'List Context Nodes',
-    description: 'List context nodes for a configured directory. Use this to discover available shared context cards before requesting full content from a specific one.',
+    description: 'List project-level context nodes. Use projects_list first when you need the projectId for a directory or repo.',
     inputSchema: {
       type: 'object',
       properties: {
-        dirPath: { type: 'string' },
+        projectId: { type: 'string' },
       },
-      required: ['dirPath'],
+      required: ['projectId'],
       additionalProperties: false,
     },
   },
   {
     name: 'context_create',
     title: 'Create Context Node',
-    description: 'Create a context node in a configured directory. Context nodes can later be associated with plans or sequences, while agents retrieve the full content through context_get only when needed.',
+    description: 'Create a project-level context node. Context nodes can later be associated with plans or sequences, while agents retrieve the full content through context_get only when needed.',
     inputSchema: {
       type: 'object',
       properties: {
-        dirPath: { type: 'string' },
+        projectId: { type: 'string' },
         title: { type: 'string' },
         type: { type: 'string' },
         permission: { type: 'string', enum: ['readonly', 'writable'] },
@@ -337,7 +338,7 @@ const TOOLS: McpTool[] = [
         x: { anyOf: [{ type: 'number' }, { type: 'null' }] },
         y: { anyOf: [{ type: 'number' }, { type: 'null' }] },
       },
-      required: ['dirPath', 'title'],
+      required: ['projectId', 'title'],
       additionalProperties: false,
     },
   },
@@ -413,6 +414,36 @@ const TOOLS: McpTool[] = [
         y: { anyOf: [{ type: 'number' }, { type: 'null' }] },
       },
       required: ['id', 'x', 'y'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'context_bind',
+    title: 'Bind Context Node',
+    description: 'Associate an existing context node with a plan or sequence in the same directory so it appears in effective plan/sequence context lists.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        targetType: { type: 'string', enum: ['sequence', 'plan'] },
+        targetId: { type: 'string' },
+      },
+      required: ['id', 'targetType', 'targetId'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'context_unbind',
+    title: 'Unbind Context Node',
+    description: 'Remove one plan or sequence association from an existing context node without deleting the context itself.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        targetType: { type: 'string', enum: ['sequence', 'plan'] },
+        targetId: { type: 'string' },
+      },
+      required: ['id', 'targetType', 'targetId'],
       additionalProperties: false,
     },
   },
@@ -1131,10 +1162,10 @@ export class LocalhostMcpServer {
           args.sequenceId === null ? null : asString(args.sequenceId, 'sequenceId is required or null'),
         );
       case 'context_list':
-        return this.service.listContexts(asString(args.dirPath, 'dirPath is required'));
+        return this.service.listContexts(asString(args.projectId, 'projectId is required'));
       case 'context_create':
         return this.service.createContext({
-          dirPath: asString(args.dirPath, 'dirPath is required'),
+          projectId: asString(args.projectId, 'projectId is required'),
           title: asString(args.title, 'title is required'),
           ...(typeof args.type === 'string' ? { type: args.type } : {}),
           ...(args.permission === 'readonly' || args.permission === 'writable' ? { permission: args.permission } : {}),
@@ -1175,6 +1206,28 @@ export class LocalhostMcpServer {
           typeof args.x === 'number' || args.x === null ? args.x as number | null : null,
           typeof args.y === 'number' || args.y === null ? args.y as number | null : null,
         );
+      case 'context_bind':
+        return {
+          bound: requireBooleanResult(
+            this.service.bindContext(
+              asString(args.id, 'id is required'),
+              asContextBindingTargetType(args.targetType),
+              asString(args.targetId, 'targetId is required'),
+            ),
+            `Context could not be bound to ${asString(args.targetId, 'targetId is required')}`,
+          ),
+        };
+      case 'context_unbind':
+        return {
+          unbound: requireBooleanResult(
+            this.service.unbindContext(
+              asString(args.id, 'id is required'),
+              asContextBindingTargetType(args.targetType),
+              asString(args.targetId, 'targetId is required'),
+            ),
+            `Context binding not found for ${asString(args.targetId, 'targetId is required')}`,
+          ),
+        };
       case 'plan_attachment_list':
         return this.service.listPlanAttachments(asString(args.planId, 'planId is required'));
       case 'plan_attachment_add':
@@ -1460,6 +1513,13 @@ function asPlanTypeOrNull(value: unknown): 'bug' | 'feature' | 'research' | null
     return value;
   }
   throw new Error('type must be one of bug, feature, research, or null');
+}
+
+function asContextBindingTargetType(value: unknown): ContextBindingTargetType {
+  if (value === 'sequence' || value === 'plan') {
+    return value;
+  }
+  throw new Error('targetType must be one of sequence or plan');
 }
 
 function asAiagentState(value: unknown, errorMessage?: string): 'planning' | 'implementing' | 'completed' | 'idle' {

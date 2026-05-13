@@ -10,9 +10,9 @@ export class HelmContextService {
     private readonly configLoader: ConfigLoader,
   ) {}
 
-  listContexts(dirPath: string): Array<ContextNode & { sequenceIds: string[]; planIds: string[] }> {
-    this.requireWorkingDirectory(dirPath);
-    return this.contextManager.listForDirectory(dirPath).map((context) => ({
+  listContexts(projectId: string): Array<ContextNode & { sequenceIds: string[]; planIds: string[] }> {
+    this.requireProject(projectId);
+    return this.contextManager.listForProject(projectId).map((context) => ({
       ...context,
       sequenceIds: this.contextManager.getSequenceIdsForContext(context.id),
       planIds: this.contextManager.getPlanIdsForContext(context.id),
@@ -30,7 +30,7 @@ export class HelmContextService {
   }
 
   createContext(input: {
-    dirPath: string;
+    projectId: string;
     title: string;
     type?: string;
     permission?: ContextPermission;
@@ -38,8 +38,8 @@ export class HelmContextService {
     x?: number | null;
     y?: number | null;
   }): ContextNode {
-    this.requireWorkingDirectory(input.dirPath);
-    return this.contextManager.create(input.dirPath, input);
+    this.requireProject(input.projectId);
+    return this.contextManager.create(input.projectId, input);
   }
 
   updateContext(
@@ -86,12 +86,19 @@ export class HelmContextService {
     return this.contextManager.getEffectiveContextRefsForPlan(plan.id, plan.sequenceId);
   }
 
-  private requireWorkingDirectory(dirPath: string) {
-    const workingDir = this.configLoader.getWorkingDirectories().find((entry) => entry.path === dirPath);
-    if (!workingDir) {
-      throw new Error(`Working directory is not configured in Helm: ${dirPath}`);
+  getProjectIdForDirectory(dirPath: string): string {
+    const projectId = this.planManager.getProjectIdForDirectory(dirPath);
+    if (!projectId) {
+      throw new Error(`Could not resolve project for directory: ${dirPath}`);
     }
-    return workingDir;
+    return projectId;
+  }
+
+  private requireProject(projectId: string): void {
+    const directory = this.planManager.getDirectoryForProject(projectId);
+    if (!directory) {
+      throw new Error(`Project has no known planning directory: ${projectId}`);
+    }
   }
 
   private resolvePlanRef(ref: string, label: string): Extract<PlanRefResolution, { status: 'found' }> | null {

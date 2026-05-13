@@ -23,18 +23,26 @@ export class ContextManager extends EventEmitter {
 
   constructor(private readonly planManager: PlanManager) {
     super();
-    for (const context of loadPlanContexts()) {
-      this.contexts.set(context.id, context);
+    let migratedContexts = false;
+    for (const context of loadPlanContexts() as Array<ContextNode | (Omit<ContextNode, 'projectId'> & { projectId?: string; dirPath?: string })>) {
+      const normalized = this.normalizeContext(context);
+      if (!normalized) {
+        migratedContexts = true;
+        continue;
+      }
+      if (normalized !== context) migratedContexts = true;
+      this.contexts.set(normalized.id, normalized);
     }
     this.bindings = loadPlanContextBindings()
       .map((binding) => this.normalizeBinding(binding))
       .filter((binding): binding is ContextBinding => binding !== null);
     this.cleanupOrphans();
+    if (migratedContexts) this.persist();
   }
 
-  listForDirectory(dirPath: string): ContextNode[] {
+  listForProject(projectId: string): ContextNode[] {
     return [...this.contexts.values()]
-      .filter((context) => context.dirPath === dirPath)
+      .filter((context) => context.projectId === projectId)
       .sort((a, b) => a.createdAt - b.createdAt || a.title.localeCompare(b.title));
   }
 
@@ -43,7 +51,7 @@ export class ContextManager extends EventEmitter {
   }
 
   create(
-    dirPath: string,
+    projectId: string,
     input: {
       title: string;
       type?: string;
@@ -56,7 +64,7 @@ export class ContextManager extends EventEmitter {
     const now = Date.now();
     const context: ContextNode = {
       id: randomUUID(),
-      dirPath,
+      projectId,
       title: input.title,
       type: input.type?.trim() || 'Knowledge',
       permission: input.permission ?? 'readonly',
@@ -68,7 +76,7 @@ export class ContextManager extends EventEmitter {
     };
     this.contexts.set(context.id, context);
     this.persist();
-    this.emit('context:changed', dirPath);
+    this.emit('context:changed', projectId);
     return context;
   }
 
@@ -93,7 +101,7 @@ export class ContextManager extends EventEmitter {
     if (Object.prototype.hasOwnProperty.call(updates, 'y')) context.y = updates.y ?? null;
     context.updatedAt = Date.now();
     this.persist();
-    this.emit('context:changed', context.dirPath);
+    this.emit('context:changed', context.projectId);
     return context;
   }
 
@@ -103,7 +111,7 @@ export class ContextManager extends EventEmitter {
     this.contexts.delete(id);
     this.bindings = this.bindings.filter((binding) => binding.contextId !== id);
     this.persist();
-    this.emit('context:changed', context.dirPath);
+    this.emit('context:changed', context.projectId);
     return true;
   }
 
@@ -115,7 +123,7 @@ export class ContextManager extends EventEmitter {
     }
     this.bindings.push({ contextId, targetType, targetId, createdAt: Date.now() });
     this.persistBindings();
-    this.emit('context:changed', context.dirPath);
+    this.emit('context:changed', context.projectId);
     return true;
   }
 
@@ -126,7 +134,7 @@ export class ContextManager extends EventEmitter {
     this.bindings = this.bindings.filter((binding) => !(binding.contextId === contextId && binding.targetType === targetType && binding.targetId === targetId));
     if (this.bindings.length === before) return false;
     this.persistBindings();
-    this.emit('context:changed', context.dirPath);
+    this.emit('context:changed', context.projectId);
     return true;
   }
 
@@ -275,7 +283,7 @@ export class ContextManager extends EventEmitter {
     context.content = `${context.content}${separator}${text}`;
     context.updatedAt = Date.now();
     this.persist();
-    this.emit('context:changed', context.dirPath);
+    this.emit('context:changed', context.projectId);
     return context;
   }
 
@@ -288,7 +296,7 @@ export class ContextManager extends EventEmitter {
     context.y = y;
     context.updatedAt = Date.now();
     this.persist();
-    this.emit('context:changed', context.dirPath);
+    this.emit('context:changed', context.projectId);
     return context;
   }
 
@@ -314,7 +322,7 @@ export class ContextManager extends EventEmitter {
         createdAt: binding.createdAt,
       };
     }
-    if (typeof binding.sequenceId === 'string') {
+    if ('sequenceId' in binding && typeof binding.sequenceId === 'string') {
       return {
         contextId: binding.contextId,
         targetType: 'sequence',
@@ -325,13 +333,25 @@ export class ContextManager extends EventEmitter {
     return null;
   }
 
+  private normalizeContext(context: ContextNode | (Omit<ContextNode, 'projectId'> & { projectId?: string; dirPath?: string })): ContextNode | null {
+    if (typeof context.projectId === 'string' && context.projectId.trim()) {
+      const { dirPath: _dirPath, ...projectContext } = context as ContextNode & { dirPath?: string };
+      return projectContext;
+    }
+    if (!('dirPath' in context) || typeof context.dirPath !== 'string') return null;
+    const projectId = this.planManager.getProjectIdForDirectory?.(context.dirPath) ?? null;
+    if (!projectId) return null;
+    const { dirPath: _dirPath, ...rest } = context;
+    return { ...rest, projectId };
+  }
+
   private isValidBindingTarget(context: ContextNode, targetType: ContextBindingTargetType, targetId: string): boolean {
     if (targetType === 'sequence') {
       const sequence = this.planManager.getSequence(targetId);
-      return !!sequence && sequence.dirPath === context.dirPath;
+      return !!sequence && sequence.projectId === context.projectId;
     }
     const plan = this.planManager.getItem(targetId);
-    return !!plan && plan.dirPath === context.dirPath;
+    return !!plan && plan.projectId === context.projectId;
   }
 
   private cleanupOrphans(): void {

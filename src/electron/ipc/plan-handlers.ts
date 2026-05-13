@@ -43,7 +43,8 @@ export function setupPlanHandlers(
       }
     }
   });
-  contextManager?.on('context:changed', (dirPath: string) => {
+  contextManager?.on('context:changed', (projectId: string) => {
+    const dirPath = planManager.getDirectoryForProject(projectId) ?? projectId;
     for (const win of getTargetWindows()) {
       if (!win.isDestroyed()) {
         win.webContents.send('plan:changed', dirPath);
@@ -188,7 +189,9 @@ export function setupPlanHandlers(
   });
 
   ipcMain.handle('plan:context-list', (_event, dirPath: string) => {
-    return contextManager?.listForDirectory(dirPath).map((context) => ({
+    const projectId = planManager.getProjectIdForDirectory(dirPath);
+    if (!projectId) return [];
+    return contextManager?.listForProject(projectId).map((context) => ({
       ...context,
       sequenceIds: contextManager.getSequenceIdsForContext(context.id),
       planIds: contextManager.getPlanIdsForContext(context.id),
@@ -197,8 +200,10 @@ export function setupPlanHandlers(
 
   ipcMain.handle(
     'plan:context-create',
-    (_event, dirPath: string, input: { title: string; type?: string; permission?: 'readonly' | 'writable'; content?: string; x?: number | null; y?: number | null }) =>
-      contextManager?.create(dirPath, input) ?? null,
+    (_event, dirPath: string, input: { title: string; type?: string; permission?: 'readonly' | 'writable'; content?: string; x?: number | null; y?: number | null }) => {
+      const projectId = planManager.getProjectIdForDirectory(dirPath);
+      return projectId ? contextManager?.create(projectId, input) ?? null : null;
+    },
   );
 
   ipcMain.handle(

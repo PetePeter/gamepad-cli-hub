@@ -289,8 +289,8 @@ export class HelmControlService extends EventEmitter {
   // Context nodes
   // ---------------------------------------------------------------------------
 
-  listContexts(dirPath: string): Array<ContextNode & { sequenceIds: string[]; planIds: string[] }> {
-    return this.contextService.listContexts(dirPath);
+  listContexts(projectId: string): Array<ContextNode & { sequenceIds: string[]; planIds: string[] }> {
+    return this.contextService.listContexts(projectId);
   }
 
   getContext(id: string): (ContextNode & { sequenceIds: string[]; planIds: string[] }) | null {
@@ -298,7 +298,7 @@ export class HelmControlService extends EventEmitter {
   }
 
   createContext(input: {
-    dirPath: string;
+    projectId: string;
     title: string;
     type?: string;
     permission?: ContextPermission;
@@ -307,6 +307,10 @@ export class HelmControlService extends EventEmitter {
     y?: number | null;
   }): ContextNode {
     return this.contextService.createContext(input);
+  }
+
+  getProjectIdForDirectory(dirPath: string): string {
+    return this.contextService.getProjectIdForDirectory(dirPath);
   }
 
   updateContext(

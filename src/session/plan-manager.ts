@@ -809,6 +809,17 @@ export class PlanManager extends EventEmitter {
     return this.projectStore.resolveForPath(dirPath).id;
   }
 
+  getProjectIdForDirectory(dirPath: string): string | null {
+    return this.resolveProjectId(dirPath);
+  }
+
+  getDirectoryForProject(projectId: string): string | null {
+    const sequence = [...this.sequences.values()].find((entry) => entry.projectId === projectId);
+    if (sequence) return sequence.dirPath;
+    const item = [...this.items.values()].find((entry) => entry.projectId === projectId);
+    return item?.dirPath ?? null;
+  }
+
   private areInSameProject(
     left: Pick<PlanItem, 'dirPath' | 'projectId'>,
     right: Pick<PlanItem | PlanSequence, 'dirPath' | 'projectId'>,
