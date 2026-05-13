@@ -475,19 +475,9 @@ const TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'directories_list',
-    title: 'List Directories',
-    description: 'List known working directories, including configured folders and directories that currently have plans or sessions. Call this when you need to discover which project directories Helm knows about before creating plans or sessions.',
-    inputSchema: {
-      type: 'object',
-      properties: {},
-      additionalProperties: false,
-    },
-  },
-  {
     name: 'projects_list',
     title: 'List Projects',
-    description: 'List all known projects with their IDs, names, canonical paths, directories, and root kinds. Use this to discover which projects Helm tracks before managing project directories.',
+    description: 'List all known projects with their IDs, names, canonical paths, directories, and root kinds. Call this before creating plans or sessions to discover which project directories Helm tracks.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -642,7 +632,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_info',
     title: 'Get Session Info',
-    description: 'Retrieve current session context including MCP endpoint URL, AIAGENT state registry, working directories, and durable-context guidance. WHEN: call this at session startup before other Helm workflow actions, then immediately call session_set_aiagent_state for your current phase. Returns mandatory_rules, mcp_url, mcp_token, and the canonical list of valid AIAGENT-* state tags.',
+    description: 'Retrieve current session context including MCP endpoint URL, AIAGENT state registry, available projects, and durable-context guidance. WHEN: call this at session startup before other Helm workflow actions, then immediately call session_set_aiagent_state for your current phase. Returns mandatory_rules, mcp_url, mcp_token, available_projects stubs (call projects_list for full details), and the canonical list of valid AIAGENT-* state tags.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -1212,8 +1202,6 @@ export class LocalhostMcpServer {
           asString(args.planId, 'planId is required'),
           asString(args.attachmentId, 'attachmentId is required'),
         );
-      case 'directories_list':
-        return this.service.listDirectories();
       case 'projects_list':
         return this.service.listProjects();
       case 'project_dirs_list':

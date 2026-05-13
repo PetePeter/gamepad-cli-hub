@@ -741,28 +741,6 @@ describe('LocalhostMcpServer', () => {
     });
   });
 
-  it('lists directories through the MCP surface', async () => {
-    const service = makeService();
-    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
-    servers.push(server);
-    await server.start();
-    const port = server.getAddress()!.port;
-
-    const response = await rpc(port, 'secret-token', {
-      jsonrpc: '2.0',
-      id: 32,
-      method: 'tools/call',
-      params: {
-        name: 'directories_list',
-        arguments: {},
-      },
-    });
-    const json = await response.json();
-    expect(json.result.structuredContent).toEqual({
-      items: [{ dirPath: 'X:\\coding\\gamepad-cli-hub', name: 'Helm', source: ['config', 'plans'], planCount: 8, sessionCount: 0 }],
-    });
-  });
-
   it('lists configured cli types through the MCP surface', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
@@ -1097,8 +1075,8 @@ describe('LocalhostMcpServer', () => {
       mcp_url: 'http://127.0.0.1:47373/mcp',
       mcp_token: 'secret-token-value',
       aiagent_states: ['planning', 'implementing', 'completed', 'idle'],
-      available_directories: [
-        { path: 'X:\\coding\\gamepad-cli-hub', name: 'Helm' },
+      available_projects: [
+        { id: 'proj-1', name: 'Helm', canonicalPath: 'X:\\coding\\gamepad-cli-hub' },
       ],
     }));
 
@@ -1127,7 +1105,7 @@ describe('LocalhostMcpServer', () => {
     expect(content.aiagent_states).toContain('planning');
     expect(content.aiagent_states).toContain('implementing');
     expect(content.available_tools).toBeUndefined();
-    expect(content.available_directories).toHaveLength(1);
+    expect(content.available_projects).toHaveLength(1);
   });
 
   it('session_info tool is included in tools/list response', async () => {
@@ -1149,7 +1127,6 @@ describe('LocalhostMcpServer', () => {
     expect(sessionInfoTool).toBeDefined();
     expect(sessionInfoTool.title).toBe('Get Session Info');
     expect(sessionInfoTool.description).toContain('AIAGENT state registry');
-    expect(sessionInfoTool.description).toContain('durable-context guidance');
     expect(sessionInfoTool.description).toContain('WHEN:');
     expect(sessionInfoTool.description).toContain('session_set_aiagent_state');
     expect(sessionInfoTool.inputSchema.properties).toEqual({});
@@ -1162,7 +1139,7 @@ describe('LocalhostMcpServer', () => {
       mcp_url: 'http://127.0.0.1:47373/mcp',
       mcp_token: 'secret-token-value',
       aiagent_states: ['planning', 'implementing', 'completed', 'idle'],
-      available_directories: [],
+      available_projects: [],
     }));
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);

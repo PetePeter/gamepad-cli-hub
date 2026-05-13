@@ -1,6 +1,7 @@
 import type { ConfigLoader } from '../../config/loader.js';
 import type { SessionManager } from '../../session/manager.js';
-import type { DirectoryInfo, SessionInfoResponse } from '../helm-control-service.js';
+import type { ProjectInfo, SessionInfoResponse } from '../helm-control-service.js';
+import type { ProjectStore } from '../../session/project-store.js';
 
 import { getAiagentStates, buildAiagentStateGuide } from './aiagent-state-guide.js';
 import { buildSessionSendTextGuide } from './session-send-text-guide.js';
@@ -10,12 +11,13 @@ export { getAvailableTools } from './available-tools.js';
 
 /**
  * Build the full session info response consumed by the session_info MCP tool.
- * This is a pure function — it reads from configLoader and sessionManager, no side effects.
+ * This is a pure function — it reads from configLoader, sessionManager, and projectStore, no side effects.
  */
 export function getSessionInfo(
   configLoader: ConfigLoader,
   sessionManager: SessionManager,
   authContext?: { sessionId?: string; sessionName?: string },
+  projectStore?: ProjectStore,
 ): SessionInfoResponse {
   const mcpConfig = configLoader.getMcpConfig();
   const mcpPort = mcpConfig.port ?? 47373;
@@ -45,7 +47,7 @@ export function getSessionInfo(
     mcp_url: mcpUrl,
     mcp_token: mcpConfig.authToken ?? '',
     aiagent_states: getAiagentStates(),
-    available_directories: getAvailableDirectories(configLoader),
+    available_projects: getAvailableProjects(projectStore),
     aiagent_state_guide: buildAiagentStateGuide(),
     session_send_text_guide: buildSessionSendTextGuide(),
     agent_plan_guide: buildAgentPlanGuide(),
@@ -53,10 +55,12 @@ export function getSessionInfo(
   };
 }
 
-/** Available working directories with names. */
-function getAvailableDirectories(configLoader: ConfigLoader): DirectoryInfo[] {
-  return configLoader.getWorkingDirectories().map((entry) => ({
-    path: entry.path,
-    name: entry.name,
+/** Compact project stubs — query projects_list for full details. */
+function getAvailableProjects(projectStore?: ProjectStore): ProjectInfo[] {
+  if (!projectStore) return [];
+  return projectStore.list().map(r => ({
+    id: r.id,
+    name: r.name,
+    canonicalPath: r.canonicalPath,
   }));
 }

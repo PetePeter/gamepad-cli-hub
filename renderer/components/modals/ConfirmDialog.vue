@@ -112,7 +112,7 @@ function onButtonClick(actionId: string): void {
 
 function buttonClass(button: ConfirmDialogButton, index: number): Record<string, boolean> {
   return {
-    'btn--focused': internalSelectedIndex === index,
+    'btn--focused': internalSelectedIndex.value === index,
     'btn--primary': button.variant === 'primary',
     'btn--secondary': button.variant === 'secondary',
     'btn--danger': button.variant === 'danger',

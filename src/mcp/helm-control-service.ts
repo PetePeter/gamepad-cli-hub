@@ -21,7 +21,6 @@ import { HelmPlanService } from './services/helm-plan-service.js';
 import { HelmPlanSequenceService } from './services/helm-plan-sequence-service.js';
 import { HelmPlanAttachmentService } from './services/helm-plan-attachment-service.js';
 import { HelmContextService } from './services/helm-context-service.js';
-import { HelmDirectoryService } from './services/helm-directory-service.js';
 import { HelmTelegramService } from './services/helm-telegram-service.js';
 import { HelmSchedulerService } from './services/helm-scheduler-service.js';
 import { HelmProjectService } from './services/helm-project-service.js';
@@ -47,13 +46,10 @@ export interface SessionSummary {
   windowId?: number;
 }
 
-export interface DirectorySummary {
-  dirPath: string;
-  projectId?: string;
-  name?: string;
-  source: Array<'config' | 'plans' | 'sessions'>;
-  planCount: number;
-  sessionCount: number;
+export interface ProjectInfo {
+  id: string;
+  name: string;
+  canonicalPath: string;
 }
 
 export interface CliSummary {
@@ -84,11 +80,6 @@ export interface McpToolSummary {
   description?: string;
 }
 
-export interface DirectoryInfo {
-  path: string;
-  name?: string;
-}
-
 export interface SessionInfoResponse {
   mandatory_rules: string[];
   sessionId?: string;
@@ -98,7 +89,7 @@ export interface SessionInfoResponse {
   mcp_url: string;
   mcp_token: string;
   aiagent_states: string[];
-  available_directories: DirectoryInfo[];
+  available_projects: ProjectInfo[];
   aiagent_state_guide?: {
     how_to_update: {
       description: string;
@@ -151,7 +142,6 @@ export class HelmControlService extends EventEmitter {
   private readonly planSequenceService: HelmPlanSequenceService;
   private readonly contextService: HelmContextService;
   private readonly planAttachmentService: HelmPlanAttachmentService;
-  private readonly directoryService: HelmDirectoryService;
   private readonly telegramService: HelmTelegramService;
   private readonly schedulerService: HelmSchedulerService | null;
   private readonly projectService: HelmProjectService;
@@ -164,7 +154,7 @@ export class HelmControlService extends EventEmitter {
     private readonly attachmentManager: PlanAttachmentManager = new PlanAttachmentManager(planManager),
     private readonly contextManager: ContextManager = new ContextManager(planManager),
     schedulerManager?: ScheduledTaskManager,
-    projectStore?: ProjectStore,
+    private readonly projectStore?: ProjectStore,
   ) {
     super();
     this.sessionDelivery = new HelmSessionDeliveryService(sessionManager, ptyManager, configLoader);
@@ -173,7 +163,6 @@ export class HelmControlService extends EventEmitter {
     this.planSequenceService = new HelmPlanSequenceService(planManager, configLoader);
     this.contextService = new HelmContextService(this.contextManager, planManager, configLoader);
     this.planAttachmentService = new HelmPlanAttachmentService(planManager, attachmentManager);
-    this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager, projectStore);
     this.telegramService = new HelmTelegramService(configLoader, sessionManager);
     this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager) : null;
     this.projectService = projectStore ? new HelmProjectService(projectStore) : null!;
@@ -382,15 +371,21 @@ export class HelmControlService extends EventEmitter {
   }
 
   // ---------------------------------------------------------------------------
-  // Directory & CLI listing
+  // CLI listing
   // ---------------------------------------------------------------------------
 
-  listDirectories() {
-    return this.directoryService.listDirectories();
-  }
-
   listClis() {
-    return this.directoryService.listClis();
+    const supportedDirPaths = this.configLoader.getWorkingDirectories().map(e => e.path);
+    return this.configLoader.getCliTypes().map(cliType => {
+      const entry = this.configLoader.getCliTypeEntry(cliType)!;
+      return {
+        cliType,
+        name: entry.name,
+        command: entry.spawnCommand ?? '',
+        supportsResume: Boolean(entry.spawnCommand || entry.resumeCommand || entry.continueCommand),
+        supportedDirPaths,
+      };
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -466,7 +461,7 @@ export class HelmControlService extends EventEmitter {
    * Called via session_info MCP tool — autocall endpoint provides context to AI agents.
    */
   getSessionInfo(authContext?: { sessionId?: string; sessionName?: string }): SessionInfoResponse {
-    return getSessionInfo(this.configLoader, this.sessionManager, authContext);
+    return getSessionInfo(this.configLoader, this.sessionManager, authContext, this.projectStore);
   }
 
   /**
