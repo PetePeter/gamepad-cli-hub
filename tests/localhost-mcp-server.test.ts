@@ -1399,8 +1399,11 @@ describe('LocalhostMcpServer', () => {
       expect((service.notifyUser as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
         's1',
         'Plan completed — Task',
-        'All tests pass and feature works',
+        expect.stringContaining('All tests pass and feature works'),
       );
+      const content = (service.notifyUser as unknown as ReturnType<typeof vi.fn>).mock.calls[0][2];
+      expect(content).toContain('Testing guidance:');
+      expect(content).toContain('keep that notification visible in Helm until they dismiss it');
     });
 
     it('does not throw when notifyUser fails during plan completion', async () => {

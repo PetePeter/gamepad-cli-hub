@@ -16212,7 +16212,7 @@
       "label": ".getAuthContext()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1476",
+      "source_location": "L1478",
       "id": "mcp_localhost_mcp_server_localhostmcpserver_getauthcontext",
       "community": 21,
       "norm_label": ".getauthcontext()"
@@ -16221,7 +16221,7 @@
       "label": ".readBody()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1488",
+      "source_location": "L1490",
       "id": "mcp_localhost_mcp_server_localhostmcpserver_readbody",
       "community": 21,
       "norm_label": ".readbody()"
@@ -16230,7 +16230,7 @@
       "label": ".writeJsonRpcResult()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1497",
+      "source_location": "L1499",
       "id": "mcp_localhost_mcp_server_localhostmcpserver_writejsonrpcresult",
       "community": 21,
       "norm_label": ".writejsonrpcresult()"
@@ -16239,7 +16239,7 @@
       "label": ".writeJsonRpcError()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1501",
+      "source_location": "L1503",
       "id": "mcp_localhost_mcp_server_localhostmcpserver_writejsonrpcerror",
       "community": 21,
       "norm_label": ".writejsonrpcerror()"
@@ -16248,7 +16248,7 @@
       "label": ".writeJson()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1505",
+      "source_location": "L1507",
       "id": "mcp_localhost_mcp_server_localhostmcpserver_writejson",
       "community": 21,
       "norm_label": ".writejson()"
@@ -16257,7 +16257,7 @@
       "label": "parsePort()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1514",
+      "source_location": "L1516",
       "id": "mcp_localhost_mcp_server_parseport",
       "community": 21,
       "norm_label": "parseport()"
@@ -16266,7 +16266,7 @@
       "label": "asRecord()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1521",
+      "source_location": "L1523",
       "id": "mcp_localhost_mcp_server_asrecord",
       "community": 21,
       "norm_label": "asrecord()"
@@ -16275,7 +16275,7 @@
       "label": "asString()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1527",
+      "source_location": "L1529",
       "id": "mcp_localhost_mcp_server_asstring",
       "community": 21,
       "norm_label": "asstring()"
@@ -16284,7 +16284,7 @@
       "label": "asPlanStatus()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1534",
+      "source_location": "L1536",
       "id": "mcp_localhost_mcp_server_asplanstatus",
       "community": 21,
       "norm_label": "asplanstatus()"
@@ -16293,7 +16293,7 @@
       "label": "asPlanTypeOrNull()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1541",
+      "source_location": "L1543",
       "id": "mcp_localhost_mcp_server_asplantypeornull",
       "community": 21,
       "norm_label": "asplantypeornull()"
@@ -16302,7 +16302,7 @@
       "label": "asContextBindingTargetType()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1548",
+      "source_location": "L1550",
       "id": "mcp_localhost_mcp_server_ascontextbindingtargettype",
       "community": 21,
       "norm_label": "ascontextbindingtargettype()"
@@ -16311,7 +16311,7 @@
       "label": "asAiagentState()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1555",
+      "source_location": "L1557",
       "id": "mcp_localhost_mcp_server_asaiagentstate",
       "community": 21,
       "norm_label": "asaiagentstate()"
@@ -16320,7 +16320,7 @@
       "label": "asTerminalOutputMode()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1562",
+      "source_location": "L1564",
       "id": "mcp_localhost_mcp_server_asterminaloutputmode",
       "community": 21,
       "norm_label": "asterminaloutputmode()"
@@ -16329,7 +16329,7 @@
       "label": "requireResult()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1568",
+      "source_location": "L1570",
       "id": "mcp_localhost_mcp_server_requireresult",
       "community": 21,
       "norm_label": "requireresult()"
@@ -16338,7 +16338,7 @@
       "label": "requireBooleanResult()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1575",
+      "source_location": "L1577",
       "id": "mcp_localhost_mcp_server_requirebooleanresult",
       "community": 21,
       "norm_label": "requirebooleanresult()"
@@ -16347,7 +16347,7 @@
       "label": "normalizeStructuredContent()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1582",
+      "source_location": "L1584",
       "id": "mcp_localhost_mcp_server_normalizestructuredcontent",
       "community": 21,
       "norm_label": "normalizestructuredcontent()"
@@ -16356,7 +16356,7 @@
       "label": "getToolReminder()",
       "file_type": "code",
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
-      "source_location": "L1592",
+      "source_location": "L1594",
       "id": "mcp_localhost_mcp_server_gettoolreminder",
       "community": 21,
       "norm_label": "gettoolreminder()"
@@ -32680,9 +32680,9 @@
       "weight": 1.0,
       "_src": "dist_electron_main_js",
       "_tgt": "dist_electron_main_getallplandirectories",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_js",
-      "target": "dist_electron_main_getallplandirectories",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_getallplandirectories"
     },
     {
       "relation": "contains",
@@ -44750,11 +44750,11 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L19983",
       "weight": 1.0,
-      "_src": "dist_electron_main_listdirectories",
-      "_tgt": "dist_electron_main_getallplandirectories",
+      "_src": "dist_electron_main_getallplandirectories",
+      "_tgt": "dist_electron_main_listdirectories",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_getallplandirectories",
-      "target": "dist_electron_main_listdirectories",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_listdirectories"
     },
     {
       "relation": "calls",
@@ -52766,11 +52766,11 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L21913",
       "weight": 1.0,
-      "_src": "dist_electron_main_completeplanwithvalidation",
-      "_tgt": "dist_electron_main_notifyuser",
+      "_src": "dist_electron_main_notifyuser",
+      "_tgt": "dist_electron_main_completeplanwithvalidation",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_notifyuser",
-      "target": "dist_electron_main_completeplanwithvalidation",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_completeplanwithvalidation"
     },
     {
       "relation": "calls",
@@ -52838,8 +52838,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10275",
       "weight": 1.0,
-      "_src": "dist_electron_main_calltool",
-      "_tgt": "dist_electron_main_listdirectories",
+      "_src": "dist_electron_main_listdirectories",
+      "_tgt": "dist_electron_main_calltool",
       "confidence_score": 1.0,
       "source": "dist_electron_main_listdirectories",
       "target": "dist_electron_main_calltool"
@@ -63424,9 +63424,9 @@
       "weight": 1.0,
       "_src": "renderer_plans_plan_screen_ts",
       "_tgt": "plans_plan_screen_getwindowkey",
+      "confidence_score": 1.0,
       "source": "renderer_plans_plan_screen_ts",
-      "target": "plans_plan_screen_getwindowkey",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_getwindowkey"
     },
     {
       "relation": "contains",
@@ -63436,9 +63436,9 @@
       "weight": 1.0,
       "_src": "renderer_plans_plan_screen_ts",
       "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "confidence_score": 1.0,
       "source": "renderer_plans_plan_screen_ts",
-      "target": "plans_plan_screen_getwindowcallbacks",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_getwindowcallbacks"
     },
     {
       "relation": "contains",
@@ -63448,9 +63448,9 @@
       "weight": 1.0,
       "_src": "renderer_plans_plan_screen_ts",
       "_tgt": "plans_plan_screen_snapshotfilterpreferences",
+      "confidence_score": 1.0,
       "source": "renderer_plans_plan_screen_ts",
-      "target": "plans_plan_screen_snapshotfilterpreferences",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_snapshotfilterpreferences"
     },
     {
       "relation": "contains",
@@ -64574,11 +64574,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L79",
       "weight": 1.0,
-      "_src": "plans_plan_screen_getwindowcallbacks",
-      "_tgt": "plans_plan_screen_getwindowkey",
+      "_src": "plans_plan_screen_getwindowkey",
+      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowkey",
-      "target": "plans_plan_screen_getwindowcallbacks",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_getwindowcallbacks"
     },
     {
       "relation": "calls",
@@ -64586,11 +64586,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L147",
       "weight": 1.0,
-      "_src": "plans_plan_screen_setplaneditoropener",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_setplaneditoropener",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_setplaneditoropener",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_setplaneditoropener"
     },
     {
       "relation": "calls",
@@ -64598,11 +64598,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L148",
       "weight": 1.0,
-      "_src": "plans_plan_screen_setdrafteditorcloser",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_setdrafteditorcloser",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_setdrafteditorcloser",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_setdrafteditorcloser"
     },
     {
       "relation": "calls",
@@ -64610,11 +64610,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L149",
       "weight": 1.0,
-      "_src": "plans_plan_screen_setdrafteditorvisibilitychecker",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_setdrafteditorvisibilitychecker",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_setdrafteditorvisibilitychecker",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_setdrafteditorvisibilitychecker"
     },
     {
       "relation": "calls",
@@ -64622,11 +64622,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L150",
       "weight": 1.0,
-      "_src": "plans_plan_screen_setplanchangeschecker",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_setplanchangeschecker",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_setplanchangeschecker",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_setplanchangeschecker"
     },
     {
       "relation": "calls",
@@ -64634,11 +64634,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L151",
       "weight": 1.0,
-      "_src": "plans_plan_screen_setbackuprestoreopener",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_setbackuprestoreopener",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_setbackuprestoreopener",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_setbackuprestoreopener"
     },
     {
       "relation": "calls",
@@ -64646,11 +64646,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L152",
       "weight": 1.0,
-      "_src": "plans_plan_screen_setplanscreencontexteditoropener",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_setplanscreencontexteditoropener",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_setplanscreencontexteditoropener",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_setplanscreencontexteditoropener"
     },
     {
       "relation": "calls",
@@ -64658,11 +64658,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L381",
       "weight": 1.0,
-      "_src": "plans_plan_screen_opennodeeditor",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_opennodeeditor",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_opennodeeditor",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_opennodeeditor"
     },
     {
       "relation": "calls",
@@ -64670,11 +64670,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L402",
       "weight": 1.0,
-      "_src": "plans_plan_screen_opennodecompletioneditor",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_opennodecompletioneditor",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_opennodecompletioneditor",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_opennodecompletioneditor"
     },
     {
       "relation": "calls",
@@ -64682,11 +64682,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L413",
       "weight": 1.0,
-      "_src": "plans_plan_screen_opencontextnodeeditor",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_opencontextnodeeditor",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_opencontextnodeeditor",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_opencontextnodeeditor"
     },
     {
       "relation": "calls",
@@ -64694,11 +64694,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L468",
       "weight": 1.0,
-      "_src": "plans_plan_screen_planscreenkeyhandler",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_planscreenkeyhandler",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_planscreenkeyhandler",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_planscreenkeyhandler"
     },
     {
       "relation": "calls",
@@ -64706,11 +64706,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L540",
       "weight": 1.0,
-      "_src": "plans_plan_screen_mountplanscreen",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_mountplanscreen",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_mountplanscreen",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_mountplanscreen"
     },
     {
       "relation": "calls",
@@ -64718,11 +64718,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L549",
       "weight": 1.0,
-      "_src": "plans_plan_screen_unmountplanscreen",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_unmountplanscreen",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_unmountplanscreen",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_unmountplanscreen"
     },
     {
       "relation": "calls",
@@ -64730,11 +64730,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L689",
       "weight": 1.0,
-      "_src": "plans_plan_screen_handledelete",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_handledelete",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_handledelete",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_handledelete"
     },
     {
       "relation": "calls",
@@ -64742,11 +64742,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L718",
       "weight": 1.0,
-      "_src": "plans_plan_screen_handleapplyfromcanvas",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_handleapplyfromcanvas",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_handleapplyfromcanvas",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_handleapplyfromcanvas"
     },
     {
       "relation": "calls",
@@ -64754,11 +64754,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L757",
       "weight": 1.0,
-      "_src": "plans_plan_screen_handleaddnode",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_handleaddnode",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_handleaddnode",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_handleaddnode"
     },
     {
       "relation": "calls",
@@ -64766,11 +64766,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L1061",
       "weight": 1.0,
-      "_src": "plans_plan_screen_openbackuprestoremodal",
-      "_tgt": "plans_plan_screen_getwindowcallbacks",
+      "_src": "plans_plan_screen_getwindowcallbacks",
+      "_tgt": "plans_plan_screen_openbackuprestoremodal",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_getwindowcallbacks",
-      "target": "plans_plan_screen_openbackuprestoremodal",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_openbackuprestoremodal"
     },
     {
       "relation": "calls",
@@ -64778,11 +64778,11 @@
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L135",
       "weight": 1.0,
-      "_src": "plans_plan_screen_savefilterpreferences",
-      "_tgt": "plans_plan_screen_snapshotfilterpreferences",
+      "_src": "plans_plan_screen_snapshotfilterpreferences",
+      "_tgt": "plans_plan_screen_savefilterpreferences",
+      "confidence_score": 1.0,
       "source": "plans_plan_screen_snapshotfilterpreferences",
-      "target": "plans_plan_screen_savefilterpreferences",
-      "confidence_score": 1.0
+      "target": "plans_plan_screen_savefilterpreferences"
     },
     {
       "relation": "calls",
@@ -82754,11 +82754,11 @@
       "source_file": "tests\\helm-directory-service.test.ts",
       "source_location": "L6",
       "weight": 1.0,
-      "_src": "tests_helm_directory_service_test_ts",
-      "_tgt": "src_mcp_services_helm_directory_service_ts",
+      "_src": "src_mcp_services_helm_directory_service_ts",
+      "_tgt": "tests_helm_directory_service_test_ts",
+      "confidence_score": 1.0,
       "source": "src_mcp_services_helm_directory_service_ts",
-      "target": "tests_helm_directory_service_test_ts",
-      "confidence_score": 1.0
+      "target": "tests_helm_directory_service_test_ts"
     },
     {
       "relation": "method",
@@ -84290,11 +84290,11 @@
       "source_file": "tests\\helm-session-service.test.ts",
       "source_location": "L6",
       "weight": 1.0,
-      "_src": "tests_helm_session_service_test_ts",
-      "_tgt": "src_mcp_services_helm_session_service_ts",
+      "_src": "src_mcp_services_helm_session_service_ts",
+      "_tgt": "tests_helm_session_service_test_ts",
+      "confidence_score": 1.0,
       "source": "src_mcp_services_helm_session_service_ts",
-      "target": "tests_helm_session_service_test_ts",
-      "confidence_score": 1.0
+      "target": "tests_helm_session_service_test_ts"
     },
     {
       "relation": "calls",
@@ -91276,9 +91276,9 @@
       "weight": 1.0,
       "_src": "session_plan_manager_planmanager",
       "_tgt": "session_plan_manager_planmanager_getallplandirectories",
+      "confidence_score": 1.0,
       "source": "session_plan_manager_planmanager",
-      "target": "session_plan_manager_planmanager_getallplandirectories",
-      "confidence_score": 1.0
+      "target": "session_plan_manager_planmanager_getallplandirectories"
     },
     {
       "relation": "method",
@@ -101176,9 +101176,9 @@
       "weight": 1.0,
       "_src": "tests_helm_directory_service_test_ts",
       "_tgt": "tests_helm_directory_service_test_makeconfigloader",
+      "confidence_score": 1.0,
       "source": "tests_helm_directory_service_test_ts",
-      "target": "tests_helm_directory_service_test_makeconfigloader",
-      "confidence_score": 1.0
+      "target": "tests_helm_directory_service_test_makeconfigloader"
     },
     {
       "relation": "contains",
@@ -101188,9 +101188,9 @@
       "weight": 1.0,
       "_src": "tests_helm_directory_service_test_ts",
       "_tgt": "tests_helm_directory_service_test_makesessionmanager",
+      "confidence_score": 1.0,
       "source": "tests_helm_directory_service_test_ts",
-      "target": "tests_helm_directory_service_test_makesessionmanager",
-      "confidence_score": 1.0
+      "target": "tests_helm_directory_service_test_makesessionmanager"
     },
     {
       "relation": "contains",
@@ -101200,9 +101200,9 @@
       "weight": 1.0,
       "_src": "tests_helm_directory_service_test_ts",
       "_tgt": "tests_helm_directory_service_test_makeplanmanager",
+      "confidence_score": 1.0,
       "source": "tests_helm_directory_service_test_ts",
-      "target": "tests_helm_directory_service_test_makeplanmanager",
-      "confidence_score": 1.0
+      "target": "tests_helm_directory_service_test_makeplanmanager"
     },
     {
       "relation": "contains",
@@ -101212,9 +101212,9 @@
       "weight": 1.0,
       "_src": "tests_helm_directory_service_test_ts",
       "_tgt": "tests_helm_directory_service_test_makeprojectstore",
+      "confidence_score": 1.0,
       "source": "tests_helm_directory_service_test_ts",
-      "target": "tests_helm_directory_service_test_makeprojectstore",
-      "confidence_score": 1.0
+      "target": "tests_helm_directory_service_test_makeprojectstore"
     },
     {
       "relation": "contains",
@@ -101236,9 +101236,9 @@
       "weight": 1.0,
       "_src": "tests_helm_session_service_test_ts",
       "_tgt": "tests_helm_session_service_test_makesessionmanager",
+      "confidence_score": 1.0,
       "source": "tests_helm_session_service_test_ts",
-      "target": "tests_helm_session_service_test_makesessionmanager",
-      "confidence_score": 1.0
+      "target": "tests_helm_session_service_test_makesessionmanager"
     },
     {
       "relation": "contains",
@@ -101248,9 +101248,9 @@
       "weight": 1.0,
       "_src": "tests_helm_session_service_test_ts",
       "_tgt": "tests_helm_session_service_test_makeconfigloader",
+      "confidence_score": 1.0,
       "source": "tests_helm_session_service_test_ts",
-      "target": "tests_helm_session_service_test_makeconfigloader",
-      "confidence_score": 1.0
+      "target": "tests_helm_session_service_test_makeconfigloader"
     },
     {
       "relation": "contains",
@@ -101260,9 +101260,9 @@
       "weight": 1.0,
       "_src": "tests_helm_session_service_test_ts",
       "_tgt": "tests_helm_session_service_test_makeptymanager",
+      "confidence_score": 1.0,
       "source": "tests_helm_session_service_test_ts",
-      "target": "tests_helm_session_service_test_makeptymanager",
-      "confidence_score": 1.0
+      "target": "tests_helm_session_service_test_makeptymanager"
     },
     {
       "relation": "contains",
@@ -101272,9 +101272,9 @@
       "weight": 1.0,
       "_src": "tests_helm_session_service_test_ts",
       "_tgt": "tests_helm_session_service_test_makeplanmanager",
+      "confidence_score": 1.0,
       "source": "tests_helm_session_service_test_ts",
-      "target": "tests_helm_session_service_test_makeplanmanager",
-      "confidence_score": 1.0
+      "target": "tests_helm_session_service_test_makeplanmanager"
     },
     {
       "relation": "contains",
@@ -101884,9 +101884,9 @@
       "weight": 1.0,
       "_src": "tests_plan_screen_callbacks_test_ts",
       "_tgt": "tests_plan_screen_callbacks_test_fakelayout",
+      "confidence_score": 1.0,
       "source": "tests_plan_screen_callbacks_test_ts",
-      "target": "tests_plan_screen_callbacks_test_fakelayout",
-      "confidence_score": 1.0
+      "target": "tests_plan_screen_callbacks_test_fakelayout"
     },
     {
       "relation": "contains",
@@ -101896,9 +101896,9 @@
       "weight": 1.0,
       "_src": "tests_plan_screen_callbacks_test_ts",
       "_tgt": "tests_plan_screen_callbacks_test_planitem",
+      "confidence_score": 1.0,
       "source": "tests_plan_screen_callbacks_test_ts",
-      "target": "tests_plan_screen_callbacks_test_planitem",
-      "confidence_score": 1.0
+      "target": "tests_plan_screen_callbacks_test_planitem"
     },
     {
       "relation": "contains",
@@ -101908,9 +101908,9 @@
       "weight": 1.0,
       "_src": "tests_plan_screen_callbacks_test_ts",
       "_tgt": "tests_plan_screen_callbacks_test_getmodule",
+      "confidence_score": 1.0,
       "source": "tests_plan_screen_callbacks_test_ts",
-      "target": "tests_plan_screen_callbacks_test_getmodule",
-      "confidence_score": 1.0
+      "target": "tests_plan_screen_callbacks_test_getmodule"
     },
     {
       "relation": "contains",

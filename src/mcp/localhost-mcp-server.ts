@@ -149,7 +149,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_complete',
     title: 'Complete Plan',
-    description: 'Mark a coding plan item as done by UUID or P-00xx human-readable ID. Requires documentation of what was done (minimum 10 characters). Good completion notes summarize implemented behavior, important files changed, tests performed, and any remaining risk.',
+    description: 'Mark a coding or review plan item as done by UUID or P-00xx human-readable ID. Requires documentation of what was done (minimum 10 characters). Good completion notes summarize implemented behavior, important files changed, tests or review performed, and any remaining risk.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1450,6 +1450,8 @@ export class LocalhostMcpServer {
         autoImplement: Boolean(item.autoImplement),
       }));
     const autoFollowUpPlans = followUpPlans.filter((item) => item.autoImplement && item.status === 'ready');
+    const testingInstructionsReminder = 'Notify the user with concrete steps they can run to test this completed plan, and keep that notification visible in Helm until they dismiss it.';
+    const notificationContent = `${documentation}\n\nTesting guidance: ${testingInstructionsReminder}`;
 
     // Emit a persistent in-app notification so the user sees completion guidance
     if (completed.sessionId) {
@@ -1457,7 +1459,7 @@ export class LocalhostMcpServer {
         this.service.notifyUser(
           completed.sessionId,
           `Plan completed — ${completed.title}`,
-          documentation,
+          notificationContent,
         );
       } catch {
         // Notification mode may not be 'llm'; ignore rather than fail the completion
@@ -1466,7 +1468,7 @@ export class LocalhostMcpServer {
 
     return {
       ...completed,
-      testingInstructionsReminder: 'Notify the user with concrete steps they can run to test this completed plan, and keep that notification visible in Helm until they dismiss it.',
+      testingInstructionsReminder,
       followUpPlans,
       autoFollowUpPlans,
       continueWithAutoFollowUps: autoFollowUpPlans.length > 0,
