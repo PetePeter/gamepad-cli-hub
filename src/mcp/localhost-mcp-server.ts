@@ -149,7 +149,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_complete',
     title: 'Complete Plan',
-    description: 'Mark a coding or review plan item as done by UUID or P-00xx human-readable ID. Requires documentation of what was done (minimum 10 characters). Good completion notes summarize implemented behavior, important files changed, tests or review performed, and any remaining risk.',
+    description: 'Mark a coding plan item as done by UUID or P-00xx human-readable ID. Requires documentation of what was done (minimum 10 characters). Good completion notes summarize implemented behavior, important files changed, tests performed, and any remaining risk.',
     inputSchema: {
       type: 'object',
       properties: {
