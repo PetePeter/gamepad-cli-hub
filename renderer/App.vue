@@ -73,6 +73,7 @@ import { onViewChange, currentView, type MainView as ViewName } from './main-vie
 import { useModalStack } from './composables/useModalStack.js';
 import { useEscProtection } from './composables/useEscProtection.js';
 import { useToast } from './composables/useToast.js';
+import { appClient, deliveryClient, eventsClient, sessionsClient } from './ipc/clients.js';
 import {
   closeConfirm, getCloseConfirmCallback, setCloseConfirmCallback,
   contextMenu,
@@ -828,7 +829,7 @@ async function onCancelSchedule(sessionId: string): Promise<void> {
 
 async function onSessionSnapOut(sessionId: string): Promise<void> {
   try {
-    await window.gamepadCli.sessionSnapOut(sessionId);
+    await sessionsClient.sessionSnapOut(sessionId);
   } catch (error) {
     console.error('Failed to snap out session:', error);
   }
@@ -836,7 +837,7 @@ async function onSessionSnapOut(sessionId: string): Promise<void> {
 
 async function onSessionSnapBack(sessionId: string): Promise<void> {
   try {
-    await window.gamepadCli.sessionSnapBack(sessionId);
+    await sessionsClient.sessionSnapBack(sessionId);
   } catch (error) {
     console.error('Failed to snap back session:', error);
   }
@@ -2162,12 +2163,12 @@ function handleModalKeyboardBridge(e: KeyboardEvent): void {
 
 onMounted(async () => {
   if (!terminalContainerRef.value) {
-    await window.gamepadCli.appStartupReady();
+    await appClient.appStartupReady();
     return;
   }
 
   try {
-    offTextDeliver = window.gamepadCli.onTextDeliverRequest(async ({ requestId, sessionId, text, withReturn, submitSuffix }) => {
+    offTextDeliver = eventsClient.onTextDeliverRequest(async ({ requestId, sessionId, text, withReturn, submitSuffix }) => {
       try {
         const session = state.sessions.find(s => s.id === sessionId);
         const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
@@ -2180,13 +2181,13 @@ onMounted(async () => {
         } else {
           await deliverBulkText(sessionId, text, { withReturn, submitSuffix });
         }
-        await window.gamepadCli.textDeliverResponse(requestId, true);
+        await deliveryClient.textDeliverResponse(requestId, true);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        await window.gamepadCli.textDeliverResponse(requestId, false, message);
+        await deliveryClient.textDeliverResponse(requestId, false, message);
       }
     });
-    await window.gamepadCli.textDeliverReady();
+    await deliveryClient.textDeliverReady();
 
     await bootstrap({
       terminalContainer: terminalContainerRef.value,
@@ -2218,22 +2219,22 @@ onMounted(async () => {
     window.addEventListener('rename-session-request', handleRenameRequest);
 
     // Snap-out / snap-back IPC listeners
-    unsubSnapOut = window.gamepadCli?.onSnapOut
-      ? window.gamepadCli.onSnapOut((sessionId: string) => {
+    unsubSnapOut = eventsClient.onSnapOut
+      ? eventsClient.onSnapOut((sessionId: string) => {
           state.snappedOutSessions.add(sessionId);
           const tm = getTerminalManager();
           if (tm) tm.detachTerminal(sessionId, true);
         })
       : null;
-    unsubSnapBack = window.gamepadCli?.onSnapBack
-      ? window.gamepadCli.onSnapBack((sessionId: string) => {
+    unsubSnapBack = eventsClient.onSnapBack
+      ? eventsClient.onSnapBack((sessionId: string) => {
           void restoreSnappedBackSession(sessionId);
         })
       : null;
 
     // LLM notification IPC listener
-    unsubLlmNotify = window.gamepadCli?.onLlmNotify
-      ? window.gamepadCli.onLlmNotify(({ sessionId, title, content }) => {
+    unsubLlmNotify = eventsClient.onLlmNotify
+      ? eventsClient.onLlmNotify(({ sessionId, title, content }) => {
           llmNotificationsStore.add({ sessionId, title, content });
         })
       : null;
@@ -2271,7 +2272,7 @@ onMounted(async () => {
     console.error('[App] Startup failed:', error);
   } finally {
     try {
-      await window.gamepadCli.appStartupReady();
+      await appClient.appStartupReady();
     } catch (error) {
       console.error('[App] Failed to notify main process that startup completed:', error);
     }

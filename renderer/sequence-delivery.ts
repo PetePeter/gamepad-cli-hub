@@ -1,4 +1,5 @@
 import { executeSequenceString } from '../src/input/sequence-executor.js';
+import { terminalClient } from './ipc/clients.js';
 import { deliverBulkText, parseSubmitSuffix } from './paste-handler.js';
 import { state } from './state.js';
 
@@ -18,8 +19,8 @@ export async function deliverPromptSequence(sessionId: string, input: string): P
   await executeSequenceString({
     sessionId,
     input,
-    write: (sid, data) => window.gamepadCli.ptyWrite(sid, data),
+    write: (sid, data) => terminalClient.ptyWrite(sid, data),
     deliverText: (sid, text) => deliverBulkText(sid, text),
-    submit: (sid) => window.gamepadCli.ptyWrite(sid, getSubmitSuffix(sid)),
+    submit: (sid) => terminalClient.ptyWrite(sid, getSubmitSuffix(sid)),
   });
 }

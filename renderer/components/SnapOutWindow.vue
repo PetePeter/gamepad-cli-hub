@@ -29,6 +29,7 @@ import {
   setPlanChangesChecker as setLegacyPlanChangesChecker,
 } from '../drafts/draft-editor.js';
 import { saveDraftWithStableId } from '../drafts/draft-save.js';
+import { eventsClient, sessionsClient, terminalClient } from '../ipc/clients.js';
 
 const props = defineProps<{ sessionId: string }>();
 const containerRef = ref<HTMLElement | null>(null);
@@ -151,15 +152,15 @@ onMounted(async () => {
   view = new TerminalView({
     sessionId: props.sessionId,
     container: containerRef.value,
-    onData: (data) => { window.gamepadCli?.ptyWrite(props.sessionId, data); },
-    onScrollInput: (data) => { window.gamepadCli?.ptyScrollInput?.(props.sessionId, data); },
-    onResize: (cols, rows) => { window.gamepadCli?.ptyResize(props.sessionId, cols, rows); },
+    onData: (data) => { terminalClient.ptyWrite?.(props.sessionId, data); },
+    onScrollInput: (data) => { terminalClient.ptyScrollInput?.(props.sessionId, data); },
+    onResize: (cols, rows) => { terminalClient.ptyResize?.(props.sessionId, cols, rows); },
     onTitleChange: (title) => { if (sessionInfo.value) sessionInfo.value = { ...sessionInfo.value, title }; updateWindowTitle(); },
   });
 
-  unsubData = window.gamepadCli.onPtyData((sessionId: string, data: string) => { if (sessionId === props.sessionId) view?.write(data); });
-  unsubExit = window.gamepadCli.onPtyExit((sessionId: string) => { if (sessionId === props.sessionId) view?.write('\r\n\x1b[33m[Process exited]\x1b[0m\r\n'); });
-  unsubSessionUpdated = window.gamepadCli.onSessionUpdated?.((updatedSession: any) => {
+  unsubData = eventsClient.onPtyData((sessionId: string, data: string) => { if (sessionId === props.sessionId) view?.write(data); });
+  unsubExit = eventsClient.onPtyExit((sessionId: string) => { if (sessionId === props.sessionId) view?.write('\r\n\x1b[33m[Process exited]\x1b[0m\r\n'); });
+  unsubSessionUpdated = eventsClient.onSessionUpdated?.((updatedSession: any) => {
     if (updatedSession?.id !== props.sessionId) return;
     sessionInfo.value = updatedSession;
     const existingIndex = state.sessions.findIndex(s => s.id === props.sessionId);
@@ -248,7 +249,7 @@ async function onContextMenuAction(action: string): Promise<void> {
       break;
     }
     case 'snap-back':
-      try { await window.gamepadCli.sessionSnapBack(props.sessionId); }
+      try { await sessionsClient.sessionSnapBack(props.sessionId); }
       catch (error) { console.error('Failed to snap back:', error); }
       break;
     case 'drafts': {

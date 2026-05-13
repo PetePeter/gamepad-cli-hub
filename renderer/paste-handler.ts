@@ -21,6 +21,7 @@ import {
 } from './input/input-ownership.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
+import { keyboardClient, terminalClient } from './ipc/clients.js';
 
 /**
  * Convert escape notation strings to actual characters.
@@ -87,23 +88,23 @@ function getConfiguredSubmitSuffix(sessionId: string, withReturn?: boolean, over
 
 async function writePtySubmitSuffix(sessionId: string, suffix: string): Promise<void> {
   if (!suffix) return;
-  await window.gamepadCli.ptyWrite(sessionId, suffix);
+  await terminalClient.ptyWrite(sessionId, suffix);
 }
 
 async function sendKeyboardSubmitSuffix(suffix: string): Promise<void> {
   if (!suffix) return;
 
   if (suffix === '\r' || suffix === '\n' || suffix === '\r\n') {
-    await window.gamepadCli.keyboardKeyTap('enter');
+    await keyboardClient.keyboardKeyTap('enter');
     return;
   }
 
-  await window.gamepadCli.keyboardTypeString(suffix);
+  await keyboardClient.keyboardTypeString(suffix);
 }
 
 async function simulateClipboardPaste(text: string): Promise<void> {
   await navigator.clipboard.writeText(text);
-  await window.gamepadCli.keyboardSendKeyCombo(['ctrl', 'v']);
+  await keyboardClient.keyboardSendKeyCombo(['ctrl', 'v']);
 }
 
 export async function deliverViaClipboardPaste(text: string): Promise<void> {
@@ -146,7 +147,7 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
     try {
       for (const char of text) {
         if (!state.sessions.find(s => s.id === sessionId)) break;
-        await window.gamepadCli.ptyWrite(sessionId, char);
+        await terminalClient.ptyWrite(sessionId, char);
         await new Promise(resolve => setTimeout(resolve, PTY_INDIVIDUAL_DELAY_MS));
       }
       await writePtySubmitSuffix(sessionId, suffix);
@@ -157,17 +158,17 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
     return;
   }
 
-  if (tool?.pasteMode === 'sendkeysindividual' && window.gamepadCli?.keyboardTypeString) {
+  if (tool?.pasteMode === 'sendkeysindividual' && keyboardClient.keyboardTypeString) {
     for (const char of text) {
-      await window.gamepadCli.keyboardTypeString(char);
+      await keyboardClient.keyboardTypeString(char);
       await new Promise(resolve => setTimeout(resolve, SENDKEYS_INDIVIDUAL_DELAY_MS));
     }
     await sendKeyboardSubmitSuffix(suffix);
     return;
   }
 
-  if (tool?.pasteMode === 'sendkeys' && window.gamepadCli?.keyboardTypeString) {
-    await window.gamepadCli.keyboardTypeString(text);
+  if (tool?.pasteMode === 'sendkeys' && keyboardClient.keyboardTypeString) {
+    await keyboardClient.keyboardTypeString(text);
     await sendKeyboardSubmitSuffix(suffix);
     return;
   }
@@ -197,7 +198,7 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
     ? `\x1b[200~${text}\x1b[201~`
     : text;
 
-  await window.gamepadCli.ptyWrite(sessionId, payload);
+  await terminalClient.ptyWrite(sessionId, payload);
   await writePtySubmitSuffix(sessionId, suffix);
 }
 
@@ -234,7 +235,7 @@ export function setupKeyboardRelay(
       const escProtection = useEscProtection();
 
       if (escProtection.isProtecting.value) {
-        window.gamepadCli.ptyWrite(sessionId, '\x1b');
+        terminalClient.ptyWrite(sessionId, '\x1b');
         escProtection.dismissProtection();
         return;
       }
@@ -339,7 +340,7 @@ export function setupKeyboardRelay(
         return;
       }
 
-      window.gamepadCli.ptyWrite(sessionId, '\x1b');
+      terminalClient.ptyWrite(sessionId, '\x1b');
       return;
     }
 
@@ -355,7 +356,7 @@ export function setupKeyboardRelay(
       if (e.key.toLowerCase() === 'n') return;
       if (e.key.length === 1) {
         e.preventDefault();
-        window.gamepadCli.ptyWrite(sessionId, comboToPtyEscape(['Ctrl', e.key]));
+        terminalClient.ptyWrite(sessionId, comboToPtyEscape(['Ctrl', e.key]));
       }
       return;
     }
@@ -366,13 +367,13 @@ export function setupKeyboardRelay(
     const esc = keyToPtyEscape(e.key);
     if (esc !== e.key || e.key.length > 1) {
       e.preventDefault();
-      window.gamepadCli.ptyWrite(sessionId, esc);
+      terminalClient.ptyWrite(sessionId, esc);
       return;
     }
 
     if (e.key.length === 1) {
       e.preventDefault();
-      window.gamepadCli.ptyWrite(sessionId, e.key);
+      terminalClient.ptyWrite(sessionId, e.key);
     }
   };
 

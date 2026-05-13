@@ -9,6 +9,7 @@ import { TerminalView } from './terminal-view.js';
 import { PtyOutputBuffer } from './pty-output-buffer.js';
 import type { SessionInfo } from '../../src/types/session.js';
 import { loadStoredSessions } from '../session-store.js';
+import { eventsClient, terminalClient } from '../ipc/clients.js';
 
 export interface TerminalSession {
   sessionId: string;
@@ -96,13 +97,13 @@ export class TerminalManager {
       sessionId,
       container: element,
       onData: (data) => {
-        window.gamepadCli?.ptyWrite(sessionId, data);
+        terminalClient.ptyWrite?.(sessionId, data);
       },
       onScrollInput: (data) => {
-        window.gamepadCli?.ptyScrollInput?.(sessionId, data);
+        terminalClient.ptyScrollInput?.(sessionId, data);
       },
       onResize: (cols, rows) => {
-        window.gamepadCli?.ptyResize(sessionId, cols, rows);
+        terminalClient.ptyResize?.(sessionId, cols, rows);
       },
       onTitleChange: (title) => {
         const sess = this.terminals.get(sessionId);
@@ -142,7 +143,7 @@ export class TerminalManager {
       });
     });
 
-    const result = await window.gamepadCli?.ptySpawn(sessionId, command, args, cwd, cliType, contextText, resumeSessionName);
+    const result = await terminalClient.ptySpawn?.(sessionId, command, args, cwd, cliType, contextText, resumeSessionName);
     console.log(`[TerminalManager] ptySpawn result:`, JSON.stringify(result));
     if (!result?.success) {
       console.error(`[TerminalManager] ptySpawn failed:`, result?.error || 'no result');
@@ -178,13 +179,13 @@ export class TerminalManager {
       sessionId,
       container: element,
       onData: (data) => {
-        window.gamepadCli?.ptyWrite(sessionId, data);
+        terminalClient.ptyWrite?.(sessionId, data);
       },
       onScrollInput: (data) => {
-        window.gamepadCli?.ptyScrollInput?.(sessionId, data);
+        terminalClient.ptyScrollInput?.(sessionId, data);
       },
       onResize: (cols, rows) => {
-        window.gamepadCli?.ptyResize(sessionId, cols, rows);
+        terminalClient.ptyResize?.(sessionId, cols, rows);
       },
       onTitleChange: (title) => {
         const sess = this.terminals.get(sessionId);
@@ -237,7 +238,7 @@ export class TerminalManager {
     if (!session) return;
 
     // Mark switching BEFORE fit/resize to suppress false activity promotion
-    window.gamepadCli?.ptyMarkSwitching?.(sessionId);
+    terminalClient.ptyMarkSwitching?.(sessionId);
 
     // Hide current
     if (this.activeSessionId) {
@@ -269,10 +270,10 @@ export class TerminalManager {
         // are unchanged, force one sync for snap-back cases where the main PTY
         // may still remember the detached window size.
         const afterFit = session.view.getDimensions();
-        if (window.gamepadCli?.ptyResize &&
+        if (terminalClient.ptyResize &&
             beforeFit.cols === afterFit.cols &&
             beforeFit.rows === afterFit.rows) {
-          window.gamepadCli.ptyResize(sessionId, afterFit.cols, afterFit.rows);
+          terminalClient.ptyResize(sessionId, afterFit.cols, afterFit.rows);
         }
 
         // Fallback fit retry for snap-back: if dimensions are still zero,
@@ -412,7 +413,7 @@ export class TerminalManager {
     this.terminals.delete(sessionId);
     this.managedSessions.delete(sessionId);
 
-    window.gamepadCli?.ptyKill(sessionId);
+    terminalClient.ptyKill?.(sessionId);
     this.outputBuffer.clear(sessionId);
 
     // Switch to another terminal if active one was destroyed
@@ -526,15 +527,15 @@ export class TerminalManager {
 
   /** Set up IPC event listeners for PTY data routing */
   private setupIpcListeners(): void {
-    if (!window.gamepadCli) return;
+    if (!eventsClient.onPtyData) return;
 
-    const unsubData = window.gamepadCli.onPtyData((sessionId: string, data: string) => {
+    const unsubData = eventsClient.onPtyData((sessionId: string, data: string) => {
       this.writeToTerminal(sessionId, data);
       this.outputBuffer.append(sessionId, data);
     });
     this.unsubscribers.push(unsubData);
 
-    const unsubExit = window.gamepadCli.onPtyExit((sessionId: string, _exitCode: number) => {
+    const unsubExit = eventsClient.onPtyExit((sessionId: string, _exitCode: number) => {
       const session = this.terminals.get(sessionId);
       if (session) {
         session.view.write('\r\n\x1b[33m[Process exited]\x1b[0m\r\n');

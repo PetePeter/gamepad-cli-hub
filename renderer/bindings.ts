@@ -12,6 +12,7 @@ import type { Binding } from '../src/config/loader.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { deliverBulkText } from './paste-handler.js';
 import { showDraftEditor } from './drafts/draft-editor.js';
+import { configClient, keyboardClient, terminalClient, toolsClient } from './ipc/clients.js';
 
 function executeScroll(binding: { direction: string; lines?: number }): void {
   const overviewGrid = document.getElementById('overviewGrid');
@@ -48,19 +49,17 @@ export function comboToPtyEscape(keys: string[]): string {
 
 export async function initConfigCache(): Promise<void> {
   try {
-    if (!window.gamepadCli) return;
-
     for (const cliType of state.cliTypes) {
-      const bindings = await window.gamepadCli.configGetBindings(cliType);
+      const bindings = await configClient.configGetBindings(cliType);
       if (bindings) state.cliBindingsCache[cliType] = bindings;
 
-      const sequences = await window.gamepadCli.configGetSequences(cliType);
+      const sequences = await configClient.configGetSequences(cliType);
       if (sequences && Object.keys(sequences).length > 0) state.cliSequencesCache[cliType] = sequences;
       else delete state.cliSequencesCache[cliType];
     }
 
     try {
-      const tools = await window.gamepadCli.toolsGetAll();
+      const tools = await toolsClient.toolsGetAll();
       state.cliToolsCache = tools?.cliTypes ?? {};
     } catch (err) {
       console.warn('[Renderer] Failed to cache tools:', err);
@@ -73,8 +72,6 @@ export async function initConfigCache(): Promise<void> {
 }
 
 export function processConfigBinding(button: string): void {
-  if (!window.gamepadCli) return;
-
   if (state.activeSessionId) {
     const activeSession = state.sessions.find(s => s.id === state.activeSessionId);
     if (activeSession) {
@@ -93,14 +90,14 @@ export function processConfigRelease(button: string): void {
   }
   const keys = heldKeys.get(button);
   if (keys) {
-    window.gamepadCli.keyboardComboUp(keys);
+    keyboardClient.keyboardComboUp(keys);
     heldKeys.delete(button);
   }
 }
 
 export function releaseAllHeldKeys(): void {
   for (const [button, keys] of heldKeys) {
-    if (!ptyRoutedHolds.has(button)) window.gamepadCli.keyboardComboUp(keys);
+    if (!ptyRoutedHolds.has(button)) keyboardClient.keyboardComboUp(keys);
   }
   heldKeys.clear();
   ptyRoutedHolds.clear();
@@ -127,28 +124,28 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
 
         const tm = getTerminalManager();
         const activeId = tm?.getActiveSessionId();
-        const usePty = activeId && binding.target === 'terminal' && window.gamepadCli?.ptyWrite;
+        const usePty = activeId && binding.target === 'terminal' && terminalClient.ptyWrite;
 
         if (binding.mode === 'hold') {
           if (usePty) {
             const esc = keys.length === 1 ? keyToPtyEscape(keys[0]) : comboToPtyEscape(keys);
-            await window.gamepadCli.ptyWrite(activeId!, esc);
+            await terminalClient.ptyWrite(activeId!, esc);
             ptyRoutedHolds.add(button);
             heldKeys.set(button, keys);
             logEvent(`Voice hold→PTY: ${binding.key}`);
           } else {
-            await window.gamepadCli.keyboardComboDown(keys);
+            await keyboardClient.keyboardComboDown(keys);
             heldKeys.set(button, keys);
             logEvent(`Voice hold→OS: ${binding.key}`);
           }
         } else {
           if (usePty) {
             const esc = keys.length === 1 ? keyToPtyEscape(keys[0]) : comboToPtyEscape(keys);
-            await window.gamepadCli.ptyWrite(activeId!, esc);
+            await terminalClient.ptyWrite(activeId!, esc);
             logEvent(`Voice tap→PTY: ${binding.key}`);
           } else {
-            if (keys.length === 1) await window.gamepadCli.keyboardKeyTap(keys[0]);
-            else await window.gamepadCli.keyboardSendKeyCombo(keys);
+            if (keys.length === 1) await keyboardClient.keyboardKeyTap(keys[0]);
+            else await keyboardClient.keyboardSendKeyCombo(keys);
             logEvent(`Voice tap→OS: ${binding.key}`);
           }
         }
@@ -195,7 +192,7 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
 }
 
 export async function executeSequenceForSession(sessionId: string, input: string): Promise<void> {
-  if (!window.gamepadCli?.ptyWrite) {
+  if (!terminalClient.ptyWrite) {
     console.warn('[Renderer] executeSequenceForSession — ptyWrite not available');
     return;
   }
@@ -206,7 +203,7 @@ export async function executeSequenceForSession(sessionId: string, input: string
   await executeSequenceString({
     sessionId,
     input,
-    write: (sid, data) => window.gamepadCli.ptyWrite(sid, data),
+    write: (sid, data) => terminalClient.ptyWrite(sid, data),
     deliverText: (sid, text) => deliverBulkText(sid, text),
   });
 }
@@ -214,7 +211,7 @@ export async function executeSequenceForSession(sessionId: string, input: string
 export async function executeSequence(input: string): Promise<void> {
   const tm = getTerminalManager();
   const activeId = tm?.getActiveSessionId();
-  if (!activeId || !window.gamepadCli?.ptyWrite) {
+  if (!activeId || !terminalClient.ptyWrite) {
     console.warn('[Renderer] executeSequence — no active terminal');
     return;
   }

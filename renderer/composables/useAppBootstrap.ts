@@ -26,6 +26,7 @@ import '../plans/plan-screen.js';
 import '../screens/sessions-spawn.js';
 import { setTerminalManagerGetter as setSpawnTerminalManagerGetter } from '../screens/sessions-spawn.js';
 import { getTabCycleSessionIds, updateSessionsFocus } from '../screens/sessions.js';
+import { eventsClient, sessionsClient, terminalClient } from '../ipc/clients.js';
 
 // Overview/plan setup functions
 import {
@@ -381,7 +382,7 @@ export async function doSpawnShell(command: string): Promise<void> {
 
       setTimeout(async () => {
         try {
-          await window.gamepadCli.ptyWrite(sessionId, command + '\r');
+          await terminalClient.ptyWrite(sessionId, command + '\r');
         } catch (e) { console.error('[Bootstrap] Failed to write command to shell:', e); }
       }, 300);
 
@@ -431,10 +432,8 @@ function cleanupRendererSession(sessionId: string, detachTerminal = false): void
 }
 
 export async function doCloseSession(sessionId: string): Promise<void> {
-  if (!window.gamepadCli) return;
-
   try {
-    const result = await window.gamepadCli.sessionClose(sessionId);
+    const result = await sessionsClient.sessionClose(sessionId);
     if (!result?.success && result?.error !== 'Session not found') {
       console.error(`[Bootstrap] Failed to close session ${sessionId}:`, result?.error ?? 'unknown error');
       return;
@@ -477,9 +476,9 @@ export async function restoreSnappedBackSession(sessionId: string): Promise<void
 // ============================================================================
 
 function setupIpcListeners(): void {
-  if (!window.gamepadCli) return;
+  if (!eventsClient.onPtyStateChange) return;
 
-  window.gamepadCli.onPtyStateChange((transition) => {
+  eventsClient.onPtyStateChange((transition) => {
     const previous = state.sessionStates.get(transition.sessionId);
     if (previous === transition.newState) return;
     state.sessionStates.set(transition.sessionId, transition.newState);
@@ -489,7 +488,7 @@ function setupIpcListeners(): void {
     }
   });
 
-  window.gamepadCli.onPtyActivityChange((event) => {
+  eventsClient.onPtyActivityChange((event) => {
     if (event.lastOutputAt !== undefined && event.lastOutputAt > 0) {
       state.lastOutputTimes.set(event.sessionId, event.lastOutputAt);
     }
@@ -499,20 +498,20 @@ function setupIpcListeners(): void {
     }
   });
 
-  window.gamepadCli.onPtyExit((sessionId) => {
+  eventsClient.onPtyExit((sessionId) => {
     cleanupRendererSession(sessionId, true);
     void refreshSessions();
   });
 
-  window.gamepadCli.onNotificationClick((event) => {
+  eventsClient.onNotificationClick((event) => {
     const session = state.sessions.find(s => s.id === event.sessionId);
     if (session) {
-      window.gamepadCli?.sessionSetActive(session.id);
+      sessionsClient.sessionSetActive?.(session.id);
       void useNavigationStore().navigateToSession(session.id);
     }
   });
 
-  window.gamepadCli.onSessionSpawned(async (session) => {
+  eventsClient.onSessionSpawned(async (session) => {
     const tm = getTerminalManager();
     if (!tm || tm.has(session.id)) return;
     console.log(`[ExternalSpawn] Adopting session: ${session.id} (${session.cliType})`);
@@ -821,7 +820,7 @@ async function autoResumeSessions(tm: TerminalManager): Promise<void> {
           }
           terminalIds.add(session.id);
           if (session.name && session.name !== session.cliType) {
-            await window.gamepadCli?.sessionRename(session.id, session.name);
+            await sessionsClient.sessionRename?.(session.id, session.name);
             tm.renameSession(session.id, session.name);
           }
         } catch (err) {
