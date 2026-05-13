@@ -37,7 +37,7 @@ export class HelmSessionService {
   listSessions(dirPath?: string): SessionSummary[] {
     return this.sessionManager
       .getAllSessions()
-      .filter((session) => !dirPath || session.workingDir === dirPath)
+      .filter((session) => !dirPath || session.workingDir === dirPath || session.projectPath === dirPath)
       .map((session) => this.toSessionSummary(session));
   }
 
