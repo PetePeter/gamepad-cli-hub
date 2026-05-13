@@ -1,13 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import DraftChip from './DraftChip.vue';
 import PlanChip from './PlanChip.vue';
 import ChipActionBar from './ChipActionBar.vue';
-
-export interface DraftPill {
-  id: string;
-  title: string;
-}
 
 export interface PlanChipItem {
   id: string;
@@ -23,22 +17,17 @@ export interface ChipAction {
 }
 
 const props = defineProps<{
-  drafts: DraftPill[];
   planChips: PlanChipItem[];
   actions: ChipAction[];
   visible: boolean;
-  showNewDraft?: boolean;
 }>();
 
 const emit = defineEmits<{
-  draftClick: [id: string];
   planChipClick: [id: string];
-  newDraft: [];
   actionClick: [sequence: string];
 }>();
 
 const hasContent = computed(() =>
-  props.drafts.length > 0 ||
   props.planChips.length > 0 ||
   props.actions.length > 0,
 );
@@ -46,13 +35,6 @@ const hasContent = computed(() =>
 
 <template>
   <div v-if="visible && hasContent" class="chip-bar draft-strip">
-    <DraftChip
-      v-for="draft in drafts"
-      :key="draft.id"
-      :title="draft.title"
-      @click="emit('draftClick', draft.id)"
-    />
-
     <PlanChip
       v-for="chip in planChips"
       :key="chip.id"
@@ -65,8 +47,6 @@ const hasContent = computed(() =>
 
     <ChipActionBar
       :actions="actions"
-      :show-new-draft="showNewDraft ?? true"
-      @new-draft="emit('newDraft')"
       @action-click="emit('actionClick', $event)"
     />
   </div>

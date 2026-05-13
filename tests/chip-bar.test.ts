@@ -3,7 +3,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import DraftChip from '../renderer/components/chips/DraftChip.vue';
 import PlanChip from '../renderer/components/chips/PlanChip.vue';
 import ChipActionBar from '../renderer/components/chips/ChipActionBar.vue';
 import ChipBar from '../renderer/components/chips/ChipBar.vue';
@@ -12,9 +11,7 @@ import { useChipBarStore } from '../renderer/stores/chip-bar.js';
 import { executeSequenceForSession } from '../renderer/bindings.js';
 
 vi.mock('../renderer/drafts/draft-editor.js', () => ({
-  showDraftEditor: vi.fn(),
   showPlanInEditor: vi.fn(),
-  hideDraftEditor: vi.fn(),
 }));
 
 vi.mock('../renderer/bindings.js', () => ({
@@ -22,14 +19,6 @@ vi.mock('../renderer/bindings.js', () => ({
 }));
 
 describe('Chip components', () => {
-  it('truncates draft chip labels to the legacy 20 char limit', () => {
-    const wrapper = mount(DraftChip, {
-      props: { title: '1234567890123456789012345' },
-    });
-    expect(wrapper.text()).toContain('12345678901234567890…');
-    expect(wrapper.attributes('title')).toBe('1234567890123456789012345');
-  });
-
   it('truncates plan chip labels to the legacy 20 char limit', () => {
     const wrapper = mount(PlanChip, {
       props: { title: 'abcdefghijklmnopqrstuvwxyz', status: 'coding' },
@@ -49,22 +38,18 @@ describe('Chip components', () => {
   it('renders action button previews as tooltips', () => {
     const wrapper = mount(ChipActionBar, {
       props: {
-        showNewDraft: true,
         actions: [{ label: 'Apply', sequence: 'run', preview: 'resolved preview' }],
       },
     });
-    const buttons = wrapper.findAll('button');
-    expect(buttons[1]?.attributes('title')).toBe('resolved preview');
+    expect(wrapper.find('button').attributes('title')).toBe('resolved preview');
   });
 
-  it('hides the chip bar when only the new-draft affordance exists', () => {
+  it('hides the chip bar when there are no plan chips or actions', () => {
     const wrapper = mount(ChipBar, {
       props: {
-        drafts: [],
         planChips: [],
         actions: [],
         visible: true,
-        showNewDraft: true,
       },
     });
     expect(wrapper.find('.draft-strip').exists()).toBe(false);
@@ -90,7 +75,6 @@ describe('useChipBarStore', () => {
     state.planStartableCounts.clear();
     (globalThis as typeof globalThis & { window: any }).window = {
       gamepadCli: {
-        draftList: vi.fn().mockResolvedValue([]),
         planDoingForSession: vi.fn().mockResolvedValue([]),
         planStartableForDir: vi.fn().mockResolvedValue([]),
         configGetChipbarActions: vi.fn().mockResolvedValue({

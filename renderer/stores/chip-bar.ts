@@ -5,17 +5,12 @@ import { resolveChipbarTemplates } from '../drafts/chipbar-templates.js';
 import { executeSequenceForSession } from '../bindings.js';
 import type { PlanStatus, PlanType } from '../../src/types/plan.js';
 import {
-  showDraftEditor as legacyShowDraftEditor,
   showPlanInEditor as legacyShowPlanInEditor,
 } from '../drafts/draft-editor.js';
-
-let draftEditorOpener: ((sessionId: string, draft?: { id: string; label: string; text: string }) => void) | null = legacyShowDraftEditor;
-export function setDraftEditorOpener(fn: typeof draftEditorOpener) { draftEditorOpener = fn; }
 
 let planEditorOpener: ((sessionId: string, plan: any, callbacks: any) => void) | null = legacyShowPlanInEditor;
 export function setPlanEditorOpener(fn: typeof planEditorOpener) { planEditorOpener = fn; }
 
-export interface ChipBarDraft { id: string; label: string; text: string; }
 export interface ChipBarPlan { id: string; humanId?: string; title: string; type?: 'bug' | 'feature' | 'research'; status: 'ready' | 'coding' | 'review' | 'blocked' | 'planning'; }
 export interface ChipBarAction { label: string; sequence: string; preview: string; }
 interface ChipBarActionConfig { actions: Array<{ label: string; sequence: string }>; inboxDir: string; }
@@ -23,7 +18,6 @@ interface ChipBarActionConfig { actions: Array<{ label: string; sequence: string
 const ACTIVE_PLAN_STATUSES = new Set<ChipBarPlan['status']>(['coding', 'review', 'blocked']);
 
 export const useChipBarStore = defineStore('chip-bar', () => {
-  const drafts = ref<ChipBarDraft[]>([]);
   const plans = ref<ChipBarPlan[]>([]);
   const actions = ref<ChipBarAction[]>([]);
   const activeSessionId = ref<string | null>(null);
@@ -32,7 +26,6 @@ export const useChipBarStore = defineStore('chip-bar', () => {
 
   function clear(): void {
     activeSessionId.value = null;
-    drafts.value = [];
     plans.value = [];
     actions.value = [];
     inboxDir.value = '';
@@ -43,21 +36,17 @@ export const useChipBarStore = defineStore('chip-bar', () => {
     activeSessionId.value = sessionId;
     if (!sessionId) { clear(); return; }
 
-    const [nextDrafts, nextPlans, actionConfig] = await Promise.all([loadDrafts(sessionId), loadPlans(sessionId), loadActionConfig()]);
+    const [nextPlans, actionConfig] = await Promise.all([loadPlans(sessionId), loadActionConfig()]);
     if (generation !== refreshGeneration || activeSessionId.value !== sessionId) return;
 
-    drafts.value = nextDrafts;
     plans.value = nextPlans;
     inboxDir.value = actionConfig.inboxDir;
     actions.value = actionConfig.actions.map((action) => ({ ...action, preview: resolveChipbarTemplates(action.sequence, buildTemplateContext(sessionId, actionConfig.inboxDir)) }));
-    state.draftCounts.set(sessionId, nextDrafts.length);
     state.planCodingCounts.set(sessionId, nextPlans.filter((plan) => plan.status !== 'ready').length);
     state.planStartableCounts.set(sessionId, nextPlans.filter((plan) => plan.status === 'ready').length);
   }
 
   function invalidateActions(): void { actions.value = []; inboxDir.value = ''; }
-  function openDraft(draftId: string): void { const draft = drafts.value.find((item) => item.id === draftId); const sessionId = activeSessionId.value; if (!draft || !sessionId) return; draftEditorOpener?.(sessionId, draft); }
-  function openNewDraft(): void { const sessionId = activeSessionId.value; if (!sessionId) return; draftEditorOpener?.(sessionId); }
 
   async function triggerAction(sequence: string): Promise<void> {
     const sessionId = activeSessionId.value;
@@ -94,10 +83,8 @@ export const useChipBarStore = defineStore('chip-bar', () => {
     }
   }
 
-  return { drafts, plans, actions, activeSessionId, clear, refresh, invalidateActions, openDraft, openNewDraft, triggerAction, openPlan };
+  return { plans, actions, activeSessionId, clear, refresh, invalidateActions, triggerAction, openPlan };
 });
-
-async function loadDrafts(sessionId: string): Promise<ChipBarDraft[]> { try { return await window.gamepadCli.draftList(sessionId); } catch { return []; } }
 
 async function loadPlans(sessionId: string): Promise<ChipBarPlan[]> {
   const session = state.sessions.find((item) => item.id === sessionId);

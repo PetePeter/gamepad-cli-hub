@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive, ref } from 'vue';
 import type { PlanStatus, PlanType } from '../../src/types/plan.js';
-import type { PlanCallbacks } from './panels/DraftEditor.vue';
+import type { PlanCallbacks, ContextCallbacks } from './panels/DraftEditor.vue';
 import PlanScreen from './panels/PlanScreen.vue';
 import DraftEditor from './panels/DraftEditor.vue';
 import BackupRestoreModal from './modals/BackupRestoreModal.vue';
@@ -44,6 +44,8 @@ import {
   setDraftEditorVisibilityChecker,
   setPlanChangesChecker,
   setBackupRestoreOpener,
+  setPlanScreenContextEditorOpener,
+  onPlanContextEdit,
 } from '../plans/plan-screen.js';
 import { state } from '../state.js';
 import { loadStoredSessions } from '../session-store.js';
@@ -63,7 +65,7 @@ interface BackupMeta {
 const props = defineProps<{ dirPath: string }>();
 
 const draftEditorVisible = ref(false);
-const draftEditorMode = ref<'draft' | 'plan'>('plan');
+const draftEditorMode = ref<'draft' | 'plan' | 'context'>('plan');
 const draftEditorSessionId = ref('');
 const draftEditorPlanId = ref<string | null>(null);
 const draftEditorPlanStatus = ref<PlanStatus>('planning');
@@ -78,6 +80,10 @@ const draftEditorCompletionNotes = ref('');
 const draftEditorLabel = ref('');
 const draftEditorText = ref('');
 const draftEditorRef = ref<InstanceType<typeof DraftEditor> | null>(null);
+const draftEditorContextId = ref<string | null>(null);
+const draftEditorContextType = ref('Knowledge');
+const draftEditorContextPermission = ref<'readonly' | 'writable'>('readonly');
+const draftEditorContextCallbacks = ref<ContextCallbacks | null>(null);
 
 const backupRestore = reactive({
   visible: false,
@@ -114,8 +120,26 @@ function openPlanEditor(
 
 function closeDraftEditor(): void {
   draftEditorPlanCallbacks.value?.onClose?.();
+  draftEditorContextCallbacks.value?.onClose?.();
   draftEditorPlanId.value = null;
+  draftEditorContextId.value = null;
   draftEditorVisible.value = false;
+}
+
+function openContextEditor(
+  context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string },
+  callbacks: ContextCallbacks,
+): void {
+  draftEditorMode.value = 'context';
+  draftEditorSessionId.value = '';
+  draftEditorContextId.value = context.id;
+  draftEditorContextType.value = context.type;
+  draftEditorContextPermission.value = context.permission;
+  draftEditorLabel.value = context.title;
+  draftEditorText.value = context.content;
+  draftEditorPlanCallbacks.value = null;
+  draftEditorContextCallbacks.value = callbacks;
+  draftEditorVisible.value = true;
 }
 
 async function openBackupRestore(): Promise<void> {
@@ -179,9 +203,15 @@ function onPlanDelete(): void {
   closeDraftEditor();
 }
 
+function onContextDelete(): void {
+  draftEditorContextCallbacks.value?.onDelete?.();
+  closeDraftEditor();
+}
+
 onMounted(async () => {
   document.title = `${props.dirPath} - Plans`;
   setPlanEditorOpener(openPlanEditor);
+  setPlanScreenContextEditorOpener(openContextEditor);
   setDraftEditorCloser(closeDraftEditor);
   setDraftEditorVisibilityChecker(() => draftEditorVisible.value);
   setPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
@@ -234,11 +264,17 @@ onUnmounted(() => {
       :plan-state-updated-at="draftEditorPlanStateUpdatedAt"
       :plan-callbacks="draftEditorPlanCallbacks"
       :completion-notes="draftEditorCompletionNotes"
+      :context-id="draftEditorContextId"
+      :context-type="draftEditorContextType"
+      :context-permission="draftEditorContextPermission"
+      :context-callbacks="draftEditorContextCallbacks"
       @close="closeDraftEditor"
       @plan-save="onPlanSave"
       @plan-apply="onPlanApply"
       @plan-done="onPlanDone"
       @plan-delete="onPlanDelete"
+      @context-save="(u) => draftEditorContextId.value && onPlanContextSave(draftEditorContextId.value, u)"
+      @context-delete="onContextDelete"
     />
     <PlanScreen
       :visible="true"
@@ -275,7 +311,7 @@ onUnmounted(() => {
       @context-bind-target="onPlanContextBindTarget"
       @context-unbind="onPlanContextUnbind"
       @context-select-plan="onPlanContextSelectPlan"
-      @context-save="onPlanContextSave"
+      @context-edit="onPlanContextEdit"
       @context-delete="onPlanContextDelete"
       @edit-node="onPlanNodeEdit"
       @apply-node="onPlanNodeApply"

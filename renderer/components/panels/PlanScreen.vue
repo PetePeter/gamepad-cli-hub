@@ -82,8 +82,8 @@ const emit = defineEmits<{
   contextBindTarget: [id: string, targetType: ContextBindingTargetType, targetId: string];
   contextUnbind: [id: string, targetType: ContextBindingTargetType, targetId: string];
   contextSelectPlan: [planId: string];
-  contextSave: [id: string, updates: { title?: string; type?: string; permission?: 'readonly' | 'writable'; content?: string }];
   contextDelete: [id: string];
+  contextEdit: [id: string];
   editNode: [id: string];
   applyNode: [id: string];
   completeNode: [id: string];
@@ -191,32 +191,6 @@ const positionedContexts = computed(() =>
     y: context.y ?? Math.max(props.layout.height, 600) + 120 + Math.floor(index / 3) * (CONTEXT_H + 20),
   })),
 );
-
-const selectedContext = computed(() =>
-  props.selectedContextId ? positionedContexts.value.find((context) => context.id === props.selectedContextId) ?? null : null,
-);
-
-const selectedContextSequences = computed(() =>
-  props.sequences.filter((sequence) => selectedContext.value?.sequenceIds?.includes(sequence.id)),
-);
-
-const selectedContextPlans = computed(() =>
-  props.items.filter((item) => selectedContext.value?.planIds?.includes(item.id)),
-);
-
-const contextDraft = reactive({
-  title: '',
-  type: '',
-  permission: 'readonly' as 'readonly' | 'writable',
-  content: '',
-});
-
-watch(selectedContext, (value) => {
-  contextDraft.title = value?.title ?? '';
-  contextDraft.type = value?.type ?? 'Knowledge';
-  contextDraft.permission = value?.permission ?? 'readonly';
-  contextDraft.content = value?.content ?? '';
-}, { immediate: true });
 
 const sequenceBoxes = computed(() => {
   const populated: { sequence: PlanSequence; x: number; y: number; width: number; height: number; isEmpty: false }[] = [];
@@ -560,28 +534,9 @@ function handleAddSelection(value: 'plan' | 'context' | 'sequence'): void {
   else openSeqCreate();
 }
 
-function saveContext(): void {
-  if (!selectedContext.value) return;
-  emit('contextSave', selectedContext.value.id, {
-    title: contextDraft.title,
-    type: contextDraft.type,
-    permission: contextDraft.permission,
-    content: contextDraft.content,
-  });
-}
-
 function deleteContext(): void {
-  if (!selectedContext.value) return;
-  emit('contextDelete', selectedContext.value.id);
-}
-
-function unbindContext(targetType: ContextBindingTargetType, targetId: string): void {
-  if (!selectedContext.value) return;
-  emit('contextUnbind', selectedContext.value.id, targetType, targetId);
-}
-
-function selectContextPlan(planId: string): void {
-  emit('contextSelectPlan', planId);
+  if (!props.selectedContextId) return;
+  emit('contextDelete', props.selectedContextId);
 }
 
 function openSeqEdit(sequence: PlanSequence): void {
@@ -894,6 +849,7 @@ onUnmounted(() => {
           :class="{ 'plan-context-card--selected': context.id === selectedContextId }"
           :transform="`translate(${contextDragState?.id === context.id ? contextDragState.x : context.x}, ${contextDragState?.id === context.id ? contextDragState.y : context.y})`"
           @click.stop="emit('contextClick', context.id)"
+          @dblclick.stop="emit('contextEdit', context.id)"
           @mousedown="onContextMouseDown(context.id, $event)"
         >
           <rect :width="CONTEXT_W" :height="CONTEXT_H" rx="12" ry="12" />
@@ -937,9 +893,9 @@ onUnmounted(() => {
       <span>F focus related</span>
     </div>
 
-    <div v-if="selectedItem || selectedContext" class="plan-inspector">
+    <div v-if="selectedItem" class="plan-inspector">
       <div class="plan-inspector__header">
-        <span class="plan-inspector__title">{{ selectedContext ? selectedContext.title : selectedItem?.title }}</span>
+        <span class="plan-inspector__title">{{ selectedItem?.title }}</span>
         <div v-if="selectedItem" class="plan-header__controls">
           <button class="plan-header__btn" @click="emit('editNode', selectedItem.id)">Edit</button>
           <button
@@ -953,59 +909,6 @@ onUnmounted(() => {
             @click="emit('completeNode', selectedItem.id)"
           >Done</button>
           <button class="plan-header__btn plan-header__btn--secondary" @click="emit('deleteNode', selectedItem.id)">Delete</button>
-        </div>
-        <div v-else-if="selectedContext" class="plan-header__controls">
-          <button type="button" class="plan-header__btn" @mousedown.stop @click.stop="saveContext">Save</button>
-          <button type="button" class="plan-header__btn plan-header__btn--secondary" @mousedown.stop @click.stop="deleteContext">Delete</button>
-        </div>
-      </div>
-      <div v-if="selectedContext" class="plan-inspector__body">
-        <label class="plan-context-form">
-          <span>Content</span>
-          <textarea v-model="contextDraft.content" class="plan-context-form__textarea plan-context-form__textarea--content" rows="10" />
-        </label>
-        <label class="plan-context-form">
-          <span>Title</span>
-          <input v-model="contextDraft.title" class="plan-context-form__input">
-        </label>
-        <label class="plan-context-form">
-          <span>Type</span>
-          <input v-model="contextDraft.type" class="plan-context-form__input" list="context-type-options">
-          <datalist id="context-type-options">
-            <option value="Testing" />
-            <option value="Coding" />
-            <option value="Review" />
-            <option value="Knowledge" />
-          </datalist>
-        </label>
-        <label class="plan-context-form">
-          <span>Permission</span>
-          <select v-model="contextDraft.permission" class="plan-context-form__input">
-            <option value="readonly">readonly</option>
-            <option value="writable">writable</option>
-          </select>
-        </label>
-        <div class="plan-context-form">
-          <span>Bound To</span>
-          <div class="plan-context-form__bound-list">
-            <div
-              v-for="plan in selectedContextPlans"
-              :key="`plan-${plan.id}`"
-              class="plan-context-form__bound-chip"
-            >
-              <button type="button" class="plan-context-form__bound-chip-label" @click="selectContextPlan(plan.id)">{{ getDisplayTitle(plan.title, plan.type) }}</button>
-              <button type="button" class="plan-context-form__bound-chip-remove" @click="unbindContext('plan', plan.id)">×</button>
-            </div>
-            <div
-              v-for="sequence in selectedContextSequences"
-              :key="`sequence-${sequence.id}`"
-              class="plan-context-form__bound-chip"
-            >
-              <span class="plan-context-form__bound-chip-label plan-context-form__bound-chip-label--static">{{ sequence.title }}</span>
-              <button type="button" class="plan-context-form__bound-chip-remove" @click="unbindContext('sequence', sequence.id)">×</button>
-            </div>
-            <span v-if="!selectedContext.sequenceIds?.length && !selectedContext.planIds?.length" class="plan-context-form__empty">Drag this card onto a sequence lane or plan card to bind it.</span>
-          </div>
         </div>
       </div>
     </div>
@@ -1230,63 +1133,5 @@ onUnmounted(() => {
 .plan-context-card__bound {
   color: #d8af8b;
   font-size: 10px;
-}
-.plan-context-form {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: #ccc;
-  font-size: 12px;
-}
-.plan-context-form__input,
-.plan-context-form__textarea {
-  background: #171717;
-  border: 1px solid #333;
-  border-radius: 6px;
-  color: #eee;
-  padding: 8px 10px;
-  font: inherit;
-}
-.plan-context-form__textarea {
-  resize: vertical;
-}
-.plan-context-form__textarea--content {
-  min-height: 220px;
-}
-.plan-context-form__bound-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.plan-context-form__bound-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(255, 158, 84, 0.12);
-  border: 1px solid rgba(255, 158, 84, 0.35);
-  color: #ffd1ab;
-}
-.plan-context-form__bound-chip-label {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-.plan-context-form__bound-chip-label--static {
-  cursor: default;
-}
-.plan-context-form__bound-chip-remove {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  line-height: 1;
-}
-.plan-context-form__empty {
-  color: #888;
 }
 </style>

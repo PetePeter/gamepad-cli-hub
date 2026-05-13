@@ -10,15 +10,11 @@ import { useChipBarStore } from '../renderer/stores/chip-bar.js';
 import { state } from '../renderer/state.js';
 import { executeSequenceForSession } from '../renderer/bindings.js';
 
-const mockShowDraftEditor = vi.fn();
 const mockShowPlanInEditor = vi.fn();
-const mockHideDraftEditor = vi.fn();
 const mockDeliverBulkText = vi.fn();
 
 vi.mock('../renderer/drafts/draft-editor.js', () => ({
-  showDraftEditor: (...args: unknown[]) => mockShowDraftEditor(...args),
   showPlanInEditor: (...args: unknown[]) => mockShowPlanInEditor(...args),
-  hideDraftEditor: (...args: unknown[]) => mockHideDraftEditor(...args),
 }));
 
 vi.mock('../renderer/bindings.js', () => ({
@@ -49,7 +45,6 @@ describe('Chip-bar action store behavior', () => {
 
     (globalThis as typeof globalThis & { window: any }).window = {
       gamepadCli: {
-        draftList: vi.fn().mockResolvedValue([]),
         planDoingForSession: vi.fn().mockResolvedValue([]),
         planGetAllDoingForDir: vi.fn().mockResolvedValue([]),
         planStartableForDir: vi.fn().mockResolvedValue([]),
@@ -98,15 +93,6 @@ describe('Chip-bar action store behavior', () => {
     await store.triggerAction('cd {CWD}{enter}');
 
     expect(executeSequenceForSession).toHaveBeenCalledWith('session-1', 'cd C:\\myproject{enter}');
-  });
-
-  it('openNewDraft delegates to the current draft editor', async () => {
-    const store = useChipBarStore();
-
-    await store.refresh('session-1');
-    store.openNewDraft();
-
-    expect(mockShowDraftEditor).toHaveBeenCalledWith('session-1');
   });
 
   it('openPlan shows the plan editor with current callbacks', async () => {

@@ -19,9 +19,15 @@ export interface PlanCallbacks {
   onClose?: () => void;
 }
 
+export interface ContextCallbacks {
+  onSave: (updates: { title: string; content: string; type: string; permission: 'readonly' | 'writable' }) => void;
+  onDelete: () => void;
+  onClose?: () => void;
+}
+
 export interface DraftEditorProps {
   visible: boolean;
-  mode: 'draft' | 'plan';
+  mode: 'draft' | 'plan' | 'context';
   sessionId: string;
   draftId?: string | null;
   initialLabel?: string;
@@ -35,6 +41,10 @@ export interface DraftEditorProps {
   planType?: 'bug' | 'feature' | 'research';
   planAutoImplement?: boolean;
   planCallbacks?: PlanCallbacks | null;
+  contextId?: string | null;
+  contextType?: string;
+  contextPermission?: 'readonly' | 'writable';
+  contextCallbacks?: ContextCallbacks | null;
   completionNotes?: string;
 }
 
@@ -51,6 +61,10 @@ const props = withDefaults(defineProps<DraftEditorProps>(), {
   planType: undefined,
   planAutoImplement: false,
   planCallbacks: null,
+  contextId: null,
+  contextType: 'Knowledge',
+  contextPermission: 'readonly',
+  contextCallbacks: null,
   completionNotes: '',
 });
 
@@ -64,6 +78,8 @@ const emit = defineEmits<{
   'plan-apply': [];
   'plan-done': [];
   'plan-delete': [];
+  'context-save': [updates: { title: string; content: string; type: string; permission: 'readonly' | 'writable' }];
+  'context-delete': [];
 }>();
 
 const label = ref(props.initialLabel);
@@ -83,6 +99,12 @@ const origStatus = ref<PlanStatus>(props.planStatus);
 const origStateInfo = ref(props.planStateInfo);
 const origType = ref<'bug' | 'feature' | 'research' | undefined>(props.planType);
 const origAutoImplement = ref(Boolean(props.planAutoImplement));
+const ctxType = ref(props.contextType);
+const ctxPermission = ref<'readonly' | 'writable'>(props.contextPermission);
+const origCtxType = ref(props.contextType);
+const origCtxPermission = ref(props.contextPermission);
+const ctxTypeInputRef = ref<HTMLInputElement | null>(null);
+const ctxPermissionSelectRef = ref<HTMLSelectElement | null>(null);
 
 const labelInputRef = ref<HTMLInputElement | null>(null);
 const stateSelectRef = ref<HTMLSelectElement | null>(null);
@@ -97,16 +119,18 @@ const attachmentError = ref('');
 
 const resizeObserver = ref<ResizeObserver | null>(null);
 const heightDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
-const editorHeightKey = computed(() => (isDraft.value ? 'draftEditorHeight' : 'planEditorHeight'));
+const editorHeightKey = computed(() => isDraft.value ? 'draftEditorHeight' : isContext.value ? 'contextEditorHeight' : 'planEditorHeight');
 
 const isDraft = computed(() => props.mode === 'draft');
 const isPlan = computed(() => props.mode === 'plan');
+const isContext = computed(() => props.mode === 'context');
 const activePlanStatus = computed<PlanStatus>(() => (
   stateSelectRef.value?.disabled ? props.planStatus : status.value
 ));
 
 const titleText = computed(() => {
   if (isDraft.value) return props.draftId ? '📝 Edit Draft' : '📝 New Draft';
+  if (isContext.value) return 'Edit Context';
   const statusLabels: Record<string, string> = {
     planning: '⏸ Planning', ready: '▶ Ready', coding: '🔄 Coding', review: '⏳ Review', blocked: '⛔ Blocked', done: '✓ Done',
   };
@@ -128,6 +152,7 @@ const applyButtonText = computed(() => isDraft.value ? 'Apply' : (activePlanStat
 
 const hasUnsavedChanges = computed(() => {
   if (isDraft.value) return label.value.trim() !== origLabel.value || text.value !== origText.value;
+  if (isContext.value) return label.value !== origLabel.value || text.value !== origText.value || ctxType.value !== origCtxType.value || ctxPermission.value !== origCtxPermission.value;
   return label.value !== origLabel.value || text.value !== origText.value || status.value !== origStatus.value || stateInfo.value !== origStateInfo.value || type.value !== origType.value || autoImplement.value !== origAutoImplement.value;
 });
 
@@ -150,6 +175,10 @@ const focusableElements = computed<FocusableTarget[]>(() => {
     elements.push(typeSelectRef.value);
     elements.push(stateSelectRef.value);
   }
+  if (isContext.value) {
+    elements.push(ctxTypeInputRef.value);
+    elements.push(ctxPermissionSelectRef.value);
+  }
   if (showPlanStateInfo.value) elements.push(stateInfoRef.value);
   const focusables: FocusableTarget[] = elements.filter(Boolean) as HTMLElement[];
   if (bodyPromptRef.value) focusables.push(bodyPromptRef.value);
@@ -171,6 +200,12 @@ watch(() => props.visible, (visible) => {
     origStateInfo.value = props.planStateInfo;
     origType.value = props.planType;
     origAutoImplement.value = Boolean(props.planAutoImplement);
+    if (isContext.value) {
+      ctxType.value = props.contextType;
+      ctxPermission.value = props.contextPermission;
+      origCtxType.value = props.contextType;
+      origCtxPermission.value = props.contextPermission;
+    }
     saveStatus.value = 'clean';
     focusIndex.value = 0;
     nextTick(() => {
@@ -209,7 +244,22 @@ watch(() => props.planId, () => {
   nextTick(() => { hydratingFromProps.value = false; });
 });
 
-watch([label, text, status, stateInfo, type, autoImplement], () => {
+watch(() => props.contextId, () => {
+  if (!props.visible || !isContext.value) return;
+  hydratingFromProps.value = true;
+  label.value = props.initialLabel;
+  text.value = props.initialText;
+  ctxType.value = props.contextType;
+  ctxPermission.value = props.contextPermission;
+  origLabel.value = props.initialLabel;
+  origText.value = props.initialText;
+  origCtxType.value = props.contextType;
+  origCtxPermission.value = props.contextPermission;
+  saveStatus.value = 'clean';
+  nextTick(() => { hydratingFromProps.value = false; });
+});
+
+watch([label, text, status, stateInfo, type, autoImplement, ctxType, ctxPermission], () => {
   if (!props.visible || hydratingFromProps.value) return;
   if (saveStatus.value === 'clean' || saveStatus.value === 'saved') saveStatus.value = 'unsaved';
   scheduleAutoSave();
@@ -235,6 +285,9 @@ function onSave(): void {
     if (!label.value.trim()) return;
     emit('save', { label: label.value.trim(), text: text.value });
     emit('close');
+  } else if (isContext.value) {
+    emit('context-save', { title: label.value, content: text.value, type: ctxType.value, permission: ctxPermission.value });
+    emit('close');
   } else {
     if (!canSavePlan.value) { stateInfoRef.value?.focus(); return; }
     emit('plan-save', { title: label.value, description: text.value, status: status.value, stateInfo: stateInfo.value.trim(), type: type.value, autoImplement: autoImplement.value });
@@ -254,7 +307,11 @@ function onDone(): void {
   emit('close');
 }
 
-function onDelete(): void { isDraft.value ? emit('delete') : emit('plan-delete'); }
+function onDelete(): void {
+  if (isDraft.value) emit('delete');
+  else if (isContext.value) emit('context-delete');
+  else emit('plan-delete');
+}
 function onCancel(): void { emit('close'); }
 
 function scheduleAutoSave(): void {
@@ -271,6 +328,11 @@ function doAutoSave(): void {
     saveStatus.value = 'saving';
     emit('save', { label: label.value.trim(), text: text.value });
     origLabel.value = label.value.trim(); origText.value = text.value; saveStatus.value = 'saved';
+  } else if (isContext.value) {
+    if (!props.contextCallbacks?.onSave) return;
+    saveStatus.value = 'saving';
+    props.contextCallbacks.onSave({ title: label.value, content: text.value, type: ctxType.value, permission: ctxPermission.value });
+    origLabel.value = label.value; origText.value = text.value; origCtxType.value = ctxType.value; origCtxPermission.value = ctxPermission.value; saveStatus.value = 'saved';
   } else {
     if (!props.planCallbacks?.onSave || !canSavePlan.value) return;
     saveStatus.value = 'saving';
@@ -380,6 +442,15 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
         <input v-model="autoImplement" type="checkbox">
         <span>Auto</span>
       </label>
+      <!-- Context type (free text with datalist) -->
+      <input v-if="isContext" ref="ctxTypeInputRef" v-model="ctxType" type="text" class="draft-editor-plan-select draft-editor-type-select" placeholder="Type..." maxlength="50" list="context-type-options" />
+      <datalist id="context-type-options">
+        <option value="Testing" /><option value="Coding" /><option value="Review" /><option value="Knowledge" />
+      </datalist>
+      <!-- Context permission select -->
+      <select v-if="isContext" ref="ctxPermissionSelectRef" v-model="ctxPermission" class="draft-editor-plan-select draft-editor-permission-select">
+        <option value="readonly">readonly</option><option value="writable">writable</option>
+      </select>
       <select v-if="showPlanStateSelect" ref="stateSelectRef" v-model="status" class="draft-editor-plan-select draft-editor-status-select" @change="onStateSelectChange">
         <option value="planning">⏸ Planning</option><option value="ready">▶ Ready</option><option value="coding">🔄 Coding</option><option value="review">⏳ Review</option><option value="blocked">⛔ Blocked</option><option value="done">✓ Done</option>
       </select>

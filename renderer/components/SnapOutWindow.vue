@@ -18,7 +18,6 @@ import ContextMenu from './modals/ContextMenu.vue';
 import EscProtectionModal from './modals/EscProtectionModal.vue';
 import DraftEditor from './panels/DraftEditor.vue';
 import {
-  setDraftEditorOpener as setChipBarDraftEditorOpener,
   setPlanEditorOpener as setChipBarPlanEditorOpener,
 } from '../stores/chip-bar.js';
 import {
@@ -188,7 +187,6 @@ onMounted(async () => {
   setLegacyDraftEditorVisibilityChecker(() => draftEditorVisible.value && draftEditorRef.value !== null);
   setLegacyDraftEditorButtonHandler((button: string) => { draftEditorRef.value?.handleButton(button); });
   setLegacyPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
-  setChipBarDraftEditorOpener(openDraftEditor);
   setChipBarPlanEditorOpener(() => {});
 
   const handleContextMenu = (e: MouseEvent) => {
@@ -275,11 +273,11 @@ function onContextMenuCancel(): void { contextMenuVisible.value = false; }
 
 <template>
   <div class="snap-out-window" id="mainArea">
-    <ChipBar :drafts="[]" :plan-chips="chipBarPlans" :actions="[]" :visible="true" :show-new-draft="false" @plan-chip-click="onChipBarPlanClick" @action-click="onChipBarAction" />
+    <ChipBar :plan-chips="chipBarPlans" :actions="[]" :visible="true" @plan-chip-click="onChipBarPlanClick" @action-click="onChipBarAction" />
     <DraftEditor v-if="draftEditorVisible" ref="draftEditorRef" :visible="draftEditorVisible" :mode="draftEditorMode" :session-id="draftEditorSessionId" :draft-id="draftEditorDraftId" :initial-label="draftEditorLabel" :initial-text="draftEditorText" :plan-status="draftEditorPlanStatus" :plan-state-info="draftEditorPlanStateInfo" :plan-callbacks="draftEditorPlanCallbacks" @save="onDraftSave" @apply="onDraftApply" @delete="onDraftDelete" @close="onDraftClose" />
     <div ref="containerRef" class="snap-out-terminal"></div>
-    <div v-if="chipActionBarVisible" class="chip-action-dock"><ChipActionBar :actions="chipBarStore.actions" :show-new-draft="false" @action-click="onChipBarAction" /></div>
-    <ContextMenu v-model:visible="contextMenuVisible" :has-selection="contextMenuHasSelection" :has-active-session="true" :has-sequences="false" :has-drafts="chipBarStore.drafts.length > 0" :is-snapped-out="true" :mode="'mouse'" :mouse-x="contextMenu.mouseX" :mouse-y="contextMenu.mouseY" @action="onContextMenuAction" @cancel="onContextMenuCancel" />
+    <div v-if="chipActionBarVisible" class="chip-action-dock"><ChipActionBar :actions="chipBarStore.actions" @action-click="onChipBarAction" /></div>
+    <ContextMenu v-model:visible="contextMenuVisible" :has-selection="contextMenuHasSelection" :has-active-session="true" :has-sequences="false" :has-drafts="false" :is-snapped-out="true" :mode="'mouse'" :mouse-x="contextMenu.mouseX" :mouse-y="contextMenu.mouseY" @action="onContextMenuAction" @cancel="onContextMenuCancel" />
     <EscProtectionModal />
   </div>
 </template>

@@ -31,6 +31,7 @@ export const planScreenState = reactive({
   selectedContextId: null as string | null,
   selectedIds: new Set<string>(),
   editingId: null as string | null,
+  editingContextId: null as string | null,
   notice: '',
   relatedFocusRootId: null as string | null,
   relatedFocusIds: new Set<string>(),
@@ -57,6 +58,7 @@ let openCallback: (() => void) | null = null;
 let planEditorOpener: ((sessionId: string, plan: PlanItem, callbacks: PlanEditorCallbacks) => void) | null = legacyShowPlanInEditor;
 let draftEditorCloser: (() => void) | null = null;
 let draftEditorVisibilityChecker: (() => boolean) | null = null;
+let contextEditorOpener: ((context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string }, callbacks: { onSave: (updates: { title: string; content: string; type: string; permission: 'readonly' | 'writable' }) => void; onDelete: () => void; onClose?: () => void }) => void) | null = null;
 let planChangesChecker: (() => boolean) | null = null;
 let backupRestoreOpener: (() => void) | null = null;
 let noticeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -93,6 +95,7 @@ export function setDraftEditorCloser(fn: typeof draftEditorCloser) { draftEditor
 export function setDraftEditorVisibilityChecker(fn: typeof draftEditorVisibilityChecker) { draftEditorVisibilityChecker = fn; }
 export function setPlanChangesChecker(fn: typeof planChangesChecker) { planChangesChecker = fn; }
 export function setBackupRestoreOpener(opener: () => void): void { backupRestoreOpener = opener; }
+export function setPlanScreenContextEditorOpener(fn: typeof contextEditorOpener) { contextEditorOpener = fn; }
 
 function getLayoutNodes(): LayoutNode[] {
   return planScreenState.layout.nodes;
@@ -350,6 +353,16 @@ function openNodeCompletionEditor(item: PlanItem): void {
   });
 }
 
+function openContextNodeEditor(context: ContextNode & { sequenceIds?: string[]; planIds?: string[] }): void {
+  planScreenState.selectedContextId = context.id;
+  planScreenState.editingContextId = context.id;
+  contextEditorOpener?.(context, {
+    onSave: (updates) => void onPlanContextSave(context.id, updates),
+    onDelete: () => void onPlanContextDelete(context.id),
+    onClose: () => { planScreenState.editingContextId = null; },
+  });
+}
+
 function requestDelete(id: string): void {
   const item = planScreenState.items.find((entry) => entry.id === id);
   if (!item) return;
@@ -370,6 +383,7 @@ function closePlannerOverlay(): void {
   planScreenState.selectedContextId = null;
   planScreenState.selectedIds.clear();
   planScreenState.editingId = null;
+  planScreenState.editingContextId = null;
   planScreenState.relatedFocusRootId = null;
   planScreenState.relatedFocusIds = new Set();
   setRelatedTransientIds([]);
@@ -395,11 +409,12 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
       hidePlanHelpModal();
       return;
     }
-    if (planScreenState.editingId) {
+    if (planScreenState.editingId || planScreenState.editingContextId) {
       draftEditorCloser?.();
       planScreenState.selectedId = null;
       planScreenState.selectedContextId = null;
       planScreenState.editingId = null;
+      planScreenState.editingContextId = null;
       return;
     }
     if (planScreenState.selectedContextId) {
@@ -544,6 +559,8 @@ export function handlePlanScreenDpad(dir: string): boolean {
 export function handlePlanScreenAction(button: string): boolean {
   if (button === 'A') {
     if (planScreenState.selectedContextId) {
+      const ctx = planScreenState.contexts.find((c) => c.id === planScreenState.selectedContextId);
+      if (ctx) openContextNodeEditor(ctx);
       return true;
     }
     if (planScreenState.selectedId) {
@@ -670,6 +687,8 @@ async function handleAddNode(options?: { fromShortcut?: boolean; kind?: 'plan' |
       await refreshCanvas({ preserveTransientFocus: true });
       if (createdId) {
         selectContextById(createdId);
+        const createdCtx = planScreenState.contexts.find((c) => c.id === createdId);
+        if (createdCtx) openContextNodeEditor(createdCtx);
       }
       return;
     }
@@ -857,6 +876,12 @@ export async function onPlanDeleteSequenceWithPlans(id: string): Promise<void> {
 
 export function onPlanContextClick(id: string): void {
   selectContextById(id);
+}
+
+export function onPlanContextEdit(id: string): void {
+  const context = planScreenState.contexts.find((c) => c.id === id);
+  if (!context) return;
+  openContextNodeEditor(context);
 }
 
 export async function onPlanContextMove(id: string, x: number | null, y: number | null): Promise<void> {

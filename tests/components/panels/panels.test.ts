@@ -555,6 +555,180 @@ describe('DraftEditor', () => {
     expect(document.activeElement).toBe(w.find('.draft-editor-content').element);
     w.unmount();
   });
+
+  // --- Context mode ---
+  it('renders context mode with type and permission fields', () => {
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'context',
+        sessionId: '',
+        contextId: 'ctx-1',
+        initialLabel: 'API Notes',
+        initialText: 'Use v2 endpoints',
+        contextType: 'Knowledge',
+        contextPermission: 'readonly',
+        contextCallbacks: { onSave: vi.fn(), onDelete: vi.fn() },
+      },
+    });
+    expect(w.find('.draft-editor-title').text()).toContain('Context');
+    expect((w.find('.draft-editor-label').element as HTMLInputElement).value).toBe('API Notes');
+    expect(w.find('.draft-editor-type-select').exists()).toBe(true);
+    expect(w.find('.draft-editor-status-select').exists()).toBe(false);
+  });
+
+  it('hides plan-only fields in context mode', () => {
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'context',
+        sessionId: '',
+        contextId: 'ctx-1',
+        initialLabel: 'Title',
+        initialText: 'Content',
+        contextType: 'Knowledge',
+        contextPermission: 'writable',
+        contextCallbacks: { onSave: vi.fn(), onDelete: vi.fn() },
+      },
+    });
+    expect(w.find('.draft-editor-status-select').exists()).toBe(false);
+    expect(w.find('.draft-editor-plan-info').exists()).toBe(false);
+    expect(w.find('.draft-editor-plan-checkbox').exists()).toBe(false);
+    expect(w.find('.draft-editor-attachments').exists()).toBe(false);
+    expect(w.find('.draft-editor__completion-notes').exists()).toBe(false);
+  });
+
+  it('hides Done and Apply buttons in context mode', () => {
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'context',
+        sessionId: '',
+        contextId: 'ctx-1',
+        initialLabel: 'Title',
+        initialText: 'Content',
+        contextType: 'Knowledge',
+        contextPermission: 'readonly',
+        contextCallbacks: { onSave: vi.fn(), onDelete: vi.fn(), onDone: vi.fn(), onApply: vi.fn() },
+      },
+    });
+    const labels = w.findAll('.draft-editor-actions button').map((btn) => btn.text());
+    expect(labels).not.toContain('✓ Done');
+    expect(labels).not.toContain('Apply');
+    expect(labels).not.toContain('↻ Apply Again');
+    expect(labels).toContain('Save');
+    expect(labels).toContain('Delete');
+  });
+
+  it('emits context-save with correct payload on save', async () => {
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'context',
+        sessionId: '',
+        contextId: 'ctx-1',
+        initialLabel: 'Title',
+        initialText: 'Content body',
+        contextType: 'Knowledge',
+        contextPermission: 'readonly',
+        contextCallbacks: { onSave: vi.fn(), onDelete: vi.fn() },
+      },
+    });
+    await w.find('.draft-editor-label').setValue('New Title');
+    await w.find('.draft-editor-content').setValue('New content');
+    await w.find('.draft-editor-actions button').trigger('click');
+    expect(w.emitted('context-save')).toEqual([[
+      { title: 'New Title', content: 'New content', type: 'Knowledge', permission: 'readonly' },
+    ]]);
+    expect(w.emitted('close')).toHaveLength(1);
+  });
+
+  it('emits context-delete on delete button click', async () => {
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'context',
+        sessionId: '',
+        contextId: 'ctx-1',
+        initialLabel: 'Title',
+        initialText: 'Content',
+        contextType: 'Knowledge',
+        contextPermission: 'readonly',
+        contextCallbacks: { onSave: vi.fn(), onDelete: vi.fn() },
+      },
+    });
+    const deleteBtn = w.findAll('.draft-editor-actions button').find((btn) => btn.text() === 'Delete');
+    expect(deleteBtn).toBeTruthy();
+    await deleteBtn!.trigger('click');
+    expect(w.emitted('context-delete')).toHaveLength(1);
+  });
+
+  it('auto-saves via contextCallbacks after 500ms debounce', async () => {
+    const onSave = vi.fn();
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'context',
+        sessionId: '',
+        contextId: 'ctx-1',
+        initialLabel: 'Title',
+        initialText: 'Content',
+        contextType: 'Knowledge',
+        contextPermission: 'readonly',
+        contextCallbacks: { onSave, onDelete: vi.fn() },
+      },
+    });
+    await w.find('.draft-editor-label').setValue('Changed');
+    expect(onSave).not.toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(onSave).toHaveBeenCalledWith({
+      title: 'Changed', content: 'Content', type: 'Knowledge', permission: 'readonly',
+    });
+  });
+
+  it('shows unsaved/saving/saved status indicator for context mode', async () => {
+    const onSave = vi.fn().mockImplementation(() => Promise.resolve());
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'context',
+        sessionId: '',
+        contextId: 'ctx-1',
+        initialLabel: 'Title',
+        initialText: 'Content',
+        contextType: 'Knowledge',
+        contextPermission: 'readonly',
+        contextCallbacks: { onSave, onDelete: vi.fn() },
+      },
+    });
+    await w.find('.draft-editor-label').setValue('Changed');
+    expect(w.find('.plan-save-status--unsaved').exists()).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(w.find('.plan-save-status--saved').exists()).toBe(true);
+  });
+
+  it('cycles focus through context fields with gamepad-style input', async () => {
+    const w = mount(DraftEditor, {
+      attachTo: document.body,
+      props: {
+        visible: true,
+        mode: 'context',
+        sessionId: '',
+        contextId: 'ctx-1',
+        initialLabel: 'Title',
+        initialText: 'Content',
+        contextType: 'Knowledge',
+        contextPermission: 'readonly',
+        contextCallbacks: { onSave: vi.fn(), onDelete: vi.fn() },
+      },
+    });
+    const vm = w.vm as any;
+    await Promise.resolve();
+    expect(document.activeElement).toBe(w.find('.draft-editor-label').element);
+    expect(vm.handleButton('DPadDown')).toBe(true);
+    expect(document.activeElement).toBe(w.find('.draft-editor-type-select').element);
+    w.unmount();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -737,6 +911,39 @@ describe('PlanScreen', () => {
     await button!.trigger('click');
     expect(w.emitted('popOut')).toHaveLength(1);
   });
+
+  // --- Context card behavior ---
+  const contextProps = {
+    visible: true,
+    dirPath: '/home/project',
+    items: [],
+    deps: [],
+    layout: { nodes: [], width: 0, height: 0 },
+    selectedId: null as string | null,
+    selectedContextId: null as string | null,
+    notice: '',
+    contexts: [
+      { id: 'ctx-1', title: 'API Notes', type: 'Knowledge', permission: 'readonly' as const, content: 'Use v2', sequenceIds: [], planIds: [] },
+    ],
+    sequences: [],
+    filters: { types: { bug: true, feature: true, research: true, untyped: true }, statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true } },
+  };
+
+  it('emits contextEdit on context card double-click', async () => {
+    const w = mount(PlanScreen, { props: contextProps });
+    await w.find('.plan-context-card').trigger('dblclick');
+    expect(w.emitted('contextEdit')).toEqual([['ctx-1']]);
+  });
+
+  it('does not show inspector panel when a context is selected', () => {
+    const w = mount(PlanScreen, { props: { ...contextProps, selectedContextId: 'ctx-1' } });
+    expect(w.find('.plan-inspector').exists()).toBe(false);
+  });
+
+  it('renders context cards on the canvas', () => {
+    const w = mount(PlanScreen, { props: contextProps });
+    expect(w.findAll('.plan-context-card')).toHaveLength(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -819,66 +1026,35 @@ describe('MainView', () => {
 // ChipBar
 // ---------------------------------------------------------------------------
 describe('ChipBar', () => {
-  const baseDrafts = [
-    { id: 'd1', title: 'Fix bug' },
-    { id: 'd2', title: 'Add feature' },
-  ];
-
   const basePlanChips = [
     { id: 'p1', title: 'Setup DB', status: 'ready' as const },
     { id: 'p2', title: 'Write API', status: 'coding' as const },
   ];
 
-  it('renders drafts and plan chips when visible', () => {
+  it('renders plan chips when visible', () => {
     const w = mount(ChipBar, {
-      props: { drafts: baseDrafts, planChips: basePlanChips, actions: [], visible: true },
+      props: { planChips: basePlanChips, actions: [], visible: true },
     });
-    expect(w.findAll('.draft-pill')).toHaveLength(2);
     expect(w.findAll('.plan-chip')).toHaveLength(2);
   });
 
   it('hides when not visible', () => {
     const w = mount(ChipBar, {
-      props: { drafts: baseDrafts, planChips: basePlanChips, actions: [], visible: false },
+      props: { planChips: basePlanChips, actions: [], visible: false },
     });
     expect(w.find('.chip-bar').exists()).toBe(false);
   });
 
   it('hides when no content', () => {
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: [], actions: [], visible: true },
+      props: { planChips: [], actions: [], visible: true },
     });
     expect(w.find('.chip-bar').exists()).toBe(false);
   });
 
-  it('shows only drafts when no plan chips', () => {
-    const w = mount(ChipBar, {
-      props: { drafts: baseDrafts, planChips: [], actions: [], visible: true },
-    });
-    expect(w.findAll('.draft-pill')).toHaveLength(2);
-    expect(w.findAll('.plan-chip')).toHaveLength(0);
-  });
-
-  it('shows only plan chips when no drafts', () => {
-    const w = mount(ChipBar, {
-      props: { drafts: [], planChips: basePlanChips, actions: [], visible: true },
-    });
-    expect(w.findAll('.draft-pill')).toHaveLength(0);
-    expect(w.findAll('.plan-chip')).toHaveLength(2);
-  });
-
-  it('renders draft titles', () => {
-    const w = mount(ChipBar, {
-      props: { drafts: baseDrafts, planChips: [], actions: [], visible: true },
-    });
-    const pills = w.findAll('.draft-pill');
-    expect(pills[0].text()).toContain('Fix bug');
-    expect(pills[1].text()).toContain('Add feature');
-  });
-
   it('renders plan chip titles with status icons', () => {
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: basePlanChips, actions: [], visible: true },
+      props: { planChips: basePlanChips, actions: [], visible: true },
     });
     const chips = w.findAll('.plan-chip');
     // basePlanChips[0] is 'ready' (blue circle), basePlanChips[1] is 'coding' (green circle)
@@ -890,7 +1066,7 @@ describe('ChipBar', () => {
 
   it('renders plan chip with blocked status icon', () => {
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: [{ id: 'p3', title: 'Blocked', status: 'blocked' as const }], actions: [], visible: true },
+      props: { planChips: [{ id: 'p3', title: 'Blocked', status: 'blocked' as const }], actions: [], visible: true },
     });
     expect(w.find('.plan-chip').text()).toContain('⛔');
   });
@@ -898,22 +1074,14 @@ describe('ChipBar', () => {
   it('renders plan chip with blocked status icon', () => {
     // Note: 'question' status was migrated to 'blocked' in P-0035
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: [{ id: 'p4', title: 'Blocked', status: 'blocked' as const }], actions: [], visible: true },
+      props: { planChips: [{ id: 'p4', title: 'Blocked', status: 'blocked' as const }], actions: [], visible: true },
     });
     expect(w.find('.plan-chip').text()).toContain('⛔');
   });
 
-  it('emits draftClick when draft pill clicked', async () => {
-    const w = mount(ChipBar, {
-      props: { drafts: baseDrafts, planChips: [], actions: [], visible: true },
-    });
-    await w.findAll('.draft-pill')[0].trigger('click');
-    expect(w.emitted('draftClick')).toEqual([['d1']]);
-  });
-
   it('emits planChipClick when plan chip clicked', async () => {
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: basePlanChips, actions: [], visible: true },
+      props: { planChips: basePlanChips, actions: [], visible: true },
     });
     await w.findAll('.plan-chip')[1].trigger('click');
     expect(w.emitted('planChipClick')).toEqual([['p2']]);
@@ -921,7 +1089,7 @@ describe('ChipBar', () => {
 
   it('applies status-specific CSS class on plan chips', () => {
     const w = mount(ChipBar, {
-      props: { drafts: [], planChips: basePlanChips, actions: [], visible: true },
+      props: { planChips: basePlanChips, actions: [], visible: true },
     });
     const chips = w.findAll('.plan-chip');
     expect(chips[0].classes()).toContain('plan-chip--ready');

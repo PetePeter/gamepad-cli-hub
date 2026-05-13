@@ -94,7 +94,7 @@ import { useEditorPopupStore } from './stores/editor-popup.js';
 import DraftEditor from './components/panels/DraftEditor.vue';
 import type { PlanStatus, PlanType } from '../../src/types/plan.js';
 import type { ScheduledTask } from '../../src/types/scheduled-task.js';
-import type { PlanCallbacks } from './components/panels/DraftEditor.vue';
+import type { PlanCallbacks, ContextCallbacks } from './components/panels/DraftEditor.vue';
 import {
   setDraftEditorOpener as setLegacyDraftEditorOpener,
   setPlanEditorOpener as setLegacyPlanEditorOpener,
@@ -105,7 +105,6 @@ import {
 } from './drafts/draft-editor.js';
 import { saveDraftWithStableId } from './drafts/draft-save.js';
 import {
-  setDraftEditorOpener as setChipBarDraftEditorOpener,
   setPlanEditorOpener as setChipBarPlanEditorOpener,
 } from './stores/chip-bar.js';
 import {
@@ -114,6 +113,8 @@ import {
   setDraftEditorVisibilityChecker as setPlanScreenDraftEditorVisibilityChecker,
   setPlanChangesChecker as setPlanScreenPlanChangesChecker,
   setBackupRestoreOpener as setPlanScreenBackupRestoreOpener,
+  setPlanScreenContextEditorOpener,
+  onPlanContextEdit,
 } from './plans/plan-screen.js';
 import { deliverBulkText, deliverViaClipboardPaste } from './paste-handler.js';
 import {
@@ -190,7 +191,7 @@ const editorPopupStore = useEditorPopupStore();
 
 // Draft editor state
 const draftEditorVisible = ref(false);
-const draftEditorMode = ref<'draft' | 'plan'>('draft');
+const draftEditorMode = ref<'draft' | 'plan' | 'context'>('draft');
 const draftEditorSessionId = ref('');
 const draftEditorDraftId = ref<string | null>(null);
 const draftEditorLabel = ref('');
@@ -205,6 +206,10 @@ const draftEditorPlanCreatedAt = ref<number | null>(null);
 const draftEditorPlanStateUpdatedAt = ref<number | null>(null);
 const draftEditorPlanCallbacks = ref<PlanCallbacks | null>(null);
 const draftEditorCompletionNotes = ref('');
+const draftEditorContextId = ref<string | null>(null);
+const draftEditorContextType = ref('Knowledge');
+const draftEditorContextPermission = ref<'readonly' | 'writable'>('readonly');
+const draftEditorContextCallbacks = ref<ContextCallbacks | null>(null);
 const draftEditorRef = ref<InstanceType<typeof DraftEditor> | null>(null);
 let offTextDeliver: (() => void) | null = null;
 let unsubSnapOut: (() => void) | null = null;
@@ -685,8 +690,26 @@ function openPlanEditor(
 
 function closeDraftEditor() {
   draftEditorPlanCallbacks.value?.onClose?.();
+  draftEditorContextCallbacks.value?.onClose?.();
   draftEditorPlanId.value = null;
+  draftEditorContextId.value = null;
   draftEditorVisible.value = false;
+}
+
+function openContextEditor(
+  context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string },
+  callbacks: ContextCallbacks,
+) {
+  draftEditorMode.value = 'context';
+  draftEditorSessionId.value = '';
+  draftEditorContextId.value = context.id;
+  draftEditorContextType.value = context.type;
+  draftEditorContextPermission.value = context.permission;
+  draftEditorLabel.value = context.title;
+  draftEditorText.value = context.content;
+  draftEditorPlanCallbacks.value = null;
+  draftEditorContextCallbacks.value = callbacks;
+  draftEditorVisible.value = true;
 }
 
 function onRequestClose(sessionId: string, displayName: string): void {
@@ -1832,6 +1855,11 @@ function onPlanDelete(): void {
   closeDraftEditor();
 }
 
+function onContextDelete(): void {
+  draftEditorContextCallbacks.value?.onDelete?.();
+  closeDraftEditor();
+}
+
 async function onDraftSubmenuApply(draft: { id: string; text: string }): Promise<void> {
   draftSubmenu.visible = false;
   if (state.activeSessionId && draft.text) {
@@ -2184,10 +2212,10 @@ onMounted(async () => {
     });
     setLegacyPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
 
-    setChipBarDraftEditorOpener(openDraftEditor);
     setChipBarPlanEditorOpener(openPlanEditor);
 
     setPlanScreenPlanEditorOpener(openPlanEditor);
+    setPlanScreenContextEditorOpener(openContextEditor);
     setPlanScreenDraftEditorCloser(closeDraftEditor);
     setPlanScreenDraftEditorVisibilityChecker(() => draftEditorVisible.value);
     setPlanScreenPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
@@ -2434,11 +2462,9 @@ onUnmounted(() => {
     <div class="panel-right" id="mainArea">
       <ChipBar
         id="draftStrip"
-        :drafts="[]"
         :plan-chips="chipBarPlans"
         :actions="[]"
         :visible="chipBarVisible && activeView !== 'overview'"
-        :show-new-draft="false"
         @plan-chip-click="onChipBarPlanClick"
         @action-click="onChipBarAction"
       />
@@ -2461,6 +2487,10 @@ onUnmounted(() => {
         :plan-state-updated-at="draftEditorPlanStateUpdatedAt"
         :plan-callbacks="draftEditorPlanCallbacks"
         :completion-notes="draftEditorCompletionNotes"
+        :context-id="draftEditorContextId"
+        :context-type="draftEditorContextType"
+        :context-permission="draftEditorContextPermission"
+        :context-callbacks="draftEditorContextCallbacks"
         @save="onDraftSave"
         @apply="onDraftApply"
         @delete="onDraftDelete"
@@ -2469,6 +2499,8 @@ onUnmounted(() => {
         @plan-apply="onPlanApply"
         @plan-done="onPlanDone"
         @plan-delete="onPlanDelete"
+        @context-save="(u) => draftEditorContextId.value && onPlanContextSave(draftEditorContextId.value, u)"
+        @context-delete="onContextDelete"
       />
       <div
         v-show="activeView === 'terminal'"
@@ -2526,7 +2558,7 @@ onUnmounted(() => {
         @context-bind-target="onPlanContextBindTarget"
         @context-unbind="onPlanContextUnbind"
         @context-select-plan="onPlanContextSelectPlan"
-        @context-save="onPlanContextSave"
+        @context-edit="onPlanContextEdit"
         @context-delete="onPlanContextDelete"
         @edit-node="onPlanNodeEdit"
         @apply-node="onPlanNodeApply"
@@ -2544,7 +2576,6 @@ onUnmounted(() => {
       <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">
         <ChipActionBar
           :actions="chipBarStore.actions"
-          :show-new-draft="false"
           @action-click="onChipBarAction"
         />
       </div>
