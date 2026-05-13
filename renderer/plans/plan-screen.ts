@@ -94,6 +94,14 @@ const PLAN_SCREEN_KEY_HANDLER_KEY = Symbol.for('helm.planScreen.keyHandler');
 
 let filtersLoaded = false;
 
+function snapshotFilterPreferences() {
+  return {
+    types: { ...planScreenState.filters.types },
+    statuses: { ...planScreenState.filters.statuses },
+    hasAttachment: { ...planScreenState.filters.hasAttachment },
+  };
+}
+
 watch(
   () => ({
     types: planScreenState.filters.types,
@@ -124,7 +132,7 @@ async function loadFilterPreferences(): Promise<void> {
 
 async function saveFilterPreferences(): Promise<void> {
   try {
-    await window.gamepadCli.configSetPlanFilters(planScreenState.filters);
+    await window.gamepadCli.configSetPlanFilters(snapshotFilterPreferences());
   } catch (err) {
     console.error('[PlanScreen] Failed to save filter preferences:', err);
   }

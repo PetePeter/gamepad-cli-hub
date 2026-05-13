@@ -741,6 +741,57 @@ describe('plan screen bridge', () => {
     }));
   });
 
+  it('saves status filters as a plain snapshot for IPC persistence', async () => {
+    const mod = await getModule();
+    const item = planItem('a');
+    const configSetPlanFilters = vi.fn().mockResolvedValue(undefined);
+    (window as any).gamepadCli.configSetPlanFilters = configSetPlanFilters;
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+
+    await mod.showPlanScreen('/test/dir');
+
+    mod.toggleStatusFilter('done');
+    await flushAsyncHandlers();
+
+    const saved = configSetPlanFilters.mock.calls.at(-1)?.[0];
+    expect(saved.statuses.done).toBe(false);
+    expect(saved).not.toBe(mod.planScreenState.filters);
+    expect(saved.statuses).not.toBe(mod.planScreenState.filters.statuses);
+
+    mod.toggleStatusFilter('done');
+
+    expect(saved.statuses.done).toBe(false);
+  });
+
+  it('reloads persisted done filter state after planner remount', async () => {
+    const mod = await getModule();
+    await flushAsyncHandlers();
+
+    const configGetPlanFilters = vi.fn()
+      .mockResolvedValueOnce({
+        types: { bug: true, feature: true, research: true, untyped: true },
+        statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: false },
+        hasAttachment: { yes: true, no: true },
+      })
+      .mockResolvedValueOnce({
+        types: { bug: true, feature: true, research: true, untyped: true },
+        statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: false },
+        hasAttachment: { yes: true, no: true },
+      });
+    (window as any).gamepadCli.configGetPlanFilters = configGetPlanFilters;
+    mockPlanList.mockResolvedValue([planItem('a')]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+
+    await mod.showPlanScreen('/test/dir');
+    mod.hidePlanScreen();
+    await mod.showPlanScreen('/test/dir');
+
+    expect(mod.planScreenState.filters.statuses.done).toBe(false);
+  });
+
   it('eagerly loads persisted filter preferences on module import', async () => {
     const customFilters = {
       types: { bug: false, feature: true, research: false, untyped: true },

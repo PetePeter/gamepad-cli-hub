@@ -195,7 +195,11 @@ const gamepadCliAPI = {
   /**
    * Set plan filter preferences
    */
-  configSetPlanFilters: (filters: { types?: { bug?: boolean; feature?: boolean; research?: boolean; untyped?: boolean }; statuses?: { planning?: boolean; ready?: boolean; coding?: boolean; review?: boolean; blocked?: boolean; done?: boolean } }) =>
+  configSetPlanFilters: (filters: {
+    types?: { bug?: boolean; feature?: boolean; research?: boolean; untyped?: boolean };
+    statuses?: { planning?: boolean; ready?: boolean; coding?: boolean; review?: boolean; blocked?: boolean; done?: boolean };
+    hasAttachment?: { yes?: boolean; no?: boolean };
+  }) =>
     ipcRenderer.invoke('config:setPlanFilters', filters),
 
   configGetSessionGroupPrefs: () =>
