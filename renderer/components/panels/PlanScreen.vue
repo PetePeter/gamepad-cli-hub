@@ -803,14 +803,17 @@ onUnmounted(() => {
               {{ item.humanId || 'Plan' }} · C {{ formatDate(item.createdAt) }} · S {{ formatDate(item.stateUpdatedAt || item.updatedAt) }}
             </div>
           </foreignObject>
-          <foreignObject v-if="item.autoImplement" x="146" y="6" width="46" height="16">
-            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__auto-badge">Auto</div>
-          </foreignObject>
-          <foreignObject x="8" y="42" width="184" :height="item.stateInfo ? 24 : 34">
+          <foreignObject x="8" y="42" width="184" :height="item.stateInfo || item.autoImplement || contextCountByPlanId.get(item.id) ? 24 : 34">
             <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__desc">{{ item.description }}</div>
           </foreignObject>
-          <foreignObject v-if="item.stateInfo" x="8" y="78" width="184" height="16">
-            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__state-info">{{ item.stateInfo }}</div>
+          <foreignObject v-if="item.stateInfo || item.autoImplement || contextCountByPlanId.get(item.id)" x="8" y="78" width="184" height="18">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__bottom-row">
+              <div v-if="item.stateInfo" class="plan-node__state-info">{{ item.stateInfo }}</div>
+              <div class="plan-node__bottom-badges">
+                <span v-if="item.autoImplement" class="plan-node__auto-badge">Auto</span>
+                <span v-if="contextCountByPlanId.get(item.id)" class="plan-context-badge">{{ contextCountByPlanId.get(item.id) }}</span>
+              </div>
+            </div>
           </foreignObject>
           <g
             v-if="item.sequenceId"
@@ -840,9 +843,6 @@ onUnmounted(() => {
             text-anchor="end"
             class="plan-node__attachment-icon"
           >📎</text>
-          <foreignObject v-if="contextCountByPlanId.get(item.id)" x="146" y="5" width="46" height="20">
-            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-context-badge">{{ contextCountByPlanId.get(item.id) }}</div>
-          </foreignObject>
           <circle
             class="plan-node__connector plan-node__connector--out"
             cx="200"
@@ -1024,6 +1024,22 @@ onUnmounted(() => {
   font-size: 12px;
   pointer-events: none;
   user-select: none;
+}
+.plan-node__bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  height: 18px;
+  min-width: 0;
+}
+.plan-node__bottom-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 .plan-context-badge {
   display: inline-flex;

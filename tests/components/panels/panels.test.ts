@@ -744,13 +744,16 @@ describe('DraftEditor', () => {
         contextType: 'Knowledge',
         contextPermission: 'readonly',
         contextCallbacks: { onSave: vi.fn(), onDelete: vi.fn(), onUnbind },
-        contextBoundPlans: [{ id: 'p1', title: 'Fix auth' }],
+        contextBoundPlans: [{ id: 'p1', humanId: 'P-0001', title: 'Fix auth', status: 'ready' }],
         contextBoundSequences: [{ id: 's1', title: 'Auth epic' }],
       },
     });
     const chips = w.findAll('.context-bound-chip');
     expect(chips).toHaveLength(2);
+    expect(chips[0].text()).toContain('🔵');
+    expect(chips[0].text()).toContain('P-0001');
     expect(chips[0].text()).toContain('Fix auth');
+    expect(chips[0].classes()).toContain('plan-chip--ready');
     expect(chips[1].text()).toContain('Auth epic');
   });
 
@@ -784,7 +787,7 @@ describe('DraftEditor', () => {
         contextType: 'Knowledge',
         contextPermission: 'readonly',
         contextCallbacks: { onSave: vi.fn(), onDelete: vi.fn(), onUnbind },
-        contextBoundPlans: [{ id: 'p1', title: 'Fix auth' }],
+        contextBoundPlans: [{ id: 'p1', title: 'Fix auth', status: 'ready' }],
       },
     });
     const removeBtn = w.findAll('.context-bound-chip-remove')[0];
@@ -1019,8 +1022,24 @@ describe('PlanScreen', () => {
     };
     const w = mount(PlanScreen, { props: propsWithContexts });
     expect(w.find('.plan-node').find('.plan-context-badge').exists()).toBe(true);
+    expect(w.find('.plan-node').find('.plan-node__bottom-row').exists()).toBe(true);
     expect(w.find('.plan-context-badge').text()).toBe('1');
     expect(w.find('.plan-context-badge').classes()).toContain('plan-context-badge');
+  });
+
+  it('shows auto and context badges together in the plan node bottom row', () => {
+    const propsWithBadges = {
+      ...contextProps,
+      items: [{ id: 'n1', title: 'Task', description: 'Desc', status: 'ready' as const, autoImplement: true }],
+      contexts: [
+        { id: 'ctx-1', title: 'Notes', type: 'Knowledge', permission: 'readonly' as const, content: '...', sequenceIds: [], planIds: ['n1'] },
+      ],
+      layout: { nodes: [{ id: 'n1', x: 60, y: 60, layer: 0, order: 0 }], width: 320, height: 220 },
+    };
+    const w = mount(PlanScreen, { props: propsWithBadges });
+    const bottomRow = w.find('.plan-node__bottom-row');
+    expect(bottomRow.find('.plan-node__auto-badge').text()).toBe('Auto');
+    expect(bottomRow.find('.plan-context-badge').text()).toBe('1');
   });
 
   it('hides context count badge on plan node when no contexts are bound', () => {

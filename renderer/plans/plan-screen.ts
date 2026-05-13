@@ -912,8 +912,12 @@ export function onPlanContextSelectPlan(planId: string): void {
 export async function onPlanContextSave(
   id: string,
   updates: { title?: string; type?: string; permission?: 'readonly' | 'writable'; content?: string },
+  pendingUnbinds: Array<{ targetType: ContextBindingTargetType; targetId: string }> = [],
 ): Promise<void> {
   await window.gamepadCli.planContextUpdate?.(id, updates);
+  for (const entry of pendingUnbinds) {
+    await window.gamepadCli.planContextUnbind?.(id, entry.targetType, entry.targetId);
+  }
   await refreshCanvas();
   selectContextById(id);
 }

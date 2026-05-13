@@ -9,7 +9,16 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import type { PlanStatus } from '../../src/types/plan.js';
 import type { PlanAttachment } from '../../src/types/plan-attachment.js';
 import { formatDateTime } from '../../utils/date-format.js';
+import { getDisplayTitle } from '../../types.js';
 import PromptTextarea from '../common/PromptTextarea.vue';
+
+type ContextBoundPlan = {
+  id: string;
+  title: string;
+  humanId?: string;
+  type?: 'bug' | 'feature' | 'research';
+  status?: PlanStatus;
+};
 
 export interface PlanCallbacks {
   onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: 'bug' | 'feature' | 'research'; autoImplement?: boolean }) => void;
@@ -46,7 +55,7 @@ export interface DraftEditorProps {
   contextType?: string;
   contextPermission?: 'readonly' | 'writable';
   contextCallbacks?: ContextCallbacks | null;
-  contextBoundPlans?: Array<{ id: string; title: string }>;
+  contextBoundPlans?: ContextBoundPlan[];
   contextBoundSequences?: Array<{ id: string; title: string }>;
   completionNotes?: string;
 }
@@ -157,6 +166,15 @@ const canSavePlan = computed(() => {
 const showDoneButton = computed(() => isPlan.value && !!props.planCallbacks?.onDone && (activePlanStatus.value === 'coding' || activePlanStatus.value === 'review'));
 const showApplyButton = computed(() => isDraft.value || (!!props.planCallbacks?.onApply && (activePlanStatus.value === 'ready' || activePlanStatus.value === 'coding' || activePlanStatus.value === 'review')));
 const applyButtonText = computed(() => isDraft.value ? 'Apply' : (activePlanStatus.value === 'coding' || activePlanStatus.value === 'review') ? '↻ Apply Again' : '▶ Apply');
+
+const STATUS_ICONS: Record<PlanStatus, string> = {
+  planning: '⚪',
+  ready: '🔵',
+  coding: '🟢',
+  review: '⏳',
+  blocked: '⛔',
+  done: '✅',
+};
 
 const hasUnsavedChanges = computed(() => {
   if (isDraft.value) return label.value.trim() !== origLabel.value || text.value !== origText.value;
@@ -326,6 +344,15 @@ function onContextUnbind(targetType: 'plan' | 'sequence', targetId: string): voi
 }
 function onCancel(): void { emit('close'); }
 
+function getBoundPlanStatus(plan: ContextBoundPlan): PlanStatus {
+  return plan.status ?? 'planning';
+}
+
+function getBoundPlanLabel(plan: ContextBoundPlan): string {
+  const title = getDisplayTitle(plan.title, plan.type);
+  return plan.humanId ? `${plan.humanId} ${title}` : title;
+}
+
 function scheduleAutoSave(): void {
   if (autoSaveTimer.value) clearTimeout(autoSaveTimer.value);
   autoSaveTimer.value = setTimeout(() => {
@@ -482,8 +509,15 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
     <div v-if="isContext && hasContextBindings" class="context-bound">
       <div class="context-bound__header"><span class="context-bound__title">Bound To</span></div>
       <div class="context-bound-list">
-        <div v-for="plan in (contextBoundPlans ?? [])" :key="`bp-${plan.id}`" class="context-bound-chip">
-          <span class="context-bound-chip-label">{{ plan.title }}</span>
+        <div
+          v-for="plan in (contextBoundPlans ?? [])"
+          :key="`bp-${plan.id}`"
+          class="context-bound-chip context-bound-chip--plan plan-chip"
+          :class="`plan-chip--${getBoundPlanStatus(plan)}`"
+          :title="getBoundPlanLabel(plan)"
+        >
+          <span>{{ STATUS_ICONS[getBoundPlanStatus(plan)] }}</span>
+          <span class="context-bound-chip-label">{{ getBoundPlanLabel(plan) }}</span>
           <button type="button" class="context-bound-chip-remove" @click="onContextUnbind('plan', plan.id)">&times;</button>
         </div>
         <div v-for="seq in (contextBoundSequences ?? [])" :key="`bs-${seq.id}`" class="context-bound-chip">
@@ -533,7 +567,13 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
 .context-bound__title { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
 .context-bound-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .context-bound-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(255, 158, 84, 0.12); border: 1px solid rgba(255, 158, 84, 0.35); color: #ffd1ab; }
-.context-bound-chip-label { border: 0; background: transparent; color: inherit; font: inherit; cursor: default; }
+.context-bound-chip--plan { padding: 2px 8px; background: var(--bg-tertiary); color: var(--text-primary); max-width: 220px; }
+.context-bound-chip--plan.plan-chip--coding { border: 2px solid #44cc44; }
+.context-bound-chip--plan.plan-chip--ready { border: 2px solid #4488ff; }
+.context-bound-chip--plan.plan-chip--review { border: 2px solid #44ccff; }
+.context-bound-chip--plan.plan-chip--blocked { border: 2px solid #ff9f1a; }
+.context-bound-chip--plan.plan-chip--planning { border: 2px solid #555555; }
+.context-bound-chip-label { border: 0; background: transparent; color: inherit; font: inherit; cursor: default; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .context-bound-chip-remove { border: 0; background: transparent; color: inherit; font-size: 16px; cursor: pointer; line-height: 1; padding: 0 0 0 4px; opacity: 0.6; }
 .context-bound-chip-remove:hover { opacity: 1; }
 </style>

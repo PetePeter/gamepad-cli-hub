@@ -500,6 +500,52 @@ describe('plan screen bridge', () => {
     expect(mod.planScreenState.contexts[0]).toEqual(updatedContext);
   });
 
+  it('applies pending context unbinds only when context edits are saved', async () => {
+    const mod = await getModule();
+    const initialContext = {
+      id: 'ctx-1',
+      dirPath: '/test/dir',
+      title: 'Testing Strategy',
+      type: 'Knowledge',
+      permission: 'readonly',
+      content: 'Before',
+      x: null,
+      y: null,
+      createdAt: 1,
+      updatedAt: 1,
+      sequenceIds: ['seq-1'],
+      planIds: ['a'],
+    };
+    const updatedContext = {
+      ...initialContext,
+      title: 'Updated Strategy',
+      sequenceIds: [],
+      planIds: [],
+      updatedAt: 2,
+    };
+    mockPlanList.mockResolvedValue([planItem('a')]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    mockPlanContextList
+      .mockResolvedValueOnce([initialContext])
+      .mockResolvedValueOnce([updatedContext]);
+    mockPlanContextUpdate.mockResolvedValue(updatedContext);
+    mockPlanContextUnbind.mockResolvedValue(true);
+
+    await mod.showPlanScreen('/test/dir');
+    expect(mockPlanContextUnbind).not.toHaveBeenCalled();
+
+    await mod.onPlanContextSave('ctx-1', { title: 'Updated Strategy' }, [
+      { targetType: 'plan', targetId: 'a' },
+      { targetType: 'sequence', targetId: 'seq-1' },
+    ]);
+
+    expect(mockPlanContextUpdate).toHaveBeenCalledWith('ctx-1', { title: 'Updated Strategy' });
+    expect(mockPlanContextUnbind).toHaveBeenCalledWith('ctx-1', 'plan', 'a');
+    expect(mockPlanContextUnbind).toHaveBeenCalledWith('ctx-1', 'sequence', 'seq-1');
+    expect(mod.planScreenState.contexts[0]).toEqual(updatedContext);
+  });
+
   it('deletes a context through the planner bridge and clears the selection', async () => {
     const mod = await getModule();
     const context = {

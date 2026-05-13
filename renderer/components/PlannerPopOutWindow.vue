@@ -84,8 +84,9 @@ const draftEditorContextId = ref<string | null>(null);
 const draftEditorContextType = ref('Knowledge');
 const draftEditorContextPermission = ref<'readonly' | 'writable'>('readonly');
 const draftEditorContextCallbacks = ref<ContextCallbacks | null>(null);
-const draftEditorContextBoundPlans = ref<Array<{ id: string; title: string }>>([]);
+const draftEditorContextBoundPlans = ref<Array<{ id: string; title: string; humanId?: string; type?: PlanType; status?: PlanStatus }>>([]);
 const draftEditorContextBoundSequences = ref<Array<{ id: string; title: string }>>([]);
+const draftEditorPendingContextUnbinds = ref<Array<{ targetType: 'plan' | 'sequence'; targetId: string }>>([]);
 
 const backupRestore = reactive({
   visible: false,
@@ -125,6 +126,7 @@ function closeDraftEditor(): void {
   draftEditorContextCallbacks.value?.onClose?.();
   draftEditorPlanId.value = null;
   draftEditorContextId.value = null;
+  draftEditorPendingContextUnbinds.value = [];
   draftEditorVisible.value = false;
 }
 
@@ -140,14 +142,48 @@ function openContextEditor(
   draftEditorLabel.value = context.title;
   draftEditorText.value = context.content;
   draftEditorPlanCallbacks.value = null;
-  draftEditorContextCallbacks.value = callbacks;
+  draftEditorPendingContextUnbinds.value = [];
+  draftEditorContextCallbacks.value = {
+    ...callbacks,
+    onSave: (updates) => {
+      void saveContextEditor(context.id, updates);
+    },
+    onUnbind: queueContextUnbind,
+  };
   draftEditorContextBoundPlans.value = (context.planIds ?? [])
     .map((pid) => planScreenState.items.find((item) => item.id === pid))
-    .filter(Boolean) as Array<{ id: string; title: string }>;
+    .filter(Boolean)
+    .map((item) => ({
+      id: item!.id,
+      title: item!.title,
+      humanId: item!.humanId,
+      type: item!.type,
+      status: item!.status,
+    }));
   draftEditorContextBoundSequences.value = (context.sequenceIds ?? [])
     .map((sid) => planScreenState.sequences.find((seq) => seq.id === sid))
     .filter(Boolean) as Array<{ id: string; title: string }>;
   draftEditorVisible.value = true;
+}
+
+function queueContextUnbind(targetType: 'plan' | 'sequence', targetId: string): void {
+  if (targetType === 'plan') {
+    draftEditorContextBoundPlans.value = draftEditorContextBoundPlans.value.filter((plan) => plan.id !== targetId);
+  } else {
+    draftEditorContextBoundSequences.value = draftEditorContextBoundSequences.value.filter((sequence) => sequence.id !== targetId);
+  }
+  if (!draftEditorPendingContextUnbinds.value.some((entry) => entry.targetType === targetType && entry.targetId === targetId)) {
+    draftEditorPendingContextUnbinds.value = [...draftEditorPendingContextUnbinds.value, { targetType, targetId }];
+  }
+}
+
+async function saveContextEditor(
+  id: string,
+  updates: { title?: string; content?: string; type?: string; permission?: 'readonly' | 'writable' },
+): Promise<void> {
+  const pendingUnbinds = draftEditorPendingContextUnbinds.value;
+  draftEditorPendingContextUnbinds.value = [];
+  await onPlanContextSave(id, updates, pendingUnbinds);
 }
 
 async function openBackupRestore(): Promise<void> {
@@ -283,9 +319,8 @@ onUnmounted(() => {
       @plan-apply="onPlanApply"
       @plan-done="onPlanDone"
       @plan-delete="onPlanDelete"
-      @context-save="(u) => draftEditorContextId.value && onPlanContextSave(draftEditorContextId.value, u)"
+      @context-save="(u) => draftEditorContextId.value && saveContextEditor(draftEditorContextId.value, u)"
       @context-delete="onContextDelete"
-      @context-unbind="(t, tid) => draftEditorContextId.value && onPlanContextUnbind(draftEditorContextId.value, t, tid)"
     />
     <PlanScreen
       :visible="true"
