@@ -359,6 +359,7 @@ function openContextNodeEditor(context: ContextNode & { sequenceIds?: string[]; 
   contextEditorOpener?.(context, {
     onSave: (updates) => void onPlanContextSave(context.id, updates),
     onDelete: () => void onPlanContextDelete(context.id),
+    onUnbind: (targetType, targetId) => void onPlanContextUnbind(context.id, targetType, targetId),
     onClose: () => { planScreenState.editingContextId = null; },
   });
 }

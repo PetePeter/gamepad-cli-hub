@@ -22,6 +22,7 @@ export interface PlanCallbacks {
 export interface ContextCallbacks {
   onSave: (updates: { title: string; content: string; type: string; permission: 'readonly' | 'writable' }) => void;
   onDelete: () => void;
+  onUnbind?: (targetType: 'plan' | 'sequence', targetId: string) => void;
   onClose?: () => void;
 }
 
@@ -45,6 +46,8 @@ export interface DraftEditorProps {
   contextType?: string;
   contextPermission?: 'readonly' | 'writable';
   contextCallbacks?: ContextCallbacks | null;
+  contextBoundPlans?: Array<{ id: string; title: string }>;
+  contextBoundSequences?: Array<{ id: string; title: string }>;
   completionNotes?: string;
 }
 
@@ -65,6 +68,8 @@ const props = withDefaults(defineProps<DraftEditorProps>(), {
   contextType: 'Knowledge',
   contextPermission: 'readonly',
   contextCallbacks: null,
+  contextBoundPlans: undefined,
+  contextBoundSequences: undefined,
   completionNotes: '',
 });
 
@@ -124,6 +129,9 @@ const editorHeightKey = computed(() => isDraft.value ? 'draftEditorHeight' : isC
 const isDraft = computed(() => props.mode === 'draft');
 const isPlan = computed(() => props.mode === 'plan');
 const isContext = computed(() => props.mode === 'context');
+const hasContextBindings = computed(() =>
+  isContext.value && ((props.contextBoundPlans?.length ?? 0) + (props.contextBoundSequences?.length ?? 0)) > 0,
+);
 const activePlanStatus = computed<PlanStatus>(() => (
   stateSelectRef.value?.disabled ? props.planStatus : status.value
 ));
@@ -312,6 +320,10 @@ function onDelete(): void {
   else if (isContext.value) emit('context-delete');
   else emit('plan-delete');
 }
+
+function onContextUnbind(targetType: 'plan' | 'sequence', targetId: string): void {
+  props.contextCallbacks?.onUnbind?.(targetType, targetId);
+}
 function onCancel(): void { emit('close'); }
 
 function scheduleAutoSave(): void {
@@ -467,6 +479,20 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
       textarea-class="draft-editor-content"
     />
 
+    <div v-if="isContext && hasContextBindings" class="context-bound">
+      <div class="context-bound__header"><span class="context-bound__title">Bound To</span></div>
+      <div class="context-bound-list">
+        <div v-for="plan in (contextBoundPlans ?? [])" :key="`bp-${plan.id}`" class="context-bound-chip">
+          <span class="context-bound-chip-label">{{ plan.title }}</span>
+          <button type="button" class="context-bound-chip-remove" @click="onContextUnbind('plan', plan.id)">&times;</button>
+        </div>
+        <div v-for="seq in (contextBoundSequences ?? [])" :key="`bs-${seq.id}`" class="context-bound-chip">
+          <span class="context-bound-chip-label">{{ seq.title }}</span>
+          <button type="button" class="context-bound-chip-remove" @click="onContextUnbind('sequence', seq.id)">&times;</button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="isPlan && planId" class="draft-editor-attachments">
       <div class="draft-editor-attachments__header"><span class="draft-editor-attachments__title">Attachments</span><button class="btn btn--secondary btn--sm" @click="addAttachment">Attach File</button></div>
       <div v-if="attachmentError" class="draft-editor-attachments__error">{{ attachmentError }}</div>
@@ -502,4 +528,12 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
 .draft-editor__completion-notes { margin-top: 12px; padding: 12px; background: var(--bg-tertiary); border-radius: 4px; border-left: 3px solid #44cc44; }
 .draft-editor__completion-notes label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
 .draft-editor__completion-notes-text { margin: 0; font-size: 0.9rem; color: var(--text-primary); white-space: pre-wrap; line-height: 1.5; }
+.context-bound { border-top: 1px solid #2a2a2a; padding-top: 10px; margin-top: 4px; }
+.context-bound__header { display: flex; align-items: center; justify-content: space-between; }
+.context-bound__title { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+.context-bound-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.context-bound-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(255, 158, 84, 0.12); border: 1px solid rgba(255, 158, 84, 0.35); color: #ffd1ab; }
+.context-bound-chip-label { border: 0; background: transparent; color: inherit; font: inherit; cursor: default; }
+.context-bound-chip-remove { border: 0; background: transparent; color: inherit; font-size: 16px; cursor: pointer; line-height: 1; padding: 0 0 0 4px; opacity: 0.6; }
+.context-bound-chip-remove:hover { opacity: 1; }
 </style>

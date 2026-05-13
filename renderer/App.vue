@@ -210,6 +210,8 @@ const draftEditorContextId = ref<string | null>(null);
 const draftEditorContextType = ref('Knowledge');
 const draftEditorContextPermission = ref<'readonly' | 'writable'>('readonly');
 const draftEditorContextCallbacks = ref<ContextCallbacks | null>(null);
+const draftEditorContextBoundPlans = ref<Array<{ id: string; title: string }>>([]);
+const draftEditorContextBoundSequences = ref<Array<{ id: string; title: string }>>([]);
 const draftEditorRef = ref<InstanceType<typeof DraftEditor> | null>(null);
 let offTextDeliver: (() => void) | null = null;
 let unsubSnapOut: (() => void) | null = null;
@@ -697,7 +699,7 @@ function closeDraftEditor() {
 }
 
 function openContextEditor(
-  context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string },
+  context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string; planIds?: string[]; sequenceIds?: string[] },
   callbacks: ContextCallbacks,
 ) {
   draftEditorMode.value = 'context';
@@ -709,7 +711,18 @@ function openContextEditor(
   draftEditorText.value = context.content;
   draftEditorPlanCallbacks.value = null;
   draftEditorContextCallbacks.value = callbacks;
+  draftEditorContextBoundPlans.value = (context.planIds ?? [])
+    .map((pid) => planScreenState.items.find((item) => item.id === pid))
+    .filter(Boolean) as Array<{ id: string; title: string }>;
+  draftEditorContextBoundSequences.value = (context.sequenceIds ?? [])
+    .map((sid) => planScreenState.sequences.find((seq) => seq.id === sid))
+    .filter(Boolean) as Array<{ id: string; title: string }>;
   draftEditorVisible.value = true;
+}
+
+function onContextUnbind(targetType: 'plan' | 'sequence', targetId: string): void {
+  if (!draftEditorContextId.value) return;
+  onPlanContextUnbind(draftEditorContextId.value, targetType, targetId);
 }
 
 function onRequestClose(sessionId: string, displayName: string): void {
@@ -2491,6 +2504,8 @@ onUnmounted(() => {
         :context-type="draftEditorContextType"
         :context-permission="draftEditorContextPermission"
         :context-callbacks="draftEditorContextCallbacks"
+        :context-bound-plans="draftEditorContextBoundPlans"
+        :context-bound-sequences="draftEditorContextBoundSequences"
         @save="onDraftSave"
         @apply="onDraftApply"
         @delete="onDraftDelete"
@@ -2501,6 +2516,7 @@ onUnmounted(() => {
         @plan-delete="onPlanDelete"
         @context-save="(u) => draftEditorContextId.value && onPlanContextSave(draftEditorContextId.value, u)"
         @context-delete="onContextDelete"
+        @context-unbind="onContextUnbind"
       />
       <div
         v-show="activeView === 'terminal'"

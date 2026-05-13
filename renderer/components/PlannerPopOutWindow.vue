@@ -84,6 +84,8 @@ const draftEditorContextId = ref<string | null>(null);
 const draftEditorContextType = ref('Knowledge');
 const draftEditorContextPermission = ref<'readonly' | 'writable'>('readonly');
 const draftEditorContextCallbacks = ref<ContextCallbacks | null>(null);
+const draftEditorContextBoundPlans = ref<Array<{ id: string; title: string }>>([]);
+const draftEditorContextBoundSequences = ref<Array<{ id: string; title: string }>>([]);
 
 const backupRestore = reactive({
   visible: false,
@@ -127,7 +129,7 @@ function closeDraftEditor(): void {
 }
 
 function openContextEditor(
-  context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string },
+  context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string; planIds?: string[]; sequenceIds?: string[] },
   callbacks: ContextCallbacks,
 ): void {
   draftEditorMode.value = 'context';
@@ -139,6 +141,12 @@ function openContextEditor(
   draftEditorText.value = context.content;
   draftEditorPlanCallbacks.value = null;
   draftEditorContextCallbacks.value = callbacks;
+  draftEditorContextBoundPlans.value = (context.planIds ?? [])
+    .map((pid) => planScreenState.items.find((item) => item.id === pid))
+    .filter(Boolean) as Array<{ id: string; title: string }>;
+  draftEditorContextBoundSequences.value = (context.sequenceIds ?? [])
+    .map((sid) => planScreenState.sequences.find((seq) => seq.id === sid))
+    .filter(Boolean) as Array<{ id: string; title: string }>;
   draftEditorVisible.value = true;
 }
 
@@ -268,6 +276,8 @@ onUnmounted(() => {
       :context-type="draftEditorContextType"
       :context-permission="draftEditorContextPermission"
       :context-callbacks="draftEditorContextCallbacks"
+      :context-bound-plans="draftEditorContextBoundPlans"
+      :context-bound-sequences="draftEditorContextBoundSequences"
       @close="closeDraftEditor"
       @plan-save="onPlanSave"
       @plan-apply="onPlanApply"
@@ -275,6 +285,7 @@ onUnmounted(() => {
       @plan-delete="onPlanDelete"
       @context-save="(u) => draftEditorContextId.value && onPlanContextSave(draftEditorContextId.value, u)"
       @context-delete="onContextDelete"
+      @context-unbind="(t, tid) => draftEditorContextId.value && onPlanContextUnbind(draftEditorContextId.value, t, tid)"
     />
     <PlanScreen
       :visible="true"

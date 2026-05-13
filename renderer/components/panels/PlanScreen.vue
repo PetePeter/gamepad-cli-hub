@@ -192,6 +192,16 @@ const positionedContexts = computed(() =>
   })),
 );
 
+const contextCountByPlanId = computed(() => {
+  const counts = new Map<string, number>();
+  for (const ctx of props.contexts) {
+    for (const planId of (ctx.planIds ?? [])) {
+      counts.set(planId, (counts.get(planId) ?? 0) + 1);
+    }
+  }
+  return counts;
+});
+
 const sequenceBoxes = computed(() => {
   const populated: { sequence: PlanSequence; x: number; y: number; width: number; height: number; isEmpty: false }[] = [];
   const empty: { sequence: PlanSequence; x: number; y: number; width: number; height: number; isEmpty: true }[] = [];
@@ -830,6 +840,9 @@ onUnmounted(() => {
             text-anchor="end"
             class="plan-node__attachment-icon"
           >📎</text>
+          <foreignObject v-if="contextCountByPlanId.get(item.id)" x="146" y="5" width="46" height="20">
+            <div xmlns="http://www.w3.org/1999/xhtml" class="plan-context-badge">{{ contextCountByPlanId.get(item.id) }}</div>
+          </foreignObject>
           <circle
             class="plan-node__connector plan-node__connector--out"
             cx="200"
@@ -1011,6 +1024,20 @@ onUnmounted(() => {
   font-size: 12px;
   pointer-events: none;
   user-select: none;
+}
+.plan-context-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 158, 84, 0.18);
+  color: #ffbf8a;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
 }
 .plan-node__auto-badge {
   display: inline-flex;

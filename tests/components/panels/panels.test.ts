@@ -729,6 +729,68 @@ describe('DraftEditor', () => {
     expect(document.activeElement).toBe(w.find('.draft-editor-type-select').element);
     w.unmount();
   });
+
+  // --- Context bound-to chips ---
+  it('renders bound-to chips for context mode', () => {
+    const onUnbind = vi.fn();
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'context',
+        sessionId: '',
+        contextId: 'ctx-1',
+        initialLabel: 'API Notes',
+        initialText: 'Use v2',
+        contextType: 'Knowledge',
+        contextPermission: 'readonly',
+        contextCallbacks: { onSave: vi.fn(), onDelete: vi.fn(), onUnbind },
+        contextBoundPlans: [{ id: 'p1', title: 'Fix auth' }],
+        contextBoundSequences: [{ id: 's1', title: 'Auth epic' }],
+      },
+    });
+    const chips = w.findAll('.context-bound-chip');
+    expect(chips).toHaveLength(2);
+    expect(chips[0].text()).toContain('Fix auth');
+    expect(chips[1].text()).toContain('Auth epic');
+  });
+
+  it('hides bound-to section when no bindings exist', () => {
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'context',
+        sessionId: '',
+        contextId: 'ctx-1',
+        initialLabel: 'Title',
+        initialText: 'Content',
+        contextType: 'Knowledge',
+        contextPermission: 'readonly',
+        contextCallbacks: { onSave: vi.fn(), onDelete: vi.fn() },
+      },
+    });
+    expect(w.find('.context-bound-list').exists()).toBe(false);
+  });
+
+  it('calls context unbind callback when unbind button clicked', async () => {
+    const onUnbind = vi.fn();
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'context',
+        sessionId: '',
+        contextId: 'ctx-1',
+        initialLabel: 'Title',
+        initialText: 'Content',
+        contextType: 'Knowledge',
+        contextPermission: 'readonly',
+        contextCallbacks: { onSave: vi.fn(), onDelete: vi.fn(), onUnbind },
+        contextBoundPlans: [{ id: 'p1', title: 'Fix auth' }],
+      },
+    });
+    const removeBtn = w.findAll('.context-bound-chip-remove')[0];
+    await removeBtn.trigger('click');
+    expect(onUnbind).toHaveBeenCalledWith('plan', 'p1');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -943,6 +1005,32 @@ describe('PlanScreen', () => {
   it('renders context cards on the canvas', () => {
     const w = mount(PlanScreen, { props: contextProps });
     expect(w.findAll('.plan-context-card')).toHaveLength(1);
+  });
+
+  // --- Plan node context count badge ---
+  it('shows context count badge on plan node when contexts are bound to it', () => {
+    const propsWithContexts = {
+      ...contextProps,
+      items: [{ id: 'n1', title: 'Task', description: 'Desc', status: 'ready' as const }],
+      contexts: [
+        { id: 'ctx-1', title: 'Notes', type: 'Knowledge', permission: 'readonly' as const, content: '...', sequenceIds: [], planIds: ['n1'] },
+      ],
+      layout: { nodes: [{ id: 'n1', x: 60, y: 60, layer: 0, order: 0 }], width: 320, height: 220 },
+    };
+    const w = mount(PlanScreen, { props: propsWithContexts });
+    expect(w.find('.plan-node').find('.plan-context-badge').exists()).toBe(true);
+    expect(w.find('.plan-context-badge').text()).toBe('1');
+    expect(w.find('.plan-context-badge').classes()).toContain('plan-context-badge');
+  });
+
+  it('hides context count badge on plan node when no contexts are bound', () => {
+    const propsNoBindings = {
+      ...contextProps,
+      items: [{ id: 'n1', title: 'Task', description: 'Desc', status: 'ready' as const }],
+      layout: { nodes: [{ id: 'n1', x: 60, y: 60, layer: 0, order: 0 }], width: 320, height: 220 },
+    };
+    const w = mount(PlanScreen, { props: propsNoBindings });
+    expect(w.find('.plan-node').find('.plan-context-badge').exists()).toBe(false);
   });
 });
 
