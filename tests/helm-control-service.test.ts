@@ -484,6 +484,40 @@ describe('HelmControlService.spawnCli', () => {
     });
   });
 
+  it('matches Windows session and plan directories case-insensitively when setting the working plan', () => {
+    const { service, sessionManager } = makeService();
+    const planManager = (service as any).planManager;
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 's1',
+      name: 'Claude',
+      cliType: 'claude-code',
+      workingDir: 'X:\\coding\\gamepad-cli-hub',
+    });
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({
+      status: 'found',
+      item: {
+        id: 'plan-1',
+        dirPath: 'x:\\coding\\gamepad-cli-hub',
+        title: 'Lowercase drive',
+        description: 'Desc',
+        status: 'ready',
+      },
+    });
+    (planManager.setState as ReturnType<typeof vi.fn>).mockReturnValue({
+      id: 'plan-1',
+      dirPath: 'x:\\coding\\gamepad-cli-hub',
+      title: 'Lowercase drive',
+      description: 'Desc',
+      status: 'coding',
+      sessionId: 's1',
+    });
+
+    const result = service.setSessionWorkingPlan('s1', 'plan-1');
+
+    expect(sessionManager.updateSession).toHaveBeenCalledWith('s1', { currentPlanId: 'plan-1' });
+    expect(result.planTitle).toBe('Lowercase drive');
+  });
+
   it('accepts P-id plan references when setting the explicit working plan', () => {
     const { service, sessionManager } = makeService();
     const planManager = (service as any).planManager;

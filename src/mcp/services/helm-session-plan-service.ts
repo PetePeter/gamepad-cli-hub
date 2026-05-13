@@ -5,6 +5,11 @@ import type { SessionManager } from '../../session/manager.js';
 import type { PlanStatus } from '../../types/plan.js';
 import type { SessionInfo } from '../../types/session.js';
 
+function normalizeDirectoryPath(dirPath: string): string {
+  const normalized = dirPath.replace(/\\/g, '/').replace(/\/+$/, '');
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+}
+
 /**
  * Assigns working plans to sessions with cross-directory and ownership validation.
  */
@@ -29,7 +34,7 @@ export class HelmSessionPlanService {
     if (!plan) {
       throw new Error(`Plan not found: ${planId}`);
     }
-    if (session.workingDir && plan.dirPath !== session.workingDir) {
+    if (session.workingDir && normalizeDirectoryPath(plan.dirPath) !== normalizeDirectoryPath(session.workingDir)) {
       throw new Error(`Plan ${planId} does not belong to session directory ${session.workingDir}`);
     }
     if (plan.status === 'done' || plan.status === 'planning') {
