@@ -18,11 +18,22 @@ describe('Helm branding surfaces', () => {
   it('ships Helm package metadata and renderer assets', () => {
     const pkg = JSON.parse(readRepoFile('package.json'));
 
+    expect(pkg.name).toBe('helm');
     expect(pkg.description).toBe('Helm — steer your fleet of agents');
     expect(pkg.productName).toBe('Helm');
+    expect(pkg.build.appId).toBe('com.helm.desktop');
     expect(pkg.build.productName).toBe('Helm');
     expect(pkg.build.nsis.shortcutName).toBe('Helm');
     expect(pkg.build.files).toContain('dist/renderer/**/*');
+  });
+
+  it('does not use legacy gamepad-cli-hub packaged identity', () => {
+    const pkg = JSON.parse(readRepoFile('package.json'));
+    const mainTs = readRepoFile('src', 'electron', 'main.ts');
+
+    expect(pkg.name).not.toBe('gamepad-cli-hub');
+    expect(pkg.build.appId).not.toBe('com.gamepadcli.hub');
+    expect(mainTs).not.toContain('com.gamepadcli.hub');
   });
 
   it('includes the paper boat mark with the |> sail accent asset', () => {

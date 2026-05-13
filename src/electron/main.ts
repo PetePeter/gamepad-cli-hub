@@ -38,7 +38,7 @@ crashReporter.start({
 });
 
 // Set app identity so Windows toast notifications show our name, not "Electron"
-app.setAppUserModelId('com.gamepadcli.hub');
+app.setAppUserModelId('com.helm.desktop');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

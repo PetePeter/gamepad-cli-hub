@@ -1,5 +1,5 @@
 {
-  "name": "gamepad-cli-hub",
+  "name": "helm",
   "productName": "Helm",
   "version": "1.5.0",
   "main": "dist-electron/main.js",
@@ -25,7 +25,7 @@
   "author": "",
   "license": "MIT",
   "build": {
-    "appId": "com.gamepadcli.hub",
+    "appId": "com.helm.desktop",
     "productName": "Helm",
     "directories": {
       "output": "release"
