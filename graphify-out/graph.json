@@ -102583,9 +102583,9 @@
       "weight": 1.0,
       "_src": "tests_preload_api_contract_test_ts",
       "_tgt": "tests_preload_api_contract_test_collectlegacywindowreferences",
+      "confidence_score": 1.0,
       "source": "tests_preload_api_contract_test_ts",
-      "target": "tests_preload_api_contract_test_collectlegacywindowreferences",
-      "confidence_score": 1.0
+      "target": "tests_preload_api_contract_test_collectlegacywindowreferences"
     },
     {
       "relation": "contains",
