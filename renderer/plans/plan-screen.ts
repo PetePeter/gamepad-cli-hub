@@ -55,14 +55,40 @@ interface RefreshCanvasOptions {
 let fitActiveCallback: (() => void) | null = null;
 let closeCallback: (() => void) | null = null;
 let openCallback: (() => void) | null = null;
-let planEditorOpener: ((sessionId: string, plan: PlanItem, callbacks: PlanEditorCallbacks) => void) | null = legacyShowPlanInEditor;
-let draftEditorCloser: (() => void) | null = null;
-let draftEditorVisibilityChecker: (() => boolean) | null = null;
-let contextEditorOpener: ((context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string }, callbacks: { onSave: (updates: { title: string; content: string; type: string; permission: 'readonly' | 'writable' }) => void; onDelete: () => void; onClose?: () => void }) => void) | null = null;
-let planChangesChecker: (() => boolean) | null = null;
-let backupRestoreOpener: (() => void) | null = null;
 let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 let latestPlanDataLoadToken = 0;
+
+type WindowKey = 'main' | 'popout';
+
+interface WindowCallbacks {
+  planEditorOpener: ((sessionId: string, plan: PlanItem, callbacks: PlanEditorCallbacks) => void) | null;
+  draftEditorCloser: (() => void) | null;
+  draftEditorVisibilityChecker: (() => boolean) | null;
+  contextEditorOpener: ((context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string }, callbacks: { onSave: (updates: { title: string; content: string; type: string; permission: 'readonly' | 'writable' }) => void; onDelete: () => void; onClose?: () => void }) => void) | null;
+  planChangesChecker: (() => boolean) | null;
+  backupRestoreOpener: (() => void) | null;
+}
+
+const callbackRegistry = new Map<WindowKey, WindowCallbacks>();
+
+function getWindowKey(): WindowKey {
+  return window.location.search.includes('plannerPopOut=1') ? 'popout' : 'main';
+}
+
+function getWindowCallbacks(): WindowCallbacks {
+  const key = getWindowKey();
+  if (!callbackRegistry.has(key)) {
+    callbackRegistry.set(key, {
+      planEditorOpener: key === 'main' ? legacyShowPlanInEditor : null,
+      draftEditorCloser: null,
+      draftEditorVisibilityChecker: null,
+      contextEditorOpener: null,
+      planChangesChecker: null,
+      backupRestoreOpener: null,
+    });
+  }
+  return callbackRegistry.get(key)!;
+}
 
 const PLAN_SCREEN_KEY_HANDLER_KEY = Symbol.for('helm.planScreen.keyHandler');
 
@@ -110,12 +136,12 @@ void loadFilterPreferences();
 export function setPlanScreenFitCallback(fn: () => void): void { fitActiveCallback = fn; }
 export function setPlanScreenCloseCallback(fn: () => void): void { closeCallback = fn; }
 export function setPlanScreenOpenCallback(fn: () => void): void { openCallback = fn; }
-export function setPlanEditorOpener(fn: typeof planEditorOpener) { planEditorOpener = fn; }
-export function setDraftEditorCloser(fn: typeof draftEditorCloser) { draftEditorCloser = fn; }
-export function setDraftEditorVisibilityChecker(fn: typeof draftEditorVisibilityChecker) { draftEditorVisibilityChecker = fn; }
-export function setPlanChangesChecker(fn: typeof planChangesChecker) { planChangesChecker = fn; }
-export function setBackupRestoreOpener(opener: () => void): void { backupRestoreOpener = opener; }
-export function setPlanScreenContextEditorOpener(fn: typeof contextEditorOpener) { contextEditorOpener = fn; }
+export function setPlanEditorOpener(fn: WindowCallbacks['planEditorOpener']) { getWindowCallbacks().planEditorOpener = fn; }
+export function setDraftEditorCloser(fn: WindowCallbacks['draftEditorCloser']) { getWindowCallbacks().draftEditorCloser = fn; }
+export function setDraftEditorVisibilityChecker(fn: WindowCallbacks['draftEditorVisibilityChecker']) { getWindowCallbacks().draftEditorVisibilityChecker = fn; }
+export function setPlanChangesChecker(fn: WindowCallbacks['planChangesChecker']) { getWindowCallbacks().planChangesChecker = fn; }
+export function setBackupRestoreOpener(opener: () => void): void { getWindowCallbacks().backupRestoreOpener = opener; }
+export function setPlanScreenContextEditorOpener(fn: WindowCallbacks['contextEditorOpener']) { getWindowCallbacks().contextEditorOpener = fn; }
 
 function getLayoutNodes(): LayoutNode[] {
   return planScreenState.layout.nodes;
@@ -344,7 +370,7 @@ function openNodeEditor(item: PlanItem): void {
   planScreenState.editingId = item.id;
   const targetSessionId = resolvePlanTargetSessionId(item) ?? '';
 
-  planEditorOpener?.(targetSessionId, item, {
+  getWindowCallbacks().planEditorOpener?.(targetSessionId, item, {
     onSave: (updates) => handleSave(item.id, updates),
     onDelete: () => handleDelete(item.id),
     onDone: item.status === 'coding' || item.status === 'review'
@@ -365,7 +391,7 @@ function openNodeCompletionEditor(item: PlanItem): void {
   planScreenState.selectedId = item.id;
   planScreenState.editingId = item.id;
   const targetSessionId = resolvePlanTargetSessionId(item) ?? '';
-  planEditorOpener?.(targetSessionId, { ...item, status: 'done', stateInfo: '' }, {
+  getWindowCallbacks().planEditorOpener?.(targetSessionId, { ...item, status: 'done', stateInfo: '' }, {
     onSave: (updates) => handleSave(item.id, updates),
     onDelete: () => handleDelete(item.id),
     onApply: targetSessionId ? () => handleApplyFromCanvas(item) : undefined,
@@ -376,7 +402,7 @@ function openNodeCompletionEditor(item: PlanItem): void {
 function openContextNodeEditor(context: ContextNode & { sequenceIds?: string[]; planIds?: string[] }): void {
   planScreenState.selectedContextId = context.id;
   planScreenState.editingContextId = context.id;
-  contextEditorOpener?.(context, {
+  getWindowCallbacks().contextEditorOpener?.(context, {
     onSave: (updates) => void onPlanContextSave(context.id, updates),
     onDelete: () => void onPlanContextDelete(context.id),
     onUnbind: (targetType, targetId) => void onPlanContextUnbind(context.id, targetType, targetId),
@@ -431,7 +457,7 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
       return;
     }
     if (planScreenState.editingId || planScreenState.editingContextId) {
-      draftEditorCloser?.();
+      getWindowCallbacks().draftEditorCloser?.();
       planScreenState.selectedId = null;
       planScreenState.selectedContextId = null;
       planScreenState.editingId = null;
@@ -459,7 +485,7 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
     return;
   }
 
-  if (draftEditorVisibilityChecker?.() ?? false) return;
+  if (getWindowCallbacks().draftEditorVisibilityChecker?.() ?? false) return;
   if (editable) return;
 
   if (e.key === 'f' || e.key === 'F') {
@@ -503,7 +529,7 @@ async function mountPlanScreen(params?: unknown, context?: ViewMountContext): Pr
   planScreenState.selectedIds.clear();
   planScreenState.editingId = null;
   hidePlanDeleteConfirm();
-  draftEditorCloser?.();
+  getWindowCallbacks().draftEditorCloser?.();
   openCallback?.();
   await loadFilterPreferences();
   await loadPlanData(dirPath, context);
@@ -512,7 +538,7 @@ async function mountPlanScreen(params?: unknown, context?: ViewMountContext): Pr
 }
 
 function unmountPlanScreen(): void {
-  draftEditorCloser?.();
+  getWindowCallbacks().draftEditorCloser?.();
   closePlannerOverlay();
   if (fitActiveCallback) {
     requestAnimationFrame(fitActiveCallback);
@@ -652,7 +678,7 @@ async function handleDelete(id: string): Promise<void> {
     await window.gamepadCli.planDelete(id);
     planScreenState.selectedId = null;
     planScreenState.editingId = null;
-    draftEditorCloser?.();
+    getWindowCallbacks().draftEditorCloser?.();
     await refreshCanvas();
   } catch (err) {
     console.error('[PlanScreen] Delete failed:', err);
@@ -681,7 +707,7 @@ async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
     planScreenState.selectedId = null;
     planScreenState.editingId = null;
     hidePlanDeleteConfirm();
-    draftEditorCloser?.();
+    getWindowCallbacks().draftEditorCloser?.();
     await refreshCanvas();
   } catch (err) {
     console.error('[PlanScreen] Apply failed:', err);
@@ -720,7 +746,7 @@ async function handleAddNode(options?: { fromShortcut?: boolean; kind?: 'plan' |
       setRelatedTransientIds([...planScreenState.relatedTransientIds, createdId]);
     }
     if (planScreenState.editingId) {
-      draftEditorCloser?.();
+      getWindowCallbacks().draftEditorCloser?.();
       planScreenState.editingId = null;
     }
 
@@ -1024,7 +1050,8 @@ function isBackupRestoreModalVisible(): boolean {
 
 function openBackupRestoreModal(): void {
   if (isBackupRestoreModalVisible()) return;
-  if (backupRestoreOpener) {
-    backupRestoreOpener();
+  const cb = getWindowCallbacks().backupRestoreOpener;
+  if (cb) {
+    cb();
   }
 }
