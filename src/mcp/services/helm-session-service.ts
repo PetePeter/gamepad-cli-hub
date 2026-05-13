@@ -34,10 +34,14 @@ export class HelmSessionService {
     this.planService = new HelmSessionPlanService(sessionManager, planManager, configLoader);
   }
 
-  listSessions(dirPath?: string): SessionSummary[] {
+  listSessions(dirPath?: string, projectId?: string): SessionSummary[] {
     return this.sessionManager
       .getAllSessions()
-      .filter((session) => !dirPath || session.workingDir === dirPath || session.projectPath === dirPath)
+      .filter((session) => {
+        if (!dirPath && !projectId) return true;
+        if (projectId) return session.projectId === projectId;
+        return session.workingDir === dirPath || session.projectPath === dirPath;
+      })
       .map((session) => this.toSessionSummary(session));
   }
 

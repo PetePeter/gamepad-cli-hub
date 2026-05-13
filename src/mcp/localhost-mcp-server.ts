@@ -506,6 +506,16 @@ const TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'directories_list',
+    title: 'List Directories',
+    description: 'List all directories that Helm knows about: configured folders plus directories that currently have plans or sessions. Results are consolidated by canonical project path so worktrees of the same repo appear as one entry.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'projects_list',
     title: 'List Projects',
     description: 'List all known projects with their IDs, names, canonical paths, directories, and root kinds. Call this before creating plans or sessions to discover which project directories Helm tracks.',
@@ -575,11 +585,12 @@ const TOOLS: McpTool[] = [
   {
     name: 'sessions_list',
     title: 'List Sessions',
-    description: 'List currently known Helm sessions, optionally filtered to one working directory. Call this before sending text so you can target an existing session instead of spawning blindly.',
+    description: 'List currently known Helm sessions, optionally filtered to one working directory or project. Call this before sending text so you can target an existing session instead of spawning blindly.',
     inputSchema: {
       type: 'object',
       properties: {
         dirPath: { type: 'string' },
+        projectId: { type: 'string' },
       },
       additionalProperties: false,
     },
@@ -1255,6 +1266,8 @@ export class LocalhostMcpServer {
           asString(args.planId, 'planId is required'),
           asString(args.attachmentId, 'attachmentId is required'),
         );
+      case 'directories_list':
+        return this.service.listDirectories();
       case 'projects_list':
         return this.service.listProjects();
       case 'project_dirs_list':
@@ -1277,7 +1290,10 @@ export class LocalhostMcpServer {
           typeof args.prompt === 'string' ? args.prompt : undefined,
         );
       case 'sessions_list':
-        return this.service.listSessions(typeof args.dirPath === 'string' ? args.dirPath : undefined);
+        return this.service.listSessions(
+          typeof args.dirPath === 'string' ? args.dirPath : undefined,
+          typeof args.projectId === 'string' ? args.projectId : undefined,
+        );
       case 'session_get':
         return requireResult(
           this.service.getSession(asString(args.sessionId ?? args.name, 'sessionId or name is required')),

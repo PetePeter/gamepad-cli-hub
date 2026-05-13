@@ -423,6 +423,11 @@ export class PlanManager extends EventEmitter {
     });
   }
 
+  /** Get all directories that currently have plans. */
+  getAllPlanDirectories(): string[] {
+    return [...new Set([...this.items.values()].map((item) => item.dirPath))];
+  }
+
   /** Get startable items for a directory (computed: items with status 'ready' or items where dependencies are all done). */
   getStartableForDirectory(dirPath: string): PlanItem[] {
     const items = this.getForDirectory(dirPath);

@@ -20,28 +20,50 @@ export class HelmDirectoryService {
     const sessions = this.sessionManager.getAllSessions();
     const consolidated = new Map<string, DirectorySummary>();
 
-    for (const entry of configured) {
-      const project = this.projectStore?.resolveForPath(entry.path);
-      const dirPath = project?.canonicalPath ?? entry.path;
+    const mergeEntry = (rawPath: string, sourceTag: 'config' | 'plans' | 'sessions', name?: string) => {
+      const project = this.projectStore?.resolveForPath(rawPath);
+      const dirPath = project?.canonicalPath ?? rawPath;
       const existing = consolidated.get(dirPath);
       const projectId = project?.id;
       const planCount = this.planManager.getForDirectory(dirPath).length;
       const sessionCount = sessions.filter((session) => {
         if (session.projectPath) return session.projectPath === dirPath;
-        return session.workingDir === entry.path;
+        return session.workingDir === rawPath;
       }).length;
       const source = new Set<Array<'config' | 'plans' | 'sessions'>[number]>(existing?.source ?? []);
-      source.add('config');
+      source.add(sourceTag);
       if (planCount > 0) source.add('plans');
       if (sessionCount > 0) source.add('sessions');
       consolidated.set(dirPath, {
         dirPath,
         ...(projectId ? { projectId } : {}),
-        name: existing?.name ?? entry.name,
+        name: name ?? existing?.name ?? project?.name ?? dirPath.split(/[/\\]/).pop() ?? dirPath,
         source: [...source],
         planCount: Math.max(existing?.planCount ?? 0, planCount),
         sessionCount: Math.max(existing?.sessionCount ?? 0, sessionCount),
       });
+    };
+
+    // 1. Configured directories
+    for (const entry of configured) {
+      mergeEntry(entry.path, 'config', entry.name);
+    }
+
+    // 2. Directories that have plans but aren't configured
+    for (const planDir of this.planManager.getAllPlanDirectories()) {
+      const isConfigured = configured.some((entry) => entry.path === planDir);
+      if (!isConfigured) {
+        mergeEntry(planDir, 'plans');
+      }
+    }
+
+    // 3. Directories that have sessions but aren't configured
+    for (const session of sessions) {
+      if (!session.workingDir) continue;
+      const isConfigured = configured.some((entry) => entry.path === session.workingDir);
+      if (!isConfigured) {
+        mergeEntry(session.workingDir, 'sessions');
+      }
     }
 
     return [...consolidated.values()]

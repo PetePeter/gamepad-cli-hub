@@ -24,6 +24,7 @@ import { HelmContextService } from './services/helm-context-service.js';
 import { HelmTelegramService } from './services/helm-telegram-service.js';
 import { HelmSchedulerService } from './services/helm-scheduler-service.js';
 import { HelmProjectService } from './services/helm-project-service.js';
+import { HelmDirectoryService } from './services/helm-directory-service.js';
 import type { ScheduledTaskManager } from '../session/scheduled-task-manager.js';
 import type { CreateScheduledTaskParams, ScheduledTask, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
 import type { ContextBindingTargetType, ContextNode, ContextPermission, PlanContextRef } from '../types/context.js';
@@ -145,6 +146,7 @@ export class HelmControlService extends EventEmitter {
   private readonly telegramService: HelmTelegramService;
   private readonly schedulerService: HelmSchedulerService | null;
   private readonly projectService: HelmProjectService;
+  private readonly directoryService: HelmDirectoryService;
 
   constructor(
     private readonly planManager: PlanManager,
@@ -166,6 +168,7 @@ export class HelmControlService extends EventEmitter {
     this.telegramService = new HelmTelegramService(configLoader, sessionManager);
     this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager) : null;
     this.projectService = projectStore ? new HelmProjectService(projectStore) : null!;
+    this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager, projectStore);
   }
 
   // ---------------------------------------------------------------------------
@@ -378,6 +381,10 @@ export class HelmControlService extends EventEmitter {
   // CLI listing
   // ---------------------------------------------------------------------------
 
+  listDirectories() {
+    return this.directoryService.listDirectories();
+  }
+
   listClis() {
     const supportedDirPaths = this.configLoader.getWorkingDirectories().map(e => e.path);
     return this.configLoader.getCliTypes().map(cliType => {
@@ -416,8 +423,8 @@ export class HelmControlService extends EventEmitter {
   // Session lifecycle
   // ---------------------------------------------------------------------------
 
-  listSessions(dirPath?: string) {
-    return this.sessionService.listSessions(dirPath);
+  listSessions(dirPath?: string, projectId?: string) {
+    return this.sessionService.listSessions(dirPath, projectId);
   }
 
   getSession(sessionRef: string) {
