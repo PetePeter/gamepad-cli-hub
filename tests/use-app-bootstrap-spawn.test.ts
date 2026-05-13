@@ -9,6 +9,7 @@ const mockChipBarRefresh = vi.fn().mockResolvedValue(undefined);
 const mockCreateTerminal = vi.fn().mockResolvedValue(true);
 const mockGetSession = vi.fn();
 const mockGetSessionIds = vi.fn();
+const mockHydrateFromStore = vi.fn().mockResolvedValue([]);
 
 vi.mock('../renderer/bindings.js', () => ({
   initConfigCache: vi.fn().mockResolvedValue(undefined),
@@ -34,6 +35,8 @@ vi.mock('../renderer/runtime/terminal-provider.js', () => ({
   getTerminalManager: vi.fn(() => ({
     createTerminal: mockCreateTerminal,
     getSessionIds: mockGetSessionIds,
+    getManagedSessions: vi.fn(() => []),
+    hydrateFromStore: mockHydrateFromStore,
     getSession: mockGetSession,
   })),
 }));
@@ -115,8 +118,12 @@ describe('useAppBootstrap doSpawn', () => {
       cwd: '/repo',
       title: 'Claude',
     });
+    mockHydrateFromStore.mockResolvedValue([]);
 
     (globalThis as typeof globalThis & { window: any }).window = {
+      sessionStore: {
+        load: vi.fn().mockResolvedValue([]),
+      },
       gamepadCli: {
         configGetSpawnCommand: vi.fn().mockResolvedValue({ command: 'claude', args: [] }),
         configGetCliTypes: vi.fn().mockResolvedValue(['claude-code']),
@@ -127,7 +134,6 @@ describe('useAppBootstrap doSpawn', () => {
           bookmarked: [],
           overviewHidden: [],
         }),
-        sessionGetAll: vi.fn().mockResolvedValue([]),
         draftList: vi.fn().mockResolvedValue([]),
         planStartableForDir: vi.fn().mockResolvedValue([]),
         planDoingForSession: vi.fn().mockResolvedValue([]),

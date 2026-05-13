@@ -83,8 +83,8 @@ import SnapOutWindow from '../../renderer/components/SnapOutWindow.vue';
 describe('SnapOutWindow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (window as any).gamepadCli = {
-      sessionGetAll: vi.fn().mockResolvedValue([
+    (window as any).sessionStore = {
+      load: vi.fn().mockResolvedValue([
         {
           id: 'session-1',
           name: 'Test Session',
@@ -92,6 +92,8 @@ describe('SnapOutWindow', () => {
           workingDir: 'X:\\coding\\gamepad-cli-hub',
         },
       ]),
+    };
+    (window as any).gamepadCli = {
       configGetEscProtectionEnabled: vi.fn().mockResolvedValue(true),
       onPtyData: vi.fn(() => vi.fn()),
       onPtyExit: vi.fn(() => vi.fn()),

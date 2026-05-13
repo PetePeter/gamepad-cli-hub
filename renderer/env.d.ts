@@ -8,6 +8,22 @@ declare module '*.vue' {
 
 declare global {
   interface Window {
+    sessionStore?: {
+      load: () => Promise<Array<{
+        id: string;
+        name: string;
+        cliType: string;
+        processId: number;
+        workingDir?: string;
+        projectId?: string;
+        projectPath?: string;
+        title?: string;
+        cliSessionName?: string;
+        currentPlanId?: string;
+        lastOutputAt?: number;
+        windowId?: number;
+      }>>;
+    };
     gamepadCli: {
       appVersion: string;
       appStartupReady: () => Promise<void>;

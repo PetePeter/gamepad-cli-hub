@@ -8,6 +8,7 @@ const mockSwitchTo = vi.fn();
 const mockHas = vi.fn();
 const mockGetSessionIds = vi.fn();
 const mockGetSession = vi.fn();
+const mockHydrateFromStore = vi.fn();
 
 vi.mock('../renderer/bindings.js', () => ({
   initConfigCache: vi.fn().mockResolvedValue(undefined),
@@ -35,6 +36,8 @@ vi.mock('../renderer/runtime/terminal-provider.js', () => ({
     switchTo: mockSwitchTo,
     has: mockHas,
     getSessionIds: mockGetSessionIds,
+    getManagedSessions: vi.fn(() => []),
+    hydrateFromStore: mockHydrateFromStore,
     getSession: mockGetSession,
   })),
 }));
@@ -112,10 +115,13 @@ describe('useAppBootstrap restoreSnappedBackSession', () => {
     mockHas.mockReturnValue(false);
     mockGetSessionIds.mockReturnValue([]);
     mockGetSession.mockReturnValue(undefined);
+    mockHydrateFromStore.mockImplementation(async () => {
+      return await (globalThis as typeof globalThis & { window: any }).window.sessionStore.load();
+    });
 
     (globalThis as typeof globalThis & { window: any }).window = {
-      gamepadCli: {
-        sessionGetAll: vi.fn().mockResolvedValue([
+      sessionStore: {
+        load: vi.fn().mockResolvedValue([
           {
             id: 'sess-1',
             name: 'Recovered Session',
@@ -124,6 +130,8 @@ describe('useAppBootstrap restoreSnappedBackSession', () => {
             workingDir: 'X:\\coding\\gamepad-cli-hub',
           },
         ]),
+      },
+      gamepadCli: {
         configGetSessionGroupPrefs: vi.fn().mockResolvedValue({
           order: [],
           collapsed: [],
@@ -166,7 +174,7 @@ describe('useAppBootstrap restoreSnappedBackSession', () => {
   });
 
   it('keeps snapped-out persisted sessions in the sidebar refresh even without a local terminal', async () => {
-    (globalThis as typeof globalThis & { window: any }).window.gamepadCli.sessionGetAll.mockResolvedValue([
+    (globalThis as typeof globalThis & { window: any }).window.sessionStore.load.mockResolvedValue([
       {
         id: 'snap-1',
         name: 'Snapped Session',

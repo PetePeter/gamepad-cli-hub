@@ -61,6 +61,9 @@ describe('ScheduledTasksTab', () => {
       { id: 'sess-2', name: 'other', cliType: 'codex', workingDir: 'X:\\other\\project' },
     ]);
 
+    (window as any).sessionStore = {
+      load: mockSessionGetAll,
+    };
     (window as any).gamepadCli = {
       scheduledTaskList: mockScheduledTaskList,
       scheduledTaskCreate: mockScheduledTaskCreate,
@@ -68,7 +71,6 @@ describe('ScheduledTasksTab', () => {
       scheduledTaskCancel: mockScheduledTaskCancel,
       configGetCliTypes: mockConfigGetCliTypes,
       configGetWorkingDirs: mockConfigGetWorkingDirs,
-      sessionGetAll: mockSessionGetAll,
     };
   });
 
@@ -338,7 +340,7 @@ describe('ScheduledTasksTab', () => {
     expect([...modalStack.topInterceptKeys.value]).toEqual([...FORM_KEYS]);
   });
 
-  it('calls sessionGetAll (not listSessions) and loads sessions on mount', async () => {
+  it('loads sessions from the standalone session store on mount', async () => {
     mountTab();
     await flushPromises();
 

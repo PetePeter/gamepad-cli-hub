@@ -42,6 +42,14 @@ import { refreshPlanBadges } from '../screens/sessions-plans.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
 import { useNavigationStore } from '../stores/navigation.js';
 
+type RendererProjectRecord = {
+  id: string;
+  name: string;
+  canonicalPath: string;
+  alternatePaths?: string[];
+  rootKind?: string;
+};
+
 // Sort preferences (module-level state to match legacy behaviour)
 let sortField: SessionSortField = 'name';
 let sortDirection: SortDirection = 'asc';
@@ -74,6 +82,34 @@ function getSessionCwd(sessionId: string): string {
   return getPersistedSessionCwd(sessionId);
 }
 
+function pathsMatch(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+function findProjectForPath(dirPath?: string): RendererProjectRecord | undefined {
+  if (!dirPath) return undefined;
+  return state.projects.find(project =>
+    pathsMatch(project.canonicalPath, dirPath)
+    || (project.alternatePaths ?? []).some(alt => pathsMatch(alt, dirPath)));
+}
+
+export async function refreshProjects(): Promise<void> {
+  if (!window.gamepadCli?.projectList) return;
+  try {
+    const projects = (await window.gamepadCli.projectList()) || [];
+    state.projects = projects.map((project: RendererProjectRecord) => ({
+      id: project.id,
+      name: project.name,
+      canonicalPath: project.canonicalPath,
+      alternatePaths: project.alternatePaths || [],
+      rootKind: project.rootKind,
+    }));
+  } catch (error) {
+    console.error('[Bootstrap] Failed to load projects:', error);
+    state.projects = [];
+  }
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -95,50 +131,41 @@ export async function refreshSessions(): Promise<void> {
   await initGroupPrefs();
 
   const nextSessions: Session[] = [];
-  let persistedSessions: Session[] = [];
-  try {
-    persistedSessions = (await window.gamepadCli.sessionGetAll()) || [];
-  } catch (e) {
-    console.error('[Bootstrap] Failed to load persisted sessions:', e);
-  }
-  const persistedById = new Map(persistedSessions.map(s => [s.id, s]));
+  await refreshProjects();
 
   const tm = getTerminalManager();
-
-  for (const persisted of persistedSessions) {
-    const terminalSession = tm?.getSession(persisted.id);
-    nextSessions.push({
-      id: persisted.id,
-      name: terminalSession?.name || persisted.name || persisted.cliType,
-      cliType: terminalSession?.cliType || persisted.cliType,
-      processId: persisted.processId ?? 0,
-      workingDir: terminalSession?.cwd || persisted.workingDir || '',
-      title: terminalSession?.title || persisted.title,
-      cliSessionName: persisted.cliSessionName,
-      windowId: persisted.windowId,
-    } as Session);
-
-    if (!state.sessionActivityLevels.has(persisted.id)) {
-      state.sessionActivityLevels.set(persisted.id, 'idle');
-    }
+  const manager = tm as (TerminalManager & {
+    getManagedSessions?: () => Session[];
+    hydrateFromStore?: () => Promise<Session[]>;
+  }) | null;
+  let managedSessions = manager?.getManagedSessions?.() ?? [];
+  try {
+    managedSessions = manager?.hydrateFromStore ? await manager.hydrateFromStore() : managedSessions;
+  } catch (e) {
+    console.error('[Bootstrap] Failed to hydrate terminal sessions:', e);
   }
 
-  if (tm) {
-    for (const id of tm.getSessionIds()) {
-      if (persistedById.has(id)) continue;
-      const session = tm.getSession(id);
-      const cliType = session?.cliType || 'unknown';
-      nextSessions.push({
-        id,
-        name: session?.name || cliType,
-        cliType,
-        processId: 0,
-        workingDir: session?.cwd || '',
-        title: session?.title,
-      } as Session);
-      if (!state.sessionActivityLevels.has(id)) {
-        state.sessionActivityLevels.set(id, 'idle');
-      }
+  for (const managed of managedSessions) {
+    const terminalSession = tm?.getSession(managed.id);
+    const workingDir = terminalSession?.cwd || managed.workingDir || '';
+    const resolvedProject = managed.projectPath ? undefined : findProjectForPath(workingDir);
+    nextSessions.push({
+      id: managed.id,
+      name: terminalSession?.name || managed.name || managed.cliType,
+      cliType: terminalSession?.cliType || managed.cliType,
+      processId: managed.processId ?? 0,
+      workingDir,
+      projectId: managed.projectId || resolvedProject?.id,
+      projectPath: managed.projectPath || resolvedProject?.canonicalPath,
+      title: terminalSession?.title || managed.title,
+      cliSessionName: managed.cliSessionName,
+      windowId: managed.windowId,
+      currentPlanId: managed.currentPlanId,
+      lastOutputAt: managed.lastOutputAt,
+    } as Session);
+
+    if (!state.sessionActivityLevels.has(managed.id)) {
+      state.sessionActivityLevels.set(managed.id, 'idle');
     }
   }
 
@@ -389,6 +416,7 @@ function cleanupRendererSession(sessionId: string, detachTerminal = false): void
   if (detachTerminal && tm?.hasTerminal(sessionId)) {
     tm.detachTerminal(sessionId);
   }
+  tm?.removeManagedSession?.(sessionId);
 
   state.sessionStates.delete(sessionId);
   state.sessionActivityLevels.delete(sessionId);
@@ -767,7 +795,13 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
 
 async function autoResumeSessions(tm: TerminalManager): Promise<void> {
   try {
-    const restoredSessions = await window.gamepadCli?.sessionGetAll();
+    const manager = tm as TerminalManager & {
+      hydrateFromStore?: () => Promise<Session[]>;
+      getManagedSessions?: () => Session[];
+    };
+    const restoredSessions = manager.hydrateFromStore
+      ? await manager.hydrateFromStore()
+      : (manager.getManagedSessions?.() ?? []);
     if (!restoredSessions || restoredSessions.length === 0) return;
 
     const terminalIds = new Set(tm.getSessionIds());

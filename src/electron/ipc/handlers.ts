@@ -156,7 +156,7 @@ export function registerIPCHandlers(
   setupKeyboardHandlers(keyboard);
   setupSystemHandlers(dirname ?? process.cwd());
   setupDraftHandlers(draftManager);
-  setupProjectHandlers(projectStore);
+  setupProjectHandlers(projectStore, planManager);
   setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher);
   setupScheduledTaskHandlers(scheduledTaskManager, windowManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);

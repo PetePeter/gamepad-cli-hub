@@ -10,6 +10,10 @@ import type { DraftPrompt } from '../types/session.js';
 
 const appVersion = ipcRenderer.sendSync('app:getVersionSync') as string;
 
+const sessionStoreAPI = {
+  load: () => ipcRenderer.invoke('session:getAll'),
+};
+
 /**
  * API exposed to the renderer process
  */
@@ -17,11 +21,6 @@ const gamepadCliAPI = {
   // ========================================================================
   // Session Management
   // ========================================================================
-
-  /**
-   * Get all sessions
-   */
-  sessionGetAll: () => ipcRenderer.invoke('session:getAll'),
 
   /**
    * Set the active session
@@ -423,6 +422,10 @@ const gamepadCliAPI = {
 
   /** Get a single project record by ID */
   projectGet: (id: string) => ipcRenderer.invoke('project:get', id),
+
+  /** Create or resolve a project from a canonical directory path */
+  projectCreate: (dirPath: string, name?: string) =>
+    ipcRenderer.invoke('project:create', dirPath, name),
 
   /** Update a project's display name */
   projectUpdate: (id: string, patch: { name: string }) =>
@@ -983,6 +986,7 @@ const gamepadCliAPI = {
  * Expose the API to the renderer via contextBridge
  */
 try {
+  contextBridge.exposeInMainWorld('sessionStore', sessionStoreAPI);
   contextBridge.exposeInMainWorld('gamepadCli', gamepadCliAPI);
   console.log('[Preload] gamepadCli API exposed successfully');
 } catch (error) {
@@ -994,8 +998,10 @@ try {
  */
 declare global {
   interface Window {
+    sessionStore: typeof sessionStoreAPI;
     gamepadCli: typeof gamepadCliAPI;
   }
 }
 
 export type GamepadCliAPI = typeof gamepadCliAPI;
+export type SessionStoreAPI = typeof sessionStoreAPI;

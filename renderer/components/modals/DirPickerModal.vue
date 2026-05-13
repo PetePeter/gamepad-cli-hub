@@ -5,7 +5,7 @@
  * Gamepad D-pad up/down navigates (clamped), A selects, B cancels.
  * Keyboard routed via App.vue bridge → useModalStack → handleButton.
  */
-import { ref, watch, nextTick } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { SELECTION_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { useModalAutofocus } from '../../composables/useModalAutofocus.js';
 import { toDirection, getCliDisplayName } from '../../utils.js';
@@ -13,6 +13,8 @@ import { toDirection, getCliDisplayName } from '../../utils.js';
 interface DirItem {
   name: string;
   path: string;
+  projectId?: string;
+  projectName?: string;
 }
 
 const MODAL_ID = 'dir-picker';
@@ -34,6 +36,22 @@ const selectedIndex = ref(0);
 const modalStack = useModalStack();
 const overlayRef = ref<HTMLElement | null>(null);
 const { focusIntoModal } = useModalAutofocus(overlayRef, '.dir-picker-item--focused');
+
+const sections = computed(() => {
+  const shouldGroup = props.items.some(item => item.projectName);
+  if (!shouldGroup) {
+    return [{ title: '', items: props.items.map((item, index) => ({ item, index })) }];
+  }
+
+  const grouped = new Map<string, { title: string; items: Array<{ item: DirItem; index: number }> }>();
+  props.items.forEach((item, index) => {
+    const title = item.projectName || 'Other';
+    const key = item.projectId || title;
+    if (!grouped.has(key)) grouped.set(key, { title, items: [] });
+    grouped.get(key)!.items.push({ item, index });
+  });
+  return [...grouped.values()];
+});
 
 async function focusCurrentItem(): Promise<void> {
   await nextTick();
@@ -117,21 +135,26 @@ defineExpose({ handleButton });
           aria-label="Directories"
           :aria-activedescendant="items[selectedIndex] ? `dir-picker-option-${selectedIndex}` : undefined"
         >
-          <div
-            v-for="(item, i) in items"
-            :id="`dir-picker-option-${i}`"
-            :key="item.path"
-            class="dir-picker-item focusable"
-            :class="{ 'dir-picker-item--focused': i === selectedIndex }"
-            tabindex="-1"
-            role="option"
-            :aria-selected="i === selectedIndex"
-            @keydown="suppressActivationKey"
-            @click="selectDir(i)"
-          >
-            <span class="dir-picker-item__name">{{ item.name }}</span>
-            <span class="dir-picker-item__path">{{ item.path }}</span>
-          </div>
+          <template v-for="section in sections" :key="section.title || 'directories'">
+            <div v-if="section.title" class="dir-picker-section" role="presentation">
+              {{ section.title }}
+            </div>
+            <div
+              v-for="{ item, index: i } in section.items"
+              :id="`dir-picker-option-${i}`"
+              :key="item.path"
+              class="dir-picker-item focusable"
+              :class="{ 'dir-picker-item--focused': i === selectedIndex }"
+              tabindex="-1"
+              role="option"
+              :aria-selected="i === selectedIndex"
+              @keydown="suppressActivationKey"
+              @click="selectDir(i)"
+            >
+              <span class="dir-picker-item__name">{{ item.name }}</span>
+              <span class="dir-picker-item__path">{{ item.path }}</span>
+            </div>
+          </template>
         </div>
         <div class="modal-footer">
           <button class="btn" tabindex="-1" @keydown="suppressActivationKey" @click="emit('cancel'); emit('update:visible', false)">Cancel</button>
@@ -140,3 +163,13 @@ defineExpose({ handleButton });
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+.dir-picker-section {
+  padding: 10px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+</style>

@@ -1110,6 +1110,42 @@ describe('PlanManager', () => {
     });
   });
 
+  describe('deleteForProject', () => {
+    it('deletes plans, dependencies, and sequences owned by the project', () => {
+      const projectStore = new ProjectStore((cwd, args) => {
+        if (args.includes('--show-toplevel')) {
+          if (cwd.includes('repo-a')) return 'X:\\coding\\repo-a';
+          if (cwd.includes('repo-b')) return 'X:\\coding\\repo-b';
+          return cwd;
+        }
+        if (args.includes('--git-common-dir') && cwd.includes('repo-a')) return 'X:\\coding\\repo-a\\.git';
+        if (args.includes('--git-common-dir') && cwd.includes('repo-b')) return 'X:\\coding\\repo-b\\.git';
+        return null;
+      });
+      const withProjects = new PlanManager(projectStore);
+      const targetProject = projectStore.resolveForPath('X:\\coding\\repo-a');
+      const targetA = withProjects.create('X:\\coding\\repo-a', 'A', '');
+      const targetB = withProjects.create('X:\\coding\\repo-a', 'B', '');
+      const other = withProjects.create('X:\\coding\\repo-b', 'Other', '');
+      const sequence = withProjects.createSequence('X:\\coding\\repo-a', 'Seq');
+      withProjects.assignSequence(targetA.id, sequence.id);
+      withProjects.addDependency(targetA.id, targetB.id);
+
+      const result = withProjects.deleteForProject(targetProject.id);
+
+      expect(result.plansDeleted).toBe(2);
+      expect(result.sequencesDeleted).toBe(1);
+      expect(result.planIds).toEqual(expect.arrayContaining([targetA.id, targetB.id]));
+      expect(withProjects.getItem(targetA.id)).toBeNull();
+      expect(withProjects.getItem(targetB.id)).toBeNull();
+      expect(withProjects.getItem(other.id)).not.toBeNull();
+      expect(withProjects.getSequencesForDirectory('X:\\coding\\repo-a')).toEqual([]);
+      expect(withProjects.exportDirectory('X:\\coding\\repo-b')?.dependencies).toEqual([]);
+      expect(persistence.deletePlanFile).toHaveBeenCalledWith(targetA.id);
+      expect(persistence.deletePlanFile).toHaveBeenCalledWith(targetB.id);
+    });
+  });
+
   describe('bulkAssignSequence', () => {
     it('assigns sequenceId to multiple plans in same dir', () => {
       const a = pm.create('/proj', 'A', '');

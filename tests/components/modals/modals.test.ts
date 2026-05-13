@@ -704,6 +704,21 @@ describe('DirPickerModal.vue', () => {
     w.unmount();
   });
 
+  it('sections directories by project when project metadata is present', () => {
+    const w = factory({
+      items: [
+        { name: 'repo root', path: 'C:\\dev\\repo', projectId: 'p1', projectName: 'Repo' },
+        { name: 'repo app', path: 'C:\\dev\\repo\\app', projectId: 'p1', projectName: 'Repo' },
+        { name: 'other', path: 'C:\\dev\\other', projectId: 'p2', projectName: 'Other' },
+      ],
+    });
+
+    const sections = w.findAll('.dir-picker-section');
+    expect(sections.map(section => section.text())).toEqual(['Repo', 'Other']);
+    expect(w.findAll('.dir-picker-item')).toHaveLength(3);
+    w.unmount();
+  });
+
   it('title includes CLI display name', () => {
     const w = factory();
     expect(w.text()).toContain('Claude');

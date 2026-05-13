@@ -22,6 +22,14 @@ export interface Session {
   windowId?: number;
 }
 
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  canonicalPath: string;
+  alternatePaths: string[];
+  rootKind?: string;
+}
+
 export interface ButtonEvent {
   button: string;
   gamepadIndex: number;
@@ -44,6 +52,8 @@ export interface AppState {
   cliSequencesCache: Record<string, Record<string, Array<{ label: string; sequence: string }>>>;
   /** Per-CLI tool config (paste mode, commands, etc.) — populated by initConfigCache. */
   cliToolsCache: Record<string, { pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'; submitSuffix?: string; [k: string]: any }>;
+  /** Project registry shared by sidebar, settings, and planner surfaces. */
+  projects: ProjectSummary[];
   settingsTab: string;
   activeProfile: string;
   /** Per-session AIAGENT state (idle, waiting, implementing, etc.) */
@@ -91,6 +101,7 @@ export const state: AppState = reactive({
   cliBindingsCache: {},
   cliSequencesCache: {},
   cliToolsCache: {},
+  projects: [],
   settingsTab: 'profiles',
   activeProfile: 'default',
   sessionStates: new Map(),

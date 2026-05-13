@@ -62,7 +62,8 @@ export function dirDisplayName(dirPath: string): string {
  * from different sources (project store vs session config) match reliably.
  */
 function pathsMatch(a: string, b: string): boolean {
-  if (process.platform === 'win32') {
+  const platform = typeof process !== 'undefined' ? process.platform : undefined;
+  if (platform === 'win32' || platform === undefined) {
     return a.toLowerCase() === b.toLowerCase();
   }
   return a === b;
@@ -70,24 +71,23 @@ function pathsMatch(a: string, b: string): boolean {
 
 /**
  * Resolve the best display name for a directory path.
- * Priority: configured directory name > project name > path tail.
+ * Priority: project name > configured directory name > path tail.
  */
 export function resolveGroupDisplayName(
   dirPath: string,
   directories: Array<{ name: string; path: string }>,
   projects?: Array<{ name: string; canonicalPath: string; alternatePaths: string[] }>,
 ): string {
-  // 1. Configured directory name (existing behavior)
-  const dirMatch = directories.find(d => pathsMatch(d.path, dirPath));
-  if (dirMatch) return dirMatch.name;
-
-  // 2. Project name match against canonical + alternate paths
+  // Project identity is the durable owner. Directory labels are only fallback aliases.
   if (projects) {
     for (const project of projects) {
       if (pathsMatch(project.canonicalPath, dirPath)) return project.name;
       if (project.alternatePaths.some(alt => pathsMatch(alt, dirPath))) return project.name;
     }
   }
+
+  const dirMatch = directories.find(d => pathsMatch(d.path, dirPath));
+  if (dirMatch) return dirMatch.name;
 
   // 3. Fallback to last path segment
   return dirDisplayName(dirPath);
@@ -112,7 +112,7 @@ export function groupSessionsByDirectory(
   // Bucket sessions by directory
   const buckets = new Map<string, Session[]>();
   for (const session of sessions) {
-    const dir = getDir(session.id) || session.projectPath || session.workingDir || '';
+    const dir = session.projectPath || getDir(session.id) || session.workingDir || '';
     if (!buckets.has(dir)) buckets.set(dir, []);
     buckets.get(dir)!.push(session);
   }

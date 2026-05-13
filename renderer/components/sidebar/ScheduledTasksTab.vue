@@ -10,6 +10,7 @@ import DirPickerModal from '../modals/DirPickerModal.vue';
 import PromptTextarea from '../common/PromptTextarea.vue';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
+import { loadStoredSessions } from '../../session-store.js';
 
 const emit = defineEmits<{
   'task-created': [task: ScheduledTask];
@@ -186,7 +187,7 @@ async function openDirPickerModal(): Promise<void> {
 }
 function onDirSelected(path: string): void { selectedDirPath.value = path; selectedTargetSessionId.value = ''; dirPickerVisible.value = false; if (formMode.value === 'direct') loadSessions(); }
 async function loadSessions(): Promise<void> {
-  try { availableSessions.value = await window.gamepadCli.sessionGetAll() as Array<{ id: string; name: string; cliType: string; workingDir?: string }>; }
+  try { availableSessions.value = await loadStoredSessions() as Array<{ id: string; name: string; cliType: string; workingDir?: string }>; }
   catch { availableSessions.value = []; }
 }
 

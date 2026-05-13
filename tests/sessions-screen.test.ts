@@ -193,6 +193,28 @@ function createMockTerminalManager(sessionData: Array<{ id: string; cliType: str
   return {
     getSessionIds: () => Array.from(sessionsMap.keys()),
     getSession: (id: string) => sessionsMap.get(id),
+    getManagedSessions: () => Array.from(sessionsMap.values()).map((session) => ({
+      id: session.sessionId,
+      name: session.name,
+      cliType: session.cliType,
+      processId: 0,
+      title: session.title,
+    })),
+    hydrateFromStore: async () => {
+      const stored = await (window as any).sessionStore.load();
+      const merged = new Map(stored.map((session: any) => [session.id, session]));
+      for (const session of sessionsMap.values()) {
+        merged.set(session.sessionId, {
+          ...(merged.get(session.sessionId) ?? {}),
+          id: session.sessionId,
+          name: session.name,
+          cliType: session.cliType,
+          processId: 0,
+          title: session.title,
+        });
+      }
+      return Array.from(merged.values());
+    },
     getActiveSessionId: () => null,
     hasTerminal: (id: string) => sessionsMap.has(id),
     switchTo: mockSwitchTo,
@@ -228,7 +250,6 @@ describe('Sessions Screen', () => {
     buildSidebarDom();
 
     (window as any).gamepadCli = {
-      sessionGetAll: mockSessionGetAll,
       sessionSetActive: mockSessionSetActive,
       sessionClose: mockSessionClose,
       sessionSetState: mockSessionSetState,
@@ -245,6 +266,9 @@ describe('Sessions Screen', () => {
       planStartableForDir: vi.fn().mockResolvedValue([]),
       planDoingForSession: mockPlanDoingForSession,
       onPlanChanged: vi.fn(() => vi.fn()),
+    };
+    (window as any).sessionStore = {
+      load: mockSessionGetAll,
     };
 
     state = await getState();
@@ -1487,8 +1511,8 @@ describe('Sessions Screen', () => {
       sessions.setSessionState('s-0', 'implementing');
       await flush();
 
-      // sessionGetAll is called by loadSessionsData inside loadSessions;
-      // if setSessionState was a no-op, sessionGetAll should not be called.
+      // sessionStore.load is called by loadSessionsData inside loadSessions;
+      // if setSessionState was a no-op, sessionStore.load should not be called.
       expect(mockSessionGetAll).not.toHaveBeenCalled();
 
       sessions.removeSessionState('s-0');
@@ -1711,6 +1735,7 @@ describe('Sessions Screen', () => {
 
     it('no horizontal nav when session list is empty', async () => {
       state.sessions = [];
+      mockSessionGetAll.mockResolvedValue([]);
       sessions.setTerminalManagerGetter(() => createMockTerminalManager([]));
       await loadAndFlush(sessions);
       sessionsState.cardColumn = 0;

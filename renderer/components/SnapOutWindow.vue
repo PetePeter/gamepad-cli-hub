@@ -10,6 +10,7 @@ import { deliverBulkText, deliverViaClipboardPaste } from '../paste-handler.js';
 import { deliverPromptSequence } from '../sequence-delivery.js';
 import { contextMenu } from '../stores/modal-bridge.js';
 import { state } from '../state.js';
+import { loadStoredSessions } from '../session-store.js';
 import { getCliDisplayName } from '../utils.js';
 import ChipBar from './chips/ChipBar.vue';
 import ChipActionBar from './chips/ChipActionBar.vue';
@@ -137,7 +138,7 @@ function onDraftClose(): void { closeDraftEditor(); }
 
 onMounted(async () => {
   if (!containerRef.value) return;
-  const sessions = await window.gamepadCli.sessionGetAll();
+  const sessions = await loadStoredSessions();
   const session = sessions.find((s: any) => s.id === props.sessionId);
   if (session) {
     sessionInfo.value = session;

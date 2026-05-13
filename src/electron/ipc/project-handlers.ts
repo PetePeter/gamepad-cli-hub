@@ -7,9 +7,13 @@
 
 import { ipcMain } from 'electron';
 import type { ProjectStore } from '../../session/project-store.js';
+import type { PlanManager } from '../../session/plan-manager.js';
+import { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
 import { logger } from '../../utils/logger.js';
 
-export function setupProjectHandlers(projectStore: ProjectStore): void {
+export function setupProjectHandlers(projectStore: ProjectStore, planManager?: PlanManager): void {
+  const attachmentManager = planManager ? new PlanAttachmentManager(planManager) : null;
+
   ipcMain.handle('project:list', () => {
     try {
       return projectStore.list();
@@ -40,12 +44,35 @@ export function setupProjectHandlers(projectStore: ProjectStore): void {
     }
   });
 
+  ipcMain.handle('project:create', (_event, dirPath: string, name?: string) => {
+    try {
+      const project = projectStore.resolveForPath(dirPath);
+      if (name?.trim()) {
+        projectStore.rename(project.id, name);
+      }
+      projectStore.save();
+      logger.info(`[IPC] Created/resolved project ${project.id} for "${dirPath}"`);
+      return { success: true, project };
+    } catch (error) {
+      logger.error(`[IPC] Failed to create project for ${dirPath}: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle('project:delete', (_event, id: string) => {
     try {
+      const project = projectStore.getById(id);
+      if (!project) {
+        return { success: false, error: `Project not found: ${id}` };
+      }
+      const deletedPlans = planManager?.deleteForProject(id) ?? { plansDeleted: 0, sequencesDeleted: 0, planIds: [] };
+      for (const planId of deletedPlans.planIds) {
+        attachmentManager?.deletePlanAttachments(planId);
+      }
       projectStore.delete(id);
       projectStore.save();
-      logger.info(`[IPC] Deleted project ${id}`);
-      return { success: true };
+      logger.info(`[IPC] Deleted project ${id} with ${deletedPlans.plansDeleted} plan(s)`);
+      return { success: true, plansDeleted: deletedPlans.plansDeleted, sequencesDeleted: deletedPlans.sequencesDeleted };
     } catch (error) {
       logger.error(`[IPC] Failed to delete project ${id}: ${error}`);
       return { success: false, error: String(error) };

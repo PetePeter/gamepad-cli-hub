@@ -22,6 +22,7 @@ import {
 import { useNavigationStore } from '../stores/navigation.js';
 import { isPlanScreenVisible, handlePlanScreenDpad, handlePlanScreenAction, hidePlanScreen, getCurrentPlanDirPath } from '../plans/plan-screen.js';
 import { currentView } from '../main-view/main-view-manager.js';
+import { loadStoredSessions } from '../session-store.js';
 
 // Sub-module imports — circular at module level, safe because all usages are in function bodies.
 import {
@@ -531,34 +532,22 @@ export async function loadSessionsData(): Promise<void> {
   // each firing loadSessions via setSessionState) would all reset to [] then
   // push N entries each, yielding N×callers duplicates on the session list.
   const nextSessions: Session[] = [];
-  let persistedSessions: Array<{ id: string; cliSessionName?: string; lastOutputAt?: number }> = [];
+  let managedSessions: Session[] = [];
   try {
-    persistedSessions = (await window.gamepadCli.sessionGetAll()) || [];
+    const tm = getTerminalManager() as (ReturnType<typeof getTerminalManager> & {
+      hydrateFromStore?: () => Promise<Session[]>;
+      getManagedSessions?: () => Session[];
+    });
+    managedSessions = tm?.hydrateFromStore
+      ? await tm.hydrateFromStore()
+      : (tm?.getManagedSessions?.() ?? await loadStoredSessions());
   } catch (e) {
-    console.error('[Sessions] Failed to load persisted sessions:', e);
+    console.error('[Sessions] Failed to load managed sessions:', e);
   }
-  const persistedById = new Map(persistedSessions.map(session => [session.id, session]));
-  const tm = getTerminalManager();
-  if (tm) {
-    for (const id of tm.getSessionIds()) {
-      const session = tm.getSession(id);
-      const persisted = persistedById.get(id);
-      const cliType = session?.cliType || 'unknown';
-      nextSessions.push({
-        id,
-        name: session?.name || cliType,
-        cliType,
-        processId: 0,
-        workingDir: session?.cwd || '',
-        projectId: persisted?.projectId,
-        projectPath: persisted?.projectPath,
-        title: session?.title,
-        cliSessionName: persisted?.cliSessionName,
-        lastOutputAt: persisted?.lastOutputAt,
-      } as Session);
-      if (!state.lastOutputTimes.has(id) && persisted?.lastOutputAt && persisted.lastOutputAt > 0) {
-        state.lastOutputTimes.set(id, persisted.lastOutputAt);
-      }
+  for (const session of managedSessions) {
+    nextSessions.push(session);
+    if (!state.lastOutputTimes.has(session.id) && session.lastOutputAt && session.lastOutputAt > 0) {
+      state.lastOutputTimes.set(session.id, session.lastOutputAt);
     }
   }
 

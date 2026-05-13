@@ -24,7 +24,7 @@ import { processConfigBinding, processConfigRelease, initConfigCache, executeSeq
 import { refreshSessions, doSpawn, doSpawnShell, switchToSession, doCloseSession,
   bootstrap, teardown, startTimerRefresh, stopTimerRefresh,
   getSortField, getSortDirection, setSortField, setSortDirection,
-  setPendingContextText, restoreSnappedBackSession,
+  setPendingContextText, restoreSnappedBackSession, refreshProjects,
 } from './composables/useAppBootstrap.js';
 import { formatElapsed } from '../src/utils/time-parser.js';
 import { sortBindingEntries, type BindingSortField, type SessionSortField, type SortDirection } from './sort-logic.js';
@@ -269,7 +269,7 @@ const settingsCliTypes = ref<string[]>([]);
 const settingsProfiles = ref<Array<{ name: string; isActive: boolean }>>([]);
 const settingsTools = ref<Array<{ key: string; name: string; command: string; hasInitialPrompt: boolean; initialPromptCount: number }>>([]);
 const settingsDirectories = ref<Array<{ name: string; path: string }>>([]);
-const settingsProjects = ref<Array<{ name: string; canonicalPath: string; alternatePaths: string[] }>>([]);
+const settingsProjects = computed(() => state.projects);
 const settingsChipbarActions = ref<Array<{ label: string; sequence: string }>>([]);
 const settingsTelegramConfig = ref({ botToken: '', chatId: '', allowedUsers: '', notificationsEnabled: false, autoStart: false });
 const settingsTelegramBotRunning = ref(false);
@@ -333,6 +333,29 @@ const plansDirItems = computed(() =>
     planningCount: state.planDirPlanningCounts.get(d.path) ?? 0,
   }))
 );
+
+function normalizePathForMatch(path: string): string {
+  return path.toLowerCase();
+}
+
+function findProjectForDirPath(dirPath: string) {
+  const normalized = normalizePathForMatch(dirPath);
+  return state.projects.find(project =>
+    normalizePathForMatch(project.canonicalPath) === normalized
+    || project.alternatePaths.some(alt => normalizePathForMatch(alt) === normalized));
+}
+
+function buildDirPickerItems(dirs: Array<{ name: string; path: string }>) {
+  return dirs.map(dir => {
+    const project = findProjectForDirPath(dir.path);
+    return {
+      name: dir.name,
+      path: dir.path,
+      projectId: project?.id,
+      projectName: project?.name,
+    };
+  });
+}
 
 const hasActiveSession = computed(() => !!state.activeSessionId);
 
@@ -808,10 +831,11 @@ async function deleteScheduledTask(task: ScheduledTask): Promise<void> {
 }
 
 // Spawn
-function onSpawn(cliType: string): void {
+async function onSpawn(cliType: string): Promise<void> {
+  await refreshProjects();
   const dirs = sessionsState.directories;
   if (dirs && dirs.length > 0) {
-    openDirPicker(cliType, dirs.map(d => ({ name: d.name, path: d.path })));
+    openDirPicker(cliType, buildDirPickerItems(dirs));
   } else {
     doSpawn(cliType);
   }
@@ -956,16 +980,7 @@ async function loadSettingsData(): Promise<void> {
   }
 
   // Load projects
-  try {
-    const projects = await window.gamepadCli.projectList();
-    settingsProjects.value = (projects || []).map((p: any) => ({
-      name: p.name,
-      canonicalPath: p.canonicalPath,
-      alternatePaths: p.alternatePaths || [],
-    }));
-  } catch {
-    settingsProjects.value = [];
-  }
+  await refreshProjects();
 
   // Load chipbar actions
   try {
@@ -2121,7 +2136,7 @@ onMounted(async () => {
 
     // Wire sessions-spawn dir picker to Vue DirPickerModal
     setDirPickerBridge((cliType, dirs, preselectedPath) => {
-      openDirPicker(cliType, dirs, preselectedPath);
+      openDirPicker(cliType, buildDirPickerItems(dirs), preselectedPath);
     });
 
     // Keyboard → modal stack bridge (all navigation keys reach modals via unified path)
@@ -2318,6 +2333,7 @@ onUnmounted(() => {
             />
             <ProjectsTab
               v-else-if="activeTab === 'projects'"
+              @changed="refreshProjects"
             />
             <ChipbarActionsTab
               v-else-if="activeTab === 'chipbar-actions'"

@@ -46,6 +46,7 @@ import {
   setBackupRestoreOpener,
 } from '../plans/plan-screen.js';
 import { state } from '../state.js';
+import { loadStoredSessions } from '../session-store.js';
 
 interface BackupMeta {
   timestamp: string;
@@ -150,7 +151,7 @@ async function onBackupNow(): Promise<void> {
 }
 
 async function loadSessions(): Promise<void> {
-  state.sessions = await window.gamepadCli.sessionGetAll();
+  state.sessions = await loadStoredSessions();
   state.activeSessionId = (await window.gamepadCli.sessionGetActive())?.id ?? null;
 }
 

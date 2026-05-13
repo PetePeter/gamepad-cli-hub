@@ -139,8 +139,10 @@ describe('Sessions Plans Grid', () => {
     vi.useFakeTimers();
     buildDom();
 
+    (window as any).sessionStore = {
+      load: vi.fn().mockResolvedValue([]),
+    };
     (window as any).gamepadCli = {
-      sessionGetAll: vi.fn().mockResolvedValue([]),
       sessionSetActive: vi.fn().mockResolvedValue(undefined),
       sessionClose: vi.fn().mockResolvedValue({ success: true }),
       sessionRename: vi.fn().mockResolvedValue({ success: true }),

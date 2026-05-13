@@ -112,12 +112,12 @@ export function closeQuickSpawn(): void {
 export const dirPicker = reactive({
   visible: false,
   cliType: '',
-  items: [] as Array<{ name: string; path: string }>,
+  items: [] as Array<{ name: string; path: string; projectId?: string; projectName?: string }>,
   preselectedPath: undefined as string | undefined,
 });
 export function openDirPicker(
   cliType: string,
-  items: Array<{ name: string; path: string }>,
+  items: Array<{ name: string; path: string; projectId?: string; projectName?: string }>,
   preselectedPath?: string,
 ): void {
   dirPicker.visible = true;

@@ -95,8 +95,8 @@ describe('resolveGroupDisplayName', () => {
       expect(resolveGroupDisplayName('X:\\coding\\helm-hub-worktree', [], projects)).toBe('Helm Hub');
     });
 
-    it('directory name takes priority over project name', () => {
-      expect(resolveGroupDisplayName('X:\\coding\\helm-hub', [{ name: 'Custom Dir Name', path: 'X:\\coding\\helm-hub' }], projects)).toBe('Custom Dir Name');
+    it('project name takes priority over configured directory aliases', () => {
+      expect(resolveGroupDisplayName('X:\\coding\\helm-hub', [{ name: 'Custom Dir Name', path: 'X:\\coding\\helm-hub' }], projects)).toBe('Helm Hub');
     });
 
     it('falls back to path tail when no project matches', () => {
@@ -184,6 +184,22 @@ describe('groupSessionsByDirectory', () => {
     const groups = groupSessionsByDirectory(s, () => '', { order: [], collapsed: [] });
     expect(groups).toHaveLength(1);
     expect(groups[0].dirPath).toBe('X:\\fallback\\dir');
+  });
+
+  it('groups by projectPath before concrete working directory', () => {
+    const projectSessions = [
+      { ...makeSession('s1', 'X:\\coding\\repo\\packages\\ui'), projectPath: 'X:\\coding\\repo' },
+      { ...makeSession('s2', 'X:\\coding\\repo\\apps\\desktop'), projectPath: 'X:\\coding\\repo' },
+    ];
+    const groups = groupSessionsByDirectory(
+      projectSessions,
+      id => projectSessions.find(s => s.id === id)?.workingDir || '',
+      { order: [], collapsed: [] },
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].dirPath).toBe('X:\\coding\\repo');
+    expect(groups[0].sessions.map(session => session.id)).toEqual(['s1', 's2']);
   });
 
   it('all groups default to expanded when no collapse prefs', () => {

@@ -37,9 +37,9 @@ registerView('terminal', {
 // Bridge state (set by main.ts to avoid circular imports)
 // ============================================================================
 
-let dirPickerBridge: ((cliType: string, dirs: Array<{ name: string; path: string }>, preselectedPath?: string) => void) | null = null;
+let dirPickerBridge: ((cliType: string, dirs: Array<{ name: string; path: string; projectId?: string; projectName?: string }>, preselectedPath?: string) => void) | null = null;
 
-export function setDirPickerBridge(fn: (cliType: string, dirs: Array<{ name: string; path: string }>, preselectedPath?: string) => void): void {
+export function setDirPickerBridge(fn: (cliType: string, dirs: Array<{ name: string; path: string; projectId?: string; projectName?: string }>, preselectedPath?: string) => void): void {
   dirPickerBridge = fn;
 }
 

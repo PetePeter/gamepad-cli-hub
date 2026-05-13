@@ -6,6 +6,7 @@ import { state } from '../renderer/state.js';
 const mockSetTerminalManager = vi.fn();
 const mockCreateTerminal = vi.fn();
 const mockRenameTerminal = vi.fn();
+const mockHydrateFromStore = vi.fn();
 const mockRefreshChipBar = vi.fn().mockResolvedValue(undefined);
 
 let currentLocalSessions = new Map<string, { cliType: string; name: string; cwd?: string; title?: string }>();
@@ -17,6 +18,8 @@ const mockTerminalManager = {
   setOnTitleChange: vi.fn(),
   getActiveSessionId: vi.fn(() => null),
   getSessionIds: vi.fn(() => Array.from(currentLocalSessions.keys())),
+  getManagedSessions: vi.fn(() => []),
+  hydrateFromStore: mockHydrateFromStore,
   getSession: vi.fn((id: string) => {
     const session = currentLocalSessions.get(id);
     return session ? { sessionId: id, ...session } : undefined;
@@ -150,8 +153,23 @@ describe('useAppBootstrap autoResumeSessions', () => {
         currentLocalSessions.set(sessionId, { ...existing, name: newName });
       }
     });
+    mockHydrateFromStore.mockImplementation(async () => {
+      return await (globalThis as typeof globalThis & { window: any }).window.sessionStore.load();
+    });
 
     (globalThis as typeof globalThis & { window: any }).window = {
+      sessionStore: {
+        load: vi.fn().mockResolvedValue([
+          {
+            id: 'sess-restore',
+            name: 'Recovered Session',
+            cliType: 'claude-code',
+            cliSessionName: 'resume-123',
+            processId: 42,
+            workingDir: 'X:\\coding\\gamepad-cli-hub',
+          },
+        ]),
+      },
       gamepadCli: {
         configGetAll: vi.fn().mockResolvedValue({}),
         configGetCliTypes: vi.fn().mockResolvedValue(['claude-code']),
@@ -164,16 +182,6 @@ describe('useAppBootstrap autoResumeSessions', () => {
         }),
         configGetSpawnCommand: vi.fn().mockResolvedValue({ command: 'claude', args: [] }),
         configGetEscProtectionEnabled: vi.fn().mockResolvedValue(true),
-        sessionGetAll: vi.fn().mockResolvedValue([
-          {
-            id: 'sess-restore',
-            name: 'Recovered Session',
-            cliType: 'claude-code',
-            cliSessionName: 'resume-123',
-            processId: 42,
-            workingDir: 'X:\\coding\\gamepad-cli-hub',
-          },
-        ]),
         sessionRename: vi.fn().mockResolvedValue({ success: true }),
         sessionRemove: vi.fn().mockResolvedValue({ success: true }),
         draftList: vi.fn().mockResolvedValue([]),

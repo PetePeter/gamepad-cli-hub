@@ -17,6 +17,8 @@ const mockTerminalManager = {
   setOnTitleChange: vi.fn(),
   getActiveSessionId: vi.fn(() => null),
   getSessionIds: vi.fn(() => Array.from(currentLocalSessions.keys())),
+  getManagedSessions: vi.fn(() => []),
+  hydrateFromStore: vi.fn(() => Promise.resolve([...persistedSessions])),
   getSession: vi.fn((id: string) => {
     const session = currentLocalSessions.get(id);
     return session ? { sessionId: id, ...session } : undefined;
@@ -150,6 +152,9 @@ describe('useAppBootstrap PTY exit cleanup', () => {
     ptyExitHandler = null;
 
     (globalThis as typeof globalThis & { window: any }).window = {
+      sessionStore: {
+        load: vi.fn(() => Promise.resolve([...persistedSessions])),
+      },
       gamepadCli: {
         configGetAll: vi.fn().mockResolvedValue({}),
         configGetCliTypes: vi.fn().mockResolvedValue(['claude-code']),
@@ -162,7 +167,6 @@ describe('useAppBootstrap PTY exit cleanup', () => {
         }),
         configGetSpawnCommand: vi.fn().mockResolvedValue({ command: 'claude', args: [] }),
         configGetEscProtectionEnabled: vi.fn().mockResolvedValue(true),
-        sessionGetAll: vi.fn(() => Promise.resolve([...persistedSessions])),
         draftList: vi.fn().mockResolvedValue([]),
         planStartableForDir: vi.fn().mockResolvedValue([]),
         planDoingForSession: vi.fn().mockResolvedValue([]),

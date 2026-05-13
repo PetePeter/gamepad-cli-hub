@@ -3,10 +3,11 @@
  * ProjectsTab.vue — Project list CRUD with expandable directory management.
  *
  * Reads from the project IPC bridge (projectList/Update/Delete/AddDir/RemoveDir).
- * Projects are auto-created when directories are opened; this tab lets users
- * rename, reorganise directories, and delete projects.
+ * Projects can be created explicitly and are also auto-created when directories
+ * are opened; this tab lets users rename, reorganise directories, and delete projects.
  */
 import { ref, onMounted } from 'vue';
+import { state } from '../../state.js';
 
 interface ProjectRecord {
   id: string;
@@ -26,12 +27,26 @@ const expandedIds = ref<Set<string>>(new Set());
 const editingId = ref<string | null>(null);
 const editingName = ref('');
 const deleteConfirmId = ref<string | null>(null);
+const errorMessage = ref('');
+
+const emit = defineEmits<{
+  changed: [];
+}>();
 
 async function refresh(): Promise<void> {
   try {
     projects.value = await window.gamepadCli.projectList();
+    state.projects = projects.value.map(project => ({
+      id: project.id,
+      name: project.name,
+      canonicalPath: project.canonicalPath,
+      alternatePaths: project.alternatePaths || [],
+      rootKind: project.rootKind,
+    }));
+    emit('changed');
   } catch {
     projects.value = [];
+    state.projects = [];
   }
 }
 
@@ -63,8 +78,9 @@ async function commitEdit(): Promise<void> {
   if (!id || !name) return;
 
   try {
-    await window.gamepadCli.projectUpdate(id, { name });
-  } catch { /* ignore */ }
+    const result = await window.gamepadCli.projectUpdate(id, { name });
+    if (result?.success === false) errorMessage.value = result.error || 'Project rename failed';
+  } catch (error) { errorMessage.value = String(error); }
   await refresh();
 }
 
@@ -97,26 +113,46 @@ function onDeleteClick(id: string): void {
 
 async function doDelete(id: string): Promise<void> {
   try {
-    await window.gamepadCli.projectDelete(id);
-  } catch { /* ignore */ }
+    const result = await window.gamepadCli.projectDelete(id);
+    if (result?.success === false) errorMessage.value = result.error || 'Project delete failed';
+  } catch (error) { errorMessage.value = String(error); }
   await refresh();
 }
 
 // ── Directory management ───────────────────────────────────────────────────
 
-async function onAddDir(projectId: string): Promise<void> {
+async function onAddProject(): Promise<void> {
   try {
+    errorMessage.value = '';
     const dirPath = await window.gamepadCli.dialogOpenFolder();
     if (!dirPath) return;
-    await window.gamepadCli.projectAddDir(projectId, dirPath);
-  } catch { /* ignore */ }
+    const result = await window.gamepadCli.projectCreate(dirPath);
+    if (result?.success === false) {
+      errorMessage.value = result.error || 'Project creation failed';
+    }
+  } catch (error) {
+    errorMessage.value = String(error);
+  }
+  await refresh();
+}
+
+async function onAddDir(projectId: string): Promise<void> {
+  try {
+    errorMessage.value = '';
+    const dirPath = await window.gamepadCli.dialogOpenFolder();
+    if (!dirPath) return;
+    const result = await window.gamepadCli.projectAddDir(projectId, dirPath);
+    if (result?.success === false) errorMessage.value = result.error || 'Directory add failed';
+  } catch (error) { errorMessage.value = String(error); }
   await refresh();
 }
 
 async function onRemoveDir(projectId: string, dirPath: string): Promise<void> {
   try {
-    await window.gamepadCli.projectRemoveDir(projectId, dirPath);
-  } catch { /* ignore */ }
+    errorMessage.value = '';
+    const result = await window.gamepadCli.projectRemoveDir(projectId, dirPath);
+    if (result?.success === false) errorMessage.value = result.error || 'Directory remove failed';
+  } catch (error) { errorMessage.value = String(error); }
   await refresh();
 }
 </script>
@@ -125,7 +161,14 @@ async function onRemoveDir(projectId: string, dirPath: string): Promise<void> {
   <div class="settings-projects-panel">
     <div class="settings-panel__header">
       <span class="settings-panel__title">Projects</span>
+      <button
+        class="btn btn--secondary btn--sm focusable"
+        title="Add project"
+        @click="onAddProject"
+      >+ Add Project</button>
     </div>
+
+    <p v-if="errorMessage" class="settings-project-error">{{ errorMessage }}</p>
 
     <div class="settings-list">
       <div
@@ -166,6 +209,7 @@ async function onRemoveDir(projectId: string, dirPath: string): Promise<void> {
 
           <button
             class="btn btn--danger btn--sm focusable"
+            title="Deletes this project and all Helm plans owned by it"
             @click="onDeleteClick(project.id)"
           >
             {{ deleteConfirmId === project.id ? 'Confirm?' : 'Delete' }}
@@ -198,7 +242,7 @@ async function onRemoveDir(projectId: string, dirPath: string): Promise<void> {
       </div>
 
       <p v-if="projects.length === 0" class="settings-empty">
-        No projects yet. Projects are created automatically when you open directories.
+        No projects yet.
       </p>
     </div>
   </div>
@@ -351,5 +395,11 @@ async function onRemoveDir(projectId: string, dirPath: string): Promise<void> {
   font-size: 13px;
   text-align: center;
   padding: 24px 0;
+}
+
+.settings-project-error {
+  color: var(--danger-color, #ff6b6b);
+  font-size: 12px;
+  margin: 0;
 }
 </style>

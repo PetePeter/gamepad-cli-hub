@@ -7,6 +7,8 @@
 
 import { TerminalView } from './terminal-view.js';
 import { PtyOutputBuffer } from './pty-output-buffer.js';
+import type { SessionInfo } from '../../src/types/session.js';
+import { loadStoredSessions } from '../session-store.js';
 
 export interface TerminalSession {
   sessionId: string;
@@ -18,8 +20,13 @@ export interface TerminalSession {
   cwd?: string;
 }
 
+export type ManagedTerminalSession = SessionInfo & {
+  title?: string;
+};
+
 export class TerminalManager {
   private terminals: Map<string, TerminalSession> = new Map();
+  private managedSessions: Map<string, ManagedTerminalSession> = new Map();
   private activeSessionId: string | null = null;
   private container: HTMLElement;
   private unsubscribers: Array<() => void> = [];
@@ -107,6 +114,13 @@ export class TerminalManager {
     });
 
     this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd });
+    this.upsertManagedSession({
+      id: sessionId,
+      name: cliType,
+      cliType,
+      processId: 0,
+      workingDir: cwd,
+    });
 
     // Intercept right-click before xterm.js processes it (prevents CLIs with
     // mouse tracking from interpreting right-click as paste)
@@ -182,6 +196,13 @@ export class TerminalManager {
     });
 
     this.terminals.set(sessionId, { sessionId, cliType, name: cliType, view, element, cwd });
+    this.upsertManagedSession({
+      id: sessionId,
+      name: cliType,
+      cliType,
+      processId: 0,
+      workingDir: cwd,
+    });
 
     // Flush any PTY data that arrived during the snap-back gap
     const buffered = this.snapBackBuffer.get(sessionId);
@@ -307,6 +328,58 @@ export class TerminalManager {
     return Array.from(this.terminals.keys());
   }
 
+  /** Hydrate durable session records from the persistent store into runtime ownership. */
+  hydrateSessions(records: ManagedTerminalSession[]): void {
+    const seen = new Set<string>();
+    for (const record of records) {
+      seen.add(record.id);
+      this.upsertManagedSession(record);
+    }
+
+    for (const id of Array.from(this.managedSessions.keys())) {
+      if (this.terminals.has(id)) continue;
+      if (!seen.has(id)) this.managedSessions.delete(id);
+    }
+  }
+
+  /** Load persisted session records through the session-store bridge. */
+  async hydrateFromStore(): Promise<ManagedTerminalSession[]> {
+    const records = await loadStoredSessions();
+    this.hydrateSessions(records as ManagedTerminalSession[]);
+    return this.getManagedSessions();
+  }
+
+  /** Get all sessions TerminalManager currently owns, including stored dormant records. */
+  getManagedSessions(): ManagedTerminalSession[] {
+    const merged = new Map<string, ManagedTerminalSession>();
+    for (const [id, record] of this.managedSessions) {
+      merged.set(id, { ...record });
+    }
+
+    for (const [id, terminal] of this.terminals) {
+      const existing = merged.get(id);
+      merged.set(id, {
+        ...(existing ?? {
+          id,
+          processId: 0,
+          workingDir: terminal.cwd,
+        }),
+        id,
+        name: terminal.name || existing?.name || terminal.cliType,
+        cliType: terminal.cliType || existing?.cliType || 'unknown',
+        workingDir: terminal.cwd || existing?.workingDir,
+        title: terminal.title || existing?.title,
+      });
+    }
+
+    return Array.from(merged.values());
+  }
+
+  /** Remove a session from TerminalManager's durable runtime registry. */
+  removeManagedSession(sessionId: string): void {
+    this.managedSessions.delete(sessionId);
+  }
+
   /** Get terminal session info */
   getSession(sessionId: string): TerminalSession | undefined {
     return this.terminals.get(sessionId);
@@ -317,6 +390,10 @@ export class TerminalManager {
     const session = this.terminals.get(sessionId);
     if (session) {
       session.name = newName;
+    }
+    const managed = this.managedSessions.get(sessionId);
+    if (managed) {
+      this.managedSessions.set(sessionId, { ...managed, name: newName });
     }
   }
 
@@ -333,6 +410,7 @@ export class TerminalManager {
     session.view.dispose();
     session.element.remove();
     this.terminals.delete(sessionId);
+    this.managedSessions.delete(sessionId);
 
     window.gamepadCli?.ptyKill(sessionId);
     this.outputBuffer.clear(sessionId);
@@ -463,6 +541,16 @@ export class TerminalManager {
       }
     });
     this.unsubscribers.push(unsubExit);
+  }
+
+  private upsertManagedSession(record: ManagedTerminalSession): void {
+    const existing = this.managedSessions.get(record.id);
+    this.managedSessions.set(record.id, {
+      ...existing,
+      ...record,
+      name: record.name || existing?.name || record.cliType,
+      processId: record.processId ?? existing?.processId ?? 0,
+    });
   }
 
   /** Observe container resize to re-fit terminals.

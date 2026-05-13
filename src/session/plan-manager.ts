@@ -348,6 +348,53 @@ export class PlanManager extends EventEmitter {
     return doneItems.length;
   }
 
+  /** Get all plan items owned by a project. */
+  getForProject(projectId: string): PlanItem[] {
+    return [...this.items.values()].filter((item) => item.projectId === projectId);
+  }
+
+  /** Delete all plan items and sequences owned by a project. */
+  deleteForProject(projectId: string): { plansDeleted: number; sequencesDeleted: number; planIds: string[]; dirPaths: string[] } {
+    const items = this.getForProject(projectId);
+    const planIds = items.map((item) => item.id);
+    const planIdSet = new Set(planIds);
+    const dirPaths = [...new Set(items.map((item) => item.dirPath))];
+    const sequenceIds = new Set(
+      [...this.sequences.values()]
+        .filter((sequence) => sequence.projectId === projectId)
+        .map((sequence) => sequence.id),
+    );
+
+    for (const planId of planIds) {
+      deletePlanFile(planId);
+      this.items.delete(planId);
+    }
+
+    for (const sequenceId of sequenceIds) {
+      this.sequences.delete(sequenceId);
+    }
+
+    for (const item of this.items.values()) {
+      if (item.sequenceId && sequenceIds.has(item.sequenceId)) {
+        item.sequenceId = undefined;
+        item.updatedAt = Date.now();
+        savePlanFile(item);
+      }
+    }
+
+    this.dependencies = this.dependencies.filter((dep) => !planIdSet.has(dep.fromId) && !planIdSet.has(dep.toId));
+    saveDependencies(this.dependencies);
+    savePlanSequences([...this.sequences.values()]);
+
+    for (const dirPath of dirPaths) {
+      this.emit('plan:changed', dirPath);
+    }
+    if (items.length > 0 || sequenceIds.size > 0) {
+      logger.info(`[PlanManager] Deleted ${items.length} plan(s) and ${sequenceIds.size} sequence(s) for project ${projectId}`);
+    }
+    return { plansDeleted: items.length, sequencesDeleted: sequenceIds.size, planIds, dirPaths };
+  }
+
   /** Get a single plan item by ID. */
   getItem(id: string): PlanItem | null {
     return this.items.get(id) ?? null;
