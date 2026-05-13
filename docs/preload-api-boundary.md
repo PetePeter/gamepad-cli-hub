@@ -1,0 +1,42 @@
+# Preload API Boundary
+
+The renderer still reaches Electron through `contextBridge`. The migration target is not to bypass the window boundary, but to replace the broad `window.gamepadCliAPI` facade with owned domain clients under `window.helm.<domain>`.
+
+`src/electron/preload-api-contract.ts` is the checked-in inventory for the current legacy surface. `tests/preload-api-contract.test.ts` parses `src/electron/preload.ts` directly and fails when a `gamepadCliAPI` method is added without a domain assignment.
+
+## Compatibility Policy
+
+- Keep `contextBridge` as the only Electron exposure boundary.
+- Keep `window.gamepadCliAPI` as a compatibility facade until renderer callers migrate.
+- Additions to the legacy facade must be assigned to exactly one target domain.
+- New renderer code should use small domain clients instead of importing the whole preload surface.
+
+## Target Domains
+
+| Target | Ownership |
+| --- | --- |
+| `window.helm.app` | app version and startup lifecycle readiness |
+| `window.helm.sessions` | session selection, lifetime, snap-out/snap-back, rename, and state |
+| `window.helm.terminal` | PTY spawn, write, resize, scroll input, switching marks, and kill |
+| `window.helm.delivery` | text-delivery responses and queued pipeline operations |
+| `window.helm.config` | bindings, sequences, chip bar, notifications, MCP config, ESC protection, sort/filter/group prefs, working directories, spawn commands, CLI env, and editor/collapse prefs |
+| `window.helm.tools` | configured CLI tools and their ordering |
+| `window.helm.profiles` | profile list, active profile, switching, creation, and deletion |
+| `window.helm.projects` | project list, CRUD, and directory membership |
+| `window.helm.plans` | plan CRUD, dependencies, apply/complete/reopen/state, startable/doing queries, sequences, and planner pop-out |
+| `window.helm.contexts` | plan context CRUD, append, position, bind, and unbind |
+| `window.helm.attachments` | plan attachment list, presence, add, delete, and open |
+| `window.helm.backups` | plan backup listing, summaries, restore/delete/create, and backup config |
+| `window.helm.incoming` | incoming plan files, plan export, and plan file read/write |
+| `window.helm.drafts` | draft prompt CRUD/count and draft editor history |
+| `window.helm.scheduler` | scheduled task CRUD/list/get/cancel |
+| `window.helm.patterns` | pattern CRUD and pattern schedule cancellation |
+| `window.helm.telegram` | Telegram config, lifecycle, status, and connection test |
+| `window.helm.keyboard` | key tap, combo send/down/up, and typed string |
+| `window.helm.dialog` | folder/file dialogs, external editor, and temporary content files |
+| `window.helm.system` | OS-level utility actions such as opening logs |
+| `window.helm.events` | renderer subscriptions for PTY, delivery, notifications, sessions, plan, incoming, pattern, and scheduler events |
+
+## Current Legacy Inventory
+
+The exhaustive current-method list lives in `PRELOAD_API_DOMAINS`. That source is intentionally code, not prose, so review and CI catch drift whenever the preload facade changes.
