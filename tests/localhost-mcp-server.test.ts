@@ -1370,6 +1370,70 @@ describe('LocalhostMcpServer', () => {
       const json = await response.json();
       expect(json.error.message).toContain('at least 10 characters');
     });
+
+    it('emits an in-app notification when the completed plan has a sessionId', async () => {
+      const service = makeService();
+      (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'coding' });
+      (service.completePlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done', completionNotes: 'All tests pass', sessionId: 's1' });
+      (service.exportDirectory as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        dirPath: '/proj',
+        items: [{ id: 'p1', humanId: 'P-0001', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done' }],
+        dependencies: [],
+      });
+
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 53,
+        method: 'tools/call',
+        params: {
+          name: 'plan_complete',
+          arguments: { id: 'p1', documentation: 'All tests pass and feature works' },
+        },
+      });
+
+      expect((service.notifyUser as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+        's1',
+        'Plan completed — Task',
+        'All tests pass and feature works',
+      );
+    });
+
+    it('does not throw when notifyUser fails during plan completion', async () => {
+      const service = makeService();
+      (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'coding' });
+      (service.completePlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done', completionNotes: 'All tests pass', sessionId: 's1' });
+      (service.exportDirectory as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        dirPath: '/proj',
+        items: [{ id: 'p1', humanId: 'P-0001', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done' }],
+        dependencies: [],
+      });
+      (service.notifyUser as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new Error('notification mode is not llm');
+      });
+
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 54,
+        method: 'tools/call',
+        params: {
+          name: 'plan_complete',
+          arguments: { id: 'p1', documentation: 'All tests pass and feature works' },
+        },
+      });
+      const json = await response.json();
+      expect(json.error).toBeUndefined();
+      expect(json.result.structuredContent.status).toBe('done');
+    });
   });
 
   describe('session_send_text MCP response — helmPreambleForInterSession', () => {

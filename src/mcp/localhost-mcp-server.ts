@@ -1450,6 +1450,20 @@ export class LocalhostMcpServer {
         autoImplement: Boolean(item.autoImplement),
       }));
     const autoFollowUpPlans = followUpPlans.filter((item) => item.autoImplement && item.status === 'ready');
+
+    // Emit a persistent in-app notification so the user sees completion guidance
+    if (completed.sessionId) {
+      try {
+        this.service.notifyUser(
+          completed.sessionId,
+          `Plan completed — ${completed.title}`,
+          documentation,
+        );
+      } catch {
+        // Notification mode may not be 'llm'; ignore rather than fail the completion
+      }
+    }
+
     return {
       ...completed,
       testingInstructionsReminder: 'Notify the user with concrete steps they can run to test this completed plan, and keep that notification visible in Helm until they dismiss it.',
