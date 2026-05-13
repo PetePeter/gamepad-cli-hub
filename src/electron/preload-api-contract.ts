@@ -2,7 +2,7 @@ export const PRELOAD_API_DOMAIN_TARGET = 'window.helm.<domain>';
 
 export const PRELOAD_API_COMPATIBILITY_POLICY = {
   electronBoundary: 'contextBridge remains the only window exposure boundary.',
-  legacyFacade: 'window.gamepadCliAPI stays as a compatibility facade while renderer callers migrate to domain clients.',
+  legacyFacade: 'window.gamepadCli stays as a compatibility facade while renderer callers migrate to domain clients.',
   domainOwnership: 'Every legacy preload method must be assigned to exactly one target window.helm domain.',
 } as const;
 
