@@ -6,14 +6,19 @@ import {
   PRELOAD_API_DOMAINS,
   PRELOAD_API_DOMAIN_TARGET,
 } from '../src/electron/preload-api-contract';
+import {
+  createGamepadCliCompatibilityApi,
+  createHelmPreloadApi,
+} from '../src/electron/preload/domain-bridge';
+import { preloadDomainBuilders } from '../src/electron/preload/domain-builders';
 
 function extractGamepadCliApiMethods(): string[] {
   const preloadPath = path.resolve(__dirname, '../src/electron/preload.ts');
   const source = fs.readFileSync(preloadPath, 'utf8');
-  const match = source.match(/const gamepadCliAPI = \{([\s\S]*?)\n\};/);
+  const match = source.match(/const legacyGamepadCliAPI = \{([\s\S]*?)\n\};/);
 
   if (!match) {
-    throw new Error('Unable to find gamepadCliAPI object in preload.ts');
+    throw new Error('Unable to find legacyGamepadCliAPI object in preload.ts');
   }
 
   return Array.from(match[1].matchAll(/^  ([A-Za-z_$][\w$]*):/gm), ([, method]) => method).sort();
@@ -60,5 +65,31 @@ describe('preload API boundary contract', () => {
       'system',
       'events',
     ]));
+  });
+
+  it('has a preload domain builder for every target domain', () => {
+    expect(Object.keys(preloadDomainBuilders).sort()).toEqual(Object.keys(PRELOAD_API_DOMAINS).sort());
+  });
+
+  it('creates domain APIs and a flat compatibility facade from the same methods', () => {
+    const legacyApi = Object.fromEntries(
+      extractGamepadCliApiMethods().map((method) => [method, () => method]),
+    ) as Record<string, () => string>;
+
+    const helmApi = createHelmPreloadApi(legacyApi);
+    const gamepadCliApi = createGamepadCliCompatibilityApi(helmApi);
+
+    expect(helmApi.sessions.sessionSetActive).toBe(legacyApi.sessionSetActive);
+    expect(helmApi.terminal.ptySpawn).toBe(legacyApi.ptySpawn);
+    expect(helmApi.plans.planCreate).toBe(legacyApi.planCreate);
+    expect(helmApi.drafts.draftCreate).toBe(legacyApi.draftCreate);
+    expect(helmApi.scheduler.scheduledTaskCreate).toBe(legacyApi.scheduledTaskCreate);
+    expect(helmApi.telegram.telegramStart).toBe(legacyApi.telegramStart);
+    expect(helmApi.keyboard.keyboardTypeString).toBe(legacyApi.keyboardTypeString);
+    expect(helmApi.app.appStartupReady).toBe(legacyApi.appStartupReady);
+
+    expect(gamepadCliApi.sessionSetActive).toBe(helmApi.sessions.sessionSetActive);
+    expect(gamepadCliApi.planCreate).toBe(helmApi.plans.planCreate);
+    expect(gamepadCliApi.appStartupReady).toBe(helmApi.app.appStartupReady);
   });
 });

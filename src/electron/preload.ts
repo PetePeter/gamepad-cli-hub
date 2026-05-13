@@ -7,6 +7,10 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 import type { DraftPrompt } from '../types/session.js';
+import {
+  createGamepadCliCompatibilityApi,
+  createHelmPreloadApi,
+} from './preload/domain-bridge.js';
 
 const appVersion = ipcRenderer.sendSync('app:getVersionSync') as string;
 
@@ -17,7 +21,7 @@ const sessionStoreAPI = {
 /**
  * API exposed to the renderer process
  */
-const gamepadCliAPI = {
+const legacyGamepadCliAPI = {
   // ========================================================================
   // Session Management
   // ========================================================================
@@ -986,11 +990,15 @@ const gamepadCliAPI = {
 
 };
 
+const helmAPI = createHelmPreloadApi(legacyGamepadCliAPI);
+const gamepadCliAPI = createGamepadCliCompatibilityApi(helmAPI);
+
 /**
  * Expose the API to the renderer via contextBridge
  */
 try {
   contextBridge.exposeInMainWorld('sessionStore', sessionStoreAPI);
+  contextBridge.exposeInMainWorld('helm', helmAPI);
   contextBridge.exposeInMainWorld('gamepadCli', gamepadCliAPI);
   console.log('[Preload] gamepadCli API exposed successfully');
 } catch (error) {
@@ -1003,9 +1011,11 @@ try {
 declare global {
   interface Window {
     sessionStore: typeof sessionStoreAPI;
+    helm: typeof helmAPI;
     gamepadCli: typeof gamepadCliAPI;
   }
 }
 
 export type GamepadCliAPI = typeof gamepadCliAPI;
+export type HelmAPI = typeof helmAPI;
 export type SessionStoreAPI = typeof sessionStoreAPI;
