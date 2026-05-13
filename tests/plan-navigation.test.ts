@@ -23,7 +23,10 @@ const mockComputeLayout = vi.fn();
 const mockShowPlanInEditor = vi.fn();
 const mockHideDraftEditor = vi.fn();
 
-vi.mock('vue', () => ({ reactive: (obj: any) => obj }));
+vi.mock('vue', () => ({
+  reactive: (obj: any) => obj,
+  watch: (_source: unknown, _cb: unknown, _options?: unknown) => (() => void 0),
+}));
 
 vi.mock('electron', () => ({
   ipcRenderer: { invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn() },

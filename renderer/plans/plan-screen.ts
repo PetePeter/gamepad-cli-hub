@@ -1,4 +1,4 @@
-import { reactive } from 'vue';
+import { reactive, watch } from 'vue';
 import type { PlanDependency, PlanItem, PlanSequence, PlanStatus, PlanType } from '../../src/types/plan.js';
 import type { ContextBindingTargetType, ContextNode } from '../../src/types/context.js';
 import type { LayoutNode, LayoutResult } from './plan-layout.js';
@@ -66,16 +66,33 @@ let latestPlanDataLoadToken = 0;
 
 const PLAN_SCREEN_KEY_HANDLER_KEY = Symbol.for('helm.planScreen.keyHandler');
 
+let filtersLoaded = false;
+
+watch(
+  () => ({
+    types: planScreenState.filters.types,
+    statuses: planScreenState.filters.statuses,
+    hasAttachment: planScreenState.filters.hasAttachment,
+  }),
+  () => {
+    if (!filtersLoaded) return;
+    void saveFilterPreferences();
+  },
+  { deep: true },
+);
+
 async function loadFilterPreferences(): Promise<void> {
   try {
     const saved = await window.gamepadCli.configGetPlanFilters();
-    planScreenState.filters.types = saved.types;
-    planScreenState.filters.statuses = saved.statuses;
+    planScreenState.filters.types = saved.types ?? planScreenState.filters.types;
+    planScreenState.filters.statuses = saved.statuses ?? planScreenState.filters.statuses;
     if (saved.hasAttachment) {
       planScreenState.filters.hasAttachment = saved.hasAttachment;
     }
   } catch (err) {
     console.error('[PlanScreen] Failed to load filter preferences:', err);
+  } finally {
+    filtersLoaded = true;
   }
 }
 
@@ -86,6 +103,9 @@ async function saveFilterPreferences(): Promise<void> {
     console.error('[PlanScreen] Failed to save filter preferences:', err);
   }
 }
+
+// Eagerly load persisted filters so they're ready before first render
+void loadFilterPreferences();
 
 export function setPlanScreenFitCallback(fn: () => void): void { fitActiveCallback = fn; }
 export function setPlanScreenCloseCallback(fn: () => void): void { closeCallback = fn; }

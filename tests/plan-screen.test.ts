@@ -47,7 +47,10 @@ let registeredMount: ((params?: unknown, context?: { isActive: () => boolean }) 
 let registeredUnmount: (() => void) | null = null;
 let currentViewName = 'terminal';
 
-vi.mock('vue', () => ({ reactive: (obj: unknown) => obj }));
+vi.mock('vue', () => ({
+  reactive: (obj: unknown) => obj,
+  watch: (_source: unknown, _cb: unknown, _options?: unknown) => (() => void 0),
+}));
 
 vi.mock('../renderer/plans/plan-layout.js', () => ({
   computeLayout: (...args: unknown[]) => mockComputeLayout(...args),
@@ -732,9 +735,55 @@ describe('plan screen bridge', () => {
     expect(mod.planScreenState.filters.hasAttachment).toEqual({ yes: false, no: true });
 
     mod.toggleHasAttachmentFilter('yes');
+    await flushAsyncHandlers();
     expect(configSetPlanFilters).toHaveBeenCalledWith(expect.objectContaining({
       hasAttachment: { yes: true, no: true },
     }));
+  });
+
+  it('eagerly loads persisted filter preferences on module import', async () => {
+    const customFilters = {
+      types: { bug: false, feature: true, research: false, untyped: true },
+      statuses: { planning: false, ready: true, coding: false, review: true, blocked: false, done: false },
+      hasAttachment: { yes: true, no: false },
+    };
+    const configGetPlanFilters = vi.fn().mockResolvedValue(customFilters);
+    const configSetPlanFilters = vi.fn().mockResolvedValue(undefined);
+    (window as any).gamepadCli.configGetPlanFilters = configGetPlanFilters;
+    (window as any).gamepadCli.configSetPlanFilters = configSetPlanFilters;
+
+    const mod = await getModule();
+    // Wait for the eager load to complete
+    await flushAsyncHandlers();
+
+    expect(configGetPlanFilters).toHaveBeenCalled();
+    expect(mod.planScreenState.filters.types).toEqual(customFilters.types);
+    expect(mod.planScreenState.filters.statuses).toEqual(customFilters.statuses);
+    expect(mod.planScreenState.filters.hasAttachment).toEqual(customFilters.hasAttachment);
+  });
+
+  it('reloads filter preferences on each planner mount', async () => {
+    const mod = await getModule();
+    await flushAsyncHandlers();
+
+    const secondLoadFilters = {
+      types: { bug: false, feature: false, research: false, untyped: false },
+      statuses: { planning: true, ready: false, coding: false, review: false, blocked: false, done: false },
+      hasAttachment: { yes: false, no: true },
+    };
+    const configGetPlanFilters = vi.fn().mockResolvedValue(secondLoadFilters);
+    (window as any).gamepadCli.configGetPlanFilters = configGetPlanFilters;
+
+    mockPlanList.mockResolvedValue([planItem('a')]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+
+    await mod.showPlanScreen('/test/dir');
+
+    expect(configGetPlanFilters).toHaveBeenCalled();
+    expect(mod.planScreenState.filters.types).toEqual(secondLoadFilters.types);
+    expect(mod.planScreenState.filters.statuses).toEqual(secondLoadFilters.statuses);
+    expect(mod.planScreenState.filters.hasAttachment).toEqual(secondLoadFilters.hasAttachment);
   });
 
   it('saves plan edits through the editor callback', async () => {
