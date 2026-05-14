@@ -144,16 +144,6 @@ const legacyGamepadCliAPI = {
   configSetNotifications: (enabled: boolean) => ipcRenderer.invoke('config:setNotifications', enabled),
 
   /**
-   * Get notification mode setting
-   */
-  configGetNotificationMode: () => ipcRenderer.invoke('config:getNotificationMode'),
-
-  /**
-   * Set notification mode setting
-   */
-  configSetNotificationMode: (mode: string) => ipcRenderer.invoke('config:setNotificationMode', mode),
-
-  /**
    * Get localhost MCP server settings
    */
   configGetMcpConfig: () => ipcRenderer.invoke('config:getMcpConfig'),
@@ -449,16 +439,6 @@ const legacyGamepadCliAPI = {
   /** Remove a directory path from a project's alternatePaths */
   projectRemoveDir: (id: string, dirPath: string) =>
     ipcRenderer.invoke('project:removeDir', id, dirPath),
-
-  // ========================================================================
-  // Profile Management
-  // ========================================================================
-
-  profileList: () => ipcRenderer.invoke('profile:list'),
-  profileGetActive: () => ipcRenderer.invoke('profile:getActive'),
-  profileSwitch: (name: string) => ipcRenderer.invoke('profile:switch', name),
-  profileCreate: (name: string, copyFrom?: string) => ipcRenderer.invoke('profile:create', name, copyFrom),
-  profileDelete: (name: string) => ipcRenderer.invoke('profile:delete', name),
 
   // ========================================================================
   // Tools CRUD

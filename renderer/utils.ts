@@ -1,4 +1,4 @@
-import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from './ipc/clients.js';
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from './ipc/clients.js';
 /**
  * Shared UI helpers used across multiple modules.
  */
@@ -50,16 +50,6 @@ export function showScreen(screenName: string): void {
   }
 }
 
-export async function updateProfileDisplay(): Promise<void> {
-  try {
-        const active = await profilesClient.profileGetActive();
-    state.activeProfile = active;
-    const nameEl = document.getElementById('profileName');
-    if (nameEl) nameEl.textContent = active;
-  } catch (error) {
-    console.error('[Renderer] Failed to update profile display:', error);
-  }
-}
 
 export function getCliIcon(cliType: string): string {
   const icons: Record<string, string> = {

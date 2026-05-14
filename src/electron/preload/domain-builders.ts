@@ -28,7 +28,6 @@ export const preloadDomainBuilders = {
   delivery: <TLegacyApi extends LegacyPreloadApi>(legacyApi: TLegacyApi) => pickDomainApi(legacyApi, 'delivery'),
   config: <TLegacyApi extends LegacyPreloadApi>(legacyApi: TLegacyApi) => pickDomainApi(legacyApi, 'config'),
   tools: <TLegacyApi extends LegacyPreloadApi>(legacyApi: TLegacyApi) => pickDomainApi(legacyApi, 'tools'),
-  profiles: <TLegacyApi extends LegacyPreloadApi>(legacyApi: TLegacyApi) => pickDomainApi(legacyApi, 'profiles'),
   projects: <TLegacyApi extends LegacyPreloadApi>(legacyApi: TLegacyApi) => pickDomainApi(legacyApi, 'projects'),
   plans: <TLegacyApi extends LegacyPreloadApi>(legacyApi: TLegacyApi) => pickDomainApi(legacyApi, 'plans'),
   contexts: <TLegacyApi extends LegacyPreloadApi>(legacyApi: TLegacyApi) => pickDomainApi(legacyApi, 'contexts'),

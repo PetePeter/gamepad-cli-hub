@@ -143,7 +143,6 @@ import SettingsPanel from './components/sidebar/SettingsPanel.vue';
 
 // Settings tab components
 import BindingsTab from './components/sidebar/BindingsTab.vue';
-import ProfilesTab from './components/sidebar/ProfilesTab.vue';
 import ToolsTab from './components/sidebar/ToolsTab.vue';
 import TelegramTab from './components/sidebar/TelegramTab.vue';
 import DirectoriesTab from './components/sidebar/DirectoriesTab.vue';
@@ -153,7 +152,7 @@ import McpTab from './components/sidebar/McpTab.vue';
 import ScheduledTasksTab from './components/sidebar/ScheduledTasksTab.vue';
 import BackupTab from './components/sidebar/BackupTab.vue';
 
-import { logEvent, showFormModal, updateProfileDisplay, navigateFocus } from './utils.js';
+import { logEvent, showFormModal, navigateFocus } from './utils.js';
 import { loadSessions } from './screens/sessions.js';
 
 // Modal components
@@ -273,9 +272,8 @@ const bindingEditorBinding = ref<any>(null);
 
 // Settings panel state
 const settingsPanelRef = ref<any>(null);
-const settingsTab = ref(state.settingsTab || 'profiles');
+const settingsTab = ref(state.settingsTab || 'tools');
 const settingsCliTypes = ref<string[]>([]);
-const settingsProfiles = ref<Array<{ name: string; isActive: boolean }>>([]);
 const settingsTools = ref<Array<{ key: string; name: string; command: string; hasInitialPrompt: boolean; initialPromptCount: number }>>([]);
 const settingsDirectories = ref<Array<{ name: string; path: string }>>([]);
 const settingsProjects = computed(() => state.projects);
@@ -283,7 +281,6 @@ const settingsChipbarActions = ref<Array<{ label: string; sequence: string }>>([
 const settingsTelegramConfig = ref({ botToken: '', chatId: '', allowedUsers: '', notificationsEnabled: false, autoStart: false });
 const settingsTelegramBotRunning = ref(false);
 const settingsMcpConfig = ref({ enabled: false, port: 47373, authToken: '' });
-const settingsNotificationMode = ref<'off' | 'auto' | 'llm'>('auto');
 const settingsBindings = ref<Array<{ button: string; action: string; label: string; detail: string }>>([]);
 const settingsSequenceGroups = ref<Array<{ name: string; items: Array<{ label: string; sequence: string }> }>>([]);
 const settingsBindingSortField = ref<BindingSortField>('button');
@@ -992,7 +989,6 @@ async function loadSettingsData(): Promise<void> {
     ? state.cliTypes
     : (await configClient.configGetCliTypes());
   const validTabs = new Set([
-    'profiles',
     ...settingsCliTypes.value,
     'tools',
     'chipbar-actions',
@@ -1003,22 +999,7 @@ async function loadSettingsData(): Promise<void> {
     'mcp',
   ]);
   if (!validTabs.has(settingsTab.value)) {
-    settingsTab.value = 'profiles';
-  }
-
-  // Load profiles
-  const profiles = await profilesClient.profileList();
-  const activeProfile = await profilesClient.profileGetActive();
-  settingsProfiles.value = profiles.map((name: string) => ({
-    name,
-    isActive: name === activeProfile,
-  }));
-
-  // Load notifications setting
-  try {
-    settingsNotificationMode.value = await configClient.configGetNotificationMode();
-  } catch {
-    settingsNotificationMode.value = 'off';
+    settingsTab.value = 'tools';
   }
 
   // Load tools
@@ -1100,7 +1081,7 @@ async function loadSettingsData(): Promise<void> {
 
 async function loadCurrentTabBindings(): Promise<void> {
   const tab = settingsTab.value;
-  if (tab === 'profiles' || tab === 'tools' || tab === 'chipbar-actions' || tab === 'directories' || tab === 'projects' || tab === 'telegram' || tab === 'mcp' || tab === 'backups') {
+  if (tab === 'tools' || tab === 'chipbar-actions' || tab === 'directories' || tab === 'projects' || tab === 'telegram' || tab === 'mcp' || tab === 'backups') {
     settingsBindings.value = [];
     settingsSequenceGroups.value = [];
     return;
@@ -1146,7 +1127,6 @@ async function loadCurrentTabBindings(): Promise<void> {
 
 function buildSettingsTabs() {
   return [
-    { id: 'profiles', label: '👤 Profiles' },
     ...settingsCliTypes.value.map(ct => ({
       id: ct,
       label: getCliDisplayName(ct),
@@ -1163,7 +1143,7 @@ function buildSettingsTabs() {
 function onOpenSettings(): void {
   settingsVisible.value = true;
   navStore.openSettings();
-  settingsTab.value = state.settingsTab || 'profiles';
+  settingsTab.value = state.settingsTab || 'tools';
   void loadSettingsData();
 }
 
@@ -1181,88 +1161,6 @@ watch(() => toolEditor.visible, (visible) => {
 function onCloseSettings(): void {
   settingsVisible.value = false;
   navStore.closeSettings();
-}
-
-// ── Profiles Tab Handlers ──────────────────────────────────────────────────
-
-async function onProfileCreate(): Promise<void> {
-  const existingProfiles = settingsProfiles.value.map(p => p.name);
-  const result = await showFormModal('Create Profile', [
-    { key: 'name', label: 'Profile Name', required: true, placeholder: 'e.g. my-profile' },
-    { key: 'copyFrom', label: 'Copy from', type: 'select', options: [
-      { value: '', label: '(None — start empty)' },
-      ...existingProfiles.map(p => ({ value: p, label: p })),
-    ] },
-  ]);
-
-  if (!result || !result.name) return;
-
-  try {
-    const createResult = await profilesClient.profileCreate(result.name, result.copyFrom || undefined);
-    if (createResult.success) {
-      logEvent(`Created profile: ${result.name}`);
-      void loadSettingsData();
-    } else {
-      logEvent('Profile creation failed');
-    }
-  } catch (error) {
-    console.error('Failed to create profile:', error);
-    logEvent(`Profile create error: ${error}`);
-  }
-}
-
-async function onProfileSwitch(name: string): Promise<void> {
-  const tm = getTerminalManager();
-  const sessionCount = tm?.getCount() ?? 0;
-
-  if (sessionCount > 0) {
-    const result = await showFormModal('Switch Profile', [{
-      key: 'action',
-      label: `${sessionCount} terminal(s) are open. What should happen?`,
-      type: 'select',
-      options: [
-        { value: 'keep', label: 'Keep sessions open' },
-        { value: 'close', label: 'Close all sessions' },
-      ],
-      defaultValue: 'keep',
-    }]);
-    if (!result) return;
-
-    if (result.action === 'close' && tm) {
-      tm.dispose();
-      state.sessions = [];
-      state.activeSessionId = null;
-    }
-  }
-
-  await profilesClient.profileSwitch(name);
-  state.cliTypes = await configClient.configGetCliTypes();
-  state.availableSpawnTypes = state.cliTypes;
-  await initConfigCache();
-  useChipBarStore().invalidateActions();
-  void useChipBarStore().refresh();
-  updateProfileDisplay();
-  logEvent(`Profile: ${name}`);
-  void loadSettingsData();
-  loadSessions();
-}
-
-async function onProfileDelete(name: string): Promise<void> {
-  try {
-    const result = await profilesClient.profileDelete(name);
-    if (result.success) {
-      logEvent(`Deleted profile: ${name}`);
-      void loadSettingsData();
-    }
-  } catch (error) {
-    console.error('Delete profile failed:', error);
-  }
-}
-
-async function onUpdateNotificationMode(mode: 'off' | 'auto' | 'llm'): Promise<void> {
-  await configClient.configSetNotificationMode(mode);
-  settingsNotificationMode.value = mode;
-  logEvent(`Notifications: ${mode}`);
 }
 
 // ── Tools Tab Handlers ─────────────────────────────────────────────────────
@@ -2321,7 +2219,6 @@ onUnmounted(() => {
 
       <StatusStrip
         :gamepad-count="state.gamepadCount"
-        :active-profile="state.activeProfile"
         :total-sessions="state.sessions.length"
         :active-sessions="state.sessions.filter(s => (state.sessionActivityLevels.get(s.id) ?? 'idle') === 'active').length"
       />
@@ -2385,18 +2282,8 @@ onUnmounted(() => {
           @close="onCloseSettings"
         >
           <template #default="{ activeTab }">
-            <ProfilesTab
-              v-if="activeTab === 'profiles'"
-              :profiles="settingsProfiles"
-              :active-profile="state.activeProfile"
-              :notification-mode="settingsNotificationMode"
-              @create="onProfileCreate"
-              @switch="onProfileSwitch"
-              @delete="onProfileDelete"
-              @update-notification-mode="onUpdateNotificationMode"
-            />
             <ToolsTab
-              v-else-if="activeTab === 'tools'"
+              v-if="activeTab === 'tools'"
               :tools="settingsTools"
               @add="onToolAdd"
               @edit="onToolEdit"

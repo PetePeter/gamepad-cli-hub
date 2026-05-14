@@ -53,8 +53,6 @@ export const PRELOAD_API_DOMAINS = {
     'configSetHapticFeedback',
     'configGetNotifications',
     'configSetNotifications',
-    'configGetNotificationMode',
-    'configSetNotificationMode',
     'configGetMcpConfig',
     'configSetMcpConfig',
     'configGenerateMcpToken',
@@ -87,13 +85,6 @@ export const PRELOAD_API_DOMAINS = {
     'toolsUpdateCliType',
     'toolsRemoveCliType',
     'toolsReorderCliType',
-  ],
-  profiles: [
-    'profileList',
-    'profileGetActive',
-    'profileSwitch',
-    'profileCreate',
-    'profileDelete',
   ],
   projects: [
     'projectList',

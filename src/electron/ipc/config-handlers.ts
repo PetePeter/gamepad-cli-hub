@@ -7,7 +7,7 @@
 
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { type ConfigLoader, type PlanFilterConfig, type NotificationMode, type EditorPrefs } from '../../config/loader.js';
+import { type ConfigLoader, type PlanFilterConfig, type EditorPrefs } from '../../config/loader.js';
 import type { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
 import { logger } from '../../utils/logger.js';
 
@@ -200,17 +200,6 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
       logger.error(`[IPC] Failed to set notifications: ${error}`);
       return { success: false, error: String(error) };
     }
-  });
-
-  ipcMain.handle('config:getNotificationMode', () => {
-    return configLoader.getNotificationMode();
-  });
-
-  ipcMain.handle('config:setNotificationMode', (_event, mode: string) => {
-    const validModes = ['off', 'auto', 'llm'];
-    if (!validModes.includes(mode)) return { success: false, error: `Invalid mode: ${mode}` };
-    configLoader.setNotificationMode(mode as NotificationMode);
-    return { success: true };
   });
 
   ipcMain.handle('config:getMcpConfig', () => {

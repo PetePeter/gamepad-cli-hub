@@ -9,7 +9,6 @@ import { computed } from 'vue';
 
 const props = defineProps<{
   gamepadCount: number;
-  activeProfile: string;
   totalSessions: number;
   activeSessions: number;
 }>();
@@ -36,8 +35,5 @@ const dotTitle = computed(() =>
       </template>
     </span>
 
-    <span class="profile-badge" :title="`Profile: ${activeProfile}`">
-      📋 {{ activeProfile }}
-    </span>
   </div>
 </template>

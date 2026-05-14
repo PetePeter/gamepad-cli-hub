@@ -31,7 +31,6 @@ import {
   draftsClient,
   eventsClient,
   plansClient,
-  profilesClient,
   projectsClient,
   sessionsClient,
   terminalClient,
@@ -776,11 +775,6 @@ export async function bootstrap(opts: BootstrapOptions): Promise<void> {
 
   // Gamepad
   setupGamepad(handleButton, handleRelease);
-
-  // Profile
-  try {
-    state.activeProfile = await profilesClient.profileGetActive();
-  } catch { /* ignore */ }
 
   // Auto-resume
   await autoResumeSessions(tm);

@@ -10,13 +10,13 @@
  */
 export function buildNotificationGuide() {
   return {
-    description: 'Call notify_user to alert the user. Helm routes to toast, bubble, or Telegram automatically based on screen/window state.',
+    description: 'MANDATORY: call notify_user on key events. Helm routes to toast / taskbar flash / bubble / Telegram automatically based on screen state.',
     preferred_tool: 'notify_user',
     when_to_notify: [
-      'A long-running task you started has just finished and the user is likely away from this session.',
-      'You are blocked on a question or decision the user must answer before you can continue.',
-      'An unexpected error or unsafe operation has stopped progress and needs human acknowledgement.',
-      'A scheduled or background event the user asked to be told about has occurred (build green, deploy done, watcher fired).',
+      'ALWAYS notify when work completes (session → completed): title "Work complete", 1-2 sentence TLDR of what changed.',
+      'ALWAYS notify when blocked on a user decision before calling AskUserQuestion: title "Need your input", brief blocker summary.',
+      'ALWAYS notify when an error stops progress: title "⚠️ Error during implementation", brief error + action needed.',
+      'ALWAYS notify when a background event the user asked about has fired (build green, deploy done, watcher fired).',
     ],
     when_not_to_notify: [
       'User is actively viewing this session (skip - they see output directly).',
@@ -24,7 +24,8 @@ export function buildNotificationGuide() {
     ],
     routing_outcomes: {
       toast: 'Window hidden — Helm shows native OS toast.',
-      bubble: 'Window visible on different session — in-app bubble.',
+      taskbar_flash: 'Window visible but not focused — OS toast + taskbar icon flashes.',
+      bubble: 'Window visible, focused, different session — in-app bubble.',
       telegram: 'Screen locked — Telegram (if configured).',
       none: 'User viewing this session — suppressed.',
     },

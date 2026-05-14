@@ -690,33 +690,28 @@ import StatusStrip from '../../../renderer/components/sidebar/StatusStrip.vue';
 
 describe('StatusStrip', () => {
   it('shows green dot when gamepad connected', () => {
-    const w = mount(StatusStrip, { props: { gamepadCount: 1, activeProfile: 'default', totalSessions: 3, activeSessions: 1 } });
+    const w = mount(StatusStrip, { props: { gamepadCount: 1, totalSessions: 3, activeSessions: 1 } });
     expect(w.find('.gamepad-dot').attributes('style')).toContain('rgb(68, 204, 68)');
   });
 
   it('shows grey dot when no gamepad', () => {
-    const w = mount(StatusStrip, { props: { gamepadCount: 0, activeProfile: 'default', totalSessions: 0, activeSessions: 0 } });
+    const w = mount(StatusStrip, { props: { gamepadCount: 0, totalSessions: 0, activeSessions: 0 } });
     expect(w.find('.gamepad-dot').attributes('style')).toContain('rgb(85, 85, 85)');
   });
 
   it('shows gamepad count', () => {
-    const w = mount(StatusStrip, { props: { gamepadCount: 2, activeProfile: 'default', totalSessions: 0, activeSessions: 0 } });
+    const w = mount(StatusStrip, { props: { gamepadCount: 2, totalSessions: 0, activeSessions: 0 } });
     expect(w.find('.gamepad-count').text()).toContain('2');
   });
 
-  it('shows profile badge', () => {
-    const w = mount(StatusStrip, { props: { gamepadCount: 0, activeProfile: 'gaming', totalSessions: 0, activeSessions: 0 } });
-    expect(w.find('.profile-badge').text()).toContain('gaming');
-  });
-
   it('shows session counts', () => {
-    const w = mount(StatusStrip, { props: { gamepadCount: 0, activeProfile: 'default', totalSessions: 5, activeSessions: 2 } });
+    const w = mount(StatusStrip, { props: { gamepadCount: 0, totalSessions: 5, activeSessions: 2 } });
     expect(w.find('.status-counts').text()).toContain('5 sessions');
     expect(w.find('.status-counts').text()).toContain('2 active');
   });
 
   it('pluralizes sessions correctly', () => {
-    const w = mount(StatusStrip, { props: { gamepadCount: 0, activeProfile: 'default', totalSessions: 1, activeSessions: 0 } });
+    const w = mount(StatusStrip, { props: { gamepadCount: 0, totalSessions: 1, activeSessions: 0 } });
     expect(w.find('.status-counts').text()).toContain('1 session');
     expect(w.find('.status-counts').text()).not.toContain('sessions');
   });
@@ -790,69 +785,6 @@ describe('SettingsPanel', () => {
     const w = mount(SettingsPanel, { props: { visible: true, tabs, activeTab: 'profiles' } });
     (w.vm as any).handleButton('DPadLeft');
     expect(w.emitted('update:activeTab')).toEqual([['telegram']]);
-  });
-});
-
-// ============================================================================
-// ProfilesTab
-// ============================================================================
-
-import ProfilesTab from '../../../renderer/components/sidebar/ProfilesTab.vue';
-
-describe('ProfilesTab', () => {
-  const profiles = [
-    { name: 'default', isActive: true },
-    { name: 'gaming', isActive: false },
-  ];
-
-  it('renders profile list', () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'off' } });
-    const items = w.findAll('.settings-list-item');
-    expect(items.length).toBe(2);
-  });
-
-  it('shows active badge on active profile', () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'off' } });
-    expect(w.find('.profile-active-badge').text()).toBe('Active');
-  });
-
-  it('shows switch button on inactive profiles only', () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'off' } });
-    const items = w.findAll('.settings-list-item');
-    // Active profile should NOT have switch button
-    expect(items[0].findAll('button').length).toBe(0);
-    // Inactive profile should have switch + delete
-    expect(items[1].findAll('button').length).toBe(2);
-  });
-
-  it('emits create on button click', async () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'off' } });
-    await w.find('.settings-profile-actions button').trigger('click');
-    expect(w.emitted('create')).toBeTruthy();
-  });
-
-  it('emits switch on switch button click', async () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'off' } });
-    const items = w.findAll('.settings-list-item');
-    const switchBtn = items[1].findAll('button')[0];
-    await switchBtn.trigger('click');
-    expect(w.emitted('switch')).toEqual([['gaming']]);
-  });
-
-  it('emits delete on delete button click', async () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'off' } });
-    const items = w.findAll('.settings-list-item');
-    const deleteBtn = items[1].findAll('button')[1];
-    await deleteBtn.trigger('click');
-    expect(w.emitted('delete')).toEqual([['gaming']]);
-  });
-
-  it('renders notification mode selector', async () => {
-    const w = mount(ProfilesTab, { props: { profiles, activeProfile: 'default', notificationMode: 'llm' } });
-    const checked = w.find('input[value="llm"]');
-    expect((checked.element as HTMLInputElement).checked).toBe(true);
-    await w.find('input[value="auto"]').trigger('change');
-    expect(w.emitted('updateNotificationMode')).toEqual([['auto']]);
   });
 });
 

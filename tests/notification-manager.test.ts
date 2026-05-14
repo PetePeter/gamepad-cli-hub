@@ -1,11 +1,11 @@
 /**
  * Comprehensive unit tests for NotificationManager.notifyLlmDirected().
  *
- * Covers all 6 delivery branches:
- * 1. Mode Check: notificationMode !== 'llm' throws error
- * 2. Screen Locked + Telegram Enabled: calls telegramNotifier, returns 'telegram'
- * 3. Screen Locked + Telegram Disabled: returns 'none'
- * 4. App Hidden/Minimised: calls showNotification(), returns 'toast'
+ * Covers all delivery branches:
+ * 1. Screen Locked + Telegram Enabled: calls telegramNotifier, returns 'telegram'
+ * 2. Screen Locked + Telegram Disabled: returns 'none'
+ * 3. App Hidden/Minimised: calls showNotification(), returns 'toast'
+ * 4. App Visible + Not Focused: shows notification + flashes taskbar, returns 'taskbar_flash'
  * 5. App Visible + Active Session: returns 'none' immediately
  * 6. App Visible + Different Session: sends IPC bubble, returns 'bubble'
  */
@@ -13,9 +13,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NotificationManager } from '../src/session/notification-manager.js';
 import type { SessionManager } from '../src/session/manager.js';
-import type { ConfigLoader } from '../src/config/loader.js';
 import type { WindowManager } from '../src/electron/window-manager.js';
-import type { SessionState } from '../src/types/session.js';
 
 // Mock electron before any imports
 const electronMockState = vi.hoisted(() => {
@@ -66,20 +64,10 @@ function createMockSessionManager(): SessionManager {
   } as unknown as SessionManager;
 }
 
-function createMockConfigLoader(notificationMode: string = 'llm'): ConfigLoader {
-  return {
-    getNotificationMode: vi.fn(() => notificationMode),
-    getSnapOutWindowPrefs: vi.fn(),
-    setSnapOutWindowPrefs: vi.fn(),
-  } as unknown as ConfigLoader;
-}
-
 describe('NotificationManager.notifyLlmDirected()', () => {
   let notificationManager: NotificationManager;
   let windowManager: WindowManager;
   let sessionManager: SessionManager;
-  let configLoader: ConfigLoader;
-  let getSessionStateMock: ReturnType<typeof vi.fn>;
   let screenLockChecker: ReturnType<typeof vi.fn>;
   let telegramNotifier: ReturnType<typeof vi.fn>;
   let activeSessionIdGetter: ReturnType<typeof vi.fn>;
@@ -88,15 +76,8 @@ describe('NotificationManager.notifyLlmDirected()', () => {
     electronMockState.getAllWindowsMock.mockClear();
     windowManager = createMockWindowManager();
     sessionManager = createMockSessionManager();
-    configLoader = createMockConfigLoader('llm');
-    getSessionStateMock = vi.fn(() => 'implementing' as SessionState);
 
-    notificationManager = new NotificationManager(
-      windowManager,
-      sessionManager,
-      configLoader,
-      getSessionStateMock,
-    );
+    notificationManager = new NotificationManager(windowManager, sessionManager);
 
     screenLockChecker = vi.fn(() => false);
     telegramNotifier = vi.fn();
@@ -105,68 +86,6 @@ describe('NotificationManager.notifyLlmDirected()', () => {
     notificationManager.setScreenLockChecker(screenLockChecker);
     notificationManager.setTelegramNotifier(telegramNotifier);
     notificationManager.setActiveSessionIdGetter(activeSessionIdGetter);
-  });
-
-  describe('1. Mode Check', () => {
-    it('throws error when notificationMode is "auto"', () => {
-      configLoader = createMockConfigLoader('auto');
-      notificationManager = new NotificationManager(
-        windowManager,
-        sessionManager,
-        configLoader,
-        getSessionStateMock,
-      );
-      notificationManager.setScreenLockChecker(screenLockChecker);
-
-      expect(() => {
-        notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
-      }).toThrow(/LLM-directed notifications require notificationMode=llm/);
-    });
-
-    it('throws error when notificationMode is "off"', () => {
-      configLoader = createMockConfigLoader('off');
-      notificationManager = new NotificationManager(
-        windowManager,
-        sessionManager,
-        configLoader,
-        getSessionStateMock,
-      );
-      notificationManager.setScreenLockChecker(screenLockChecker);
-
-      expect(() => {
-        notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
-      }).toThrow(/LLM-directed notifications require notificationMode=llm/);
-    });
-
-    it('throws error when notificationMode is "unknown"', () => {
-      configLoader = createMockConfigLoader('unknown');
-      notificationManager = new NotificationManager(
-        windowManager,
-        sessionManager,
-        configLoader,
-        getSessionStateMock,
-      );
-      notificationManager.setScreenLockChecker(screenLockChecker);
-
-      expect(() => {
-        notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
-      }).toThrow(/LLM-directed notifications require notificationMode=llm/);
-    });
-
-    it('error message includes current mode', () => {
-      configLoader = createMockConfigLoader('auto');
-      notificationManager = new NotificationManager(
-        windowManager,
-        sessionManager,
-        configLoader,
-        getSessionStateMock,
-      );
-      notificationManager.setScreenLockChecker(screenLockChecker);
-
-      expect(() => {
-        notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
-      }).toThrow(/current mode is auto/);
-    });
   });
 
   describe('2. Screen Locked + Telegram Enabled', () => {
@@ -391,25 +310,6 @@ describe('NotificationManager.notifyLlmDirected()', () => {
       notificationManager.notifyLlmDirected('sess-2', 'Title', 'Content');
 
       expect(mockWindow.webContents.send).toHaveBeenCalled();
-    });
-  });
-
-  describe('Integration: Mode Check gates all other logic', () => {
-    it('mode check happens before screen lock check', () => {
-      configLoader = createMockConfigLoader('auto');
-      notificationManager = new NotificationManager(
-        windowManager,
-        sessionManager,
-        configLoader,
-        getSessionStateMock,
-      );
-
-      const checkBeforeModeError = () => {
-        notificationManager.notifyLlmDirected('sess-1', 'Title', 'Content');
-      };
-
-      expect(checkBeforeModeError).toThrow();
-      expect(screenLockChecker).not.toHaveBeenCalled();
     });
   });
 

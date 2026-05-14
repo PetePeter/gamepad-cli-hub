@@ -52,10 +52,6 @@ export const useAppStore = defineStore('app', () => {
     if (state.eventLog.length > 100) state.eventLog.shift();
   }
 
-  function setActiveProfile(profile: string) {
-    state.activeProfile = profile;
-  }
-
   // Re-export reactive state fields + getters + actions
   return {
     state,
@@ -69,6 +65,5 @@ export const useAppStore = defineStore('app', () => {
     updateSession,
     setGamepadCount,
     logEvent,
-    setActiveProfile,
   };
 });

@@ -32,7 +32,6 @@ import { initTelegramModules } from '../../telegram/orchestrator.js';
 import { setupSessionHandlers } from './session-handlers.js';
 import { setupConfigHandlers } from './config-handlers.js';
 import { setupEditorHandlers } from './editor-handlers.js';
-import { setupProfileHandlers } from './profile-handlers.js';
 import { setupToolsHandlers } from './tools-handlers.js';
 import { setupKeyboardHandlers } from './keyboard-handlers.js';
 import { setupSystemHandlers, cleanupWorkTempFiles } from './system-handlers.js';
@@ -90,10 +89,7 @@ export function registerIPCHandlers(
   const contextManager = new ContextManager(planManager);
   const backupManager = new PlanBackupManager(planManager);
   const scheduledTaskManager = new ScheduledTaskManager(sessionManager, ptyManager, planManager, configLoader);
-  const notificationManager = new NotificationManager(
-    windowManager, sessionManager, configLoader,
-    (sessionId) => stateDetector.getState(sessionId),
-  );
+  const notificationManager = new NotificationManager(windowManager, sessionManager);
 
   // Power monitor with full session/PTY diagnostics and screen lock tracking
   const powerMonitorResult = setupPowerMonitor(powerMonitor, { sessionManager, ptyManager });
@@ -151,7 +147,6 @@ export function registerIPCHandlers(
   const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager, windowManager, configLoader);
   setupConfigHandlers(configLoader, localhostMcpServer);
   setupEditorHandlers(configLoader);
-  setupProfileHandlers(configLoader);
   setupToolsHandlers(configLoader);
   setupKeyboardHandlers(keyboard);
   setupSystemHandlers(dirname ?? process.cwd());

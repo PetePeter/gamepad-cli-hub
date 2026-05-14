@@ -1,5 +1,5 @@
 /**
- * Config store — caches for CLI bindings, sequences, tools, and profiles.
+ * Config store — caches for CLI bindings, sequences, and tools.
  *
  * Legacy code reads from `state.cliBindingsCache` etc. (via the reactive state).
  * Vue components use `useConfigStore()` for typed access + reload actions.
@@ -14,8 +14,6 @@ export const useConfigStore = defineStore('config', () => {
   const cliTypes = computed(() => state.cliTypes);
 
   const availableSpawnTypes = computed(() => state.availableSpawnTypes);
-
-  const activeProfile = computed(() => state.activeProfile);
 
   // ── Actions ──────────────────────────────────────────────────────────
 
@@ -55,14 +53,9 @@ export const useConfigStore = defineStore('config', () => {
     state.availableSpawnTypes = types;
   }
 
-  function setActiveProfile(profile: string) {
-    state.activeProfile = profile;
-  }
-
   return {
     cliTypes,
     availableSpawnTypes,
-    activeProfile,
     getBindings,
     getSequences,
     getToolConfig,
@@ -71,6 +64,5 @@ export const useConfigStore = defineStore('config', () => {
     setToolsCache,
     setCliTypes,
     setAvailableSpawnTypes,
-    setActiveProfile,
   };
 });

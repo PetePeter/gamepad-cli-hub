@@ -713,7 +713,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'notify_user',
     title: 'Notify User',
-    description: 'Send an LLM-directed notification with smart delivery routing. Requires notificationMode=llm. Returns delivered as toast, bubble, telegram, or none.',
+    description: 'Send an LLM-directed notification with smart delivery routing. Helm routes to toast, taskbar flash, bubble, or Telegram based on screen/window state. Returns delivered channel.',
     inputSchema: {
       type: 'object',
       properties: {

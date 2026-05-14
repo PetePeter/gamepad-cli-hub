@@ -234,7 +234,7 @@ describe('Config auto-seeding for dev mode (Option A)', () => {
     fs.mkdirSync(path.join(bundledDir, 'profiles'), { recursive: true });
     fs.writeFileSync(
       path.join(bundledDir, 'settings.yaml'),
-      'activeProfile: default\nhapticFeedback: true\nnotifications: false\n'
+      'hapticFeedback: true\nnotifications: false\n'
     );
     fs.writeFileSync(
       path.join(bundledDir, 'profiles', 'default.yaml'),
@@ -251,7 +251,6 @@ describe('Config auto-seeding for dev mode (Option A)', () => {
     loader.load();
 
     // Verify: Config loaded correctly
-    expect(loader.getActiveProfile()).toBe('default');
     expect(loader.getHapticFeedback()).toBe(true);
     expect(loader.getNotifications()).toBe(false);
     const cliTypes = loader.getCliTypes();

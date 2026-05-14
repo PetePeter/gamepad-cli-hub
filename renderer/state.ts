@@ -55,7 +55,6 @@ export interface AppState {
   /** Project registry shared by sidebar, settings, and planner surfaces. */
   projects: ProjectSummary[];
   settingsTab: string;
-  activeProfile: string;
   /** Per-session AIAGENT state (idle, waiting, implementing, etc.) */
   sessionStates: Map<string, string>;
   /** Per-session activity level (active, inactive, idle) */
@@ -102,8 +101,7 @@ export const state: AppState = reactive({
   cliSequencesCache: {},
   cliToolsCache: {},
   projects: [],
-  settingsTab: 'profiles',
-  activeProfile: 'default',
+  settingsTab: 'tools',
   sessionStates: new Map(),
   sessionActivityLevels: new Map(),
   lastOutputTimes: new Map(),

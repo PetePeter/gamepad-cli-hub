@@ -258,7 +258,6 @@ export interface SnapOutWindowPrefs {
 export type SessionSortField = 'state' | 'cliType' | 'directory' | 'name';
 export type BindingSortField = 'button' | 'action';
 export type SortDirection = 'asc' | 'desc';
-export type NotificationMode = 'off' | 'auto' | 'llm';
 
 export interface AreaSortPrefs {
   field: string;
@@ -335,10 +334,8 @@ export interface EditorPrefs {
 }
 
 export interface SettingsConfig {
-  activeProfile: string;
   hapticFeedback: boolean;
   notifications: boolean;
-  notificationMode?: NotificationMode;
   escProtectionEnabled: boolean;
   sidebar?: SidebarPrefs;
   snapOutWindows?: Record<string, SnapOutWindowPrefs>;
@@ -544,17 +541,14 @@ export class ConfigLoader {
   private loadSettings(): void {
     const filePath = path.join(this.configDir, 'settings.yaml');
     this.settings = this.readYaml<SettingsConfig>(filePath);
-    if (!this.settings || !this.settings.activeProfile) {
-      throw new Error('Invalid settings.yaml: missing activeProfile');
+    if (!this.settings) {
+      throw new Error('Invalid settings.yaml: could not parse');
     }
     if (this.settings.hapticFeedback === undefined) {
       this.settings.hapticFeedback = true;
     }
     if (this.settings.notifications === undefined) {
       this.settings.notifications = true;
-    }
-    if (this.settings.notificationMode === undefined) {
-      this.settings.notificationMode = this.settings.notifications ? 'auto' : 'off';
     }
     const savedTelegram = this.settings.telegram;
     this.settings.telegram = {
@@ -571,14 +565,13 @@ export class ConfigLoader {
       port: normalizeMcpPort(this.settings.mcp?.port),
       authToken: typeof this.settings.mcp?.authToken === 'string' ? this.settings.mcp.authToken : '',
     };
-    this.activeProfileName = this.settings.activeProfile;
   }
 
   private loadActiveProfile(): void {
-    const filePath = path.join(this.configDir, 'profiles', `${this.activeProfileName}.yaml`);
+    const filePath = path.join(this.configDir, 'profiles', 'default.yaml');
     const raw = this.readYaml<any>(filePath);
     if (!raw) {
-      throw new Error(`Failed to load profile: ${this.activeProfileName}`);
+      throw new Error('Failed to load profile: default');
     }
 
     // Migrate cliTypes → bindings if needed
@@ -855,12 +848,6 @@ export class ConfigLoader {
     return count;
   }
 
-  // ---------- Profile CRUD ---------------------------------------------
-
-  getActiveProfile(): string {
-    return this.activeProfileName;
-  }
-
   getHapticFeedback(): boolean {
     this.ensureLoaded();
     return this.settings!.hapticFeedback;
@@ -880,18 +867,6 @@ export class ConfigLoader {
   setNotifications(enabled: boolean): void {
     this.ensureLoaded();
     this.settings!.notifications = enabled;
-    this.saveSettings();
-  }
-
-  getNotificationMode(): NotificationMode {
-    this.ensureLoaded();
-    return this.settings!.notificationMode ?? 'auto';
-  }
-
-  setNotificationMode(mode: NotificationMode): void {
-    this.ensureLoaded();
-    this.settings!.notificationMode = mode;
-    this.settings!.notifications = mode !== 'off';
     this.saveSettings();
   }
 
@@ -1113,77 +1088,6 @@ export class ConfigLoader {
       authToken: typeof next.authToken === 'string' ? next.authToken : '',
     };
     this.saveSettings();
-  }
-
-  listProfiles(): string[] {
-    const profilesDir = path.join(this.configDir, 'profiles');
-    if (!fs.existsSync(profilesDir)) return [];
-    return fs.readdirSync(profilesDir)
-      .filter(f => f.endsWith('.yaml'))
-      .map(f => f.replace(/\.yaml$/, ''));
-  }
-
-  switchProfile(profileName: string): void {
-    const filePath = path.join(this.configDir, 'profiles', `${profileName}.yaml`);
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`Profile not found: ${profileName}`);
-    }
-    this.activeProfileName = profileName;
-    this.settings!.activeProfile = profileName;
-    this.saveSettings();
-    this.loadActiveProfile();
-  }
-
-  createProfile(name: string, copyFrom?: string): void {
-    const profilesDir = path.join(this.configDir, 'profiles');
-    fs.mkdirSync(profilesDir, { recursive: true });
-
-    const targetPath = path.join(profilesDir, `${name}.yaml`);
-    if (fs.existsSync(targetPath)) {
-      throw new Error(`Profile already exists: ${name}`);
-    }
-
-    let profile: ProfileConfig;
-    if (copyFrom) {
-      const srcPath = path.join(profilesDir, `${copyFrom}.yaml`);
-      if (!fs.existsSync(srcPath)) {
-        throw new Error(`Source profile not found: ${copyFrom}`);
-      }
-      profile = this.readYaml<ProfileConfig>(srcPath);
-      profile.name = name;
-      if (profile.tools && typeof profile.tools === 'object') {
-        for (const tool of Object.values(profile.tools)) {
-          normalizeToolConfig(tool);
-        }
-      }
-    } else {
-      // Empty profile - no tools, no directories, minimal stub bindings
-      profile = {
-        name,
-        tools: {},
-        workingDirectories: [],
-        bindings: {},
-      };
-    }
-
-    const yamlStr = YAML.stringify(profile);
-    fs.writeFileSync(targetPath, yamlStr, 'utf8');
-  }
-
-  deleteProfile(name: string): void {
-    if (name === 'default') {
-      throw new Error('Cannot delete the default profile');
-    }
-    const filePath = path.join(this.configDir, 'profiles', `${name}.yaml`);
-    if (!fs.existsSync(filePath)) {
-      throw new Error(`Profile not found: ${name}`);
-    }
-    fs.unlinkSync(filePath);
-
-    // If we deleted the active profile, fall back to default
-    if (this.activeProfileName === name) {
-      this.switchProfile('default');
-    }
   }
 
   // ---------- Working Directory CRUD -----------------------------------

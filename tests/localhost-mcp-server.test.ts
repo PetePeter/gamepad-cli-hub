@@ -212,7 +212,7 @@ describe('LocalhostMcpServer', () => {
     expect(telegramChatTool!.description).toContain('mobile-friendly');
     expect(schedulerCreateTool!.description).toContain('scheduled task');
     expect(schedulerDeleteTool!.description).toContain('Delete');
-    expect(notifyUserTool!.description).toContain('notificationMode=llm');
+    expect(notifyUserTool!.description).toContain('smart delivery routing');
     expect(appVisibilityTool!.description).toContain('screen-lock');
     expect(contextBindTool!.description).toContain('plan or sequence');
     expect(contextUnbindTool!.description).toContain('without deleting');

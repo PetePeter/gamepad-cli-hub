@@ -124,9 +124,6 @@ export function setupPtyHandlers(
       if (cliType) patternMatcher.processOutput(sessionId, cliType, data);
     }
 
-    // Feed to notification manager for output preview in toasts
-    notificationManager?.feedOutput(sessionId, data);
-
     // Forward to renderer for xterm.js rendering
     const win = windowManager.getWindowForSession(sessionId);
     if (win && !win.isDestroyed()) {
@@ -252,9 +249,6 @@ export function setupPtyHandlers(
     if (win && !win.isDestroyed()) {
       win.webContents.send('pty:activity-change', event);
     }
-
-    // Desktop notification when activity transitions from active to non-active
-    notificationManager?.handleActivityChange(event);
 
     // Telegram: flush buffered output when session goes inactive/idle
     onActivityChange?.(event.sessionId, event.level);

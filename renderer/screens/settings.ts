@@ -1,4 +1,4 @@
-import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, profilesClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
+import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
 /**
  * Settings screen — tab switching orchestrator, state management, directories tab, public API.
  *
@@ -18,7 +18,6 @@ import {
   getRequiredFormFieldError,
 } from '../utils.js';
 import { renderBindingsDisplay, renderSequenceGroups } from './settings-bindings.js';
-import { renderProfilesPanel } from './settings-profiles.js';
 import { renderToolsPanel } from './settings-tools.js';
 import { renderTelegramSettings } from './settings-telegram.js';
 import { renderChipbarActionsPanel } from './settings-chipbar-actions.js';
@@ -36,9 +35,7 @@ export async function loadSettingsScreen(): Promise<void> {
 
     renderSettingsTabs(cliTypes);
 
-    if (state.settingsTab === 'profiles') {
-      await renderProfilesPanel();
-    } else if (state.settingsTab === 'tools') {
+    if (state.settingsTab === 'tools') {
       await renderToolsPanel();
     } else if (state.settingsTab === 'chipbar-actions') {
       await renderChipbarActionsPanel();
@@ -96,7 +93,6 @@ function renderSettingsTabs(cliTypes: string[]): void {
   container.innerHTML = '';
 
   const allTabs = [
-    { key: 'profiles', label: '👤 Profiles' },
     ...cliTypes.map(ct => ({ key: ct, label: getCliDisplayName(ct) })),
     { key: 'tools', label: '🔧 Tools' },
     { key: 'chipbar-actions', label: '⚡ Quick Actions' },
