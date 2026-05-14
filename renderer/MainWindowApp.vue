@@ -76,12 +76,12 @@ import { showEditorPopup } from './editor/editor-popup.js';
 import DraftEditor from './components/panels/DraftEditor.vue';
 import type { ScheduledTask } from '../../src/types/scheduled-task.js';
 import {
-  setDraftEditorOpener as setLegacyDraftEditorOpener,
-  setPlanEditorOpener as setLegacyPlanEditorOpener,
-  setDraftEditorCloser as setLegacyDraftEditorCloser,
-  setDraftEditorVisibilityChecker as setLegacyDraftEditorVisibilityChecker,
-  setDraftEditorButtonHandler as setLegacyDraftEditorButtonHandler,
-  setPlanChangesChecker as setLegacyPlanChangesChecker,
+  setDraftEditorOpener as setDraftEditorCompatibilityOpener,
+  setPlanEditorOpener as setPlanEditorCompatibilityOpener,
+  setDraftEditorCloser as setDraftEditorCompatibilityCloser,
+  setDraftEditorVisibilityChecker as setDraftEditorCompatibilityVisibilityChecker,
+  setDraftEditorButtonHandler as setDraftEditorCompatibilityButtonHandler,
+  setPlanChangesChecker as setPlanCompatibilityChangesChecker,
 } from './drafts/draft-editor.js';
 import {
   setPlanEditorOpener as setChipBarPlanEditorOpener,
@@ -724,12 +724,12 @@ onMounted(async () => {
     });
 
     // Wire draft/plan editor callbacks
-    setLegacyDraftEditorOpener(openDraftEditor);
-    setLegacyPlanEditorOpener(openPlanEditor);
-    setLegacyDraftEditorCloser(closeDraftEditor);
-    setLegacyDraftEditorVisibilityChecker(() => draftEditorVisible.value);
-    setLegacyDraftEditorButtonHandler(handleDraftEditorButton);
-    setLegacyPlanChangesChecker(hasUnsavedChanges);
+    setDraftEditorCompatibilityOpener(openDraftEditor);
+    setPlanEditorCompatibilityOpener(openPlanEditor);
+    setDraftEditorCompatibilityCloser(closeDraftEditor);
+    setDraftEditorCompatibilityVisibilityChecker(() => draftEditorVisible.value);
+    setDraftEditorCompatibilityButtonHandler(handleDraftEditorButton);
+    setPlanCompatibilityChangesChecker(hasUnsavedChanges);
 
     setChipBarPlanEditorOpener(openPlanEditor);
 

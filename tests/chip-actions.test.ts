@@ -6,16 +6,12 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { useChipBarStore } from '../renderer/stores/chip-bar.js';
+import { setPlanEditorOpener, useChipBarStore } from '../renderer/stores/chip-bar.js';
 import { state } from '../renderer/state.js';
 import { executeSequenceForSession } from '../renderer/bindings.js';
 
 const mockShowPlanInEditor = vi.fn();
 const mockDeliverBulkText = vi.fn();
-
-vi.mock('../renderer/drafts/draft-editor.js', () => ({
-  showPlanInEditor: (...args: unknown[]) => mockShowPlanInEditor(...args),
-}));
 
 vi.mock('../renderer/bindings.js', () => ({
   executeSequenceForSession: vi.fn(),
@@ -42,6 +38,7 @@ describe('Chip-bar action store behavior', () => {
     state.draftCounts.clear();
     state.planCodingCounts.clear();
     state.planStartableCounts.clear();
+    setPlanEditorOpener(mockShowPlanInEditor);
 
     (globalThis as typeof globalThis & { window: any }).window = {
       gamepadCli: {

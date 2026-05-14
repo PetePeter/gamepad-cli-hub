@@ -1,8 +1,10 @@
 /**
- * Unified Editor — legacy delegator.
+ * Unified Editor — compatibility bridge.
  *
- * All functionality has moved to DraftEditor.vue. This file maintains
- * backward-compatible exports that delegate to registered callbacks.
+ * All functionality has moved to DraftEditor.vue and
+ * useDraftPlanContextEditor(). This file keeps narrow compatibility exports
+ * for existing keyboard/binding callers; runtime ownership is registered by
+ * the active window controller.
  */
 
 import type { PlanStatus } from '../../src/types/plan.js';
@@ -81,7 +83,7 @@ let planChangesChecker: (() => boolean) | null = null;
 export function setPlanChangesChecker(fn: () => boolean) { planChangesChecker = fn; }
 
 // ---------------------------------------------------------------------------
-// Backward-compatible exports (delegated)
+// Backward-compatible exports
 // ---------------------------------------------------------------------------
 
 export function initDraftEditor(): void {

@@ -9,7 +9,7 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import PlanChip from '../renderer/components/chips/PlanChip.vue';
 import ChipBar from '../renderer/components/chips/ChipBar.vue';
-import { useChipBarStore } from '../renderer/stores/chip-bar.js';
+import { setPlanEditorOpener, useChipBarStore } from '../renderer/stores/chip-bar.js';
 import { state } from '../renderer/state.js';
 
 const mockShowPlanInEditor = vi.fn();
@@ -18,7 +18,6 @@ const mockDeliverBulkText = vi.fn();
 
 vi.mock('../renderer/drafts/draft-editor.js', () => ({
   showDraftEditor: vi.fn(),
-  showPlanInEditor: (...args: unknown[]) => mockShowPlanInEditor(...args),
   hideDraftEditor: (...args: unknown[]) => mockHideDraftEditor(...args),
 }));
 
@@ -73,6 +72,7 @@ describe('Plan chip store integration', () => {
     state.draftCounts.clear();
     state.planCodingCounts.clear();
     state.planStartableCounts.clear();
+    setPlanEditorOpener(mockShowPlanInEditor);
 
     (globalThis as typeof globalThis & { window: any }).window = {
       gamepadCli: {

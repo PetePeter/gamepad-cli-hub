@@ -9552,7 +9552,7 @@
       "label": "setDraftEditorOpener()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L65",
+      "source_location": "L67",
       "id": "drafts_draft_editor_setdrafteditoropener",
       "community": 1,
       "norm_label": "setdrafteditoropener()"
@@ -9561,7 +9561,7 @@
       "label": "setPlanEditorOpener()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L69",
+      "source_location": "L71",
       "id": "drafts_draft_editor_setplaneditoropener",
       "community": 1,
       "norm_label": "setplaneditoropener()"
@@ -9570,7 +9570,7 @@
       "label": "setDraftEditorCloser()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L72",
+      "source_location": "L74",
       "id": "drafts_draft_editor_setdrafteditorcloser",
       "community": 1,
       "norm_label": "setdrafteditorcloser()"
@@ -9579,7 +9579,7 @@
       "label": "setDraftEditorVisibilityChecker()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L75",
+      "source_location": "L77",
       "id": "drafts_draft_editor_setdrafteditorvisibilitychecker",
       "community": 1,
       "norm_label": "setdrafteditorvisibilitychecker()"
@@ -9588,7 +9588,7 @@
       "label": "setDraftEditorButtonHandler()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L78",
+      "source_location": "L80",
       "id": "drafts_draft_editor_setdrafteditorbuttonhandler",
       "community": 1,
       "norm_label": "setdrafteditorbuttonhandler()"
@@ -9597,7 +9597,7 @@
       "label": "setPlanChangesChecker()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L81",
+      "source_location": "L83",
       "id": "drafts_draft_editor_setplanchangeschecker",
       "community": 1,
       "norm_label": "setplanchangeschecker()"
@@ -9606,7 +9606,7 @@
       "label": "initDraftEditor()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L87",
+      "source_location": "L89",
       "id": "drafts_draft_editor_initdrafteditor",
       "community": 1,
       "norm_label": "initdrafteditor()"
@@ -9615,7 +9615,7 @@
       "label": "showDraftEditor()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L91",
+      "source_location": "L93",
       "id": "drafts_draft_editor_showdrafteditor",
       "community": 1,
       "norm_label": "showdrafteditor()"
@@ -9624,7 +9624,7 @@
       "label": "showPlanInEditor()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L95",
+      "source_location": "L97",
       "id": "drafts_draft_editor_showplanineditor",
       "community": 1,
       "norm_label": "showplanineditor()"
@@ -9633,7 +9633,7 @@
       "label": "hideDraftEditor()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L103",
+      "source_location": "L105",
       "id": "drafts_draft_editor_hidedrafteditor",
       "community": 1,
       "norm_label": "hidedrafteditor()"
@@ -9642,7 +9642,7 @@
       "label": "closeEditor()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L107",
+      "source_location": "L109",
       "id": "drafts_draft_editor_closeeditor",
       "community": 1,
       "norm_label": "closeeditor()"
@@ -9651,7 +9651,7 @@
       "label": "isDraftEditorVisible()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L111",
+      "source_location": "L113",
       "id": "drafts_draft_editor_isdrafteditorvisible",
       "community": 1,
       "norm_label": "isdrafteditorvisible()"
@@ -9660,7 +9660,7 @@
       "label": "handleDraftEditorButton()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L115",
+      "source_location": "L117",
       "id": "drafts_draft_editor_handledrafteditorbutton",
       "community": 1,
       "norm_label": "handledrafteditorbutton()"
@@ -9669,7 +9669,7 @@
       "label": "hasUnsavedPlanChanges()",
       "file_type": "code",
       "source_file": "renderer\\drafts\\draft-editor.ts",
-      "source_location": "L123",
+      "source_location": "L125",
       "id": "drafts_draft_editor_hasunsavedplanchanges",
       "community": 1,
       "norm_label": "hasunsavedplanchanges()"
@@ -10434,7 +10434,7 @@
       "label": "makeDefaultFilters()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L27",
+      "source_location": "L26",
       "id": "plans_plan_screen_makedefaultfilters",
       "community": 3,
       "norm_label": "makedefaultfilters()"
@@ -10443,7 +10443,7 @@
       "label": "getWindowKey()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L92",
+      "source_location": "L91",
       "id": "plans_plan_screen_getwindowkey",
       "community": 3,
       "norm_label": "getwindowkey()"
@@ -10452,7 +10452,7 @@
       "label": "getWindowCallbacks()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L96",
+      "source_location": "L95",
       "id": "plans_plan_screen_getwindowcallbacks",
       "community": 3,
       "norm_label": "getwindowcallbacks()"
@@ -10461,7 +10461,7 @@
       "label": "coerceTriState()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L115",
+      "source_location": "L114",
       "id": "plans_plan_screen_coercetristate",
       "community": 3,
       "norm_label": "coercetristate()"
@@ -10470,7 +10470,7 @@
       "label": "coerceTriStateGroup()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L119",
+      "source_location": "L118",
       "id": "plans_plan_screen_coercetristategroup",
       "community": 3,
       "norm_label": "coercetristategroup()"
@@ -10479,7 +10479,7 @@
       "label": "cycleTriState()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L126",
+      "source_location": "L125",
       "id": "plans_plan_screen_cycletristate",
       "community": 3,
       "norm_label": "cycletristate()"
@@ -10488,7 +10488,7 @@
       "label": "matchesTriStateGroup()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L130",
+      "source_location": "L129",
       "id": "plans_plan_screen_matchestristategroup",
       "community": 3,
       "norm_label": "matchestristategroup()"
@@ -10497,7 +10497,7 @@
       "label": "snapshotFilterPreferences()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L137",
+      "source_location": "L136",
       "id": "plans_plan_screen_snapshotfilterpreferences",
       "community": 3,
       "norm_label": "snapshotfilterpreferences()"
@@ -10506,7 +10506,7 @@
       "label": "loadFilterPreferences()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L160",
+      "source_location": "L159",
       "id": "plans_plan_screen_loadfilterpreferences",
       "community": 3,
       "norm_label": "loadfilterpreferences()"
@@ -10515,7 +10515,7 @@
       "label": "saveFilterPreferences()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L175",
+      "source_location": "L174",
       "id": "plans_plan_screen_savefilterpreferences",
       "community": 3,
       "norm_label": "savefilterpreferences()"
@@ -10524,7 +10524,7 @@
       "label": "setPlanScreenFitCallback()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L186",
+      "source_location": "L185",
       "id": "plans_plan_screen_setplanscreenfitcallback",
       "community": 1,
       "norm_label": "setplanscreenfitcallback()"
@@ -10533,7 +10533,7 @@
       "label": "setPlanScreenCloseCallback()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L187",
+      "source_location": "L186",
       "id": "plans_plan_screen_setplanscreenclosecallback",
       "community": 1,
       "norm_label": "setplanscreenclosecallback()"
@@ -10542,7 +10542,7 @@
       "label": "setPlanScreenOpenCallback()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L188",
+      "source_location": "L187",
       "id": "plans_plan_screen_setplanscreenopencallback",
       "community": 1,
       "norm_label": "setplanscreenopencallback()"
@@ -10551,7 +10551,7 @@
       "label": "setPlanEditorOpener()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L189",
+      "source_location": "L188",
       "id": "plans_plan_screen_setplaneditoropener",
       "community": 3,
       "norm_label": "setplaneditoropener()"
@@ -10560,7 +10560,7 @@
       "label": "setDraftEditorCloser()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L190",
+      "source_location": "L189",
       "id": "plans_plan_screen_setdrafteditorcloser",
       "community": 3,
       "norm_label": "setdrafteditorcloser()"
@@ -10569,7 +10569,7 @@
       "label": "setDraftEditorVisibilityChecker()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L191",
+      "source_location": "L190",
       "id": "plans_plan_screen_setdrafteditorvisibilitychecker",
       "community": 3,
       "norm_label": "setdrafteditorvisibilitychecker()"
@@ -10578,7 +10578,7 @@
       "label": "setPlanChangesChecker()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L192",
+      "source_location": "L191",
       "id": "plans_plan_screen_setplanchangeschecker",
       "community": 3,
       "norm_label": "setplanchangeschecker()"
@@ -10587,7 +10587,7 @@
       "label": "setBackupRestoreOpener()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L193",
+      "source_location": "L192",
       "id": "plans_plan_screen_setbackuprestoreopener",
       "community": 3,
       "norm_label": "setbackuprestoreopener()"
@@ -10596,7 +10596,7 @@
       "label": "setPlanScreenContextEditorOpener()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L194",
+      "source_location": "L193",
       "id": "plans_plan_screen_setplanscreencontexteditoropener",
       "community": 3,
       "norm_label": "setplanscreencontexteditoropener()"
@@ -10605,7 +10605,7 @@
       "label": "getLayoutNodes()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L196",
+      "source_location": "L195",
       "id": "plans_plan_screen_getlayoutnodes",
       "community": 3,
       "norm_label": "getlayoutnodes()"
@@ -10614,7 +10614,7 @@
       "label": "getNavigableLayoutNodes()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L200",
+      "source_location": "L199",
       "id": "plans_plan_screen_getnavigablelayoutnodes",
       "community": 3,
       "norm_label": "getnavigablelayoutnodes()"
@@ -10623,7 +10623,7 @@
       "label": "getSelectedItem()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L208",
+      "source_location": "L207",
       "id": "plans_plan_screen_getselecteditem",
       "community": 3,
       "norm_label": "getselecteditem()"
@@ -10632,7 +10632,7 @@
       "label": "getSelectedContext()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L214",
+      "source_location": "L213",
       "id": "plans_plan_screen_getselectedcontext",
       "community": 3,
       "norm_label": "getselectedcontext()"
@@ -10641,7 +10641,7 @@
       "label": "getPlanItemById()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L220",
+      "source_location": "L219",
       "id": "plans_plan_screen_getplanitembyid",
       "community": 3,
       "norm_label": "getplanitembyid()"
@@ -10650,7 +10650,7 @@
       "label": "matchesFilters()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L224",
+      "source_location": "L223",
       "id": "plans_plan_screen_matchesfilters",
       "community": 3,
       "norm_label": "matchesfilters()"
@@ -10659,7 +10659,7 @@
       "label": "getFilteredItems()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L240",
+      "source_location": "L239",
       "id": "plans_plan_screen_getfiltereditems",
       "community": 3,
       "norm_label": "getfiltereditems()"
@@ -10668,7 +10668,7 @@
       "label": "getFilteredDeps()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L244",
+      "source_location": "L243",
       "id": "plans_plan_screen_getfiltereddeps",
       "community": 3,
       "norm_label": "getfiltereddeps()"
@@ -10677,7 +10677,7 @@
       "label": "computeConnectedPlanIds()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L249",
+      "source_location": "L248",
       "id": "plans_plan_screen_computeconnectedplanids",
       "community": 3,
       "norm_label": "computeconnectedplanids()"
@@ -10686,7 +10686,7 @@
       "label": "setRelatedTransientIds()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L273",
+      "source_location": "L272",
       "id": "plans_plan_screen_setrelatedtransientids",
       "community": 3,
       "norm_label": "setrelatedtransientids()"
@@ -10695,7 +10695,7 @@
       "label": "refreshRelatedFocus()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L277",
+      "source_location": "L276",
       "id": "plans_plan_screen_refreshrelatedfocus",
       "community": 3,
       "norm_label": "refreshrelatedfocus()"
@@ -10704,7 +10704,7 @@
       "label": "isPlanRelatedForeground()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L299",
+      "source_location": "L298",
       "id": "plans_plan_screen_isplanrelatedforeground",
       "community": 3,
       "norm_label": "isplanrelatedforeground()"
@@ -10713,7 +10713,7 @@
       "label": "isPlanRelatedBackground()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L305",
+      "source_location": "L304",
       "id": "plans_plan_screen_isplanrelatedbackground",
       "community": 3,
       "norm_label": "isplanrelatedbackground()"
@@ -10722,7 +10722,7 @@
       "label": "setPlanData()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L309",
+      "source_location": "L308",
       "id": "plans_plan_screen_setplandata",
       "community": 3,
       "norm_label": "setplandata()"
@@ -10731,7 +10731,7 @@
       "label": "clearNotice()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L329",
+      "source_location": "L328",
       "id": "plans_plan_screen_clearnotice",
       "community": 3,
       "norm_label": "clearnotice()"
@@ -10740,7 +10740,7 @@
       "label": "showBriefNotice()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L337",
+      "source_location": "L336",
       "id": "plans_plan_screen_showbriefnotice",
       "community": 3,
       "norm_label": "showbriefnotice()"
@@ -10749,7 +10749,7 @@
       "label": "syncSelection()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L346",
+      "source_location": "L345",
       "id": "plans_plan_screen_syncselection",
       "community": 3,
       "norm_label": "syncselection()"
@@ -10758,7 +10758,7 @@
       "label": "loadPlanData()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L356",
+      "source_location": "L355",
       "id": "plans_plan_screen_loadplandata",
       "community": 3,
       "norm_label": "loadplandata()"
@@ -10767,7 +10767,7 @@
       "label": "selectNodeById()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L387",
+      "source_location": "L386",
       "id": "plans_plan_screen_selectnodebyid",
       "community": 3,
       "norm_label": "selectnodebyid()"
@@ -10776,7 +10776,7 @@
       "label": "selectContextById()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L396",
+      "source_location": "L395",
       "id": "plans_plan_screen_selectcontextbyid",
       "community": 3,
       "norm_label": "selectcontextbyid()"
@@ -10785,7 +10785,7 @@
       "label": "resolvePlanTargetSessionId()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L404",
+      "source_location": "L403",
       "id": "plans_plan_screen_resolveplantargetsessionid",
       "community": 3,
       "norm_label": "resolveplantargetsessionid()"
@@ -10794,7 +10794,7 @@
       "label": "openNodeEditor()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L418",
+      "source_location": "L417",
       "id": "plans_plan_screen_opennodeeditor",
       "community": 3,
       "norm_label": "opennodeeditor()"
@@ -10803,7 +10803,7 @@
       "label": "openNodeCompletionEditor()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L436",
+      "source_location": "L435",
       "id": "plans_plan_screen_opennodecompletioneditor",
       "community": 3,
       "norm_label": "opennodecompletioneditor()"
@@ -10812,7 +10812,7 @@
       "label": "openContextNodeEditor()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L452",
+      "source_location": "L451",
       "id": "plans_plan_screen_opencontextnodeeditor",
       "community": 3,
       "norm_label": "opencontextnodeeditor()"
@@ -10821,7 +10821,7 @@
       "label": "requestDelete()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L463",
+      "source_location": "L462",
       "id": "plans_plan_screen_requestdelete",
       "community": 3,
       "norm_label": "requestdelete()"
@@ -10830,7 +10830,7 @@
       "label": "closePlannerOverlay()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L471",
+      "source_location": "L470",
       "id": "plans_plan_screen_closeplanneroverlay",
       "community": 3,
       "norm_label": "closeplanneroverlay()"
@@ -10839,7 +10839,7 @@
       "label": "planScreenKeyHandler()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L492",
+      "source_location": "L491",
       "id": "plans_plan_screen_planscreenkeyhandler",
       "community": 3,
       "norm_label": "planscreenkeyhandler()"
@@ -10848,7 +10848,7 @@
       "label": "showPlanScreen()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L570",
+      "source_location": "L569",
       "id": "plans_plan_screen_showplanscreen",
       "community": 1,
       "norm_label": "showplanscreen()"
@@ -10857,7 +10857,7 @@
       "label": "mountPlanScreen()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L574",
+      "source_location": "L573",
       "id": "plans_plan_screen_mountplanscreen",
       "community": 3,
       "norm_label": "mountplanscreen()"
@@ -10866,7 +10866,7 @@
       "label": "unmountPlanScreen()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L590",
+      "source_location": "L589",
       "id": "plans_plan_screen_unmountplanscreen",
       "community": 3,
       "norm_label": "unmountplanscreen()"
@@ -10875,7 +10875,7 @@
       "label": "hidePlanScreen()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L601",
+      "source_location": "L600",
       "id": "plans_plan_screen_hideplanscreen",
       "community": 3,
       "norm_label": "hideplanscreen()"
@@ -10884,7 +10884,7 @@
       "label": "isPlanScreenVisible()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L609",
+      "source_location": "L608",
       "id": "plans_plan_screen_isplanscreenvisible",
       "community": 3,
       "norm_label": "isplanscreenvisible()"
@@ -10893,7 +10893,7 @@
       "label": "getCurrentPlanDirPath()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L613",
+      "source_location": "L612",
       "id": "plans_plan_screen_getcurrentplandirpath",
       "community": 1,
       "norm_label": "getcurrentplandirpath()"
@@ -10902,7 +10902,7 @@
       "label": "getSelectedPlanId()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L617",
+      "source_location": "L616",
       "id": "plans_plan_screen_getselectedplanid",
       "community": 3,
       "norm_label": "getselectedplanid()"
@@ -10911,7 +10911,7 @@
       "label": "getSelectedContextId()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L621",
+      "source_location": "L620",
       "id": "plans_plan_screen_getselectedcontextid",
       "community": 3,
       "norm_label": "getselectedcontextid()"
@@ -10920,7 +10920,7 @@
       "label": "handlePlanScreenDpad()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L625",
+      "source_location": "L624",
       "id": "plans_plan_screen_handleplanscreendpad",
       "community": 3,
       "norm_label": "handleplanscreendpad()"
@@ -10929,7 +10929,7 @@
       "label": "handlePlanScreenAction()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L656",
+      "source_location": "L655",
       "id": "plans_plan_screen_handleplanscreenaction",
       "community": 3,
       "norm_label": "handleplanscreenaction()"
@@ -10938,7 +10938,7 @@
       "label": "handleSave()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L691",
+      "source_location": "L690",
       "id": "plans_plan_screen_handlesave",
       "community": 3,
       "norm_label": "handlesave()"
@@ -10947,7 +10947,7 @@
       "label": "handleDelete()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L726",
+      "source_location": "L725",
       "id": "plans_plan_screen_handledelete",
       "community": 3,
       "norm_label": "handledelete()"
@@ -10956,7 +10956,7 @@
       "label": "handleApplyFromCanvas()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L738",
+      "source_location": "L737",
       "id": "plans_plan_screen_handleapplyfromcanvas",
       "community": 3,
       "norm_label": "handleapplyfromcanvas()"
@@ -10965,7 +10965,7 @@
       "label": "handleAddNode()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L767",
+      "source_location": "L766",
       "id": "plans_plan_screen_handleaddnode",
       "community": 3,
       "norm_label": "handleaddnode()"
@@ -10974,7 +10974,7 @@
       "label": "handleRemoveDep()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L814",
+      "source_location": "L813",
       "id": "plans_plan_screen_handleremovedep",
       "community": 3,
       "norm_label": "handleremovedep()"
@@ -10983,7 +10983,7 @@
       "label": "handleAddDep()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L823",
+      "source_location": "L822",
       "id": "plans_plan_screen_handleadddep",
       "community": 3,
       "norm_label": "handleadddep()"
@@ -10992,7 +10992,7 @@
       "label": "refreshCanvas()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L833",
+      "source_location": "L832",
       "id": "plans_plan_screen_refreshcanvas",
       "community": 3,
       "norm_label": "refreshcanvas()"
@@ -11001,7 +11001,7 @@
       "label": "refreshCanvasIfVisible()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L838",
+      "source_location": "L837",
       "id": "plans_plan_screen_refreshcanvasifvisible",
       "community": 3,
       "norm_label": "refreshcanvasifvisible()"
@@ -11010,7 +11010,7 @@
       "label": "handleExportDirectory()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L842",
+      "source_location": "L841",
       "id": "plans_plan_screen_handleexportdirectory",
       "community": 3,
       "norm_label": "handleexportdirectory()"
@@ -11019,7 +11019,7 @@
       "label": "handleClearDone()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L856",
+      "source_location": "L855",
       "id": "plans_plan_screen_handlecleardone",
       "community": 3,
       "norm_label": "handlecleardone()"
@@ -11028,7 +11028,7 @@
       "label": "onPlanNodeClick()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L874",
+      "source_location": "L873",
       "id": "plans_plan_screen_onplannodeclick",
       "community": 3,
       "norm_label": "onplannodeclick()"
@@ -11037,7 +11037,7 @@
       "label": "onPlanNodeEdit()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L893",
+      "source_location": "L892",
       "id": "plans_plan_screen_onplannodeedit",
       "community": 3,
       "norm_label": "onplannodeedit()"
@@ -11046,7 +11046,7 @@
       "label": "onPlanNodeApply()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L898",
+      "source_location": "L897",
       "id": "plans_plan_screen_onplannodeapply",
       "community": 3,
       "norm_label": "onplannodeapply()"
@@ -11055,7 +11055,7 @@
       "label": "onPlanNodeDelete()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L903",
+      "source_location": "L902",
       "id": "plans_plan_screen_onplannodedelete",
       "community": 3,
       "norm_label": "onplannodedelete()"
@@ -11064,7 +11064,7 @@
       "label": "onPlanNodeComplete()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L907",
+      "source_location": "L906",
       "id": "plans_plan_screen_onplannodecomplete",
       "community": 3,
       "norm_label": "onplannodecomplete()"
@@ -11073,7 +11073,7 @@
       "label": "onPlanAddNode()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L912",
+      "source_location": "L911",
       "id": "plans_plan_screen_onplanaddnode",
       "community": 3,
       "norm_label": "onplanaddnode()"
@@ -11082,7 +11082,7 @@
       "label": "onPlanAddContext()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L916",
+      "source_location": "L915",
       "id": "plans_plan_screen_onplanaddcontext",
       "community": 3,
       "norm_label": "onplanaddcontext()"
@@ -11091,7 +11091,7 @@
       "label": "onPlanAddDependency()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L920",
+      "source_location": "L919",
       "id": "plans_plan_screen_onplanadddependency",
       "community": 3,
       "norm_label": "onplanadddependency()"
@@ -11100,7 +11100,7 @@
       "label": "onPlanRemoveDependency()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L924",
+      "source_location": "L923",
       "id": "plans_plan_screen_onplanremovedependency",
       "community": 3,
       "norm_label": "onplanremovedependency()"
@@ -11109,7 +11109,7 @@
       "label": "onPlanExportDirectory()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L928",
+      "source_location": "L927",
       "id": "plans_plan_screen_onplanexportdirectory",
       "community": 3,
       "norm_label": "onplanexportdirectory()"
@@ -11118,7 +11118,7 @@
       "label": "onPlanClearDone()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L932",
+      "source_location": "L931",
       "id": "plans_plan_screen_onplancleardone",
       "community": 3,
       "norm_label": "onplancleardone()"
@@ -11127,7 +11127,7 @@
       "label": "onPlanCreateSequence()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L936",
+      "source_location": "L935",
       "id": "plans_plan_screen_onplancreatesequence",
       "community": 3,
       "norm_label": "onplancreatesequence()"
@@ -11136,7 +11136,7 @@
       "label": "onPlanAssignSequence()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L951",
+      "source_location": "L950",
       "id": "plans_plan_screen_onplanassignsequence",
       "community": 3,
       "norm_label": "onplanassignsequence()"
@@ -11145,7 +11145,7 @@
       "label": "onPlanUpdateSequence()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L956",
+      "source_location": "L955",
       "id": "plans_plan_screen_onplanupdatesequence",
       "community": 3,
       "norm_label": "onplanupdatesequence()"
@@ -11154,7 +11154,7 @@
       "label": "onPlanDeleteSequence()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L964",
+      "source_location": "L963",
       "id": "plans_plan_screen_onplandeletesequence",
       "community": 3,
       "norm_label": "onplandeletesequence()"
@@ -11163,7 +11163,7 @@
       "label": "onPlanDeleteSequenceWithPlans()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L969",
+      "source_location": "L968",
       "id": "plans_plan_screen_onplandeletesequencewithplans",
       "community": 3,
       "norm_label": "onplandeletesequencewithplans()"
@@ -11172,7 +11172,7 @@
       "label": "onPlanContextClick()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L974",
+      "source_location": "L973",
       "id": "plans_plan_screen_onplancontextclick",
       "community": 3,
       "norm_label": "onplancontextclick()"
@@ -11181,7 +11181,7 @@
       "label": "onPlanContextEdit()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L978",
+      "source_location": "L977",
       "id": "plans_plan_screen_onplancontextedit",
       "community": 3,
       "norm_label": "onplancontextedit()"
@@ -11190,7 +11190,7 @@
       "label": "onPlanContextMove()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L984",
+      "source_location": "L983",
       "id": "plans_plan_screen_onplancontextmove",
       "community": 3,
       "norm_label": "onplancontextmove()"
@@ -11199,7 +11199,7 @@
       "label": "onPlanContextBind()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L989",
+      "source_location": "L988",
       "id": "plans_plan_screen_onplancontextbind",
       "community": 3,
       "norm_label": "onplancontextbind()"
@@ -11208,7 +11208,7 @@
       "label": "onPlanContextBindTarget()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L994",
+      "source_location": "L993",
       "id": "plans_plan_screen_onplancontextbindtarget",
       "community": 3,
       "norm_label": "onplancontextbindtarget()"
@@ -11217,7 +11217,7 @@
       "label": "onPlanContextUnbind()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L999",
+      "source_location": "L998",
       "id": "plans_plan_screen_onplancontextunbind",
       "community": 3,
       "norm_label": "onplancontextunbind()"
@@ -11226,7 +11226,7 @@
       "label": "onPlanContextSelectPlan()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L1004",
+      "source_location": "L1003",
       "id": "plans_plan_screen_onplancontextselectplan",
       "community": 3,
       "norm_label": "onplancontextselectplan()"
@@ -11235,7 +11235,7 @@
       "label": "onPlanContextSave()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L1008",
+      "source_location": "L1007",
       "id": "plans_plan_screen_onplancontextsave",
       "community": 3,
       "norm_label": "onplancontextsave()"
@@ -11244,7 +11244,7 @@
       "label": "onPlanContextDelete()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L1021",
+      "source_location": "L1020",
       "id": "plans_plan_screen_onplancontextdelete",
       "community": 3,
       "norm_label": "onplancontextdelete()"
@@ -11253,7 +11253,7 @@
       "label": "toggleRelatedFocus()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L1033",
+      "source_location": "L1032",
       "id": "plans_plan_screen_togglerelatedfocus",
       "community": 3,
       "norm_label": "togglerelatedfocus()"
@@ -11262,7 +11262,7 @@
       "label": "toggleTypeFilter()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L1047",
+      "source_location": "L1046",
       "id": "plans_plan_screen_toggletypefilter",
       "community": 3,
       "norm_label": "toggletypefilter()"
@@ -11271,7 +11271,7 @@
       "label": "toggleStatusFilter()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L1053",
+      "source_location": "L1052",
       "id": "plans_plan_screen_togglestatusfilter",
       "community": 3,
       "norm_label": "togglestatusfilter()"
@@ -11280,7 +11280,7 @@
       "label": "toggleStatusGroup()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L1059",
+      "source_location": "L1058",
       "id": "plans_plan_screen_togglestatusgroup",
       "community": 3,
       "norm_label": "togglestatusgroup()"
@@ -11289,7 +11289,7 @@
       "label": "resetFilters()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L1076",
+      "source_location": "L1075",
       "id": "plans_plan_screen_resetfilters",
       "community": 3,
       "norm_label": "resetfilters()"
@@ -11298,7 +11298,7 @@
       "label": "toggleHasAttachmentFilter()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L1082",
+      "source_location": "L1081",
       "id": "plans_plan_screen_togglehasattachmentfilter",
       "community": 3,
       "norm_label": "togglehasattachmentfilter()"
@@ -11307,7 +11307,7 @@
       "label": "toggleAutoFilter()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L1088",
+      "source_location": "L1087",
       "id": "plans_plan_screen_toggleautofilter",
       "community": 3,
       "norm_label": "toggleautofilter()"
@@ -11316,7 +11316,7 @@
       "label": "refreshLayout()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L1094",
+      "source_location": "L1093",
       "id": "plans_plan_screen_refreshlayout",
       "community": 3,
       "norm_label": "refreshlayout()"
@@ -11325,7 +11325,7 @@
       "label": "isBackupRestoreModalVisible()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L1101",
+      "source_location": "L1100",
       "id": "plans_plan_screen_isbackuprestoremodalvisible",
       "community": 3,
       "norm_label": "isbackuprestoremodalvisible()"
@@ -11334,7 +11334,7 @@
       "label": "openBackupRestoreModal()",
       "file_type": "code",
       "source_file": "renderer\\plans\\plan-screen.ts",
-      "source_location": "L1105",
+      "source_location": "L1104",
       "id": "plans_plan_screen_openbackuprestoremodal",
       "community": 3,
       "norm_label": "openbackuprestoremodal()"
@@ -12360,7 +12360,7 @@
       "label": "setPlanEditorOpener()",
       "file_type": "code",
       "source_file": "renderer\\stores\\chip-bar.ts",
-      "source_location": "L13",
+      "source_location": "L10",
       "id": "stores_chip_bar_setplaneditoropener",
       "community": 1,
       "norm_label": "setplaneditoropener()"
@@ -12369,7 +12369,7 @@
       "label": "loadPlans()",
       "file_type": "code",
       "source_file": "renderer\\stores\\chip-bar.ts",
-      "source_location": "L90",
+      "source_location": "L87",
       "id": "stores_chip_bar_loadplans",
       "community": 1,
       "norm_label": "loadplans()"
@@ -12378,7 +12378,7 @@
       "label": "loadActionConfig()",
       "file_type": "code",
       "source_file": "renderer\\stores\\chip-bar.ts",
-      "source_location": "L103",
+      "source_location": "L100",
       "id": "stores_chip_bar_loadactionconfig",
       "community": 1,
       "norm_label": "loadactionconfig()"
@@ -12387,7 +12387,7 @@
       "label": "toChipStatus()",
       "file_type": "code",
       "source_file": "renderer\\stores\\chip-bar.ts",
-      "source_location": "L108",
+      "source_location": "L105",
       "id": "stores_chip_bar_tochipstatus",
       "community": 1,
       "norm_label": "tochipstatus()"
@@ -12396,7 +12396,7 @@
       "label": "buildTemplateContext()",
       "file_type": "code",
       "source_file": "renderer\\stores\\chip-bar.ts",
-      "source_location": "L113",
+      "source_location": "L110",
       "id": "stores_chip_bar_buildtemplatecontext",
       "community": 1,
       "norm_label": "buildtemplatecontext()"
@@ -23718,7 +23718,7 @@
       "label": "openCanvas()",
       "file_type": "code",
       "source_file": "tests\\plan-navigation.test.ts",
-      "source_location": "L227",
+      "source_location": "L228",
       "id": "tests_plan_navigation_test_opencanvas",
       "community": 1,
       "norm_label": "opencanvas()"
@@ -55292,11 +55292,11 @@
       "source_file": "renderer\\sidebar\\session-services.ts",
       "source_location": "L14",
       "weight": 1.0,
-      "_src": "renderer_sidebar_session_services_ts",
-      "_tgt": "renderer_session_groups_ts",
+      "_src": "renderer_session_groups_ts",
+      "_tgt": "renderer_sidebar_session_services_ts",
+      "confidence_score": 1.0,
       "source": "renderer_session_groups_ts",
-      "target": "renderer_sidebar_session_services_ts",
-      "confidence_score": 1.0
+      "target": "renderer_sidebar_session_services_ts"
     },
     {
       "relation": "imports_from",
@@ -55724,11 +55724,11 @@
       "source_file": "renderer\\sidebar\\session-services.ts",
       "source_location": "L12",
       "weight": 1.0,
-      "_src": "renderer_sidebar_session_services_ts",
-      "_tgt": "renderer_sort_logic_ts",
+      "_src": "renderer_sort_logic_ts",
+      "_tgt": "renderer_sidebar_session_services_ts",
+      "confidence_score": 1.0,
       "source": "renderer_sort_logic_ts",
-      "target": "renderer_sidebar_session_services_ts",
-      "confidence_score": 1.0
+      "target": "renderer_sidebar_session_services_ts"
     },
     {
       "relation": "imports_from",
@@ -55797,8 +55797,8 @@
       "source_file": "renderer\\sidebar\\session-services.ts",
       "source_location": "L44",
       "weight": 1.0,
-      "_src": "sidebar_session_services_initsessionssortcontrol",
-      "_tgt": "renderer_sort_logic_sortsessions",
+      "_src": "renderer_sort_logic_sortsessions",
+      "_tgt": "sidebar_session_services_initsessionssortcontrol",
       "source": "renderer_sort_logic_sortsessions",
       "target": "sidebar_session_services_initsessionssortcontrol"
     },
@@ -55988,11 +55988,11 @@
       "source_file": "renderer\\sidebar\\session-services.ts",
       "source_location": "L8",
       "weight": 1.0,
-      "_src": "renderer_sidebar_session_services_ts",
-      "_tgt": "renderer_state_ts",
+      "_src": "renderer_state_ts",
+      "_tgt": "renderer_sidebar_session_services_ts",
+      "confidence_score": 1.0,
       "source": "renderer_state_ts",
-      "target": "renderer_sidebar_session_services_ts",
-      "confidence_score": 1.0
+      "target": "renderer_sidebar_session_services_ts"
     },
     {
       "relation": "imports_from",
@@ -56660,11 +56660,11 @@
       "source_file": "renderer\\sidebar\\session-services.ts",
       "source_location": "L11",
       "weight": 1.0,
-      "_src": "renderer_sidebar_session_services_ts",
-      "_tgt": "renderer_utils_ts",
+      "_src": "renderer_utils_ts",
+      "_tgt": "renderer_sidebar_session_services_ts",
+      "confidence_score": 1.0,
       "source": "renderer_utils_ts",
-      "target": "renderer_sidebar_session_services_ts",
-      "confidence_score": 1.0
+      "target": "renderer_sidebar_session_services_ts"
     },
     {
       "relation": "imports_from",
@@ -56984,11 +56984,11 @@
       "source_file": "renderer\\sidebar\\session-services.ts",
       "source_location": "L13",
       "weight": 1.0,
-      "_src": "renderer_sidebar_session_services_ts",
-      "_tgt": "renderer_components_sort_control_ts",
+      "_src": "renderer_components_sort_control_ts",
+      "_tgt": "renderer_sidebar_session_services_ts",
+      "confidence_score": 1.0,
       "source": "renderer_components_sort_control_ts",
-      "target": "renderer_sidebar_session_services_ts",
-      "confidence_score": 1.0
+      "target": "renderer_sidebar_session_services_ts"
     },
     {
       "relation": "imports_from",
@@ -57009,8 +57009,8 @@
       "source_file": "renderer\\sidebar\\session-services.ts",
       "source_location": "L59",
       "weight": 1.0,
-      "_src": "sidebar_session_services_initsessionssortcontrol",
-      "_tgt": "components_sort_control_createsortcontrol",
+      "_src": "components_sort_control_createsortcontrol",
+      "_tgt": "sidebar_session_services_initsessionssortcontrol",
       "source": "components_sort_control_createsortcontrol",
       "target": "sidebar_session_services_initsessionssortcontrol"
     },
@@ -61030,9 +61030,9 @@
       "weight": 1.0,
       "_src": "renderer_composables_usesidebarcontroller_ts",
       "_tgt": "renderer_sidebar_session_services_ts",
+      "confidence_score": 1.0,
       "source": "renderer_composables_usesidebarcontroller_ts",
-      "target": "renderer_sidebar_session_services_ts",
-      "confidence_score": 1.0
+      "target": "renderer_sidebar_session_services_ts"
     },
     {
       "relation": "imports_from",
@@ -61373,6 +61373,18 @@
     {
       "relation": "imports_from",
       "confidence": "EXTRACTED",
+      "source_file": "renderer\\stores\\navigation.ts",
+      "source_location": "L22",
+      "weight": 1.0,
+      "_src": "renderer_drafts_draft_editor_ts",
+      "_tgt": "renderer_stores_navigation_ts",
+      "confidence_score": 1.0,
+      "source": "renderer_drafts_draft_editor_ts",
+      "target": "renderer_stores_navigation_ts"
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
       "source_file": "renderer\\plans\\plan-screen.ts",
       "source_location": "L11",
       "weight": 1.0,
@@ -61393,18 +61405,6 @@
       "confidence_score": 1.0,
       "source": "renderer_drafts_draft_editor_ts",
       "target": "renderer_stores_chip_bar_ts"
-    },
-    {
-      "relation": "imports_from",
-      "confidence": "EXTRACTED",
-      "source_file": "renderer\\stores\\navigation.ts",
-      "source_location": "L22",
-      "weight": 1.0,
-      "_src": "renderer_drafts_draft_editor_ts",
-      "_tgt": "renderer_stores_navigation_ts",
-      "confidence_score": 1.0,
-      "source": "renderer_drafts_draft_editor_ts",
-      "target": "renderer_stores_navigation_ts"
     },
     {
       "relation": "imports_from",
@@ -62024,11 +62024,11 @@
       "source_file": "renderer\\sidebar\\session-services.ts",
       "source_location": "L10",
       "weight": 1.0,
-      "_src": "renderer_sidebar_session_services_ts",
-      "_tgt": "renderer_ipc_clients_ts",
+      "_src": "renderer_ipc_clients_ts",
+      "_tgt": "renderer_sidebar_session_services_ts",
+      "confidence_score": 1.0,
       "source": "renderer_ipc_clients_ts",
-      "target": "renderer_sidebar_session_services_ts",
-      "confidence_score": 1.0
+      "target": "renderer_sidebar_session_services_ts"
     },
     {
       "relation": "imports_from",
@@ -66596,11 +66596,11 @@
       "source_file": "renderer\\sidebar\\session-services.ts",
       "source_location": "L17",
       "weight": 1.0,
-      "_src": "renderer_sidebar_session_services_ts",
-      "_tgt": "renderer_screens_group_overview_ts",
+      "_src": "renderer_screens_group_overview_ts",
+      "_tgt": "renderer_sidebar_session_services_ts",
+      "confidence_score": 1.0,
       "source": "renderer_screens_group_overview_ts",
-      "target": "renderer_sidebar_session_services_ts",
-      "confidence_score": 1.0
+      "target": "renderer_sidebar_session_services_ts"
     },
     {
       "relation": "imports_from",
@@ -66837,8 +66837,8 @@
       "source_file": "renderer\\sidebar\\session-services.ts",
       "source_location": "L122",
       "weight": 1.0,
-      "_src": "sidebar_session_services_commitrename",
-      "_tgt": "screens_group_overview_refreshoverview",
+      "_src": "screens_group_overview_refreshoverview",
+      "_tgt": "sidebar_session_services_commitrename",
       "source": "screens_group_overview_refreshoverview",
       "target": "sidebar_session_services_commitrename"
     },
@@ -67113,8 +67113,8 @@
       "source_file": "renderer\\screens\\sessions.ts",
       "source_location": "L418",
       "weight": 1.0,
-      "_src": "screens_sessions_loadsessions",
-      "_tgt": "screens_sessions_plans_refreshplanbadges",
+      "_src": "screens_sessions_plans_refreshplanbadges",
+      "_tgt": "screens_sessions_loadsessions",
       "source": "screens_sessions_plans_refreshplanbadges",
       "target": "screens_sessions_loadsessions"
     },
@@ -67124,8 +67124,8 @@
       "source_file": "renderer\\screens\\sessions-plans.ts",
       "source_location": "L22",
       "weight": 1.0,
-      "_src": "screens_sessions_plans_renderplansgrid",
-      "_tgt": "screens_sessions_plans_refreshplanbadges",
+      "_src": "screens_sessions_plans_refreshplanbadges",
+      "_tgt": "screens_sessions_plans_renderplansgrid",
       "confidence_score": 1.0,
       "source": "screens_sessions_plans_refreshplanbadges",
       "target": "screens_sessions_plans_renderplansgrid"
@@ -67640,11 +67640,11 @@
       "source_file": "renderer\\sidebar\\session-services.ts",
       "source_location": "L9",
       "weight": 1.0,
-      "_src": "renderer_sidebar_session_services_ts",
-      "_tgt": "renderer_screens_sessions_state_ts",
+      "_src": "renderer_screens_sessions_state_ts",
+      "_tgt": "renderer_sidebar_session_services_ts",
+      "confidence_score": 1.0,
       "source": "renderer_screens_sessions_state_ts",
-      "target": "renderer_sidebar_session_services_ts",
-      "confidence_score": 1.0
+      "target": "renderer_sidebar_session_services_ts"
     },
     {
       "relation": "imports_from",
@@ -67724,8 +67724,8 @@
       "source_file": "renderer\\screens\\sessions-render.ts",
       "source_location": "L9",
       "weight": 1.0,
-      "_src": "renderer_screens_sessions_render_ts",
-      "_tgt": "renderer_screens_sessions_state_ts",
+      "_src": "renderer_screens_sessions_state_ts",
+      "_tgt": "renderer_screens_sessions_render_ts",
       "confidence_score": 1.0,
       "source": "renderer_screens_sessions_state_ts",
       "target": "renderer_screens_sessions_render_ts"
@@ -67748,11 +67748,11 @@
       "source_file": "renderer\\sidebar\\session-services.ts",
       "source_location": "L18",
       "weight": 1.0,
-      "_src": "renderer_sidebar_session_services_ts",
-      "_tgt": "renderer_screens_sessions_ts",
+      "_src": "renderer_screens_sessions_ts",
+      "_tgt": "renderer_sidebar_session_services_ts",
+      "confidence_score": 1.0,
       "source": "renderer_screens_sessions_ts",
-      "target": "renderer_sidebar_session_services_ts",
-      "confidence_score": 1.0
+      "target": "renderer_sidebar_session_services_ts"
     },
     {
       "relation": "imports_from",
@@ -68372,8 +68372,8 @@
       "source_file": "renderer\\screens\\sessions.ts",
       "source_location": "L27",
       "weight": 1.0,
-      "_src": "renderer_screens_sessions_render_ts",
-      "_tgt": "renderer_screens_sessions_ts",
+      "_src": "renderer_screens_sessions_ts",
+      "_tgt": "renderer_screens_sessions_render_ts",
       "confidence_score": 1.0,
       "source": "renderer_screens_sessions_ts",
       "target": "renderer_screens_sessions_render_ts"
@@ -68697,8 +68697,8 @@
       "source_file": "renderer\\screens\\sessions.ts",
       "source_location": "L315",
       "weight": 1.0,
-      "_src": "screens_sessions_render_startrename",
-      "_tgt": "screens_sessions_startrenameforfocused",
+      "_src": "screens_sessions_startrenameforfocused",
+      "_tgt": "screens_sessions_render_startrename",
       "source": "screens_sessions_startrenameforfocused",
       "target": "screens_sessions_render_startrename"
     },
@@ -68937,8 +68937,8 @@
       "source_file": "renderer\\screens\\sessions.ts",
       "source_location": "L417",
       "weight": 1.0,
-      "_src": "screens_sessions_plans_renderplansgrid",
-      "_tgt": "screens_sessions_loadsessions",
+      "_src": "screens_sessions_loadsessions",
+      "_tgt": "screens_sessions_plans_renderplansgrid",
       "source": "screens_sessions_loadsessions",
       "target": "screens_sessions_plans_renderplansgrid"
     },
@@ -68949,8 +68949,8 @@
       "source_file": "renderer\\screens\\sessions.ts",
       "source_location": "L415",
       "weight": 1.0,
-      "_src": "screens_sessions_render_initsessionssortcontrol",
-      "_tgt": "screens_sessions_loadsessions",
+      "_src": "screens_sessions_loadsessions",
+      "_tgt": "screens_sessions_render_initsessionssortcontrol",
       "source": "screens_sessions_loadsessions",
       "target": "screens_sessions_render_initsessionssortcontrol"
     },
@@ -68961,8 +68961,8 @@
       "source_file": "renderer\\screens\\sessions.ts",
       "source_location": "L418",
       "weight": 1.0,
-      "_src": "screens_sessions_render_updatestatuscounts",
-      "_tgt": "screens_sessions_loadsessions",
+      "_src": "screens_sessions_loadsessions",
+      "_tgt": "screens_sessions_render_updatestatuscounts",
       "source": "screens_sessions_loadsessions",
       "target": "screens_sessions_render_updatestatuscounts"
     },
@@ -68973,8 +68973,8 @@
       "source_file": "renderer\\screens\\sessions.ts",
       "source_location": "L416",
       "weight": 1.0,
-      "_src": "screens_sessions_spawn_renderspawngrid",
-      "_tgt": "screens_sessions_loadsessions",
+      "_src": "screens_sessions_loadsessions",
+      "_tgt": "screens_sessions_spawn_renderspawngrid",
       "source": "screens_sessions_loadsessions",
       "target": "screens_sessions_spawn_renderspawngrid"
     },
@@ -69057,8 +69057,8 @@
       "source_file": "renderer\\screens\\sessions.ts",
       "source_location": "L452",
       "weight": 1.0,
-      "_src": "screens_sessions_render_cancelrename",
-      "_tgt": "screens_sessions_handlesessionsscreenbutton",
+      "_src": "screens_sessions_handlesessionsscreenbutton",
+      "_tgt": "screens_sessions_render_cancelrename",
       "source": "screens_sessions_handlesessionsscreenbutton",
       "target": "screens_sessions_render_cancelrename"
     },
@@ -69069,8 +69069,8 @@
       "source_file": "renderer\\screens\\sessions.ts",
       "source_location": "L448",
       "weight": 1.0,
-      "_src": "screens_sessions_render_commitrename",
-      "_tgt": "screens_sessions_handlesessionsscreenbutton",
+      "_src": "screens_sessions_handlesessionsscreenbutton",
+      "_tgt": "screens_sessions_render_commitrename",
       "source": "screens_sessions_handlesessionsscreenbutton",
       "target": "screens_sessions_render_commitrename"
     },
@@ -69105,8 +69105,8 @@
       "source_file": "renderer\\sidebar\\session-services.ts",
       "source_location": "L121",
       "weight": 1.0,
-      "_src": "sidebar_session_services_commitrename",
-      "_tgt": "screens_sessions_loadsessionsdata",
+      "_src": "screens_sessions_loadsessionsdata",
+      "_tgt": "sidebar_session_services_commitrename",
       "source": "screens_sessions_loadsessionsdata",
       "target": "sidebar_session_services_commitrename"
     },
@@ -69117,8 +69117,8 @@
       "source_file": "renderer\\screens\\sessions-render.ts",
       "source_location": "L158",
       "weight": 1.0,
-      "_src": "screens_sessions_render_commitrename",
-      "_tgt": "screens_sessions_loadsessionsdata",
+      "_src": "screens_sessions_loadsessionsdata",
+      "_tgt": "screens_sessions_render_commitrename",
       "source": "screens_sessions_loadsessionsdata",
       "target": "screens_sessions_render_commitrename"
     },
@@ -69370,9 +69370,9 @@
       "weight": 1.0,
       "_src": "renderer_sidebar_session_services_ts",
       "_tgt": "renderer_stores_navigation_ts",
+      "confidence_score": 1.0,
       "source": "renderer_sidebar_session_services_ts",
-      "target": "renderer_stores_navigation_ts",
-      "confidence_score": 1.0
+      "target": "renderer_stores_navigation_ts"
     },
     {
       "relation": "contains",
@@ -69382,9 +69382,9 @@
       "weight": 1.0,
       "_src": "renderer_sidebar_session_services_ts",
       "_tgt": "sidebar_session_services_initsessionssortcontrol",
+      "confidence_score": 1.0,
       "source": "renderer_sidebar_session_services_ts",
-      "target": "sidebar_session_services_initsessionssortcontrol",
-      "confidence_score": 1.0
+      "target": "sidebar_session_services_initsessionssortcontrol"
     },
     {
       "relation": "contains",
@@ -69394,9 +69394,9 @@
       "weight": 1.0,
       "_src": "renderer_sidebar_session_services_ts",
       "_tgt": "sidebar_session_services_startrename",
+      "confidence_score": 1.0,
       "source": "renderer_sidebar_session_services_ts",
-      "target": "sidebar_session_services_startrename",
-      "confidence_score": 1.0
+      "target": "sidebar_session_services_startrename"
     },
     {
       "relation": "contains",
@@ -69406,9 +69406,9 @@
       "weight": 1.0,
       "_src": "renderer_sidebar_session_services_ts",
       "_tgt": "sidebar_session_services_cancelrename",
+      "confidence_score": 1.0,
       "source": "renderer_sidebar_session_services_ts",
-      "target": "sidebar_session_services_cancelrename",
-      "confidence_score": 1.0
+      "target": "sidebar_session_services_cancelrename"
     },
     {
       "relation": "contains",
@@ -69418,9 +69418,9 @@
       "weight": 1.0,
       "_src": "renderer_sidebar_session_services_ts",
       "_tgt": "sidebar_session_services_commitrename",
+      "confidence_score": 1.0,
       "source": "renderer_sidebar_session_services_ts",
-      "target": "sidebar_session_services_commitrename",
-      "confidence_score": 1.0
+      "target": "sidebar_session_services_commitrename"
     },
     {
       "relation": "contains",
@@ -69430,9 +69430,9 @@
       "weight": 1.0,
       "_src": "renderer_sidebar_session_services_ts",
       "_tgt": "sidebar_session_services_updatestatuscounts",
+      "confidence_score": 1.0,
       "source": "renderer_sidebar_session_services_ts",
-      "target": "sidebar_session_services_updatestatuscounts",
-      "confidence_score": 1.0
+      "target": "sidebar_session_services_updatestatuscounts"
     },
     {
       "relation": "imports_from",
@@ -70040,8 +70040,8 @@
       "source_file": "renderer\\screens\\sessions-render.ts",
       "source_location": "L25",
       "weight": 1.0,
-      "_src": "renderer_screens_sessions_render_ts",
-      "_tgt": "renderer_stores_navigation_ts",
+      "_src": "renderer_stores_navigation_ts",
+      "_tgt": "renderer_screens_sessions_render_ts",
       "confidence_score": 1.0,
       "source": "renderer_stores_navigation_ts",
       "target": "renderer_screens_sessions_render_ts"

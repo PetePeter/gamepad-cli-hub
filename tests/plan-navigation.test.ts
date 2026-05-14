@@ -217,6 +217,7 @@ describe('Folder Planner canvas gamepad navigation', () => {
     };
 
     mod = await getModule();
+    mod.setPlanEditorOpener(mockShowPlanInEditor);
     const { initPlanDeleteConfirmClickHandlers } = await getPlanDeleteConfirmModule();
     initPlanDeleteConfirmClickHandlers();
     // Ensure hidden state

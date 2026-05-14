@@ -9,7 +9,6 @@ import { clearDonePlans, setClearDonePlansCallback } from '../stores/modal-bridg
 import { state } from '../state.js';
 import { registerView, showView, currentView, type ViewMountContext } from '../main-view/main-view-manager.js';
 import { hidePlanHelpModal, isPlanHelpVisible, showPlanHelpModal } from './plan-help-modal.js';
-import { showPlanInEditor as legacyShowPlanInEditor } from '../drafts/draft-editor.js';
 import {
   attachmentsClient,
   configClient,
@@ -95,9 +94,9 @@ function getWindowKey(): WindowKey {
 
 function getWindowCallbacks(): WindowCallbacks {
   const key = getWindowKey();
-  if (!callbackRegistry.has(key)) {
+    if (!callbackRegistry.has(key)) {
     callbackRegistry.set(key, {
-      planEditorOpener: key === 'main' ? legacyShowPlanInEditor : null,
+      planEditorOpener: null,
       draftEditorCloser: null,
       draftEditorVisibilityChecker: null,
       contextEditorOpener: null,

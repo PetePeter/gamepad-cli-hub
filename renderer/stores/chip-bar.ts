@@ -4,12 +4,9 @@ import { state } from '../state.js';
 import { resolveChipbarTemplates } from '../drafts/chipbar-templates.js';
 import { executeSequenceForSession } from '../bindings.js';
 import type { PlanStatus, PlanType } from '../../src/types/plan.js';
-import {
-  showPlanInEditor as legacyShowPlanInEditor,
-} from '../drafts/draft-editor.js';
 import { configClient, plansClient } from '../ipc/clients.js';
 
-let planEditorOpener: ((sessionId: string, plan: any, callbacks: any) => void) | null = legacyShowPlanInEditor;
+let planEditorOpener: ((sessionId: string, plan: any, callbacks: any) => void) | null = null;
 export function setPlanEditorOpener(fn: typeof planEditorOpener) { planEditorOpener = fn; }
 
 export interface ChipBarPlan { id: string; humanId?: string; title: string; type?: 'bug' | 'feature' | 'research'; status: 'ready' | 'coding' | 'review' | 'blocked' | 'planning'; }
