@@ -13,7 +13,7 @@ declare global {
   }
 }
 
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { state } from './state.js';
 import { sessionsState } from './screens/sessions-state.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
@@ -52,12 +52,6 @@ import {
   onPlanDeleteSequenceWithPlans,
   onPlanUpdateSequence,
   planScreenState,
-  toggleTypeFilter,
-  toggleStatusFilter,
-  toggleRelatedFocus,
-  resetFilters,
-  toggleHasAttachmentFilter,
-  refreshCanvasIfVisible,
 } from './plans/plan-screen.js';
 import { usePanelResize } from './composables/usePanelResize.js';
 import { onViewChange, type MainView as ViewName } from './main-view/main-view-manager.js';
@@ -66,7 +60,8 @@ import { useSettingsController } from './composables/useSettingsController.js';
 import { useInputRouter } from './composables/useInputRouter.js';
 import { useSidebarController } from './composables/useSidebarController.js';
 import { useDraftPlanContextEditor } from './composables/useDraftPlanContextEditor.js';
-import { appClient, backupsClient, configClient, deliveryClient, draftsClient, eventsClient, plansClient, sessionsClient } from './ipc/clients.js';
+import { usePlanWorkspaceController } from './composables/usePlanWorkspaceController.js';
+import { appClient, configClient, deliveryClient, draftsClient, eventsClient, sessionsClient } from './ipc/clients.js';
 import {
   contextMenu,
   openQuickSpawn,
@@ -196,26 +191,6 @@ let unsubSnapOut: (() => void) | null = null;
 let unsubSnapBack: (() => void) | null = null;
 let unsubLlmNotify: (() => void) | null = null;
 
-// Backup restore modal state
-interface BackupMeta {
-  timestamp: string;
-  dirPath: string;
-  planCount: number;
-  dependencyCount: number;
-  status: 'complete' | 'partial' | 'error';
-  error?: string;
-  sizeBytes?: number;
-  index: number;
-  snapshotPath?: string;
-}
-
-const backupRestore = reactive({
-  visible: false,
-  dirPath: '',
-  snapshots: [] as BackupMeta[],
-  loading: false,
-});
-
 // Non-modal local state
 const bindingEditorVisible = ref(false);
 const bindingEditorButton = ref('');
@@ -327,6 +302,20 @@ const { splitterRef, panelRef } = usePanelResize({
   onResized: () => { getTerminalManager()?.fitActive(); },
 });
 const { addToast } = useToast();
+const {
+  backupRestore,
+  onPlanPopOut,
+  onToggleTypeFilter,
+  onToggleStatusFilter,
+  onResetFilters,
+  onToggleHasAttachmentFilter,
+  onToggleRelatedFocus,
+  openBackupRestore,
+  onBackupRestore,
+  onBackupDelete,
+  onBackupNow,
+  onBackupClose,
+} = usePlanWorkspaceController({ addToast });
 
 // ============================================================================
 // Computed props for components
@@ -600,14 +589,6 @@ function onChipBarPlanClick(planId: string): void {
   void chipBarStore.openPlan(planId);
 }
 
-async function onPlanPopOut(): Promise<void> {
-  if (!planScreenState.currentDir) return;
-  const result = await plansClient.planPopOut(planScreenState.currentDir);
-  if (!result?.success) {
-    console.error('[App] Failed to pop out planner:', result?.error ?? 'unknown error');
-  }
-}
-
 function onChipBarAction(sequence: string): void {
   void chipBarStore.triggerAction(sequence);
 }
@@ -629,88 +610,6 @@ function onDraftSubmenuEdit(draft: { id: string; label: string; text: string }):
 async function onDraftSubmenuDelete(draft: { id: string }): Promise<void> {
   draftSubmenu.visible = false;
   await draftsClient.draftDelete(draft.id);
-}
-
-// Filter handlers
-function onToggleTypeFilter(type: 'bug' | 'feature' | 'research' | 'untyped'): void {
-  toggleTypeFilter(type);
-}
-
-function onToggleStatusFilter(status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done'): void {
-  toggleStatusFilter(status);
-}
-
-function onResetFilters(): void {
-  resetFilters();
-}
-
-function onToggleHasAttachmentFilter(value: 'yes' | 'no'): void {
-  toggleHasAttachmentFilter(value);
-}
-
-function onToggleRelatedFocus(): void {
-  toggleRelatedFocus();
-}
-
-// Backup restore modal handlers
-async function openBackupRestore(): Promise<void> {
-  backupRestore.dirPath = planScreenState.currentDir;
-  backupRestore.loading = true;
-  backupRestore.visible = true;
-  try {
-    const snapshots = await backupsClient.planListBackups(backupRestore.dirPath);
-    backupRestore.snapshots = snapshots;
-  } catch {
-    backupRestore.snapshots = [];
-  } finally {
-    backupRestore.loading = false;
-  }
-}
-
-async function onBackupRestore(snapshotPath: string): Promise<void> {
-  try {
-    const snapshot = backupRestore.snapshots.find((entry) => entry.snapshotPath === snapshotPath);
-    const result = await backupsClient.planRestoreBackup(snapshotPath);
-    if (result && typeof result === 'object' && 'success' in result && result.success) {
-      const timestamp = snapshot?.timestamp ? new Date(snapshot.timestamp).toLocaleString() : '';
-      planScreenState.notice = timestamp ? `Restored backup from ${timestamp}` : 'Restored from backup';
-      void refreshCanvasIfVisible();
-    }
-  } catch {
-    planScreenState.notice = 'Restore failed';
-  }
-  backupRestore.visible = false;
-}
-
-async function onBackupDelete(snapshotPath: string): Promise<void> {
-  try {
-    await backupsClient.planDeleteBackup(snapshotPath);
-    const snapshots = await backupsClient.planListBackups(backupRestore.dirPath);
-    backupRestore.snapshots = snapshots;
-    addToast({ message: 'Backup deleted', type: 'info' });
-  } catch (err) {
-    addToast({ message: err instanceof Error ? err.message : 'Failed to delete backup', type: 'error' });
-  }
-}
-
-async function onBackupNow(): Promise<void> {
-  try {
-    const metadata = await backupsClient.planCreateBackupNow(backupRestore.dirPath);
-    const snapshots = await backupsClient.planListBackups(backupRestore.dirPath);
-    backupRestore.snapshots = snapshots;
-    addToast({
-      message: metadata?.timestamp
-        ? `Backup created ${new Date(metadata.timestamp).toLocaleString()}`
-        : 'Backup created',
-      type: 'success',
-    });
-  } catch (err) {
-    addToast({ message: err instanceof Error ? err.message : 'Backup failed', type: 'error' });
-  }
-}
-
-function onBackupClose(): void {
-  backupRestore.visible = false;
 }
 
 // Binding editor handlers
