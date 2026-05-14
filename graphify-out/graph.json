@@ -8472,7 +8472,7 @@
       "label": "for()",
       "file_type": "code",
       "source_file": "renderer\\components\\panels\\PlanScreen.vue",
-      "source_location": "L209",
+      "source_location": "L210",
       "id": "panels_planscreen_for",
       "community": 15,
       "norm_label": "for()"
@@ -8481,7 +8481,7 @@
       "label": "if()",
       "file_type": "code",
       "source_file": "renderer\\components\\panels\\PlanScreen.vue",
-      "source_location": "L522",
+      "source_location": "L525",
       "id": "panels_planscreen_if",
       "community": 15,
       "norm_label": "if()"
@@ -64069,9 +64069,9 @@
       "weight": 1.0,
       "_src": "renderer_composables_useplanworkspacecontroller_ts",
       "_tgt": "renderer_ipc_clients_ts",
+      "confidence_score": 1.0,
       "source": "renderer_composables_useplanworkspacecontroller_ts",
-      "target": "renderer_ipc_clients_ts",
-      "confidence_score": 1.0
+      "target": "renderer_ipc_clients_ts"
     },
     {
       "relation": "imports_from",
@@ -64081,9 +64081,9 @@
       "weight": 1.0,
       "_src": "renderer_composables_useplanworkspacecontroller_ts",
       "_tgt": "renderer_plans_plan_screen_ts",
+      "confidence_score": 1.0,
       "source": "renderer_composables_useplanworkspacecontroller_ts",
-      "target": "renderer_plans_plan_screen_ts",
-      "confidence_score": 1.0
+      "target": "renderer_plans_plan_screen_ts"
     },
     {
       "relation": "contains",
@@ -64093,9 +64093,9 @@
       "weight": 1.0,
       "_src": "renderer_composables_useplanworkspacecontroller_ts",
       "_tgt": "composables_useplanworkspacecontroller_useplanworkspacecontroller",
+      "confidence_score": 1.0,
       "source": "renderer_composables_useplanworkspacecontroller_ts",
-      "target": "composables_useplanworkspacecontroller_useplanworkspacecontroller",
-      "confidence_score": 1.0
+      "target": "composables_useplanworkspacecontroller_useplanworkspacecontroller"
     },
     {
       "relation": "imports_from",
@@ -64103,11 +64103,11 @@
       "source_file": "tests\\composables\\plan-workspace-controller.test.ts",
       "source_location": "L40",
       "weight": 1.0,
-      "_src": "tests_composables_plan_workspace_controller_test_ts",
-      "_tgt": "renderer_composables_useplanworkspacecontroller_ts",
+      "_src": "renderer_composables_useplanworkspacecontroller_ts",
+      "_tgt": "tests_composables_plan_workspace_controller_test_ts",
+      "confidence_score": 1.0,
       "source": "renderer_composables_useplanworkspacecontroller_ts",
-      "target": "tests_composables_plan_workspace_controller_test_ts",
-      "confidence_score": 1.0
+      "target": "tests_composables_plan_workspace_controller_test_ts"
     },
     {
       "relation": "imports_from",

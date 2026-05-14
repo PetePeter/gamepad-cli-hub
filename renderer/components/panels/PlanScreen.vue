@@ -7,6 +7,7 @@ import type { ContextBindingTargetType, ContextNode } from '../../../src/types/c
 import type { LayoutResult } from '../../plans/plan-layout.js';
 import SplitAddButton from '../buttons/SplitAddButton.vue';
 import PromptTextarea from '../common/PromptTextarea.vue';
+import { isEditableElement } from '../../input/input-ownership.js';
 
 const NODE_W = 200;
 const NODE_H = 102;
@@ -496,6 +497,7 @@ function startDragConnection(id: string, e: MouseEvent): void {
 function onNodeBodyMouseDown(id: string, e: MouseEvent): void {
   if ((e.target as Element).closest('.plan-node__connector')) return;
   e.stopPropagation();
+  focusPlanScreen();
   const ids = props.selectedIds.has(id) ? [...props.selectedIds] : [id];
   const pt = svgPoint(e.clientX, e.clientY);
   seqDragState.value = { ids, x: pt.x, y: pt.y, hoveredSeqId: null };
@@ -503,6 +505,7 @@ function onNodeBodyMouseDown(id: string, e: MouseEvent): void {
 
 function onContextMouseDown(id: string, e: MouseEvent): void {
   e.stopPropagation();
+  focusPlanScreen();
   const pt = svgPoint(e.clientX, e.clientY);
   const context = positionedContexts.value.find((entry) => entry.id === id);
   if (!context) return;
@@ -573,6 +576,34 @@ function deleteContext(): void {
   emit('contextDelete', props.selectedContextId);
 }
 
+function focusPlanScreen(): void {
+  wrapperRef.value?.focus({ preventScroll: true });
+}
+
+function shouldIgnoreDeleteKey(): boolean {
+  if (seqModalVisible.value) return true;
+  const active = document.activeElement;
+  if (active && active !== wrapperRef.value && isEditableElement(active)) return true;
+  return Boolean(document.querySelector('.modal-overlay.modal--visible, .scheduled-tasks-tab--popup, .scheduler-popup-backdrop'));
+}
+
+function onPlanKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Delete' && event.key !== 'Del') return;
+  if (shouldIgnoreDeleteKey()) return;
+
+  if (props.selectedContextId) {
+    event.preventDefault();
+    emit('contextDelete', props.selectedContextId);
+    return;
+  }
+
+  if (props.selectedIds.size > 1) return;
+  const selectedPlanId = props.selectedIds.size === 1 ? [...props.selectedIds][0] : props.selectedId;
+  if (!selectedPlanId) return;
+  event.preventDefault();
+  emit('deleteNode', selectedPlanId);
+}
+
 function openSeqEdit(sequence: PlanSequence): void {
   seqDraft.id = sequence.id;
   seqDraft.title = sequence.title;
@@ -623,7 +654,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-show="visible" class="plan-screen" :class="{ visible }">
+  <div
+    v-show="visible"
+    class="plan-screen"
+    :class="{ visible }"
+    @mousedown="focusPlanScreen"
+  >
     <div class="plan-header">
       <button class="plan-header__btn" @click="emit('close')">← Back</button>
       <SplitAddButton @primary="emit('addNode')" @select="handleAddSelection" />
@@ -698,10 +734,12 @@ onUnmounted(() => {
     <div
       ref="wrapperRef"
       class="plan-canvas"
+      tabindex="0"
       @mousedown="onCanvasMouseDown"
       @mousemove="onCanvasMouseMove"
       @mouseup="onCanvasMouseUp"
       @mouseleave="onCanvasMouseUp"
+      @keydown="onPlanKeydown"
       @wheel="onCanvasWheel"
     >
       <svg
@@ -942,20 +980,6 @@ onUnmounted(() => {
     <div v-if="selectedItem" class="plan-inspector">
       <div class="plan-inspector__header">
         <span class="plan-inspector__title">{{ selectedItem?.title }}</span>
-        <div v-if="selectedItem" class="plan-header__controls">
-          <button class="plan-header__btn" @click="emit('editNode', selectedItem.id)">Edit</button>
-          <button
-            v-if="selectedItem.status !== 'done'"
-            class="plan-header__btn plan-header__btn--secondary"
-            @click="emit('applyNode', selectedItem.id)"
-          >Apply</button>
-          <button
-            v-if="selectedItem.status === 'coding' || selectedItem.status === 'review'"
-            class="plan-header__btn plan-header__btn--secondary"
-            @click="emit('completeNode', selectedItem.id)"
-          >Done</button>
-          <button class="plan-header__btn plan-header__btn--secondary" @click="emit('deleteNode', selectedItem.id)">Delete</button>
-        </div>
       </div>
     </div>
   </div>

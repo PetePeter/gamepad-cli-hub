@@ -872,47 +872,14 @@ describe('PlanScreen', () => {
     expect(w.find('.plan-inspector').exists()).toBe(false);
   });
 
-  it('shows Apply button for non-done nodes', () => {
+  it('removes obsolete selected-node action buttons', () => {
     const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' } });
-    const buttons = w.findAll('.plan-header__controls button');
+    const buttons = w.findAll('.plan-inspector button');
     const texts = buttons.map(b => b.text());
-    expect(texts).toContain('Apply');
-  });
-
-  it('shows Done button only for doing nodes', () => {
-    const items = [{ id: 'n1', title: 'Active', description: 'In progress', status: 'coding' as const }];
-    const w = mount(PlanScreen, {
-      props: {
-        ...baseProps,
-        items,
-        layout: { nodes: [{ id: 'n1', x: 60, y: 60, layer: 0, order: 0 }], width: 320, height: 220 },
-        selectedId: 'n1',
-      },
-    });
-    const buttons = w.findAll('.plan-header__controls button');
-    const texts = buttons.map(b => b.text());
-    expect(texts).toContain('Done');
-  });
-
-  it('does not show Done button for startable nodes', () => {
-    const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' } });
-    const buttons = w.findAll('.plan-header__controls button');
-    const texts = buttons.map(b => b.text());
-    expect(texts).not.toContain('Done');
-  });
-
-  it('shows Delete button always for selected node', () => {
-    const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n3' } });
-    const buttons = w.findAll('.plan-header__controls button');
-    const texts = buttons.map(b => b.text());
-    expect(texts).toContain('Delete');
-  });
-
-  it('does not show Apply button for done node', () => {
-    const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n3' } });
-    const buttons = w.findAll('.plan-header__controls button');
-    const texts = buttons.map(b => b.text());
+    expect(texts).not.toContain('Edit');
     expect(texts).not.toContain('Apply');
+    expect(texts).not.toContain('Done');
+    expect(texts).not.toContain('Delete');
   });
 
   it('emits close on back button click', async () => {
@@ -927,18 +894,23 @@ describe('PlanScreen', () => {
     expect(w.emitted('addNode')).toHaveLength(1);
   });
 
-  it('emits applyNode from selected action button', async () => {
+  it('emits deleteNode on Delete for a single selected plan', async () => {
     const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' } });
-    const applyBtn = w.findAll('.plan-header__controls button').find(b => b.text() === 'Apply');
-    await applyBtn!.trigger('click');
-    expect(w.emitted('applyNode')).toEqual([['n1']]);
+    await w.find('.plan-canvas').trigger('keydown', { key: 'Delete' });
+    expect(w.emitted('deleteNode')).toEqual([['n1']]);
   });
 
-  it('emits deleteNode from selected action button', async () => {
-    const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' } });
-    const delBtn = w.findAll('.plan-header__controls button').find(b => b.text() === 'Delete');
-    await delBtn!.trigger('click');
-    expect(w.emitted('deleteNode')).toEqual([['n1']]);
+  it('focuses the canvas when a selected plan is pressed', async () => {
+    const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' }, attachTo: document.body });
+    await w.find('.plan-node').trigger('mousedown');
+    expect(document.activeElement).toBe(w.find('.plan-canvas').element);
+    w.unmount();
+  });
+
+  it('does not emit deleteNode on Delete for multi-selection', async () => {
+    const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1', selectedIds: new Set(['n1', 'n2']) } });
+    await w.find('.plan-canvas').trigger('keydown', { key: 'Delete' });
+    expect(w.emitted('deleteNode')).toBeUndefined();
   });
 
   it('emits editNode on double-click', async () => {
@@ -1003,6 +975,32 @@ describe('PlanScreen', () => {
   it('does not show inspector panel when a context is selected', () => {
     const w = mount(PlanScreen, { props: { ...contextProps, selectedContextId: 'ctx-1' } });
     expect(w.find('.plan-inspector').exists()).toBe(false);
+  });
+
+  it('emits contextDelete on Delete for a selected context', async () => {
+    const w = mount(PlanScreen, { props: { ...contextProps, selectedContextId: 'ctx-1' } });
+    await w.find('.plan-canvas').trigger('keydown', { key: 'Delete' });
+    expect(w.emitted('contextDelete')).toEqual([['ctx-1']]);
+  });
+
+  it('focuses the canvas when a selected context is pressed', async () => {
+    const w = mount(PlanScreen, { props: { ...contextProps, selectedContextId: 'ctx-1' }, attachTo: document.body });
+    await w.find('.plan-context-card').trigger('mousedown');
+    expect(document.activeElement).toBe(w.find('.plan-canvas').element);
+    w.unmount();
+  });
+
+  it('ignores Delete from editable elements', async () => {
+    const w = mount(PlanScreen, { props: { ...baseProps, selectedId: 'n1' }, attachTo: document.body });
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    await w.find('.plan-canvas').trigger('keydown', { key: 'Delete' });
+
+    expect(w.emitted('deleteNode')).toBeUndefined();
+    input.remove();
+    w.unmount();
   });
 
   it('renders context cards on the canvas', () => {
