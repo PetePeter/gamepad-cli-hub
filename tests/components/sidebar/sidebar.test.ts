@@ -260,6 +260,33 @@ describe('SessionCard', () => {
     expect(w.find('.session-card').classes()).toContain('snapped-out');
     expect(w.find('.snap-indicator').exists()).toBe(true);
   });
+
+  it('keeps notification bubbles when the row is selected', async () => {
+    const w = mount(SessionCard, {
+      props: makeCardProps({
+        llmNotifications: [{ id: 'n1', title: 'Need input', content: 'Pick a plan' }],
+      }),
+    });
+
+    await w.find('.session-card').trigger('click');
+
+    expect(w.emitted('click')).toEqual([['s1']]);
+    expect(w.emitted('dismissNotification')).toBeUndefined();
+    expect(w.find('.notification-bubble').exists()).toBe(true);
+  });
+
+  it('dismisses notification bubbles only from the dismiss button', async () => {
+    const w = mount(SessionCard, {
+      props: makeCardProps({
+        llmNotifications: [{ id: 'n1', title: 'Need input', content: 'Pick a plan' }],
+      }),
+    });
+
+    await w.find('.notification-bubble__dismiss').trigger('click');
+
+    expect(w.emitted('dismissNotification')).toEqual([['n1']]);
+    expect(w.emitted('click')).toBeUndefined();
+  });
 });
 
 // ============================================================================
@@ -413,6 +440,21 @@ describe('SessionList', () => {
 
     await w.find('.session-card').trigger('click');
     expect(w.emitted('sessionClick')).toEqual([['s1']]);
+  });
+
+  it('forwards notification dismiss without treating it as a session click', async () => {
+    const w = mount(SessionList, {
+      props: makeSessionListProps({
+        llmNotifications: new Map([
+          ['s1', [{ id: 'n1', title: 'Need input', content: 'Pick a plan' }]],
+        ]),
+      }),
+    });
+
+    await w.find('.notification-bubble__dismiss').trigger('click');
+
+    expect(w.emitted('dismissNotification')).toEqual([['n1']]);
+    expect(w.emitted('sessionClick')).toBeUndefined();
   });
 
   it('forwards row-owned action events', async () => {

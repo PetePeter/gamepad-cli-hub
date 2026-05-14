@@ -82,16 +82,14 @@ function createController() {
     openPlan: vi.fn(),
     openOverview: vi.fn(),
   };
-  const llmNotificationsStore = { dismissSession: vi.fn() };
   const deps = {
     activeView: ref<'terminal' | 'overview' | 'plan'>('terminal'),
     navStore,
-    llmNotificationsStore,
     refreshProjects: vi.fn(),
     doSpawn: vi.fn(),
     doCloseSession: vi.fn(),
   };
-  return { controller: useSidebarController(deps), deps, navStore, llmNotificationsStore };
+  return { controller: useSidebarController(deps), deps, navStore };
 }
 
 describe('useSidebarController', () => {
@@ -163,12 +161,11 @@ describe('useSidebarController', () => {
   });
 
   it('closes overview before navigating from a session click', async () => {
-    const { controller, deps, navStore, llmNotificationsStore } = createController();
+    const { controller, deps, navStore } = createController();
     deps.activeView.value = 'overview';
 
     await controller.onSessionClick('s2');
 
-    expect(llmNotificationsStore.dismissSession).toHaveBeenCalledWith('s2');
     expect(navStore.closeOverview).toHaveBeenCalled();
     expect(navStore.navigateToSession).toHaveBeenCalledWith('s2');
   });

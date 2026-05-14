@@ -291,7 +291,6 @@ const {
 } = useSidebarController({
   activeView,
   navStore,
-  llmNotificationsStore,
   refreshProjects,
   doSpawn,
   doCloseSession,

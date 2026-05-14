@@ -19,14 +19,9 @@ interface NavigationController {
   openOverview(dirPath: string | null, sessionId?: string): Promise<void> | void;
 }
 
-interface NotificationController {
-  dismissSession(sessionId: string): void;
-}
-
 export interface SidebarControllerDeps {
   activeView: Ref<'terminal' | 'overview' | 'plan'>;
   navStore: NavigationController;
-  llmNotificationsStore: NotificationController;
   refreshProjects: () => Promise<void>;
   doSpawn: (cliType: string, dirPath?: string) => void | Promise<void>;
   doCloseSession: (sessionId: string) => void | Promise<void>;
@@ -66,7 +61,6 @@ export function useSidebarController(deps: SidebarControllerDeps) {
 
   async function onSessionClick(sessionId: string): Promise<void> {
     if (isAnyBridgeModalVisible()) return;
-    deps.llmNotificationsStore.dismissSession(sessionId);
     if (deps.activeView.value === 'overview') {
       await deps.navStore.closeOverview();
     }

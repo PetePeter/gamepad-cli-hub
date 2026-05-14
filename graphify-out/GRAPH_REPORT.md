@@ -1,7 +1,8 @@
-# Graph Report - X:\coding\gamepad-cli-hub  (2026-05-15)
+# Graph Report - gamepad-cli-hub  (2026-05-15)
 
 ## Corpus Check
-- Large corpus: 434 files · ~3,134,007 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
+- 396 files · ~3,134,106 words
+- Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
 - 3041 nodes · 6166 edges · 73 communities detected
