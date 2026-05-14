@@ -44,4 +44,39 @@ describe('McpTab.vue', () => {
     expect(blocks.some((block) => block.includes('copilot mcp add --transport http helm http://127.0.0.1:47373/mcp --header "Authorization: Bearer secret-token"'))).toBe(true);
     expect(blocks.some((block) => block.includes('https://opencode.ai/config.json'))).toBe(true);
   });
+
+  it('emits token updates while typing so the value is not lost when settings closes before blur', async () => {
+    const wrapper = mount(McpTab, {
+      props: {
+        config: {
+          enabled: true,
+          port: 47373,
+          authToken: '',
+        },
+      },
+    });
+
+    const tokenInput = wrapper.find('input[type="password"]');
+    await tokenInput.setValue(' pasted-token ');
+
+    expect(wrapper.emitted('update')).toContainEqual([{ authToken: 'pasted-token' }]);
+  });
+
+  it('emits port changes on change as well as blur', async () => {
+    const wrapper = mount(McpTab, {
+      props: {
+        config: {
+          enabled: true,
+          port: 47373,
+          authToken: 'secret-token',
+        },
+      },
+    });
+
+    const portInput = wrapper.find('input[type="number"]');
+    await portInput.setValue('48100');
+    await portInput.trigger('change');
+
+    expect(wrapper.emitted('update')).toContainEqual([{ port: 48100 }]);
+  });
 });

@@ -73,7 +73,7 @@ import { onViewChange, currentView, type MainView as ViewName } from './main-vie
 import { useModalStack } from './composables/useModalStack.js';
 import { useEscProtection } from './composables/useEscProtection.js';
 import { useToast } from './composables/useToast.js';
-import { appClient, backupsClient, deliveryClient, draftsClient, eventsClient, plansClient, sessionsClient } from './ipc/clients.js';
+import { appClient, backupsClient, configClient, deliveryClient, draftsClient, eventsClient, plansClient, sessionsClient } from './ipc/clients.js';
 import {
   closeConfirm, getCloseConfirmCallback, setCloseConfirmCallback,
   contextMenu,
@@ -1572,8 +1572,16 @@ async function onScheduledTaskCancelled(taskId: string): Promise<void> {
 
 async function onMcpUpdate(updates: Partial<{ enabled: boolean; port: number; authToken: string }>): Promise<void> {
   try {
-    await configClient.configSetMcpConfig(updates);
-    settingsMcpConfig.value = { ...settingsMcpConfig.value, ...updates };
+    const result = await configClient.configSetMcpConfig(updates);
+    if (result?.success === false) {
+      throw new Error(result.error || 'MCP config update failed');
+    }
+    const saved = await configClient.configGetMcpConfig();
+    settingsMcpConfig.value = {
+      enabled: saved?.enabled ?? false,
+      port: saved?.port ?? 47373,
+      authToken: saved?.authToken || '',
+    };
   } catch (error) {
     console.error('Failed to update MCP config:', error);
   }
@@ -1583,8 +1591,12 @@ async function onMcpGenerateToken(): Promise<void> {
   try {
     const result = await configClient.configGenerateMcpToken();
     if (result?.success && typeof result.token === 'string') {
-      settingsMcpConfig.value.authToken = result.token;
-      await configClient.configSetMcpConfig({ authToken: result.token });
+      const saved = await configClient.configGetMcpConfig();
+      settingsMcpConfig.value = {
+        enabled: saved?.enabled ?? settingsMcpConfig.value.enabled,
+        port: saved?.port ?? settingsMcpConfig.value.port,
+        authToken: saved?.authToken || result.token,
+      };
     }
   } catch (error) {
     console.error('Failed to generate MCP token:', error);

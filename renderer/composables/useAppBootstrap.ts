@@ -50,6 +50,7 @@ import {
 import { refreshPlanBadges } from '../screens/sessions-plans.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
 import { useNavigationStore } from '../stores/navigation.js';
+import { normalizeCmdInput } from '../utils/shell-command.js';
 
 type RendererProjectRecord = {
   id: string;
@@ -388,7 +389,7 @@ export async function doSpawnShell(command: string): Promise<void> {
 
       setTimeout(async () => {
         try {
-          await terminalClient.ptyWrite(sessionId, command + '\r');
+          await terminalClient.ptyWrite(sessionId, normalizeCmdInput(command));
         } catch (e) { console.error('[Bootstrap] Failed to write command to shell:', e); }
       }, 300);
 

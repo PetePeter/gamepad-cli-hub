@@ -39,13 +39,30 @@ function onToggleEnabled(): void {
 }
 
 function onPortBlur(): void {
+  commitPort();
+}
+
+function onPortChange(): void {
+  commitPort();
+}
+
+function commitPort(): void {
   const port = normalizePort(String(localPort.value));
   localPort.value = port;
   emit('update', { port });
 }
 
+function onTokenInput(): void {
+  commitToken();
+}
+
 function onTokenBlur(): void {
-  emit('update', { authToken: localToken.value.trim() });
+  commitToken();
+}
+
+function commitToken(): void {
+  const token = localToken.value.trim();
+  emit('update', { authToken: token });
 }
 
 function onGenerateToken(): void {
@@ -99,6 +116,7 @@ const statusText = computed(() => {
           min="1"
           max="65535"
           step="1"
+          @change="onPortChange"
           @blur="onPortBlur"
         />
       </div>
@@ -118,6 +136,7 @@ const statusText = computed(() => {
             :type="showToken ? 'text' : 'password'"
             class="tg-input focusable"
             placeholder="Generate a token or paste your own"
+            @input="onTokenInput"
             @blur="onTokenBlur"
           />
           <button
