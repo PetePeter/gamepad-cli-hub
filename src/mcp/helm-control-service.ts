@@ -29,7 +29,7 @@ import type { ScheduledTaskManager } from '../session/scheduled-task-manager.js'
 import type { CreateScheduledTaskParams, ScheduledTask, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
 import type { ContextBindingTargetType, ContextNode, ContextPermission, PlanContextRef } from '../types/context.js';
 import { ContextManager } from '../session/context-manager.js';
-import { getSessionInfo, getAvailableTools } from './guides/session-info-guide.js';
+import { getSessionInfo } from './guides/session-info-guide.js';
 import type { ProjectStore } from '../session/project-store.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
 
@@ -73,12 +73,6 @@ export interface SessionTerminalTailResponse {
   lastOutputAt?: number;
   raw?: string[];
   stripped?: string[];
-}
-
-export interface McpToolSummary {
-  name: string;
-  title: string;
-  description?: string;
 }
 
 export interface SessionInfoResponse {
@@ -149,7 +143,7 @@ export class HelmControlService extends EventEmitter {
   private readonly planAttachmentService: HelmPlanAttachmentService;
   private readonly telegramService: HelmTelegramService;
   private readonly schedulerService: HelmSchedulerService | null;
-  private readonly projectService: HelmProjectService;
+  private readonly projectService: HelmProjectService | null;
   private readonly directoryService: HelmDirectoryService;
 
   constructor(
@@ -171,7 +165,7 @@ export class HelmControlService extends EventEmitter {
     this.planAttachmentService = new HelmPlanAttachmentService(planManager, attachmentManager);
     this.telegramService = new HelmTelegramService(configLoader, sessionManager);
     this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager) : null;
-    this.projectService = projectStore ? new HelmProjectService(projectStore) : null!;
+    this.projectService = projectStore ? new HelmProjectService(projectStore) : null;
     this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager, projectStore);
   }
 
@@ -408,19 +402,19 @@ export class HelmControlService extends EventEmitter {
   // ---------------------------------------------------------------------------
 
   listProjects() {
-    return this.projectService.listProjects();
+    return this.requireProjectService().listProjects();
   }
 
   listProjectDirs(projectId: string) {
-    return this.projectService.listProjectDirs(projectId);
+    return this.requireProjectService().listProjectDirs(projectId);
   }
 
   addProjectDir(projectId: string, dirPath: string) {
-    return this.projectService.addProjectDir(projectId, dirPath);
+    return this.requireProjectService().addProjectDir(projectId, dirPath);
   }
 
   removeProjectDir(projectId: string, dirPath: string) {
-    return this.projectService.removeProjectDir(projectId, dirPath);
+    return this.requireProjectService().removeProjectDir(projectId, dirPath);
   }
 
   // ---------------------------------------------------------------------------
@@ -477,13 +471,6 @@ export class HelmControlService extends EventEmitter {
    */
   getSessionInfo(authContext?: { sessionId?: string; sessionName?: string }): SessionInfoResponse {
     return getSessionInfo(this.configLoader, this.sessionManager, authContext, this.projectStore);
-  }
-
-  /**
-   * Get list of available MCP tools with names and titles.
-   */
-  private getAvailableTools(): McpToolSummary[] {
-    return getAvailableTools();
   }
 
   // ---------------------------------------------------------------------------
@@ -549,5 +536,10 @@ export class HelmControlService extends EventEmitter {
   private requireScheduler(): HelmSchedulerService {
     if (!this.schedulerService) throw new Error('Scheduler is not available');
     return this.schedulerService;
+  }
+
+  private requireProjectService(): HelmProjectService {
+    if (!this.projectService) throw new Error('Project service is not available');
+    return this.projectService;
   }
 }

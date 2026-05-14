@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HelmControlService, parseSubmitSuffix } from '../src/mcp/helm-control-service.js';
+import { getAvailableTools } from '../src/mcp/guides/session-info-guide.js';
 import { parseSessionAuthToken } from '../src/mcp/session-auth.js';
 import { logger } from '../src/utils/logger.js';
 
@@ -568,6 +569,24 @@ describe('HelmControlService.spawnCli', () => {
   });
 });
 
+describe('HelmControlService optional domain services', () => {
+  it('throws a clear error when scheduler tools are used without a scheduler manager', () => {
+    const { service } = makeService();
+
+    expect(() => service.listScheduledTasks()).toThrow('Scheduler is not available');
+    expect(() => service.getScheduledTask('task-1')).toThrow('Scheduler is not available');
+  });
+
+  it('throws a clear error when project tools are used without a project store', () => {
+    const { service } = makeService();
+
+    expect(() => service.listProjects()).toThrow('Project service is not available');
+    expect(() => service.listProjectDirs('project-1')).toThrow('Project service is not available');
+    expect(() => service.addProjectDir('project-1', '/other')).toThrow('Project service is not available');
+    expect(() => service.removeProjectDir('project-1', '/other')).toThrow('Project service is not available');
+  });
+});
+
 describe('HelmControlService.getSessionInfo', () => {
   it('returns agent plan guidance without duplicating the MCP tool list', () => {
     const { service } = makeService();
@@ -971,9 +990,7 @@ describe('HelmControlService telegram channels', () => {
   });
 
   it('getAvailableTools lists exactly 3 telegram tools and no removed tools', () => {
-    const { service } = makeService();
-
-    const tools = (service as any).getAvailableTools() as Array<{ name: string }>;
+    const tools = getAvailableTools() as Array<{ name: string }>;
     const tgTools = tools.filter((t: { name: string }) => t.name.startsWith('telegram_'));
 
     expect(tgTools.map((t: { name: string }) => t.name)).toEqual(
