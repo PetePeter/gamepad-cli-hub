@@ -72,25 +72,20 @@ import { useModalStack } from './composables/useModalStack.js';
 import { useEscProtection } from './composables/useEscProtection.js';
 import { useToast } from './composables/useToast.js';
 import { useSettingsController } from './composables/useSettingsController.js';
-import { appClient, backupsClient, configClient, deliveryClient, draftsClient, eventsClient, plansClient, sessionsClient } from './ipc/clients.js';
+import { appClient, backupsClient, configClient, deliveryClient, draftsClient, eventsClient, patternsClient, plansClient, schedulerClient, sessionsClient } from './ipc/clients.js';
 import {
-  closeConfirm, getCloseConfirmCallback, setCloseConfirmCallback,
+  closeConfirm, setCloseConfirmCallback,
   contextMenu,
-  planDeleteConfirm, getPlanDeleteCallback,
-  clearDonePlans, getClearDonePlansCallback,
-  sequencePicker, getSequencePickerCallback,
-  quickSpawn, getQuickSpawnCallback, openQuickSpawn, closeQuickSpawn,
-  dirPicker, openDirPicker, closeDirPicker,
+  openQuickSpawn,
+  dirPicker, openDirPicker,
   draftSubmenu,
-  formModal, getFormModalResolve,
-  toolEditor, getToolEditorCallback,
+  toolEditor,
   isAnyBridgeModalVisible,
 } from './stores/modal-bridge.js';
 import { collectSequenceItems } from './modals/context-menu.js';
 import { showSequencePicker } from './modals/sequence-picker.js';
 import { showDraftSubmenu } from './modals/draft-submenu.js';
 import { showEditorPopup } from './editor/editor-popup.js';
-import { useEditorPopupStore } from './stores/editor-popup.js';
 import DraftEditor from './components/panels/DraftEditor.vue';
 import type { PlanStatus, PlanType } from '../../src/types/plan.js';
 import type { ScheduledTask } from '../../src/types/scheduled-task.js';
@@ -148,28 +143,12 @@ import DirectoriesTab from './components/sidebar/DirectoriesTab.vue';
 import ProjectsTab from './components/sidebar/ProjectsTab.vue';
 import ChipbarActionsTab from './components/sidebar/ChipbarActionsTab.vue';
 import McpTab from './components/sidebar/McpTab.vue';
-import ScheduledTasksTab from './components/sidebar/ScheduledTasksTab.vue';
 import BackupTab from './components/sidebar/BackupTab.vue';
 
 import { logEvent, navigateFocus } from './utils.js';
 import { loadSessions } from './screens/sessions.js';
 
-// Modal components
-import CloseConfirmModal from './components/modals/CloseConfirmModal.vue';
-import PlanDeleteConfirmModal from './components/modals/PlanDeleteConfirmModal.vue';
-import SequencePickerModal from './components/modals/SequencePickerModal.vue';
-import QuickSpawnModal from './components/modals/QuickSpawnModal.vue';
-import ContextMenu from './components/modals/ContextMenu.vue';
-import DraftSubmenu from './components/modals/DraftSubmenu.vue';
-import DirPickerModal from './components/modals/DirPickerModal.vue';
-import FormModal from './components/modals/FormModal.vue';
-import ToolEditorModal from './components/modals/ToolEditorModal.vue';
-import EditorPopup from './components/modals/EditorPopup.vue';
-import BindingEditorModal from './components/modals/BindingEditorModal.vue';
-import EscProtectionModal from './components/modals/EscProtectionModal.vue';
-import BackupRestoreModal from './components/modals/BackupRestoreModal.vue';
-import ToastNotification from './components/ToastNotification.vue';
-import ClearDonePlansModal from './components/modals/ClearDonePlansModal.vue';
+import AppModalHost from './components/app/AppModalHost.vue';
 import ChipBar from './components/chips/ChipBar.vue';
 import ChipActionBar from './components/chips/ChipActionBar.vue';
 import { useChipBarStore } from './stores/chip-bar.js';
@@ -186,7 +165,6 @@ const terminalContainerRef = ref<HTMLElement | null>(null);
 const chipBarStore = useChipBarStore();
 const navStore = useNavigationStore();
 const llmNotificationsStore = useLlmNotificationsStore();
-const editorPopupStore = useEditorPopupStore();
 
 // Draft editor state
 const draftEditorVisible = ref(false);
@@ -759,22 +737,6 @@ function onRequestClose(sessionId: string, displayName: string): void {
   });
 }
 
-function onCancelClose(): void {
-  closeConfirm.visible = false;
-  setCloseConfirmCallback(null);
-}
-
-async function onConfirmClose(): Promise<void> {
-  closeConfirm.visible = false;
-  const cb = getCloseConfirmCallback();
-  if (cb) {
-    await cb(closeConfirm.sessionId);
-  } else {
-    await doCloseSession(closeConfirm.sessionId);
-  }
-  setCloseConfirmCallback(null);
-}
-
 async function onSessionStateChange(sessionId: string, newState: string): Promise<void> {
   await setSessionState(sessionId, newState);
 }
@@ -901,9 +863,8 @@ async function onSpawn(cliType: string): Promise<void> {
   }
 }
 
-function onDirPickerSelect(path: string): void {
-  const cliType = dirPicker.cliType;
-  closeDirPicker();
+function onDirPickerSelect(path: string, selectedCliType = dirPicker.cliType): void {
+  const cliType = selectedCliType;
   doSpawn(cliType, path);
 }
 
@@ -1127,37 +1088,6 @@ async function onDraftSubmenuDelete(draft: { id: string }): Promise<void> {
   await draftsClient.draftDelete(draft.id);
 }
 
-// Form modal callbacks
-function onFormModalSave(values: Record<string, string>): void {
-  formModal.visible = false;
-  const resolve = getFormModalResolve();
-  if (resolve) resolve(values);
-}
-
-function onFormModalCancel(): void {
-  formModal.visible = false;
-  const resolve = getFormModalResolve();
-  if (resolve) resolve(null);
-}
-
-// Tool editor modal callbacks
-function onToolEditorSave(values: any): void {
-  toolEditor.visible = false;
-  const cb = getToolEditorCallback();
-  cb?.(values);
-}
-
-function onToolEditorCancel(): void {
-  toolEditor.visible = false;
-}
-
-// Plan delete confirm
-function onPlanDeleteConfirm(): void {
-  planDeleteConfirm.visible = false;
-  const cb = getPlanDeleteCallback();
-  if (cb) cb();
-}
-
 // Filter handlers
 function onToggleTypeFilter(type: 'bug' | 'feature' | 'research' | 'untyped'): void {
   toggleTypeFilter(type);
@@ -1177,13 +1107,6 @@ function onToggleHasAttachmentFilter(value: 'yes' | 'no'): void {
 
 function onToggleRelatedFocus(): void {
   toggleRelatedFocus();
-}
-
-// Clear done plans confirm
-function onClearDonePlansConfirm(): void {
-  clearDonePlans.visible = false;
-  const cb = getClearDonePlansCallback();
-  if (cb) cb();
 }
 
 // Backup restore modal handlers
@@ -1245,20 +1168,6 @@ async function onBackupNow(): Promise<void> {
 
 function onBackupClose(): void {
   backupRestore.visible = false;
-}
-
-// Sequence picker select
-function onSequencePickerSelect(seq: string): void {
-  sequencePicker.visible = false;
-  const cb = getSequencePickerCallback();
-  if (cb) cb(seq);
-}
-
-// Quick spawn select
-function onQuickSpawnSelect(cliType: string): void {
-  const cb = getQuickSpawnCallback();
-  closeQuickSpawn();
-  if (cb) cb(cliType);
 }
 
 // Binding editor handlers
@@ -1801,161 +1710,33 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Modals (teleported to body by each component) -->
-    <CloseConfirmModal
-      v-model:visible="closeConfirm.visible"
-      :session-name="closeConfirm.sessionName"
-      :draft-count="closeConfirm.draftCount"
-      @confirm="onConfirmClose"
-      @cancel="onCancelClose"
-    />
-
-    <PlanDeleteConfirmModal
-      v-model:visible="planDeleteConfirm.visible"
-      :plan-title="planDeleteConfirm.planTitle"
-      @confirm="onPlanDeleteConfirm"
-      @cancel="planDeleteConfirm.visible = false"
-    />
-
-    <ClearDonePlansModal
-      v-model:visible="clearDonePlans.visible"
-      :count="clearDonePlans.count"
-      :dir-name="clearDonePlans.dirName"
-      @confirm="onClearDonePlansConfirm"
-      @cancel="clearDonePlans.visible = false"
-    />
-
-    <SequencePickerModal
-      v-model:visible="sequencePicker.visible"
-      :items="sequencePicker.items"
-      @select="onSequencePickerSelect"
-      @cancel="sequencePicker.visible = false"
-    />
-
-    <QuickSpawnModal
-      v-model:visible="quickSpawn.visible"
+    <AppModalHost
       :cli-types="state.cliTypes"
-      :preselected-cli-type="quickSpawn.preselectedCliType"
-      @select="onQuickSpawnSelect"
-      @cancel="closeQuickSpawn()"
-    />
-
-    <ContextMenu
-      v-model:visible="contextMenu.visible"
-      :has-selection="contextMenu.hasSelection"
       :has-active-session="hasActiveSession"
       :has-sequences="hasSequences"
       :has-drafts="hasDrafts"
-      :is-snapped-out="state.activeSessionId ? state.snappedOutSessions.has(state.activeSessionId) : false"
-      :mode="contextMenu.mode"
-      :mouse-x="contextMenu.mouseX"
-      :mouse-y="contextMenu.mouseY"
-      @action="onContextMenuAction"
-      @cancel="contextMenu.visible = false"
-    />
-
-    <DraftSubmenu
-      v-model:visible="draftSubmenu.visible"
-      :drafts="draftSubmenu.items"
-      @new-draft="onDraftNewDraft"
-      @apply="onDraftSubmenuApply"
-      @edit="onDraftSubmenuEdit"
-      @delete="onDraftSubmenuDelete"
-      @cancel="draftSubmenu.visible = false"
-    />
-
-    <DirPickerModal
-      v-model:visible="dirPicker.visible"
-      :cli-type="dirPicker.cliType"
-      :items="dirPicker.items"
-      :preselected-path="dirPicker.preselectedPath"
-      @select="onDirPickerSelect"
-      @cancel="closeDirPicker()"
-    />
-
-    <FormModal
-      v-model:visible="formModal.visible"
-      :title="formModal.title"
-      :fields="formModal.fields"
-      @save="onFormModalSave"
-      @cancel="onFormModalCancel"
-    />
-
-    <ToolEditorModal
-      v-model:visible="toolEditor.visible"
-      :mode="toolEditor.mode"
-      :edit-key="toolEditor.editKey"
-      :initial-data="toolEditor.initialData"
-      @save="onToolEditorSave"
-      @cancel="onToolEditorCancel"
-    />
-
-    <EditorPopup
-      :visible="editorPopupStore.visible"
-      :initial-text="editorPopupStore.initialText"
-      @update:visible="editorPopupStore.setVisible"
-      @send="editorPopupStore.handleSend"
-      @close="editorPopupStore.handleClose"
-    />
-
-    <BindingEditorModal
-      v-model:visible="bindingEditorVisible"
-      :button-name="bindingEditorButton"
-      :cli-type="bindingEditorCliType"
-      :binding="bindingEditorBinding"
-      @save="onBindingEditorSave"
-      @cancel="bindingEditorVisible = false"
-    />
-
-    <EscProtectionModal />
-
-    <BackupRestoreModal
-      :visible="backupRestore.visible"
-      :dir-path="backupRestore.dirPath"
-      :snapshots="backupRestore.snapshots"
-      :loading="backupRestore.loading"
-      @restore="onBackupRestore"
-      @delete="onBackupDelete"
+      :is-active-session-snapped-out="state.activeSessionId ? state.snappedOutSessions.has(state.activeSessionId) : false"
+      v-model:binding-editor-visible="bindingEditorVisible"
+      :binding-editor-button="bindingEditorButton"
+      :binding-editor-cli-type="bindingEditorCliType"
+      :binding-editor-binding="bindingEditorBinding"
+      :backup-restore="backupRestore"
+      v-model:scheduler-popup-visible="schedulerPopupVisible"
+      :scheduler-popup-task-id="schedulerPopupTaskId"
+      @close-session="(sessionId) => void doCloseSession(sessionId)"
+      @context-menu-action="onContextMenuAction"
+      @draft-new-draft="onDraftNewDraft"
+      @draft-apply="onDraftSubmenuApply"
+      @draft-edit="onDraftSubmenuEdit"
+      @draft-delete="onDraftSubmenuDelete"
+      @dir-select="onDirPickerSelect"
+      @binding-save="onBindingEditorSave"
+      @backup-restore="onBackupRestore"
+      @backup-delete="onBackupDelete"
       @backup-now="onBackupNow"
-      @close="onBackupClose"
+      @backup-close="onBackupClose"
+      @task-created="onScheduledTaskCreated"
+      @task-updated="onScheduledTaskUpdated"
+      @task-cancelled="onScheduledTaskCancelled"
     />
-
-    <div v-if="schedulerPopupVisible" class="scheduler-popup-backdrop" @click.self="schedulerPopupVisible = false">
-      <div class="scheduler-popup">
-        <ScheduledTasksTab
-          popup
-          :initial-create="schedulerPopupTaskId === null"
-          :initial-edit-task-id="schedulerPopupTaskId"
-          @task-created="onScheduledTaskCreated"
-          @task-updated="onScheduledTaskUpdated"
-          @task-cancelled="onScheduledTaskCancelled"
-          @close="schedulerPopupVisible = false"
-        />
-      </div>
-    </div>
-
-    <ToastNotification />
 </template>
-
-<style scoped>
-.scheduler-popup-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.45);
-}
-
-.scheduler-popup {
-  width: min(760px, calc(100vw - 48px));
-  max-height: calc(100vh - 48px);
-  overflow: hidden;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-primary);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
-}
-</style>

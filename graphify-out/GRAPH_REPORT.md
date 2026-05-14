@@ -1,12 +1,12 @@
 # Graph Report - gamepad-cli-hub  (2026-05-15)
 
 ## Corpus Check
-- 399 files · ~3,142,580 words
+- 401 files · ~3,142,845 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3341 nodes · 6676 edges · 85 communities detected
-- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 342 edges (avg confidence: 0.8)
+- 3344 nodes · 6681 edges · 83 communities detected
+- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 346 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -63,6 +63,7 @@
 - [[_COMMUNITY_Community 50|Community 50]]
 - [[_COMMUNITY_Community 51|Community 51]]
 - [[_COMMUNITY_Community 52|Community 52]]
+- [[_COMMUNITY_Community 53|Community 53]]
 - [[_COMMUNITY_Community 54|Community 54]]
 - [[_COMMUNITY_Community 55|Community 55]]
 - [[_COMMUNITY_Community 56|Community 56]]
@@ -73,28 +74,25 @@
 - [[_COMMUNITY_Community 63|Community 63]]
 - [[_COMMUNITY_Community 64|Community 64]]
 - [[_COMMUNITY_Community 65|Community 65]]
-- [[_COMMUNITY_Community 66|Community 66]]
+- [[_COMMUNITY_Community 67|Community 67]]
 - [[_COMMUNITY_Community 68|Community 68]]
 - [[_COMMUNITY_Community 69|Community 69]]
-- [[_COMMUNITY_Community 70|Community 70]]
+- [[_COMMUNITY_Community 71|Community 71]]
 - [[_COMMUNITY_Community 72|Community 72]]
 - [[_COMMUNITY_Community 73|Community 73]]
-- [[_COMMUNITY_Community 74|Community 74]]
 - [[_COMMUNITY_Community 75|Community 75]]
-- [[_COMMUNITY_Community 76|Community 76]]
-- [[_COMMUNITY_Community 78|Community 78]]
+- [[_COMMUNITY_Community 79|Community 79]]
+- [[_COMMUNITY_Community 80|Community 80]]
 - [[_COMMUNITY_Community 81|Community 81]]
 - [[_COMMUNITY_Community 82|Community 82]]
-- [[_COMMUNITY_Community 83|Community 83]]
-- [[_COMMUNITY_Community 84|Community 84]]
-- [[_COMMUNITY_Community 85|Community 85]]
-- [[_COMMUNITY_Community 89|Community 89]]
+- [[_COMMUNITY_Community 86|Community 86]]
+- [[_COMMUNITY_Community 87|Community 87]]
+- [[_COMMUNITY_Community 108|Community 108]]
+- [[_COMMUNITY_Community 109|Community 109]]
 - [[_COMMUNITY_Community 110|Community 110]]
-- [[_COMMUNITY_Community 111|Community 111]]
-- [[_COMMUNITY_Community 112|Community 112]]
+- [[_COMMUNITY_Community 151|Community 151]]
 - [[_COMMUNITY_Community 152|Community 152]]
 - [[_COMMUNITY_Community 153|Community 153]]
-- [[_COMMUNITY_Community 154|Community 154]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `get()` - 83 edges
@@ -111,12 +109,12 @@
 ## Surprising Connections (you probably didn't know these)
 - `Directory Plans NCN` --semantically_similar_to--> `PlanManager`  [INFERRED] [semantically similar]
   CLAUDE.md → Plans/plan-directory-plans-ncn.html
-- `initConfigCache()` --calls--> `bootstrap()`  [INFERRED]
-  renderer\bindings.ts → renderer\composables\useAppBootstrap.ts
-- `executeCliBinding()` --calls--> `showContextMenu()`  [INFERRED]
-  renderer\bindings.ts → renderer\modals\context-menu.ts
+- `executeCliBinding()` --calls--> `showDraftEditor()`  [INFERRED]
+  renderer\bindings.ts → renderer\drafts\draft-editor.ts
 - `setupKeyboardRelay()` --calls--> `bootstrap()`  [INFERRED]
   renderer\paste-handler.ts → renderer\composables\useAppBootstrap.ts
+- `loadSettingsScreen()` --calls--> `renderProfilesPanel()`  [INFERRED]
+  renderer\screens\settings.ts → renderer\screens\settings-profiles.ts
 - `Gamepad Control` --semantically_similar_to--> `Browser Gamepad API`  [INFERRED] [semantically similar]
   README.md → CLAUDE.md
 
@@ -140,43 +138,43 @@ Nodes (586): absoluteStoragePath(), actionToPtyData(), add(), addDependency(), a
 
 ### Community 1 - "Community 1"
 Cohesion: 0.01
-Nodes (127): resolveEnvWithMode(), clearStartupFallbackTimer(), closeSplashWindow(), createSplashWindow(), createWindow(), maybeShowMainWindow(), readWindowBounds(), resolveSplashLogoUrl() (+119 more)
+Nodes (134): resolveEnvWithMode(), clearStartupFallbackTimer(), closeSplashWindow(), createSplashWindow(), createWindow(), maybeShowMainWindow(), readWindowBounds(), resolveSplashLogoUrl() (+126 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.01
-Nodes (142): createSortControl(), autoResumeSessions(), bootstrap(), clamp(), cleanupRendererSession(), doCloseSession(), doSpawn(), doSpawnShell() (+134 more)
+Nodes (148): autoResumeSessions(), bootstrap(), clamp(), cleanupRendererSession(), doCloseSession(), doSpawn(), doSpawnShell(), findProjectForPath() (+140 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.02
-Nodes (124): useEscProtection(), useModalStack(), useNavigation(), handleDraftEditorButton(), isDraftEditorVisible(), hideEditorPopup(), handleBindingEditorButton(), handleCloseConfirmButton() (+116 more)
+Nodes (122): handleDraftEditorButton(), isDraftEditorVisible(), showDraftEditor(), hideEditorPopup(), handleCloseConfirmButton(), hideCloseConfirm(), showCloseConfirm(), handleDraftActionButton() (+114 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.04
-Nodes (68): sortBindingEntries(), createBrowseButton(), createSequenceSyntaxHelp(), getCliDisplayName(), getCliIcon(), getFocusableElements(), getSequenceSyntaxHelpText(), logEvent() (+60 more)
+Nodes (68): createSortControl(), sortBindingEntries(), createBrowseButton(), createSequenceSyntaxHelp(), getCliDisplayName(), getCliIcon(), getFocusableElements(), getSequenceSyntaxHelpText() (+60 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.05
-Nodes (9): buildLegacySpawnCommand(), ConfigLoader, isCliTypeOptions(), normalizeMcpPort(), normalizeToolConfig(), parseCliArgs(), parseCommandTemplate(), slugify() (+1 more)
+Cohesion: 0.03
+Nodes (34): useModalStack(), useNavigation(), handleBindingEditorButton(), handleButton(), onSave(), handleButton(), handleButton(), actionForIndex() (+26 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.05
-Nodes (21): cleanupOrphanDependencies(), clearPersistedSessions(), decodeFilename(), deletePlanFile(), encodeFilename(), listPlanFiles(), loadDependencies(), loadDrafts() (+13 more)
+Nodes (9): buildLegacySpawnCommand(), ConfigLoader, isCliTypeOptions(), normalizeMcpPort(), normalizeToolConfig(), parseCliArgs(), parseCommandTemplate(), slugify() (+1 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.05
-Nodes (57): editOriginalMessage(), expandSequence(), findSequenceByLabel(), flattenSequences(), handleAccept(), handleCancel(), handleCloseAll(), handleCommandExec() (+49 more)
+Nodes (21): cleanupOrphanDependencies(), clearPersistedSessions(), decodeFilename(), deletePlanFile(), encodeFilename(), listPlanFiles(), loadDependencies(), loadDrafts() (+13 more)
 
 ### Community 8 - "Community 8"
-Cohesion: 0.04
-Nodes (5): decodeBase64Content(), HelmControlService, parseSubmitSuffix(), requireResult(), validateMobileFriendlyTelegramText()
+Cohesion: 0.05
+Nodes (57): editOriginalMessage(), expandSequence(), findSequenceByLabel(), flattenSequences(), handleAccept(), handleCancel(), handleCloseAll(), handleCommandExec() (+49 more)
 
 ### Community 9 - "Community 9"
 Cohesion: 0.04
-Nodes (48): showDraftEditor(), asElement(), getActiveInputContext(), getEditableOwner(), getTerminalOwner(), isEditableElement(), isEditableElementInContainer(), isEditableTargetFromEvent() (+40 more)
+Nodes (5): decodeBase64Content(), HelmControlService, parseSubmitSuffix(), requireResult(), validateMobileFriendlyTelegramText()
 
 ### Community 10 - "Community 10"
-Cohesion: 0.04
-Nodes (31): handleButton(), onSave(), handleButton(), handleButton(), actionForIndex(), clampIndex(), close(), handleButton() (+23 more)
+Cohesion: 0.05
+Nodes (36): useEscProtection(), asElement(), getActiveInputContext(), getEditableOwner(), getTerminalOwner(), isEditableElement(), isEditableElementInContainer(), isEditableTargetFromEvent() (+28 more)
 
 ### Community 11 - "Community 11"
 Cohesion: 0.06
@@ -211,60 +209,60 @@ Cohesion: 0.08
 Nodes (31): GitHub App Update Provider, Deploy Config Stripping, Two Step Release Workflow, Localhost MCP Server, Self Contained Profile Model, Directory Plan Controls, Default Profile, Profile Bindings Config (+23 more)
 
 ### Community 19 - "Community 19"
+Cohesion: 0.07
+Nodes (3): cb(), PtyOutputBuffer, TerminalView
+
+### Community 20 - "Community 20"
 Cohesion: 0.14
 Nodes (1): BrowserGamepadPoller
 
-### Community 20 - "Community 20"
+### Community 21 - "Community 21"
 Cohesion: 0.18
 Nodes (5): loadScheduledTasks(), saveScheduledTasks(), parseSubmitSuffix(), ScheduledTaskManager, splitCliParams()
 
-### Community 21 - "Community 21"
+### Community 22 - "Community 22"
 Cohesion: 0.14
 Nodes (1): TelegramBotCore
 
-### Community 22 - "Community 22"
+### Community 23 - "Community 23"
 Cohesion: 0.15
 Nodes (6): fitToLimit(), simpleHash(), stripEchoes(), stripInputToText(), TerminalMirror, truncateMiddle()
 
-### Community 23 - "Community 23"
+### Community 24 - "Community 24"
 Cohesion: 0.1
 Nodes (2): handleButton(), navigateTab()
-
-### Community 24 - "Community 24"
-Cohesion: 0.13
-Nodes (2): setupKeyboardHandlers(), KeyboardSimulator
 
 ### Community 25 - "Community 25"
 Cohesion: 0.19
 Nodes (2): PlanBackupManager, toFsSafeTimestamp()
 
 ### Community 26 - "Community 26"
-Cohesion: 0.11
-Nodes (1): TerminalView
-
-### Community 27 - "Community 27"
 Cohesion: 0.18
 Nodes (1): SessionManager
 
-### Community 28 - "Community 28"
+### Community 27 - "Community 27"
 Cohesion: 0.15
 Nodes (8): applySequenceBandLayout(), assignCoordinates(), assignLayers(), computeLayout(), groupByLayer(), layoutGroup(), orderWithinLayers(), topologicalSort()
+
+### Community 28 - "Community 28"
+Cohesion: 0.18
+Nodes (2): StateDetector, stripAnsi()
 
 ### Community 29 - "Community 29"
 Cohesion: 0.16
 Nodes (2): buildContent(), NotificationManager
 
 ### Community 30 - "Community 30"
-Cohesion: 0.18
-Nodes (2): StateDetector, stripAnsi()
-
-### Community 31 - "Community 31"
 Cohesion: 0.12
 Nodes (18): Binding Action Types, Pattern Rules, Sequence Parser Syntax, Navigation Priority Chain, Default Profile Gamepad Bindings, Group Overview Mode, PTY Output Preview Grid, StateDetector Module (+10 more)
 
-### Community 32 - "Community 32"
+### Community 31 - "Community 31"
 Cohesion: 0.14
 Nodes (1): WindowManager
+
+### Community 32 - "Community 32"
+Cohesion: 0.19
+Nodes (1): KeyboardSimulator
 
 ### Community 33 - "Community 33"
 Cohesion: 0.21
@@ -299,64 +297,68 @@ Cohesion: 0.14
 Nodes (15): Renderer Content Security Policy, Helm Renderer Entrypoint, vue-main.ts Module, Vue App Mount Point, xterm Stylesheet, Bracketed Paste Support, CLI Integration Improvements, IncomingPlansWatcher (+7 more)
 
 ### Community 41 - "Community 41"
+Cohesion: 0.18
+Nodes (3): decodeBase64Content(), HelmPlanAttachmentService, HelmProjectService
+
+### Community 42 - "Community 42"
 Cohesion: 0.24
 Nodes (2): HelmSessionService, requireResult()
 
-### Community 42 - "Community 42"
+### Community 43 - "Community 43"
 Cohesion: 0.19
 Nodes (6): buildLegacySpawnCommand(), normalizeToolConfig(), parseCliArgs(), parseCommandTemplate(), setupTestFiles(), writeYaml()
 
-### Community 43 - "Community 43"
+### Community 44 - "Community 44"
 Cohesion: 0.22
 Nodes (2): HelmTelegramService, validateMobileFriendlyTelegramText()
 
-### Community 44 - "Community 44"
+### Community 45 - "Community 45"
 Cohesion: 0.15
 Nodes (1): MockResizeObserver
 
-### Community 45 - "Community 45"
+### Community 46 - "Community 46"
 Cohesion: 0.26
 Nodes (1): WindowsWindowManager
 
-### Community 46 - "Community 46"
+### Community 47 - "Community 47"
 Cohesion: 0.27
 Nodes (11): extract_test_results(), format_markdown_output(), main(), Run tests based on mode., Run ESLint if available., Run a command and return result info., Extract test results from output., Format results as markdown. (+3 more)
 
-### Community 47 - "Community 47"
+### Community 48 - "Community 48"
 Cohesion: 0.26
 Nodes (7): commitPort(), commitToken(), normalizePort(), onPortBlur(), onPortChange(), onTokenBlur(), onTokenInput()
 
-### Community 48 - "Community 48"
+### Community 49 - "Community 49"
 Cohesion: 0.24
 Nodes (1): HelmPlanSequenceService
 
-### Community 49 - "Community 49"
-Cohesion: 0.18
-Nodes (1): PipelineQueue
-
 ### Community 50 - "Community 50"
-Cohesion: 0.27
-Nodes (3): escapeHtml(), formatMessageForTelegram(), TelegramRelayService
+Cohesion: 0.2
+Nodes (1): IncomingPlansWatcher
 
 ### Community 51 - "Community 51"
 Cohesion: 0.18
-Nodes (2): flush(), loadAndFlush()
+Nodes (1): PipelineQueue
 
 ### Community 52 - "Community 52"
+Cohesion: 0.27
+Nodes (3): escapeHtml(), formatMessageForTelegram(), TelegramRelayService
+
+### Community 53 - "Community 53"
+Cohesion: 0.18
+Nodes (2): flush(), loadAndFlush()
+
+### Community 54 - "Community 54"
 Cohesion: 0.23
 Nodes (5): extractErrors(), extractModifiedFiles(), extractTestResults(), formatRecentOutput(), OutputSummarizer
 
-### Community 54 - "Community 54"
+### Community 55 - "Community 55"
 Cohesion: 0.24
 Nodes (3): createHelmPreloadApi(), createHelmPreloadApi(), createPreloadDomains()
 
-### Community 55 - "Community 55"
+### Community 56 - "Community 56"
 Cohesion: 0.25
 Nodes (1): DraftManager
-
-### Community 56 - "Community 56"
-Cohesion: 0.22
-Nodes (1): IncomingPlansWatcher
 
 ### Community 57 - "Community 57"
 Cohesion: 0.25
@@ -371,106 +373,94 @@ Cohesion: 0.28
 Nodes (1): FakePtyManager
 
 ### Community 62 - "Community 62"
-Cohesion: 0.39
-Nodes (2): decodeBase64Content(), HelmPlanAttachmentService
-
-### Community 63 - "Community 63"
 Cohesion: 0.25
 Nodes (1): HelmSchedulerService
 
-### Community 64 - "Community 64"
-Cohesion: 0.36
-Nodes (4): defaultGitRunner(), inspectProjectIdentity(), normalizeProjectPath(), trimGitOutput()
-
-### Community 65 - "Community 65"
+### Community 63 - "Community 63"
 Cohesion: 0.29
 Nodes (1): CronEngine
 
-### Community 66 - "Community 66"
+### Community 64 - "Community 64"
 Cohesion: 0.32
 Nodes (1): ProcessSpawner
 
-### Community 68 - "Community 68"
+### Community 65 - "Community 65"
+Cohesion: 0.36
+Nodes (4): defaultGitRunner(), inspectProjectIdentity(), normalizeProjectPath(), trimGitOutput()
+
+### Community 67 - "Community 67"
 Cohesion: 0.29
 Nodes (1): FakeSessionManager
 
-### Community 69 - "Community 69"
+### Community 68 - "Community 68"
 Cohesion: 0.43
 Nodes (1): ConfigLoader
 
-### Community 70 - "Community 70"
+### Community 69 - "Community 69"
 Cohesion: 0.4
 Nodes (2): clampHeight(), onResizeMove()
 
+### Community 71 - "Community 71"
+Cohesion: 0.33
+Nodes (1): MockResizeObserver
+
 ### Community 72 - "Community 72"
 Cohesion: 0.33
-Nodes (1): HelmProjectService
+Nodes (1): MockResizeObserver
 
 ### Community 73 - "Community 73"
 Cohesion: 0.47
-Nodes (2): HelmSessionPlanService, normalizeDirectoryPath()
-
-### Community 74 - "Community 74"
-Cohesion: 0.33
-Nodes (1): MockResizeObserver
+Nodes (4): makeButton(), makeGamepad(), startAndTick(), tick()
 
 ### Community 75 - "Community 75"
 Cohesion: 0.33
-Nodes (1): MockResizeObserver
-
-### Community 76 - "Community 76"
-Cohesion: 0.47
-Nodes (4): makeButton(), makeGamepad(), startAndTick(), tick()
-
-### Community 78 - "Community 78"
-Cohesion: 0.33
 Nodes (1): MockTelegramBot
 
-### Community 81 - "Community 81"
+### Community 79 - "Community 79"
 Cohesion: 0.5
 Nodes (2): buildReplyKeyboard(), sendWithReplyKeyboard()
 
-### Community 82 - "Community 82"
+### Community 80 - "Community 80"
 Cohesion: 0.67
 Nodes (2): nextRunMs(), timeRemaining()
 
-### Community 83 - "Community 83"
+### Community 81 - "Community 81"
 Cohesion: 0.67
 Nodes (2): applyPtyFilters(), stripAltScreen()
 
-### Community 84 - "Community 84"
-Cohesion: 0.83
-Nodes (3): actionToPtyData(), comboToPtySequence(), keyToPtySequence()
-
-### Community 85 - "Community 85"
+### Community 82 - "Community 82"
 Cohesion: 0.67
 Nodes (2): getMockWindow(), getModule()
 
-### Community 89 - "Community 89"
+### Community 86 - "Community 86"
+Cohesion: 0.83
+Nodes (3): actionToPtyData(), comboToPtySequence(), keyToPtySequence()
+
+### Community 87 - "Community 87"
 Cohesion: 0.67
 Nodes (4): Green Wave Accent, Helm Paper Boat Icon, Paper Boat Symbol, Terminal Prompt Mark
 
-### Community 110 - "Community 110"
+### Community 108 - "Community 108"
 Cohesion: 1.0
 Nodes (2): Electron MIT License, Chromium Third Party Credits
 
-### Community 111 - "Community 111"
+### Community 109 - "Community 109"
 Cohesion: 1.0
 Nodes (2): Empty Drafts Config, Empty Sessions Config
 
-### Community 112 - "Community 112"
+### Community 110 - "Community 110"
 Cohesion: 1.0
 Nodes (2): Haptic Feedback Setting, Notifications Setting
 
-### Community 152 - "Community 152"
+### Community 151 - "Community 151"
 Cohesion: 1.0
 Nodes (1): Modal Guard Regression Fixes
 
-### Community 153 - "Community 153"
+### Community 152 - "Community 152"
 Cohesion: 1.0
 Nodes (1): Persisted Sessions
 
-### Community 154 - "Community 154"
+### Community 153 - "Community 153"
 Cohesion: 1.0
 Nodes (1): File Structure Module Map
 
@@ -487,25 +477,23 @@ Nodes (1): File Structure Module Map
   These have ≤1 connection - possible missing edges or undocumented components.
 - **Thin community `Community 15`** (34 nodes): `TerminalManager`, `.adoptTerminal()`, `.constructor()`, `.createTerminal()`, `.deselect()`, `.destroyTerminal()`, `.detachTerminal()`, `.dispose()`, `.fitActive()`, `.fitAll()`, `.focusActive()`, `.getActiveSessionId()`, `.getActiveView()`, `.getCount()`, `.getManagedSessions()`, `.getOutputBuffer()`, `.getSession()`, `.getSessionIds()`, `.getTerminalLines()`, `.getTitle()`, `.has()`, `.hasTerminal()`, `.hydrateFromStore()`, `.hydrateSessions()`, `.removeManagedSession()`, `.renameSession()`, `.setOnEmpty()`, `.setOnSwitch()`, `.setOnTitleChange()`, `.setupIpcListeners()`, `.setupResizeObserver()`, `.switchTo()`, `.upsertManagedSession()`, `.writeToTerminal()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 19`** (27 nodes): `BrowserGamepadPoller`, `.checkDpad()`, `.checkDpadAxes()`, `.checkDpadButtons()`, `.checkRepeats()`, `.checkStickVirtualButtons()`, `.constructor()`, `.decodeHatAxis()`, `.emitConnectionEvent()`, `.emitDpadDirection()`, `.findDualAxisPair()`, `.findHatAxisIndex()`, `.getCount()`, `.getRepeatConfig()`, `.handleButtonPress()`, `.handleButtonRelease()`, `.logAxesDiagnostic()`, `.logGamepadState()`, `.onButton()`, `.onRelease()`, `.poll()`, `.processGamepad()`, `.requestGamepadAccess()`, `.setRepeatConfig()`, `.setupEvents()`, `.start()`, `.stop()`
+- **Thin community `Community 20`** (27 nodes): `BrowserGamepadPoller`, `.checkDpad()`, `.checkDpadAxes()`, `.checkDpadButtons()`, `.checkRepeats()`, `.checkStickVirtualButtons()`, `.constructor()`, `.decodeHatAxis()`, `.emitConnectionEvent()`, `.emitDpadDirection()`, `.findDualAxisPair()`, `.findHatAxisIndex()`, `.getCount()`, `.getRepeatConfig()`, `.handleButtonPress()`, `.handleButtonRelease()`, `.logAxesDiagnostic()`, `.logGamepadState()`, `.onButton()`, `.onRelease()`, `.poll()`, `.processGamepad()`, `.requestGamepadAccess()`, `.setRepeatConfig()`, `.setupEvents()`, `.start()`, `.stop()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 21`** (25 nodes): `bot.js`, `TelegramBotCore`, `.answerCallback()`, `.closeForumTopic()`, `.createForumTopic()`, `.deleteForumTopic()`, `.editForumTopic()`, `.editMessageDebounced()`, `.flushEdit()`, `.getBot()`, `.getChatId()`, `.handleCallbackQuery()`, `.handleMessage()`, `.isAuthorized()`, `.isRateLimited()`, `.isRunning()`, `.reopenForumTopic()`, `.sendDocument()`, `.sendMessage()`, `.sendPhoto()`, `.sendToTopic()`, `.sendVideo()`, `.start()`, `.stop()`, `.withTimeout()`
+- **Thin community `Community 22`** (25 nodes): `bot.js`, `TelegramBotCore`, `.answerCallback()`, `.closeForumTopic()`, `.createForumTopic()`, `.deleteForumTopic()`, `.editForumTopic()`, `.editMessageDebounced()`, `.flushEdit()`, `.getBot()`, `.getChatId()`, `.handleCallbackQuery()`, `.handleMessage()`, `.isAuthorized()`, `.isRateLimited()`, `.isRunning()`, `.reopenForumTopic()`, `.sendDocument()`, `.sendMessage()`, `.sendPhoto()`, `.sendToTopic()`, `.sendVideo()`, `.start()`, `.stop()`, `.withTimeout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 23`** (22 nodes): `BindingsTab.vue`, `PlansGrid.vue`, `ProfilesTab.vue`, `SessionCard.vue`, `SessionGroup.vue`, `SessionList.vue`, `SettingsPanel.vue`, `SortBar.vue`, `SpawnGrid.vue`, `StatusStrip.vue`, `TelegramTab.vue`, `ToolsTab.vue`, `colClass()`, `onCardClick()`, `onRenameKeydown()`, `selectState()`, `handleButton()`, `navigateTab()`, `makeCardProps()`, `makeGroupProps()`, `makeSessionListProps()`, `sidebar.test.ts`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 24`** (22 nodes): `keyboard.js`, `keyboard-handlers.js`, `keyboard.js`, `setupKeyboardHandlers()`, `KeyboardSimulator`, `.comboDown()`, `.comboUp()`, `.constructor()`, `.getKeyDelay()`, `.keyDown()`, `.keyTap()`, `.keyUp()`, `.longPress()`, `.normalizeKey()`, `.sendKey()`, `.sendKeyCombo()`, `.sendKeys()`, `.setKeyDelay()`, `.typeString()`, `keyboard-handlers.ts`, `keyboard.ts`, `keyboard.test.ts`
+- **Thin community `Community 24`** (22 nodes): `BindingsTab.vue`, `PlansGrid.vue`, `ProfilesTab.vue`, `SessionCard.vue`, `SessionGroup.vue`, `SessionList.vue`, `SettingsPanel.vue`, `SortBar.vue`, `SpawnGrid.vue`, `StatusStrip.vue`, `TelegramTab.vue`, `ToolsTab.vue`, `colClass()`, `onCardClick()`, `onRenameKeydown()`, `selectState()`, `handleButton()`, `navigateTab()`, `makeCardProps()`, `makeGroupProps()`, `makeSessionListProps()`, `sidebar.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 25`** (22 nodes): `PlanBackupManager`, `.constructor()`, `.createSnapshot()`, `.deleteAllSnapshots()`, `.deleteSnapshot()`, `.getBackupDirForPath()`, `.getBackupSummary()`, `.getConfig()`, `.getDefaultConfig()`, `.getNewestSnapshot()`, `.getNextIndexForTimestamp()`, `.getOldestSnapshot()`, `.listSnapshots()`, `.loadConfig()`, `.pruneOldSnapshots()`, `.resolveBackupsRootDir()`, `.restoreFromSnapshot()`, `.saveConfig()`, `.updateConfig()`, `.validateConfig()`, `.validateSnapshot()`, `toFsSafeTimestamp()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 26`** (20 nodes): `TerminalView`, `.blur()`, `.clear()`, `.clearSelection()`, `.constructor()`, `.dispose()`, `.findNext()`, `.findPrevious()`, `.fit()`, `.focus()`, `.getBufferLines()`, `.getDimensions()`, `.getSelection()`, `.hasSelection()`, `.isBracketedPasteEnabled()`, `.paste()`, `.scroll()`, `.scrollLines()`, `.scrollToBottom()`, `.write()`
+- **Thin community `Community 26`** (20 nodes): `manager.js`, `manager.js`, `SessionManager`, `.addSession()`, `.applyProjectIdentity()`, `.clear()`, `.constructor()`, `.getActiveSession()`, `.getAllSessions()`, `.getSession()`, `.getSessionCount()`, `.hasSession()`, `.nextSession()`, `.persistSessions()`, `.previousSession()`, `.removeSession()`, `.renameSession()`, `.restoreSessions()`, `.setActiveSession()`, `.updateSession()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 27`** (20 nodes): `manager.js`, `manager.js`, `SessionManager`, `.addSession()`, `.applyProjectIdentity()`, `.clear()`, `.constructor()`, `.getActiveSession()`, `.getAllSessions()`, `.getSession()`, `.getSessionCount()`, `.hasSession()`, `.nextSession()`, `.persistSessions()`, `.previousSession()`, `.removeSession()`, `.renameSession()`, `.restoreSessions()`, `.setActiveSession()`, `.updateSession()`
+- **Thin community `Community 28`** (19 nodes): `state-detector.js`, `StateDetector`, `.clearActivityTimers()`, `.constructor()`, `.dispose()`, `.getLastOutputTime()`, `.getOrCreate()`, `.getState()`, `.hasQuestion()`, `.markActive()`, `.markResizing()`, `.markRestored()`, `.markScrolling()`, `.markSwitching()`, `.processOutput()`, `.promoteIfRecentOutput()`, `.removeSession()`, `.resetActivityTimers()`, `stripAnsi()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 29`** (19 nodes): `notification-manager.js`, `buildContent()`, `NotificationManager`, `.constructor()`, `.dispatchLlmInAppNotification()`, `.dispose()`, `.feedOutput()`, `.getAppVisibility()`, `.getAppVisibilityDetails()`, `.getLastLines()`, `.handleActivityChange()`, `.maybeNotify()`, `.notifyLlmDirected()`, `.removeSession()`, `.setActiveSessionIdGetter()`, `.setScreenLockChecker()`, `.setTelegramNotifier()`, `.shouldNotify()`, `.showNotification()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 30`** (19 nodes): `state-detector.js`, `StateDetector`, `.clearActivityTimers()`, `.constructor()`, `.dispose()`, `.getLastOutputTime()`, `.getOrCreate()`, `.getState()`, `.hasQuestion()`, `.markActive()`, `.markResizing()`, `.markRestored()`, `.markScrolling()`, `.markSwitching()`, `.processOutput()`, `.promoteIfRecentOutput()`, `.removeSession()`, `.resetActivityTimers()`, `stripAnsi()`
+- **Thin community `Community 31`** (17 nodes): `WindowManager`, `.assignSessionToWindow()`, `.closeAllChildWindows()`, `.focusWindowForSession()`, `.getAllWindows()`, `.getChildWindowIds()`, `.getMainWindow()`, `.getSessionsInWindow()`, `.getSnappedOutSessions()`, `.getWindow()`, `.getWindowForSession()`, `.getWindowIdForSession()`, `.isSessionSnappedOut()`, `.registerWindow()`, `.setMainWindow()`, `.unassignSession()`, `.unregisterWindow()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 32`** (17 nodes): `WindowManager`, `.assignSessionToWindow()`, `.closeAllChildWindows()`, `.focusWindowForSession()`, `.getAllWindows()`, `.getChildWindowIds()`, `.getMainWindow()`, `.getSessionsInWindow()`, `.getSnappedOutSessions()`, `.getWindow()`, `.getWindowForSession()`, `.getWindowIdForSession()`, `.isSessionSnappedOut()`, `.registerWindow()`, `.setMainWindow()`, `.unassignSession()`, `.unregisterWindow()`
+- **Thin community `Community 32`** (17 nodes): `keyboard.js`, `keyboard.js`, `KeyboardSimulator`, `.comboDown()`, `.comboUp()`, `.constructor()`, `.getKeyDelay()`, `.keyDown()`, `.keyTap()`, `.keyUp()`, `.longPress()`, `.normalizeKey()`, `.sendKey()`, `.sendKeyCombo()`, `.sendKeys()`, `.setKeyDelay()`, `.typeString()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 33`** (17 nodes): `HelmPlanService`, `.completePlan()`, `.constructor()`, `.createPlan()`, `.deletePlan()`, `.exportDirectory()`, `.exportItem()`, `.getPlan()`, `.linkPlans()`, `.listPlans()`, `.plansSummary()`, `.reopenPlan()`, `.requireWorkingDirectory()`, `.resolvePlanRef()`, `.setPlanState()`, `.unlinkPlans()`, `.updatePlan()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -519,23 +507,23 @@ Nodes (1): File Structure Module Map
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 39`** (15 nodes): `pinned-dashboard.js`, `groupByDirectory()`, `PinnedDashboard`, `.appendSessionGroups()`, `.buildDashboardKeyboard()`, `.buildDashboardText()`, `.constructor()`, `.createOrUpdate()`, `.dispose()`, `.handleEditError()`, `.pinMessage()`, `.setInstanceName()`, `.start()`, `.stop()`, `.update()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 41`** (14 nodes): `HelmSessionService`, `.closeSession()`, `.constructor()`, `.findSession()`, `.getSession()`, `.listSessions()`, `.readSessionTerminal()`, `.requireCliEntry()`, `.requireWorkingDirectory()`, `.setAiagentState()`, `.setSessionWorkingPlan()`, `.spawnCli()`, `.toSessionSummary()`, `requireResult()`
+- **Thin community `Community 42`** (14 nodes): `HelmSessionService`, `.closeSession()`, `.constructor()`, `.findSession()`, `.getSession()`, `.listSessions()`, `.readSessionTerminal()`, `.requireCliEntry()`, `.requireWorkingDirectory()`, `.setAiagentState()`, `.setSessionWorkingPlan()`, `.spawnCli()`, `.toSessionSummary()`, `requireResult()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 43`** (13 nodes): `HelmTelegramService`, `.closeTelegramChannel()`, `.constructor()`, `.findSession()`, `.getAppVisibility()`, `.getTelegramStatus()`, `.notifyUser()`, `.requireTelegramAvailable()`, `.requireTelegramBridge()`, `.sendTelegramChat()`, `.setNotificationManager()`, `.setTelegramBridge()`, `validateMobileFriendlyTelegramText()`
+- **Thin community `Community 44`** (13 nodes): `HelmTelegramService`, `.closeTelegramChannel()`, `.constructor()`, `.findSession()`, `.getAppVisibility()`, `.getTelegramStatus()`, `.notifyUser()`, `.requireTelegramAvailable()`, `.requireTelegramBridge()`, `.sendTelegramChat()`, `.setNotificationManager()`, `.setTelegramBridge()`, `validateMobileFriendlyTelegramText()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 44`** (13 nodes): `createContainer()`, `lastFitAddon()`, `lastSearchAddon()`, `lastTerminal()`, `makeMockFitAddon()`, `makeMockSearchAddon()`, `makeMockTerminal()`, `MockResizeObserver`, `.constructor()`, `.disconnect()`, `.observe()`, `.unobserve()`, `terminal-manager.test.ts`
+- **Thin community `Community 45`** (13 nodes): `createContainer()`, `lastFitAddon()`, `lastSearchAddon()`, `lastTerminal()`, `makeMockFitAddon()`, `makeMockSearchAddon()`, `makeMockTerminal()`, `MockResizeObserver`, `.constructor()`, `.disconnect()`, `.observe()`, `.unobserve()`, `terminal-manager.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 45`** (13 nodes): `windows.js`, `WindowsWindowManager`, `.cleanup()`, `.constructor()`, `.ensureScriptExists()`, `.enumerateWindows()`, `.executeWindowScript()`, `.findTerminalWindows()`, `.findWindowsByProcessName()`, `.findWindowsByTitle()`, `.focusWindow()`, `.getActiveWindow()`, `.getProcesses()`
+- **Thin community `Community 46`** (13 nodes): `windows.js`, `WindowsWindowManager`, `.cleanup()`, `.constructor()`, `.ensureScriptExists()`, `.enumerateWindows()`, `.executeWindowScript()`, `.findTerminalWindows()`, `.findWindowsByProcessName()`, `.findWindowsByTitle()`, `.focusWindow()`, `.getActiveWindow()`, `.getProcesses()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 48`** (12 nodes): `HelmPlanSequenceService`, `.appendPlanSequenceMemory()`, `.assertSequenceMutex()`, `.assignPlanSequence()`, `.constructor()`, `.createPlanSequence()`, `.deletePlanSequence()`, `.getPlanSequence()`, `.listPlanSequences()`, `.requireWorkingDirectory()`, `.resolvePlanRef()`, `.updatePlanSequence()`
+- **Thin community `Community 49`** (12 nodes): `HelmPlanSequenceService`, `.appendPlanSequenceMemory()`, `.assertSequenceMutex()`, `.assignPlanSequence()`, `.constructor()`, `.createPlanSequence()`, `.deletePlanSequence()`, `.getPlanSequence()`, `.listPlanSequences()`, `.requireWorkingDirectory()`, `.resolvePlanRef()`, `.updatePlanSequence()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 49`** (12 nodes): `pipeline-queue.js`, `PipelineQueue`, `.clear()`, `.dequeue()`, `.enqueue()`, `.getAll()`, `.getPosition()`, `.has()`, `.length()`, `.peek()`, `.pop()`, `.triggerHandoff()`
+- **Thin community `Community 50`** (12 nodes): `incoming-plans-watcher.js`, `IncomingPlansWatcher`, `.close()`, `.constructor()`, `.deleteFile()`, `.getFailedFiles()`, `.getIncomingDir()`, `.listFiles()`, `.processFile()`, `.rejectFile()`, `.start()`, `.validate()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 51`** (12 nodes): `buildSidebarDom()`, `createMockTerminalManager()`, `enterRenameMode()`, `flush()`, `getSessions()`, `getSessionsState()`, `getState()`, `loadAndFlush()`, `makeSessions()`, `pressKey()`, `setMockTerminalSessions()`, `sessions-screen.test.ts`
+- **Thin community `Community 51`** (12 nodes): `pipeline-queue.js`, `PipelineQueue`, `.clear()`, `.dequeue()`, `.enqueue()`, `.getAll()`, `.getPosition()`, `.has()`, `.length()`, `.peek()`, `.pop()`, `.triggerHandoff()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 55`** (11 nodes): `draft-manager.js`, `DraftManager`, `.clearSession()`, `.count()`, `.create()`, `.delete()`, `.exportAll()`, `.get()`, `.getForSession()`, `.importAll()`, `.update()`
+- **Thin community `Community 53`** (12 nodes): `buildSidebarDom()`, `createMockTerminalManager()`, `enterRenameMode()`, `flush()`, `getSessions()`, `getSessionsState()`, `getState()`, `loadAndFlush()`, `makeSessions()`, `pressKey()`, `setMockTerminalSessions()`, `sessions-screen.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 56`** (11 nodes): `incoming-plans-watcher.js`, `IncomingPlansWatcher`, `.close()`, `.deleteFile()`, `.getFailedFiles()`, `.getIncomingDir()`, `.listFiles()`, `.processFile()`, `.rejectFile()`, `.start()`, `.validate()`
+- **Thin community `Community 56`** (11 nodes): `draft-manager.js`, `DraftManager`, `.clearSession()`, `.count()`, `.create()`, `.delete()`, `.exportAll()`, `.get()`, `.getForSession()`, `.importAll()`, `.update()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 57`** (11 nodes): `ProjectStore`, `.addDirectory()`, `.constructor()`, `.delete()`, `.getById()`, `.isDirty()`, `.list()`, `.removeDirectory()`, `.rename()`, `.requireRecord()`, `.save()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -543,49 +531,43 @@ Nodes (1): File Structure Module Map
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 60`** (9 nodes): `FakePtyManager`, `.constructor()`, `.deliverText()`, `.emitExit()`, `.getWrites()`, `.has()`, `.spawn()`, `.spawnCommand()`, `.write()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 62`** (8 nodes): `decodeBase64Content()`, `HelmPlanAttachmentService`, `.addPlanAttachment()`, `.constructor()`, `.deletePlanAttachment()`, `.getPlanAttachment()`, `.listPlanAttachments()`, `.resolvePlanRef()`
+- **Thin community `Community 62`** (8 nodes): `HelmSchedulerService`, `.cancelTask()`, `.constructor()`, `.createTask()`, `.deleteTask()`, `.getTask()`, `.listTasks()`, `.updateTask()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 63`** (8 nodes): `HelmSchedulerService`, `.cancelTask()`, `.constructor()`, `.createTask()`, `.deleteTask()`, `.getTask()`, `.listTasks()`, `.updateTask()`
+- **Thin community `Community 63`** (8 nodes): `cron-engine.test.ts`, `cron-engine.ts`, `CronEngine`, `.isValid()`, `.nextRunTime()`, `.nextRunTimeBeforeDate()`, `.validate()`, `expectLocalDateTime()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 65`** (8 nodes): `cron-engine.test.ts`, `cron-engine.ts`, `CronEngine`, `.isValid()`, `.nextRunTime()`, `.nextRunTimeBeforeDate()`, `.validate()`, `expectLocalDateTime()`
+- **Thin community `Community 64`** (8 nodes): `spawner.js`, `ProcessSpawner`, `.getAllProcesses()`, `.getProcess()`, `.getProcessesByCliType()`, `.kill()`, `.killAll()`, `.spawn()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 66`** (8 nodes): `spawner.js`, `ProcessSpawner`, `.getAllProcesses()`, `.getProcess()`, `.getProcessesByCliType()`, `.kill()`, `.killAll()`, `.spawn()`
+- **Thin community `Community 67`** (7 nodes): `FakeSessionManager`, `.addSession()`, `.getActiveSession()`, `.getSession()`, `.removeSession()`, `.setActiveSession()`, `.spawn()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 68`** (7 nodes): `FakeSessionManager`, `.addSession()`, `.getActiveSession()`, `.getSession()`, `.removeSession()`, `.setActiveSession()`, `.spawn()`
+- **Thin community `Community 68`** (7 nodes): `config-loader.js`, `ConfigLoader`, `.constructor()`, `.getCliTypes()`, `.getSpawnConfig()`, `.load()`, `.reload()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 69`** (7 nodes): `config-loader.js`, `ConfigLoader`, `.constructor()`, `.getCliTypes()`, `.getSpawnConfig()`, `.load()`, `.reload()`
+- **Thin community `Community 69`** (6 nodes): `clampHeight()`, `focus()`, `onResizeMove()`, `startResize()`, `stopResize()`, `PromptTextarea.vue`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 70`** (6 nodes): `clampHeight()`, `focus()`, `onResizeMove()`, `startResize()`, `stopResize()`, `PromptTextarea.vue`
+- **Thin community `Community 71`** (6 nodes): `MockResizeObserver`, `.constructor()`, `.disconnect()`, `.observe()`, `.unobserve()`, `bindings-pty.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 72`** (6 nodes): `HelmProjectService`, `.addProjectDir()`, `.constructor()`, `.listProjectDirs()`, `.listProjects()`, `.removeProjectDir()`
+- **Thin community `Community 72`** (6 nodes): `MockResizeObserver`, `.constructor()`, `.disconnect()`, `.observe()`, `.unobserve()`, `bindings-target.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 73`** (6 nodes): `HelmSessionPlanService`, `.constructor()`, `.findSession()`, `.resolvePlanRef()`, `.setWorkingPlan()`, `normalizeDirectoryPath()`
+- **Thin community `Community 75`** (6 nodes): `MockTelegramBot`, `.constructor()`, `._emit()`, `.on()`, `startedBot()`, `telegram-bot.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 74`** (6 nodes): `MockResizeObserver`, `.constructor()`, `.disconnect()`, `.observe()`, `.unobserve()`, `bindings-pty.test.ts`
+- **Thin community `Community 79`** (5 nodes): `reply-keyboard.js`, `buildRemoveKeyboard()`, `buildReplyKeyboard()`, `isReplyKeyboardPress()`, `sendWithReplyKeyboard()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 75`** (6 nodes): `MockResizeObserver`, `.constructor()`, `.disconnect()`, `.observe()`, `.unobserve()`, `bindings-target.test.ts`
+- **Thin community `Community 80`** (4 nodes): `SchedulerSection.vue`, `nextRunMs()`, `timeRemaining()`, `scheduler-section.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 78`** (6 nodes): `MockTelegramBot`, `.constructor()`, `._emit()`, `.on()`, `startedBot()`, `telegram-bot.test.ts`
+- **Thin community `Community 81`** (4 nodes): `pty-filter.ts`, `applyPtyFilters()`, `stripAltScreen()`, `pty-filter.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 81`** (5 nodes): `reply-keyboard.js`, `buildRemoveKeyboard()`, `buildReplyKeyboard()`, `isReplyKeyboardPress()`, `sendWithReplyKeyboard()`
+- **Thin community `Community 82`** (4 nodes): `buildSettingsDom()`, `getMockWindow()`, `getModule()`, `chipbar-actions-settings.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 82`** (4 nodes): `SchedulerSection.vue`, `nextRunMs()`, `timeRemaining()`, `scheduler-section.test.ts`
+- **Thin community `Community 108`** (2 nodes): `Electron MIT License`, `Chromium Third Party Credits`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 83`** (4 nodes): `pty-filter.ts`, `applyPtyFilters()`, `stripAltScreen()`, `pty-filter.test.ts`
+- **Thin community `Community 109`** (2 nodes): `Empty Drafts Config`, `Empty Sessions Config`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 85`** (4 nodes): `buildSettingsDom()`, `getMockWindow()`, `getModule()`, `chipbar-actions-settings.test.ts`
+- **Thin community `Community 110`** (2 nodes): `Haptic Feedback Setting`, `Notifications Setting`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 110`** (2 nodes): `Electron MIT License`, `Chromium Third Party Credits`
+- **Thin community `Community 151`** (1 nodes): `Modal Guard Regression Fixes`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 111`** (2 nodes): `Empty Drafts Config`, `Empty Sessions Config`
+- **Thin community `Community 152`** (1 nodes): `Persisted Sessions`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 112`** (2 nodes): `Haptic Feedback Setting`, `Notifications Setting`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 152`** (1 nodes): `Modal Guard Regression Fixes`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 153`** (1 nodes): `Persisted Sessions`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 154`** (1 nodes): `File Structure Module Map`
+- **Thin community `Community 153`** (1 nodes): `File Structure Module Map`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
@@ -597,11 +579,11 @@ _Questions this graph is uniquely positioned to answer:_
   _Edge tagged AMBIGUOUS (relation: semantically_similar_to) - confidence is low._
 - **What is the exact relationship between `Helm v1.2.2 Release Notes` and `Preserve Me User File`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `HelmControlService` connect `Community 8` to `Community 1`?**
+- **Why does `HelmControlService` connect `Community 9` to `Community 1`?**
   _High betweenness centrality (0.032) - this node is a cross-community bridge._
-- **Why does `ConfigLoader` connect `Community 5` to `Community 1`?**
-  _High betweenness centrality (0.026) - this node is a cross-community bridge._
+- **Why does `ConfigLoader` connect `Community 6` to `Community 1`?**
+  _High betweenness centrality (0.025) - this node is a cross-community bridge._
 - **Why does `TerminalManager` connect `Community 15` to `Community 2`?**
-  _High betweenness centrality (0.019) - this node is a cross-community bridge._
+  _High betweenness centrality (0.025) - this node is a cross-community bridge._
 - **What connects `Run shell command, printing output in real-time.`, `Patch node-pty .gyp files to disable Spectre mitigation requirement.      VS 2`, `Bump version in package.json and return (old_version, new_version).` to the rest of the system?**
   _74 weakly-connected nodes found - possible documentation gaps or missing edges._
