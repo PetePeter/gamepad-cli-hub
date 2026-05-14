@@ -34,6 +34,7 @@ export function getSessionInfo(
   return {
     mandatory_rules: [
       'ALWAYS call session_set_aiagent_state when your phase changes: planning before investigation, implementing before edits or tests, and completed when the requested work is done.',
+      'ALWAYS before implementing a Helm plan, read the plan just-in-time: call plan_get and plan_context_list, then context_get only for context entries relevant to the current phase of work; do not bulk-read unrelated context such as testing notes while only coding.',
       'ALWAYS claim assigned Helm implementation work before editing by calling plan_set_state with status=coding and your sessionId, then call session_set_working_plan with the same plan id.',
       'ALWAYS create a separate QUESTION: plan for blocking questions that must survive chat, link it to the blocked plan with plan_nextplan_link, and leave the original plan body intact unless explicitly asked to edit it.',
       'ALWAYS prefer context_* tools for durable memory that should survive this session; link durable context to the relevant plan or sequence when useful, and mention related session or plan IDs when that helps future readers.',

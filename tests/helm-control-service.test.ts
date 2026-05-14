@@ -576,6 +576,7 @@ describe('HelmControlService.getSessionInfo', () => {
 
     expect(info.mandatory_rules).toEqual(expect.arrayContaining([
       expect.stringContaining('session_set_aiagent_state'),
+      expect.stringContaining('plan_context_list'),
       expect.stringContaining('plan_set_state'),
       expect.stringContaining('QUESTION:'),
       expect.stringContaining('session_read_terminal'),
@@ -592,6 +593,8 @@ describe('HelmControlService.getSessionInfo', () => {
     ]);
     expect(info.agent_plan_guide?.when_to_create_plan.join(' ')).toContain('Follow-up work');
     expect(info.agent_plan_guide?.question_plan_workflow.join(' ')).toContain('plan_nextplan_link');
+    expect(info.agent_plan_guide?.implementation_context_workflow?.join(' ')).toContain('just-in-time');
+    expect(info.agent_plan_guide?.implementation_context_workflow?.join(' ')).toContain('current phase');
     expect(info.agent_plan_guide?.completion_notes).toContain('tests');
 
     expect(info).not.toHaveProperty('available_tools');

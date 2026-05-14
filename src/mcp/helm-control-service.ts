@@ -118,6 +118,10 @@ export interface SessionInfoResponse {
     when_to_create_plan: string[];
     required_description_sections: string[];
     question_plan_workflow: string[];
+    implementation_context_workflow?: string[];
+    durable_context_guide?: string[];
+    plan_attachment_guide?: string[];
+    sequence_memory_guide?: string[];
     completion_notes: string;
   };
   notification_guide?: {

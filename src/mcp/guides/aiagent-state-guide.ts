@@ -31,6 +31,8 @@ export function buildAiagentStateGuide() {
       {
         scenario: 'Starting implementation',
         steps: [
+          'Call plan_get and plan_context_list for the plan.',
+          'Call context_get only for context entries relevant to the current phase of work; defer unrelated context until that phase is active.',
           'Call plan_set_state(status=coding, sessionId) to claim the plan.',
           'Call session_set_working_plan with same sessionId and planId.',
           'Call session_set_aiagent_state(state=implementing).',

@@ -77,7 +77,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_get',
     title: 'Get Plan',
-    description: 'Get a single plan item by UUID or P-00xx human-readable ID, including lightweight sequenceContextMetadata when contexts are attached. Use plan_context_list when you need the effective context set with source details for this plan.',
+    description: 'Get a single plan item by UUID or P-00xx human-readable ID, including lightweight sequenceContextMetadata when contexts are attached. Before implementation, use this with plan_context_list to inspect the plan and effective context refs; fetch full context just-in-time with context_get only when it is relevant to the current phase.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string' } },
@@ -174,7 +174,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'plan_context_list',
     title: 'List Effective Plan Context',
-    description: 'List the effective context refs for one plan by UUID or P-00xx human-readable ID. This merges direct plan context plus inherited parent-sequence context into one deduped set, with source telling you whether each context comes from the plan, the sequence, or both. Call context_get separately for any context whose full content you need.',
+    description: 'List the effective context refs for one plan by UUID or P-00xx human-readable ID. This merges direct plan context plus inherited parent-sequence context into one deduped set, with source telling you whether each context comes from the plan, the sequence, or both. Use this before implementing a plan, then call context_get just-in-time only for contexts relevant to the current phase; defer unrelated context such as testing notes until that phase.',
     inputSchema: {
       type: 'object',
       properties: { planId: { type: 'string' } },

@@ -2521,7 +2521,8 @@ kbd {
 .plan-screen {
   display: none;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   background: #0a0a0a;
 }
 .plan-screen.visible {
@@ -2933,8 +2934,7 @@ kbd {
   letter-spacing: 0.5px;
 }
 
-.plan-sequence-modal__input,
-.plan-sequence-modal__textarea {
+.plan-sequence-modal__input {
   background: #141414;
   border: 1px solid #333;
   border-radius: 4px;
@@ -2942,15 +2942,7 @@ kbd {
   font-size: 13px;
   padding: 6px 8px;
   font-family: inherit;
-}
-
-.plan-sequence-modal__input {
   height: 32px;
-}
-
-.plan-sequence-modal__textarea {
-  resize: vertical;
-  min-height: 72px;
 }
 
 .plan-sequence-modal__actions {

@@ -6,6 +6,7 @@ import type { PlanDependency, PlanItem, PlanSequence } from '../../../src/types/
 import type { ContextBindingTargetType, ContextNode } from '../../../src/types/context.js';
 import type { LayoutResult } from '../../plans/plan-layout.js';
 import SplitAddButton from '../buttons/SplitAddButton.vue';
+import PromptTextarea from '../common/PromptTextarea.vue';
 
 const NODE_W = 200;
 const NODE_H = 102;
@@ -978,21 +979,23 @@ onUnmounted(() => {
 
         <label class="plan-sequence-modal__field">
           <span>Mission</span>
-          <textarea
+          <PromptTextarea
             v-model="seqDraft.missionStatement"
-            class="plan-sequence-modal__textarea"
             placeholder="What is this sequence working toward?"
-            rows="3"
+            :rows="3"
+            :min-rows="3"
+            :max-rows="10"
           />
         </label>
 
         <label class="plan-sequence-modal__field">
           <span>Memory</span>
-          <textarea
+          <PromptTextarea
             v-model="seqDraft.sharedMemory"
-            class="plan-sequence-modal__textarea"
             placeholder="Shared context for all plans in this sequence..."
-            rows="3"
+            :rows="3"
+            :min-rows="3"
+            :max-rows="10"
           />
         </label>
 

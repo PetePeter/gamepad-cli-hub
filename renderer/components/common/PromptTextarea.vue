@@ -103,10 +103,10 @@ function startResize(event: PointerEvent): void {
   resizeStartY = event.clientY;
   resizeStartHeight = el.getBoundingClientRect().height;
   manualHeight.value = resizeStartHeight;
-  (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
   window.addEventListener('pointermove', onResizeMove);
   window.addEventListener('pointerup', stopResize, { once: true });
   window.addEventListener('pointercancel', stopResize, { once: true });
+  try { (event.currentTarget as HTMLElement | null)?.setPointerCapture(event.pointerId); } catch { /* optional optimisation */ }
 }
 
 function focus(): void {

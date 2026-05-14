@@ -18,7 +18,7 @@ export function getAvailableTools(): McpToolSummary[] {
     { name: 'plan_delete', title: 'Delete Plan', description: 'Delete a plan item by UUID or P-00xx humanId.' },
     { name: 'plan_set_state', title: 'Set Plan State', description: 'Set plan lifecycle state by UUID or P-00xx humanId. Pass sessionId when claiming coding work and then call session_set_working_plan.' },
     { name: 'plan_complete', title: 'Complete Plan', description: 'Mark a coding or review plan as done by UUID or P-00xx humanId with documentation of behavior changed, files, tests/review, and remaining risk.' },
-    { name: 'plan_context_list', title: 'List Effective Plan Context', description: 'List the effective context refs for one plan, merging direct plan context and inherited parent-sequence context into a deduped set.' },
+    { name: 'plan_context_list', title: 'List Effective Plan Context', description: 'List effective context refs for one plan before implementation; fetch full context just-in-time only when relevant to the current phase.' },
     { name: 'plan_nextplan_link', title: 'Link Next Plan', description: 'Link one plan as a prerequisite for another using UUIDs or P-00xx humanIds. For blocker questions, link the QUESTION plan to the original blocked plan.' },
     { name: 'plan_nextplan_unlink', title: 'Unlink Next Plan', description: 'Remove a prerequisite link between two plan items using UUIDs or P-00xx humanIds.' },
     { name: 'sequence_list', title: 'List Sequences', description: 'List sequence coordination lanes for a directory or plan, including member plan IDs and legacy sharedMemory. Prefer context_* tools for new durable memory.' },

@@ -34,6 +34,12 @@ export function buildAgentPlanGuide() {
       'Title starts with "QUESTION:". First lines contain the concrete question.',
       'Call plan_nextplan_link from question plan to blocked plan.',
     ],
+    implementation_context_workflow: [
+      'Before claiming or implementing a plan, call plan_get and plan_context_list so you can see the plan body plus direct and inherited context refs.',
+      'Use context_get just-in-time: read only the context whose title/type/source is relevant to the current phase. For example, coding should read architecture or implementation context, while testing context can wait until test design or verification.',
+      'If a listed context looks unrelated to the current phase, leave it unread and mention that phase-based skip in implementation or completion notes when useful.',
+      'When the phase changes, re-check the effective context list and fetch any newly relevant context before continuing.',
+    ],
     durable_context_guide: [
       'Use projects_list to find the projectId, then use context_list, context_get, context_create, context_update, and context_append for durable project-level memory that should survive this session or help later sessions.',
       'When durable context is about a concrete task or investigation, link it to the relevant plan or sequence and mention the related plan/session IDs in the context body when helpful.',

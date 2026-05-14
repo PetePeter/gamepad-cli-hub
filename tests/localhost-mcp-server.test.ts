@@ -1166,7 +1166,10 @@ describe('LocalhostMcpServer', () => {
       'Starting implementation',
       'Completing work',
     ]);
+    expect(guide.integration_patterns[0].steps.join(' ')).toContain('plan_context_list');
+    expect(guide.integration_patterns[0].steps.join(' ')).toContain('current phase');
     expect(content.agent_plan_guide.durable_context_guide[0]).toContain('context_list');
+    expect(content.agent_plan_guide.implementation_context_workflow.join(' ')).toContain('just-in-time');
     expect(content.agent_plan_guide.sequence_memory_guide[0]).toContain('legacy');
   });
 

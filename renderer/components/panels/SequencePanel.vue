@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
 import type { PlanItem, PlanSequence } from '../../../src/types/plan.js';
+import PromptTextarea from '../common/PromptTextarea.vue';
 
 const props = defineProps<{
   sequences: PlanSequence[];
@@ -115,21 +116,23 @@ function onAssign(event: Event): void {
 
         <label class="plan-sequence-modal__field">
           <span>Mission</span>
-          <textarea
+          <PromptTextarea
             v-model="draft.missionStatement"
-            class="plan-sequence-modal__textarea"
             placeholder="What is this sequence working toward?"
-            rows="3"
+            :rows="3"
+            :min-rows="3"
+            :max-rows="10"
           />
         </label>
 
         <label class="plan-sequence-modal__field">
           <span>Memory</span>
-          <textarea
+          <PromptTextarea
             v-model="draft.sharedMemory"
-            class="plan-sequence-modal__textarea"
             placeholder="Shared context for all plans in this sequence..."
-            rows="3"
+            :rows="3"
+            :min-rows="3"
+            :max-rows="10"
           />
         </label>
 
