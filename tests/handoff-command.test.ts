@@ -78,7 +78,6 @@ function createMockSessionManager(sessions: Record<string, any> = {}): SessionMa
     setActiveSession: vi.fn(),
     getActiveSession: vi.fn(),
     renameSession: vi.fn(),
-    stopHealthCheck: vi.fn(),
     hasSession: vi.fn((id: string) => id in sessions),
   } as unknown as SessionManager;
 }

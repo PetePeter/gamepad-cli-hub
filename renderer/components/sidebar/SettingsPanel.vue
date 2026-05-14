@@ -2,9 +2,8 @@
 /**
  * SettingsPanel.vue — Slide-over settings with dynamic tab switching.
  *
- * Replaces settings.ts orchestrator. Tabs are rendered via slot content
- * based on the active tab. Each tab is a separate child component provided
- * by the parent (App.vue).
+ * Tabs are rendered via slot content based on the active tab. Each tab is a
+ * separate child component provided by the parent shell.
  */
 import { computed } from 'vue';
 
