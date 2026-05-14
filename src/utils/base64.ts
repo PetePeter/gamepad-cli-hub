@@ -9,3 +9,9 @@ export function decodeBase64Strict(input: string): Buffer | null {
   const encoded = decoded.toString('base64');
   return encoded === normalized ? decoded : null;
 }
+
+export function decodeBase64StrictOrThrow(input: string, message = 'Value must be valid base64'): Buffer {
+  const decoded = decodeBase64Strict(input);
+  if (!decoded) throw new Error(message);
+  return decoded;
+}

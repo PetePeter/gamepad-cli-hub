@@ -1,15 +1,7 @@
 import type { PlanManager, PlanRefResolution } from '../../session/plan-manager.js';
 import type { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
 import type { PlanAttachment, PlanAttachmentTempFile } from '../../types/plan-attachment.js';
-
-/** Decode a base64 string into a Buffer, validating format first. */
-function decodeBase64Content(value: string): Buffer {
-  const normalized = value.replace(/\s/g, '');
-  if (normalized.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) {
-    throw new Error('contentBase64 must be valid base64');
-  }
-  return Buffer.from(normalized, 'base64');
-}
+import { decodeBase64StrictOrThrow } from '../../utils/base64.js';
 
 /**
  * Plan attachment CRUD: list, add, delete, and get-to-temp-file.
@@ -43,7 +35,7 @@ export class HelmPlanAttachmentService {
       throw new Error('Provide exactly one of contentBase64 or text');
     }
     const content = hasBase64
-      ? decodeBase64Content(input.contentBase64!)
+      ? decodeBase64StrictOrThrow(input.contentBase64!, 'contentBase64 must be valid base64')
       : Buffer.from(input.text!, 'utf8');
     return this.attachmentManager.add(plan.item.id, {
       filename: input.filename,

@@ -9,20 +9,7 @@ import type {
 } from '../../types/telegram-channel.js';
 import type { NotificationManager } from '../../session/notification-manager.js';
 import { decodeBase64Strict } from '../../utils/base64.js';
-
-/** Validate that Telegram text is mobile-friendly: short lines, under 1600 chars. */
-function validateMobileFriendlyTelegramText(text: string): void {
-  if (text.trim().length === 0) {
-    throw new Error('Telegram message text is required');
-  }
-  if (text.length > 1600) {
-    throw new Error('Telegram message must be 1600 characters or fewer');
-  }
-  const wideLine = text.split(/\r?\n/).find((line) => line.length > 140);
-  if (wideLine) {
-    throw new Error('Telegram message lines must be 140 characters or fewer for mobile readability');
-  }
-}
+import { validateMobileFriendlyTelegramText } from '../../telegram/utils.js';
 
 /**
  * Telegram messaging and LLM notification routing.

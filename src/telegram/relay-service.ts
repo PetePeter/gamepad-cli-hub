@@ -17,6 +17,7 @@ import type { ConfigLoader } from '../config/loader.js';
 import type { HelmControlService } from '../mcp/helm-control-service.js';
 import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js';
 import { decodeBase64Strict } from '../utils/base64.js';
+import { escapeHtml, formatAgentMessageForTelegram } from './utils.js';
 import type {
   TelegramBridge,
   TelegramChannel,
@@ -125,7 +126,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
       if (!attachmentResult.sent) return attachmentResult;
       messageId = attachmentResult.documentId;
     } else {
-      const text = formatMessageForTelegram(input.text);
+      const text = formatAgentMessageForTelegram(input.text);
       const message = channel.topicId
         ? await this.telegramBot.sendToTopic(channel.topicId, text, {
             parse_mode: 'HTML',
@@ -227,7 +228,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
       return { sent: false, reason: `Attachment too large (${mb}MB). Telegram limit is 50MB.` };
     }
 
-    const captionHtml = caption ? formatMessageForTelegram(caption) : undefined;
+    const captionHtml = caption ? formatAgentMessageForTelegram(caption) : undefined;
     const opts = { caption: captionHtml, topicId };
 
     let message: Awaited<ReturnType<typeof this.telegramBot.sendDocument>> | null = null;
@@ -262,13 +263,3 @@ function wrapTelegramEnvelope(text: string, from: string, chatId: number): strin
   return `[HELM_TELEGRAM${fromTag} chat:${chatId}]\n${text}\n[/HELM_TELEGRAM]`;
 }
 
-function formatMessageForTelegram(text: string): string {
-  return `Agent message:\n\n${escapeHtml(text)}`;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}

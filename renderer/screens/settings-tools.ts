@@ -8,6 +8,7 @@ import { appClient, attachmentsClient, backupsClient, configClient, contextsClie
  */
 
 import {
+  escapeHtml,
   logEvent,
   showFormModal,
 } from '../utils.js';
@@ -185,10 +186,6 @@ function createPatternItem(cliType: string, rule: any, index: number, refresh: (
 
   item.appendChild(actions);
   return item;
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 async function showAddPatternForm(cliType: string): Promise<void> {

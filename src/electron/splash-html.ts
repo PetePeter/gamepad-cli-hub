@@ -1,15 +1,8 @@
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
+import { escapeHtmlAttribute } from '../utils/html.js';
 
 export function buildSplashHtml(version: string, logoUrl?: string): string {
-  const safeVersion = escapeHtml(version);
-  const safeLogoUrl = logoUrl ? escapeHtml(logoUrl) : '';
+  const safeVersion = escapeHtmlAttribute(version);
+  const safeLogoUrl = logoUrl ? escapeHtmlAttribute(logoUrl) : '';
 
   return `<!DOCTYPE html>
 <html lang="en">

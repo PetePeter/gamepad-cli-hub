@@ -4,6 +4,7 @@ import { appClient, attachmentsClient, backupsClient, configClient, contextsClie
  */
 
 import { state } from './state.js';
+import { escapeHtmlAttribute } from '../src/utils/html.js';
 import { formModal as formModalBridge, setFormModalResolve } from './stores/modal-bridge.js';
 
 export let formModalVisible = false;
@@ -234,5 +235,5 @@ export function createSequenceSyntaxHelp(): HTMLElement {
 }
 
 export function escapeHtml(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return escapeHtmlAttribute(text);
 }

@@ -1,13 +1,28 @@
 /** Shared utility functions for the Telegram integration modules. */
 
+import { escapeHtmlAttribute, escapeHtmlText } from '../utils/html.js';
+
 /** Escape HTML special characters for Telegram HTML parse mode. */
 export function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;');
+  return escapeHtmlAttribute(text);
+}
+
+export function formatAgentMessageForTelegram(text: string): string {
+  return `Agent message:\n\n${escapeHtmlText(text)}`;
+}
+
+/** Validate that Telegram text is mobile-friendly: short lines, under 1600 chars. */
+export function validateMobileFriendlyTelegramText(text: string): void {
+  if (text.trim().length === 0) {
+    throw new Error('Telegram message text is required');
+  }
+  if (text.length > 1600) {
+    throw new Error('Telegram message must be 1600 characters or fewer');
+  }
+  const wideLine = text.split(/\r?\n/).find((line) => line.length > 140);
+  if (wideLine) {
+    throw new Error('Telegram message lines must be 140 characters or fewer for mobile readability');
+  }
 }
 
 /** Strip ANSI escape codes from raw terminal data. */
