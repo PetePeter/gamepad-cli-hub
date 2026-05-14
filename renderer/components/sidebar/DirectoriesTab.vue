@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../../ipc/clients.js';
+import { dialogClient } from '../../ipc/clients.js';
 /**
  * DirectoriesTab.vue — Working directories CRUD.
- *
- * Replaces renderDirectoriesPanel() in settings.ts.
  */
 import { ref } from 'vue';
 

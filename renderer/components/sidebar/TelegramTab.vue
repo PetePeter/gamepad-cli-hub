@@ -1,9 +1,6 @@
 <script setup lang="ts">
 /**
  * TelegramTab.vue — Telegram bot configuration (connection, security, notifications).
- *
- * Replaces renderTelegramSettings() in settings-telegram.ts. Config data is
- * passed as props; changes emitted as events with debounced save.
  */
 import { ref, watch } from 'vue';
 

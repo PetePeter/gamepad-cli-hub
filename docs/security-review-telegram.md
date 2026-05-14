@@ -318,4 +318,4 @@ The following security controls are already in place:
 - `src/telegram/text-input.ts` - Free-text input to PTY
 - `src/telegram/terminal-mirror.ts` - PTY output streaming
 - `src/config/loader.ts` - Config persistence
-- `renderer/screens/settings-telegram.ts` - Settings UI
+- `renderer/components/sidebar/TelegramTab.vue` - Settings UI

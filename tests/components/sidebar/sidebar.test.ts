@@ -964,6 +964,61 @@ describe('ToolsTab', () => {
 });
 
 // ============================================================================
+// ChipbarActionsTab
+// ============================================================================
+
+import ChipbarActionsTab from '../../../renderer/components/sidebar/ChipbarActionsTab.vue';
+
+describe('ChipbarActionsTab', () => {
+  const actions = [
+    { label: 'Plan', sequence: 'plan{Enter}' },
+    { label: 'Build', sequence: 'npm run build{Enter}' },
+  ];
+
+  it('renders chipbar actions and template help', () => {
+    const w = mount(ChipbarActionsTab, { props: { actions } });
+    expect(w.findAll('.settings-list-item').length).toBe(2);
+    expect(w.text()).toContain('Template expansions');
+    expect(w.text()).toContain('Plan');
+  });
+
+  it('shows an empty state when no actions are configured', () => {
+    const w = mount(ChipbarActionsTab, { props: { actions: [] } });
+    expect(w.find('.settings-empty').text()).toContain('No chip bar actions configured');
+  });
+
+  it('emits add and edit actions', async () => {
+    const w = mount(ChipbarActionsTab, { props: { actions } });
+    await w.find('.settings-panel__header button').trigger('click');
+    await w.findAll('.settings-list-item')[1].findAll('button')[2].trigger('click');
+    expect(w.emitted('add')).toBeTruthy();
+    expect(w.emitted('edit')).toEqual([[1]]);
+  });
+
+  it('emits move with source and target indices', async () => {
+    const w = mount(ChipbarActionsTab, { props: { actions } });
+    const items = w.findAll('.settings-list-item');
+    expect(items[0].findAll('button')[0].attributes('disabled')).toBeDefined();
+    await items[0].findAll('button')[1].trigger('click');
+    await items[1].findAll('button')[0].trigger('click');
+    expect(w.emitted('move')).toEqual([
+      [0, 1],
+      [1, 0],
+    ]);
+  });
+
+  it('confirms before emitting delete', async () => {
+    const w = mount(ChipbarActionsTab, { props: { actions } });
+    const deleteButton = w.findAll('.settings-list-item')[0].findAll('button')[3];
+    await deleteButton.trigger('click');
+    expect(w.emitted('delete')).toBeUndefined();
+    expect(deleteButton.text()).toBe('Confirm?');
+    await deleteButton.trigger('click');
+    expect(w.emitted('delete')).toEqual([[0]]);
+  });
+});
+
+// ============================================================================
 // TelegramTab
 // ============================================================================
 

@@ -149,12 +149,7 @@ renderer/
 │   ├── sessions-spawn.ts       # doSpawn(), PTY creation, terminal area visibility, spawn zone navigation, D-pad Right → group overview entry (col 0 on group-header); Plans button at col 1 (maxCol 1)
 │   ├── sessions-state.ts       # Sessions screen navigation state (sessions/spawn/plans zones, overviewGroup + overviewFocusIndex + plansFocusIndex)
 │   ├── group-overview.ts       # Group overview grid — session preview cards with live PTY output, entry/exit/navigation, max ~5 cards visible
-│   ├── sessions-plans.ts      # Folder planner grid zone (3rd nav zone below spawn) — shows working directories with plan badges, gamepad 2-column grid navigation, click opens plan screen
-│   ├── settings.ts             # Settings slide-over orchestrator: tab bar, directories tab, public API
-│   ├── settings-bindings.ts    # Bindings display, sort state, add-binding picker
-│   ├── settings-profiles.ts    # Profiles panel, create profile prompt
-│   ├── settings-tools.ts       # Tools panel, CLI type CRUD (edit form includes handoff/rename/resume/continue commands)
-│   └── settings-telegram.ts    # Telegram bot settings panel (token, instance name, user IDs, notification prefs)
+│   └── sessions-plans.ts       # Folder planner grid zone (3rd nav zone below spawn) — shows working directories with plan badges, gamepad 2-column grid navigation, click opens plan screen
 ├── modals/
 │   ├── modal-base.ts           # Shared modal foundation (show/hide, backdrop, gamepad focus management, Tab/Shift+Tab button cycling in selection mode)
 │   ├── dir-picker.ts           # Directory picker modal (supports pre-selection via preselectedPath)

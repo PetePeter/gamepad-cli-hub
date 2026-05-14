@@ -1,8 +1,6 @@
 <script setup lang="ts">
 /**
  * ChipbarActionsTab.vue — Chip bar actions CRUD with reordering.
- *
- * Replaces renderChipbarActionsPanel() in settings-chipbar-actions.ts.
  */
 import { ref } from 'vue';
 import { CHIPBAR_TEMPLATE_DEFINITIONS } from '../../drafts/chipbar-templates.js';

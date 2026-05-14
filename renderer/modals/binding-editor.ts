@@ -2,7 +2,7 @@
  * Binding editor bridge.
  *
  * The actual editor is the Vue-owned BindingEditorModal in App.vue. This
- * module remains as the legacy launcher used by settings-bindings.ts.
+ * module remains as the launcher used by the Vue settings bindings tab.
  */
 
 import { useModalStack } from '../composables/useModalStack.js';

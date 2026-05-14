@@ -1,9 +1,6 @@
 <script setup lang="ts">
 /**
  * ToolsTab.vue — CLI type management (list, add, edit, delete).
- *
- * Replaces renderToolsPanel() in settings-tools.ts. Tool data passed as props;
- * mutations emitted as events.
  */
 
 export interface ToolItem {

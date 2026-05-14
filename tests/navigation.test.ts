@@ -338,7 +338,7 @@ describe('handleGamepadEvent', () => {
       expect(mockHandleSessionsScreenButton).toHaveBeenCalledWith('A');
     });
 
-    it('swallows legacy settings-screen input without routing to old handlers', () => {
+    it('swallows settings screen input without routing to session handlers', () => {
       mockState.currentScreen = 'settings';
 
       mod.handleGamepadEvent(makeEvent('DPadDown'));

@@ -1,8 +1,6 @@
 <script setup lang="ts">
 /**
  * McpTab.vue — MCP server configuration (connection, security, usage).
- *
- * Replaces renderMcpSettings() in settings-mcp.ts.
  */
 import { ref, watch, computed } from 'vue';
 import McpCliSetup from './McpCliSetup.vue';
