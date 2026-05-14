@@ -8391,7 +8391,7 @@
       "label": "if()",
       "file_type": "code",
       "source_file": "renderer\\components\\panels\\DraftEditor.vue",
-      "source_location": "L311",
+      "source_location": "L313",
       "id": "panels_drafteditor_if",
       "community": 15,
       "norm_label": "if()"
@@ -26004,7 +26004,7 @@
       "label": "makeItems()",
       "file_type": "code",
       "source_file": "tests\\components\\panels\\panels.test.ts",
-      "source_location": "L803",
+      "source_location": "L829",
       "id": "panels_panels_test_makeitems",
       "community": 15,
       "norm_label": "makeitems()"

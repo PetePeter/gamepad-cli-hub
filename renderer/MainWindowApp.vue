@@ -991,6 +991,7 @@ onUnmounted(() => {
         :context-callbacks="draftEditorContextCallbacks"
         :context-bound-plans="draftEditorContextBoundPlans"
         :context-bound-sequences="draftEditorContextBoundSequences"
+        :context-pending-unbind-count="draftEditorPendingContextUnbinds.length"
         @save="onDraftSave"
         @apply="onDraftApply"
         @delete="onDraftDelete"

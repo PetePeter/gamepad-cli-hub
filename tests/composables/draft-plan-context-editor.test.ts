@@ -84,6 +84,29 @@ describe('useDraftPlanContextEditor', () => {
     expect(editor.draftEditorPendingContextUnbinds.value).toEqual([]);
   });
 
+  it('keeps queued context unbinds dirty until save succeeds', async () => {
+    const saveContext = vi.fn().mockRejectedValue(new Error('nope'));
+    mocks.planScreenState.items = [{ id: 'p1', title: 'Plan 1', humanId: 'P-0001', type: 'bug', status: 'ready' }];
+    mocks.planScreenState.sequences = [{ id: 'seq1', title: 'Sequence 1' }];
+    const editor = useDraftPlanContextEditor({ saveContext });
+
+    editor.openContextEditor({
+      id: 'ctx1',
+      title: 'Context',
+      type: 'Knowledge',
+      permission: 'writable',
+      content: 'body',
+      planIds: ['p1'],
+      sequenceIds: ['seq1'],
+    }, {});
+    editor.draftEditorContextCallbacks.value?.onUnbind?.('sequence', 'seq1');
+
+    expect(editor.hasUnsavedChanges()).toBe(true);
+    await expect(editor.saveContextEditor('ctx1', { title: 'Context' })).rejects.toThrow('nope');
+    expect(editor.draftEditorPendingContextUnbinds.value).toEqual([{ targetType: 'sequence', targetId: 'seq1' }]);
+    expect(editor.hasUnsavedChanges()).toBe(true);
+  });
+
   it('saves and applies drafts with stable ids and refresh hooks', async () => {
     const refreshDraftSession = vi.fn();
     const editor = useDraftPlanContextEditor({ saveContext: vi.fn(), refreshDraftSession });

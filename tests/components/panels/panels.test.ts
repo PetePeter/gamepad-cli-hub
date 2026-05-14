@@ -794,6 +794,32 @@ describe('DraftEditor', () => {
     await removeBtn.trigger('click');
     expect(onUnbind).toHaveBeenCalledWith('plan', 'p1');
   });
+
+  it('treats pending context unbinds as unsaved changes', async () => {
+    const onSave = vi.fn();
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'context',
+        sessionId: '',
+        contextId: 'ctx-1',
+        initialLabel: 'Title',
+        initialText: 'Content',
+        contextType: 'Knowledge',
+        contextPermission: 'readonly',
+        contextCallbacks: { onSave, onDelete: vi.fn() },
+        contextPendingUnbindCount: 0,
+      },
+    });
+    const vm = w.vm as any;
+    expect(vm.hasUnsavedChanges()).toBe(false);
+
+    await w.setProps({ contextPendingUnbindCount: 1 });
+
+    expect(vm.hasUnsavedChanges()).toBe(true);
+    await w.find('.draft-editor-actions .btn--primary').trigger('click');
+    expect(w.emitted('context-save')).toEqual([[{ title: 'Title', content: 'Content', type: 'Knowledge', permission: 'readonly' }]]);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -58,6 +58,7 @@ export interface DraftEditorProps {
   contextCallbacks?: ContextCallbacks | null;
   contextBoundPlans?: ContextBoundPlan[];
   contextBoundSequences?: Array<{ id: string; title: string }>;
+  contextPendingUnbindCount?: number;
   completionNotes?: string;
 }
 
@@ -80,6 +81,7 @@ const props = withDefaults(defineProps<DraftEditorProps>(), {
   contextCallbacks: null,
   contextBoundPlans: undefined,
   contextBoundSequences: undefined,
+  contextPendingUnbindCount: 0,
   completionNotes: '',
 });
 
@@ -179,7 +181,7 @@ const STATUS_ICONS: Record<PlanStatus, string> = {
 
 const hasUnsavedChanges = computed(() => {
   if (isDraft.value) return label.value.trim() !== origLabel.value || text.value !== origText.value;
-  if (isContext.value) return label.value !== origLabel.value || text.value !== origText.value || ctxType.value !== origCtxType.value || ctxPermission.value !== origCtxPermission.value;
+  if (isContext.value) return label.value !== origLabel.value || text.value !== origText.value || ctxType.value !== origCtxType.value || ctxPermission.value !== origCtxPermission.value || props.contextPendingUnbindCount > 0;
   return label.value !== origLabel.value || text.value !== origText.value || status.value !== origStatus.value || stateInfo.value !== origStateInfo.value || type.value !== origType.value || autoImplement.value !== origAutoImplement.value;
 });
 
@@ -286,7 +288,7 @@ watch(() => props.contextId, () => {
   nextTick(() => { hydratingFromProps.value = false; });
 });
 
-watch([label, text, status, stateInfo, type, autoImplement, ctxType, ctxPermission], () => {
+watch([label, text, status, stateInfo, type, autoImplement, ctxType, ctxPermission, () => props.contextPendingUnbindCount], () => {
   if (!props.visible || hydratingFromProps.value) return;
   if (saveStatus.value === 'clean' || saveStatus.value === 'saved') saveStatus.value = 'unsaved';
   scheduleAutoSave();

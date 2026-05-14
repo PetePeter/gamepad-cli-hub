@@ -1,7 +1,7 @@
 # Graph Report - gamepad-cli-hub  (2026-05-15)
 
 ## Corpus Check
-- 409 files · ~3,144,427 words
+- 409 files · ~3,144,609 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary

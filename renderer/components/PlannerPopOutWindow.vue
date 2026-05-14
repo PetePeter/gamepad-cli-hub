@@ -216,6 +216,7 @@ onUnmounted(() => {
       :context-callbacks="draftEditorContextCallbacks"
       :context-bound-plans="draftEditorContextBoundPlans"
       :context-bound-sequences="draftEditorContextBoundSequences"
+      :context-pending-unbind-count="draftEditorPendingContextUnbinds.length"
       @close="closeDraftEditor"
       @plan-save="onPlanSave"
       @plan-apply="onPlanApply"

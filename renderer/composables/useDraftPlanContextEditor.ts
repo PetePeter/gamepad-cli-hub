@@ -138,9 +138,10 @@ export function useDraftPlanContextEditor(deps: DraftPlanContextEditorDeps) {
     id: string,
     updates: { title?: string; content?: string; type?: string; permission?: 'readonly' | 'writable' },
   ): Promise<void> {
-    const pendingUnbinds = draftEditorPendingContextUnbinds.value;
-    draftEditorPendingContextUnbinds.value = [];
+    const pendingUnbinds = [...draftEditorPendingContextUnbinds.value];
     await deps.saveContext(id, updates, pendingUnbinds);
+    const savedKeys = new Set(pendingUnbinds.map((entry) => `${entry.targetType}:${entry.targetId}`));
+    draftEditorPendingContextUnbinds.value = draftEditorPendingContextUnbinds.value.filter((entry) => !savedKeys.has(`${entry.targetType}:${entry.targetId}`));
   }
 
   async function onDraftSave(payload: { label: string; text: string }): Promise<void> {
@@ -220,7 +221,7 @@ export function useDraftPlanContextEditor(deps: DraftPlanContextEditorDeps) {
   }
 
   function hasUnsavedChanges(): boolean {
-    return draftEditorRef.value?.hasUnsavedChanges?.() ?? false;
+    return draftEditorPendingContextUnbinds.value.length > 0 || (draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
   }
 
   function handleButton(button: string): void {
