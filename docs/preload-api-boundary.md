@@ -33,7 +33,7 @@ Direct `window.gamepadCli` references are allowed only in:
 | `window.helm.tools` | configured CLI tools and their ordering |
 | `window.helm.profiles` | profile list, active profile, switching, creation, and deletion |
 | `window.helm.projects` | project list, CRUD, and directory membership |
-| `window.helm.plans` | plan CRUD, dependencies, apply/complete/reopen/state, startable/doing queries, sequences, and planner pop-out |
+| `window.helm.plans` | plan CRUD, dependencies, apply/complete/reopen/state, legacy startable/doing query names for ready/coding data, sequences, and planner pop-out |
 | `window.helm.contexts` | plan context CRUD, append, position, bind, and unbind |
 | `window.helm.attachments` | plan attachment list, presence, add, delete, and open |
 | `window.helm.backups` | plan backup listing, summaries, restore/delete/create, and backup config |

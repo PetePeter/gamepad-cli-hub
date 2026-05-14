@@ -20,21 +20,21 @@ src/
 │       ├── system-handlers.ts  # system:openLogsFolder
 │       ├── telegram-handlers.ts # Telegram bot settings CRUD, bot start/stop IPC
 │       ├── draft-handlers.ts   # 5 IPC channels (draft:create/update/delete/list/count) wired to DraftManager
-│       └── plan-handlers.ts   # 12 IPC channels (plan:list/create/update/delete/addDep/removeDep/apply/complete/startableForDir/doingForSession/deps/getItem) wired to PlanManager
+│       └── plan-handlers.ts   # 12 IPC channels (plan:list/create/update/delete/addDep/removeDep/apply/complete/startableForDir/doingForSession/deps/getItem) wired to PlanManager; startable/doing names are legacy ready/coding query names
 ├── input/
 │   └── sequence-parser.ts      # {Enter}, {Ctrl+C}, {Wait 500}, {Mod Down/Up}, {{/}} — used by bindings + initialPrompt
 ├── output/
 │   └── keyboard.ts             # OS-level key simulation via robotjs (voice bindings only)
 ├── session/
 │   ├── manager.ts              # Session tracking (EventEmitter), calls persistence on changes
-│   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + saveDrafts/loadDrafts to config/drafts.yaml + savePlans/loadPlans to config/plans.yaml
+│   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + saveDrafts/loadDrafts to config/drafts.yaml + plan file I/O for config/plans/*.json + config/plan-dependencies.json
 │   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
 │   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection + I/O activity tracking (active/inactive/idle via input+output timing) + markRestored() 3s grace period for restored sessions
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
 │   ├── notification-manager.ts # Windows toast notifications (Electron Notification API, activity-change triggers for implementing/planning sessions, dedup, click-to-focus)
 │   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay, onComplete callback
 │   ├── draft-manager.ts        # Per-session draft prompt CRUD (EventEmitter, emits draft:changed, persisted to config/drafts.yaml)
-│   ├── plan-manager.ts         # Per-directory plan DAG CRUD (EventEmitter, emits plan:changed, cycle prevention via DFS, startable computation, persisted to config/plans.yaml)
+│   ├── plan-manager.ts         # Per-directory plan DAG CRUD (EventEmitter, emits plan:changed, cycle prevention via DFS, ready-state computation, persisted to config/plans/*.json)
 │   └── power-monitor.ts        # Suspend/resume/shutdown diagnostics — session counts, PTY IDs, survival status
 ├── config/
 │   └── loader.ts               # Self-contained profile YAML config + CRUD + StickConfig + haptic settings + auto-migration + bookmark CRUD (addBookmarkedDir/removeBookmarkedDir) + ChipbarAction interface + chipActions profile field + getChipbarActions()
@@ -55,7 +55,7 @@ src/
 │   └── utils.ts                # Shared Telegram utilities
 ├── types/
 │   ├── session.ts              # SessionInfo (includes cliSessionName for resume), DraftPrompt, SessionChangeEvent, AnalogEvent types
-│   └── plan.ts                 # PlanItem, PlanDependency, PlanStatus ('pending'|'startable'|'doing'|'done'), DirectoryPlan types
+│   └── plan.ts                 # PlanItem, PlanDependency, PlanStatus ('planning'|'ready'|'coding'|'review'|'blocked'|'done'), DirectoryPlan, PlanSequence types
 └── utils/
     └── logger.ts               # Winston logger (daily rotation, used everywhere)
 ```
@@ -135,9 +135,9 @@ renderer/
 │   └── draft-editor.ts         # Slide-down draft editor panel (title + content, Save/Apply/Delete/Cancel buttons)
 ├── plans/
 │   ├── plan-screen.ts          # SVG canvas screen — pan/zoom (viewBox-based), node rendering with status colors, quadratic bezier arrows, click-to-select, Add Node button. Renders inside #mainArea as .plan-screen overlay
-│   ├── plan-editor.ts          # Bottom editor panel — title input, description textarea, Delete button, conditional Done button (only for 'doing' status). Save on blur
+│   ├── plan-editor.ts          # Bottom editor panel — title input, description textarea, Delete button, conditional Done button for coding/review status. Save on blur
 │   ├── plan-layout.ts          # Sugiyama-style left-to-right layered auto-layout. Exports computeLayout(items, deps) → LayoutResult with nodes (id, x, y, layer, order) and width/height
-│   └── plan-chips.ts           # Plan badges on session cards (createPlanBadge) + plan chips in draft strip (renderPlanChips with generation counter dedup). Shows doing count (green) and startable count (blue)
+│   └── plan-chips.ts           # Plan badges on session cards (createPlanBadge) + plan chips in draft strip (renderPlanChips with generation counter dedup). Shows ready/coding/review/blocked counts
 ├── terminal/
 │   ├── terminal-view.ts        # xterm.js wrapper (fit/search/weblinks addons)
 │   ├── terminal-manager.ts     # Multi-terminal orchestration (create/switch/rename/resize/destroy + tab bar + PtyOutputBuffer + right-click paste prevention + pty:markSwitching before fit)
@@ -175,7 +175,9 @@ config/
 ├── settings.yaml               # Active profile + hapticFeedback toggle + notifications toggle + sessionGroups prefs (order + collapsed + bookmarked)
 ├── sessions.yaml               # Persisted session state (auto-managed)
 ├── drafts.yaml                 # Persisted draft prompts per session (auto-managed)
-├── plans.yaml                  # Persisted directory plan items + dependencies (auto-managed, folder-level not per-profile)
+├── plans/                      # Individual per-plan JSON files (auto-managed, folder-level not per-profile)
+├── plan-dependencies.json      # Directory plan dependency registry
+├── plans/incoming/             # Inbox for importable ready plan JSON artifacts
 └── profiles/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 ```
@@ -237,7 +239,7 @@ tests/                                  # 61 test files
 ├── terminal-mirror.test.ts     # Telegram terminal mirror tests
 ├── text-input.test.ts          # Telegram text input tests
 ├── topic-input.test.ts         # Telegram topic input forwarding tests
-├── plan-manager.test.ts        # PlanManager CRUD, DAG validation, cycle prevention, startable computation (42 tests)
+├── plan-manager.test.ts        # PlanManager CRUD, DAG validation, cycle prevention, ready-state computation (42 tests)
 ├── plan-handlers.test.ts       # Plan IPC handler tests (23 tests)
 ├── plan-layout.test.ts         # Auto-layout algorithm tests — topological sort, layering, barycenter ordering (17 tests)
 ├── plan-screen.test.ts         # Plan canvas + editor tests — rendering, pan/zoom, node selection, CRUD (33 tests)

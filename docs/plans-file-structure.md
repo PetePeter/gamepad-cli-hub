@@ -41,7 +41,7 @@ C%3A%5CUsers%5Coscar%5Cproject@a1b2c3d4-1234-5678-90ab-cdef12345678.json
   "dirPath":     "C:\\Users\\oscar\\project",
   "title":       "Build Auth",
   "description": "JWT middleware",
-  "status":      "startable",
+  "status":      "ready",
   "sessionId":   null,
   "stateInfo":   null,
   "createdAt":   1234567890,
@@ -126,6 +126,6 @@ It reloads the dependency list, removes any edge where `fromId` or `toId` is not
 | `removeDependency` | `saveDependencies(deps)` + `saveDir(dirPath)` |
 | `applyItem` | `savePlanFile(item)` |
 | `completeItem` | `saveDir(dirPath)` |
-| `setState` | `saveDir(dirPath)` when transitioning to `pending`/`startable` (may cascade); `savePlanFile(item)` for `doing`/`blocked`/`question` |
+| `setState` | `saveDir(dirPath)` when transitioning to `planning`/`ready` (may cascade); `savePlanFile(item)` for `coding`/`review`/`blocked` |
 
-`saveDir(dirPath)` saves all items in a directory — used when `recomputeStartable()` may change multiple items' statuses.
+`saveDir(dirPath)` saves all items in a directory — used when ready-state recomputation may change multiple items' statuses.

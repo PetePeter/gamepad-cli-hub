@@ -1,31 +1,38 @@
 # Directory Plans
 
-Per-directory acyclic directed graph of work items with dependency arrows and a 4-state lifecycle. Plans are folder-level (not session-level like drafts) and persist to individual JSON files under `config/plans/` (not per-profile).
+Per-directory acyclic directed graph of work items with dependency arrows and a 6-state lifecycle. Plans are folder-level (not session-level like drafts) and persist to individual JSON files under `config/plans/` with dependencies in `config/plan-dependencies.json` (not per-profile).
 
 ## Overview
 
 ```mermaid
 graph LR
     subgraph "Plan Lifecycle"
-        P[🔘 Pending<br/>grey #555]
-        S[🔵 Startable<br/>blue #4488ff]
-        D[🟢 Doing<br/>green #44cc44]
+        P[⚪ Planning<br/>grey #555]
+        S[🔵 Ready<br/>blue #4488ff]
+        D[🟢 Coding<br/>green #44cc44]
+        R[🟣 Review<br/>purple #9b59ff]
+        B[🟠 Blocked<br/>orange #ff9f1a]
         DN[✓ Done<br/>grey + strikethrough]
     end
 
     P -->|"deps completed<br/>(auto)"| S
-    S -->|"plan:apply<br/>(pick up)"| D
-    D -->|"plan:complete<br/>(finish)"| DN
-    DN -.->|"cascades<br/>recomputeStartable()"| P
+    S -->|"plan_set_state coding<br/>(claim)"| D
+    D -->|"plan_set_state review"| R
+    D -->|"plan_set_state blocked"| B
+    R -->|"plan_complete"| DN
+    D -->|"plan_complete"| DN
+    DN -.->|"cascades<br/>ready recompute"| P
 ```
 
 ### Status Colors
 
 | Status | Color | Hex | Meaning |
 |--------|-------|-----|---------|
-| `pending` | Grey | `#555555` | Blocked by unfinished dependencies |
-| `startable` | Blue | `#4488ff` | All dependencies done, ready to pick up |
-| `doing` | Green | `#44cc44` | Actively being worked on by a session |
+| `planning` | Grey | `#555555` | Initial or dependency-blocked planning state |
+| `ready` | Blue | `#4488ff` | All dependencies done, ready to pick up |
+| `coding` | Green | `#44cc44` | Actively being worked on by a session |
+| `review` | Purple | `#9b59ff` | Awaiting review before completion |
+| `blocked` | Orange | `#ff9f1a` | Cannot proceed; `stateInfo` should explain why |
 | `done` | Grey + strikethrough | `#555555` | Completed (dashed border on node) |
 
 ## Architecture
@@ -69,8 +76,12 @@ interface PlanItem {
   dirPath: string;      // Directory this plan belongs to
   title: string;        // Short title displayed on the node
   description: string;  // Longer description / prompt content
-  status: PlanStatus;   // 'pending' | 'startable' | 'doing' | 'done'
-  sessionId?: string;   // Set when status is 'doing' (which session picked it up)
+  status: PlanStatus;   // 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done'
+  sessionId?: string;   // Set when status is 'coding' or 'review'
+  stateInfo?: string;   // Required context for blocked/question states
+  completionNotes?: string;
+  autoImplement?: boolean;
+  sequenceId?: string;
   createdAt: number;    // Creation timestamp
   updatedAt: number;    // Last update timestamp
 }
@@ -103,17 +114,17 @@ EventEmitter in `src/session/plan-manager.ts`. Stores items in a `Map<string, Pl
 
 | Method | Description |
 |--------|-------------|
-| `create(dirPath, title, description)` | Create new item. No-dep items start as `startable`. |
+| `create(dirPath, title, description)` | Create new item. No-dep items become `ready`. |
 | `update(id, { title?, description? })` | Update title and/or description. |
-| `delete(id)` | Delete item + all its edges. Recomputes startable. |
+| `delete(id)` | Delete item + all its edges. Recomputes ready state. |
 | `getItem(id)` | Get a single item by ID. |
 | `getForDirectory(dirPath)` | Get all items for a directory. |
-| `getStartableForDirectory(dirPath)` | Get startable items for a directory. |
-| `getDoingForSession(sessionId)` | Get items being worked on by a session. |
+| `getStartableForDirectory(dirPath)` | Legacy IPC name for ready items in a directory. |
+| `getDoingForSession(sessionId)` | Legacy IPC name for coding/review items owned by a session. |
 | `addDependency(fromId, toId)` | Add edge. Rejects self-loops, cross-dir, duplicates, cycles. |
-| `removeDependency(fromId, toId)` | Remove edge. Recomputes startable. |
-| `applyItem(id, sessionId)` | `startable` → `doing`. Associates with session. |
-| `completeItem(id)` | `doing` → `done`. Cascades startable recompute. |
+| `removeDependency(fromId, toId)` | Remove edge. Recomputes ready state. |
+| `setState(id, 'coding', sessionId)` | Claim ready work. Associates with session. |
+| `completeItem(id)` | `coding`/`review` → `done`. Cascades ready recompute. |
 | `exportAll()` / `importAll(data)` | Persistence serialization. |
 
 ### DAG Validation
@@ -123,13 +134,13 @@ Cycle prevention uses DFS: before adding edge `fromId → toId`, checks whether 
 - Cross-directory edges (items must share `dirPath`)
 - Duplicate edges
 
-### Startable Computation
+### Ready Computation
 
-`recomputeStartable(dirPath)` runs after every dependency or completion change:
-1. For each item in the directory that is not `doing` or `done`:
+`recomputeStartable(dirPath)` is the legacy-named ready recomputation pass. It runs after every dependency or completion change:
+1. For each item in the directory that is not `coding`, `review`, `blocked`, or `done`:
 2. Find all incoming dependency edges (blockers)
-3. If all blockers are `done` (or no blockers exist) → status = `startable`
-4. Otherwise → status = `pending`
+3. If all blockers are `done` (or no blockers exist) -> status = `ready`
+4. Otherwise -> status = `planning`
 
 ### Events
 
@@ -147,10 +158,10 @@ Emits `plan:changed` with `dirPath` on every mutation. PlanManager self-saves to
 | `plan:delete` | invoke | Delete an item and its edges |
 | `plan:addDep` | invoke | Add a dependency edge |
 | `plan:removeDep` | invoke | Remove a dependency edge |
-| `plan:apply` | invoke | Apply a startable item to a session |
-| `plan:complete` | invoke | Mark a doing item as done |
-| `plan:startableForDir` | invoke | Get startable items for a directory |
-| `plan:doingForSession` | invoke | Get doing items for a session |
+| `plan:apply` | invoke | Legacy IPC name that claims a ready item for a session |
+| `plan:complete` | invoke | Mark a coding/review item as done |
+| `plan:startableForDir` | invoke | Legacy IPC name for ready items in a directory |
+| `plan:doingForSession` | invoke | Legacy IPC name for coding/review items owned by a session |
 | `plan:deps` | invoke | Get dependencies for a directory |
 | `plan:getItem` | invoke | Get a single item by ID |
 
@@ -238,11 +249,11 @@ Dependency arrows use quadratic bezier curves:
 
 | Element | Behaviour |
 |---------|-----------|
-| Status indicator | Shows status label (⏸ Pending / ▶ Ready / 🔄 In Progress / ✓ Done) |
+| Status indicator | Shows the current lifecycle label (`planning`, `ready`, `coding`, `review`, `blocked`, `done`) |
 | Title input | Text field, saves on blur or Enter |
 | Description textarea | Multi-line text area, saves on blur |
 | 🗑 Delete button | Deletes item after `window.confirm()` confirmation |
-| ✓ Done button | Only shown when status is `doing`. Marks item as done. |
+| ✓ Done button | Only shown when status is `coding` or `review`. Marks item as done. |
 
 ## Plan Badges & Chips
 
@@ -250,19 +261,20 @@ Dependency arrows use quadratic bezier curves:
 
 ### Session Card Badges
 
-`createPlanBadge(doingCount, startableCount)` returns an element with:
-- Green 🗺️ badge with doing count (when > 0)
-- Blue 🗺️ badge with startable count (when > 0)
-- Returns `null` when both counts are 0
+`createPlanBadge(codingCount, readyCount, blockedCount, reviewCount)` returns an element with:
+- Green map badge with coding count (when > 0)
+- Blue map badge with ready count (when > 0)
+- Orange/purple badges for blocked and review counts (when > 0)
+- Returns `null` when all counts are 0
 
 Rendered on session cards in `sessions-render.ts`.
 
 ### Draft Strip Chips
 
 `renderPlanChips(sessionId)` appends plan chips to the draft strip (`#draftStrip`):
-- Doing chips: green `.plan-chip--doing` — click to complete
-- Startable chips: blue `.plan-chip--startable` — click to apply to active session
-- Truncated titles (max 20 chars) with 🗺️ prefix
+- Coding/review chips: green/purple legacy class names — click to re-send the plan prompt without changing ownership
+- Ready chips: blue legacy class names — click to apply to the active session and transition to `coding`
+- Truncated titles (max 20 chars) with map prefix
 
 Called at the end of `refreshDraftStrip()` in `draft-strip.ts`.
 
@@ -280,11 +292,11 @@ Called at the end of `refreshDraftStrip()` in `draft-strip.ts`.
 | `.plan-editor` | Bottom editor panel |
 | `.group-plans-btn` | 🗺️ button on group headers |
 | `.plan-badge` | Plan badge on session cards |
-| `.plan-badge--doing` | Green doing badge |
-| `.plan-badge--startable` | Blue startable badge |
+| `.plan-badge--doing` | Legacy green class for coding badge |
+| `.plan-badge--startable` | Legacy blue class for ready badge |
 | `.plan-chip` | Plan chip in draft strip |
-| `.plan-chip--doing` | Green doing chip |
-| `.plan-chip--startable` | Blue startable chip |
+| `.plan-chip--doing` | Legacy green class for coding chip |
+| `.plan-chip--startable` | Legacy blue class for ready chip |
 
 ## Persistence
 
@@ -296,7 +308,7 @@ Plans are folder-level data (not per-profile) — switching profiles does not af
 
 | Test file | Count | Coverage |
 |-----------|-------|----------|
-| `plan-manager.test.ts` | 42 | PlanManager CRUD, DAG validation, cycle prevention, startable computation |
+| `plan-manager.test.ts` | 42 | PlanManager CRUD, DAG validation, cycle prevention, ready-state computation |
 | `plan-handlers.test.ts` | 23 | IPC handler wiring, auto-save, channel responses |
 | `plan-layout.test.ts` | 17 | Topological sort, layer assignment, barycenter ordering, coordinate assignment |
 | `plan-screen.test.ts` | 33 | Canvas rendering, pan/zoom, node selection, add/delete, editor integration |

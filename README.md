@@ -19,7 +19,7 @@ Helm is an Electron desktop app that lets you control multiple AI coding CLI ses
 - **Multi-CLI workflows** — Run Claude Code, Copilot CLI, Codex CLI, and other AI tools side-by-side in embedded terminals
 - **Physical controls** — D-pad, buttons, and analog sticks replace keyboard shortcuts. Works with Xbox controllers and generic/DirectInput gamepads
 - **Session groups** — Sessions grouped by working directory with collapsible headers, bookmarks, and a live preview grid
-- **Directory planning** — Per-folder plan graph with startable/doing/done states, plan sequences, shared memory, and plan chips
+- **Directory planning** — Per-folder plan graph with `planning`/`ready`/`coding`/`review`/`blocked`/`done` states, plan sequences, contexts, attachments, and plan chips
 - **Pattern matcher** — Auto-fire sequences when PTY output matches regex rules, with per-session cooldown and scheduled sends
 - **Scheduled tasks** — One-time or recurring prompts with spawn or direct-to-session delivery
 - **Drafts + chip bar** — Keep prompt drafts beside the active terminal and trigger reusable quick actions with template expansions
@@ -122,7 +122,9 @@ See [docs/group-overview.md](docs/group-overview.md) for details.
 
 ## Plans, Drafts & Chip Bar
 
-Each working directory can have its own plan graph. Plan items live in a dependency-aware canvas with `pending`, `startable`, `doing`, and `done` states. Startable work appears as chips near the active terminal so you can pick it up quickly, and active work can be completed from the same strip.
+Each working directory can have its own plan graph. Plan items live in a dependency-aware canvas with `planning`, `ready`, `coding`, `review`, `blocked`, and `done` states. Ready work appears as chips near the active terminal so you can pick it up quickly, and active work can be completed from the same strip.
+
+Drafts, Plans, and Contexts are separate primitives: Drafts are per-session prompt memos, Plans are durable per-directory work items, and Contexts are reusable project knowledge nodes that can be bound to plans or sequences. Plan items persist as individual JSON files under `config/plans/` with dependencies in `config/plan-dependencies.json`; `config/plans.yaml` is legacy migration input only.
 
 The same strip also shows draft prompts and reusable chip-bar actions. In practice this means you can keep a few common prompts or workflows one click away while a session is busy.
 

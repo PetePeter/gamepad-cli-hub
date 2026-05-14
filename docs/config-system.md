@@ -7,7 +7,8 @@ config/
 ├── settings.yaml               # Active profile name, hapticFeedback toggle, notifications toggle, sidebar prefs, sorting, sessionGroups (order + collapsed + bookmarked), mcp (enabled/port/token)
 ├── sessions.yaml               # Persisted session state (auto-managed)
 ├── drafts.yaml                 # Persisted draft prompts per session (auto-managed)
-├── plans.yaml                  # Persisted directory plan items + dependencies (auto-managed, folder-level not per-profile)
+├── plans/                      # Individual per-plan JSON files and incoming plan artifacts
+├── plan-dependencies.json      # Persisted directory plan dependency registry
 ├── mcp/
 │   ├── claude-mcp.json         # Sample MCP config for Claude Code clients
 │   └── copilot-mcp.json        # Sample MCP config for Copilot CLI clients
@@ -205,9 +206,9 @@ dpad:
   repeatRate: 120
 ```
 
-## Plans YAML
+## Plan Storage
 
-`config/plans.yaml` stores per-directory plan items and their dependency edges. Auto-managed by `PlanManager` — saved on every `plan:changed` event. Not profile-specific (folder-level data, shared across profiles).
+Plan storage is folder-level and shared across profiles. Current plan items are individual JSON files under `config/plans/`, dependency edges live in `config/plan-dependencies.json`, and inbox imports use `config/plans/incoming/`. `config/plans.yaml` is legacy migration input only; if present at startup it is migrated and renamed to `plans.yaml.bak`.
 
 ```yaml
 plans:
@@ -218,15 +219,16 @@ plans:
         dirPath: "C:/projects/my-app"
         title: "Setup auth"
         description: "Implement JWT authentication"
-        status: startable          # pending | startable | doing | done
+        status: ready              # planning | ready | coding | review | blocked | done
         createdAt: 1700000000000
         updatedAt: 1700000000000
       - id: "e5f6g7h8-..."
         dirPath: "C:/projects/my-app"
         title: "Build API routes"
         description: "REST endpoints for user CRUD"
-        status: pending
-        sessionId: null            # Set when status is 'doing'
+        status: planning
+        sessionId: null            # Set when status is 'coding' or 'review'
+        stateInfo: null            # Required when status is 'blocked'
         createdAt: 1700000000000
         updatedAt: 1700000000000
     dependencies:
@@ -234,7 +236,7 @@ plans:
         toId: "e5f6g7h8-..."      # Blocked (can't start until blocker is done)
 ```
 
-Status transitions: new items start as `startable` (no deps) or `pending` (has unfinished deps). `startable` → `doing` via `plan:apply`. `doing` → `done` via `plan:complete`. Completing an item triggers `recomputeStartable()` which may promote `pending` items to `startable`.
+Status transitions: new items start as `planning` and become `ready` when their dependencies are satisfied. Ready work is claimed with `plan_set_state status=coding` (the legacy `plan:apply` IPC still maps ready to coding), can move through `review` or `blocked`, and is finished with `plan_complete`/`plan:complete`. Completing an item triggers ready-state recomputation, which may promote dependency-unblocked `planning` items to `ready`.
 
 ## MCP Server (localhost)
 
