@@ -17,8 +17,8 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue';
 import { state } from './state.js';
 import { sessionsState } from './screens/sessions-state.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
-import { getCliDisplayName, getCliIcon, toDirection } from './utils.js';
-import { processConfigBinding, processConfigRelease, initConfigCache, executeSequence } from './bindings.js';
+import { getCliDisplayName, getCliIcon } from './utils.js';
+import { initConfigCache, executeSequence } from './bindings.js';
 import { refreshSessions, doSpawn, doSpawnShell, switchToSession, doCloseSession,
   bootstrap, teardown, startTimerRefresh, stopTimerRefresh,
   getSortField, getSortDirection, setSortField, setSortDirection,
@@ -29,8 +29,6 @@ import { type SessionSortField, type SortDirection } from './sort-logic.js';
 import { findNavIndexBySessionId, getVisibleSessions, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
 import { getOverviewSessions } from './screens/group-overview.js';
 import {
-  handlePlanScreenDpad,
-  handlePlanScreenAction,
   onPlanAddDependency,
   onPlanAddContext,
   onPlanAddNode,
@@ -63,15 +61,14 @@ import {
   toggleHasAttachmentFilter,
   refreshCanvasIfVisible,
 } from './plans/plan-screen.js';
-import { handleSessionsScreenButton, toggleSessionOverviewVisibility, setSessionState, toggleGroupCollapse } from './screens/sessions.js';
+import { toggleSessionOverviewVisibility, setSessionState, toggleGroupCollapse } from './screens/sessions.js';
 import { usePanelResize } from './composables/usePanelResize.js';
 import { setSpawnCollapsed, setPlannerCollapsed } from './sidebar/section-collapse.js';
 import { setDirPickerBridge } from './screens/sessions-spawn.js';
-import { onViewChange, currentView, type MainView as ViewName } from './main-view/main-view-manager.js';
-import { useModalStack } from './composables/useModalStack.js';
-import { useEscProtection } from './composables/useEscProtection.js';
+import { onViewChange, type MainView as ViewName } from './main-view/main-view-manager.js';
 import { useToast } from './composables/useToast.js';
 import { useSettingsController } from './composables/useSettingsController.js';
+import { useInputRouter } from './composables/useInputRouter.js';
 import { appClient, backupsClient, configClient, deliveryClient, draftsClient, eventsClient, patternsClient, plansClient, schedulerClient, sessionsClient } from './ipc/clients.js';
 import {
   closeConfirm, setCloseConfirmCallback,
@@ -112,12 +109,6 @@ import {
   onPlanContextEdit,
 } from './plans/plan-screen.js';
 import { deliverBulkText } from './paste-handler.js';
-import {
-  getActiveInputContext,
-  isEditableElement,
-  isEditableElementInContainer,
-  MODAL_NAVIGATION_SELECTOR,
-} from './input/input-ownership.js';
 import { deliverPromptSequence } from './sequence-delivery.js';
 import { startRename, commitRename, cancelRename } from './screens/sessions-render.js';
 
@@ -145,7 +136,6 @@ import ChipbarActionsTab from './components/sidebar/ChipbarActionsTab.vue';
 import McpTab from './components/sidebar/McpTab.vue';
 import BackupTab from './components/sidebar/BackupTab.vue';
 
-import { logEvent, navigateFocus } from './utils.js';
 import { loadSessions } from './screens/sessions.js';
 
 import AppModalHost from './components/app/AppModalHost.vue';
@@ -458,143 +448,18 @@ function sessionElapsedText(sessionId: string): string {
   return formatElapsed(Date.now() - ts);
 }
 
-// ============================================================================
-// Navigation & gamepad
-// ============================================================================
-
-function handleButton(button: string): void {
-  // Sandwich / Guide button — always bring to sessions
-  if (button === 'Sandwich' || button === 'Guide') {
-    settingsVisible.value = false;
-    navStore.closeSettings();
-    return;
-  }
-
-  // Modal stack — top modal gets input (Vue modals push/pop themselves)
-  const { handleInput } = useModalStack();
-  if (handleInput(button)) return;
-
-  // Race guard — bridge state set but Vue component not yet rendered/stacked
-  if (isAnyBridgeModalVisible()) return;
-
-  // Binding editor uses local refs (not bridged)
-  if (bindingEditorVisible.value) return;
-
-  // Draft editor captures gamepad input
-  if (draftEditorVisible.value) {
-    draftEditorRef.value?.handleButton(button);
-    return;
-  }
-
-  // Settings screen
-  if (settingsVisible.value) {
-    if (button === 'B') {
-      settingsVisible.value = false;
-      navStore.closeSettings();
-    } else if (button === 'A') {
-      const active = document.activeElement as HTMLElement;
-      if (active?.classList.contains('focusable')) {
-        active.click();
-      }
-    } else {
-      const dir = toDirection(button);
-      if (dir === 'left' || dir === 'right') {
-        if (settingsPanelRef.value?.handleButton) {
-          settingsPanelRef.value.handleButton(button);
-        } else {
-          const tabs = buildSettingsTabs();
-          const idx = tabs.findIndex(t => t.id === settingsTab.value);
-          let nextIdx = idx + (dir === 'left' ? -1 : 1);
-          if (nextIdx < 0) nextIdx = tabs.length - 1;
-          if (nextIdx >= tabs.length) nextIdx = 0;
-          settingsTab.value = tabs[nextIdx].id;
-        }
-      } else if (dir === 'up' || dir === 'down') {
-        navigateFocus(dir === 'up' ? -1 : 1);
-      } else if (settingsPanelRef.value?.handleButton) {
-        settingsPanelRef.value.handleButton(button);
-      }
-    }
-    return;
-  }
-
-  // Plan screen — routes before session navigation so B closes plan, not session
-  if (currentView() === 'plan') {
-    const dir = toDirection(button);
-    if (dir) { handlePlanScreenDpad(dir); return; }
-    if (button === 'B') { void navStore.closePlan(); return; }
-    if (handlePlanScreenAction(button)) return;
-  }
-
-  // Overview grid — routes before session navigation so A/B/Left/Right act on the grid.
-  // Up/Down intentionally fall through to the sidebar session navigation path,
-  // matching the keyboard/legacy gamepad contract and avoiding trapped overview focus.
-  if (activeView.value === 'overview') {
-    const sessions = getOverviewSessions();
-    const count = sessions.length;
-    const dir = toDirection(button);
-
-    if (count === 0) {
-      void navStore.closeOverview();
-      return;
-    }
-
-    if (dir === 'left') {
-      void navStore.closeOverview();
-      return;
-    }
-    if (dir === 'right') {
-      return;
-    }
-
-    if (button === 'A') {
-      const session = sessions[sessionsState.overviewFocusIndex];
-      if (session) {
-        void navStore.navigateToSession(session.id);
-      }
-      return;
-    }
-
-    if (button === 'X') {
-      const session = sessions[sessionsState.overviewFocusIndex];
-      if (session) {
-        if (overviewCollapsedIds.value.has(session.id)) {
-          overviewCollapsedIds.value.delete(session.id);
-        } else {
-          overviewCollapsedIds.value.add(session.id);
-        }
-      }
-      return;
-    }
-
-    if (button === 'B') {
-      void navStore.closeOverview();
-      return;
-    }
-
-  }
-
-  // Session navigation — D-pad, A to select, overview-button, spawn/plans zones
-  if (handleSessionsScreenButton(button)) return;
-
-  // Config binding fallback
-  const tm = getTerminalManager();
-  const activeSession = tm?.getActiveSessionId();
-  const session = state.sessions.find(s => s.id === activeSession);
-  const cliType = session?.cliType;
-  if (cliType) {
-    processConfigBinding(button, cliType);
-  }
-}
-
-function handleRelease(button: string): void {
-  const tm = getTerminalManager();
-  const activeSession = tm?.getActiveSessionId();
-  const session = state.sessions.find(s => s.id === activeSession);
-  if (session?.cliType) {
-    processConfigRelease(button, session.cliType);
-  }
-}
+const { handleButton, handleRelease, handleModalKeyboardBridge } = useInputRouter({
+  settingsVisible,
+  activeView,
+  bindingEditorVisible,
+  draftEditorVisible,
+  draftEditorRef,
+  settingsPanelRef,
+  settingsTab,
+  overviewCollapsedIds,
+  buildSettingsTabs,
+  navStore,
+});
 
 // ============================================================================
 // Session actions
@@ -1204,68 +1069,6 @@ async function onBindingEditorSave(binding: any): Promise<void> {
   } catch (error) {
     console.error('Failed to save binding:', error);
     // Keep modal open if save fails
-  }
-}
-
-function isEditableElementInsideModal(element: Element | null): element is HTMLElement {
-  return isEditableElement(element) && isEditableElementInContainer(
-    element,
-    '.modal-overlay.modal--visible, .scheduled-tasks-tab--popup',
-  );
-}
-
-function handleModalKeyboardBridge(e: KeyboardEvent): void {
-  const stack = useModalStack();
-  if (!stack.isOpen.value) return;
-
-  const active = document.activeElement;
-  const activeContext = getActiveInputContext({
-    activeElement: active,
-    modalNavigationSelectors: MODAL_NAVIGATION_SELECTOR,
-  });
-  const editableInModal = activeContext === 'editable-field' && isEditableElementInsideModal(active);
-  const interceptKeys = stack.topInterceptKeys.value;
-  const escProtection = useEscProtection();
-
-  if (escProtection.isProtecting.value && e.key !== 'Escape') {
-    e.preventDefault();
-    e.stopPropagation();
-    escProtection.dismissProtection();
-    return;
-  }
-
-  if (e.key === 'ArrowUp') {
-    if (!interceptKeys.has('arrows') || editableInModal) return;
-    e.preventDefault();
-    stack.handleInput('DPadUp');
-  } else if (e.key === 'ArrowDown') {
-    if (!interceptKeys.has('arrows') || editableInModal) return;
-    e.preventDefault();
-    stack.handleInput('DPadDown');
-  } else if (e.key === 'ArrowLeft') {
-    if (!interceptKeys.has('arrows') || editableInModal) return;
-    e.preventDefault();
-    stack.handleInput('DPadLeft');
-  } else if (e.key === 'ArrowRight') {
-    if (!interceptKeys.has('arrows') || editableInModal) return;
-    e.preventDefault();
-    stack.handleInput('DPadRight');
-  } else if (e.key === 'Tab') {
-    if (!interceptKeys.has('tab')) return;
-    e.preventDefault();
-    stack.handleInput(e.shiftKey ? 'ShiftTab' : 'Tab');
-  } else if (e.key === 'Enter') {
-    if (!interceptKeys.has('enter') || (editableInModal && document.activeElement?.tagName === 'TEXTAREA')) return;
-    e.preventDefault();
-    stack.handleInput('A');
-  } else if (e.key === ' ' || e.key === 'Spacebar') {
-    if (!interceptKeys.has('space') || editableInModal) return;
-    e.preventDefault();
-    stack.handleInput('A');
-  } else if (e.key === 'Escape') {
-    if (!interceptKeys.has('escape')) return;
-    e.preventDefault();
-    stack.handleInput('B');
   }
 }
 
