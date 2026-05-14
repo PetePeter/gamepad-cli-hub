@@ -1491,6 +1491,13 @@ describe('STICK_VIRTUAL_BUTTONS', () => {
 // ============================================================================
 
 import { slugify } from '../src/config/loader.js';
+import {
+  normalizeMcpPort,
+  normalizeToolConfig,
+  parseCliArgs,
+  parseCommandTemplate,
+  resolveEnvWithMode,
+} from '../src/config/loader-helpers.js';
 
 describe('slugify', () => {
   it('converts name to kebab-case slug', () => {
@@ -1515,5 +1522,59 @@ describe('slugify', () => {
 
   it('handles empty string', () => {
     expect(slugify('')).toBe('');
+  });
+});
+
+describe('loader helper module', () => {
+  it('parses CLI args and command templates outside ConfigLoader', () => {
+    expect(parseCliArgs('codex --cd "X:\\coding\\My Project" --flag')).toEqual([
+      'codex',
+      '--cd',
+      'X:\\coding\\My Project',
+      '--flag',
+    ]);
+    expect(parseCommandTemplate('codex --full-auto')).toEqual({
+      command: 'codex',
+      args: ['--full-auto'],
+    });
+    expect(parseCommandTemplate('')).toEqual({ command: '', args: [] });
+  });
+
+  it('resolves env entries with append and prepend modes', () => {
+    const result = resolveEnvWithMode(
+      [
+        { name: 'PLAIN', value: 'value' },
+        { name: 'PATH', value: 'front', mode: 'prepend' },
+        { name: 'TAIL', value: 'back', mode: 'append' },
+      ],
+      { PATH: 'existing', TAIL: 'existing' },
+      (raw) => raw.toUpperCase(),
+    );
+
+    expect(result.PLAIN).toBe('VALUE');
+    expect(result.PATH).toContain('FRONT');
+    expect(result.PATH).toContain('existing');
+    expect(result.TAIL).toContain('existing');
+    expect(result.TAIL).toContain('BACK');
+  });
+
+  it('normalizes MCP ports and legacy tool launch fields outside ConfigLoader', () => {
+    expect(normalizeMcpPort(49000)).toBe(49000);
+    expect(normalizeMcpPort('nope')).toBe(47373);
+
+    const tool: any = {
+      name: 'Legacy',
+      command: 'legacy-cli',
+      args: '--flag value',
+      initialPrompt: 'hello',
+      env: [{ name: ' PATH ', value: 'x', mode: 'prepend' }, { name: '', value: 'skip' }],
+    };
+
+    expect(normalizeToolConfig(tool)).toBe(true);
+    expect(tool.spawnCommand).toBe('legacy-cli --flag value');
+    expect(tool.command).toBeUndefined();
+    expect(tool.args).toBeUndefined();
+    expect(tool.initialPrompt).toEqual([{ label: 'Prompt', sequence: 'hello' }]);
+    expect(tool.env).toEqual([{ name: 'PATH', value: 'x', mode: 'prepend' }]);
   });
 });

@@ -4,6 +4,18 @@ import * as YAML from 'yaml';
 import logger from '../utils/logger.js';
 import { getConfigDir, isPackaged, seedConfigIfNeeded } from '../utils/app-paths.js';
 import { fileURLToPath } from 'url';
+import {
+  isCliTypeOptions,
+  normalizeMcpPort,
+  normalizeToolConfig,
+  parseCommandTemplate,
+  type CliTypeOptions,
+  type EnvVarEntry,
+  type SpawnConfig,
+} from './loader-helpers.js';
+
+export { parseCliArgs, resolveEnvWithMode, slugify } from './loader-helpers.js';
+export type { CliTypeOptions, EnvVarEntry, SpawnConfig } from './loader-helpers.js';
 
 // ============================================================================
 // Action & Binding Types
@@ -89,98 +101,6 @@ export interface PatternRule {
 // ============================================================================
 // Shared Config Types
 // ============================================================================
-
-export interface SpawnConfig {
-  command: string;
-  args: string[];
-}
-
-export interface EnvVarEntry {
-  name: string;
-  value: string;
-  /** How to merge with existing process env. Default: 'replace'. */
-  mode?: 'replace' | 'append' | 'prepend';
-}
-
-export function parseCliArgs(argsText?: string): string[] {
-  if (!argsText) return [];
-
-  const args: string[] = [];
-  let current = '';
-  let quote: '"' | "'" | null = null;
-  let escaping = false;
-
-  for (let i = 0; i < argsText.length; i++) {
-    const ch = argsText[i];
-
-    if (escaping) {
-      current += ch;
-      escaping = false;
-      continue;
-    }
-
-    if (quote) {
-      if (ch === quote) {
-        quote = null;
-      } else {
-        current += ch;
-      }
-      continue;
-    }
-
-    if (ch === '\\') {
-      escaping = true;
-      continue;
-    }
-
-    if (ch === '"' || ch === '\'') {
-      quote = ch;
-      continue;
-    }
-
-    if (/\s/.test(ch)) {
-      if (current) {
-        args.push(current);
-        current = '';
-      }
-      continue;
-    }
-
-    current += ch;
-  }
-
-  if (escaping) current += '\\';
-  if (current) args.push(current);
-  return args;
-}
-
-/**
- * Resolve an array of EnvVarEntry into a flat env record.
- * Handles append/prepend by joining with the OS path delimiter.
- */
-export function resolveEnvWithMode(
-  entries: EnvVarEntry[],
-  existingEnv: Record<string, string | undefined>,
-  resolveValue: (raw: string) => string,
-): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const entry of entries) {
-    if (!entry.name.trim()) continue;
-    const name = entry.name.trim();
-    const value = resolveValue(entry.value);
-    const mode = entry.mode ?? 'replace';
-    if (mode === 'prepend') {
-      const existing = existingEnv[name] ?? '';
-      env[name] = value ? `${value}${path.delimiter}${existing}` : existing;
-    } else if (mode === 'append') {
-      const existing = existingEnv[name] ?? '';
-      env[name] = value ? `${existing}${path.delimiter}${value}` : existing;
-    } else {
-      env[name] = value;
-    }
-  }
-  return env;
-}
 
 export interface CliTypeConfig {
   name: string;
@@ -362,23 +282,6 @@ export interface ChipbarAction {
   sequence: string;
 }
 
-type CliTypeOptions = {
-  env?: EnvVarEntry[];
-  handoffCommand?: string;
-  renameCommand?: string;
-  spawnCommand?: string;
-  resumeCommand?: string;
-  continueCommand?: string;
-  helmInitialPrompt?: boolean;
-  helmPreambleForInterSession?: boolean;
-  pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
-  submitSuffix?: string;
-};
-
-function isCliTypeOptions(value: unknown): value is CliTypeOptions {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 export interface ProfileConfig {
   name: string;
   tools: { [key: string]: CliTypeConfig };
@@ -437,73 +340,6 @@ export function stickVirtualButtonName(stick: 'left' | 'right', direction: Stick
   const prefix = stick === 'left' ? 'LeftStick' : 'RightStick';
   const suffix = direction.charAt(0).toUpperCase() + direction.slice(1);
   return `${prefix}${suffix}` as StickVirtualButton;
-}
-
-function buildLegacySpawnCommand(command: unknown, args: unknown): string {
-  const commandText = typeof command === 'string' ? command.trim() : '';
-  const argsText = typeof args === 'string' ? args.trim() : '';
-  return [commandText, argsText].filter(Boolean).join(' ');
-}
-
-function normalizeToolConfig(tool: any): boolean {
-  if (!tool || typeof tool !== 'object') return false;
-
-  let changed = false;
-
-  if (typeof tool.initialPrompt === 'string') {
-    tool.initialPrompt = tool.initialPrompt.trim()
-      ? [{ label: 'Prompt', sequence: tool.initialPrompt }]
-      : [];
-    changed = true;
-  } else if (tool.initialPrompt != null && !Array.isArray(tool.initialPrompt)) {
-    tool.initialPrompt = [];
-    changed = true;
-  }
-
-  if (tool.env != null) {
-    const nextEnv = Array.isArray(tool.env)
-      ? tool.env
-        .map((entry: any) => ({
-          name: typeof entry?.name === 'string' ? entry.name.trim() : '',
-          value: typeof entry?.value === 'string' ? entry.value : '',
-          ...(entry.mode === 'append' || entry.mode === 'prepend' ? { mode: entry.mode } : {}),
-        }))
-        .filter((entry: EnvVarEntry) => entry.name.length > 0)
-      : [];
-    if (JSON.stringify(nextEnv) !== JSON.stringify(tool.env)) {
-      changed = true;
-    }
-    tool.env = nextEnv;
-  }
-
-  const legacySpawnCommand = buildLegacySpawnCommand(tool.command, tool.args);
-  if (typeof tool.spawnCommand === 'string' && tool.spawnCommand.trim()) {
-    if (tool.command !== undefined || tool.args !== undefined) {
-      delete tool.command;
-      delete tool.args;
-      changed = true;
-    }
-  } else if (legacySpawnCommand) {
-    tool.spawnCommand = legacySpawnCommand;
-    delete tool.command;
-    delete tool.args;
-    changed = true;
-  } else if (tool.command !== undefined || tool.args !== undefined) {
-    delete tool.command;
-    delete tool.args;
-    changed = true;
-  }
-
-  return changed;
-}
-
-function parseCommandTemplate(commandText?: string): SpawnConfig {
-  const parts = parseCliArgs(commandText);
-  if (parts.length === 0) {
-    return { command: '', args: [] };
-  }
-  const [command, ...args] = parts;
-  return { command, args };
 }
 
 // ============================================================================
@@ -1298,18 +1134,5 @@ export class ConfigLoader {
   }
 }
 
-function normalizeMcpPort(value: unknown): number {
-  const parsed = Number.parseInt(String(value ?? ''), 10);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
-    return DEFAULT_MCP_CONFIG.port;
-  }
-  return parsed;
-}
-
 // Export a singleton instance for convenience
 export const configLoader = new ConfigLoader();
-
-/** Derive a URL-safe slug from a display name */
-export function slugify(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
