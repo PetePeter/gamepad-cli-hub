@@ -1,17 +1,10 @@
 import {
-  createPreloadDomains,
   type HelmPreloadApi,
-  type LegacyPreloadApi,
+  type PreloadMethodMap,
 } from './domain-builders.js';
 
-export function createHelmPreloadApi<TLegacyApi extends LegacyPreloadApi>(
-  legacyApi: TLegacyApi,
-): HelmPreloadApi<TLegacyApi> {
-  return createPreloadDomains(legacyApi);
-}
-
-export function createGamepadCliCompatibilityApi<TLegacyApi extends LegacyPreloadApi>(
-  helmApi: HelmPreloadApi<TLegacyApi>,
-): TLegacyApi {
-  return Object.assign({}, ...Object.values(helmApi)) as TLegacyApi;
+export function createGamepadCliCompatibilityApi<TMethodMap extends PreloadMethodMap>(
+  helmApi: HelmPreloadApi<TMethodMap>,
+): TMethodMap {
+  return Object.assign({}, ...Object.values(helmApi)) as TMethodMap;
 }

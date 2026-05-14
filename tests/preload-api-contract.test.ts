@@ -6,19 +6,16 @@ import {
   PRELOAD_API_DOMAINS,
   PRELOAD_API_DOMAIN_TARGET,
 } from '../src/electron/preload-api-contract';
-import {
-  createGamepadCliCompatibilityApi,
-  createHelmPreloadApi,
-} from '../src/electron/preload/domain-bridge';
-import { preloadDomainBuilders } from '../src/electron/preload/domain-builders';
+import { createGamepadCliCompatibilityApi } from '../src/electron/preload/domain-bridge';
+import { createPreloadDomains, preloadDomainBuilders } from '../src/electron/preload/domain-builders';
 
-function extractGamepadCliApiMethods(): string[] {
-  const preloadPath = path.resolve(__dirname, '../src/electron/preload.ts');
+function extractPreloadMethodImplementations(): string[] {
+  const preloadPath = path.resolve(__dirname, '../src/electron/preload/domain-api.ts');
   const source = fs.readFileSync(preloadPath, 'utf8');
-  const match = source.match(/const legacyGamepadCliAPI = \{([\s\S]*?)\n\};/);
+  const match = source.match(/export const PRELOAD_METHOD_IMPLEMENTATIONS = \{([\s\S]*?)\n\} as const;/);
 
   if (!match) {
-    throw new Error('Unable to find legacyGamepadCliAPI object in preload.ts');
+    throw new Error('Unable to find PRELOAD_METHOD_IMPLEMENTATIONS object in preload/domain-api.ts');
   }
 
   return Array.from(match[1].matchAll(/^  ([A-Za-z_$][\w$]*):/gm), ([, method]) => method).sort();
@@ -50,8 +47,8 @@ function collectLegacyWindowReferences(): string[] {
 }
 
 describe('preload API boundary contract', () => {
-  it('maps every legacy preload API method to one target domain', () => {
-    const currentMethods = extractGamepadCliApiMethods();
+  it('maps every preload method implementation to one target domain', () => {
+    const currentMethods = extractPreloadMethodImplementations();
     const mappedEntries = Object.entries(PRELOAD_API_DOMAINS).flatMap(([domain, methods]) =>
       methods.map((method) => ({ domain, method })),
     );
@@ -96,25 +93,34 @@ describe('preload API boundary contract', () => {
   });
 
   it('creates domain APIs and a flat compatibility facade from the same methods', () => {
-    const legacyApi = Object.fromEntries(
-      extractGamepadCliApiMethods().map((method) => [method, () => method]),
+    const methodImplementations = Object.fromEntries(
+      extractPreloadMethodImplementations().map((method) => [method, () => method]),
     ) as Record<string, () => string>;
 
-    const helmApi = createHelmPreloadApi(legacyApi);
+    const helmApi = createPreloadDomains(methodImplementations);
     const gamepadCliApi = createGamepadCliCompatibilityApi(helmApi);
 
-    expect(helmApi.sessions.sessionSetActive).toBe(legacyApi.sessionSetActive);
-    expect(helmApi.terminal.ptySpawn).toBe(legacyApi.ptySpawn);
-    expect(helmApi.plans.planCreate).toBe(legacyApi.planCreate);
-    expect(helmApi.drafts.draftCreate).toBe(legacyApi.draftCreate);
-    expect(helmApi.scheduler.scheduledTaskCreate).toBe(legacyApi.scheduledTaskCreate);
-    expect(helmApi.telegram.telegramStart).toBe(legacyApi.telegramStart);
-    expect(helmApi.keyboard.keyboardTypeString).toBe(legacyApi.keyboardTypeString);
-    expect(helmApi.app.appStartupReady).toBe(legacyApi.appStartupReady);
+    expect(helmApi.sessions.sessionSetActive).toBe(methodImplementations.sessionSetActive);
+    expect(helmApi.terminal.ptySpawn).toBe(methodImplementations.ptySpawn);
+    expect(helmApi.plans.planCreate).toBe(methodImplementations.planCreate);
+    expect(helmApi.drafts.draftCreate).toBe(methodImplementations.draftCreate);
+    expect(helmApi.scheduler.scheduledTaskCreate).toBe(methodImplementations.scheduledTaskCreate);
+    expect(helmApi.telegram.telegramStart).toBe(methodImplementations.telegramStart);
+    expect(helmApi.keyboard.keyboardTypeString).toBe(methodImplementations.keyboardTypeString);
+    expect(helmApi.app.appStartupReady).toBe(methodImplementations.appStartupReady);
 
     expect(gamepadCliApi.sessionSetActive).toBe(helmApi.sessions.sessionSetActive);
     expect(gamepadCliApi.planCreate).toBe(helmApi.plans.planCreate);
     expect(gamepadCliApi.appStartupReady).toBe(helmApi.app.appStartupReady);
+  });
+
+  it('keeps preload.ts as an exposure shell, not the method owner', () => {
+    const preloadSource = fs.readFileSync(path.resolve(__dirname, '../src/electron/preload.ts'), 'utf8');
+
+    expect(preloadSource).toContain("contextBridge.exposeInMainWorld('helm', helmAPI)");
+    expect(preloadSource).toContain("contextBridge.exposeInMainWorld('gamepadCli', gamepadCliAPI)");
+    expect(preloadSource).not.toContain('legacyGamepadCliAPI');
+    expect(preloadSource).not.toContain("ipcRenderer.invoke('session:setActive'");
   });
 
   it('keeps legacy window.gamepadCli references confined to documented compatibility files', () => {

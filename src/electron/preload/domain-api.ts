@@ -1,0 +1,958 @@
+import { ipcRenderer } from 'electron';
+import type { DraftPrompt } from '../../types/session.js';
+import {
+  createPreloadDomains,
+  type HelmPreloadApi,
+} from './domain-builders.js';
+
+export const PRELOAD_METHOD_IMPLEMENTATIONS = {
+  // ========================================================================
+  // Session Management
+  // ========================================================================
+
+  /**
+   * Set the active session
+   */
+  sessionSetActive: (id: string) => ipcRenderer.invoke('session:setActive', id),
+
+  /**
+   * Get the active session
+   */
+  sessionGetActive: () => ipcRenderer.invoke('session:getActive'),
+
+  /**
+   * Remove a session
+   */
+  sessionRemove: (id: string) => ipcRenderer.invoke('session:remove', id),
+
+  /**
+   * Close a session (kill process and remove)
+   */
+  sessionClose: (id: string) => ipcRenderer.invoke('session:close', id),
+
+  /**
+   * Snap out a session to a child window
+   */
+  sessionSnapOut: (id: string) => ipcRenderer.invoke('session:snapOut', id),
+
+  /**
+   * Snap back a session to the main window
+   */
+  sessionSnapBack: (id: string) => ipcRenderer.invoke('session:snapBack', id),
+
+  /**
+   * Rename a session
+   */
+  sessionRename: (id: string, newName: string) => ipcRenderer.invoke('session:rename', id, newName),
+
+  // ========================================================================
+  // Configuration
+  // ========================================================================
+
+  /**
+   * Get all configuration data
+   */
+  configGetAll: () => ipcRenderer.invoke('config:getAll'),
+
+  /**
+   * Get bindings for a specific CLI type
+   */
+  configGetBindings: (cliType: string) => ipcRenderer.invoke('config:getBindings', cliType),
+
+  /**
+   * Get available CLI types
+   */
+  configGetCliTypes: () => ipcRenderer.invoke('config:getCliTypes'),
+
+  /**
+   * Get named sequence groups for a CLI type
+   */
+  configGetSequences: (cliType: string) => ipcRenderer.invoke('config:getSequences', cliType),
+
+/**
+   * Get chipbar quick-action buttons for the current profile
+   */
+  configGetChipbarActions: () => ipcRenderer.invoke('config:getChipbarActions') as Promise<{
+    actions: Array<{ label: string; sequence: string }>;
+    inboxDir: string;
+  }>,
+
+  /**
+   * Update chipbar quick-action buttons for the current profile
+   */
+  configSetChipbarActions: (actions: Array<{ label: string; sequence: string }>) =>
+    ipcRenderer.invoke('config:setChipbarActions', actions),
+
+  /**
+   * Create or update a named sequence group for a CLI type
+   */
+  configSetSequenceGroup: (cliType: string, groupId: string, items: Array<{ label: string; sequence: string }>) =>
+    ipcRenderer.invoke('config:setSequenceGroup', cliType, groupId, items),
+
+  /**
+   * Remove a named sequence group for a CLI type
+   */
+  configRemoveSequenceGroup: (cliType: string, groupId: string) =>
+    ipcRenderer.invoke('config:removeSequenceGroup', cliType, groupId),
+
+  /**
+   * Set a binding (for settings screen)
+   */
+  configSetBinding: (button: string, cliType: string, binding: any) =>
+    ipcRenderer.invoke('config:setBinding', button, cliType, binding),
+
+  configRemoveBinding: (button: string, cliType: string) =>
+    ipcRenderer.invoke('config:removeBinding', button, cliType),
+
+  configCopyCliBindings: (sourceCli: string, targetCli: string) =>
+    ipcRenderer.invoke('config:copyCliBindings', sourceCli, targetCli),
+
+  /**
+   * Get haptic feedback setting
+   */
+  configGetHapticFeedback: () => ipcRenderer.invoke('config:getHapticFeedback'),
+
+  /**
+   * Set haptic feedback setting
+   */
+  configSetHapticFeedback: (enabled: boolean) => ipcRenderer.invoke('config:setHapticFeedback', enabled),
+
+  /**
+   * Get notifications setting
+   */
+  configGetNotifications: () => ipcRenderer.invoke('config:getNotifications'),
+
+  /**
+   * Set notifications setting
+   */
+  configSetNotifications: (enabled: boolean) => ipcRenderer.invoke('config:setNotifications', enabled),
+
+  /**
+   * Get localhost MCP server settings
+   */
+  configGetMcpConfig: () => ipcRenderer.invoke('config:getMcpConfig'),
+
+  /**
+   * Update localhost MCP server settings
+   */
+  configSetMcpConfig: (updates: { enabled?: boolean; port?: number; authToken?: string }) =>
+    ipcRenderer.invoke('config:setMcpConfig', updates),
+
+  /**
+   * Generate and persist a new localhost MCP auth token
+   */
+  configGenerateMcpToken: () => ipcRenderer.invoke('config:generateMcpToken'),
+
+  /**
+   * Get ESC protection setting
+   */
+  configGetEscProtectionEnabled: () => ipcRenderer.invoke('config:getEscProtectionEnabled'),
+
+  /**
+   * Set ESC protection setting
+   */
+  configSetEscProtectionEnabled: (enabled: boolean) => ipcRenderer.invoke('config:setEscProtectionEnabled', enabled),
+
+  /**
+   * Get sort preferences for an area (sessions or bindings)
+   */
+  configGetSortPrefs: (area: string) => ipcRenderer.invoke('config:getSortPrefs', area),
+
+  /**
+   * Set sort preferences for an area (sessions or bindings)
+   */
+  configSetSortPrefs: (area: string, prefs: { field?: string; direction?: string }) =>
+    ipcRenderer.invoke('config:setSortPrefs', area, prefs),
+
+  /**
+   * Get plan filter preferences
+   */
+  configGetPlanFilters: () =>
+    ipcRenderer.invoke('config:getPlanFilters'),
+
+  /**
+   * Set plan filter preferences
+   */
+  configSetPlanFilters: (filters: {
+    types?: { bug?: boolean; feature?: boolean; research?: boolean; untyped?: boolean };
+    statuses?: { planning?: boolean; ready?: boolean; coding?: boolean; review?: boolean; blocked?: boolean; done?: boolean };
+    hasAttachment?: { yes?: boolean; no?: boolean };
+  }) =>
+    ipcRenderer.invoke('config:setPlanFilters', filters),
+
+  configGetSessionGroupPrefs: () =>
+    ipcRenderer.invoke('config:getSessionGroupPrefs') as Promise<{
+      order: string[];
+      collapsed: string[];
+      bookmarked?: string[];
+      overviewHidden?: string[];
+    }>,
+
+  configSetSessionGroupPrefs: (prefs: {
+    order: string[];
+    collapsed: string[];
+    bookmarked?: string[];
+    overviewHidden?: string[];
+  }) =>
+    ipcRenderer.invoke('config:setSessionGroupPrefs', prefs),
+
+  editorGetHistory: (): Promise<string[]> => ipcRenderer.invoke('editor:getHistory'),
+  editorSetHistory: (entries: string[]) => ipcRenderer.invoke('editor:setHistory', entries),
+
+  configRemoveBookmarkedDir: (dirPath: string) =>
+    ipcRenderer.invoke('config:removeBookmarkedDir', dirPath),
+
+  /**
+   * Get the raw spawn command for a CLI type (for embedded PTY — no terminal wrapper)
+   */
+  configGetSpawnCommand: (cliType: string) => ipcRenderer.invoke('config:getSpawnCommand', cliType),
+
+  configGetCliTypeEnv: (cliType: string) => ipcRenderer.invoke('config:getCliTypeEnv', cliType),
+
+  configGetDpadConfig: () => ipcRenderer.invoke('config:getDpadConfig'),
+
+  configGetStickConfig: (stick: string) => ipcRenderer.invoke('config:getStickConfig', stick),
+
+  configGetCollapsePrefs: () => ipcRenderer.invoke('config:getCollapsePrefs') as Promise<{ spawnCollapsed: boolean; plannerCollapsed: boolean; schedulerCollapsed?: boolean }>,
+
+  configSetCollapsePrefs: (prefs: { spawnCollapsed?: boolean; plannerCollapsed?: boolean; schedulerCollapsed?: boolean }) =>
+    ipcRenderer.invoke('config:setCollapsePrefs', prefs),
+
+  configGetEditorPrefs: () => ipcRenderer.invoke('config:getEditorPrefs') as Promise<{
+    draftEditorHeight?: number;
+    planEditorHeight?: number;
+    editorPopupWidth?: number;
+    editorPopupHeight?: number;
+  }>,
+
+  configSetEditorPrefs: (prefs: { draftEditorHeight?: number; planEditorHeight?: number; editorPopupWidth?: number; editorPopupHeight?: number }) =>
+    ipcRenderer.invoke('config:setEditorPrefs', prefs),
+
+  // ========================================================================
+  // PTY Terminal Management
+  // ========================================================================
+
+  /** Spawn a new embedded PTY terminal */
+  ptySpawn: (sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string, resumeSessionName?: string) =>
+    ipcRenderer.invoke('pty:spawn', sessionId, command, args, cwd, cliType, contextText, resumeSessionName),
+
+  /** Write data to a PTY terminal's stdin */
+  ptyWrite: (sessionId: string, data: string) =>
+    ipcRenderer.invoke('pty:write', sessionId, data),
+
+  /** Write scroll keys to a PTY without triggering AIAGENT keyword detection */
+  ptyScrollInput: (sessionId: string, data: string) =>
+    ipcRenderer.invoke('pty:scrollInput', sessionId, data),
+
+  /** Resize a PTY terminal */
+  ptyResize: (sessionId: string, cols: number, rows: number) =>
+    ipcRenderer.invoke('pty:resize', sessionId, cols, rows),
+
+  /** Suppress activity promotion before terminal switch */
+  ptyMarkSwitching: (sessionId: string) =>
+    ipcRenderer.invoke('pty:markSwitching', sessionId),
+
+  /** Kill a PTY terminal */
+  ptyKill: (sessionId: string) =>
+    ipcRenderer.invoke('pty:kill', sessionId),
+
+  /** Subscribe to PTY output data */
+  onPtyData: (callback: (sessionId: string, data: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, sessionId: string, data: string) => callback(sessionId, data);
+    ipcRenderer.on('pty:data', listener);
+    return () => ipcRenderer.removeListener('pty:data', listener);
+  },
+
+  /** Subscribe to PTY exit events */
+  onPtyExit: (callback: (sessionId: string, exitCode: number) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, sessionId: string, exitCode: number) => callback(sessionId, exitCode);
+    ipcRenderer.on('pty:exit', listener);
+    return () => ipcRenderer.removeListener('pty:exit', listener);
+  },
+
+  /** Subscribe to session state change events */
+  onPtyStateChange: (callback: (transition: { sessionId: string; previousState: string; newState: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('pty:state-change', listener);
+    return () => ipcRenderer.removeListener('pty:state-change', listener);
+  },
+
+  /** Subscribe to question detected events */
+  onPtyQuestionDetected: (callback: (event: { sessionId: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('pty:question-detected', listener);
+    return () => ipcRenderer.removeListener('pty:question-detected', listener);
+  },
+
+  /** Subscribe to question cleared events */
+  onPtyQuestionCleared: (callback: (event: { sessionId: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('pty:question-cleared', listener);
+    return () => ipcRenderer.removeListener('pty:question-cleared', listener);
+  },
+
+  /** Subscribe to activity change events */
+  onPtyActivityChange: (callback: (event: { sessionId: string; level: string; lastOutputAt?: number }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('pty:activity-change', listener);
+    return () => ipcRenderer.removeListener('pty:activity-change', listener);
+  },
+
+  /** Subscribe to main-process requests to deliver text through the renderer terminal path. */
+  onTextDeliverRequest: (callback: (event: { requestId: string; sessionId: string; text: string; withReturn?: boolean; submitSuffix?: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: { requestId: string; sessionId: string; text: string; withReturn?: boolean; submitSuffix?: string }) => callback(data);
+    ipcRenderer.on('text:deliver-request', listener);
+    return () => ipcRenderer.removeListener('text:deliver-request', listener);
+  },
+
+  /** Acknowledge a main-process text delivery request. */
+  textDeliverResponse: (requestId: string, success: boolean, error?: string) =>
+    ipcRenderer.invoke('text:deliver-response', requestId, success, error),
+
+  /** Notify the main process that the renderer is ready to service text delivery requests. */
+  textDeliverReady: () => ipcRenderer.invoke('text:deliver-ready'),
+
+  // ========================================================================
+  // Pipeline Queue
+  // ========================================================================
+
+  /** Enqueue a session for auto-implementation */
+  pipelineEnqueue: (sessionId: string) => ipcRenderer.invoke('pipeline:enqueue', sessionId),
+
+  /** Remove a session from the waiting queue */
+  pipelineDequeue: (sessionId: string) => ipcRenderer.invoke('pipeline:dequeue', sessionId),
+
+  /** Get all sessions in the waiting queue */
+  pipelineGetQueue: () => ipcRenderer.invoke('pipeline:getQueue'),
+
+  /** Get a session's position in the queue (1-based, 0 if not queued) */
+  pipelineGetPosition: (sessionId: string) => ipcRenderer.invoke('pipeline:getPosition', sessionId),
+
+  /** Manually set a session's pipeline state */
+  sessionSetState: (sessionId: string, state: string) => ipcRenderer.invoke('session:setState', sessionId, state),
+
+  /** Subscribe to auto-handoff events */
+  onPtyHandoff: (callback: (event: { fromSessionId: string; toSessionId: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('pty:handoff', listener);
+    return () => ipcRenderer.removeListener('pty:handoff', listener);
+  },
+
+  /** Subscribe to notification click events (focus + switch to session) */
+  onNotificationClick: (callback: (event: { sessionId: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('notification:click', listener);
+    return () => ipcRenderer.removeListener('notification:click', listener);
+  },
+
+  /** Subscribe to LLM-directed notification bubbles */
+  onLlmNotify: (callback: (data: { sessionId: string; title: string; content: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: { sessionId: string; title: string; content: string }) => callback(data);
+    ipcRenderer.on('notification:llmNotify', listener);
+    return () => ipcRenderer.removeListener('notification:llmNotify', listener);
+  },
+
+  /** Subscribe to externally-spawned session events (e.g. from Telegram) */
+  onSessionSpawned: (callback: (session: { id: string; name: string; cliType: string; processId: number; workingDir?: string; cliSessionName?: string; lastOutputAt?: number }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('session:spawned-externally', listener);
+    return () => ipcRenderer.removeListener('session:spawned-externally', listener);
+  },
+
+  /** Subscribe to session metadata updates such as renames. */
+  onSessionUpdated: (callback: (session: { id: string; name: string; cliType: string; workingDir?: string; title?: string; windowId?: number }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('session:updated', listener);
+    return () => ipcRenderer.removeListener('session:updated', listener);
+  },
+
+  /** Subscribe to snap-out events */
+  onSnapOut: (callback: (sessionId: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, sessionId: string) => callback(sessionId);
+    ipcRenderer.on('session:snapOut', listener);
+    return () => ipcRenderer.removeListener('session:snapOut', listener);
+  },
+
+  /** Subscribe to snap-back events */
+  onSnapBack: (callback: (sessionId: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, sessionId: string) => callback(sessionId);
+    ipcRenderer.on('session:snapBack', listener);
+    return () => ipcRenderer.removeListener('session:snapBack', listener);
+  },
+
+  /**
+   * Get working directory presets from config
+   */
+  configGetWorkingDirs: () => ipcRenderer.invoke('config:getWorkingDirs'),
+
+  // ========================================================================
+  // Working Directory CRUD
+  // ========================================================================
+
+  configAddWorkingDir: (name: string, dirPath: string) => ipcRenderer.invoke('config:addWorkingDir', name, dirPath),
+  configUpdateWorkingDir: (index: number, name: string, dirPath: string) => ipcRenderer.invoke('config:updateWorkingDir', index, name, dirPath),
+  configRemoveWorkingDir: (index: number) => ipcRenderer.invoke('config:removeWorkingDir', index),
+  configReorderWorkingDir: (index: number, direction: 'up' | 'down') =>
+    ipcRenderer.invoke('config:reorderWorkingDir', index, direction),
+
+  // ========================================================================
+  // Project Management
+  // ========================================================================
+
+  /** List all project records */
+  projectList: () => ipcRenderer.invoke('project:list'),
+
+  /** Get a single project record by ID */
+  projectGet: (id: string) => ipcRenderer.invoke('project:get', id),
+
+  /** Create or resolve a project from a canonical directory path */
+  projectCreate: (dirPath: string, name?: string) =>
+    ipcRenderer.invoke('project:create', dirPath, name),
+
+  /** Update a project's display name */
+  projectUpdate: (id: string, patch: { name: string }) =>
+    ipcRenderer.invoke('project:update', id, patch),
+
+  /** Delete a project record */
+  projectDelete: (id: string) => ipcRenderer.invoke('project:delete', id),
+
+  /** Add a directory path to a project's alternatePaths */
+  projectAddDir: (id: string, dirPath: string) =>
+    ipcRenderer.invoke('project:addDir', id, dirPath),
+
+  /** Remove a directory path from a project's alternatePaths */
+  projectRemoveDir: (id: string, dirPath: string) =>
+    ipcRenderer.invoke('project:removeDir', id, dirPath),
+
+  // ========================================================================
+  // Tools CRUD
+  // ========================================================================
+
+  toolsGetAll: () => ipcRenderer.invoke('tools:getAll'),
+  toolsAddCliType: (
+    key: string, name: string,
+    initialPrompt: Array<{label: string; sequence: string}>, initialPromptDelay: number,
+    options?: {
+      env?: Array<{ name: string; value: string }>;
+      handoffCommand?: string;
+      renameCommand?: string;
+      spawnCommand?: string;
+      resumeCommand?: string;
+      continueCommand?: string;
+      helmInitialPrompt?: boolean;
+      pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
+    },
+  ) => ipcRenderer.invoke('tools:addCliType', key, name, initialPrompt, initialPromptDelay, options),
+  toolsUpdateCliType: (
+    key: string, name: string,
+    initialPrompt: Array<{label: string; sequence: string}>, initialPromptDelay: number,
+    options?: {
+      env?: Array<{ name: string; value: string }>;
+      handoffCommand?: string;
+      renameCommand?: string;
+      spawnCommand?: string;
+      resumeCommand?: string;
+      continueCommand?: string;
+      helmInitialPrompt?: boolean;
+      pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
+    },
+  ) => ipcRenderer.invoke('tools:updateCliType', key, name, initialPrompt, initialPromptDelay, options),
+  toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),
+  toolsReorderCliType: (index: number, direction: 'up' | 'down') =>
+    ipcRenderer.invoke('tools:reorderCliType', index, direction),
+  toolsGetPatterns: (cliType: string) => ipcRenderer.invoke('tools:getPatterns', cliType),
+  toolsAddPattern: (cliType: string, rule: object) => ipcRenderer.invoke('tools:addPattern', cliType, rule),
+  toolsUpdatePattern: (cliType: string, index: number, rule: object) => ipcRenderer.invoke('tools:updatePattern', cliType, index, rule),
+  toolsRemovePattern: (cliType: string, index: number) => ipcRenderer.invoke('tools:removePattern', cliType, index),
+  patternCancelSchedule: (sessionId: string) => ipcRenderer.invoke('pattern:cancelSchedule', sessionId),
+
+  // ========================================================================
+  // Voice Keyboard (OS-level key events for voice bindings)
+  // ========================================================================
+
+  /**
+   * Tap a single key (voice binding tap mode)
+   */
+  keyboardKeyTap: (key: string) => ipcRenderer.invoke('keyboard:keyTap', key),
+
+  /**
+   * Tap a key combo (voice binding tap mode with modifiers)
+   */
+  keyboardSendKeyCombo: (keys: string[]) => ipcRenderer.invoke('keyboard:sendKeyCombo', keys),
+
+  /**
+   * Hold keys down (for hold bindings)
+   */
+  keyboardComboDown: (keys: string[]) => ipcRenderer.invoke('keyboard:comboDown', keys),
+
+  /**
+   * Release held keys
+   */
+  keyboardComboUp: (keys: string[]) => ipcRenderer.invoke('keyboard:comboUp', keys),
+
+  /**
+   * Type a string as OS-level keystrokes (per-CLI sendkeys paste mode)
+   */
+  keyboardTypeString: (text: string) => ipcRenderer.invoke('keyboard:typeString', text),
+
+  // ========================================================================
+  // System
+  // ========================================================================
+
+  systemOpenLogsFolder: () => ipcRenderer.invoke('system:openLogsFolder'),
+
+  /** Get app version from package.json via Electron */
+  appGetVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
+
+  /** Notify the main process that the renderer has finished startup. */
+  appStartupReady: (): Promise<void> => {
+    ipcRenderer.send('app:startupReady');
+    return Promise.resolve();
+  },
+
+  /** Open external editor (Notepad) for prompt composition */
+  editorOpenExternal: (): Promise<{ success: boolean; text?: string; error?: string }> =>
+    ipcRenderer.invoke('editor:openExternal'),
+
+  /** Write text to a temp file for draft/plan apply — returns file path on success */
+  writeTempContent: (content: string): Promise<{ success: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke('temp:writeContent', content),
+
+  /** Delete a temp file (best-effort cleanup after apply) */
+  deleteTemp: (filePath: string): Promise<void> =>
+    ipcRenderer.invoke('temp:deleteContent', filePath),
+
+  // ========================================================================
+  // Dialog
+  // ========================================================================
+
+  /** Open a native OS folder picker and return the selected path (or null if cancelled) */
+  dialogOpenFolder: (): Promise<string | null> => ipcRenderer.invoke('dialog:openFolder'),
+
+  // ========================================================================
+  // Telegram Bot
+  // ========================================================================
+
+  /** Get telegram bot configuration */
+  telegramGetConfig: () => ipcRenderer.invoke('telegram:getConfig'),
+
+  /** Update telegram bot configuration (partial merge) */
+  telegramSetConfig: (updates: Record<string, unknown>) => ipcRenderer.invoke('telegram:setConfig', updates),
+
+  /** Start the telegram bot */
+  telegramStart: () => ipcRenderer.invoke('telegram:start'),
+
+  /** Stop the telegram bot */
+  telegramStop: () => ipcRenderer.invoke('telegram:stop'),
+
+  /** Check if telegram bot is running */
+  telegramIsRunning: () => ipcRenderer.invoke('telegram:isRunning'),
+
+  /** Test telegram bot connection (validates token) */
+  telegramTestConnection: () => ipcRenderer.invoke('telegram:testConnection'),
+
+  // ========================================================================
+  // Draft Prompts
+  // ========================================================================
+
+  /** Create a new draft prompt for a session */
+  draftCreate: (sessionId: string, label: string, text: string) =>
+    ipcRenderer.invoke('draft:create', sessionId, label, text) as Promise<DraftPrompt>,
+
+  /** Update an existing draft */
+  draftUpdate: (draftId: string, updates: { label?: string; text?: string }) =>
+    ipcRenderer.invoke('draft:update', draftId, updates) as Promise<DraftPrompt | null>,
+
+  /** Delete a draft */
+  draftDelete: (draftId: string) =>
+    ipcRenderer.invoke('draft:delete', draftId),
+
+  /** Get all drafts for a session */
+  draftList: (sessionId: string) =>
+    ipcRenderer.invoke('draft:list', sessionId),
+
+  /** Get draft count for a session */
+  draftCount: (sessionId: string) =>
+    ipcRenderer.invoke('draft:count', sessionId),
+
+  // ─── Directory Plans ────────────────────────────────────
+
+  /** Get all plan items for a directory */
+  planList: (dirPath: string) =>
+    ipcRenderer.invoke('plan:list', dirPath),
+
+  /** Create a new plan item */
+  planCreate: (dirPath: string, title: string, description: string, type?: 'bug' | 'feature' | 'research', autoImplement?: boolean) =>
+    ipcRenderer.invoke('plan:create', dirPath, title, description, type, autoImplement),
+
+  /** Update a plan item's title, description, and/or type */
+  planUpdate: (id: string, updates: { title?: string; description?: string; type?: 'bug' | 'feature' | 'research'; autoImplement?: boolean }) =>
+    ipcRenderer.invoke('plan:update', id, updates),
+
+  /** Delete a plan item */
+  planDelete: (id: string) =>
+    ipcRenderer.invoke('plan:delete', id),
+
+  /** Delete all completed (done) plan items for a directory */
+  planClearCompleted: (dirPath: string): Promise<number> =>
+    ipcRenderer.invoke('plan:clearCompleted', dirPath),
+
+  /** Add a dependency edge (fromId must finish before toId can start) */
+  planAddDep: (fromId: string, toId: string) =>
+    ipcRenderer.invoke('plan:addDep', fromId, toId),
+
+  /** Remove a dependency edge */
+  planRemoveDep: (fromId: string, toId: string) =>
+    ipcRenderer.invoke('plan:removeDep', fromId, toId),
+
+  /** Apply a ready plan to a session (ready → coding) */
+  planApply: (id: string, sessionId: string) =>
+    ipcRenderer.invoke('plan:apply', id, sessionId),
+
+  /** Mark a coding or review plan as complete (coding/review → done) */
+  planComplete: (id: string, completionNotes?: string) =>
+    ipcRenderer.invoke('plan:complete', id, completionNotes),
+
+  /** Reopen a done plan back to ready or planning */
+  planReopen: (id: string) =>
+    ipcRenderer.invoke('plan:reopen', id),
+
+  /** Manually set a plan state and optional context */
+  planSetState: (
+    id: string,
+    status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done',
+    stateInfo?: string,
+    sessionId?: string,
+  ) => ipcRenderer.invoke('plan:setState', id, status, stateInfo, sessionId),
+
+  /** Get ready plans for a directory */
+  planStartableForDir: (dirPath: string) =>
+    ipcRenderer.invoke('plan:startableForDir', dirPath),
+
+  /** Get plans currently being worked on by a session */
+  planDoingForSession: (sessionId: string) =>
+    ipcRenderer.invoke('plan:doingForSession', sessionId),
+
+  /** Get all active plans for a directory across sessions */
+  planGetAllDoingForDir: (dirPath: string) =>
+    ipcRenderer.invoke('plan:getAllDoingForDir', dirPath),
+
+  /** Get all dependencies for a directory */
+  planDeps: (dirPath: string) =>
+    ipcRenderer.invoke('plan:deps', dirPath),
+
+  /** Get a single plan item by ID */
+  planGetItem: (id: string) =>
+    ipcRenderer.invoke('plan:getItem', id),
+
+  /** Get plan sequences for a directory */
+  planSequenceList: (dirPath: string) =>
+    ipcRenderer.invoke('plan:sequence-list', dirPath),
+
+  /** Create a plan sequence */
+  planSequenceCreate: (dirPath: string, title: string, missionStatement = '', sharedMemory = '') =>
+    ipcRenderer.invoke('plan:sequence-create', dirPath, title, missionStatement, sharedMemory),
+
+  /** Update a plan sequence */
+  planSequenceUpdate: (
+    id: string,
+    updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number },
+  ) => ipcRenderer.invoke('plan:sequence-update', id, updates),
+
+  /** Delete a plan sequence */
+  planSequenceDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:sequence-delete', id),
+
+  /** Assign or unassign a plan from a sequence */
+  planSequenceAssign: (planId: string, sequenceId: string | null) =>
+    ipcRenderer.invoke('plan:sequence-assign', planId, sequenceId),
+
+  /** Bulk-assign multiple plans to a sequence (or unassign with null) */
+  planBulkAssignSequence: (planIds: string[], sequenceId: string | null) =>
+    ipcRenderer.invoke('plan:bulkAssignSequence', planIds, sequenceId),
+
+  /** Delete a sequence and hard-delete all its member plan items */
+  planSequenceDeleteWithPlans: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:sequence-delete-with-plans', id),
+
+  /** List context nodes for a directory */
+  planContextList: (dirPath: string) =>
+    ipcRenderer.invoke('plan:context-list', dirPath),
+
+  /** Create a context node */
+  planContextCreate: (
+    dirPath: string,
+    input: { title: string; type?: string; permission?: 'readonly' | 'writable'; content?: string; x?: number | null; y?: number | null },
+  ) => ipcRenderer.invoke('plan:context-create', dirPath, input),
+
+  /** Update a context node */
+  planContextUpdate: (
+    id: string,
+    updates: { title?: string; type?: string; permission?: 'readonly' | 'writable'; content?: string; x?: number | null; y?: number | null },
+  ) => ipcRenderer.invoke('plan:context-update', id, updates),
+
+  /** Delete a context node */
+  planContextDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:context-delete', id),
+
+  /** Get one context node */
+  planContextGet: (id: string) =>
+    ipcRenderer.invoke('plan:context-get', id),
+
+  /** Append text to a writable context node */
+  planContextAppend: (id: string, text: string, expectedUpdatedAt?: number) =>
+    ipcRenderer.invoke('plan:context-append', id, text, expectedUpdatedAt),
+
+  /** Persist the X/Y position of a context node */
+  planContextSetPosition: (id: string, x: number | null, y: number | null) =>
+    ipcRenderer.invoke('plan:context-set-position', id, x, y),
+
+  /** Bind a context node to a sequence or plan */
+  planContextBind: (id: string, targetType: 'sequence' | 'plan', targetId: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:context-bind', id, targetType, targetId),
+
+  /** Unbind a context node from a sequence or plan */
+  planContextUnbind: (id: string, targetType: 'sequence' | 'plan', targetId: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:context-unbind', id, targetType, targetId),
+
+  /** List files attached to a plan */
+  planAttachmentList: (planId: string) =>
+    ipcRenderer.invoke('plan:attachment-list', planId),
+
+  /** Check which plan IDs have any attachments */
+  planAttachmentHasAny: (planIds: string[]): Promise<Record<string, boolean>> =>
+    ipcRenderer.invoke('plan:attachment-has-any', planIds),
+
+  /** Copy a local file into plan-owned attachment storage */
+  planAttachmentAddFile: (planId: string, filePath: string) =>
+    ipcRenderer.invoke('plan:attachment-add-file', planId, filePath),
+
+  /** Delete a stored plan attachment */
+  planAttachmentDelete: (planId: string, attachmentId: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:attachment-delete', planId, attachmentId),
+
+  /** Copy an attachment to a temp file and open it with the OS default handler */
+  planAttachmentOpen: (planId: string, attachmentId: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:attachment-open', planId, attachmentId),
+
+  /** List files in the incoming plans folder */
+  planIncomingList: (): Promise<string[]> =>
+    ipcRenderer.invoke('plan:incoming-list'),
+
+  /** Delete a file from the incoming plans folder */
+  planIncomingDelete: (filename: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:incoming-delete', filename),
+
+  /** Open an incoming plan file with the OS default handler */
+  planIncomingOpen: (filename: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:incoming-open', filename),
+
+  /** Export a single plan item as JSON string */
+  planExportItem: (planId: string): Promise<string | null> =>
+    ipcRenderer.invoke('plan:export-item', planId),
+
+  /** Export an entire directory's plans as JSON string */
+  planExportDirectory: (dirPath: string): Promise<string | null> =>
+    ipcRenderer.invoke('plan:export-directory', dirPath),
+
+  /** Read a local file and return its content as a string */
+  planReadFile: (filePath: string): Promise<string | null> =>
+    ipcRenderer.invoke('plan:read-file', filePath),
+
+  /** Write content to a local file (creates parent directories) */
+  planWriteFile: (filePath: string, content: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:write-file', filePath, content),
+
+  // ── Plan Backup API ───────────────────────────────────────────────────────
+
+  /** List all backups for a directory */
+  planListBackups: (dirPath: string) =>
+    ipcRenderer.invoke('plan:listBackups', dirPath),
+
+  /** Get backup summary for a directory */
+  planGetBackupSummary: (dirPath: string) =>
+    ipcRenderer.invoke('plan:getBackupSummary', dirPath),
+
+  /** Restore a directory from a backup snapshot */
+  planRestoreBackup: (snapshotPath: string) =>
+    ipcRenderer.invoke('plan:restoreBackup', snapshotPath),
+
+  /** Delete a specific backup snapshot */
+  planDeleteBackup: (snapshotPath: string): Promise<boolean> =>
+    ipcRenderer.invoke('plan:deleteBackup', snapshotPath),
+
+  /** Manually create a backup snapshot for a directory */
+  planCreateBackupNow: (dirPath: string) =>
+    ipcRenderer.invoke('plan:createBackupNow', dirPath),
+
+  /** Get the current backup configuration */
+  planGetBackupConfig: () =>
+    ipcRenderer.invoke('plan:getBackupConfig'),
+
+  /** Update the backup configuration */
+  planSetBackupConfig: (config: {
+    enabled?: boolean;
+    maxSnapshots?: number;
+    snapshotIntervalMs?: number;
+    excludePaths?: string[];
+  }): Promise<boolean> =>
+    ipcRenderer.invoke('plan:setBackupConfig', config),
+
+  /** Delete all backups for a directory */
+  planDeleteAllBackups: (dirPath: string): Promise<number> =>
+    ipcRenderer.invoke('plan:deleteAllBackups', dirPath),
+
+  /** Open a detached planner window for a directory. */
+  planPopOut: (dirPath: string): Promise<{ success: boolean; windowId?: number; reused?: boolean; error?: string }> =>
+    ipcRenderer.invoke('plan:popOut', dirPath),
+
+  /** Subscribe to backup snapshot creation events */
+  onPlanBackupCreated: (callback: (metadata: { timestamp: string; dirPath: string; planCount: number; dependencyCount: number; status: string; index: number }, snapshotPath: string) => void) => {
+    const listener = (_event: unknown, metadata: { timestamp: string; dirPath: string; planCount: number; dependencyCount: number; status: string; index: number }, snapshotPath: string) => callback(metadata, snapshotPath);
+    ipcRenderer.on('plan-backup:created', listener);
+    return () => ipcRenderer.removeListener('plan-backup:created', listener);
+  },
+
+  /** Subscribe to backup snapshot deletion events */
+  onPlanBackupDeleted: (callback: (snapshotPath: string) => void) => {
+    const listener = (_event: unknown, snapshotPath: string) => callback(snapshotPath);
+    ipcRenderer.on('plan-backup:deleted', listener);
+    return () => ipcRenderer.removeListener('plan-backup:deleted', listener);
+  },
+
+  /** Subscribe to backup restoration events */
+  onPlanBackupRestored: (callback: (metadata: { timestamp: string; dirPath: string; planCount: number; dependencyCount: number; status: string; index: number }, planCount: number, dependencyCount: number) => void) => {
+    const listener = (_event: unknown, metadata: { timestamp: string; dirPath: string; planCount: number; dependencyCount: number; status: string; index: number }, planCount: number, dependencyCount: number) => callback(metadata, planCount, dependencyCount);
+    ipcRenderer.on('plan-backup:restored', listener);
+    return () => ipcRenderer.removeListener('plan-backup:restored', listener);
+  },
+
+  /** Subscribe to backup config change events */
+  onPlanBackupConfigChanged: (callback: (config: { enabled: boolean; maxSnapshots: number; snapshotIntervalMs: number; excludePaths?: string[] }) => void) => {
+    const listener = (_event: unknown, config: { enabled: boolean; maxSnapshots: number; snapshotIntervalMs: number; excludePaths?: string[] }) => callback(config);
+    ipcRenderer.on('plan-backup:config-changed', listener);
+    return () => ipcRenderer.removeListener('plan-backup:config-changed', listener);
+  },
+
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /** Open a file picker dialog and return the chosen path */
+  dialogShowOpenFile: (filters?: { name: string; extensions: string[] }[]): Promise<string | null> =>
+    ipcRenderer.invoke('dialog:showOpenFile', filters),
+
+  /** Open a save dialog and return the chosen path */
+  dialogShowSaveFile: (defaultFilename?: string, filters?: { name: string; extensions: string[] }[]): Promise<string | null> =>
+    ipcRenderer.invoke('dialog:showSaveFile', defaultFilename, filters),
+
+  /** Subscribe to plan change events */
+  onPlanChanged: (callback: (dirPath: string) => void) => {
+    const listener = (_event: unknown, dirPath: string) => callback(dirPath);
+    ipcRenderer.on('plan:changed', listener);
+    return () => ipcRenderer.removeListener('plan:changed', listener);
+  },
+
+  /** Subscribe to successful incoming plan import notifications */
+  onPlanIncomingImported: (callback: (event: { filename: string; title: string; dirPath: string }) => void) => {
+    const listener = (_event: unknown, data: { filename: string; title: string; dirPath: string }) => callback(data);
+    ipcRenderer.on('plan:incoming-imported', listener);
+    return () => ipcRenderer.removeListener('plan:incoming-imported', listener);
+  },
+
+  /** Subscribe to incoming plan import error notifications */
+  onPlanIncomingError: (callback: (event: { filename: string; error: string; filePath: string }) => void) => {
+    const listener = (_event: unknown, data: { filename: string; error: string; filePath: string }) => callback(data);
+    ipcRenderer.on('plan:incoming-error', listener);
+    return () => ipcRenderer.removeListener('plan:incoming-error', listener);
+  },
+
+  /** Subscribe to incoming plan error cleared notifications (file fixed or removed) */
+  onPlanIncomingErrorCleared: (callback: (event: { filename: string }) => void) => {
+    const listener = (_event: unknown, data: { filename: string }) => callback(data);
+    ipcRenderer.on('plan:incoming-error-cleared', listener);
+    return () => ipcRenderer.removeListener('plan:incoming-error-cleared', listener);
+  },
+
+  onPatternScheduleCreated: (callback: (event: { sessionId: string; scheduledAt: string; ruleIndex: number }) => void) => {
+    const listener = (_e: unknown, event: { sessionId: string; scheduledAt: string; ruleIndex: number }) => callback(event);
+    ipcRenderer.on('pattern:schedule-created', listener);
+    return () => ipcRenderer.removeListener('pattern:schedule-created', listener);
+  },
+
+  onPatternScheduleFired: (callback: (event: { sessionId: string }) => void) => {
+    const listener = (_e: unknown, event: { sessionId: string }) => callback(event);
+    ipcRenderer.on('pattern:schedule-fired', listener);
+    return () => ipcRenderer.removeListener('pattern:schedule-fired', listener);
+  },
+
+  onPatternScheduleCancelled: (callback: (event: { sessionId: string }) => void) => {
+    const listener = (_e: unknown, event: { sessionId: string }) => callback(event);
+    ipcRenderer.on('pattern:schedule-cancelled', listener);
+    return () => ipcRenderer.removeListener('pattern:schedule-cancelled', listener);
+  },
+
+  // ========================================================================
+  // Scheduled Tasks
+  // ========================================================================
+
+  /** Create a new scheduled task */
+  scheduledTaskCreate: (params: {
+    title: string;
+    description?: string;
+    planIds: string[];
+    initialPrompt: string;
+    cliType: string;
+    cliParams?: string;
+    scheduledTime: Date;
+    scheduleKind?: 'once' | 'interval' | 'cron';
+    intervalMs?: number;
+    cronExpression?: string;
+    endDate?: Date;
+    dirPath: string;
+    mode?: 'spawn' | 'direct';
+    targetSessionId?: string;
+  }) => ipcRenderer.invoke('scheduled_task:create', params),
+
+  /** List all scheduled tasks */
+  scheduledTaskList: () => ipcRenderer.invoke('scheduled_task:list'),
+
+  /** Get a single scheduled task by ID */
+  scheduledTaskGet: (id: string) => ipcRenderer.invoke('scheduled_task:get', id),
+
+  /** Update a pending scheduled task */
+  scheduledTaskUpdate: (id: string, updates: {
+    title?: string;
+    description?: string;
+    planIds?: string[];
+    initialPrompt?: string;
+    cliType?: string;
+    cliParams?: string;
+    scheduledTime?: Date;
+    scheduleKind?: 'once' | 'interval' | 'cron';
+    intervalMs?: number;
+    cronExpression?: string;
+    endDate?: Date;
+    dirPath?: string;
+    mode?: 'spawn' | 'direct';
+    targetSessionId?: string;
+  }) => ipcRenderer.invoke('scheduled_task:update', id, updates),
+
+  /** Cancel a pending scheduled task */
+  scheduledTaskCancel: (id: string) => ipcRenderer.invoke('scheduled_task:cancel', id),
+
+  /** Delete a scheduled task */
+  scheduledTaskDelete: (id: string) => ipcRenderer.invoke('scheduled_task:delete', id),
+
+  /** Subscribe to scheduled task change events */
+  onScheduledTaskChanged: (callback: (task: { id: string; title: string; status: string }) => void) => {
+    const listener = (_e: unknown, task: { id: string; title: string; status: string }) => callback(task);
+    ipcRenderer.on('scheduled-task:changed', listener);
+    return () => ipcRenderer.removeListener('scheduled-task:changed', listener);
+  },
+
+} as const;
+
+export type PreloadMethodImplementations = typeof PRELOAD_METHOD_IMPLEMENTATIONS;
+
+export function createHelmPreloadApi(): HelmPreloadApi<PreloadMethodImplementations> {
+  return createPreloadDomains(PRELOAD_METHOD_IMPLEMENTATIONS);
+}
