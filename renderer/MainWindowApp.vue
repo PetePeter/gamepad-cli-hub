@@ -19,13 +19,11 @@ import { sessionsState } from './screens/sessions-state.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { getCliDisplayName, getCliIcon } from './utils.js';
 import { initConfigCache, executeSequence } from './bindings.js';
-import { refreshSessions, doSpawn, doSpawnShell, switchToSession, doCloseSession,
+import { doSpawn, doSpawnShell, switchToSession, doCloseSession,
   bootstrap, teardown, startTimerRefresh, stopTimerRefresh,
-  getSortField, getSortDirection, setSortField, setSortDirection,
   setPendingContextText, restoreSnappedBackSession, refreshProjects,
 } from './composables/useAppBootstrap.js';
 import { formatElapsed } from '../src/utils/time-parser.js';
-import { type SessionSortField, type SortDirection } from './sort-logic.js';
 import { findNavIndexBySessionId, getVisibleSessions, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
 import { getOverviewSessions } from './screens/group-overview.js';
 import {
@@ -61,20 +59,16 @@ import {
   toggleHasAttachmentFilter,
   refreshCanvasIfVisible,
 } from './plans/plan-screen.js';
-import { toggleSessionOverviewVisibility, setSessionState, toggleGroupCollapse } from './screens/sessions.js';
 import { usePanelResize } from './composables/usePanelResize.js';
-import { setSpawnCollapsed, setPlannerCollapsed } from './sidebar/section-collapse.js';
-import { setDirPickerBridge } from './screens/sessions-spawn.js';
 import { onViewChange, type MainView as ViewName } from './main-view/main-view-manager.js';
 import { useToast } from './composables/useToast.js';
 import { useSettingsController } from './composables/useSettingsController.js';
 import { useInputRouter } from './composables/useInputRouter.js';
-import { appClient, backupsClient, configClient, deliveryClient, draftsClient, eventsClient, patternsClient, plansClient, schedulerClient, sessionsClient } from './ipc/clients.js';
+import { useSidebarController } from './composables/useSidebarController.js';
+import { appClient, backupsClient, configClient, deliveryClient, draftsClient, eventsClient, plansClient, sessionsClient } from './ipc/clients.js';
 import {
-  closeConfirm, setCloseConfirmCallback,
   contextMenu,
   openQuickSpawn,
-  dirPicker, openDirPicker,
   draftSubmenu,
   toolEditor,
   isAnyBridgeModalVisible,
@@ -110,7 +104,6 @@ import {
 } from './plans/plan-screen.js';
 import { deliverBulkText } from './paste-handler.js';
 import { deliverPromptSequence } from './sequence-delivery.js';
-import { startRename, commitRename, cancelRename } from './screens/sessions-render.js';
 
 // Sidebar components
 import StatusStrip from './components/sidebar/StatusStrip.vue';
@@ -185,10 +178,6 @@ let offTextDeliver: (() => void) | null = null;
 let unsubSnapOut: (() => void) | null = null;
 let unsubSnapBack: (() => void) | null = null;
 let unsubLlmNotify: (() => void) | null = null;
-
-// Overview state
-const overviewCollapsedIds = ref<Set<string>>(new Set());
-const overviewGroupLabel = ref('');
 
 // Backup restore modal state
 interface BackupMeta {
@@ -271,12 +260,50 @@ const {
   openBindingEditor: (button, cliType, binding) => onEditBinding(button, cliType, binding),
 });
 
-// Section collapse
-const spawnCollapsed = ref(false);
-const plannerCollapsed = ref(false);
-const schedulerCollapsed = ref(false);
-const schedulerPopupVisible = ref(false);
-const schedulerPopupTaskId = ref<string | null>(null);
+const {
+  overviewCollapsedIds,
+  overviewGroupLabel,
+  spawnCollapsed,
+  plannerCollapsed,
+  schedulerCollapsed,
+  schedulerPopupVisible,
+  schedulerPopupTaskId,
+  getSortField,
+  getSortDirection,
+  onSessionClick,
+  onSessionRename,
+  onCommitRename,
+  onCancelRename,
+  onRequestClose,
+  onSessionStateChange,
+  onOverviewSelect,
+  onOverviewToggleCollapse,
+  onGroupToggleCollapse,
+  onShowPlans,
+  onShowOverview,
+  onShowGlobalOverview,
+  onToggleOverview,
+  onCancelSchedule,
+  onSessionSnapOut,
+  onSessionSnapBack,
+  loadCollapsePrefs,
+  toggleSpawnCollapse,
+  togglePlannerCollapse,
+  toggleSchedulerCollapse,
+  openSchedulerPopup,
+  deleteScheduledTask,
+  onSpawn,
+  onDirPickerSelect,
+  onSortChange,
+  installDirPickerBridge,
+} = useSidebarController({
+  activeView,
+  navStore,
+  llmNotificationsStore,
+  refreshProjects,
+  doSpawn,
+  doCloseSession,
+});
 
 // Panel resize
 const { splitterRef, panelRef } = usePanelResize({
@@ -314,29 +341,6 @@ const plansDirItems = computed(() =>
     planningCount: state.planDirPlanningCounts.get(d.path) ?? 0,
   }))
 );
-
-function normalizePathForMatch(path: string): string {
-  return path.toLowerCase();
-}
-
-function findProjectForDirPath(dirPath: string) {
-  const normalized = normalizePathForMatch(dirPath);
-  return state.projects.find(project =>
-    normalizePathForMatch(project.canonicalPath) === normalized
-    || project.alternatePaths.some(alt => normalizePathForMatch(alt) === normalized));
-}
-
-function buildDirPickerItems(dirs: Array<{ name: string; path: string }>) {
-  return dirs.map(dir => {
-    const project = findProjectForDirPath(dir.path);
-    return {
-      name: dir.name,
-      path: dir.path,
-      projectId: project?.id,
-      projectName: project?.name,
-    };
-  });
-}
 
 const hasActiveSession = computed(() => !!state.activeSessionId);
 
@@ -461,31 +465,6 @@ const { handleButton, handleRelease, handleModalKeyboardBridge } = useInputRoute
   navStore,
 });
 
-// ============================================================================
-// Session actions
-// ============================================================================
-
-async function onSessionClick(sessionId: string): Promise<void> {
-  if (isAnyBridgeModalVisible()) return;
-  llmNotificationsStore.dismissSession(sessionId);
-  if (activeView.value === 'overview') {
-    await navStore.closeOverview();
-  }
-  await navStore.navigateToSession(sessionId);
-}
-
-function onSessionRename(sessionId: string): void {
-  startRename(sessionId);
-}
-
-async function onCommitRename(sessionId: string, newName: string): Promise<void> {
-  await commitRename(sessionId, newName);
-}
-
-function onCancelRename(): void {
-  cancelRename();
-}
-
 function handleRenameRequest(e: Event): void {
   const detail = (e as CustomEvent).detail as { sessionId: string } | undefined;
   if (detail?.sessionId) {
@@ -590,154 +569,6 @@ async function saveContextEditor(
   const pendingUnbinds = draftEditorPendingContextUnbinds.value;
   draftEditorPendingContextUnbinds.value = [];
   await onPlanContextSave(id, updates, pendingUnbinds);
-}
-
-function onRequestClose(sessionId: string, displayName: string): void {
-  closeConfirm.sessionId = sessionId;
-  closeConfirm.sessionName = displayName;
-  closeConfirm.draftCount = state.draftCounts.get(sessionId) ?? 0;
-  closeConfirm.visible = true;
-  setCloseConfirmCallback((targetSessionId: string) => {
-    void doCloseSession(targetSessionId);
-  });
-}
-
-async function onSessionStateChange(sessionId: string, newState: string): Promise<void> {
-  await setSessionState(sessionId, newState);
-}
-
-// Overview actions
-function onOverviewSelect(sessionId: string): void {
-  void navStore.navigateToSession(sessionId);
-}
-
-function onOverviewToggleCollapse(sessionId: string): void {
-  if (overviewCollapsedIds.value.has(sessionId)) {
-    overviewCollapsedIds.value.delete(sessionId);
-  } else {
-    overviewCollapsedIds.value.add(sessionId);
-  }
-}
-
-// Group actions
-function onGroupToggleCollapse(dirPath: string): void {
-  void toggleGroupCollapse(dirPath);
-}
-
-function onShowPlans(dirPath: string): void {
-  void navStore.openPlan(dirPath);
-}
-
-function onShowOverview(dirPath: string): void {
-  void navStore.openOverview(dirPath, state.activeSessionId ?? undefined);
-}
-
-function onShowGlobalOverview(): void {
-  void navStore.openOverview(null, state.activeSessionId ?? undefined);
-}
-
-function onToggleOverview(sessionId: string): void {
-  void toggleSessionOverviewVisibility(sessionId);
-}
-
-async function onCancelSchedule(sessionId: string): Promise<void> {
-  try {
-    await patternsClient.patternCancelSchedule(sessionId);
-  } catch { /* ignore */ }
-}
-
-async function onSessionSnapOut(sessionId: string): Promise<void> {
-  try {
-    await sessionsClient.sessionSnapOut(sessionId);
-  } catch (error) {
-    console.error('Failed to snap out session:', error);
-  }
-}
-
-async function onSessionSnapBack(sessionId: string): Promise<void> {
-  try {
-    await sessionsClient.sessionSnapBack(sessionId);
-  } catch (error) {
-    console.error('Failed to snap back session:', error);
-  }
-}
-
-// Section collapse
-async function loadCollapsePrefs(): Promise<void> {
-  try {
-    const prefs = await configClient.configGetCollapsePrefs();
-    if (prefs) {
-      spawnCollapsed.value = prefs.spawnCollapsed ?? false;
-      plannerCollapsed.value = prefs.plannerCollapsed ?? false;
-      schedulerCollapsed.value = (prefs as any).schedulerCollapsed ?? false;
-      // Keep navigation module in sync (used by handleSessionsZone bounds checks)
-      setSpawnCollapsed(spawnCollapsed.value);
-      setPlannerCollapsed(plannerCollapsed.value);
-    }
-  } catch { /* first run — defaults are fine */ }
-}
-
-function toggleSpawnCollapse(): void {
-  spawnCollapsed.value = !spawnCollapsed.value;
-  setSpawnCollapsed(spawnCollapsed.value);
-  configClient.configSetCollapsePrefs({
-    spawnCollapsed: spawnCollapsed.value,
-    plannerCollapsed: plannerCollapsed.value,
-    schedulerCollapsed: schedulerCollapsed.value,
-  });
-}
-
-function togglePlannerCollapse(): void {
-  plannerCollapsed.value = !plannerCollapsed.value;
-  setPlannerCollapsed(plannerCollapsed.value);
-  configClient.configSetCollapsePrefs({
-    spawnCollapsed: spawnCollapsed.value,
-    plannerCollapsed: plannerCollapsed.value,
-    schedulerCollapsed: schedulerCollapsed.value,
-  });
-}
-
-function toggleSchedulerCollapse(): void {
-  schedulerCollapsed.value = !schedulerCollapsed.value;
-  configClient.configSetCollapsePrefs({
-    spawnCollapsed: spawnCollapsed.value,
-    plannerCollapsed: plannerCollapsed.value,
-    schedulerCollapsed: schedulerCollapsed.value,
-  });
-}
-
-function openSchedulerPopup(taskId: string | null): void {
-  schedulerPopupTaskId.value = taskId;
-  schedulerPopupVisible.value = true;
-}
-
-async function deleteScheduledTask(task: ScheduledTask): Promise<void> {
-  const confirmed = window.confirm(`Delete scheduled task "${task.title}"?`);
-  if (!confirmed) return;
-  await schedulerClient.scheduledTaskDelete(task.id);
-}
-
-// Spawn
-async function onSpawn(cliType: string): Promise<void> {
-  await refreshProjects();
-  const dirs = sessionsState.directories;
-  if (dirs && dirs.length > 0) {
-    openDirPicker(cliType, buildDirPickerItems(dirs));
-  } else {
-    doSpawn(cliType);
-  }
-}
-
-function onDirPickerSelect(path: string, selectedCliType = dirPicker.cliType): void {
-  const cliType = selectedCliType;
-  doSpawn(cliType, path);
-}
-
-// Sort
-function onSortChange(field: string, direction: 'asc' | 'desc'): void {
-  setSortField(field as SessionSortField);
-  setSortDirection(direction as SortDirection);
-  void refreshSessions();
 }
 
 // Context menu
@@ -1112,10 +943,7 @@ onMounted(async () => {
       },
     });
 
-    // Wire sessions-spawn dir picker to Vue DirPickerModal
-    setDirPickerBridge((cliType, dirs, preselectedPath) => {
-      openDirPicker(cliType, buildDirPickerItems(dirs), preselectedPath);
-    });
+    installDirPickerBridge();
 
     // Keyboard → modal stack bridge (all navigation keys reach modals via unified path)
     window.addEventListener('keydown', handleModalKeyboardBridge, true);
