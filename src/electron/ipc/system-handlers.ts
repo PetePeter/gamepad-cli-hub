@@ -12,10 +12,6 @@ import { logger, logDir } from '../../utils/logger.js';
 import { getTempDir } from '../../utils/app-paths.js';
 
 export function setupSystemHandlers(dirname: string): void {
-  ipcMain.on('app:getVersionSync', (event) => {
-    event.returnValue = app.getVersion();
-  });
-
   ipcMain.handle('app:getVersion', () => app.getVersion());
   ipcMain.handle('system:openLogsFolder', async () => {
     try {
