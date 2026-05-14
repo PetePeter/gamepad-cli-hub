@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from 'vue';
-import type { PlanStatus, PlanType } from '../../src/types/plan.js';
-import type { PlanCallbacks, ContextCallbacks } from './panels/DraftEditor.vue';
+import { onMounted, onUnmounted, reactive } from 'vue';
 import PlanScreen from './panels/PlanScreen.vue';
 import DraftEditor from './panels/DraftEditor.vue';
 import BackupRestoreModal from './modals/BackupRestoreModal.vue';
+import { useDraftPlanContextEditor } from '../composables/useDraftPlanContextEditor.js';
 import { backupsClient, eventsClient, sessionsClient } from '../ipc/clients.js';
 import {
   showPlanScreen,
@@ -65,29 +64,42 @@ interface BackupMeta {
 
 const props = defineProps<{ dirPath: string }>();
 
-const draftEditorVisible = ref(false);
-const draftEditorMode = ref<'draft' | 'plan' | 'context'>('plan');
-const draftEditorSessionId = ref('');
-const draftEditorPlanId = ref<string | null>(null);
-const draftEditorPlanStatus = ref<PlanStatus>('planning');
-const draftEditorPlanStateInfo = ref('');
-const draftEditorPlanType = ref<PlanType | undefined>(undefined);
-const draftEditorPlanAutoImplement = ref(false);
-const draftEditorPlanHumanId = ref('');
-const draftEditorPlanCreatedAt = ref<number | null>(null);
-const draftEditorPlanStateUpdatedAt = ref<number | null>(null);
-const draftEditorPlanCallbacks = ref<PlanCallbacks | null>(null);
-const draftEditorCompletionNotes = ref('');
-const draftEditorLabel = ref('');
-const draftEditorText = ref('');
-const draftEditorRef = ref<InstanceType<typeof DraftEditor> | null>(null);
-const draftEditorContextId = ref<string | null>(null);
-const draftEditorContextType = ref('Knowledge');
-const draftEditorContextPermission = ref<'readonly' | 'writable'>('readonly');
-const draftEditorContextCallbacks = ref<ContextCallbacks | null>(null);
-const draftEditorContextBoundPlans = ref<Array<{ id: string; title: string; humanId?: string; type?: PlanType; status?: PlanStatus }>>([]);
-const draftEditorContextBoundSequences = ref<Array<{ id: string; title: string }>>([]);
-const draftEditorPendingContextUnbinds = ref<Array<{ targetType: 'plan' | 'sequence'; targetId: string }>>([]);
+const {
+  draftEditorVisible,
+  draftEditorMode,
+  draftEditorSessionId,
+  draftEditorLabel,
+  draftEditorText,
+  draftEditorPlanId,
+  draftEditorPlanStatus,
+  draftEditorPlanStateInfo,
+  draftEditorPlanType,
+  draftEditorPlanAutoImplement,
+  draftEditorPlanHumanId,
+  draftEditorPlanCreatedAt,
+  draftEditorPlanStateUpdatedAt,
+  draftEditorPlanCallbacks,
+  draftEditorCompletionNotes,
+  draftEditorContextId,
+  draftEditorContextType,
+  draftEditorContextPermission,
+  draftEditorContextCallbacks,
+  draftEditorContextBoundPlans,
+  draftEditorContextBoundSequences,
+  draftEditorRef,
+  openPlanEditor,
+  openContextEditor,
+  closeDraftEditor,
+  saveContextEditor,
+  onPlanSave,
+  onPlanApply,
+  onPlanDone,
+  onPlanDelete,
+  onContextDelete,
+  hasUnsavedChanges,
+} = useDraftPlanContextEditor({
+  saveContext: (id, updates, pendingUnbinds) => onPlanContextSave(id, updates, pendingUnbinds),
+});
 
 const backupRestore = reactive({
   visible: false,
@@ -99,93 +111,6 @@ const backupRestore = reactive({
 let offPlanChanged: (() => void) | null = null;
 let offSessionUpdated: (() => void) | null = null;
 let offSessionSpawned: (() => void) | null = null;
-
-function openPlanEditor(
-  sessionId: string,
-  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
-  callbacks: PlanCallbacks,
-): void {
-  draftEditorMode.value = 'plan';
-  draftEditorSessionId.value = sessionId;
-  draftEditorPlanId.value = plan.id;
-  draftEditorPlanStatus.value = plan.status;
-  draftEditorPlanStateInfo.value = plan.stateInfo ?? '';
-  draftEditorPlanType.value = plan.type;
-  draftEditorPlanAutoImplement.value = Boolean(plan.autoImplement);
-  draftEditorPlanHumanId.value = plan.humanId ?? '';
-  draftEditorPlanCreatedAt.value = plan.createdAt ?? null;
-  draftEditorPlanStateUpdatedAt.value = plan.stateUpdatedAt ?? plan.createdAt ?? null;
-  draftEditorCompletionNotes.value = plan.completionNotes ?? '';
-  draftEditorLabel.value = plan.title;
-  draftEditorText.value = plan.description;
-  draftEditorPlanCallbacks.value = callbacks;
-  draftEditorVisible.value = true;
-}
-
-function closeDraftEditor(): void {
-  draftEditorPlanCallbacks.value?.onClose?.();
-  draftEditorContextCallbacks.value?.onClose?.();
-  draftEditorPlanId.value = null;
-  draftEditorContextId.value = null;
-  draftEditorPendingContextUnbinds.value = [];
-  draftEditorVisible.value = false;
-}
-
-function openContextEditor(
-  context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string; planIds?: string[]; sequenceIds?: string[] },
-  callbacks: ContextCallbacks,
-): void {
-  draftEditorMode.value = 'context';
-  draftEditorSessionId.value = '';
-  draftEditorContextId.value = context.id;
-  draftEditorContextType.value = context.type;
-  draftEditorContextPermission.value = context.permission;
-  draftEditorLabel.value = context.title;
-  draftEditorText.value = context.content;
-  draftEditorPlanCallbacks.value = null;
-  draftEditorPendingContextUnbinds.value = [];
-  draftEditorContextCallbacks.value = {
-    ...callbacks,
-    onSave: (updates) => {
-      void saveContextEditor(context.id, updates);
-    },
-    onUnbind: queueContextUnbind,
-  };
-  draftEditorContextBoundPlans.value = (context.planIds ?? [])
-    .map((pid) => planScreenState.items.find((item) => item.id === pid))
-    .filter(Boolean)
-    .map((item) => ({
-      id: item!.id,
-      title: item!.title,
-      humanId: item!.humanId,
-      type: item!.type,
-      status: item!.status,
-    }));
-  draftEditorContextBoundSequences.value = (context.sequenceIds ?? [])
-    .map((sid) => planScreenState.sequences.find((seq) => seq.id === sid))
-    .filter(Boolean) as Array<{ id: string; title: string }>;
-  draftEditorVisible.value = true;
-}
-
-function queueContextUnbind(targetType: 'plan' | 'sequence', targetId: string): void {
-  if (targetType === 'plan') {
-    draftEditorContextBoundPlans.value = draftEditorContextBoundPlans.value.filter((plan) => plan.id !== targetId);
-  } else {
-    draftEditorContextBoundSequences.value = draftEditorContextBoundSequences.value.filter((sequence) => sequence.id !== targetId);
-  }
-  if (!draftEditorPendingContextUnbinds.value.some((entry) => entry.targetType === targetType && entry.targetId === targetId)) {
-    draftEditorPendingContextUnbinds.value = [...draftEditorPendingContextUnbinds.value, { targetType, targetId }];
-  }
-}
-
-async function saveContextEditor(
-  id: string,
-  updates: { title?: string; content?: string; type?: string; permission?: 'readonly' | 'writable' },
-): Promise<void> {
-  const pendingUnbinds = draftEditorPendingContextUnbinds.value;
-  draftEditorPendingContextUnbinds.value = [];
-  await onPlanContextSave(id, updates, pendingUnbinds);
-}
 
 async function openBackupRestore(): Promise<void> {
   backupRestore.dirPath = planScreenState.currentDir;
@@ -229,37 +154,13 @@ async function closeWindow(): Promise<void> {
   window.close();
 }
 
-async function onPlanSave(updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean }): Promise<void> {
-  await draftEditorPlanCallbacks.value?.onSave?.(updates);
-}
-
-function onPlanApply(): void {
-  draftEditorPlanCallbacks.value?.onApply?.();
-  closeDraftEditor();
-}
-
-function onPlanDone(): void {
-  draftEditorPlanCallbacks.value?.onDone?.();
-  closeDraftEditor();
-}
-
-function onPlanDelete(): void {
-  draftEditorPlanCallbacks.value?.onDelete?.();
-  closeDraftEditor();
-}
-
-function onContextDelete(): void {
-  draftEditorContextCallbacks.value?.onDelete?.();
-  closeDraftEditor();
-}
-
 onMounted(async () => {
   document.title = `${props.dirPath} - Plans`;
   setPlanEditorOpener(openPlanEditor);
   setPlanScreenContextEditorOpener(openContextEditor);
   setDraftEditorCloser(closeDraftEditor);
   setDraftEditorVisibilityChecker(() => draftEditorVisible.value);
-  setPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
+  setPlanChangesChecker(hasUnsavedChanges);
   setBackupRestoreOpener(openBackupRestore);
 
   await loadSessions();

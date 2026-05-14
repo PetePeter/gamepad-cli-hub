@@ -65,6 +65,7 @@ import { useToast } from './composables/useToast.js';
 import { useSettingsController } from './composables/useSettingsController.js';
 import { useInputRouter } from './composables/useInputRouter.js';
 import { useSidebarController } from './composables/useSidebarController.js';
+import { useDraftPlanContextEditor } from './composables/useDraftPlanContextEditor.js';
 import { appClient, backupsClient, configClient, deliveryClient, draftsClient, eventsClient, plansClient, sessionsClient } from './ipc/clients.js';
 import {
   contextMenu,
@@ -78,9 +79,7 @@ import { showSequencePicker } from './modals/sequence-picker.js';
 import { showDraftSubmenu } from './modals/draft-submenu.js';
 import { showEditorPopup } from './editor/editor-popup.js';
 import DraftEditor from './components/panels/DraftEditor.vue';
-import type { PlanStatus, PlanType } from '../../src/types/plan.js';
 import type { ScheduledTask } from '../../src/types/scheduled-task.js';
-import type { PlanCallbacks, ContextCallbacks } from './components/panels/DraftEditor.vue';
 import {
   setDraftEditorOpener as setLegacyDraftEditorOpener,
   setPlanEditorOpener as setLegacyPlanEditorOpener,
@@ -89,7 +88,6 @@ import {
   setDraftEditorButtonHandler as setLegacyDraftEditorButtonHandler,
   setPlanChangesChecker as setLegacyPlanChangesChecker,
 } from './drafts/draft-editor.js';
-import { saveDraftWithStableId } from './drafts/draft-save.js';
 import {
   setPlanEditorOpener as setChipBarPlanEditorOpener,
 } from './stores/chip-bar.js';
@@ -149,31 +147,50 @@ const chipBarStore = useChipBarStore();
 const navStore = useNavigationStore();
 const llmNotificationsStore = useLlmNotificationsStore();
 
-// Draft editor state
-const draftEditorVisible = ref(false);
-const draftEditorMode = ref<'draft' | 'plan' | 'context'>('draft');
-const draftEditorSessionId = ref('');
-const draftEditorDraftId = ref<string | null>(null);
-const draftEditorLabel = ref('');
-const draftEditorText = ref('');
-const draftEditorPlanId = ref<string | null>(null);
-const draftEditorPlanStatus = ref<PlanStatus>('planning');
-const draftEditorPlanStateInfo = ref('');
-const draftEditorPlanType = ref<PlanType | undefined>(undefined);
-const draftEditorPlanAutoImplement = ref(false);
-const draftEditorPlanHumanId = ref('');
-const draftEditorPlanCreatedAt = ref<number | null>(null);
-const draftEditorPlanStateUpdatedAt = ref<number | null>(null);
-const draftEditorPlanCallbacks = ref<PlanCallbacks | null>(null);
-const draftEditorCompletionNotes = ref('');
-const draftEditorContextId = ref<string | null>(null);
-const draftEditorContextType = ref('Knowledge');
-const draftEditorContextPermission = ref<'readonly' | 'writable'>('readonly');
-const draftEditorContextCallbacks = ref<ContextCallbacks | null>(null);
-const draftEditorContextBoundPlans = ref<Array<{ id: string; title: string; humanId?: string; type?: PlanType; status?: PlanStatus }>>([]);
-const draftEditorContextBoundSequences = ref<Array<{ id: string; title: string }>>([]);
-const draftEditorPendingContextUnbinds = ref<Array<{ targetType: 'plan' | 'sequence'; targetId: string }>>([]);
-const draftEditorRef = ref<InstanceType<typeof DraftEditor> | null>(null);
+const {
+  draftEditorVisible,
+  draftEditorMode,
+  draftEditorSessionId,
+  draftEditorDraftId,
+  draftEditorLabel,
+  draftEditorText,
+  draftEditorPlanId,
+  draftEditorPlanStatus,
+  draftEditorPlanStateInfo,
+  draftEditorPlanType,
+  draftEditorPlanAutoImplement,
+  draftEditorPlanHumanId,
+  draftEditorPlanCreatedAt,
+  draftEditorPlanStateUpdatedAt,
+  draftEditorPlanCallbacks,
+  draftEditorCompletionNotes,
+  draftEditorContextId,
+  draftEditorContextType,
+  draftEditorContextPermission,
+  draftEditorContextCallbacks,
+  draftEditorContextBoundPlans,
+  draftEditorContextBoundSequences,
+  draftEditorRef,
+  openDraftEditor,
+  openPlanEditor,
+  openContextEditor,
+  closeDraftEditor,
+  saveContextEditor,
+  onDraftSave,
+  onDraftApply,
+  onDraftDelete,
+  onDraftClose,
+  onPlanSave,
+  onPlanApply,
+  onPlanDone,
+  onPlanDelete,
+  onContextDelete,
+  hasUnsavedChanges,
+  handleButton: handleDraftEditorButton,
+} = useDraftPlanContextEditor({
+  saveContext: (id, updates, pendingUnbinds) => onPlanContextSave(id, updates, pendingUnbinds),
+  refreshDraftSession: (sessionId) => chipBarStore.refresh(sessionId),
+});
 let offTextDeliver: (() => void) | null = null;
 let unsubSnapOut: (() => void) | null = null;
 let unsubSnapBack: (() => void) | null = null;
@@ -472,105 +489,6 @@ function handleRenameRequest(e: Event): void {
   }
 }
 
-// ── Draft / Plan Editor ────────────────────────────────────────────────────
-
-function openDraftEditor(sessionId: string, draft?: { id: string; label: string; text: string }) {
-  draftEditorMode.value = 'draft';
-  draftEditorSessionId.value = sessionId;
-  draftEditorDraftId.value = draft?.id ?? null;
-  draftEditorLabel.value = draft?.label ?? '';
-  draftEditorText.value = draft?.text ?? '';
-  draftEditorPlanCallbacks.value = null;
-  draftEditorVisible.value = true;
-}
-
-function openPlanEditor(
-  sessionId: string,
-  plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
-  callbacks: PlanCallbacks,
-) {
-  draftEditorMode.value = 'plan';
-  draftEditorSessionId.value = sessionId;
-  draftEditorPlanId.value = plan.id;
-  draftEditorPlanStatus.value = plan.status;
-  draftEditorPlanStateInfo.value = plan.stateInfo ?? '';
-  draftEditorPlanType.value = plan.type;
-  draftEditorPlanAutoImplement.value = Boolean(plan.autoImplement);
-  draftEditorPlanHumanId.value = plan.humanId ?? '';
-  draftEditorPlanCreatedAt.value = plan.createdAt ?? null;
-  draftEditorPlanStateUpdatedAt.value = plan.stateUpdatedAt ?? plan.createdAt ?? null;
-  draftEditorCompletionNotes.value = plan.completionNotes ?? '';
-  draftEditorLabel.value = plan.title;
-  draftEditorText.value = plan.description;
-  draftEditorPlanCallbacks.value = callbacks;
-  draftEditorVisible.value = true;
-}
-
-function closeDraftEditor() {
-  draftEditorPlanCallbacks.value?.onClose?.();
-  draftEditorContextCallbacks.value?.onClose?.();
-  draftEditorPlanId.value = null;
-  draftEditorContextId.value = null;
-  draftEditorPendingContextUnbinds.value = [];
-  draftEditorVisible.value = false;
-}
-
-function openContextEditor(
-  context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string; planIds?: string[]; sequenceIds?: string[] },
-  callbacks: ContextCallbacks,
-) {
-  draftEditorMode.value = 'context';
-  draftEditorSessionId.value = '';
-  draftEditorContextId.value = context.id;
-  draftEditorContextType.value = context.type;
-  draftEditorContextPermission.value = context.permission;
-  draftEditorLabel.value = context.title;
-  draftEditorText.value = context.content;
-  draftEditorPlanCallbacks.value = null;
-  draftEditorPendingContextUnbinds.value = [];
-  draftEditorContextCallbacks.value = {
-    ...callbacks,
-    onSave: (updates) => {
-      void saveContextEditor(context.id, updates);
-    },
-    onUnbind: queueContextUnbind,
-  };
-  draftEditorContextBoundPlans.value = (context.planIds ?? [])
-    .map((pid) => planScreenState.items.find((item) => item.id === pid))
-    .filter(Boolean)
-    .map((item) => ({
-      id: item!.id,
-      title: item!.title,
-      humanId: item!.humanId,
-      type: item!.type,
-      status: item!.status,
-    }));
-  draftEditorContextBoundSequences.value = (context.sequenceIds ?? [])
-    .map((sid) => planScreenState.sequences.find((seq) => seq.id === sid))
-    .filter(Boolean) as Array<{ id: string; title: string }>;
-  draftEditorVisible.value = true;
-}
-
-function queueContextUnbind(targetType: 'plan' | 'sequence', targetId: string): void {
-  if (targetType === 'plan') {
-    draftEditorContextBoundPlans.value = draftEditorContextBoundPlans.value.filter((plan) => plan.id !== targetId);
-  } else {
-    draftEditorContextBoundSequences.value = draftEditorContextBoundSequences.value.filter((sequence) => sequence.id !== targetId);
-  }
-  if (!draftEditorPendingContextUnbinds.value.some((entry) => entry.targetType === targetType && entry.targetId === targetId)) {
-    draftEditorPendingContextUnbinds.value = [...draftEditorPendingContextUnbinds.value, { targetType, targetId }];
-  }
-}
-
-async function saveContextEditor(
-  id: string,
-  updates: { title?: string; content?: string; type?: string; permission?: 'readonly' | 'writable' },
-): Promise<void> {
-  const pendingUnbinds = draftEditorPendingContextUnbinds.value;
-  draftEditorPendingContextUnbinds.value = [];
-  await onPlanContextSave(id, updates, pendingUnbinds);
-}
-
 // Context menu
 function onContextMenuAction(action: string): void {
   contextMenu.visible = false;
@@ -692,77 +610,6 @@ async function onPlanPopOut(): Promise<void> {
 
 function onChipBarAction(sequence: string): void {
   void chipBarStore.triggerAction(sequence);
-}
-
-async function onDraftSave(payload: { label: string; text: string }): Promise<void> {
-  const sessionId = draftEditorSessionId.value;
-  const draftId = draftEditorDraftId.value;
-  try {
-    const savedDraftId = await saveDraftWithStableId(draftsClient, sessionId, draftId, payload);
-    if (!draftId && savedDraftId) {
-      draftEditorDraftId.value = savedDraftId;
-    }
-  } catch (err) {
-    console.error('[App] Failed to save draft:', err);
-  }
-  await chipBarStore.refresh(sessionId);
-}
-
-async function onDraftApply(payload: { label: string; text: string }): Promise<void> {
-  const sessionId = draftEditorSessionId.value;
-  const draftId = draftEditorDraftId.value;
-  closeDraftEditor();
-  if (payload.text && sessionId) {
-    try {
-      await deliverPromptSequence(sessionId, payload.text);
-    } catch (err) {
-      console.error('[App] Failed to apply draft:', err);
-    }
-  }
-  if (draftId) {
-    try { await draftsClient.draftDelete(draftId); }
-    catch (err) { console.error('[App] Failed to delete draft after apply:', err); }
-  }
-  await chipBarStore.refresh(sessionId);
-}
-
-async function onDraftDelete(): Promise<void> {
-  const sessionId = draftEditorSessionId.value;
-  const draftId = draftEditorDraftId.value;
-  closeDraftEditor();
-  if (draftId) {
-    try { await draftsClient.draftDelete(draftId); }
-    catch (err) { console.error('[App] Failed to delete draft:', err); }
-  }
-  await chipBarStore.refresh(sessionId);
-}
-
-function onDraftClose(): void {
-  closeDraftEditor();
-}
-
-async function onPlanSave(updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean }): Promise<void> {
-  await draftEditorPlanCallbacks.value?.onSave?.(updates);
-}
-
-function onPlanApply(): void {
-  draftEditorPlanCallbacks.value?.onApply?.();
-  closeDraftEditor();
-}
-
-function onPlanDone(): void {
-  draftEditorPlanCallbacks.value?.onDone?.();
-  closeDraftEditor();
-}
-
-function onPlanDelete(): void {
-  draftEditorPlanCallbacks.value?.onDelete?.();
-  closeDraftEditor();
-}
-
-function onContextDelete(): void {
-  draftEditorContextCallbacks.value?.onDelete?.();
-  closeDraftEditor();
 }
 
 async function onDraftSubmenuApply(draft: { id: string; text: string }): Promise<void> {
@@ -981,14 +828,8 @@ onMounted(async () => {
     setLegacyPlanEditorOpener(openPlanEditor);
     setLegacyDraftEditorCloser(closeDraftEditor);
     setLegacyDraftEditorVisibilityChecker(() => draftEditorVisible.value);
-    setLegacyDraftEditorButtonHandler((button: string) => {
-      if (!draftEditorRef.value) {
-        console.warn('[DraftEditor] button handler called but ref is null');
-        return;
-      }
-      draftEditorRef.value.handleButton(button);
-    });
-    setLegacyPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
+    setLegacyDraftEditorButtonHandler(handleDraftEditorButton);
+    setLegacyPlanChangesChecker(hasUnsavedChanges);
 
     setChipBarPlanEditorOpener(openPlanEditor);
 
@@ -996,7 +837,7 @@ onMounted(async () => {
     setPlanScreenContextEditorOpener(openContextEditor);
     setPlanScreenDraftEditorCloser(closeDraftEditor);
     setPlanScreenDraftEditorVisibilityChecker(() => draftEditorVisible.value);
-    setPlanScreenPlanChangesChecker(() => draftEditorRef.value?.hasUnsavedChanges?.() ?? false);
+    setPlanScreenPlanChangesChecker(hasUnsavedChanges);
     setPlanScreenBackupRestoreOpener(openBackupRestore);
 
     await loadCollapsePrefs();
