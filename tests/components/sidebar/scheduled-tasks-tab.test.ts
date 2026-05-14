@@ -17,6 +17,7 @@ const mockScheduledTaskCancel = vi.fn();
 const mockConfigGetCliTypes = vi.fn();
 const mockConfigGetWorkingDirs = vi.fn();
 const mockSessionGetAll = vi.fn();
+const mockToolsGetAll = vi.fn();
 
 function localDateTimeInputValue(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0');
@@ -56,6 +57,12 @@ describe('ScheduledTasksTab', () => {
     mockConfigGetWorkingDirs.mockReset().mockResolvedValue([
       { name: 'Hub', path: 'X:\\coding\\gamepad-cli-hub' },
     ]);
+    mockToolsGetAll.mockReset().mockResolvedValue({
+      cliTypes: {
+        codex: { pasteMode: 'pty' },
+        'claude-code': { pasteMode: 'pty' },
+      },
+    });
     mockSessionGetAll.mockReset().mockResolvedValue([
       { id: 'sess-1', name: 'main', cliType: 'claude-code', workingDir: 'X:\\coding\\gamepad-cli-hub' },
       { id: 'sess-2', name: 'other', cliType: 'codex', workingDir: 'X:\\other\\project' },
@@ -71,6 +78,7 @@ describe('ScheduledTasksTab', () => {
       scheduledTaskCancel: mockScheduledTaskCancel,
       configGetCliTypes: mockConfigGetCliTypes,
       configGetWorkingDirs: mockConfigGetWorkingDirs,
+      toolsGetAll: mockToolsGetAll,
     };
   });
 
@@ -410,5 +418,51 @@ describe('ScheduledTasksTab', () => {
 
     const labels = wrapper.findAll('.st-label').map(l => l.text());
     expect(labels).not.toContain('CLI Params (optional)');
+  });
+
+  it('warns when spawn-mode scheduled delivery targets a focus-sensitive CLI paste mode', async () => {
+    mockToolsGetAll.mockResolvedValue({
+      cliTypes: {
+        codex: { pasteMode: 'sendkeys' },
+      },
+    });
+    const wrapper = mountTab();
+    await flushPromises();
+
+    await wrapper.find('.st-create-btn').trigger('click');
+    await wrapper.findAll('.st-picker-btn')[1].trigger('click');
+    await flushPromises();
+    wrapper.findComponent(QuickSpawnModal).vm.$emit('select', 'codex');
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('.st-warning').text()).toContain('focus-sensitive');
+  });
+
+  it('warns when direct scheduled delivery targets a focus-sensitive existing session', async () => {
+    mockToolsGetAll.mockResolvedValue({
+      cliTypes: {
+        'claude-code': { pasteMode: 'clippaste' },
+      },
+    });
+    const wrapper = mountTab();
+    await flushPromises();
+
+    await wrapper.find('.st-create-btn').trigger('click');
+    const modeSelect = wrapper.findAll('select').find(s => {
+      const opts = s.findAll('option');
+      return opts.some(o => o.text() === 'Send to existing session');
+    });
+    await modeSelect!.setValue('direct');
+    await wrapper.findAll('.st-picker-btn')[0].trigger('click');
+    await flushPromises();
+    wrapper.findComponent(DirPickerModal).vm.$emit('select', 'X:\\coding\\gamepad-cli-hub');
+    await wrapper.vm.$nextTick();
+    const sessionSelect = wrapper.findAll('select').find(s =>
+      s.findAll('option').some(o => o.text().includes('main (claude-code)')),
+    );
+    await sessionSelect!.setValue('sess-1');
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('.st-warning').text()).toContain('clippaste');
   });
 });

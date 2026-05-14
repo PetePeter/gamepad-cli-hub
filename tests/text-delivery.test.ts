@@ -78,4 +78,31 @@ describe('RendererTextDeliverer', () => {
 
     deliverer.dispose();
   });
+
+  it('rejects focus-sensitive paste modes for background delivery before renderer handoff', async () => {
+    const send = vi.fn();
+    const deliverer = new RendererTextDeliverer(
+      {
+        getWindowForSession: vi.fn(() => ({
+          isDestroyed: vi.fn(() => false),
+          webContents: { send },
+        })),
+      } as any,
+      {
+        getSession: vi.fn(() => ({ id: 's1', cliType: 'copilot' })),
+      } as any,
+      {
+        getCliTypeEntry: vi.fn(() => ({ pasteMode: 'clippaste' })),
+      } as any,
+    );
+
+    await handlerRegistry.get('text:deliver-ready')?.({});
+
+    await expect(deliverer.deliver('s1', 'hello', { deliveryContext: 'background' })).rejects.toThrow(
+      'Background delivery cannot use focus-sensitive pasteMode=clippaste',
+    );
+    expect(send).not.toHaveBeenCalled();
+
+    deliverer.dispose();
+  });
 });

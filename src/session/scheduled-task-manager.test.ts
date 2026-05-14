@@ -62,9 +62,10 @@ class FakePtyManager extends EventEmitter {
     return this.activePids.has(sessionId);
   }
 
-  deliverText(sessionId: string, text: string): void {
+  deliverText(sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }): void {
     if (!this.writes.has(sessionId)) this.writes.set(sessionId, []);
-    this.writes.get(sessionId)!.push(text);
+    const suffix = options?.submitSuffix ?? (options?.withReturn ? '\r' : '');
+    this.writes.get(sessionId)!.push(text + suffix);
   }
 
   getWrites(sessionId: string): string[] {

@@ -248,7 +248,6 @@ defineExpose({ handleButton });
                   <option value="prepend">Prepend</option>
                   <option value="append">Append</option>
                 </select>
-                <p v-if="pasteModeWarning" class="te-warning">{{ pasteModeWarning }}</p>
               </div>
             </div>
             <button type="button" class="btn btn--secondary" @click="addEnvItem">+ Add Variable</button>
@@ -275,6 +274,7 @@ defineExpose({ handleButton });
                   <option value="sendkeysindividual">SendKeys Individual — OS-level char-by-char (robotjs)</option>
                   <option value="clippaste">Terminal Paste — xterm/PTTY Ctrl+V-style paste (for Copilot CLI)</option>
                 </select>
+                <p v-if="pasteModeWarning" class="te-warning">{{ pasteModeWarning }}</p>
               </div>
               <div class="te-field">
                 <label for="te-delay">Initial Prompt Delay (ms)</label>

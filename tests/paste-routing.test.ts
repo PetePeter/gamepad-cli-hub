@@ -603,6 +603,18 @@ describe('deliverBulkText', () => {
     expect(mockPtyWrite).not.toHaveBeenCalled();
   });
 
+  it('rejects focus-sensitive modes for background delivery', async () => {
+    mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+    mockState.cliToolsCache = { copilot: { pasteMode: 'sendkeys' } };
+
+    await expect(deliverBulkText('sess-1', 'hello', { deliveryContext: 'background' })).rejects.toThrow(
+      'Background delivery cannot use focus-sensitive pasteMode=sendkeys',
+    );
+
+    expect(mockKeyboardTypeString).not.toHaveBeenCalled();
+    expect(mockPtyWrite).not.toHaveBeenCalled();
+  });
+
   it('no session found — falls back to ptyWrite', async () => {
     // sessions is empty — no match for 'unknown'
     mockState.sessions = [];

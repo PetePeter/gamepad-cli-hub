@@ -164,6 +164,19 @@ describe('ToolEditorModal.vue', () => {
     w.unmount();
   });
 
+  it('warns when the selected paste mode is not plain PTY', async () => {
+    const w = factory({
+      initialData: {
+        ...DEFAULT_DATA,
+        pasteMode: 'ptyindividual',
+      },
+    });
+
+    expect(w.find('.te-warning').text()).toContain('Use pty unless this CLI specifically needs another mode');
+
+    w.unmount();
+  });
+
   it('round-trips the Helm initial prompt checkbox', async () => {
     const w = factory({
       initialData: { ...DEFAULT_DATA, helmInitialPrompt: true },
