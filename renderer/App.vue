@@ -117,7 +117,7 @@ import {
   setPlanScreenContextEditorOpener,
   onPlanContextEdit,
 } from './plans/plan-screen.js';
-import { deliverBulkText, deliverViaClipboardPaste } from './paste-handler.js';
+import { deliverBulkText } from './paste-handler.js';
 import {
   getActiveInputContext,
   isEditableElement,
@@ -2079,17 +2079,7 @@ onMounted(async () => {
   try {
     offTextDeliver = eventsClient.onTextDeliverRequest(async ({ requestId, sessionId, text, withReturn, submitSuffix }) => {
       try {
-        const session = state.sessions.find(s => s.id === sessionId);
-        const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
-
-        // clippaste fast path only works for simple pastes without submission.
-        // For Helm inter-session messages with submitSuffix, route through deliverBulkText
-        // to avoid race conditions where suffix executes before paste completes.
-        if (tool?.pasteMode === 'clippaste' && !submitSuffix) {
-          await deliverViaClipboardPaste(text);
-        } else {
-          await deliverBulkText(sessionId, text, { withReturn, submitSuffix });
-        }
+        await deliverBulkText(sessionId, text, { withReturn, submitSuffix, deliveryContext: 'background' });
         await deliveryClient.textDeliverResponse(requestId, true);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

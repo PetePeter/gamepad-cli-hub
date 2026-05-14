@@ -22,6 +22,7 @@ import {
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
 import { keyboardClient, terminalClient } from './ipc/clients.js';
+import { isForegroundOnlyPasteMode, type DeliveryContext } from '../src/session/delivery-context.js';
 
 /**
  * Convert escape notation strings to actual characters.
@@ -122,10 +123,15 @@ export async function deliverViaClipboardPaste(text: string): Promise<void> {
 
 /** Deliver bulk text to the active session — either via PTY write, clipboard paste,
  *  or OS-level robotjs keystrokes (sendkeys), based on the tool's pasteMode. */
-export async function deliverBulkText(sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }): Promise<void> {
+export async function deliverBulkText(sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string; deliveryContext?: DeliveryContext }): Promise<void> {
   const session = state.sessions.find(s => s.id === sessionId);
   const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
   const suffix = getConfiguredSubmitSuffix(sessionId, options?.withReturn, options?.submitSuffix);
+  const deliveryContext = options?.deliveryContext ?? 'interactive';
+
+  if (deliveryContext === 'background' && isForegroundOnlyPasteMode(tool?.pasteMode)) {
+    throw new Error(`Background delivery cannot use focus-sensitive pasteMode=${tool?.pasteMode}`);
+  }
 
   // Submit-only: no text but submitSuffix present — route through paste-mode-appropriate submit
   if (!text && suffix) {

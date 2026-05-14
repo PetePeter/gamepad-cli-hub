@@ -12,6 +12,7 @@ import PromptTextarea from '../common/PromptTextarea.vue';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { loadStoredSessions } from '../../session-store.js';
+import { getBackgroundDeliveryWarning, type PasteMode } from '../../../src/session/delivery-context.js';
 
 const emit = defineEmits<{
   'task-created': [task: ScheduledTask];
@@ -58,6 +59,7 @@ const dirPickerVisible = ref(false);
 const availableCliTypes = ref<string[]>([]);
 const availableDirs = ref<{ name: string; path: string }[]>([]);
 const availableSessions = ref<Array<{ id: string; name: string; cliType: string; workingDir?: string }>>([]);
+const cliToolConfigs = ref<Record<string, { pasteMode?: PasteMode }>>({});
 
 const popupRoot = templateRef<HTMLElement | null>('popupRoot');
 const { onKeydown: trapOnKeydown } = useFocusTrap('.scheduled-tasks-tab--popup');
@@ -90,6 +92,13 @@ const cronValidation = computed(() => {
     return { valid: false, error: error instanceof Error ? error.message : String(error) };
   }
 });
+const selectedDeliveryPasteMode = computed(() => {
+  const cliType = formMode.value === 'direct'
+    ? availableSessions.value.find(s => s.id === selectedTargetSessionId.value)?.cliType
+    : selectedCliType.value;
+  return cliType ? cliToolConfigs.value[cliType]?.pasteMode : undefined;
+});
+const schedulerDeliveryWarning = computed(() => getBackgroundDeliveryWarning(selectedDeliveryPasteMode.value));
 
 function shortenPath(path: string): string {
   const parts = path.replace(/\\/g, '/').split('/');
@@ -191,6 +200,14 @@ async function loadSessions(): Promise<void> {
   try { availableSessions.value = await loadStoredSessions() as Array<{ id: string; name: string; cliType: string; workingDir?: string }>; }
   catch { availableSessions.value = []; }
 }
+async function loadToolConfigs(): Promise<void> {
+  try {
+    const result = await toolsClient.toolsGetAll() as { cliTypes?: Record<string, { pasteMode?: PasteMode }> };
+    cliToolConfigs.value = result.cliTypes ?? {};
+  } catch {
+    cliToolConfigs.value = {};
+  }
+}
 
 async function createTask(): Promise<void> {
   if (!canCreate.value) return;
@@ -252,7 +269,7 @@ async function cancelTask(taskId: string): Promise<void> {
 }
 
 onMounted(async () => {
-  await Promise.all([loadTasks(), loadSessions()]);
+  await Promise.all([loadTasks(), loadSessions(), loadToolConfigs()]);
   if (props.initialEditTaskId) {
     const task = tasks.value.find((item) => item.id === props.initialEditTaskId);
     if (task) editTask(task);
@@ -287,6 +304,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer); modalStack.po
       <div class="st-form-row"><label class="st-label">Mode</label><select v-model="formMode" class="st-input focusable" @change="onModeChange"><option value="spawn">Spawn new session</option><option value="direct">Send to existing session</option></select></div>
       <div v-if="formMode !== 'direct'" class="st-form-row st-form-row--picker"><label class="st-label">CLI Type *</label><button class="st-picker-btn focusable" @click="openCliPicker">{{ selectedCliType || 'Select CLI...' }}</button></div>
       <div v-if="formMode === 'direct'" class="st-form-row"><label class="st-label">Target Session *</label><select v-model="selectedTargetSessionId" class="st-input focusable" :disabled="sessionsForDir.length === 0"><option value="" disabled>{{ sessionsForDir.length === 0 ? 'No sessions in this directory' : 'Select session...' }}</option><option v-for="s in sessionsForDir" :key="s.id" :value="s.id">{{ s.name }} ({{ s.cliType }})</option></select></div>
+      <div v-if="schedulerDeliveryWarning" class="st-warning">{{ schedulerDeliveryWarning }}</div>
       <div v-if="formMode !== 'direct'" class="st-form-row"><label class="st-label">CLI Params (optional)</label><input v-model="formCliParams" type="text" class="st-input focusable" placeholder="Additional CLI arguments" /></div>
       <div class="st-form-row"><label class="st-label">Scheduled Time *</label><input v-model="formTime" type="datetime-local" class="st-input focusable" /></div>
       <div class="st-form-row st-form-row--inline"><div class="st-form-row"><label class="st-label">Schedule</label><select v-model="scheduleKind" class="st-input focusable"><option value="once">Once</option><option value="interval">Recurring interval</option><option value="cron">Cron calendar</option></select></div><div v-if="scheduleKind === 'interval'" class="st-form-row"><label class="st-label">Repeat Every (min) *</label><input v-model.number="intervalMinutes" type="number" min="1" class="st-input focusable" /></div></div>
@@ -379,4 +397,5 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer); modalStack.po
 .st-task-time { margin-left: auto; color: var(--text-secondary); }
 .st-task-error { margin-top: 8px; padding: 8px; background: rgba(255, 68, 68, 0.1); border-radius: 4px; color: #ff4444; font-size: 0.9rem; }
 .st-task-actions { margin-top: 12px; display: flex; gap: 8px; }
+.st-warning { padding: 8px 10px; border: 1px solid rgba(255, 159, 26, 0.45); border-radius: 4px; color: #ffb347; background: rgba(255, 159, 26, 0.08); font-size: 0.85rem; line-height: 1.35; }
 </style>

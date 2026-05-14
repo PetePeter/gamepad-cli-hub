@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { createRequire } from 'node:module';
 import { logger } from '../utils/logger.js';
 import { TerminalOutputBuffer, type TerminalOutputMode, type TerminalTail } from './terminal-output-buffer.js';
+import type { TextDeliveryOptions } from './delivery-context.js';
 
 const esmRequire = createRequire(import.meta.url);
 
@@ -62,7 +63,7 @@ function escapeShellArg(arg: string): string {
 export class PtyManager extends EventEmitter {
   private ptys: Map<string, PtyProcess> = new Map();
   private factory: PtyFactory;
-  private textDeliveryHandler?: (sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }) => Promise<void>;
+  private textDeliveryHandler?: (sessionId: string, text: string, options?: TextDeliveryOptions) => Promise<void>;
   private terminalOutputBuffer = new TerminalOutputBuffer();
 
   constructor(factory?: PtyFactory) {
@@ -157,16 +158,20 @@ export class PtyManager extends EventEmitter {
   }
 
   /** Configure a higher-level text delivery path that can honor per-CLI insertion modes. */
-  setTextDeliveryHandler(handler: ((sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }) => Promise<void>) | undefined): void {
+  setTextDeliveryHandler(handler: ((sessionId: string, text: string, options?: TextDeliveryOptions) => Promise<void>) | undefined): void {
     this.textDeliveryHandler = handler;
   }
 
   /** Deliver bulk text using the preferred insertion mode when available. */
-  async deliverText(sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }): Promise<void> {
+  async deliverText(sessionId: string, text: string, options?: TextDeliveryOptions): Promise<void> {
     if (!text && !options?.submitSuffix) return;
+    const effectiveOptions: TextDeliveryOptions = {
+      ...options,
+      deliveryContext: options?.deliveryContext ?? 'background',
+    };
     if (this.textDeliveryHandler) {
       try {
-        await this.textDeliveryHandler(sessionId, text, options);
+        await this.textDeliveryHandler(sessionId, text, effectiveOptions);
         return;
       } catch (error) {
         logger.warn(`[PTY] Preferred text delivery failed for ${sessionId}, falling back to PTY write: ${error}`);

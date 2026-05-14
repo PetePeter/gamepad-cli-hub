@@ -4,6 +4,7 @@ import type { SessionManager } from '../../session/manager.js';
 import type { ConfigLoader } from '../../config/loader.js';
 import { logger } from '../../utils/logger.js';
 import type { WindowManager } from '../window-manager.js';
+import { isForegroundOnlyPasteMode, type TextDeliveryOptions } from '../../session/delivery-context.js';
 
 interface PendingRequest {
   resolve: () => void;
@@ -38,13 +39,17 @@ export class RendererTextDeliverer {
     });
   }
 
-  async deliver(sessionId: string, text: string, options?: { withReturn?: boolean; submitSuffix?: string }): Promise<void> {
+  async deliver(sessionId: string, text: string, options?: TextDeliveryOptions): Promise<void> {
     if (!text && !options?.submitSuffix) return;
 
     const session = this.sessionManager.getSession(sessionId);
     const pasteMode = session
       ? this.configLoader.getCliTypeEntry(session.cliType)?.pasteMode
       : undefined;
+
+    if (options?.deliveryContext === 'background' && isForegroundOnlyPasteMode(pasteMode)) {
+      throw new Error(`Background delivery cannot use focus-sensitive pasteMode=${pasteMode}`);
+    }
 
     const win = this.windowManager.getWindowForSession(sessionId);
     if (!this.rendererReady || !win || win.isDestroyed()) {

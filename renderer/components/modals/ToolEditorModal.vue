@@ -8,6 +8,7 @@ import { ref, watch, computed } from 'vue';
 import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import PromptTextarea from '../common/PromptTextarea.vue';
+import { getNonPtyPasteModeWarning } from '../../../src/session/delivery-context.js';
 
 const MODAL_ID = 'tool-editor-modal';
 const HELM_AUTOFILLED_ENV_ITEMS = [
@@ -96,6 +97,7 @@ let nextEnvId = 1;
 const title = computed(() =>
   props.mode === 'add' ? 'Add CLI Type' : `Edit CLI Type: ${props.editKey}`,
 );
+const pasteModeWarning = computed(() => getNonPtyPasteModeWarning(pasteMode.value));
 
 const modalStack = useModalStack();
 
@@ -246,6 +248,7 @@ defineExpose({ handleButton });
                   <option value="prepend">Prepend</option>
                   <option value="append">Append</option>
                 </select>
+                <p v-if="pasteModeWarning" class="te-warning">{{ pasteModeWarning }}</p>
               </div>
             </div>
             <button type="button" class="btn btn--secondary" @click="addEnvItem">+ Add Variable</button>
@@ -335,6 +338,7 @@ defineExpose({ handleButton });
 .te-close-btn:hover { color: var(--text-primary); }
 .te-section { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--spacing-md); margin: 0; display: flex; flex-direction: column; gap: var(--spacing-sm); }
 .te-section__hint { margin: 0; font-size: var(--font-size-sm); color: var(--text-dim); line-height: 1.4; }
+.te-warning { margin: 0; padding: 8px 10px; border: 1px solid rgba(255, 159, 26, 0.45); border-radius: var(--radius-sm); color: #ffb347; background: rgba(255, 159, 26, 0.08); font-size: var(--font-size-sm); line-height: 1.35; }
 .te-section__legend { font-size: var(--font-size-sm); font-weight: 600; color: var(--accent); padding: 0 var(--spacing-xs); user-select: none; }
 .te-grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm); }
 .te-grid-3col { display: grid; grid-template-columns: 1fr 1fr auto; gap: var(--spacing-sm); align-items: center; }

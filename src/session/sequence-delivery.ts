@@ -3,6 +3,7 @@ import { parseSubmitSuffix } from '../mcp/submit-suffix.js';
 import type { ConfigLoader } from '../config/loader.js';
 import type { PtyManager } from './pty-manager.js';
 import type { SessionManager } from './manager.js';
+import type { DeliveryContext } from './delivery-context.js';
 
 /** Token patterns the sequence parser recognizes as actions, not literal text. */
 const RECOGNIZED_TOKEN_PATTERNS = [
@@ -96,8 +97,9 @@ export async function deliverPromptSequenceToSession(input: {
   sessionManager: SessionManager;
   configLoader: ConfigLoader;
   impliedSubmit?: boolean;
+  deliveryContext?: DeliveryContext;
 }): Promise<void> {
-  const { sessionId, text, ptyManager, sessionManager, configLoader, impliedSubmit } = input;
+  const { sessionId, text, ptyManager, sessionManager, configLoader, impliedSubmit, deliveryContext = 'background' } = input;
   const session = sessionManager.getSession(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
@@ -105,13 +107,17 @@ export async function deliverPromptSequenceToSession(input: {
   const submitSuffix = parseSubmitSuffix(cliEntry?.submitSuffix);
 
   const processedText = escapeUnrecognizedBraces(text);
+  const deliverText = (sid: string, chunk: string): Promise<void> => {
+    if (deliveryContext === 'background') return ptyManager.deliverText(sid, chunk);
+    return ptyManager.deliverText(sid, chunk, { deliveryContext });
+  };
 
   await executeSequenceString({
     sessionId,
     input: processedText,
     write: (sid, data) => ptyManager.write(sid, data),
-    deliverText: (sid, chunk) => ptyManager.deliverText(sid, chunk),
-    submit: (sid) => ptyManager.deliverText(sid, '', { submitSuffix }),
+    deliverText,
+    submit: (sid) => ptyManager.deliverText(sid, '', deliveryContext === 'background' ? { submitSuffix } : { submitSuffix, deliveryContext }),
     impliedSubmit: impliedSubmit ?? true,
   });
 }

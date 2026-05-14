@@ -16,10 +16,9 @@ import type { PtyManager } from './pty-manager.js';
 import type { PlanManager } from './plan-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
 import { scheduleInitialPrompt } from './initial-prompt.js';
-import { executeSequenceString } from '../input/sequence-executor.js';
 import { mintSessionAuthToken } from '../mcp/session-auth.js';
-import { parseSubmitSuffix } from '../mcp/submit-suffix.js';
 import { CronEngine } from '../utils/cron-engine.js';
+import { deliverPromptSequenceToSession } from './sequence-delivery.js';
 
 const PENDING_STATUSES = new Set<ScheduledTaskStatus>(['pending', 'executing']);
 const MIN_INTERVAL_MS = 60_000;
@@ -261,8 +260,7 @@ export class ScheduledTaskManager extends EventEmitter {
       }
 
       if (prompt.length > 0) {
-        const recipientConfig = this.configLoader.getCliTypeEntry(session.cliType ?? task.cliType);
-        await this.deliverScheduledPrompt(targetId, prompt, recipientConfig?.submitSuffix);
+        await this.deliverScheduledPrompt(targetId, prompt);
       }
 
       task.lastRunAt = Date.now();
@@ -360,7 +358,7 @@ export class ScheduledTaskManager extends EventEmitter {
 
       const deliverTaskPrompt = prompt.length > 0
         ? () => {
-          void this.deliverScheduledPrompt(sessionId, prompt, cliConfig.submitSuffix);
+          void this.deliverScheduledPrompt(sessionId, prompt);
         }
         : undefined;
 
@@ -502,14 +500,14 @@ export class ScheduledTaskManager extends EventEmitter {
     logger.info(`[ScheduledTaskManager] Task "${task.title}" finished in background session ${sessionId}`);
   }
 
-  private async deliverScheduledPrompt(sessionId: string, prompt: string, submitSuffix?: string): Promise<void> {
-    const resolvedSubmitSuffix = parseSubmitSuffix(submitSuffix);
-    await executeSequenceString({
+  private async deliverScheduledPrompt(sessionId: string, prompt: string): Promise<void> {
+    await deliverPromptSequenceToSession({
       sessionId,
-      input: prompt,
-      write: (sid, data) => this.ptyManager.write(sid, data),
-      deliverText: (sid, text) => this.ptyManager.deliverText(sid, text),
-      submit: (sid) => this.ptyManager.write(sid, resolvedSubmitSuffix),
+      text: prompt,
+      ptyManager: this.ptyManager,
+      sessionManager: this.sessionManager,
+      configLoader: this.configLoader,
+      deliveryContext: 'background',
     });
   }
 }
