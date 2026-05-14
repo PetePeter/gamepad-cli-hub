@@ -2,8 +2,8 @@
 /**
  * SessionCard.vue — Single session card with activity dot, state, badges, timer, rename.
  *
- * Replaces the imperative createSessionCard() in sessions-render.ts with a reactive
- * template. Props drive all rendering — no manual DOM updates needed.
+ * Reactive sidebar row for one terminal session. Props drive all rendering
+ * and events route session commands through sidebar services.
  */
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { getActivityColor } from '../../state-colors.js';

@@ -2,8 +2,8 @@
 /**
  * SessionGroup.vue — Collapsible directory group header.
  *
- * Replaces createGroupHeader() in sessions-render.ts. Clicking the header
- * toggles collapse; clicking the name drills into the group overview.
+ * Clicking the header toggles collapse; clicking the name drills into the
+ * group overview.
  */
 
 export interface SessionGroupData {

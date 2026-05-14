@@ -1,4 +1,4 @@
-import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
+import { configClient, plansClient, sessionsClient } from '../ipc/clients.js';
 /**
  * Sessions screen — sidebar state, navigation handlers, and public API.
  *
@@ -30,20 +30,20 @@ import {
   initSessionsSortControl, updateStatusCounts,
   startRename, commitRename, cancelRename,
   sessionsSortField, sessionsSortDirection,
-} from './sessions-render.js';
+} from '../sidebar/session-services.js';
 
 import {
   doSpawn, showTerminalArea, hideTerminalArea,
   setDirPickerBridge, setTerminalManagerGetter, setPendingContextText,
   spawnNewSession, switchToSession,
   getSessionCwd, getTerminalManager,
-  autoSelectFocusedSession, renderSpawnGrid,
+  autoSelectFocusedSession,
   handleSessionsZone, handleSpawnZone, handleSpawnZoneButton,
   clamp,
 } from './sessions-spawn.js';
 
 import {
-  handlePlansZone, handlePlansZoneButton, renderPlansGrid, updatePlansFocus, refreshPlanBadges,
+  handlePlansZone, handlePlansZoneButton, updatePlansFocus, refreshPlanBadges,
 } from './sessions-plans.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
 import { openQuickSpawn } from '../stores/modal-bridge.js';
@@ -415,8 +415,7 @@ export async function loadSessions(): Promise<void> {
   await initSessionGroupPrefs();
   await loadSessionsData();
   await initSessionsSortControl();
-  renderSpawnGrid();
-  renderPlansGrid();
+  void refreshPlanBadges();
   updateStatusCounts();
 }
 

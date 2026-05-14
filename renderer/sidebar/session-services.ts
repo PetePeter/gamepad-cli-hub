@@ -1,76 +1,46 @@
-import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
 /**
- * Sessions screen helpers for sort controls, rename state, and the state dropdown.
+ * Sidebar session services: sort preferences, rename flow, and status counts.
  *
- * Vue owns the sidebar session-list rendering. This module only keeps the
- * non-visual sidebar helpers that still need imperative DOM access.
+ * Vue owns rendering; these helpers keep non-visual sidebar behavior behind a
+ * named service boundary for the session screen.
  */
 
 import { state } from '../state.js';
-import { sessionsState } from './sessions-state.js';
+import { sessionsState } from '../screens/sessions-state.js';
+import { configClient, sessionsClient } from '../ipc/clients.js';
 import { logEvent } from '../utils.js';
 import { sortSessions, SESSION_SORT_LABELS, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import { createSortControl, type SortControlHandle } from '../components/sort-control.js';
 import {
   groupSessionsByDirectory, buildFlatNavList,
 } from '../session-groups.js';
-import { refreshOverview, isOverviewVisible } from './group-overview.js';
-
-
-// Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
+import { refreshOverview, isOverviewVisible } from '../screens/group-overview.js';
 import {
   getSessionState, getSessionActivity,
   loadSessionsData, updateSessionsFocus,
   getSessionCwd, getTerminalManager,
-} from './sessions.js';
+} from '../screens/sessions.js';
 import { useNavigationStore } from '../stores/navigation.js';
 
-// --- Constants ---
-
-const STATE_LABELS: Record<string, string> = {
-  implementing: '🔨 Implementing',
-  waiting: '⏳ Waiting',
-  planning: '🧠 Planning',
-  completed: '🎉 Completed',
-  idle: '💤 Idle',
-};
-
-const STATE_ORDER: Record<string, number> = {
-  implementing: 0,
-  waiting: 1,
-  planning: 2,
-  completed: 3,
-  idle: 4,
-};
-
-export function getStateLabel(sessionState: string): string {
-  return STATE_LABELS[sessionState] || '💤 Idle';
-}
-
-// --- Sort state ---
 let sessionsSortControl: SortControlHandle | null = null;
 export let sessionsSortField: SessionSortField = 'state';
 export let sessionsSortDirection: SortDirection = 'asc';
 
-// --- Sort control initialization ---
 export async function initSessionsSortControl(): Promise<void> {
   const container = document.getElementById('sessionsSortBar');
   if (!container) return;
 
-  // Recreate if the cached control was removed from the DOM (e.g., after a screen tear-down)
   if (sessionsSortControl && !container.contains(sessionsSortControl.element)) {
     sessionsSortControl.destroy();
     sessionsSortControl = null;
   }
 
-  // Load saved prefs (only on first call or when no control exists)
   if (!sessionsSortControl) {
     try {
       const prefs = await configClient.configGetSortPrefs('sessions');
       if (prefs) {
         sessionsSortField = (prefs.field as SessionSortField) || 'state';
         sessionsSortDirection = (prefs.direction as SortDirection) || 'asc';
-        // Re-sort with loaded prefs
         state.sessions = sortSessions(
           state.sessions,
           sessionsSortField,
@@ -102,7 +72,6 @@ export async function initSessionsSortControl(): Promise<void> {
           getSessionCwd,
           getSessionActivity,
         );
-        // Rebuild groups and navList so the Vue sidebar reacts to the new order.
         sessionsState.groups = groupSessionsByDirectory(state.sessions, getSessionCwd, sessionsState.groupPrefs);
         sessionsState.navList = buildFlatNavList(sessionsState.groups);
         useNavigationStore().onNavListRebuilt();
@@ -123,18 +92,14 @@ export async function initSessionsSortControl(): Promise<void> {
   }
 }
 
-// --- Rename ---
-/** Start editing a session name */
 export function startRename(sessionId: string): void {
   sessionsState.editingSessionId = sessionId;
 }
 
-/** Cancel editing and restore display mode */
 export function cancelRename(): void {
   sessionsState.editingSessionId = null;
 }
 
-/** Commit the rename and update the session */
 export async function commitRename(sessionId: string, newName: string): Promise<void> {
   const trimmed = newName.trim();
   if (!trimmed) {
@@ -147,14 +112,12 @@ export async function commitRename(sessionId: string, newName: string): Promise<
   }
 
   try {
-        const result = await sessionsClient.sessionRename(sessionId, trimmed);
+    const result = await sessionsClient.sessionRename(sessionId, trimmed);
     if (result.success) {
       logEvent(`Renamed to: ${trimmed}`);
       sessionsState.editingSessionId = null;
-      // Update the name in TerminalManager so it persists across reloads
       const tm = getTerminalManager();
       if (tm) tm.renameSession(sessionId, trimmed);
-      // Reload sessions to get updated data
       await loadSessionsData();
       refreshOverview();
     } else {
@@ -167,8 +130,6 @@ export async function commitRename(sessionId: string, newName: string): Promise<
     sessionsState.editingSessionId = null;
   }
 }
-
-// --- Status counts ---
 
 export function updateStatusCounts(): void {
   const totalEl = document.getElementById('statusTotalSessions');

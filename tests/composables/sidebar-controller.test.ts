@@ -62,7 +62,7 @@ vi.mock('../../renderer/composables/useAppBootstrap.js', () => ({
   setSortField: mocks.setSortField,
   setSortDirection: mocks.setSortDirection,
 }));
-vi.mock('../../renderer/screens/sessions-render.js', () => ({
+vi.mock('../../renderer/sidebar/session-services.js', () => ({
   startRename: vi.fn(),
   commitRename: vi.fn(),
   cancelRename: vi.fn(),

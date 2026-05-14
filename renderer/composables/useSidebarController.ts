@@ -6,7 +6,7 @@ import { setSpawnCollapsed, setPlannerCollapsed } from '../sidebar/section-colla
 import { setDirPickerBridge } from '../screens/sessions-spawn.js';
 import { openDirPicker, dirPicker, closeConfirm, setCloseConfirmCallback } from '../stores/modal-bridge.js';
 import { refreshSessions, getSortField, getSortDirection, setSortField, setSortDirection } from './useAppBootstrap.js';
-import { startRename, commitRename, cancelRename } from '../screens/sessions-render.js';
+import { startRename, commitRename, cancelRename } from '../sidebar/session-services.js';
 import { toggleSessionOverviewVisibility, setSessionState, toggleGroupCollapse } from '../screens/sessions.js';
 import { isAnyBridgeModalVisible } from '../stores/modal-bridge.js';
 import type { ScheduledTask } from '../../src/types/scheduled-task.js';

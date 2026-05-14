@@ -1,4 +1,4 @@
-import { appClient, attachmentsClient, backupsClient, configClient, contextsClient, deliveryClient, dialogClient, draftsClient, eventsClient, incomingClient, keyboardClient, patternsClient, plansClient, projectsClient, schedulerClient, sessionsClient, systemClient, telegramClient, terminalClient, toolsClient } from '../ipc/clients.js';
+import { configClient } from '../ipc/clients.js';
 /**
  * Sessions screen — spawn flow, PTY creation, and terminal area management.
  *
@@ -7,7 +7,7 @@ import { appClient, attachmentsClient, backupsClient, configClient, contextsClie
 
 import { state } from '../state.js';
 import { sessionsState } from './sessions-state.js';
-import { logEvent, getCliIcon, getCliDisplayName } from '../utils.js';
+import { logEvent } from '../utils.js';
 import type { TerminalManager } from '../terminal/terminal-manager.js';
 import { findNavIndexBySessionId } from '../session-groups.js';
 
@@ -212,36 +212,6 @@ export function autoSelectFocusedSession(): void {
   const navStore = useNavigationStore();
   navStore.activateSession(session.id);
   navStore.syncSidebarToSession(session.id);
-}
-
-// ============================================================================
-// Render — spawn grid
-// ============================================================================
-
-export function renderSpawnGrid(): void {
-  // Vue owns the spawn grid — SpawnGrid.vue renders reactively from sessionsState.cliTypes.
-}
-
-function createSpawnButton(cliType: string, index: number): HTMLElement {
-  const btn = document.createElement('button');
-  btn.className = 'spawn-btn';
-  if (index === sessionsState.spawnFocusIndex && sessionsState.activeFocus === 'spawn') {
-    btn.classList.add('focused');
-  }
-
-  const icon = document.createElement('span');
-  icon.className = 'spawn-icon';
-  icon.textContent = getCliIcon(cliType);
-
-  const label = document.createElement('span');
-  label.className = 'spawn-label';
-  label.textContent = getCliDisplayName(cliType);
-
-  btn.appendChild(icon);
-  btn.appendChild(label);
-
-  btn.addEventListener('click', () => spawnNewSession(cliType));
-  return btn;
 }
 
 // ============================================================================

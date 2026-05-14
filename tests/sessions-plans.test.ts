@@ -212,7 +212,6 @@ describe('Sessions Plans Grid', () => {
   describe('handlePlansZone', () => {
     beforeEach(() => {
       sessionsState.directories = testDirs;
-      plans.renderPlansGrid();
       sessionsState.activeFocus = 'plans';
       sessionsState.plansFocusIndex = 0;
     });
@@ -275,7 +274,6 @@ describe('Sessions Plans Grid', () => {
   describe('handlePlansZoneButton', () => {
     beforeEach(() => {
       sessionsState.directories = testDirs;
-      plans.renderPlansGrid();
       sessionsState.activeFocus = 'plans';
       sessionsState.plansFocusIndex = 0;
     });
@@ -307,9 +305,8 @@ describe('Sessions Plans Grid', () => {
   describe('updatePlansFocus', () => {
     beforeEach(() => {
       sessionsState.directories = testDirs;
-      // renderPlansGrid() is a no-op (Vue owns the DOM), so manually create
-      // the buttons that PlansGrid.vue would render, to allow updatePlansFocus()
-      // to toggle .focused classes in tests.
+      // Vue owns the DOM, so tests create the buttons that PlansGrid.vue would
+      // render to allow updatePlansFocus() to toggle .focused classes.
       const grid = document.getElementById('plansGrid')!;
       grid.innerHTML = '';
       testDirs.forEach((dir, i) => {
@@ -364,24 +361,6 @@ describe('Sessions Plans Grid', () => {
       expect(sessionsState.activeFocus).toBe('plans');
       expect(sessionsState.plansFocusIndex).toBe(0);
     });
-  });
-
-  // ==========================================================================
-  // Listener deduplication — plan:changed is only registered in sessions.ts
-  // ==========================================================================
-
-  describe('plan-change listener ownership', () => {
-    it('renderPlansGrid does not register its own onPlanChanged listener', () => {
-      const onPlanChanged = (window as any).gamepadCli.onPlanChanged;
-      onPlanChanged.mockClear();
-
-      sessionsState.directories = testDirs;
-      plans.renderPlansGrid();
-
-      // renderPlansGrid should NOT call onPlanChanged — that is sessions.ts's job
-      expect(onPlanChanged).not.toHaveBeenCalled();
-    });
-
   });
 
   // ==========================================================================

@@ -15,15 +15,6 @@ import { plansClient } from '../ipc/clients.js';
 import { updateAllFocus } from './sessions.js';
 
 // ============================================================================
-// Render — plans grid
-// ============================================================================
-
-export function renderPlansGrid(): void {
-  // Vue owns the plans grid — PlansGrid.vue renders reactively from state.planDir* maps.
-  void refreshPlanBadges();
-}
-
-// ============================================================================
 // Gamepad navigation — plans zone (2-column grid, same as spawn)
 // ============================================================================
 

@@ -51,7 +51,7 @@ graph TB
         PE[plan-editor.ts<br/>Bottom panel]
         PL[plan-layout.ts<br/>Sugiyama layout]
         PC[plan-chips.ts<br/>Badges + chips]
-        SR[sessions-render.ts<br/>🗺️ button + badges]
+        SR[SessionList.vue / PlansGrid.vue<br/>🗺️ button + badges]
         DS[draft-strip.ts<br/>Plan chips]
     end
 
@@ -267,7 +267,7 @@ Dependency arrows use quadratic bezier curves:
 - Orange/purple badges for blocked and review counts (when > 0)
 - Returns `null` when all counts are 0
 
-Rendered on session cards in `sessions-render.ts`.
+Rendered by the Vue sidebar components from the reactive plan-count maps.
 
 ### Draft Strip Chips
 

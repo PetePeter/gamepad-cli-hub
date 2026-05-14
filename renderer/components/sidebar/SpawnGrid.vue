@@ -2,8 +2,8 @@
 /**
  * SpawnGrid.vue — 2-column grid of CLI spawn buttons.
  *
- * Replaces renderSpawnGrid() in sessions-spawn.ts. Each button shows the CLI
- * icon + display name and emits a spawn event on click.
+ * Each button shows the CLI icon + display name and emits a spawn event on
+ * click.
  */
 
 export interface SpawnItem {

@@ -2,8 +2,8 @@
 /**
  * PlansGrid.vue — 2-column grid of per-directory plan buttons with status dot counts.
  *
- * Shows status dots (ready, coding, review, blocked, planning),
- * skipping any with a zero count. Replaces renderPlansGrid() + createPlansButton().
+ * Shows status dots (ready, coding, review, blocked, planning), skipping any
+ * with a zero count.
  */
 
 export interface PlansDirItem {
