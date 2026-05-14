@@ -201,7 +201,12 @@ describe('plan screen bridge', () => {
       writeTempContent: mockWriteTempContent,
       dialogShowSaveFile: mockDialogShowSaveFile,
       dialogShowOpenFile: mockDialogShowOpenFile,
-      configGetPlanFilters: vi.fn().mockResolvedValue({ types: { bug: true, feature: true, research: true, untyped: true }, statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true } }),
+      configGetPlanFilters: vi.fn().mockResolvedValue({
+        types: { bug: 'either', feature: 'either', research: 'either', untyped: 'either' },
+        statuses: { planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'either' },
+        hasAttachment: { yes: 'either', no: 'either' },
+        auto: 'either',
+      }),
       configSetPlanFilters: vi.fn().mockResolvedValue(undefined),
     };
   });
@@ -719,9 +724,10 @@ describe('plan screen bridge', () => {
     const mod = await getModule();
     const item = planItem('a');
     const configGetPlanFilters = vi.fn().mockResolvedValue({
-      types: { bug: true, feature: false, research: true, untyped: true },
-      statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: false },
-      hasAttachment: { yes: false, no: true },
+      types: { bug: 'either', feature: 'no', research: 'either', untyped: 'either' },
+      statuses: { planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'no' },
+      hasAttachment: { yes: 'either', no: 'yes' },
+      auto: 'either',
     });
     const configSetPlanFilters = vi.fn().mockResolvedValue(undefined);
     (window as any).gamepadCli.configGetPlanFilters = configGetPlanFilters;
@@ -732,12 +738,12 @@ describe('plan screen bridge', () => {
 
     await mod.showPlanScreen('/test/dir');
 
-    expect(mod.planScreenState.filters.hasAttachment).toEqual({ yes: false, no: true });
+    expect(mod.planScreenState.filters.hasAttachment).toEqual({ yes: 'either', no: 'yes' });
 
     mod.toggleHasAttachmentFilter('yes');
     await flushAsyncHandlers();
     expect(configSetPlanFilters).toHaveBeenCalledWith(expect.objectContaining({
-      hasAttachment: { yes: true, no: true },
+      hasAttachment: { yes: 'yes', no: 'yes' },
     }));
   });
 
@@ -756,13 +762,37 @@ describe('plan screen bridge', () => {
     await flushAsyncHandlers();
 
     const saved = configSetPlanFilters.mock.calls.at(-1)?.[0];
-    expect(saved.statuses.done).toBe(false);
+    expect(saved.statuses.done).toBe('yes');
     expect(saved).not.toBe(mod.planScreenState.filters);
     expect(saved.statuses).not.toBe(mod.planScreenState.filters.statuses);
 
     mod.toggleStatusFilter('done');
 
-    expect(saved.statuses.done).toBe(false);
+    expect(saved.statuses.done).toBe('yes');
+  });
+
+  it('cycles auto filters through yes, no, and either', async () => {
+    const mod = await getModule();
+    const auto = { ...planItem('auto'), autoImplement: true };
+    const manual = planItem('manual');
+    mockPlanList.mockResolvedValue([auto, manual]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockImplementation((layoutItems: Array<{ id: string }>) => fakeLayout(layoutItems.map((item) => item.id)));
+
+    await mod.showPlanScreen('/test/dir');
+    expect(mod.planScreenState.layout.nodes.map((node) => node.id)).toEqual(['auto', 'manual']);
+
+    mod.toggleAutoFilter();
+    expect(mod.planScreenState.filters.auto).toBe('yes');
+    expect(mod.planScreenState.layout.nodes.map((node) => node.id)).toEqual(['auto']);
+
+    mod.toggleAutoFilter();
+    expect(mod.planScreenState.filters.auto).toBe('no');
+    expect(mod.planScreenState.layout.nodes.map((node) => node.id)).toEqual(['manual']);
+
+    mod.toggleAutoFilter();
+    expect(mod.planScreenState.filters.auto).toBe('either');
+    expect(mod.planScreenState.layout.nodes.map((node) => node.id)).toEqual(['auto', 'manual']);
   });
 
   it('reloads persisted done filter state after planner remount', async () => {
@@ -771,14 +801,16 @@ describe('plan screen bridge', () => {
 
     const configGetPlanFilters = vi.fn()
       .mockResolvedValueOnce({
-        types: { bug: true, feature: true, research: true, untyped: true },
-        statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: false },
-        hasAttachment: { yes: true, no: true },
+        types: { bug: 'either', feature: 'either', research: 'either', untyped: 'either' },
+        statuses: { planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'no' },
+        hasAttachment: { yes: 'either', no: 'either' },
+        auto: 'either',
       })
       .mockResolvedValueOnce({
-        types: { bug: true, feature: true, research: true, untyped: true },
-        statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: false },
-        hasAttachment: { yes: true, no: true },
+        types: { bug: 'either', feature: 'either', research: 'either', untyped: 'either' },
+        statuses: { planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'no' },
+        hasAttachment: { yes: 'either', no: 'either' },
+        auto: 'either',
       });
     (window as any).gamepadCli.configGetPlanFilters = configGetPlanFilters;
     mockPlanList.mockResolvedValue([planItem('a')]);
@@ -789,14 +821,15 @@ describe('plan screen bridge', () => {
     mod.hidePlanScreen();
     await mod.showPlanScreen('/test/dir');
 
-    expect(mod.planScreenState.filters.statuses.done).toBe(false);
+    expect(mod.planScreenState.filters.statuses.done).toBe('no');
   });
 
   it('eagerly loads persisted filter preferences on module import', async () => {
     const customFilters = {
-      types: { bug: false, feature: true, research: false, untyped: true },
-      statuses: { planning: false, ready: true, coding: false, review: true, blocked: false, done: false },
-      hasAttachment: { yes: true, no: false },
+      types: { bug: 'no', feature: 'yes', research: 'no', untyped: 'either' },
+      statuses: { planning: 'no', ready: 'yes', coding: 'no', review: 'yes', blocked: 'no', done: 'no' },
+      hasAttachment: { yes: 'yes', no: 'no' },
+      auto: 'yes',
     };
     const configGetPlanFilters = vi.fn().mockResolvedValue(customFilters);
     const configSetPlanFilters = vi.fn().mockResolvedValue(undefined);
@@ -811,6 +844,25 @@ describe('plan screen bridge', () => {
     expect(mod.planScreenState.filters.types).toEqual(customFilters.types);
     expect(mod.planScreenState.filters.statuses).toEqual(customFilters.statuses);
     expect(mod.planScreenState.filters.hasAttachment).toEqual(customFilters.hasAttachment);
+    expect(mod.planScreenState.filters.auto).toBe('yes');
+  });
+
+  it('coerces old boolean filter preferences to either', async () => {
+    const legacyFilters = {
+      types: { bug: false, feature: true, research: false, untyped: true },
+      statuses: { planning: false, ready: true, coding: false, review: true, blocked: false, done: false },
+      hasAttachment: { yes: true, no: false },
+    };
+    const configGetPlanFilters = vi.fn().mockResolvedValue(legacyFilters);
+    (window as any).gamepadCli.configGetPlanFilters = configGetPlanFilters;
+
+    const mod = await getModule();
+    await flushAsyncHandlers();
+
+    expect(mod.planScreenState.filters.types).toEqual({ bug: 'either', feature: 'either', research: 'either', untyped: 'either' });
+    expect(mod.planScreenState.filters.statuses).toEqual({ planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'either' });
+    expect(mod.planScreenState.filters.hasAttachment).toEqual({ yes: 'either', no: 'either' });
+    expect(mod.planScreenState.filters.auto).toBe('either');
   });
 
   it('reloads filter preferences on each planner mount', async () => {
@@ -818,9 +870,10 @@ describe('plan screen bridge', () => {
     await flushAsyncHandlers();
 
     const secondLoadFilters = {
-      types: { bug: false, feature: false, research: false, untyped: false },
-      statuses: { planning: true, ready: false, coding: false, review: false, blocked: false, done: false },
-      hasAttachment: { yes: false, no: true },
+      types: { bug: 'no', feature: 'no', research: 'no', untyped: 'no' },
+      statuses: { planning: 'yes', ready: 'no', coding: 'no', review: 'no', blocked: 'no', done: 'no' },
+      hasAttachment: { yes: 'no', no: 'yes' },
+      auto: 'no',
     };
     const configGetPlanFilters = vi.fn().mockResolvedValue(secondLoadFilters);
     (window as any).gamepadCli.configGetPlanFilters = configGetPlanFilters;
@@ -835,6 +888,7 @@ describe('plan screen bridge', () => {
     expect(mod.planScreenState.filters.types).toEqual(secondLoadFilters.types);
     expect(mod.planScreenState.filters.statuses).toEqual(secondLoadFilters.statuses);
     expect(mod.planScreenState.filters.hasAttachment).toEqual(secondLoadFilters.hasAttachment);
+    expect(mod.planScreenState.filters.auto).toBe('no');
   });
 
   it('saves plan edits through the editor callback', async () => {

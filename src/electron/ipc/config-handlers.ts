@@ -294,7 +294,12 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
       return configLoader.getPlanFilters();
     } catch (error) {
       logger.error(`[IPC] Failed to get plan filters: ${error}`);
-      return { types: { bug: true, feature: true, research: true, untyped: true }, statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true } };
+      return {
+        types: { bug: 'either', feature: 'either', research: 'either', untyped: 'either' },
+        statuses: { planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'either' },
+        hasAttachment: { yes: 'either', no: 'either' },
+        auto: 'either',
+      };
     }
   });
 

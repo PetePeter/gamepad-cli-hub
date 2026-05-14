@@ -4,6 +4,7 @@ import {
   planScreenState,
   refreshCanvasIfVisible,
   resetFilters,
+  toggleAutoFilter,
   toggleHasAttachmentFilter,
   toggleRelatedFocus,
   toggleStatusFilter,
@@ -56,6 +57,10 @@ export function usePlanWorkspaceController(deps: PlanWorkspaceControllerDeps) {
 
   function onToggleHasAttachmentFilter(value: 'yes' | 'no'): void {
     toggleHasAttachmentFilter(value);
+  }
+
+  function onToggleAutoFilter(): void {
+    toggleAutoFilter();
   }
 
   function onToggleRelatedFocus(): void {
@@ -129,6 +134,7 @@ export function usePlanWorkspaceController(deps: PlanWorkspaceControllerDeps) {
     onToggleStatusFilter,
     onResetFilters,
     onToggleHasAttachmentFilter,
+    onToggleAutoFilter,
     onToggleRelatedFocus,
     openBackupRestore,
     onBackupRestore,

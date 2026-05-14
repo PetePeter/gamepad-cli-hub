@@ -200,7 +200,12 @@ describe('plan screen window-keyed callbacks', () => {
       writeTempContent: mockWriteTempContent,
       dialogShowSaveFile: mockDialogShowSaveFile,
       dialogShowOpenFile: mockDialogShowOpenFile,
-      configGetPlanFilters: vi.fn().mockResolvedValue({ types: { bug: true, feature: true, research: true, untyped: true }, statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true } }),
+      configGetPlanFilters: vi.fn().mockResolvedValue({
+        types: { bug: 'either', feature: 'either', research: 'either', untyped: 'either' },
+        statuses: { planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'either' },
+        hasAttachment: { yes: 'either', no: 'either' },
+        auto: 'either',
+      }),
       configSetPlanFilters: vi.fn().mockResolvedValue(undefined),
     };
 

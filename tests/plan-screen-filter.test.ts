@@ -28,8 +28,10 @@ function createItem(
 }
 
 const defaultFilters = {
-  types: { bug: true, feature: true, research: true, untyped: true },
-  statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
+  types: { bug: 'either', feature: 'either', research: 'either', untyped: 'either' },
+  statuses: { planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'either' },
+  hasAttachment: { yes: 'either', no: 'either' },
+  auto: 'either',
 };
 
 describe('PlanScreen filter integration', () => {
@@ -39,10 +41,10 @@ describe('PlanScreen filter integration', () => {
   });
 
   describe('toggle type filters', () => {
-    it('renders filter checkboxes with correct checked states', () => {
+    it('renders compact tri-state filter chips with correct states', () => {
       const filters = {
         ...defaultFilters,
-        types: { bug: true, feature: false, research: true, untyped: false },
+        types: { bug: 'yes', feature: 'no', research: 'either', untyped: 'either' },
       };
 
       const wrapper = mount(PlanScreen, {
@@ -57,19 +59,16 @@ describe('PlanScreen filter integration', () => {
         },
       });
 
-      const checkboxes = wrapper.findAll('input[type="checkbox"]');
-      expect(checkboxes.length).toBeGreaterThan(0);
-
-      // Bug checkbox should be checked (third input after Bug label)
-      const bugCheckbox = checkboxes[0];
-      expect(bugCheckbox.attributes('checked')).toBeDefined();
-
-      // Feature checkbox should be unchecked
-      const featureCheckbox = checkboxes[1];
-      expect(featureCheckbox.attributes('checked')).toBeUndefined();
+      const chips = wrapper.findAll('.plan-header__chip');
+      expect(chips[0].text()).toBe('Bug');
+      expect(chips[0].classes()).toContain('yes');
+      expect(chips[1].text()).toBe('Feature');
+      expect(chips[1].classes()).toContain('no');
+      expect(chips[2].text()).toBe('Research');
+      expect(chips[2].classes()).toContain('either');
     });
 
-    it('emits toggleTypeFilter when checkbox is clicked', async () => {
+    it('emits toggleTypeFilter when chip is clicked', async () => {
       const wrapper = mount(PlanScreen, {
         props: {
           visible: true,
@@ -82,10 +81,9 @@ describe('PlanScreen filter integration', () => {
         },
       });
 
-      const checkboxes = wrapper.findAll('input[type="checkbox"]');
-      const bugCheckbox = checkboxes[0];
+      const bugChip = wrapper.findAll('.plan-header__chip')[0];
 
-      await bugCheckbox.setChecked(false);
+      await bugChip.trigger('click');
       expect(wrapper.emitted('toggleTypeFilter')).toBeTruthy();
       expect(wrapper.emitted('toggleTypeFilter')?.[0]).toEqual(['bug']);
     });

@@ -2588,45 +2588,56 @@ kbd {
 .plan-header__filters {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 4px 12px;
+  gap: 4px;
+  padding: 3px 8px;
   background: #1a1a1a;
   border: 1px solid #333;
   border-radius: 4px;
   flex-wrap: wrap;
 }
 
-.plan-header__filter {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: #ccc;
+.plan-header__chip {
+  padding: 2px 7px;
+  font-size: 10px;
+  border: 1px solid #444;
+  border-radius: 10px;
+  background: transparent;
+  color: #666;
   cursor: pointer;
   white-space: nowrap;
+  line-height: 1.4;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
 }
 
-.plan-header__filter:hover {
-  color: #fff;
+.plan-header__chip:hover {
+  border-color: #888;
+  color: #ccc;
 }
 
-.plan-header__filter input {
-  cursor: pointer;
+.plan-header__chip.yes {
+  background: #1a2a1a;
+  border-color: #44cc44;
+  color: #44cc44;
 }
 
-.plan-header__filter-label {
-  font-size: 11px;
-  color: #888;
-  font-weight: 600;
+.plan-header__chip.no {
+  background: #2a1a1a;
+  border-color: #cc4444;
+  color: #cc4444;
 }
 
-.plan-header__filter-label--status {
-  margin-left: 8px;
+.plan-header__filter-sep {
+  color: #444;
+  font-size: 12px;
+  padding: 0 2px;
+  user-select: none;
 }
 
 .plan-header__btn--reset {
-  padding: 2px 8px;
-  font-size: 10px;
+  padding: 2px 6px;
+  font-size: 13px;
+  line-height: 1;
+  margin-left: 4px;
 }
 
 /* Brief transient notice (export/import feedback) */

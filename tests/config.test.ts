@@ -245,17 +245,19 @@ describe('ConfigLoader', () => {
     it('deep-merges partial plan filter updates without resetting sibling fields', () => {
       loader.load();
       loader.setPlanFilters({
-        types: { feature: false },
-        hasAttachment: { no: false },
+        types: { feature: 'no' },
+        hasAttachment: { no: 'no' },
       });
       loader.setPlanFilters({
-        statuses: { done: false },
+        statuses: { done: 'no' },
+        auto: 'yes',
       });
 
       expect(loader.getPlanFilters()).toEqual({
-        types: { bug: true, feature: false, research: true, untyped: true },
-        statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: false },
-        hasAttachment: { yes: true, no: false },
+        types: { bug: 'either', feature: 'no', research: 'either', untyped: 'either' },
+        statuses: { planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'no' },
+        hasAttachment: { yes: 'either', no: 'no' },
+        auto: 'yes',
       });
     });
   });

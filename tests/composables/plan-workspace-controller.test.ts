@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   toggleRelatedFocus: vi.fn(),
   resetFilters: vi.fn(),
   toggleHasAttachmentFilter: vi.fn(),
+  toggleAutoFilter: vi.fn(),
 }));
 
 vi.mock('../../renderer/ipc/clients.js', () => ({
@@ -35,6 +36,7 @@ vi.mock('../../renderer/plans/plan-screen.js', () => ({
   toggleRelatedFocus: mocks.toggleRelatedFocus,
   resetFilters: mocks.resetFilters,
   toggleHasAttachmentFilter: mocks.toggleHasAttachmentFilter,
+  toggleAutoFilter: mocks.toggleAutoFilter,
 }));
 
 import { usePlanWorkspaceController } from '../../renderer/composables/usePlanWorkspaceController.js';
@@ -83,6 +85,7 @@ describe('usePlanWorkspaceController', () => {
     controller.onToggleTypeFilter('feature');
     controller.onToggleStatusFilter('ready');
     controller.onToggleHasAttachmentFilter('yes');
+    controller.onToggleAutoFilter();
     controller.onToggleRelatedFocus();
     controller.onResetFilters();
     await controller.onPlanPopOut();
@@ -90,6 +93,7 @@ describe('usePlanWorkspaceController', () => {
     expect(mocks.toggleTypeFilter).toHaveBeenCalledWith('feature');
     expect(mocks.toggleStatusFilter).toHaveBeenCalledWith('ready');
     expect(mocks.toggleHasAttachmentFilter).toHaveBeenCalledWith('yes');
+    expect(mocks.toggleAutoFilter).toHaveBeenCalled();
     expect(mocks.toggleRelatedFocus).toHaveBeenCalled();
     expect(mocks.resetFilters).toHaveBeenCalled();
     expect(mocks.planPopOut).toHaveBeenCalledWith('X:\\coding\\gamepad-cli-hub');

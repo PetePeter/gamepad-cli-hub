@@ -34,6 +34,7 @@ import {
   onPlanNodeEdit,
   onPlanRemoveDependency,
   onPlanUpdateSequence,
+  toggleAutoFilter,
   toggleHasAttachmentFilter,
   toggleRelatedFocus,
   toggleStatusFilter,
@@ -272,6 +273,7 @@ onUnmounted(() => {
       @toggle-type-filter="toggleTypeFilter"
       @toggle-status-filter="toggleStatusFilter"
       @toggle-has-attachment-filter="toggleHasAttachmentFilter"
+      @toggle-auto-filter="toggleAutoFilter"
       @reset-filters="resetFilters()"
       @open-backups="openBackupRestore()"
     />

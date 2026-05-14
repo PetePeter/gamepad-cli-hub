@@ -189,10 +189,13 @@ export interface SortingConfig {
   bindings: AreaSortPrefs;
 }
 
+export type PlanFilterTriState = 'either' | 'yes' | 'no';
+
 export interface PlanFilterConfig {
-  types: { bug: boolean; feature: boolean; research: boolean; untyped: boolean };
-  statuses: { planning: boolean; ready: boolean; coding: boolean; review: boolean; blocked: boolean; done: boolean };
-  hasAttachment: { yes: boolean; no: boolean };
+  types: { bug: PlanFilterTriState; feature: PlanFilterTriState; research: PlanFilterTriState; untyped: PlanFilterTriState };
+  statuses: { planning: PlanFilterTriState; ready: PlanFilterTriState; coding: PlanFilterTriState; review: PlanFilterTriState; blocked: PlanFilterTriState; done: PlanFilterTriState };
+  hasAttachment: { yes: PlanFilterTriState; no: PlanFilterTriState };
+  auto: PlanFilterTriState;
 }
 
 const DEFAULT_SORTING: SortingConfig = {
@@ -201,9 +204,10 @@ const DEFAULT_SORTING: SortingConfig = {
 };
 
 const DEFAULT_PLAN_FILTERS: PlanFilterConfig = {
-  types: { bug: true, feature: true, research: true, untyped: true },
-  statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
-  hasAttachment: { yes: true, no: true },
+  types: { bug: 'either', feature: 'either', research: 'either', untyped: 'either' },
+  statuses: { planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'either' },
+  hasAttachment: { yes: 'either', no: 'either' },
+  auto: 'either',
 };
 
 export interface TelegramConfig {
@@ -803,6 +807,7 @@ export class ConfigLoader {
         ...DEFAULT_PLAN_FILTERS.hasAttachment,
         ...(saved?.hasAttachment ?? {}),
       },
+      auto: saved?.auto ?? DEFAULT_PLAN_FILTERS.auto,
     };
   }
 
@@ -822,6 +827,7 @@ export class ConfigLoader {
         ...current.hasAttachment,
         ...(filters.hasAttachment ?? {}),
       },
+      auto: filters.auto ?? current.auto,
     };
     this.saveSettings();
   }

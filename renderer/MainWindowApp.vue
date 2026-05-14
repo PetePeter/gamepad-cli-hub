@@ -309,6 +309,7 @@ const {
   onToggleStatusFilter,
   onResetFilters,
   onToggleHasAttachmentFilter,
+  onToggleAutoFilter,
   onToggleRelatedFocus,
   openBackupRestore,
   onBackupRestore,
@@ -1072,6 +1073,7 @@ onUnmounted(() => {
         @toggle-status-filter="onToggleStatusFilter"
         @reset-filters="onResetFilters"
         @toggle-has-attachment-filter="onToggleHasAttachmentFilter"
+        @toggle-auto-filter="onToggleAutoFilter"
         @open-backups="openBackupRestore()"
       />
       <div v-if="chipActionBarVisible && activeView === 'terminal'" class="chip-action-dock">

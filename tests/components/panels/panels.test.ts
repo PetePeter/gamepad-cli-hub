@@ -989,7 +989,12 @@ describe('PlanScreen', () => {
       { id: 'ctx-1', title: 'API Notes', type: 'Knowledge', permission: 'readonly' as const, content: 'Use v2', sequenceIds: [], planIds: [] },
     ],
     sequences: [],
-    filters: { types: { bug: true, feature: true, research: true, untyped: true }, statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true } },
+    filters: {
+      types: { bug: 'either', feature: 'either', research: 'either', untyped: 'either' },
+      statuses: { planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'either' },
+      hasAttachment: { yes: 'either', no: 'either' },
+      auto: 'either',
+    },
   };
 
   it('emits contextEdit on context card double-click', async () => {

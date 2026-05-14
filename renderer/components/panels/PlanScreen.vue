@@ -5,6 +5,7 @@ import { formatDate } from '../../utils/date-format.js';
 import type { PlanDependency, PlanItem, PlanSequence } from '../../../src/types/plan.js';
 import type { ContextBindingTargetType, ContextNode } from '../../../src/types/context.js';
 import type { LayoutResult } from '../../plans/plan-layout.js';
+import type { TriState } from '../../plans/plan-screen.js';
 import SplitAddButton from '../buttons/SplitAddButton.vue';
 import PromptTextarea from '../common/PromptTextarea.vue';
 import { isEditableElement } from '../../input/input-ownership.js';
@@ -43,9 +44,10 @@ const props = withDefaults(defineProps<{
   relatedFocusIds?: Set<string>;
   relatedTransientIds?: Set<string>;
   filters?: {
-    types: { bug: boolean; feature: boolean; research: boolean; untyped: boolean };
-    statuses: { planning: boolean; ready: boolean; coding: boolean; review: boolean; blocked: boolean; done: boolean };
-    hasAttachment?: { yes: boolean; no: boolean };
+    types: { bug: TriState; feature: TriState; research: TriState; untyped: TriState };
+    statuses: { planning: TriState; ready: TriState; coding: TriState; review: TriState; blocked: TriState; done: TriState };
+    hasAttachment?: { yes: TriState; no: TriState };
+    auto: TriState;
   };
   attachmentHasAny?: Record<string, boolean>;
   canPopOut?: boolean;
@@ -58,9 +60,10 @@ const props = withDefaults(defineProps<{
   relatedFocusIds: () => new Set<string>(),
   relatedTransientIds: () => new Set<string>(),
   filters: () => ({
-    types: { bug: true, feature: true, research: true, untyped: true },
-    statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
-    hasAttachment: { yes: true, no: true },
+    types: { bug: 'either', feature: 'either', research: 'either', untyped: 'either' },
+    statuses: { planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'either' },
+    hasAttachment: { yes: 'either', no: 'either' },
+    auto: 'either',
   }),
   canPopOut: true,
 });
@@ -96,6 +99,7 @@ const emit = defineEmits<{
   toggleTypeFilter: [type: 'bug' | 'feature' | 'research' | 'untyped'];
   toggleStatusFilter: [status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done'];
   toggleHasAttachmentFilter: [value: 'yes' | 'no'];
+  toggleAutoFilter: [];
   resetFilters: [];
   openBackups: [];
 }>();
@@ -666,49 +670,23 @@ onUnmounted(() => {
       <span class="plan-header__title">{{ dirPath }} - Plans</span>
 
       <div class="plan-header__filters">
-        <span class="plan-header__filter-label">Type:</span>
-        <label class="plan-header__filter">
-          <input type="checkbox" :checked="filters.types.bug" @change="emit('toggleTypeFilter', 'bug')"> Bug
-        </label>
-        <label class="plan-header__filter">
-          <input type="checkbox" :checked="filters.types.feature" @change="emit('toggleTypeFilter', 'feature')"> Feature
-        </label>
-        <label class="plan-header__filter">
-          <input type="checkbox" :checked="filters.types.research" @change="emit('toggleTypeFilter', 'research')"> Research
-        </label>
-        <label class="plan-header__filter">
-          <input type="checkbox" :checked="filters.types.untyped" @change="emit('toggleTypeFilter', 'untyped')"> Untyped
-        </label>
-
-        <span class="plan-header__filter-label plan-header__filter-label--status">Status:</span>
-        <label class="plan-header__filter">
-          <input type="checkbox" :checked="filters.statuses.planning" @change="emit('toggleStatusFilter', 'planning')"> Planning
-        </label>
-        <label class="plan-header__filter">
-          <input type="checkbox" :checked="filters.statuses.ready" @change="emit('toggleStatusFilter', 'ready')"> Ready
-        </label>
-        <label class="plan-header__filter">
-          <input type="checkbox" :checked="filters.statuses.coding" @change="emit('toggleStatusFilter', 'coding')"> Coding
-        </label>
-        <label class="plan-header__filter">
-          <input type="checkbox" :checked="filters.statuses.review" @change="emit('toggleStatusFilter', 'review')"> Review
-        </label>
-        <label class="plan-header__filter">
-          <input type="checkbox" :checked="filters.statuses.blocked" @change="emit('toggleStatusFilter', 'blocked')"> Blocked
-        </label>
-        <label class="plan-header__filter">
-          <input type="checkbox" :checked="filters.statuses.done" @change="emit('toggleStatusFilter', 'done')"> Done
-        </label>
-
-        <span class="plan-header__filter-label plan-header__filter-label--status">Attachment:</span>
-        <label class="plan-header__filter">
-          <input type="checkbox" :checked="filters.hasAttachment?.yes" @change="emit('toggleHasAttachmentFilter', 'yes')"> Has
-        </label>
-        <label class="plan-header__filter">
-          <input type="checkbox" :checked="filters.hasAttachment?.no" @change="emit('toggleHasAttachmentFilter', 'no')"> None
-        </label>
-
-        <button class="plan-header__btn plan-header__btn--reset" @click="emit('resetFilters')">Reset</button>
+        <button class="plan-header__chip" :class="filters.types.bug" @click="emit('toggleTypeFilter', 'bug')">Bug</button>
+        <button class="plan-header__chip" :class="filters.types.feature" @click="emit('toggleTypeFilter', 'feature')">Feature</button>
+        <button class="plan-header__chip" :class="filters.types.research" @click="emit('toggleTypeFilter', 'research')">Research</button>
+        <button class="plan-header__chip" :class="filters.types.untyped" @click="emit('toggleTypeFilter', 'untyped')">Untyped</button>
+        <span class="plan-header__filter-sep">|</span>
+        <button class="plan-header__chip" :class="filters.statuses.planning" @click="emit('toggleStatusFilter', 'planning')">Planning</button>
+        <button class="plan-header__chip" :class="filters.statuses.ready" @click="emit('toggleStatusFilter', 'ready')">Ready</button>
+        <button class="plan-header__chip" :class="filters.statuses.coding" @click="emit('toggleStatusFilter', 'coding')">Coding</button>
+        <button class="plan-header__chip" :class="filters.statuses.review" @click="emit('toggleStatusFilter', 'review')">Review</button>
+        <button class="plan-header__chip" :class="filters.statuses.blocked" @click="emit('toggleStatusFilter', 'blocked')">Blocked</button>
+        <button class="plan-header__chip" :class="filters.statuses.done" @click="emit('toggleStatusFilter', 'done')">Done</button>
+        <span class="plan-header__filter-sep">|</span>
+        <button class="plan-header__chip" :class="filters.hasAttachment?.yes" @click="emit('toggleHasAttachmentFilter', 'yes')">Has</button>
+        <button class="plan-header__chip" :class="filters.hasAttachment?.no" @click="emit('toggleHasAttachmentFilter', 'no')">None</button>
+        <span class="plan-header__filter-sep">|</span>
+        <button class="plan-header__chip" :class="filters.auto" @click="emit('toggleAutoFilter')">Auto</button>
+        <button class="plan-header__btn plan-header__btn--reset" title="Reset filters" @click="emit('resetFilters')">↺</button>
       </div>
 
       <div class="plan-header__controls">

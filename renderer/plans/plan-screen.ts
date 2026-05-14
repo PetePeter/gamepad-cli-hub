@@ -19,6 +19,20 @@ import {
   plansClient,
 } from '../ipc/clients.js';
 
+export type TriState = 'either' | 'yes' | 'no';
+type TypeFilterKey = 'bug' | 'feature' | 'research' | 'untyped';
+type StatusFilterKey = 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done';
+type AttachmentFilterKey = 'yes' | 'no';
+
+function makeDefaultFilters() {
+  return {
+    types: { bug: 'either', feature: 'either', research: 'either', untyped: 'either' } as Record<TypeFilterKey, TriState>,
+    statuses: { planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'either' } as Record<StatusFilterKey, TriState>,
+    hasAttachment: { yes: 'either', no: 'either' } as Record<AttachmentFilterKey, TriState>,
+    auto: 'either' as TriState,
+  };
+}
+
 export interface PlanEditorCallbacks {
   onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean }) => void | Promise<void>;
   onDelete: () => void | Promise<void>;
@@ -44,11 +58,7 @@ export const planScreenState = reactive({
   relatedFocusRootId: null as string | null,
   relatedFocusIds: new Set<string>(),
   relatedTransientIds: new Set<string>(),
-  filters: {
-    types: { bug: true, feature: true, research: true, untyped: true },
-    statuses: { planning: true, ready: true, coding: true, review: true, blocked: true, done: true },
-    hasAttachment: { yes: true, no: true },
-  },
+  filters: makeDefaultFilters(),
   attachmentHasAny: {} as Record<string, boolean>,
 });
 
@@ -102,11 +112,34 @@ const PLAN_SCREEN_KEY_HANDLER_KEY = Symbol.for('helm.planScreen.keyHandler');
 
 let filtersLoaded = false;
 
+function coerceTriState(value: unknown): TriState {
+  return value === 'yes' || value === 'no' || value === 'either' ? value : 'either';
+}
+
+function coerceTriStateGroup<T extends string>(defaults: Record<T, TriState>, saved: unknown): Record<T, TriState> {
+  const source = saved && typeof saved === 'object' ? saved as Record<string, unknown> : {};
+  return Object.fromEntries(
+    Object.keys(defaults).map((key) => [key, coerceTriState(source[key])]),
+  ) as Record<T, TriState>;
+}
+
+function cycleTriState(current: TriState): TriState {
+  return current === 'either' ? 'yes' : current === 'yes' ? 'no' : 'either';
+}
+
+function matchesTriStateGroup<T extends string>(group: Record<T, TriState>, key: T): boolean {
+  const state = group[key] ?? 'either';
+  if (state === 'no') return false;
+  const hasYes = Object.values(group).some((value) => value === 'yes');
+  return hasYes ? state === 'yes' : true;
+}
+
 function snapshotFilterPreferences() {
   return {
     types: { ...planScreenState.filters.types },
     statuses: { ...planScreenState.filters.statuses },
     hasAttachment: { ...planScreenState.filters.hasAttachment },
+    auto: planScreenState.filters.auto,
   };
 }
 
@@ -115,6 +148,7 @@ watch(
     types: planScreenState.filters.types,
     statuses: planScreenState.filters.statuses,
     hasAttachment: planScreenState.filters.hasAttachment,
+    auto: planScreenState.filters.auto,
   }),
   () => {
     if (!filtersLoaded) return;
@@ -126,11 +160,11 @@ watch(
 async function loadFilterPreferences(): Promise<void> {
   try {
     const saved = await configClient.configGetPlanFilters();
-    planScreenState.filters.types = saved.types ?? planScreenState.filters.types;
-    planScreenState.filters.statuses = saved.statuses ?? planScreenState.filters.statuses;
-    if (saved.hasAttachment) {
-      planScreenState.filters.hasAttachment = saved.hasAttachment;
-    }
+    const defaults = makeDefaultFilters();
+    planScreenState.filters.types = coerceTriStateGroup(defaults.types, saved.types);
+    planScreenState.filters.statuses = coerceTriStateGroup(defaults.statuses, saved.statuses);
+    planScreenState.filters.hasAttachment = coerceTriStateGroup(defaults.hasAttachment, saved.hasAttachment);
+    planScreenState.filters.auto = coerceTriState(saved.auto);
   } catch (err) {
     console.error('[PlanScreen] Failed to load filter preferences:', err);
   } finally {
@@ -190,15 +224,15 @@ function getPlanItemById(planId: string): PlanItem | null {
 function matchesFilters(item: PlanItem): boolean {
   const { filters, attachmentHasAny } = planScreenState;
 
-  const typeMatch = !item.type ? filters.types.untyped : filters.types[item.type] ?? true;
-  if (!typeMatch) return false;
-
-  const statusMatch = filters.statuses[item.status] ?? false;
-  if (!statusMatch) return false;
+  const typeKey: TypeFilterKey = item.type ?? 'untyped';
+  if (!matchesTriStateGroup(filters.types, typeKey)) return false;
+  if (!matchesTriStateGroup(filters.statuses, item.status)) return false;
 
   const hasAtt = attachmentHasAny[item.id] ?? false;
-  if (hasAtt && !filters.hasAttachment.yes) return false;
-  if (!hasAtt && !filters.hasAttachment.no) return false;
+  if (!matchesTriStateGroup(filters.hasAttachment, hasAtt ? 'yes' : 'no')) return false;
+
+  if (filters.auto === 'yes' && !item.autoImplement) return false;
+  if (filters.auto === 'no' && item.autoImplement) return false;
 
   return true;
 }
@@ -1011,13 +1045,13 @@ export function toggleRelatedFocus(): void {
 }
 
 export function toggleTypeFilter(type: 'bug' | 'feature' | 'research' | 'untyped'): void {
-  planScreenState.filters.types[type] = !planScreenState.filters.types[type];
+  planScreenState.filters.types[type] = cycleTriState(planScreenState.filters.types[type]);
   refreshLayout();
   void saveFilterPreferences();
 }
 
 export function toggleStatusFilter(status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done'): void {
-  planScreenState.filters.statuses[status] = !planScreenState.filters.statuses[status];
+  planScreenState.filters.statuses[status] = cycleTriState(planScreenState.filters.statuses[status]);
   refreshLayout();
   void saveFilterPreferences();
 }
@@ -1030,8 +1064,8 @@ export function toggleStatusGroup(group: 'active' | 'terminal' | 'planning'): vo
   };
   const statuses = groups[group] ?? [];
   const currentValues = statuses.map(s => planScreenState.filters.statuses[s]);
-  const allTrue = currentValues.every(v => v);
-  const newValue = !allTrue;
+  const allYes = currentValues.every(v => v === 'yes');
+  const newValue: TriState = allYes ? 'either' : 'yes';
   for (const status of statuses) {
     planScreenState.filters.statuses[status] = newValue;
   }
@@ -1040,15 +1074,19 @@ export function toggleStatusGroup(group: 'active' | 'terminal' | 'planning'): vo
 }
 
 export function resetFilters(): void {
-  planScreenState.filters.types = { bug: true, feature: true, research: true, untyped: true };
-  planScreenState.filters.statuses = { planning: true, ready: true, coding: true, review: true, blocked: true, done: true };
-  planScreenState.filters.hasAttachment = { yes: true, no: true };
+  planScreenState.filters = makeDefaultFilters();
   refreshLayout();
   void saveFilterPreferences();
 }
 
 export function toggleHasAttachmentFilter(value: 'yes' | 'no'): void {
-  planScreenState.filters.hasAttachment[value] = !planScreenState.filters.hasAttachment[value];
+  planScreenState.filters.hasAttachment[value] = cycleTriState(planScreenState.filters.hasAttachment[value]);
+  refreshLayout();
+  void saveFilterPreferences();
+}
+
+export function toggleAutoFilter(): void {
+  planScreenState.filters.auto = cycleTriState(planScreenState.filters.auto);
   refreshLayout();
   void saveFilterPreferences();
 }

@@ -174,9 +174,10 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
    * Set plan filter preferences
    */
   configSetPlanFilters: (filters: {
-    types?: { bug?: boolean; feature?: boolean; research?: boolean; untyped?: boolean };
-    statuses?: { planning?: boolean; ready?: boolean; coding?: boolean; review?: boolean; blocked?: boolean; done?: boolean };
-    hasAttachment?: { yes?: boolean; no?: boolean };
+    types?: { bug?: 'either' | 'yes' | 'no'; feature?: 'either' | 'yes' | 'no'; research?: 'either' | 'yes' | 'no'; untyped?: 'either' | 'yes' | 'no' };
+    statuses?: { planning?: 'either' | 'yes' | 'no'; ready?: 'either' | 'yes' | 'no'; coding?: 'either' | 'yes' | 'no'; review?: 'either' | 'yes' | 'no'; blocked?: 'either' | 'yes' | 'no'; done?: 'either' | 'yes' | 'no' };
+    hasAttachment?: { yes?: 'either' | 'yes' | 'no'; no?: 'either' | 'yes' | 'no' };
+    auto?: 'either' | 'yes' | 'no';
   }) =>
     ipcRenderer.invoke('config:setPlanFilters', filters),
 
