@@ -398,7 +398,7 @@ describe('LocalhostMcpServer', () => {
     });
     const json = await response.json();
 
-    expect((service.readSessionTerminal as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 120, 'both');
+    expect((service.readSessionTerminal as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('Claude', 120, 'both', undefined);
     expect(json.result.structuredContent).toMatchObject({
       sessionId: 'Claude',
       requestedLines: 120,

@@ -79,8 +79,8 @@ describe('deliverPromptSequenceToSession', () => {
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'before');
     expect(mocks.ptyManager.deliverText).not.toHaveBeenCalledWith('s1', 'after');
 
-    // Advance past the 500ms wait
-    await vi.advanceTimersByTimeAsync(500);
+    // Advance past the 500ms wait plus the 200ms submit delay that fires afterwards
+    await vi.advanceTimersByTimeAsync(700);
     await promise;
 
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'after');
@@ -284,6 +284,43 @@ describe('deliverPromptSequenceToSession', () => {
 
       const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter(
         (c: any[]) => c[0] === 's1' && c[2]?.submitSuffix === '\r\n',
+      );
+      expect(submitCalls).toHaveLength(1);
+    });
+  });
+
+  describe('submit delay', () => {
+    it('submit fires ≥200ms after text flush (real timers)', async () => {
+      // Verify the 200ms SUBMIT_DELAY_MS constant is respected at runtime.
+      // We record the timestamp inside deliverText and compare to when the submit arrives.
+      const mocks = makeMocks({ cliType: 'cmd' });
+      let textFlushAt = 0;
+      let submitAt = 0;
+
+      mocks.ptyManager.deliverText.mockImplementation(async (_sid: string, _chunk: string, opts?: any) => {
+        if (opts?.submitSuffix !== undefined) {
+          submitAt = Date.now();
+        } else {
+          textFlushAt = Date.now();
+        }
+      });
+
+      await deliver('hello', mocks);
+
+      expect(submitAt).toBeGreaterThan(0);
+      expect(textFlushAt).toBeGreaterThan(0);
+      expect(submitAt - textFlushAt).toBeGreaterThanOrEqual(190); // 10ms tolerance
+    });
+
+    it('explicit {Enter} token submits exactly once even with the delay', async () => {
+      // Regression: the 200ms delay must not cause double-submit when sequence
+      // contains an explicit {Enter} token (which itself triggers submit).
+      const mocks = makeMocks({ cliType: 'cmd' });
+
+      await deliver('hello{Enter}', mocks);
+
+      const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter(
+        (c: any[]) => c[0] === 's1' && c[2]?.submitSuffix !== undefined,
       );
       expect(submitCalls).toHaveLength(1);
     });

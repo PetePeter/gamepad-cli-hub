@@ -32,14 +32,32 @@ export class TerminalOutputBuffer {
     buffer.lastOutputAt = now;
   }
 
-  tail(sessionId: string, lines: number, mode: TerminalOutputMode): TerminalTail {
+  tail(sessionId: string, lines: number, mode: TerminalOutputMode, stripBlankLines = false): TerminalTail {
     const buffer = this.buffers.get(sessionId);
     if (!buffer) return {};
     const includeRaw = mode === 'raw' || mode === 'both';
     const includeStripped = mode === 'stripped' || mode === 'both';
+
+    let raw = includeRaw ? this.getLines(buffer.raw, lines) : undefined;
+    let stripped = includeStripped ? this.getLines(buffer.stripped, lines) : undefined;
+
+    if (stripBlankLines) {
+      if (mode === 'both' && raw && stripped) {
+        // Drop paired rows where the stripped side is blank to preserve row correspondence.
+        const kept = stripped
+          .map((s, i) => ({ s, r: raw![i] }))
+          .filter(({ s }) => s.trim() !== '');
+        raw = kept.map(({ r }) => r);
+        stripped = kept.map(({ s }) => s);
+      } else {
+        if (raw) raw = raw.filter(r => r.trim() !== '');
+        if (stripped) stripped = stripped.filter(s => s.trim() !== '');
+      }
+    }
+
     return {
-      ...(includeRaw ? { raw: this.getLines(buffer.raw, lines) } : {}),
-      ...(includeStripped ? { stripped: this.getLines(buffer.stripped, lines) } : {}),
+      ...(raw !== undefined ? { raw } : {}),
+      ...(stripped !== undefined ? { stripped } : {}),
       ...(buffer.lastOutputAt !== undefined ? { lastOutputAt: buffer.lastOutputAt } : {}),
     };
   }

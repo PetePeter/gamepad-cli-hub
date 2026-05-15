@@ -98,6 +98,7 @@ describe('pty:spawn resume logic', () => {
     configLoader = {
       getCliTypeEntry: vi.fn(),
       getMcpConfig: vi.fn(() => ({ enabled: false, port: 47373, authToken: '' })),
+      reloadActiveProfileIfChanged: vi.fn(),
     };
 
     setupPtyHandlers(

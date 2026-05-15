@@ -36,6 +36,9 @@ export function setupPtyHandlers(
   // pty:spawn - Spawn a new PTY process and register as session
   ipcMain.handle('pty:spawn', (_event, sessionId: string, command: string, args: string[], cwd?: string, cliType?: string, contextText?: string, resumeSessionName?: string) => {
     logger.info(`[PTY IPC] pty:spawn called: sessionId=${sessionId}, command=${command}, args=${JSON.stringify(args)}, cwd=${cwd}, cliType=${cliType}, hasContext=${!!contextText}, resume=${resumeSessionName || 'none'}`);
+    // Reload profile from disk if the file changed — ensures profile edits take
+    // effect for new sessions without restarting the app.
+    configLoader?.reloadActiveProfileIfChanged();
     try {
       const { pty } = spawnConfiguredSession({
         ptyManager,

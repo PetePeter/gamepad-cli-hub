@@ -109,6 +109,7 @@ export class HelmSessionService {
     sessionRef: string,
     requestedLines = 50,
     mode: TerminalOutputMode = 'both',
+    stripBlankLines = false,
   ): SessionTerminalTailResponse {
     const session = this.findSession(sessionRef);
     if (!session) {
@@ -118,7 +119,7 @@ export class HelmSessionService {
       throw new Error('lines must be a positive integer');
     }
 
-    const tail = this.ptyManager.getTerminalTail(session.id, requestedLines, mode);
+    const tail = this.ptyManager.getTerminalTail(session.id, requestedLines, mode, stripBlankLines);
     const rawLength = tail.raw?.length ?? 0;
     const strippedLength = tail.stripped?.length ?? 0;
 

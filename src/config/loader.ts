@@ -365,6 +365,7 @@ export class ConfigLoader {
   private settings: SettingsConfig | null = null;
   private activeProfile: ProfileConfig | null = null;
   private activeProfileName: string = 'default';
+  private activeProfileMtime: number = 0;
 
   constructor(configDir: string = DEFAULT_CONFIG_DIR) {
     this.configDir = configDir;
@@ -441,6 +442,18 @@ export class ConfigLoader {
     }
 
     this.activeProfile = raw as ProfileConfig;
+    this.activeProfileMtime = fs.statSync(filePath).mtimeMs;
+  }
+
+  reloadActiveProfileIfChanged(): void {
+    const filePath = path.join(this.configDir, 'profiles', 'default.yaml');
+    try {
+      const mtime = fs.statSync(filePath).mtimeMs;
+      if (mtime === this.activeProfileMtime) return;
+      this.loadActiveProfile();
+    } catch (err) {
+      logger.warn(`[Config] reloadActiveProfileIfChanged failed, keeping existing profile: ${err}`);
+    }
   }
 
   private readYaml<T>(filePath: string): T {
