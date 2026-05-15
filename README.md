@@ -170,6 +170,7 @@ Settings → Telegram → follow the collapsible setup guide (bot token + chat I
 
 - **Activity-gated output** — Terminal output streams to Telegram, but batched intelligently: buffers while the session is active, flushes when it goes quiet (>10s silence)
 - **Topic input forwarding** — Type in a session's topic and it goes straight to the PTY
+- **Audio transcription** — Voice/audio attachments are saved with transcript text and a transcript file path when OpenWhispr is configured
 - **Pinned dashboard** — Auto-updating message with all sessions grouped by directory, Talk button for quick access
 - **Topic lifecycle sync** — Closing a session automatically closes its Telegram topic
 - **MCP tool consolidation** — Three MCP tools (`status`, `chat`, `close`) for programmatic bot control

@@ -20,6 +20,7 @@ import type { HelmControlService } from '../mcp/helm-control-service.js';
 import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js';
 import { decodeBase64Strict } from '../utils/base64.js';
 import { escapeHtml, formatAgentMessageForTelegram } from './utils.js';
+import { OpenWhisprTranscriber, type AudioTranscriber, type AudioTranscriptionResult } from './openwhispr-transcriber.js';
 import type {
   TelegramBridge,
   TelegramChannel,
@@ -41,6 +42,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     private ptyManager: PtyManager,
     private configLoader: ConfigLoader,
     private helmControl: HelmControlService,
+    private audioTranscriber?: AudioTranscriber,
   ) {
     super();
   }
@@ -246,6 +248,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     const chatId = msg.chat.id;
     const caption = attachment.caption || '';
     const fileSize = attachment.fileSize ?? 0;
+    const transcription = await this.transcribeAttachmentIfAudio(attachment.type, filePath, attachment.mimeType);
 
     const envelope = [
       `[HELM_TELEGRAM_ATTACHMENT${from === 'unknown' ? '' : ` from:${from}`} chat:${chatId}]`,
@@ -254,6 +257,10 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
       `file_path: ${filePath}`,
       `file_size: ${fileSize}`,
       `mime_type: ${attachment.mimeType}`,
+      ...(transcription ? [
+        `transcription_path: ${transcription.transcriptPath}`,
+        `transcription_text: ${oneLine(transcription.text)}`,
+      ] : []),
       ...(caption ? [`caption: ${caption}`] : []),
       `[/HELM_TELEGRAM_ATTACHMENT]`,
       `Respond via telegram_chat MCP tool.`,
@@ -373,6 +380,40 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
       return false;
     }
   }
+
+  private async transcribeAttachmentIfAudio(
+    attachmentType: string,
+    filePath: string,
+    mimeType: string,
+  ): Promise<AudioTranscriptionResult | null> {
+    if (!isAudioAttachment(attachmentType, mimeType)) return null;
+
+    try {
+      const transcriber = this.audioTranscriber ?? this.createConfiguredTranscriber();
+      if (!transcriber) return null;
+      return await transcriber.transcribe(filePath, mimeType);
+    } catch (err) {
+      logger.warn(`[TelegramRelay] Audio transcription failed: ${err}`);
+      return null;
+    }
+  }
+
+  private createConfiguredTranscriber(): AudioTranscriber | null {
+    const config = this.configLoader.getTelegramConfig?.();
+    if (!config?.openWhisprPath) return null;
+    return new OpenWhisprTranscriber({
+      openWhisprPath: config.openWhisprPath,
+      modelPath: config.openWhisprModelPath,
+    });
+  }
+}
+
+function isAudioAttachment(attachmentType: string, mimeType: string): boolean {
+  return attachmentType === 'voice' || mimeType.toLowerCase().startsWith('audio/');
+}
+
+function oneLine(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 /**

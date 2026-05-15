@@ -37,6 +37,7 @@ function makeRelay() {
   };
   const configLoader = {
     getCliTypeEntry: vi.fn(() => ({ submitSuffix: '\\r' })),
+    getTelegramConfig: vi.fn(() => ({ openWhisprPath: '' })),
   };
   const helmControl = {};
   const relay = new TelegramRelayService(
@@ -361,6 +362,47 @@ describe('TelegramRelayService', () => {
       expect(consumed).toBe(true);
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('type: voice'));
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('mime_type: audio/ogg'));
+      rmSync(path.dirname(filePath), { recursive: true, force: true });
+    });
+
+    it('voice message includes transcript path and text when transcription succeeds', async () => {
+      const { bot, topicManager, sessionManager, ptyManager } = makeRelay();
+      const filePath = tempAttachmentPath('voice_80.ogg');
+      const transcriptPath = path.join(path.dirname(filePath), 'voice_80.transcript.txt');
+      bot.downloadFile.mockResolvedValue(filePath);
+
+      const transcriber = {
+        transcribe: vi.fn().mockResolvedValue({
+          text: 'ship the tiny audio bridge',
+          transcriptPath,
+        }),
+      };
+      const relay = new TelegramRelayService(
+        bot as any,
+        topicManager as any,
+        sessionManager as any,
+        ptyManager as any,
+        { getCliTypeEntry: vi.fn(() => ({ submitSuffix: '\\r' })), getTelegramConfig: vi.fn(() => ({ openWhisprPath: 'unused' })) } as any,
+        {} as any,
+        transcriber,
+      );
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 80,
+        message_thread_id: 42,
+        chat: { id: 12345 },
+        from: { username: 'testuser' },
+        voice: {
+          file_id: 'voice1',
+          mime_type: 'audio/ogg',
+          file_size: 55555,
+        },
+      } as any);
+
+      expect(consumed).toBe(true);
+      expect(transcriber.transcribe).toHaveBeenCalledWith(filePath, 'audio/ogg');
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining(`transcription_path: ${transcriptPath}`));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('transcription_text: ship the tiny audio bridge'));
       rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 

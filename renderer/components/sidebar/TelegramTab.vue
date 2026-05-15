@@ -10,6 +10,7 @@ export interface TelegramConfig {
   allowedUsers: string;
   notificationsEnabled: boolean;
   autoStart: boolean;
+  openWhisprPath: string;
 }
 
 const props = defineProps<{
@@ -27,12 +28,14 @@ const emit = defineEmits<{
 const botToken = ref(props.config.botToken);
 const chatId = ref(props.config.chatId);
 const allowedUsers = ref(props.config.allowedUsers);
+const openWhisprPath = ref(props.config.openWhisprPath);
 
 // Sync from props when they change externally
 watch(() => props.config, (c) => {
   botToken.value = c.botToken;
   chatId.value = c.chatId;
   allowedUsers.value = c.allowedUsers;
+  openWhisprPath.value = c.openWhisprPath;
 });
 
 // Debounced save
@@ -124,6 +127,20 @@ function immediateEmit(field: string, value: string): void {
           @change="emit('updateField', 'autoStart', ($event.target as HTMLInputElement).checked)"
         />
         Auto-start bot 60 seconds after launch
+      </label>
+    </section>
+
+    <section class="telegram-section">
+      <h4>Audio</h4>
+      <label class="telegram-field">
+        OpenWhispr Path
+        <input
+          v-model="openWhisprPath"
+          type="text"
+          placeholder="C:\\Program Files\\OpenWhispr"
+          @input="debouncedEmit('openWhisprPath', openWhisprPath)"
+          @blur="immediateEmit('openWhisprPath', openWhisprPath)"
+        />
       </label>
     </section>
 

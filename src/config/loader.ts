@@ -222,6 +222,8 @@ export interface TelegramConfig {
   notifyOnIdle: boolean;
   notifyOnError: boolean;
   notifyOnCrash: boolean;
+  openWhisprPath: string;
+  openWhisprModelPath: string;
 }
 
 const DEFAULT_TELEGRAM_CONFIG: TelegramConfig = {
@@ -236,6 +238,8 @@ const DEFAULT_TELEGRAM_CONFIG: TelegramConfig = {
   notifyOnIdle: true,
   notifyOnError: true,
   notifyOnCrash: true,
+  openWhisprPath: '',
+  openWhisprModelPath: '',
 };
 
 export interface McpConfig {

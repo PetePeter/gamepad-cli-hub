@@ -37,6 +37,7 @@ export interface SettingsTelegramConfig {
   allowedUsers: string;
   notificationsEnabled: boolean;
   autoStart: boolean;
+  openWhisprPath: string;
 }
 
 export interface SettingsMcpConfig {
@@ -78,6 +79,7 @@ export function useSettingsController(options: {
     allowedUsers: '',
     notificationsEnabled: false,
     autoStart: false,
+    openWhisprPath: '',
   });
   const settingsTelegramBotRunning = ref(false);
   const settingsMcpConfig = ref<SettingsMcpConfig>({ enabled: false, port: 47373, authToken: '' });
@@ -232,6 +234,7 @@ export function useSettingsController(options: {
         allowedUsers: (tgConfig?.allowedUserIds || []).join(', '),
         notificationsEnabled: tgConfig?.enabled || false,
         autoStart: tgConfig?.autoStart || false,
+        openWhisprPath: tgConfig?.openWhisprPath || '',
       };
       settingsTelegramBotRunning.value = await telegramClient.telegramIsRunning();
     } catch {
@@ -241,6 +244,7 @@ export function useSettingsController(options: {
         allowedUsers: '',
         notificationsEnabled: false,
         autoStart: false,
+        openWhisprPath: '',
       };
       settingsTelegramBotRunning.value = false;
     }
@@ -621,6 +625,9 @@ export function useSettingsController(options: {
         const ids = String(value).split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
         await telegramClient.telegramSetConfig({ allowedUserIds: ids });
         settingsTelegramConfig.value.allowedUsers = String(value);
+      } else if (field === 'openWhisprPath') {
+        await telegramClient.telegramSetConfig({ openWhisprPath: String(value) });
+        settingsTelegramConfig.value.openWhisprPath = String(value);
       }
     } catch (error) {
       console.error('Failed to update Telegram config:', error);

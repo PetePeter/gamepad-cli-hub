@@ -44,6 +44,7 @@ src/
 │   ├── commands.ts             # Slash command handlers (/status, /switch, /send, /close, /spawn, /output)
 │   ├── keyboards.ts            # Inline keyboard layout builders (session list, controls, commands, spawn wizard)
 │   ├── notifier.ts             # State change → Telegram notification messages with inline keyboards
+│   ├── openwhispr-transcriber.ts # OpenWhispr-backed audio attachment transcription, writes transcript files beside downloads
 │   ├── orchestrator.ts         # Telegram module factory — wires bot, topic manager, notifier, terminal mirror, dashboard
 │   ├── output-summarizer.ts    # PTY buffer → 3-5 line smart summary
 │   ├── pinned-dashboard.ts     # Auto-updating pinned message with all-sessions status + Close All button
