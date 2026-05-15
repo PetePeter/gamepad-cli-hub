@@ -1,5 +1,6 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { EventEmitter } from 'events';
+import { Readable } from 'stream';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -11,6 +12,22 @@ interface ForumTopic {
   name: string;
   icon_color?: number;
   icon_custom_emoji_id?: string;
+}
+
+/** A single emoji reaction entry in a MessageReaction. */
+interface ReactionEmoji {
+  type: 'emoji';
+  emoji: string;
+}
+
+/** Parsed representation of a Telegram message_reaction event. */
+interface MessageReaction {
+  chat: { id: number };
+  message_id: number;
+  user: { id: number; username?: string; first_name?: string };
+  date: number;
+  old_reaction: ReactionEmoji[];
+  new_reaction: ReactionEmoji[];
 }
 
 /**
@@ -87,6 +104,7 @@ export class TelegramBotCore extends EventEmitter {
 
       this.bot.on('message', (msg) => this.handleMessage(msg));
       this.bot.on('callback_query', (query) => this.handleCallbackQuery(query));
+      this.bot.on('message_reaction', (reaction) => this.emit('message_reaction', reaction));
       this.bot.on('polling_error', (err) => {
         logger.error(`[Telegram] Polling error: ${err.message}`);
       });
@@ -174,7 +192,7 @@ export class TelegramBotCore extends EventEmitter {
         sendOptions.message_thread_id = options.topicId;
       }
       return await this.withTimeout(
-        this.bot.sendDocument(this.chatId, buffer, sendOptions, { filename }),
+        this.bot.sendDocument(this.chatId, Readable.from(buffer), sendOptions, { filename }),
         'sendDocument',
       );
     } catch (err) {
@@ -221,6 +239,27 @@ export class TelegramBotCore extends EventEmitter {
       );
     } catch (err) {
       logger.error(`[Telegram] sendVideo failed: ${err}`);
+      return null;
+    }
+  }
+
+  /**
+   * Download a file from Telegram to disk.
+   * Creates the destination directory if it does not exist.
+   * Returns the local file path on success, null on failure.
+   */
+  async downloadFile(fileId: string, destDir: string): Promise<string | null> {
+    if (!this.bot) return null;
+    try {
+      const fs = await import('fs');
+      fs.mkdirSync(destDir, { recursive: true });
+      const result = await this.withTimeout(
+        this.bot.downloadFile(fileId, destDir),
+        'downloadFile',
+      );
+      return result;
+    } catch (err) {
+      logger.error(`[Telegram] downloadFile failed: ${err}`);
       return null;
     }
   }

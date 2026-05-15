@@ -16,6 +16,7 @@ function makeRelay() {
     sendDocument: vi.fn().mockResolvedValue({ message_id: 100 }),
     sendPhoto: vi.fn().mockResolvedValue({ message_id: 101 }),
     sendVideo: vi.fn().mockResolvedValue({ message_id: 102 }),
+    downloadFile: vi.fn().mockResolvedValue('/tmp/test/photo.jpg'),
   };
   const session = { id: 's1', name: 'Claude', cliType: 'claude-code', topicId: 42 };
   const topicManager = {
@@ -250,6 +251,198 @@ describe('TelegramRelayService', () => {
         'report.pdf',
         expect.objectContaining({ topicId: undefined }),
       );
+    });
+  });
+
+  describe('incoming attachments', () => {
+    it('photo message downloads file and delivers envelope with file_path', async () => {
+      const { relay, bot, ptyManager } = makeRelay();
+      bot.downloadFile.mockResolvedValue('/tmp/test/photo_77.jpg');
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 77,
+        message_thread_id: 42,
+        chat: { id: 12345 },
+        from: { username: 'testuser' },
+        photo: [
+          { file_id: 'small', file_size: 100 },
+          { file_id: 'large', file_size: 5000 },
+        ],
+      } as any);
+
+      expect(consumed).toBe(true);
+      expect(bot.downloadFile).toHaveBeenCalledWith('large', expect.stringContaining('telegram-attachments'));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM_ATTACHMENT from:@testuser'));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('type: photo'));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('file_path: /tmp/test/photo_77.jpg'));
+    });
+
+    it('document message downloads file and delivers envelope', async () => {
+      const { relay, bot, ptyManager } = makeRelay();
+      bot.downloadFile.mockResolvedValue('/tmp/test/report.pdf');
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 78,
+        message_thread_id: 42,
+        chat: { id: 12345 },
+        from: { username: 'testuser' },
+        document: {
+          file_id: 'doc1',
+          file_name: 'report.pdf',
+          mime_type: 'application/pdf',
+          file_size: 123456,
+        },
+      } as any);
+
+      expect(consumed).toBe(true);
+      expect(bot.downloadFile).toHaveBeenCalledWith('doc1', expect.stringContaining('telegram-attachments'));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('type: document'));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('file_name: report.pdf'));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('mime_type: application/pdf'));
+    });
+
+    it('video message downloads file and delivers envelope', async () => {
+      const { relay, bot, ptyManager } = makeRelay();
+      bot.downloadFile.mockResolvedValue('/tmp/test/video_79.mp4');
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 79,
+        message_thread_id: 42,
+        chat: { id: 12345 },
+        from: { username: 'testuser' },
+        video: {
+          file_id: 'vid1',
+          file_name: 'clip.mp4',
+          mime_type: 'video/mp4',
+          file_size: 999999,
+        },
+      } as any);
+
+      expect(consumed).toBe(true);
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('type: video'));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('file_name: clip.mp4'));
+    });
+
+    it('voice message downloads file and delivers envelope', async () => {
+      const { relay, bot, ptyManager } = makeRelay();
+      bot.downloadFile.mockResolvedValue('/tmp/test/voice_80.ogg');
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 80,
+        message_thread_id: 42,
+        chat: { id: 12345 },
+        from: { username: 'testuser' },
+        voice: {
+          file_id: 'voice1',
+          mime_type: 'audio/ogg',
+          file_size: 55555,
+        },
+      } as any);
+
+      expect(consumed).toBe(true);
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('type: voice'));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('mime_type: audio/ogg'));
+    });
+
+    it('attachment with caption includes caption in envelope', async () => {
+      const { relay, bot, ptyManager } = makeRelay();
+      bot.downloadFile.mockResolvedValue('/tmp/test/photo_81.jpg');
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 81,
+        message_thread_id: 42,
+        chat: { id: 12345 },
+        from: { username: 'testuser' },
+        caption: 'Here is a screenshot',
+        photo: [{ file_id: 'p1', file_size: 1000 }],
+      } as any);
+
+      expect(consumed).toBe(true);
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('caption: Here is a screenshot'));
+    });
+
+    it('returns false when no session found for attachment', async () => {
+      const { relay, bot, sessionManager } = makeRelay();
+      bot.downloadFile.mockResolvedValue('/tmp/test/photo_82.jpg');
+      sessionManager.getActiveSession.mockReturnValue(null);
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 82,
+        message_thread_id: 999,
+        chat: { id: 12345 },
+        from: { username: 'testuser' },
+        photo: [{ file_id: 'p1', file_size: 1000 }],
+      } as any);
+
+      expect(consumed).toBe(false);
+    });
+
+    it('returns false when download fails', async () => {
+      const { relay, bot } = makeRelay();
+      bot.downloadFile.mockResolvedValue(null);
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 83,
+        message_thread_id: 42,
+        chat: { id: 12345 },
+        from: { username: 'testuser' },
+        photo: [{ file_id: 'p1', file_size: 1000 }],
+      } as any);
+
+      expect(consumed).toBe(false);
+    });
+  });
+
+  describe('incoming reactions', () => {
+    it('reaction with new emoji delivers envelope to active session', async () => {
+      const { relay, ptyManager } = makeRelay();
+
+      const consumed = await relay.handleReaction({
+        chat: { id: 12345 },
+        message_id: 77,
+        user: { id: 111, username: 'testuser' },
+        date: Date.now(),
+        old_reaction: [],
+        new_reaction: [{ type: 'emoji', emoji: '👍' }],
+      });
+
+      expect(consumed).toBe(true);
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM_REACTION from:@testuser'));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('emoji: 👍'));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('message_id: 77'));
+    });
+
+    it('reaction with old_reaction shows removed emoji in envelope', async () => {
+      const { relay, ptyManager } = makeRelay();
+
+      const consumed = await relay.handleReaction({
+        chat: { id: 12345 },
+        message_id: 88,
+        user: { id: 111, username: 'testuser' },
+        date: Date.now(),
+        old_reaction: [{ type: 'emoji', emoji: '❤️' }],
+        new_reaction: [{ type: 'emoji', emoji: '👍' }],
+      });
+
+      expect(consumed).toBe(true);
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('(removed: ❤️)'));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('emoji: 👍'));
+    });
+
+    it('returns false when no active session for reaction', async () => {
+      const { relay, sessionManager } = makeRelay();
+      sessionManager.getActiveSession.mockReturnValue(null);
+
+      const consumed = await relay.handleReaction({
+        chat: { id: 12345 },
+        message_id: 99,
+        user: { id: 111, username: 'testuser' },
+        date: Date.now(),
+        old_reaction: [],
+        new_reaction: [{ type: 'emoji', emoji: '👍' }],
+      });
+
+      expect(consumed).toBe(false);
     });
   });
 });

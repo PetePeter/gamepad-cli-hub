@@ -34,7 +34,13 @@ export function setupTopicInput(
   relayService?: TelegramRelayService,
 ): () => void {
   const handler = async (msg: TelegramBot.Message) => {
-    if (!msg.text) return;
+    // Let relay service handle attachments (photo, document, video, voice) even without text
+    if (!msg.text) {
+      if (relayService && await relayService.handleIncomingTelegramMessage(msg)) {
+        return;
+      }
+      return;
+    }
     if (msg.text.startsWith('/')) return;
 
     if (await relayService?.handleIncomingTelegramMessage(msg)) {

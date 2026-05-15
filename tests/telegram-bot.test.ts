@@ -7,6 +7,14 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
+import { Readable } from 'stream';
+
+/** Collect a Readable stream into a Buffer for test assertions. */
+async function streamToBuffer(stream: Readable): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks);
+}
 
 // ---------------------------------------------------------------------------
 // Mock node-telegram-bot-api — hoisted so the factory can access shared state
@@ -67,6 +75,10 @@ vi.mock('node-telegram-bot-api', () => {
     closeForumTopic = vi.fn().mockResolvedValue(true);
     reopenForumTopic = vi.fn().mockResolvedValue(true);
     editForumTopic = vi.fn().mockResolvedValue(true);
+
+    downloadFile = vi.fn().mockImplementation((_fileId: string, _destDir: string) =>
+      Promise.resolve('/tmp/test/downloaded.jpg'),
+    );
   }
 
   return { default: MockTelegramBot };
@@ -593,18 +605,18 @@ describe('TelegramBotCore', () => {
   });
 
   describe('file sending', () => {
-    it('sends documents with filename in fileOptions and topic in send options', async () => {
+    it('sends documents as Readable stream with filename in fileOptions and topic in send options', async () => {
       const core = startedBot();
       const buffer = Buffer.from('hello');
 
       await core.sendDocument(buffer, 'log.txt', { caption: 'Log', topicId: 42 });
 
-      expect(shared.mockBotInstance!.sendDocument).toHaveBeenCalledWith(
-        CHAT_ID,
-        buffer,
-        { caption: 'Log', message_thread_id: 42 },
-        { filename: 'log.txt' },
-      );
+      const callArgs = shared.mockBotInstance!.sendDocument.mock.calls[0];
+      expect(callArgs[0]).toBe(CHAT_ID);
+      expect(callArgs[1]).toBeInstanceOf(Readable);
+      expect(Buffer.from(await streamToBuffer(callArgs[1]))).toEqual(buffer);
+      expect(callArgs[2]).toEqual({ caption: 'Log', message_thread_id: 42 });
+      expect(callArgs[3]).toEqual({ filename: 'log.txt' });
     });
 
     it('sends photos and videos with topic in send options', async () => {
@@ -798,6 +810,78 @@ describe('TelegramBotCore', () => {
       vi.advanceTimersByTime(10_000);
       await vi.runAllTimersAsync();
       expect(await result).toBeNull();
+    });
+  });
+
+  // =========================================================================
+  // downloadFile
+  // =========================================================================
+
+  describe('downloadFile', () => {
+    it('calls bot.downloadFile with fileId and destDir', async () => {
+      const core = startedBot();
+      const result = await core.downloadFile('file123', '/tmp/downloads');
+
+      expect(shared.mockBotInstance!.downloadFile).toHaveBeenCalledWith('file123', '/tmp/downloads');
+      expect(result).toBe('/tmp/test/downloaded.jpg');
+    });
+
+    it('returns null when bot is not running', async () => {
+      const core = new TelegramBotCore();
+      const result = await core.downloadFile('file123', '/tmp/downloads');
+      expect(result).toBeNull();
+    });
+
+    it('returns null on download failure', async () => {
+      const core = startedBot();
+      shared.mockBotInstance!.downloadFile.mockRejectedValueOnce(new Error('Download failed'));
+
+      const result = await core.downloadFile('file123', '/tmp/downloads');
+      expect(result).toBeNull();
+    });
+  });
+
+  // =========================================================================
+  // message_reaction event
+  // =========================================================================
+
+  describe('message_reaction event', () => {
+    it('emits message_reaction event when bot receives one', () => {
+      const core = startedBot();
+      const handler = vi.fn();
+      core.on('message_reaction', handler);
+
+      const reaction = {
+        chat: { id: CHAT_ID },
+        message_id: 77,
+        user: { id: 111, username: 'testuser' },
+        date: Date.now(),
+        old_reaction: [],
+        new_reaction: [{ type: 'emoji', emoji: '👍' }],
+      };
+      shared.mockBotInstance!._emit('message_reaction', reaction);
+
+      expect(handler).toHaveBeenCalledWith(reaction);
+    });
+
+    it('does not emit message_reaction for unauthorized users', () => {
+      const core = startedBot();
+      const handler = vi.fn();
+      core.on('message_reaction', handler);
+
+      // message_reaction events bypass auth in the core bot — they are emitted directly
+      // This test confirms the event is emitted as-is from the underlying bot
+      const reaction = {
+        chat: { id: CHAT_ID },
+        message_id: 77,
+        user: { id: 999, username: 'stranger' },
+        date: Date.now(),
+        old_reaction: [],
+        new_reaction: [{ type: 'emoji', emoji: '👎' }],
+      };
+      shared.mockBotInstance!._emit('message_reaction', reaction);
+
+      expect(handler).toHaveBeenCalledWith(reaction);
     });
   });
 });

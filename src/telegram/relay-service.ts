@@ -7,6 +7,8 @@
 
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 import type TelegramBot from 'node-telegram-bot-api';
 import { logger } from '../utils/logger.js';
 import type { TelegramBotCore } from './bot.js';
@@ -174,7 +176,12 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
   }
 
   async handleIncomingTelegramMessage(msg: TelegramBot.Message): Promise<boolean> {
-    if (!msg.text || msg.text.startsWith('/')) return false;
+    if (msg.text && msg.text.startsWith('/')) return false;
+
+    // Handle attachment messages (photo, document, video, voice)
+    if (!msg.text) {
+      return this.handleIncomingAttachment(msg);
+    }
     const topicId = msg.message_thread_id;
     if (!topicId) return false;
 
@@ -211,6 +218,93 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     }
 
     return false;
+  }
+
+  /**
+   * Handle a Telegram message containing an attachment (photo, document, video, voice).
+   * Downloads the file to disk and delivers a metadata envelope to the CLI session.
+   */
+  async handleIncomingAttachment(msg: TelegramBot.Message): Promise<boolean> {
+    const attachment = extractAttachmentInfo(msg);
+    if (!attachment) return false;
+
+    const destDir = path.join(process.env.APPDATA || process.env.HOME || '.', 'Helm', 'tmp', 'telegram-attachments');
+
+    const filePath = await this.telegramBot.downloadFile(attachment.fileId, destDir);
+    if (!filePath) {
+      logger.warn(`[TelegramRelay] Failed to download attachment: ${attachment.fileId}`);
+      return false;
+    }
+
+    const from = msg.from?.username ? `@${msg.from.username}` : 'unknown';
+    const chatId = msg.chat.id;
+    const caption = attachment.caption || '';
+    const fileSize = attachment.fileSize ?? 0;
+
+    const envelope = [
+      `[HELM_TELEGRAM_ATTACHMENT${from === 'unknown' ? '' : ` from:${from}`} chat:${chatId}]`,
+      `type: ${attachment.type}`,
+      `file_name: ${attachment.fileName}`,
+      `file_path: ${filePath}`,
+      `file_size: ${fileSize}`,
+      `mime_type: ${attachment.mimeType}`,
+      ...(caption ? [`caption: ${caption}`] : []),
+      `[/HELM_TELEGRAM_ATTACHMENT]`,
+      `Respond via telegram_chat MCP tool.`,
+    ].join('\n');
+
+    // Find session by topic mapping
+    const topicId = msg.message_thread_id;
+    const session = topicId
+      ? this.topicManager.findSessionByTopicId(topicId)
+      : undefined;
+
+    const targetSession = session ?? this.sessionManager.getActiveSession();
+    if (!targetSession) return false;
+
+    await deliverPromptSequenceToSession({
+      sessionId: targetSession.id,
+      text: envelope,
+      ptyManager: this.ptyManager,
+      sessionManager: this.sessionManager,
+      configLoader: this.configLoader,
+    });
+
+    logger.info(`[TelegramRelay] Injected attachment (${attachment.type}) to session ${targetSession.id}`);
+    return true;
+  }
+
+  /**
+   * Handle a Telegram message_reaction event.
+   * Delivers a reaction envelope to the active CLI session.
+   */
+  async handleReaction(reaction: any): Promise<boolean> {
+    const active = this.sessionManager.getActiveSession();
+    if (!active) return false;
+
+    const from = reaction.user?.username ? `@${reaction.user.username}` : 'unknown';
+    const newEmojis = (reaction.new_reaction || []).map((r: any) => r.emoji).join(', ') || 'none';
+    const oldEmojis = (reaction.old_reaction || []).map((r: any) => r.emoji).join(', ');
+
+    const envelope = [
+      `[HELM_TELEGRAM_REACTION${from === 'unknown' ? '' : ` from:${from}`} chat:${reaction.chat?.id}]`,
+      `type: emoji`,
+      `emoji: ${newEmojis}`,
+      `message_id: ${reaction.message_id}`,
+      ...(oldEmojis ? [`(removed: ${oldEmojis})`] : []),
+      `[/HELM_TELEGRAM_REACTION]`,
+    ].join('\n');
+
+    await deliverPromptSequenceToSession({
+      sessionId: active.id,
+      text: envelope,
+      ptyManager: this.ptyManager,
+      sessionManager: this.sessionManager,
+      configLoader: this.configLoader,
+    });
+
+    logger.info(`[TelegramRelay] Injected reaction (${newEmojis}) to session ${active.id}`);
+    return true;
   }
 
   private async sendAttachment(
@@ -256,6 +350,70 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     }
     return channel;
   }
+}
+
+/**
+ * Extract attachment metadata from a Telegram message.
+ * Returns null if the message has no recognizable attachment.
+ */
+function extractAttachmentInfo(msg: TelegramBot.Message): {
+  fileId: string;
+  fileName: string;
+  mimeType: string;
+  fileSize?: number;
+  caption?: string;
+  type: string;
+} | null {
+  // Photo: array of sizes, pick the largest (last element)
+  if (msg.photo && msg.photo.length > 0) {
+    const largest = msg.photo[msg.photo.length - 1];
+    return {
+      fileId: largest.file_id,
+      fileName: `photo_${msg.message_id}.jpg`,
+      mimeType: 'image/jpeg',
+      fileSize: largest.file_size,
+      caption: msg.caption,
+      type: 'photo',
+    };
+  }
+
+  // Document
+  if (msg.document) {
+    return {
+      fileId: msg.document.file_id,
+      fileName: msg.document.file_name || `document_${msg.message_id}`,
+      mimeType: msg.document.mime_type || 'application/octet-stream',
+      fileSize: msg.document.file_size,
+      caption: msg.caption,
+      type: 'document',
+    };
+  }
+
+  // Video
+  if (msg.video) {
+    return {
+      fileId: msg.video.file_id,
+      fileName: msg.video.file_name || `video_${msg.message_id}.mp4`,
+      mimeType: msg.video.mime_type || 'video/mp4',
+      fileSize: msg.video.file_size,
+      caption: msg.caption,
+      type: 'video',
+    };
+  }
+
+  // Voice message
+  if (msg.voice) {
+    return {
+      fileId: msg.voice.file_id,
+      fileName: `voice_${msg.message_id}.ogg`,
+      mimeType: msg.voice.mime_type || 'audio/ogg',
+      fileSize: msg.voice.file_size,
+      caption: undefined,
+      type: 'voice',
+    };
+  }
+
+  return null;
 }
 
 function wrapTelegramEnvelope(text: string, from: string, chatId: number): string {

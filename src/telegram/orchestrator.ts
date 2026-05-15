@@ -61,6 +61,13 @@ export function initTelegramModules(
   };
   bot.on('message', topicClosedHandler);
 
+  // Forward reaction events to the relay service
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const reactionHandler = async (reaction: any) => {
+    await relayService.handleReaction(reaction);
+  };
+  bot.on('message_reaction', reactionHandler);
+
   logger.info('[Telegram] All modules initialized');
 
   return {
@@ -71,6 +78,7 @@ export function initTelegramModules(
       cleanupTopicInput();
       cleanupCommands();
       bot.removeListener('message', topicClosedHandler);
+      bot.removeListener('message_reaction', reactionHandler);
       helmControlService.setTelegramBridge(null);
       dashboard.dispose();
       logger.info('[Telegram] All modules cleaned up');

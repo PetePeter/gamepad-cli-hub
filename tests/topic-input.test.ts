@@ -52,7 +52,7 @@ describe('setupTopicInput', () => {
 
     expect(mockDeliverPromptSequenceToSession).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 's1',
-      text: '[HELM_TELEGRAM from:@testuser chat:12345]\nhello{Send}\n[/HELM_TELEGRAM]',
+      text: '[HELM_TELEGRAM from:@testuser chat:12345]\nhello{Send}\n[/HELM_TELEGRAM]\nRespond via telegram_chat MCP tool.',
       ptyManager,
       sessionManager,
       configLoader,
