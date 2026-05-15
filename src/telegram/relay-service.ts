@@ -236,9 +236,9 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
 
     const destDir = path.join(process.env.APPDATA || process.env.HOME || '.', 'Helm', 'tmp', 'telegram-attachments');
 
-    const filePath = await this.telegramBot.downloadFile(attachment.fileId, destDir);
-    if (!filePath) {
-      logger.warn(`[TelegramRelay] Failed to download attachment: ${attachment.fileId}`);
+    const filePath = await this.telegramBot.downloadFile(attachment.fileId, destDir, attachment.fileName);
+    if (!this.isValidDownloadedFile(filePath)) {
+      logger.warn(`[TelegramRelay] Failed to download attachment: ${attachment.fileId}; path=${filePath ?? 'null'}`);
       return false;
     }
 
@@ -283,7 +283,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
       configLoader: this.configLoader,
     });
 
-    logger.info(`[TelegramRelay] Injected attachment (${attachment.type}) to session ${targetSession.id}`);
+    logger.info(`[TelegramRelay] Injected attachment (${attachment.type}) to session ${targetSession.id}: ${filePath}`);
     return true;
   }
 
@@ -362,6 +362,16 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
       throw new Error(`Open Telegram channel not found: ${channelId}`);
     }
     return channel;
+  }
+
+  private isValidDownloadedFile(filePath: string | null): filePath is string {
+    if (!filePath || filePath.trim().length === 0) return false;
+    if (!path.isAbsolute(filePath)) return false;
+    try {
+      return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
+    } catch {
+      return false;
+    }
   }
 }
 

@@ -8,6 +8,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
 import { Readable } from 'stream';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import path from 'path';
 
 /** Collect a Readable stream into a Buffer for test assertions. */
 async function streamToBuffer(stream: Readable): Promise<Buffer> {
@@ -75,6 +78,7 @@ vi.mock('node-telegram-bot-api', () => {
     closeForumTopic = vi.fn().mockResolvedValue(true);
     reopenForumTopic = vi.fn().mockResolvedValue(true);
     editForumTopic = vi.fn().mockResolvedValue(true);
+    getFileLink = vi.fn().mockResolvedValue('https://api.telegram.org/file/bot-token/photos/downloaded.jpg');
 
     downloadFile = vi.fn().mockImplementation((_fileId: string, _destDir: string) =>
       Promise.resolve('/tmp/test/downloaded.jpg'),
@@ -109,10 +113,16 @@ describe('TelegramBotCore', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     shared.mockBotInstance = null;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      arrayBuffer: vi.fn(async () => Buffer.from('image-bytes').buffer),
+    }));
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -818,12 +828,31 @@ describe('TelegramBotCore', () => {
   // =========================================================================
 
   describe('downloadFile', () => {
-    it('calls bot.downloadFile with fileId and destDir', async () => {
+    it('downloads via getFileLink and returns the written absolute path', async () => {
       const core = startedBot();
-      const result = await core.downloadFile('file123', '/tmp/downloads');
+      const destDir = mkdtempSync(path.join(tmpdir(), 'helm-telegram-'));
 
-      expect(shared.mockBotInstance!.downloadFile).toHaveBeenCalledWith('file123', '/tmp/downloads');
-      expect(result).toBe('/tmp/test/downloaded.jpg');
+      const result = await core.downloadFile('file123', destDir);
+
+      expect(shared.mockBotInstance!.getFileLink).toHaveBeenCalledWith('file123');
+      expect(fetch).toHaveBeenCalledWith('https://api.telegram.org/file/bot-token/photos/downloaded.jpg');
+      expect(result).toBe(path.join(destDir, 'downloaded.jpg'));
+      expect(existsSync(result!)).toBe(true);
+      expect(readFileSync(result!).length).toBeGreaterThan(0);
+
+      rmSync(destDir, { recursive: true, force: true });
+    });
+
+    it('sanitizes and uses preferredFileName when provided', async () => {
+      const core = startedBot();
+      const destDir = mkdtempSync(path.join(tmpdir(), 'helm-telegram-'));
+
+      const result = await core.downloadFile('file123', destDir, '../report?.pdf');
+
+      expect(result).toBe(path.join(destDir, 'report_.pdf'));
+      expect(existsSync(result!)).toBe(true);
+
+      rmSync(destDir, { recursive: true, force: true });
     });
 
     it('returns null when bot is not running', async () => {
@@ -834,7 +863,19 @@ describe('TelegramBotCore', () => {
 
     it('returns null on download failure', async () => {
       const core = startedBot();
-      shared.mockBotInstance!.downloadFile.mockRejectedValueOnce(new Error('Download failed'));
+      shared.mockBotInstance!.getFileLink.mockRejectedValueOnce(new Error('Download failed'));
+
+      const result = await core.downloadFile('file123', '/tmp/downloads');
+      expect(result).toBeNull();
+    });
+
+    it('returns null when fetch fails', async () => {
+      const core = startedBot();
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        arrayBuffer: vi.fn(),
+      } as any);
 
       const result = await core.downloadFile('file123', '/tmp/downloads');
       expect(result).toBeNull();

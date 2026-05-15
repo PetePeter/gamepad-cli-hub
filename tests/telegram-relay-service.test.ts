@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TelegramRelayService } from '../src/telegram/relay-service.js';
+import { closeSync, mkdtempSync, openSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import path from 'path';
 
 vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -45,6 +48,13 @@ function makeRelay() {
     helmControl as any,
   );
   return { relay, bot, topicManager, sessionManager, ptyManager };
+}
+
+function tempAttachmentPath(fileName: string): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'helm-relay-'));
+  const filePath = path.join(dir, fileName);
+  closeSync(openSync(filePath, 'w'));
+  return filePath;
 }
 
 describe('TelegramRelayService', () => {
@@ -258,7 +268,8 @@ describe('TelegramRelayService', () => {
   describe('incoming attachments', () => {
     it('photo message downloads file and delivers envelope with file_path', async () => {
       const { relay, bot, ptyManager } = makeRelay();
-      bot.downloadFile.mockResolvedValue('/tmp/test/photo_77.jpg');
+      const filePath = tempAttachmentPath('photo_77.jpg');
+      bot.downloadFile.mockResolvedValue(filePath);
 
       const consumed = await relay.handleIncomingTelegramMessage({
         message_id: 77,
@@ -272,15 +283,18 @@ describe('TelegramRelayService', () => {
       } as any);
 
       expect(consumed).toBe(true);
-      expect(bot.downloadFile).toHaveBeenCalledWith('large', expect.stringContaining('telegram-attachments'));
+      expect(bot.downloadFile).toHaveBeenCalledWith('large', expect.stringContaining('telegram-attachments'), 'photo_77.jpg');
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM_ATTACHMENT from:@testuser'));
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('type: photo'));
-      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('file_path: /tmp/test/photo_77.jpg'));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining(`file_path: ${filePath}`));
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('Respond via telegram_chat MCP tool.'));
+      rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 
     it('document message downloads file and delivers envelope', async () => {
       const { relay, bot, ptyManager } = makeRelay();
-      bot.downloadFile.mockResolvedValue('/tmp/test/report.pdf');
+      const filePath = tempAttachmentPath('report.pdf');
+      bot.downloadFile.mockResolvedValue(filePath);
 
       const consumed = await relay.handleIncomingTelegramMessage({
         message_id: 78,
@@ -296,15 +310,17 @@ describe('TelegramRelayService', () => {
       } as any);
 
       expect(consumed).toBe(true);
-      expect(bot.downloadFile).toHaveBeenCalledWith('doc1', expect.stringContaining('telegram-attachments'));
+      expect(bot.downloadFile).toHaveBeenCalledWith('doc1', expect.stringContaining('telegram-attachments'), 'report.pdf');
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('type: document'));
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('file_name: report.pdf'));
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('mime_type: application/pdf'));
+      rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 
     it('video message downloads file and delivers envelope', async () => {
       const { relay, bot, ptyManager } = makeRelay();
-      bot.downloadFile.mockResolvedValue('/tmp/test/video_79.mp4');
+      const filePath = tempAttachmentPath('video_79.mp4');
+      bot.downloadFile.mockResolvedValue(filePath);
 
       const consumed = await relay.handleIncomingTelegramMessage({
         message_id: 79,
@@ -322,11 +338,13 @@ describe('TelegramRelayService', () => {
       expect(consumed).toBe(true);
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('type: video'));
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('file_name: clip.mp4'));
+      rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 
     it('voice message downloads file and delivers envelope', async () => {
       const { relay, bot, ptyManager } = makeRelay();
-      bot.downloadFile.mockResolvedValue('/tmp/test/voice_80.ogg');
+      const filePath = tempAttachmentPath('voice_80.ogg');
+      bot.downloadFile.mockResolvedValue(filePath);
 
       const consumed = await relay.handleIncomingTelegramMessage({
         message_id: 80,
@@ -343,11 +361,13 @@ describe('TelegramRelayService', () => {
       expect(consumed).toBe(true);
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('type: voice'));
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('mime_type: audio/ogg'));
+      rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 
     it('attachment with caption includes caption in envelope', async () => {
       const { relay, bot, ptyManager } = makeRelay();
-      bot.downloadFile.mockResolvedValue('/tmp/test/photo_81.jpg');
+      const filePath = tempAttachmentPath('photo_81.jpg');
+      bot.downloadFile.mockResolvedValue(filePath);
 
       const consumed = await relay.handleIncomingTelegramMessage({
         message_id: 81,
@@ -360,11 +380,13 @@ describe('TelegramRelayService', () => {
 
       expect(consumed).toBe(true);
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('caption: Here is a screenshot'));
+      rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 
     it('returns false when no session found for attachment', async () => {
       const { relay, bot, sessionManager } = makeRelay();
-      bot.downloadFile.mockResolvedValue('/tmp/test/photo_82.jpg');
+      const filePath = tempAttachmentPath('photo_82.jpg');
+      bot.downloadFile.mockResolvedValue(filePath);
       sessionManager.getActiveSession.mockReturnValue(null);
 
       const consumed = await relay.handleIncomingTelegramMessage({
@@ -376,6 +398,7 @@ describe('TelegramRelayService', () => {
       } as any);
 
       expect(consumed).toBe(false);
+      rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 
     it('returns false when download fails', async () => {
@@ -391,6 +414,54 @@ describe('TelegramRelayService', () => {
       } as any);
 
       expect(consumed).toBe(false);
+    });
+
+    it('returns false when download path is empty', async () => {
+      const { relay, bot, ptyManager } = makeRelay();
+      bot.downloadFile.mockResolvedValue('');
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 84,
+        message_thread_id: 42,
+        chat: { id: 12345 },
+        from: { username: 'testuser' },
+        photo: [{ file_id: 'p1', file_size: 1000 }],
+      } as any);
+
+      expect(consumed).toBe(false);
+      expect(ptyManager.deliverText).not.toHaveBeenCalled();
+    });
+
+    it('returns false when download path is whitespace', async () => {
+      const { relay, bot, ptyManager } = makeRelay();
+      bot.downloadFile.mockResolvedValue('   ');
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 85,
+        message_thread_id: 42,
+        chat: { id: 12345 },
+        from: { username: 'testuser' },
+        photo: [{ file_id: 'p1', file_size: 1000 }],
+      } as any);
+
+      expect(consumed).toBe(false);
+      expect(ptyManager.deliverText).not.toHaveBeenCalled();
+    });
+
+    it('returns false when download path does not exist', async () => {
+      const { relay, bot, ptyManager } = makeRelay();
+      bot.downloadFile.mockResolvedValue(path.join(tmpdir(), 'missing-telegram-file.jpg'));
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 86,
+        message_thread_id: 42,
+        chat: { id: 12345 },
+        from: { username: 'testuser' },
+        photo: [{ file_id: 'p1', file_size: 1000 }],
+      } as any);
+
+      expect(consumed).toBe(false);
+      expect(ptyManager.deliverText).not.toHaveBeenCalled();
     });
   });
 
@@ -482,7 +553,9 @@ describe('TelegramRelayService', () => {
     });
 
     it('injects first-contact instructions for attachment messages too', async () => {
-      const { relay, ptyManager } = makeRelay();
+      const { relay, ptyManager, bot } = makeRelay();
+      const filePath = tempAttachmentPath('report.pdf');
+      bot.downloadFile.mockResolvedValue(filePath);
 
       await relay.handleIncomingTelegramMessage({
         message_id: 82, message_thread_id: 42,
@@ -491,6 +564,7 @@ describe('TelegramRelayService', () => {
       } as any);
 
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('HELM_TELEGRAM_MODE'));
+      rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 
     it('injects first-contact instructions for active session fallback (unmapped topic)', async () => {

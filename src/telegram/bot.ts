@@ -1,6 +1,8 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { EventEmitter } from 'events';
 import { Readable } from 'stream';
+import { existsSync, mkdirSync, statSync, writeFileSync } from 'fs';
+import path from 'path';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -248,16 +250,40 @@ export class TelegramBotCore extends EventEmitter {
    * Creates the destination directory if it does not exist.
    * Returns the local file path on success, null on failure.
    */
-  async downloadFile(fileId: string, destDir: string): Promise<string | null> {
-    if (!this.bot) return null;
+  async downloadFile(fileId: string, destDir: string, preferredFileName?: string): Promise<string | null> {
+    if (!this.bot || !fileId.trim()) return null;
     try {
-      const fs = await import('fs');
-      fs.mkdirSync(destDir, { recursive: true });
-      const result = await this.withTimeout(
-        this.bot.downloadFile(fileId, destDir),
-        'downloadFile',
-      );
-      return result;
+      const absoluteDestDir = path.resolve(destDir);
+      mkdirSync(absoluteDestDir, { recursive: true });
+
+      const link = await this.withTimeout(this.bot.getFileLink(fileId), 'getFileLink');
+      const response = await this.withTimeout(fetch(link), 'downloadFile');
+      if (!response.ok) {
+        logger.error(`[Telegram] downloadFile failed: HTTP ${response.status}`);
+        return null;
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.length === 0) {
+        logger.error('[Telegram] downloadFile failed: empty response body');
+        return null;
+      }
+
+      const fileName = this.resolveDownloadFileName(fileId, link, preferredFileName);
+      const filePath = path.resolve(absoluteDestDir, fileName);
+      if (!this.isPathInsideDirectory(filePath, absoluteDestDir)) {
+        logger.error(`[Telegram] downloadFile failed: resolved path escaped destination: ${filePath}`);
+        return null;
+      }
+
+      writeFileSync(filePath, buffer);
+      if (!existsSync(filePath) || !statSync(filePath).isFile()) {
+        logger.error(`[Telegram] downloadFile failed: file missing after write: ${filePath}`);
+        return null;
+      }
+
+      logger.info(`[Telegram] Downloaded file ${fileId} to ${filePath}`);
+      return filePath;
     } catch (err) {
       logger.error(`[Telegram] downloadFile failed: ${err}`);
       return null;
@@ -408,6 +434,35 @@ export class TelegramBotCore extends EventEmitter {
         setTimeout(() => reject(new Error(`Telegram ${operation} timed out after ${API_TIMEOUT_MS}ms`)), API_TIMEOUT_MS),
       ),
     ]);
+  }
+
+  private resolveDownloadFileName(fileId: string, fileLink: string, preferredFileName?: string): string {
+    const fromPreferred = this.sanitizeFileName(preferredFileName);
+    if (fromPreferred) return fromPreferred;
+
+    try {
+      const urlPath = new URL(fileLink).pathname;
+      const fromUrl = this.sanitizeFileName(path.basename(urlPath));
+      if (fromUrl) return fromUrl;
+    } catch {
+      // Fall through to fileId-based fallback.
+    }
+
+    return `${this.sanitizeFileName(fileId) || 'telegram-file'}.bin`;
+  }
+
+  private sanitizeFileName(name?: string): string {
+    const base = path.basename((name ?? '').trim());
+    return base
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+      .replace(/^\.+$/, '')
+      .slice(0, 120)
+      .trim();
+  }
+
+  private isPathInsideDirectory(filePath: string, directory: string): boolean {
+    const relative = path.relative(directory, filePath);
+    return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
   }
 
   /** Check if a user has exceeded the inbound rate limit. */
