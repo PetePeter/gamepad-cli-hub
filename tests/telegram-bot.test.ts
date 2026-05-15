@@ -90,6 +90,7 @@ vi.mock('node-telegram-bot-api', () => {
 
 // Import after mocking
 import { TelegramBotCore } from '../src/telegram/bot.js';
+import { logger } from '../src/utils/logger.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -887,7 +888,7 @@ describe('TelegramBotCore', () => {
   // =========================================================================
 
   describe('message_reaction event', () => {
-    it('emits message_reaction event when bot receives one', () => {
+    it('emits message_reaction event for authorized users', () => {
       const core = startedBot();
       const handler = vi.fn();
       core.on('message_reaction', handler);
@@ -903,15 +904,15 @@ describe('TelegramBotCore', () => {
       shared.mockBotInstance!._emit('message_reaction', reaction);
 
       expect(handler).toHaveBeenCalledWith(reaction);
+      expect(handler.mock.calls[0][0]).toBe(reaction);
     });
 
     it('does not emit message_reaction for unauthorized users', () => {
       const core = startedBot();
       const handler = vi.fn();
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
       core.on('message_reaction', handler);
 
-      // message_reaction events bypass auth in the core bot — they are emitted directly
-      // This test confirms the event is emitted as-is from the underlying bot
       const reaction = {
         chat: { id: CHAT_ID },
         message_id: 77,
@@ -922,7 +923,27 @@ describe('TelegramBotCore', () => {
       };
       shared.mockBotInstance!._emit('message_reaction', reaction);
 
-      expect(handler).toHaveBeenCalledWith(reaction);
+      expect(handler).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith('[Telegram] Unauthorized message reaction from user 999');
+    });
+
+    it('does not emit message_reaction when user is missing', () => {
+      const core = startedBot();
+      const handler = vi.fn();
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+      core.on('message_reaction', handler);
+
+      const reaction = {
+        chat: { id: CHAT_ID },
+        message_id: 77,
+        date: Date.now(),
+        old_reaction: [],
+        new_reaction: [{ type: 'emoji', emoji: '👎' }],
+      };
+      shared.mockBotInstance!._emit('message_reaction', reaction);
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith('[Telegram] Unauthorized message reaction from user undefined');
     });
   });
 });

@@ -26,7 +26,8 @@ interface ReactionEmoji {
 interface MessageReaction {
   chat: { id: number };
   message_id: number;
-  user: { id: number; username?: string; first_name?: string };
+  from?: { id: number; username?: string; first_name?: string };
+  user?: { id: number; username?: string; first_name?: string };
   date: number;
   old_reaction: ReactionEmoji[];
   new_reaction: ReactionEmoji[];
@@ -106,7 +107,7 @@ export class TelegramBotCore extends EventEmitter {
 
       this.bot.on('message', (msg) => this.handleMessage(msg));
       this.bot.on('callback_query', (query) => this.handleCallbackQuery(query));
-      this.bot.on('message_reaction', (reaction) => this.emit('message_reaction', reaction));
+      this.bot.on('message_reaction', (reaction) => this.handleMessageReaction(reaction));
       this.bot.on('polling_error', (err) => {
         logger.error(`[Telegram] Polling error: ${err.message}`);
       });
@@ -513,6 +514,16 @@ export class TelegramBotCore extends EventEmitter {
     }
 
     this.emit('callback_query', query);
+  }
+
+  private handleMessageReaction(reaction: MessageReaction): void {
+    const userId = reaction.from?.id ?? reaction.user?.id;
+    if (!this.isAuthorized(userId)) {
+      logger.warn(`[Telegram] Unauthorized message reaction from user ${userId}`);
+      return;
+    }
+
+    this.emit('message_reaction', reaction);
   }
 
   private async flushEdit(key: string, topicId?: number): Promise<void> {
