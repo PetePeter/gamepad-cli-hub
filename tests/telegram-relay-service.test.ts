@@ -26,6 +26,7 @@ function makeRelay() {
   const sessionManager = {
     getSession: vi.fn((id: string) => id === 's1' ? session : null),
     getActiveSession: vi.fn(() => session),
+    updateSession: vi.fn(),
   };
   const ptyManager = {
     write: vi.fn(),
@@ -443,6 +444,67 @@ describe('TelegramRelayService', () => {
       });
 
       expect(consumed).toBe(false);
+    });
+  });
+
+  describe('interaction channel affinity', () => {
+    it('sets interactionChannel to telegram and injects first-contact instructions on first text message', async () => {
+      const { relay, ptyManager, sessionManager } = makeRelay();
+
+      await relay.handleIncomingTelegramMessage({
+        message_id: 80, message_thread_id: 42,
+        text: 'Hello from Telegram',
+        chat: { id: 12345 }, from: { username: 'tguser' },
+      } as any);
+
+      expect(sessionManager.updateSession).toHaveBeenCalledWith('s1', { interactionChannel: 'telegram' });
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('HELM_TELEGRAM_MODE'));
+    });
+
+    it('does NOT inject instructions on subsequent Telegram messages', async () => {
+      const { relay, ptyManager, sessionManager, topicManager } = makeRelay();
+      // Clear call records from prior tests using the same mock factory
+      sessionManager.updateSession.mockClear();
+      // Simulate already in telegram mode
+      const telegramSession = { id: 's1', name: 'Claude', cliType: 'claude-code', topicId: 42, interactionChannel: 'telegram' as const };
+      topicManager.findSessionByTopicId.mockReturnValue(telegramSession as any);
+      sessionManager.getSession.mockImplementation((id: string) => id === 's1' ? telegramSession : null);
+
+      await relay.handleIncomingTelegramMessage({
+        message_id: 81, message_thread_id: 42,
+        text: 'Second message',
+        chat: { id: 12345 }, from: { username: 'tguser' },
+      } as any);
+
+      // Should not call updateSession again
+      expect(sessionManager.updateSession).not.toHaveBeenCalledWith('s1', { interactionChannel: 'telegram' });
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.not.stringContaining('HELM_TELEGRAM_MODE'));
+    });
+
+    it('injects first-contact instructions for attachment messages too', async () => {
+      const { relay, ptyManager } = makeRelay();
+
+      await relay.handleIncomingTelegramMessage({
+        message_id: 82, message_thread_id: 42,
+        chat: { id: 12345 }, from: { username: 'tguser' },
+        document: { file_id: 'doc123', file_name: 'report.pdf', mime_type: 'application/pdf', file_size: 1024 },
+      } as any);
+
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('HELM_TELEGRAM_MODE'));
+    });
+
+    it('injects first-contact instructions for active session fallback (unmapped topic)', async () => {
+      const { relay, ptyManager, sessionManager } = makeRelay();
+
+      await relay.handleIncomingTelegramMessage({
+        message_id: 83, message_thread_id: 999,
+        text: 'Message for active session',
+        chat: { id: 12345 }, from: { username: 'tguser' },
+      } as any);
+
+      // Active session fallback does NOT get channel affinity injection
+      // (only topic-mapped sessions get it to avoid injecting on unrelated messages)
+      expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.not.stringContaining('HELM_TELEGRAM_MODE'));
     });
   });
 });

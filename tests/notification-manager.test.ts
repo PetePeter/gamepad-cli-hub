@@ -391,5 +391,92 @@ describe('NotificationManager.notifyLlmDirected()', () => {
       expect(payload.content).toBe(specialContent);
     });
   });
+
+  describe('Session interaction channel affinity', () => {
+    it('routes to telegram when session has interactionChannel=telegram', () => {
+      screenLockChecker.mockReturnValue(false);
+      (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+        id: 'sess-tg', interactionChannel: 'telegram',
+      });
+
+      const result = notificationManager.notifyLlmDirected('sess-tg', 'Title', 'Content');
+
+      expect(telegramNotifier).toHaveBeenCalledWith('sess-tg', 'Title', 'Content');
+      expect(result).toBe('telegram');
+    });
+
+    it('takes priority over screen-locked routing (still goes telegram)', () => {
+      screenLockChecker.mockReturnValue(true);
+      (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+        id: 'sess-tg', interactionChannel: 'telegram',
+      });
+
+      const result = notificationManager.notifyLlmDirected('sess-tg', 'Title', 'Content');
+
+      expect(telegramNotifier).toHaveBeenCalledWith('sess-tg', 'Title', 'Content');
+      expect(result).toBe('telegram');
+    });
+
+    it('falls through to normal routing when interactionChannel is desktop', () => {
+      screenLockChecker.mockReturnValue(false);
+      const mockWindow = {
+        isFocused: vi.fn(() => true),
+        isDestroyed: vi.fn(() => false),
+        isVisible: vi.fn(() => true),
+        webContents: { send: vi.fn() },
+      };
+      electronMockState.getAllWindowsMock.mockReturnValue([mockWindow]);
+      activeSessionIdGetter.mockReturnValue('other-session');
+      (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+        id: 'sess-desktop', interactionChannel: 'desktop',
+      });
+
+      const result = notificationManager.notifyLlmDirected('sess-desktop', 'Title', 'Content');
+
+      expect(telegramNotifier).not.toHaveBeenCalled();
+      expect(result).toBe('bubble');
+    });
+
+    it('falls through to normal routing when interactionChannel is undefined', () => {
+      screenLockChecker.mockReturnValue(false);
+      const mockWindow = {
+        isFocused: vi.fn(() => true),
+        isDestroyed: vi.fn(() => false),
+        isVisible: vi.fn(() => true),
+        webContents: { send: vi.fn() },
+      };
+      electronMockState.getAllWindowsMock.mockReturnValue([mockWindow]);
+      activeSessionIdGetter.mockReturnValue('other-session');
+      (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+        id: 'sess-none',
+      });
+
+      const result = notificationManager.notifyLlmDirected('sess-none', 'Title', 'Content');
+
+      expect(telegramNotifier).not.toHaveBeenCalled();
+      expect(result).toBe('bubble');
+    });
+
+    it('falls through to normal routing when interactionChannel=telegram but telegramNotifier is not set', () => {
+      screenLockChecker.mockReturnValue(false);
+      notificationManager.setTelegramNotifier(null as any);
+      const mockWindow = {
+        isFocused: vi.fn(() => true),
+        isDestroyed: vi.fn(() => false),
+        isVisible: vi.fn(() => true),
+        webContents: { send: vi.fn() },
+      };
+      electronMockState.getAllWindowsMock.mockReturnValue([mockWindow]);
+      activeSessionIdGetter.mockReturnValue('other-session');
+      (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+        id: 'sess-tg', interactionChannel: 'telegram',
+      });
+
+      const result = notificationManager.notifyLlmDirected('sess-tg', 'Title', 'Content');
+
+      // Falls through to normal routing since telegramNotifier is not available
+      expect(result).toBe('bubble');
+    });
+  });
 });
 

@@ -69,6 +69,11 @@ export function setupPtyHandlers(
     try {
       ptyManager.write(sessionId, data);
       stateDetector.markActive(sessionId);
+      // Switch to desktop channel when user types in terminal (no-op if already desktop)
+      const session = sessionManager.getSession(sessionId);
+      if (session?.interactionChannel === 'telegram') {
+        sessionManager.updateSession(sessionId, { interactionChannel: 'desktop' });
+      }
       onPtyInput?.(sessionId, data);
     } catch (error) {
       logger.error(`[PTY IPC] pty:write failed for session=${sessionId}: ${error}`);

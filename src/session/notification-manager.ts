@@ -70,6 +70,13 @@ export class NotificationManager {
    * - Window visible, focused, same session → 'none'
    */
   notifyLlmDirected(sessionId: string, title: string, content: string): 'toast' | 'bubble' | 'telegram' | 'taskbar_flash' | 'none' {
+    // Route via Telegram if session is in Telegram mode (takes priority over everything)
+    const session = this.sessionManager.getSession(sessionId);
+    if (session?.interactionChannel === 'telegram' && this.telegramNotifier) {
+      void this.telegramNotifier(sessionId, title, content);
+      return 'telegram';
+    }
+
     const isLocked = this.screenLockChecker?.() ?? false;
     if (isLocked) {
       if (this.telegramNotifier) {

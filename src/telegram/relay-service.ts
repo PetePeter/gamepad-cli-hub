@@ -192,9 +192,15 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     // Find session by topic mapping
     const session = this.topicManager.findSessionByTopicId(topicId);
     if (session) {
+      // Set channel affinity and inject first-contact instructions
+      let text = wrapped;
+      if (session.interactionChannel !== 'telegram') {
+        this.sessionManager.updateSession(session.id, { interactionChannel: 'telegram' });
+        text = TELEGRAM_MODE_INSTRUCTIONS + '\n\n' + wrapped;
+      }
       await deliverPromptSequenceToSession({
         sessionId: session.id,
-        text: wrapped,
+        text,
         ptyManager: this.ptyManager,
         sessionManager: this.sessionManager,
         configLoader: this.configLoader,
@@ -262,9 +268,16 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     const targetSession = session ?? this.sessionManager.getActiveSession();
     if (!targetSession) return false;
 
+    // Set channel affinity and inject first-contact instructions
+    let text = envelope;
+    if (targetSession.interactionChannel !== 'telegram') {
+      this.sessionManager.updateSession(targetSession.id, { interactionChannel: 'telegram' });
+      text = TELEGRAM_MODE_INSTRUCTIONS + '\n\n' + envelope;
+    }
+
     await deliverPromptSequenceToSession({
       sessionId: targetSession.id,
-      text: envelope,
+      text,
       ptyManager: this.ptyManager,
       sessionManager: this.sessionManager,
       configLoader: this.configLoader,
@@ -420,4 +433,12 @@ function wrapTelegramEnvelope(text: string, from: string, chatId: number): strin
   const fromTag = from === 'unknown' ? '' : ` from:${from}`;
   return `[HELM_TELEGRAM${fromTag} chat:${chatId}]\n${text}\n[/HELM_TELEGRAM]\nRespond via telegram_chat MCP tool.`;
 }
+
+const TELEGRAM_MODE_INSTRUCTIONS =
+  '[HELM_TELEGRAM_MODE]\n' +
+  'This session is now in Telegram mode. The user is interacting via Telegram and CANNOT see the terminal.\n' +
+  'ALL responses MUST go through the telegram_chat MCP tool.\n' +
+  'ALL questions and confirmations MUST go through telegram_chat — do NOT use AskUserQuestion.\n' +
+  'The user will return to their desk when they type in the terminal, which automatically exits Telegram mode.\n' +
+  '[/HELM_TELEGRAM_MODE]';
 

@@ -47,6 +47,8 @@ export interface SessionInfo {
   windowId?: number;
   /** AIAGENT state controlled by external agents (planning, implementing, completed, idle). Persists across restarts. */
   aiagentState?: 'planning' | 'implementing' | 'completed' | 'idle';
+  /** Which channel the user last interacted through. Ephemeral — not persisted. */
+  interactionChannel?: 'telegram' | 'desktop';
 }
 
 /**
