@@ -33,3 +33,4 @@ release/
 config-deploy/
 tmp/helm-work*
 tmp/helm-attachment*
+.mcp.json
