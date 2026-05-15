@@ -1,6 +1,7 @@
 /**
  * Pipeline state for an AI CLI session.
- * Detected from AIAGENT-* keywords in PTY output.
+ * Updated by explicit UI controls and pipeline machinery. AIAGENT phase state is
+ * stored separately in aiagentState and is updated through MCP.
  */
 export type SessionState = 'implementing' | 'waiting' | 'planning' | 'completed' | 'idle';
 
@@ -31,7 +32,7 @@ export interface SessionInfo {
   projectId?: string;
   /** Canonical project path used for shared backlog grouping across worktrees. */
   projectPath?: string;
-  /** Pipeline state detected from PTY output */
+  /** Pipeline state for manual/pipeline coordination */
   state?: SessionState;
   /** True when AIAGENT-QUESTION detected; clears on next non-question output */
   questionPending?: boolean;
@@ -81,7 +82,7 @@ export interface SessionRemovedEvent {
 }
 
 /**
- * Emitted when a session's pipeline state changes (detected from AIAGENT-* keywords).
+ * Emitted when a session's pipeline state changes.
  */
 export interface SessionStateChangeEvent {
   sessionId: string;

@@ -27,7 +27,7 @@ interface SessionTracking {
   questionPending: boolean;
   lastOutputAt: number;
   activityLevel: ActivityLevel;
-  /** When true, processOutput skips keyword scanning (scroll redraws). */
+  /** When true, processOutput skips marker scanning (scroll redraws). */
   scrolling: boolean;
   /** When true, processOutput skips activity promotion (resize redraws). */
   resizing: boolean;
@@ -45,18 +45,6 @@ function stripAnsi(text: string): string {
     .replace(/\x1b\][^\x07\x1b]*/g, '');                  // Incomplete OSC (strip prefix)
 }
 
-/**
- * Keyword → state mapping.
- * AIAGENT-QUESTION is handled separately (sets a flag, not a state).
- */
-const KEYWORD_STATE_MAP: Record<string, SessionState> = {
-  'AIAGENT-IMPLEMENTING': 'implementing',
-  'AIAGENT-PLANNING': 'planning',
-  'AIAGENT-COMPLETED': 'completed',
-  'AIAGENT-IDLE': 'idle',
-};
-
-const STATE_KEYWORDS = Object.keys(KEYWORD_STATE_MAP);
 const QUESTION_KEYWORD = 'AIAGENT-QUESTION';
 
 /** Default timeout before considering a session inactive (no output for 10s) */
@@ -65,7 +53,7 @@ export const DEFAULT_INACTIVE_TIMEOUT_MS = 10_000;
 /** Default timeout before considering a session idle (no output for 5 minutes) */
 export const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
 
-/** How long after the last scroll input before keyword scanning resumes (2s) */
+/** How long after the last scroll input before marker scanning resumes (2s) */
 export const DEFAULT_SCROLL_CLEAR_MS = 2_000;
 
 /** How long after the last resize before activity promotion resumes (1s) */
@@ -96,10 +84,12 @@ export interface ActivityTimeouts {
 }
 
 /**
- * Detects session state from PTY output by scanning for AIAGENT-* keywords.
+ * Tracks PTY activity and question markers for sessions.
+ * AIAGENT phase state is intentionally not parsed from terminal text; agents
+ * must update durable phase state through the MCP session_set_aiagent_state tool.
  *
  * Events:
- * - 'state-change'      (StateTransition)  — keyword triggered a state change
+ * - 'state-change'      (StateTransition)  — manual/legacy event only
  * - 'question-detected'  (QuestionDetected) — AIAGENT-QUESTION found
  * - 'question-cleared'   (QuestionCleared)  — new output arrived after question
  * - 'activity-change'   (ActivityChange)   — session activity level changed
@@ -134,7 +124,7 @@ export class StateDetector extends EventEmitter {
     this.activityDebounceMs = DEFAULT_ACTIVITY_DEBOUNCE_MS;
   }
 
-  /** Mark a session as scrolling — processOutput skips keyword scanning.
+  /** Mark a session as scrolling — processOutput skips marker scanning.
    *  Auto-clears after 2s of no further scroll input. */
   markScrolling(sessionId: string): void {
     const tracking = this.getOrCreate(sessionId);
@@ -198,7 +188,7 @@ export class StateDetector extends EventEmitter {
   }
 
   /** Mark a session as active due to user input (PTY stdin).
-   *  Unlike processOutput, this does NOT scan for AIAGENT-* keywords.
+   *  Unlike processOutput, this only touches activity state.
    *  Clears the scrolling flag since this is real user input. */
   markActive(sessionId: string): void {
     const tracking = this.getOrCreate(sessionId);
@@ -287,67 +277,29 @@ export class StateDetector extends EventEmitter {
       }
     }
 
-    // Skip keyword scanning during scroll — output is a screen redraw, not new CLI content
+    // Skip marker scanning during scroll — output is a screen redraw, not new CLI content.
     if (tracking.scrolling) return;
 
     const clean = stripAnsi(data);
 
-    // Collect all keyword occurrences with their position so we process in order.
-    const hits: Array<{ index: number; keyword: string }> = [];
-
-    for (const kw of STATE_KEYWORDS) {
-      let pos = 0;
-      while ((pos = clean.indexOf(kw, pos)) !== -1) {
-        hits.push({ index: pos, keyword: kw });
-        pos += kw.length;
-      }
-    }
-
-    // Check for question keyword occurrences
     let hasQuestion = false;
     {
       let pos = 0;
       while ((pos = clean.indexOf(QUESTION_KEYWORD, pos)) !== -1) {
-        hits.push({ index: pos, keyword: QUESTION_KEYWORD });
         hasQuestion = true;
         pos += QUESTION_KEYWORD.length;
       }
     }
 
-    // Sort by position so we honour the order keywords appear in the chunk.
-    hits.sort((a, b) => a.index - b.index);
-
-    // If there are no keywords at all but question was pending, clear it.
-    if (hits.length === 0 && tracking.questionPending) {
+    if (!hasQuestion && tracking.questionPending) {
       tracking.questionPending = false;
       this.emit('question-cleared', { sessionId } satisfies QuestionCleared);
       return;
     }
 
-    // Clear question-pending on non-question output if no new question in this chunk.
-    if (tracking.questionPending && !hasQuestion) {
-      tracking.questionPending = false;
-      this.emit('question-cleared', { sessionId } satisfies QuestionCleared);
-    }
-
-    for (const hit of hits) {
-      if (hit.keyword === QUESTION_KEYWORD) {
-        if (!tracking.questionPending) {
-          tracking.questionPending = true;
-          this.emit('question-detected', { sessionId } satisfies QuestionDetected);
-        }
-      } else {
-        const newState = KEYWORD_STATE_MAP[hit.keyword];
-        if (newState && newState !== tracking.state) {
-          const previousState = tracking.state;
-          tracking.state = newState;
-          this.emit('state-change', {
-            sessionId,
-            previousState,
-            newState,
-          } satisfies StateTransition);
-        }
-      }
+    if (hasQuestion && !tracking.questionPending) {
+      tracking.questionPending = true;
+      this.emit('question-detected', { sessionId } satisfies QuestionDetected);
     }
   }
 

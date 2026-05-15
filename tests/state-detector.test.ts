@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { StateDetector } from '../src/session/state-detector';
-import type { StateTransition, QuestionDetected, QuestionCleared, ActivityChange } from '../src/session/state-detector';
+import type { QuestionDetected, QuestionCleared, ActivityChange } from '../src/session/state-detector';
 
 describe('StateDetector', () => {
   let detector: StateDetector;
@@ -19,51 +19,43 @@ describe('StateDetector', () => {
     });
   });
 
-  describe('state transitions', () => {
-    it('detects AIAGENT-IMPLEMENTING', () => {
+  describe('AIAGENT phase text', () => {
+    it('ignores AIAGENT-IMPLEMENTING for session state', () => {
       const handler = vi.fn();
       detector.on('state-change', handler);
 
       detector.processOutput('s1', 'some output AIAGENT-IMPLEMENTING more output');
 
-      expect(detector.getState('s1')).toBe('implementing');
-      expect(handler).toHaveBeenCalledWith({
-        sessionId: 's1',
-        previousState: 'idle',
-        newState: 'implementing',
-      } satisfies StateTransition);
+      expect(detector.getState('s1')).toBe('idle');
+      expect(handler).not.toHaveBeenCalled();
     });
 
-    it('detects AIAGENT-PLANNING', () => {
+    it('ignores AIAGENT-PLANNING', () => {
       detector.processOutput('s1', 'AIAGENT-PLANNING');
-      expect(detector.getState('s1')).toBe('planning');
+      expect(detector.getState('s1')).toBe('idle');
     });
 
-    it('detects AIAGENT-IDLE', () => {
+    it('ignores AIAGENT-IDLE', () => {
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
       detector.processOutput('s1', 'AIAGENT-IDLE');
       expect(detector.getState('s1')).toBe('idle');
     });
 
-    it('detects AIAGENT-COMPLETED', () => {
+    it('ignores AIAGENT-COMPLETED', () => {
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
       detector.processOutput('s1', 'AIAGENT-COMPLETED');
-      expect(detector.getState('s1')).toBe('completed');
+      expect(detector.getState('s1')).toBe('idle');
     });
 
-    it('AIAGENT-COMPLETED emits state-change with correct transition', () => {
+    it('AIAGENT-COMPLETED does not emit state-change', () => {
       const handler = vi.fn();
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
       detector.on('state-change', handler);
       detector.processOutput('s1', 'AIAGENT-COMPLETED');
-      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
-        sessionId: 's1',
-        previousState: 'implementing',
-        newState: 'completed',
-      }));
+      expect(handler).not.toHaveBeenCalled();
     });
 
-    it('does not emit state-change when state is the same', () => {
+    it('does not emit state-change when phase text repeats', () => {
       const handler = vi.fn();
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
       detector.on('state-change', handler);
@@ -71,39 +63,39 @@ describe('StateDetector', () => {
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
 
       expect(handler).not.toHaveBeenCalled();
-      expect(detector.getState('s1')).toBe('implementing');
+      expect(detector.getState('s1')).toBe('idle');
     });
 
-    it('processes multiple keywords in order within one chunk', () => {
+    it('ignores multiple phase keywords within one chunk', () => {
       const states: string[] = [];
-      detector.on('state-change', (t: StateTransition) => states.push(t.newState));
+      detector.on('state-change', (t: { newState: string }) => states.push(t.newState));
 
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING then AIAGENT-PLANNING then AIAGENT-IDLE');
 
-      expect(states).toEqual(['implementing', 'planning', 'idle']);
+      expect(states).toEqual([]);
       expect(detector.getState('s1')).toBe('idle');
     });
   });
 
   describe('ANSI stripping', () => {
-    it('detects keywords wrapped in ANSI escape codes', () => {
+    it('ignores phase keywords wrapped in ANSI escape codes', () => {
       detector.processOutput('s1', '\x1b[32mAIAGENT-IMPLEMENTING\x1b[0m');
-      expect(detector.getState('s1')).toBe('implementing');
+      expect(detector.getState('s1')).toBe('idle');
     });
 
-    it('detects keywords with ANSI codes interspersed', () => {
+    it('ignores phase keywords with ANSI codes interspersed', () => {
       detector.processOutput('s1', '\x1b[1;34mAIAGENT-PLANNING\x1b[0m done');
-      expect(detector.getState('s1')).toBe('planning');
+      expect(detector.getState('s1')).toBe('idle');
     });
 
-    it('strips complete OSC sequences (BEL-terminated)', () => {
+    it('ignores phase keywords after complete OSC sequences (BEL-terminated)', () => {
       detector.processOutput('s1', '\x1b]0;My Terminal Title\x07AIAGENT-IMPLEMENTING');
-      expect(detector.getState('s1')).toBe('implementing');
+      expect(detector.getState('s1')).toBe('idle');
     });
 
-    it('strips complete OSC sequences (ST-terminated)', () => {
+    it('ignores phase keywords after complete OSC sequences (ST-terminated)', () => {
       detector.processOutput('s1', '\x1b]0;Window Title\x1b\\AIAGENT-PLANNING');
-      expect(detector.getState('s1')).toBe('planning');
+      expect(detector.getState('s1')).toBe('idle');
     });
 
     it('strips incomplete OSC sequences at end of chunk', () => {
@@ -113,15 +105,15 @@ describe('StateDetector', () => {
       expect(detector.getState('s1')).toBe('idle');
     });
 
-    it('detects keyword after incomplete OSC followed by new output', () => {
+    it('ignores phase keyword after incomplete OSC followed by new output', () => {
       detector.processOutput('s1', '\x1b]0;partial');
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-      expect(detector.getState('s1')).toBe('implementing');
+      expect(detector.getState('s1')).toBe('idle');
     });
 
-    it('strips OSC mixed with CSI sequences', () => {
+    it('ignores phase keyword with OSC mixed with CSI sequences', () => {
       detector.processOutput('s1', '\x1b]0;title\x07\x1b[32mAIAGENT-IMPLEMENTING\x1b[0m');
-      expect(detector.getState('s1')).toBe('implementing');
+      expect(detector.getState('s1')).toBe('idle');
     });
   });
 
@@ -140,7 +132,7 @@ describe('StateDetector', () => {
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
       detector.processOutput('s1', 'AIAGENT-QUESTION');
 
-      expect(detector.getState('s1')).toBe('implementing');
+      expect(detector.getState('s1')).toBe('idle');
       expect(detector.hasQuestion('s1')).toBe(true);
     });
 
@@ -168,21 +160,21 @@ describe('StateDetector', () => {
       expect(clearedHandler).not.toHaveBeenCalled();
     });
 
-    it('handles question + state change in same chunk', () => {
+    it('handles question + ignored phase text in same chunk', () => {
       detector.processOutput('s1', 'AIAGENT-QUESTION then AIAGENT-IMPLEMENTING');
 
       expect(detector.hasQuestion('s1')).toBe(true);
-      expect(detector.getState('s1')).toBe('implementing');
+      expect(detector.getState('s1')).toBe('idle');
     });
   });
 
   describe('session isolation', () => {
-    it('tracks state independently per session', () => {
+    it('ignores phase text independently per session', () => {
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
       detector.processOutput('s2', 'AIAGENT-PLANNING');
 
-      expect(detector.getState('s1')).toBe('implementing');
-      expect(detector.getState('s2')).toBe('planning');
+      expect(detector.getState('s1')).toBe('idle');
+      expect(detector.getState('s2')).toBe('idle');
     });
 
     it('tracks questions independently per session', () => {
@@ -518,7 +510,7 @@ describe('StateDetector', () => {
       expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'inactive' }));
     });
 
-    it('does not trigger keyword scanning (no state-change events)', () => {
+    it('does not trigger phase parsing (no state-change events)', () => {
       const stateHandler = vi.fn();
       detector.on('state-change', stateHandler);
 
@@ -568,18 +560,15 @@ describe('StateDetector', () => {
       expect(handler).not.toHaveBeenCalled();
     });
 
-    it('still scans keywords while resizing', () => {
+    it('still ignores phase keywords while resizing', () => {
       const handler = vi.fn();
       detector.on('state-change', handler);
 
       detector.markResizing('s1');
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
 
-      expect(handler).toHaveBeenCalledWith({
-        sessionId: 's1',
-        previousState: 'idle',
-        newState: 'implementing',
-      });
+      expect(handler).not.toHaveBeenCalled();
+      expect(detector.getState('s1')).toBe('idle');
     });
 
     it('still updates lastOutputAt while resizing', () => {
@@ -769,7 +758,7 @@ describe('StateDetector', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Scroll suppression — markScrolling prevents keyword scanning
+  // Scroll suppression — markScrolling prevents marker scanning
   // -------------------------------------------------------------------------
 
   describe('scroll suppression', () => {
@@ -782,19 +771,19 @@ describe('StateDetector', () => {
       vi.useRealTimers();
     });
 
-    it('skips keyword scanning while scrolling', () => {
+    it('skips marker scanning while scrolling', () => {
       const handler = vi.fn();
       detector.on('state-change', handler);
 
       detector.markScrolling('s1');
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
 
-      // Keyword scanning suppressed — no state change
+      // Marker scanning suppressed — no state change
       expect(handler).not.toHaveBeenCalled();
       expect(detector.getState('s1')).toBe('idle');
     });
 
-    it('still promotes activity while scrolling (only keywords suppressed)', () => {
+    it('still promotes activity while scrolling', () => {
       const handler = vi.fn();
       detector.on('activity-change', handler);
 
@@ -819,9 +808,10 @@ describe('StateDetector', () => {
       detector.markScrolling('s1');
       vi.advanceTimersByTime(2001);
 
-      // Keyword scanning works again
+      // Phase text is ignored after scrolling clears too
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ newState: 'implementing' }));
+      expect(handler).not.toHaveBeenCalled();
+      expect(detector.getState('s1')).toBe('idle');
     });
 
     it('markActive clears the scrolling flag', () => {
@@ -835,7 +825,8 @@ describe('StateDetector', () => {
       // markActive clears scrolling
       detector.markActive('s1');
       detector.processOutput('s1', 'AIAGENT-PLANNING');
-      expect(stateHandler).toHaveBeenCalledWith(expect.objectContaining({ newState: 'planning' }));
+      expect(stateHandler).not.toHaveBeenCalled();
+      expect(detector.getState('s1')).toBe('idle');
     });
 
     it('resets auto-clear timer on repeated markScrolling', () => {
@@ -847,13 +838,14 @@ describe('StateDetector', () => {
       detector.markScrolling('s1'); // refresh the timer
       vi.advanceTimersByTime(1500); // 1.5s since last markScrolling (< 2s)
 
-      // Still scrolling — keyword scanning suppressed
+      // Still scrolling — marker scanning suppressed
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
       expect(stateHandler).not.toHaveBeenCalled();
 
       vi.advanceTimersByTime(600); // now past the 2s window
       detector.processOutput('s1', 'AIAGENT-PLANNING');
-      expect(stateHandler).toHaveBeenCalled();
+      expect(stateHandler).not.toHaveBeenCalled();
+      expect(detector.getState('s1')).toBe('idle');
     });
 
     it('removeSession clears scroll timer', () => {
@@ -899,17 +891,15 @@ describe('StateDetector', () => {
       expect(handler).not.toHaveBeenCalled();
     });
 
-    it('still scans keywords while restoring', () => {
+    it('still ignores phase keywords while restoring', () => {
       const handler = vi.fn();
       detector.on('state-change', handler);
 
       detector.markRestored('s1');
       detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
 
-      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
-        sessionId: 's1',
-        newState: 'implementing',
-      }));
+      expect(handler).not.toHaveBeenCalled();
+      expect(detector.getState('s1')).toBe('idle');
     });
 
     it('still updates lastOutputAt while restoring', () => {

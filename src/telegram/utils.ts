@@ -41,7 +41,7 @@ const NOISE_PATTERNS: RegExp[] = [
   /^.*\bthinking\b\.{0,3}\s*$/gim,
   /^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏].*$/gm,              // Braille spinner lines (must start with spinner char)
   /^[-\\|/]\s*$/gm,                            // ASCII spinner frames (single char lines)
-  /^AIAGENT-\w+\s*$/gm,                        // State tags (already handled by StateDetector)
+  /^AIAGENT-\w+\s*$/gm,                        // Agent phase tags (MCP-owned; omit from output relay)
   /^\s*\d+\/\d+\s*(?:tests?|files?|modules?|packages?).*$/gim, // Progress counters (47/100 tests)
   /^\s*[█░▓▒■□▏▎▍▌▋▊▉]+\s*\d*%?\s*$/gm,      // Progress bars (block chars + optional %)
 ];

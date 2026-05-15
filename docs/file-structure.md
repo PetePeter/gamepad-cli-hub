@@ -29,7 +29,7 @@ src/
 │   ├── manager.ts              # Session tracking (EventEmitter), calls persistence on changes
 │   ├── persistence.ts          # Save/load/clear sessions to config/sessions.yaml + saveDrafts/loadDrafts to config/drafts.yaml + plan file I/O for config/plans/*.json + config/plan-dependencies.json
 │   ├── pty-manager.ts          # PTY process management (node-pty: cmd.exe on Windows, bash on Unix)
-│   ├── state-detector.ts       # AIAGENT-* keyword scanning for CLI state detection + I/O activity tracking (active/inactive/idle via input+output timing) + markRestored() 3s grace period for restored sessions
+│   ├── state-detector.ts       # PTY activity tracking + question markers; AIAGENT phase state is MCP-owned + markRestored() grace period for restored sessions
 │   ├── pipeline-queue.ts       # Waiting→implementing auto-handoff queue (FIFO)
 │   ├── notification-manager.ts # Windows toast notifications (Electron Notification API, activity-change triggers for implementing/planning sessions, dedup, click-to-focus)
 │   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay, onComplete callback
@@ -223,7 +223,7 @@ tests/                                  # 61 test files
 ├── session.test.ts             # Session management
 ├── sessions-screen.test.ts     # Session cards + group headers + spawn grid navigation + directional buttons
 ├── sort-logic.test.ts          # Session sort order tests
-├── state-detector.test.ts      # AIAGENT-* keyword detection tests + activity tracking
+├── state-detector.test.ts      # AIAGENT phase text ignore tests + activity tracking
 ├── tab-cycling.test.ts         # Terminal tab cycling tests
 ├── telegram-bot.test.ts        # TelegramBotCore lifecycle + auth tests
 ├── telegram-config.test.ts     # Telegram config loading/saving tests

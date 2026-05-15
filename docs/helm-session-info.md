@@ -31,7 +31,7 @@ The tool returns a `SessionInfoResponse` object with these fields:
 
 ### AIAGENT State Registry
 
-- **`aiagent_states`** (string[]) — Canonical list of valid AIAGENT-* state tags the session detector recognizes. Currently: `['planning', 'implementing', 'completed', 'idle']`.
+- **`aiagent_states`** (string[]) — Canonical list of valid AIAGENT phase states accepted by `session_set_aiagent_state`. Currently: `['planning', 'implementing', 'completed', 'idle']`.
   
   Use these to format the first line of response blocks:
   ```
@@ -41,7 +41,7 @@ The tool returns a `SessionInfoResponse` object with these fields:
   AIAGENT-IDLE
   ```
   
-  The session detector in Helm scans PTY stdout for these keywords and updates the session's visual state (activity dots) and `state` field in session info.
+  Agents may still print these first-line tags for readability, but Helm does not scrape PTY stdout for AIAGENT phase changes. Call `session_set_aiagent_state` to update the durable phase shown in Helm.
 
 - **`aiagent_state_guide`** — Practical guide for the explicit AIAGENT state endpoint.
   - **`validStates`** — The values accepted by `session_set_aiagent_state`: `planning`, `implementing`, `completed`, and `idle`.
@@ -343,19 +343,17 @@ Helm tracks three independent state systems. Keep them aligned when useful, but 
 | System | Owner | Purpose |
 | --- | --- | --- |
 | `aiagentState` | External agents via `session_set_aiagent_state` | Durable agent-declared phase shown on session rows: planning, implementing, completed, or idle. |
-| `sessionState` | Helm `StateDetector` | Runtime pipeline state inferred from AIAGENT-* tags in PTY output and question markers. |
+| `sessionState` | Helm UI and pipeline controls | Runtime pipeline state for manual state overrides and handoff queue coordination. |
 | `planState` | Helm plan tools | Durable lifecycle for a plan item: planning, ready, coding, review, blocked, or done. |
 
-The session detector in Helm's main process scans PTY output for the four AIAGENT-* keywords and:
+The session detector in Helm's main process tracks PTY activity timing and
+question markers. It no longer turns printed `AIAGENT-*` text into state
+changes, so printed tags cannot trigger hidden Telegram completion/idle
+notifications.
 
-1. Extracts the state from the first line of a response block.
-2. Updates the session's `state` field (visible in session summaries and session cards).
-3. Triggers activity-based transitions:
-   - `state: 'idle'` on session startup (no output for 5+ minutes).
-   - `state: 'waiting'` on activity (output detected, >10s silence).
-   - `state: 'planning'|'implementing'|'completed'` on keyword match.
-
-The `aiagent_states` registry from `session_info` provides the canonical list of states the detector recognizes — use these in response formatting to ensure your state transitions are recognized.
+The `aiagent_states` registry from `session_info` provides the canonical list of
+states accepted by the explicit MCP endpoint. Use `session_set_aiagent_state` to
+make your state transitions durable and visible in Helm.
 
 The explicit state endpoint is:
 
@@ -426,7 +424,8 @@ console.log(`Valid AIAGENT states: ${sessionInfo.aiagent_states.join(', ')}`);
 const tools = sessionInfo.available_tools;
 console.log(`Available tools: ${tools.map(t => t.name).join(', ')}`);
 
-// Step 3: Start work with AIAGENT state tags
+// Step 3: Start work with explicit AIAGENT state updates and readable tags
+await mcp.callTool('session_set_aiagent_state', { sessionId: sessionInfo.sessionId, state: 'planning' });
 console.log('AIAGENT-PLANNING');
 console.log('Researching the task...');
 
@@ -436,9 +435,11 @@ const plans = await mcp.callTool('plans_list', {
 });
 
 console.log('AIAGENT-IMPLEMENTING');
+await mcp.callTool('session_set_aiagent_state', { sessionId: sessionInfo.sessionId, state: 'implementing' });
 console.log('Implementing the solution...');
 
 console.log('AIAGENT-COMPLETED');
+await mcp.callTool('session_set_aiagent_state', { sessionId: sessionInfo.sessionId, state: 'completed' });
 console.log('Ready for review.');
 ```
 

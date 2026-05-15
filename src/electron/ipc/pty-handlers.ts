@@ -80,8 +80,8 @@ export function setupPtyHandlers(
     }
   });
 
-  // pty:scrollInput - Write scroll keys to PTY without triggering keyword detection.
-  // Screen redraws from scroll contain old AIAGENT-* tags that would cause false state changes.
+  // pty:scrollInput - Write scroll keys to PTY without triggering marker detection.
+  // Screen redraws from scroll can contain stale agent-visible text.
   ipcMain.handle('pty:scrollInput', (_event, sessionId: string, data: string) => {
     try {
       ptyManager.write(sessionId, data);
@@ -123,7 +123,7 @@ export function setupPtyHandlers(
 
   // Forward PTY data events to renderer
   ptyManager.on('data', (sessionId: string, data: string) => {
-    // Feed to state detector for keyword scanning
+    // Feed to state detector for activity and question tracking.
     stateDetector.processOutput(sessionId, data);
 
     // Feed to pattern matcher for regex-triggered actions
