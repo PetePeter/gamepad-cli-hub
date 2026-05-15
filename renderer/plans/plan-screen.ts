@@ -81,7 +81,7 @@ interface WindowCallbacks {
   planEditorOpener: ((sessionId: string, plan: PlanItem, callbacks: PlanEditorCallbacks) => void) | null;
   draftEditorCloser: (() => void) | null;
   draftEditorVisibilityChecker: (() => boolean) | null;
-  contextEditorOpener: ((context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string }, callbacks: { onSave: (updates: { title: string; content: string; type: string; permission: 'readonly' | 'writable' }) => void; onDelete: () => void; onClose?: () => void }) => void) | null;
+  contextEditorOpener: ((context: { id: string; title: string; type: string; permission: 'readonly' | 'writable'; content: string; planIds?: string[]; sequenceIds?: string[] }, callbacks: { onSave: (updates: { title: string; content: string; type: string; permission: 'readonly' | 'writable' }) => void; onDelete: () => void; onUnbind?: (targetType: ContextBindingTargetType, targetId: string) => void; onClose?: () => void }) => void) | null;
   planChangesChecker: (() => boolean) | null;
   backupRestoreOpener: (() => void) | null;
 }

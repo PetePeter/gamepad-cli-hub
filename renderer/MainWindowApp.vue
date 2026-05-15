@@ -165,6 +165,7 @@ const {
   draftEditorContextCallbacks,
   draftEditorContextBoundPlans,
   draftEditorContextBoundSequences,
+  draftEditorPendingContextUnbinds,
   draftEditorRef,
   openDraftEditor,
   openPlanEditor,
@@ -1000,7 +1001,7 @@ onUnmounted(() => {
         @plan-apply="onPlanApply"
         @plan-done="onPlanDone"
         @plan-delete="onPlanDelete"
-        @context-save="(u) => draftEditorContextId.value && saveContextEditor(draftEditorContextId.value, u)"
+        @context-save="(u) => draftEditorContextId && saveContextEditor(draftEditorContextId, u)"
         @context-delete="onContextDelete"
       />
       <div
