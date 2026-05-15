@@ -18,6 +18,7 @@
 | Weak callback data parsing | 🟡 MEDIUM | ⬜ OPEN |
 | No audit logging | 🟡 MEDIUM | ⬜ OPEN |
 | Spawn wizard state tracking | 🟢 LOW | ⬜ OPEN |
+| Stale topic cleanup guardrails | 🟢 LOW | ✅ RESOLVED — preview + confirm, Helm-known mappings only |
 
 ---
 
@@ -30,6 +31,23 @@ The Telegram integration provides remote terminal control capabilities, which in
 ---
 
 ## Findings
+
+### 🟢 LOW: Stale Topic Cleanup Guardrails
+
+**Location:**
+- `src/telegram/topic-manager.ts`
+- `src/telegram/callback-handler.ts`
+- `src/telegram/keyboards.ts`
+
+**Issue:** Telegram bots cannot enumerate every forum topic in a supergroup.
+Cleanup must therefore avoid pretending it can delete arbitrary stale topics.
+
+**Resolution:** The cleanup workflow is limited to Helm-known `topicId`
+mappings, previews the probe result before changing anything, and requires a
+confirmation callback before clearing dead mappings. Alive topics are treated as
+belonging to active sessions and are skipped.
+
+---
 
 ### 🔴 CRITICAL: Empty Whitelist = Allow All
 

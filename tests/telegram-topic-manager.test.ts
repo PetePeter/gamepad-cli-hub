@@ -289,6 +289,67 @@ describe('TopicManager', () => {
   });
 
   // =========================================================================
+  // stale topic cleanup
+  // =========================================================================
+
+  describe('stale topic cleanup', () => {
+    it('previews Helm-known topic mappings without deleting topics', async () => {
+      session.topicId = 42;
+      bot.sendToTopic.mockResolvedValue({ message_id: 1 });
+
+      const preview = await tm.previewStaleTopics();
+
+      expect(preview).toMatchObject({
+        totalSessions: 1,
+        mappedTopics: 1,
+        alive: 1,
+        dead: 0,
+        failed: 0,
+      });
+      expect(preview.probes[0]).toMatchObject({
+        sessionId: 'sess-1',
+        topicId: 42,
+        status: 'alive',
+      });
+      expect(bot.deleteForumTopic).not.toHaveBeenCalled();
+    });
+
+    it('clears dead topic mappings on confirmed cleanup', async () => {
+      session.topicId = 42;
+      bot.sendToTopic.mockResolvedValue(null);
+
+      const result = await tm.cleanupStaleTopics();
+
+      expect(result.cleared).toBe(1);
+      expect(result.deleted).toBe(0);
+      expect(result.skipped).toBe(0);
+      expect(session.topicId).toBeUndefined();
+      expect(saveSessions).toHaveBeenCalled();
+      expect(bot.deleteForumTopic).not.toHaveBeenCalled();
+    });
+
+    it('skips alive topics for active sessions', async () => {
+      session.topicId = 42;
+      bot.sendToTopic.mockResolvedValue({ message_id: 1 });
+
+      const result = await tm.cleanupStaleTopics();
+
+      expect(result.skipped).toBe(1);
+      expect(result.cleared).toBe(0);
+      expect(session.topicId).toBe(42);
+    });
+
+    it('reports no-op cleanup when there are no mapped topics', async () => {
+      const result = await tm.cleanupStaleTopics();
+
+      expect(result.mappedTopics).toBe(0);
+      expect(result.cleared).toBe(0);
+      expect(result.deleted).toBe(0);
+      expect(bot.sendToTopic).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
   // Topic naming
   // =========================================================================
 

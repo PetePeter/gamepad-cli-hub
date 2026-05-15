@@ -60,7 +60,10 @@ function createMockBot() {
 }
 
 function createMockTopicManager() {
-  return {} as unknown as TopicManager;
+  return {
+    previewStaleTopics: vi.fn(),
+    cleanupStaleTopics: vi.fn(),
+  } as unknown as TopicManager;
 }
 
 function createMockSessionManager(sessions: Record<string, any> = {}) {
@@ -277,6 +280,99 @@ describe('setupCallbackHandler', () => {
 
       expect(ensureTopic).toHaveBeenCalled();
       expect(bot.answerCallback).toHaveBeenCalledWith('q1', '❌ Failed to create topic');
+    });
+  });
+
+  describe('topic_cleanup:*', () => {
+    it('shows a guarded cleanup preview', async () => {
+      const mockTopicManager = {
+        previewStaleTopics: vi.fn(async () => ({
+          totalSessions: 2,
+          mappedTopics: 2,
+          alive: 1,
+          dead: 1,
+          failed: 0,
+          probes: [],
+        })),
+        cleanupStaleTopics: vi.fn(),
+      } as unknown as TopicManager;
+      const innerBot = { editMessageText: vi.fn(), sendMessage: vi.fn() };
+      (bot.getBot as any).mockReturnValue(innerBot);
+
+      setupCallbackHandler(
+        bot as any, mockTopicManager as any, sessionManager as any,
+        ptyManager as any, configLoader as any,
+      );
+      handler = (bot.on as any).mock.calls.at(-1)[1];
+
+      await handler(makeQuery('topic_cleanup:preview'));
+
+      expect((mockTopicManager as any).previewStaleTopics).toHaveBeenCalled();
+      expect(innerBot.editMessageText).toHaveBeenCalledWith(
+        expect.stringContaining('Topic Cleanup Preview'),
+        expect.objectContaining({
+          reply_markup: expect.objectContaining({
+            inline_keyboard: expect.arrayContaining([
+              expect.arrayContaining([
+                expect.objectContaining({ callback_data: 'topic_cleanup:confirm' }),
+              ]),
+            ]),
+          }),
+        }),
+      );
+      expect(bot.answerCallback).toHaveBeenCalledWith('q1', 'Preview ready');
+    });
+
+    it('runs cleanup only after confirmation', async () => {
+      const mockTopicManager = {
+        previewStaleTopics: vi.fn(),
+        cleanupStaleTopics: vi.fn(async () => ({
+          totalSessions: 2,
+          mappedTopics: 2,
+          alive: 1,
+          dead: 1,
+          failed: 0,
+          probes: [],
+          deleted: 0,
+          cleared: 1,
+          skipped: 1,
+          failures: [],
+        })),
+      } as unknown as TopicManager;
+      const innerBot = { editMessageText: vi.fn(), sendMessage: vi.fn() };
+      (bot.getBot as any).mockReturnValue(innerBot);
+
+      setupCallbackHandler(
+        bot as any, mockTopicManager as any, sessionManager as any,
+        ptyManager as any, configLoader as any,
+      );
+      handler = (bot.on as any).mock.calls.at(-1)[1];
+
+      await handler(makeQuery('topic_cleanup:confirm'));
+
+      expect((mockTopicManager as any).cleanupStaleTopics).toHaveBeenCalled();
+      expect(innerBot.editMessageText).toHaveBeenCalledWith(
+        expect.stringContaining('Cleared dead mappings: 1'),
+        expect.any(Object),
+      );
+      expect(bot.answerCallback).toHaveBeenCalledWith('q1', 'Cleanup complete');
+    });
+
+    it('cancels cleanup without running it', async () => {
+      const mockTopicManager = createMockTopicManager();
+      const innerBot = { editMessageText: vi.fn(), sendMessage: vi.fn() };
+      (bot.getBot as any).mockReturnValue(innerBot);
+
+      setupCallbackHandler(
+        bot as any, mockTopicManager as any, sessionManager as any,
+        ptyManager as any, configLoader as any,
+      );
+      handler = (bot.on as any).mock.calls.at(-1)[1];
+
+      await handler(makeQuery('topic_cleanup:cancel'));
+
+      expect((mockTopicManager as any).cleanupStaleTopics).not.toHaveBeenCalled();
+      expect(bot.answerCallback).toHaveBeenCalledWith('q1', 'Cleanup cancelled');
     });
   });
 

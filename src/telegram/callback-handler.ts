@@ -5,6 +5,7 @@
  * Callback data format (defined by keyboards.ts):
  *   topic:{sessionId}   — Navigate to topic (legacy toast-only)
  *   topic_create:{sessionId} — Create the session's topic, then refresh the keyboard
+ *   topic_cleanup:preview/confirm/cancel — Guarded stale topic cleanup
  *   reply:{sessionId}   — Return to session control panel from relay message
  *   continue:{sessionId} — Send Enter to session
  *   sessions:list       — Show directory list
@@ -104,6 +105,9 @@ async function routeCallback(
       break;
     case 'topic_create':
       await handleTopicCreate(bot, topicManager, sessionManager, payload, query);
+      break;
+    case 'topic_cleanup':
+      await handleTopicCleanup(bot, topicManager, payload, query);
       break;
     case 'reply':
       await handleReply(bot, sessionManager, payload, query);
@@ -248,6 +252,39 @@ async function handleTopicCreate(
   await bot.answerCallback(query.id, '📌 Topic ready — tap Go to Topic');
 }
 
+async function handleTopicCleanup(
+  bot: TelegramBotCore,
+  topicManager: TopicManager,
+  payload: string,
+  query: TelegramBot.CallbackQuery,
+): Promise<void> {
+  if (payload === 'cancel') {
+    await bot.answerCallback(query.id, 'Cleanup cancelled');
+    await editOriginalMessage(bot, query, 'Topic cleanup cancelled.', [
+      [{ text: '📂 Sessions', callback_data: 'sessions:list' }],
+    ]);
+    return;
+  }
+
+  if (payload === 'confirm') {
+    const result = await topicManager.cleanupStaleTopics();
+    await editOriginalMessage(bot, query, formatTopicCleanupResult(result), [
+      [{ text: '📂 Sessions', callback_data: 'sessions:list' }],
+    ]);
+    await bot.answerCallback(query.id, 'Cleanup complete');
+    return;
+  }
+
+  const preview = await topicManager.previewStaleTopics();
+  await editOriginalMessage(bot, query, formatTopicCleanupPreview(preview), [
+    [
+      { text: '✅ Confirm', callback_data: 'topic_cleanup:confirm' },
+      { text: '✋ Cancel', callback_data: 'topic_cleanup:cancel' },
+    ],
+  ]);
+  await bot.answerCallback(query.id, 'Preview ready');
+}
+
 async function handleContinue(
   bot: TelegramBotCore,
   ptyManager: PtyManager,
@@ -256,6 +293,46 @@ async function handleContinue(
 ): Promise<void> {
   ptyManager.write(sessionId, '\r');
   await bot.answerCallback(query.id, '🚀 Sent continue (Enter)');
+}
+
+function formatTopicCleanupPreview(
+  preview: Awaited<ReturnType<TopicManager['previewStaleTopics']>>,
+): string {
+  const lines = [
+    '🧹 Topic Cleanup Preview',
+    '',
+    'Telegram cannot list every forum topic.',
+    'Cleanup is limited to Helm-known mappings.',
+    '',
+    `Sessions checked: ${preview.totalSessions}`,
+    `Mapped topics: ${preview.mappedTopics}`,
+    `Alive active topics: ${preview.alive}`,
+    `Dead mappings to clear: ${preview.dead}`,
+    `Probe failures: ${preview.failed}`,
+  ];
+
+  if (preview.dead > 0) {
+    lines.push('', 'Confirm to clear dead mappings.');
+    lines.push('Active session topics are skipped.');
+  } else {
+    lines.push('', 'Nothing destructive is pending.');
+  }
+
+  return lines.join('\n');
+}
+
+function formatTopicCleanupResult(
+  result: Awaited<ReturnType<TopicManager['cleanupStaleTopics']>>,
+): string {
+  return [
+    '🧹 Topic Cleanup Result',
+    '',
+    'Only Helm-known topic mappings were checked.',
+    `Deleted topics: ${result.deleted}`,
+    `Cleared dead mappings: ${result.cleared}`,
+    `Skipped active topics: ${result.skipped}`,
+    `Failures: ${result.failed}`,
+  ].join('\n');
 }
 
 async function handleCancel(

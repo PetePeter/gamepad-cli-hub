@@ -4,6 +4,30 @@ import type { SessionInfo } from '../types/session.js';
 import { saveSessions } from '../session/persistence.js';
 import { logger } from '../utils/logger.js';
 
+export interface StaleTopicProbe {
+  sessionId: string;
+  sessionName: string;
+  topicId: number;
+  status: 'alive' | 'dead' | 'failed';
+  error?: string;
+}
+
+export interface StaleTopicPreview {
+  totalSessions: number;
+  mappedTopics: number;
+  alive: number;
+  dead: number;
+  failed: number;
+  probes: StaleTopicProbe[];
+}
+
+export interface StaleTopicCleanupResult extends StaleTopicPreview {
+  deleted: number;
+  cleared: number;
+  skipped: number;
+  failures: Array<{ sessionId: string; topicId: number; error: string }>;
+}
+
 /**
  * Manages the mapping between hub sessions and Telegram forum topics.
  *
@@ -147,6 +171,75 @@ export class TopicManager {
     return this.findSessionByTopicId(topicId)?.id ?? null;
   }
 
+  /**
+   * Preview cleanup for Helm-known topic mappings.
+   *
+   * Telegram bots cannot enumerate all forum topics, so cleanup is limited to
+   * sessions Helm still knows about through topicId fields. Alive topics are
+   * skipped because they still belong to active sessions; dead mappings can be
+   * cleared on confirmation so Helm can create fresh topics later.
+   */
+  async previewStaleTopics(): Promise<StaleTopicPreview> {
+    const sessions = this.sessionManager.getAllSessions();
+    const mapped = sessions.filter(session => session.topicId != null);
+    const probes: StaleTopicProbe[] = [];
+
+    for (const session of mapped) {
+      const topicId = session.topicId!;
+      try {
+        const alive = await this.probeTopic(topicId);
+        probes.push({
+          sessionId: session.id,
+          sessionName: session.name,
+          topicId,
+          status: alive ? 'alive' : 'dead',
+        });
+      } catch (error) {
+        probes.push({
+          sessionId: session.id,
+          sessionName: session.name,
+          topicId,
+          status: 'failed',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return this.summarizePreview(sessions.length, probes);
+  }
+
+  /**
+   * Clear dead Helm-known topic mappings after the user confirms the preview.
+   * Does not delete topics for active sessions.
+   */
+  async cleanupStaleTopics(): Promise<StaleTopicCleanupResult> {
+    const preview = await this.previewStaleTopics();
+    let cleared = 0;
+    const failures: StaleTopicCleanupResult['failures'] = [];
+
+    for (const probe of preview.probes) {
+      if (probe.status !== 'dead') continue;
+      try {
+        this.updateSessionTopicId(probe.sessionId, undefined);
+        cleared++;
+        logger.info(`[TopicManager] Cleared dead topic ${probe.topicId} for session ${probe.sessionId}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        failures.push({ sessionId: probe.sessionId, topicId: probe.topicId, error: message });
+        logger.error(`[TopicManager] Failed to clear dead topic ${probe.topicId} for ${probe.sessionId}: ${message}`);
+      }
+    }
+
+    return {
+      ...preview,
+      deleted: 0,
+      cleared,
+      skipped: preview.alive,
+      failed: preview.failed + failures.length,
+      failures,
+    };
+  }
+
   // ==========================================================================
   // Private helpers
   // ==========================================================================
@@ -159,6 +252,17 @@ export class TopicManager {
   private async probeTopic(topicId: number): Promise<boolean> {
     const result = await this.bot.sendToTopic(topicId, '🔄 Hub reconnected.');
     return result !== null;
+  }
+
+  private summarizePreview(totalSessions: number, probes: StaleTopicProbe[]): StaleTopicPreview {
+    return {
+      totalSessions,
+      mappedTopics: probes.length,
+      alive: probes.filter(probe => probe.status === 'alive').length,
+      dead: probes.filter(probe => probe.status === 'dead').length,
+      failed: probes.filter(probe => probe.status === 'failed').length,
+      probes,
+    };
   }
 
   /** Format a topic name with the instance prefix. */

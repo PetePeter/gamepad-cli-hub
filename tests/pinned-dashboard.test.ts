@@ -271,7 +271,7 @@ describe('PinnedDashboard keyboard', () => {
     expect(talkButtons[1].callback_data).toBe('talk:s1');
   });
 
-  it('includes static action buttons (Sessions, Spawn, Status, Close All)', async () => {
+  it('includes static action buttons (Sessions, Spawn, Status, Close All, Clean Topics)', async () => {
     const bot = makeMockBot();
     const sm = makeMockSessionManager();
     const dash = new PinnedDashboard(bot, sm, 'TestPC');
@@ -286,6 +286,7 @@ describe('PinnedDashboard keyboard', () => {
     expect(buttonTexts).toContain('➕ Spawn');
     expect(buttonTexts).toContain('📊 Status');
     expect(buttonTexts).toContain('🗑️ Close All');
+    expect(buttonTexts).toContain('🧹 Clean Topics');
   });
 });
 

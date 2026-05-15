@@ -13,6 +13,8 @@ import {
   sessionControlKeyboard,
   spawnToolKeyboard,
   spawnDirKeyboard,
+  helpKeyboard,
+  buildDashboardKeyboardWithTopics,
   resolvePathIndex,
   _resetPathRegistry,
 } from '../src/telegram/keyboards.js';
@@ -400,6 +402,34 @@ describe('spawnDirKeyboard', () => {
       b.callback_data?.startsWith('spawn:dir:'),
     );
     expect(dirButtons.length).toBe(1);
+  });
+});
+
+describe('topic cleanup controls', () => {
+  it('adds Clean Topics to the help keyboard', () => {
+    const { keyboard } = helpKeyboard();
+    const button = allButtons(keyboard).find((b: any) => b.callback_data === 'topic_cleanup:preview');
+
+    expect(button).toBeDefined();
+    expect(button.text).toContain('Clean Topics');
+  });
+
+  it('adds Clean Topics to the dashboard keyboard', () => {
+    const keyboard = buildDashboardKeyboardWithTopics([], new Map());
+    const button = allButtons(keyboard).find((b: any) => b.callback_data === 'topic_cleanup:preview');
+
+    expect(button).toBeDefined();
+    expect(button.text).toContain('Clean Topics');
+  });
+
+  it('keeps cleanup callback data within Telegram limits', () => {
+    const { keyboard } = helpKeyboard();
+    const data = allCallbackData(keyboard).filter(d => d.startsWith('topic_cleanup:'));
+
+    expect(data).toContain('topic_cleanup:preview');
+    for (const callbackData of data) {
+      expect(Buffer.byteLength(callbackData, 'utf8')).toBeLessThanOrEqual(64);
+    }
   });
 });
 

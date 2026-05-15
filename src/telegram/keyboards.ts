@@ -364,6 +364,10 @@ export function helpKeyboard(
     ]);
   }
 
+  buttons.push([
+    { text: '🧹 Clean Topics', callback_data: 'topic_cleanup:preview' },
+  ]);
+
   return { keyboard: buttons };
 }
 
@@ -449,6 +453,10 @@ export function buildDashboardKeyboardWithTopics(
   // Close All in its own row
   buttons.push([
     { text: '🗑️ Close All', callback_data: 'closeall' },
+  ]);
+
+  buttons.push([
+    { text: '🧹 Clean Topics', callback_data: 'topic_cleanup:preview' },
   ]);
 
   return buttons;
