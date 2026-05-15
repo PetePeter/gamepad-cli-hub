@@ -24,7 +24,7 @@ import type { ProjectStore } from './project-store.js';
 
 const ACTIVE_PLAN_STATUSES = new Set<PlanStatus>(['coding', 'review', 'blocked']);
 const PAUSED_PLAN_STATUSES = new Set<PlanStatus>(['review', 'blocked']);
-const HUMAN_ID_RE = /^P-(\d{4,})$/;
+const HUMAN_ID_RE = /^P-(\d+)$/;
 
 export type PlanRefResolution =
   | { status: 'found'; item: PlanItem }
@@ -33,6 +33,13 @@ export type PlanRefResolution =
 
 function formatHumanId(value: number): string {
   return `P-${String(value).padStart(4, '0')}`;
+}
+
+function normalizeHumanId(ref: string): string | null {
+  const match = ref.trim().toUpperCase().match(HUMAN_ID_RE);
+  if (!match) return null;
+  const numeric = match[1].replace(/^0+/, '') || '0';
+  return `P-${numeric}`;
 }
 
 export class PlanManager extends EventEmitter {
@@ -405,10 +412,10 @@ export class PlanManager extends EventEmitter {
     const direct = this.items.get(ref);
     if (direct) return { status: 'found', item: direct };
 
-    const normalizedRef = ref.trim().toUpperCase();
-    if (!HUMAN_ID_RE.test(normalizedRef)) return { status: 'missing' };
+    const normalizedRef = normalizeHumanId(ref);
+    if (!normalizedRef) return { status: 'missing' };
 
-    const matches = [...this.items.values()].filter((item) => item.humanId?.toUpperCase() === normalizedRef);
+    const matches = [...this.items.values()].filter((item) => normalizeHumanId(item.humanId ?? '') === normalizedRef);
     if (matches.length === 1) return { status: 'found', item: matches[0] };
     if (matches.length > 1) return { status: 'ambiguous', matches };
     return { status: 'missing' };

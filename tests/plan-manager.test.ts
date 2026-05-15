@@ -258,6 +258,42 @@ describe('PlanManager', () => {
       expect(pm.resolveItemRef('P-9999')).toEqual({ status: 'missing' });
     });
 
+    it('normalizes leading zeros in P-id references by numeric value', () => {
+      const item = pm.create('/d', 'Padded alias', 'Resolve by numeric P-id');
+
+      expect(item.humanId).toBe('P-0001');
+      expect(pm.resolveItemRef('P-1')).toEqual({ status: 'found', item });
+      expect(pm.resolveItemRef('P-001')).toEqual({ status: 'found', item });
+      expect(pm.resolveItemRef('P-000001')).toEqual({ status: 'found', item });
+    });
+
+    it('keeps invalid mixed P-id formats missing', () => {
+      pm.create('/d', 'Alias me', 'Resolve by either ID');
+
+      expect(pm.resolveItemRef('P-001abc')).toEqual({ status: 'missing' });
+      expect(pm.resolveItemRef('P-abc')).toEqual({ status: 'missing' });
+    });
+
+    it('normalizes P-0 to P-0000 when such a legacy humanId exists', () => {
+      (persistence.listPlanFiles as unknown as ReturnType<typeof vi.fn>).mockReturnValue(['legacy.json']);
+      (persistence.loadPlanFile as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        id: 'legacy-zero',
+        humanId: 'P-0000',
+        dirPath: '/d',
+        title: 'Zero',
+        description: 'Legacy zero id',
+        status: 'ready',
+        createdAt: 100,
+        updatedAt: 101,
+      });
+
+      pm = new PlanManager();
+      const item = pm.getItem('legacy-zero')!;
+
+      expect(pm.resolveItemRef('P-0')).toEqual({ status: 'found', item });
+      expect(pm.resolveItemRef('P-000000')).toEqual({ status: 'found', item });
+    });
+
     it('continues allocating humanIds past P-9999 without rollover truncation', () => {
       (persistence.listPlanFiles as unknown as ReturnType<typeof vi.fn>).mockReturnValue(['legacy.json']);
       (persistence.loadPlanFile as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -305,6 +341,13 @@ describe('PlanManager', () => {
       pm = new PlanManager();
 
       expect(pm.resolveItemRef('P-0042')).toMatchObject({
+        status: 'ambiguous',
+        matches: [
+          expect.objectContaining({ id: 'a' }),
+          expect.objectContaining({ id: 'b' }),
+        ],
+      });
+      expect(pm.resolveItemRef('P-42')).toMatchObject({
         status: 'ambiguous',
         matches: [
           expect.objectContaining({ id: 'a' }),
