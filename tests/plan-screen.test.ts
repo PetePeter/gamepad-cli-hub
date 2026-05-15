@@ -20,6 +20,8 @@ const mockPlanSequenceList = vi.fn();
 const mockPlanSequenceCreate = vi.fn();
 const mockPlanSequenceUpdate = vi.fn();
 const mockPlanSequenceAssign = vi.fn();
+const mockPlanSequenceDelete = vi.fn();
+const mockPlanSequenceDeleteWithPlans = vi.fn();
 const mockPlanExportDirectory = vi.fn();
 const mockPlanWriteFile = vi.fn();
 const mockPlanReadFile = vi.fn();
@@ -147,6 +149,8 @@ describe('plan screen bridge', () => {
     mockPlanSequenceCreate.mockReset();
     mockPlanSequenceUpdate.mockReset();
     mockPlanSequenceAssign.mockReset();
+    mockPlanSequenceDelete.mockReset();
+    mockPlanSequenceDeleteWithPlans.mockReset();
     mockPlanExportDirectory.mockReset();
     mockPlanWriteFile.mockReset();
     mockPlanReadFile.mockReset();
@@ -185,7 +189,9 @@ describe('plan screen bridge', () => {
       planSequenceList: mockPlanSequenceList,
       planSequenceCreate: mockPlanSequenceCreate,
       planSequenceUpdate: mockPlanSequenceUpdate,
+      planSequenceDelete: mockPlanSequenceDelete,
       planSequenceAssign: mockPlanSequenceAssign,
+      planSequenceDeleteWithPlans: mockPlanSequenceDeleteWithPlans,
       planExportDirectory: mockPlanExportDirectory,
       planWriteFile: mockPlanWriteFile,
       planReadFile: mockPlanReadFile,
@@ -554,7 +560,7 @@ describe('plan screen bridge', () => {
     expect(mod.planScreenState.contexts[0]).toEqual(updatedContext);
   });
 
-  it('deletes a context through the planner bridge and clears the selection', async () => {
+  it('routes context deletes through the confirmation bridge and clears the selection after confirm', async () => {
     const mod = await getModule();
     const context = {
       id: 'ctx-1',
@@ -582,9 +588,63 @@ describe('plan screen bridge', () => {
     mod.onPlanContextClick('ctx-1');
     await mod.onPlanContextDelete('ctx-1');
 
+    expect(mockPlanContextDelete).not.toHaveBeenCalled();
+    expect(mockShowPlanDeleteConfirm).toHaveBeenCalledWith(
+      'Testing Strategy',
+      expect.any(Function),
+      expect.objectContaining({ itemKind: 'context', title: 'Delete Context' }),
+    );
+    await mockShowPlanDeleteConfirm.mock.calls[0][1]();
+    await flushAsyncHandlers();
     expect(mockPlanContextDelete).toHaveBeenCalledWith('ctx-1');
     expect(mod.getSelectedContextId()).toBeNull();
     expect(mod.planScreenState.contexts).toEqual([]);
+  });
+
+  it('routes sequence deletes through the confirmation bridge', async () => {
+    const mod = await getModule();
+    const sequence = { id: 'seq-1', title: 'Release Train', missionStatement: '', sharedMemory: '', planIds: [] };
+    mockPlanList.mockResolvedValue([planItem('a')]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockPlanSequenceList.mockResolvedValue([sequence]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    mockPlanSequenceDelete.mockResolvedValue(true);
+
+    await mod.showPlanScreen('/test/dir');
+    await mod.onPlanDeleteSequence('seq-1');
+
+    expect(mockPlanSequenceDelete).not.toHaveBeenCalled();
+    expect(mockShowPlanDeleteConfirm).toHaveBeenCalledWith(
+      'Release Train',
+      expect.any(Function),
+      expect.objectContaining({ itemKind: 'sequence', title: 'Delete Sequence' }),
+    );
+    await mockShowPlanDeleteConfirm.mock.calls[0][1]();
+    await flushAsyncHandlers();
+    expect(mockPlanSequenceDelete).toHaveBeenCalledWith('seq-1');
+  });
+
+  it('routes sequence with plans deletes through the confirmation bridge', async () => {
+    const mod = await getModule();
+    const sequence = { id: 'seq-1', title: 'Release Train', missionStatement: '', sharedMemory: '', planIds: ['a'] };
+    mockPlanList.mockResolvedValue([planItem('a')]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockPlanSequenceList.mockResolvedValue([sequence]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    mockPlanSequenceDeleteWithPlans.mockResolvedValue(true);
+
+    await mod.showPlanScreen('/test/dir');
+    await mod.onPlanDeleteSequenceWithPlans('seq-1');
+
+    expect(mockPlanSequenceDeleteWithPlans).not.toHaveBeenCalled();
+    expect(mockShowPlanDeleteConfirm).toHaveBeenCalledWith(
+      'Release Train',
+      expect.any(Function),
+      expect.objectContaining({ itemKind: 'sequence and all contained plans', title: 'Delete Sequence + Plans' }),
+    );
+    await mockShowPlanDeleteConfirm.mock.calls[0][1]();
+    await flushAsyncHandlers();
+    expect(mockPlanSequenceDeleteWithPlans).toHaveBeenCalledWith('seq-1');
   });
 
   it('refreshes bound context metadata after a planner-side bind', async () => {

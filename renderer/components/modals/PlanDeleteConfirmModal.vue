@@ -5,7 +5,7 @@
  * Confirms deletion of a plan item. Two buttons: Cancel / Delete.
  * Gamepad D-pad any direction toggles selection, A confirms, B cancels.
  */
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import ConfirmDialog from './ConfirmDialog.vue';
 
 const MODAL_ID = 'plan-delete-confirm';
@@ -13,6 +13,10 @@ const MODAL_ID = 'plan-delete-confirm';
 const props = defineProps<{
   visible: boolean;
   planTitle: string;
+  itemKind?: string;
+  title?: string;
+  message?: string;
+  confirmLabel?: string;
 }>();
 
 const emit = defineEmits<{
@@ -23,10 +27,10 @@ const emit = defineEmits<{
 
 const selectedIndex = ref(0);
 const dialog = ref<InstanceType<typeof ConfirmDialog> | null>(null);
-const buttons = [
+const buttons = computed(() => [
   { id: 'cancel', label: 'Cancel' },
-  { id: 'delete', label: 'Delete', variant: 'danger' },
-] as const;
+  { id: 'delete', label: props.confirmLabel ?? 'Delete', variant: 'danger' },
+] as const);
 
 function handleButton(button: string): boolean {
   dialog.value?.syncSelectedIndex(selectedIndex.value);
@@ -45,8 +49,8 @@ defineExpose({ handleButton, selectedIndex });
     ref="dialog"
     :visible="visible"
     :modal-id="MODAL_ID"
-    title="Delete Plan Item"
-    aria-label="Delete plan confirmation"
+    :title="title ?? 'Delete Plan Item'"
+    :aria-label="`${title ?? 'Delete Plan Item'} confirmation`"
     :buttons="buttons"
     v-model:selected-index="selectedIndex"
     cancel-action-id="cancel"
@@ -55,7 +59,8 @@ defineExpose({ handleButton, selectedIndex });
     @update:visible="emit('update:visible', $event)"
   >
     <div id="planDeleteConfirmBody">
-      <div>Delete plan item <strong>{{ planTitle }}</strong>?</div>
+      <div v-if="message">{{ message }}</div>
+      <div v-else>Delete {{ itemKind ?? 'plan item' }} <strong>{{ planTitle }}</strong>?</div>
     </div>
   </ConfirmDialog>
 </template>

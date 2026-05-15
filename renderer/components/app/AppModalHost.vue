@@ -3,7 +3,7 @@ import { useEditorPopupStore } from '../../stores/editor-popup.js';
 import {
   closeConfirm, getCloseConfirmCallback, setCloseConfirmCallback,
   contextMenu,
-  planDeleteConfirm, getPlanDeleteCallback,
+  planDeleteConfirm, getPlanDeleteCallback, setPlanDeleteCallback,
   clearDonePlans, getClearDonePlansCallback,
   sequencePicker, getSequencePickerCallback,
   quickSpawn, getQuickSpawnCallback, closeQuickSpawn,
@@ -102,7 +102,14 @@ function onConfirmClose(): void {
 
 function onPlanDeleteConfirm(): void {
   planDeleteConfirm.visible = false;
-  getPlanDeleteCallback()?.();
+  const cb = getPlanDeleteCallback();
+  setPlanDeleteCallback(null);
+  cb?.();
+}
+
+function onPlanDeleteCancel(): void {
+  planDeleteConfirm.visible = false;
+  setPlanDeleteCallback(null);
 }
 
 function onClearDonePlansConfirm(): void {
@@ -155,8 +162,12 @@ function onToolEditorSave(values: any): void {
   <PlanDeleteConfirmModal
     v-model:visible="planDeleteConfirm.visible"
     :plan-title="planDeleteConfirm.planTitle"
+    :item-kind="planDeleteConfirm.itemKind"
+    :title="planDeleteConfirm.title"
+    :message="planDeleteConfirm.message"
+    :confirm-label="planDeleteConfirm.confirmLabel"
     @confirm="onPlanDeleteConfirm"
-    @cancel="planDeleteConfirm.visible = false"
+    @cancel="onPlanDeleteCancel"
   />
 
   <ClearDonePlansModal

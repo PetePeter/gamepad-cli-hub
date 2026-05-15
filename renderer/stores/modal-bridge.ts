@@ -46,6 +46,10 @@ export const contextMenu = reactive({
 export const planDeleteConfirm = reactive({
   visible: false,
   planTitle: '',
+  itemKind: 'plan item',
+  title: 'Delete Plan Item',
+  message: '',
+  confirmLabel: 'Delete',
 });
 
 let _planDeleteOnConfirm: (() => void) | null = null;

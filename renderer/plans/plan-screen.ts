@@ -421,7 +421,7 @@ function openNodeEditor(item: PlanItem): void {
 
   getWindowCallbacks().planEditorOpener?.(targetSessionId, item, {
     onSave: (updates) => handleSave(item.id, updates),
-    onDelete: () => handleDelete(item.id),
+    onDelete: () => requestDelete(item.id),
     onDone: item.status === 'coding' || item.status === 'review'
       ? () => openNodeCompletionEditor(item)
       : undefined,
@@ -442,7 +442,7 @@ function openNodeCompletionEditor(item: PlanItem): void {
   const targetSessionId = resolvePlanTargetSessionId(item) ?? '';
   getWindowCallbacks().planEditorOpener?.(targetSessionId, { ...item, status: 'done', stateInfo: '' }, {
     onSave: (updates) => handleSave(item.id, updates),
-    onDelete: () => handleDelete(item.id),
+    onDelete: () => requestDelete(item.id),
     onApply: targetSessionId ? () => handleApplyFromCanvas(item) : undefined,
     onClose: () => { planScreenState.editingId = null; },
   });
@@ -464,6 +464,39 @@ function requestDelete(id: string): void {
   if (!item) return;
   showPlanDeleteConfirm(item.title, () => {
     void handleDelete(id);
+  });
+}
+
+function requestSequenceDelete(id: string, options?: { includePlans?: boolean }): void {
+  const sequence = planScreenState.sequences.find((entry) => entry.id === id);
+  if (!sequence) return;
+  if (options?.includePlans) {
+    showPlanDeleteConfirm(sequence.title, () => {
+      void performSequenceDeleteWithPlans(id);
+    }, {
+      itemKind: 'sequence and all contained plans',
+      title: 'Delete Sequence + Plans',
+      message: `Delete sequence "${sequence.title}" and every plan inside it?`,
+      confirmLabel: 'Delete All',
+    });
+    return;
+  }
+  showPlanDeleteConfirm(sequence.title, () => {
+    void performSequenceDelete(id);
+  }, {
+    itemKind: 'sequence',
+    title: 'Delete Sequence',
+  });
+}
+
+function requestContextDelete(id: string): void {
+  const context = planScreenState.contexts.find((entry) => entry.id === id);
+  if (!context) return;
+  showPlanDeleteConfirm(context.title, () => {
+    void performContextDelete(id);
+  }, {
+    itemKind: 'context',
+    title: 'Delete Context',
   });
 }
 
@@ -555,7 +588,7 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
     requestDelete(planScreenState.selectedId);
   } else if (e.key === 'Delete' && planScreenState.selectedContextId) {
     e.preventDefault();
-    void onPlanContextDelete(planScreenState.selectedContextId);
+    requestContextDelete(planScreenState.selectedContextId);
   }
 }
 
@@ -672,7 +705,7 @@ export function handlePlanScreenAction(button: string): boolean {
 
   if (button === 'X') {
     if (planScreenState.selectedContextId) {
-      void onPlanContextDelete(planScreenState.selectedContextId);
+      requestContextDelete(planScreenState.selectedContextId);
     } else if (planScreenState.selectedId) {
       requestDelete(planScreenState.selectedId);
     }
@@ -961,11 +994,19 @@ export async function onPlanUpdateSequence(
 }
 
 export async function onPlanDeleteSequence(id: string): Promise<void> {
+  requestSequenceDelete(id);
+}
+
+async function performSequenceDelete(id: string): Promise<void> {
   await plansClient.planSequenceDelete?.(id);
   await refreshCanvas();
 }
 
 export async function onPlanDeleteSequenceWithPlans(id: string): Promise<void> {
+  requestSequenceDelete(id, { includePlans: true });
+}
+
+async function performSequenceDeleteWithPlans(id: string): Promise<void> {
   await plansClient.planSequenceDeleteWithPlans?.(id);
   await refreshCanvas();
 }
@@ -1018,6 +1059,10 @@ export async function onPlanContextSave(
 }
 
 export async function onPlanContextDelete(id: string): Promise<void> {
+  requestContextDelete(id);
+}
+
+async function performContextDelete(id: string): Promise<void> {
   const deleted = await contextsClient.planContextDelete?.(id);
   if (!deleted) {
     showBriefNotice('Could not delete context');

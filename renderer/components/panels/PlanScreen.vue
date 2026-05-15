@@ -177,8 +177,6 @@ const contextLinkState = ref<{
 
 const seqModalVisible = ref(false);
 const seqModalMode = ref<'create' | 'edit'>('create');
-const seqModalDeleteConfirm = ref(false);
-const seqModalDeleteWithPlansConfirm = ref(false);
 const seqDraft = reactive({ id: '', title: '', missionStatement: '', sharedMemory: '' });
 
 const nodeMap = computed(() => {
@@ -605,8 +603,6 @@ function openSeqCreate(): void {
   seqDraft.title = '';
   seqDraft.missionStatement = '';
   seqDraft.sharedMemory = '';
-  seqModalDeleteConfirm.value = false;
-  seqModalDeleteWithPlansConfirm.value = false;
   seqModalMode.value = 'create';
   seqModalVisible.value = true;
 }
@@ -666,8 +662,6 @@ function openSeqEdit(sequence: PlanSequence): void {
   seqDraft.title = sequence.title;
   seqDraft.missionStatement = sequence.missionStatement ?? '';
   seqDraft.sharedMemory = sequence.sharedMemory ?? '';
-  seqModalDeleteConfirm.value = false;
-  seqModalDeleteWithPlansConfirm.value = false;
   seqModalMode.value = 'edit';
   seqModalVisible.value = true;
 }
@@ -686,21 +680,11 @@ function onSeqSave(): void {
 }
 
 function onSeqDelete(): void {
-  if (!seqModalDeleteConfirm.value) {
-    seqModalDeleteConfirm.value = true;
-    seqModalDeleteWithPlansConfirm.value = false;
-    return;
-  }
   emit('deleteSequence', seqDraft.id);
   seqModalVisible.value = false;
 }
 
 function onSeqDeleteWithPlans(): void {
-  if (!seqModalDeleteWithPlansConfirm.value) {
-    seqModalDeleteWithPlansConfirm.value = true;
-    seqModalDeleteConfirm.value = false;
-    return;
-  }
   emit('deleteSequenceWithPlans', seqDraft.id);
   seqModalVisible.value = false;
 }
@@ -1076,16 +1060,14 @@ onUnmounted(() => {
           </button>
           <button
             v-if="seqModalMode === 'edit'"
-            class="btn btn--sm"
-            :class="seqModalDeleteConfirm ? 'btn--danger' : 'btn--secondary'"
+            class="btn btn--sm btn--secondary"
             @click="onSeqDelete"
-          >{{ seqModalDeleteConfirm ? 'Confirm Delete' : 'Delete' }}</button>
+          >Delete</button>
           <button
             v-if="seqModalMode === 'edit'"
-            class="btn btn--sm"
-            :class="seqModalDeleteWithPlansConfirm ? 'btn--danger' : 'btn--secondary'"
+            class="btn btn--sm btn--secondary"
             @click="onSeqDeleteWithPlans"
-          >{{ seqModalDeleteWithPlansConfirm ? 'Confirm Delete All' : 'Delete + Plans' }}</button>
+          >Delete + Plans</button>
           <button class="btn btn--secondary btn--sm" @click="seqModalVisible = false">Cancel</button>
         </div>
       </div>
