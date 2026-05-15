@@ -3,6 +3,7 @@ import { parseSubmitSuffix } from '../mcp/submit-suffix.js';
 import type { ConfigLoader } from '../config/loader.js';
 import type { PtyManager } from './pty-manager.js';
 import type { SessionManager } from './manager.js';
+import type { DeliveryContext, TextDeliveryOptions } from './delivery-context.js';
 
 /** Pause before writing the submit suffix — gives CLIs time to process the preceding text. */
 const SUBMIT_DELAY_MS = 200;
@@ -99,8 +100,9 @@ export async function deliverPromptSequenceToSession(input: {
   sessionManager: SessionManager;
   configLoader: ConfigLoader;
   impliedSubmit?: boolean;
+  deliveryContext?: DeliveryContext;
 }): Promise<void> {
-  const { sessionId, text, ptyManager, sessionManager, configLoader, impliedSubmit } = input;
+  const { sessionId, text, ptyManager, sessionManager, configLoader, impliedSubmit, deliveryContext } = input;
   const session = sessionManager.getSession(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
@@ -108,15 +110,21 @@ export async function deliverPromptSequenceToSession(input: {
   const submitSuffix = parseSubmitSuffix(cliEntry?.submitSuffix);
 
   const processedText = escapeUnrecognizedBraces(text);
+  const textDeliveryOptions: TextDeliveryOptions | undefined = deliveryContext ? { deliveryContext } : undefined;
+  const deliverText = (sid: string, chunk: string, options?: TextDeliveryOptions): Promise<void> => (
+    options
+      ? ptyManager.deliverText(sid, chunk, options)
+      : ptyManager.deliverText(sid, chunk)
+  );
 
   await executeSequenceString({
     sessionId,
     input: processedText,
     write: (sid, data) => ptyManager.write(sid, data),
-    deliverText: (sid, chunk) => ptyManager.deliverText(sid, chunk),
+    deliverText: (sid, chunk) => deliverText(sid, chunk, textDeliveryOptions),
     submit: async (sid) => {
       await new Promise<void>((resolve) => setTimeout(resolve, SUBMIT_DELAY_MS));
-      return ptyManager.deliverText(sid, '', { submitSuffix });
+      return deliverText(sid, '', { ...textDeliveryOptions, submitSuffix });
     },
     impliedSubmit: impliedSubmit ?? true,
   });

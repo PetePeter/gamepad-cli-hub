@@ -69,7 +69,14 @@ export class RendererTextDeliverer {
       this.pending.set(requestId, { resolve, reject, timer });
     });
 
-    win.webContents.send('text:deliver-request', { requestId, sessionId, text, withReturn: options?.withReturn, submitSuffix: options?.submitSuffix });
+    win.webContents.send('text:deliver-request', {
+      requestId,
+      sessionId,
+      text,
+      withReturn: options?.withReturn,
+      submitSuffix: options?.submitSuffix,
+      deliveryContext: options?.deliveryContext,
+    });
     await promise;
   }
 

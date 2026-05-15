@@ -105,4 +105,38 @@ describe('RendererTextDeliverer', () => {
 
     deliverer.dispose();
   });
+
+  it('forwards deliveryContext to renderer delivery requests', async () => {
+    const send = vi.fn();
+    const deliverer = new RendererTextDeliverer(
+      {
+        getWindowForSession: vi.fn(() => ({
+          isDestroyed: vi.fn(() => false),
+          webContents: { send },
+        })),
+      } as any,
+      {
+        getSession: vi.fn(() => ({ id: 's1', cliType: 'claude-code' })),
+      } as any,
+      {
+        getCliTypeEntry: vi.fn(() => ({ pasteMode: 'pty' })),
+      } as any,
+    );
+
+    await handlerRegistry.get('text:deliver-ready')?.({});
+
+    const delivery = deliverer.deliver('s1', 'hello', { deliveryContext: 'background' });
+    const payload = send.mock.calls[0][1];
+
+    expect(payload).toMatchObject({
+      sessionId: 's1',
+      text: 'hello',
+      deliveryContext: 'background',
+    });
+
+    await handlerRegistry.get('text:deliver-response')?.({}, payload.requestId, true);
+    await expect(delivery).resolves.toBeUndefined();
+
+    deliverer.dispose();
+  });
 });

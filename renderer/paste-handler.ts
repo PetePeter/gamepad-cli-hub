@@ -213,9 +213,15 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
   const bracketedPasteEnabled = typeof view?.isBracketedPasteEnabled === 'function'
     ? view.isBracketedPasteEnabled()
     : false;
-  const payload = bracketedPasteEnabled
+  const shouldUseBracketedPaste = deliveryContext !== 'background' && bracketedPasteEnabled;
+  const payload = shouldUseBracketedPaste
     ? `\x1b[200~${text}\x1b[201~`
     : text;
+
+  if (deliveryContext === 'background' && suffix) {
+    await writePty(sessionId, payload + suffix, ptyWriteOptions);
+    return;
+  }
 
   await writePty(sessionId, payload, ptyWriteOptions);
   await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);

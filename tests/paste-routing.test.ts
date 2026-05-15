@@ -615,15 +615,29 @@ describe('deliverBulkText', () => {
     expect(mockPtyWrite).not.toHaveBeenCalled();
   });
 
-  it('marks background PTY writes as programmatic for payload and submit suffix', async () => {
+  it('marks background PTY writes as programmatic and submits in the same write', async () => {
     mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
     mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
 
     await deliverBulkText('sess-1', 'hello', { deliveryContext: 'background', submitSuffix: '\n' });
 
-    expect(mockPtyWrite).toHaveBeenCalledTimes(2);
-    expect(mockPtyWrite).toHaveBeenNthCalledWith(1, 'sess-1', 'hello', { inputOrigin: 'programmatic' });
-    expect(mockPtyWrite).toHaveBeenNthCalledWith(2, 'sess-1', '\n', { inputOrigin: 'programmatic' });
+    expect(mockPtyWrite).toHaveBeenCalledOnce();
+    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello\n', { inputOrigin: 'programmatic' });
+  });
+
+  it('does not bracket-paste background auto-submit text', async () => {
+    mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
+    mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
+    mockGetTerminalManager.mockReturnValue({
+      getSession: () => ({
+        view: { isBracketedPasteEnabled: () => true },
+      }),
+    });
+
+    await deliverBulkText('sess-1', 'hello', { deliveryContext: 'background', submitSuffix: '\r' });
+
+    expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'hello\r', { inputOrigin: 'programmatic' });
+    expect(mockPtyWrite.mock.calls[0][1]).not.toContain('\x1b[200~');
   });
 
   it('marks background ptyindividual writes as programmatic', async () => {

@@ -22,7 +22,7 @@ function makeMocks(overrides?: { submitSuffix?: string; cliType?: string }) {
   return { ptyManager, sessionManager, configLoader };
 }
 
-function deliver(input: string, mocks: ReturnType<typeof makeMocks>, opts?: { impliedSubmit?: boolean }) {
+function deliver(input: string, mocks: ReturnType<typeof makeMocks>, opts?: { impliedSubmit?: boolean; deliveryContext?: 'background' | 'interactive' }) {
   return deliverPromptSequenceToSession({
     sessionId: 's1',
     text: input,
@@ -95,6 +95,18 @@ describe('deliverPromptSequenceToSession', () => {
     await deliver('hello', mocks);
 
     expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\n' });
+  });
+
+  it('passes background delivery context to text chunks and submit suffix when requested', async () => {
+    const mocks = makeMocks();
+
+    await deliver('hello', mocks, { deliveryContext: 'background' });
+
+    expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'hello', { deliveryContext: 'background' });
+    expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '', {
+      deliveryContext: 'background',
+      submitSuffix: '\r',
+    });
   });
 
   it('JSON braces in text are preserved as literal text', async () => {

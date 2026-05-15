@@ -661,9 +661,9 @@ onMounted(async () => {
   }
 
   try {
-    offTextDeliver = eventsClient.onTextDeliverRequest(async ({ requestId, sessionId, text, withReturn, submitSuffix }) => {
+    offTextDeliver = eventsClient.onTextDeliverRequest(async ({ requestId, sessionId, text, withReturn, submitSuffix, deliveryContext }) => {
       try {
-        await deliverBulkText(sessionId, text, { withReturn, submitSuffix, deliveryContext: 'background' });
+        await deliverBulkText(sessionId, text, { withReturn, submitSuffix, deliveryContext: deliveryContext ?? 'background' });
         await deliveryClient.textDeliverResponse(requestId, true);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
