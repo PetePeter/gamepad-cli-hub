@@ -92,6 +92,7 @@ function createMockConfigLoader(
     getCliTypeEntry: vi.fn(),
     getSpawnConfig: vi.fn(),
     getMcpConfig: vi.fn(() => ({ enabled: true, port: 47373, authToken: 'helm-token' })),
+    reloadActiveProfileIfChanged: vi.fn(),
   } as unknown as ConfigLoader;
 }
 

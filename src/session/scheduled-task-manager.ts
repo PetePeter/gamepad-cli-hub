@@ -295,6 +295,7 @@ export class ScheduledTaskManager extends EventEmitter {
         HELM_MCP_URL: `http://127.0.0.1:${mcpConfig.port}/mcp`,
       };
 
+      this.configLoader.reloadActiveProfileIfChanged();
       const cliConfig = this.configLoader.getCliTypeEntry(task.cliType);
       if (!cliConfig) {
         throw new Error(`Unknown CLI type: ${task.cliType}`);

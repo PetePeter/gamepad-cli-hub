@@ -390,6 +390,7 @@ async function handleSpawnExec(
   }
 
   try {
+    configLoader.reloadActiveProfileIfChanged();
     const spawnConfig = configLoader.getSpawnConfig(cliType);
     const { sessionId } = spawnConfiguredSession({
       ptyManager,

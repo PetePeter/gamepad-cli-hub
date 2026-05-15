@@ -114,6 +114,7 @@ class FakeConfigLoader {
 
   getWorkingDirectories() { return [{ path: 'X:\\\\coding\\\\test', name: 'test' }]; }
   getMcpConfig() { return { authToken: 'test-token', port: 47373, enabled: true }; }
+  reloadActiveProfileIfChanged() {}
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
