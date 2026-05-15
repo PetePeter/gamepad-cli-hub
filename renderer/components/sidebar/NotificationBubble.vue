@@ -41,6 +41,7 @@ const emit = defineEmits<{
 }
 
 .notification-bubble__body {
+  flex: 1 1 auto;
   min-width: 0;
   display: grid;
   gap: 3px;
@@ -62,13 +63,18 @@ const emit = defineEmits<{
 }
 
 .notification-bubble__dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 22px;
   height: 22px;
   flex: 0 0 auto;
+  padding: 0;
   border: 0;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.12);
   color: var(--text-primary);
   cursor: pointer;
+  line-height: 1;
 }
 </style>
