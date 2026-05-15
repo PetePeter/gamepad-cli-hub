@@ -1,11 +1,15 @@
 import { randomUUID } from 'crypto';
 import { resolveEnvWithMode, type ConfigLoader, type SequenceListItem } from '../config/loader.js';
 import { mintSessionAuthToken } from '../mcp/session-auth.js';
+import { parseSubmitSuffix } from '../mcp/submit-suffix.js';
 import type { SessionManager } from './manager.js';
 import { scheduleInitialPrompt } from './initial-prompt.js';
 import type { PtyManager, PtyProcess } from './pty-manager.js';
 import { deliverPromptSequenceToSession } from './sequence-delivery.js';
 import { logger } from '../utils/logger.js';
+
+/** Pause before writing the submit suffix so bracketed/paste-aware CLIs can settle. */
+const SUBMIT_DELAY_MS = 200;
 
 export interface ConfiguredSessionSpawnParams {
   ptyManager: PtyManager;
@@ -105,6 +109,15 @@ function scheduleConfiguredInitialPrompt(params: ConfiguredSessionSpawnParams & 
     params.ptyManager.write(sessionId, text);
     return Promise.resolve();
   };
+  const submit = async (sessionId: string): Promise<void> => {
+    await new Promise<void>((resolve) => setTimeout(resolve, SUBMIT_DELAY_MS));
+    const submitSuffix = parseSubmitSuffix(params.cfg?.submitSuffix);
+    const maybeDeliver = (params.ptyManager as Partial<PtyManager>).deliverText;
+    if (typeof maybeDeliver === 'function') {
+      return maybeDeliver.call(params.ptyManager, sessionId, '', { submitSuffix });
+    }
+    params.ptyManager.write(sessionId, submitSuffix);
+  };
 
   const promptConfig = resolveInitialPromptConfig(params.cfg, params.cliSessionName);
   if (params.isResume) {
@@ -118,6 +131,8 @@ function scheduleConfiguredInitialPrompt(params: ConfiguredSessionSpawnParams & 
       },
       (sid, data) => params.ptyManager.write(sid, data),
       (sid, text) => deliverText(sid, text),
+      undefined,
+      submit,
     );
     if (cancel) params.onPromptCancel?.(cancel);
     return;
@@ -130,6 +145,7 @@ function scheduleConfiguredInitialPrompt(params: ConfiguredSessionSpawnParams & 
     (sid, data) => params.ptyManager.write(sid, data),
     (sid, text) => deliverText(sid, text),
     onComplete ?? (() => undefined),
+    submit,
   );
 
   if (cancel) {

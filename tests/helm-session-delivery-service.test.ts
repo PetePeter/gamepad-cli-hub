@@ -63,7 +63,7 @@ function getSentText(ptyManager: ReturnType<typeof makeDeps>['ptyManager']): str
 
 describe('HelmSessionDeliveryService', () => {
   describe('envelope framing (preamble=true)', () => {
-    it('built message has no \\n between [HELM_MSG] tag+envelope and user text', async () => {
+    it('separates the [HELM_MSG] tag+envelope from user text with a controlled wait', async () => {
       const { service, ptyManager, receiver, sender } = makeDeps();
 
       await service.sendTextToSession(receiver.id, 'hello world', {
@@ -72,7 +72,9 @@ describe('HelmSessionDeliveryService', () => {
         expectsResponse: false,
       });
 
-      const sent = getSentText(ptyManager);
+      const calls = ptyManager.deliverText.mock.calls;
+      const sent = calls.find((c: any[]) => c[1]?.startsWith('[HELM_MSG]') && c[2] === undefined)?.[1] as string;
+      const userText = calls.find((c: any[]) => c[1] === 'hello world' && c[2] === undefined)?.[1] as string;
       // Message must start with the tag, then envelope JSON, then a space, then user text
       // No \n should appear between the envelope JSON and the user text
       const tagStart = sent.indexOf('[HELM_MSG]');
@@ -84,11 +86,8 @@ describe('HelmSessionDeliveryService', () => {
       const frameSection = sent.slice(0, envelopeEnd);
       expect(frameSection).not.toContain('\n');
 
-      // The user text immediately follows the envelope with a single space separator
-      const userTextStart = sent.indexOf('hello world');
-      expect(userTextStart).toBeGreaterThan(envelopeEnd);
-      const separator = sent.slice(envelopeEnd, userTextStart);
-      expect(separator).toBe(' ');
+      expect(sent.endsWith('}')).toBe(true);
+      expect(userText).toBe('hello world');
     });
 
     it('user text containing a literal \\n is preserved unchanged', async () => {
@@ -101,9 +100,9 @@ describe('HelmSessionDeliveryService', () => {
         expectsResponse: false,
       });
 
-      const sent = getSentText(ptyManager);
+      const sent = ptyManager.deliverText.mock.calls.find((c: any[]) => c[1] === userText && c[2] === undefined)?.[1] as string;
       // The payload newline must survive intact
-      expect(sent).toContain('line one\nline two');
+      expect(sent).toBe('line one\nline two');
     });
   });
 

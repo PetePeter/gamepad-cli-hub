@@ -18,6 +18,7 @@ export function scheduleInitialPrompt(
   writeToPty: (sessionId: string, data: string) => void,
   deliverTextOrOnComplete?: ((sessionId: string, text: string) => Promise<void>) | (() => void),
   onComplete?: () => void,
+  submitToPty?: (sessionId: string) => void | Promise<void>,
 ): (() => void) | null {
   const { initialPrompt, initialPromptDelay = 2000 } = config;
   const promptItems = [
@@ -47,6 +48,7 @@ export function scheduleInitialPrompt(
       input: item.sequence,
       write: writeToPty,
       deliverText: deliver,
+      submit: submitToPty,
       isCancelled: () => cancelled,
     });
   };

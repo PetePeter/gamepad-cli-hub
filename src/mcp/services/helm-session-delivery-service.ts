@@ -60,7 +60,7 @@ export class HelmSessionDeliveryService {
       // Envelope JSON braces will be smart-escaped by escapeUnrecognizedBraces
       // (unrecognized brace groups get {{/}}), while user text tokens like {Send}
       // are preserved since they are recognized tokens.
-      const message = `${tag}${envelope} ${text}`;
+      const message = `${tag}${envelope}{Wait 80}${text}`;
 
       await deliverPromptSequenceToSession({
         sessionId: session.id,
