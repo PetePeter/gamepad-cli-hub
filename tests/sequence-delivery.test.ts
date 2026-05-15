@@ -12,6 +12,7 @@ function makeMocks(overrides?: { submitSuffix?: string; cliType?: string }) {
     write: vi.fn(),
     deliverText: vi.fn(() => Promise.resolve()),
     has: vi.fn(() => true),
+    getTerminalTail: undefined as any,
   };
   const sessionManager = {
     getSession: vi.fn(() => ({ id: 's1', name: 'Test', cliType })),
@@ -22,7 +23,7 @@ function makeMocks(overrides?: { submitSuffix?: string; cliType?: string }) {
   return { ptyManager, sessionManager, configLoader };
 }
 
-function deliver(input: string, mocks: ReturnType<typeof makeMocks>, opts?: { impliedSubmit?: boolean; deliveryContext?: 'background' | 'interactive' }) {
+function deliver(input: string, mocks: ReturnType<typeof makeMocks>, opts?: { impliedSubmit?: boolean; deliveryContext?: 'background' | 'interactive'; verifyDelivery?: { label?: string; delayMs?: number; retrySubmit?: boolean } }) {
   return deliverPromptSequenceToSession({
     sessionId: 's1',
     text: input,
@@ -334,6 +335,66 @@ describe('deliverPromptSequenceToSession', () => {
       const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter(
         (c: any[]) => c[0] === 's1' && c[2]?.submitSuffix !== undefined,
       );
+      expect(submitCalls).toHaveLength(1);
+    });
+  });
+
+  describe('delivery verification', () => {
+    it('confirms delivery when terminal tail advances after submit', async () => {
+      const mocks = makeMocks();
+      const tails = [
+        { stripped: ['ready'], raw: ['ready'], lastOutputAt: 1000 },
+        { stripped: ['thinking...'], raw: ['thinking...'], lastOutputAt: Date.now() + 10 },
+      ];
+      mocks.ptyManager.getTerminalTail = vi.fn(() => tails.shift() ?? tails[0]) as any;
+
+      const result = await deliver('hello', mocks, {
+        verifyDelivery: { label: 'test delivery', delayMs: 0, retrySubmit: true },
+      });
+
+      expect(result?.status).toBe('confirmed');
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
+      const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter((c: any[]) => c[2]?.submitSuffix === '\r');
+      expect(submitCalls).toHaveLength(1);
+    });
+
+    it('retries submit when delivered text still appears stuck in the tail', async () => {
+      const mocks = makeMocks();
+      const stuckTail = {
+        stripped: ['> hello please execute this prompt now'],
+        raw: ['> hello please execute this prompt now'],
+        lastOutputAt: 1000,
+      };
+      mocks.ptyManager.getTerminalTail = vi.fn(() => stuckTail) as any;
+
+      const result = await deliver('hello please execute this prompt now', mocks, {
+        verifyDelivery: { label: 'test delivery', delayMs: 0, retrySubmit: true },
+      });
+
+      expect(result?.status).toBe('retry_failed');
+      const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter((c: any[]) => c[2]?.submitSuffix === '\r');
+      expect(submitCalls).toHaveLength(2);
+    });
+
+    it('does not retry when the prompt remains in transcript but output continued', async () => {
+      const mocks = makeMocks();
+      const tails = [
+        { stripped: ['ready'], raw: ['ready'], lastOutputAt: 1000 },
+        {
+          stripped: ['> hello please execute this prompt now', 'Working on it now with a real response after the prompt.'],
+          raw: ['> hello please execute this prompt now', 'Working on it now with a real response after the prompt.'],
+          lastOutputAt: Date.now() + 10,
+        },
+      ];
+      const afterTail = tails[1];
+      mocks.ptyManager.getTerminalTail = vi.fn(() => tails.shift() ?? afterTail) as any;
+
+      const result = await deliver('hello please execute this prompt now', mocks, {
+        verifyDelivery: { label: 'test delivery', delayMs: 0, retrySubmit: true },
+      });
+
+      expect(result?.status).toBe('confirmed');
+      const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter((c: any[]) => c[2]?.submitSuffix === '\r');
       expect(submitCalls).toHaveLength(1);
     });
   });

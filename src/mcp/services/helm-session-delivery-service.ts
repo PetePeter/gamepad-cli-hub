@@ -4,6 +4,7 @@ import type { SessionManager } from '../../session/manager.js';
 import type { PtyManager } from '../../session/pty-manager.js';
 import type { SessionInfo } from '../../types/session.js';
 import { deliverPromptSequenceToSession } from '../../session/sequence-delivery.js';
+import type { DeliveryVerificationResult } from '../../session/delivery-verification.js';
 
 /**
  * Handles inter-session text delivery via PTY stdin.
@@ -24,7 +25,7 @@ export class HelmSessionDeliveryService {
     sessionRef: string,
     text: string,
     options?: { senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean },
-  ): Promise<{ success: true; sessionId: string; name: string; preambleUsed: boolean }> {
+  ): Promise<{ success: true; sessionId: string; name: string; preambleUsed: boolean; deliveryVerification?: DeliveryVerificationResult }> {
     const session = this.findSession(sessionRef);
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);
@@ -42,6 +43,8 @@ export class HelmSessionDeliveryService {
     // Determine if recipient wants the Helm preamble
     const recipientEntry = this.configLoader.getCliTypeEntry(session.cliType);
     const usePreamble = recipientEntry?.helmPreambleForInterSession ?? true;
+
+    let deliveryVerification: DeliveryVerificationResult | undefined;
 
     if (usePreamble) {
       // Send with [HELM_MSG] envelope
@@ -62,25 +65,45 @@ export class HelmSessionDeliveryService {
       // are preserved since they are recognized tokens.
       const message = `${tag}${envelope}{Wait 80}${text}`;
 
-      await deliverPromptSequenceToSession({
+      deliveryVerification = await deliverPromptSequenceToSession({
         sessionId: session.id,
         text: message,
         ptyManager: this.ptyManager,
         sessionManager: this.sessionManager,
         configLoader: this.configLoader,
+        verifyDelivery: {
+          label: 'inter-session message',
+          delayMs: 4000,
+          retrySubmit: true,
+        },
       });
     } else {
       // Send plain text only — no envelope. Smart escaping handles both tokens and literals.
-      await deliverPromptSequenceToSession({
+      deliveryVerification = await deliverPromptSequenceToSession({
         sessionId: session.id,
         text,
         ptyManager: this.ptyManager,
         sessionManager: this.sessionManager,
         configLoader: this.configLoader,
+        verifyDelivery: {
+          label: 'inter-session message',
+          delayMs: 4000,
+          retrySubmit: true,
+        },
       });
     }
 
-    return { success: true, sessionId: session.id, name: session.name, preambleUsed: usePreamble };
+    if (deliveryVerification && deliveryVerification.status !== 'confirmed' && deliveryVerification.status !== 'retry_confirmed') {
+      logger.warn(`[HelmSessionDelivery] Delivery verification for ${session.id}: ${deliveryVerification.status} (${deliveryVerification.detail})`);
+    }
+
+    return {
+      success: true,
+      sessionId: session.id,
+      name: session.name,
+      preambleUsed: usePreamble,
+      ...(deliveryVerification ? { deliveryVerification } : {}),
+    };
   }
 
   private findSession(sessionRef: string): SessionInfo | null {

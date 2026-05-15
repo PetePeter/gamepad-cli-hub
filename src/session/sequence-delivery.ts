@@ -4,6 +4,11 @@ import type { ConfigLoader } from '../config/loader.js';
 import type { PtyManager } from './pty-manager.js';
 import type { SessionManager } from './manager.js';
 import type { DeliveryContext, TextDeliveryOptions } from './delivery-context.js';
+import {
+  captureDeliverySnapshot,
+  verifyDeliveryAfterDelay,
+  type DeliveryVerificationResult,
+} from './delivery-verification.js';
 
 /** Pause before writing the submit suffix — gives CLIs time to process the preceding text. */
 const SUBMIT_DELAY_MS = 200;
@@ -101,13 +106,21 @@ export async function deliverPromptSequenceToSession(input: {
   configLoader: ConfigLoader;
   impliedSubmit?: boolean;
   deliveryContext?: DeliveryContext;
-}): Promise<void> {
-  const { sessionId, text, ptyManager, sessionManager, configLoader, impliedSubmit, deliveryContext } = input;
+  verifyDelivery?: {
+    label?: string;
+    delayMs?: number;
+    retrySubmit?: boolean;
+  };
+}): Promise<DeliveryVerificationResult | undefined> {
+  const { sessionId, text, ptyManager, sessionManager, configLoader, impliedSubmit, deliveryContext, verifyDelivery } = input;
   const session = sessionManager.getSession(sessionId);
   if (!session) throw new Error(`Session not found: ${sessionId}`);
 
   const cliEntry = configLoader.getCliTypeEntry(session.cliType);
   const submitSuffix = parseSubmitSuffix(cliEntry?.submitSuffix);
+  const beforeVerification = verifyDelivery
+    ? captureDeliverySnapshot({ sessionId, ptyManager })
+    : null;
 
   const processedText = escapeUnrecognizedBraces(text);
   const textDeliveryOptions: TextDeliveryOptions | undefined = deliveryContext ? { deliveryContext } : undefined;
@@ -128,4 +141,18 @@ export async function deliverPromptSequenceToSession(input: {
     },
     impliedSubmit: impliedSubmit ?? true,
   });
+
+  if (!verifyDelivery) return undefined;
+
+  const deliveredAt = Date.now();
+  return verifyDeliveryAfterDelay({
+    sessionId,
+    text,
+    ptyManager,
+    submitSuffix,
+    deliveryContext,
+    label: verifyDelivery.label,
+    delayMs: verifyDelivery.delayMs,
+    retrySubmit: verifyDelivery.retrySubmit ?? true,
+  }, beforeVerification, deliveredAt);
 }

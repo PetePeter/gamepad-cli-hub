@@ -18,6 +18,7 @@ import type { PtyManager } from '../session/pty-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
 import type { HelmControlService } from '../mcp/helm-control-service.js';
 import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js';
+import type { DeliveryVerificationResult } from '../session/delivery-verification.js';
 import { decodeBase64Strict } from '../utils/base64.js';
 import { escapeHtml, formatAgentMessageForTelegram } from './utils.js';
 import { OpenWhisprTranscriber, type AudioTranscriber, type AudioTranscriptionResult } from './openwhispr-transcriber.js';
@@ -200,13 +201,19 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
         this.sessionManager.updateSession(session.id, { interactionChannel: 'telegram' });
         text = TELEGRAM_MODE_INSTRUCTIONS + '\n\n' + wrapped;
       }
-      await deliverPromptSequenceToSession({
+      const verification = await deliverPromptSequenceToSession({
         sessionId: session.id,
         text,
         ptyManager: this.ptyManager,
         sessionManager: this.sessionManager,
         configLoader: this.configLoader,
+        verifyDelivery: {
+          label: 'telegram message',
+          delayMs: 4000,
+          retrySubmit: true,
+        },
       });
+      await this.warnIfDeliveryUnconfirmed(session.id, topicId, verification);
       logger.info(`[TelegramRelay] Injected user message to session ${session.id}`);
       return true;
     }
@@ -214,13 +221,19 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     // Fall back to active session
     const active = this.sessionManager.getActiveSession();
     if (active) {
-      await deliverPromptSequenceToSession({
+      const verification = await deliverPromptSequenceToSession({
         sessionId: active.id,
         text: wrapped,
         ptyManager: this.ptyManager,
         sessionManager: this.sessionManager,
         configLoader: this.configLoader,
+        verifyDelivery: {
+          label: 'telegram message',
+          delayMs: 4000,
+          retrySubmit: true,
+        },
       });
+      await this.warnIfDeliveryUnconfirmed(active.id, topicId, verification);
       logger.info(`[TelegramRelay] Injected user message to active session ${active.id} (unmapped topic ${topicId})`);
       return true;
     }
@@ -282,13 +295,19 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
       text = TELEGRAM_MODE_INSTRUCTIONS + '\n\n' + envelope;
     }
 
-    await deliverPromptSequenceToSession({
+    const verification = await deliverPromptSequenceToSession({
       sessionId: targetSession.id,
       text,
       ptyManager: this.ptyManager,
       sessionManager: this.sessionManager,
       configLoader: this.configLoader,
+      verifyDelivery: {
+        label: 'telegram attachment',
+        delayMs: 4000,
+        retrySubmit: true,
+      },
     });
+    await this.warnIfDeliveryUnconfirmed(targetSession.id, topicId, verification);
 
     logger.info(`[TelegramRelay] Injected attachment (${attachment.type}) to session ${targetSession.id}: ${filePath}`);
     return true;
@@ -315,13 +334,19 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
       `[/HELM_TELEGRAM_REACTION]`,
     ].join('\n');
 
-    await deliverPromptSequenceToSession({
+    const verification = await deliverPromptSequenceToSession({
       sessionId: active.id,
       text: envelope,
       ptyManager: this.ptyManager,
       sessionManager: this.sessionManager,
       configLoader: this.configLoader,
+      verifyDelivery: {
+        label: 'telegram reaction',
+        delayMs: 4000,
+        retrySubmit: true,
+      },
     });
+    await this.warnIfDeliveryUnconfirmed(active.id, active.topicId, verification);
 
     logger.info(`[TelegramRelay] Injected reaction (${newEmojis}) to session ${active.id}`);
     return true;
@@ -405,6 +430,26 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
       openWhisprPath: config.openWhisprPath,
       modelPath: config.openWhisprModelPath,
     });
+  }
+
+  private async warnIfDeliveryUnconfirmed(
+    sessionId: string,
+    topicId: number | undefined,
+    verification: DeliveryVerificationResult | undefined,
+  ): Promise<void> {
+    if (!verification || verification.status === 'confirmed' || verification.status === 'retry_confirmed') return;
+
+    logger.warn(`[TelegramRelay] Delivery verification for ${sessionId}: ${verification.status} (${verification.detail})`);
+    if (!topicId || !this.telegramBot.isRunning()) return;
+
+    try {
+      await this.telegramBot.sendToTopic(
+        topicId,
+        'Helm could not confirm that the message was submitted. It retried Enter once; check the session if it stays quiet.',
+      );
+    } catch (error) {
+      logger.warn(`[TelegramRelay] Failed to send delivery warning: ${error}`);
+    }
   }
 }
 
