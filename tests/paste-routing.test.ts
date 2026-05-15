@@ -615,6 +615,32 @@ describe('deliverBulkText', () => {
     expect(mockPtyWrite).not.toHaveBeenCalled();
   });
 
+  it('marks background PTY writes as programmatic for payload and submit suffix', async () => {
+    mockState.sessions = [{ id: 'sess-1', cliType: 'claude' }];
+    mockState.cliToolsCache = { claude: { pasteMode: 'pty' } };
+
+    await deliverBulkText('sess-1', 'hello', { deliveryContext: 'background', submitSuffix: '\n' });
+
+    expect(mockPtyWrite).toHaveBeenCalledTimes(2);
+    expect(mockPtyWrite).toHaveBeenNthCalledWith(1, 'sess-1', 'hello', { inputOrigin: 'programmatic' });
+    expect(mockPtyWrite).toHaveBeenNthCalledWith(2, 'sess-1', '\n', { inputOrigin: 'programmatic' });
+  });
+
+  it('marks background ptyindividual writes as programmatic', async () => {
+    mockState.sessions = [{ id: 'sess-1', cliType: 'copilot' }];
+    mockState.cliToolsCache = { copilot: { pasteMode: 'ptyindividual' } };
+
+    const promise = deliverBulkText('sess-1', 'ab', { deliveryContext: 'background', submitSuffix: '\n' });
+    await vi.runAllTimersAsync();
+    await promise;
+
+    expect(mockPtyWrite.mock.calls).toEqual([
+      ['sess-1', 'a', { inputOrigin: 'programmatic' }],
+      ['sess-1', 'b', { inputOrigin: 'programmatic' }],
+      ['sess-1', '\n', { inputOrigin: 'programmatic' }],
+    ]);
+  });
+
   it('no session found — falls back to ptyWrite', async () => {
     // sessions is empty — no match for 'unknown'
     mockState.sessions = [];

@@ -10,6 +10,7 @@ import type { NotificationManager } from '../../session/notification-manager.js'
 import { spawnConfiguredSession } from '../../session/configured-session-spawn.js';
 import { logger } from '../../utils/logger.js';
 import type { WindowManager } from '../window-manager.js';
+import type { PtyWriteOptions } from '../../session/delivery-context.js';
 
 // Track cancel functions for initial prompt pre-loading per session
 const promptCancellers: Map<string, () => void> = new Map();
@@ -65,16 +66,19 @@ export function setupPtyHandlers(
   });
 
   // pty:write - Write data to a session's PTY stdin
-  ipcMain.handle('pty:write', (_event, sessionId: string, data: string) => {
+  ipcMain.handle('pty:write', (_event, sessionId: string, data: string, options?: PtyWriteOptions) => {
     try {
+      const inputOrigin = options?.inputOrigin === 'programmatic' ? 'programmatic' : 'user';
       ptyManager.write(sessionId, data);
       stateDetector.markActive(sessionId);
-      // Switch to desktop channel when user types in terminal (no-op if already desktop)
-      const session = sessionManager.getSession(sessionId);
-      if (session?.interactionChannel === 'telegram') {
-        sessionManager.updateSession(sessionId, { interactionChannel: 'desktop' });
+      if (inputOrigin === 'user') {
+        // Switch to desktop channel when the user types in terminal.
+        const session = sessionManager.getSession(sessionId);
+        if (session?.interactionChannel === 'telegram') {
+          sessionManager.updateSession(sessionId, { interactionChannel: 'desktop' });
+        }
+        onPtyInput?.(sessionId, data);
       }
-      onPtyInput?.(sessionId, data);
     } catch (error) {
       logger.error(`[PTY IPC] pty:write failed for session=${sessionId}: ${error}`);
     }

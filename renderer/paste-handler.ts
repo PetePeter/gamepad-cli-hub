@@ -22,7 +22,7 @@ import {
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { state } from './state.js';
 import { keyboardClient, terminalClient } from './ipc/clients.js';
-import { isForegroundOnlyPasteMode, type DeliveryContext } from '../src/session/delivery-context.js';
+import { isForegroundOnlyPasteMode, type DeliveryContext, type PtyWriteOptions } from '../src/session/delivery-context.js';
 
 /**
  * Convert escape notation strings to actual characters.
@@ -87,9 +87,21 @@ function getConfiguredSubmitSuffix(sessionId: string, withReturn?: boolean, over
   return configured ? parseSubmitSuffix(configured) : '\r';
 }
 
-async function writePtySubmitSuffix(sessionId: string, suffix: string): Promise<void> {
+function getPtyWriteOptions(deliveryContext: DeliveryContext): PtyWriteOptions | undefined {
+  return deliveryContext === 'background' ? { inputOrigin: 'programmatic' } : undefined;
+}
+
+async function writePty(sessionId: string, data: string, options?: PtyWriteOptions): Promise<void> {
+  if (options) {
+    await terminalClient.ptyWrite(sessionId, data, options);
+  } else {
+    await terminalClient.ptyWrite(sessionId, data);
+  }
+}
+
+async function writePtySubmitSuffix(sessionId: string, suffix: string, options?: PtyWriteOptions): Promise<void> {
   if (!suffix) return;
-  await terminalClient.ptyWrite(sessionId, suffix);
+  await writePty(sessionId, suffix, options);
 }
 
 async function sendKeyboardSubmitSuffix(suffix: string): Promise<void> {
@@ -128,6 +140,7 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
   const tool = session ? state.cliToolsCache?.[session.cliType] : undefined;
   const suffix = getConfiguredSubmitSuffix(sessionId, options?.withReturn, options?.submitSuffix);
   const deliveryContext = options?.deliveryContext ?? 'interactive';
+  const ptyWriteOptions = getPtyWriteOptions(deliveryContext);
 
   if (deliveryContext === 'background' && isForegroundOnlyPasteMode(tool?.pasteMode)) {
     throw new Error(`Background delivery cannot use focus-sensitive pasteMode=${tool?.pasteMode}`);
@@ -138,7 +151,7 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
     if (tool?.pasteMode === 'clippaste' || tool?.pasteMode === 'sendkeys' || tool?.pasteMode === 'sendkeysindividual') {
       await sendKeyboardSubmitSuffix(suffix);
     } else {
-      await writePtySubmitSuffix(sessionId, suffix);
+      await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);
     }
     return;
   }
@@ -153,10 +166,10 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
     try {
       for (const char of text) {
         if (!state.sessions.find(s => s.id === sessionId)) break;
-        await terminalClient.ptyWrite(sessionId, char);
+        await writePty(sessionId, char, ptyWriteOptions);
         await new Promise(resolve => setTimeout(resolve, PTY_INDIVIDUAL_DELAY_MS));
       }
-      await writePtySubmitSuffix(sessionId, suffix);
+      await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);
       console.log(`[Paste] ptyindividual complete: ${text.length} chars sent`);
     } finally {
       ptyIndividualLock.delete(sessionId);
@@ -190,7 +203,7 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
 
     termSession.view.focus();
     await simulateClipboardPaste(text);
-    await writePtySubmitSuffix(sessionId, suffix);
+    await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);
     console.log(`[Paste] clippaste complete: ${text.length} chars pasted via clipboard, suffix via PTY`);
     return;
   }
@@ -204,8 +217,8 @@ export async function deliverBulkText(sessionId: string, text: string, options?:
     ? `\x1b[200~${text}\x1b[201~`
     : text;
 
-  await terminalClient.ptyWrite(sessionId, payload);
-  await writePtySubmitSuffix(sessionId, suffix);
+  await writePty(sessionId, payload, ptyWriteOptions);
+  await writePtySubmitSuffix(sessionId, suffix, ptyWriteOptions);
 }
 
 function isEditableOrModalFocused(): boolean {

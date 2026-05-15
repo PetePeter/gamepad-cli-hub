@@ -1,5 +1,10 @@
 export type PasteMode = 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
 export type DeliveryContext = 'background' | 'interactive';
+export type InputOrigin = 'user' | 'programmatic';
+
+export interface PtyWriteOptions {
+  inputOrigin?: InputOrigin;
+}
 
 export interface TextDeliveryOptions {
   withReturn?: boolean;

@@ -1,4 +1,5 @@
 import { ipcRenderer } from 'electron';
+import type { PtyWriteOptions } from '../../session/delivery-context.js';
 import type { DraftPrompt } from '../../types/session.js';
 import {
   createPreloadDomains,
@@ -238,8 +239,8 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     ipcRenderer.invoke('pty:spawn', sessionId, command, args, cwd, cliType, contextText, resumeSessionName),
 
   /** Write data to a PTY terminal's stdin */
-  ptyWrite: (sessionId: string, data: string) =>
-    ipcRenderer.invoke('pty:write', sessionId, data),
+  ptyWrite: (sessionId: string, data: string, options?: PtyWriteOptions) =>
+    ipcRenderer.invoke('pty:write', sessionId, data, options),
 
   /** Write scroll keys to a PTY without triggering AIAGENT keyword detection */
   ptyScrollInput: (sessionId: string, data: string) =>
