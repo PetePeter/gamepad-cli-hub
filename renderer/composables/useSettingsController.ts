@@ -5,6 +5,7 @@ import { sessionsState } from '../screens/sessions-state.js';
 import { state } from '../state.js';
 import { getCliDisplayName, logEvent, showFormModal } from '../utils.js';
 import { sortBindingEntries, type BindingSortField, type SortDirection } from '../sort-logic.js';
+import { CONTROLLER_BUTTONS } from '../controller-buttons.js';
 import {
   buildToolEditorOptions,
   setToolEditorCallback,
@@ -87,7 +88,7 @@ export function useSettingsController(options: {
 
   const settingsAddableButtons = computed(() => {
     const mapped = new Set(settingsBindings.value.map((binding) => binding.button));
-    return state.buttons.filter((button) => !mapped.has(button));
+    return CONTROLLER_BUTTONS.filter((button) => !mapped.has(button));
   });
 
   const settingsBindingCopySources = computed(() =>

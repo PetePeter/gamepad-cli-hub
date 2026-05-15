@@ -4,6 +4,7 @@
  */
 
 import type { Session } from './state.js';
+import { CONTROLLER_BUTTONS } from './controller-buttons.js';
 
 // ============================================================================
 // Types
@@ -101,26 +102,8 @@ export function sortSessions(
 // Binding sorting
 // ============================================================================
 
-/**
- * Controller layout order — groups buttons by physical location.
- * Buttons not in this list sort after all listed buttons.
- */
-const BUTTON_LAYOUT_ORDER: string[] = [
-  // Face buttons
-  'A', 'B', 'X', 'Y',
-  // D-pad
-  'DPadUp', 'DPadDown', 'DPadLeft', 'DPadRight',
-  // Bumpers & triggers
-  'LeftBumper', 'RightBumper', 'LeftTrigger', 'RightTrigger',
-  // Center buttons
-  'Back', 'Sandwich', 'Xbox',
-  // Stick clicks
-  'LeftStick', 'RightStick',
-  // Left stick directions
-  'LeftStickUp', 'LeftStickDown', 'LeftStickLeft', 'LeftStickRight',
-  // Right stick directions
-  'RightStickUp', 'RightStickDown', 'RightStickLeft', 'RightStickRight',
-];
+// Controller layout order for sorting — sourced from the canonical list.
+const BUTTON_LAYOUT_ORDER = CONTROLLER_BUTTONS;
 
 /**
  * Sort binding entries by a given field and direction.
