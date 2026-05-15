@@ -8490,7 +8490,7 @@
       "label": "for()",
       "file_type": "code",
       "source_file": "renderer\\components\\panels\\PlanScreen.vue",
-      "source_location": "L214",
+      "source_location": "L224",
       "id": "panels_planscreen_for",
       "community": 12,
       "norm_label": "for()"
@@ -8499,7 +8499,7 @@
       "label": "if()",
       "file_type": "code",
       "source_file": "renderer\\components\\panels\\PlanScreen.vue",
-      "source_location": "L529",
+      "source_location": "L582",
       "id": "panels_planscreen_if",
       "community": 12,
       "norm_label": "if()"
@@ -32446,9 +32446,9 @@
       "weight": 1.0,
       "_src": "dist_electron_main_js",
       "_tgt": "dist_electron_main_reloadactiveprofileifchanged",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_js",
-      "target": "dist_electron_main_reloadactiveprofileifchanged",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_reloadactiveprofileifchanged"
     },
     {
       "relation": "contains",
@@ -45440,11 +45440,11 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L13781",
       "weight": 1.0,
-      "_src": "dist_electron_main_reloadactiveprofileifchanged",
-      "_tgt": "dist_electron_main_loadactiveprofile",
+      "_src": "dist_electron_main_loadactiveprofile",
+      "_tgt": "dist_electron_main_reloadactiveprofileifchanged",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_loadactiveprofile",
-      "target": "dist_electron_main_reloadactiveprofileifchanged",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_reloadactiveprofileifchanged"
     },
     {
       "relation": "calls",
@@ -52112,8 +52112,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10113",
       "weight": 1.0,
-      "_src": "dist_electron_main_asstring",
-      "_tgt": "dist_electron_main_handlerequest",
+      "_src": "dist_electron_main_handlerequest",
+      "_tgt": "dist_electron_main_asstring",
       "confidence_score": 1.0,
       "source": "dist_electron_main_handlerequest",
       "target": "dist_electron_main_asstring"
@@ -52124,8 +52124,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10114",
       "weight": 1.0,
-      "_src": "dist_electron_main_asrecord",
-      "_tgt": "dist_electron_main_handlerequest",
+      "_src": "dist_electron_main_handlerequest",
+      "_tgt": "dist_electron_main_asrecord",
       "confidence_score": 1.0,
       "source": "dist_electron_main_handlerequest",
       "target": "dist_electron_main_asrecord"
@@ -52148,8 +52148,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10116",
       "weight": 1.0,
-      "_src": "dist_electron_main_normalizestructuredcontent",
-      "_tgt": "dist_electron_main_handlerequest",
+      "_src": "dist_electron_main_handlerequest",
+      "_tgt": "dist_electron_main_normalizestructuredcontent",
       "confidence_score": 1.0,
       "source": "dist_electron_main_handlerequest",
       "target": "dist_electron_main_normalizestructuredcontent"
@@ -52160,8 +52160,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10117",
       "weight": 1.0,
-      "_src": "dist_electron_main_gettoolreminder",
-      "_tgt": "dist_electron_main_handlerequest",
+      "_src": "dist_electron_main_handlerequest",
+      "_tgt": "dist_electron_main_gettoolreminder",
       "confidence_score": 1.0,
       "source": "dist_electron_main_handlerequest",
       "target": "dist_electron_main_gettoolreminder"
@@ -52172,8 +52172,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L21731",
       "weight": 1.0,
-      "_src": "dist_electron_main_callmcptool",
-      "_tgt": "dist_electron_main_handlerequest",
+      "_src": "dist_electron_main_handlerequest",
+      "_tgt": "dist_electron_main_callmcptool",
       "confidence_score": 1.0,
       "source": "dist_electron_main_handlerequest",
       "target": "dist_electron_main_callmcptool"
@@ -52184,8 +52184,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10144",
       "weight": 1.0,
-      "_src": "dist_electron_main_asstring",
-      "_tgt": "dist_electron_main_calltool",
+      "_src": "dist_electron_main_calltool",
+      "_tgt": "dist_electron_main_asstring",
       "confidence_score": 1.0,
       "source": "dist_electron_main_calltool",
       "target": "dist_electron_main_asstring"
@@ -52196,8 +52196,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10150",
       "weight": 1.0,
-      "_src": "dist_electron_main_requireresult2",
-      "_tgt": "dist_electron_main_calltool",
+      "_src": "dist_electron_main_calltool",
+      "_tgt": "dist_electron_main_requireresult2",
       "confidence_score": 1.0,
       "source": "dist_electron_main_calltool",
       "target": "dist_electron_main_requireresult2"
@@ -52208,8 +52208,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10166",
       "weight": 1.0,
-      "_src": "dist_electron_main_asplantypeornull",
-      "_tgt": "dist_electron_main_calltool",
+      "_src": "dist_electron_main_calltool",
+      "_tgt": "dist_electron_main_asplantypeornull",
       "confidence_score": 1.0,
       "source": "dist_electron_main_calltool",
       "target": "dist_electron_main_asplantypeornull"
@@ -52220,8 +52220,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10172",
       "weight": 1.0,
-      "_src": "dist_electron_main_requirebooleanresult",
-      "_tgt": "dist_electron_main_calltool",
+      "_src": "dist_electron_main_calltool",
+      "_tgt": "dist_electron_main_requirebooleanresult",
       "confidence_score": 1.0,
       "source": "dist_electron_main_calltool",
       "target": "dist_electron_main_requirebooleanresult"
@@ -52232,8 +52232,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10178",
       "weight": 1.0,
-      "_src": "dist_electron_main_setplanstatewithvalidation",
-      "_tgt": "dist_electron_main_calltool",
+      "_src": "dist_electron_main_calltool",
+      "_tgt": "dist_electron_main_setplanstatewithvalidation",
       "confidence_score": 1.0,
       "source": "dist_electron_main_calltool",
       "target": "dist_electron_main_setplanstatewithvalidation"
@@ -52244,8 +52244,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10180",
       "weight": 1.0,
-      "_src": "dist_electron_main_asplanstatus",
-      "_tgt": "dist_electron_main_calltool",
+      "_src": "dist_electron_main_calltool",
+      "_tgt": "dist_electron_main_asplanstatus",
       "confidence_score": 1.0,
       "source": "dist_electron_main_calltool",
       "target": "dist_electron_main_asplanstatus"
@@ -52256,8 +52256,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10185",
       "weight": 1.0,
-      "_src": "dist_electron_main_completeplanwithvalidation",
-      "_tgt": "dist_electron_main_calltool",
+      "_src": "dist_electron_main_calltool",
+      "_tgt": "dist_electron_main_completeplanwithvalidation",
       "confidence_score": 1.0,
       "source": "dist_electron_main_calltool",
       "target": "dist_electron_main_completeplanwithvalidation"
@@ -52268,8 +52268,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L21556",
       "weight": 1.0,
-      "_src": "dist_electron_main_ascontextbindingtargettype",
-      "_tgt": "dist_electron_main_calltool",
+      "_src": "dist_electron_main_calltool",
+      "_tgt": "dist_electron_main_ascontextbindingtargettype",
       "confidence_score": 1.0,
       "source": "dist_electron_main_calltool",
       "target": "dist_electron_main_ascontextbindingtargettype"
@@ -52280,8 +52280,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10325",
       "weight": 1.0,
-      "_src": "dist_electron_main_asterminaloutputmode",
-      "_tgt": "dist_electron_main_calltool",
+      "_src": "dist_electron_main_calltool",
+      "_tgt": "dist_electron_main_asterminaloutputmode",
       "confidence_score": 1.0,
       "source": "dist_electron_main_calltool",
       "target": "dist_electron_main_asterminaloutputmode"
@@ -52292,8 +52292,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10337",
       "weight": 1.0,
-      "_src": "dist_electron_main_asaiagentstate",
-      "_tgt": "dist_electron_main_calltool",
+      "_src": "dist_electron_main_calltool",
+      "_tgt": "dist_electron_main_asaiagentstate",
       "confidence_score": 1.0,
       "source": "dist_electron_main_calltool",
       "target": "dist_electron_main_asaiagentstate"
@@ -52304,8 +52304,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10365",
       "weight": 1.0,
-      "_src": "dist_electron_main_requireresult2",
-      "_tgt": "dist_electron_main_setplanstatewithvalidation",
+      "_src": "dist_electron_main_setplanstatewithvalidation",
+      "_tgt": "dist_electron_main_requireresult2",
       "confidence_score": 1.0,
       "source": "dist_electron_main_setplanstatewithvalidation",
       "target": "dist_electron_main_requireresult2"
@@ -52316,8 +52316,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L21262",
       "weight": 1.0,
-      "_src": "dist_electron_main_callmcptool",
-      "_tgt": "dist_electron_main_setplanstatewithvalidation",
+      "_src": "dist_electron_main_setplanstatewithvalidation",
+      "_tgt": "dist_electron_main_callmcptool",
       "confidence_score": 1.0,
       "source": "dist_electron_main_setplanstatewithvalidation",
       "target": "dist_electron_main_callmcptool"
@@ -52328,8 +52328,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L10378",
       "weight": 1.0,
-      "_src": "dist_electron_main_requireresult2",
-      "_tgt": "dist_electron_main_completeplanwithvalidation",
+      "_src": "dist_electron_main_completeplanwithvalidation",
+      "_tgt": "dist_electron_main_requireresult2",
       "confidence_score": 1.0,
       "source": "dist_electron_main_completeplanwithvalidation",
       "target": "dist_electron_main_requireresult2"
@@ -52340,8 +52340,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L21269",
       "weight": 1.0,
-      "_src": "dist_electron_main_callmcptool",
-      "_tgt": "dist_electron_main_completeplanwithvalidation",
+      "_src": "dist_electron_main_completeplanwithvalidation",
+      "_tgt": "dist_electron_main_callmcptool",
       "confidence_score": 1.0,
       "source": "dist_electron_main_completeplanwithvalidation",
       "target": "dist_electron_main_callmcptool"
@@ -53264,11 +53264,11 @@
       "source_file": "renderer\\sort-logic.ts",
       "source_location": "L7",
       "weight": 1.0,
-      "_src": "renderer_sort_logic_ts",
-      "_tgt": "renderer_controller_buttons_ts",
+      "_src": "renderer_controller_buttons_ts",
+      "_tgt": "renderer_sort_logic_ts",
+      "confidence_score": 1.0,
       "source": "renderer_controller_buttons_ts",
-      "target": "renderer_sort_logic_ts",
-      "confidence_score": 1.0
+      "target": "renderer_sort_logic_ts"
     },
     {
       "relation": "imports_from",
@@ -53276,11 +53276,11 @@
       "source_file": "renderer\\composables\\useSettingsController.ts",
       "source_location": "L8",
       "weight": 1.0,
-      "_src": "renderer_composables_usesettingscontroller_ts",
-      "_tgt": "renderer_controller_buttons_ts",
+      "_src": "renderer_controller_buttons_ts",
+      "_tgt": "renderer_composables_usesettingscontroller_ts",
+      "confidence_score": 1.0,
       "source": "renderer_controller_buttons_ts",
-      "target": "renderer_composables_usesettingscontroller_ts",
-      "confidence_score": 1.0
+      "target": "renderer_composables_usesettingscontroller_ts"
     },
     {
       "relation": "imports_from",
@@ -53288,11 +53288,11 @@
       "source_file": "tests\\controller-buttons.test.ts",
       "source_location": "L2",
       "weight": 1.0,
-      "_src": "tests_controller_buttons_test_ts",
-      "_tgt": "renderer_controller_buttons_ts",
+      "_src": "renderer_controller_buttons_ts",
+      "_tgt": "tests_controller_buttons_test_ts",
+      "confidence_score": 1.0,
       "source": "renderer_controller_buttons_ts",
-      "target": "tests_controller_buttons_test_ts",
-      "confidence_score": 1.0
+      "target": "tests_controller_buttons_test_ts"
     },
     {
       "relation": "contains",
@@ -71804,11 +71804,11 @@
       "source_file": "tests\\config\\loader-reload.test.ts",
       "source_location": "L11",
       "weight": 1.0,
-      "_src": "tests_config_loader_reload_test_ts",
-      "_tgt": "src_config_loader_ts",
+      "_src": "src_config_loader_ts",
+      "_tgt": "tests_config_loader_reload_test_ts",
+      "confidence_score": 1.0,
       "source": "src_config_loader_ts",
-      "target": "tests_config_loader_reload_test_ts",
-      "confidence_score": 1.0
+      "target": "tests_config_loader_reload_test_ts"
     },
     {
       "relation": "contains",
@@ -71986,9 +71986,9 @@
       "weight": 1.0,
       "_src": "config_loader_configloader",
       "_tgt": "config_loader_configloader_reloadactiveprofileifchanged",
+      "confidence_score": 1.0,
       "source": "config_loader_configloader",
-      "target": "config_loader_configloader_reloadactiveprofileifchanged",
-      "confidence_score": 1.0
+      "target": "config_loader_configloader_reloadactiveprofileifchanged"
     },
     {
       "relation": "method",
@@ -72908,11 +72908,11 @@
       "source_file": "src\\config\\loader.ts",
       "source_location": "L453",
       "weight": 1.0,
-      "_src": "config_loader_configloader_reloadactiveprofileifchanged",
-      "_tgt": "config_loader_configloader_loadactiveprofile",
+      "_src": "config_loader_configloader_loadactiveprofile",
+      "_tgt": "config_loader_configloader_reloadactiveprofileifchanged",
+      "confidence_score": 1.0,
       "source": "config_loader_configloader_loadactiveprofile",
-      "target": "config_loader_configloader_reloadactiveprofileifchanged",
-      "confidence_score": 1.0
+      "target": "config_loader_configloader_reloadactiveprofileifchanged"
     },
     {
       "relation": "calls",
@@ -80132,8 +80132,8 @@
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
       "source_location": "L783",
       "weight": 1.0,
-      "_src": "mcp_localhost_mcp_server_localhostmcpserver_setplanstatewithvalidation",
-      "_tgt": "mcp_localhost_mcp_server_localhostmcpserver_calltool",
+      "_src": "mcp_localhost_mcp_server_localhostmcpserver_calltool",
+      "_tgt": "mcp_localhost_mcp_server_localhostmcpserver_setplanstatewithvalidation",
       "confidence_score": 1.0,
       "source": "mcp_localhost_mcp_server_localhostmcpserver_calltool",
       "target": "mcp_localhost_mcp_server_localhostmcpserver_setplanstatewithvalidation"
@@ -80156,8 +80156,8 @@
       "source_file": "src\\mcp\\localhost-mcp-server.ts",
       "source_location": "L790",
       "weight": 1.0,
-      "_src": "mcp_localhost_mcp_server_localhostmcpserver_completeplanwithvalidation",
-      "_tgt": "mcp_localhost_mcp_server_localhostmcpserver_calltool",
+      "_src": "mcp_localhost_mcp_server_localhostmcpserver_calltool",
+      "_tgt": "mcp_localhost_mcp_server_localhostmcpserver_completeplanwithvalidation",
       "confidence_score": 1.0,
       "source": "mcp_localhost_mcp_server_localhostmcpserver_calltool",
       "target": "mcp_localhost_mcp_server_localhostmcpserver_completeplanwithvalidation"
@@ -82280,11 +82280,11 @@
       "source_file": "tests\\helm-session-delivery-service.test.ts",
       "source_location": "L6",
       "weight": 1.0,
-      "_src": "tests_helm_session_delivery_service_test_ts",
-      "_tgt": "src_mcp_services_helm_session_delivery_service_ts",
+      "_src": "src_mcp_services_helm_session_delivery_service_ts",
+      "_tgt": "tests_helm_session_delivery_service_test_ts",
+      "confidence_score": 1.0,
       "source": "src_mcp_services_helm_session_delivery_service_ts",
-      "target": "tests_helm_session_delivery_service_test_ts",
-      "confidence_score": 1.0
+      "target": "tests_helm_session_delivery_service_test_ts"
     },
     {
       "relation": "method",
@@ -98638,9 +98638,9 @@
       "weight": 1.0,
       "_src": "tests_helm_session_delivery_service_test_ts",
       "_tgt": "tests_helm_session_delivery_service_test_makesession",
+      "confidence_score": 1.0,
       "source": "tests_helm_session_delivery_service_test_ts",
-      "target": "tests_helm_session_delivery_service_test_makesession",
-      "confidence_score": 1.0
+      "target": "tests_helm_session_delivery_service_test_makesession"
     },
     {
       "relation": "contains",
@@ -98650,9 +98650,9 @@
       "weight": 1.0,
       "_src": "tests_helm_session_delivery_service_test_ts",
       "_tgt": "tests_helm_session_delivery_service_test_makedeps",
+      "confidence_score": 1.0,
       "source": "tests_helm_session_delivery_service_test_ts",
-      "target": "tests_helm_session_delivery_service_test_makedeps",
-      "confidence_score": 1.0
+      "target": "tests_helm_session_delivery_service_test_makedeps"
     },
     {
       "relation": "contains",
@@ -98662,9 +98662,9 @@
       "weight": 1.0,
       "_src": "tests_helm_session_delivery_service_test_ts",
       "_tgt": "tests_helm_session_delivery_service_test_getsenttext",
+      "confidence_score": 1.0,
       "source": "tests_helm_session_delivery_service_test_ts",
-      "target": "tests_helm_session_delivery_service_test_getsenttext",
-      "confidence_score": 1.0
+      "target": "tests_helm_session_delivery_service_test_getsenttext"
     },
     {
       "relation": "calls",
@@ -98672,11 +98672,11 @@
       "source_file": "tests\\helm-session-delivery-service.test.ts",
       "source_location": "L21",
       "weight": 1.0,
-      "_src": "tests_helm_session_delivery_service_test_makedeps",
-      "_tgt": "tests_helm_session_delivery_service_test_makesession",
+      "_src": "tests_helm_session_delivery_service_test_makesession",
+      "_tgt": "tests_helm_session_delivery_service_test_makedeps",
+      "confidence_score": 1.0,
       "source": "tests_helm_session_delivery_service_test_makesession",
-      "target": "tests_helm_session_delivery_service_test_makedeps",
-      "confidence_score": 1.0
+      "target": "tests_helm_session_delivery_service_test_makedeps"
     },
     {
       "relation": "contains",
@@ -100930,9 +100930,9 @@
       "weight": 1.0,
       "_src": "tests_config_loader_reload_test_ts",
       "_tgt": "config_loader_reload_test_writeyaml",
+      "confidence_score": 1.0,
       "source": "tests_config_loader_reload_test_ts",
-      "target": "config_loader_reload_test_writeyaml",
-      "confidence_score": 1.0
+      "target": "config_loader_reload_test_writeyaml"
     },
     {
       "relation": "contains",
@@ -100942,9 +100942,9 @@
       "weight": 1.0,
       "_src": "tests_config_loader_reload_test_ts",
       "_tgt": "config_loader_reload_test_writeraw",
+      "confidence_score": 1.0,
       "source": "tests_config_loader_reload_test_ts",
-      "target": "config_loader_reload_test_writeraw",
-      "confidence_score": 1.0
+      "target": "config_loader_reload_test_writeraw"
     },
     {
       "relation": "contains",
@@ -100954,9 +100954,9 @@
       "weight": 1.0,
       "_src": "tests_config_loader_reload_test_ts",
       "_tgt": "config_loader_reload_test_buildprofile",
+      "confidence_score": 1.0,
       "source": "tests_config_loader_reload_test_ts",
-      "target": "config_loader_reload_test_buildprofile",
-      "confidence_score": 1.0
+      "target": "config_loader_reload_test_buildprofile"
     },
     {
       "relation": "calls",

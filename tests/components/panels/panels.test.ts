@@ -1003,6 +1003,14 @@ describe('PlanScreen', () => {
     expect(w.emitted('contextEdit')).toEqual([['ctx-1']]);
   });
 
+  it('selects a context on press without moving it', async () => {
+    const w = mount(PlanScreen, { props: contextProps });
+    await w.find('.plan-context-card').trigger('mousedown', { clientX: 40, clientY: 720 });
+    await w.find('.plan-canvas').trigger('mouseup', { clientX: 40, clientY: 720 });
+    expect(w.emitted('contextClick')).toEqual([['ctx-1']]);
+    expect(w.emitted('contextMove')).toBeUndefined();
+  });
+
   it('does not show inspector panel when a context is selected', () => {
     const w = mount(PlanScreen, { props: { ...contextProps, selectedContextId: 'ctx-1' } });
     expect(w.find('.plan-inspector').exists()).toBe(false);
@@ -1012,6 +1020,24 @@ describe('PlanScreen', () => {
     const w = mount(PlanScreen, { props: { ...contextProps, selectedContextId: 'ctx-1' } });
     await w.find('.plan-canvas').trigger('keydown', { key: 'Delete' });
     expect(w.emitted('contextDelete')).toEqual([['ctx-1']]);
+  });
+
+  it('links a context to a plan from the context connector without moving the card', async () => {
+    const w = mount(PlanScreen, {
+      props: {
+        ...contextProps,
+        items: [{ ...makeItems()[0], id: 'plan-1', title: 'Target', dirPath: '/home/project' }],
+        layout: { nodes: [{ id: 'plan-1', x: 320, y: 120, layer: 0, order: 0 }], width: 560, height: 300 },
+      },
+    });
+    Object.defineProperty(w.find('.plan-canvas').element, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600 }),
+    });
+    await w.find('.plan-context-card__connector').trigger('mousedown', { clientX: 270, clientY: 785 });
+    await w.find('.plan-canvas').trigger('mousemove', { clientX: 340, clientY: 140 });
+    await w.find('.plan-canvas').trigger('mouseup', { clientX: 340, clientY: 140 });
+    expect(w.emitted('contextBindTarget')).toEqual([['ctx-1', 'plan', 'plan-1']]);
+    expect(w.emitted('contextMove')).toBeUndefined();
   });
 
   it('focuses the canvas when a selected context is pressed', async () => {

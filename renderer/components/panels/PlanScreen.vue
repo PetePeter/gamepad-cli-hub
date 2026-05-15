@@ -163,6 +163,16 @@ const contextDragState = ref<{
   hoveredPlanId: string | null;
   offsetX: number;
   offsetY: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+} | null>(null);
+const contextLinkState = ref<{
+  id: string;
+  x: number;
+  y: number;
+  hoveredSeqId: string | null;
+  hoveredPlanId: string | null;
 } | null>(null);
 
 const seqModalVisible = ref(false);
@@ -287,6 +297,15 @@ const dragPath = computed(() => {
   const x2 = dragState.value.x;
   const y2 = dragState.value.y;
   return `M ${x1} ${y1} L ${x2} ${y2}`;
+});
+
+const contextLinkPath = computed(() => {
+  if (!contextLinkState.value) return '';
+  const context = positionedContexts.value.find((entry) => entry.id === contextLinkState.value?.id);
+  if (!context) return '';
+  const x1 = context.x + CONTEXT_W;
+  const y1 = context.y + CONTEXT_H / 2;
+  return `M ${x1} ${y1} L ${contextLinkState.value.x} ${contextLinkState.value.y}`;
 });
 
 watch(() => [props.visible, canvasBounds.value.width, canvasBounds.value.height], () => {
@@ -417,10 +436,22 @@ function onCanvasMouseMove(e: MouseEvent): void {
   }
   if (contextDragState.value) {
     const pt = svgPoint(e.clientX, e.clientY);
+    const moved = contextDragState.value.moved
+      || Math.hypot(pt.x - contextDragState.value.startX, pt.y - contextDragState.value.startY) > 3;
     contextDragState.value = {
       ...contextDragState.value,
       x: pt.x - contextDragState.value.offsetX,
       y: pt.y - contextDragState.value.offsetY,
+      moved,
+    };
+    return;
+  }
+  if (contextLinkState.value) {
+    const pt = svgPoint(e.clientX, e.clientY);
+    contextLinkState.value = {
+      ...contextLinkState.value,
+      x: pt.x,
+      y: pt.y,
       hoveredSeqId: findSeqBoxAtPoint(pt.x, pt.y),
       hoveredPlanId: findPlanAtPoint(pt.x, pt.y),
     };
@@ -464,13 +495,18 @@ function onCanvasMouseUp(e: MouseEvent): void {
     seqDragState.value = null;
   }
   if (contextDragState.value) {
-    emit('contextMove', contextDragState.value.id, contextDragState.value.x, contextDragState.value.y);
-    if (contextDragState.value.hoveredPlanId) {
-      emit('contextBindTarget', contextDragState.value.id, 'plan', contextDragState.value.hoveredPlanId);
-    } else if (contextDragState.value.hoveredSeqId) {
-      emit('contextBind', contextDragState.value.id, contextDragState.value.hoveredSeqId);
+    if (contextDragState.value.moved) {
+      emit('contextMove', contextDragState.value.id, contextDragState.value.x, contextDragState.value.y);
     }
     contextDragState.value = null;
+  }
+  if (contextLinkState.value) {
+    if (contextLinkState.value.hoveredPlanId) {
+      emit('contextBindTarget', contextLinkState.value.id, 'plan', contextLinkState.value.hoveredPlanId);
+    } else if (contextLinkState.value.hoveredSeqId) {
+      emit('contextBind', contextLinkState.value.id, contextLinkState.value.hoveredSeqId);
+    }
+    contextLinkState.value = null;
   }
   isPanning.value = false;
 }
@@ -508,8 +544,10 @@ function onNodeBodyMouseDown(id: string, e: MouseEvent): void {
 }
 
 function onContextMouseDown(id: string, e: MouseEvent): void {
+  if ((e.target as Element).closest('.plan-context-card__connector')) return;
   e.stopPropagation();
   focusPlanScreen();
+  emit('contextClick', id);
   const pt = svgPoint(e.clientX, e.clientY);
   const context = positionedContexts.value.find((entry) => entry.id === id);
   if (!context) return;
@@ -521,6 +559,21 @@ function onContextMouseDown(id: string, e: MouseEvent): void {
     hoveredPlanId: null,
     offsetX: pt.x - context.x,
     offsetY: pt.y - context.y,
+    startX: pt.x,
+    startY: pt.y,
+    moved: false,
+  };
+}
+
+function startContextLink(id: string, e: MouseEvent): void {
+  e.stopPropagation();
+  focusPlanScreen();
+  emit('contextClick', id);
+  contextLinkState.value = {
+    id,
+    ...svgPoint(e.clientX, e.clientY),
+    hoveredSeqId: null,
+    hoveredPlanId: null,
   };
 }
 
@@ -736,7 +789,7 @@ onUnmounted(() => {
           class="plan-sequence-lane"
           :class="{
             'plan-sequence-lane--empty': box.isEmpty,
-            'plan-sequence-lane--drop-target': seqDragState?.hoveredSeqId === box.sequence.id || contextDragState?.hoveredSeqId === box.sequence.id,
+            'plan-sequence-lane--drop-target': seqDragState?.hoveredSeqId === box.sequence.id || contextLinkState?.hoveredSeqId === box.sequence.id,
           }"
           :transform="`translate(${box.x}, ${box.y})`"
         >
@@ -811,6 +864,16 @@ onUnmounted(() => {
           stroke-dasharray="6 3"
         />
 
+        <path
+          v-if="contextLinkPath"
+          class="plan-drag-line plan-drag-line--context"
+          :d="contextLinkPath"
+          fill="none"
+          stroke="#ffbf8a"
+          stroke-width="2"
+          stroke-dasharray="6 3"
+        />
+
         <g
           v-for="item in positionedItems"
           :key="item.id"
@@ -819,7 +882,7 @@ onUnmounted(() => {
             'plan-node--selected': item.id === selectedId,
             'plan-node--multiselected': selectedIds.has(item.id) && item.id !== selectedId,
             'plan-node--done': item.status === 'done',
-            'plan-node--drop-target': contextDragState?.hoveredPlanId === item.id,
+            'plan-node--drop-target': contextLinkState?.hoveredPlanId === item.id,
             'plan-node--related-background': isRelatedBackground(item.id),
             'plan-node--related-transient': relatedTransientIds.has(item.id),
           }"
@@ -910,7 +973,6 @@ onUnmounted(() => {
           class="plan-context-card"
           :class="{ 'plan-context-card--selected': context.id === selectedContextId }"
           :transform="`translate(${contextDragState?.id === context.id ? contextDragState.x : context.x}, ${contextDragState?.id === context.id ? contextDragState.y : context.y})`"
-          @click.stop="emit('contextClick', context.id)"
           @dblclick.stop="emit('contextEdit', context.id)"
           @mousedown="onContextMouseDown(context.id, $event)"
         >
@@ -933,6 +995,13 @@ onUnmounted(() => {
               target<span v-if="((context.sequenceIds?.length ?? 0) + (context.planIds?.length ?? 0)) !== 1">s</span>
             </div>
           </foreignObject>
+          <circle
+            class="plan-context-card__connector"
+            :cx="CONTEXT_W"
+            :cy="CONTEXT_H / 2"
+            :r="CONNECTOR_R"
+            @mousedown.stop="startContextLink(context.id, $event)"
+          />
         </g>
 
         <text v-if="items.length === 0" class="plan-canvas-empty" x="50%" y="45%" text-anchor="middle">
@@ -1222,5 +1291,15 @@ onUnmounted(() => {
 .plan-context-card__bound {
   color: #d8af8b;
   font-size: 10px;
+}
+.plan-context-card__connector {
+  fill: #2a1b12;
+  stroke: #ffbf8a;
+  stroke-width: 1.5;
+  cursor: crosshair;
+}
+.plan-context-card__connector:hover {
+  fill: #ffbf8a;
+  stroke: #fff2e5;
 }
 </style>
