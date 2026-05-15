@@ -83,7 +83,7 @@ async function forwardToSession(
 ): Promise<void> {
   const from = msg.from?.username ? `@${msg.from.username}` : 'unknown';
   const fromTag = from === 'unknown' ? '' : ` from:${from}`;
-  const wrapped = `[HELM_TELEGRAM${fromTag} chat:${msg.chat.id}]\n${text}\n[/HELM_TELEGRAM]`;
+  const wrapped = `[HELM_TELEGRAM${fromTag} chat:${msg.chat.id}]\n${text}\n[/HELM_TELEGRAM]\nRespond via telegram_chat MCP tool.`;
   if (!sessionManager) throw new Error('SessionManager is required for Telegram prompt delivery');
   await deliverPromptSequenceToSession({
     sessionId,

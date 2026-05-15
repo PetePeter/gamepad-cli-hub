@@ -84,6 +84,7 @@ describe('TelegramRelayService', () => {
     expect(consumed).toBe(true);
     // Now routed through deliverPromptSequenceToSession which uses deliverText for text content
     expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM from:@testuser'));
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('Respond via telegram_chat MCP tool.'));
   });
 
   it('handleIncomingTelegramMessage() wraps active-session messages in envelope too', async () => {
@@ -99,6 +100,7 @@ describe('TelegramRelayService', () => {
 
     expect(consumed).toBe(true);
     expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM from:@someone'));
+    expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('Respond via telegram_chat MCP tool.'));
   });
 
   it('handleIncomingTelegramMessage() omits from tag when username is missing', async () => {
@@ -117,6 +119,7 @@ describe('TelegramRelayService', () => {
     expect(callArgs[1]).toContain('[HELM_TELEGRAM chat:12345]');
     expect(callArgs[1]).not.toContain('from:unknown');
     expect(callArgs[1]).toContain('No username here');
+    expect(callArgs[1]).toContain('Respond via telegram_chat MCP tool.');
   });
 
   it('sends General Chat nudge after successful topic message', async () => {

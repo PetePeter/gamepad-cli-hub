@@ -260,6 +260,6 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
 
 function wrapTelegramEnvelope(text: string, from: string, chatId: number): string {
   const fromTag = from === 'unknown' ? '' : ` from:${from}`;
-  return `[HELM_TELEGRAM${fromTag} chat:${chatId}]\n${text}\n[/HELM_TELEGRAM]`;
+  return `[HELM_TELEGRAM${fromTag} chat:${chatId}]\n${text}\n[/HELM_TELEGRAM]\nRespond via telegram_chat MCP tool.`;
 }
 
