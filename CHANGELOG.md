@@ -2,6 +2,32 @@
 
 All notable changes to gamepad-cli-hub are documented in this file.
 
+## [1.6.0] - 2026-05-17
+
+### Features
+
+- **Telegram voice transcription** — Incoming Telegram voice messages are automatically transcribed via OpenWhispr and forwarded to the active session as text
+- **Telegram attachment forwarding** — Images, documents, and audio received in Telegram are downloaded and forwarded to the active session with full metadata
+- **Telegram reaction forwarding** — Emoji reactions on messages are forwarded to the active session as context signals
+- **Session channel affinity** — Telegram messages are now routed to the correct session automatically based on established channel affinity, removing the need to manually target sessions
+
+### Improvements
+
+- **Live config reload for Telegram and Scheduler** — Changing Telegram or scheduler settings takes effect immediately without a restart
+- **Delivery verification** — Helm prompt delivery is now verified end-to-end before considering a send complete
+- **Cleaner Telegram mode handling** — Repeated `[HELM_TELEGRAM_MODE]` wrappers are suppressed; background session sends submit directly without envelope overhead
+
+### Fixes
+
+- Fixed audio transcription accuracy and delivery edge cases
+- Fixed Telegram attachment download paths on Windows
+- Fixed inter-session delivery pacing to prevent message pile-up
+- Fixed Telegram topic cleanup crash on session close
+- Fixed planner context editor crash
+- Fixed planner context linking reliability
+- Fixed notification dismiss button alignment
+- Fixed padded plan reference normalisation
+
 ## [1.5.0] - 2026-05-11
 
 ### Features
