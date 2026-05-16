@@ -34,6 +34,7 @@ export class OpenWhisprTranscriber implements AudioTranscriber {
 
     const wavPath = await this.convertToWavIfNeeded(filePath, installPath, mimeType);
     if (!wavPath) return null;
+    const effectiveMimeType = wavPath !== filePath ? 'audio/wav' : mimeType;
 
     const port = await findFreePort();
     const child = spawn(serverExe, [
@@ -50,10 +51,11 @@ export class OpenWhisprTranscriber implements AudioTranscriber {
 
     try {
       await waitForServer(port);
-      const text = await requestTranscription(port, wavPath, mimeType);
+      const text = await requestTranscription(port, wavPath, effectiveMimeType);
       if (!text) return null;
 
       const transcriptPath = await writeTranscript(filePath, text);
+      logger.info(`[OpenWhispr] Transcribed ${path.basename(filePath)} (${text.length} chars)`);
       return { text, transcriptPath };
     } catch (err) {
       logger.warn(`[OpenWhispr] Audio transcription failed: ${err}`);

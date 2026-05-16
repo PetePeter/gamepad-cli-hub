@@ -424,8 +424,11 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
   }
 
   private createConfiguredTranscriber(): AudioTranscriber | null {
-    const config = this.configLoader.getTelegramConfig?.();
-    if (!config?.openWhisprPath) return null;
+    const config = this.configLoader.getTelegramConfig();
+    if (!config.openWhisprPath) {
+      logger.warn('[TelegramRelay] Audio transcription skipped: openWhisprPath is not configured');
+      return null;
+    }
     return new OpenWhisprTranscriber({
       openWhisprPath: config.openWhisprPath,
       modelPath: config.openWhisprModelPath,

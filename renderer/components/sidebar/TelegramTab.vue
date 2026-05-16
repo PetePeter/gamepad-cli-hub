@@ -3,6 +3,7 @@
  * TelegramTab.vue — Telegram bot configuration (connection, security, notifications).
  */
 import { ref, watch } from 'vue';
+import { dialogClient } from '../../ipc/clients.js';
 
 export interface TelegramConfig {
   botToken: string;
@@ -49,6 +50,16 @@ function debouncedEmit(field: string, value: string): void {
 function immediateEmit(field: string, value: string): void {
   if (saveTimer) clearTimeout(saveTimer);
   emit('updateField', field, value);
+}
+
+async function browseOpenWhisprPath(): Promise<void> {
+  const selected = await dialogClient.dialogOpenFolder();
+  if (selected) {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = null;
+    openWhisprPath.value = selected;
+    emit('updateField', 'openWhisprPath', selected);
+  }
 }
 </script>
 
@@ -134,13 +145,16 @@ function immediateEmit(field: string, value: string): void {
       <h4>Audio</h4>
       <label class="telegram-field">
         OpenWhispr Path
-        <input
-          v-model="openWhisprPath"
-          type="text"
-          placeholder="C:\\Program Files\\OpenWhispr"
-          @input="debouncedEmit('openWhisprPath', openWhisprPath)"
-          @blur="immediateEmit('openWhisprPath', openWhisprPath)"
-        />
+        <div class="telegram-path-row">
+          <input
+            v-model="openWhisprPath"
+            type="text"
+            placeholder="C:\\Program Files\\OpenWhispr"
+            @input="debouncedEmit('openWhisprPath', openWhisprPath)"
+            @blur="immediateEmit('openWhisprPath', openWhisprPath)"
+          />
+          <button class="telegram-browse-btn" type="button" @click="browseOpenWhisprPath">📂</button>
+        </div>
       </label>
     </section>
 
@@ -196,5 +210,32 @@ function immediateEmit(field: string, value: string): void {
   padding: 0.1em 0.3em;
   border-radius: 3px;
   font-size: inherit;
+}
+
+.telegram-path-row {
+  display: flex;
+  gap: var(--spacing-xs);
+  align-items: center;
+}
+
+.telegram-path-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.telegram-browse-btn {
+  flex-shrink: 0;
+  padding: 0 var(--spacing-xs);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  line-height: 1;
+  height: 100%;
+}
+
+.telegram-browse-btn:hover {
+  background: var(--bg-hover);
 }
 </style>

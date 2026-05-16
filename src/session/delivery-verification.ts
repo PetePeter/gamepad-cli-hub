@@ -40,6 +40,9 @@ interface VerificationSnapshot {
 
 const DEFAULT_VERIFY_DELAY_MS = 4000;
 const VERIFY_TAIL_LINES = 25;
+// Sessions with output within this window before delivery are considered "already active".
+// In that case, output advancing after delivery is not proof the text was received as a new turn.
+const SESSION_ACTIVE_THRESHOLD_MS = 3000;
 
 export function captureDeliverySnapshot(request: Pick<DeliveryVerificationRequest, 'sessionId' | 'ptyManager'>): VerificationSnapshot | null {
   if (typeof request.ptyManager.getTerminalTail !== 'function') return null;
@@ -98,8 +101,13 @@ function classifyDelivery(
   const deliveredTextAtTail = snippets.some((snippet) => isSnippetNearTail(after.text, snippet));
   const outputAdvanced = typeof after.lastOutputAt === 'number' && after.lastOutputAt >= deliveredAt;
   const tailChanged = before ? after.text !== before.text : after.text.trim().length > 0;
+  const sessionWasAlreadyActive = typeof before?.lastOutputAt === 'number'
+    && (deliveredAt - before.lastOutputAt) < SESSION_ACTIVE_THRESHOLD_MS;
 
   if ((outputAdvanced || tailChanged) && (!containsDeliveredText || hadSnippetBefore)) {
+    if (sessionWasAlreadyActive && !hadSnippetBefore && !retryAttempted) {
+      return makeResult(request, 'no_signal', 'session was already active; delivered text never confirmed in tail', retryAttempted, delayMs);
+    }
     return makeResult(request, 'confirmed', 'terminal output advanced after delivery', retryAttempted, delayMs);
   }
 
