@@ -19,9 +19,15 @@ import type { ConfigLoader } from '../config/loader.js';
 import type { HelmControlService } from '../mcp/helm-control-service.js';
 import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js';
 import type { DeliveryVerificationResult } from '../session/delivery-verification.js';
+import {
+  buildLargeTextTempFileNotice,
+  shouldSendLargeTextAsTempFile,
+  writeLargeTextTempFile,
+} from '../session/large-text-temp-file.js';
 import { decodeBase64Strict } from '../utils/base64.js';
 import { escapeHtml, formatAgentMessageForTelegram } from './utils.js';
 import { OpenWhisprTranscriber, type AudioTranscriber, type AudioTranscriptionResult } from './openwhispr-transcriber.js';
+import type { SessionInfo } from '../types/session.js';
 import type {
   TelegramBridge,
   TelegramChannel,
@@ -190,11 +196,11 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
 
     const from = msg.from?.username ? `@${msg.from.username}` : 'unknown';
     const chatId = msg.chat.id;
-    const wrapped = wrapTelegramEnvelope(msg.text, from, chatId);
 
     // Find session by topic mapping
     const session = this.topicManager.findSessionByTopicId(topicId);
     if (session) {
+      const wrapped = wrapTelegramEnvelope(this.resolveTelegramTextPayload(session, msg.text), from, chatId);
       // Set channel affinity and inject first-contact instructions
       let text = wrapped;
       if (session.interactionChannel !== 'telegram') {
@@ -221,6 +227,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     // Fall back to active session
     const active = this.sessionManager.getActiveSession();
     if (active) {
+      const wrapped = wrapTelegramEnvelope(this.resolveTelegramTextPayload(active, msg.text), from, chatId);
       const verification = await deliverPromptSequenceToSession({
         sessionId: active.id,
         text: wrapped,
@@ -239,6 +246,16 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     }
 
     return false;
+  }
+
+  private resolveTelegramTextPayload(session: SessionInfo, text: string): string {
+    const cliEntry = this.configLoader.getCliTypeEntry(session.cliType);
+    if (!shouldSendLargeTextAsTempFile(cliEntry?.largeTextAsTempFile, text)) {
+      return text;
+    }
+    const tempPath = writeLargeTextTempFile(text, 'telegram-message');
+    logger.info(`[TelegramRelay] Wrote large Telegram message to temp file for ${session.id}: ${tempPath}`);
+    return buildLargeTextTempFileNotice(tempPath, 'Telegram message');
   }
 
   /**

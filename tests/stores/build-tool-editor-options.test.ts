@@ -95,6 +95,12 @@ describe('buildToolEditorOptions', () => {
     expect(buildToolEditorOptions({ helmPreambleForInterSession: false }).helmPreambleForInterSession).toBe(false);
   });
 
+  it('sets largeTextAsTempFile as boolean', () => {
+    expect(buildToolEditorOptions({}).largeTextAsTempFile).toBe(false);
+    expect(buildToolEditorOptions({ largeTextAsTempFile: true }).largeTextAsTempFile).toBe(true);
+    expect(buildToolEditorOptions({ largeTextAsTempFile: false }).largeTextAsTempFile).toBe(false);
+  });
+
   it('defaults submitSuffix to \\r when absent or non-string', () => {
     expect(buildToolEditorOptions({}).submitSuffix).toBe('\\r');
     expect(buildToolEditorOptions({ submitSuffix: undefined }).submitSuffix).toBe('\\r');
@@ -121,6 +127,7 @@ describe('buildToolEditorOptions', () => {
       env: [{ name: 'API_KEY', value: 'secret', mode: 'append' }],
       helmInitialPrompt: true,
       helmPreambleForInterSession: false,
+      largeTextAsTempFile: true,
       pasteMode: 'sendkeysindividual',
       submitSuffix: '\\r',
     };
@@ -134,6 +141,7 @@ describe('buildToolEditorOptions', () => {
       env: [{ name: 'API_KEY', value: 'secret', mode: 'append' }],
       helmInitialPrompt: true,
       helmPreambleForInterSession: false,
+      largeTextAsTempFile: true,
       pasteMode: 'sendkeysindividual',
       submitSuffix: '\\r',
     });

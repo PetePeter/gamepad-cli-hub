@@ -5,6 +5,11 @@ import type { PtyManager } from '../../session/pty-manager.js';
 import type { SessionInfo } from '../../types/session.js';
 import { deliverPromptSequenceToSession } from '../../session/sequence-delivery.js';
 import type { DeliveryVerificationResult } from '../../session/delivery-verification.js';
+import {
+  buildLargeTextTempFileNotice,
+  shouldSendLargeTextAsTempFile,
+  writeLargeTextTempFile,
+} from '../../session/large-text-temp-file.js';
 
 const DEFAULT_DELIVERY_VERIFY_DELAY_MS = 4000;
 
@@ -34,7 +39,7 @@ export class HelmSessionDeliveryService {
     sessionRef: string,
     text: string,
     options?: { senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean },
-  ): Promise<{ success: true; sessionId: string; name: string; preambleUsed: boolean; deliveryVerification?: DeliveryVerificationResult }> {
+  ): Promise<{ success: true; sessionId: string; name: string; preambleUsed: boolean; tempFilePath?: string; deliveryVerification?: DeliveryVerificationResult }> {
     const session = this.findSession(sessionRef);
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);
@@ -52,6 +57,13 @@ export class HelmSessionDeliveryService {
     // Determine if recipient wants the Helm preamble
     const recipientEntry = this.configLoader.getCliTypeEntry(session.cliType);
     const usePreamble = recipientEntry?.helmPreambleForInterSession ?? true;
+    let deliveryText = text;
+    let tempFilePath: string | undefined;
+    if (shouldSendLargeTextAsTempFile(recipientEntry?.largeTextAsTempFile, text)) {
+      tempFilePath = writeLargeTextTempFile(text, 'session-send-text');
+      deliveryText = buildLargeTextTempFileNotice(tempFilePath, 'session_send_text payload');
+      logger.info(`[HelmSessionDelivery] Wrote large session_send_text payload to temp file for ${session.id}: ${tempFilePath}`);
+    }
 
     let deliveryVerification: DeliveryVerificationResult | undefined;
 
@@ -72,7 +84,7 @@ export class HelmSessionDeliveryService {
       // Envelope JSON braces will be smart-escaped by escapeUnrecognizedBraces
       // (unrecognized brace groups get {{/}}), while user text tokens like {Send}
       // are preserved since they are recognized tokens.
-      const message = `${tag}${envelope}{Wait 80}${text}`;
+      const message = `${tag}${envelope}{Wait 80}${deliveryText}`;
 
       deliveryVerification = await deliverPromptSequenceToSession({
         sessionId: session.id,
@@ -90,7 +102,7 @@ export class HelmSessionDeliveryService {
       // Send plain text only — no envelope. Smart escaping handles both tokens and literals.
       deliveryVerification = await deliverPromptSequenceToSession({
         sessionId: session.id,
-        text,
+        text: deliveryText,
         ptyManager: this.ptyManager,
         sessionManager: this.sessionManager,
         configLoader: this.configLoader,
@@ -111,6 +123,7 @@ export class HelmSessionDeliveryService {
       sessionId: session.id,
       name: session.name,
       preambleUsed: usePreamble,
+      ...(tempFilePath ? { tempFilePath } : {}),
       ...(deliveryVerification ? { deliveryVerification } : {}),
     };
   }

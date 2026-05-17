@@ -4,6 +4,9 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { HelmSessionDeliveryService } from '../src/mcp/services/helm-session-delivery-service.js';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
@@ -17,7 +20,7 @@ function makeSession(overrides?: Partial<{ id: string; name: string; cliType: st
   };
 }
 
-function makeDeps(opts?: { helmPreambleForInterSession?: boolean; receiverSession?: ReturnType<typeof makeSession> }) {
+function makeDeps(opts?: { helmPreambleForInterSession?: boolean; largeTextAsTempFile?: boolean; receiverSession?: ReturnType<typeof makeSession> }) {
   const receiver = opts?.receiverSession ?? makeSession();
   const sender = makeSession({ id: 'sender-session', name: 'SenderSession' });
 
@@ -41,6 +44,7 @@ function makeDeps(opts?: { helmPreambleForInterSession?: boolean; receiverSessio
   const configLoader = {
     getCliTypeEntry: vi.fn(() => ({
       helmPreambleForInterSession: opts?.helmPreambleForInterSession ?? true,
+      largeTextAsTempFile: opts?.largeTextAsTempFile,
       submitSuffix: '\\r',
     })),
   };
@@ -118,6 +122,40 @@ describe('HelmSessionDeliveryService', () => {
       const sent = getSentText(ptyManager);
       expect(sent).toBe('plain message');
       expect(sent).not.toContain('[HELM_MSG]');
+    });
+  });
+
+  describe('large text temp file handoff', () => {
+    it('writes large session_send_text payloads to a temp file when enabled', async () => {
+      const oldThreshold = process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD;
+      const oldAppData = process.env.APPDATA;
+      const oldHome = process.env.HOME;
+      const tempHome = mkdtempSync(join(tmpdir(), 'helm-large-text-'));
+      process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD = '10';
+      process.env.APPDATA = tempHome;
+      process.env.HOME = tempHome;
+
+      try {
+        const { service, ptyManager, receiver, sender } = makeDeps({ largeTextAsTempFile: true });
+        const result = await service.sendTextToSession(receiver.id, 'this is a large payload', {
+          senderSessionId: sender.id,
+          senderSessionName: sender.name,
+        });
+
+        expect(result.tempFilePath).toContain('helm-large-text-session-send-text');
+        expect(readFileSync(result.tempFilePath!, 'utf8')).toBe('this is a large payload');
+        const noticeCall = ptyManager.deliverText.mock.calls.find((c: any[]) => String(c[1]).includes('Read the full file at:'));
+        expect(noticeCall?.[1]).toContain(result.tempFilePath);
+        expect(noticeCall?.[1]).not.toContain('this is a large payload');
+      } finally {
+        if (oldThreshold === undefined) delete process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD;
+        else process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD = oldThreshold;
+        if (oldAppData === undefined) delete process.env.APPDATA;
+        else process.env.APPDATA = oldAppData;
+        if (oldHome === undefined) delete process.env.HOME;
+        else process.env.HOME = oldHome;
+        rmSync(tempHome, { recursive: true, force: true });
+      }
     });
   });
 });

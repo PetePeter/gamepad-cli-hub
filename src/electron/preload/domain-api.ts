@@ -455,7 +455,10 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
       resumeCommand?: string;
       continueCommand?: string;
       helmInitialPrompt?: boolean;
+      helmPreambleForInterSession?: boolean;
+      largeTextAsTempFile?: boolean;
       pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
+      submitSuffix?: string;
     },
   ) => ipcRenderer.invoke('tools:addCliType', key, name, initialPrompt, initialPromptDelay, options),
   toolsUpdateCliType: (
@@ -469,7 +472,10 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
       resumeCommand?: string;
       continueCommand?: string;
       helmInitialPrompt?: boolean;
+      helmPreambleForInterSession?: boolean;
+      largeTextAsTempFile?: boolean;
       pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
+      submitSuffix?: string;
     },
   ) => ipcRenderer.invoke('tools:updateCliType', key, name, initialPrompt, initialPromptDelay, options),
   toolsRemoveCliType: (key: string) => ipcRenderer.invoke('tools:removeCliType', key),

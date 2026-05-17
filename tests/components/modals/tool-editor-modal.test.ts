@@ -22,6 +22,9 @@ interface ToolEditorData {
   renameCommand: string;
   handoffCommand: string;
   helmInitialPrompt: boolean;
+  helmPreambleForInterSession?: boolean;
+  largeTextAsTempFile: boolean;
+  submitSuffix: string;
   initialPrompt: Array<{ label: string; sequence: string }>;
 }
 
@@ -36,6 +39,9 @@ const DEFAULT_DATA: ToolEditorData = {
   renameCommand: '',
   handoffCommand: '',
   helmInitialPrompt: false,
+  helmPreambleForInterSession: true,
+  largeTextAsTempFile: false,
+  submitSuffix: '\\r',
   initialPrompt: [],
 };
 
@@ -145,6 +151,7 @@ describe('ToolEditorModal.vue', () => {
         initialPromptDelay: 3000,
         pasteMode: 'sendkeys',
         helmInitialPrompt: true,
+        largeTextAsTempFile: true,
         initialPrompt: [{ label: 'greet', sequence: 'hello' }],
       },
     });
@@ -160,6 +167,7 @@ describe('ToolEditorModal.vue', () => {
     expect(values.initialPromptDelay).toBe(3000);
     expect(values.pasteMode).toBe('sendkeys');
     expect(values.helmInitialPrompt).toBe(true);
+    expect(values.largeTextAsTempFile).toBe(true);
     expect(values._promptItems).toEqual([{ label: 'greet', sequence: 'hello' }]);
     w.unmount();
   });
@@ -193,6 +201,23 @@ describe('ToolEditorModal.vue', () => {
 
     const values = w.emitted('save')![0][0] as Record<string, unknown>;
     expect(values.helmInitialPrompt).toBe(false);
+    w.unmount();
+  });
+
+  it('round-trips the large text temp file checkbox', async () => {
+    const w = factory({
+      initialData: { ...DEFAULT_DATA, largeTextAsTempFile: true },
+    });
+    const checkbox = w.findAll('.te-checkbox-row input')[1];
+    expect((checkbox.element as HTMLInputElement).checked).toBe(true);
+
+    await checkbox.setValue(false);
+    const saveBtn = w.findAll('button').find(b => b.text() === 'Save')!;
+    await saveBtn.trigger('click');
+    await flushPromises();
+
+    const values = w.emitted('save')![0][0] as Record<string, unknown>;
+    expect(values.largeTextAsTempFile).toBe(false);
     w.unmount();
   });
 

@@ -21,6 +21,7 @@ export type CliTypeOptions = {
   continueCommand?: string;
   helmInitialPrompt?: boolean;
   helmPreambleForInterSession?: boolean;
+  largeTextAsTempFile?: boolean;
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
   submitSuffix?: string;
 };

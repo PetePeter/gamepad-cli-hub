@@ -113,6 +113,8 @@ export interface CliTypeConfig {
   helmInitialPrompt?: boolean;
   /** Send [HELM_MSG] envelope when another Helm session sends text to this recipient. Default: true. When false, plain text only. */
   helmPreambleForInterSession?: boolean;
+  /** For large session_send_text MCP handoffs, write the payload to a temp file and paste instructions with the path instead. */
+  largeTextAsTempFile?: boolean;
   /** Named sequence groups — accessible via gamepad bindings and context menu */
   sequences?: Record<string, SequenceListItem[]>;
   /** Command written to PTY on pipeline handoff. If omitted, no command is sent. */
@@ -888,6 +890,7 @@ export class ConfigLoader {
     if (options?.continueCommand) tool.continueCommand = options.continueCommand;
     if (options?.helmInitialPrompt !== undefined) tool.helmInitialPrompt = options.helmInitialPrompt;
     if (options?.helmPreambleForInterSession !== undefined) tool.helmPreambleForInterSession = options.helmPreambleForInterSession;
+    if (options?.largeTextAsTempFile === true) tool.largeTextAsTempFile = true;
     if (options?.pasteMode) tool.pasteMode = options.pasteMode;
     this.activeProfile!.tools[key] = tool;
     this.saveActiveProfile();
@@ -941,6 +944,13 @@ export class ConfigLoader {
           delete (existing as any).helmPreambleForInterSession;  // omit default from YAML
         } else {
           existing.helmPreambleForInterSession = false;
+        }
+      }
+      if (options.largeTextAsTempFile !== undefined) {
+        if (options.largeTextAsTempFile === false) {
+          delete (existing as any).largeTextAsTempFile;  // omit default from YAML
+        } else {
+          existing.largeTextAsTempFile = true;
         }
       }
     }

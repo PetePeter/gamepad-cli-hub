@@ -16,6 +16,11 @@ import type { SessionManager } from '../session/manager.js';
 import type { TelegramRelayService } from './relay-service.js';
 import type { ConfigLoader } from '../config/loader.js';
 import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js';
+import {
+  buildLargeTextTempFileNotice,
+  shouldSendLargeTextAsTempFile,
+  writeLargeTextTempFile,
+} from '../session/large-text-temp-file.js';
 import { escapeHtml } from './utils.js';
 import { logger } from '../utils/logger.js';
 
@@ -89,8 +94,16 @@ async function forwardToSession(
 ): Promise<void> {
   const from = msg.from?.username ? `@${msg.from.username}` : 'unknown';
   const fromTag = from === 'unknown' ? '' : ` from:${from}`;
-  const wrapped = `[HELM_TELEGRAM${fromTag} chat:${msg.chat.id}]\n${text}\n[/HELM_TELEGRAM]\nRespond via telegram_chat MCP tool.`;
   if (!sessionManager) throw new Error('SessionManager is required for Telegram prompt delivery');
+  const session = sessionManager.getSession(sessionId);
+  const cliEntry = session ? configLoader.getCliTypeEntry(session.cliType) : undefined;
+  let payload = text;
+  if (shouldSendLargeTextAsTempFile(cliEntry?.largeTextAsTempFile, text)) {
+    const tempPath = writeLargeTextTempFile(text, 'telegram-message');
+    payload = buildLargeTextTempFileNotice(tempPath, 'Telegram message');
+    logger.info(`[TopicInput] Wrote large Telegram message to temp file for ${sessionId}: ${tempPath}`);
+  }
+  const wrapped = `[HELM_TELEGRAM${fromTag} chat:${msg.chat.id}]\n${payload}\n[/HELM_TELEGRAM]\nRespond via telegram_chat MCP tool.`;
   await deliverPromptSequenceToSession({
     sessionId,
     text: wrapped,

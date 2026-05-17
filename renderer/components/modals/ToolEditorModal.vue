@@ -42,6 +42,7 @@ export interface ToolEditorData {
   handoffCommand: string;
   helmInitialPrompt: boolean;
   helmPreambleForInterSession?: boolean;
+  largeTextAsTempFile: boolean;
   submitSuffix: string;
   initialPrompt: Array<{ label: string; sequence: string }>;
 }
@@ -66,6 +67,7 @@ const emit = defineEmits<{
     handoffCommand: string;
     helmInitialPrompt: boolean;
     helmPreambleForInterSession?: boolean;
+    largeTextAsTempFile: boolean;
     submitSuffix: string;
     _promptItems: Array<{ label: string; sequence: string }>;
   }): void;
@@ -85,6 +87,7 @@ const renameCommand = ref('');
 const handoffCommand = ref('');
 const helmInitialPrompt = ref(false);
 const helmPreambleForInterSession = ref(true);
+const largeTextAsTempFile = ref(false);
 const submitSuffix = ref<SubmitSuffixOption>('\\r');
 
 interface SeqItem { label: string; sequence: string }
@@ -140,6 +143,7 @@ function initForm(): void {
   handoffCommand.value = d.handoffCommand ?? '';
   helmInitialPrompt.value = Boolean(d.helmInitialPrompt);
   helmPreambleForInterSession.value = d.helmPreambleForInterSession !== false;
+  largeTextAsTempFile.value = Boolean(d.largeTextAsTempFile);
   submitSuffix.value = normalizeSubmitSuffix(d.submitSuffix);
   promptItems.value = Array.isArray(d.initialPrompt)
     ? d.initialPrompt.map(item => ({
@@ -182,6 +186,7 @@ function onSave(): void {
     handoffCommand: handoffCommand.value,
     helmInitialPrompt: helmInitialPrompt.value,
     ...(helmPreambleForInterSession.value !== true ? { helmPreambleForInterSession: helmPreambleForInterSession.value } : {}),
+    largeTextAsTempFile: largeTextAsTempFile.value,
     submitSuffix: submitSuffix.value,
     _promptItems: promptItems.value.map(i => ({ label: i.label, sequence: i.sequence })),
   });
@@ -290,6 +295,8 @@ defineExpose({ handleButton });
             </div>
             <label class="te-checkbox-row"><input v-model="helmPreambleForInterSession" type="checkbox" /><span>Use Helm preamble for inter-session messages</span></label>
             <p class="te-section__hint">When enabled (default), inter-session messages are wrapped in a [HELM_MSG] envelope. When disabled, plain text only.</p>
+            <label class="te-checkbox-row"><input v-model="largeTextAsTempFile" type="checkbox" /><span>Send large Helm MCP messages as temp file paths</span></label>
+            <p class="te-section__hint">When enabled, large session_send_text payloads are written to a temp file and the recipient gets the file path plus reading instructions.</p>
           </fieldset>
 
           <fieldset class="te-section te-section--prompts">

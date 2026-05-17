@@ -358,6 +358,7 @@ export function useSettingsController(options: {
       handoffCommand: '',
       helmInitialPrompt: false,
       helmPreambleForInterSession: true,
+      largeTextAsTempFile: false,
       submitSuffix: '\\r',
       initialPrompt: [],
     };
@@ -413,6 +414,7 @@ export function useSettingsController(options: {
         handoffCommand: value.handoffCommand || '',
         helmInitialPrompt: Boolean(value.helmInitialPrompt),
         helmPreambleForInterSession: value.helmPreambleForInterSession !== false,
+        largeTextAsTempFile: Boolean(value.largeTextAsTempFile),
         submitSuffix: value.submitSuffix ?? '\\r',
         initialPrompt: Array.isArray(value.initialPrompt)
           ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))

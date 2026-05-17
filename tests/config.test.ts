@@ -896,6 +896,15 @@ describe('ConfigLoader', () => {
       });
     });
 
+    it('addCliType stores largeTextAsTempFile when enabled', () => {
+      loader.load();
+      loader.addCliType('large-tool', 'Large Tool', [], 0, {
+        largeTextAsTempFile: true,
+      });
+      const entry = loader.getCliTypeEntry('large-tool')!;
+      expect(entry.largeTextAsTempFile).toBe(true);
+    });
+
     it('updateCliType with spawnCommand stores the full launch template', () => {
       loader.load();
       loader.updateCliType('claude-code', 'CC', [], 0, {
@@ -903,6 +912,19 @@ describe('ConfigLoader', () => {
       });
       const entry = loader.getCliTypeEntry('claude-code')!;
       expect(entry.spawnCommand).toBe('cc --debug --timeout 30');
+    });
+
+    it('updateCliType toggles largeTextAsTempFile and omits the false default', () => {
+      loader.load();
+      loader.updateCliType('claude-code', 'CC', [], 0, {
+        largeTextAsTempFile: true,
+      });
+      expect(loader.getCliTypeEntry('claude-code')!.largeTextAsTempFile).toBe(true);
+
+      loader.updateCliType('claude-code', 'CC', [], 0, {
+        largeTextAsTempFile: false,
+      });
+      expect(loader.getCliTypeEntry('claude-code')!.largeTextAsTempFile).toBeUndefined();
     });
 
     it('addCliType with env stores environment variable entries', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TelegramRelayService } from '../src/telegram/relay-service.js';
-import { closeSync, mkdtempSync, openSync, rmSync } from 'fs';
+import { closeSync, mkdtempSync, openSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 
@@ -48,7 +48,7 @@ function makeRelay() {
     configLoader as any,
     helmControl as any,
   );
-  return { relay, bot, topicManager, sessionManager, ptyManager };
+  return { relay, bot, topicManager, sessionManager, ptyManager, configLoader };
 }
 
 function tempAttachmentPath(fileName: string): string {
@@ -114,6 +114,45 @@ describe('TelegramRelayService', () => {
     expect(consumed).toBe(true);
     expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM from:@someone'));
     expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('Respond via telegram_chat MCP tool.'));
+  });
+
+  it('writes large Telegram messages to a temp file when the target CLI enables it', async () => {
+    const oldThreshold = process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD;
+    const oldAppData = process.env.APPDATA;
+    const oldHome = process.env.HOME;
+    const tempHome = mkdtempSync(path.join(tmpdir(), 'helm-telegram-large-'));
+    process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD = '10';
+    process.env.APPDATA = tempHome;
+    process.env.HOME = tempHome;
+
+    try {
+      const { relay, ptyManager, configLoader } = makeRelay();
+      configLoader.getCliTypeEntry.mockReturnValue({ submitSuffix: '\\r', largeTextAsTempFile: true });
+
+      const consumed = await relay.handleIncomingTelegramMessage({
+        message_id: 80,
+        message_thread_id: 42,
+        text: 'large telegram instruction',
+        chat: { id: 12345 },
+        from: { username: 'testuser' },
+      } as any);
+
+      expect(consumed).toBe(true);
+      const noticeCall = ptyManager.deliverText.mock.calls.find((c: any[]) => String(c[1]).includes('Read the full file at:'));
+      const notice = String(noticeCall?.[1] ?? '');
+      const pathMatch = notice.match(/Read the full file at: (.+)$/m);
+      expect(pathMatch).toBeTruthy();
+      expect(readFileSync(pathMatch![1], 'utf8')).toBe('large telegram instruction');
+      expect(notice).not.toContain('large telegram instruction');
+    } finally {
+      if (oldThreshold === undefined) delete process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD;
+      else process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD = oldThreshold;
+      if (oldAppData === undefined) delete process.env.APPDATA;
+      else process.env.APPDATA = oldAppData;
+      if (oldHome === undefined) delete process.env.HOME;
+      else process.env.HOME = oldHome;
+      rmSync(tempHome, { recursive: true, force: true });
+    }
   });
 
   it('handleIncomingTelegramMessage() omits from tag when username is missing', async () => {

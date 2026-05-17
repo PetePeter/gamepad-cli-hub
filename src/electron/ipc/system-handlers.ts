@@ -91,7 +91,7 @@ export function setupSystemHandlers(dirname: string): void {
 }
 
 /**
- * Clean up stale temp files (helm-work-* and helm-prompt-*) from previous sessions.
+ * Clean up stale temp files (helm-work-*, helm-prompt-*, and helm-large-text-*) from previous sessions.
  * Called on startup to prevent accumulation. Best-effort — errors are logged but not fatal.
  */
 export function cleanupWorkTempFiles(dirname: string): void {
@@ -100,7 +100,7 @@ export function cleanupWorkTempFiles(dirname: string): void {
     if (!fs.existsSync(tmpDir)) return;
     const files = fs.readdirSync(tmpDir);
     for (const file of files) {
-      if (file.startsWith('helm-work-') || file.startsWith('helm-prompt-')) {
+      if (file.startsWith('helm-work-') || file.startsWith('helm-prompt-') || file.startsWith('helm-large-text-')) {
         const filePath = path.join(tmpDir, file);
         try {
           fs.unlinkSync(filePath);
