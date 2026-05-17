@@ -147,15 +147,16 @@ function formatTime(ts?: number): string {
 
 .carousel-nav {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
 }
 
 .nav-arrow-slot {
   flex: 0 0 auto;
+  height: 24px;
   display: flex;
-  align-items: flex-start;
-  padding-top: 2px;
+  align-items: center;
+  justify-content: center;
 }
 
 .nav-arrow {
