@@ -130,6 +130,9 @@ async function routeCallback(
     case 'status':
       await handleStatus(bot, sessionManager, query);
       break;
+    case 'close_session':
+      await handleCloseSession(bot, sessionManager, ptyManager, draftManager, payload, query);
+      break;
     case 'closeall':
       await handleCloseAll(bot, sessionManager, ptyManager, draftManager, query);
       break;
@@ -536,6 +539,31 @@ async function handleStatus(
     });
   }
   await bot.answerCallback(query.id);
+}
+
+// ---------------------------------------------------------------------------
+// Close Session (single, topic-scoped)
+// ---------------------------------------------------------------------------
+
+async function handleCloseSession(
+  bot: TelegramBotCore,
+  sessionManager: SessionManager,
+  ptyManager: PtyManager,
+  draftManager: { clearSession(sessionId: string): void } | undefined,
+  sessionId: string,
+  query: TelegramBot.CallbackQuery,
+): Promise<void> {
+  const session = sessionManager.getSession(sessionId);
+  if (!session) {
+    await bot.answerCallback(query.id, '❌ Session not found');
+    return;
+  }
+  await bot.answerCallback(query.id, `🔴 Closing ${session.name}…`);
+  ptyManager.kill(sessionId);
+  if (sessionManager.hasSession(sessionId)) {
+    sessionManager.removeSession(sessionId);
+  }
+  draftManager?.clearSession(sessionId);
 }
 
 // ---------------------------------------------------------------------------

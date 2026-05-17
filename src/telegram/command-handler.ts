@@ -8,6 +8,7 @@ import type TelegramBot from 'node-telegram-bot-api';
 import type { TelegramBotCore } from './bot.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
+import type { TopicManager } from './topic-manager.js';
 import path from 'path';
 import { cleanTerminalOutput, escapeHtml } from './utils.js';
 import { peekSessionPickerKeyboard, helpKeyboard, directoryListKeyboard } from './keyboards.js';
@@ -22,6 +23,7 @@ export const TELEGRAM_COMMANDS: ReadonlyArray<{ command: string; description: st
   { command: 'sessions', description: 'List and control active sessions' },
   { command: 'spawn', description: 'Create a new CLI session' },
   { command: 'status', description: 'Show status of all sessions' },
+  { command: 'close', description: 'Close the session linked to this topic' },
   { command: 'closeall', description: 'Close all active sessions' },
 ];
 
@@ -29,6 +31,7 @@ export function setupCommandHandler(
   bot: TelegramBotCore,
   sessionManager: SessionManager,
   ptyManager: PtyManager,
+  topicManager: TopicManager,
 ): () => void {
   const handlers: Array<() => void> = [];
 
@@ -45,11 +48,12 @@ export function setupCommandHandler(
     handlers.push(() => bot.removeListener(`command:${cmd}`, wrapper));
   };
 
-  registerCommandHandler('help', async (msg) => handleHelp(bot, sessionManager, msg));
+  registerCommandHandler('help', async (msg) => handleHelp(bot, sessionManager, topicManager, msg));
   registerCommandHandler('peek', async (msg, args) => handlePeek(bot, sessionManager, ptyManager, msg, args));
   registerCommandHandler('sessions', async (msg) => handleSessionsCommand(bot, sessionManager, msg));
   registerCommandHandler('spawn', async (msg) => handleSpawnCommand(bot, msg));
   registerCommandHandler('status', async (msg) => handleStatusCommand(bot, sessionManager, msg));
+  registerCommandHandler('close', async (msg) => handleClose(bot, sessionManager, ptyManager, topicManager, msg));
   registerCommandHandler('closeall', async (msg) => handleCloseAllCommand(bot, sessionManager, ptyManager, msg));
 
   return () => {
@@ -60,6 +64,7 @@ export function setupCommandHandler(
 async function handleHelp(
   bot: TelegramBotCore,
   sessionManager: SessionManager,
+  topicManager: TopicManager,
   msg: TelegramBot.Message,
 ): Promise<void> {
   const lines = [
@@ -71,7 +76,11 @@ async function handleHelp(
     '<i>📝 Send plain text in a session topic to forward it to that CLI.</i>',
   ];
 
-  const { keyboard } = helpKeyboard(sessionManager);
+  const topicSession = msg.message_thread_id
+    ? topicManager.findSessionByTopicId(msg.message_thread_id) ?? undefined
+    : undefined;
+
+  const { keyboard } = helpKeyboard(sessionManager, topicSession?.id);
 
   await bot.sendMessage(lines.join('\n'), {
     message_thread_id: msg.message_thread_id,
@@ -142,6 +151,36 @@ async function handleStatusCommand(
     message_thread_id: msg.message_thread_id,
     parse_mode: 'HTML',
   });
+}
+
+async function handleClose(
+  bot: TelegramBotCore,
+  sessionManager: SessionManager,
+  ptyManager: PtyManager,
+  topicManager: TopicManager,
+  msg: TelegramBot.Message,
+): Promise<void> {
+  const topicId = msg.message_thread_id;
+  if (!topicId) {
+    await bot.sendMessage('❌ Use /close inside a session topic.', { message_thread_id: topicId });
+    return;
+  }
+
+  const session = topicManager.findSessionByTopicId(topicId);
+  if (!session) {
+    await bot.sendMessage('❌ No session linked to this topic.', { message_thread_id: topicId });
+    return;
+  }
+
+  await bot.sendMessage(`🔴 Closing session <b>${escapeHtml(session.name)}</b>…`, {
+    message_thread_id: topicId,
+    parse_mode: 'HTML',
+  });
+
+  ptyManager.kill(session.id);
+  if (sessionManager.hasSession(session.id)) {
+    sessionManager.removeSession(session.id);
+  }
 }
 
 async function handleCloseAllCommand(

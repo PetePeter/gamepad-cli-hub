@@ -39,13 +39,17 @@ function makePtyManager(tail: string[]): PtyManager {
   } as unknown as PtyManager;
 }
 
+function makeTopicManager() {
+  return { findSessionByTopicId: vi.fn(() => null) } as any;
+}
+
 describe('setupCommandHandler', () => {
   it('registers a command:peek listener on the bot', () => {
     const { bot } = makeBot();
     const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
     const pm = {} as unknown as PtyManager;
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     expect(bot.on).toHaveBeenCalledWith('command:peek', expect.any(Function));
   });
@@ -55,7 +59,7 @@ describe('setupCommandHandler', () => {
     const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
     const pm = {} as unknown as PtyManager;
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     expect(bot.on).toHaveBeenCalledWith('command:help', expect.any(Function));
   });
@@ -65,7 +69,7 @@ describe('setupCommandHandler', () => {
     const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
     const pm = {} as unknown as PtyManager;
 
-    const cleanup = setupCommandHandler(bot, sm, pm);
+    const cleanup = setupCommandHandler(bot, sm, pm, makeTopicManager());
     cleanup();
 
     expect(bot.removeListener).toHaveBeenCalledWith('command:help', expect.any(Function));
@@ -79,7 +83,7 @@ describe('command:help handler', () => {
     const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
     const pm = {} as unknown as PtyManager;
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     const helpHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
       (c) => c[0] === 'command:help',
@@ -113,7 +117,7 @@ describe('command:peek handler', () => {
     const sm = { getAllSessions: vi.fn(() => sessions) } as unknown as SessionManager;
     const pm = makePtyManager(['line 1', 'line 2', 'line 3']);
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     // Get the registered handler
     const peekHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
@@ -136,7 +140,7 @@ describe('command:peek handler', () => {
     const sm = { getAllSessions: vi.fn(() => sessions) } as unknown as SessionManager;
     const pm = makePtyManager([]);
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     const peekHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
       (c) => c[0] === 'command:peek',
@@ -155,7 +159,7 @@ describe('command:peek handler', () => {
     const sm = { getAllSessions: vi.fn(() => sessions) } as unknown as SessionManager;
     const pm = makePtyManager(['output line']);
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     const peekHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
       (c) => c[0] === 'command:peek',
@@ -174,7 +178,7 @@ describe('command:peek handler', () => {
     const sm = { getAllSessions: vi.fn(() => sessions) } as unknown as SessionManager;
     const pm = makePtyManager([]);
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     const peekHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
       (c) => c[0] === 'command:peek',
@@ -190,7 +194,7 @@ describe('command:peek handler', () => {
     const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
     const pm = {} as unknown as PtyManager;
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     const peekHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
       (c) => c[0] === 'command:peek',
@@ -209,7 +213,7 @@ describe('command:sessions handler', () => {
     const sm = { getAllSessions: vi.fn(() => sessions) } as unknown as SessionManager;
     const pm = {} as unknown as PtyManager;
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     const sessionsHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
       (c) => c[0] === 'command:sessions',
@@ -230,7 +234,7 @@ describe('command:sessions handler', () => {
     const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
     const pm = {} as unknown as PtyManager;
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     const sessionsHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
       (c) => c[0] === 'command:sessions',
@@ -248,7 +252,7 @@ describe('command:spawn handler', () => {
     const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
     const pm = {} as unknown as PtyManager;
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     const spawnHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
       (c) => c[0] === 'command:spawn',
@@ -269,7 +273,7 @@ describe('command:status handler', () => {
     const sm = { getAllSessions: vi.fn(() => sessions) } as unknown as SessionManager;
     const pm = {} as unknown as PtyManager;
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     const statusHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
       (c) => c[0] === 'command:status',
@@ -289,7 +293,7 @@ describe('command:status handler', () => {
     const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
     const pm = {} as unknown as PtyManager;
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     const statusHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
       (c) => c[0] === 'command:status',
@@ -308,7 +312,7 @@ describe('command:closeall handler', () => {
     const sm = { getAllSessions: vi.fn(() => sessions) } as unknown as SessionManager;
     const pm = {} as unknown as PtyManager;
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     const closeHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
       (c) => c[0] === 'command:closeall',
@@ -327,7 +331,7 @@ describe('command:closeall handler', () => {
     const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
     const pm = {} as unknown as PtyManager;
 
-    setupCommandHandler(bot, sm, pm);
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
 
     const closeHandler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
       (c) => c[0] === 'command:closeall',

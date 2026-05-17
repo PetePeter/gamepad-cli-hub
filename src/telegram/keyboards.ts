@@ -345,6 +345,7 @@ export function peekSessionPickerKeyboard(
  */
 export function helpKeyboard(
   sessionManager?: { getAllSessions(): SessionInfo[] },
+  closeSessionId?: string,
 ): { keyboard: TelegramBot.InlineKeyboardButton[][] } {
   const sessions = sessionManager?.getAllSessions() ?? [];
   const buttons: TelegramBot.InlineKeyboardButton[][] = [];
@@ -356,11 +357,18 @@ export function helpKeyboard(
     { text: '📊 Status', callback_data: 'status:all' },
   ]);
 
-  // Peek row (only if sessions exist)
+  // Peek + Close All row (only if sessions exist)
   if (sessions.length > 0) {
     buttons.push([
       { text: '📺 Peek', callback_data: 'peek:sessions' },
       { text: '🗑️ Close All', callback_data: 'closeall' },
+    ]);
+  }
+
+  // Close this session button (only when in a session topic)
+  if (closeSessionId) {
+    buttons.push([
+      { text: '🔴 Close Session', callback_data: `close_session:${closeSessionId}` },
     ]);
   }
 
