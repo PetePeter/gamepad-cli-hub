@@ -10,6 +10,10 @@ import { REQUIRED_PLAN_DESCRIPTION_SECTIONS } from './agent-plan-guide.js';
 export function getAvailableTools(): McpToolSummary[] {
   return [
     { name: 'tools_list', title: 'List CLI Types', description: 'List CLI types configured in Helm and the configured working directories they can be spawned into.' },
+    { name: 'skills_list', title: 'List Skills', description: 'List Helm skills, optionally filtered by projectId or dirPath. session_info returns skills applicable to the current session project.' },
+    { name: 'skills_get', title: 'Get Skill', description: 'Fetch a Helm skill by ID, including its body and project scope.' },
+    { name: 'skills_create', title: 'Create Skill', description: 'Create a Helm skill. Use allProjects=true or projectIds to control which projects receive it.' },
+    { name: 'skills_update', title: 'Update Skill', description: 'Update a Helm skill. Protected skills reject AI amendments unless aiAmendable is enabled.' },
     { name: 'plans_list', title: 'List Plans', description: 'List all plan items for a directory before editing or assigning work. Returned humanId values such as P-0035 are Helm plan IDs.' },
     { name: 'plans_summary', title: 'Plans Summary', description: 'List compact plan status, canonical IDs, human-readable P-ids, and dependency relationships before claiming work.' },
     { name: 'plan_get', title: 'Get Plan', description: 'Get full plan details before changing state, editing content, or asking about a plan, including lightweight sequenceContextMetadata when available. The id argument accepts either UUID or P-00xx humanId.' },

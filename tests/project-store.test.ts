@@ -82,6 +82,18 @@ describe('ProjectStore', () => {
     });
   });
 
+  describe('findByPath', () => {
+    it('finds records by canonical or alternate path without creating projects', () => {
+      const store = new ProjectStore(() => 'X:\\coding\\repo', projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+
+      expect(store.findByPath('X:\\coding\\repo')?.id).toBe(record.id);
+      expect(store.findByPath('X:\\coding\\worktree-b')?.id).toBe(record.id);
+      expect(store.findByPath('X:\\coding\\other')).toBeUndefined();
+    });
+  });
+
   describe('addDirectory', () => {
     it('adds a path to alternatePaths', () => {
       const store = new ProjectStore(() => 'X:\\coding\\repo', projectsFile);

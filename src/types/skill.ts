@@ -4,6 +4,8 @@ export interface Skill {
   description: string;
   body: string;
   aiAmendable: boolean;
+  allProjects: boolean;
+  projectIds: string[];
 }
 
 export interface SkillSummary {
@@ -11,6 +13,8 @@ export interface SkillSummary {
   name: string;
   description: string;
   aiAmendable: boolean;
+  allProjects: boolean;
+  projectIds: string[];
 }
 
 export interface SkillCreateInput {
@@ -18,6 +22,8 @@ export interface SkillCreateInput {
   description?: string;
   body?: string;
   aiAmendable?: boolean;
+  allProjects?: boolean;
+  projectIds?: string[];
 }
 
 export interface SkillUpdateInput {
@@ -25,4 +31,6 @@ export interface SkillUpdateInput {
   description?: string;
   body?: string;
   aiAmendable?: boolean;
+  allProjects?: boolean;
+  projectIds?: string[];
 }

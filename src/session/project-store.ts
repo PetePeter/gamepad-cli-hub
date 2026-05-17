@@ -113,6 +113,10 @@ export class ProjectStore {
     return this.records.find((r) => r.id === id);
   }
 
+  findByPath(dirPath: string): ProjectRecord | undefined {
+    return findProjectByPath(this.records, normalizeProjectPath(dirPath));
+  }
+
   addDirectory(projectId: string, dirPath: string): void {
     const record = this.requireRecord(projectId);
     const normalized = normalizeProjectPath(dirPath);

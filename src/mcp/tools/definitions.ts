@@ -21,6 +21,67 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'skills_list',
+    title: 'List Skills',
+    description: 'List user-managed Helm skills as compact summaries. Pass projectId or dirPath to filter to skills applicable to one project. Use skills_get when you need the full body before applying or editing a skill.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string' },
+        dirPath: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'skills_get',
+    title: 'Get Skill',
+    description: 'Fetch one user-managed Helm skill by id, including its body and project scope.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'skills_create',
+    title: 'Create Skill',
+    description: 'Create a user-managed Helm skill persisted in config/skills.yaml. Omit projectIds or set allProjects=true for a global skill.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        description: { type: 'string' },
+        body: { type: 'string' },
+        aiAmendable: { type: 'boolean' },
+        allProjects: { type: 'boolean' },
+        projectIds: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['name'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'skills_update',
+    title: 'Update Skill',
+    description: 'Update a user-managed Helm skill. Protected skills reject AI amendments unless aiAmendable is enabled.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        name: { type: 'string' },
+        description: { type: 'string' },
+        body: { type: 'string' },
+        aiAmendable: { type: 'boolean' },
+        allProjects: { type: 'boolean' },
+        projectIds: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'plans_list',
     title: 'List Plans',
     description: 'List all plan items for a directory. Use this before editing or assigning plan work so you can reference the human-readable P-00xx plan IDs Helm returns.',

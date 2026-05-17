@@ -6,6 +6,8 @@ export interface SkillSummary {
   name: string;
   description: string;
   aiAmendable: boolean;
+  allProjects: boolean;
+  projectIds: string[];
 }
 
 export interface SkillDraft {
@@ -14,11 +16,20 @@ export interface SkillDraft {
   description: string;
   body: string;
   aiAmendable: boolean;
+  allProjects: boolean;
+  projectIds: string[];
+}
+
+export interface SkillProject {
+  id: string;
+  name: string;
+  canonicalPath: string;
 }
 
 const props = defineProps<{
   skills: SkillSummary[];
   draft: SkillDraft;
+  projects: SkillProject[];
 }>();
 
 const emit = defineEmits<{
@@ -37,9 +48,27 @@ watch(() => props.draft, (draft) => {
 const selectedId = computed(() => localDraft.value.id);
 const canDelete = computed(() => Boolean(localDraft.value.id));
 const saveLabel = computed(() => localDraft.value.id ? 'Save Skill' : 'Create Skill');
+const selectedProjects = computed(() => {
+  if (localDraft.value.allProjects) return [{ id: '__all__', name: 'All projects' }];
+  const names = new Map(props.projects.map((project) => [project.id, project.name || project.canonicalPath]));
+  return localDraft.value.projectIds.map((id) => ({ id, name: names.get(id) || id }));
+});
 
 function onSave(): void {
   emit('save', { ...localDraft.value });
+}
+
+function toggleAllProjects(): void {
+  localDraft.value.allProjects = !localDraft.value.allProjects;
+  if (localDraft.value.allProjects) localDraft.value.projectIds = [];
+}
+
+function toggleProject(projectId: string): void {
+  const selected = new Set(localDraft.value.projectIds);
+  if (selected.has(projectId)) selected.delete(projectId);
+  else selected.add(projectId);
+  localDraft.value.projectIds = [...selected];
+  localDraft.value.allProjects = localDraft.value.projectIds.length === 0;
 }
 </script>
 
@@ -60,6 +89,9 @@ function onSave(): void {
           </div>
           <span class="settings-skill-badge" :class="{ 'settings-skill-badge--open': skill.aiAmendable }">
             {{ skill.aiAmendable ? 'AI amend' : 'protected' }}
+          </span>
+          <span class="settings-skill-scope">
+            {{ skill.allProjects ? 'all projects' : `${skill.projectIds.length} project${skill.projectIds.length === 1 ? '' : 's'}` }}
           </span>
         </button>
       </div>
@@ -101,6 +133,40 @@ function onSave(): void {
           class="field-input focusable settings-skill-body"
           rows="12"
         />
+      </div>
+
+      <div class="field-group">
+        <label class="field-label">Projects</label>
+        <div class="settings-skill-project-picker">
+          <button
+            type="button"
+            class="settings-skill-project-option focusable"
+            :class="{ 'settings-skill-project-option--selected': localDraft.allProjects }"
+            @click="toggleAllProjects"
+          >
+            All projects
+          </button>
+          <button
+            v-for="project in projects"
+            :key="project.id"
+            type="button"
+            class="settings-skill-project-option focusable"
+            :class="{ 'settings-skill-project-option--selected': localDraft.projectIds.includes(project.id) && !localDraft.allProjects }"
+            :disabled="localDraft.allProjects"
+            @click="toggleProject(project.id)"
+          >
+            {{ project.name || project.canonicalPath }}
+          </button>
+        </div>
+        <div class="settings-skill-project-chips">
+          <span
+            v-for="project in selectedProjects"
+            :key="project.id"
+            class="settings-skill-project-chip"
+          >
+            {{ project.name }}
+          </span>
+        </div>
       </div>
 
       <label class="settings-skill-checkbox">

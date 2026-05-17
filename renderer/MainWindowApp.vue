@@ -899,6 +899,7 @@ onUnmounted(() => {
               v-else-if="activeTab === 'skills'"
               :skills="settingsSkills"
               :draft="settingsSkillDraft"
+              :projects="settingsProjects"
               @select="onSkillSelect"
               @new="onSkillNew"
               @save="onSkillSave"

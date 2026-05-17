@@ -449,8 +449,10 @@ export class HelmControlService extends EventEmitter {
   // User-managed skills
   // ---------------------------------------------------------------------------
 
-  listSkills(): SkillSummary[] {
-    return this.skillManager.list();
+  listSkills(filter?: { projectId?: string; dirPath?: string }): SkillSummary[] {
+    if (!filter?.projectId && !filter?.dirPath) return this.skillManager.list();
+    const projectId = filter.projectId ?? this.resolveProjectIdForDirectory(filter.dirPath);
+    return this.skillManager.listForProject(projectId);
   }
 
   getSkill(id: string): Skill | null {
@@ -511,7 +513,8 @@ export class HelmControlService extends EventEmitter {
    * Called via session_info MCP tool — autocall endpoint provides context to AI agents.
    */
   getSessionInfo(authContext?: { sessionId?: string; sessionName?: string }): SessionInfoResponse {
-    return getSessionInfo(this.configLoader, this.sessionManager, authContext, this.projectStore, this.skillManager.listSummaries());
+    const projectId = this.resolveProjectIdForSession(authContext);
+    return getSessionInfo(this.configLoader, this.sessionManager, authContext, this.projectStore, this.skillManager.listForProject(projectId));
   }
 
   // ---------------------------------------------------------------------------
@@ -582,5 +585,18 @@ export class HelmControlService extends EventEmitter {
   private requireProjectService(): HelmProjectService {
     if (!this.projectService) throw new Error('Project service is not available');
     return this.projectService;
+  }
+
+  private resolveProjectIdForSession(authContext?: { sessionId?: string; sessionName?: string }): string | null {
+    const sessionId = authContext?.sessionId;
+    if (!sessionId) return null;
+    const session = this.sessionManager.getSession(sessionId);
+    return this.resolveProjectIdForDirectory(session?.workingDir);
+  }
+
+  private resolveProjectIdForDirectory(dirPath?: string): string | null {
+    if (!dirPath || !this.projectStore) return null;
+    const match = this.projectStore.findByPath(dirPath);
+    return match?.id ?? null;
   }
 }

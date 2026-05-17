@@ -54,6 +54,8 @@ export interface SettingsSkillSummary {
   name: string;
   description: string;
   aiAmendable: boolean;
+  allProjects: boolean;
+  projectIds: string[];
 }
 
 export interface SettingsSkillDraft {
@@ -62,6 +64,8 @@ export interface SettingsSkillDraft {
   description: string;
   body: string;
   aiAmendable: boolean;
+  allProjects: boolean;
+  projectIds: string[];
 }
 
 export interface SettingsBindingEntry {
@@ -77,6 +81,18 @@ export interface SettingsSequenceGroup {
 }
 
 const NON_CLI_SETTINGS_TABS = new Set(['tools', 'chipbar-actions', 'directories', 'projects', 'skills', 'telegram', 'mcp', 'backups']);
+
+function emptySkillDraft(): SettingsSkillDraft {
+  return {
+    id: '',
+    name: '',
+    description: '',
+    body: '',
+    aiAmendable: false,
+    allProjects: true,
+    projectIds: [],
+  };
+}
 
 export function useSettingsController(options: {
   refreshProjects: () => Promise<void>;
@@ -105,7 +121,7 @@ export function useSettingsController(options: {
   const settingsTelegramBotRunning = ref(false);
   const settingsMcpConfig = ref<SettingsMcpConfig>({ enabled: false, port: 47373, authToken: '' });
   const settingsSkills = ref<SettingsSkillSummary[]>([]);
-  const settingsSkillDraft = ref<SettingsSkillDraft>({ id: '', name: '', description: '', body: '', aiAmendable: false });
+  const settingsSkillDraft = ref<SettingsSkillDraft>(emptySkillDraft());
   const settingsBindings = ref<SettingsBindingEntry[]>([]);
   const settingsSequenceGroups = ref<SettingsSequenceGroup[]>([]);
   const settingsBindingSortField = ref<BindingSortField>('button');
@@ -302,11 +318,11 @@ export function useSettingsController(options: {
         const currentId = settingsSkillDraft.value.id || settingsSkills.value[0].id;
         await onSkillSelect(currentId);
       } else {
-        settingsSkillDraft.value = { id: '', name: '', description: '', body: '', aiAmendable: false };
+        settingsSkillDraft.value = emptySkillDraft();
       }
     } catch {
       settingsSkills.value = [];
-      settingsSkillDraft.value = { id: '', name: '', description: '', body: '', aiAmendable: false };
+      settingsSkillDraft.value = emptySkillDraft();
     }
   }
 
@@ -755,11 +771,13 @@ export function useSettingsController(options: {
       description: skill.description || '',
       body: skill.body || '',
       aiAmendable: skill.aiAmendable === true,
+      allProjects: skill.allProjects !== false,
+      projectIds: Array.isArray(skill.projectIds) ? skill.projectIds : [],
     };
   }
 
   function onSkillNew(): void {
-    settingsSkillDraft.value = { id: '', name: '', description: '', body: '', aiAmendable: false };
+    settingsSkillDraft.value = emptySkillDraft();
   }
 
   async function onSkillSave(draft: SettingsSkillDraft): Promise<void> {
@@ -773,6 +791,8 @@ export function useSettingsController(options: {
       description: draft.description,
       body: draft.body,
       aiAmendable: draft.aiAmendable,
+      allProjects: draft.allProjects,
+      projectIds: draft.allProjects ? [] : draft.projectIds,
     };
     const result = draft.id
       ? await skillsClient.skillUpdate(draft.id, payload)

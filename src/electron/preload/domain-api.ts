@@ -432,9 +432,9 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
 
   skillList: () => ipcRenderer.invoke('skill:list'),
   skillGet: (id: string) => ipcRenderer.invoke('skill:get', id),
-  skillCreate: (input: { name: string; description?: string; body?: string; aiAmendable?: boolean }) =>
+  skillCreate: (input: { name: string; description?: string; body?: string; aiAmendable?: boolean; allProjects?: boolean; projectIds?: string[] }) =>
     ipcRenderer.invoke('skill:create', input),
-  skillUpdate: (id: string, updates: { name?: string; description?: string; body?: string; aiAmendable?: boolean }) =>
+  skillUpdate: (id: string, updates: { name?: string; description?: string; body?: string; aiAmendable?: boolean; allProjects?: boolean; projectIds?: string[] }) =>
     ipcRenderer.invoke('skill:update', id, updates),
   skillDelete: (id: string) => ipcRenderer.invoke('skill:delete', id),
 

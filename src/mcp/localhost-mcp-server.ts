@@ -55,10 +55,13 @@ const TOOLS: McpTool[] = [
   {
     name: 'skills_list',
     title: 'List Skills',
-    description: 'List user-managed Helm skills as compact summaries. Use skills_get when you need the full body before applying or editing a skill.',
+    description: 'List user-managed Helm skills as compact summaries. Pass projectId or dirPath to filter to skills applicable to one project. Use skills_get when you need the full body before applying or editing a skill.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        projectId: { type: 'string' },
+        dirPath: { type: 'string' },
+      },
       additionalProperties: false,
     },
   },
@@ -84,6 +87,8 @@ const TOOLS: McpTool[] = [
         description: { type: 'string' },
         body: { type: 'string' },
         aiAmendable: { type: 'boolean' },
+        allProjects: { type: 'boolean' },
+        projectIds: { type: 'array', items: { type: 'string' } },
       },
       required: ['name'],
       additionalProperties: false,
@@ -101,6 +106,8 @@ const TOOLS: McpTool[] = [
         description: { type: 'string' },
         body: { type: 'string' },
         aiAmendable: { type: 'boolean' },
+        allProjects: { type: 'boolean' },
+        projectIds: { type: 'array', items: { type: 'string' } },
       },
       required: ['id'],
       additionalProperties: false,
@@ -1131,7 +1138,10 @@ export class LocalhostMcpServer {
       case 'tools_list':
         return this.service.listClis();
       case 'skills_list':
-        return this.service.listSkills();
+        return this.service.listSkills({
+          ...(typeof args.projectId === 'string' ? { projectId: args.projectId } : {}),
+          ...(typeof args.dirPath === 'string' ? { dirPath: args.dirPath } : {}),
+        });
       case 'skills_get':
         return requireResult(
           this.service.getSkill(asString(args.id, 'id is required')),
@@ -1143,12 +1153,17 @@ export class LocalhostMcpServer {
           ...(typeof args.description === 'string' ? { description: args.description } : {}),
           ...(typeof args.body === 'string' ? { body: args.body } : {}),
           ...(typeof args.aiAmendable === 'boolean' ? { aiAmendable: args.aiAmendable } : {}),
+          ...(typeof args.allProjects === 'boolean' ? { allProjects: args.allProjects } : {}),
+          ...(Array.isArray(args.projectIds) ? { projectIds: args.projectIds.filter((item): item is string => typeof item === 'string') } : {}),
         });
       case 'skills_update': {
         const id = asString(args.id, 'id is required');
         const updates: Record<string, unknown> = {};
-        for (const field of ['name', 'description', 'body', 'aiAmendable'] as const) {
+        for (const field of ['name', 'description', 'body', 'aiAmendable', 'allProjects', 'projectIds'] as const) {
           if (args[field] !== undefined) updates[field] = args[field];
+        }
+        if (Array.isArray(updates.projectIds)) {
+          updates.projectIds = updates.projectIds.filter((item): item is string => typeof item === 'string');
         }
         return this.service.updateSkill(id, updates);
       }

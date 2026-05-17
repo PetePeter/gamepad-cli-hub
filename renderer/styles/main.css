@@ -1970,6 +1970,12 @@ kbd {
   color: var(--text-primary);
 }
 
+.settings-skill-scope {
+  color: var(--text-dim);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
 .field-group {
   display: flex;
   flex-direction: column;
@@ -2002,6 +2008,51 @@ kbd {
   font-family: monospace;
   line-height: 1.45;
   resize: vertical;
+}
+
+.settings-skill-project-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  max-height: 132px;
+  overflow-y: auto;
+}
+
+.settings-skill-project-option {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+}
+
+.settings-skill-project-option--selected {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.settings-skill-project-option:disabled {
+  opacity: 0.45;
+}
+
+.settings-skill-project-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+}
+
+.settings-skill-project-chip {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  padding: 2px var(--spacing-xs);
 }
 
 .settings-skill-checkbox {

@@ -12,8 +12,8 @@ export class SkillManager {
     return this.load().map(toSummary);
   }
 
-  listSummaries(): SkillSummary[] {
-    return this.list();
+  listForProject(projectId?: string | null): SkillSummary[] {
+    return this.load().filter((skill) => isSkillApplicableToProject(skill, projectId)).map(toSummary);
   }
 
   get(id: string): Skill | null {
@@ -30,6 +30,7 @@ export class SkillManager {
       description: normalizeOptional(input.description),
       body: normalizeOptional(input.body),
       aiAmendable: input.aiAmendable === true,
+      ...normalizeScope(input),
     };
     skills.push(skill);
     this.save(skills);
@@ -50,6 +51,9 @@ export class SkillManager {
     if (updates.description !== undefined) next.description = normalizeOptional(updates.description);
     if (updates.body !== undefined) next.body = normalizeOptional(updates.body);
     if (updates.aiAmendable !== undefined) next.aiAmendable = updates.aiAmendable === true;
+    if (updates.allProjects !== undefined || updates.projectIds !== undefined) {
+      Object.assign(next, normalizeScope({ ...next, ...updates }));
+    }
 
     skills[index] = next;
     this.save(skills);
@@ -93,6 +97,7 @@ function normalizePersistedSkill(value: unknown): Skill {
     description: isAnyString(value.description) ? value.description : '',
     body: isAnyString(value.body) ? value.body : '',
     aiAmendable: value.aiAmendable === true,
+    ...normalizeScope(value),
   };
 }
 
@@ -105,11 +110,30 @@ function normalizeOptional(value: unknown): string {
   return isAnyString(value) ? value : '';
 }
 
+function normalizeScope(value: { allProjects?: unknown; projectIds?: unknown }): Pick<Skill, 'allProjects' | 'projectIds'> {
+  const projectIds = Array.isArray(value.projectIds)
+    ? [...new Set(value.projectIds.filter(isAnyString).map((item) => item.trim()).filter(Boolean))]
+    : [];
+  const explicitAllProjects = value.allProjects === true;
+  const allProjects = explicitAllProjects || projectIds.length === 0;
+  return {
+    allProjects,
+    projectIds: allProjects ? [] : projectIds,
+  };
+}
+
+function isSkillApplicableToProject(skill: Skill, projectId?: string | null): boolean {
+  if (skill.allProjects) return true;
+  return Boolean(projectId && skill.projectIds.includes(projectId));
+}
+
 function toSummary(skill: Skill): SkillSummary {
   return {
     id: skill.id,
     name: skill.name,
     description: skill.description,
     aiAmendable: skill.aiAmendable,
+    allProjects: skill.allProjects,
+    projectIds: [...skill.projectIds],
   };
 }

@@ -39,6 +39,36 @@ export async function callMcpTool(
         return service.plansSummary(asString(args.dirPath, 'dirPath is required'));
       case 'tools_list':
         return service.listClis();
+      case 'skills_list':
+        return service.listSkills({
+          ...(typeof args.projectId === 'string' ? { projectId: args.projectId } : {}),
+          ...(typeof args.dirPath === 'string' ? { dirPath: args.dirPath } : {}),
+        });
+      case 'skills_get':
+        return requireResult(
+          service.getSkill(asString(args.id, 'id is required')),
+          `Skill not found: ${asString(args.id, 'id is required')}`,
+        );
+      case 'skills_create':
+        return service.createSkill({
+          name: asString(args.name, 'name is required'),
+          ...(typeof args.description === 'string' ? { description: args.description } : {}),
+          ...(typeof args.body === 'string' ? { body: args.body } : {}),
+          ...(typeof args.aiAmendable === 'boolean' ? { aiAmendable: args.aiAmendable } : {}),
+          ...(typeof args.allProjects === 'boolean' ? { allProjects: args.allProjects } : {}),
+          ...(Array.isArray(args.projectIds) ? { projectIds: args.projectIds.filter((item): item is string => typeof item === 'string') } : {}),
+        });
+      case 'skills_update': {
+        const id = asString(args.id, 'id is required');
+        const updates: Record<string, unknown> = {};
+        for (const field of ['name', 'description', 'body', 'aiAmendable', 'allProjects', 'projectIds'] as const) {
+          if (args[field] !== undefined) updates[field] = args[field];
+        }
+        if (Array.isArray(updates.projectIds)) {
+          updates.projectIds = updates.projectIds.filter((item): item is string => typeof item === 'string');
+        }
+        return service.updateSkill(id, updates);
+      }
       case 'plan_get':
         return requireResult(
           service.getPlan(asString(args.id, 'id is required')),
