@@ -8,6 +8,8 @@ export interface SkillSummary {
   aiAmendable: boolean;
   allProjects: boolean;
   projectIds: string[];
+  type?: string;
+  source?: 'user' | 'system';
 }
 
 export interface SkillDraft {
@@ -18,6 +20,8 @@ export interface SkillDraft {
   aiAmendable: boolean;
   allProjects: boolean;
   projectIds: string[];
+  type?: string;
+  source?: 'user' | 'system';
 }
 
 export interface SkillProject {
@@ -37,6 +41,7 @@ const emit = defineEmits<{
   new: [];
   save: [draft: SkillDraft];
   delete: [id: string];
+  clone: [id: string];
 }>();
 
 const localDraft = ref<SkillDraft>({ ...props.draft });
@@ -48,6 +53,9 @@ watch(() => props.draft, (draft) => {
 const selectedId = computed(() => localDraft.value.id);
 const canDelete = computed(() => Boolean(localDraft.value.id));
 const saveLabel = computed(() => localDraft.value.id ? 'Save Skill' : 'Create Skill');
+const isSystemSkill = computed(() => localDraft.value.source === 'system');
+const canEdit = computed(() => !isSystemSkill.value && Boolean(localDraft.value.id));
+const canClone = computed(() => isSystemSkill.value && Boolean(localDraft.value.type));
 const selectedProjects = computed(() => {
   if (localDraft.value.allProjects) return [{ id: '__all__', name: 'All projects' }];
   const names = new Map(props.projects.map((project) => [project.id, project.name || project.canonicalPath]));
@@ -87,8 +95,11 @@ function toggleProject(projectId: string): void {
             <span class="settings-list-item__name">{{ skill.name }}</span>
             <span class="settings-list-item__detail">{{ skill.description }}</span>
           </div>
-          <span class="settings-skill-badge" :class="{ 'settings-skill-badge--open': skill.aiAmendable }">
-            {{ skill.aiAmendable ? 'AI amend' : 'protected' }}
+          <span class="settings-skill-badge" :class="{
+            'settings-skill-badge--open': skill.aiAmendable,
+            'settings-skill-badge--system': skill.source === 'system'
+          }">
+            {{ skill.source === 'system' ? 'system' : (skill.aiAmendable ? 'AI amend' : 'protected') }}
           </span>
           <span class="settings-skill-scope">
             {{ skill.allProjects ? 'all projects' : `${skill.projectIds.length} project${skill.projectIds.length === 1 ? '' : 's'}` }}
@@ -114,6 +125,7 @@ function toggleProject(projectId: string): void {
           v-model="localDraft.name"
           class="field-input focusable"
           type="text"
+          :disabled="isSystemSkill"
         />
       </div>
 
@@ -123,6 +135,7 @@ function toggleProject(projectId: string): void {
           v-model="localDraft.description"
           class="field-input focusable"
           rows="3"
+          :disabled="isSystemSkill"
         />
       </div>
 
@@ -132,6 +145,7 @@ function toggleProject(projectId: string): void {
           v-model="localDraft.body"
           class="field-input focusable settings-skill-body"
           rows="12"
+          :disabled="isSystemSkill"
         />
       </div>
 
@@ -142,6 +156,7 @@ function toggleProject(projectId: string): void {
             type="button"
             class="settings-skill-project-option focusable"
             :class="{ 'settings-skill-project-option--selected': localDraft.allProjects }"
+            :disabled="isSystemSkill"
             @click="toggleAllProjects"
           >
             All projects
@@ -152,7 +167,7 @@ function toggleProject(projectId: string): void {
             type="button"
             class="settings-skill-project-option focusable"
             :class="{ 'settings-skill-project-option--selected': localDraft.projectIds.includes(project.id) && !localDraft.allProjects }"
-            :disabled="localDraft.allProjects"
+            :disabled="localDraft.allProjects || isSystemSkill"
             @click="toggleProject(project.id)"
           >
             {{ project.name || project.canonicalPath }}
@@ -174,6 +189,7 @@ function toggleProject(projectId: string): void {
           v-model="localDraft.aiAmendable"
           type="checkbox"
           class="focusable"
+          :disabled="isSystemSkill"
         />
         <span>
           <strong>Allow AI to amend this skill</strong>
@@ -186,11 +202,20 @@ function toggleProject(projectId: string): void {
       </p>
 
       <div class="settings-tool-actions">
-        <button class="focusable" @click="onSave">
+        <button v-if="canClone" class="focusable" @click="emit('clone', localDraft.id)">
+          Clone as Override
+        </button>
+        <button
+          v-else
+          class="focusable"
+          @click="onSave"
+          :disabled="isSystemSkill"
+        >
           {{ saveLabel }}
         </button>
         <button
           class="focusable danger"
+          v-if="!isSystemSkill"
           :disabled="!canDelete"
           @click="emit('delete', localDraft.id)"
         >

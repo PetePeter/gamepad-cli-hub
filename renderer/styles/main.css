@@ -1970,6 +1970,11 @@ kbd {
   color: var(--text-primary);
 }
 
+.settings-skill-badge--system {
+  background: var(--bg-tertiary);
+  color: var(--text-dim);
+}
+
 .settings-skill-scope {
   color: var(--text-dim);
   font-size: var(--font-size-xs);

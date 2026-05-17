@@ -101,6 +101,7 @@ export const PRELOAD_API_DOMAINS = {
     'skillCreate',
     'skillUpdate',
     'skillDelete',
+    'skillClone',
   ],
   plans: [
     'planList',

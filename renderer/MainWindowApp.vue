@@ -245,6 +245,7 @@ const {
   onSkillNew,
   onSkillSave,
   onSkillDelete,
+  onSkillClone,
   onBindingAdd,
   onBindingDelete,
   onBindingCopyFrom,
@@ -904,6 +905,7 @@ onUnmounted(() => {
               @new="onSkillNew"
               @save="onSkillSave"
               @delete="onSkillDelete"
+              @clone="onSkillClone"
             />
             <BackupTab
               v-else-if="activeTab === 'backups'"

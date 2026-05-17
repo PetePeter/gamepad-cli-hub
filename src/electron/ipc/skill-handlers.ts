@@ -48,4 +48,25 @@ export function setupSkillHandlers(skillManager: SkillManager): void {
       return { success: false, error: String(error) };
     }
   });
+
+  ipcMain.handle('skill:clone', (_event, id: string) => {
+    try {
+      const skill = skillManager.get(id);
+      if (!skill) return { success: false, error: 'Skill not found' };
+      if (!skill.type) return { success: false, error: 'Skill has no type to clone' };
+      const clone = skillManager.create({
+        name: skill.name,
+        description: skill.description,
+        body: skill.body,
+        aiAmendable: true,
+        allProjects: skill.allProjects,
+        projectIds: skill.projectIds,
+        type: skill.type,
+      });
+      return { success: true, skill: clone };
+    } catch (error) {
+      logger.error(`[IPC] Failed to clone skill ${id}: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
 }

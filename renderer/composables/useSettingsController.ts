@@ -56,6 +56,8 @@ export interface SettingsSkillSummary {
   aiAmendable: boolean;
   allProjects: boolean;
   projectIds: string[];
+  type?: string;
+  source?: 'user' | 'system';
 }
 
 export interface SettingsSkillDraft {
@@ -66,6 +68,8 @@ export interface SettingsSkillDraft {
   aiAmendable: boolean;
   allProjects: boolean;
   projectIds: string[];
+  type?: string;
+  source?: 'user' | 'system';
 }
 
 export interface SettingsBindingEntry {
@@ -91,6 +95,8 @@ function emptySkillDraft(): SettingsSkillDraft {
     aiAmendable: false,
     allProjects: true,
     projectIds: [],
+    type: undefined,
+    source: undefined,
   };
 }
 
@@ -773,11 +779,27 @@ export function useSettingsController(options: {
       aiAmendable: skill.aiAmendable === true,
       allProjects: skill.allProjects !== false,
       projectIds: Array.isArray(skill.projectIds) ? skill.projectIds : [],
+      type: skill.type,
+      source: skill.source,
     };
   }
 
   function onSkillNew(): void {
     settingsSkillDraft.value = emptySkillDraft();
+  }
+
+  async function onSkillClone(id: string): Promise<void> {
+    const skill = await skillsClient.skillGet(id);
+    if (!skill || !skill.type) return;
+    const result = await skillsClient.skillClone(id);
+    if (result?.success === false) {
+      logEvent(`Failed to clone skill: ${result.error || 'unknown error'}`);
+      return;
+    }
+    await loadSkills();
+    const savedId = result?.skill?.id;
+    if (savedId) await onSkillSelect(savedId);
+    logEvent(`Cloned skill: ${skill.name}`);
   }
 
   async function onSkillSave(draft: SettingsSkillDraft): Promise<void> {
@@ -793,6 +815,7 @@ export function useSettingsController(options: {
       aiAmendable: draft.aiAmendable,
       allProjects: draft.allProjects,
       projectIds: draft.allProjects ? [] : draft.projectIds,
+      type: draft.type,
     };
     const result = draft.id
       ? await skillsClient.skillUpdate(draft.id, payload)
@@ -970,6 +993,7 @@ export function useSettingsController(options: {
     onSkillNew,
     onSkillSave,
     onSkillDelete,
+    onSkillClone,
     onBindingAdd,
     onBindingDelete,
     onBindingCopyFrom,

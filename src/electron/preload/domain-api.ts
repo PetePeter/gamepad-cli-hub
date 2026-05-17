@@ -437,6 +437,7 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   skillUpdate: (id: string, updates: { name?: string; description?: string; body?: string; aiAmendable?: boolean; allProjects?: boolean; projectIds?: string[] }) =>
     ipcRenderer.invoke('skill:update', id, updates),
   skillDelete: (id: string) => ipcRenderer.invoke('skill:delete', id),
+  skillClone: (id: string) => ipcRenderer.invoke('skill:clone', id),
 
   // ========================================================================
   // Tools CRUD
