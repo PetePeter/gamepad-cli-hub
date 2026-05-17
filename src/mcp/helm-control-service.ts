@@ -83,13 +83,10 @@ export interface SessionTerminalTailResponse {
 
 export interface SessionInfoResponse {
   mandatory_rules: string[];
-  sessionId?: string;
-  sessionName?: string;
-  cliType?: string;
-  workingDir?: string;
+  your_session_id: string;
+  your_working_dir: string;
   mcp_url: string;
   mcp_token: string;
-  aiagent_states: string[];
   available_projects: ProjectInfo[];
   skills: SkillSummary[];
   system_skill_types: string[];

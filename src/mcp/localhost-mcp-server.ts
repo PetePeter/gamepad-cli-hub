@@ -755,7 +755,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_info',
     title: 'Get Session Info',
-    description: 'Retrieve current session context including MCP endpoint URL, AIAGENT state registry, available projects, and durable-context guidance. WHEN: call this at session startup before other Helm workflow actions, then immediately call session_set_aiagent_state for your current phase. Returns mandatory_rules, mcp_url, mcp_token, available_projects stubs (call projects_list for full details), and the canonical list of valid AIAGENT-* state tags.',
+    description: 'Retrieve current session context including your session ID, working directory, MCP endpoint URL, available projects, and mandatory workflow rules. WHEN: call this at session startup before other Helm workflow actions, then immediately call session_set_aiagent_state for your current phase. Returns your_session_id, your_working_dir, mcp_url, mcp_token, available_projects stubs (call projects_list for full details).',
     inputSchema: {
       type: 'object',
       properties: {},

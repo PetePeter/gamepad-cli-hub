@@ -4,7 +4,6 @@ import type { ProjectInfo, SessionInfoResponse } from '../helm-control-service.j
 import type { ProjectStore } from '../../session/project-store.js';
 import type { SkillSummary } from '../../types/skill.js';
 
-import { getAiagentStates } from './aiagent-state-guide.js';
 export { getAvailableTools } from './available-tools.js';
 
 /**
@@ -22,13 +21,8 @@ export function getSessionInfo(
   const mcpPort = mcpConfig.port ?? 47373;
   const mcpUrl = `http://127.0.0.1:${mcpPort}/mcp`;
 
-  const sessionId = authContext?.sessionId;
-  const sessionName = authContext?.sessionName;
-
-  let sessionInfo;
-  if (sessionId) {
-    sessionInfo = sessionManager.getSession(sessionId) ?? undefined;
-  }
+  const sessionId = authContext?.sessionId ?? '';
+  const sessionInfo = sessionId ? sessionManager.getSession(sessionId) ?? undefined : undefined;
 
   return {
     mandatory_rules: [
@@ -41,13 +35,10 @@ export function getSessionInfo(
       'ALWAYS send inter-LLM handoffs with session_send_text, then call session_read_terminal on the recipient and verify evidence of receipt before assuming delivery succeeded.',
       'ALWAYS fetch detailed workflow guidance just-in-time: use skills_get(type: "session-send-text") for inter-LLM handoff protocol, skills_get(type: "agent-plan") for plan management workflow, and skills_get(type: "notification") for notification routing — do not request these unless the task requires them.',
     ],
-    sessionId,
-    sessionName: sessionName ?? sessionInfo?.name,
-    cliType: sessionInfo?.cliType,
-    workingDir: sessionInfo?.workingDir,
+    your_session_id: sessionId,
+    your_working_dir: sessionInfo?.workingDir ?? '',
     mcp_url: mcpUrl,
     mcp_token: mcpConfig.authToken ?? '',
-    aiagent_states: getAiagentStates(),
     available_projects: getAvailableProjects(projectStore),
     skills,
     system_skill_types: ['session-send-text', 'agent-plan', 'notification'],
