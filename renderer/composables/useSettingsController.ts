@@ -816,7 +816,7 @@ export function useSettingsController(options: {
       body: draft.body,
       aiAmendable: draft.aiAmendable,
       allProjects: draft.allProjects,
-      projectIds: draft.allProjects ? [] : draft.projectIds,
+      projectIds: draft.allProjects ? [] : [...toRaw(draft.projectIds)],
       type: draft.type,
     });
     const result = draft.id

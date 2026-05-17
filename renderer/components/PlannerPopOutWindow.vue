@@ -131,7 +131,7 @@ async function openBackupRestore(): Promise<void> {
 async function onRestoreBackup(snapshotPath: string): Promise<void> {
   const snapshot = backupRestore.snapshots.find((entry) => entry.snapshotPath === snapshotPath);
   const result = await backupsClient.planRestoreBackup(snapshotPath);
-  if (result && snapshot?.dirPath === planScreenState.currentDir) {
+  if (result && snapshot?.dirPath.toLowerCase() === planScreenState.currentDir.toLowerCase()) {
     await refreshCanvasIfVisible();
   }
   backupRestore.visible = false;
@@ -170,7 +170,7 @@ onMounted(async () => {
   await showPlanScreen(props.dirPath);
 
   offPlanChanged = eventsClient.onPlanChanged((dirPath: string) => {
-    if (dirPath === planScreenState.currentDir) {
+    if (dirPath.toLowerCase() === planScreenState.currentDir.toLowerCase()) {
       void refreshCanvasIfVisible();
     }
   });
