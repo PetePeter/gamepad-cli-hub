@@ -23,7 +23,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'skills_list',
     title: 'List Skills',
-    description: 'List user-managed Helm skills as compact summaries. Pass projectId or dirPath to filter to skills applicable to one project. Use skills_get when you need the full body before applying or editing a skill.',
+    description: 'List Helm skills (user-managed and system) as compact summaries. Pass projectId or dirPath to filter to skills applicable to one project. Use skills_get when you need the full body before applying or editing a skill.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -36,11 +36,15 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'skills_get',
     title: 'Get Skill',
-    description: 'Fetch one user-managed Helm skill by id, including its body and project scope.',
+    description: 'Fetch one Helm skill by id or resolve the effective skill by type. Pass id for exact lookup, or pass type with optional projectId/dirPath for type-based resolution (respects project scope precedence).',
     inputSchema: {
       type: 'object',
-      properties: { id: { type: 'string' } },
-      required: ['id'],
+      properties: {
+        id: { type: 'string', description: 'Exact skill UUID for direct lookup.' },
+        type: { type: 'string', description: 'Stable skill type for effective resolution.' },
+        projectId: { type: 'string', description: 'Project ID for type-based scope resolution.' },
+        dirPath: { type: 'string', description: 'Directory path — resolved to projectId for type-based scope resolution.' },
+      },
       additionalProperties: false,
     },
   },
@@ -54,6 +58,7 @@ export const MCP_TOOLS: McpTool[] = [
         name: { type: 'string' },
         description: { type: 'string' },
         body: { type: 'string' },
+        type: { type: 'string' },
         aiAmendable: { type: 'boolean' },
         allProjects: { type: 'boolean' },
         projectIds: { type: 'array', items: { type: 'string' } },
@@ -73,9 +78,23 @@ export const MCP_TOOLS: McpTool[] = [
         name: { type: 'string' },
         description: { type: 'string' },
         body: { type: 'string' },
+        type: { type: 'string' },
         aiAmendable: { type: 'boolean' },
         allProjects: { type: 'boolean' },
         projectIds: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'skills_delete',
+    title: 'Delete Skill',
+    description: 'Delete a user-managed Helm skill by id. System skills cannot be deleted.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
       },
       required: ['id'],
       additionalProperties: false,

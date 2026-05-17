@@ -55,7 +55,7 @@ const TOOLS: McpTool[] = [
   {
     name: 'skills_list',
     title: 'List Skills',
-    description: 'List user-managed Helm skills as compact summaries. Pass projectId or dirPath to filter to skills applicable to one project. Use skills_get when you need the full body before applying or editing a skill.',
+    description: 'List Helm skills (user-managed and system) as compact summaries. Pass projectId or dirPath to filter to skills applicable to one project. Use skills_get when you need the full body before applying or editing a skill.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -68,11 +68,15 @@ const TOOLS: McpTool[] = [
   {
     name: 'skills_get',
     title: 'Get Skill',
-    description: 'Fetch one user-managed Helm skill by id, including its body.',
+    description: 'Fetch one Helm skill by id or resolve the effective skill by type. Pass id for exact lookup, or pass type with optional projectId/dirPath for type-based resolution (respects project scope precedence).',
     inputSchema: {
       type: 'object',
-      properties: { id: { type: 'string' } },
-      required: ['id'],
+      properties: {
+        id: { type: 'string', description: 'Exact skill UUID for direct lookup.' },
+        type: { type: 'string', description: 'Stable skill type for effective resolution.' },
+        projectId: { type: 'string', description: 'Project ID for type-based scope resolution.' },
+        dirPath: { type: 'string', description: 'Directory path — resolved to projectId for type-based scope resolution.' },
+      },
       additionalProperties: false,
     },
   },
@@ -86,6 +90,7 @@ const TOOLS: McpTool[] = [
         name: { type: 'string' },
         description: { type: 'string' },
         body: { type: 'string' },
+        type: { type: 'string' },
         aiAmendable: { type: 'boolean' },
         allProjects: { type: 'boolean' },
         projectIds: { type: 'array', items: { type: 'string' } },
@@ -105,9 +110,23 @@ const TOOLS: McpTool[] = [
         name: { type: 'string' },
         description: { type: 'string' },
         body: { type: 'string' },
+        type: { type: 'string' },
         aiAmendable: { type: 'boolean' },
         allProjects: { type: 'boolean' },
         projectIds: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'skills_delete',
+    title: 'Delete Skill',
+    description: 'Delete a user-managed Helm skill by id. System skills cannot be deleted.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
       },
       required: ['id'],
       additionalProperties: false,
@@ -1146,31 +1165,50 @@ export class LocalhostMcpServer {
           ...(typeof args.projectId === 'string' ? { projectId: args.projectId } : {}),
           ...(typeof args.dirPath === 'string' ? { dirPath: args.dirPath } : {}),
         });
-      case 'skills_get':
+      case 'skills_get': {
+        const skillType = typeof args.type === 'string' ? args.type : undefined;
+        if (skillType) {
+          return requireResult(
+            this.service.resolveSkill(skillType, {
+              ...(typeof args.projectId === 'string' ? { projectId: args.projectId } : {}),
+              ...(typeof args.dirPath === 'string' ? { dirPath: args.dirPath } : {}),
+            }),
+            `Skill not found for type: ${skillType}`,
+          );
+        }
         return requireResult(
           this.service.getSkill(asString(args.id, 'id is required')),
           `Skill not found: ${asString(args.id, 'id is required')}`,
         );
+      }
       case 'skills_create':
         return this.service.createSkill({
           name: asString(args.name, 'name is required'),
           ...(typeof args.description === 'string' ? { description: args.description } : {}),
           ...(typeof args.body === 'string' ? { body: args.body } : {}),
+          ...(typeof args.type === 'string' ? { type: args.type } : {}),
           ...(typeof args.aiAmendable === 'boolean' ? { aiAmendable: args.aiAmendable } : {}),
           ...(typeof args.allProjects === 'boolean' ? { allProjects: args.allProjects } : {}),
           ...(Array.isArray(args.projectIds) ? { projectIds: args.projectIds.filter((item): item is string => typeof item === 'string') } : {}),
         });
       case 'skills_update': {
-        const id = asString(args.id, 'id is required');
-        const updates: Record<string, unknown> = {};
-        for (const field of ['name', 'description', 'body', 'aiAmendable', 'allProjects', 'projectIds'] as const) {
-          if (args[field] !== undefined) updates[field] = args[field];
+        const skillId = asString(args.id, 'id is required');
+        const skillUpdates: Record<string, unknown> = {};
+        for (const field of ['name', 'description', 'body', 'type', 'aiAmendable', 'allProjects', 'projectIds'] as const) {
+          if (args[field] !== undefined) skillUpdates[field] = args[field];
         }
-        if (Array.isArray(updates.projectIds)) {
-          updates.projectIds = updates.projectIds.filter((item): item is string => typeof item === 'string');
+        if (Array.isArray(skillUpdates.projectIds)) {
+          skillUpdates.projectIds = skillUpdates.projectIds.filter((item): item is string => typeof item === 'string');
         }
-        return this.service.updateSkill(id, updates);
+        return this.service.updateSkill(skillId, skillUpdates);
       }
+      case 'skills_delete':
+        return {
+          deleted: requireBooleanResult(
+            this.service.deleteSkill(asString(args.id, 'id is required')),
+            `Skill not found: ${asString(args.id, 'id is required')}`,
+          ),
+        };
       case 'plan_get':
         return requireResult(
           this.service.getPlan(asString(args.id, 'id is required')),

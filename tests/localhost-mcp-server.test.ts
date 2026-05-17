@@ -14,6 +14,18 @@ function makeService(): HelmControlService {
     getSkill: vi.fn((id: string) => ({ id, name: 'Review', description: 'Use for reviews', body: 'Check the diff', aiAmendable: false, allProjects: true, projectIds: [] })),
     createSkill: vi.fn((input: Record<string, unknown>) => ({ id: 'skill-created', description: '', body: '', aiAmendable: false, allProjects: true, projectIds: [], ...input })),
     updateSkill: vi.fn((id: string, updates: Record<string, unknown>) => ({ id, name: 'Review', description: 'Use for reviews', body: 'Check the diff', aiAmendable: true, allProjects: true, projectIds: [], ...updates })),
+    resolveSkill: vi.fn((type: string, _filter?: { projectId?: string; dirPath?: string }) => ({
+      id: 'resolved-1',
+      name: 'System Guide',
+      description: 'Built-in guide',
+      body: 'System guide body',
+      type,
+      source: 'system',
+      aiAmendable: false,
+      allProjects: true,
+      projectIds: [],
+    })),
+    deleteSkill: vi.fn(() => true),
     listDirectories: vi.fn(() => [{ dirPath: 'X:\\coding\\gamepad-cli-hub', name: 'Helm', source: ['config', 'plans'], planCount: 8, sessionCount: 0 }]),
     listPlans: vi.fn((dirPath: string) => [{ id: 'p1', dirPath, title: 'Task', description: 'Desc', status: 'ready' }]),
     plansSummary: vi.fn(() => [{ id: 'p1', humanId: 'P-0001', title: 'Task', status: 'ready', blockedBy: [], blocks: [] }]),
@@ -193,6 +205,7 @@ describe('LocalhostMcpServer', () => {
     const appVisibilityTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'get_app_visibility');
     const restartHelmTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'restart_helm');
     const skillsUpdateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'skills_update');
+    const skillsDeleteTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'skills_delete');
     const contextBindTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'context_bind');
     const contextUnbindTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'context_unbind');
     expect(planCreateTool.description).toContain('Problem Statement');
@@ -230,6 +243,8 @@ describe('LocalhostMcpServer', () => {
     expect(restartHelmTool!.description).toContain('restart');
     expect(skillsUpdateTool!.inputSchema.properties.aiAmendable).toEqual({ type: 'boolean' });
     expect(skillsUpdateTool!.inputSchema.properties.projectIds).toEqual({ type: 'array', items: { type: 'string' } });
+    expect(skillsDeleteTool!.description).toContain('Delete');
+    expect(skillsDeleteTool!.inputSchema.required).toEqual(['id']);
     expect(contextBindTool!.description).toContain('plan or sequence');
     expect(contextUnbindTool!.description).toContain('without deleting');
   });
@@ -325,6 +340,66 @@ describe('LocalhostMcpServer', () => {
     const updateJson = await updateResponse.json();
     expect(updateJson.result.structuredContent.body).toBe('Updated');
     expect(service.updateSkill).toHaveBeenCalledWith('skill-1', { body: 'Updated', aiAmendable: true, allProjects: false, projectIds: ['project-1'] });
+  });
+
+  it('supports type-based skill lookup via skills_get', async () => {
+    const server = new LocalhostMcpServer(makeService(), { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: 'skills_get',
+        arguments: { type: 'session-guide' },
+      },
+    });
+    const json = await response.json();
+    expect(json.result.content[0].text).toContain('resolved-1');
+    expect(json.result.content[0].text).toContain('session-guide');
+  });
+
+  it('supports skills_delete', async () => {
+    const server = new LocalhostMcpServer(makeService(), { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: 'skills_delete',
+        arguments: { id: 'skill-1' },
+      },
+    });
+    const json = await response.json();
+    expect(json.result.content[0].text).toContain('"deleted": true');
+  });
+
+  it('skills_get with type returns error when not found', async () => {
+    const svc = makeService();
+    (svc.resolveSkill as ReturnType<typeof vi.fn>).mockReturnValueOnce(null);
+    const server = new LocalhostMcpServer(svc, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: 'skills_get',
+        arguments: { type: 'nonexistent' },
+      },
+    });
+    const json = await response.json();
+    expect(json.error.message).toContain('not found');
   });
 
   it('dispatches context tools through the MCP surface', async () => {

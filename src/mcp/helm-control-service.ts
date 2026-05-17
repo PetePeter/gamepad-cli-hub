@@ -451,6 +451,15 @@ export class HelmControlService extends EventEmitter {
     return this.skillManager.update(id, updates, { requireAiAmendable: true });
   }
 
+  resolveSkill(type: string, filter?: { projectId?: string; dirPath?: string }): Skill | null {
+    const projectId = filter?.projectId ?? this.resolveProjectIdForDirectory(filter?.dirPath);
+    return this.skillManager.resolveEffective(type, projectId ?? undefined);
+  }
+
+  deleteSkill(id: string): boolean {
+    return this.skillManager.delete(id);
+  }
+
   restartHelm(): { sessionsClosed: number } {
     const sessions = this.sessionService.listSessions();
     for (const session of sessions) {

@@ -44,16 +44,28 @@ export async function callMcpTool(
           ...(typeof args.projectId === 'string' ? { projectId: args.projectId } : {}),
           ...(typeof args.dirPath === 'string' ? { dirPath: args.dirPath } : {}),
         });
-      case 'skills_get':
+      case 'skills_get': {
+        const type = typeof args.type === 'string' ? args.type : undefined;
+        if (type) {
+          return requireResult(
+            service.resolveSkill(type, {
+              ...(typeof args.projectId === 'string' ? { projectId: args.projectId } : {}),
+              ...(typeof args.dirPath === 'string' ? { dirPath: args.dirPath } : {}),
+            }),
+            `Skill not found for type: ${type}`,
+          );
+        }
         return requireResult(
           service.getSkill(asString(args.id, 'id is required')),
           `Skill not found: ${asString(args.id, 'id is required')}`,
         );
+      }
       case 'skills_create':
         return service.createSkill({
           name: asString(args.name, 'name is required'),
           ...(typeof args.description === 'string' ? { description: args.description } : {}),
           ...(typeof args.body === 'string' ? { body: args.body } : {}),
+          ...(typeof args.type === 'string' ? { type: args.type } : {}),
           ...(typeof args.aiAmendable === 'boolean' ? { aiAmendable: args.aiAmendable } : {}),
           ...(typeof args.allProjects === 'boolean' ? { allProjects: args.allProjects } : {}),
           ...(Array.isArray(args.projectIds) ? { projectIds: args.projectIds.filter((item): item is string => typeof item === 'string') } : {}),
@@ -61,7 +73,7 @@ export async function callMcpTool(
       case 'skills_update': {
         const id = asString(args.id, 'id is required');
         const updates: Record<string, unknown> = {};
-        for (const field of ['name', 'description', 'body', 'aiAmendable', 'allProjects', 'projectIds'] as const) {
+        for (const field of ['name', 'description', 'body', 'type', 'aiAmendable', 'allProjects', 'projectIds'] as const) {
           if (args[field] !== undefined) updates[field] = args[field];
         }
         if (Array.isArray(updates.projectIds)) {
@@ -69,6 +81,13 @@ export async function callMcpTool(
         }
         return service.updateSkill(id, updates);
       }
+      case 'skills_delete':
+        return {
+          deleted: requireBooleanResult(
+            service.deleteSkill(asString(args.id, 'id is required')),
+            `Skill not found: ${asString(args.id, 'id is required')}`,
+          ),
+        };
       case 'plan_get':
         return requireResult(
           service.getPlan(asString(args.id, 'id is required')),
