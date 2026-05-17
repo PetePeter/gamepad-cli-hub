@@ -33,6 +33,9 @@ import type { Skill, SkillCreateInput, SkillSummary, SkillUpdateInput } from '..
 import { ContextManager } from '../session/context-manager.js';
 import { SkillManager } from '../session/skill-manager.js';
 import { getSessionInfo } from './guides/session-info-guide.js';
+import { buildSessionSendTextGuide } from './guides/session-send-text-guide.js';
+import { buildAgentPlanGuide } from './guides/agent-plan-guide.js';
+import { buildNotificationGuide } from './guides/notification-guide.js';
 import type { ProjectStore } from '../session/project-store.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
 
@@ -89,32 +92,7 @@ export interface SessionInfoResponse {
   aiagent_states: string[];
   available_projects: ProjectInfo[];
   skills: SkillSummary[];
-  session_send_text_guide?: {
-    description: string;
-    inter_llm_handoff_protocol: string[];
-    required_args: Record<string, string>;
-    optional_args: Record<string, string>;
-    examples: Array<{ scenario: string; payload: Record<string, unknown> }>;
-  };
-  agent_plan_guide?: {
-    when_to_create_plan: string[];
-    required_description_sections: string[];
-    question_plan_workflow: string[];
-    implementation_context_workflow?: string[];
-    durable_context_guide?: string[];
-    plan_attachment_guide?: string[];
-    sequence_memory_guide?: string[];
-    completion_notes: string;
-  };
-  notification_guide?: {
-    description: string;
-    preferred_tool: string;
-    when_to_notify: string[];
-    when_not_to_notify: string[];
-    routing_outcomes: Record<string, string>;
-    examples: Array<{ scenario: string; tool: string; rationale: string }>;
-    llm_triggers: Array<{ trigger: string; action: string }>;
-  };
+  system_skill_types: string[];
 }
 
 /**
@@ -149,6 +127,42 @@ export class HelmControlService extends EventEmitter {
     super();
     const getSkillsPath = (configLoader as ConfigLoader & { getSkillsPath?: () => string }).getSkillsPath;
     this.skillManager = skillManager ?? new SkillManager(getSkillsPath ? getSkillsPath.call(configLoader) : 'src/config/skills.yaml');
+
+    // Register built-in system skills (detailed guidance fetched just-in-time via skills_get)
+    this.skillManager.registerSystemSkill({
+      id: 'sys-session-send-text',
+      name: 'Session Send Text Guide',
+      description: 'Inter-LLM handoff protocol via session_send_text. Fetch with skills_get(type: "session-send-text").',
+      body: JSON.stringify(buildSessionSendTextGuide(), null, 2),
+      aiAmendable: false,
+      allProjects: true,
+      projectIds: [],
+      type: 'session-send-text',
+      source: 'system',
+    });
+    this.skillManager.registerSystemSkill({
+      id: 'sys-agent-plan',
+      name: 'Agent Plan Guide',
+      description: 'Plan management workflow guidance. Fetch with skills_get(type: "agent-plan").',
+      body: JSON.stringify(buildAgentPlanGuide(), null, 2),
+      aiAmendable: false,
+      allProjects: true,
+      projectIds: [],
+      type: 'agent-plan',
+      source: 'system',
+    });
+    this.skillManager.registerSystemSkill({
+      id: 'sys-notification',
+      name: 'Notification Guide',
+      description: 'Notification routing guidance. Fetch with skills_get(type: "notification").',
+      body: JSON.stringify(buildNotificationGuide(), null, 2),
+      aiAmendable: false,
+      allProjects: true,
+      projectIds: [],
+      type: 'notification',
+      source: 'system',
+    });
+
     this.sessionDelivery = new HelmSessionDeliveryService(sessionManager, ptyManager, configLoader);
     this.sessionService = new HelmSessionService(sessionManager, ptyManager, configLoader, planManager);
     this.planService = new HelmPlanService(planManager, configLoader, attachmentManager, this.contextManager);

@@ -1318,9 +1318,9 @@ describe('LocalhostMcpServer', () => {
 
     expect(content.aiagent_states).toEqual(['planning', 'implementing', 'completed', 'idle']);
     expect(content).not.toHaveProperty('aiagent_state_guide');
-    expect(content.agent_plan_guide.durable_context_guide[0]).toContain('context_list');
-    expect(content.agent_plan_guide.implementation_context_workflow.join(' ')).toContain('just-in-time');
-    expect(content.agent_plan_guide.sequence_memory_guide[0]).toContain('legacy');
+    expect(content.system_skill_types).toEqual(['session-send-text', 'agent-plan', 'notification']);
+    expect(content).not.toHaveProperty('agent_plan_guide');
+    expect(content).not.toHaveProperty('notification_guide');
   });
 
   it('session_info returns complete SessionInfo with MCP endpoint and state registry', async () => {

@@ -601,7 +601,7 @@ describe('HelmControlService optional domain services', () => {
 });
 
 describe('HelmControlService.getSessionInfo', () => {
-  it('returns agent plan guidance without duplicating the MCP tool list', () => {
+  it('returns system_skill_types and mandatory rules without duplicating the MCP tool list', () => {
     const { service } = makeService();
 
     const info = service.getSessionInfo({ sessionId: 's1', sessionName: 'Claude' });
@@ -612,10 +612,23 @@ describe('HelmControlService.getSessionInfo', () => {
       expect.stringContaining('plan_set_state'),
       expect.stringContaining('QUESTION:'),
       expect.stringContaining('session_read_terminal'),
+      expect.stringContaining('skills_get'),
     ]));
-    expect(info.session_send_text_guide?.inter_llm_handoff_protocol.join(' ')).toContain('submits it automatically');
-    expect(info.session_send_text_guide?.inter_llm_handoff_protocol.join(' ')).toContain('session_read_terminal');
-    expect(info.agent_plan_guide?.required_description_sections).toEqual([
+    expect(info.system_skill_types).toEqual(['session-send-text', 'agent-plan', 'notification']);
+
+    expect(info).not.toHaveProperty('available_tools');
+    expect(info).not.toHaveProperty('session_send_text_guide');
+    expect(info).not.toHaveProperty('agent_plan_guide');
+    expect(info).not.toHaveProperty('notification_guide');
+  });
+
+  it('exposes guide content via system skills', () => {
+    const { service } = makeService();
+
+    const planGuide = service.resolveSkill('agent-plan');
+    expect(planGuide).toBeDefined();
+    const planBody = JSON.parse(planGuide!.body);
+    expect(planBody.required_description_sections).toEqual([
       'Problem Statement',
       'User POV',
       'Done Statement',
@@ -623,39 +636,28 @@ describe('HelmControlService.getSessionInfo', () => {
       'TDD Suggestions',
       'Acceptance Criteria',
     ]);
-    expect(info.agent_plan_guide?.when_to_create_plan.join(' ')).toContain('Follow-up work');
-    expect(info.agent_plan_guide?.question_plan_workflow.join(' ')).toContain('plan_nextplan_link');
-    expect(info.agent_plan_guide?.implementation_context_workflow?.join(' ')).toContain('just-in-time');
-    expect(info.agent_plan_guide?.implementation_context_workflow?.join(' ')).toContain('current phase');
-    expect(info.agent_plan_guide?.completion_notes).toContain('tests');
+    expect(planBody.when_to_create_plan.join(' ')).toContain('Follow-up work');
+    expect(planBody.question_plan_workflow.join(' ')).toContain('plan_nextplan_link');
+    expect(planBody.completion_notes).toContain('tests');
 
-    expect(info).not.toHaveProperty('available_tools');
+    const sendTextGuide = service.resolveSkill('session-send-text');
+    expect(sendTextGuide).toBeDefined();
+    const sendTextBody = JSON.parse(sendTextGuide!.body);
+    expect(sendTextBody.inter_llm_handoff_protocol.join(' ')).toContain('submits it automatically');
+    expect(sendTextBody.inter_llm_handoff_protocol.join(' ')).toContain('session_read_terminal');
   });
 
-  it('includes required_description_sections and completion_notes', () => {
+  it('exposes notification guide content via system skills', () => {
     const { service } = makeService();
 
-    const info = service.getSessionInfo();
-
-    expect(info.agent_plan_guide).toBeDefined();
-    expect(Array.isArray(info.agent_plan_guide?.required_description_sections)).toBe(true);
-    expect(info.agent_plan_guide?.required_description_sections!.length).toBeGreaterThanOrEqual(3);
-    expect(info.agent_plan_guide?.required_description_sections!.every((item: string) => item.length > 0)).toBe(true);
-
-    expect(info.agent_plan_guide?.completion_notes).toBeDefined();
-    expect(info.agent_plan_guide?.completion_notes!.length).toBeGreaterThan(0);
-  });
-
-  it('includes notification_guide explaining when and how to notify the user', () => {
-    const { service } = makeService();
-    const info = service.getSessionInfo();
-
-    expect(info.notification_guide).toBeDefined();
-    expect(info.notification_guide?.when_to_notify.length).toBeGreaterThanOrEqual(3);
-    expect(info.notification_guide?.when_not_to_notify.length).toBeGreaterThanOrEqual(2);
-    expect(info.notification_guide?.preferred_tool).toContain('notify_user');
-    expect(info.notification_guide?.when_not_to_notify.join(' ')).toContain('User is actively viewing');
-    const routing = JSON.stringify(info.notification_guide?.routing_outcomes);
+    const notificationGuide = service.resolveSkill('notification');
+    expect(notificationGuide).toBeDefined();
+    const body = JSON.parse(notificationGuide!.body);
+    expect(body.when_to_notify.length).toBeGreaterThanOrEqual(3);
+    expect(body.when_not_to_notify.length).toBeGreaterThanOrEqual(2);
+    expect(body.preferred_tool).toContain('notify_user');
+    expect(body.when_not_to_notify.join(' ')).toContain('User is actively viewing');
+    const routing = JSON.stringify(body.routing_outcomes);
     expect(routing).toContain('toast');
     expect(routing).toContain('bubble');
     expect(routing).toContain('telegram');

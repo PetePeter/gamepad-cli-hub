@@ -5,9 +5,6 @@ import type { ProjectStore } from '../../session/project-store.js';
 import type { SkillSummary } from '../../types/skill.js';
 
 import { getAiagentStates } from './aiagent-state-guide.js';
-import { buildSessionSendTextGuide } from './session-send-text-guide.js';
-import { buildAgentPlanGuide } from './agent-plan-guide.js';
-import { buildNotificationGuide } from './notification-guide.js';
 export { getAvailableTools } from './available-tools.js';
 
 /**
@@ -42,6 +39,7 @@ export function getSessionInfo(
       'ALWAYS create a separate QUESTION: plan for blocking questions that must survive chat, link it to the blocked plan with plan_nextplan_link, and leave the original plan body intact unless explicitly asked to edit it.',
       'ALWAYS prefer context_* tools for durable memory that should survive this session; link durable context to the relevant plan or sequence when useful, and mention related session or plan IDs when that helps future readers.',
       'ALWAYS send inter-LLM handoffs with session_send_text, then call session_read_terminal on the recipient and verify evidence of receipt before assuming delivery succeeded.',
+      'ALWAYS fetch detailed workflow guidance just-in-time: use skills_get(type: "session-send-text") for inter-LLM handoff protocol, skills_get(type: "agent-plan") for plan management workflow, and skills_get(type: "notification") for notification routing — do not request these unless the task requires them.',
     ],
     sessionId,
     sessionName: sessionName ?? sessionInfo?.name,
@@ -52,9 +50,7 @@ export function getSessionInfo(
     aiagent_states: getAiagentStates(),
     available_projects: getAvailableProjects(projectStore),
     skills,
-    session_send_text_guide: buildSessionSendTextGuide(),
-    agent_plan_guide: buildAgentPlanGuide(),
-    notification_guide: buildNotificationGuide(),
+    system_skill_types: ['session-send-text', 'agent-plan', 'notification'],
   };
 }
 

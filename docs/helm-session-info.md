@@ -51,28 +51,17 @@ Detailed state usage lives on the `session_set_aiagent_state` tool definition so
 
 - **`available_directories`** (DirectoryInfo[]) — List of configured working directories with `{ path, name }` fields. Use when spawning new sessions — pass the directory `path` to `session_create`.
 
-### Agent Plan Guidance
+### System Skill Types
 
-- **`agent_plan_guide`** — Guidance for LLM agents that create, claim, complete, or link Helm plans.
-  - **`plan_identifier_semantics`** — Values like `P-0035` are Helm human-readable plan IDs, and MCP plan tools accept either the canonical UUID or the `P-00xx` human ID.
-  - **`durable_context_guide`** — Prefer `context_*` tools for durable memory, and link context to plans or sequences where that relationship matters.
-  - **`when_to_create_plan`** — When follow-up work, blockers, or later cleanup should become durable Helm plans.
-  - **`required_description_sections`** — Required plan description headings: `Problem Statement`, `User POV`, `Done Statement`, `Files / Classes Affected`, `TDD Suggestions`, and `Acceptance Criteria`.
-  - **`question_plan_workflow`** — Blocking questions should become separate `QUESTION: ...` plans linked to the original task with `plan_nextplan_link`, using the question plan as the prerequisite.
-  - **`completion_documentation`** — Completion notes should cover implemented behavior, changed files, tests or review, and remaining risk.
-  - **`sequence_memory_guide`** — Sequence `sharedMemory` is legacy coordination text; prefer context for new durable notes.
+- **`system_skill_types`** (string[]) — Stable type identifiers for built-in system skills. Fetch detailed guidance just-in-time with `skills_get(type: "<type>")`. Currently: `session-send-text`, `agent-plan`, `notification`.
 
-### Notification Guidance
+  | Type | Content |
+  | --- | --- |
+  | `session-send-text` | Inter-LLM handoff protocol via `session_send_text`. |
+  | `agent-plan` | Plan management workflow — creating, claiming, completing, and linking Helm plans. |
+  | `notification` | Notification routing — when and how to call `notify_user`; toast / bubble / Telegram routing. |
 
-- **`notification_guide`** — Advice for LLM agents on *when* to notify the user and *how* the notification will be routed. Lets a calling agent predict whether `notify_user` will surface as a toast, in-app bubble, Telegram message, or be suppressed entirely.
-  - **`description`** — One-line summary of the field's purpose.
-  - **`preferred_tool`** — Names `notify_user` as the smart router; mentions that it picks toast / bubble / telegram / none from current visibility + screen-lock state.
-  - **`pre_flight`** — Pre-call checklist items, e.g. call `get_app_visibility` first to predict routing, ensure `notificationMode === 'llm'`.
-  - **`when_to_notify`** — Bulleted reasons it's worth pulling the user's attention (long-running task done, blocking question, unrecoverable error, scheduled event).
-  - **`when_not_to_notify`** — Bulleted suppression cases (focused on same session, routine chatter, tight loops, mode != llm).
-  - **`routing_outcomes`** — Object keyed by `toast` / `bubble` / `telegram` / `none`, each with a short description of the routing path.
-  - **`telegram_usage`** — Mobile-friendly content rules for Telegram-bound notifications (concise, plain text, lead with action item).
-  - **`examples`** — Scenario / tool / rationale rows showing typical decisions.
+  Agents should fetch these only when the task requires the guidance, not on every startup.
 
 ## Usage Pattern
 
@@ -114,70 +103,8 @@ Response:
       { "path": "X:\\coding\\gamepad-cli-hub", "name": "Helm" },
       { "path": "X:\\homeassistant", "name": "HomeAssistant" }
     ],
-    "agent_plan_guide": {
-      "plan_identifier_semantics": [
-        "Values like P-0035 are Helm human-readable plan IDs..."
-      ],
-      "required_description_sections": [
-        "Problem Statement",
-        "User POV",
-        "Done Statement",
-        "Files / Classes Affected",
-        "TDD Suggestions",
-        "Acceptance Criteria"
-      ],
-      "question_plan_workflow": [
-        "Question plans should use a title that starts with QUESTION: ..."
-      ],
-      "plan_attachment_guide": [
-        "plan_get returns hasAttachments so agents can decide whether to call plan_attachment_list.",
-        "Use plan_attachment_list for metadata, and plan_attachment_get when actual content is needed via a temp path.",
-        "Use plan_attachment_add for durable supporting artifacts; attachments are stored inside Helm config-managed storage."
-      ],
-      "sequence_memory_guide": [
-        "plan_get returns sequenceId but does not inline sequence sharedMemory; call plan_sequence_list with planId when sequence context is needed.",
-        "Sequence sharedMemory is common memory for all member plans and can be read through plan_sequence_list.",
-        "Use plan_sequence_memory_append for additive updates, or plan_sequence_update for full edits.",
-        "Pass expectedUpdatedAt from the last read when writing to avoid overwriting concurrent changes."
-      ]
-    },
-    "notification_guide": {
-      "description": "When you need to pull the user's attention to this session, prefer notify_user...",
-      "preferred_tool": "notify_user — smart router that picks toast / bubble / telegram / none from current visibility + screen-lock state.",
-      "pre_flight": [
-        "Call get_app_visibility first if you want to predict the routing outcome.",
-        "Notifications require notificationMode === 'llm' in Helm settings; otherwise notify_user errors."
-      ],
-      "when_to_notify": [
-        "Long-running task completed and the user likely walked away.",
-        "Blocking question that needs user input before work can resume.",
-        "Unrecoverable error or unexpected state worth surfacing immediately.",
-        "Scheduled event or timer fired (e.g. a wait-until pattern reached its time)."
-      ],
-      "when_not_to_notify": [
-        "App is visible-focused and activeSessionId matches this session — the user is already watching.",
-        "Routine progress chatter that does not require user action.",
-        "Inside a tight loop or per-token output path.",
-        "notificationMode is not 'llm'."
-      ],
-      "routing_outcomes": {
-        "toast": "Native OS toast (window hidden or background, screen unlocked).",
-        "bubble": "In-app bubble in the focused window for a different session.",
-        "telegram": "Telegram message (screen locked + Telegram configured).",
-        "none": "Suppressed (focused on the same session, or screen locked without Telegram)."
-      },
-      "telegram_usage": [
-        "Keep Telegram-bound content concise and mobile-friendly.",
-        "Prefer plain text — no large logs, wide tables, or code blocks.",
-        "Lead with the action item; the user is on a phone and may be glancing."
-      ],
-      "examples": [
-        { "scenario": "Build finished after 8 minutes; user has minimized the window.", "tool": "notify_user", "rationale": "Long task done, app hidden → toast." },
-        { "scenario": "Need a yes/no on a destructive migration.", "tool": "notify_user", "rationale": "Blocking question, surface regardless of visibility." },
-        { "scenario": "Streaming routine progress every few seconds.", "tool": "(none)", "rationale": "Routine chatter — do not notify." },
-        { "scenario": "Pattern matcher's wait-until just fired at 09:00.", "tool": "notify_user", "rationale": "Scheduled event the user wanted to know about." }
-      ]
-    }
+    "skills": [],
+    "system_skill_types": ["session-send-text", "agent-plan", "notification"]
   }
 }
 ```
