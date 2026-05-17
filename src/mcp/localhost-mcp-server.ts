@@ -1167,6 +1167,9 @@ export class LocalhostMcpServer {
         });
       case 'skills_get': {
         const skillType = typeof args.type === 'string' ? args.type : undefined;
+        if (skillType && args.id !== undefined) {
+          throw new Error('Pass either id or type to skills_get, not both');
+        }
         if (skillType) {
           return requireResult(
             this.service.resolveSkill(skillType, {

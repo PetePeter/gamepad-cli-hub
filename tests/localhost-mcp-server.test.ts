@@ -402,6 +402,25 @@ describe('LocalhostMcpServer', () => {
     expect(json.error.message).toContain('not found');
   });
 
+  it('skills_get rejects ambiguous id and type lookup', async () => {
+    const server = new LocalhostMcpServer(makeService(), { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: {
+        name: 'skills_get',
+        arguments: { id: 'skill-1', type: 'session-guide' },
+      },
+    });
+    const json = await response.json();
+    expect(json.error.message).toContain('either id or type');
+  });
+
   it('dispatches context tools through the MCP surface', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });

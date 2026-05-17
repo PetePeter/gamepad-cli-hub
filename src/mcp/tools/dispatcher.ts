@@ -46,6 +46,9 @@ export async function callMcpTool(
         });
       case 'skills_get': {
         const type = typeof args.type === 'string' ? args.type : undefined;
+        if (type && args.id !== undefined) {
+          throw new Error('Pass either id or type to skills_get, not both');
+        }
         if (type) {
           return requireResult(
             service.resolveSkill(type, {

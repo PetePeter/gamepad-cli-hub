@@ -104,9 +104,17 @@ describe('SkillManager', () => {
 describe('typed skills (P-0278)', () => {
   it('typed skills persist type field', () => {
     const manager = makeManager();
-    const created = manager.create({ name: 'Review', type: 'code-review' });
+    const created = manager.create({ name: 'Review', type: ' code-review ' });
     expect(created.type).toBe('code-review');
     expect(manager.get(created.id)?.type).toBe('code-review');
+  });
+
+  it('blank skill types are treated as untyped', () => {
+    const manager = makeManager();
+    const created = manager.create({ name: 'Review', type: '   ' });
+
+    expect(created.type).toBeUndefined();
+    expect(manager.get(created.id)?.type).toBeUndefined();
   });
 
   it('source defaults to user for created skills', () => {

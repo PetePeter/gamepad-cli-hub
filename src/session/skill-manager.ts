@@ -68,7 +68,7 @@ export class SkillManager {
       body: normalizeOptional(input.body),
       aiAmendable: input.aiAmendable === true,
       ...scope,
-      type: isAnyString(input.type) ? input.type : undefined,
+      type: normalizeOptionalType(input.type),
       source: 'user',
     };
 
@@ -99,7 +99,7 @@ export class SkillManager {
       Object.assign(next, normalizeScope({ ...next, ...updates }));
     }
     if (updates.type !== undefined) {
-      next.type = isAnyString(updates.type) ? updates.type : undefined;
+      next.type = normalizeOptionalType(updates.type);
     }
 
     if (next.type) {
@@ -149,7 +149,7 @@ function normalizePersistedSkill(value: unknown): Skill {
     body: isAnyString(value.body) ? value.body : '',
     aiAmendable: value.aiAmendable === true,
     ...normalizeScope(value),
-    type: isAnyString(value.type) ? value.type : undefined,
+    type: normalizeOptionalType(value.type),
     source: 'user',
   };
 }
@@ -161,6 +161,12 @@ function normalizeRequired(value: unknown, errorMessage: string): string {
 
 function normalizeOptional(value: unknown): string {
   return isAnyString(value) ? value : '';
+}
+
+function normalizeOptionalType(value: unknown): string | undefined {
+  if (!isAnyString(value)) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function normalizeScope(value: { allProjects?: unknown; projectIds?: unknown }): Pick<Skill, 'allProjects' | 'projectIds'> {

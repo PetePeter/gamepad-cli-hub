@@ -47,9 +47,8 @@ Detailed state usage lives on the `session_set_aiagent_state` tool definition so
 
 ### Available Resources
 
-- **`available_tools`** (McpToolSummary[]) — List of tools exposed by the MCP server with `{ name, title, description }` fields. Use this to discover what operations are available before calling tools.
-
-- **`available_directories`** (DirectoryInfo[]) — List of configured working directories with `{ path, name }` fields. Use when spawning new sessions — pass the directory `path` to `session_create`.
+- **`available_projects`** (ProjectInfo[]) — Compact project stubs with `{ id, name, canonicalPath }` fields. Call `projects_list` when full project directory details are needed.
+- **`skills`** (SkillSummary[]) — Compact summaries for user and system skills applicable to the current session project. Fetch full bodies with `skills_get` only when needed.
 
 ### System Skill Types
 
@@ -94,38 +93,32 @@ Response:
     "mcp_url": "http://127.0.0.1:47373/mcp",
     "mcp_token": "eyJhbGciOi...",
     "aiagent_states": ["planning", "implementing", "completed", "idle"],
-    "available_tools": [
-      { "name": "tools_list", "title": "List CLI Types", "description": "List CLI types configured in Helm..." },
-      { "name": "session_info", "title": "Get Session Info", "description": "Retrieve MCP endpoint, AIAGENT state registry..." },
-      ...
+    "available_projects": [
+      { "id": "543a...", "name": "gamepad-cli-hub", "canonicalPath": "x:\\coding\\gamepad-cli-hub" }
     ],
-    "available_directories": [
-      { "path": "X:\\coding\\gamepad-cli-hub", "name": "Helm" },
-      { "path": "X:\\homeassistant", "name": "HomeAssistant" }
+    "skills": [
+      { "id": "sys-agent-plan", "name": "Agent Plan Guide", "type": "agent-plan", "source": "system" }
     ],
-    "skills": [],
     "system_skill_types": ["session-send-text", "agent-plan", "notification"]
   }
 }
 ```
 
-### 2. State Tagging
+### 2. State Updates
 
-Use the canonical states from `aiagent_states` to tag response blocks:
+Use the canonical states from `aiagent_states` with `session_set_aiagent_state`.
+Printed `AIAGENT-*` tags are optional display text; Helm state changes come from the MCP call.
 
-```
-AIAGENT-PLANNING
-Analyzing the requirements...
-
-<analysis content>
-
-AIAGENT-IMPLEMENTING
-Writing the code...
-
-<implementation content>
-
-AIAGENT-COMPLETED
-Ready for review.
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "session_set_aiagent_state",
+    "arguments": { "sessionId": "a1b2c3d4-e5f6-...", "state": "planning" }
+  }
+}
 ```
 
 ### 3. Building MCP Requests
@@ -155,7 +148,7 @@ const response = await fetch(mcp_url, {
 
 ### 4. Discovering Available Tools
 
-The `available_tools` array lists all MCP tools currently exposed by Helm. Use this to check what operations are available before attempting calls.
+Use the MCP `tools/list` protocol request to inspect the current tool catalog. The Helm `tools_list` tool is separate: it lists configured CLI types and spawn targets.
 
 ### 5. Creating Durable Plans
 
@@ -341,25 +334,24 @@ const sessionInfo = await mcp.callTool('session_info', {});
 console.log(`Session: ${sessionInfo.sessionName} (${sessionInfo.sessionId})`);
 console.log(`Valid AIAGENT states: ${sessionInfo.aiagent_states.join(', ')}`);
 
-// Step 2: Discover available tools
-const tools = sessionInfo.available_tools;
-console.log(`Available tools: ${tools.map(t => t.name).join(', ')}`);
-
-// Step 3: Start work with explicit AIAGENT state updates and readable tags
-await mcp.callTool('session_set_aiagent_state', { sessionId: sessionInfo.sessionId, state: 'planning' });
-console.log('AIAGENT-PLANNING');
-console.log('Researching the task...');
-
-// Step 4: Make MCP calls as needed
-const plans = await mcp.callTool('plans_list', {
+// Step 2: Fetch detailed workflow guidance only when needed
+const planGuide = await mcp.callTool('skills_get', {
+  type: 'agent-plan',
   dirPath: sessionInfo.workingDir
 });
 
-console.log('AIAGENT-IMPLEMENTING');
+// Step 3: Start work with explicit AIAGENT state updates
+await mcp.callTool('session_set_aiagent_state', { sessionId: sessionInfo.sessionId, state: 'planning' });
+console.log('Researching the task...');
+
+// Step 4: Make MCP calls as needed
+const plans = await mcp.callTool('plans_summary', {
+  dirPath: sessionInfo.workingDir
+});
+
 await mcp.callTool('session_set_aiagent_state', { sessionId: sessionInfo.sessionId, state: 'implementing' });
 console.log('Implementing the solution...');
 
-console.log('AIAGENT-COMPLETED');
 await mcp.callTool('session_set_aiagent_state', { sessionId: sessionInfo.sessionId, state: 'completed' });
 console.log('Ready for review.');
 ```
