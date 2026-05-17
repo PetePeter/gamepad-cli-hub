@@ -25,6 +25,7 @@ import { HelmTelegramService } from './services/helm-telegram-service.js';
 import { HelmSchedulerService } from './services/helm-scheduler-service.js';
 import { HelmProjectService } from './services/helm-project-service.js';
 import { HelmDirectoryService } from './services/helm-directory-service.js';
+import { logger } from '../utils/logger.js';
 import type { ScheduledTaskManager } from '../session/scheduled-task-manager.js';
 import type { CreateScheduledTaskParams, ScheduledTask, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
 import type { ContextBindingTargetType, ContextNode, ContextPermission, PlanContextRef } from '../types/context.js';
@@ -435,6 +436,19 @@ export class HelmControlService extends EventEmitter {
 
   closeSession(sessionRef: string) {
     return this.sessionService.closeSession(sessionRef);
+  }
+
+  restartHelm(): { sessionsClosed: number } {
+    const sessions = this.sessionService.listSessions();
+    for (const session of sessions) {
+      try {
+        this.sessionService.closeSession(session.id);
+      } catch (error) {
+        logger.warn(`[HelmControl] Failed to close session ${session.id} during restart: ${error}`);
+      }
+    }
+    this.emit('restart-requested');
+    return { sessionsClosed: sessions.length };
   }
 
   setAiagentState(sessionRef: string, state: 'planning' | 'implementing' | 'completed' | 'idle') {

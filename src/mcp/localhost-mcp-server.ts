@@ -878,6 +878,16 @@ const TOOLS: McpTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'restart_helm',
+    title: 'Restart Helm',
+    description: 'Close all sessions and restart the Helm application. MCP and Telegram resume after a 3-second delay.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
 ];
 
 export interface LocalhostMcpServerOptions {
@@ -1355,6 +1365,8 @@ export class LocalhostMcpServer {
         );
       case 'session_close':
         return this.service.closeSession(asString(args.sessionId ?? args.name, 'sessionId or name is required'));
+      case 'restart_helm':
+        return this.service.restartHelm();
       case 'notify_user':
         return this.service.notifyUser(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),

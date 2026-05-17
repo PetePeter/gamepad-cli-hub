@@ -50,6 +50,16 @@ let mainWindowReadyToShow = false;
 let rendererStartupReady = false;
 let startupFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 const configLoader = new ConfigLoader();
+const RESTART_STARTUP_DELAY_MS = 3000;
+
+function parseStartupDelayMs(args: string[]): number {
+  const arg = args.find(value => value.startsWith('--startup-delay='));
+  if (!arg) return 0;
+  const parsed = Number.parseInt(arg.split('=')[1] ?? '', 10);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+}
+
+const startupDelayMs = parseStartupDelayMs(process.argv);
 
 function readWindowBounds(): void {
   windowBounds = { width: 1280, height: 800, x: undefined as number | undefined, y: undefined as number | undefined };
@@ -296,9 +306,18 @@ app.whenReady().then(async () => {
   }
 
   // Register IPC handlers (passes __dirname for temp file cleanup on startup)
-  const ipc = registerIPCHandlers(__dirname, configLoader);
+  const ipc = registerIPCHandlers(__dirname, configLoader, { startupDelayMs });
   cleanupIPC = ipc.cleanup;
   const windowManager = ipc.windowManager;
+  ipc.helmControlService.on('restart-requested', () => {
+    logger.info('[Main] Restart requested - relaunching with startup delay');
+    const relaunchArgs = process.argv
+      .slice(1)
+      .filter(arg => !arg.startsWith('--startup-delay='))
+      .concat([`--startup-delay=${RESTART_STARTUP_DELAY_MS}`]);
+    app.relaunch({ args: relaunchArgs });
+    app.quit();
+  });
 
   // Start watching for incoming plan files from CLIs
   ipc.incomingWatcher.start();

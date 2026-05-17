@@ -92,6 +92,7 @@ function makeService(): HelmControlService {
     })),
     notifyUser: vi.fn((sessionRef: string, title: string, content: string) => ({ delivered: 'bubble', sessionRef, title, content })),
     getAppVisibility: vi.fn(() => ({ visibility: 'visible-focused', screenLocked: false, activeSessionId: 's1' })),
+    restartHelm: vi.fn(() => ({ sessionsClosed: 2 })),
     createScheduledTask: vi.fn((params: Record<string, unknown>) => ({ id: 'task-1', status: 'pending', ...params })),
     listScheduledTasks: vi.fn(() => [{ id: 'task-1', title: 'Follow up', status: 'pending' }]),
     getScheduledTask: vi.fn((id: string) => ({ id, title: 'Follow up', status: 'pending' })),
@@ -185,6 +186,7 @@ describe('LocalhostMcpServer', () => {
     const schedulerDeleteTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'scheduler_delete');
     const notifyUserTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'notify_user');
     const appVisibilityTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'get_app_visibility');
+    const restartHelmTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'restart_helm');
     const contextBindTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'context_bind');
     const contextUnbindTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'context_unbind');
     expect(planCreateTool.description).toContain('Problem Statement');
@@ -214,6 +216,7 @@ describe('LocalhostMcpServer', () => {
     expect(schedulerDeleteTool!.description).toContain('Delete');
     expect(notifyUserTool!.description).toContain('smart delivery routing');
     expect(appVisibilityTool!.description).toContain('screen-lock');
+    expect(restartHelmTool!.description).toContain('restart');
     expect(contextBindTool!.description).toContain('plan or sequence');
     expect(contextUnbindTool!.description).toContain('without deleting');
   });
@@ -241,6 +244,19 @@ describe('LocalhostMcpServer', () => {
     const json = await response.json();
     expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', { senderSessionId: 's1', senderSessionName: 'Claude' });
     expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
+
+    const restartResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 4,
+      method: 'tools/call',
+      params: {
+        name: 'restart_helm',
+        arguments: {},
+      },
+    });
+    const restartJson = await restartResponse.json();
+    expect((service.restartHelm as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(1);
+    expect(restartJson.result.structuredContent).toEqual({ sessionsClosed: 2 });
   });
 
   it('dispatches context tools through the MCP surface', async () => {

@@ -51,6 +51,10 @@ import { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
 
 const TELEGRAM_AUTOSTART_DELAY_MS = 60_000;
 
+export interface IpcStartupOptions {
+  startupDelayMs?: number;
+}
+
 
 /**
  * Register all IPC handlers.
@@ -61,8 +65,10 @@ const TELEGRAM_AUTOSTART_DELAY_MS = 60_000;
 export function registerIPCHandlers(
   dirname?: string,
   configLoader: ConfigLoader = new ConfigLoader(),
-): { cleanup: () => void; sessionManager: SessionManager; ptyManager: PtyManager; incomingWatcher: IncomingPlansWatcher; windowManager: WindowManager } {
+  options: IpcStartupOptions = {},
+): { cleanup: () => void; sessionManager: SessionManager; ptyManager: PtyManager; incomingWatcher: IncomingPlansWatcher; windowManager: WindowManager; helmControlService: HelmControlService } {
   logger.info('[IPC] Registering handlers');
+  const startupDelayMs = Math.max(0, options.startupDelayMs ?? 0);
 
   const windowManager = new WindowManager();
 
@@ -232,7 +238,7 @@ export function registerIPCHandlers(
         } catch (err) {
           logger.error(`[IPC] Failed to auto-start Telegram bot: ${err}`);
         }
-      }, TELEGRAM_AUTOSTART_DELAY_MS)
+      }, TELEGRAM_AUTOSTART_DELAY_MS + startupDelayMs)
     : null;
 
   logger.info('[IPC] All handlers registered');
@@ -240,7 +246,8 @@ export function registerIPCHandlers(
   // Start scheduled task manager
   scheduledTaskManager.start();
 
-  void localhostMcpServer.start().catch((error) => {
+  const startMcpServer = () => {
+    void localhostMcpServer.start().catch((error) => {
     const isAddrInUse = error && typeof error === 'object' && 'code' in error && error.code === 'EADDRINUSE';
     const port = localhostMcpServer.getAddress()?.port ?? configLoader.getMcpConfig().port;
     if (isAddrInUse) {
@@ -255,11 +262,17 @@ export function registerIPCHandlers(
       );
     }
     logger.error(`[MCP] Failed to start localhost MCP server: ${error}`);
-  });
+    });
+  };
+  const mcpStartTimer = startupDelayMs > 0
+    ? setTimeout(startMcpServer, startupDelayMs)
+    : null;
+  if (!mcpStartTimer) startMcpServer();
 
   return {
     cleanup: () => {
       if (telegramAutoStartTimer) clearTimeout(telegramAutoStartTimer);
+      if (mcpStartTimer) clearTimeout(mcpStartTimer);
       cleanupTelegram();
       telegramModules.cleanup();
       cleanupSession();
@@ -278,5 +291,6 @@ export function registerIPCHandlers(
     ptyManager,
     incomingWatcher,
     windowManager,
+    helmControlService,
   };
 }

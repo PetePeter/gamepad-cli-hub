@@ -1105,6 +1105,78 @@ describe('HelmControlService.closeSession', () => {
   });
 });
 
+describe('HelmControlService.restartHelm', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('closes all sessions, emits restart-requested, and returns the closed count', () => {
+    const { service, ptyManager, sessionManager } = makeService();
+    (sessionManager.getAllSessions as ReturnType<typeof vi.fn>).mockReturnValue([
+      { id: 's1', name: 'One', cliType: 'claude-code' },
+      { id: 's2', name: 'Two', cliType: 'codex' },
+      { id: 's3', name: 'Three', cliType: 'copilot' },
+    ]);
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockImplementation((id: string) => ({
+      id,
+      name: id,
+      cliType: 'claude-code',
+    }));
+    const listener = vi.fn();
+    service.on('restart-requested', listener);
+
+    expect(service.restartHelm()).toEqual({ sessionsClosed: 3 });
+    expect(ptyManager.kill).toHaveBeenCalledWith('s1');
+    expect(ptyManager.kill).toHaveBeenCalledWith('s2');
+    expect(ptyManager.kill).toHaveBeenCalledWith('s3');
+    expect(sessionManager.removeSession).toHaveBeenCalledTimes(3);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('emits restart-requested when there are no sessions', () => {
+    const { service, sessionManager } = makeService();
+    (sessionManager.getAllSessions as ReturnType<typeof vi.fn>).mockReturnValue([]);
+    const listener = vi.fn();
+    service.on('restart-requested', listener);
+
+    expect(service.restartHelm()).toEqual({ sessionsClosed: 0 });
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('continues closing sessions when one close fails', () => {
+    const { service, ptyManager, sessionManager } = makeService();
+    (sessionManager.getAllSessions as ReturnType<typeof vi.fn>).mockReturnValue([
+      { id: 's1', name: 'One', cliType: 'claude-code' },
+      { id: 'missing', name: 'Missing', cliType: 'codex' },
+      { id: 's3', name: 'Three', cliType: 'copilot' },
+    ]);
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockImplementation((id: string) => (
+      id === 'missing' ? null : { id, name: id, cliType: 'claude-code' }
+    ));
+    const listener = vi.fn();
+    service.on('restart-requested', listener);
+
+    expect(service.restartHelm()).toEqual({ sessionsClosed: 3 });
+    expect(ptyManager.kill).toHaveBeenCalledWith('s1');
+    expect(ptyManager.kill).toHaveBeenCalledWith('s3');
+    expect(sessionManager.removeSession).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to close session missing during restart'));
+  });
+
+  it('emits restart-requested exactly once per call', () => {
+    const { service, sessionManager } = makeService();
+    (sessionManager.getAllSessions as ReturnType<typeof vi.fn>).mockReturnValue([]);
+    const listener = vi.fn();
+    service.on('restart-requested', listener);
+
+    service.restartHelm();
+    service.restartHelm();
+
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('HelmControlService.sendTextToSession — helmPreambleForInterSession toggle', () => {
   afterEach(() => {
     vi.restoreAllMocks();
