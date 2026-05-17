@@ -55,7 +55,7 @@ const props = defineProps<{
   workingPlanTooltips: Map<string, string>;
   pendingSchedules: Map<string, string>;
   snappedOutSessions: Set<string>;
-  llmNotifications: Map<string, Array<{ id: string; title: string; content: string }>>;
+  llmNotifications: Map<string, Array<{ id: string; title: string; content: string; createdAt?: number }>>;
   getCliDisplayName: (cliType: string) => string;
   resolveGroupDisplayName: (dirPath: string, directories: SessionListDirectory[], projects?: SessionListProject[]) => string;
   isSessionHiddenFromOverview: (session: SessionListGroupSession) => boolean;

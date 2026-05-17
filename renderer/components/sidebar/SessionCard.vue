@@ -38,7 +38,7 @@ export interface SessionCardProps {
   isHiddenFromOverview: boolean;
   scheduledAt?: string | null;
   isSnappedOut?: boolean;
-  llmNotifications?: Array<{ id: string; title: string; content: string }>;
+  llmNotifications?: Array<{ id: string; title: string; content: string; createdAt?: number }>;
 }
 
 // --- Constants ---

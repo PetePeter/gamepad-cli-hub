@@ -8,7 +8,7 @@
 import { ref, computed, nextTick, watch } from 'vue';
 
 const props = defineProps<{
-  notifications: Array<{ id: string; title: string; content: string }>;
+  notifications: Array<{ id: string; title: string; content: string; createdAt?: number }>;
   sessionId: string;
 }>();
 
@@ -48,6 +48,11 @@ watch(() => props.notifications.length, (n) => {
     currentIndex.value = Math.max(0, n - 1);
   }
 });
+
+function formatTime(ts?: number): string {
+  if (!ts) return '';
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 </script>
 
 <template>
@@ -59,25 +64,28 @@ watch(() => props.notifications.length, (n) => {
     </div>
     <div class="carousel-body">
       <div class="carousel-nav">
-        <button
-          v-if="notifications.length > 1"
-          class="nav-arrow"
-          :disabled="currentIndex === 0"
-          @click.stop="prev"
-        >&#9664;</button>
+        <div v-if="notifications.length > 1" class="nav-arrow-slot">
+          <button
+            class="nav-arrow"
+            :disabled="currentIndex === 0"
+            @click.stop="prev"
+          >&#9664;</button>
+        </div>
         <div class="carousel-content">
           <div class="carousel-title">{{ current.title }}</div>
           <div class="carousel-text">{{ current.content }}</div>
         </div>
-        <button
-          v-if="notifications.length > 1"
-          class="nav-arrow"
-          :disabled="currentIndex === notifications.length - 1"
-          @click.stop="next"
-        >&#9654;</button>
+        <div v-if="notifications.length > 1" class="nav-arrow-slot">
+          <button
+            class="nav-arrow"
+            :disabled="currentIndex === notifications.length - 1"
+            @click.stop="next"
+          >&#9654;</button>
+        </div>
       </div>
     </div>
     <div class="carousel-footer">
+      <span class="carousel-timestamp">{{ formatTime(current.createdAt) }}</span>
       <button class="dismiss-btn" @click.stop="dismissCurrent">Dismiss</button>
     </div>
   </div>
@@ -143,13 +151,20 @@ watch(() => props.notifications.length, (n) => {
   gap: 8px;
 }
 
+.nav-arrow-slot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  padding-top: 2px;
+}
+
 .nav-arrow {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
-  flex: 0 0 auto;
+  flex-shrink: 0;
   padding: 0;
   border: 0;
   border-radius: 4px;
@@ -191,7 +206,17 @@ watch(() => props.notifications.length, (n) => {
 }
 
 .carousel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
   padding: 4px 10px 6px;
+}
+
+.carousel-timestamp {
+  flex: 1;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
 }
 
 .dismiss-btn {

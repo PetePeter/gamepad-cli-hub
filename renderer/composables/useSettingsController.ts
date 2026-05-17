@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue';
+import { computed, ref, toRaw } from 'vue';
 import { configClient, skillsClient, telegramClient, toolsClient } from '../ipc/clients.js';
 import { initConfigCache } from '../bindings.js';
 import { sessionsState } from '../screens/sessions-state.js';
@@ -810,7 +810,7 @@ export function useSettingsController(options: {
       logEvent('Skill name is required');
       return;
     }
-    const payload = {
+    const payload = toRaw({
       name,
       description: draft.description,
       body: draft.body,
@@ -818,7 +818,7 @@ export function useSettingsController(options: {
       allProjects: draft.allProjects,
       projectIds: draft.allProjects ? [] : draft.projectIds,
       type: draft.type,
-    };
+    });
     const result = draft.id
       ? await skillsClient.skillUpdate(draft.id, payload)
       : await skillsClient.skillCreate(payload);
