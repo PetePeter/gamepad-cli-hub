@@ -253,6 +253,7 @@ button {
   flex-direction: column;
   padding: 0;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -541,6 +542,7 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 0 0 auto;
   padding: 8px 12px;
   min-height: 52px;
   cursor: pointer;
@@ -565,6 +567,7 @@ button {
   display: flex;
   align-items: center;
   width: 100%;
+  flex: 0 0 auto;
   padding: 8px 12px;
   background: #1a1a1a;
   border: 1px solid transparent;
@@ -622,6 +625,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 0 0 auto;
   padding: 8px 12px;
   min-height: 94px;
   border-radius: var(--radius-md, 8px);

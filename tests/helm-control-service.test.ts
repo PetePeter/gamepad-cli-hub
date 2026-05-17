@@ -613,6 +613,7 @@ describe('HelmControlService.getSessionInfo', () => {
       expect.stringContaining('QUESTION:'),
       expect.stringContaining('session_read_terminal'),
       expect.stringContaining('skills_get'),
+      expect.stringContaining('skills_list'),
     ]));
     expect(info.system_skill_types).toEqual(['session-send-text', 'agent-plan', 'notification']);
 
