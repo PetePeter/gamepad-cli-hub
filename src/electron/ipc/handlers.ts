@@ -20,7 +20,7 @@ import { PlanBackupManager } from '../../session/plan-backup-manager.js';
 import { PatternMatcher } from '../../session/pattern-matcher.js';
 import { ScheduledTaskManager } from '../../session/scheduled-task-manager.js';
 import { setupPowerMonitor } from '../../session/power-monitor.js';
-import { configLoader } from '../../config/loader.js';
+import { ConfigLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
 import { logger } from '../../utils/logger.js';
 
@@ -60,6 +60,7 @@ const TELEGRAM_AUTOSTART_DELAY_MS = 60_000;
  */
 export function registerIPCHandlers(
   dirname?: string,
+  configLoader: ConfigLoader = new ConfigLoader(),
 ): { cleanup: () => void; sessionManager: SessionManager; ptyManager: PtyManager; incomingWatcher: IncomingPlansWatcher; windowManager: WindowManager } {
   logger.info('[IPC] Registering handlers');
 

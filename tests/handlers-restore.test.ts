@@ -64,8 +64,7 @@ vi.mock('../src/session/notification-manager.js', () => ({
   }),
 }));
 
-vi.mock('../src/config/loader.js', () => ({
-  configLoader: {
+const mockConfigLoader = {
     load: vi.fn(),
     getCliTypes: vi.fn().mockReturnValue([]),
     getCliTypeEntry: vi.fn(),
@@ -84,7 +83,12 @@ vi.mock('../src/config/loader.js', () => ({
     }),
     getPatterns: vi.fn().mockReturnValue([]),
     addBookmarkedDir: vi.fn(),
-  },
+};
+
+vi.mock('../src/config/loader.js', () => ({
+  ConfigLoader: vi.fn(function (this: any) {
+    Object.assign(this, mockConfigLoader);
+  }),
 }));
 
 vi.mock('../src/output/keyboard.js', () => ({

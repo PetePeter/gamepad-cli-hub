@@ -17,7 +17,7 @@ import { migrateOldPlans } from '../session/plan-migration.js';
 import { migrateProjects } from '../session/project-migration.js';
 import { migrateUserDataFolder } from './user-data-migration.js';
 import { configureElectronAppIdentity } from './app-identity.js';
-import { configLoader } from '../config/loader.js';
+import { ConfigLoader } from '../config/loader.js';
 import { logger } from '../utils/logger.js';
 import { getRendererHtmlPath, isPackaged, seedConfigIfNeeded, getConfigDir } from '../utils/app-paths.js';
 
@@ -49,6 +49,7 @@ let windowBounds = { width: 1280, height: 800, x: undefined as number | undefine
 let mainWindowReadyToShow = false;
 let rendererStartupReady = false;
 let startupFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+const configLoader = new ConfigLoader();
 
 function readWindowBounds(): void {
   windowBounds = { width: 1280, height: 800, x: undefined as number | undefined, y: undefined as number | undefined };
@@ -295,7 +296,7 @@ app.whenReady().then(async () => {
   }
 
   // Register IPC handlers (passes __dirname for temp file cleanup on startup)
-  const ipc = registerIPCHandlers(__dirname);
+  const ipc = registerIPCHandlers(__dirname, configLoader);
   cleanupIPC = ipc.cleanup;
   const windowManager = ipc.windowManager;
 

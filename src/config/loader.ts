@@ -1,18 +1,19 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as YAML from 'yaml';
 import logger from '../utils/logger.js';
 import { getConfigDir, isPackaged, seedConfigIfNeeded } from '../utils/app-paths.js';
 import { fileURLToPath } from 'url';
 import {
   isCliTypeOptions,
   normalizeMcpPort,
-  normalizeToolConfig,
   parseCommandTemplate,
   type CliTypeOptions,
   type EnvVarEntry,
   type SpawnConfig,
 } from './loader-helpers.js';
+import { ProfileManager } from './profile-manager.js';
+import { DEFAULT_MCP_CONFIG, SettingsManager } from './settings-manager.js';
+import { TelegramConfigManager } from './telegram-config-manager.js';
 
 export { parseCliArgs, resolveEnvWithMode, slugify } from './loader-helpers.js';
 export type { CliTypeOptions, EnvVarEntry, SpawnConfig } from './loader-helpers.js';
@@ -226,33 +227,11 @@ export interface TelegramConfig {
   openWhisprModelPath: string;
 }
 
-const DEFAULT_TELEGRAM_CONFIG: TelegramConfig = {
-  enabled: false,
-  autoStart: false,
-  botToken: '',
-  instanceName: 'Home',
-  chatId: null,
-  allowedUserIds: [],
-  safeModeDefault: true,
-  notifyOnComplete: true,
-  notifyOnIdle: true,
-  notifyOnError: true,
-  notifyOnCrash: true,
-  openWhisprPath: '',
-  openWhisprModelPath: '',
-};
-
 export interface McpConfig {
   enabled: boolean;
   port: number;
   authToken: string;
 }
-
-const DEFAULT_MCP_CONFIG: McpConfig = {
-  enabled: false,
-  port: 47373,
-  authToken: '',
-};
 
 export interface EditorPrefs {
   draftEditorHeight?: number;
@@ -291,6 +270,7 @@ export interface ChipbarAction {
 }
 
 export interface ProfileConfig {
+  version?: number;
   name: string;
   tools: { [key: string]: CliTypeConfig };
   workingDirectories: WorkingDirectory[];
@@ -366,6 +346,9 @@ seedConfigIfNeeded(sourceConfigDir, DEFAULT_CONFIG_DIR);
 
 export class ConfigLoader {
   private configDir: string;
+  private profileManager: ProfileManager;
+  private settingsManager: SettingsManager;
+  private telegramConfigManager: TelegramConfigManager;
   private settings: SettingsConfig | null = null;
   private activeProfile: ProfileConfig | null = null;
   private activeProfileName: string = 'default';
@@ -373,6 +356,12 @@ export class ConfigLoader {
 
   constructor(configDir: string = DEFAULT_CONFIG_DIR) {
     this.configDir = configDir;
+    this.profileManager = new ProfileManager(configDir, this.activeProfileName);
+    this.settingsManager = new SettingsManager(configDir);
+    this.telegramConfigManager = new TelegramConfigManager(
+      () => this.settings,
+      () => this.saveSettings(),
+    );
   }
 
   // ---------- Loading --------------------------------------------------
@@ -384,153 +373,30 @@ export class ConfigLoader {
   }
 
   private loadSettings(): void {
-    const filePath = path.join(this.configDir, 'settings.yaml');
-    this.settings = this.readYaml<SettingsConfig>(filePath);
-    if (!this.settings) {
-      throw new Error('Invalid settings.yaml: could not parse');
-    }
-    if (this.settings.hapticFeedback === undefined) {
-      this.settings.hapticFeedback = true;
-    }
-    if (this.settings.notifications === undefined) {
-      this.settings.notifications = true;
-    }
-    const savedTelegram = this.settings.telegram;
-    this.settings.telegram = {
-      ...DEFAULT_TELEGRAM_CONFIG,
-      ...(savedTelegram ?? {}),
-      autoStart: typeof savedTelegram?.autoStart === 'boolean'
-        ? savedTelegram.autoStart
-        : savedTelegram?.enabled === true,
-    };
-    this.settings.mcp = {
-      ...DEFAULT_MCP_CONFIG,
-      ...(this.settings.mcp ?? {}),
-      enabled: this.settings.mcp?.enabled === true,
-      port: normalizeMcpPort(this.settings.mcp?.port),
-      authToken: typeof this.settings.mcp?.authToken === 'string' ? this.settings.mcp.authToken : '',
-    };
+    this.settings = this.settingsManager.load();
   }
 
   private loadActiveProfile(): void {
-    const filePath = path.join(this.configDir, 'profiles', 'default.yaml');
-    const raw = this.readYaml<any>(filePath);
-    if (!raw) {
-      throw new Error('Failed to load profile: default');
-    }
-
-    // Migrate cliTypes → bindings if needed
-    if (raw.cliTypes && !raw.bindings) {
-      raw.bindings = raw.cliTypes;
-      delete raw.cliTypes;
-      fs.writeFileSync(filePath, YAML.stringify(raw), 'utf8');
-    }
-
-    // Normalize legacy tool fields in place so the rest of the app only sees the
-    // canonical spawnCommand-based launch shape.
-    let toolsMigrated = false;
-    if (raw.tools && typeof raw.tools === 'object') {
-      for (const toolKey of Object.keys(raw.tools)) {
-        if (normalizeToolConfig(raw.tools[toolKey])) toolsMigrated = true;
-      }
-      if (toolsMigrated) {
-        fs.writeFileSync(filePath, YAML.stringify(raw), 'utf8');
-      }
-    }
-
-    // Ensure required fields have defaults
-    if (!raw.tools) raw.tools = {};
-    if (!raw.workingDirectories) raw.workingDirectories = [];
-    if (!raw.bindings || typeof raw.bindings !== 'object') {
-      throw new Error(`Invalid profile '${this.activeProfileName}': missing bindings`);
-    }
-
-    this.activeProfile = raw as ProfileConfig;
-    this.activeProfileMtime = fs.statSync(filePath).mtimeMs;
+    const loaded = this.profileManager.loadActiveProfile();
+    this.activeProfile = loaded.profile;
+    this.activeProfileMtime = loaded.mtimeMs;
   }
 
   reloadActiveProfileIfChanged(): void {
-    const filePath = path.join(this.configDir, 'profiles', 'default.yaml');
     try {
-      const mtime = fs.statSync(filePath).mtimeMs;
-      if (mtime === this.activeProfileMtime) return;
-      this.loadActiveProfile();
+      const loaded = this.profileManager.reloadIfChanged(this.activeProfileMtime);
+      if (!loaded) return;
+      this.activeProfile = loaded.profile;
+      this.activeProfileMtime = loaded.mtimeMs;
     } catch (err) {
       logger.warn(`[Config] reloadActiveProfileIfChanged failed, keeping existing profile: ${err}`);
     }
   }
 
-  private readYaml<T>(filePath: string): T {
-    if (!fs.existsSync(filePath)) {
-      logger.error(`[Config] Configuration file not found: ${filePath}`);
-      throw new Error(`Configuration file not found: ${filePath}`);
-    }
-    const content = fs.readFileSync(filePath, 'utf8');
-    try {
-      const parsed = YAML.parse(content) as T;
-      if (!parsed) {
-        logger.error(`[Config] Empty or invalid YAML in: ${filePath}`);
-        throw new Error(`Failed to parse configuration file: ${filePath}`);
-      }
-      return parsed;
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith('Failed to parse')) throw error;
-      logger.error(`[Config] YAML parse error in ${filePath}:`, error);
-      throw new Error(`Failed to parse configuration file: ${filePath} — ${error}`);
-    }
-  }
-
   private migrateGlobalFiles(): void {
-    const toolsPath = path.join(this.configDir, 'tools.yaml');
-    const dirsPath = path.join(this.configDir, 'directories.yaml');
-
-    let toolsData: { cliTypes: Record<string, CliTypeConfig> } | null = null;
-    let dirsData: { workingDirectories: WorkingDirectory[] } | null = null;
-
-    if (fs.existsSync(toolsPath)) {
-      try { toolsData = this.readYaml(toolsPath); } catch { /* ignore */ }
+    if (this.profileManager.migrateGlobalFiles()) {
+      this.loadActiveProfile();
     }
-    if (fs.existsSync(dirsPath)) {
-      try { dirsData = this.readYaml(dirsPath); } catch { /* ignore */ }
-    }
-
-    if (!toolsData && !dirsData) return;
-
-    // Merge into ALL profiles
-    const profilesDir = path.join(this.configDir, 'profiles');
-    if (fs.existsSync(profilesDir)) {
-      for (const file of fs.readdirSync(profilesDir).filter(f => f.endsWith('.yaml'))) {
-        const profilePath = path.join(profilesDir, file);
-        try {
-          const profile = this.readYaml<any>(profilePath);
-          let changed = false;
-
-          if (toolsData?.cliTypes && !profile.tools) {
-            profile.tools = toolsData.cliTypes;
-            changed = true;
-          }
-          if (dirsData?.workingDirectories && !profile.workingDirectories) {
-            profile.workingDirectories = dirsData.workingDirectories;
-            changed = true;
-          }
-          if (profile.cliTypes && !profile.bindings) {
-            profile.bindings = profile.cliTypes;
-            delete profile.cliTypes;
-            changed = true;
-          }
-
-          if (changed) {
-            fs.writeFileSync(profilePath, YAML.stringify(profile), 'utf8');
-          }
-        } catch { /* skip broken profiles */ }
-      }
-    }
-
-    if (toolsData) { fs.unlinkSync(toolsPath); logger.info('[Config] Migrated tools.yaml into profiles'); }
-    if (dirsData) { fs.unlinkSync(dirsPath); logger.info('[Config] Migrated directories.yaml into profiles'); }
-
-    // Reload active profile to pick up migrations
-    this.loadActiveProfile();
   }
 
   // ---------- Existing read methods (backward compatible) ---------------
@@ -910,17 +776,12 @@ export class ConfigLoader {
 
   /** Get the current Telegram configuration. */
   getTelegramConfig(): TelegramConfig {
-    return this.settings?.telegram ?? { ...DEFAULT_TELEGRAM_CONFIG };
+    return this.telegramConfigManager.get();
   }
 
   /** Update the Telegram configuration (partial merge). */
   setTelegramConfig(updates: Partial<TelegramConfig>): void {
-    if (!this.settings) return;
-    this.settings.telegram = {
-      ...(this.settings.telegram ?? { ...DEFAULT_TELEGRAM_CONFIG }),
-      ...updates,
-    };
-    this.saveSettings();
+    this.telegramConfigManager.set(updates);
   }
 
   /** Get the current localhost MCP configuration. */
@@ -1146,16 +1007,14 @@ export class ConfigLoader {
 
   private saveSettings(): void {
     if (!this.settings) return;
-    const filePath = path.join(this.configDir, 'settings.yaml');
-    fs.writeFileSync(filePath, YAML.stringify(this.settings), 'utf8');
+    this.settingsManager.saveNow(this.settings);
   }
 
   private saveActiveProfile(): void {
     if (!this.activeProfile) return;
-    const filePath = path.join(this.configDir, 'profiles', `${this.activeProfileName}.yaml`);
-    fs.writeFileSync(filePath, YAML.stringify(this.activeProfile), 'utf8');
+    this.profileManager.save(this.activeProfile);
+    try {
+      this.activeProfileMtime = fs.statSync(this.profileManager.profilePath).mtimeMs;
+    } catch { /* keep old mtime */ }
   }
 }
-
-// Export a singleton instance for convenience
-export const configLoader = new ConfigLoader();
