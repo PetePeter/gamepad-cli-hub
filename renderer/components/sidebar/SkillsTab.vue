@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 
 export interface SkillSummary {
   id: string;
@@ -46,9 +46,72 @@ const emit = defineEmits<{
 
 const localDraft = ref<SkillDraft>({ ...props.draft });
 
+// Originals — used to detect unsaved changes
+const origName = ref(props.draft.name);
+const origDescription = ref(props.draft.description);
+const origBody = ref(props.draft.body);
+const origAiAmendable = ref(props.draft.aiAmendable);
+const origAllProjects = ref(props.draft.allProjects);
+const origProjectIds = ref([...props.draft.projectIds]);
+
+const hydratingFromProps = ref(false);
+const saveStatus = ref<'clean' | 'unsaved' | 'saving' | 'saved'>('clean');
+const autoSaveTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+
 watch(() => props.draft, (draft) => {
+  hydratingFromProps.value = true;
   localDraft.value = { ...draft };
+  origName.value = draft.name;
+  origDescription.value = draft.description;
+  origBody.value = draft.body;
+  origAiAmendable.value = draft.aiAmendable;
+  origAllProjects.value = draft.allProjects;
+  origProjectIds.value = [...draft.projectIds];
+  saveStatus.value = 'clean';
+  if (autoSaveTimer.value) { clearTimeout(autoSaveTimer.value); autoSaveTimer.value = null; }
+  nextTick(() => { hydratingFromProps.value = false; });
 }, { deep: true });
+
+const hasUnsavedChanges = computed(() =>
+  localDraft.value.name !== origName.value ||
+  localDraft.value.description !== origDescription.value ||
+  localDraft.value.body !== origBody.value ||
+  localDraft.value.aiAmendable !== origAiAmendable.value ||
+  localDraft.value.allProjects !== origAllProjects.value ||
+  JSON.stringify(localDraft.value.projectIds) !== JSON.stringify(origProjectIds.value),
+);
+
+const saveStatusText = computed(() =>
+  ({ unsaved: '● Unsaved', saving: '◑ Saving…', saved: '✓ Saved' }[saveStatus.value] ?? ''),
+);
+
+watch(localDraft, () => {
+  if (hydratingFromProps.value) return;
+  if (saveStatus.value === 'clean' || saveStatus.value === 'saved') saveStatus.value = 'unsaved';
+  scheduleAutoSave();
+}, { deep: true, flush: 'post' });
+
+function scheduleAutoSave(): void {
+  if (autoSaveTimer.value) clearTimeout(autoSaveTimer.value);
+  autoSaveTimer.value = setTimeout(() => {
+    autoSaveTimer.value = null;
+    if (hasUnsavedChanges.value) doAutoSave();
+  }, 500);
+}
+
+function doAutoSave(): void {
+  if (isSystemSkill.value || !localDraft.value.name.trim()) return;
+  saveStatus.value = 'saving';
+  emit('save', { ...localDraft.value });
+  origName.value = localDraft.value.name;
+  origDescription.value = localDraft.value.description;
+  origBody.value = localDraft.value.body;
+  origAiAmendable.value = localDraft.value.aiAmendable;
+  origAllProjects.value = localDraft.value.allProjects;
+  origProjectIds.value = [...localDraft.value.projectIds];
+  saveStatus.value = 'saved';
+  setTimeout(() => { if (saveStatus.value === 'saved') saveStatus.value = 'clean'; }, 2000);
+}
 
 const selectedId = computed(() => localDraft.value.id);
 const canDelete = computed(() => Boolean(localDraft.value.id));
@@ -63,7 +126,16 @@ const selectedProjects = computed(() => {
 });
 
 function onSave(): void {
+  if (autoSaveTimer.value) { clearTimeout(autoSaveTimer.value); autoSaveTimer.value = null; }
   emit('save', { ...localDraft.value });
+  origName.value = localDraft.value.name;
+  origDescription.value = localDraft.value.description;
+  origBody.value = localDraft.value.body;
+  origAiAmendable.value = localDraft.value.aiAmendable;
+  origAllProjects.value = localDraft.value.allProjects;
+  origProjectIds.value = [...localDraft.value.projectIds];
+  saveStatus.value = 'saved';
+  setTimeout(() => { if (saveStatus.value === 'saved') saveStatus.value = 'clean'; }, 2000);
 }
 
 function selectAllProjects(): void {
@@ -202,6 +274,7 @@ function toggleProject(projectId: string): void {
       </p>
 
       <div class="settings-tool-actions">
+        <span v-if="saveStatusText" class="skill-save-status">{{ saveStatusText }}</span>
         <button v-if="canClone" class="btn btn--secondary focusable" @click="emit('clone', localDraft.id)">
           Clone as Override
         </button>
