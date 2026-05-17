@@ -6,32 +6,76 @@ import type { Skill, SkillCreateInput, SkillSummary, SkillUpdateInput } from '..
 import { atomicWriteFileSync, isAnyString, isRecord } from './persistence-utils.js';
 
 export class SkillManager {
+  private systemSkills: Skill[] = [];
+
   constructor(private readonly filePath: string) {}
 
+  registerSystemSkill(skill: Skill): void {
+    this.systemSkills.push({ ...skill, source: 'system' });
+  }
+
   list(): SkillSummary[] {
-    return this.load().map(toSummary);
+    const userSkills = this.load().map(toSummary);
+    const systemSummaries = this.systemSkills.map(toSummary);
+    return dedupSummaries([...userSkills, ...systemSummaries]);
   }
 
   listForProject(projectId?: string | null): SkillSummary[] {
-    return this.load().filter((skill) => isSkillApplicableToProject(skill, projectId)).map(toSummary);
+    const userSkills = this.load()
+      .filter((skill) => isSkillApplicableToProject(skill, projectId))
+      .map(toSummary);
+    const systemSummaries = this.systemSkills.map(toSummary);
+    return dedupSummaries([...userSkills, ...systemSummaries]);
   }
 
   get(id: string): Skill | null {
-    const skill = this.load().find((item) => item.id === id);
-    return skill ? { ...skill } : null;
+    const userSkill = this.load().find((item) => item.id === id);
+    if (userSkill) return { ...userSkill, source: 'user' };
+    const sysSkill = this.systemSkills.find((item) => item.id === id);
+    return sysSkill ? { ...sysSkill } : null;
+  }
+
+  resolveEffective(type: string, projectId?: string | null): Skill | null {
+    const userSkills = this.load();
+
+    // First: project-scoped user skill with matching type and projectId
+    if (projectId) {
+      const scoped = userSkills.find(
+        (s) => s.type === type && !s.allProjects && s.projectIds.includes(projectId),
+      );
+      if (scoped) return { ...scoped, source: 'user' };
+    }
+
+    // Second: all-projects user skill with matching type
+    const global = userSkills.find((s) => s.type === type && s.allProjects);
+    if (global) return { ...global, source: 'user' };
+
+    // Third: system skill with matching type
+    const sys = this.systemSkills.find((s) => s.type === type);
+    if (sys) return { ...sys };
+
+    return null;
   }
 
   create(input: SkillCreateInput): Skill {
     const skills = this.load();
     const name = normalizeRequired(input.name, 'Skill name is required');
+    const scope = normalizeScope(input);
     const skill: Skill = {
       id: randomUUID(),
       name,
       description: normalizeOptional(input.description),
       body: normalizeOptional(input.body),
       aiAmendable: input.aiAmendable === true,
-      ...normalizeScope(input),
+      ...scope,
+      type: isAnyString(input.type) ? input.type : undefined,
+      source: 'user',
     };
+
+    if (skill.type) {
+      assertNoDuplicateType(skills, skill.type, skill.allProjects, skill.projectIds, null);
+    }
+
     skills.push(skill);
     this.save(skills);
     return { ...skill };
@@ -53,6 +97,13 @@ export class SkillManager {
     if (updates.aiAmendable !== undefined) next.aiAmendable = updates.aiAmendable === true;
     if (updates.allProjects !== undefined || updates.projectIds !== undefined) {
       Object.assign(next, normalizeScope({ ...next, ...updates }));
+    }
+    if (updates.type !== undefined) {
+      next.type = isAnyString(updates.type) ? updates.type : undefined;
+    }
+
+    if (next.type) {
+      assertNoDuplicateType(skills, next.type, next.allProjects, next.projectIds, id);
     }
 
     skills[index] = next;
@@ -98,6 +149,8 @@ function normalizePersistedSkill(value: unknown): Skill {
     body: isAnyString(value.body) ? value.body : '',
     aiAmendable: value.aiAmendable === true,
     ...normalizeScope(value),
+    type: isAnyString(value.type) ? value.type : undefined,
+    source: 'user',
   };
 }
 
@@ -135,5 +188,38 @@ function toSummary(skill: Skill): SkillSummary {
     aiAmendable: skill.aiAmendable,
     allProjects: skill.allProjects,
     projectIds: [...skill.projectIds],
+    type: skill.type,
+    source: skill.source,
   };
+}
+
+function dedupSummaries(summaries: SkillSummary[]): SkillSummary[] {
+  const seen = new Set<string>();
+  return summaries.filter((s) => {
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  });
+}
+
+function assertNoDuplicateType(
+  existing: Skill[],
+  type: string,
+  allProjects: boolean,
+  projectIds: string[],
+  excludeId: string | null,
+): void {
+  for (const other of existing) {
+    if (excludeId && other.id === excludeId) continue;
+    if (other.type !== type) continue;
+    if (allProjects && other.allProjects) {
+      throw new Error(`Duplicate skill type for scope: ${type}`);
+    }
+    if (!allProjects && !other.allProjects) {
+      const overlap = projectIds.some((pid) => other.projectIds.includes(pid));
+      if (overlap) {
+        throw new Error(`Duplicate skill type for scope: ${type}`);
+      }
+    }
+  }
 }

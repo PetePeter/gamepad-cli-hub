@@ -1,3 +1,5 @@
+export type SkillSource = 'user' | 'system';
+
 export interface Skill {
   id: string;
   name: string;
@@ -6,6 +8,8 @@ export interface Skill {
   aiAmendable: boolean;
   allProjects: boolean;
   projectIds: string[];
+  type?: string;
+  source?: SkillSource;
 }
 
 export interface SkillSummary {
@@ -15,6 +19,8 @@ export interface SkillSummary {
   aiAmendable: boolean;
   allProjects: boolean;
   projectIds: string[];
+  type?: string;
+  source?: SkillSource;
 }
 
 export interface SkillCreateInput {
@@ -24,6 +30,7 @@ export interface SkillCreateInput {
   aiAmendable?: boolean;
   allProjects?: boolean;
   projectIds?: string[];
+  type?: string;
 }
 
 export interface SkillUpdateInput {
@@ -33,4 +40,5 @@ export interface SkillUpdateInput {
   aiAmendable?: boolean;
   allProjects?: boolean;
   projectIds?: string[];
+  type?: string;
 }
