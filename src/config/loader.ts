@@ -225,6 +225,9 @@ export interface TelegramConfig {
   notifyOnCrash: boolean;
   openWhisprPath: string;
   openWhisprModelPath: string;
+  piperPath: string;
+  piperVoicePath: string;
+  ffmpegPath: string;
 }
 
 export interface McpConfig {

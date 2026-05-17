@@ -96,6 +96,9 @@ describe('ConfigLoader — TelegramConfig', () => {
       expect(tg.notifyOnIdle).toBe(true);
       expect(tg.notifyOnError).toBe(true);
       expect(tg.notifyOnCrash).toBe(true);
+      expect(tg.piperPath).toBe('');
+      expect(tg.piperVoicePath).toBe('');
+      expect(tg.ffmpegPath).toBe('');
     });
 
     it('default config has enabled=false and empty token', () => {
@@ -127,6 +130,11 @@ describe('ConfigLoader — TelegramConfig', () => {
         notifyOnIdle: false,
         notifyOnError: true,
         notifyOnCrash: false,
+        openWhisprPath: '',
+        openWhisprModelPath: '',
+        piperPath: 'C:\\Tools\\piper\\piper.exe',
+        piperVoicePath: 'C:\\Voices\\voice.onnx',
+        ffmpegPath: 'C:\\Tools\\ffmpeg.exe',
       };
       setupTestFiles({ telegram: telegramSection });
       loader = new ConfigLoader(TEST_DIR);
@@ -143,6 +151,9 @@ describe('ConfigLoader — TelegramConfig', () => {
       expect(tg.safeModeDefault).toBe(false);
       expect(tg.notifyOnIdle).toBe(false);
       expect(tg.notifyOnCrash).toBe(false);
+      expect(tg.piperPath).toBe('C:\\Tools\\piper\\piper.exe');
+      expect(tg.piperVoicePath).toBe('C:\\Voices\\voice.onnx');
+      expect(tg.ffmpegPath).toBe('C:\\Tools\\ffmpeg.exe');
     });
 
     it('migrates legacy enabled telegram config to autoStart', () => {
@@ -203,6 +214,11 @@ describe('ConfigLoader — TelegramConfig', () => {
         notifyOnIdle: true,
         notifyOnError: true,
         notifyOnCrash: true,
+        openWhisprPath: '',
+        openWhisprModelPath: '',
+        piperPath: 'C:\\Tools\\piper\\piper.exe',
+        piperVoicePath: 'C:\\Voices\\voice.onnx',
+        ffmpegPath: 'C:\\Tools\\ffmpeg.exe',
       };
       setupTestFiles({ telegram: existing });
       loader = new ConfigLoader(TEST_DIR);

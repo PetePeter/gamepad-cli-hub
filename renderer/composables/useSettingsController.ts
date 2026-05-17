@@ -38,6 +38,9 @@ export interface SettingsTelegramConfig {
   notificationsEnabled: boolean;
   autoStart: boolean;
   openWhisprPath: string;
+  piperPath: string;
+  piperVoicePath: string;
+  ffmpegPath: string;
 }
 
 export interface SettingsMcpConfig {
@@ -80,6 +83,9 @@ export function useSettingsController(options: {
     notificationsEnabled: false,
     autoStart: false,
     openWhisprPath: '',
+    piperPath: '',
+    piperVoicePath: '',
+    ffmpegPath: '',
   });
   const settingsTelegramBotRunning = ref(false);
   const settingsMcpConfig = ref<SettingsMcpConfig>({ enabled: false, port: 47373, authToken: '' });
@@ -235,6 +241,9 @@ export function useSettingsController(options: {
         notificationsEnabled: tgConfig?.enabled || false,
         autoStart: tgConfig?.autoStart || false,
         openWhisprPath: tgConfig?.openWhisprPath || '',
+        piperPath: tgConfig?.piperPath || '',
+        piperVoicePath: tgConfig?.piperVoicePath || '',
+        ffmpegPath: tgConfig?.ffmpegPath || '',
       };
       settingsTelegramBotRunning.value = await telegramClient.telegramIsRunning();
     } catch {
@@ -245,6 +254,9 @@ export function useSettingsController(options: {
         notificationsEnabled: false,
         autoStart: false,
         openWhisprPath: '',
+        piperPath: '',
+        piperVoicePath: '',
+        ffmpegPath: '',
       };
       settingsTelegramBotRunning.value = false;
     }
@@ -628,6 +640,15 @@ export function useSettingsController(options: {
       } else if (field === 'openWhisprPath') {
         await telegramClient.telegramSetConfig({ openWhisprPath: String(value) });
         settingsTelegramConfig.value.openWhisprPath = String(value);
+      } else if (field === 'piperPath') {
+        await telegramClient.telegramSetConfig({ piperPath: String(value) });
+        settingsTelegramConfig.value.piperPath = String(value);
+      } else if (field === 'piperVoicePath') {
+        await telegramClient.telegramSetConfig({ piperVoicePath: String(value) });
+        settingsTelegramConfig.value.piperVoicePath = String(value);
+      } else if (field === 'ffmpegPath') {
+        await telegramClient.telegramSetConfig({ ffmpegPath: String(value) });
+        settingsTelegramConfig.value.ffmpegPath = String(value);
       }
     } catch (error) {
       console.error('Failed to update Telegram config:', error);

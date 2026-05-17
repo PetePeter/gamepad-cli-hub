@@ -19,6 +19,9 @@ export const DEFAULT_TELEGRAM_CONFIG: TelegramConfig = {
   notifyOnCrash: true,
   openWhisprPath: '',
   openWhisprModelPath: '',
+  piperPath: '',
+  piperVoicePath: '',
+  ffmpegPath: '',
 };
 
 export const DEFAULT_MCP_CONFIG: McpConfig = {
