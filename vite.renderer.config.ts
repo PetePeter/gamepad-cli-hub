@@ -8,11 +8,18 @@ export default defineConfig({
   plugins: [vue()],
   build: {
     outDir: resolve(__dirname, 'dist/renderer'),
-    emptyOutDir: true,
+    // Helm can rebuild the renderer while Electron windows are still open.
+    // Keep filenames stable and avoid deleting live chunks out from under them.
+    emptyOutDir: false,
     sourcemap: true,
     target: 'es2022',
     rollupOptions: {
       input: resolve(__dirname, 'renderer/index.html'),
+      output: {
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: 'assets/[name][extname]',
+      },
     },
   },
   resolve: {
