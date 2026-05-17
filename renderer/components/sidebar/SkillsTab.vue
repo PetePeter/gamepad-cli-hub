@@ -274,7 +274,6 @@ function toggleProject(projectId: string): void {
       </p>
 
       <div class="settings-tool-actions">
-        <span v-if="saveStatusText" class="skill-save-status">{{ saveStatusText }}</span>
         <button v-if="canClone" class="btn btn--secondary focusable" @click="emit('clone', localDraft.id)">
           Clone as Override
         </button>
@@ -294,6 +293,7 @@ function toggleProject(projectId: string): void {
         >
           Delete
         </button>
+        <span v-if="saveStatusText" class="skill-save-status">{{ saveStatusText }}</span>
       </div>
     </div>
   </div>
