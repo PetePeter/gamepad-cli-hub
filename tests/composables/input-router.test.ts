@@ -126,6 +126,19 @@ describe('useInputRouter', () => {
     expect(mocks.processConfigBinding).not.toHaveBeenCalled();
   });
 
+  it('guide and sandwich close settings through the navigation store', () => {
+    const { router, deps, navStore } = createRouter({
+      settingsVisible: ref(true),
+    });
+
+    router.handleButton('Guide');
+
+    expect(deps.settingsVisible.value).toBe(false);
+    expect(navStore.closeSettings).toHaveBeenCalled();
+    expect(mocks.modalStack.handleInput).not.toHaveBeenCalled();
+    expect(mocks.processConfigBinding).not.toHaveBeenCalled();
+  });
+
   it('routes plan buttons before session navigation and terminal bindings', () => {
     const { router, navStore } = createRouter({ activeView: ref('plan') });
 
@@ -134,6 +147,90 @@ describe('useInputRouter', () => {
     expect(navStore.closePlan).toHaveBeenCalled();
     expect(mocks.handleSessionsScreenButton).not.toHaveBeenCalled();
     expect(mocks.processConfigBinding).not.toHaveBeenCalled();
+  });
+
+  it('routes plan D-pad directly to the plan screen handler', () => {
+    const { router } = createRouter({ activeView: ref('plan') });
+
+    router.handleButton('DPadDown');
+
+    expect(mocks.handlePlanScreenDpad).toHaveBeenCalledWith('down');
+    expect(mocks.handleSessionsScreenButton).not.toHaveBeenCalled();
+    expect(mocks.processConfigBinding).not.toHaveBeenCalled();
+  });
+
+  it('uses session routing as the only app-level fallback after plan actions decline', () => {
+    mocks.handlePlanScreenAction.mockReturnValue(false);
+    mocks.handleSessionsScreenButton.mockReturnValue(true);
+    const { router } = createRouter({ activeView: ref('plan') });
+
+    router.handleButton('Y');
+
+    expect(mocks.handlePlanScreenAction).toHaveBeenCalledWith('Y');
+    expect(mocks.handleSessionsScreenButton).toHaveBeenCalledWith('Y');
+    expect(mocks.processConfigBinding).not.toHaveBeenCalled();
+  });
+
+  it('bridge modals block all lower-priority routing', () => {
+    mocks.isAnyBridgeModalVisible.mockReturnValue(true);
+    const { router } = createRouter();
+
+    router.handleButton('A');
+
+    expect(mocks.handleSessionsScreenButton).not.toHaveBeenCalled();
+    expect(mocks.processConfigBinding).not.toHaveBeenCalled();
+  });
+
+  it('routes draft editor buttons before sessions and bindings', () => {
+    const handleDraftButton = vi.fn();
+    const { router } = createRouter({
+      draftEditorVisible: ref(true),
+      draftEditorRef: ref({ handleButton: handleDraftButton }),
+    });
+
+    router.handleButton('DPadUp');
+
+    expect(handleDraftButton).toHaveBeenCalledWith('DPadUp');
+    expect(mocks.handleSessionsScreenButton).not.toHaveBeenCalled();
+    expect(mocks.processConfigBinding).not.toHaveBeenCalled();
+  });
+
+  it('overview A navigates to the focused overview session', () => {
+    mocks.sessionsState.overviewFocusIndex = 1;
+    mocks.getOverviewSessions.mockReturnValue([{ id: 's1' }, { id: 's2' }]);
+    const { router, navStore } = createRouter({ activeView: ref('overview') });
+
+    router.handleButton('A');
+
+    expect(navStore.navigateToSession).toHaveBeenCalledWith('s2');
+    expect(mocks.handleSessionsScreenButton).not.toHaveBeenCalled();
+  });
+
+  it('overview up and down fall through to session navigation', () => {
+    mocks.getOverviewSessions.mockReturnValue([{ id: 's1' }]);
+    mocks.handleSessionsScreenButton.mockReturnValueOnce(true);
+    const { router } = createRouter({ activeView: ref('overview') });
+
+    router.handleButton('DPadDown');
+
+    expect(mocks.handleSessionsScreenButton).toHaveBeenCalledWith('DPadDown');
+    expect(mocks.processConfigBinding).not.toHaveBeenCalled();
+  });
+
+  it('overview X toggles the focused card collapse state', () => {
+    mocks.sessionsState.overviewFocusIndex = 0;
+    mocks.getOverviewSessions.mockReturnValue([{ id: 's1' }]);
+    const collapsed = ref(new Set<string>());
+    const { router } = createRouter({
+      activeView: ref('overview'),
+      overviewCollapsedIds: collapsed,
+    });
+
+    router.handleButton('X');
+    expect(collapsed.value.has('s1')).toBe(true);
+
+    router.handleButton('X');
+    expect(collapsed.value.has('s1')).toBe(false);
   });
 
   it('falls through to terminal config bindings when no higher-priority surface handles input', () => {
