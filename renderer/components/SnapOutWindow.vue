@@ -5,11 +5,11 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { TerminalView } from '../terminal/terminal-view.js';
 import { useKeyboardRelay } from '../composables/useKeyboardRelay.js';
+import { useAppStore } from '../stores/app.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
 import { deliverBulkText, deliverViaClipboardPaste } from '../paste-handler.js';
 import { deliverPromptSequence } from '../sequence-delivery.js';
 import { contextMenu } from '../stores/modal-bridge.js';
-import { state } from '../state.js';
 import { loadStoredSessions } from '../session-store.js';
 import { getCliDisplayName } from '../utils.js';
 import ChipBar from './chips/ChipBar.vue';
@@ -38,6 +38,7 @@ let unsubData: (() => void) | null = null;
 let unsubExit: (() => void) | null = null;
 let unsubSessionUpdated: (() => void) | null = null;
 const sessionInfo = ref<any | null>(null);
+const appStore = useAppStore();
 
 const draftEditorVisible = ref(false);
 const draftEditorMode = ref<'draft' | 'plan'>('draft');
@@ -142,10 +143,8 @@ onMounted(async () => {
   const session = sessions.find((s: any) => s.id === props.sessionId);
   if (session) {
     sessionInfo.value = session;
-    const existingIndex = state.sessions.findIndex(s => s.id === props.sessionId);
-    if (existingIndex >= 0) state.sessions[existingIndex] = session;
-    else state.sessions.push(session);
-    state.activeSessionId = props.sessionId;
+    appStore.upsertSession(session);
+    appStore.setActiveSessionId(props.sessionId);
     updateWindowTitle();
   }
 
@@ -163,9 +162,7 @@ onMounted(async () => {
   unsubSessionUpdated = eventsClient.onSessionUpdated?.((updatedSession: any) => {
     if (updatedSession?.id !== props.sessionId) return;
     sessionInfo.value = updatedSession;
-    const existingIndex = state.sessions.findIndex(s => s.id === props.sessionId);
-    if (existingIndex >= 0) state.sessions[existingIndex] = updatedSession;
-    else state.sessions.push(updatedSession);
+    appStore.upsertSession(updatedSession);
     updateWindowTitle();
   }) ?? null;
 

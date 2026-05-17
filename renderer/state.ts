@@ -1,11 +1,9 @@
 /**
- * Shared application state — single source of truth for the renderer.
+ * Shared renderer state types.
  *
- * Every module imports `state` from here instead of holding local copies.
- * Wrapped in Vue's reactive() so Vue components automatically track changes.
+ * Runtime state is owned by the Pinia app store. The `state` export is a
+ * compatibility alias for non-Vue modules still being migrated.
  */
-
-import { reactive } from 'vue';
 
 export interface Session {
   id: string;
@@ -87,34 +85,4 @@ export interface AppState {
   snappedOutSessions: Set<string>;
 }
 
-export const state: AppState = reactive({
-  currentScreen: 'sessions',
-  sessions: [],
-  activeSessionId: null,
-  recentSessionId: null,
-  lastSelectedSessionId: null,
-  gamepadCount: 0,
-  eventLog: [],
-  cliTypes: [],
-  availableSpawnTypes: [],
-  cliBindingsCache: {},
-  cliSequencesCache: {},
-  cliToolsCache: {},
-  projects: [],
-  settingsTab: 'tools',
-  sessionStates: new Map(),
-  sessionActivityLevels: new Map(),
-  lastOutputTimes: new Map(),
-  draftCounts: new Map(),
-  planCodingCounts: new Map(),
-  planStartableCounts: new Map(),
-  planDirStartableCounts: new Map(),
-  planDirCodingCounts: new Map(),
-  planDirBlockedCounts: new Map(),
-  planDirReviewCounts: new Map(),
-  planDirPlanningCounts: new Map(),
-  workingPlanLabels: new Map(),
-  workingPlanTooltips: new Map(),
-  pendingSchedules: new Map(),
-  snappedOutSessions: new Set(),
-});
+export { appState as state } from './stores/app.js';

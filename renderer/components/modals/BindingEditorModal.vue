@@ -9,7 +9,7 @@ import { ref, watch, computed } from 'vue';
 import { FORM_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { useFocusTrap } from '../../composables/useFocusTrap.js';
 import { getCliDisplayName } from '../../utils.js';
-import { state } from '../../state.js';
+import { useConfigStore } from '../../stores/config.js';
 import PromptTextarea from '../common/PromptTextarea.vue';
 
 const MODAL_ID = 'binding-editor';
@@ -59,6 +59,7 @@ const sequenceListSource = ref<'group' | 'inline'>('inline');
 const sequenceGroup = ref('');
 const sequenceItems = ref<Array<{ label: string; sequence: string }>>([]);
 const modalStack = useModalStack();
+const configStore = useConfigStore();
 const overlayRef = ref<HTMLElement | null>(null);
 const { onKeydown } = useFocusTrap(overlayRef);
 
@@ -137,7 +138,7 @@ const title = computed(() =>
 );
 
 const availableSequenceGroups = computed(() => {
-  const groups = state.cliSequencesCache[props.cliType] ?? {};
+  const groups = configStore.getSequences(props.cliType);
   return Object.entries(groups).map(([name, items]) => ({
     name,
     count: Array.isArray(items) ? items.length : 0,

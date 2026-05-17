@@ -6,6 +6,15 @@ import type { SessionInfo } from '../../types/session.js';
 import { deliverPromptSequenceToSession } from '../../session/sequence-delivery.js';
 import type { DeliveryVerificationResult } from '../../session/delivery-verification.js';
 
+const DEFAULT_DELIVERY_VERIFY_DELAY_MS = 4000;
+
+function getDeliveryVerifyDelayMs(): number {
+  const configured = process.env.HELM_INTERSESSION_VERIFY_DELAY_MS;
+  if (configured === undefined) return DEFAULT_DELIVERY_VERIFY_DELAY_MS;
+  const parsed = Number(configured);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_DELIVERY_VERIFY_DELAY_MS;
+}
+
 /**
  * Handles inter-session text delivery via PTY stdin.
  * Wraps messages in [HELM_MSG] envelopes unless the recipient CLI disables preamble.
@@ -73,7 +82,7 @@ export class HelmSessionDeliveryService {
         configLoader: this.configLoader,
         verifyDelivery: {
           label: 'inter-session message',
-          delayMs: 4000,
+          delayMs: getDeliveryVerifyDelayMs(),
           retrySubmit: true,
         },
       });
@@ -87,7 +96,7 @@ export class HelmSessionDeliveryService {
         configLoader: this.configLoader,
         verifyDelivery: {
           label: 'inter-session message',
-          delayMs: 4000,
+          delayMs: getDeliveryVerifyDelayMs(),
           retrySubmit: true,
         },
       });

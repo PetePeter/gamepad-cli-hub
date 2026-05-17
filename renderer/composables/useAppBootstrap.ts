@@ -10,6 +10,8 @@ import { state, type Session } from '../state.js';
 import { sessionsState } from '../screens/sessions-state.js';
 import { initConfigCache } from '../bindings.js';
 import { browserGamepad } from '../gamepad.js';
+import { setupGamepad, teardownGamepad } from './useGamepadBootstrap.js';
+import { startTimerRefresh, stopTimerRefresh } from './useTimerRefresh.js';
 import { TerminalManager } from '../terminal/terminal-manager.js';
 import { formatElapsed } from '../../src/utils/time-parser.js';
 import { setTerminalManager, getTerminalManager } from '../runtime/terminal-provider.js';
@@ -51,6 +53,8 @@ import { refreshPlanBadges } from '../screens/sessions-plans.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
 import { useNavigationStore } from '../stores/navigation.js';
 import { normalizeCmdInput } from '../utils/shell-command.js';
+
+export { startTimerRefresh, stopTimerRefresh } from './useTimerRefresh.js';
 
 type RendererProjectRecord = {
   id: string;
@@ -570,36 +574,6 @@ function setupIpcListeners(): void {
   }
 }
 
-// ============================================================================
-// Gamepad wiring
-// ============================================================================
-
-let gamepadButtonUnsub: (() => void) | null = null;
-let gamepadReleaseUnsub: (() => void) | null = null;
-
-function setupGamepad(
-  handleButton: (button: string) => void,
-  handleRelease: (button: string) => void,
-): void {
-  browserGamepad.start();
-
-  gamepadButtonUnsub = browserGamepad.onButton((event) => {
-    if (event.button === '_connected') {
-      state.gamepadCount = browserGamepad.getCount();
-    } else if (event.button === '_disconnected') {
-      state.gamepadCount = browserGamepad.getCount();
-    } else {
-      handleButton(event.button);
-    }
-  });
-
-  gamepadReleaseUnsub = browserGamepad.onRelease((event) => {
-    handleRelease(event.button);
-  });
-
-  state.gamepadCount = browserGamepad.getCount();
-}
-
 async function loadRepeatConfig(): Promise<void> {
   try {
     if (!configClient.configGetDpadConfig || !configClient.configGetStickConfig) return;
@@ -651,25 +625,6 @@ function setupTabCycling(): void {
       }
     }
   }, true);
-}
-
-// ============================================================================
-// Timer refresh
-// ============================================================================
-
-let timerInterval: ReturnType<typeof setInterval> | null = null;
-
-export function startTimerRefresh(): void {
-  if (timerInterval) return;
-  // Vue components read lastOutputTimes reactively — trigger re-render by
-  // touching the Map (set a sentinel key that components ignore).
-  timerInterval = setInterval(() => {
-    state.lastOutputTimes.set('__tick__', Date.now());
-  }, 10_000);
-}
-
-export function stopTimerRefresh(): void {
-  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 }
 
 // ============================================================================
@@ -836,8 +791,6 @@ export function teardown(): void {
   stopTimerRefresh();
   const tm = getTerminalManager();
   tm?.dispose();
-  gamepadButtonUnsub?.();
-  gamepadReleaseUnsub?.();
-  browserGamepad.stop();
+  teardownGamepad();
   setTerminalManager(null);
 }

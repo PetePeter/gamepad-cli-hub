@@ -14,8 +14,8 @@ declare global {
 }
 
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { state } from './state.js';
 import { sessionsState } from './screens/sessions-state.js';
+import { useAppStore } from './stores/app.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { getCliDisplayName, getCliIcon } from './utils.js';
 import { initConfigCache, executeSequence } from './bindings.js';
@@ -125,6 +125,9 @@ import BackupTab from './components/sidebar/BackupTab.vue';
 import { loadSessions } from './screens/sessions.js';
 
 import AppModalHost from './components/app/AppModalHost.vue';
+
+const appStore = useAppStore();
+const state = appStore.state;
 import ChipBar from './components/chips/ChipBar.vue';
 import ChipActionBar from './components/chips/ChipActionBar.vue';
 import { useChipBarStore } from './stores/chip-bar.js';

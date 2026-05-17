@@ -1,16 +1,46 @@
 /**
- * App store — Pinia wrapper around the reactive AppState singleton.
- *
- * Legacy code imports `state` from `../state.js` (the reactive object).
- * Vue components use `useAppStore()` for the same data + computed getters.
+ * App store — Pinia owner for renderer application state.
  */
 
 import { defineStore } from 'pinia';
-import { computed } from 'vue';
-import { state } from '../state.js';
+import { computed, reactive } from 'vue';
 import type { Session, AppState } from '../state.js';
 
+export const appState: AppState = reactive({
+  currentScreen: 'sessions',
+  sessions: [],
+  activeSessionId: null,
+  recentSessionId: null,
+  lastSelectedSessionId: null,
+  gamepadCount: 0,
+  eventLog: [],
+  cliTypes: [],
+  availableSpawnTypes: [],
+  cliBindingsCache: {},
+  cliSequencesCache: {},
+  cliToolsCache: {},
+  projects: [],
+  settingsTab: 'tools',
+  sessionStates: new Map(),
+  sessionActivityLevels: new Map(),
+  lastOutputTimes: new Map(),
+  draftCounts: new Map(),
+  planCodingCounts: new Map(),
+  planStartableCounts: new Map(),
+  planDirStartableCounts: new Map(),
+  planDirCodingCounts: new Map(),
+  planDirBlockedCounts: new Map(),
+  planDirReviewCounts: new Map(),
+  planDirPlanningCounts: new Map(),
+  workingPlanLabels: new Map(),
+  workingPlanTooltips: new Map(),
+  pendingSchedules: new Map(),
+  snappedOutSessions: new Set(),
+});
+
 export const useAppStore = defineStore('app', () => {
+  const state = appState;
+
   // ── Getters ──────────────────────────────────────────────────────────
   const activeSession = computed<Session | undefined>(
     () => state.sessions.find(s => s.id === state.activeSessionId),
@@ -43,6 +73,20 @@ export const useAppStore = defineStore('app', () => {
     if (session) Object.assign(session, updates);
   }
 
+  function setSessions(sessions: Session[]) {
+    state.sessions = sessions;
+  }
+
+  function upsertSession(session: Session) {
+    const idx = state.sessions.findIndex(s => s.id === session.id);
+    if (idx !== -1) state.sessions[idx] = session;
+    else state.sessions.push(session);
+  }
+
+  function setProjects(projects: AppState['projects']) {
+    state.projects = projects;
+  }
+
   function setGamepadCount(count: number) {
     state.gamepadCount = count;
   }
@@ -63,6 +107,9 @@ export const useAppStore = defineStore('app', () => {
     addSession,
     removeSession,
     updateSession,
+    setSessions,
+    upsertSession,
+    setProjects,
     setGamepadCount,
     logEvent,
   };

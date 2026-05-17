@@ -48,7 +48,7 @@ import {
   setPlanScreenContextEditorOpener,
   onPlanContextEdit,
 } from '../plans/plan-screen.js';
-import { state } from '../state.js';
+import { useAppStore } from '../stores/app.js';
 import { loadStoredSessions } from '../session-store.js';
 
 interface BackupMeta {
@@ -64,6 +64,7 @@ interface BackupMeta {
 }
 
 const props = defineProps<{ dirPath: string }>();
+const appStore = useAppStore();
 
 const {
   draftEditorVisible,
@@ -147,8 +148,8 @@ async function onBackupNow(): Promise<void> {
 }
 
 async function loadSessions(): Promise<void> {
-  state.sessions = await loadStoredSessions();
-  state.activeSessionId = (await sessionsClient.sessionGetActive())?.id ?? null;
+  appStore.setSessions(await loadStoredSessions());
+  appStore.setActiveSessionId((await sessionsClient.sessionGetActive())?.id ?? null);
 }
 
 async function closeWindow(): Promise<void> {

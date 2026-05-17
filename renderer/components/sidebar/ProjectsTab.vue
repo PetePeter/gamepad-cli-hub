@@ -8,7 +8,7 @@ import { appClient, attachmentsClient, backupsClient, configClient, contextsClie
  * are opened; this tab lets users rename, reorganise directories, and delete projects.
  */
 import { ref, onMounted } from 'vue';
-import { state } from '../../state.js';
+import { useAppStore } from '../../stores/app.js';
 
 interface ProjectRecord {
   id: string;
@@ -24,6 +24,7 @@ interface ProjectRecord {
 }
 
 const projects = ref<ProjectRecord[]>([]);
+const appStore = useAppStore();
 const expandedIds = ref<Set<string>>(new Set());
 const editingId = ref<string | null>(null);
 const editingName = ref('');
@@ -37,17 +38,17 @@ const emit = defineEmits<{
 async function refresh(): Promise<void> {
   try {
     projects.value = await projectsClient.projectList();
-    state.projects = projects.value.map(project => ({
+    appStore.setProjects(projects.value.map(project => ({
       id: project.id,
       name: project.name,
       canonicalPath: project.canonicalPath,
       alternatePaths: project.alternatePaths || [],
       rootKind: project.rootKind,
-    }));
+    })));
     emit('changed');
   } catch {
     projects.value = [];
-    state.projects = [];
+    appStore.setProjects([]);
   }
 }
 

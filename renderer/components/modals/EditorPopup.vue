@@ -10,7 +10,7 @@
 import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { type InterceptKey, useModalStack } from '../../composables/useModalStack.js';
 import { toDirection } from '../../utils.js';
-import { state } from '../../state.js';
+import { useAppStore } from '../../stores/app.js';
 import PromptTextarea from '../common/PromptTextarea.vue';
 import {
   addEditorHistoryEntry,
@@ -41,6 +41,7 @@ const history = ref<string[]>([]);
 const selectedHistory = ref<string | null>(null);
 const focusTarget = ref<FocusTarget>('textarea');
 const modalStack = useModalStack();
+const appStore = useAppStore();
 const EDITOR_POPUP_KEYS = new Set<InterceptKey>(['arrows', 'escape']);
 
 const DEFAULT_WIDTH = 800;
@@ -320,6 +321,7 @@ function onHistoryInsert(): void {
 }
 
 function getEditorScope(): string | undefined {
+  const state = appStore.state;
   const sessionId = state.activeSessionId ?? state.recentSessionId;
   const session = sessionId ? state.sessions.find((item) => item.id === sessionId) : null;
   return session?.workingDir || sessionId || undefined;

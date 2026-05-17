@@ -8,6 +8,8 @@ vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+process.env.HELM_INTERSESSION_VERIFY_DELAY_MS = '0';
+
 function makeService() {
   const ptyManager = {
     has: vi.fn(() => true),
