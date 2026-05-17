@@ -7,7 +7,7 @@
  */
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { getActivityColor } from '../../state-colors.js';
-import NotificationBubble from './NotificationBubble.vue';
+import NotificationCarousel from './NotificationCarousel.vue';
 
 // --- Types ---
 
@@ -67,6 +67,7 @@ const emit = defineEmits<{
   toggleOverview: [sessionId: string];
   cancelSchedule: [sessionId: string];
   dismissNotification: [notificationId: string];
+  dismissSessionNotifications: [sessionId: string];
 }>();
 
 // --- Local state ---
@@ -259,13 +260,11 @@ function onCardClick(e: MouseEvent): void {
       >×</button>
     </div>
 
-    <NotificationBubble
-      v-for="notification in llmNotifications ?? []"
-      :key="notification.id"
-      :id="notification.id"
-      :title="notification.title"
-      :content="notification.content"
+    <NotificationCarousel
+      :notifications="llmNotifications ?? []"
+      :session-id="session.id"
       @dismiss="emit('dismissNotification', $event)"
+      @dismiss-all="emit('dismissSessionNotifications', session.id)"
     />
   </div>
 </template>

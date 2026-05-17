@@ -847,6 +847,7 @@ onUnmounted(() => {
             @toggle-overview="onToggleOverview"
             @cancel-schedule="onCancelSchedule"
             @dismiss-notification="llmNotificationsStore.dismiss"
+            @dismiss-session-notifications="llmNotificationsStore.dismissSession"
           />
         </section>
 

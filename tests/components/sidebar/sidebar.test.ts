@@ -261,7 +261,7 @@ describe('SessionCard', () => {
     expect(w.find('.snap-indicator').exists()).toBe(true);
   });
 
-  it('keeps notification bubbles when the row is selected', async () => {
+  it('keeps notification carousel when the row is selected', async () => {
     const w = mount(SessionCard, {
       props: makeCardProps({
         llmNotifications: [{ id: 'n1', title: 'Need input', content: 'Pick a plan' }],
@@ -272,17 +272,17 @@ describe('SessionCard', () => {
 
     expect(w.emitted('click')).toEqual([['s1']]);
     expect(w.emitted('dismissNotification')).toBeUndefined();
-    expect(w.find('.notification-bubble').exists()).toBe(true);
+    expect(w.find('.notification-carousel').exists()).toBe(true);
   });
 
-  it('dismisses notification bubbles only from the dismiss button', async () => {
+  it('dismisses notification only from the carousel dismiss button', async () => {
     const w = mount(SessionCard, {
       props: makeCardProps({
         llmNotifications: [{ id: 'n1', title: 'Need input', content: 'Pick a plan' }],
       }),
     });
 
-    await w.find('.notification-bubble__dismiss').trigger('click');
+    await w.find('.dismiss-btn').trigger('click');
 
     expect(w.emitted('dismissNotification')).toEqual([['n1']]);
     expect(w.emitted('click')).toBeUndefined();
@@ -451,7 +451,7 @@ describe('SessionList', () => {
       }),
     });
 
-    await w.find('.notification-bubble__dismiss').trigger('click');
+    await w.find('.dismiss-btn').trigger('click');
 
     expect(w.emitted('dismissNotification')).toEqual([['n1']]);
     expect(w.emitted('sessionClick')).toBeUndefined();

@@ -75,6 +75,7 @@ const emit = defineEmits<{
   toggleOverview: [sessionId: string];
   cancelSchedule: [sessionId: string];
   dismissNotification: [notificationId: string];
+  dismissSessionNotifications: [sessionId: string];
 }>();
 
 function onCommitRename(sessionId: string, newName: string): void {
@@ -152,6 +153,7 @@ function onSessionStateChange(sessionId: string, newState: string): void {
               @toggle-overview="emit('toggleOverview', $event)"
               @cancel-schedule="emit('cancelSchedule', $event)"
               @dismiss-notification="emit('dismissNotification', $event)"
+              @dismiss-session-notifications="emit('dismissSessionNotifications', $event)"
             />
           </template>
         </template>
