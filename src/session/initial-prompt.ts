@@ -10,7 +10,7 @@ export interface InitialPromptConfig {
   renameCommand?: string;
 }
 
-export const HELM_INIT_SEQUENCE = 'Call session_info to get Helm MCP AIAGENT state registry. Then immediately call session_set_aiagent_state for this session whenever your phase changes: planning before investigation, implementing before edits or tests, completed when done. If a Helm plan is assigned, claim it before implementation with plan_set_state status=coding and sessionId, then call session_set_working_plan. Output AIAGENT-* state as the first line of each response. After completing work or when blocked, always call notify_user via Helm MCP — Helm delivers it to the right channel automatically.{Enter}';
+export const HELM_INIT_SEQUENCE = 'Call session_info to get Helm MCP AIAGENT state registry. Then immediately call session_set_aiagent_state for this session whenever your phase changes: planning before investigation, implementing before edits or tests, completed when done. If a Helm plan is assigned, claim it before implementation with plan_set_state status=coding and sessionId, then call session_set_working_plan. After completing work or when blocked, always call notify_user via Helm MCP — Helm delivers it to the right channel automatically.{Enter}';
 
 export function scheduleInitialPrompt(
   sessionId: string,

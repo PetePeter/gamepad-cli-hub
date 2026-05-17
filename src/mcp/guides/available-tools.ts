@@ -52,7 +52,7 @@ export function getAvailableTools(): McpToolSummary[] {
     { name: 'session_send_text', title: 'Send Text To Session', description: 'Send text to a running session PTY, with optional reply routing through HELM_MSG metadata.' },
     { name: 'session_read_terminal', title: 'Read Session Terminal', description: 'Read the recent terminal tail for any known session by ID or exact display name, with raw, stripped, or both output modes.' },
     { name: 'session_set_working_plan', title: 'Set Session Working Plan', description: 'Update the session row to show the plan currently being worked on.' },
-    { name: 'session_set_aiagent_state', title: 'Set Session AIAGENT State', description: 'Update the session AIAGENT state icon in Helm.' },
+    { name: 'session_set_aiagent_state', title: 'Set Session AIAGENT State', description: 'Update the durable AIAGENT phase for a session. Valid states: planning, implementing, completed, idle.' },
     { name: 'session_close', title: 'Close Session', description: 'Close a Helm session and stop its PTY.' },
     { name: 'session_info', title: 'Get Session Info', description: 'Retrieve MCP endpoint, AIAGENT state registry, available projects, and agent planning guidance. Call this at session startup before other Helm workflow actions, then call projects_list for directory details.' },
     { name: 'notify_user', title: 'Notify User', description: 'Send an LLM-directed notification with smart delivery routing. Helm routes to toast, taskbar flash, bubble, or Telegram based on screen/window state.' },

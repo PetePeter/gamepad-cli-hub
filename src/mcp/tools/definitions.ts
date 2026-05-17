@@ -713,13 +713,17 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'session_set_aiagent_state',
     title: 'Set Session AIAGENT State',
-    description: 'Update the AIAGENT state for a session. This state persists across restarts and is controlled by external agents to show the current working state (planning, implementing, completed, idle). WHEN: call planning before investigation or questions, implementing before edits/tests/execution, completed after verification and summary, and idle only when explicitly standing down.',
+    description: 'Update the durable AIAGENT phase shown on a Helm session row. Provide either sessionId or exact session name, plus state. Valid states: planning (investigating, planning, or asking), implementing (editing, running commands, or testing), completed (work is verified and ready), idle (explicitly standing down). Use this instead of printing AIAGENT tags; Helm does not scrape terminal output for phase changes.',
     inputSchema: {
       type: 'object',
       properties: {
-        sessionId: { type: 'string' },
-        name: { type: 'string' },
-        state: { type: 'string', enum: ['planning', 'implementing', 'completed', 'idle'] },
+        sessionId: { type: 'string', description: 'Destination Helm session UUID. Use this when available.' },
+        name: { type: 'string', description: 'Exact Helm session display name. Alternative to sessionId.' },
+        state: {
+          type: 'string',
+          enum: ['planning', 'implementing', 'completed', 'idle'],
+          description: 'planning before investigation/questions, implementing before edits/tests/commands, completed after verification, idle only when explicitly standing down.',
+        },
       },
       required: ['state'],
       additionalProperties: false,

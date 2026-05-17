@@ -89,22 +89,6 @@ export interface SessionInfoResponse {
   aiagent_states: string[];
   available_projects: ProjectInfo[];
   skills: SkillSummary[];
-  aiagent_state_guide?: {
-    how_to_update: {
-      description: string;
-      usage_example: { sessionId: string; state: string };
-      state_icons: Record<string, string>;
-    };
-    state_transitions: Array<{
-      from: string;
-      to: string;
-      when: string;
-    }>;
-    integration_patterns: Array<{
-      scenario: string;
-      steps: string[];
-    }>;
-  };
   session_send_text_guide?: {
     description: string;
     inter_llm_handoff_protocol: string[];

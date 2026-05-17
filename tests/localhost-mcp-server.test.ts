@@ -182,6 +182,7 @@ describe('LocalhostMcpServer', () => {
     const planSetStateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_set_state');
     const sendTextTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'session_send_text');
     const readTerminalTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'session_read_terminal');
+    const setAiagentStateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'session_set_aiagent_state');
     const attachmentAddTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_attachment_add');
     const attachmentGetTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_attachment_get');
     const telegramStatusTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'telegram_status');
@@ -211,6 +212,11 @@ describe('LocalhostMcpServer', () => {
     expect(readTerminalTool.description).toContain('terminal tail');
     expect(readTerminalTool.description).toContain('verify the recipient received');
     expect(readTerminalTool.description).toContain('raw ANSI');
+    expect(setAiagentStateTool.description).toContain('Valid states');
+    expect(setAiagentStateTool.description).toContain('planning');
+    expect(setAiagentStateTool.description).toContain('Helm does not scrape terminal output');
+    expect(setAiagentStateTool.inputSchema.properties.state.enum).toEqual(['planning', 'implementing', 'completed', 'idle']);
+    expect(setAiagentStateTool.inputSchema.properties.sessionId.description).toContain('UUID');
     expect(attachmentAddTool.description).toContain('10MB');
     expect(attachmentAddTool.description).toContain('Helm config');
     expect(attachmentGetTool.description).toContain('temp file');
@@ -1213,7 +1219,7 @@ describe('LocalhostMcpServer', () => {
     expect(response.status).toBe(405);
   });
 
-  it('session_info guide documents AIAGENT transitions, state systems, integration patterns, and errors', () => {
+  it('session_info keeps AIAGENT state compact and leaves detailed usage on the state tool', () => {
     const service = new HelmControlService(
       {} as any,
       {
@@ -1234,18 +1240,9 @@ describe('LocalhostMcpServer', () => {
     );
 
     const content = service.getSessionInfo({ sessionId: 'sess-123', sessionName: 'Claude-Main' });
-    const guide = content.aiagent_state_guide!;
 
     expect(content.aiagent_states).toEqual(['planning', 'implementing', 'completed', 'idle']);
-    expect(guide.how_to_update.description).toContain('session_set_aiagent_state');
-    expect(guide.state_transitions).toHaveLength(5);
-    expect(guide.state_transitions.every((transition) => transition.from && transition.to && transition.when)).toBe(true);
-    expect(guide.integration_patterns.map((pattern) => pattern.scenario)).toEqual([
-      'Starting implementation',
-      'Completing work',
-    ]);
-    expect(guide.integration_patterns[0].steps.join(' ')).toContain('plan_context_list');
-    expect(guide.integration_patterns[0].steps.join(' ')).toContain('current phase');
+    expect(content).not.toHaveProperty('aiagent_state_guide');
     expect(content.agent_plan_guide.durable_context_guide[0]).toContain('context_list');
     expect(content.agent_plan_guide.implementation_context_workflow.join(' ')).toContain('just-in-time');
     expect(content.agent_plan_guide.sequence_memory_guide[0]).toContain('legacy');

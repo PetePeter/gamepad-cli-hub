@@ -32,24 +32,18 @@ The tool returns a `SessionInfoResponse` object with these fields:
 ### AIAGENT State Registry
 
 - **`aiagent_states`** (string[]) — Canonical list of valid AIAGENT phase states accepted by `session_set_aiagent_state`. Currently: `['planning', 'implementing', 'completed', 'idle']`.
-  
-  Use these to format the first line of response blocks:
+
+  Corresponding display tags are:
   ```
   AIAGENT-PLANNING
   AIAGENT-IMPLEMENTING
   AIAGENT-COMPLETED
   AIAGENT-IDLE
   ```
-  
-  Agents may still print these first-line tags for readability, but Helm does not scrape PTY stdout for AIAGENT phase changes. Call `session_set_aiagent_state` to update the durable phase shown in Helm.
 
-- **`aiagent_state_guide`** — Practical guide for the explicit AIAGENT state endpoint.
-  - **`validStates`** — The values accepted by `session_set_aiagent_state`: `planning`, `implementing`, `completed`, and `idle`.
-  - **`how_to_update`** — Tool name, usage example, and visual icon mapping for explicit AIAGENT state updates.
-  - **`state_systems`** — Explains the difference between explicit `aiagentState`, PTY-detected `sessionState`, and durable Helm `planState`.
-  - **`state_transitions`** — Advisory state-machine transitions with conditions for moving between states.
-  - **`integration_patterns`** — Common workflows for starting implementation, handling blockers, and completing work.
-  - **`error_scenarios`** — Expected failure modes such as invalid states, missing sessions, or plan ownership conflicts.
+  Agents may still print these tags for readability, but Helm does not scrape PTY stdout for AIAGENT phase changes. Call `session_set_aiagent_state` to update the durable phase shown in Helm.
+
+Detailed state usage lives on the `session_set_aiagent_state` tool definition so `session_info` can stay compact.
 
 ### Available Resources
 
