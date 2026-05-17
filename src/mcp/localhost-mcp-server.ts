@@ -1632,9 +1632,27 @@ export class LocalhostMcpServer {
     const provided = Buffer.from(token, 'utf8');
     const expected = Buffer.from(this.token, 'utf8');
     if (provided.length === expected.length && timingSafeEqual(provided, expected)) {
-      return {};
+      const sessionId = this.getSingleHeader(req, 'x-helm-session-id')?.trim();
+      if (!sessionId) {
+        // Anonymous access: shared bearer grants read access to plan/directory/query
+        // tools. Tools requiring sender identity (session_send_text etc.) will reject
+        // later when senderSessionId is missing.
+        return {};
+      }
+      const session = this.service.getSession(sessionId);
+      if (!session) return null;
+      return {
+        sessionId: session.id,
+        sessionName: session.name,
+      };
     }
     return parseSessionAuthToken(this.token, token);
+  }
+
+  private getSingleHeader(req: IncomingMessage, name: string): string | undefined {
+    const value = req.headers[name];
+    if (Array.isArray(value)) return value[0];
+    return value;
   }
 
   private readBody(req: IncomingMessage): Promise<string> {

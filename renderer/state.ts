@@ -18,6 +18,8 @@ export interface Session {
   currentPlanId?: string;
   lastOutputAt?: number;
   windowId?: number;
+  state?: string;
+  aiagentState?: 'planning' | 'implementing' | 'completed' | 'idle';
 }
 
 export interface ProjectSummary {

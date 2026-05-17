@@ -1201,6 +1201,34 @@ describe('LocalhostMcpServer', () => {
     expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
   });
 
+  it('infers sender info from session headers with the shared bearer token', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 38.6,
+      method: 'tools/call',
+      params: {
+        name: 'session_send_text',
+        arguments: { sessionId: 's1', text: 'hello', expectsResponse: true },
+      },
+    }, {
+      'X-Helm-Session-Id': 'sender-1',
+      'X-Helm-Session-Name': 'Header Session',
+    });
+    const json = await response.json();
+    expect((service.sendTextToSession as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'hello', {
+      senderSessionId: 'sender-1',
+      senderSessionName: 'Claude',
+      expectsResponse: true,
+    });
+    expect(json.result.structuredContent).toEqual({ success: true, sessionId: 's1', name: 'Claude' });
+  });
+
   it('passes expectsResponse into sendTextToSession', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });

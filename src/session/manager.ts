@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { SessionInfo, SessionChangeEvent, SessionAddedEvent, SessionRemovedEvent } from '../types/session.js';
+import type { SessionInfo, SessionChangeEvent, SessionAddedEvent, SessionRemovedEvent, SessionUpdatedEvent } from '../types/session.js';
 import { saveSessions, loadSessions } from './persistence.js';
 import { logger } from '../utils/logger.js';
 import type { ProjectStore } from './project-store.js';
@@ -14,6 +14,7 @@ import type { ProjectStore } from './project-store.js';
  *
  * - `session:added`   (SessionAddedEvent)   — A new session was registered.
  * - `session:removed` (SessionRemovedEvent)  — A session was removed.
+ * - `session:updated` (SessionUpdatedEvent)  — Session metadata changed.
  * - `session:changed` (SessionChangeEvent)   — The active session changed
  *                                              (including when cleared to null).
  */
@@ -192,6 +193,12 @@ export class SessionManager extends EventEmitter {
     Object.assign(session, updates);
     this.applyProjectIdentity(session);
     this.persistSessions();
+
+    const event: SessionUpdatedEvent = {
+      ...session,
+      timestamp: Date.now(),
+    };
+    this.emit('session:updated', event);
   }
 
   /**
@@ -242,22 +249,24 @@ export class SessionManager extends EventEmitter {
 
     // Only update if name actually changed
     if (session.name !== trimmedName) {
-      const updatedSession: SessionInfo = {
-        ...session,
-        name: trimmedName
-      };
-      this.sessions.set(sessionId, updatedSession);
+      session.name = trimmedName;
       this.persistSessions();
 
-      // Emit change event to notify UI
-      const event: SessionChangeEvent = {
+      // Emit both events: updated carries the new metadata, changed signals active-session reorder
+      const updatedEvent: SessionUpdatedEvent = {
+        ...session,
+        timestamp: Date.now(),
+      };
+      this.emit('session:updated', updatedEvent);
+
+      const changedEvent: SessionChangeEvent = {
         sessionId,
         previousSessionId: this.activeSessionId,
         timestamp: Date.now()
       };
-      this.emit('session:changed', event);
+      this.emit('session:changed', changedEvent);
 
-      return updatedSession;
+      return session;
     }
 
     return session;

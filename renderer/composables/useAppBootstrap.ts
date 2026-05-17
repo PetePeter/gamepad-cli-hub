@@ -173,9 +173,18 @@ export async function refreshSessions(): Promise<void> {
       title: terminalSession?.title || managed.title,
       cliSessionName: managed.cliSessionName,
       windowId: managed.windowId,
+      state: managed.state,
+      aiagentState: managed.aiagentState,
       currentPlanId: managed.currentPlanId,
       lastOutputAt: managed.lastOutputAt,
     } as Session);
+
+    const displayState = managed.aiagentState ?? managed.state;
+    if (displayState) {
+      state.sessionStates.set(managed.id, displayState);
+    } else if (!state.sessionStates.has(managed.id)) {
+      state.sessionStates.set(managed.id, 'idle');
+    }
 
     if (!state.sessionActivityLevels.has(managed.id)) {
       state.sessionActivityLevels.set(managed.id, 'idle');
@@ -530,6 +539,25 @@ function setupIpcListeners(): void {
     await configClient.configGetSpawnCommand(session.cliType);
     tm.adoptTerminal(session.id, session.cliType, session.workingDir);
     await refreshSessions();
+  });
+
+  eventsClient.onSessionUpdated?.((session) => {
+    const idx = state.sessions.findIndex(existing => existing.id === session.id);
+    if (idx !== -1) {
+      state.sessions[idx] = { ...state.sessions[idx], ...session };
+    }
+    const displayState = session.aiagentState ?? session.state;
+    if (displayState) {
+      state.sessionStates.set(session.id, displayState);
+    }
+    if (session.lastOutputAt !== undefined) {
+      state.lastOutputTimes.set(session.id, session.lastOutputAt);
+    }
+    if (session.windowId !== undefined) {
+      state.snappedOutSessions.add(session.id);
+    } else {
+      state.snappedOutSessions.delete(session.id);
+    }
   });
 
   // Plan change listener — debounced to coalesce rapid events

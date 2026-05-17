@@ -203,6 +203,19 @@ export function registerIPCHandlers(
     const session = sessionManager.getSession(event.id);
     if (session) await topicManager.ensureTopic(session);
   });
+  sessionManager.on('session:updated', (event) => {
+    const win = windowManager.getMainWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('session:updated', event);
+    }
+
+    const sessionWindowId = windowManager.getWindowIdForSession(event.id);
+    if (sessionWindowId === undefined) return;
+    const sessionWindow = windowManager.getWindow(sessionWindowId);
+    if (sessionWindow && !sessionWindow.isDestroyed()) {
+      sessionWindow.webContents.send('session:updated', event);
+    }
+  });
   sessionManager.on('session:removed', (event) => {
     // Auto-bookmark directory when a session with cliSessionName is removed
     if (event.session?.cliSessionName && event.session?.workingDir) {

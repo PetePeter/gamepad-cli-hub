@@ -82,6 +82,13 @@ export interface SessionRemovedEvent {
 }
 
 /**
+ * Session metadata updated event data
+ */
+export interface SessionUpdatedEvent extends SessionInfo {
+  timestamp: number;
+}
+
+/**
  * Emitted when a session's pipeline state changes.
  */
 export interface SessionStateChangeEvent {

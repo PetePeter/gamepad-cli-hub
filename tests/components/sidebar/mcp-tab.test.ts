@@ -40,7 +40,8 @@ describe('McpTab.vue', () => {
 
     const blocks = wrapper.findAll('.mcp-command-block').map((block) => block.text());
     expect(blocks.some((block) => block.includes('codex mcp add helm --url http://127.0.0.1:47373/mcp --bearer-token-env-var HELM_MCP_TOKEN'))).toBe(true);
-    expect(blocks.some((block) => block.includes('claude mcp add --transport http --scope user helm http://127.0.0.1:47373/mcp --header "Authorization: Bearer secret-token"'))).toBe(true);
+    expect(blocks.some((block) => block.includes('claude mcp add --transport http --scope user helm http://127.0.0.1:47373/mcp --header "Authorization: Bearer ${HELM_MCP_TOKEN}"'))).toBe(true);
+    expect(blocks.some((block) => block.includes('--header "X-Helm-Session-Id: ${HELM_SESSION_ID}" --header "X-Helm-Session-Name: ${HELM_SESSION_NAME}"'))).toBe(true);
     expect(blocks.some((block) => block.includes('copilot mcp add --transport http helm http://127.0.0.1:47373/mcp --header "Authorization: Bearer secret-token"'))).toBe(true);
     expect(blocks.some((block) => block.includes('https://opencode.ai/config.json'))).toBe(true);
   });

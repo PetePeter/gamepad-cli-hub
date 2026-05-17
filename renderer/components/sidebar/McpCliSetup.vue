@@ -62,7 +62,7 @@ const codexSetup = computed(() => {
 const claudeEnv = computed(() => envForCli('claude', 'claude-code'));
 const claudeSetup = computed(() => {
   const env = envSetupLines(claudeEnv.value);
-  const cmd = `claude mcp add --transport http --scope user helm ${props.endpoint} --header "Authorization: Bearer ${props.tokenLiteral}"`;
+  const cmd = `claude mcp add --transport http --scope user helm ${props.endpoint} --header "Authorization: Bearer \${HELM_MCP_TOKEN}" --header "X-Helm-Session-Id: \${HELM_SESSION_ID}" --header "X-Helm-Session-Name: \${HELM_SESSION_NAME}"`;
   return env ? `${env}\n${cmd}` : cmd;
 });
 

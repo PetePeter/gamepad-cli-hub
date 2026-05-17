@@ -415,4 +415,20 @@ describe('SessionManager', () => {
       expect(emitSpy).not.toHaveBeenCalledWith('session:changed', expect.anything());
     });
   });
+
+  describe('updateSession', () => {
+    it('emits session:updated when metadata changes', () => {
+      manager.addSession(mockSession1);
+      const handler = vi.fn();
+      manager.on('session:updated', handler);
+
+      manager.updateSession(mockSession1.id, { aiagentState: 'implementing' });
+
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+        id: mockSession1.id,
+        aiagentState: 'implementing',
+        timestamp: expect.any(Number),
+      }));
+    });
+  });
 });
