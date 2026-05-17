@@ -2,6 +2,7 @@ import type { ConfigLoader } from '../../config/loader.js';
 import type { SessionManager } from '../../session/manager.js';
 import type { ProjectInfo, SessionInfoResponse } from '../helm-control-service.js';
 import type { ProjectStore } from '../../session/project-store.js';
+import type { SkillSummary } from '../../types/skill.js';
 
 import { getAiagentStates, buildAiagentStateGuide } from './aiagent-state-guide.js';
 import { buildSessionSendTextGuide } from './session-send-text-guide.js';
@@ -18,6 +19,7 @@ export function getSessionInfo(
   sessionManager: SessionManager,
   authContext?: { sessionId?: string; sessionName?: string },
   projectStore?: ProjectStore,
+  skills: SkillSummary[] = [],
 ): SessionInfoResponse {
   const mcpConfig = configLoader.getMcpConfig();
   const mcpPort = mcpConfig.port ?? 47373;
@@ -50,6 +52,7 @@ export function getSessionInfo(
     mcp_token: mcpConfig.authToken ?? '',
     aiagent_states: getAiagentStates(),
     available_projects: getAvailableProjects(projectStore),
+    skills,
     aiagent_state_guide: buildAiagentStateGuide(),
     session_send_text_guide: buildSessionSendTextGuide(),
     agent_plan_guide: buildAgentPlanGuide(),

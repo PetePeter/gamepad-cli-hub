@@ -25,6 +25,7 @@ export const deliveryClient = domainClient('delivery');
 export const configClient = domainClient('config');
 export const toolsClient = domainClient('tools');
 export const projectsClient = domainClient('projects');
+export const skillsClient = domainClient('skills');
 export const plansClient = domainClient('plans');
 export const contextsClient = domainClient('contexts');
 export const attachmentsClient = domainClient('attachments');

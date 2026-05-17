@@ -513,6 +513,10 @@ export class ConfigLoader {
     };
   }
 
+  getSkillsPath(): string {
+    return path.join(this.configDir, 'skills.yaml');
+  }
+
   getWorkingDirectories(): WorkingDirectory[] {
     this.ensureLoaded();
     return this.activeProfile!.workingDirectories || [];

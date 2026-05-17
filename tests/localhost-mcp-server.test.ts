@@ -10,6 +10,10 @@ vi.mock('../src/utils/logger.js', () => ({
 function makeService(): HelmControlService {
   return {
     listClis: vi.fn(() => [{ cliType: 'codex', name: 'codex', command: 'codex', supportsResume: false, supportedDirPaths: ['X:\\coding\\gamepad-cli-hub'] }]),
+    listSkills: vi.fn(() => [{ id: 'skill-1', name: 'Review', description: 'Use for reviews', aiAmendable: false }]),
+    getSkill: vi.fn((id: string) => ({ id, name: 'Review', description: 'Use for reviews', body: 'Check the diff', aiAmendable: false })),
+    createSkill: vi.fn((input: Record<string, unknown>) => ({ id: 'skill-created', description: '', body: '', aiAmendable: false, ...input })),
+    updateSkill: vi.fn((id: string, updates: Record<string, unknown>) => ({ id, name: 'Review', description: 'Use for reviews', body: 'Check the diff', aiAmendable: true, ...updates })),
     listDirectories: vi.fn(() => [{ dirPath: 'X:\\coding\\gamepad-cli-hub', name: 'Helm', source: ['config', 'plans'], planCount: 8, sessionCount: 0 }]),
     listPlans: vi.fn((dirPath: string) => [{ id: 'p1', dirPath, title: 'Task', description: 'Desc', status: 'ready' }]),
     plansSummary: vi.fn(() => [{ id: 'p1', humanId: 'P-0001', title: 'Task', status: 'ready', blockedBy: [], blocks: [] }]),
@@ -187,6 +191,7 @@ describe('LocalhostMcpServer', () => {
     const notifyUserTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'notify_user');
     const appVisibilityTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'get_app_visibility');
     const restartHelmTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'restart_helm');
+    const skillsUpdateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'skills_update');
     const contextBindTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'context_bind');
     const contextUnbindTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'context_unbind');
     expect(planCreateTool.description).toContain('Problem Statement');
@@ -217,6 +222,7 @@ describe('LocalhostMcpServer', () => {
     expect(notifyUserTool!.description).toContain('smart delivery routing');
     expect(appVisibilityTool!.description).toContain('screen-lock');
     expect(restartHelmTool!.description).toContain('restart');
+    expect(skillsUpdateTool!.inputSchema.properties.aiAmendable).toEqual({ type: 'boolean' });
     expect(contextBindTool!.description).toContain('plan or sequence');
     expect(contextUnbindTool!.description).toContain('without deleting');
   });
@@ -257,6 +263,51 @@ describe('LocalhostMcpServer', () => {
     const restartJson = await restartResponse.json();
     expect((service.restartHelm as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(1);
     expect(restartJson.result.structuredContent).toEqual({ sessionsClosed: 2 });
+  });
+
+  it('dispatches skills tools through the MCP surface', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const listResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 31,
+      method: 'tools/call',
+      params: { name: 'skills_list', arguments: {} },
+    });
+    const listJson = await listResponse.json();
+    expect(listJson.result.structuredContent.items[0].name).toBe('Review');
+
+    const getResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 32,
+      method: 'tools/call',
+      params: { name: 'skills_get', arguments: { id: 'skill-1' } },
+    });
+    const getJson = await getResponse.json();
+    expect(getJson.result.structuredContent.body).toBe('Check the diff');
+
+    const createResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 33,
+      method: 'tools/call',
+      params: { name: 'skills_create', arguments: { name: 'Commit', aiAmendable: true } },
+    });
+    const createJson = await createResponse.json();
+    expect(createJson.result.structuredContent).toMatchObject({ name: 'Commit', aiAmendable: true });
+
+    const updateResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 34,
+      method: 'tools/call',
+      params: { name: 'skills_update', arguments: { id: 'skill-1', body: 'Updated', aiAmendable: true } },
+    });
+    const updateJson = await updateResponse.json();
+    expect(updateJson.result.structuredContent.body).toBe('Updated');
+    expect(service.updateSkill).toHaveBeenCalledWith('skill-1', { body: 'Updated', aiAmendable: true });
   });
 
   it('dispatches context tools through the MCP surface', async () => {

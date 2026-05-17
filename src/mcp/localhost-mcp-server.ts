@@ -53,6 +53,60 @@ const TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'skills_list',
+    title: 'List Skills',
+    description: 'List user-managed Helm skills as compact summaries. Use skills_get when you need the full body before applying or editing a skill.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'skills_get',
+    title: 'Get Skill',
+    description: 'Fetch one user-managed Helm skill by id, including its body.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'skills_create',
+    title: 'Create Skill',
+    description: 'Create a user-managed Helm skill persisted in config/skills.yaml.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        description: { type: 'string' },
+        body: { type: 'string' },
+        aiAmendable: { type: 'boolean' },
+      },
+      required: ['name'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'skills_update',
+    title: 'Update Skill',
+    description: 'Update a user-managed Helm skill. Protected skills reject AI amendments unless aiAmendable is enabled.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        name: { type: 'string' },
+        description: { type: 'string' },
+        body: { type: 'string' },
+        aiAmendable: { type: 'boolean' },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'plans_list',
     title: 'List Plans',
     description: 'List all plan items for a directory. Use this before editing or assigning plan work so you can reference the human-readable P-00xx plan IDs Helm returns.',
@@ -1076,6 +1130,28 @@ export class LocalhostMcpServer {
         return this.service.plansSummary(asString(args.dirPath, 'dirPath is required'));
       case 'tools_list':
         return this.service.listClis();
+      case 'skills_list':
+        return this.service.listSkills();
+      case 'skills_get':
+        return requireResult(
+          this.service.getSkill(asString(args.id, 'id is required')),
+          `Skill not found: ${asString(args.id, 'id is required')}`,
+        );
+      case 'skills_create':
+        return this.service.createSkill({
+          name: asString(args.name, 'name is required'),
+          ...(typeof args.description === 'string' ? { description: args.description } : {}),
+          ...(typeof args.body === 'string' ? { body: args.body } : {}),
+          ...(typeof args.aiAmendable === 'boolean' ? { aiAmendable: args.aiAmendable } : {}),
+        });
+      case 'skills_update': {
+        const id = asString(args.id, 'id is required');
+        const updates: Record<string, unknown> = {};
+        for (const field of ['name', 'description', 'body', 'aiAmendable'] as const) {
+          if (args[field] !== undefined) updates[field] = args[field];
+        }
+        return this.service.updateSkill(id, updates);
+      }
       case 'plan_get':
         return requireResult(
           this.service.getPlan(asString(args.id, 'id is required')),

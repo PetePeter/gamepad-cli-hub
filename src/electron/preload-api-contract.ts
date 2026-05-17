@@ -95,6 +95,13 @@ export const PRELOAD_API_DOMAINS = {
     'projectAddDir',
     'projectRemoveDir',
   ],
+  skills: [
+    'skillList',
+    'skillGet',
+    'skillCreate',
+    'skillUpdate',
+    'skillDelete',
+  ],
   plans: [
     'planList',
     'planCreate',

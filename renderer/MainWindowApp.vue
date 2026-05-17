@@ -121,6 +121,7 @@ import ProjectsTab from './components/sidebar/ProjectsTab.vue';
 import ChipbarActionsTab from './components/sidebar/ChipbarActionsTab.vue';
 import McpTab from './components/sidebar/McpTab.vue';
 import BackupTab from './components/sidebar/BackupTab.vue';
+import SkillsTab from './components/sidebar/SkillsTab.vue';
 
 import { loadSessions } from './screens/sessions.js';
 
@@ -211,6 +212,8 @@ const {
   settingsTelegramConfig,
   settingsTelegramBotRunning,
   settingsMcpConfig,
+  settingsSkills,
+  settingsSkillDraft,
   settingsBindings,
   settingsSequenceGroups,
   settingsBindingSortField,
@@ -238,6 +241,10 @@ const {
   onMcpUpdate,
   onMcpGenerateToken,
   onMcpRunInCmd,
+  onSkillSelect,
+  onSkillNew,
+  onSkillSave,
+  onSkillDelete,
   onBindingAdd,
   onBindingDelete,
   onBindingCopyFrom,
@@ -887,6 +894,15 @@ onUnmounted(() => {
               @update="onMcpUpdate"
               @generate-token="onMcpGenerateToken"
               @run-in-cmd="onMcpRunInCmd"
+            />
+            <SkillsTab
+              v-else-if="activeTab === 'skills'"
+              :skills="settingsSkills"
+              :draft="settingsSkillDraft"
+              @select="onSkillSelect"
+              @new="onSkillNew"
+              @save="onSkillSave"
+              @delete="onSkillDelete"
             />
             <BackupTab
               v-else-if="activeTab === 'backups'"

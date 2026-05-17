@@ -1919,11 +1919,119 @@ kbd {
 .settings-telegram-panel,
 .settings-directories-panel,
 .settings-chipbar-panel,
+.settings-skills-panel,
 .settings-mcp-panel {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
   width: 100%;
+}
+
+.settings-skills-panel {
+  display: grid;
+  grid-template-columns: minmax(180px, 32%) minmax(0, 1fr);
+  align-items: start;
+}
+
+.settings-skills-list,
+.settings-skill-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  min-width: 0;
+}
+
+.settings-skill-editor {
+  padding: var(--spacing-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.settings-skill-item {
+  text-align: left;
+}
+
+.settings-skill-item--active {
+  border-color: var(--accent);
+}
+
+.settings-skill-badge {
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.settings-skill-badge--open {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--text-primary);
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.field-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.field-input {
+  width: 100%;
+  min-width: 0;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.field-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.settings-skill-body {
+  font-family: monospace;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.settings-skill-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  color: var(--text-secondary);
+}
+
+.settings-skill-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.settings-skill-checkbox span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-skill-checkbox small {
+  color: var(--text-dim);
+}
+
+@media (max-width: 760px) {
+  .settings-skills-panel {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Profiles tab */

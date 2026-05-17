@@ -16,6 +16,7 @@ import { DraftManager } from '../../session/draft-manager.js';
 import { PlanManager } from '../../session/plan-manager.js';
 import { ProjectStore } from '../../session/project-store.js';
 import { ContextManager } from '../../session/context-manager.js';
+import { SkillManager } from '../../session/skill-manager.js';
 import { PlanBackupManager } from '../../session/plan-backup-manager.js';
 import { PatternMatcher } from '../../session/pattern-matcher.js';
 import { ScheduledTaskManager } from '../../session/scheduled-task-manager.js';
@@ -42,6 +43,7 @@ import { setupPlanHandlers } from './plan-handlers.js';
 import { setupScheduledTaskHandlers } from './scheduled-task-handlers.js';
 import { setupBackupPlanHandlers } from './plan-backup-handlers.js';
 import { setupProjectHandlers } from './project-handlers.js';
+import { setupSkillHandlers } from './skill-handlers.js';
 import { RendererTextDeliverer } from './text-delivery.js';
 import { loadDrafts, saveDrafts } from '../../session/persistence.js';
 import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
@@ -94,6 +96,8 @@ export function registerIPCHandlers(
   const draftManager = new DraftManager(saveDrafts);
   const planManager = new PlanManager(projectStore);
   const contextManager = new ContextManager(planManager);
+  const getSkillsPath = (configLoader as ConfigLoader & { getSkillsPath?: () => string }).getSkillsPath;
+  const skillManager = new SkillManager(getSkillsPath ? getSkillsPath.call(configLoader) : 'src/config/skills.yaml');
   const backupManager = new PlanBackupManager(planManager);
   const scheduledTaskManager = new ScheduledTaskManager(sessionManager, ptyManager, planManager, configLoader);
   const notificationManager = new NotificationManager(windowManager, sessionManager);
@@ -104,7 +108,7 @@ export function registerIPCHandlers(
   notificationManager.setActiveSessionIdGetter(() => sessionManager.getActiveSession()?.id ?? null);
 
   // Create HelmControlService before Telegram modules (Telegram relay needs it)
-  const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager, configLoader, undefined, contextManager, scheduledTaskManager, projectStore);
+  const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager, configLoader, undefined, contextManager, scheduledTaskManager, projectStore, skillManager);
   helmControlService.setNotificationManager(notificationManager);
 
   const telegramBot = new TelegramBotCore();
@@ -159,6 +163,7 @@ export function registerIPCHandlers(
   setupSystemHandlers(dirname ?? process.cwd());
   setupDraftHandlers(draftManager);
   setupProjectHandlers(projectStore, planManager);
+  setupSkillHandlers(skillManager);
   setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher);
   setupScheduledTaskHandlers(scheduledTaskManager, windowManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);

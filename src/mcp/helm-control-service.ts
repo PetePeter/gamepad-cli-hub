@@ -29,7 +29,9 @@ import { logger } from '../utils/logger.js';
 import type { ScheduledTaskManager } from '../session/scheduled-task-manager.js';
 import type { CreateScheduledTaskParams, ScheduledTask, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
 import type { ContextBindingTargetType, ContextNode, ContextPermission, PlanContextRef } from '../types/context.js';
+import type { Skill, SkillCreateInput, SkillSummary, SkillUpdateInput } from '../types/skill.js';
 import { ContextManager } from '../session/context-manager.js';
+import { SkillManager } from '../session/skill-manager.js';
 import { getSessionInfo } from './guides/session-info-guide.js';
 import type { ProjectStore } from '../session/project-store.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
@@ -86,6 +88,7 @@ export interface SessionInfoResponse {
   mcp_token: string;
   aiagent_states: string[];
   available_projects: ProjectInfo[];
+  skills: SkillSummary[];
   aiagent_state_guide?: {
     how_to_update: {
       description: string;
@@ -146,6 +149,7 @@ export class HelmControlService extends EventEmitter {
   private readonly schedulerService: HelmSchedulerService | null;
   private readonly projectService: HelmProjectService | null;
   private readonly directoryService: HelmDirectoryService;
+  private readonly skillManager: SkillManager;
 
   constructor(
     private readonly planManager: PlanManager,
@@ -156,8 +160,11 @@ export class HelmControlService extends EventEmitter {
     private readonly contextManager: ContextManager = new ContextManager(planManager),
     schedulerManager?: ScheduledTaskManager,
     private readonly projectStore?: ProjectStore,
+    skillManager?: SkillManager,
   ) {
     super();
+    const getSkillsPath = (configLoader as ConfigLoader & { getSkillsPath?: () => string }).getSkillsPath;
+    this.skillManager = skillManager ?? new SkillManager(getSkillsPath ? getSkillsPath.call(configLoader) : 'src/config/skills.yaml');
     this.sessionDelivery = new HelmSessionDeliveryService(sessionManager, ptyManager, configLoader);
     this.sessionService = new HelmSessionService(sessionManager, ptyManager, configLoader, planManager);
     this.planService = new HelmPlanService(planManager, configLoader, attachmentManager, this.contextManager);
@@ -438,6 +445,26 @@ export class HelmControlService extends EventEmitter {
     return this.sessionService.closeSession(sessionRef);
   }
 
+  // ---------------------------------------------------------------------------
+  // User-managed skills
+  // ---------------------------------------------------------------------------
+
+  listSkills(): SkillSummary[] {
+    return this.skillManager.list();
+  }
+
+  getSkill(id: string): Skill | null {
+    return this.skillManager.get(id);
+  }
+
+  createSkill(input: SkillCreateInput): Skill {
+    return this.skillManager.create(input);
+  }
+
+  updateSkill(id: string, updates: SkillUpdateInput): Skill {
+    return this.skillManager.update(id, updates, { requireAiAmendable: true });
+  }
+
   restartHelm(): { sessionsClosed: number } {
     const sessions = this.sessionService.listSessions();
     for (const session of sessions) {
@@ -484,7 +511,7 @@ export class HelmControlService extends EventEmitter {
    * Called via session_info MCP tool — autocall endpoint provides context to AI agents.
    */
   getSessionInfo(authContext?: { sessionId?: string; sessionName?: string }): SessionInfoResponse {
-    return getSessionInfo(this.configLoader, this.sessionManager, authContext, this.projectStore);
+    return getSessionInfo(this.configLoader, this.sessionManager, authContext, this.projectStore, this.skillManager.listSummaries());
   }
 
   // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue';
-import { configClient, telegramClient, toolsClient } from '../ipc/clients.js';
+import { configClient, skillsClient, telegramClient, toolsClient } from '../ipc/clients.js';
 import { initConfigCache } from '../bindings.js';
 import { sessionsState } from '../screens/sessions-state.js';
 import { state } from '../state.js';
@@ -49,6 +49,21 @@ export interface SettingsMcpConfig {
   authToken: string;
 }
 
+export interface SettingsSkillSummary {
+  id: string;
+  name: string;
+  description: string;
+  aiAmendable: boolean;
+}
+
+export interface SettingsSkillDraft {
+  id: string;
+  name: string;
+  description: string;
+  body: string;
+  aiAmendable: boolean;
+}
+
 export interface SettingsBindingEntry {
   button: string;
   action: string;
@@ -61,7 +76,7 @@ export interface SettingsSequenceGroup {
   items: Array<{ label: string; sequence: string }>;
 }
 
-const NON_CLI_SETTINGS_TABS = new Set(['tools', 'chipbar-actions', 'directories', 'projects', 'telegram', 'mcp', 'backups']);
+const NON_CLI_SETTINGS_TABS = new Set(['tools', 'chipbar-actions', 'directories', 'projects', 'skills', 'telegram', 'mcp', 'backups']);
 
 export function useSettingsController(options: {
   refreshProjects: () => Promise<void>;
@@ -89,6 +104,8 @@ export function useSettingsController(options: {
   });
   const settingsTelegramBotRunning = ref(false);
   const settingsMcpConfig = ref<SettingsMcpConfig>({ enabled: false, port: 47373, authToken: '' });
+  const settingsSkills = ref<SettingsSkillSummary[]>([]);
+  const settingsSkillDraft = ref<SettingsSkillDraft>({ id: '', name: '', description: '', body: '', aiAmendable: false });
   const settingsBindings = ref<SettingsBindingEntry[]>([]);
   const settingsSequenceGroups = ref<SettingsSequenceGroup[]>([]);
   const settingsBindingSortField = ref<BindingSortField>('button');
@@ -116,6 +133,7 @@ export function useSettingsController(options: {
       'chipbar-actions',
       'directories',
       'projects',
+      'skills',
       'telegram',
       'backups',
       'mcp',
@@ -130,6 +148,7 @@ export function useSettingsController(options: {
       loadChipbarActions(),
       loadTelegramConfig(),
       loadMcpConfig(),
+      loadSkills(),
       loadBindingSortPrefs(),
       options.refreshProjects(),
     ]);
@@ -189,6 +208,7 @@ export function useSettingsController(options: {
       { id: 'tools', label: '🔧 Tools' },
       { id: 'chipbar-actions', label: '⚡ Quick Actions' },
       { id: 'projects', label: '📁 Projects' },
+      { id: 'skills', label: '🧠 Skills' },
       { id: 'telegram', label: '📨 Telegram' },
       { id: 'backups', label: '💾 Backups' },
       { id: 'mcp', label: '🧩 MCP' },
@@ -272,6 +292,21 @@ export function useSettingsController(options: {
       };
     } catch {
       settingsMcpConfig.value = { enabled: false, port: 47373, authToken: '' };
+    }
+  }
+
+  async function loadSkills(): Promise<void> {
+    try {
+      settingsSkills.value = await skillsClient.skillList() || [];
+      if (settingsSkills.value.length > 0) {
+        const currentId = settingsSkillDraft.value.id || settingsSkills.value[0].id;
+        await onSkillSelect(currentId);
+      } else {
+        settingsSkillDraft.value = { id: '', name: '', description: '', body: '', aiAmendable: false };
+      }
+    } catch {
+      settingsSkills.value = [];
+      settingsSkillDraft.value = { id: '', name: '', description: '', body: '', aiAmendable: false };
     }
   }
 
@@ -711,6 +746,58 @@ export function useSettingsController(options: {
     await options.doSpawnShell?.(command);
   }
 
+  async function onSkillSelect(id: string): Promise<void> {
+    const skill = await skillsClient.skillGet(id);
+    if (!skill) return;
+    settingsSkillDraft.value = {
+      id: skill.id,
+      name: skill.name || '',
+      description: skill.description || '',
+      body: skill.body || '',
+      aiAmendable: skill.aiAmendable === true,
+    };
+  }
+
+  function onSkillNew(): void {
+    settingsSkillDraft.value = { id: '', name: '', description: '', body: '', aiAmendable: false };
+  }
+
+  async function onSkillSave(draft: SettingsSkillDraft): Promise<void> {
+    const name = draft.name.trim();
+    if (!name) {
+      logEvent('Skill name is required');
+      return;
+    }
+    const payload = {
+      name,
+      description: draft.description,
+      body: draft.body,
+      aiAmendable: draft.aiAmendable,
+    };
+    const result = draft.id
+      ? await skillsClient.skillUpdate(draft.id, payload)
+      : await skillsClient.skillCreate(payload);
+    if (result?.success === false) {
+      logEvent(`Failed to save skill: ${result.error || 'unknown error'}`);
+      return;
+    }
+    await loadSkills();
+    const savedId = result?.skill?.id;
+    if (savedId) await onSkillSelect(savedId);
+    logEvent(`Saved skill: ${name}`);
+  }
+
+  async function onSkillDelete(id: string): Promise<void> {
+    if (!id) return;
+    const result = await skillsClient.skillDelete(id);
+    if (result?.success === false) {
+      logEvent(`Failed to delete skill: ${result.error || 'unknown error'}`);
+      return;
+    }
+    await loadSkills();
+    logEvent('Deleted skill');
+  }
+
   function onBindingAdd(button?: string): void {
     const targetButton = button || settingsAddableButtons.value[0];
     if (!targetButton) {
@@ -830,6 +917,8 @@ export function useSettingsController(options: {
     settingsTelegramConfig,
     settingsTelegramBotRunning,
     settingsMcpConfig,
+    settingsSkills,
+    settingsSkillDraft,
     settingsBindings,
     settingsSequenceGroups,
     settingsBindingSortField,
@@ -857,6 +946,10 @@ export function useSettingsController(options: {
     onMcpUpdate,
     onMcpGenerateToken,
     onMcpRunInCmd,
+    onSkillSelect,
+    onSkillNew,
+    onSkillSave,
+    onSkillDelete,
     onBindingAdd,
     onBindingDelete,
     onBindingCopyFrom,
