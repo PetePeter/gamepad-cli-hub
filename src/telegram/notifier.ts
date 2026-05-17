@@ -1,4 +1,3 @@
-import type { StateTransition } from '../session/state-detector.js';
 import type { TelegramBotCore } from './bot.js';
 import type { TopicManager } from './topic-manager.js';
 import type { SessionManager } from '../session/manager.js';
@@ -22,6 +21,13 @@ const STATE_LABELS: Record<string, { emoji: string; title: string; verb: string 
   idle: { emoji: '💤', title: 'Session Idle', verb: 'is idle' },
   waiting: { emoji: '⏳', title: 'Session Needs Attention', verb: 'needs input' },
 };
+
+/** Local definition — StateDetector no longer exports this interface. */
+interface StateTransition {
+  sessionId: string;
+  previousState: SessionState;
+  newState: SessionState;
+}
 
 /**
  * Sends Telegram notifications when session state changes.

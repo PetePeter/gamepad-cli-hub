@@ -9,8 +9,9 @@ export interface HandoffEvent {
 /**
  * FIFO queue of sessions waiting for an implementation slot.
  *
- * When an implementing session transitions to idle (AIAGENT-IDLE detected),
- * the queue pops the next waiting session and triggers auto-handoff.
+ * When an implementing session transitions to idle or completed (via
+ * session:setState), the queue pops the next waiting session and
+ * triggers auto-handoff.
  *
  * Events:
  * - 'handoff' (HandoffEvent) — a waiting session should start implementing

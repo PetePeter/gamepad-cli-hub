@@ -7,9 +7,16 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TelegramNotifier } from '../src/telegram/notifier.js';
-import type { StateTransition } from '../src/session/state-detector.js';
+import type { SessionState } from '../src/types/session.js';
 import type { TelegramConfig } from '../src/config/loader.js';
 import type { SessionInfo } from '../src/types/session.js';
+
+/** StateTransition shape consumed by TelegramNotifier.handleStateChange. */
+interface StateTransition {
+  sessionId: string;
+  previousState: SessionState;
+  newState: SessionState;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers

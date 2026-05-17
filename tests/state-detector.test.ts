@@ -10,110 +10,8 @@ describe('StateDetector', () => {
   });
 
   describe('initial state', () => {
-    it('returns idle for unknown session', () => {
-      expect(detector.getState('unknown')).toBe('idle');
-    });
-
     it('returns false for hasQuestion on unknown session', () => {
       expect(detector.hasQuestion('unknown')).toBe(false);
-    });
-  });
-
-  describe('AIAGENT phase text', () => {
-    it('ignores AIAGENT-IMPLEMENTING for session state', () => {
-      const handler = vi.fn();
-      detector.on('state-change', handler);
-
-      detector.processOutput('s1', 'some output AIAGENT-IMPLEMENTING more output');
-
-      expect(detector.getState('s1')).toBe('idle');
-      expect(handler).not.toHaveBeenCalled();
-    });
-
-    it('ignores AIAGENT-PLANNING', () => {
-      detector.processOutput('s1', 'AIAGENT-PLANNING');
-      expect(detector.getState('s1')).toBe('idle');
-    });
-
-    it('ignores AIAGENT-IDLE', () => {
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-      detector.processOutput('s1', 'AIAGENT-IDLE');
-      expect(detector.getState('s1')).toBe('idle');
-    });
-
-    it('ignores AIAGENT-COMPLETED', () => {
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-      detector.processOutput('s1', 'AIAGENT-COMPLETED');
-      expect(detector.getState('s1')).toBe('idle');
-    });
-
-    it('AIAGENT-COMPLETED does not emit state-change', () => {
-      const handler = vi.fn();
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-      detector.on('state-change', handler);
-      detector.processOutput('s1', 'AIAGENT-COMPLETED');
-      expect(handler).not.toHaveBeenCalled();
-    });
-
-    it('does not emit state-change when phase text repeats', () => {
-      const handler = vi.fn();
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-      detector.on('state-change', handler);
-
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-
-      expect(handler).not.toHaveBeenCalled();
-      expect(detector.getState('s1')).toBe('idle');
-    });
-
-    it('ignores multiple phase keywords within one chunk', () => {
-      const states: string[] = [];
-      detector.on('state-change', (t: { newState: string }) => states.push(t.newState));
-
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING then AIAGENT-PLANNING then AIAGENT-IDLE');
-
-      expect(states).toEqual([]);
-      expect(detector.getState('s1')).toBe('idle');
-    });
-  });
-
-  describe('ANSI stripping', () => {
-    it('ignores phase keywords wrapped in ANSI escape codes', () => {
-      detector.processOutput('s1', '\x1b[32mAIAGENT-IMPLEMENTING\x1b[0m');
-      expect(detector.getState('s1')).toBe('idle');
-    });
-
-    it('ignores phase keywords with ANSI codes interspersed', () => {
-      detector.processOutput('s1', '\x1b[1;34mAIAGENT-PLANNING\x1b[0m done');
-      expect(detector.getState('s1')).toBe('idle');
-    });
-
-    it('ignores phase keywords after complete OSC sequences (BEL-terminated)', () => {
-      detector.processOutput('s1', '\x1b]0;My Terminal Title\x07AIAGENT-IMPLEMENTING');
-      expect(detector.getState('s1')).toBe('idle');
-    });
-
-    it('ignores phase keywords after complete OSC sequences (ST-terminated)', () => {
-      detector.processOutput('s1', '\x1b]0;Window Title\x1b\\AIAGENT-PLANNING');
-      expect(detector.getState('s1')).toBe('idle');
-    });
-
-    it('strips incomplete OSC sequences at end of chunk', () => {
-      detector.processOutput('s1', '\x1b]0;partial titleAIAGENT-IMPLEMENTING');
-      // The incomplete OSC eats everything after \x1b] up to end of string,
-      // so AIAGENT-IMPLEMENTING is consumed — no state change
-      expect(detector.getState('s1')).toBe('idle');
-    });
-
-    it('ignores phase keyword after incomplete OSC followed by new output', () => {
-      detector.processOutput('s1', '\x1b]0;partial');
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-      expect(detector.getState('s1')).toBe('idle');
-    });
-
-    it('ignores phase keyword with OSC mixed with CSI sequences', () => {
-      detector.processOutput('s1', '\x1b]0;title\x07\x1b[32mAIAGENT-IMPLEMENTING\x1b[0m');
-      expect(detector.getState('s1')).toBe('idle');
     });
   });
 
@@ -128,13 +26,6 @@ describe('StateDetector', () => {
       expect(handler).toHaveBeenCalledWith({ sessionId: 's1' } satisfies QuestionDetected);
     });
 
-    it('AIAGENT-QUESTION does NOT change state', () => {
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-      detector.processOutput('s1', 'AIAGENT-QUESTION');
-
-      expect(detector.getState('s1')).toBe('idle');
-      expect(detector.hasQuestion('s1')).toBe(true);
-    });
 
     it('clears questionPending when non-question output arrives', () => {
       const clearedHandler = vi.fn();
@@ -160,23 +51,14 @@ describe('StateDetector', () => {
       expect(clearedHandler).not.toHaveBeenCalled();
     });
 
-    it('handles question + ignored phase text in same chunk', () => {
-      detector.processOutput('s1', 'AIAGENT-QUESTION then AIAGENT-IMPLEMENTING');
+    it('handles question + other text in same chunk', () => {
+      detector.processOutput('s1', 'AIAGENT-QUESTION then some other text');
 
       expect(detector.hasQuestion('s1')).toBe(true);
-      expect(detector.getState('s1')).toBe('idle');
     });
   });
 
   describe('session isolation', () => {
-    it('ignores phase text independently per session', () => {
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-      detector.processOutput('s2', 'AIAGENT-PLANNING');
-
-      expect(detector.getState('s1')).toBe('idle');
-      expect(detector.getState('s2')).toBe('idle');
-    });
-
     it('tracks questions independently per session', () => {
       detector.processOutput('s1', 'AIAGENT-QUESTION');
       detector.processOutput('s2', 'normal output');
@@ -187,11 +69,10 @@ describe('StateDetector', () => {
   });
 
   describe('removeSession', () => {
-    it('resets state to idle after removal', () => {
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+    it('clears question state after removal', () => {
+      detector.processOutput('s1', 'AIAGENT-QUESTION');
       detector.removeSession('s1');
 
-      expect(detector.getState('s1')).toBe('idle');
       expect(detector.hasQuestion('s1')).toBe(false);
     });
 
@@ -510,16 +391,6 @@ describe('StateDetector', () => {
       expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 's1', level: 'inactive' }));
     });
 
-    it('does not trigger phase parsing (no state-change events)', () => {
-      const stateHandler = vi.fn();
-      detector.on('state-change', stateHandler);
-
-      // markActive with text that contains a keyword — should NOT trigger state change
-      detector.markActive('s1');
-
-      expect(stateHandler).not.toHaveBeenCalled();
-    });
-
     it('works after long idle period (idle → active)', () => {
       const handler = vi.fn();
       detector.on('activity-change', handler);
@@ -558,17 +429,6 @@ describe('StateDetector', () => {
 
       // Should NOT promote to active (no activity-change event for level promotion)
       expect(handler).not.toHaveBeenCalled();
-    });
-
-    it('still ignores phase keywords while resizing', () => {
-      const handler = vi.fn();
-      detector.on('state-change', handler);
-
-      detector.markResizing('s1');
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-
-      expect(handler).not.toHaveBeenCalled();
-      expect(detector.getState('s1')).toBe('idle');
     });
 
     it('still updates lastOutputAt while resizing', () => {
@@ -630,7 +490,6 @@ describe('StateDetector', () => {
 
       // Should not throw or leave dangling timers
       vi.advanceTimersByTime(2000);
-      expect(detector.getState('s1')).toBe('idle');
     });
 
     it('dispose clears all resize timers', () => {
@@ -771,16 +630,15 @@ describe('StateDetector', () => {
       vi.useRealTimers();
     });
 
-    it('skips marker scanning while scrolling', () => {
+    it('skips question detection while scrolling', () => {
       const handler = vi.fn();
-      detector.on('state-change', handler);
+      detector.on('question-detected', handler);
 
       detector.markScrolling('s1');
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
+      detector.processOutput('s1', 'AIAGENT-QUESTION');
 
-      // Marker scanning suppressed — no state change
+      // Marker scanning suppressed — no question detected
       expect(handler).not.toHaveBeenCalled();
-      expect(detector.getState('s1')).toBe('idle');
     });
 
     it('still promotes activity while scrolling', () => {
@@ -803,49 +661,46 @@ describe('StateDetector', () => {
 
     it('auto-clears scrolling flag after 2 seconds', () => {
       const handler = vi.fn();
-      detector.on('state-change', handler);
+      detector.on('question-detected', handler);
 
       detector.markScrolling('s1');
       vi.advanceTimersByTime(2001);
 
-      // Phase text is ignored after scrolling clears too
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-      expect(handler).not.toHaveBeenCalled();
-      expect(detector.getState('s1')).toBe('idle');
+      // Question detection resumes after scrolling clears
+      detector.processOutput('s1', 'AIAGENT-QUESTION');
+      expect(handler).toHaveBeenCalledWith({ sessionId: 's1' });
     });
 
     it('markActive clears the scrolling flag', () => {
-      const stateHandler = vi.fn();
-      detector.on('state-change', stateHandler);
+      const questionHandler = vi.fn();
+      detector.on('question-detected', questionHandler);
 
       detector.markScrolling('s1');
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-      expect(stateHandler).not.toHaveBeenCalled();
+      detector.processOutput('s1', 'AIAGENT-QUESTION');
+      expect(questionHandler).not.toHaveBeenCalled();
 
-      // markActive clears scrolling
+      // markActive clears scrolling — question detection resumes
       detector.markActive('s1');
-      detector.processOutput('s1', 'AIAGENT-PLANNING');
-      expect(stateHandler).not.toHaveBeenCalled();
-      expect(detector.getState('s1')).toBe('idle');
+      detector.processOutput('s1', 'AIAGENT-QUESTION');
+      expect(questionHandler).toHaveBeenCalledWith({ sessionId: 's1' });
     });
 
     it('resets auto-clear timer on repeated markScrolling', () => {
-      const stateHandler = vi.fn();
-      detector.on('state-change', stateHandler);
+      const questionHandler = vi.fn();
+      detector.on('question-detected', questionHandler);
 
       detector.markScrolling('s1');
       vi.advanceTimersByTime(1500);
       detector.markScrolling('s1'); // refresh the timer
       vi.advanceTimersByTime(1500); // 1.5s since last markScrolling (< 2s)
 
-      // Still scrolling — marker scanning suppressed
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-      expect(stateHandler).not.toHaveBeenCalled();
+      // Still scrolling — question detection suppressed
+      detector.processOutput('s1', 'AIAGENT-QUESTION');
+      expect(questionHandler).not.toHaveBeenCalled();
 
       vi.advanceTimersByTime(600); // now past the 2s window
-      detector.processOutput('s1', 'AIAGENT-PLANNING');
-      expect(stateHandler).not.toHaveBeenCalled();
-      expect(detector.getState('s1')).toBe('idle');
+      detector.processOutput('s1', 'AIAGENT-QUESTION');
+      expect(questionHandler).toHaveBeenCalledWith({ sessionId: 's1' });
     });
 
     it('removeSession clears scroll timer', () => {
@@ -853,7 +708,6 @@ describe('StateDetector', () => {
       detector.removeSession('s1');
 
       vi.advanceTimersByTime(3000);
-      expect(detector.getState('s1')).toBe('idle');
     });
 
     it('dispose clears all scroll timers', () => {
@@ -889,17 +743,6 @@ describe('StateDetector', () => {
 
       // Should NOT promote to active (restoring suppresses activity promotion)
       expect(handler).not.toHaveBeenCalled();
-    });
-
-    it('still ignores phase keywords while restoring', () => {
-      const handler = vi.fn();
-      detector.on('state-change', handler);
-
-      detector.markRestored('s1');
-      detector.processOutput('s1', 'AIAGENT-IMPLEMENTING');
-
-      expect(handler).not.toHaveBeenCalled();
-      expect(detector.getState('s1')).toBe('idle');
     });
 
     it('still updates lastOutputAt while restoring', () => {
@@ -963,7 +806,6 @@ describe('StateDetector', () => {
       detector.removeSession('s1');
 
       vi.advanceTimersByTime(5000);
-      expect(detector.getState('s1')).toBe('idle');
     });
 
     it('dispose clears all restore timers', () => {
@@ -1224,7 +1066,6 @@ describe('StateDetector', () => {
 
       vi.advanceTimersByTime(500);
       // No errors, no state changes
-      expect(detector.getState('s1')).toBe('idle');
     });
 
     it('dispose clears all debounce timers', () => {

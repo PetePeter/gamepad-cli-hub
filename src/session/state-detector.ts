@@ -1,11 +1,5 @@
 import { EventEmitter } from 'events';
-import type { SessionState, ActivityLevel } from '../types/session.js';
-
-export interface StateTransition {
-  sessionId: string;
-  previousState: SessionState;
-  newState: SessionState;
-}
+import type { ActivityLevel } from '../types/session.js';
 
 export interface QuestionDetected {
   sessionId: string;
@@ -23,7 +17,6 @@ export interface ActivityChange {
 }
 
 interface SessionTracking {
-  state: SessionState;
   questionPending: boolean;
   lastOutputAt: number;
   activityLevel: ActivityLevel;
@@ -89,7 +82,6 @@ export interface ActivityTimeouts {
  * must update durable phase state through the MCP session_set_aiagent_state tool.
  *
  * Events:
- * - 'state-change'      (StateTransition)  — manual/legacy event only
  * - 'question-detected'  (QuestionDetected) — AIAGENT-QUESTION found
  * - 'question-cleared'   (QuestionCleared)  — new output arrived after question
  * - 'activity-change'   (ActivityChange)   — session activity level changed
@@ -303,11 +295,6 @@ export class StateDetector extends EventEmitter {
     }
   }
 
-  /** Get current detected state for a session. */
-  getState(sessionId: string): SessionState {
-    return this.sessionStates.get(sessionId)?.state ?? 'idle';
-  }
-
   /** Check if a session has a pending question. */
   hasQuestion(sessionId: string): boolean {
     return this.sessionStates.get(sessionId)?.questionPending ?? false;
@@ -430,7 +417,7 @@ export class StateDetector extends EventEmitter {
   private getOrCreate(sessionId: string): SessionTracking {
     let tracking = this.sessionStates.get(sessionId);
     if (!tracking) {
-      tracking = { state: 'idle', questionPending: false, lastOutputAt: 0, activityLevel: 'idle', scrolling: false, resizing: false, switching: false, restoring: false };
+      tracking = { questionPending: false, lastOutputAt: 0, activityLevel: 'idle', scrolling: false, resizing: false, switching: false, restoring: false };
       this.sessionStates.set(sessionId, tracking);
     }
     return tracking;

@@ -146,7 +146,6 @@ vi.mock('../src/telegram/topic-manager.js', () => ({
 }));
 vi.mock('../src/telegram/notifier.js', () => ({
   TelegramNotifier: vi.fn(function (this: any) {
-    this.handleStateChange = vi.fn();
     this.dispose = vi.fn();
   }),
 }));
@@ -243,7 +242,6 @@ vi.mock('electron', () => ({
 
 import { registerIPCHandlers } from '../src/electron/ipc/handlers.js';
 import { logger } from '../src/utils/logger.js';
-import { StateDetector } from '../src/session/state-detector.js';
 
 describe('registerIPCHandlers restore wiring', () => {
   beforeEach(() => {
@@ -259,12 +257,5 @@ describe('registerIPCHandlers restore wiring', () => {
     mockRestoreSessions.mockReturnValueOnce([{ id: 's1' }, { id: 's2' }]);
     registerIPCHandlers(() => null);
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Restored 2 session(s)'));
-  });
-
-  it('does not wire StateDetector state changes to Telegram notifications', () => {
-    registerIPCHandlers(() => null);
-
-    const detector = vi.mocked(StateDetector).mock.instances[0] as any;
-    expect(detector.on).not.toHaveBeenCalledWith('state-change', expect.any(Function));
   });
 });

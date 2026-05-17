@@ -185,50 +185,6 @@ export function setupPtyHandlers(
     }
   });
 
-  // Forward state detector events to renderer
-  stateDetector.on('state-change', (transition) => {
-    const win = windowManager.getWindowForSession(transition.sessionId);
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('pty:state-change', transition);
-    }
-    // Update session info
-    const session = sessionManager.getSession(transition.sessionId);
-    if (session) {
-      sessionManager.updateSession(transition.sessionId, { state: transition.newState });
-    }
-
-    // Auto-handoff: when a session completes or goes idle, trigger next in queue
-    if (transition.newState === 'idle' || transition.newState === 'completed') {
-      const handoff = pipelineQueue.triggerHandoff(transition.sessionId);
-      if (handoff) {
-        // Guard: ensure target PTY is still alive before writing
-        if (!ptyManager.has(handoff.toSessionId)) {
-          logger.warn(`[PTY IPC] Handoff target ${handoff.toSessionId} has no running PTY, skipping`);
-        } else {
-          // Write handoff command from target session's CLI type config (if configured)
-          const targetSession = sessionManager.getSession(handoff.toSessionId);
-          const targetCliType = targetSession?.cliType;
-          const targetConfig = targetCliType && configLoader ? configLoader.getCliTypeEntry(targetCliType) : null;
-          if (targetConfig?.handoffCommand) {
-            // Raw PTY delivery: handoff command is a configured CLI command, not prompt DSL input.
-            void ptyManager.deliverText(handoff.toSessionId, targetConfig.handoffCommand);
-          } else {
-            logger.debug(`[PTY IPC] No handoffCommand configured for CLI type '${targetCliType}', skipping command write`);
-          }
-
-          if (targetSession) {
-            sessionManager.updateSession(handoff.toSessionId, { state: 'implementing' });
-          }
-
-          const handoffWin = windowManager.getWindowForSession(handoff.toSessionId);
-          if (handoffWin && !handoffWin.isDestroyed()) {
-            handoffWin.webContents.send('pty:handoff', handoff);
-          }
-        }
-      }
-    }
-  });
-
   stateDetector.on('question-detected', (event) => {
     const win = windowManager.getWindowForSession(event.sessionId);
     if (win && !win.isDestroyed()) {
