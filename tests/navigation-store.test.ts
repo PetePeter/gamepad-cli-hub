@@ -43,6 +43,7 @@ const mockTm = {
   switchTo: vi.fn(),
   deselect: vi.fn(),
   getActiveSessionId: vi.fn(() => null),
+  ensureTerminal: vi.fn(),
 };
 
 vi.mock('../renderer/runtime/terminal-provider.js', () => ({

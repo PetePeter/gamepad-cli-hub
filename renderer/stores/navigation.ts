@@ -163,14 +163,18 @@ export const useNavigationStore = defineStore('navigation', () => {
       return { kind: 'snapped-out', sessionId };
     }
 
-    // 4. Switch terminal — only commit state when tm confirms the switch
+    // 4. Materialise terminal on-demand for remote-spawned sessions that
+    // exist in managedSessions but have no xterm.js view yet, then switch.
     const tm = getTerminalManager();
-    if (tm?.hasTerminal(sessionId)) {
-      tm.switchTo(sessionId);
-      state.activeSessionId = sessionId;
-      syncSidebarToSession(sessionId);
-      void chipBarStore.refresh(sessionId);
-      return { kind: 'local-terminal', sessionId };
+    if (tm) {
+      tm.ensureTerminal(sessionId);
+      if (tm.hasTerminal(sessionId)) {
+        tm.switchTo(sessionId);
+        state.activeSessionId = sessionId;
+        syncSidebarToSession(sessionId);
+        void chipBarStore.refresh(sessionId);
+        return { kind: 'local-terminal', sessionId };
+      }
     }
 
     // No local terminal and not snapped-out — unavailable

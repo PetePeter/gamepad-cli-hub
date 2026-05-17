@@ -561,7 +561,7 @@ function planScreenKeyHandler(e: KeyboardEvent): void {
     return;
   }
 
-  if (e.key.toLowerCase() === 'n' && (e.ctrlKey || e.metaKey)) {
+  if (e.key.toLowerCase() === 'n' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
     e.preventDefault();
     void handleAddNode({ fromShortcut: true });
     return;

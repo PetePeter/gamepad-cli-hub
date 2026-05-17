@@ -1214,3 +1214,67 @@ describe('plan screen bridge', () => {
     expect(mod.getCurrentPlanDirPath()).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Keyboard shortcut regression — Ctrl+Shift+N must not be hijacked
+// ---------------------------------------------------------------------------
+
+describe('plan screen keyboard shortcuts', () => {
+  function dispatch(init: KeyboardEventInit): KeyboardEvent {
+    const evt = new KeyboardEvent('keydown', { cancelable: true, bubbles: true, ...init });
+    document.dispatchEvent(evt);
+    return evt;
+  }
+
+  beforeEach(() => {
+    vi.resetModules();
+    (window as any).gamepadCli = {
+      planList: vi.fn().mockResolvedValue([]),
+      planDeps: vi.fn().mockResolvedValue([]),
+      planContextList: vi.fn().mockResolvedValue([]),
+      planSequenceList: vi.fn().mockResolvedValue([]),
+      configGetPlanFilters: vi.fn().mockResolvedValue({
+        types: { bug: 'either', feature: 'either', research: 'either', untyped: 'either' },
+        statuses: { planning: 'either', ready: 'either', coding: 'either', review: 'either', blocked: 'either', done: 'either' },
+        hasAttachment: { yes: 'either', no: 'either' },
+        auto: 'either',
+      }),
+    };
+  });
+
+  it('Ctrl+N is captured by the planner and prevented from propagating', async () => {
+    const mod = await import('../renderer/plans/plan-screen.js');
+    mod.planScreenState.visible = true;
+
+    const evt = dispatch({ key: 'n', ctrlKey: true, shiftKey: false });
+
+    expect(evt.defaultPrevented).toBe(true);
+  });
+
+  it('Ctrl+Shift+N falls through — not captured by the planner', async () => {
+    const mod = await import('../renderer/plans/plan-screen.js');
+    mod.planScreenState.visible = true;
+
+    const evt = dispatch({ key: 'N', ctrlKey: true, shiftKey: true });
+
+    expect(evt.defaultPrevented).toBe(false);
+  });
+
+  it('Ctrl+Shift+n (lowercase key) also falls through', async () => {
+    const mod = await import('../renderer/plans/plan-screen.js');
+    mod.planScreenState.visible = true;
+
+    const evt = dispatch({ key: 'n', ctrlKey: true, shiftKey: true });
+
+    expect(evt.defaultPrevented).toBe(false);
+  });
+
+  it('plain N key is not captured', async () => {
+    const mod = await import('../renderer/plans/plan-screen.js');
+    mod.planScreenState.visible = true;
+
+    const evt = dispatch({ key: 'n', ctrlKey: false, shiftKey: false });
+
+    expect(evt.defaultPrevented).toBe(false);
+  });
+});

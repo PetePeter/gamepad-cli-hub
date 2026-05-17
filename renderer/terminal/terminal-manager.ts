@@ -490,6 +490,76 @@ export class TerminalManager {
     return this.terminals.has(sessionId);
   }
 
+  /**
+   * Materialise a terminal view on-demand for a session that exists in
+   * managedSessions (hydrated from store) but has no xterm.js view yet.
+   * Replays PtyOutputBuffer scrollback so the user sees history immediately.
+   * Idempotent — no-op if the view already exists or session is unknown.
+   */
+  ensureTerminal(sessionId: string): void {
+    if (this.terminals.has(sessionId)) return;
+
+    const managed = this.managedSessions.get(sessionId);
+    if (!managed) return;
+
+    const element = document.createElement('div');
+    element.className = 'terminal-pane';
+    element.dataset.sessionId = sessionId;
+    element.style.display = 'none';
+    this.container.appendChild(element);
+
+    const view = new TerminalView({
+      sessionId,
+      container: element,
+      onData: (data) => { terminalClient.ptyWrite?.(sessionId, data); },
+      onScrollInput: (data) => { terminalClient.ptyScrollInput?.(sessionId, data); },
+      onResize: (cols, rows) => { terminalClient.ptyResize?.(sessionId, cols, rows); },
+      onTitleChange: (title) => {
+        const sess = this.terminals.get(sessionId);
+        if (sess) {
+          sess.title = title;
+          this.onTitleChangeCallback?.(sessionId, title);
+        }
+      },
+    });
+
+    this.terminals.set(sessionId, {
+      sessionId,
+      cliType: managed.cliType ?? 'unknown',
+      name: managed.name || managed.cliType || 'unknown',
+      view,
+      element,
+      cwd: managed.workingDir,
+    });
+
+    // Replay buffered scrollback so user sees history, not a blank screen
+    const lines = this.outputBuffer.getLastLines(sessionId, 50);
+    if (lines.length > 0) {
+      view.write(lines.join('\n'));
+    }
+
+    // Drain snap-back buffer if a detach→adopt gap was in progress
+    const buffered = this.snapBackBuffer.get(sessionId);
+    if (buffered?.length) {
+      for (const chunk of buffered) view.write(chunk);
+    }
+    this.snapBackBuffer.delete(sessionId);
+
+    element.addEventListener('mousedown', (e) => {
+      if (e.button === 2) e.stopPropagation();
+    }, true);
+
+    element.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      const sess = this.terminals.get(sessionId);
+      const selectedText = sess?.view?.getSelection() ?? '';
+      const hasSelection = sess?.view?.hasSelection() ?? false;
+      import('../modals/context-menu.js').then(({ showContextMenu }) => {
+        showContextMenu(e.clientX, e.clientY, sessionId, 'mouse', selectedText, hasSelection);
+      });
+    });
+  }
+
   /** Read last N lines from a terminal's xterm.js buffer */
   getTerminalLines(sessionId: string, count: number): string[] {
     const session = this.terminals.get(sessionId);
