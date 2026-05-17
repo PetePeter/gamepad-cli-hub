@@ -68,6 +68,7 @@ watch(() => props.draft, (draft) => {
   origAllProjects.value = draft.allProjects;
   origProjectIds.value = [...draft.projectIds];
   saveStatus.value = 'clean';
+  confirmDelete.value = false;
   if (autoSaveTimer.value) { clearTimeout(autoSaveTimer.value); autoSaveTimer.value = null; }
   nextTick(() => { hydratingFromProps.value = false; });
 }, { deep: true });
@@ -115,6 +116,7 @@ function doAutoSave(): void {
 
 const selectedId = computed(() => localDraft.value.id);
 const canDelete = computed(() => Boolean(localDraft.value.id));
+const confirmDelete = ref(false);
 const saveLabel = computed(() => localDraft.value.id ? 'Save Skill' : 'Create Skill');
 const isSystemSkill = computed(() => localDraft.value.source === 'system');
 const canEdit = computed(() => !isSystemSkill.value && Boolean(localDraft.value.id));
@@ -285,14 +287,21 @@ function toggleProject(projectId: string): void {
         >
           {{ saveLabel }}
         </button>
-        <button
-          class="btn btn--danger focusable"
-          v-if="!isSystemSkill"
-          :disabled="!canDelete"
-          @click="emit('delete', localDraft.id)"
-        >
-          Delete
-        </button>
+        <template v-if="!isSystemSkill">
+          <button
+            v-if="!confirmDelete"
+            class="btn btn--danger focusable"
+            :disabled="!canDelete"
+            @click="confirmDelete = true"
+          >
+            Delete
+          </button>
+          <template v-else>
+            <span class="skill-confirm-delete">Delete?</span>
+            <button class="btn btn--danger focusable" @click="emit('delete', localDraft.id)">Yes</button>
+            <button class="btn btn--secondary focusable" @click="confirmDelete = false">No</button>
+          </template>
+        </template>
         <span v-if="saveStatusText" class="skill-save-status">{{ saveStatusText }}</span>
       </div>
     </div>

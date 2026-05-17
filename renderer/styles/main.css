@@ -2066,6 +2066,14 @@ kbd {
   padding: 2px var(--spacing-xs);
 }
 
+/* Inline delete confirmation label */
+.skill-confirm-delete {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  padding: 0 var(--spacing-xs);
+  align-self: center;
+}
+
 .settings-skill-checkbox {
   display: flex;
   align-items: flex-start;
