@@ -185,6 +185,7 @@ vi.mock('../src/session/incoming-plans-watcher.js', () => ({
 
 vi.mock('../src/session/persistence.js', () => ({
   loadDrafts: vi.fn().mockReturnValue([]),
+  saveDrafts: vi.fn(),
   loadScheduledTasks: vi.fn().mockReturnValue([]),
   loadPlanContexts: vi.fn(() => []),
   savePlanContexts: vi.fn(),

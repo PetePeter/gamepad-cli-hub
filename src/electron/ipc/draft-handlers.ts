@@ -1,14 +1,8 @@
 import { ipcMain } from 'electron';
 import type { DraftManager } from '../../session/draft-manager.js';
-import { saveDrafts } from '../../session/persistence.js';
 import { logger } from '../../utils/logger.js';
 
 export function setupDraftHandlers(draftManager: DraftManager): void {
-  // Auto-save on any change
-  draftManager.on('draft:changed', () => {
-    saveDrafts(draftManager.exportAll());
-  });
-
   ipcMain.handle('draft:create', (_event, sessionId: string, label: string, text: string) => {
     return draftManager.create(sessionId, label, text);
   });

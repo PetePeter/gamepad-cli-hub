@@ -6,6 +6,10 @@ import type { DraftPrompt } from '../types/session.js';
 export class DraftManager extends EventEmitter {
   private drafts = new Map<string, DraftPrompt[]>(); // sessionId -> drafts
 
+  constructor(private readonly persist?: (drafts: Record<string, DraftPrompt[]>) => void) {
+    super();
+  }
+
   /** Create a new draft for a session. Returns the created draft. */
   create(sessionId: string, label: string, text: string): DraftPrompt {
     const draft: DraftPrompt = {
@@ -19,7 +23,7 @@ export class DraftManager extends EventEmitter {
       this.drafts.set(sessionId, []);
     }
     this.drafts.get(sessionId)!.push(draft);
-    this.emit('draft:changed', sessionId);
+    this.markChanged(sessionId);
     logger.info(`[DraftManager] Created draft "${label}" for session ${sessionId}`);
     return draft;
   }
@@ -31,7 +35,7 @@ export class DraftManager extends EventEmitter {
       if (idx >= 0) {
         if (updates.label !== undefined) drafts[idx].label = updates.label;
         if (updates.text !== undefined) drafts[idx].text = updates.text;
-        this.emit('draft:changed', sessionId);
+        this.markChanged(sessionId);
         logger.info(`[DraftManager] Updated draft ${draftId}`);
         return drafts[idx];
       }
@@ -46,7 +50,7 @@ export class DraftManager extends EventEmitter {
       if (idx >= 0) {
         drafts.splice(idx, 1);
         if (drafts.length === 0) this.drafts.delete(sessionId);
-        this.emit('draft:changed', sessionId);
+        this.markChanged(sessionId);
         logger.info(`[DraftManager] Deleted draft ${draftId}`);
         return true;
       }
@@ -77,7 +81,7 @@ export class DraftManager extends EventEmitter {
   clearSession(sessionId: string): void {
     if (this.drafts.has(sessionId)) {
       this.drafts.delete(sessionId);
-      this.emit('draft:changed', sessionId);
+      this.markChanged(sessionId);
       logger.info(`[DraftManager] Cleared all drafts for session ${sessionId}`);
     }
   }
@@ -102,5 +106,10 @@ export class DraftManager extends EventEmitter {
       }
     }
     logger.info(`[DraftManager] Imported drafts for ${Object.keys(data).length} session(s)`);
+  }
+
+  private markChanged(sessionId: string): void {
+    this.persist?.(this.exportAll());
+    this.emit('draft:changed', sessionId);
   }
 }

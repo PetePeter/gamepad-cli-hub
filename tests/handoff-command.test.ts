@@ -72,6 +72,9 @@ class MockPipelineQueue extends EventEmitter {
 function createMockSessionManager(sessions: Record<string, any> = {}): SessionManager {
   return {
     getSession: vi.fn((id: string) => sessions[id] ?? null),
+    updateSession: vi.fn((id: string, updates: Record<string, unknown>) => {
+      if (sessions[id]) Object.assign(sessions[id], updates);
+    }),
     removeSession: vi.fn(),
     addSession: vi.fn(),
     getAllSessions: vi.fn(() => Object.values(sessions)),

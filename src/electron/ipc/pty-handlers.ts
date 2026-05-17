@@ -194,7 +194,7 @@ export function setupPtyHandlers(
     // Update session info
     const session = sessionManager.getSession(transition.sessionId);
     if (session) {
-      session.state = transition.newState;
+      sessionManager.updateSession(transition.sessionId, { state: transition.newState });
     }
 
     // Auto-handoff: when a session completes or goes idle, trigger next in queue
@@ -217,7 +217,7 @@ export function setupPtyHandlers(
           }
 
           if (targetSession) {
-            targetSession.state = 'implementing';
+            sessionManager.updateSession(handoff.toSessionId, { state: 'implementing' });
           }
 
           const handoffWin = windowManager.getWindowForSession(handoff.toSessionId);
@@ -236,7 +236,7 @@ export function setupPtyHandlers(
     }
     const session = sessionManager.getSession(event.sessionId);
     if (session) {
-      session.questionPending = true;
+      sessionManager.updateSession(event.sessionId, { questionPending: true });
     }
   });
 
@@ -247,7 +247,7 @@ export function setupPtyHandlers(
     }
     const session = sessionManager.getSession(event.sessionId);
     if (session) {
-      session.questionPending = false;
+      sessionManager.updateSession(event.sessionId, { questionPending: false });
     }
   });
 
@@ -270,7 +270,7 @@ export function setupPtyHandlers(
   ipcMain.handle('pipeline:enqueue', (_event, sessionId: string) => {
     pipelineQueue.enqueue(sessionId);
     const session = sessionManager.getSession(sessionId);
-    if (session) session.state = 'waiting';
+    if (session) sessionManager.updateSession(sessionId, { state: 'waiting' });
     return { success: true, position: pipelineQueue.getPosition(sessionId) };
   });
 
@@ -303,7 +303,7 @@ export function setupPtyHandlers(
       pipelineQueue.dequeue(sessionId);
     }
 
-    session.state = state as SessionState;
+    sessionManager.updateSession(sessionId, { state: state as SessionState });
 
     const win = windowManager.getWindowForSession(sessionId);
     if (win && !win.isDestroyed()) {

@@ -43,7 +43,7 @@ import { setupScheduledTaskHandlers } from './scheduled-task-handlers.js';
 import { setupBackupPlanHandlers } from './plan-backup-handlers.js';
 import { setupProjectHandlers } from './project-handlers.js';
 import { RendererTextDeliverer } from './text-delivery.js';
-import { loadDrafts } from '../../session/persistence.js';
+import { loadDrafts, saveDrafts } from '../../session/persistence.js';
 import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
 import { WindowManager } from '../window-manager.js';
 import { HelmControlService } from '../../mcp/helm-control-service.js';
@@ -84,7 +84,7 @@ export function registerIPCHandlers(
   const ptyManager = new PtyManager();
   const stateDetector = new StateDetector();
   const pipelineQueue = new PipelineQueue();
-  const draftManager = new DraftManager();
+  const draftManager = new DraftManager(saveDrafts);
   const planManager = new PlanManager(projectStore);
   const contextManager = new ContextManager(planManager);
   const backupManager = new PlanBackupManager(planManager);

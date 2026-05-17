@@ -11,7 +11,10 @@ import type { DraftPrompt } from '../src/types/session.js';
 vi.mock('node:fs', () => ({
   readFileSync: vi.fn(),
   writeFileSync: vi.fn(),
+  renameSync: vi.fn(),
+  unlinkSync: vi.fn(),
   existsSync: vi.fn(),
+  mkdirSync: vi.fn(),
 }));
 
 // Mock logger to silence output during tests
