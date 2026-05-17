@@ -194,14 +194,13 @@ describe('usePanelResize', () => {
     expect(composable.panelWidth.value).toBe(400);
   });
 
-  it('clamps restored width to min/max', async () => {
-    localStorage.setItem('gamepad-hub:panel-width', '50'); // below min
+  it('restores narrow sidebar widths by default', async () => {
+    localStorage.setItem('gamepad-hub:panel-width', '50');
 
     const { usePanelResize } = await import('../../renderer/composables/usePanelResize.js');
     const composable = usePanelResize();
     composable.restoreWidth();
-    // Width should not be applied since it's below min
-    expect(composable.panelWidth.value).toBe(320); // default
+    expect(composable.panelWidth.value).toBe(50);
   });
 
   it('starts not dragging', async () => {

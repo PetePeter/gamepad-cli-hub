@@ -66,9 +66,9 @@ function onSave(): void {
   emit('save', { ...localDraft.value });
 }
 
-function toggleAllProjects(): void {
-  localDraft.value.allProjects = !localDraft.value.allProjects;
-  if (localDraft.value.allProjects) localDraft.value.projectIds = [];
+function selectAllProjects(): void {
+  localDraft.value.allProjects = true;
+  localDraft.value.projectIds = [];
 }
 
 function toggleProject(projectId: string): void {
@@ -112,7 +112,7 @@ function toggleProject(projectId: string): void {
       </div>
 
       <div class="settings-tool-actions">
-        <button class="focusable" @click="emit('new')">
+        <button class="btn btn--secondary btn--sm focusable" @click="emit('new')">
           + New Skill
         </button>
       </div>
@@ -130,7 +130,7 @@ function toggleProject(projectId: string): void {
       </div>
 
       <div class="field-group">
-        <label class="field-label">Description</label>
+        <label class="field-label">When to trigger</label>
         <textarea
           v-model="localDraft.description"
           class="field-input focusable"
@@ -157,7 +157,7 @@ function toggleProject(projectId: string): void {
             class="settings-skill-project-option focusable"
             :class="{ 'settings-skill-project-option--selected': localDraft.allProjects }"
             :disabled="isSystemSkill"
-            @click="toggleAllProjects"
+            @click="selectAllProjects"
           >
             All projects
           </button>
@@ -167,7 +167,7 @@ function toggleProject(projectId: string): void {
             type="button"
             class="settings-skill-project-option focusable"
             :class="{ 'settings-skill-project-option--selected': localDraft.projectIds.includes(project.id) && !localDraft.allProjects }"
-            :disabled="localDraft.allProjects || isSystemSkill"
+            :disabled="isSystemSkill"
             @click="toggleProject(project.id)"
           >
             {{ project.name || project.canonicalPath }}
@@ -202,19 +202,19 @@ function toggleProject(projectId: string): void {
       </p>
 
       <div class="settings-tool-actions">
-        <button v-if="canClone" class="focusable" @click="emit('clone', localDraft.id)">
+        <button v-if="canClone" class="btn btn--secondary focusable" @click="emit('clone', localDraft.id)">
           Clone as Override
         </button>
         <button
           v-else
-          class="focusable"
+          class="btn btn--primary focusable"
           @click="onSave"
           :disabled="isSystemSkill"
         >
           {{ saveLabel }}
         </button>
         <button
-          class="focusable danger"
+          class="btn btn--danger focusable"
           v-if="!isSystemSkill"
           :disabled="!canDelete"
           @click="emit('delete', localDraft.id)"

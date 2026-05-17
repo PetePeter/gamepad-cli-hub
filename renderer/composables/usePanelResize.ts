@@ -11,8 +11,8 @@
 import { ref, onMounted, onUnmounted, type Ref } from 'vue';
 
 const PANEL_WIDTH_KEY = 'gamepad-hub:panel-width';
-const MIN_WIDTH = 200;
-const MAX_WIDTH = 600;
+const MIN_WIDTH = 0;
+const MAX_WIDTH = Number.POSITIVE_INFINITY;
 
 export interface PanelResizeOptions {
   /** Called after drag ends with new width (useful for terminal refit) */
@@ -51,7 +51,10 @@ export function usePanelResize(options: PanelResizeOptions = {}) {
     if (!isDragging.value) return;
     const panel = panelRef.value;
     if (!panel) return;
-    const newWidth = Math.max(minW, Math.min(maxW, startWidth + (e.clientX - startX)));
+    const splitterWidth = splitterRef.value?.getBoundingClientRect().width ?? 0;
+    const viewportMax = Math.max(0, window.innerWidth - splitterWidth);
+    const effectiveMax = Math.min(maxW, viewportMax);
+    const newWidth = Math.max(minW, Math.min(effectiveMax, startWidth + (e.clientX - startX)));
     panel.style.width = `${newWidth}px`;
     panelWidth.value = newWidth;
   }
@@ -73,10 +76,13 @@ export function usePanelResize(options: PanelResizeOptions = {}) {
     const saved = localStorage.getItem(PANEL_WIDTH_KEY);
     if (saved) {
       const w = parseInt(saved, 10);
-      if (w >= minW && w <= maxW) {
-        panelWidth.value = w;
+      if (Number.isFinite(w) && w >= minW) {
+        const splitterWidth = splitterRef.value?.getBoundingClientRect().width ?? 0;
+        const viewportMax = Math.max(0, window.innerWidth - splitterWidth);
+        const restoredWidth = Math.min(w, maxW, viewportMax);
+        panelWidth.value = restoredWidth;
         if (panelRef.value) {
-          panelRef.value.style.width = `${w}px`;
+          panelRef.value.style.width = `${restoredWidth}px`;
         }
       }
     }
