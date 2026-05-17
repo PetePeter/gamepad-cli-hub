@@ -902,10 +902,11 @@ onUnmounted(() => {
           <foreignObject x="8" y="42" width="184" :height="item.stateInfo || item.autoImplement || contextCountByPlanId.get(item.id) ? 24 : 34">
             <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__desc">{{ item.description }}</div>
           </foreignObject>
-          <foreignObject v-if="item.stateInfo || item.autoImplement || contextCountByPlanId.get(item.id)" x="8" y="78" width="184" height="18">
+          <foreignObject v-if="item.stateInfo || item.autoImplement || contextCountByPlanId.get(item.id) || attachmentHasAny?.[item.id]" x="8" y="78" width="184" height="18">
             <div xmlns="http://www.w3.org/1999/xhtml" class="plan-node__bottom-row">
               <div v-if="item.stateInfo" class="plan-node__state-info">{{ item.stateInfo }}</div>
               <div class="plan-node__bottom-badges">
+                <span v-if="attachmentHasAny?.[item.id]" class="plan-node__attachment-badge">📎</span>
                 <span v-if="item.autoImplement" class="plan-node__auto-badge">Auto</span>
                 <span v-if="contextCountByPlanId.get(item.id)" class="plan-context-badge">{{ contextCountByPlanId.get(item.id) }}</span>
               </div>
@@ -933,12 +934,6 @@ onUnmounted(() => {
             stroke="#555"
             stroke-width="1"
           />
-          <text
-            v-if="attachmentHasAny?.[item.id]"
-            x="188" y="96"
-            text-anchor="end"
-            class="plan-node__attachment-icon"
-          >📎</text>
           <circle
             class="plan-node__connector plan-node__connector--out"
             cx="200"
@@ -1108,9 +1103,15 @@ onUnmounted(() => {
 .plan-node__unlink:hover path {
   stroke: #f0f6ff;
 }
-.plan-node__attachment-icon {
-  font-size: 12px;
-  pointer-events: none;
+.plan-node__attachment-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 16px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  background: #2a2a2a;
+  color: #aaa;
   user-select: none;
 }
 .plan-node__bottom-row {
