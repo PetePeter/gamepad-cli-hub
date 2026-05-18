@@ -3,6 +3,7 @@ import type { SessionManager } from '../../session/manager.js';
 import type { ProjectInfo, SessionInfoResponse } from '../helm-control-service.js';
 import type { ProjectStore } from '../../session/project-store.js';
 import type { SkillSummary } from '../../types/skill.js';
+import type { CapabilityDetector } from '../../session/capability-detector.js';
 
 export { getAvailableTools } from './available-tools.js';
 
@@ -16,6 +17,7 @@ export function getSessionInfo(
   authContext?: { sessionId?: string; sessionName?: string },
   projectStore?: ProjectStore,
   skills: SkillSummary[] = [],
+  capabilityDetector?: CapabilityDetector,
 ): SessionInfoResponse {
   const mcpConfig = configLoader.getMcpConfig();
   const mcpPort = mcpConfig.port ?? 47373;
@@ -23,6 +25,11 @@ export function getSessionInfo(
 
   const sessionId = authContext?.sessionId ?? '';
   const sessionInfo = sessionId ? sessionManager.getSession(sessionId) ?? undefined : undefined;
+
+  // Get Telegram capabilities from detector if available
+  const telegramCapabilities = capabilityDetector
+    ? capabilityDetector.getCapabilities()
+    : { available: false, openwhisper: false, piper: false, ffmpeg: false };
 
   return {
     mandatory_rules: [
@@ -43,8 +50,9 @@ export function getSessionInfo(
     mcp_token: mcpConfig.authToken ?? '',
     available_projects: getAvailableProjects(projectStore),
     skills,
-    system_skill_types: ['session-send-text', 'agent-plan', 'notification'],
+    system_skill_types: ['session-send-text', 'agent-plan', 'notification', 'telegram'],
     aiagent_states: ['planning', 'implementing', 'completed', 'idle'],
+    telegramCapabilities,
   };
 }
 

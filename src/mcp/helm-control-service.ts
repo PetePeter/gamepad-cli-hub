@@ -37,7 +37,9 @@ import { getSessionInfo } from './guides/session-info-guide.js';
 import { buildSessionSendTextGuide } from './guides/session-send-text-guide.js';
 import { buildAgentPlanGuide } from './guides/agent-plan-guide.js';
 import { buildNotificationGuide } from './guides/notification-guide.js';
+import { buildTelegramGuide } from './guides/telegram-guide.js';
 import type { ProjectStore } from '../session/project-store.js';
+import { CapabilityDetector } from '../session/capability-detector.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
 
 const SKILL_FEEDBACK_FOOTER = '---\nSkill applied. Call skills_submit_feedback("{skillId}", stars, summary, improvement?) to rate it.';
@@ -94,6 +96,12 @@ export interface SessionInfoResponse {
   skills: SkillSummary[];
   system_skill_types: string[];
   aiagent_states: string[];
+  telegramCapabilities: {
+    available: boolean;
+    openwhisper: boolean;
+    piper: boolean;
+    ffmpeg: boolean;
+  };
 }
 
 /**
@@ -114,6 +122,7 @@ export class HelmControlService extends EventEmitter {
   private readonly directoryService: HelmDirectoryService;
   private readonly skillManager: SkillManager;
   private readonly skillAnalyticsManager: SkillAnalyticsManager;
+  private readonly capabilityDetector: CapabilityDetector;
 
   constructor(
     private readonly planManager: PlanManager,
@@ -167,6 +176,17 @@ export class HelmControlService extends EventEmitter {
       type: 'notification',
       source: 'system',
     });
+    this.skillManager.registerSystemSkill({
+      id: 'sys-telegram',
+      name: 'Telegram Voice & Attachment Guide',
+      description: 'Telegram capabilities, voice memo workflows (openwhisper/piper/ffmpeg), and attachment format guide. Fetch with skills_get(type: "telegram").',
+      body: JSON.stringify(buildTelegramGuide(), null, 2),
+      aiAmendable: false,
+      allProjects: true,
+      projectIds: [],
+      type: 'telegram',
+      source: 'system',
+    });
 
     this.sessionDelivery = new HelmSessionDeliveryService(sessionManager, ptyManager, configLoader);
     this.sessionService = new HelmSessionService(sessionManager, ptyManager, configLoader, planManager);
@@ -178,6 +198,7 @@ export class HelmControlService extends EventEmitter {
     this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager) : null;
     this.projectService = projectStore ? new HelmProjectService(projectStore) : null;
     this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager, projectStore);
+    this.capabilityDetector = new CapabilityDetector(configLoader);
   }
 
   // ---------------------------------------------------------------------------
@@ -190,6 +211,10 @@ export class HelmControlService extends EventEmitter {
 
   setNotificationManager(nm: NotificationManager): void {
     this.telegramService.setNotificationManager(nm);
+  }
+
+  invalidateCapabilityCache(): void {
+    this.capabilityDetector.invalidateCache();
   }
 
   // ---------------------------------------------------------------------------
@@ -598,7 +623,7 @@ export class HelmControlService extends EventEmitter {
    */
   getSessionInfo(authContext?: { sessionId?: string; sessionName?: string }): SessionInfoResponse {
     const projectId = this.resolveProjectIdForSession(authContext);
-    return getSessionInfo(this.configLoader, this.sessionManager, authContext, this.projectStore, this.skillManager.listForProject(projectId));
+    return getSessionInfo(this.configLoader, this.sessionManager, authContext, this.projectStore, this.skillManager.listForProject(projectId), this.capabilityDetector);
   }
 
   // ---------------------------------------------------------------------------

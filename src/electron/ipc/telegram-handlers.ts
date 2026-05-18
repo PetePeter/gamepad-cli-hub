@@ -20,6 +20,7 @@ export function setupTelegramHandlers(
   notifier: TelegramNotifier,
   sessionManager: SessionManager,
   stateDetector: StateDetector,
+  onConfigChanged?: () => void,
 ): () => void {
   // --- Config CRUD ---
 
@@ -35,6 +36,7 @@ export function setupTelegramHandlers(
   ipcMain.handle('telegram:setConfig', (_event, updates: Partial<TelegramConfig>) => {
     try {
       configLoader.setTelegramConfig(updates);
+      onConfigChanged?.();
       logger.info(`[IPC] Telegram config updated: ${JSON.stringify(updates)}`);
       return { success: true };
     } catch (error) {

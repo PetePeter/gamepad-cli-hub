@@ -1033,7 +1033,7 @@ describe('LocalhostMcpServer', () => {
       },
     });
     const json = await response.json();
-    expect((service.spawnCli as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('codex', 'X:\\coding\\gamepad-cli-hub', 'Builder', undefined);
+    expect((service.spawnCli as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('codex', 'X:\\coding\\gamepad-cli-hub', 'Builder');
     expect(json.result.structuredContent).toEqual({ id: 's2', name: 'Builder', cliType: 'codex', workingDir: 'X:\\coding\\gamepad-cli-hub' });
   });
 
@@ -1369,6 +1369,7 @@ describe('LocalhostMcpServer', () => {
       {
         getMcpConfig: vi.fn(() => ({ port: 47373, authToken: 'secret-token-value' })),
         getWorkingDirectories: vi.fn(() => [{ path: 'X:\\coding\\gamepad-cli-hub', name: 'Helm' }]),
+        getTelegramConfig: vi.fn(() => ({ enabled: false })),
       } as any,
       {} as any,
     );
@@ -1377,7 +1378,7 @@ describe('LocalhostMcpServer', () => {
 
     expect(content.aiagent_states).toEqual(['planning', 'implementing', 'completed', 'idle']);
     expect(content).not.toHaveProperty('aiagent_state_guide');
-    expect(content.system_skill_types).toEqual(['session-send-text', 'agent-plan', 'notification']);
+    expect(content.system_skill_types).toEqual(['session-send-text', 'agent-plan', 'notification', 'telegram']);
     expect(content).not.toHaveProperty('agent_plan_guide');
     expect(content).not.toHaveProperty('notification_guide');
   });

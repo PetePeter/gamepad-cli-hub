@@ -234,7 +234,7 @@ export function registerIPCHandlers(
     }
   });
 
-  const cleanupTelegram = setupTelegramHandlers(configLoader, telegramBot, topicManager, telegramNotifier, sessionManager, stateDetector);
+  const cleanupTelegram = setupTelegramHandlers(configLoader, telegramBot, topicManager, telegramNotifier, sessionManager, stateDetector, () => helmControlService.invalidateCapabilityCache());
 
   // Auto-start Telegram bot if configured, but always wait for app startup to settle first.
   const telegramAutoStartTimer = configLoader.getTelegramConfig().autoStart

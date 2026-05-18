@@ -435,7 +435,7 @@ describe('HelmControlService.spawnCli', () => {
       );
     });
 
-    it('delivers MCP prompt after initialPrompt completes', async () => {
+    it('delivers initialPrompt sequence after delay', async () => {
       const { service, ptyManager, configLoader } = makeService();
       (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
         name: 'Claude Code',
@@ -444,7 +444,7 @@ describe('HelmControlService.spawnCli', () => {
         initialPromptDelay: 500,
       });
 
-      service.spawnCli('claude-code', '/work', 'Claude', 'custom prompt');
+      service.spawnCli('claude-code', '/work', 'Claude');
       vi.advanceTimersByTime(500);
       await vi.runAllTimersAsync();
 
@@ -453,10 +453,6 @@ describe('HelmControlService.spawnCli', () => {
         'init',
       );
       expect(ptyManager.deliverText).toHaveBeenCalledWith(expect.any(String), '', { submitSuffix: '\r' });
-      expect(ptyManager.deliverText).toHaveBeenCalledWith(
-        expect.any(String),
-        'custom prompt',
-      );
     });
   });
 
@@ -615,7 +611,7 @@ describe('HelmControlService.getSessionInfo', () => {
       expect.stringContaining('skills_get'),
       expect.stringContaining('skills_list'),
     ]));
-    expect(info.system_skill_types).toEqual(['session-send-text', 'agent-plan', 'notification']);
+    expect(info.system_skill_types).toEqual(['session-send-text', 'agent-plan', 'notification', 'telegram']);
 
     expect(info).not.toHaveProperty('available_tools');
     expect(info).not.toHaveProperty('session_send_text_guide');
