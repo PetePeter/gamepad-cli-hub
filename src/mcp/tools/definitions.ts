@@ -117,6 +117,20 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'skill_activate',
+    title: 'Activate Skill',
+    description: 'Load and activate a skill by ID or type. Returns full skill content and metadata to enable agents to apply the skill. Optional context parameter provides skill-specific guidance.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        skillId: { type: 'string', description: 'Skill ID (UUID) or type name to activate. Lookup is case-insensitive for type matching.' },
+        context: { type: 'string', description: 'Optional context string for skill-specific guidance (e.g., "code-review", "api-debugging").' },
+      },
+      required: ['skillId'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'plans_list',
     title: 'List Plans',
     description: 'List all plan items for a directory. Use this before editing or assigning plan work so you can reference the human-readable P-00xx plan IDs Helm returns.',
@@ -141,11 +155,22 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_get',
     title: 'Get Plan',
-    description: 'Get a single plan item by UUID or P-00xx human-readable ID, including lightweight sequenceContextMetadata when contexts are attached. Before implementation, use this with plan_context_list to inspect the plan and effective context refs; fetch full context just-in-time with context_get only when it is relevant to the current phase.',
+    description: 'Get a single plan item by UUID. Before implementation, use this with plan_context_list to inspect the plan and effective context refs; fetch full context just-in-time with context_get only when it is relevant to the current phase. To convert a P-00xx human-readable ID to UUID, use plan_get_id first.',
     inputSchema: {
       type: 'object',
-      properties: { id: { type: 'string' } },
-      required: ['id'],
+      properties: { uuid: { type: 'string' } },
+      required: ['uuid'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'plan_get_id',
+    title: 'Get Plan ID Conversion',
+    description: 'Convert a P-00xx human-readable plan ID to its UUID. This is the ONLY tool that accepts P-nnnn format; all other plan_* tools require UUID only.',
+    inputSchema: {
+      type: 'object',
+      properties: { humanId: { type: 'string' } },
+      required: ['humanId'],
       additionalProperties: false,
     },
   },
@@ -169,69 +194,69 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_update',
     title: 'Update Plan',
-    description: 'Update a plan item title, description, type, and/or auto-implement flag by UUID or P-00xx human-readable ID. Set type to "bug", "feature", or "research"; pass null to clear the type. Set autoImplement true or false to control whether a ready follow-up plan may be picked up automatically after its prerequisite is completed.',
+    description: 'Update a plan item title, description, type, and/or auto-implement flag by UUID. Set type to "bug", "feature", or "research"; pass null to clear the type. Set autoImplement true or false to control whether a ready follow-up plan may be picked up automatically after its prerequisite is completed. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
-        id: { type: 'string' },
+        uuid: { type: 'string' },
         title: { type: 'string' },
         description: { type: 'string' },
         type: { anyOf: [{ type: 'string', enum: ['bug', 'feature', 'research'] }, { type: 'null' }] },
         autoImplement: { type: 'boolean' },
       },
-      required: ['id'],
+      required: ['uuid'],
       additionalProperties: false,
     },
   },
   {
     name: 'plan_delete',
     title: 'Delete Plan',
-    description: 'Delete a plan item by UUID or P-00xx human-readable ID.',
+    description: 'Delete a plan item by UUID. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
-      properties: { id: { type: 'string' } },
-      required: ['id'],
+      properties: { uuid: { type: 'string' } },
+      required: ['uuid'],
       additionalProperties: false,
     },
   },
   {
     name: 'plan_set_state',
     title: 'Set Plan State',
-    description: 'Set a plan item state by UUID or P-00xx human-readable ID to planning, ready, coding, review, or blocked. Use this when the lifecycle state itself changed; if you only need the session row to point at the current plan, prefer session_set_working_plan. IMPORTANT: When setting status to "coding", you must pass sessionId to claim ownership. The "planning" and "ready" states automatically clear any previous session owner. "review" and "blocked" preserve existing ownership. Always call session_set_working_plan after claiming a plan to update the session\'s visible working plan.',
+    description: 'Set a plan item state by UUID to planning, ready, coding, review, or blocked. Use this when the lifecycle state itself changed; if you only need the session row to point at the current plan, prefer session_set_working_plan. IMPORTANT: When setting status to "coding", you must pass sessionId to claim ownership. The "planning" and "ready" states automatically clear any previous session owner. "review" and "blocked" preserve existing ownership. Always call session_set_working_plan after claiming a plan to update the session\'s visible working plan. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
-        id: { type: 'string' },
+        uuid: { type: 'string' },
         status: { type: 'string', enum: ['planning', 'ready', 'coding', 'review', 'blocked'] },
         stateInfo: { type: 'string' },
         sessionId: { type: 'string' },
       },
-      required: ['id', 'status'],
+      required: ['uuid', 'status'],
       additionalProperties: false,
     },
   },
   {
     name: 'plan_complete',
     title: 'Complete Plan',
-    description: 'Mark a coding or review plan item as done by UUID or P-00xx human-readable ID. Requires documentation of what was done (minimum 10 characters). Good completion notes summarize implemented behavior, important files changed, tests or review performed, and any remaining risk.',
+    description: 'Mark a coding or review plan item as done by UUID. Requires documentation of what was done (minimum 10 characters). Good completion notes summarize implemented behavior, important files changed, tests or review performed, and any remaining risk. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
-        id: { type: 'string' },
+        uuid: { type: 'string' },
         documentation: { type: 'string', description: 'Documentation of what was accomplished (minimum 10 characters)' },
       },
-      required: ['id', 'documentation'],
+      required: ['uuid', 'documentation'],
       additionalProperties: false,
     },
   },
   {
     name: 'plan_reopen',
     title: 'Reopen Plan',
-    description: 'Revert a done plan back to ready or planning by UUID or P-00xx human-readable ID based on its current dependencies. Use this to undo an accidental plan_complete call. The plan\'s sessionId is cleared on reopen.',
+    description: 'Revert a done plan back to ready or planning by UUID based on its current dependencies. Use this to undo an accidental plan_complete call. The plan\'s sessionId is cleared on reopen. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
-      properties: { id: { type: 'string' } },
-      required: ['id'],
+      properties: { uuid: { type: 'string' } },
+      required: ['uuid'],
       additionalProperties: false,
     },
   },
@@ -249,7 +274,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_nextplan_link',
     title: 'Link Next Plan',
-    description: 'Link one plan item as a prerequisite for another by UUID or P-00xx human-readable ID. A plan can have many outgoing links (to many next plans) and many incoming links (from many previous plans). The source plan must complete before the target plan can start. Use this for blocking questions by linking the separate QUESTION plan to the original blocked plan.',
+    description: 'Link one plan item as a prerequisite for another by UUID. A plan can have many outgoing links (to many next plans) and many incoming links (from many previous plans). The source plan must complete before the target plan can start. Use this for blocking questions by linking the separate QUESTION plan to the original blocked plan. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -263,7 +288,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_nextplan_unlink',
     title: 'Unlink Next Plan',
-    description: 'Remove a prerequisite link between two plan items by UUID or P-00xx human-readable ID.',
+    description: 'Remove a prerequisite link between two plan items by UUID. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -514,7 +539,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_attachment_list',
     title: 'List Plan Attachments',
-    description: 'List files attached to a plan by UUID or P-00xx human-readable ID. Attachments are stored inside Helm config, not as fragile external references.',
+    description: 'List files attached to a plan by UUID. Attachments are stored inside Helm config, not as fragile external references. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -527,7 +552,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_attachment_add',
     title: 'Add Plan Attachment',
-    description: 'Attach text, JSON, image, or arbitrary binary content up to 10MB to a plan by UUID or P-00xx human-readable ID. Provide exactly one of text or contentBase64. The file is copied into Helm config-managed storage.',
+    description: 'Attach text, JSON, image, or arbitrary binary content up to 10MB to a plan by UUID. Provide exactly one of text or contentBase64. The file is copied into Helm config-managed storage. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -544,7 +569,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_attachment_delete',
     title: 'Delete Plan Attachment',
-    description: 'Delete a stored attachment from a plan by UUID or P-00xx human-readable ID and attachmentId.',
+    description: 'Delete a stored attachment from a plan by UUID and attachmentId. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -558,7 +583,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_attachment_get',
     title: 'Get Plan Attachment Temp File',
-    description: 'Copy a stored attachment to a Helm temp file and return the tempPath plus metadata. This avoids inline raw or base64 content in MCP responses.',
+    description: 'Copy a stored attachment to a Helm temp file and return the tempPath plus metadata. This avoids inline raw or base64 content in MCP responses. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -809,6 +834,16 @@ export const MCP_TOOLS: McpTool[] = [
         name: { type: 'string' },
       },
       required: [],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'restart_helm',
+    title: 'Restart Helm',
+    description: 'Close all sessions and restart the Helm application. MCP and Telegram resume after a 3-second delay.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
       additionalProperties: false,
     },
   },

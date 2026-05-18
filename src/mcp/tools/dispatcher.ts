@@ -99,11 +99,21 @@ export async function callMcpTool(
             `Skill not found: ${asString(args.id, 'id is required')}`,
           ),
         };
+      case 'skill_activate': {
+        const skillId = asString(args.skillId, 'skillId is required');
+        const context = typeof args.context === 'string' ? args.context : undefined;
+        return requireResult(
+          service.activateSkill(skillId, context),
+          `Skill not found: ${skillId}`,
+        );
+      }
       case 'plan_get':
         return requireResult(
-          service.getPlan(asString(args.id, 'id is required')),
-          `Plan not found: ${asString(args.id, 'id is required')}`,
+          service.getPlan(asString(args.uuid, 'uuid is required')),
+          `Plan not found: ${asString(args.uuid, 'uuid is required')}`,
         );
+      case 'plan_get_id':
+        return service.getPlanIdMapping(asString(args.humanId, 'humanId is required'));
       case 'plan_create':
         return service.createPlan(
           asString(args.dirPath, 'dirPath is required'),
@@ -114,39 +124,39 @@ export async function callMcpTool(
         );
       case 'plan_update':
         return requireResult(
-          service.updatePlan(asString(args.id, 'id is required'), {
+          service.updatePlan(asString(args.uuid, 'uuid is required'), {
             ...(typeof args.title === 'string' ? { title: args.title } : {}),
             ...(typeof args.description === 'string' ? { description: args.description } : {}),
             ...(Object.prototype.hasOwnProperty.call(args, 'type') ? { type: asPlanTypeOrNull(args.type) } : {}),
             ...(typeof args.autoImplement === 'boolean' ? { autoImplement: args.autoImplement } : {}),
           }),
-          `Plan not found: ${asString(args.id, 'id is required')}`,
+          `Plan not found: ${asString(args.uuid, 'uuid is required')}`,
         );
       case 'plan_delete':
         return {
           deleted: requireBooleanResult(
-            service.deletePlan(asString(args.id, 'id is required')),
-            `Plan not found: ${asString(args.id, 'id is required')}`,
+            service.deletePlan(asString(args.uuid, 'uuid is required')),
+            `Plan not found: ${asString(args.uuid, 'uuid is required')}`,
           ),
         };
       case 'plan_set_state':
         return setPlanStateWithValidation(
-          asString(args.id, 'id is required'),
+          asString(args.uuid, 'uuid is required'),
           asPlanStatus(args.status),
           typeof args.stateInfo === 'string' ? args.stateInfo : undefined,
           typeof args.sessionId === 'string' ? args.sessionId : undefined,
         );
       case 'plan_complete':
         return completePlanWithValidation(
-          asString(args.id, 'id is required'),
+          asString(args.uuid, 'uuid is required'),
           asString(args.documentation, 'documentation is required (minimum 10 characters)'),
         );
       case 'plan_context_list':
         return service.listPlanContexts(asString(args.planId, 'planId is required'));
       case 'plan_reopen':
         return requireResult(
-          service.reopenPlan(asString(args.id, 'id is required')),
-          `Plan ${asString(args.id, 'id is required')} could not be reopened — it may not be in done state`,
+          service.reopenPlan(asString(args.uuid, 'uuid is required')),
+          `Plan ${asString(args.uuid, 'uuid is required')} could not be reopened — it may not be in done state`,
         );
       case 'plan_nextplan_link':
         service.linkPlans(
@@ -405,6 +415,7 @@ export async function callMcpTool(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),
           typeof args.lines === 'number' ? args.lines : undefined,
           asTerminalOutputMode(args.mode),
+          typeof args.stripBlankLines === 'boolean' ? args.stripBlankLines : undefined,
         );
       case 'session_set_working_plan':
         return service.setSessionWorkingPlan(
@@ -420,6 +431,8 @@ export async function callMcpTool(
         );
       case 'session_close':
         return service.closeSession(asString(args.sessionId ?? args.name, 'sessionId or name is required'));
+      case 'restart_helm':
+        return service.restartHelm();
       case 'notify_user':
         return service.notifyUser(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),

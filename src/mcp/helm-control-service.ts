@@ -94,6 +94,7 @@ export interface SessionInfoResponse {
   mcp_token: string;
   available_projects: ProjectInfo[];
   skills: Omit<SkillSummary, 'useCount' | 'avgRating' | 'reviewCount'>[];
+  relevantSkills: Array<{ id: string; name: string; type?: string; description: string }>;
   telegramCapabilities: {
     available: boolean;
     openwhisper: boolean;
@@ -241,6 +242,10 @@ export class HelmControlService extends EventEmitter {
     }>;
   }) | null {
     return this.planService.getPlan(id);
+  }
+
+  getPlanIdMapping(humanId: string): { uuid: string; humanId: string } {
+    return this.planService.getPlanIdMapping(humanId);
   }
 
   createPlan(dirPath: string, title: string, description: string, type?: PlanType, autoImplement?: boolean): PlanItem {
@@ -499,6 +504,29 @@ export class HelmControlService extends EventEmitter {
   resolveSkill(type: string, filter?: { projectId?: string; dirPath?: string }): Skill | null {
     const projectId = filter?.projectId ?? this.resolveProjectIdForDirectory(filter?.dirPath);
     return this.prepareSkillForUse(this.skillManager.resolveEffective(type, projectId ?? undefined));
+  }
+
+  /**
+   * Activate and load a skill by ID or type, with optional context guidance.
+   * Returns full skill content and metadata. Lookup is case-insensitive for type matching.
+   * Increments use count and appends feedback footer for user-managed skills.
+   */
+  activateSkill(skillId: string, context?: string): Skill | null {
+    // Try direct ID lookup first (case-sensitive)
+    let skill = this.skillManager.get(skillId);
+    if (skill) {
+      return this.prepareSkillForUse(skill);
+    }
+
+    // Try case-insensitive type lookup
+    skill = this.skillManager.resolveEffective(skillId.toLowerCase(), undefined);
+    if (skill) {
+      return this.prepareSkillForUse(skill);
+    }
+
+    // Context parameter is for future enhancement: skill-specific guidance
+    // (not currently used, but available for future skill_activate enhancements)
+    return null;
   }
 
   deleteSkill(id: string): boolean {
