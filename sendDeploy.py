@@ -79,16 +79,18 @@ def main():
     print(f"  OK: Found: {release['folder_name']} (v{version})")
     print()
 
-    # 2. Verify artifacts
+    # 2. Verify artifacts — exclude uninstaller stubs (build artifacts, not for distribution)
     print("[2/5] Verifying artifacts...")
-    exes = list(release_path.glob("*.exe"))
+    exes = [f for f in release_path.glob("*.exe") if "__uninstaller" not in f.name]
     if not exes:
-        print("ERROR: No .exe found in release folder. Cannot publish.")
+        print("ERROR: No installer .exe found in release folder. Cannot publish.")
         print("   Run prepareDeploy.py first.")
         sys.exit(1)
     for exe in exes:
         size_mb = exe.stat().st_size / (1024 * 1024)
         print(f"  FILE: {exe.name} ({size_mb:.1f} MB)")
+        if size_mb < 10:
+            print(f"  WARNING: {exe.name} is suspiciously small ({size_mb:.1f} MB) — packaging may have failed.")
 
     # Verify package.json version matches
     pkg = json.loads(Path("package.json").read_text(encoding="utf-8"))
@@ -130,14 +132,10 @@ def main():
     run("git push origin HEAD --tags")
     print()
 
-    # 5. Create GitHub Release and upload installer EXE + any HTML assets
+    # 5. Create GitHub Release and upload installer EXE only
     print("[5/5] Publishing to GitHub Releases...")
     tag = f"v{version}"
-    html_assets = list(release_path.glob("*.html"))
-    for html in html_assets:
-        print(f"  ASSET: {html.name}")
-    all_assets = exes + html_assets
-    asset_args = " ".join(f'"{a}"' for a in all_assets)
+    asset_args = " ".join(f'"{exe}"' for exe in exes)
     notes_file = release_path / "RELEASE_NOTES.md"
     if notes_file.exists():
         print(f"  NOTES: Using release notes from {notes_file.name}")
