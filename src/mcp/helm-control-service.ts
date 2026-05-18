@@ -93,8 +93,7 @@ export interface SessionInfoResponse {
   mcp_url: string;
   mcp_token: string;
   available_projects: ProjectInfo[];
-  skills: Omit<SkillSummary, 'useCount' | 'avgRating' | 'reviewCount'>[];
-  relevantSkills: Array<{ id: string; name: string; type?: string; description: string }>;
+  skills: Array<{ id: string; name: string; triggerWhen: string }>;
   telegramCapabilities: {
     available: boolean;
     openwhisper: boolean;

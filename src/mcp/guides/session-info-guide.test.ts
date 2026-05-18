@@ -118,45 +118,43 @@ describe('getSessionInfo', () => {
     });
   });
 
-  describe('relevantSkills', () => {
-    it('should include empty relevantSkills array when no skills provided', () => {
+  describe('skills slim shape', () => {
+    const mockSkills = [
+      { id: 'skill-1', name: 'Skill 1', description: 'Use when coding', type: 'type-a', aiAmendable: false, allProjects: true, projectIds: [], source: 'system' as const, useCount: 5, avgRating: 4.2, reviewCount: 3 },
+      { id: 'skill-2', name: 'Skill 2', description: 'Use when reviewing', aiAmendable: true, allProjects: false, projectIds: ['proj-1'], source: 'user' as const, useCount: 1, avgRating: 3.0, reviewCount: 1 },
+    ];
+
+    it('skills array objects have exactly id, name, triggerWhen — no other keys', () => {
+      const info = getSessionInfo(new FakeConfigLoader() as any, new FakeSessionManager() as any, undefined, undefined, mockSkills);
+      for (const skill of info.skills) {
+        expect(Object.keys(skill).sort()).toEqual(['id', 'name', 'triggerWhen']);
+      }
+    });
+
+    it('triggerWhen equals the original description value', () => {
+      const info = getSessionInfo(new FakeConfigLoader() as any, new FakeSessionManager() as any, undefined, undefined, mockSkills);
+      expect(info.skills[0].triggerWhen).toBe('Use when coding');
+      expect(info.skills[1].triggerWhen).toBe('Use when reviewing');
+    });
+
+    it('no noise fields on any skill object', () => {
+      const info = getSessionInfo(new FakeConfigLoader() as any, new FakeSessionManager() as any, undefined, undefined, mockSkills);
+      const noiseKeys = ['aiAmendable', 'allProjects', 'projectIds', 'type', 'source', 'useCount', 'avgRating', 'reviewCount', 'description'];
+      for (const skill of info.skills) {
+        for (const key of noiseKeys) {
+          expect(skill).not.toHaveProperty(key);
+        }
+      }
+    });
+
+    it('skills is empty array when no skills provided', () => {
       const info = getSessionInfo(new FakeConfigLoader() as any, new FakeSessionManager() as any);
-      expect(Array.isArray(info.relevantSkills)).toBe(true);
-      expect(info.relevantSkills.length).toBe(0);
+      expect(info.skills).toEqual([]);
     });
 
-    it('should suggest up to 3 skills', () => {
-      const mockSkills = [
-        { id: 'skill-1', name: 'Skill 1', description: 'First skill', type: 'type-a', aiAmendable: false, allProjects: true, projectIds: [], source: 'system' as const, useCount: 0, avgRating: 0, reviewCount: 0 },
-        { id: 'skill-2', name: 'Skill 2', description: 'Second skill', type: 'type-b', aiAmendable: false, allProjects: true, projectIds: [], source: 'system' as const, useCount: 0, avgRating: 0, reviewCount: 0 },
-        { id: 'skill-3', name: 'Skill 3', description: 'Third skill', type: 'type-c', aiAmendable: false, allProjects: true, projectIds: [], source: 'system' as const, useCount: 0, avgRating: 0, reviewCount: 0 },
-        { id: 'skill-4', name: 'Skill 4', description: 'Fourth skill', type: 'type-d', aiAmendable: false, allProjects: true, projectIds: [], source: 'system' as const, useCount: 0, avgRating: 0, reviewCount: 0 },
-      ];
+    it('relevantSkills key is absent from response', () => {
       const info = getSessionInfo(new FakeConfigLoader() as any, new FakeSessionManager() as any, undefined, undefined, mockSkills);
-      expect(info.relevantSkills.length).toBe(3);
-    });
-
-    it('should prioritize skills with explicit type field', () => {
-      const mockSkills = [
-        { id: 'skill-a', name: 'Skill A', description: 'Has type', type: 'reviewer', aiAmendable: false, allProjects: true, projectIds: [], source: 'system' as const, useCount: 0, avgRating: 0, reviewCount: 0 },
-        { id: 'skill-b', name: 'Skill B', description: 'No type', aiAmendable: false, allProjects: true, projectIds: [], source: 'system' as const, useCount: 0, avgRating: 0, reviewCount: 0 },
-        { id: 'skill-c', name: 'Skill C', description: 'Has type', type: 'debugger', aiAmendable: false, allProjects: true, projectIds: [], source: 'system' as const, useCount: 0, avgRating: 0, reviewCount: 0 },
-      ];
-      const info = getSessionInfo(new FakeConfigLoader() as any, new FakeSessionManager() as any, undefined, undefined, mockSkills);
-      // Should include skills with types first
-      const typedSkills = info.relevantSkills.filter(s => s.type);
-      expect(typedSkills.length).toBeGreaterThanOrEqual(2);
-    });
-
-    it('should include id, name, type, and description in relevant skills', () => {
-      const mockSkills = [
-        { id: 'skill-test', name: 'Test Skill', description: 'For testing', type: 'tester', aiAmendable: false, allProjects: true, projectIds: [], source: 'system' as const, useCount: 0, avgRating: 0, reviewCount: 0 },
-      ];
-      const info = getSessionInfo(new FakeConfigLoader() as any, new FakeSessionManager() as any, undefined, undefined, mockSkills);
-      expect(info.relevantSkills[0]).toHaveProperty('id');
-      expect(info.relevantSkills[0]).toHaveProperty('name');
-      expect(info.relevantSkills[0]).toHaveProperty('description');
-      expect(info.relevantSkills[0]).toHaveProperty('type');
+      expect(info).not.toHaveProperty('relevantSkills');
     });
   });
 });

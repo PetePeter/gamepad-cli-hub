@@ -2,6 +2,27 @@
 
 All notable changes to gamepad-cli-hub are documented in this file.
 
+## [1.8.0] - 2026-05-18
+
+### Features
+
+- **Skill activation MCP workflow** - Added trigger-based skill discovery and activation so agents can load the right user-managed guidance for the current task.
+- **Telegram capability reporting** - `session_info` now exposes local Telegram voice, speech, and attachment capability paths for agent workflows.
+- **Session capability detection** - Added detection coverage for local transcription and attachment tooling used by Telegram-mode sessions.
+
+### Improvements
+
+- **MCP tool consolidation** - Refactored localhost MCP definitions and dispatch into dedicated tool modules, reducing duplicated dispatch logic.
+- **Session info response shape** - Streamlined `session_info` skill summaries to compact `id`, `name`, and `triggerWhen` fields.
+- **Skills UI metrics** - Skill cards now surface use counts and ratings consistently, including system skills.
+- **Telegram attachments** - Replaced inline base64 attachment delivery with file-path based forwarding for cleaner MCP payloads.
+
+### Fixes
+
+- Fixed MCP type issues found during post-merge review.
+- Fixed release publishing so uninstaller stubs and HTML assets are not uploaded as GitHub release assets.
+- Removed the generated skill analytics file from repo tracking.
+
 ## [1.6.0] - 2026-05-17
 
 ### Features

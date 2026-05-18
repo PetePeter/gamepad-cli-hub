@@ -31,9 +31,6 @@ export function getSessionInfo(
     ? capabilityDetector.getCapabilities()
     : { available: false, openwhisper: false, piper: false, ffmpeg: false };
 
-  // Select 2-3 suggested skills based on context: prefer skills with types
-  const relevantSkills = getRelevantSkills(skills);
-
   return {
     mandatory_rules: [
       'ALWAYS call session_set_aiagent_state when your phase changes: planning before investigation, implementing before edits or tests, and completed when the requested work is done.',
@@ -52,28 +49,9 @@ export function getSessionInfo(
     mcp_url: mcpUrl,
     mcp_token: mcpConfig.authToken ?? '',
     available_projects: getAvailableProjects(projectStore),
-    skills: skills.map(({ id, name, description, aiAmendable, allProjects, projectIds, type, source }) =>
-      ({ id, name, description, aiAmendable, allProjects, projectIds, type, source })),
-    relevantSkills,
+    skills: skills.map(({ id, name, description }) => ({ id, name, triggerWhen: description })),
     telegramCapabilities,
   };
-}
-
-/** Suggest 2-3 relevant skills: prioritize skills with explicit types. */
-function getRelevantSkills(skills: SkillSummary[]): Array<{ id: string; name: string; type?: string; description: string }> {
-  // Separate skills by whether they have a type
-  const withType = skills.filter(s => s.type);
-  const withoutType = skills.filter(s => !s.type);
-
-  // Prefer typed skills (up to 3 total), then fill with untyped skills
-  const suggested = [...withType, ...withoutType].slice(0, 3);
-
-  return suggested.map(({ id, name, type, description }) => ({
-    id,
-    name,
-    type,
-    description,
-  }));
 }
 
 /** Compact project stubs — query projects_list for full details. */
