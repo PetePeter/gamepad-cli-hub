@@ -2,7 +2,7 @@
 
 All notable changes to gamepad-cli-hub are documented in this file.
 
-## [1.8.0] - 2026-05-18
+## [1.7.2] - 2026-05-18
 
 ### Features
 
