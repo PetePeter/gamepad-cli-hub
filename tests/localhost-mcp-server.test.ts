@@ -120,6 +120,7 @@ function makeService(): HelmControlService {
     updateScheduledTask: vi.fn((id: string, updates: Record<string, unknown>) => ({ id, title: 'Updated', status: 'pending', ...updates })),
     cancelScheduledTask: vi.fn(() => true),
     deleteScheduledTask: vi.fn(() => true),
+    getPlanIdMapping: vi.fn((humanId: string) => ({ uuid: 'p1', humanId: 'P-0001' })),
   } as unknown as HelmControlService;
 }
 
@@ -534,7 +535,7 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'plan_get',
-        arguments: { id: 'P-0001' },
+        arguments: { uuid: 'P-0001' },
       },
     });
     const json = await response.json();
@@ -544,6 +545,35 @@ describe('LocalhostMcpServer', () => {
     expect(json.result.structuredContent.sequenceContextMetadata).toEqual([
       { id: 'ctx-1', title: 'Testing Strategy', type: 'Testing', permission: 'readonly' },
     ]);
+  });
+
+  it('plan_get_id converts humanId to uuid format', async () => {
+    const service = makeService();
+    (service.getPlanIdMapping as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      uuid: 'p1',
+      humanId: 'P-0001',
+    });
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const response = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 42,
+      method: 'tools/call',
+      params: {
+        name: 'plan_get_id',
+        arguments: { humanId: 'P-0001' },
+      },
+    });
+    const json = await response.json();
+
+    expect((service.getPlanIdMapping as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('P-0001');
+    expect(json.result.structuredContent).toEqual({
+      uuid: 'p1',
+      humanId: 'P-0001',
+    });
   });
 
   it('dispatches session_set_working_plan through the MCP surface', async () => {
@@ -636,7 +666,7 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'plan_set_state',
-        arguments: { id: 'p1', status: 'coding', sessionId: 's1' },
+        arguments: { uuid: 'p1', status: 'coding', sessionId: 's1' },
       },
     });
     const setStateJson = await setStateResponse.json();
@@ -677,7 +707,7 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'plan_update',
-        arguments: { id: 'p1', type: 'research' },
+        arguments: { uuid: 'p1', type: 'research' },
       },
     });
     const updateJson = await updateResponse.json();
@@ -708,7 +738,7 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'plan_update',
-        arguments: { id: 'p1', autoImplement: true },
+        arguments: { uuid: 'p1', autoImplement: true },
       },
     });
     const updateJson = await updateResponse.json();
@@ -951,7 +981,7 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'plan_update',
-        arguments: { id: 'p1', type: null },
+        arguments: { uuid: 'p1', type: null },
       },
     });
 
@@ -1124,7 +1154,7 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'plan_set_state',
-        arguments: { id: 'p1', status: 'blocked', stateInfo: 'waiting' },
+        arguments: { uuid: 'p1', status: 'blocked', stateInfo: 'waiting' },
       },
     });
     const json = await response.json();
@@ -1146,7 +1176,7 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'plan_set_state',
-        arguments: { id: 'p1', status: 'coding' },
+        arguments: { uuid: 'p1', status: 'coding' },
       },
     });
     const json = await response.json();
@@ -1532,7 +1562,7 @@ describe('LocalhostMcpServer', () => {
         method: 'tools/call',
         params: {
           name: 'plan_complete',
-          arguments: { id: 'p1', documentation: 'All tests pass and feature works' },
+          arguments: { uuid: 'p1', documentation: 'All tests pass and feature works' },
         },
       });
       const json = await response.json();
@@ -1562,7 +1592,7 @@ describe('LocalhostMcpServer', () => {
         method: 'tools/call',
         params: {
           name: 'plan_complete',
-          arguments: { id: 'p1' },
+          arguments: { uuid: 'p1' },
         },
       });
       const json = await response.json();
@@ -1582,7 +1612,7 @@ describe('LocalhostMcpServer', () => {
         method: 'tools/call',
         params: {
           name: 'plan_complete',
-          arguments: { id: 'p1', documentation: 'short' },
+          arguments: { uuid: 'p1', documentation: 'short' },
         },
       });
       const json = await response.json();
@@ -1610,7 +1640,7 @@ describe('LocalhostMcpServer', () => {
         method: 'tools/call',
         params: {
           name: 'plan_complete',
-          arguments: { id: 'p1', documentation: 'All tests pass and feature works' },
+          arguments: { uuid: 'p1', documentation: 'All tests pass and feature works' },
         },
       });
 
@@ -1648,7 +1678,7 @@ describe('LocalhostMcpServer', () => {
         method: 'tools/call',
         params: {
           name: 'plan_complete',
-          arguments: { id: 'p1', documentation: 'All tests pass and feature works' },
+          arguments: { uuid: 'p1', documentation: 'All tests pass and feature works' },
         },
       });
       const json = await response.json();

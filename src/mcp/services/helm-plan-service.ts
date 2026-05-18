@@ -43,6 +43,23 @@ export class HelmPlanService {
     }));
   }
 
+  getPlanIdMapping(humanId: string): { uuid: string; humanId: string } {
+    const resolution = this.planManager.resolveItemRef(humanId);
+    if (resolution.status === 'found') {
+      return {
+        uuid: resolution.item.id,
+        humanId: resolution.item.humanId ?? resolution.item.id,
+      };
+    }
+    if (resolution.status === 'ambiguous') {
+      const matches = resolution.matches
+        .map((item) => `${item.humanId ?? item.id} (${item.id}) in ${item.dirPath}`)
+        .join(', ');
+      throw new Error(`Plan ID reference is ambiguous: ${humanId}. Matching plans: ${matches}`);
+    }
+    throw new Error(`Plan not found: ${humanId}`);
+  }
+
   getPlan(id: string): (Omit<PlanItem, 'sequenceId'> & {
     hasAttachments: boolean;
     sequenceId?: string;
