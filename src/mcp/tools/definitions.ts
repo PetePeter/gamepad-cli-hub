@@ -119,12 +119,12 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'skill_activate',
     title: 'Activate Skill',
-    description: 'Load and activate a skill by ID or type. Returns full skill content and metadata to enable agents to apply the skill. Optional context parameter provides skill-specific guidance.',
+    description: 'Load and activate a skill by ID or type. Returns full skill content and metadata to enable agents to apply the skill.',
     inputSchema: {
       type: 'object',
       properties: {
         skillId: { type: 'string', description: 'Skill ID (UUID) or type name to activate. Lookup is case-insensitive for type matching.' },
-        context: { type: 'string', description: 'Optional context string for skill-specific guidance (e.g., "code-review", "api-debugging").' },
+        context: { type: 'string', description: 'Reserved for future use.' },
       },
       required: ['skillId'],
       additionalProperties: false,

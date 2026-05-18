@@ -614,8 +614,8 @@ export class HelmControlService extends EventEmitter {
     return this.sessionService.setAiagentState(sessionRef, state);
   }
 
-  readSessionTerminal(sessionRef: string, requestedLines?: number, mode?: TerminalOutputMode) {
-    return this.sessionService.readSessionTerminal(sessionRef, requestedLines, mode);
+  readSessionTerminal(sessionRef: string, requestedLines?: number, mode?: TerminalOutputMode, stripBlankLines?: boolean) {
+    return this.sessionService.readSessionTerminal(sessionRef, requestedLines, mode, stripBlankLines);
   }
 
   setSessionWorkingPlan(sessionRef: string, planId: string) {
@@ -670,9 +670,9 @@ export class HelmControlService extends EventEmitter {
   async sendTelegramChat(
     sessionRef: string,
     message: string,
-    attachment?: { name: string; data: string; mime: string },
+    filePath?: string,
   ): Promise<{ sent: boolean; reason?: string }> {
-    return this.telegramService.sendTelegramChat(sessionRef, message, attachment);
+    return this.telegramService.sendTelegramChat(sessionRef, message, filePath);
   }
 
   notifyUser(sessionRef: string, title: string, content: string): { delivered: 'toast' | 'bubble' | 'telegram' | 'none' } {

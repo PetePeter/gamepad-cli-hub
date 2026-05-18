@@ -24,7 +24,6 @@ import {
   shouldSendLargeTextAsTempFile,
   writeLargeTextTempFile,
 } from '../session/large-text-temp-file.js';
-import { decodeBase64Strict } from '../utils/base64.js';
 import { escapeHtml, formatAgentMessageForTelegram } from './utils.js';
 import { OpenWhisprTranscriber, type AudioTranscriber, type AudioTranscriptionResult } from './openwhispr-transcriber.js';
 import type { SessionInfo } from '../types/session.js';
