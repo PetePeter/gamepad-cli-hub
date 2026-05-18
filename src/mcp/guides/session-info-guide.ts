@@ -49,9 +49,8 @@ export function getSessionInfo(
     mcp_url: mcpUrl,
     mcp_token: mcpConfig.authToken ?? '',
     available_projects: getAvailableProjects(projectStore),
-    skills,
-    system_skill_types: ['session-send-text', 'agent-plan', 'notification', 'telegram'],
-    aiagent_states: ['planning', 'implementing', 'completed', 'idle'],
+    skills: skills.map(({ id, name, description, aiAmendable, allProjects, projectIds, type, source }) =>
+      ({ id, name, description, aiAmendable, allProjects, projectIds, type, source })),
     telegramCapabilities,
   };
 }

@@ -24,7 +24,7 @@ class FakeSessionManager {
 
 class FakeCapabilityDetector {
   private caps: any;
-  constructor(caps = { available: true, openwhisper: true, piper: true, ffmpeg: true }) {
+  constructor(caps = { available: true, openwhisper: true, openwhisperPath: '/usr/bin/whisper', piper: true, piperPath: '/usr/bin/piper', ffmpeg: true, ffmpegPath: '/usr/bin/ffmpeg' }) {
     this.caps = caps;
   }
   getCapabilities() {
@@ -54,15 +54,6 @@ describe('getSessionInfo', () => {
       expect(info.mcp_token).toBe('test-token');
     });
 
-    it('should include aiagent_states', () => {
-      const info = getSessionInfo(new FakeConfigLoader() as any, new FakeSessionManager() as any);
-      expect(info.aiagent_states).toEqual(['planning', 'implementing', 'completed', 'idle']);
-    });
-
-    it('should include telegram in system_skill_types', () => {
-      const info = getSessionInfo(new FakeConfigLoader() as any, new FakeSessionManager() as any);
-      expect(info.system_skill_types).toContain('telegram');
-    });
   });
 
   describe('telegramCapabilities', () => {
@@ -76,7 +67,7 @@ describe('getSessionInfo', () => {
       });
     });
 
-    it('should include all four capability fields', () => {
+    it('should include capability flags and paths when all tools available', () => {
       const info = getSessionInfo(
         new FakeConfigLoader() as any,
         new FakeSessionManager() as any,
@@ -85,30 +76,16 @@ describe('getSessionInfo', () => {
         [],
         new FakeCapabilityDetector() as any,
       );
-      expect(info.telegramCapabilities).toHaveProperty('available');
-      expect(info.telegramCapabilities).toHaveProperty('openwhisper');
-      expect(info.telegramCapabilities).toHaveProperty('piper');
-      expect(info.telegramCapabilities).toHaveProperty('ffmpeg');
+      expect(info.telegramCapabilities.available).toBe(true);
+      expect(info.telegramCapabilities.openwhisper).toBe(true);
+      expect(info.telegramCapabilities.openwhisperPath).toBe('/usr/bin/whisper');
+      expect(info.telegramCapabilities.piper).toBe(true);
+      expect(info.telegramCapabilities.piperPath).toBe('/usr/bin/piper');
+      expect(info.telegramCapabilities.ffmpeg).toBe(true);
+      expect(info.telegramCapabilities.ffmpegPath).toBe('/usr/bin/ffmpeg');
     });
 
-    it('should reflect detector results when all tools available', () => {
-      const info = getSessionInfo(
-        new FakeConfigLoader() as any,
-        new FakeSessionManager() as any,
-        undefined,
-        undefined,
-        [],
-        new FakeCapabilityDetector() as any,
-      );
-      expect(info.telegramCapabilities).toEqual({
-        available: true,
-        openwhisper: true,
-        piper: true,
-        ffmpeg: true,
-      });
-    });
-
-    it('should reflect detector results when all tools disabled', () => {
+    it('should omit paths when tools are not available', () => {
       const info = getSessionInfo(
         new FakeConfigLoader() as any,
         new FakeSessionManager() as any,
@@ -117,26 +94,27 @@ describe('getSessionInfo', () => {
         [],
         new FakeCapabilityDetector({ available: false, openwhisper: false, piper: false, ffmpeg: false }) as any,
       );
-      expect(info.telegramCapabilities).toEqual({
-        available: false,
-        openwhisper: false,
-        piper: false,
-        ffmpeg: false,
-      });
+      expect(info.telegramCapabilities.available).toBe(false);
+      expect(info.telegramCapabilities.openwhisperPath).toBeUndefined();
+      expect(info.telegramCapabilities.piperPath).toBeUndefined();
+      expect(info.telegramCapabilities.ffmpegPath).toBeUndefined();
     });
 
-    it('should reflect partial capability availability', () => {
+    it('should reflect partial capability availability and paths', () => {
       const info = getSessionInfo(
         new FakeConfigLoader() as any,
         new FakeSessionManager() as any,
         undefined,
         undefined,
         [],
-        new FakeCapabilityDetector({ available: true, openwhisper: true, piper: false, ffmpeg: true }) as any,
+        new FakeCapabilityDetector({ available: true, openwhisper: true, openwhisperPath: '/usr/bin/whisper', piper: false, ffmpeg: true, ffmpegPath: '/usr/bin/ffmpeg' }) as any,
       );
       expect(info.telegramCapabilities.openwhisper).toBe(true);
+      expect(info.telegramCapabilities.openwhisperPath).toBe('/usr/bin/whisper');
       expect(info.telegramCapabilities.piper).toBe(false);
+      expect(info.telegramCapabilities.piperPath).toBeUndefined();
       expect(info.telegramCapabilities.ffmpeg).toBe(true);
+      expect(info.telegramCapabilities.ffmpegPath).toBe('/usr/bin/ffmpeg');
     });
   });
 });

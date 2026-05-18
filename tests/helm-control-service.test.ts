@@ -597,7 +597,7 @@ describe('HelmControlService optional domain services', () => {
 });
 
 describe('HelmControlService.getSessionInfo', () => {
-  it('returns system_skill_types and mandatory rules without duplicating the MCP tool list', () => {
+  it('returns mandatory rules without duplicating the MCP tool list', () => {
     const { service } = makeService();
 
     const info = service.getSessionInfo({ sessionId: 's1', sessionName: 'Claude' });
@@ -611,8 +611,9 @@ describe('HelmControlService.getSessionInfo', () => {
       expect.stringContaining('skills_get'),
       expect.stringContaining('skills_list'),
     ]));
-    expect(info.system_skill_types).toEqual(['session-send-text', 'agent-plan', 'notification', 'telegram']);
 
+    expect(info).not.toHaveProperty('system_skill_types');
+    expect(info).not.toHaveProperty('aiagent_states');
     expect(info).not.toHaveProperty('available_tools');
     expect(info).not.toHaveProperty('session_send_text_guide');
     expect(info).not.toHaveProperty('agent_plan_guide');

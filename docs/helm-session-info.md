@@ -29,30 +29,14 @@ The tool returns a `SessionInfoResponse` object with these fields:
 - **`mcp_url`** (string) — HTTP endpoint for MCP requests: `http://127.0.0.1:PORT/mcp`. Constructed from `HELM_MCP_PORT` config (default 47373).
 - **`mcp_token`** (string) — Bearer auth token for MCP requests. From Helm settings → MCP → Auth Token. Pass in request header: `Authorization: Bearer {mcp_token}`.
 
-### AIAGENT State Registry
+### AIAGENT States
 
-- **`aiagent_states`** (string[]) — Canonical list of valid AIAGENT phase states accepted by `session_set_aiagent_state`. Currently: `['planning', 'implementing', 'completed', 'idle']`.
-
-  Corresponding display tags are:
-  ```
-  AIAGENT-PLANNING
-  AIAGENT-IMPLEMENTING
-  AIAGENT-COMPLETED
-  AIAGENT-IDLE
-  ```
-
-  Agents may still print these tags for readability, but Helm does not scrape PTY stdout for AIAGENT phase changes. Call `session_set_aiagent_state` to update the durable phase shown in Helm.
-
-Detailed state usage lives on the `session_set_aiagent_state` tool definition so `session_info` can stay compact.
+Valid states for `session_set_aiagent_state`: `planning`, `implementing`, `completed`, `idle`. The tool definition is authoritative — no need to enumerate them in the response.
 
 ### Available Resources
 
 - **`available_projects`** (ProjectInfo[]) — Compact project stubs with `{ id, name, canonicalPath }` fields. Call `projects_list` when full project directory details are needed.
-- **`skills`** (SkillSummary[]) — Compact summaries for user and system skills applicable to the current session project. Fetch full bodies with `skills_get` only when needed.
-
-### System Skill Types
-
-- **`system_skill_types`** (string[]) — Stable type identifiers for built-in system skills. Fetch detailed guidance just-in-time with `skills_get(type: "<type>")`. Currently: `session-send-text`, `agent-plan`, `notification`.
+- **`skills`** — Compact summaries for user and system skills applicable to the current session project. Fields: `id`, `name`, `description`, `aiAmendable`, `allProjects`, `projectIds`, `type`, `source`. Fetch full bodies with `skills_get` only when needed. System skill type identifiers: `session-send-text`, `agent-plan`, `notification`, `telegram`.
 
   | Type | Content |
   | --- | --- |
@@ -92,21 +76,27 @@ Response:
     "workingDir": "X:\\coding\\gamepad-cli-hub",
     "mcp_url": "http://127.0.0.1:47373/mcp",
     "mcp_token": "eyJhbGciOi...",
-    "aiagent_states": ["planning", "implementing", "completed", "idle"],
     "available_projects": [
       { "id": "543a...", "name": "gamepad-cli-hub", "canonicalPath": "x:\\coding\\gamepad-cli-hub" }
     ],
     "skills": [
       { "id": "sys-agent-plan", "name": "Agent Plan Guide", "type": "agent-plan", "source": "system" }
     ],
-    "system_skill_types": ["session-send-text", "agent-plan", "notification"]
+    "telegramCapabilities": {
+      "available": true,
+      "openwhisper": true,
+      "openwhisperPath": "C:\\openwhispr\\OpenWhispr.exe",
+      "piper": true,
+      "piperPath": "C:\\piper\\piper.exe",
+      "ffmpeg": false
+    }
   }
 }
 ```
 
 ### 2. State Updates
 
-Use the canonical states from `aiagent_states` with `session_set_aiagent_state`.
+Use `session_set_aiagent_state` with states: `planning`, `implementing`, `completed`, `idle`.
 Printed `AIAGENT-*` tags are optional display text; Helm state changes come from the MCP call.
 
 ```json
@@ -265,9 +255,7 @@ question markers. It no longer turns printed `AIAGENT-*` text into state
 changes, so printed tags cannot trigger hidden Telegram completion/idle
 notifications.
 
-The `aiagent_states` registry from `session_info` provides the canonical list of
-states accepted by the explicit MCP endpoint. Use `session_set_aiagent_state` to
-make your state transitions durable and visible in Helm.
+Use `session_set_aiagent_state` to make your state transitions durable and visible in Helm. Valid states: `planning`, `implementing`, `completed`, `idle`.
 
 The explicit state endpoint is:
 
@@ -332,7 +320,7 @@ Expected errors:
 // Step 1: Call session_info to prime the state machine
 const sessionInfo = await mcp.callTool('session_info', {});
 console.log(`Session: ${sessionInfo.sessionName} (${sessionInfo.sessionId})`);
-console.log(`Valid AIAGENT states: ${sessionInfo.aiagent_states.join(', ')}`);
+// Valid states: planning, implementing, completed, idle
 
 // Step 2: Fetch detailed workflow guidance only when needed
 const planGuide = await mcp.callTool('skills_get', {

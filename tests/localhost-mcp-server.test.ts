@@ -1376,9 +1376,9 @@ describe('LocalhostMcpServer', () => {
 
     const content = service.getSessionInfo({ sessionId: 'sess-123', sessionName: 'Claude-Main' });
 
-    expect(content.aiagent_states).toEqual(['planning', 'implementing', 'completed', 'idle']);
+    expect(content).not.toHaveProperty('aiagent_states');
+    expect(content).not.toHaveProperty('system_skill_types');
     expect(content).not.toHaveProperty('aiagent_state_guide');
-    expect(content.system_skill_types).toEqual(['session-send-text', 'agent-plan', 'notification', 'telegram']);
     expect(content).not.toHaveProperty('agent_plan_guide');
     expect(content).not.toHaveProperty('notification_guide');
   });
@@ -1392,7 +1392,6 @@ describe('LocalhostMcpServer', () => {
       workingDir: 'X:\\coding\\gamepad-cli-hub',
       mcp_url: 'http://127.0.0.1:47373/mcp',
       mcp_token: 'secret-token-value',
-      aiagent_states: ['planning', 'implementing', 'completed', 'idle'],
       available_projects: [
         { id: 'proj-1', name: 'Helm', canonicalPath: 'X:\\coding\\gamepad-cli-hub' },
       ],
@@ -1420,8 +1419,6 @@ describe('LocalhostMcpServer', () => {
     expect(content.sessionName).toBe('Claude-Main');
     expect(content.cliType).toBe('claude-code');
     expect(content.mcp_url).toBe('http://127.0.0.1:47373/mcp');
-    expect(content.aiagent_states).toContain('planning');
-    expect(content.aiagent_states).toContain('implementing');
     expect(content.available_tools).toBeUndefined();
     expect(content.available_projects).toHaveLength(1);
   });
@@ -1456,7 +1453,6 @@ describe('LocalhostMcpServer', () => {
       mandatory_rules: ['ALWAYS call session_set_aiagent_state when your phase changes.'],
       mcp_url: 'http://127.0.0.1:47373/mcp',
       mcp_token: 'secret-token-value',
-      aiagent_states: ['planning', 'implementing', 'completed', 'idle'],
       available_projects: [],
     }));
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });

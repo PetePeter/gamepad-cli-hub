@@ -93,14 +93,15 @@ export interface SessionInfoResponse {
   mcp_url: string;
   mcp_token: string;
   available_projects: ProjectInfo[];
-  skills: SkillSummary[];
-  system_skill_types: string[];
-  aiagent_states: string[];
+  skills: Omit<SkillSummary, 'useCount' | 'avgRating' | 'reviewCount'>[];
   telegramCapabilities: {
     available: boolean;
     openwhisper: boolean;
+    openwhisperPath?: string;
     piper: boolean;
+    piperPath?: string;
     ffmpeg: boolean;
+    ffmpegPath?: string;
   };
 }
 

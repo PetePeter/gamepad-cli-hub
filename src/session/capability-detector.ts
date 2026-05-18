@@ -4,8 +4,11 @@ import type { ConfigLoader } from '../config/loader.js';
 export interface TelegramCapabilities {
   available: boolean;
   openwhisper: boolean;
+  openwhisperPath?: string;
   piper: boolean;
+  piperPath?: string;
   ffmpeg: boolean;
+  ffmpegPath?: string;
 }
 
 export class CapabilityDetector {
@@ -33,11 +36,17 @@ export class CapabilityDetector {
     }
 
     // Check each tool path
+    const openwhisper = this.verifyToolPath(config?.openWhisprPath);
+    const piper = this.verifyToolPath(config?.piperPath);
+    const ffmpeg = this.verifyToolPath(config?.ffmpegPath);
     const capabilities: TelegramCapabilities = {
       available: true,
-      openwhisper: this.verifyToolPath(config?.openWhisprPath),
-      piper: this.verifyToolPath(config?.piperPath),
-      ffmpeg: this.verifyToolPath(config?.ffmpegPath),
+      openwhisper,
+      ...(openwhisper && config?.openWhisprPath ? { openwhisperPath: config.openWhisprPath } : {}),
+      piper,
+      ...(piper && config?.piperPath ? { piperPath: config.piperPath } : {}),
+      ffmpeg,
+      ...(ffmpeg && config?.ffmpegPath ? { ffmpegPath: config.ffmpegPath } : {}),
     };
 
     this.cache = capabilities;
