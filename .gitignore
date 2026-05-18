@@ -31,6 +31,7 @@ src/**/*.js.map
 release/
 /config/
 config-deploy/
+src/config/skill-analytics.json
 tmp/helm-work*
 tmp/helm-attachment*
 .mcp.json
