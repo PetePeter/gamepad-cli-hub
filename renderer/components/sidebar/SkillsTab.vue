@@ -202,27 +202,23 @@ function formatReviewDate(timestamp: string): string {
           :class="{ 'settings-skill-item--active': skill.id === selectedId }"
           @click="emit('select', skill.id)"
         >
-          <div class="settings-list-item__info">
+          <div class="skill-item-header">
             <span class="settings-list-item__name">{{ skill.name }}</span>
-            <span class="settings-list-item__detail">{{ skill.description }}</span>
-          </div>
-          <div class="skill-list-meta">
-            <span class="settings-skill-badge" :class="{
-              'settings-skill-badge--open': skill.aiAmendable,
-              'settings-skill-badge--system': skill.source === 'system'
-            }">
-              {{ skill.source === 'system' ? 'system' : (skill.aiAmendable ? 'AI amend' : 'protected') }}
-            </span>
-            <span v-if="skill.reviewCount > 0" class="skill-list-rating">
-              <span>★</span>
-              <span>{{ skill.avgRating.toFixed(1) }}</span>
+            <span
+              v-if="skill.source === 'system' || skill.aiAmendable"
+              class="settings-skill-badge"
+              :class="{ 'settings-skill-badge--open': skill.aiAmendable, 'settings-skill-badge--system': skill.source === 'system' }"
+            >
+              {{ skill.source === 'system' ? 'system' : 'AI amend' }}
             </span>
           </div>
-          <div class="skill-list-meta">
+          <span class="skill-item-description">{{ skill.description }}</span>
+          <div class="skill-item-footer">
             <span class="settings-skill-scope">
               {{ skill.allProjects ? 'all projects' : `${skill.projectIds.length} project${skill.projectIds.length === 1 ? '' : 's'}` }}
             </span>
             <span class="settings-skill-scope">{{ skill.useCount }} uses</span>
+            <span v-if="skill.reviewCount > 0" class="skill-list-rating">★ {{ skill.avgRating.toFixed(1) }}</span>
           </div>
         </button>
       </div>

@@ -1959,11 +1959,35 @@ kbd {
 }
 
 .settings-skill-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-xs);
   text-align: left;
 }
 
 .settings-skill-item--active {
   border-color: var(--accent);
+}
+
+.skill-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.skill-item-description {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.skill-item-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding-top: var(--spacing-xs);
+  border-top: 1px solid var(--border-color);
 }
 
 .settings-skill-badge {
@@ -1991,12 +2015,6 @@ kbd {
   white-space: nowrap;
 }
 
-.skill-list-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-sm);
-}
 
 .skill-list-rating {
   color: #c8963e;
