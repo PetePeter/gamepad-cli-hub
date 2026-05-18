@@ -272,13 +272,6 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     return () => ipcRenderer.removeListener('pty:exit', listener);
   },
 
-  /** Subscribe to session state change events */
-  onPtyStateChange: (callback: (transition: { sessionId: string; previousState: string; newState: string }) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
-    ipcRenderer.on('pty:state-change', listener);
-    return () => ipcRenderer.removeListener('pty:state-change', listener);
-  },
-
   /** Subscribe to question detected events */
   onPtyQuestionDetected: (callback: (event: { sessionId: string }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);

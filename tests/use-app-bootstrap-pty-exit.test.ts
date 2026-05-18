@@ -171,7 +171,6 @@ describe('useAppBootstrap PTY exit cleanup', () => {
         planStartableForDir: vi.fn().mockResolvedValue([]),
         planDoingForSession: vi.fn().mockResolvedValue([]),
         profileGetActive: vi.fn().mockResolvedValue('default'),
-        onPtyStateChange: vi.fn(),
         onPtyActivityChange: vi.fn(),
         onNotificationClick: vi.fn(),
         onSessionSpawned: vi.fn(),

@@ -251,8 +251,6 @@ export function setupPtyHandlers(
     const session = sessionManager.getSession(sessionId);
     if (!session) return { success: false, error: 'Session not found' };
 
-    const previousState = session.state;
-
     if (state === 'waiting') {
       pipelineQueue.enqueue(sessionId);
     } else {
@@ -260,15 +258,6 @@ export function setupPtyHandlers(
     }
 
     sessionManager.updateSession(sessionId, { state: state as SessionState });
-
-    const win = windowManager.getWindowForSession(sessionId);
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('pty:state-change', {
-        sessionId,
-        previousState,
-        newState: state,
-      });
-    }
 
     return { success: true };
   });

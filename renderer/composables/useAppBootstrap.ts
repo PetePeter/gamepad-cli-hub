@@ -496,18 +496,6 @@ export async function restoreSnappedBackSession(sessionId: string): Promise<void
 // ============================================================================
 
 function setupIpcListeners(): void {
-  if (!eventsClient.onPtyStateChange) return;
-
-  eventsClient.onPtyStateChange((transition) => {
-    const previous = state.sessionStates.get(transition.sessionId);
-    if (previous === transition.newState) return;
-    state.sessionStates.set(transition.sessionId, transition.newState);
-    const idx = state.sessions.findIndex(s => s.id === transition.sessionId);
-    if (idx !== -1) {
-      (state.sessions[idx] as any).state = transition.newState;
-    }
-  });
-
   eventsClient.onPtyActivityChange((event) => {
     if (event.lastOutputAt !== undefined && event.lastOutputAt > 0) {
       state.lastOutputTimes.set(event.sessionId, event.lastOutputAt);

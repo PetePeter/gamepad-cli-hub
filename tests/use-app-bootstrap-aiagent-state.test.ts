@@ -1,15 +1,11 @@
 // @vitest-environment jsdom
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import { state } from '../renderer/state.js';
 
-const mockSetTerminalManager = vi.fn();
-const mockCreateTerminal = vi.fn();
-const mockRenameTerminal = vi.fn();
-const mockHydrateFromStore = vi.fn();
 const mockRefreshChipBar = vi.fn().mockResolvedValue(undefined);
 
-let currentLocalSessions = new Map<string, { cliType: string; name: string; cwd?: string; title?: string }>();
+let capturedOnSessionUpdated: ((session: Record<string, unknown>) => void) | null = null;
 
 const mockTerminalManager = {
   getOutputBuffer: vi.fn(() => ({ clear: vi.fn(), append: vi.fn() })),
@@ -17,15 +13,13 @@ const mockTerminalManager = {
   setOnSwitch: vi.fn(),
   setOnTitleChange: vi.fn(),
   getActiveSessionId: vi.fn(() => null),
-  getSessionIds: vi.fn(() => Array.from(currentLocalSessions.keys())),
+  getSessionIds: vi.fn(() => []),
   getManagedSessions: vi.fn(() => []),
-  hydrateFromStore: mockHydrateFromStore,
-  getSession: vi.fn((id: string) => {
-    const session = currentLocalSessions.get(id);
-    return session ? { sessionId: id, ...session } : undefined;
-  }),
-  createTerminal: mockCreateTerminal,
-  renameSession: mockRenameTerminal,
+  hydrateFromStore: vi.fn(() => Promise.resolve([])),
+  getSession: vi.fn(),
+  hasTerminal: vi.fn(() => false),
+  has: vi.fn(() => false),
+  detachTerminal: vi.fn(),
   fitActive: vi.fn(),
   deselect: vi.fn(),
   switchTo: vi.fn(),
@@ -55,7 +49,7 @@ vi.mock('../renderer/terminal/terminal-manager.js', () => ({
 }));
 
 vi.mock('../renderer/runtime/terminal-provider.js', () => ({
-  setTerminalManager: mockSetTerminalManager,
+  setTerminalManager: vi.fn(),
   getTerminalManager: vi.fn(() => mockTerminalManager),
 }));
 
@@ -90,7 +84,6 @@ vi.mock('../renderer/plans/plan-screen.js', () => ({
   setPlanScreenFitCallback: vi.fn(),
   setPlanScreenCloseCallback: vi.fn(),
   setPlanScreenOpenCallback: vi.fn(),
-  refreshCanvasIfVisible: vi.fn(),
 }));
 
 vi.mock('../renderer/screens/sessions-spawn.js', () => ({
@@ -99,6 +92,10 @@ vi.mock('../renderer/screens/sessions-spawn.js', () => ({
 
 vi.mock('../renderer/screens/sessions.js', () => ({
   updateSessionsFocus: vi.fn(),
+}));
+
+vi.mock('../renderer/drafts/draft-editor.js', () => ({
+  initDraftEditor: vi.fn(),
 }));
 
 vi.mock('../renderer/screens/sessions-plans.js', () => ({
@@ -117,17 +114,16 @@ vi.mock('../renderer/stores/navigation.js', () => ({
     activateSession: vi.fn(),
     syncSidebarToSession: vi.fn(),
     onNavListRebuilt: vi.fn(),
-    navigateToSession: vi.fn().mockResolvedValue(undefined),
+    navigateToSession: vi.fn(),
   }),
 }));
 
-describe('useAppBootstrap autoResumeSessions', () => {
+describe('useAppBootstrap aiagentState display ownership', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
-    currentLocalSessions = new Map();
     state.sessions = [];
-    state.snappedOutSessions.clear();
+    state.activeSessionId = null;
     state.sessionStates.clear();
     state.sessionActivityLevels.clear();
     state.lastOutputTimes.clear();
@@ -137,38 +133,12 @@ describe('useAppBootstrap autoResumeSessions', () => {
     state.workingPlanLabels.clear();
     state.workingPlanTooltips.clear();
     state.pendingSchedules.clear();
-
-    mockCreateTerminal.mockImplementation(async (sessionId: string, cliType: string, _command: string, _args: string[], cwd?: string) => {
-      currentLocalSessions.set(sessionId, {
-        cliType,
-        name: cliType,
-        cwd,
-        title: `${cliType} title`,
-      });
-      return true;
-    });
-    mockRenameTerminal.mockImplementation((sessionId: string, newName: string) => {
-      const existing = currentLocalSessions.get(sessionId);
-      if (existing) {
-        currentLocalSessions.set(sessionId, { ...existing, name: newName });
-      }
-    });
-    mockHydrateFromStore.mockImplementation(async () => {
-      return await (globalThis as typeof globalThis & { window: any }).window.sessionStore.load();
-    });
+    state.snappedOutSessions.clear();
+    capturedOnSessionUpdated = null;
 
     (globalThis as typeof globalThis & { window: any }).window = {
       sessionStore: {
-        load: vi.fn().mockResolvedValue([
-          {
-            id: 'sess-restore',
-            name: 'Recovered Session',
-            cliType: 'claude-code',
-            cliSessionName: 'resume-123',
-            processId: 42,
-            workingDir: 'X:\\coding\\gamepad-cli-hub',
-          },
-        ]),
+        load: vi.fn(() => Promise.resolve([])),
       },
       gamepadCli: {
         configGetAll: vi.fn().mockResolvedValue({}),
@@ -182,8 +152,6 @@ describe('useAppBootstrap autoResumeSessions', () => {
         }),
         configGetSpawnCommand: vi.fn().mockResolvedValue({ command: 'claude', args: [] }),
         configGetEscProtectionEnabled: vi.fn().mockResolvedValue(true),
-        sessionRename: vi.fn().mockResolvedValue({ success: true }),
-        sessionRemove: vi.fn().mockResolvedValue({ success: true }),
         draftList: vi.fn().mockResolvedValue([]),
         planStartableForDir: vi.fn().mockResolvedValue([]),
         planDoingForSession: vi.fn().mockResolvedValue([]),
@@ -191,11 +159,14 @@ describe('useAppBootstrap autoResumeSessions', () => {
         onPtyActivityChange: vi.fn(),
         onNotificationClick: vi.fn(),
         onSessionSpawned: vi.fn(),
+        onSessionUpdated: vi.fn((cb: (session: Record<string, unknown>) => void) => {
+          capturedOnSessionUpdated = cb;
+        }),
+        onPtyExit: vi.fn(),
         onPlanChanged: vi.fn(),
         onPatternScheduleCreated: vi.fn(),
         onPatternScheduleFired: vi.fn(),
         onPatternScheduleCancelled: vi.fn(),
-        onPtyExit: vi.fn(() => vi.fn()),
       },
     };
   });
@@ -204,28 +175,88 @@ describe('useAppBootstrap autoResumeSessions', () => {
     vi.useRealTimers();
   });
 
-  it('resumes persisted sessions in place without deleting them from persistence', async () => {
+  async function initBootstrap() {
     const mod = await import('../renderer/composables/useAppBootstrap.js');
     const container = document.createElement('div');
-
     await mod.bootstrap({
       terminalContainer: container,
       handleButton: vi.fn(),
       handleRelease: vi.fn(),
     });
+    return mod;
+  }
 
-    expect(mockCreateTerminal).toHaveBeenCalledWith(
-      'sess-restore',
-      'claude-code',
-      expect.any(String),
-      expect.any(Array),
-      'X:\\coding\\gamepad-cli-hub',
-      undefined,
-      'resume-123',
-    );
-    expect(window.gamepadCli.sessionRename).toHaveBeenCalledWith('sess-restore', 'Recovered Session');
-    expect(window.gamepadCli.sessionRemove).not.toHaveBeenCalled();
-    expect(state.sessions.map((session) => session.id)).toContain('sess-restore');
+  it('session:updated with aiagentState sets display state to aiagentState', async () => {
+    const mod = await initBootstrap();
+
+    state.sessions = [{
+      id: 'sess-1',
+      name: 'test',
+      cliType: 'claude',
+      workingDir: '/tmp',
+      state: 'idle',
+      aiagentState: 'implementing',
+    }];
+
+    // Simulate MCP session_set_aiagent_state → session:updated
+    capturedOnSessionUpdated!({
+      id: 'sess-1',
+      name: 'test',
+      cliType: 'claude',
+      state: 'idle',
+      aiagentState: 'implementing',
+    });
+
+    expect(state.sessionStates.get('sess-1')).toBe('implementing');
+
+    mod.teardown();
+  });
+
+  it('session:updated without aiagentState falls back to session.state', async () => {
+    const mod = await initBootstrap();
+
+    state.sessions = [{
+      id: 'sess-2',
+      name: 'test2',
+      cliType: 'copilot',
+      workingDir: '/tmp',
+      state: 'waiting',
+    }];
+
+    capturedOnSessionUpdated!({
+      id: 'sess-2',
+      name: 'test2',
+      cliType: 'copilot',
+      state: 'waiting',
+    });
+
+    expect(state.sessionStates.get('sess-2')).toBe('waiting');
+
+    mod.teardown();
+  });
+
+  it('clearing aiagentState falls back to session.state', async () => {
+    const mod = await initBootstrap();
+
+    state.sessions = [{
+      id: 'sess-3',
+      name: 'test3',
+      cliType: 'claude',
+      workingDir: '/tmp',
+      state: 'idle',
+      aiagentState: 'completed',
+    }];
+    state.sessionStates.set('sess-3', 'completed');
+
+    // Agent clears aiagentState
+    capturedOnSessionUpdated!({
+      id: 'sess-3',
+      name: 'test3',
+      cliType: 'claude',
+      state: 'idle',
+    });
+
+    expect(state.sessionStates.get('sess-3')).toBe('idle');
 
     mod.teardown();
   });
