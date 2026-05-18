@@ -8,7 +8,6 @@ export function setupSkillHandlers(skillManager: SkillManager, skillAnalyticsMan
   ipcMain.handle('skill:list', () => {
     try {
       return skillManager.list().map((skill) => {
-        if (skill.source === 'system') return { ...skill, useCount: 0, avgRating: 0, reviewCount: 0 };
         const { reviews: _reviews, ...stats } = skillAnalyticsManager.getStats(skill.id);
         return { ...skill, ...stats };
       });
@@ -29,8 +28,6 @@ export function setupSkillHandlers(skillManager: SkillManager, skillAnalyticsMan
 
   ipcMain.handle('skill:getStats', (_event, id: string) => {
     try {
-      const skill = skillManager.get(id);
-      if (skill?.source === 'system') return { useCount: 0, avgRating: 0, reviewCount: 0, reviews: [] };
       return skillAnalyticsManager.getStats(id);
     } catch (error) {
       logger.error(`[IPC] Failed to get skill stats ${id}: ${error}`);
