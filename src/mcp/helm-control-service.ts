@@ -480,17 +480,14 @@ export class HelmControlService extends EventEmitter {
   }
 
   getSkillStats(id: string) {
-    if (this.skillManager.get(id)?.source === 'system') return { useCount: 0, avgRating: 0, reviewCount: 0, reviews: [] };
     return this.skillAnalyticsManager.getStats(id);
   }
 
   clearSkillReviews(id: string) {
-    if (this.skillManager.get(id)?.source === 'system') return { useCount: 0, avgRating: 0, reviewCount: 0, reviews: [] };
     return this.skillAnalyticsManager.clearReviews(id);
   }
 
   resetSkillUseCount(id: string) {
-    if (this.skillManager.get(id)?.source === 'system') return { useCount: 0, avgRating: 0, reviewCount: 0, reviews: [] };
     return this.skillAnalyticsManager.resetUseCount(id);
   }
 
@@ -507,9 +504,6 @@ export class HelmControlService extends EventEmitter {
   ) {
     const skill = this.skillManager.get(id);
     if (!skill) throw new Error(`Skill not found: ${id}`);
-    if (skill.source === 'system') {
-      throw new Error('System skills cannot receive feedback');
-    }
     if (!authContext?.sessionId) {
       throw new Error('skills_submit_feedback requires a session-scoped MCP caller');
     }
@@ -524,14 +518,11 @@ export class HelmControlService extends EventEmitter {
       cliName: session.name,
       cliType: session.cliType,
       timestamp: new Date().toISOString(),
-    } satisfies SkillReview, { source: skill.source });
+    } satisfies SkillReview);
   }
 
   private withSkillStats(skills: SkillSummary[]): SkillSummary[] {
     return skills.map((skill) => {
-      if (skill.source === 'system') {
-        return { ...skill, useCount: 0, avgRating: 0, reviewCount: 0 };
-      }
       const stats = this.skillAnalyticsManager.getStats(skill.id);
       return {
         ...skill,
@@ -543,8 +534,9 @@ export class HelmControlService extends EventEmitter {
   }
 
   private prepareSkillForUse(skill: Skill | null): Skill | null {
-    if (!skill || skill.source === 'system') return skill;
+    if (!skill) return skill;
     this.skillAnalyticsManager.incrementUseCount(skill.id);
+    if (skill.source === 'system') return skill;
     return {
       ...skill,
       body: appendSkillFeedbackFooter(skill.body, skill.id),

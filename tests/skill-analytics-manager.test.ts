@@ -84,16 +84,69 @@ describe('SkillAnalyticsManager', () => {
     expect(() => manager.addReview('skill-1', { ...review, stars: 6 })).toThrow('stars must be between 1 and 5');
   });
 
-  it('rejects feedback for system skills', () => {
+  it('accepts feedback for system skills and persists ratings', () => {
     const manager = makeManager();
 
-    expect(() => manager.addReview('sys-agent-plan', {
+    const stats = manager.addReview('sys-agent-plan', {
       stars: 5,
       summary: 'Good',
+      cliName: 'Claude Code',
+      cliType: 'claude-code',
+      timestamp: '2026-05-18T01:00:00.000Z',
+    }, { source: 'system' });
+
+    expect(stats.avgRating).toBe(5);
+    expect(stats.reviewCount).toBe(1);
+
+    // Second review averages correctly
+    const stats2 = manager.addReview('sys-agent-plan', {
+      stars: 3,
+      summary: 'Could improve',
       cliName: 'Codex',
       cliType: 'codex',
+      timestamp: '2026-05-18T02:00:00.000Z',
+    }, { source: 'system' });
+
+    expect(stats2.avgRating).toBe(4);
+    expect(stats2.reviewCount).toBe(2);
+
+    // Persists across reload
+    const reloaded = new SkillAnalyticsManager(join(tempDir, 'skill-analytics.json'));
+    const persisted = reloaded.getStats('sys-agent-plan');
+    expect(persisted.avgRating).toBe(4);
+    expect(persisted.reviewCount).toBe(2);
+  });
+
+  it('increments use count for system skills', () => {
+    const manager = makeManager();
+
+    expect(manager.incrementUseCount('sys-notification')).toBe(1);
+    expect(manager.incrementUseCount('sys-notification')).toBe(2);
+
+    const stats = manager.getStats('sys-notification');
+    expect(stats.useCount).toBe(2);
+  });
+
+  it('clears reviews and resets use count for system skills', () => {
+    const manager = makeManager();
+
+    manager.incrementUseCount('sys-session-send-text');
+    manager.addReview('sys-session-send-text', {
+      stars: 4,
+      summary: 'Helpful',
+      cliName: 'Claude Code',
+      cliType: 'claude-code',
       timestamp: '2026-05-18T01:00:00.000Z',
-    }, { source: 'system' })).toThrow('System skills cannot receive feedback');
+    }, { source: 'system' });
+
+    manager.clearReviews('sys-session-send-text');
+    const afterClear = manager.getStats('sys-session-send-text');
+    expect(afterClear.reviewCount).toBe(0);
+    expect(afterClear.useCount).toBe(1);
+
+    manager.resetUseCount('sys-session-send-text');
+    const afterReset = manager.getStats('sys-session-send-text');
+    expect(afterReset.useCount).toBe(0);
   });
 
   it('clears reviews and resets counts independently', () => {

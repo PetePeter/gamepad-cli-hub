@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { SkillReview, SkillSource, SkillStats } from '../types/skill.js';
+import type { SkillReview, SkillStats } from '../types/skill.js';
 import { atomicWriteFileSync, isAnyString, isNumber, isRecord } from './persistence-utils.js';
 
 interface PersistedSkillAnalytics {
@@ -22,9 +22,6 @@ export class SkillAnalyticsManager {
   }
 
   addReview(skillId: string, review: SkillReview, options: { source?: SkillSource } = {}): SkillStats {
-    if (options.source === 'system') {
-      throw new Error('System skills cannot receive feedback');
-    }
     if (!Number.isInteger(review.stars) || review.stars < 1 || review.stars > 5) {
       throw new Error('Review stars must be between 1 and 5');
     }
