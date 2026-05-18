@@ -81,6 +81,22 @@ const TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'skills_submit_feedback',
+    title: 'Submit Skill Feedback',
+    description: 'Submit LLM feedback for a user-managed Helm skill after applying it. Stores stars, summary, optional improvement, and caller CLI attribution.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        skillId: { type: 'string' },
+        stars: { type: 'number', minimum: 1, maximum: 5 },
+        summary: { type: 'string' },
+        improvement: { type: 'string' },
+      },
+      required: ['skillId', 'stars', 'summary'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'skills_create',
     title: 'Create Skill',
     description: 'Create a user-managed Helm skill persisted in config/skills.yaml.',
@@ -649,14 +665,13 @@ const TOOLS: McpTool[] = [
   {
     name: 'session_create',
     title: 'Create Session',
-    description: 'Spawn a new CLI session in a configured working directory and give it a stable display name for later lookup. Call this when no suitable session exists yet and you need Helm to launch one.',
+    description: 'Spawn a new CLI session in a configured working directory and give it a stable display name for later lookup. Call this when no suitable session exists yet and you need Helm to launch one. After spawning, wait readyAfterMs before calling session_send_text to deliver the first prompt — this ensures the CLI has finished its init sequence and large text is routed safely through the delivery pipeline.',
     inputSchema: {
       type: 'object',
       properties: {
         cliType: { type: 'string' },
         dirPath: { type: 'string' },
         name: { type: 'string' },
-        prompt: { type: 'string' },
       },
       required: ['cliType', 'dirPath', 'name'],
       additionalProperties: false,
@@ -1219,6 +1234,14 @@ export class LocalhostMcpServer {
           `Skill not found: ${asString(args.id, 'id is required')}`,
         );
       }
+      case 'skills_submit_feedback':
+        return this.service.submitSkillFeedback(
+          asString(args.skillId, 'skillId is required'),
+          Number(args.stars),
+          asString(args.summary, 'summary is required'),
+          typeof args.improvement === 'string' ? args.improvement : undefined,
+          authContext,
+        );
       case 'skills_create':
         return this.service.createSkill({
           name: asString(args.name, 'name is required'),
@@ -1469,7 +1492,6 @@ export class LocalhostMcpServer {
           asString(args.cliType, 'cliType is required'),
           asString(args.dirPath, 'dirPath is required'),
           asString(args.name, 'name is required'),
-          typeof args.prompt === 'string' ? args.prompt : undefined,
         );
       case 'sessions_list':
         return this.service.listSessions(

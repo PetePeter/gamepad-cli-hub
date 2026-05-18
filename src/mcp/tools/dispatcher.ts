@@ -63,6 +63,14 @@ export async function callMcpTool(
           `Skill not found: ${asString(args.id, 'id is required')}`,
         );
       }
+      case 'skills_submit_feedback':
+        return service.submitSkillFeedback(
+          asString(args.skillId, 'skillId is required'),
+          Number(args.stars),
+          asString(args.summary, 'summary is required'),
+          typeof args.improvement === 'string' ? args.improvement : undefined,
+          authContext,
+        );
       case 'skills_create':
         return service.createSkill({
           name: asString(args.name, 'name is required'),
@@ -313,7 +321,6 @@ export async function callMcpTool(
           asString(args.cliType, 'cliType is required'),
           asString(args.dirPath, 'dirPath is required'),
           asString(args.name, 'name is required'),
-          typeof args.prompt === 'string' ? args.prompt : undefined,
         );
       case 'sessions_list':
         return service.listSessions(

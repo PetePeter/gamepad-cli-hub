@@ -7,7 +7,6 @@ import type { PlanStatus } from '../../types/plan.js';
 import type { SessionInfo } from '../../types/session.js';
 import type { SessionSummary, SessionTerminalTailResponse } from '../helm-control-service.js';
 import { spawnConfiguredSession } from '../../session/configured-session-spawn.js';
-import { deliverPromptSequenceToSession } from '../../session/sequence-delivery.js';
 import { HelmSessionPlanService } from './helm-session-plan-service.js';
 
 /** Throw if value is null, otherwise return it. */
@@ -50,12 +49,10 @@ export class HelmSessionService {
     return session ? this.toSessionSummary(session) : null;
   }
 
-  spawnCli(cliType: string, dirPath: string, name: string, prompt?: string): SessionSummary {
+  spawnCli(cliType: string, dirPath: string, name: string): SessionSummary {
     const workingDir = this.requireWorkingDirectory(dirPath);
     this.requireCliEntry(cliType);
     const sessionName = name.trim();
-    const mcpPrompt = prompt?.trim() || undefined;
-    let spawnedSessionId = '';
     const { sessionId } = spawnConfiguredSession({
       ptyManager: this.ptyManager,
       sessionManager: this.sessionManager,
@@ -63,20 +60,8 @@ export class HelmSessionService {
       cliType,
       sessionName,
       cwd: workingDir.path,
-      onPromptComplete: mcpPrompt
-        ? () => {
-            void deliverPromptSequenceToSession({
-              sessionId: spawnedSessionId,
-              text: mcpPrompt,
-              ptyManager: this.ptyManager,
-              sessionManager: this.sessionManager,
-              configLoader: this.configLoader,
-            });
-          }
-        : undefined,
       fallbackCompleteDelayMs: 500,
     });
-    spawnedSessionId = sessionId;
 
     return this.toSessionSummary(requireResult(this.sessionManager.getSession(sessionId), `Session not found: ${sessionId}`));
   }

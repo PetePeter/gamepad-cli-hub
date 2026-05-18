@@ -29,15 +29,18 @@ import { logger } from '../utils/logger.js';
 import type { ScheduledTaskManager } from '../session/scheduled-task-manager.js';
 import type { CreateScheduledTaskParams, ScheduledTask, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
 import type { ContextBindingTargetType, ContextNode, ContextPermission, PlanContextRef } from '../types/context.js';
-import type { Skill, SkillCreateInput, SkillSummary, SkillUpdateInput } from '../types/skill.js';
+import type { Skill, SkillCreateInput, SkillReview, SkillSummary, SkillUpdateInput } from '../types/skill.js';
 import { ContextManager } from '../session/context-manager.js';
 import { SkillManager } from '../session/skill-manager.js';
+import { SkillAnalyticsManager } from '../session/skill-analytics-manager.js';
 import { getSessionInfo } from './guides/session-info-guide.js';
 import { buildSessionSendTextGuide } from './guides/session-send-text-guide.js';
 import { buildAgentPlanGuide } from './guides/agent-plan-guide.js';
 import { buildNotificationGuide } from './guides/notification-guide.js';
 import type { ProjectStore } from '../session/project-store.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
+
+const SKILL_FEEDBACK_FOOTER = '---\nSkill applied. Call skills_submit_feedback("{skillId}", stars, summary, improvement?) to rate it.';
 
 export interface SessionSummary {
   id: string;
@@ -110,6 +113,7 @@ export class HelmControlService extends EventEmitter {
   private readonly projectService: HelmProjectService | null;
   private readonly directoryService: HelmDirectoryService;
   private readonly skillManager: SkillManager;
+  private readonly skillAnalyticsManager: SkillAnalyticsManager;
 
   constructor(
     private readonly planManager: PlanManager,
@@ -121,10 +125,13 @@ export class HelmControlService extends EventEmitter {
     schedulerManager?: ScheduledTaskManager,
     private readonly projectStore?: ProjectStore,
     skillManager?: SkillManager,
+    skillAnalyticsManager?: SkillAnalyticsManager,
   ) {
     super();
     const getSkillsPath = (configLoader as ConfigLoader & { getSkillsPath?: () => string }).getSkillsPath;
+    const getSkillAnalyticsPath = (configLoader as ConfigLoader & { getSkillAnalyticsPath?: () => string }).getSkillAnalyticsPath;
     this.skillManager = skillManager ?? new SkillManager(getSkillsPath ? getSkillsPath.call(configLoader) : 'src/config/skills.yaml');
+    this.skillAnalyticsManager = skillAnalyticsManager ?? new SkillAnalyticsManager(getSkillAnalyticsPath ? getSkillAnalyticsPath.call(configLoader) : 'src/config/skill-analytics.json');
 
     // Register built-in system skills (detailed guidance fetched just-in-time via skills_get)
     this.skillManager.registerSystemSkill({
@@ -433,8 +440,8 @@ export class HelmControlService extends EventEmitter {
     return this.sessionService.getSession(sessionRef);
   }
 
-  spawnCli(cliType: string, dirPath: string, name: string, prompt?: string) {
-    return this.sessionService.spawnCli(cliType, dirPath, name, prompt);
+  spawnCli(cliType: string, dirPath: string, name: string) {
+    return this.sessionService.spawnCli(cliType, dirPath, name);
   }
 
   closeSession(sessionRef: string) {
@@ -446,13 +453,13 @@ export class HelmControlService extends EventEmitter {
   // ---------------------------------------------------------------------------
 
   listSkills(filter?: { projectId?: string; dirPath?: string }): SkillSummary[] {
-    if (!filter?.projectId && !filter?.dirPath) return this.skillManager.list();
+    if (!filter?.projectId && !filter?.dirPath) return this.withSkillStats(this.skillManager.list());
     const projectId = filter.projectId ?? this.resolveProjectIdForDirectory(filter.dirPath);
-    return this.skillManager.listForProject(projectId);
+    return this.withSkillStats(this.skillManager.listForProject(projectId));
   }
 
   getSkill(id: string): Skill | null {
-    return this.skillManager.get(id);
+    return this.prepareSkillForUse(this.skillManager.get(id));
   }
 
   createSkill(input: SkillCreateInput): Skill {
@@ -465,11 +472,83 @@ export class HelmControlService extends EventEmitter {
 
   resolveSkill(type: string, filter?: { projectId?: string; dirPath?: string }): Skill | null {
     const projectId = filter?.projectId ?? this.resolveProjectIdForDirectory(filter?.dirPath);
-    return this.skillManager.resolveEffective(type, projectId ?? undefined);
+    return this.prepareSkillForUse(this.skillManager.resolveEffective(type, projectId ?? undefined));
   }
 
   deleteSkill(id: string): boolean {
     return this.skillManager.delete(id);
+  }
+
+  getSkillStats(id: string) {
+    if (this.skillManager.get(id)?.source === 'system') return { useCount: 0, avgRating: 0, reviewCount: 0, reviews: [] };
+    return this.skillAnalyticsManager.getStats(id);
+  }
+
+  clearSkillReviews(id: string) {
+    if (this.skillManager.get(id)?.source === 'system') return { useCount: 0, avgRating: 0, reviewCount: 0, reviews: [] };
+    return this.skillAnalyticsManager.clearReviews(id);
+  }
+
+  resetSkillUseCount(id: string) {
+    if (this.skillManager.get(id)?.source === 'system') return { useCount: 0, avgRating: 0, reviewCount: 0, reviews: [] };
+    return this.skillAnalyticsManager.resetUseCount(id);
+  }
+
+  resetAllSkillUseCounts(): void {
+    this.skillAnalyticsManager.resetAllCounts();
+  }
+
+  submitSkillFeedback(
+    id: string,
+    stars: number,
+    summary: string,
+    improvement: string | undefined,
+    authContext?: { sessionId?: string; sessionName?: string },
+  ) {
+    const skill = this.skillManager.get(id);
+    if (!skill) throw new Error(`Skill not found: ${id}`);
+    if (skill.source === 'system') {
+      throw new Error('System skills cannot receive feedback');
+    }
+    if (!authContext?.sessionId) {
+      throw new Error('skills_submit_feedback requires a session-scoped MCP caller');
+    }
+    const session = this.sessionManager.getSession(authContext.sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${authContext.sessionId}`);
+    }
+    return this.skillAnalyticsManager.addReview(id, {
+      stars,
+      summary,
+      ...(improvement ? { improvement } : {}),
+      cliName: session.name,
+      cliType: session.cliType,
+      timestamp: new Date().toISOString(),
+    } satisfies SkillReview, { source: skill.source });
+  }
+
+  private withSkillStats(skills: SkillSummary[]): SkillSummary[] {
+    return skills.map((skill) => {
+      if (skill.source === 'system') {
+        return { ...skill, useCount: 0, avgRating: 0, reviewCount: 0 };
+      }
+      const stats = this.skillAnalyticsManager.getStats(skill.id);
+      return {
+        ...skill,
+        useCount: stats.useCount,
+        avgRating: stats.avgRating,
+        reviewCount: stats.reviewCount,
+      };
+    });
+  }
+
+  private prepareSkillForUse(skill: Skill | null): Skill | null {
+    if (!skill || skill.source === 'system') return skill;
+    this.skillAnalyticsManager.incrementUseCount(skill.id);
+    return {
+      ...skill,
+      body: appendSkillFeedbackFooter(skill.body, skill.id),
+    };
   }
 
   restartHelm(): { sessionsClosed: number } {
@@ -612,4 +691,9 @@ export class HelmControlService extends EventEmitter {
     const match = this.projectStore.findByPath(dirPath);
     return match?.id ?? null;
   }
+}
+
+function appendSkillFeedbackFooter(body: string, skillId: string): string {
+  const footer = SKILL_FEEDBACK_FOOTER.replace('{skillId}', skillId);
+  return `${body.trimEnd()}\n\n${footer}`;
 }
