@@ -7,6 +7,8 @@ const DOCUMENTED_DYNAMIC_RENDERER_EVENT_SENDERS = new Set([
   // helper so both snap-out and snap-back lifecycle events share one path.
   'session:snapOut',
   'session:snapBack',
+  // PipelineQueue sends this dynamically when auto-handoff occurs between sessions.
+  'pty:handoff',
 ]);
 
 function readSources(relativeRoots: string[]): string {

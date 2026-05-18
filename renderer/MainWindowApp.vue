@@ -61,7 +61,7 @@ import { useInputRouter } from './composables/useInputRouter.js';
 import { useSidebarController } from './composables/useSidebarController.js';
 import { useDraftPlanContextEditor } from './composables/useDraftPlanContextEditor.js';
 import { usePlanWorkspaceController } from './composables/usePlanWorkspaceController.js';
-import { appClient, configClient, deliveryClient, draftsClient, eventsClient, sessionsClient } from './ipc/clients.js';
+import { appClient, configClient, deliveryClient, draftsClient, eventsClient, sessionsClient, systemClient } from './ipc/clients.js';
 import {
   contextMenu,
   openQuickSpawn,
@@ -806,7 +806,7 @@ onUnmounted(() => {
           <span class="sidebar-tagline">steer your fleet of agents</span>
         </span>
         <div class="sidebar-actions">
-          <button class="sidebar-btn" title="User Guide" @click="onOpenHelp">[?]</button>
+          <button class="sidebar-btn" title="User Guide" @click="onOpenHelp">ℹ️</button>
           <button class="sidebar-btn" title="Open Logs Folder" @click="onOpenLogsFolder">🐛</button>
           <button class="sidebar-btn" title="Settings" @click="onOpenSettings">⚙</button>
         </div>

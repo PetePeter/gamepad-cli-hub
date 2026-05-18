@@ -4,7 +4,7 @@
  * OS-level operations — logs folder access, external editor, temp file cleanup.
  */
 
-import { ipcMain, shell, app } from 'electron';
+import { ipcMain, shell, app, BrowserWindow } from 'electron';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -15,12 +15,24 @@ export function setupSystemHandlers(dirname: string): void {
   ipcMain.handle('app:getVersion', () => app.getVersion());
   ipcMain.handle('help:open', async () => {
     try {
-      const guidePath = path.join(app.getAppPath(), 'build', 'user-guide.html');
-      const errorMessage = await shell.openPath(guidePath);
-      if (errorMessage) {
-        logger.error(`[IPC] Failed to open user guide: ${errorMessage}`);
-        return { success: false, error: errorMessage };
+      const base = app.isPackaged ? (process.resourcesPath ?? '') : app.getAppPath();
+      const guidePath = path.join(base, 'build', 'user-guide.html');
+      if (!fs.existsSync(guidePath)) {
+        const msg = `User guide not found: ${guidePath}`;
+        logger.error(`[IPC] ${msg}`);
+        return { success: false, error: msg };
       }
+      const win = new BrowserWindow({
+        width: 960,
+        height: 720,
+        title: 'Helm User Guide',
+        autoHideMenuBar: true,
+        resizable: true,
+        maximizable: true,
+        webPreferences: { nodeIntegration: false, contextIsolation: true },
+      });
+      await win.loadFile(guidePath);
+      logger.info('[IPC] Opened user guide in BrowserWindow');
       return { success: true };
     } catch (error) {
       logger.error(`[IPC] Failed to open user guide: ${error}`);

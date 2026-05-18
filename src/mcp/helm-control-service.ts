@@ -90,6 +90,7 @@ export interface SessionInfoResponse {
   available_projects: ProjectInfo[];
   skills: SkillSummary[];
   system_skill_types: string[];
+  aiagent_states: string[];
 }
 
 /**

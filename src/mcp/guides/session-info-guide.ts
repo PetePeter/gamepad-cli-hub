@@ -43,6 +43,7 @@ export function getSessionInfo(
     available_projects: getAvailableProjects(projectStore),
     skills,
     system_skill_types: ['session-send-text', 'agent-plan', 'notification'],
+    aiagent_states: ['planning', 'implementing', 'completed', 'idle'],
   };
 }
 
