@@ -30,7 +30,7 @@ export interface TelegramSendToUserInput {
   sessionId?: string;
   channelId?: string;
   text: string;
-  attachment?: { name: string; data: string; mime: string };
+  filePath?: string;
   keyboard?: TelegramBot.InlineKeyboardButton[][];
 }
 

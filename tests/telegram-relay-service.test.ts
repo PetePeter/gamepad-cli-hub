@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TelegramRelayService } from '../src/telegram/relay-service.js';
+import * as fs from 'fs';
 import { closeSync, mkdtempSync, openSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
@@ -207,13 +208,10 @@ describe('TelegramRelayService', () => {
   });
 
   describe('attachment support', () => {
-    const pdfAttachment = { name: 'report.pdf', data: Buffer.from('fake-pdf').toString('base64'), mime: 'application/pdf' };
-    const imageAttachment = { name: 'screenshot.png', data: Buffer.from('fake-png').toString('base64'), mime: 'image/png' };
-    const videoAttachment = { name: 'clip.mp4', data: Buffer.from('fake-mp4').toString('base64'), mime: 'video/mp4' };
-
     it('sends PDF attachment via sendDocument', async () => {
       const { relay, bot } = makeRelay();
-      const result = await relay.sendToUser({ sessionId: 's1', text: 'See report', attachment: pdfAttachment });
+      const pdfPath = tempAttachmentPath('report.pdf');
+      const result = await relay.sendToUser({ sessionId: 's1', text: 'See report', filePath: pdfPath });
       expect(result.sent).toBe(true);
       expect(bot.sendToTopic).not.toHaveBeenCalled();
       expect(bot.sendDocument).toHaveBeenCalledWith(
@@ -221,51 +219,59 @@ describe('TelegramRelayService', () => {
         'report.pdf',
         expect.objectContaining({ topicId: 42 }),
       );
+      rmSync(path.dirname(pdfPath), { recursive: true, force: true });
     });
 
     it('sends image attachment via sendPhoto', async () => {
       const { relay, bot } = makeRelay();
-      const result = await relay.sendToUser({ sessionId: 's1', text: 'Screenshot', attachment: imageAttachment });
+      const imagePath = tempAttachmentPath('screenshot.png');
+      const result = await relay.sendToUser({ sessionId: 's1', text: 'Screenshot', filePath: imagePath });
       expect(result.sent).toBe(true);
       expect(bot.sendPhoto).toHaveBeenCalledWith(
         expect.any(Buffer),
         expect.objectContaining({ topicId: 42 }),
       );
+      rmSync(path.dirname(imagePath), { recursive: true, force: true });
     });
 
     it('sends video attachment via sendVideo', async () => {
       const { relay, bot } = makeRelay();
-      const result = await relay.sendToUser({ sessionId: 's1', text: 'Video', attachment: videoAttachment });
+      const videoPath = tempAttachmentPath('clip.mp4');
+      const result = await relay.sendToUser({ sessionId: 's1', text: 'Video', filePath: videoPath });
       expect(result.sent).toBe(true);
       expect(bot.sendVideo).toHaveBeenCalledWith(
         expect.any(Buffer),
         expect.objectContaining({ topicId: 42 }),
       );
+      rmSync(path.dirname(videoPath), { recursive: true, force: true });
     });
 
-    it('returns failure when attachment exceeds 50MB', async () => {
+    it('returns failure when file exceeds 50MB', async () => {
       const { relay } = makeRelay();
-      // Create a valid base64 string that decodes to > 50MB
-      const bigBuffer = Buffer.alloc(51 * 1024 * 1024, 'A'); // 51MB of 'A'
-      const hugeData = bigBuffer.toString('base64');
+      const tempDir = mkdtempSync(path.join(tmpdir(), 'helm-large-file-'));
+      const hugePath = path.join(tempDir, 'huge.bin');
+      const bigBuffer = Buffer.alloc(51 * 1024 * 1024);
+      closeSync(openSync(hugePath, 'w'));
+      fs.writeFileSync(hugePath, bigBuffer);
       const result = await relay.sendToUser({
         sessionId: 's1',
         text: 'Big file',
-        attachment: { name: 'huge.zip', data: hugeData, mime: 'application/zip' },
+        filePath: hugePath,
       });
       expect(result.sent).toBe(false);
       expect(result.reason).toContain('too large');
+      rmSync(tempDir, { recursive: true, force: true });
     });
 
-    it('returns failure when attachment base64 is invalid', async () => {
+    it('returns failure when file does not exist', async () => {
       const { relay, bot } = makeRelay();
       const result = await relay.sendToUser({
         sessionId: 's1',
         text: 'OK',
-        attachment: { name: 'file.txt', data: 'not valid base64!', mime: 'text/plain' },
+        filePath: '/nonexistent/file.txt',
       });
       expect(result.sent).toBe(false);
-      expect(result.reason).toContain('valid base64');
+      expect(result.reason).toContain('File not found');
       expect(bot.sendToTopic).not.toHaveBeenCalled();
       expect(bot.sendDocument).not.toHaveBeenCalled();
     });
@@ -273,13 +279,15 @@ describe('TelegramRelayService', () => {
     it('returns failure when Telegram API fails to send attachment', async () => {
       const { relay, bot } = makeRelay();
       bot.sendDocument.mockResolvedValue(null);
+      const filePath = tempAttachmentPath('file.txt');
       const result = await relay.sendToUser({
         sessionId: 's1',
         text: 'Broken',
-        attachment: { name: 'file.txt', data: 'aGVsbG8=', mime: 'text/plain' },
+        filePath,
       });
       expect(result.sent).toBe(false);
       expect(result.reason).toContain('Failed to send attachment');
+      rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 
     it('sends attachment without topic (no topicId)', async () => {
@@ -291,10 +299,11 @@ describe('TelegramRelayService', () => {
       };
       const tm = { ensureTopic: vi.fn(async () => undefined) };
       const relay2 = new TelegramRelayService(bot as any, tm as any, sm as any, {} as any, {} as any, {} as any);
+      const pdfPath = tempAttachmentPath('report.pdf');
       const result = await relay2.sendToUser({
         sessionId: 's2',
         text: 'No topic',
-        attachment: pdfAttachment,
+        filePath: pdfPath,
       });
       expect(result.sent).toBe(true);
       expect(bot.sendDocument).toHaveBeenCalledWith(
@@ -302,6 +311,7 @@ describe('TelegramRelayService', () => {
         'report.pdf',
         expect.objectContaining({ topicId: undefined }),
       );
+      rmSync(path.dirname(pdfPath), { recursive: true, force: true });
     });
   });
 

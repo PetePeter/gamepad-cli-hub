@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { HelmControlService } from '../src/mcp/helm-control-service.js';
 import { LocalhostMcpServer } from '../src/mcp/localhost-mcp-server.js';
 import { mintSessionAuthToken } from '../src/mcp/session-auth.js';
@@ -805,14 +808,20 @@ describe('LocalhostMcpServer', () => {
     expect((service.sendTelegramChat as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'Need a quick decision?', undefined);
     expect(chatJson.result.structuredContent.sent).toBe(true);
 
-    const attachment = { name: 'log.txt', data: 'aGVsbG8=', mime: 'text/plain' };
+    // Create a temporary file for the filePath test
+    const tempDir = mkdtempSync(join(tmpdir(), 'test-'));
+    const tempFile = join(tempDir, 'log.txt');
+    writeFileSync(tempFile, 'hello');
+
+    const filePath = tempFile;
     await rpc(port, 'secret-token', {
       jsonrpc: '2.0',
       id: 711,
       method: 'tools/call',
-      params: { name: 'telegram_chat', arguments: { sessionId: 's1', message: 'See log', attachment } },
+      params: { name: 'telegram_chat', arguments: { sessionId: 's1', message: 'See log', filePath } },
     });
-    expect((service.sendTelegramChat as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'See log', attachment);
+    expect((service.sendTelegramChat as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'See log', filePath);
+    rmSync(tempDir, { recursive: true, force: true });
 
     const closeResponse = await rpc(port, 'secret-token', {
       jsonrpc: '2.0',

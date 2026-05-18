@@ -39,6 +39,42 @@ import type {
 /** Telegram's max upload size is 50MB. */
 const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
 
+function detectMimeType(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeMap: Record<string, string> = {
+    // Images
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    // Videos
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.mov': 'video/quicktime',
+    '.avi': 'video/x-msvideo',
+    '.mkv': 'video/x-matroska',
+    // Documents
+    '.pdf': 'application/pdf',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.txt': 'text/plain',
+    '.csv': 'text/csv',
+    '.zip': 'application/zip',
+    '.tar': 'application/x-tar',
+    '.gz': 'application/gzip',
+    // Audio
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
+    '.m4a': 'audio/mp4',
+  };
+  return mimeMap[ext] || 'application/octet-stream';
+}
+
 export class TelegramRelayService extends EventEmitter implements TelegramBridge {
   private channels = new Map<string, TelegramChannel>();
 
@@ -132,8 +168,8 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
 
     let messageId: number | undefined;
 
-    if (input.attachment) {
-      const attachmentResult = await this.sendAttachment(input.attachment, channel.topicId, input.text);
+    if (input.filePath) {
+      const attachmentResult = await this.sendFileAttachment(input.filePath, channel.topicId, input.text);
       if (!attachmentResult.sent) return attachmentResult;
       messageId = attachmentResult.documentId;
     } else {
@@ -369,33 +405,43 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     return true;
   }
 
-  private async sendAttachment(
-    attachment: { name: string; data: string; mime: string },
+  private async sendFileAttachment(
+    filePath: string,
     topicId?: number,
     caption?: string,
   ): Promise<TelegramSendToUserResult> {
-    const buffer = decodeBase64Strict(attachment.data);
-    if (!buffer) {
-      return { sent: false, reason: 'Attachment data is not valid base64' };
+    if (!path.isAbsolute(filePath)) {
+      return { sent: false, reason: 'File path must be absolute' };
     }
 
-    if (buffer.length > MAX_ATTACHMENT_BYTES) {
-      const mb = (buffer.length / (1024 * 1024)).toFixed(1);
+    if (!fs.existsSync(filePath)) {
+      return { sent: false, reason: `File not found: ${filePath}` };
+    }
+
+    const stats = fs.statSync(filePath);
+    if (!stats.isFile()) {
+      return { sent: false, reason: `Not a file: ${filePath}` };
+    }
+
+    if (stats.size > MAX_ATTACHMENT_BYTES) {
+      const mb = (stats.size / (1024 * 1024)).toFixed(1);
       return { sent: false, reason: `Attachment too large (${mb}MB). Telegram limit is 50MB.` };
     }
 
+    const buffer = fs.readFileSync(filePath);
+    const fileName = path.basename(filePath);
+    const mime = detectMimeType(filePath);
     const captionHtml = caption ? formatAgentMessageForTelegram(caption) : undefined;
     const opts = { caption: captionHtml, topicId };
 
     let message: Awaited<ReturnType<typeof this.telegramBot.sendDocument>> | null = null;
-    const mime = attachment.mime.toLowerCase();
 
     if (mime.startsWith('image/')) {
       message = await this.telegramBot.sendPhoto(buffer, opts);
     } else if (mime.startsWith('video/')) {
       message = await this.telegramBot.sendVideo(buffer, opts);
     } else {
-      message = await this.telegramBot.sendDocument(buffer, attachment.name, opts);
+      message = await this.telegramBot.sendDocument(buffer, fileName, opts);
     }
 
     if (!message) {

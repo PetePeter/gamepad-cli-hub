@@ -975,7 +975,7 @@ describe('HelmControlService telegram channels', () => {
     await expect(service.sendTelegramChat('s1', 'x'.repeat(141))).rejects.toThrow('140 characters');
   });
 
-  it('rejects invalid base64 attachments in sendTelegramChat before bridge delivery', async () => {
+  it('rejects non-existent files in sendTelegramChat before bridge delivery', async () => {
     const { service, sessionManager } = makeService();
     (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
       id: 's1',
@@ -991,14 +991,10 @@ describe('HelmControlService telegram channels', () => {
     };
     service.setTelegramBridge(bridge);
 
-    const result = await service.sendTelegramChat('s1', 'see attached', {
-      name: 'log.txt',
-      data: 'not valid base64!',
-      mime: 'text/plain',
-    });
+    const result = await service.sendTelegramChat('s1', 'see attached', '/nonexistent/file.txt');
 
     expect(result.sent).toBe(false);
-    expect(result.reason).toContain('valid base64');
+    expect(result.reason).toContain('File not found');
     expect(bridge.sendToUser).not.toHaveBeenCalled();
   });
 

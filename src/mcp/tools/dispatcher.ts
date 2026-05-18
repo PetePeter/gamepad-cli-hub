@@ -433,11 +433,8 @@ export async function callMcpTool(
       case 'telegram_chat': {
         const sessionRef = asString(args.sessionId ?? args.name, 'sessionId or name is required');
         const message = asString(args.message, 'message is required');
-        const att = args.attachment as Record<string, unknown> | undefined;
-        const attachment = typeof att === 'object' && att
-          ? { name: asString(att.name, 'attachment.name is required'), data: asString(att.data, 'attachment.data is required'), mime: asString(att.mime, 'attachment.mime is required') }
-          : undefined;
-        return service.sendTelegramChat(sessionRef, message, attachment);
+        const filePath = typeof args.filePath === 'string' ? args.filePath : undefined;
+        return service.sendTelegramChat(sessionRef, message, filePath);
       }
       case 'telegram_channel_close':
         return service.closeTelegramChannel(asString(args.channelId, 'channelId is required'));

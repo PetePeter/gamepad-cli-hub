@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import type { ConfigLoader } from '../../config/loader.js';
 import type { SessionManager } from '../../session/manager.js';
 import type { SessionInfo } from '../../types/session.js';
@@ -8,7 +10,6 @@ import type {
   TelegramStatus,
 } from '../../types/telegram-channel.js';
 import type { NotificationManager } from '../../session/notification-manager.js';
-import { decodeBase64Strict } from '../../utils/base64.js';
 import { validateMobileFriendlyTelegramText } from '../../telegram/utils.js';
 
 /**
@@ -62,32 +63,35 @@ export class HelmTelegramService {
   async sendTelegramChat(
     sessionRef: string,
     message: string,
-    attachment?: { name: string; data: string; mime: string },
+    filePath?: string,
   ): Promise<{ sent: boolean; reason?: string }> {
     if (!this.telegramBridge?.isRunning()) {
       return { sent: false, reason: 'Telegram bot is not running' };
     }
-    if (attachment) {
-      if (!attachment.name || !attachment.data || !attachment.mime) {
-        return { sent: false, reason: 'Attachment requires name, data (base64), and mime fields' };
+    if (filePath) {
+      if (!path.isAbsolute(filePath)) {
+        return { sent: false, reason: 'File path must be absolute' };
       }
-      const decoded = decodeBase64Strict(attachment.data);
-      if (!decoded) {
-        return { sent: false, reason: 'Attachment data is not valid base64' };
+      if (!fs.existsSync(filePath)) {
+        return { sent: false, reason: `File not found: ${filePath}` };
       }
-      if (decoded.length > 50 * 1024 * 1024) {
-        const mb = (decoded.length / (1024 * 1024)).toFixed(1);
-        return { sent: false, reason: `Attachment too large (${mb}MB). Telegram limit is 50MB.` };
+      const stats = fs.statSync(filePath);
+      if (!stats.isFile()) {
+        return { sent: false, reason: `Not a file: ${filePath}` };
       }
-    }
-    if (!attachment) {
+      if (stats.size > 50 * 1024 * 1024) {
+        const mb = (stats.size / (1024 * 1024)).toFixed(1);
+        return { sent: false, reason: `File too large (${mb}MB). Telegram limit is 50MB.` };
+      }
+      if (message.length > 1024) {
+        return { sent: false, reason: 'Message caption with attachment must be 1024 characters or fewer' };
+      }
+    } else {
       validateMobileFriendlyTelegramText(message);
-    } else if (message.length > 1024) {
-      return { sent: false, reason: 'Message caption with attachment must be 1024 characters or fewer' };
     }
     const session = this.findSession(sessionRef);
     if (!session) return { sent: false, reason: `Session not found: ${sessionRef}` };
-    return this.telegramBridge.sendToUser({ sessionId: session.id, text: message, attachment });
+    return this.telegramBridge.sendToUser({ sessionId: session.id, text: message, filePath });
   }
 
   notifyUser(sessionRef: string, title: string, content: string): { delivered: 'toast' | 'bubble' | 'telegram' | 'none' } {

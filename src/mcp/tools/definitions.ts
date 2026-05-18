@@ -858,11 +858,7 @@ export const MCP_TOOLS: McpTool[] = [
         sessionId: { type: 'string' },
         name: { type: 'string' },
         message: { type: 'string' },
-        attachment: {
-          type: 'object',
-          properties: { name: { type: 'string' }, data: { type: 'string' }, mime: { type: 'string' } },
-          required: ['name', 'data', 'mime'],
-        },
+        filePath: { type: 'string', description: 'Optional absolute file path to send as attachment. System reads file from disk.' },
       },
       required: ['message'],
       additionalProperties: false,

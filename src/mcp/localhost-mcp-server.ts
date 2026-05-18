@@ -891,11 +891,7 @@ const TOOLS: McpTool[] = [
         sessionId: { type: 'string' },
         name: { type: 'string' },
         message: { type: 'string' },
-        attachment: {
-          type: 'object',
-          properties: { name: { type: 'string' }, data: { type: 'string' }, mime: { type: 'string' } },
-          required: ['name', 'data', 'mime'],
-        },
+        filePath: { type: 'string', description: 'Optional absolute file path to send as attachment. System reads file from disk.' },
       },
       required: ['message'],
       additionalProperties: false,
@@ -1607,11 +1603,8 @@ export class LocalhostMcpServer {
       case 'telegram_chat': {
         const sessionRef = asString(args.sessionId ?? args.name, 'sessionId or name is required');
         const message = asString(args.message, 'message is required');
-        const att = args.attachment as Record<string, unknown> | undefined;
-        const attachment = typeof att === 'object' && att
-          ? { name: asString(att.name, 'attachment.name is required'), data: asString(att.data, 'attachment.data is required'), mime: asString(att.mime, 'attachment.mime is required') }
-          : undefined;
-        return this.service.sendTelegramChat(sessionRef, message, attachment);
+        const filePath = typeof args.filePath === 'string' ? args.filePath : undefined;
+        return this.service.sendTelegramChat(sessionRef, message, filePath);
       }
       case 'telegram_channel_close':
         return this.service.closeTelegramChannel(asString(args.channelId, 'channelId is required'));
