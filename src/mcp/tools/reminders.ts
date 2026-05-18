@@ -4,6 +4,9 @@ export function getToolReminder(name: string): string {
   if (name === 'session_send_text') {
     return 'Reminder: for inter-LLM handoffs, submit must stay true/default. Now call session_read_terminal on the recipient and verify the tail shows the first words of the sent text, a new prompt, or a response starting; warn the user if no receipt evidence is visible.';
   }
+  if (name === 'session_send_input') {
+    return 'Reminder: session_send_input sends raw terminal keystrokes — no HELM_MSG envelope. Now call session_read_terminal on the recipient and verify the input was received.';
+  }
   if (name === 'session_read_terminal') {
     return 'Reminder: after a handoff, inspect this terminal tail for receipt evidence. If the sent text or new recipient activity is not visible, report that uncertainty to the user.';
   }

@@ -506,6 +506,54 @@ describe('keyboard relay', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Ctrl+Shift+B — clear session notifications
+  // ---------------------------------------------------------------------------
+
+  describe('Ctrl+Shift+B', () => {
+    it('dispatches clear-session-notifications event when no modal is active', () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+      const handler = vi.fn();
+      window.addEventListener('clear-session-notifications', handler);
+
+      fireKey('B', { ctrlKey: true, shiftKey: true });
+
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({
+        detail: { sessionId: 'sess-1' },
+      }));
+
+      window.removeEventListener('clear-session-notifications', handler);
+    });
+
+    it('does not dispatch when a modal overlay is visible', () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay modal--visible';
+      document.body.appendChild(modal);
+      const handler = vi.fn();
+      window.addEventListener('clear-session-notifications', handler);
+
+      fireKey('B', { ctrlKey: true, shiftKey: true });
+
+      expect(handler).not.toHaveBeenCalled();
+
+      window.removeEventListener('clear-session-notifications', handler);
+      document.body.removeChild(modal);
+    });
+
+    it('does not dispatch when no session is active', () => {
+      getActiveSessionId.mockReturnValue(null);
+      const handler = vi.fn();
+      window.addEventListener('clear-session-notifications', handler);
+
+      fireKey('B', { ctrlKey: true, shiftKey: true });
+
+      expect(handler).not.toHaveBeenCalled();
+
+      window.removeEventListener('clear-session-notifications', handler);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Idempotency
   // ---------------------------------------------------------------------------
 

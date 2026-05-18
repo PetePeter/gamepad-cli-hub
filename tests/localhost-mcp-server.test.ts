@@ -78,6 +78,7 @@ function makeService(): HelmControlService {
     listSessions: vi.fn((dirPath?: string, projectId?: string) => [{ id: 's1', name: 'Claude', cliType: 'claude-code', ...(dirPath ? { workingDir: dirPath } : {}), ...(projectId ? { projectId } : {}) }]),
     getSession: vi.fn((sessionId: string) => ({ id: sessionId, name: 'Claude', cliType: 'claude-code' })),
     sendTextToSession: vi.fn(async (sessionRef: string, text: string, _options?: { submit?: boolean; senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean }) => ({ success: true, sessionId: sessionRef, name: 'Claude' })),
+    sendInputToSession: vi.fn(async (sessionRef: string, _sequence: string, _options?: { senderSessionId?: string; senderSessionName?: string; impliedSubmit?: boolean; verify?: boolean }) => ({ success: true, sessionId: sessionRef, name: 'Claude' })),
     readSessionTerminal: vi.fn((sessionRef: string, lines = 50, mode = 'both') => ({
       sessionId: sessionRef,
       name: 'Claude',
@@ -1936,6 +1937,74 @@ describe('LocalhostMcpServer', () => {
       expect(hasPreambleText1).toBe(false);
       // Response 2 should HAVE the polling hint (preamble was not used)
       expect(hasPreambleText2).toBe(true);
+    });
+  });
+
+  describe('session_send_input MCP dispatch', () => {
+    it('calls sendInputToSession with correct args and returns success', async () => {
+      const service = makeService();
+      (service.listSessions as unknown as ReturnType<typeof vi.fn>).mockReturnValue([
+        { id: 's1', name: 'Claude', cliType: 'claude-code' },
+        { id: 's2', name: 'Worker', cliType: 'claude-code' },
+      ]);
+      const sendInputMock = (service.sendInputToSession as unknown as ReturnType<typeof vi.fn>);
+      sendInputMock.mockImplementationOnce(async () => ({
+        success: true,
+        sessionId: 's1',
+        name: 'Claude',
+      }));
+
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 81,
+        method: 'tools/call',
+        params: {
+          name: 'session_send_input',
+          arguments: { sessionId: 's1', sequence: '{Esc}{Tab}{Enter}', senderSessionId: 's2' },
+        },
+      });
+
+      const json = await response.json();
+      expect(json.result.structuredContent).toEqual({
+        success: true,
+        sessionId: 's1',
+        name: 'Claude',
+      });
+      expect(sendInputMock).toHaveBeenCalledWith(
+        's1',
+        '{Esc}{Tab}{Enter}',
+        expect.objectContaining({ senderSessionId: 's2', senderSessionName: 'Worker' }),
+      );
+    });
+
+    it('rejects when senderSessionId is unknown', async () => {
+      const service = makeService();
+      (service.listSessions as unknown as ReturnType<typeof vi.fn>).mockReturnValue([
+        { id: 's1', name: 'Claude', cliType: 'claude-code' },
+      ]);
+
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 82,
+        method: 'tools/call',
+        params: {
+          name: 'session_send_input',
+          arguments: { sessionId: 's1', sequence: '{Esc}', senderSessionId: 'unknown-id' },
+        },
+      });
+
+      const json = await response.json();
+      expect(json.error.message).toContain('Unknown sender session');
     });
   });
 });

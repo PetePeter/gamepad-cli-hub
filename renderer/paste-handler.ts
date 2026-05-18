@@ -278,6 +278,16 @@ export function setupKeyboardRelay(
       return;
     }
 
+    if (e.ctrlKey && e.shiftKey && e.key === 'B') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (document.querySelector('.modal-overlay.modal--visible')) return;
+      window.dispatchEvent(new CustomEvent('clear-session-notifications', {
+        detail: { sessionId },
+      }));
+      return;
+    }
+
     if (e.ctrlKey && e.key === 'v') {
       if (clipboardPasteInFlight) return;
       if (document.querySelector('.plan-screen.visible')) return;

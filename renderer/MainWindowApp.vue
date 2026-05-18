@@ -490,6 +490,13 @@ function handleRenameRequest(e: Event): void {
   }
 }
 
+function handleClearSessionNotifications(e: Event): void {
+  const detail = (e as CustomEvent).detail as { sessionId: string } | undefined;
+  if (detail?.sessionId) {
+    llmNotificationsStore.dismissSession(detail.sessionId);
+  }
+}
+
 // Context menu
 function onContextMenuAction(action: string): void {
   contextMenu.visible = false;
@@ -551,6 +558,10 @@ function onContextMenuAction(action: string): void {
 // Settings
 function onOpenLogsFolder(): void {
   void systemClient.systemOpenLogsFolder();
+}
+
+function onOpenHelp(): void {
+  void systemClient.systemOpenHelp();
 }
 
 function onOpenSettings(): void {
@@ -709,6 +720,9 @@ onMounted(async () => {
     // Ctrl+Shift+R → inline rename request from paste-handler
     window.addEventListener('rename-session-request', handleRenameRequest);
 
+    // Ctrl+Shift+B → clear all notifications for active session
+    window.addEventListener('clear-session-notifications', handleClearSessionNotifications);
+
     // Snap-out / snap-back IPC listeners
     unsubSnapOut = eventsClient.onSnapOut
       ? eventsClient.onSnapOut((sessionId: string) => {
@@ -767,6 +781,7 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleModalKeyboardBridge, true);
   window.removeEventListener('rename-session-request', handleRenameRequest);
+  window.removeEventListener('clear-session-notifications', handleClearSessionNotifications);
   offTextDeliver?.();
   offTextDeliver = null;
   unsubSnapOut?.();
@@ -791,6 +806,7 @@ onUnmounted(() => {
           <span class="sidebar-tagline">steer your fleet of agents</span>
         </span>
         <div class="sidebar-actions">
+          <button class="sidebar-btn" title="User Guide" @click="onOpenHelp">[?]</button>
           <button class="sidebar-btn" title="Open Logs Folder" @click="onOpenLogsFolder">🐛</button>
           <button class="sidebar-btn" title="Settings" @click="onOpenSettings">⚙</button>
         </div>

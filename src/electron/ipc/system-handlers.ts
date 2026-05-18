@@ -13,6 +13,20 @@ import { getTempDir } from '../../utils/app-paths.js';
 
 export function setupSystemHandlers(dirname: string): void {
   ipcMain.handle('app:getVersion', () => app.getVersion());
+  ipcMain.handle('help:open', async () => {
+    try {
+      const guidePath = path.join(app.getAppPath(), 'build', 'user-guide.html');
+      const errorMessage = await shell.openPath(guidePath);
+      if (errorMessage) {
+        logger.error(`[IPC] Failed to open user guide: ${errorMessage}`);
+        return { success: false, error: errorMessage };
+      }
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to open user guide: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
   ipcMain.handle('system:openLogsFolder', async () => {
     try {
       const errorMessage = await shell.openPath(logDir);

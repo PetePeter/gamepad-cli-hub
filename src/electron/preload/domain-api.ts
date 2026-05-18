@@ -514,6 +514,7 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   // ========================================================================
 
   systemOpenLogsFolder: () => ipcRenderer.invoke('system:openLogsFolder'),
+  systemOpenHelp: () => ipcRenderer.invoke('help:open'),
 
   /** Get app version from package.json via Electron */
   appGetVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),

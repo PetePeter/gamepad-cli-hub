@@ -508,6 +508,14 @@ export class HelmControlService extends EventEmitter {
     return this.sessionDelivery.sendTextToSession(sessionRef, text, options);
   }
 
+  async sendInputToSession(
+    sessionRef: string,
+    sequence: string,
+    options?: { senderSessionId?: string; senderSessionName?: string; impliedSubmit?: boolean; verify?: boolean },
+  ) {
+    return this.sessionDelivery.sendInputToSession(sessionRef, sequence, options);
+  }
+
   // ---------------------------------------------------------------------------
   // Session info guide
   // ---------------------------------------------------------------------------

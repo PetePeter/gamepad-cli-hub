@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Helm User Guide</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    padding: 0 0 4rem 0;
+  }
+
+  /* ── Nav ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: #181825;
+    border-bottom: 1px solid #313244;
+    padding: 0 1.5rem;
+    display: flex; align-items: center; gap: 0.25rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  nav a {
+    color: #a6adc8;
+    text-decoration: none;
+    padding: 0.75rem 0.85rem;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+  }
+  nav a:hover, nav a:focus-visible { color: #89b4fa; border-bottom-color: #89b4fa; }
+
+  /* ── Main ── */
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 4.5rem 1.5rem 0;
+  }
+
+  h1 {
+    font-size: 1.8rem;
+    color: #89b4fa;
+    margin-bottom: 0.25rem;
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    color: #a6adc8;
+    font-size: 0.9rem;
+    margin-bottom: 2.5rem;
+  }
+
+  h2 {
+    font-size: 1.25rem;
+    color: #89b4fa;
+    margin: 2.5rem 0 0.75rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid #313244;
+  }
+  h2:first-of-type { margin-top: 1rem; }
+
+  h3 {
+    font-size: 1.05rem;
+    color: #bac2de;
+    margin: 1.5rem 0 0.5rem;
+  }
+
+  p { margin-bottom: 0.75rem; }
+
+  ul { padding-left: 1.25rem; margin-bottom: 0.75rem; }
+  li { margin-bottom: 0.25rem; }
+  li::marker { color: #89b4fa; }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.25rem;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid #45475a;
+  }
+  th {
+    background: #313244;
+    color: #cdd6f4;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  td { background: #1e1e2e; }
+  tr:hover td { background: #242437; }
+  td:first-child { white-space: nowrap; font-weight: 500; }
+
+  /* ── Code / kbd ── */
+  code {
+    background: #313244;
+    color: #f9e2af;
+    padding: 0.15em 0.4em;
+    border-radius: 3px;
+    font-size: 0.88em;
+    font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace;
+  }
+  kbd {
+    display: inline-block;
+    background: #313244;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 0.1em 0.45em;
+    font-family: inherit;
+    font-size: 0.88em;
+    color: #cdd6f4;
+    line-height: 1.4;
+  }
+
+  /* ── Callout ── */
+  .callout {
+    background: #313244;
+    border-left: 3px solid #89b4fa;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+  }
+
+  /* ── Dot legend ── */
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+  .dot--active  { background: #44cc44; }
+  .dot--inactive { background: #4488ff; }
+  .dot--idle     { background: #555555; }
+
+  /* ── Lifecycle flow ── */
+  .flow {
+    display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
+    margin-bottom: 1rem;
+  }
+  .flow span {
+    background: #313244;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 0.2em 0.6em;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .flow span.current { border-color: #89b4fa; color: #89b4fa; }
+  .flow .arrow { background: none; border: none; color: #6c7086; padding: 0 0.1em; font-size: 14px; }
+
+  a { color: #89b4fa; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  @media (max-width: 640px) {
+    main { padding: 4rem 1rem 0; }
+    table { font-size: 13px; }
+    th, td { padding: 0.4rem 0.5rem; }
+    nav a { padding: 0.65rem 0.55rem; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#getting-started">Getting Started</a>
+  <a href="#gamepad-controls">Gamepad Controls</a>
+  <a href="#keyboard-shortcuts">Keyboard Shortcuts</a>
+  <a href="#sessions">Sessions</a>
+  <a href="#notifications">Notifications</a>
+  <a href="#drafts">Drafts</a>
+  <a href="#plans">Plans</a>
+  <a href="#settings-profiles">Settings &amp; Profiles</a>
+  <a href="#pattern-matcher">Pattern Matcher</a>
+</nav>
+
+<main>
+
+<h1>Helm User Guide</h1>
+<p class="subtitle">Xbox controller &rarr; CLI session manager for AI coding terminals</p>
+
+<!-- ═══════════════════ 1. Getting Started ═══════════════════ -->
+<h2 id="getting-started">1. Getting Started</h2>
+
+<p>Helm is a desktop app that lets you control multiple AI coding CLIs (Claude Code, Copilot CLI, etc.) from a single gamepad. Terminals are embedded &mdash; no external windows.</p>
+
+<h3>First launch</h3>
+<ul>
+  <li>Connect your Xbox controller (USB or Bluetooth)</li>
+  <li>Launch Helm &mdash; you'll see the session screen with the quick-spawn grid</li>
+  <li>Press <kbd>D-Pad Up/Down</kbd> to highlight a CLI tool, then <kbd>A</kbd> to spawn a session</li>
+  <li>Start coding with your controller as the input device</li>
+</ul>
+
+<div class="callout">
+  Generic / DirectInput gamepads are also supported. D-pad is detected via axes or hat switch automatically.
+</div>
+
+<!-- ═══════════════════ 2. Gamepad Controls ═══════════════════ -->
+<h2 id="gamepad-controls">2. Gamepad Controls</h2>
+
+<table>
+  <thead>
+    <tr><th>Input</th><th>Action</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><kbd>D-Pad &uarr;&darr;</kbd></td><td>Navigate sessions (auto-selects terminal)</td></tr>
+    <tr><td><kbd>D-Pad &rarr;</kbd></td><td>Open group overview (session preview grid)</td></tr>
+    <tr><td><kbd>D-Pad &larr;</kbd></td><td>Back / close overview</td></tr>
+    <tr><td><kbd>A</kbd></td><td>Select / confirm / activate terminal</td></tr>
+    <tr><td><kbd>B</kbd></td><td>Back / cancel / close modal</td></tr>
+    <tr><td><kbd>Start</kbd></td><td>Open context menu</td></tr>
+    <tr><td><kbd>Back / Select</kbd></td><td>Open sequence picker</td></tr>
+    <tr><td><kbd>Left Stick</kbd></td><td>Cursor mode &mdash; scroll or mouse movement</td></tr>
+    <tr><td><kbd>Right Stick</kbd></td><td>Scroll terminal output</td></tr>
+    <tr><td><kbd>LB</kbd> / <kbd>RB</kbd></td><td>Previous / next session</td></tr>
+    <tr><td><kbd>LT</kbd> / <kbd>RT</kbd></td><td>Per-CLI configurable (bindings)</td></tr>
+  </tbody>
+</table>
+
+<ul>
+  <li>D-pad and sticks <strong>auto-repeat</strong> when held</li>
+  <li>All inputs are debounced (250 ms) to prevent accidental rapid presses</li>
+  <li>Analog sticks emit virtual button names (e.g. <code>LeftStickUp</code>) that are bindable like physical buttons</li>
+</ul>
+
+<!-- ═══════════════════ 3. Keyboard Shortcuts ═══════════════════ -->
+<h2 id="keyboard-shortcuts">3. Keyboard Shortcuts</h2>
+
+<table>
+  <thead>
+    <tr><th>Shortcut</th><th>Action</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><kbd>Ctrl+V</kbd></td><td>Paste clipboard to active terminal (works regardless of DOM focus)</td></tr>
+    <tr><td><kbd>Ctrl+G</kbd></td><td>Open external editor (Notepad) &mdash; content sent to terminal on close</td></tr>
+    <tr><td><kbd>Ctrl+Shift+R</kbd></td><td>Rename active session</td></tr>
+    <tr><td><kbd>Ctrl+Shift+B</kbd></td><td>Clear all notifications for active session</td></tr>
+    <tr><td><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd></td><td>Cycle focus between buttons within modal overlays</td></tr>
+    <tr><td><kbd>Escape</kbd></td><td>Send Escape key to terminal (with escape-protection guard)</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  Clipboard paste and Ctrl+G are blocked when a modal overlay is visible to prevent accidental input.
+</div>
+
+<!-- ═══════════════════ 4. Sessions ═══════════════════ -->
+<h2 id="sessions">4. Sessions</h2>
+
+<h3>Spawning sessions</h3>
+<ul>
+  <li>Use the <strong>quick-spawn grid</strong> at the bottom of the session screen</li>
+  <li>Navigate with <kbd>D-Pad</kbd>, press <kbd>A</kbd> to spawn</li>
+  <li>Each CLI tool is a separate card in the grid</li>
+</ul>
+
+<h3>Session cards</h3>
+<p>Each session card displays:</p>
+<ul>
+  <li><strong>Activity dot</strong> &mdash; indicates PTY I/O status:
+    <ul>
+      <li><span class="dot dot--active"></span> <strong>Active</strong> (green) &mdash; producing output or receiving input</li>
+      <li><span class="dot dot--inactive"></span> <strong>Inactive</strong> (blue) &mdash; silent for &gt;10 seconds</li>
+      <li><span class="dot dot--idle"></span> <strong>Idle</strong> (grey) &mdash; silent for &gt;5 minutes</li>
+    </ul>
+  </li>
+  <li><strong>Elapsed timer</strong> &mdash; time since last CLI output, refreshed every 10 seconds</li>
+  <li><strong>Plan badges</strong> &mdash; coding + ready/blocked/review counts</li>
+  <li><strong>Draft badge</strong> &mdash; count of unsent drafts</li>
+</ul>
+
+<h3>Groups</h3>
+<ul>
+  <li>Sessions are grouped by <strong>working directory</strong> with collapsible headers</li>
+  <li>Group order and collapse state persist across restarts</li>
+  <li><strong>Bookmarked directories</strong> appear as headers even with 0 active sessions (auto-bookmarked when a named session is removed)</li>
+</ul>
+
+<h3>Group overview</h3>
+<ul>
+  <li>Press <kbd>D-Pad &rarr;</kbd> on a group header to open a scrollable preview grid</li>
+  <li>Each card shows: session name, terminal title, activity dot, last 10 lines of output</li>
+  <li>Navigate with <kbd>D-Pad</kbd>, press <kbd>A</kbd> to select, <kbd>B</kbd> to exit</li>
+</ul>
+
+<!-- ═══════════════════ 5. Notifications ═══════════════════ -->
+<h2 id="notifications">5. Notifications</h2>
+
+<ul>
+  <li><strong>Bubble notifications</strong> &mdash; displayed when the AI agent uses <code>notify_user</code></li>
+  <li><strong>Notification carousel</strong> &mdash; per-session card, shows recent notifications</li>
+  <li><strong>Clearing</strong> &mdash; press <kbd>Ctrl+Shift+B</kbd> to dismiss all notifications for the active session</li>
+  <li><strong>Telegram mirror</strong> &mdash; PTY output is buffered during active periods and flushed to Telegram on activity change, question detection, or safety threshold (50 KB)</li>
+</ul>
+
+<div class="callout">
+  Telegram mirroring is activity-gated: only output produced during green-dot (active) periods is mirrored. Content is ANSI-stripped and noise-filtered before sending.
+</div>
+
+<!-- ═══════════════════ 6. Drafts ═══════════════════ -->
+<h2 id="drafts">6. Drafts</h2>
+
+<p>Drafts are per-session prompt memos for composing prompts while the CLI is busy.</p>
+
+<h3>Managing drafts</h3>
+<table>
+  <thead>
+    <tr><th>Action</th><th>How</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Create</td><td>Context menu &rarr; New Draft, or press <kbd>A</kbd> on "new-draft" binding</td></tr>
+    <tr><td>Edit</td><td>Click the &128221; pill above the terminal, or context menu &rarr; Edit Draft</td></tr>
+    <tr><td>Apply</td><td>Sends draft content to terminal and deletes the draft</td></tr>
+    <tr><td>Delete</td><td>Context menu &rarr; Delete, or delete button in editor</td></tr>
+  </tbody>
+</table>
+
+<ul>
+  <li>Drafts persist to <code>config/drafts.yaml</code> (survive restarts)</li>
+  <li>Session cards show a &128221; badge with the draft count</li>
+  <li>Close-confirm dialog warns about unsent drafts</li>
+</ul>
+
+<!-- ═══════════════════ 7. Plans ═══════════════════ -->
+<h2 id="plans">7. Plans</h2>
+
+<p>Plans are per-directory work items organized as an acyclic directed graph (DAG).</p>
+
+<h3>Lifecycle</h3>
+<div class="flow">
+  <span>planning</span><span class="arrow">&rarr;</span>
+  <span class="current">ready</span><span class="arrow">&rarr;</span>
+  <span class="current">coding</span><span class="arrow">&rarr;</span>
+  <span class="current">review</span><span class="arrow">&rarr;</span>
+  <span>done</span>
+  <span class="arrow">|</span>
+  <span>blocked</span>
+</div>
+<ul>
+  <li><strong>Planning</strong> &mdash; not ready or still being shaped</li>
+  <li><strong>Ready</strong> &mdash; dependencies satisfied, available to claim</li>
+  <li><strong>Coding</strong> &mdash; claimed by a session</li>
+  <li><strong>Review</strong> &mdash; awaiting review</li>
+  <li><strong>Blocked</strong> &mdash; requires resolution (see <code>stateInfo</code>)</li>
+  <li><strong>Done</strong> &mdash; completed</li>
+</ul>
+
+<h3>Using plans</h3>
+<ul>
+  <li>Open: click the &127758; button on a group header</li>
+  <li>Canvas shows nodes with dependency arrows, pan/zoom via mouse</li>
+  <li>Click a node to select it; editor panel at the bottom for title, description, and actions</li>
+  <li>Session cards display plan badges (coding + ready/blocked/review counts)</li>
+  <li>Claim a ready plan from the draft strip &mdash; click the ready chip to send its description to the terminal and transition to <em>coding</em></li>
+</ul>
+
+<h3>Backup &amp; restore</h3>
+<ul>
+  <li>Press <kbd>R</kbd> or click the &128190; button in the plan screen to view backups</li>
+  <li>Automatic rolling-window snapshots on plan changes</li>
+  <li>Configurable interval and retention in Settings &rarr; Backups</li>
+</ul>
+
+<!-- ═══════════════════ 8. Settings & Profiles ═══════════════════ -->
+<h2 id="settings-profiles">8. Settings &amp; Profiles</h2>
+
+<ul>
+  <li>Open: click the &9881; button</li>
+  <li>Slides in as an overlay panel</li>
+</ul>
+
+<h3>Profiles</h3>
+<p>Each profile is a single YAML file containing:</p>
+<ul>
+  <li><strong>Tools</strong> &mdash; CLI definitions, spawn commands, working directories</li>
+  <li><strong>Directories</strong> &mdash; configured working directories</li>
+  <li><strong>Bindings</strong> &mdash; per-CLI button mappings (keyboard, voice, sequence, spawn)</li>
+  <li><strong>Patterns</strong> &mdash; regex rules for auto-actions</li>
+  <li><strong>Stick / D-pad config</strong> &mdash; dead zones, sensitivity, mode</li>
+</ul>
+
+<p>Switching profiles changes all bindings, tools, and patterns at once. Legacy <code>tools.yaml</code> / <code>directories.yaml</code> files are auto-migrated on first load.</p>
+
+<!-- ═══════════════════ 9. Pattern Matcher ═══════════════════ -->
+<h2 id="pattern-matcher">9. Pattern Matcher</h2>
+
+<p>The pattern matcher scans every PTY output chunk against per-CLI regex rules defined in the profile.</p>
+
+<h3>Actions</h3>
+<table>
+  <thead>
+    <tr><th>Type</th><th>Behavior</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>send-text</code></td><td>Fires a sequence to the terminal immediately on match</td></tr>
+    <tr><td><code>wait-until</code></td><td>Parses a scheduled time from the matched capture group, then fires the resume sequence at that time</td></tr>
+  </tbody>
+</table>
+
+<h3>Schedule management</h3>
+<ul>
+  <li>When a <code>wait-until</code> rule fires, a &9200; chip appears on the session card</li>
+  <li>Cancelling: use the &times; button on the chip or <code>pattern:cancelSchedule</code></li>
+  <li>Per-rule cooldown prevents rapid re-triggering</li>
+</ul>
+
+</main>
+</body>
+</html>

@@ -690,6 +690,41 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'session_send_input',
+    title: 'Send Terminal Input To Session',
+    description:
+      'Send sequence-style terminal input to a running session PTY without HELM_MSG preamble. ' +
+      'Use this for TUI/terminal automation: navigating menus, pressing keys, typing text. ' +
+      'DESTINATION: Provide sessionId (the target session that will receive the input). ' +
+      'SENDER: Provide senderSessionId (your own session ID from the HELM_SESSION_ID env var). ' +
+      'IMPORTANT: Destination and sender MUST be different sessions — self-send is rejected. ' +
+      'Supports sequence syntax: {Esc}, {Tab}, {Enter}, {ArrowDown}, {Ctrl+C}, {Wait 200}, literal text. ' +
+      'No implicit Enter is appended unless impliedSubmit=true or the sequence includes {Enter}/{Send}. ' +
+      'After sending input, call session_read_terminal on the recipient to verify the input was received.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: '[DESTINATION] Target session ID — MUST be different from senderSessionId.',
+        },
+        senderSessionId: {
+          type: 'string',
+          description:
+            '[SENDER] Your session ID — MUST equal the HELM_SESSION_ID environment variable injected by Helm at startup.',
+        },
+        sequence: {
+          type: 'string',
+          description: 'Sequence-parser syntax to send: {Esc}, {Tab}, {Enter}, {ArrowDown}, {Ctrl+C}, {Wait 200}, literal text.',
+        },
+        impliedSubmit: { type: 'boolean', default: false },
+        verify: { type: 'boolean', default: true },
+      },
+      required: ['sessionId', 'senderSessionId', 'sequence'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'session_read_terminal',
     title: 'Read Session Terminal',
     description: 'Read the recent terminal tail for any known session by sessionId or exact name. Use this immediately after session_send_text handoffs to verify the recipient received the message and started responding. lines must be a positive integer (buffer holds up to 500). mode controls raw ANSI output, ANSI-stripped output, or both.',

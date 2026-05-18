@@ -158,4 +158,53 @@ describe('HelmSessionDeliveryService', () => {
       }
     });
   });
+
+  describe('sendInputToSession', () => {
+    it('rejects anonymous input (no sender)', async () => {
+      const { service, receiver } = makeDeps();
+      await expect(service.sendInputToSession(receiver.id, '{Esc}')).rejects.toThrow('anonymous input is not allowed');
+    });
+
+    it('rejects self-send', async () => {
+      const { service, receiver } = makeDeps();
+      await expect(
+        service.sendInputToSession(receiver.id, '{Esc}', { senderSessionId: receiver.id, senderSessionName: receiver.name }),
+      ).rejects.toThrow('Cannot send input from a session to itself');
+    });
+
+    it('sends sequence to PTY without HELM_MSG preamble', async () => {
+      const { service, ptyManager, receiver, sender } = makeDeps();
+      await service.sendInputToSession(receiver.id, '{Esc}{Tab}{Enter}', {
+        senderSessionId: sender.id,
+        senderSessionName: sender.name,
+      });
+      // Verify no HELM_MSG was written — check all deliverText calls
+      const calls = ptyManager.deliverText.mock.calls;
+      const allText = calls.map((c: any[]) => c[1] ?? '').join('');
+      expect(allText).not.toContain('[HELM_MSG]');
+    });
+
+    it('defaults impliedSubmit to false', async () => {
+      const { service, ptyManager, receiver, sender } = makeDeps();
+      await service.sendInputToSession(receiver.id, 'hello', {
+        senderSessionId: sender.id,
+        senderSessionName: sender.name,
+      });
+      const calls = ptyManager.deliverText.mock.calls;
+      // With impliedSubmit=false, only the text itself is sent — no submit suffix appended after it
+      const textCalls = calls.filter((c: any[]) => c[1] === 'hello' && c[2] === undefined);
+      expect(textCalls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('returns success with sessionId and name', async () => {
+      const { service, receiver, sender } = makeDeps();
+      const result = await service.sendInputToSession(receiver.id, '{Esc}', {
+        senderSessionId: sender.id,
+        senderSessionName: sender.name,
+      });
+      expect(result.success).toBe(true);
+      expect(result.sessionId).toBe(receiver.id);
+      expect(result.name).toBe(receiver.name);
+    });
+  });
 });

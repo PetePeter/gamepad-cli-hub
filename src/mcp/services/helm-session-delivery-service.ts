@@ -128,6 +128,54 @@ export class HelmSessionDeliveryService {
     };
   }
 
+  /**
+   * Send sequence-style terminal input to a session's PTY without HELM_MSG envelope.
+   * Used for TUI navigation: Esc, Tab, arrows, Ctrl combos, waits, and literal text.
+   */
+  async sendInputToSession(
+    sessionRef: string,
+    sequence: string,
+    options?: { senderSessionId?: string; senderSessionName?: string; impliedSubmit?: boolean; verify?: boolean },
+  ): Promise<{ success: true; sessionId: string; name: string; deliveryVerification?: DeliveryVerificationResult }> {
+    const session = this.findSession(sessionRef);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionRef}`);
+    }
+    if (!this.ptyManager.has(session.id)) {
+      throw new Error(`Session PTY is not running: ${session.id}`);
+    }
+    if (!options?.senderSessionId || !options?.senderSessionName) {
+      throw new Error('senderSessionId and senderSessionName are required — anonymous input is not allowed');
+    }
+    if (session.id === options.senderSessionId) {
+      throw new Error('Cannot send input from a session to itself — sender and receiver must be different sessions');
+    }
+
+    logger.debug(`[HelmSessionDelivery] session_send_input from "${options.senderSessionName}" to "${session.name}" (${session.id}): ${sequence.slice(0, 80)}`);
+
+    const verify = options.verify ?? true;
+    const deliveryVerification = await deliverPromptSequenceToSession({
+      sessionId: session.id,
+      text: sequence,
+      ptyManager: this.ptyManager,
+      sessionManager: this.sessionManager,
+      configLoader: this.configLoader,
+      impliedSubmit: options.impliedSubmit ?? false,
+      verifyDelivery: verify ? { label: 'terminal input', delayMs: getDeliveryVerifyDelayMs(), retrySubmit: false } : undefined,
+    });
+
+    if (deliveryVerification && deliveryVerification.status !== 'confirmed' && deliveryVerification.status !== 'retry_confirmed') {
+      logger.warn(`[HelmSessionDelivery] Delivery verification for terminal input to ${session.id}: ${deliveryVerification.status} (${deliveryVerification.detail})`);
+    }
+
+    return {
+      success: true,
+      sessionId: session.id,
+      name: session.name,
+      ...(deliveryVerification ? { deliveryVerification } : {}),
+    };
+  }
+
   private findSession(sessionRef: string): SessionInfo | null {
     const nameMatches = this.sessionManager.getAllSessions().filter((session) => session.name === sessionRef);
     if (nameMatches.length > 1) {

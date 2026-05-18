@@ -722,6 +722,41 @@ const TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'session_send_input',
+    title: 'Send Terminal Input To Session',
+    description:
+      'Send sequence-style terminal input to a running session PTY without HELM_MSG preamble. ' +
+      'Use this for TUI/terminal automation: navigating menus, pressing keys, typing text. ' +
+      'DESTINATION: Provide sessionId (the target session that will receive the input). ' +
+      'SENDER: Provide senderSessionId (your own session ID from the HELM_SESSION_ID env var). ' +
+      'IMPORTANT: Destination and sender MUST be different sessions — self-send is rejected. ' +
+      'Supports sequence syntax: {Esc}, {Tab}, {Enter}, {ArrowDown}, {Ctrl+C}, {Wait 200}, literal text. ' +
+      'No implicit Enter is appended unless impliedSubmit=true or the sequence includes {Enter}/{Send}. ' +
+      'After sending input, call session_read_terminal on the recipient to verify the input was received.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: '[DESTINATION] Target session ID — MUST be different from senderSessionId.',
+        },
+        senderSessionId: {
+          type: 'string',
+          description:
+            '[SENDER] Your session ID — MUST equal the HELM_SESSION_ID environment variable injected by Helm at startup.',
+        },
+        sequence: {
+          type: 'string',
+          description: 'Sequence-parser syntax to send: {Esc}, {Tab}, {Enter}, {ArrowDown}, {Ctrl+C}, {Wait 200}, literal text.',
+        },
+        impliedSubmit: { type: 'boolean', default: false },
+        verify: { type: 'boolean', default: true },
+      },
+      required: ['sessionId', 'senderSessionId', 'sequence'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'session_read_terminal',
     title: 'Read Session Terminal',
     description: 'Read the recent terminal tail for any known session by sessionId or exact name. Use this immediately after session_send_text handoffs to verify the recipient received the message and started responding. lines must be a positive integer (buffer holds up to 500). mode controls raw ANSI output, ANSI-stripped output, or both.',
@@ -1477,6 +1512,40 @@ export class LocalhostMcpServer {
             senderSessionId,
             senderSessionName,
             ...(typeof args.expectsResponse === 'boolean' ? { expectsResponse: args.expectsResponse } : {}),
+          },
+        );
+      }
+      case 'session_send_input': {
+        const explicitSenderId = typeof args.senderSessionId === 'string' ? args.senderSessionId : undefined;
+        const senderSessionId = explicitSenderId ?? authContext.sessionId;
+        if (!senderSessionId) {
+          throw new Error(
+            'senderSessionId is required — use the HELM_SESSION_ID environment variable injected by Helm at startup.',
+          );
+        }
+        let senderSessionName: string;
+        if (!explicitSenderId && authContext.sessionName) {
+          senderSessionName = authContext.sessionName;
+        } else {
+          const knownSessions = this.service.listSessions();
+          const senderSession = knownSessions.find((s) => s.id === senderSessionId);
+          if (!senderSession) {
+            throw new Error(
+              `Unknown sender session: senderSessionId "${senderSessionId}" does not match any active Helm session. ` +
+                'senderSessionId must be the exact value of the HELM_SESSION_ID environment variable ' +
+                'that Helm injected into your session at startup — do not guess or construct this value.',
+            );
+          }
+          senderSessionName = senderSession.name;
+        }
+        return this.service.sendInputToSession(
+          asString(args.sessionId, 'sessionId is required'),
+          asString(args.sequence, 'sequence is required'),
+          {
+            senderSessionId,
+            senderSessionName,
+            ...(typeof args.impliedSubmit === 'boolean' ? { impliedSubmit: args.impliedSubmit } : {}),
+            ...(typeof args.verify === 'boolean' ? { verify: args.verify } : {}),
           },
         );
       }

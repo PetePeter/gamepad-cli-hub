@@ -215,6 +215,7 @@ export const PRELOAD_API_DOMAINS = {
   ],
   system: [
     'systemOpenLogsFolder',
+    'systemOpenHelp',
   ],
   events: [
     'onPtyData',
