@@ -130,10 +130,14 @@ def main():
     run("git push origin HEAD --tags")
     print()
 
-    # 5. Create GitHub Release and upload installer EXE
+    # 5. Create GitHub Release and upload installer EXE + any HTML assets
     print("[5/5] Publishing to GitHub Releases...")
     tag = f"v{version}"
-    asset_args = " ".join(f'"{exe}"' for exe in exes)
+    html_assets = list(release_path.glob("*.html"))
+    for html in html_assets:
+        print(f"  ASSET: {html.name}")
+    all_assets = exes + html_assets
+    asset_args = " ".join(f'"{a}"' for a in all_assets)
     notes_file = release_path / "RELEASE_NOTES.md"
     if notes_file.exists():
         print(f"  NOTES: Using release notes from {notes_file.name}")
