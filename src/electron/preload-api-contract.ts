@@ -98,6 +98,11 @@ export const PRELOAD_API_DOMAINS = {
   skills: [
     'skillList',
     'skillGet',
+    'skillGetStats',
+    'skillSubmitFeedback',
+    'skillClearReviews',
+    'skillResetUseCount',
+    'skillResetAllCounts',
     'skillCreate',
     'skillUpdate',
     'skillDelete',

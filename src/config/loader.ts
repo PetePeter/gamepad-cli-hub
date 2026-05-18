@@ -519,6 +519,10 @@ export class ConfigLoader {
     return path.join(this.configDir, 'skills.yaml');
   }
 
+  getSkillAnalyticsPath(): string {
+    return path.join(this.configDir, 'skill-analytics.json');
+  }
+
   getWorkingDirectories(): WorkingDirectory[] {
     this.ensureLoaded();
     return this.activeProfile!.workingDirectories || [];

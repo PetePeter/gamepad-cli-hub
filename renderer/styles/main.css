@@ -1991,6 +1991,132 @@ kbd {
   white-space: nowrap;
 }
 
+.skill-list-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.skill-list-rating {
+  color: #c8963e;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.skill-tabs {
+  display: flex;
+  gap: var(--spacing-xs);
+  border-bottom: 1px solid var(--border);
+  margin: calc(var(--spacing-md) * -1) calc(var(--spacing-md) * -1) var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md) 0;
+  background: var(--bg-tertiary);
+}
+
+.skill-tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.skill-tab--active {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.skill-reviews-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.skill-reviews-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+.skill-review-score {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.skill-review-meta {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.skill-rating-bars,
+.skill-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.skill-rating-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: var(--spacing-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.skill-rating-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+}
+
+.skill-rating-fill {
+  height: 100%;
+  background: #c8963e;
+}
+
+.skill-rating-count {
+  text-align: right;
+}
+
+.skill-review-entry {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  padding: var(--spacing-sm);
+}
+
+.skill-review-entry__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  margin-bottom: var(--spacing-xs);
+}
+
+.skill-review-stars {
+  color: #c8963e;
+  letter-spacing: 0;
+}
+
+.skill-review-entry p {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.skill-review-improvement {
+  color: var(--text-secondary) !important;
+  margin-top: var(--spacing-xs) !important;
+}
+
 .field-group {
   display: flex;
   flex-direction: column;

@@ -21,6 +21,25 @@ export interface SkillSummary {
   projectIds: string[];
   type?: string;
   source?: SkillSource;
+  useCount: number;
+  avgRating: number;
+  reviewCount: number;
+}
+
+export interface SkillReview {
+  stars: number;
+  summary: string;
+  improvement?: string;
+  cliName: string;
+  cliType: string;
+  timestamp: string;
+}
+
+export interface SkillStats {
+  useCount: number;
+  avgRating: number;
+  reviewCount: number;
+  reviews: SkillReview[];
 }
 
 export interface SkillCreateInput {

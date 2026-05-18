@@ -196,6 +196,9 @@ function toSummary(skill: Skill): SkillSummary {
     projectIds: [...skill.projectIds],
     type: skill.type,
     source: skill.source,
+    useCount: 0,
+    avgRating: 0,
+    reviewCount: 0,
   };
 }
 

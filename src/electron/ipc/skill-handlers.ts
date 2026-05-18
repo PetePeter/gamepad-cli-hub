@@ -1,12 +1,17 @@
 import { ipcMain } from 'electron';
 import type { SkillManager } from '../../session/skill-manager.js';
+import type { SkillAnalyticsManager } from '../../session/skill-analytics-manager.js';
 import type { SkillCreateInput, SkillUpdateInput } from '../../types/skill.js';
 import { logger } from '../../utils/logger.js';
 
-export function setupSkillHandlers(skillManager: SkillManager): void {
+export function setupSkillHandlers(skillManager: SkillManager, skillAnalyticsManager: SkillAnalyticsManager): void {
   ipcMain.handle('skill:list', () => {
     try {
-      return skillManager.list();
+      return skillManager.list().map((skill) => {
+        if (skill.source === 'system') return { ...skill, useCount: 0, avgRating: 0, reviewCount: 0 };
+        const { reviews: _reviews, ...stats } = skillAnalyticsManager.getStats(skill.id);
+        return { ...skill, ...stats };
+      });
     } catch (error) {
       logger.error(`[IPC] Failed to list skills: ${error}`);
       return [];
@@ -19,6 +24,70 @@ export function setupSkillHandlers(skillManager: SkillManager): void {
     } catch (error) {
       logger.error(`[IPC] Failed to get skill ${id}: ${error}`);
       return null;
+    }
+  });
+
+  ipcMain.handle('skill:getStats', (_event, id: string) => {
+    try {
+      const skill = skillManager.get(id);
+      if (skill?.source === 'system') return { useCount: 0, avgRating: 0, reviewCount: 0, reviews: [] };
+      return skillAnalyticsManager.getStats(id);
+    } catch (error) {
+      logger.error(`[IPC] Failed to get skill stats ${id}: ${error}`);
+      return { useCount: 0, avgRating: 0, reviewCount: 0, reviews: [] };
+    }
+  });
+
+  ipcMain.handle('skill:submitFeedback', (_event, id: string, stars: number, summary: string, improvement?: string) => {
+    try {
+      const skill = skillManager.get(id);
+      if (!skill) return { success: false, error: 'Skill not found' };
+      return {
+        success: true,
+        stats: skillAnalyticsManager.addReview(id, {
+          stars,
+          summary,
+          ...(improvement ? { improvement } : {}),
+          cliName: 'Helm UI',
+          cliType: 'helm-ui',
+          timestamp: new Date().toISOString(),
+        }, { source: skill.source }),
+      };
+    } catch (error) {
+      logger.error(`[IPC] Failed to submit skill feedback ${id}: ${error}`);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  ipcMain.handle('skill:clearReviews', (_event, id: string) => {
+    try {
+      const skill = skillManager.get(id);
+      if (skill?.source === 'system') return { success: true, stats: { useCount: 0, avgRating: 0, reviewCount: 0, reviews: [] } };
+      return { success: true, stats: skillAnalyticsManager.clearReviews(id) };
+    } catch (error) {
+      logger.error(`[IPC] Failed to clear skill reviews ${id}: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('skill:resetUseCount', (_event, id: string) => {
+    try {
+      const skill = skillManager.get(id);
+      if (skill?.source === 'system') return { success: true, stats: { useCount: 0, avgRating: 0, reviewCount: 0, reviews: [] } };
+      return { success: true, stats: skillAnalyticsManager.resetUseCount(id) };
+    } catch (error) {
+      logger.error(`[IPC] Failed to reset skill use count ${id}: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('skill:resetAllCounts', () => {
+    try {
+      skillAnalyticsManager.resetAllCounts();
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to reset all skill use counts: ${error}`);
+      return { success: false, error: String(error) };
     }
   });
 

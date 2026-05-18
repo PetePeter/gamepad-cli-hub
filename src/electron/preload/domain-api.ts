@@ -425,6 +425,12 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
 
   skillList: () => ipcRenderer.invoke('skill:list'),
   skillGet: (id: string) => ipcRenderer.invoke('skill:get', id),
+  skillGetStats: (id: string) => ipcRenderer.invoke('skill:getStats', id),
+  skillSubmitFeedback: (id: string, stars: number, summary: string, improvement?: string) =>
+    ipcRenderer.invoke('skill:submitFeedback', id, stars, summary, improvement),
+  skillClearReviews: (id: string) => ipcRenderer.invoke('skill:clearReviews', id),
+  skillResetUseCount: (id: string) => ipcRenderer.invoke('skill:resetUseCount', id),
+  skillResetAllCounts: () => ipcRenderer.invoke('skill:resetAllCounts'),
   skillCreate: (input: { name: string; description?: string; body?: string; aiAmendable?: boolean; allProjects?: boolean; projectIds?: string[] }) =>
     ipcRenderer.invoke('skill:create', input),
   skillUpdate: (id: string, updates: { name?: string; description?: string; body?: string; aiAmendable?: boolean; allProjects?: boolean; projectIds?: string[] }) =>

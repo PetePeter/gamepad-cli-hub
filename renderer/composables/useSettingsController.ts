@@ -58,6 +58,18 @@ export interface SettingsSkillSummary {
   projectIds: string[];
   type?: string;
   source?: 'user' | 'system';
+  useCount: number;
+  avgRating: number;
+  reviewCount: number;
+}
+
+export interface SettingsSkillReview {
+  stars: number;
+  summary: string;
+  improvement?: string;
+  cliName: string;
+  cliType: string;
+  timestamp: string;
 }
 
 export interface SettingsSkillDraft {
@@ -70,6 +82,10 @@ export interface SettingsSkillDraft {
   projectIds: string[];
   type?: string;
   source?: 'user' | 'system';
+  useCount: number;
+  avgRating: number;
+  reviewCount: number;
+  reviews: SettingsSkillReview[];
 }
 
 export interface SettingsBindingEntry {
@@ -97,6 +113,10 @@ function emptySkillDraft(): SettingsSkillDraft {
     projectIds: [],
     type: undefined,
     source: undefined,
+    useCount: 0,
+    avgRating: 0,
+    reviewCount: 0,
+    reviews: [],
   };
 }
 
@@ -319,7 +339,16 @@ export function useSettingsController(options: {
 
   async function loadSkills(): Promise<void> {
     try {
-      settingsSkills.value = await skillsClient.skillList() || [];
+      const skills = await skillsClient.skillList() || [];
+      settingsSkills.value = await Promise.all(skills.map(async (skill: SettingsSkillSummary) => {
+        const stats = await skillsClient.skillGetStats(skill.id);
+        return {
+          ...skill,
+          useCount: stats?.useCount ?? skill.useCount ?? 0,
+          avgRating: stats?.avgRating ?? skill.avgRating ?? 0,
+          reviewCount: stats?.reviewCount ?? skill.reviewCount ?? 0,
+        };
+      }));
       if (settingsSkills.value.length > 0) {
         const currentId = settingsSkillDraft.value.id || settingsSkills.value[0].id;
         await onSkillSelect(currentId);
@@ -773,6 +802,7 @@ export function useSettingsController(options: {
   async function onSkillSelect(id: string): Promise<void> {
     const skill = await skillsClient.skillGet(id);
     if (!skill) return;
+    const stats = await skillsClient.skillGetStats(id);
     settingsSkillDraft.value = {
       id: skill.id,
       name: skill.name || '',
@@ -783,6 +813,10 @@ export function useSettingsController(options: {
       projectIds: Array.isArray(skill.projectIds) ? skill.projectIds : [],
       type: skill.type,
       source: skill.source,
+      useCount: stats?.useCount ?? 0,
+      avgRating: stats?.avgRating ?? 0,
+      reviewCount: stats?.reviewCount ?? 0,
+      reviews: Array.isArray(stats?.reviews) ? stats.reviews : [],
     };
   }
 
@@ -841,6 +875,40 @@ export function useSettingsController(options: {
     }
     await loadSkills();
     logEvent('Deleted skill');
+  }
+
+  async function onSkillClearReviews(id: string): Promise<void> {
+    if (!id) return;
+    const result = await skillsClient.skillClearReviews(id);
+    if (result?.success === false) {
+      logEvent(`Failed to clear skill reviews: ${result.error || 'unknown error'}`);
+      return;
+    }
+    await loadSkills();
+    await onSkillSelect(id);
+    logEvent('Cleared skill reviews');
+  }
+
+  async function onSkillResetUseCount(id: string): Promise<void> {
+    if (!id) return;
+    const result = await skillsClient.skillResetUseCount(id);
+    if (result?.success === false) {
+      logEvent(`Failed to reset skill use count: ${result.error || 'unknown error'}`);
+      return;
+    }
+    await loadSkills();
+    await onSkillSelect(id);
+    logEvent('Reset skill use count');
+  }
+
+  async function onSkillResetAllCounts(): Promise<void> {
+    const result = await skillsClient.skillResetAllCounts();
+    if (result?.success === false) {
+      logEvent(`Failed to reset skill use counts: ${result.error || 'unknown error'}`);
+      return;
+    }
+    await loadSkills();
+    logEvent('Reset all skill use counts');
   }
 
   function onBindingAdd(button?: string): void {
@@ -996,6 +1064,9 @@ export function useSettingsController(options: {
     onSkillSave,
     onSkillDelete,
     onSkillClone,
+    onSkillClearReviews,
+    onSkillResetUseCount,
+    onSkillResetAllCounts,
     onBindingAdd,
     onBindingDelete,
     onBindingCopyFrom,

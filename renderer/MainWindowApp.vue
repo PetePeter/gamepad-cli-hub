@@ -246,6 +246,9 @@ const {
   onSkillSave,
   onSkillDelete,
   onSkillClone,
+  onSkillClearReviews,
+  onSkillResetUseCount,
+  onSkillResetAllCounts,
   onBindingAdd,
   onBindingDelete,
   onBindingCopyFrom,
@@ -923,6 +926,9 @@ onUnmounted(() => {
               @save="onSkillSave"
               @delete="onSkillDelete"
               @clone="onSkillClone"
+              @clear-reviews="onSkillClearReviews"
+              @reset-use-count="onSkillResetUseCount"
+              @reset-all-counts="onSkillResetAllCounts"
             />
             <BackupTab
               v-else-if="activeTab === 'backups'"

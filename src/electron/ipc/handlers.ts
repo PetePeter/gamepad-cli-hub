@@ -17,6 +17,7 @@ import { PlanManager } from '../../session/plan-manager.js';
 import { ProjectStore } from '../../session/project-store.js';
 import { ContextManager } from '../../session/context-manager.js';
 import { SkillManager } from '../../session/skill-manager.js';
+import { SkillAnalyticsManager } from '../../session/skill-analytics-manager.js';
 import { PlanBackupManager } from '../../session/plan-backup-manager.js';
 import { PatternMatcher } from '../../session/pattern-matcher.js';
 import { ScheduledTaskManager } from '../../session/scheduled-task-manager.js';
@@ -97,7 +98,9 @@ export function registerIPCHandlers(
   const planManager = new PlanManager(projectStore);
   const contextManager = new ContextManager(planManager);
   const getSkillsPath = (configLoader as ConfigLoader & { getSkillsPath?: () => string }).getSkillsPath;
+  const getSkillAnalyticsPath = (configLoader as ConfigLoader & { getSkillAnalyticsPath?: () => string }).getSkillAnalyticsPath;
   const skillManager = new SkillManager(getSkillsPath ? getSkillsPath.call(configLoader) : 'src/config/skills.yaml');
+  const skillAnalyticsManager = new SkillAnalyticsManager(getSkillAnalyticsPath ? getSkillAnalyticsPath.call(configLoader) : 'src/config/skill-analytics.json');
   const backupManager = new PlanBackupManager(planManager);
   const scheduledTaskManager = new ScheduledTaskManager(sessionManager, ptyManager, planManager, configLoader);
   const notificationManager = new NotificationManager(windowManager, sessionManager);
@@ -108,7 +111,7 @@ export function registerIPCHandlers(
   notificationManager.setActiveSessionIdGetter(() => sessionManager.getActiveSession()?.id ?? null);
 
   // Create HelmControlService before Telegram modules (Telegram relay needs it)
-  const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager, configLoader, undefined, contextManager, scheduledTaskManager, projectStore, skillManager);
+  const helmControlService = new HelmControlService(planManager, sessionManager, ptyManager, configLoader, undefined, contextManager, scheduledTaskManager, projectStore, skillManager, skillAnalyticsManager);
   helmControlService.setNotificationManager(notificationManager);
 
   const telegramBot = new TelegramBotCore();
@@ -163,7 +166,7 @@ export function registerIPCHandlers(
   setupSystemHandlers(dirname ?? process.cwd());
   setupDraftHandlers(draftManager);
   setupProjectHandlers(projectStore, planManager);
-  setupSkillHandlers(skillManager);
+  setupSkillHandlers(skillManager, skillAnalyticsManager);
   setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher);
   setupScheduledTaskHandlers(scheduledTaskManager, windowManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);

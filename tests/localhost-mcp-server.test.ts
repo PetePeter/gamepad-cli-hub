@@ -25,6 +25,7 @@ function makeService(): HelmControlService {
       allProjects: true,
       projectIds: [],
     })),
+    submitSkillFeedback: vi.fn((_id: string, _stars: number, _summary: string, _improvement?: string) => ({ useCount: 1, avgRating: 5, reviewCount: 1, reviews: [] })),
     deleteSkill: vi.fn(() => true),
     listDirectories: vi.fn(() => [{ dirPath: 'X:\\coding\\gamepad-cli-hub', name: 'Helm', source: ['config', 'plans'], planCount: 8, sessionCount: 0 }]),
     listPlans: vi.fn((dirPath: string) => [{ id: 'p1', dirPath, title: 'Task', description: 'Desc', status: 'ready' }]),
@@ -322,6 +323,16 @@ describe('LocalhostMcpServer', () => {
     });
     const getJson = await getResponse.json();
     expect(getJson.result.structuredContent.body).toBe('Check the diff');
+
+    const feedbackResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 321,
+      method: 'tools/call',
+      params: { name: 'skills_submit_feedback', arguments: { skillId: 'skill-1', stars: 5, summary: 'Useful' } },
+    }, { 'x-helm-session-id': 's1' });
+    const feedbackJson = await feedbackResponse.json();
+    expect(feedbackJson.result.structuredContent.reviewCount).toBe(1);
+    expect(service.submitSkillFeedback).toHaveBeenCalledWith('skill-1', 5, 'Useful', undefined, expect.objectContaining({ sessionId: 's1' }));
 
     const createResponse = await rpc(port, 'secret-token', {
       jsonrpc: '2.0',

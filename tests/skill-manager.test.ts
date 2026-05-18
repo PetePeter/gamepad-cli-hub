@@ -35,6 +35,10 @@ describe('SkillManager', () => {
       allProjects: true,
       projectIds: [],
       source: 'user',
+      type: undefined,
+      useCount: 0,
+      avgRating: 0,
+      reviewCount: 0,
     }]);
     expect(manager.get(created.id)?.body).toBe('Check correctness');
 

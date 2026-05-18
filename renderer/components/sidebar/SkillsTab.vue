@@ -10,6 +10,18 @@ export interface SkillSummary {
   projectIds: string[];
   type?: string;
   source?: 'user' | 'system';
+  useCount: number;
+  avgRating: number;
+  reviewCount: number;
+}
+
+export interface SkillReview {
+  stars: number;
+  summary: string;
+  improvement?: string;
+  cliName: string;
+  cliType: string;
+  timestamp: string;
 }
 
 export interface SkillDraft {
@@ -22,6 +34,10 @@ export interface SkillDraft {
   projectIds: string[];
   type?: string;
   source?: 'user' | 'system';
+  useCount: number;
+  avgRating: number;
+  reviewCount: number;
+  reviews: SkillReview[];
 }
 
 export interface SkillProject {
@@ -42,6 +58,9 @@ const emit = defineEmits<{
   save: [draft: SkillDraft];
   delete: [id: string];
   clone: [id: string];
+  clearReviews: [id: string];
+  resetUseCount: [id: string];
+  resetAllCounts: [];
 }>();
 
 const localDraft = ref<SkillDraft>({ ...props.draft });
@@ -57,6 +76,7 @@ const origProjectIds = ref([...props.draft.projectIds]);
 const hydratingFromProps = ref(false);
 const saveStatus = ref<'clean' | 'unsaved' | 'saving' | 'saved'>('clean');
 const autoSaveTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+const activeTab = ref<'definition' | 'reviews'>('definition');
 
 watch(() => props.draft, (draft) => {
   hydratingFromProps.value = true;
@@ -121,6 +141,18 @@ const saveLabel = computed(() => localDraft.value.id ? 'Save Skill' : 'Create Sk
 const isSystemSkill = computed(() => localDraft.value.source === 'system');
 const canEdit = computed(() => !isSystemSkill.value && Boolean(localDraft.value.id));
 const canClone = computed(() => isSystemSkill.value && Boolean(localDraft.value.type));
+const reviewRows = computed(() => [...(localDraft.value.reviews || [])].sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+const ratingBuckets = computed(() => {
+  const buckets = [0, 0, 0, 0, 0];
+  for (const review of localDraft.value.reviews || []) {
+    if (review.stars >= 1 && review.stars <= 5) buckets[review.stars - 1] += 1;
+  }
+  return buckets.map((count, index) => ({
+    stars: index + 1,
+    count,
+    percent: localDraft.value.reviewCount > 0 ? Math.round((count / localDraft.value.reviewCount) * 100) : 0,
+  })).reverse();
+});
 const selectedProjects = computed(() => {
   if (localDraft.value.allProjects) return [{ id: '__all__', name: 'All projects' }];
   const names = new Map(props.projects.map((project) => [project.id, project.name || project.canonicalPath]));
@@ -152,6 +184,11 @@ function toggleProject(projectId: string): void {
   localDraft.value.projectIds = [...selected];
   localDraft.value.allProjects = localDraft.value.projectIds.length === 0;
 }
+
+function formatReviewDate(timestamp: string): string {
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? timestamp : date.toLocaleDateString();
+}
 </script>
 
 <template>
@@ -169,15 +206,24 @@ function toggleProject(projectId: string): void {
             <span class="settings-list-item__name">{{ skill.name }}</span>
             <span class="settings-list-item__detail">{{ skill.description }}</span>
           </div>
-          <span class="settings-skill-badge" :class="{
-            'settings-skill-badge--open': skill.aiAmendable,
-            'settings-skill-badge--system': skill.source === 'system'
-          }">
-            {{ skill.source === 'system' ? 'system' : (skill.aiAmendable ? 'AI amend' : 'protected') }}
-          </span>
-          <span class="settings-skill-scope">
-            {{ skill.allProjects ? 'all projects' : `${skill.projectIds.length} project${skill.projectIds.length === 1 ? '' : 's'}` }}
-          </span>
+          <div class="skill-list-meta">
+            <span class="settings-skill-badge" :class="{
+              'settings-skill-badge--open': skill.aiAmendable,
+              'settings-skill-badge--system': skill.source === 'system'
+            }">
+              {{ skill.source === 'system' ? 'system' : (skill.aiAmendable ? 'AI amend' : 'protected') }}
+            </span>
+            <span v-if="skill.reviewCount > 0" class="skill-list-rating">
+              <span>★</span>
+              <span>{{ skill.avgRating.toFixed(1) }}</span>
+            </span>
+          </div>
+          <div class="skill-list-meta">
+            <span class="settings-skill-scope">
+              {{ skill.allProjects ? 'all projects' : `${skill.projectIds.length} project${skill.projectIds.length === 1 ? '' : 's'}` }}
+            </span>
+            <span class="settings-skill-scope">{{ skill.useCount }} uses</span>
+          </div>
         </button>
       </div>
 
@@ -189,120 +235,183 @@ function toggleProject(projectId: string): void {
         <button class="btn btn--secondary btn--sm focusable" @click="emit('new')">
           + New Skill
         </button>
+        <button class="btn btn--secondary btn--sm focusable" @click="emit('resetAllCounts')">
+          Reset All Counts
+        </button>
       </div>
     </div>
 
     <div class="settings-skill-editor">
-      <div class="field-group">
-        <label class="field-label">Name</label>
-        <input
-          v-model="localDraft.name"
-          class="field-input focusable"
-          type="text"
-          :disabled="isSystemSkill"
-        />
-      </div>
-
-      <div class="field-group">
-        <label class="field-label">When to trigger</label>
-        <textarea
-          v-model="localDraft.description"
-          class="field-input focusable"
-          rows="3"
-          :disabled="isSystemSkill"
-        />
-      </div>
-
-      <div class="field-group">
-        <label class="field-label">Body</label>
-        <textarea
-          v-model="localDraft.body"
-          class="field-input focusable settings-skill-body"
-          rows="12"
-          :disabled="isSystemSkill"
-        />
-      </div>
-
-      <div class="field-group">
-        <label class="field-label">Projects</label>
-        <div class="settings-skill-project-picker">
-          <button
-            type="button"
-            class="settings-skill-project-option focusable"
-            :class="{ 'settings-skill-project-option--selected': localDraft.allProjects }"
-            :disabled="isSystemSkill"
-            @click="selectAllProjects"
-          >
-            All projects
-          </button>
-          <button
-            v-for="project in projects"
-            :key="project.id"
-            type="button"
-            class="settings-skill-project-option focusable"
-            :class="{ 'settings-skill-project-option--selected': localDraft.projectIds.includes(project.id) && !localDraft.allProjects }"
-            :disabled="isSystemSkill"
-            @click="toggleProject(project.id)"
-          >
-            {{ project.name || project.canonicalPath }}
-          </button>
-        </div>
-        <div class="settings-skill-project-chips">
-          <span
-            v-for="project in selectedProjects"
-            :key="project.id"
-            class="settings-skill-project-chip"
-          >
-            {{ project.name }}
-          </span>
-        </div>
-      </div>
-
-      <label class="settings-skill-checkbox">
-        <input
-          v-model="localDraft.aiAmendable"
-          type="checkbox"
-          class="focusable"
-          :disabled="isSystemSkill"
-        />
-        <span>
-          <strong>Allow AI to amend this skill</strong>
-          <small>Unchecked skills are protected from MCP updates.</small>
-        </span>
-      </label>
-
-      <p class="settings-form__hint">
-        Skills are always read fresh from disk; AI amendments are visible on the next session_info call.
-      </p>
-
-      <div class="settings-tool-actions">
-        <button v-if="canClone" class="btn btn--secondary focusable" @click="emit('clone', localDraft.id)">
-          Clone as Override
+      <div class="skill-tabs">
+        <button
+          class="skill-tab focusable"
+          :class="{ 'skill-tab--active': activeTab === 'definition' }"
+          @click="activeTab = 'definition'"
+        >
+          Definition
         </button>
         <button
-          v-else
-          class="btn btn--primary focusable"
-          @click="onSave"
-          :disabled="isSystemSkill"
+          class="skill-tab focusable"
+          :class="{ 'skill-tab--active': activeTab === 'reviews' }"
+          @click="activeTab = 'reviews'"
         >
-          {{ saveLabel }}
+          Reviews
         </button>
-        <template v-if="!isSystemSkill">
-          <button
-            v-if="!confirmDelete"
-            class="btn btn--danger focusable"
-            :disabled="!canDelete"
-            @click="confirmDelete = true"
-          >
-            Delete
+      </div>
+
+      <template v-if="activeTab === 'definition'">
+        <div class="field-group">
+          <label class="field-label">Name</label>
+          <input
+            v-model="localDraft.name"
+            class="field-input focusable"
+            type="text"
+            :disabled="isSystemSkill"
+          />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">When to trigger</label>
+          <textarea
+            v-model="localDraft.description"
+            class="field-input focusable"
+            rows="3"
+            :disabled="isSystemSkill"
+          />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Body</label>
+          <textarea
+            v-model="localDraft.body"
+            class="field-input focusable settings-skill-body"
+            rows="12"
+            :disabled="isSystemSkill"
+          />
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Projects</label>
+          <div class="settings-skill-project-picker">
+            <button
+              type="button"
+              class="settings-skill-project-option focusable"
+              :class="{ 'settings-skill-project-option--selected': localDraft.allProjects }"
+              :disabled="isSystemSkill"
+              @click="selectAllProjects"
+            >
+              All projects
+            </button>
+            <button
+              v-for="project in projects"
+              :key="project.id"
+              type="button"
+              class="settings-skill-project-option focusable"
+              :class="{ 'settings-skill-project-option--selected': localDraft.projectIds.includes(project.id) && !localDraft.allProjects }"
+              :disabled="isSystemSkill"
+              @click="toggleProject(project.id)"
+            >
+              {{ project.name || project.canonicalPath }}
+            </button>
+          </div>
+          <div class="settings-skill-project-chips">
+            <span
+              v-for="project in selectedProjects"
+              :key="project.id"
+              class="settings-skill-project-chip"
+            >
+              {{ project.name }}
+            </span>
+          </div>
+        </div>
+
+        <label class="settings-skill-checkbox">
+          <input
+            v-model="localDraft.aiAmendable"
+            type="checkbox"
+            class="focusable"
+            :disabled="isSystemSkill"
+          />
+          <span>
+            <strong>Allow AI to amend this skill</strong>
+            <small>Unchecked skills are protected from MCP updates.</small>
+          </span>
+        </label>
+
+        <p class="settings-form__hint">
+          Skills are always read fresh from disk; AI amendments are visible on the next session_info call.
+        </p>
+
+        <div class="settings-tool-actions">
+          <button v-if="canClone" class="btn btn--secondary focusable" @click="emit('clone', localDraft.id)">
+            Clone as Override
           </button>
-          <template v-else>
-            <span class="skill-confirm-delete">Delete?</span>
-            <button class="btn btn--danger focusable" @click="emit('delete', localDraft.id)">Yes</button>
-            <button class="btn btn--secondary focusable" @click="confirmDelete = false">No</button>
+          <button
+            v-else
+            class="btn btn--primary focusable"
+            @click="onSave"
+            :disabled="isSystemSkill"
+          >
+            {{ saveLabel }}
+          </button>
+          <template v-if="!isSystemSkill">
+            <button
+              v-if="!confirmDelete"
+              class="btn btn--danger focusable"
+              :disabled="!canDelete"
+              @click="confirmDelete = true"
+            >
+              Delete
+            </button>
+            <template v-else>
+              <span class="skill-confirm-delete">Delete?</span>
+              <button class="btn btn--danger focusable" @click="emit('delete', localDraft.id)">Yes</button>
+              <button class="btn btn--secondary focusable" @click="confirmDelete = false">No</button>
+            </template>
           </template>
-        </template>
-        <span v-if="saveStatusText" class="skill-save-status">{{ saveStatusText }}</span>
+          <span v-if="saveStatusText" class="skill-save-status">{{ saveStatusText }}</span>
+        </div>
+      </template>
+
+      <div v-else class="skill-reviews-panel">
+        <div class="skill-reviews-header">
+          <div>
+            <div class="skill-review-score">{{ localDraft.avgRating.toFixed(1) }} / 5</div>
+            <div class="skill-review-meta">{{ localDraft.reviewCount }} reviews - {{ localDraft.useCount }} uses</div>
+          </div>
+          <div class="settings-tool-actions">
+            <button class="btn btn--secondary btn--sm focusable" @click="emit('resetUseCount', localDraft.id)">
+              Reset Count
+            </button>
+            <button class="btn btn--danger btn--sm focusable" @click="emit('clearReviews', localDraft.id)">
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <div class="skill-rating-bars">
+          <div v-for="bucket in ratingBuckets" :key="bucket.stars" class="skill-rating-row">
+            <span class="skill-rating-label">{{ bucket.stars }} star</span>
+            <div class="skill-rating-track">
+              <div class="skill-rating-fill" :style="{ width: `${bucket.percent}%` }" />
+            </div>
+            <span class="skill-rating-count">{{ bucket.count }}</span>
+          </div>
+        </div>
+
+        <div class="skill-review-list">
+          <article v-for="review in reviewRows" :key="`${review.timestamp}-${review.cliType}`" class="skill-review-entry">
+            <div class="skill-review-entry__head">
+              <span class="skill-review-stars">{{ '★'.repeat(review.stars) }}{{ '☆'.repeat(5 - review.stars) }}</span>
+              <span>{{ review.cliName }} - {{ review.cliType }} - {{ formatReviewDate(review.timestamp) }}</span>
+            </div>
+            <p>{{ review.summary }}</p>
+            <p v-if="review.improvement" class="skill-review-improvement">{{ review.improvement }}</p>
+          </article>
+          <div v-if="reviewRows.length === 0" class="tools-empty">
+            No reviews yet.
+          </div>
+        </div>
       </div>
     </div>
   </div>
