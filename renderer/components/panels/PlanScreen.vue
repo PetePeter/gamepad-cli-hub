@@ -73,6 +73,7 @@ const emit = defineEmits<{
   addNode: [];
   addContext: [];
   exportDir: [];
+  openPlanExternal: [];
   clearDone: [];
   popOut: [];
   createSequence: [title: string, missionStatement: string, sharedMemory: string];
@@ -739,6 +740,7 @@ onUnmounted(() => {
           title="Open this planner in a detached window"
           @click="emit('popOut')"
         >↗ Pop Out</button>
+        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openPlanExternal')" title="Open selected plan as Markdown (read-only)">📄 Open Plan</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('exportDir')">⬆ Export Dir</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('clearDone')">🧹 Clear Done</button>
         <button class="plan-header__btn plan-header__btn--secondary" @click="emit('openBackups')" title="Backups (R)">💾 Backups</button>

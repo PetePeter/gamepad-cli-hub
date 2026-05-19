@@ -27,6 +27,7 @@ import {
   onPlanDeleteSequence,
   onPlanDeleteSequenceWithPlans,
   onPlanExportDirectory,
+  onPlanOpenExternal,
   onPlanNodeApply,
   onPlanNodeClick,
   onPlanNodeComplete,
@@ -250,6 +251,7 @@ onUnmounted(() => {
       @add-node="onPlanAddNode()"
       @add-context="onPlanAddContext()"
       @export-dir="onPlanExportDirectory()"
+      @open-plan-external="onPlanOpenExternal()"
       @clear-done="onPlanClearDone()"
       @create-sequence="onPlanCreateSequence"
       @assign-sequence="onPlanAssignSequence"

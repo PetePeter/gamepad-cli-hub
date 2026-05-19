@@ -167,7 +167,7 @@ export function registerIPCHandlers(
   setupDraftHandlers(draftManager);
   setupProjectHandlers(projectStore, planManager);
   setupSkillHandlers(skillManager, skillAnalyticsManager);
-  setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher);
+  setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher, dirname);
   setupScheduledTaskHandlers(scheduledTaskManager, windowManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);

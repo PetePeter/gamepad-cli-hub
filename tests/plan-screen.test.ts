@@ -23,6 +23,7 @@ const mockPlanSequenceAssign = vi.fn();
 const mockPlanSequenceDelete = vi.fn();
 const mockPlanSequenceDeleteWithPlans = vi.fn();
 const mockPlanExportDirectory = vi.fn();
+const mockPlanOpenExternal = vi.fn();
 const mockPlanWriteFile = vi.fn();
 const mockPlanReadFile = vi.fn();
 const mockPlanClearCompleted = vi.fn();
@@ -152,6 +153,7 @@ describe('plan screen bridge', () => {
     mockPlanSequenceDelete.mockReset();
     mockPlanSequenceDeleteWithPlans.mockReset();
     mockPlanExportDirectory.mockReset();
+    mockPlanOpenExternal.mockReset();
     mockPlanWriteFile.mockReset();
     mockPlanReadFile.mockReset();
     mockPlanClearCompleted.mockReset();
@@ -193,6 +195,7 @@ describe('plan screen bridge', () => {
       planSequenceAssign: mockPlanSequenceAssign,
       planSequenceDeleteWithPlans: mockPlanSequenceDeleteWithPlans,
       planExportDirectory: mockPlanExportDirectory,
+      planOpenExternal: mockPlanOpenExternal,
       planWriteFile: mockPlanWriteFile,
       planReadFile: mockPlanReadFile,
       planClearCompleted: mockPlanClearCompleted,
@@ -1218,6 +1221,50 @@ describe('plan screen bridge', () => {
 
     expect(mockPlanExportDirectory).toHaveBeenCalledWith('/test/dir');
     expect(mockPlanWriteFile).toHaveBeenCalledWith('/tmp/plans.json', '{"items":[]}');
+  });
+
+  it('opens selected plan externally via planOpenExternal', async () => {
+    const mod = await getModule();
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: 'Alpha', status: 'planning', createdAt: 1, updatedAt: 1 };
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    mockPlanOpenExternal.mockResolvedValue({ success: true, path: '/tmp/helm-plan-export.md' });
+
+    await mod.showPlanScreen('/test/dir');
+    mod.onPlanOpenExternal();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockPlanOpenExternal).toHaveBeenCalledWith('a');
+  });
+
+  it('shows notice when no plan is selected for external open', async () => {
+    const mod = await getModule();
+    mockPlanList.mockResolvedValue([]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout([]));
+
+    await mod.showPlanScreen('/test/dir');
+    mod.onPlanOpenExternal();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockPlanOpenExternal).not.toHaveBeenCalled();
+    expect(mod.planScreenState.notice).toContain('Select');
+  });
+
+  it('shows notice when planOpenExternal returns failure', async () => {
+    const mod = await getModule();
+    const item = { id: 'a', dirPath: '/test/dir', title: 'A', description: '', status: 'planning', createdAt: 1, updatedAt: 1 };
+    mockPlanList.mockResolvedValue([item]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockComputeLayout.mockReturnValue(fakeLayout(['a']));
+    mockPlanOpenExternal.mockResolvedValue({ success: false, error: 'Plan not found' });
+
+    await mod.showPlanScreen('/test/dir');
+    mod.onPlanOpenExternal();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mod.planScreenState.notice).toContain('not found');
   });
 
   it('seeds clear-done confirmation state', async () => {

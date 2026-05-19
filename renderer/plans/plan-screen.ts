@@ -961,6 +961,27 @@ export function onPlanExportDirectory(): void {
   void handleExportDirectory();
 }
 
+async function handleOpenPlanExternal(): Promise<void> {
+  const selected = getSelectedItem();
+  if (!selected) {
+    showBriefNotice('Select a plan first');
+    return;
+  }
+  try {
+    const result = await plansClient.planOpenExternal?.(selected.id);
+    if (!result?.success) {
+      showBriefNotice(result?.error ?? 'Could not open plan externally');
+    }
+  } catch (err) {
+    console.error('[PlanScreen] Open plan external failed:', err);
+    showBriefNotice('Could not open plan externally');
+  }
+}
+
+export function onPlanOpenExternal(): void {
+  void handleOpenPlanExternal();
+}
+
 export function onPlanClearDone(): void {
   void handleClearDone();
 }

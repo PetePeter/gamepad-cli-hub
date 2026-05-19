@@ -133,6 +133,7 @@ export const PRELOAD_API_DOMAINS = {
     'planBulkAssignSequence',
     'planSequenceDeleteWithPlans',
     'planPopOut',
+    'planOpenExternal',
   ],
   contexts: [
     'planContextList',

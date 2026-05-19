@@ -777,6 +777,10 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   planExportDirectory: (dirPath: string): Promise<string | null> =>
     ipcRenderer.invoke('plan:export-directory', dirPath),
 
+  /** Open a plan as a read-only Markdown file via the OS default handler */
+  planOpenExternal: (planId: string): Promise<{ success: boolean; path?: string; error?: string }> =>
+    ipcRenderer.invoke('plan:open-external', planId),
+
   /** Read a local file and return its content as a string */
   planReadFile: (filePath: string): Promise<string | null> =>
     ipcRenderer.invoke('plan:read-file', filePath),
