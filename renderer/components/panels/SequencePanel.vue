@@ -129,7 +129,7 @@ function onAssign(event: Event): void {
           <span>Memory</span>
           <PromptTextarea
             v-model="draft.sharedMemory"
-            placeholder="Shared context for all plans in this sequence..."
+            placeholder="Legacy coordination notes for plans in this sequence..."
             :rows="3"
             :min-rows="3"
             :max-rows="10"

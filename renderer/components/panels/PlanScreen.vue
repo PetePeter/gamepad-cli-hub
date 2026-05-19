@@ -1042,7 +1042,7 @@ onUnmounted(() => {
           <span>Memory</span>
           <PromptTextarea
             v-model="seqDraft.sharedMemory"
-            placeholder="Shared context for all plans in this sequence..."
+            placeholder="Legacy coordination notes for plans in this sequence..."
             :rows="3"
             :min-rows="3"
             :max-rows="10"

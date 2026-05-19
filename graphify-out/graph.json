@@ -26887,7 +26887,7 @@
       "label": "dispatch()",
       "file_type": "code",
       "source_file": "tests\\plan-screen.test.ts",
-      "source_location": "L1223",
+      "source_location": "L1262",
       "id": "tests_plan_screen_test_dispatch",
       "community": 76,
       "norm_label": "dispatch()"
@@ -67106,9 +67106,9 @@
       "weight": 1.0,
       "_src": "renderer_components_common_prompttextarea_vue",
       "_tgt": "common_prompttextarea_setheight",
+      "confidence_score": 1.0,
       "source": "renderer_components_common_prompttextarea_vue",
-      "target": "common_prompttextarea_setheight",
-      "confidence_score": 1.0
+      "target": "common_prompttextarea_setheight"
     },
     {
       "relation": "imports_from",
@@ -67116,11 +67116,11 @@
       "source_file": "tests\\components\\panels\\panels.test.ts",
       "source_location": "L21",
       "weight": 1.0,
-      "_src": "tests_components_panels_panels_test_ts",
-      "_tgt": "renderer_components_common_prompttextarea_vue",
+      "_src": "renderer_components_common_prompttextarea_vue",
+      "_tgt": "tests_components_panels_panels_test_ts",
+      "confidence_score": 1.0,
       "source": "renderer_components_common_prompttextarea_vue",
-      "target": "tests_components_panels_panels_test_ts",
-      "confidence_score": 1.0
+      "target": "tests_components_panels_panels_test_ts"
     },
     {
       "relation": "calls",
@@ -67140,11 +67140,11 @@
       "source_file": "renderer\\components\\common\\PromptTextarea.vue",
       "source_location": "L121",
       "weight": 1.0,
-      "_src": "common_prompttextarea_setheight",
-      "_tgt": "common_prompttextarea_clampheight",
+      "_src": "common_prompttextarea_clampheight",
+      "_tgt": "common_prompttextarea_setheight",
+      "confidence_score": 1.0,
       "source": "common_prompttextarea_clampheight",
-      "target": "common_prompttextarea_setheight",
-      "confidence_score": 1.0
+      "target": "common_prompttextarea_setheight"
     },
     {
       "relation": "contains",

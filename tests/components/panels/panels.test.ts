@@ -1173,6 +1173,22 @@ describe('PlanScreen', () => {
     expect(w.findAll('.plan-context-card')).toHaveLength(1);
   });
 
+  it('renders orphan context card with zero bindings and shows bound count', () => {
+    const w = mount(PlanScreen, {
+      props: {
+        ...contextProps,
+        contexts: [
+          { id: 'ctx-orphan', title: 'Free Note', type: 'Knowledge', permission: 'readonly' as const, content: 'Standalone note', sequenceIds: [], planIds: [] },
+        ],
+      },
+    });
+    const card = w.find('.plan-context-card');
+    expect(card.exists()).toBe(true);
+    expect(card.text()).toContain('Free Note');
+    expect(card.text()).toContain('Standalone note');
+    expect(card.text()).toContain('Bound to 0 targets');
+  });
+
   it('selects a sequence-bound context from the sequence context indicator', async () => {
     const propsWithSequenceContext = {
       ...contextProps,

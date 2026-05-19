@@ -693,6 +693,45 @@ describe('plan screen bridge', () => {
     expect(mod.planScreenState.contexts[0]?.sequenceIds).toEqual(['seq-1']);
   });
 
+  it('creates a context with no bindings via onPlanAddContext', async () => {
+    const mod = await getModule();
+    const createdContext = {
+      id: 'ctx-new',
+      dirPath: '/test/dir',
+      title: 'New Context',
+      type: 'Knowledge',
+      permission: 'readonly' as const,
+      content: '',
+      x: null,
+      y: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      sequenceIds: [],
+      planIds: [],
+    };
+    mockPlanList.mockResolvedValue([]);
+    mockPlanDeps.mockResolvedValue([]);
+    mockPlanSequenceList.mockResolvedValue([]);
+    mockPlanContextList
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([createdContext]);
+    mockPlanContextCreate.mockResolvedValue(createdContext);
+    mockComputeLayout.mockReturnValue({ nodes: [], width: 0, height: 0 });
+
+    await mod.showPlanScreen('/test/dir');
+    await mod.onPlanAddContext();
+
+    expect(mockPlanContextCreate).toHaveBeenCalledWith('/test/dir', {
+      title: 'New Context',
+      type: 'Knowledge',
+      permission: 'readonly',
+      content: '',
+      x: null,
+      y: null,
+    });
+    expect(mod.getSelectedContextId()).toBe('ctx-new');
+  });
+
   it('ignores stale planner reloads that resolve after a newer one', async () => {
     const mod = await getModule();
     const firstList = Promise.withResolvers<any[]>();

@@ -99,6 +99,51 @@ describe('ContextManager', () => {
     expect(updated.y).toBe(40);
   });
 
+  it('updates context fields and returns the updated node', () => {
+    const created = manager.create('project-1', { title: 'Draft', type: 'Knowledge', permission: 'readonly', content: 'old' });
+    const updated = manager.update(created.id, { title: 'Revised', type: 'Architecture', permission: 'writable', content: 'new' });
+    expect(updated).not.toBeNull();
+    expect(updated!.title).toBe('Revised');
+    expect(updated!.type).toBe('Architecture');
+    expect(updated!.permission).toBe('writable');
+    expect(updated!.content).toBe('new');
+    expect(updated!.updatedAt).toBeGreaterThanOrEqual(created.updatedAt);
+    expect(manager.get(created.id)).toEqual(updated);
+  });
+
+  it('unlinks a single binding without deleting the context', () => {
+    const created = manager.create('project-1', { title: 'Shared Notes', permission: 'readonly' });
+    manager.bind(created.id, 'sequence', 'seq-1');
+    manager.bind(created.id, 'plan', 'plan-1');
+    expect(manager.getSequenceIdsForContext(created.id)).toEqual(['seq-1']);
+    expect(manager.getPlanIdsForContext(created.id)).toEqual(['plan-1']);
+
+    expect(manager.unbind(created.id, 'sequence', 'seq-1')).toBe(true);
+    expect(manager.getSequenceIdsForContext(created.id)).toEqual([]);
+    expect(manager.getPlanIdsForContext(created.id)).toEqual(['plan-1']);
+    expect(manager.get(created.id)).not.toBeNull();
+  });
+
+  it('returns false when unbinding a non-existent binding', () => {
+    const created = manager.create('project-1', { title: 'Solo', permission: 'readonly' });
+    expect(manager.unbind(created.id, 'sequence', 'seq-1')).toBe(false);
+  });
+
+  it('creates and manages orphan contexts with zero bindings', () => {
+    const orphan = manager.create('project-1', { title: 'Free-floating Note', type: 'Knowledge', permission: 'writable', content: 'Standalone' });
+    expect(manager.listForProject('project-1')).toEqual([orphan]);
+    expect(manager.getSequenceIdsForContext(orphan.id)).toEqual([]);
+    expect(manager.getPlanIdsForContext(orphan.id)).toEqual([]);
+    expect(manager.getContextMetadataForSequence('seq-1')).toEqual([]);
+    expect(manager.getContextMetadataForPlan('plan-1')).toEqual([]);
+
+    const appended = manager.append(orphan.id, 'More text', orphan.updatedAt);
+    expect(appended.content).toBe('Standalone\n\nMore text');
+
+    expect(manager.delete(orphan.id)).toBe(true);
+    expect(manager.listForProject('project-1')).toEqual([]);
+  });
+
   it('upgrades legacy sequence-only bindings on load', () => {
     const created = { id: 'ctx-1', dirPath: '/proj', title: 'Legacy', type: 'Knowledge', permission: 'readonly', content: '', x: null, y: null, createdAt: 1, updatedAt: 1 };
     (persistence.loadPlanContexts as unknown as ReturnType<typeof vi.fn>).mockReturnValue([created]);
