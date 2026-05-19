@@ -595,7 +595,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'directories_list',
     title: 'List Directories',
-    description: 'List all directories that Helm knows about: configured folders plus directories that currently have plans or sessions. Results are consolidated by canonical project path so worktrees of the same repo appear as one entry.',
+    description: 'List all directories that Helm knows about: configured folders plus directories that currently have plans or sessions. Alternate folders remain separate selectable dirPath entries while sharing projectId when they belong to the same project.',
     inputSchema: {
       type: 'object',
       properties: {},

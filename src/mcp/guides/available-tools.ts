@@ -47,7 +47,7 @@ export function getAvailableTools(): McpToolSummary[] {
     { name: 'plan_attachment_add', title: 'Add Plan Attachment', description: 'Attach an existing file to a plan by local file path. The file is copied into Helm config-managed storage.' },
     { name: 'plan_attachment_delete', title: 'Delete Plan Attachment', description: 'Delete one stored attachment from a plan by attachment ID.' },
     { name: 'plan_attachment_get', title: 'Get Plan Attachment Temp File', description: 'Copy an attachment to a Helm temp file and return the local temp path instead of inline content.' },
-    { name: 'directories_list', title: 'List Directories', description: 'List all directories that Helm knows about: configured folders plus directories that currently have plans or sessions. Results are consolidated by canonical project path so worktrees of the same repo appear as one entry.' },
+    { name: 'directories_list', title: 'List Directories', description: 'List all directories that Helm knows about: configured folders plus directories that currently have plans or sessions. Alternate folders remain separate selectable dirPath entries while sharing projectId when they belong to the same project.' },
     { name: 'session_create', title: 'Create Session', description: 'Spawn a new CLI session in a configured working directory with a stable display name.' },
     { name: 'sessions_list', title: 'List Sessions', description: 'List currently known Helm sessions, optionally filtered to one working directory or project.' },
     { name: 'session_get', title: 'Get Session', description: 'Get a session by ID or exact display name.' },
