@@ -222,12 +222,13 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
 
   configGetEditorPrefs: () => ipcRenderer.invoke('config:getEditorPrefs') as Promise<{
     draftEditorHeight?: number;
+    contextEditorHeight?: number;
     planEditorHeight?: number;
     editorPopupWidth?: number;
     editorPopupHeight?: number;
   }>,
 
-  configSetEditorPrefs: (prefs: { draftEditorHeight?: number; planEditorHeight?: number; editorPopupWidth?: number; editorPopupHeight?: number }) =>
+  configSetEditorPrefs: (prefs: { draftEditorHeight?: number; contextEditorHeight?: number; planEditorHeight?: number; editorPopupWidth?: number; editorPopupHeight?: number }) =>
     ipcRenderer.invoke('config:setEditorPrefs', prefs),
 
   // ========================================================================

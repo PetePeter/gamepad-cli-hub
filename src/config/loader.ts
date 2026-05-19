@@ -240,6 +240,7 @@ export interface McpConfig {
 
 export interface EditorPrefs {
   draftEditorHeight?: number;
+  contextEditorHeight?: number;
   planEditorHeight?: number;
   editorPopupWidth?: number;
   editorPopupHeight?: number;

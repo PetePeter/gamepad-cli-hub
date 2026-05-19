@@ -18,6 +18,7 @@ import TerminalPane from '../../../renderer/components/panels/TerminalPane.vue';
 import OverviewCard from '../../../renderer/components/panels/OverviewCard.vue';
 import OverviewGrid from '../../../renderer/components/panels/OverviewGrid.vue';
 import DraftEditor from '../../../renderer/components/panels/DraftEditor.vue';
+import PromptTextarea from '../../../renderer/components/common/PromptTextarea.vue';
 import PlanScreen from '../../../renderer/components/panels/PlanScreen.vue';
 import MainView from '../../../renderer/components/panels/MainView.vue';
 import ChipBar from '../../../renderer/components/chips/ChipBar.vue';
@@ -819,6 +820,113 @@ describe('DraftEditor', () => {
     expect(vm.hasUnsavedChanges()).toBe(true);
     await w.find('.draft-editor-actions .btn--primary').trigger('click');
     expect(w.emitted('context-save')).toEqual([[{ title: 'Title', content: 'Content', type: 'Knowledge', permission: 'readonly' }]]);
+  });
+
+  // --- DraftEditor resize persistence (P-0309) ---
+
+  it('applies persisted plan editor height on mount', async () => {
+    const getHeight = vi.fn().mockResolvedValue({ planEditorHeight: 200 });
+    const setPrefs = vi.fn().mockResolvedValue({});
+    (window as any).helm = { config: { configGetEditorPrefs: getHeight, configSetEditorPrefs: setPrefs } };
+
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'plan',
+        sessionId: 'sess-1',
+        initialLabel: 'Task',
+        initialText: 'Body',
+        planStatus: 'coding',
+        planCallbacks: { onSave: vi.fn(), onDelete: vi.fn(), onApply: vi.fn(), onDone: vi.fn() },
+      },
+    });
+    await flushPromises();
+
+    // Config was queried for editor prefs on mount
+    expect(getHeight).toHaveBeenCalled();
+    const textarea = w.find('.draft-editor-content').element as HTMLTextAreaElement;
+    expect(textarea.style.height).toBe('200px');
+
+    delete (window as any).helm;
+  });
+
+  it('saves height on resize event from PromptTextarea', async () => {
+    vi.useFakeTimers();
+    const setPrefs = vi.fn().mockResolvedValue({});
+    (window as any).helm = { config: { configGetEditorPrefs: vi.fn().mockResolvedValue({}), configSetEditorPrefs: setPrefs } };
+
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'draft',
+        sessionId: 'sess-1',
+        initialLabel: 'Draft',
+        initialText: '',
+      },
+    });
+    await flushPromises();
+
+    const promptTextarea = w.findComponent(PromptTextarea);
+    promptTextarea.vm.$emit('resized', 250);
+
+    // Debounced — not saved yet
+    expect(setPrefs).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(300);
+    expect(setPrefs).toHaveBeenCalledWith({ draftEditorHeight: 250 });
+
+    vi.useRealTimers();
+    delete (window as any).helm;
+  });
+
+  it('cancels pending height saves on unmount', async () => {
+    vi.useFakeTimers();
+    const getHeight = vi.fn().mockResolvedValue({});
+    const setPrefs = vi.fn().mockResolvedValue({});
+    (window as any).helm = { config: { configGetEditorPrefs: getHeight, configSetEditorPrefs: setPrefs } };
+
+    const w = mount(DraftEditor, {
+      props: { visible: true, mode: 'plan', sessionId: 'sess-1', initialLabel: 'T', initialText: 'B', planStatus: 'ready' },
+    });
+    await flushPromises();
+    w.findComponent(PromptTextarea).vm.$emit('resized', 220);
+    w.unmount();
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(getHeight).toHaveBeenCalled();
+    expect(setPrefs).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
+    delete (window as any).helm;
+  });
+
+  it('uses correct config key per mode', async () => {
+    vi.useFakeTimers();
+    const setPrefs = vi.fn().mockResolvedValue({});
+    (window as any).helm = { config: { configGetEditorPrefs: vi.fn().mockResolvedValue({}), configSetEditorPrefs: setPrefs } };
+
+    // Context mode
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'context',
+        sessionId: '',
+        contextId: 'ctx-1',
+        initialLabel: 'Title',
+        initialText: 'Content',
+        contextType: 'Knowledge',
+        contextPermission: 'readonly',
+        contextCallbacks: { onSave: vi.fn(), onDelete: vi.fn() },
+      },
+    });
+    await flushPromises();
+
+    w.findComponent(PromptTextarea).vm.$emit('resized', 180);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(setPrefs).toHaveBeenCalledWith({ contextEditorHeight: 180 });
+
+    vi.useRealTimers();
+    delete (window as any).helm;
   });
 });
 

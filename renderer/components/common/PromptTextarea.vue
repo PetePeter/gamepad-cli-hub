@@ -27,6 +27,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void;
+  (e: 'resized', heightPx: number): void;
 }>();
 
 const syntaxHelpExpanded = ref(false);
@@ -46,7 +47,8 @@ function autosize(): void {
     return;
   }
   el.style.height = 'auto';
-  const lineHeight = parseFloat(getComputedStyle(el).lineHeight || '18');
+  const parsedLineHeight = parseFloat(getComputedStyle(el).lineHeight || '18');
+  const lineHeight = Number.isFinite(parsedLineHeight) ? parsedLineHeight : 18;
   const minHeight = lineHeight * props.minRows;
   const maxHeight = lineHeight * props.maxRows;
   const nextHeight = Math.min(Math.max(el.scrollHeight, manualHeight.value ?? 0, minHeight), maxHeight);
@@ -78,7 +80,8 @@ function insertToken(token: string): void {
 function clampHeight(height: number): number {
   const el = textareaRef.value;
   if (!el) return height;
-  const lineHeight = parseFloat(getComputedStyle(el).lineHeight || '18');
+  const parsedLineHeight = parseFloat(getComputedStyle(el).lineHeight || '18');
+  const lineHeight = Number.isFinite(parsedLineHeight) ? parsedLineHeight : 18;
   return Math.min(Math.max(height, lineHeight * props.minRows), lineHeight * props.maxRows);
 }
 
@@ -93,6 +96,7 @@ function stopResize(): void {
   window.removeEventListener('pointermove', onResizeMove);
   window.removeEventListener('pointerup', stopResize);
   window.removeEventListener('pointercancel', stopResize);
+  if (manualHeight.value !== null) emit('resized', manualHeight.value);
 }
 
 function startResize(event: PointerEvent): void {
@@ -113,11 +117,16 @@ function focus(): void {
   textareaRef.value?.focus();
 }
 
+function setHeight(heightPx: number): void {
+  manualHeight.value = clampHeight(heightPx);
+  autosize();
+}
+
 onMounted(autosize);
 onBeforeUnmount(stopResize);
 watch(() => props.modelValue, () => nextTick(autosize));
 
-defineExpose({ focus });
+defineExpose({ focus, setHeight });
 </script>
 
 <template>

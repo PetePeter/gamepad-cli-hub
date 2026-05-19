@@ -11,7 +11,7 @@ import type { PlanAttachment } from '../../src/types/plan-attachment.js';
 import { formatDateTime } from '../../utils/date-format.js';
 import { getDisplayTitle } from '../../types.js';
 import PromptTextarea from '../common/PromptTextarea.vue';
-import { attachmentsClient, dialogClient } from '../../ipc/clients.js';
+import { attachmentsClient, configClient, dialogClient } from '../../ipc/clients.js';
 
 type ContextBoundPlan = {
   id: string;
@@ -134,7 +134,6 @@ const attachmentsLoading = ref(false);
 const attachmentBusyId = ref<string | null>(null);
 const attachmentError = ref('');
 
-const resizeObserver = ref<ResizeObserver | null>(null);
 const heightDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const editorHeightKey = computed(() => isDraft.value ? 'draftEditorHeight' : isContext.value ? 'contextEditorHeight' : 'planEditorHeight');
 
@@ -240,11 +239,11 @@ watch(() => props.visible, (visible) => {
     nextTick(() => {
       hydratingFromProps.value = false;
       applyFocus();
-      applyPersistedHeight().then(() => setupHeightObserver());
+      void applyPersistedHeight();
     });
   } else {
     hydratingFromProps.value = false;
-    teardownHeightObserver();
+    teardownHeightPersistence();
     if (autoSaveTimer.value) {
       clearTimeout(autoSaveTimer.value);
       autoSaveTimer.value = null;
@@ -446,16 +445,28 @@ watch([() => props.planId, () => props.visible], ([, visible]) => {
   else attachments.value = [];
 }, { immediate: true });
 
-async function applyPersistedHeight(): Promise<void> {}
-function scheduleHeightSave(): void {}
-function setupHeightObserver(): void {}
-function teardownHeightObserver(): void {
-  if (resizeObserver.value) { resizeObserver.value.disconnect(); resizeObserver.value = null; }
+async function applyPersistedHeight(): Promise<void> {
+  const prefs = await configClient.configGetEditorPrefs?.() ?? {};
+  const key = editorHeightKey.value as keyof typeof prefs;
+  const heightPx = prefs[key] as number | undefined;
+  if (Number.isFinite(heightPx) && heightPx! > 0 && bodyPromptRef.value) {
+    bodyPromptRef.value.setHeight(heightPx);
+  }
+}
+function scheduleHeightSave(heightPx: number): void {
+  if (heightDebounceTimer.value) clearTimeout(heightDebounceTimer.value);
+  heightDebounceTimer.value = setTimeout(async () => {
+    heightDebounceTimer.value = null;
+    if (!Number.isFinite(heightPx) || heightPx <= 0) return;
+    await configClient.configSetEditorPrefs?.({ [editorHeightKey.value]: Math.round(heightPx) });
+  }, 300);
+}
+function teardownHeightPersistence(): void {
   if (heightDebounceTimer.value) { clearTimeout(heightDebounceTimer.value); heightDebounceTimer.value = null; }
 }
 
-onMounted(() => { if (props.visible) applyPersistedHeight().then(() => setupHeightObserver()); });
-onUnmounted(() => { teardownHeightObserver(); });
+onMounted(() => { if (props.visible) void applyPersistedHeight(); });
+onUnmounted(() => { teardownHeightPersistence(); });
 
 defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
 </script>
@@ -507,6 +518,7 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
       :min-rows="4"
       :max-rows="18"
       textarea-class="draft-editor-content"
+      @resized="scheduleHeightSave"
     />
 
     <div v-if="isContext && hasContextBindings" class="context-bound">
