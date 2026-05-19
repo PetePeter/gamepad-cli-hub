@@ -22,14 +22,11 @@ export class HelmDirectoryService {
 
     const mergeEntry = (rawPath: string, sourceTag: 'config' | 'plans' | 'sessions', name?: string) => {
       const project = this.projectStore?.resolveForPath(rawPath);
-      const dirPath = project?.canonicalPath ?? rawPath;
-      const existing = consolidated.get(dirPath);
       const projectId = project?.id;
+      const dirPath = rawPath;
+      const existing = consolidated.get(dirPath);
       const planCount = this.planManager.getForDirectory(dirPath).length;
-      const sessionCount = sessions.filter((session) => {
-        if (session.projectPath) return session.projectPath === dirPath;
-        return session.workingDir === rawPath;
-      }).length;
+      const sessionCount = sessions.filter((session) => session.workingDir === dirPath).length;
       const source = new Set<Array<'config' | 'plans' | 'sessions'>[number]>(existing?.source ?? []);
       source.add(sourceTag);
       if (planCount > 0) source.add('plans');

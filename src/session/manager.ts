@@ -320,6 +320,6 @@ export class SessionManager extends EventEmitter {
     if (!this.projectStore || !session.workingDir) return;
     const project = this.projectStore.resolveForPath(session.workingDir);
     session.projectId = project.id;
-    session.projectPath = project.canonicalPath;
+    session.projectPath = session.workingDir;
   }
 }
