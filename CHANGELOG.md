@@ -2,6 +2,24 @@
 
 All notable changes to gamepad-cli-hub are documented in this file.
 
+## [1.7.3] - 2026-05-20
+
+### Features
+
+- **Open plans as read-only Markdown** — Selecting a plan now exposes an action that writes the plan to a temp file and opens it in the OS default Markdown handler via `plan:open-external`.
+
+### Improvements
+
+- **MCP plan attachment file paths** — `plan_attachment_add` now requires a `filePath` parameter instead of inline base64 data, keeping MCP payloads lean and compatible with large files.
+- **MCP guidance clarity** — `notify_user` routing description and directory listing guidance updated to reduce agent ambiguity.
+- **Standalone Helm contexts** — `SequencePanel` now makes explicit that contexts without a linked sequence are standalone and usable across plans.
+
+### Fixes
+
+- **DraftEditor resize persistence** — Draft editor panel height is correctly saved and restored across sessions.
+- **Chip action delete confirmation** — The delete path in `ChipbarActionsTab` now correctly shows a confirmation step before removing an entry.
+- **Alternate folder picker identity** — Directory service no longer drops the alternate picker's resolved identity when switching between session directories.
+
 ## [1.7.2] - 2026-05-18
 
 ### Features
