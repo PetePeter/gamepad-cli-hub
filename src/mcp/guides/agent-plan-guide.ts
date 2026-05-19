@@ -46,7 +46,7 @@ export function buildAgentPlanGuide() {
       'Prefer context nodes over sequence sharedMemory for new long-lived notes, decisions, and collected evidence.',
     ],
     plan_attachment_guide: [
-      'Use plan_attachment_add for durable supporting artifacts such as screenshots, JSON payloads, logs, or generated reports.',
+      'Use plan_attachment_add with a local filePath to attach durable supporting artifacts such as screenshots, JSON payloads, logs, or generated reports.',
       'Use plan_attachment_list for metadata first, then plan_attachment_get only when you need the actual file content through a temp path.',
     ],
     sequence_memory_guide: [

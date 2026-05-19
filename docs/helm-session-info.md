@@ -156,7 +156,7 @@ When a user mentions `P-0035` or another `P-00xx` value, treat it as a Helm plan
 1. Call `plan_get` to fetch a plan — the response includes `hasAttachments: true|false`.
 2. If `hasAttachments` is true, call `plan_attachment_list` to see metadata (filename, size, content type, timestamps).
 3. Call `plan_attachment_get` to retrieve a specific attachment — it is copied to a Helm temp file, and you receive the local temp path.
-4. Call `plan_attachment_add` to store durable supporting artifacts (code samples, screenshots, design docs); attachments are persisted inside Helm's config-managed storage and survive session restarts.
+4. Call `plan_attachment_add` with a `filePath` to attach an existing file (code samples, screenshots, design docs); attachments are persisted inside Helm's config-managed storage and survive session restarts.
 
 Example:
 ```javascript
@@ -171,6 +171,11 @@ if (plan.hasAttachments) {
     // Read the file at tempPath...
   }
 }
+// Attach a file from disk
+await mcp.callTool('plan_attachment_add', {
+  planId: 'P-0042',
+  filePath: '/path/to/artifact.json'
+});
 ```
 
 #### Sequence Memory (Shared State for Plan Groups)

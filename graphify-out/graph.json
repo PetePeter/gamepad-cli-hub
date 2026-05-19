@@ -17842,7 +17842,7 @@
       "label": "HelmPlanAttachmentService",
       "file_type": "code",
       "source_file": "src\\mcp\\services\\helm-plan-attachment-service.ts",
-      "source_location": "L10",
+      "source_location": "L11",
       "id": "services_helm_plan_attachment_service_helmplanattachmentservice",
       "community": 64,
       "norm_label": "helmplanattachmentservice"
@@ -17851,7 +17851,7 @@
       "label": ".constructor()",
       "file_type": "code",
       "source_file": "src\\mcp\\services\\helm-plan-attachment-service.ts",
-      "source_location": "L11",
+      "source_location": "L12",
       "id": "services_helm_plan_attachment_service_helmplanattachmentservice_constructor",
       "community": 64,
       "norm_label": ".constructor()"
@@ -17860,7 +17860,7 @@
       "label": ".listPlanAttachments()",
       "file_type": "code",
       "source_file": "src\\mcp\\services\\helm-plan-attachment-service.ts",
-      "source_location": "L16",
+      "source_location": "L17",
       "id": "services_helm_plan_attachment_service_helmplanattachmentservice_listplanattachments",
       "community": 64,
       "norm_label": ".listplanattachments()"
@@ -17869,7 +17869,7 @@
       "label": ".addPlanAttachment()",
       "file_type": "code",
       "source_file": "src\\mcp\\services\\helm-plan-attachment-service.ts",
-      "source_location": "L24",
+      "source_location": "L25",
       "id": "services_helm_plan_attachment_service_helmplanattachmentservice_addplanattachment",
       "community": 64,
       "norm_label": ".addplanattachment()"
@@ -17878,7 +17878,7 @@
       "label": ".deletePlanAttachment()",
       "file_type": "code",
       "source_file": "src\\mcp\\services\\helm-plan-attachment-service.ts",
-      "source_location": "L47",
+      "source_location": "L53",
       "id": "services_helm_plan_attachment_service_helmplanattachmentservice_deleteplanattachment",
       "community": 64,
       "norm_label": ".deleteplanattachment()"
@@ -17887,7 +17887,7 @@
       "label": ".getPlanAttachment()",
       "file_type": "code",
       "source_file": "src\\mcp\\services\\helm-plan-attachment-service.ts",
-      "source_location": "L55",
+      "source_location": "L61",
       "id": "services_helm_plan_attachment_service_helmplanattachmentservice_getplanattachment",
       "community": 64,
       "norm_label": ".getplanattachment()"
@@ -17896,7 +17896,7 @@
       "label": ".resolvePlanRef()",
       "file_type": "code",
       "source_file": "src\\mcp\\services\\helm-plan-attachment-service.ts",
-      "source_location": "L63",
+      "source_location": "L69",
       "id": "services_helm_plan_attachment_service_helmplanattachmentservice_resolveplanref",
       "community": 64,
       "norm_label": ".resolveplanref()"
@@ -25933,7 +25933,7 @@
       "label": "makeService()",
       "file_type": "code",
       "source_file": "tests\\helm-control-service.test.ts",
-      "source_location": "L13",
+      "source_location": "L16",
       "id": "tests_helm_control_service_test_makeservice",
       "community": 2,
       "norm_label": "makeservice()"
@@ -26257,7 +26257,7 @@
       "label": "rpc()",
       "file_type": "code",
       "source_file": "tests\\localhost-mcp-server.test.ts",
-      "source_location": "L127",
+      "source_location": "L130",
       "id": "tests_localhost_mcp_server_test_rpc",
       "community": 11,
       "norm_label": "rpc()"
@@ -34973,9 +34973,9 @@
       "weight": 1.0,
       "_src": "dist_electron_main_js",
       "_tgt": "dist_electron_main_getdisplaytitle",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_js",
-      "target": "dist_electron_main_getdisplaytitle",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_getdisplaytitle"
     },
     {
       "relation": "contains",
@@ -93358,18 +93358,6 @@
       "target": "src_types_plan_attachment_ts"
     },
     {
-      "relation": "imports_from",
-      "confidence": "EXTRACTED",
-      "source_file": "src\\mcp\\services\\helm-plan-attachment-service.ts",
-      "source_location": "L4",
-      "weight": 1.0,
-      "_src": "src_mcp_services_helm_plan_attachment_service_ts",
-      "_tgt": "src_utils_base64_ts",
-      "confidence_score": 1.0,
-      "source": "src_mcp_services_helm_plan_attachment_service_ts",
-      "target": "src_utils_base64_ts"
-    },
-    {
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "src\\mcp\\services\\helm-plan-attachment-service.ts",
@@ -93380,6 +93368,18 @@
       "confidence_score": 1.0,
       "source": "src_mcp_services_helm_plan_attachment_service_ts",
       "target": "services_helm_plan_attachment_service_helmplanattachmentservice"
+    },
+    {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\mcp\\services\\helm-plan-attachment-service.ts",
+      "source_location": "L4",
+      "weight": 1.0,
+      "_src": "src_mcp_services_helm_plan_attachment_service_ts",
+      "_tgt": "src_utils_base64_ts",
+      "confidence_score": 1.0,
+      "source": "src_mcp_services_helm_plan_attachment_service_ts",
+      "target": "src_utils_base64_ts"
     },
     {
       "relation": "contains",

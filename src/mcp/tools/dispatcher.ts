@@ -289,9 +289,7 @@ export async function callMcpTool(
         return service.addPlanAttachment(
           asString(args.planId, 'planId is required'),
           {
-            filename: asString(args.filename, 'filename is required'),
-            ...(typeof args.text === 'string' ? { text: args.text } : {}),
-            ...(typeof args.contentBase64 === 'string' ? { contentBase64: args.contentBase64 } : {}),
+            filePath: asString(args.filePath, 'filePath is required'),
             ...(typeof args.contentType === 'string' ? { contentType: args.contentType } : {}),
           },
         );

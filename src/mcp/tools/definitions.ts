@@ -552,17 +552,15 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_attachment_add',
     title: 'Add Plan Attachment',
-    description: 'Attach text, JSON, image, or arbitrary binary content up to 10MB to a plan by UUID. Provide exactly one of text or contentBase64. The file is copied into Helm config-managed storage. Use plan_get_id to convert P-00xx format to UUID.',
+    description: 'Attach an existing file to a plan by providing its local file path. The file is copied into Helm config-managed storage. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
-        planId: { type: 'string' },
-        filename: { type: 'string' },
-        text: { type: 'string' },
-        contentBase64: { type: 'string' },
-        contentType: { type: 'string' },
+        planId: { type: 'string', description: 'Plan UUID or P-00xx human-readable ID' },
+        filePath: { type: 'string', description: 'Absolute path to the file to attach' },
+        contentType: { type: 'string', description: 'Optional MIME content type' },
       },
-      required: ['planId', 'filename'],
+      required: ['planId', 'filePath'],
       additionalProperties: false,
     },
   },

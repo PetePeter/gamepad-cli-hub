@@ -403,7 +403,7 @@ export class HelmControlService extends EventEmitter {
 
   addPlanAttachment(
     planRef: string,
-    input: { filename: string; contentBase64?: string; text?: string; contentType?: string },
+    input: { filePath: string; contentType?: string; text?: unknown; contentBase64?: unknown },
   ): PlanAttachment {
     return this.planAttachmentService.addPlanAttachment(planRef, input);
   }

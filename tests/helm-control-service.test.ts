@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HelmControlService, parseSubmitSuffix } from '../src/mcp/helm-control-service.js';
 import { getAvailableTools } from '../src/mcp/guides/session-info-guide.js';
@@ -847,7 +850,7 @@ describe('HelmControlService.readSessionTerminal', () => {
 });
 
 describe('HelmControlService plan attachments', () => {
-  it('resolves P-id plan refs before calling the attachment manager', () => {
+  it('reads file from filePath and passes basename + content to attachment manager', () => {
     const { planManager, sessionManager, ptyManager, configLoader } = makeService();
     const plan = { id: 'plan-1', humanId: 'P-0001', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready' };
     (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
@@ -874,46 +877,94 @@ describe('HelmControlService plan attachments', () => {
       attachmentManager as any,
     );
 
-    const attachment = service.addPlanAttachment('P-0001', {
-      filename: 'note.txt',
-      text: 'hello',
-      contentType: 'text/plain',
-    });
+    const tempDir = mkdtempSync(join(tmpdir(), 'helm-att-'));
+    const tmpFile = join(tempDir, 'note.txt');
+    writeFileSync(tmpFile, 'hello world');
+    try {
+      const attachment = service.addPlanAttachment('P-0001', {
+        filePath: tmpFile,
+        contentType: 'text/plain',
+      });
 
-    expect(attachmentManager.add).toHaveBeenCalledWith('plan-1', {
-      filename: 'note.txt',
-      content: Buffer.from('hello', 'utf8'),
-      contentType: 'text/plain',
-    });
-    expect(attachment.sizeBytes).toBe(5);
+      expect(attachmentManager.add).toHaveBeenCalledWith('plan-1', {
+        filename: 'note.txt',
+        content: Buffer.from('hello world'),
+        contentType: 'text/plain',
+      });
+      expect(attachment.sizeBytes).toBe(11);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
-  it('requires exactly one attachment content input', () => {
-    const { service, planManager } = makeService();
-    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({
-      status: 'found',
-      item: { id: 'plan-1', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready' },
-    });
+  it('rejects text input with clear error', () => {
+    const { planManager, sessionManager, ptyManager, configLoader } = makeService();
+    const plan = { id: 'plan-1', humanId: 'P-0001', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready' };
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
+    const attachmentManager = {
+      list: vi.fn(() => []), add: vi.fn(), delete: vi.fn(() => true),
+      getToTempFile: vi.fn(), deletePlanAttachments: vi.fn(),
+    };
+    const service = new HelmControlService(
+      planManager as any, sessionManager as any, ptyManager as any, configLoader as any, attachmentManager as any,
+    );
 
-    expect(() => service.addPlanAttachment('plan-1', { filename: 'empty.txt' })).toThrow('exactly one');
-    expect(() => service.addPlanAttachment('plan-1', {
-      filename: 'double.txt',
+    expect(() => service.addPlanAttachment('P-0001', {
+      filePath: '/some/file.txt',
       text: 'hello',
+    } as any)).toThrow('text is no longer accepted');
+  });
+
+  it('rejects contentBase64 input with clear error', () => {
+    const { planManager, sessionManager, ptyManager, configLoader } = makeService();
+    const plan = { id: 'plan-1', humanId: 'P-0001', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready' };
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
+    const attachmentManager = {
+      list: vi.fn(() => []), add: vi.fn(), delete: vi.fn(() => true),
+      getToTempFile: vi.fn(), deletePlanAttachments: vi.fn(),
+    };
+    const service = new HelmControlService(
+      planManager as any, sessionManager as any, ptyManager as any, configLoader as any, attachmentManager as any,
+    );
+
+    expect(() => service.addPlanAttachment('P-0001', {
+      filePath: '/some/file.txt',
       contentBase64: Buffer.from('hello').toString('base64'),
-    })).toThrow('exactly one');
+    } as any)).toThrow('contentBase64 is no longer accepted');
   });
 
-  it('rejects invalid base64 attachment input before writing', () => {
-    const { service, planManager } = makeService();
-    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({
-      status: 'found',
-      item: { id: 'plan-1', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready' },
-    });
+  it('rejects relative filePath', () => {
+    const { planManager, sessionManager, ptyManager, configLoader } = makeService();
+    const plan = { id: 'plan-1', humanId: 'P-0001', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready' };
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
+    const attachmentManager = {
+      list: vi.fn(() => []), add: vi.fn(), delete: vi.fn(() => true),
+      getToTempFile: vi.fn(), deletePlanAttachments: vi.fn(),
+    };
+    const service = new HelmControlService(
+      planManager as any, sessionManager as any, ptyManager as any, configLoader as any, attachmentManager as any,
+    );
 
-    expect(() => service.addPlanAttachment('plan-1', {
-      filename: 'bad.bin',
-      contentBase64: 'not base64!',
-    })).toThrow('valid base64');
+    expect(() => service.addPlanAttachment('P-0001', {
+      filePath: 'relative/file.txt',
+    })).toThrow('absolute path');
+  });
+
+  it('rejects nonexistent filePath', () => {
+    const { planManager, sessionManager, ptyManager, configLoader } = makeService();
+    const plan = { id: 'plan-1', humanId: 'P-0001', dirPath: '/work', title: 'Task', description: 'Desc', status: 'ready' };
+    (planManager.resolveItemRef as ReturnType<typeof vi.fn>).mockReturnValue({ status: 'found', item: plan });
+    const attachmentManager = {
+      list: vi.fn(() => []), add: vi.fn(), delete: vi.fn(() => true),
+      getToTempFile: vi.fn(), deletePlanAttachments: vi.fn(),
+    };
+    const service = new HelmControlService(
+      planManager as any, sessionManager as any, ptyManager as any, configLoader as any, attachmentManager as any,
+    );
+
+    expect(() => service.addPlanAttachment('P-0001', {
+      filePath: '/nonexistent/path/file.txt',
+    })).toThrow();
   });
 });
 

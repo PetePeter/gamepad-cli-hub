@@ -44,7 +44,7 @@ export function getAvailableTools(): McpToolSummary[] {
     { name: 'context_bind', title: 'Bind Context Node', description: 'Associate a context node with a plan or sequence in the same directory.' },
     { name: 'context_unbind', title: 'Unbind Context Node', description: 'Remove one plan or sequence association from a context node without deleting it.' },
     { name: 'plan_attachment_list', title: 'List Plan Attachments', description: 'List files attached to a plan by UUID or P-00xx humanId.' },
-    { name: 'plan_attachment_add', title: 'Add Plan Attachment', description: 'Attach text, JSON, image, or binary content up to 10MB to a plan. Binary content is supplied as base64 and stored inside Helm config.' },
+    { name: 'plan_attachment_add', title: 'Add Plan Attachment', description: 'Attach an existing file to a plan by local file path. The file is copied into Helm config-managed storage.' },
     { name: 'plan_attachment_delete', title: 'Delete Plan Attachment', description: 'Delete one stored attachment from a plan by attachment ID.' },
     { name: 'plan_attachment_get', title: 'Get Plan Attachment Temp File', description: 'Copy an attachment to a Helm temp file and return the local temp path instead of inline content.' },
     { name: 'directories_list', title: 'List Directories', description: 'List all directories that Helm knows about: configured folders plus directories that currently have plans or sessions. Results are consolidated by canonical project path so worktrees of the same repo appear as one entry.' },

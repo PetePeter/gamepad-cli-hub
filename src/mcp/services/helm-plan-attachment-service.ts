@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { basename, isAbsolute } from 'node:path';
 import type { PlanManager, PlanRefResolution } from '../../session/plan-manager.js';
 import type { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
 import type { PlanAttachment, PlanAttachmentTempFile } from '../../types/plan-attachment.js';
-import { decodeBase64StrictOrThrow } from '../../utils/base64.js';
 
 /**
  * Plan attachment CRUD: list, add, delete, and get-to-temp-file.
@@ -23,22 +24,27 @@ export class HelmPlanAttachmentService {
 
   addPlanAttachment(
     planRef: string,
-    input: { filename: string; contentBase64?: string; text?: string; contentType?: string },
+    input: { filePath: string; contentType?: string; text?: unknown; contentBase64?: unknown },
   ): PlanAttachment {
     const plan = this.resolvePlanRef(planRef, 'Plan');
     if (!plan) {
       throw new Error(`Plan not found: ${planRef}`);
     }
-    const hasBase64 = typeof input.contentBase64 === 'string';
-    const hasText = typeof input.text === 'string';
-    if (hasBase64 === hasText) {
-      throw new Error('Provide exactly one of contentBase64 or text');
+    if (input.text !== undefined) {
+      throw new Error('text is no longer accepted - use filePath to attach an existing file');
     }
-    const content = hasBase64
-      ? decodeBase64StrictOrThrow(input.contentBase64!, 'contentBase64 must be valid base64')
-      : Buffer.from(input.text!, 'utf8');
+    if (input.contentBase64 !== undefined) {
+      throw new Error('contentBase64 is no longer accepted - use filePath to attach an existing file');
+    }
+    if (typeof input.filePath !== 'string' || input.filePath.trim().length === 0) {
+      throw new Error('filePath is required');
+    }
+    if (!isAbsolute(input.filePath)) {
+      throw new Error('filePath must be an absolute path');
+    }
+    const content = readFileSync(input.filePath);
     return this.attachmentManager.add(plan.item.id, {
-      filename: input.filename,
+      filename: basename(input.filePath),
       content,
       ...(input.contentType ? { contentType: input.contentType } : {}),
     });

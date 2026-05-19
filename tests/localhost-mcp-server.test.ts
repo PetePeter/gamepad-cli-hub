@@ -61,16 +61,19 @@ function makeService(): HelmControlService {
     bindContext: vi.fn(() => true),
     unbindContext: vi.fn(() => true),
     listPlanAttachments: vi.fn(() => [{ id: 'a1', planId: 'p1', filename: 'note.txt', sizeBytes: 5, relativePath: 'p1/a1.txt', createdAt: 1, updatedAt: 1 }]),
-    addPlanAttachment: vi.fn((planId: string, input: { filename: string; text?: string; contentBase64?: string; contentType?: string }) => ({
-      id: 'a1',
-      planId,
-      filename: input.filename,
-      ...(input.contentType ? { contentType: input.contentType } : {}),
-      sizeBytes: input.text?.length ?? 3,
-      relativePath: `${planId}/a1.txt`,
-      createdAt: 1,
-      updatedAt: 1,
-    })),
+    addPlanAttachment: vi.fn((planId: string, input: { filePath: string; contentType?: string }) => {
+      const filename = input.filePath.split('/').pop() ?? input.filePath.split('\\').pop() ?? 'file';
+      return {
+        id: 'a1',
+        planId,
+        filename,
+        ...(input.contentType ? { contentType: input.contentType } : {}),
+        sizeBytes: 3,
+        relativePath: `${planId}/a1.txt`,
+        createdAt: 1,
+        updatedAt: 1,
+      };
+    }),
     deletePlanAttachment: vi.fn(() => true),
     getPlanAttachment: vi.fn((planId: string, attachmentId: string) => ({
       attachment: { id: attachmentId, planId, filename: 'note.txt', sizeBytes: 5, relativePath: `${planId}/${attachmentId}.txt`, createdAt: 1, updatedAt: 1 },
@@ -236,7 +239,7 @@ describe('LocalhostMcpServer', () => {
     expect(setAiagentStateTool.description).toContain('Helm does not scrape terminal output');
     expect(setAiagentStateTool.inputSchema.properties.state.enum).toEqual(['planning', 'implementing', 'completed', 'idle']);
     expect(setAiagentStateTool.inputSchema.properties.sessionId.description).toContain('UUID');
-    expect(attachmentAddTool.description).toContain('10MB');
+    expect(attachmentAddTool.description).toContain('file path');
     expect(attachmentAddTool.description).toContain('Helm config');
     expect(attachmentGetTool.description).toContain('temp file');
     expect(attachmentGetTool.description).toContain('inline');
@@ -759,13 +762,12 @@ describe('LocalhostMcpServer', () => {
       method: 'tools/call',
       params: {
         name: 'plan_attachment_add',
-        arguments: { planId: 'P-0001', filename: 'note.txt', text: 'hello', contentType: 'text/plain' },
+        arguments: { planId: 'P-0001', filePath: '/tmp/note.txt', contentType: 'text/plain' },
       },
     });
     const addJson = await addResponse.json();
     expect((service.addPlanAttachment as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('P-0001', {
-      filename: 'note.txt',
-      text: 'hello',
+      filePath: '/tmp/note.txt',
       contentType: 'text/plain',
     });
     expect(addJson.result.structuredContent).toMatchObject({ id: 'a1', planId: 'P-0001', filename: 'note.txt' });
