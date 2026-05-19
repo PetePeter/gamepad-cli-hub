@@ -30,8 +30,9 @@ export function buildNotificationGuide() {
       none: 'User viewing this session — suppressed.',
     },
     examples: [
-      { scenario: 'Long task finished while user away', tool: 'notify_user', rationale: 'Helm routes to toast or Telegram automatically.' },
-      { scenario: 'Need user decision to continue', tool: 'notify_user', rationale: 'Stop and wait for user response.' },
+      { scenario: 'Long task finished while user away', tool: 'notify_user', title: 'Work complete', content: 'Migrated auth middleware to JWT. 3 files changed, 12 tests pass.', rationale: 'Helm routes to toast or Telegram automatically.' },
+      { scenario: 'Need user decision to continue', tool: 'notify_user', title: 'Need your input to continue', content: 'Profile has two conflicting port configs - which one should win?', rationale: 'Stop and wait for user response.' },
+      { scenario: 'Error stops progress', tool: 'notify_user', title: 'Error during implementation', content: 'TypeScript build failed - missing type export in session-manager.ts.', rationale: 'Alert user so they can investigate or redirect.' },
     ],
     llm_triggers: [
       { trigger: 'Work complete (session → completed)', action: 'notify_user with title "Work complete" + 1-2 sentence TLDR of what was done (files, features, bugs fixed).' },

@@ -248,6 +248,9 @@ describe('LocalhostMcpServer', () => {
     expect(schedulerCreateTool!.description).toContain('scheduled task');
     expect(schedulerDeleteTool!.description).toContain('Delete');
     expect(notifyUserTool!.description).toContain('smart delivery routing');
+    expect(notifyUserTool!.description).toContain('completion');
+    expect(notifyUserTool!.description).toContain('blocked');
+    expect(notifyUserTool!.description).toContain('error');
     expect(appVisibilityTool!.description).toContain('screen-lock');
     expect(restartHelmTool!.description).toContain('restart');
     expect(skillsUpdateTool!.inputSchema.properties.aiAmendable).toEqual({ type: 'boolean' });
