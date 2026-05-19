@@ -2,7 +2,7 @@
 /**
  * ChipbarActionsTab.vue — Chip bar actions CRUD with reordering.
  */
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { CHIPBAR_TEMPLATE_DEFINITIONS } from '../../drafts/chipbar-templates.js';
 
 export interface ChipbarAction {
@@ -22,6 +22,10 @@ const emit = defineEmits<{
 }>();
 
 const deleteConfirmIndex = ref<number | null>(null);
+
+watch(() => props.actions, () => {
+  deleteConfirmIndex.value = null;
+});
 
 function onDeleteClick(index: number): void {
   if (deleteConfirmIndex.value === index) {

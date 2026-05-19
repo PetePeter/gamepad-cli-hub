@@ -1058,6 +1058,46 @@ describe('ChipbarActionsTab', () => {
     await deleteButton.trigger('click');
     expect(w.emitted('delete')).toEqual([[0]]);
   });
+
+  it('resets delete confirm after reorder', async () => {
+    const w = mount(ChipbarActionsTab, { props: { actions } });
+    const deleteButton = w.findAll('.settings-list-item')[0].findAll('button')[3];
+    await deleteButton.trigger('click');
+    expect(deleteButton.text()).toBe('Confirm?');
+
+    const downButton = w.findAll('.settings-list-item')[0].findAll('button')[1];
+    await downButton.trigger('click');
+    expect(w.emitted('move')).toEqual([[0, 1]]);
+
+    // Parent handles move by updating the actions prop with reordered array
+    const reordered = [actions[1], actions[0]];
+    await w.setProps({ actions: reordered });
+    await nextTick();
+
+    const newFirstItemButtons = w.findAll('.settings-list-item')[0].findAll('button');
+    expect(newFirstItemButtons[3].text()).toBe('Delete');
+    expect(w.emitted('delete')).toBeUndefined();
+  });
+
+  it('resets delete confirm when actions prop changes externally', async () => {
+    const w = mount(ChipbarActionsTab, { props: { actions } });
+    const deleteButton = w.findAll('.settings-list-item')[0].findAll('button')[3];
+    await deleteButton.trigger('click');
+    expect(deleteButton.text()).toBe('Confirm?');
+
+    await w.setProps({
+      actions: [
+        { label: 'New', sequence: 'new{Enter}' },
+        { label: 'Plan', sequence: 'plan{Enter}' },
+        { label: 'Build', sequence: 'npm run build{Enter}' },
+      ],
+    });
+    await nextTick();
+
+    const firstButton = w.findAll('.settings-list-item')[0].findAll('button')[3];
+    expect(firstButton.text()).toBe('Delete');
+    expect(w.emitted('delete')).toBeUndefined();
+  });
 });
 
 // ============================================================================
