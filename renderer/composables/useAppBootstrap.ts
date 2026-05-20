@@ -97,7 +97,11 @@ function getSessionCwd(sessionId: string): string {
 }
 
 function pathsMatch(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase();
+  const platform = typeof process !== 'undefined' ? process.platform : undefined;
+  if (platform === 'win32' || platform === undefined) {
+    return a.toLowerCase() === b.toLowerCase();
+  }
+  return a === b;
 }
 
 function findProjectForPath(dirPath?: string): RendererProjectRecord | undefined {

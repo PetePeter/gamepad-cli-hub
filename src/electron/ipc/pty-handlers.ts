@@ -11,6 +11,7 @@ import { spawnConfiguredSession } from '../../session/configured-session-spawn.j
 import { logger } from '../../utils/logger.js';
 import type { WindowManager } from '../window-manager.js';
 import type { PtyWriteOptions } from '../../session/delivery-context.js';
+import { normalizeProjectPath } from '../../session/project-identity.js';
 
 // Track cancel functions for initial prompt pre-loading per session
 const promptCancellers: Map<string, () => void> = new Map();
@@ -41,6 +42,7 @@ export function setupPtyHandlers(
     // effect for new sessions without restarting the app.
     configLoader?.reloadActiveProfileIfChanged();
     try {
+      const normalizedCwd = cwd ? normalizeProjectPath(cwd) : undefined;
       const { pty } = spawnConfiguredSession({
         ptyManager,
         sessionManager,
@@ -48,7 +50,7 @@ export function setupPtyHandlers(
         sessionId,
         command,
         args,
-        cwd,
+        cwd: normalizedCwd,
         cliType,
         sessionName: cliType || 'unknown',
         contextText,

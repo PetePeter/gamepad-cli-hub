@@ -37,6 +37,7 @@ import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js'
 import { escapeHtml } from './utils.js';
 import { spawnConfiguredSession } from '../session/configured-session-spawn.js';
 import { logger } from '../utils/logger.js';
+import { normalizeProjectPath } from '../session/project-identity.js';
 
 /**
  * Register callback query handler on the bot.
@@ -174,7 +175,8 @@ async function handleDirectoryDrill(
   }
 
   const all = sessionManager.getAllSessions();
-  const dirSessions = all.filter(s => s.workingDir === directory);
+  const normalizedDirectory = normalizeProjectPath(directory);
+  const dirSessions = all.filter(s => s.workingDir && normalizeProjectPath(s.workingDir) === normalizedDirectory);
   const { text, keyboard } = sessionListKeyboard(dirSessions, directory);
 
   await editOriginalMessage(bot, query, text, keyboard);

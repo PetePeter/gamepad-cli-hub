@@ -7,6 +7,7 @@ import { scheduleInitialPrompt } from './initial-prompt.js';
 import type { PtyManager, PtyProcess } from './pty-manager.js';
 import { deliverPromptSequenceToSession } from './sequence-delivery.js';
 import { logger } from '../utils/logger.js';
+import { normalizeProjectPath } from './project-identity.js';
 
 /** Pause before writing the submit suffix so bracketed/paste-aware CLIs can settle. */
 const SUBMIT_DELAY_MS = 200;
@@ -59,12 +60,14 @@ export function spawnConfiguredSession(params: ConfiguredSessionSpawnParams): Co
     sessionName,
   });
 
+  const normalizedCwd = params.cwd ? normalizeProjectPath(params.cwd) : undefined;
+
   const pty = params.ptyManager.spawn({
     sessionId,
     command,
     args,
     rawCommand,
-    cwd: params.cwd,
+    cwd: normalizedCwd,
     ...(env ? { env } : {}),
   });
 
@@ -73,7 +76,7 @@ export function spawnConfiguredSession(params: ConfiguredSessionSpawnParams): Co
     name: sessionName,
     cliType,
     processId: pty.pid,
-    ...(params.cwd ? { workingDir: params.cwd } : {}),
+    ...(normalizedCwd ? { workingDir: normalizedCwd } : {}),
     cliSessionName,
     lastOutputAt: now,
   };

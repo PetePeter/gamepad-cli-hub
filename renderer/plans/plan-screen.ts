@@ -9,6 +9,7 @@ import { clearDonePlans, setClearDonePlansCallback } from '../stores/modal-bridg
 import { state } from '../state.js';
 import { registerView, showView, currentView, type ViewMountContext } from '../main-view/main-view-manager.js';
 import { hidePlanHelpModal, isPlanHelpVisible, showPlanHelpModal } from './plan-help-modal.js';
+import { pathsMatch } from '../session-groups.js';
 import {
   attachmentsClient,
   configClient,
@@ -404,13 +405,13 @@ function resolvePlanTargetSessionId(item: PlanItem): string | null {
   const activeSession = state.activeSessionId
     ? state.sessions.find((session) => session.id === state.activeSessionId)
     : null;
-  if (activeSession?.workingDir === item.dirPath) {
+  if (activeSession?.workingDir && pathsMatch(activeSession.workingDir, item.dirPath)) {
     return activeSession.id;
   }
   if (item.sessionId && state.sessions.some((session) => session.id === item.sessionId)) {
     return item.sessionId;
   }
-  const dirSession = state.sessions.find((session) => session.workingDir === item.dirPath);
+  const dirSession = state.sessions.find((session) => session.workingDir && pathsMatch(session.workingDir, item.dirPath));
   return dirSession?.id ?? null;
 }
 

@@ -4,6 +4,7 @@ import { logger } from '../utils/logger.js';
 import type { SessionInfo } from '../types/session.js';
 import { SESSIONS_FILE } from './persistence-paths.js';
 import { atomicWriteFileSync, isNumber, isRecord, isString } from './persistence-utils.js';
+import { normalizeProjectPath } from './project-identity.js';
 
 function serializeSession(s: SessionInfo): Record<string, unknown> {
   return {
@@ -39,7 +40,16 @@ export function loadSessions(sessionsFile = SESSIONS_FILE): SessionInfo[] {
     if (!existsSync(sessionsFile)) return [];
     const parsed = YAML.parse(readFileSync(sessionsFile, 'utf8')) as unknown;
     if (!isRecord(parsed) || !Array.isArray(parsed.sessions)) return [];
-    return parsed.sessions.filter(isSessionInfo);
+    return parsed.sessions.filter(isSessionInfo).map(session => {
+      // Normalize workingDir and projectPath on load to ensure consistent casing across platforms
+      if (session.workingDir) {
+        session.workingDir = normalizeProjectPath(session.workingDir);
+      }
+      if (session.projectPath) {
+        session.projectPath = normalizeProjectPath(session.projectPath);
+      }
+      return session;
+    });
   } catch (err) {
     logger.error(`Failed to load sessions: ${err}`);
     return [];

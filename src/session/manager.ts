@@ -3,6 +3,7 @@ import type { SessionInfo, SessionChangeEvent, SessionAddedEvent, SessionRemoved
 import { saveSessions, loadSessions } from './persistence.js';
 import { logger } from '../utils/logger.js';
 import type { ProjectStore } from './project-store.js';
+import { normalizeProjectPath } from './project-identity.js';
 
 /**
  * Manages CLI sessions, tracking active sessions and handling focus switching.
@@ -320,6 +321,6 @@ export class SessionManager extends EventEmitter {
     if (!this.projectStore || !session.workingDir) return;
     const project = this.projectStore.resolveForPath(session.workingDir);
     session.projectId = project.id;
-    session.projectPath = session.workingDir;
+    session.projectPath = normalizeProjectPath(session.workingDir);
   }
 }

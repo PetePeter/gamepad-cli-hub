@@ -8,6 +8,7 @@ import type { SessionInfo } from '../../types/session.js';
 import type { SessionSummary, SessionTerminalTailResponse } from '../helm-control-service.js';
 import { spawnConfiguredSession } from '../../session/configured-session-spawn.js';
 import { HelmSessionPlanService } from './helm-session-plan-service.js';
+import { normalizeProjectPath } from '../../session/project-identity.js';
 
 /** Throw if value is null, otherwise return it. */
 function requireResult<T>(value: T | null, message: string): T {
@@ -39,7 +40,10 @@ export class HelmSessionService {
       .filter((session) => {
         if (!dirPath && !projectId) return true;
         if (projectId) return session.projectId === projectId;
-        return session.workingDir === dirPath || session.projectPath === dirPath;
+        const normalizedDirPath = normalizeProjectPath(dirPath);
+        const normalizedWorkingDir = session.workingDir ? normalizeProjectPath(session.workingDir) : undefined;
+        const normalizedProjectPath = session.projectPath ? normalizeProjectPath(session.projectPath) : undefined;
+        return normalizedWorkingDir === normalizedDirPath || normalizedProjectPath === normalizedDirPath;
       })
       .map((session) => this.toSessionSummary(session));
   }

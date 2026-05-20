@@ -5,6 +5,17 @@ import type { DirectorySummary, CliSummary } from '../helm-control-service.js';
 import type { ProjectStore } from '../../session/project-store.js';
 
 /**
+ * Case-insensitive path comparison for Windows without resolving relative paths.
+ * Used for comparing already-normalized paths (from sessions/config).
+ */
+function pathsEqual(a: string, b: string): boolean {
+  if (process.platform === 'win32') {
+    return a.toLowerCase() === b.toLowerCase();
+  }
+  return a === b;
+}
+
+/**
  * Directory and CLI type listing for the MCP surface.
  */
 export class HelmDirectoryService {
@@ -26,7 +37,7 @@ export class HelmDirectoryService {
       const dirPath = rawPath;
       const existing = consolidated.get(dirPath);
       const planCount = this.planManager.getForDirectory(dirPath).length;
-      const sessionCount = sessions.filter((session) => session.workingDir === dirPath).length;
+      const sessionCount = sessions.filter((session) => session.workingDir && pathsEqual(session.workingDir, dirPath)).length;
       const source = new Set<Array<'config' | 'plans' | 'sessions'>[number]>(existing?.source ?? []);
       source.add(sourceTag);
       if (planCount > 0) source.add('plans');
@@ -48,7 +59,7 @@ export class HelmDirectoryService {
 
     // 2. Directories that have plans but aren't configured
     for (const planDir of this.planManager.getAllPlanDirectories()) {
-      const isConfigured = configured.some((entry) => entry.path === planDir);
+      const isConfigured = configured.some((entry) => pathsEqual(entry.path, planDir));
       if (!isConfigured) {
         mergeEntry(planDir, 'plans');
       }
@@ -57,7 +68,7 @@ export class HelmDirectoryService {
     // 3. Directories that have sessions but aren't configured
     for (const session of sessions) {
       if (!session.workingDir) continue;
-      const isConfigured = configured.some((entry) => entry.path === session.workingDir);
+      const isConfigured = configured.some((entry) => pathsEqual(entry.path, session.workingDir));
       if (!isConfigured) {
         mergeEntry(session.workingDir, 'sessions');
       }
