@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HelmControlService, parseSubmitSuffix } from '../src/mcp/helm-control-service.js';
 import { getAvailableTools } from '../src/mcp/guides/session-info-guide.js';
 import { parseSessionAuthToken } from '../src/mcp/session-auth.js';
+import { SkillManager } from '../src/session/skill-manager.js';
 import { logger } from '../src/utils/logger.js';
 
 vi.mock('../src/utils/logger.js', () => ({
@@ -663,6 +664,61 @@ describe('HelmControlService.getSessionInfo', () => {
     expect(routing).toContain('bubble');
     expect(routing).toContain('telegram');
     expect(routing).toContain('none');
+  });
+
+  it('lists compact effective skills for the caller session project', () => {
+    const skillDir = mkdtempSync(join(tmpdir(), 'helm-skills-service-'));
+    try {
+      const skillManager = new SkillManager(join(skillDir, 'skills.yaml'));
+      skillManager.create({ name: 'Global Guide', type: 'guide', allProjects: true, body: 'Global' });
+      const scoped = skillManager.create({
+        name: 'Project Guide',
+        type: 'guide',
+        allProjects: false,
+        projectIds: ['project-1'],
+        body: 'Scoped',
+      });
+      skillManager.create({
+        name: 'Other Project',
+        type: 'other',
+        allProjects: false,
+        projectIds: ['project-2'],
+      });
+
+      const { planManager, sessionManager, ptyManager, configLoader } = makeService();
+      (sessionManager.getSession as ReturnType<typeof vi.fn>).mockReturnValue({
+        id: 's1',
+        name: 'Claude',
+        cliType: 'claude-code',
+        workingDir: '/work',
+      });
+      const projectStore = {
+        findByPath: vi.fn((path: string) => path === '/work' ? { id: 'project-1', name: 'Project', canonicalPath: '/work' } : undefined),
+        list: vi.fn(() => []),
+      };
+      const service = new HelmControlService(
+        planManager as unknown as import('../src/session/plan-manager.js').PlanManager,
+        sessionManager as unknown as import('../src/session/manager.js').SessionManager,
+        ptyManager as unknown as import('../src/session/pty-manager.js').PtyManager,
+        configLoader as unknown as import('../src/config/loader.js').ConfigLoader,
+        undefined,
+        undefined,
+        undefined,
+        projectStore as any,
+        skillManager,
+      );
+
+      const listed = service.listSkills({}, { sessionId: 's1', sessionName: 'Claude' });
+
+      expect(listed.map((skill) => skill.id)).toContain(scoped.id);
+      expect(listed.map((skill) => skill.name)).not.toContain('Global Guide');
+      expect(listed.map((skill) => skill.name)).not.toContain('Other Project');
+      expect(listed[0]).not.toHaveProperty('useCount');
+      expect(listed[0]).not.toHaveProperty('avgRating');
+      expect(listed[0]).not.toHaveProperty('reviewCount');
+    } finally {
+      rmSync(skillDir, { recursive: true, force: true });
+    }
   });
 });
 

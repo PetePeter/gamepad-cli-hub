@@ -21,11 +21,19 @@ export class SkillManager {
   }
 
   listForProject(projectId?: string | null): SkillSummary[] {
-    const userSkills = this.load()
-      .filter((skill) => isSkillApplicableToProject(skill, projectId))
-      .map(toSummary);
-    const systemSummaries = this.systemSkills.map(toSummary);
-    return dedupSummaries([...userSkills, ...systemSummaries]);
+    const userSkills = this.load().filter((skill) => isSkillApplicableToProject(skill, projectId));
+    const effectiveByType = new Map<string, Skill>();
+    for (const skill of [...this.systemSkills, ...userSkills]) {
+      if (!skill.type) continue;
+      const current = effectiveByType.get(skill.type);
+      if (!current || skillPrecedence(skill, projectId) > skillPrecedence(current, projectId)) {
+        effectiveByType.set(skill.type, skill);
+      }
+    }
+
+    return dedupSummaries([...userSkills, ...this.systemSkills]
+      .filter((skill) => !skill.type || effectiveByType.get(skill.type)?.id === skill.id)
+      .map(toSummary));
   }
 
   get(id: string): Skill | null {
@@ -184,6 +192,13 @@ function normalizeScope(value: { allProjects?: unknown; projectIds?: unknown }):
 function isSkillApplicableToProject(skill: Skill, projectId?: string | null): boolean {
   if (skill.allProjects) return true;
   return Boolean(projectId && skill.projectIds.includes(projectId));
+}
+
+function skillPrecedence(skill: Skill, projectId?: string | null): number {
+  if (skill.source === 'system') return 0;
+  if (!skill.allProjects && projectId && skill.projectIds.includes(projectId)) return 2;
+  if (skill.allProjects) return 1;
+  return 0;
 }
 
 function toSummary(skill: Skill): SkillSummary {

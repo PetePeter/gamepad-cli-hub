@@ -72,6 +72,44 @@ describe('SkillManager', () => {
     expect(manager.listForProject(undefined).map((skill) => skill.id)).toEqual([global.id]);
   });
 
+  it('lists only effective typed skills for a project', () => {
+    const manager = makeManager();
+    manager.registerSystemSkill({
+      id: 'sys-guide',
+      name: 'System Guide',
+      description: 'Built-in',
+      body: 'System content',
+      aiAmendable: false,
+      allProjects: true,
+      projectIds: [],
+      type: 'guide',
+      source: 'system',
+    });
+    const global = manager.create({
+      name: 'Global Guide',
+      type: 'guide',
+      allProjects: true,
+      body: 'Global user content',
+    });
+    const scoped = manager.create({
+      name: 'Project Guide',
+      type: 'guide',
+      allProjects: false,
+      projectIds: ['project-1'],
+      body: 'Project-specific content',
+    });
+    const unrelated = manager.create({
+      name: 'Other Project',
+      type: 'other',
+      allProjects: false,
+      projectIds: ['project-2'],
+    });
+
+    expect(manager.listForProject('project-1').map((skill) => skill.id)).toEqual([scoped.id]);
+    expect(manager.listForProject('project-2').map((skill) => skill.id)).toEqual([global.id, unrelated.id]);
+    expect(manager.listForProject('project-3').map((skill) => skill.id)).toEqual([global.id]);
+  });
+
   it('promotes empty project scope back to all projects', () => {
     const manager = makeManager();
     const created = manager.create({ name: 'Global' });

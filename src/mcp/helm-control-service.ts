@@ -105,6 +105,8 @@ export interface SessionInfoResponse {
   };
 }
 
+type McpSkillSummary = Omit<SkillSummary, 'useCount' | 'avgRating' | 'reviewCount'>;
+
 /**
  * Thin facade that delegates all MCP tool operations to domain-focused service classes.
  * The constructor signature and public method names are preserved for backward compatibility.
@@ -482,10 +484,11 @@ export class HelmControlService extends EventEmitter {
   // User-managed skills
   // ---------------------------------------------------------------------------
 
-  listSkills(filter?: { projectId?: string; dirPath?: string }): SkillSummary[] {
-    if (!filter?.projectId && !filter?.dirPath) return this.withSkillStats(this.skillManager.list());
-    const projectId = filter.projectId ?? this.resolveProjectIdForDirectory(filter.dirPath);
-    return this.withSkillStats(this.skillManager.listForProject(projectId));
+  listSkills(filter?: { projectId?: string; dirPath?: string }, authContext?: { sessionId?: string; sessionName?: string }): McpSkillSummary[] {
+    const projectId = filter?.projectId
+      ?? this.resolveProjectIdForDirectory(filter?.dirPath)
+      ?? this.resolveProjectIdForSession(authContext);
+    return this.skillManager.listForProject(projectId).map(toMcpSkillSummary);
   }
 
   getSkill(id: string): Skill | null {
@@ -550,18 +553,6 @@ export class HelmControlService extends EventEmitter {
       timestamp: new Date().toISOString(),
     } satisfies SkillReview);
     return { received: true };
-  }
-
-  private withSkillStats(skills: SkillSummary[]): SkillSummary[] {
-    return skills.map((skill) => {
-      const stats = this.skillAnalyticsManager.getStats(skill.id);
-      return {
-        ...skill,
-        useCount: stats.useCount,
-        avgRating: stats.avgRating,
-        reviewCount: stats.reviewCount,
-      };
-    });
   }
 
   private prepareSkillForUse(skill: Skill | null): Skill | null {
@@ -719,4 +710,9 @@ export class HelmControlService extends EventEmitter {
 function appendSkillFeedbackFooter(body: string, skillId: string): string {
   const footer = SKILL_FEEDBACK_FOOTER.replace('{skillId}', skillId);
   return `${body.trimEnd()}\n\n${footer}`;
+}
+
+function toMcpSkillSummary(skill: SkillSummary): McpSkillSummary {
+  const { useCount: _useCount, avgRating: _avgRating, reviewCount: _reviewCount, ...summary } = skill;
+  return summary;
 }

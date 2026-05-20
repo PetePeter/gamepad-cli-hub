@@ -45,7 +45,7 @@ export async function callMcpTool(
         return service.listSkills({
           ...(typeof args.projectId === 'string' ? { projectId: args.projectId } : {}),
           ...(typeof args.dirPath === 'string' ? { dirPath: args.dirPath } : {}),
-        });
+        }, authContext);
       case 'skill_get': {
         const type = typeof args.type === 'string' ? args.type : undefined;
         if (type && args.id !== undefined) {

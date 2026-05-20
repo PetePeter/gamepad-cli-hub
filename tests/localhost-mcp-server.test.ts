@@ -314,7 +314,10 @@ describe('LocalhostMcpServer', () => {
     });
     const listJson = await listResponse.json();
     expect(listJson.result.structuredContent.items[0].name).toBe('Review');
-    expect(service.listSkills).toHaveBeenCalledWith({});
+    expect(listJson.result.structuredContent.items[0]).not.toHaveProperty('useCount');
+    expect(listJson.result.structuredContent.items[0]).not.toHaveProperty('avgRating');
+    expect(listJson.result.structuredContent.items[0]).not.toHaveProperty('reviewCount');
+    expect(service.listSkills).toHaveBeenCalledWith({}, expect.objectContaining({}));
 
     const filteredListResponse = await rpc(port, 'secret-token', {
       jsonrpc: '2.0',
@@ -323,7 +326,7 @@ describe('LocalhostMcpServer', () => {
       params: { name: 'skill_list', arguments: { projectId: 'project-1' } },
     });
     await filteredListResponse.json();
-    expect(service.listSkills).toHaveBeenCalledWith({ projectId: 'project-1' });
+    expect(service.listSkills).toHaveBeenCalledWith({ projectId: 'project-1' }, expect.objectContaining({}));
 
     const getResponse = await rpc(port, 'secret-token', {
       jsonrpc: '2.0',
