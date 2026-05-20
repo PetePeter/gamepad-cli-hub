@@ -142,6 +142,7 @@ vi.mock('../src/telegram/topic-manager.js', () => ({
     this.ensureTopic = vi.fn();
     this.ensureAllTopics = vi.fn().mockResolvedValue(undefined);
     this.setInstanceName = vi.fn();
+    this.renameSessionTopic = vi.fn().mockResolvedValue(undefined);
   }),
 }));
 vi.mock('../src/telegram/notifier.js', () => ({
@@ -225,6 +226,9 @@ vi.mock('../src/mcp/localhost-mcp-server.js', () => ({
 vi.mock('../src/electron/window-manager.js', () => ({
   WindowManager: vi.fn(function (this: any) {
     this.on = vi.fn();
+    this.getMainWindow = vi.fn().mockReturnValue(null);
+    this.getWindow = vi.fn().mockReturnValue(null);
+    this.getWindowIdForSession = vi.fn().mockReturnValue(undefined);
   }),
 }));
 
@@ -242,6 +246,9 @@ vi.mock('electron', () => ({
 
 import { registerIPCHandlers } from '../src/electron/ipc/handlers.js';
 import { logger } from '../src/utils/logger.js';
+import { TelegramBotCore } from '../src/telegram/bot.js';
+import { TopicManager } from '../src/telegram/topic-manager.js';
+import { SessionManager } from '../src/session/manager.js';
 
 describe('registerIPCHandlers restore wiring', () => {
   beforeEach(() => {
@@ -257,5 +264,58 @@ describe('registerIPCHandlers restore wiring', () => {
     mockRestoreSessions.mockReturnValueOnce([{ id: 's1' }, { id: 's2' }]);
     registerIPCHandlers(() => null);
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Restored 2 session(s)'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Gap 1: session:updated → renameSessionTopic (P-0337)
+// ---------------------------------------------------------------------------
+
+describe('registerIPCHandlers session:updated → renameSessionTopic', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function getSessionUpdatedHandler(): Function | undefined {
+    const smInstance = (SessionManager as any).mock.instances[0];
+    const call = (smInstance?.on as any)?.mock?.calls?.find(([e]: [string]) => e === 'session:updated');
+    return call?.[1];
+  }
+
+  it('calls renameSessionTopic when bot is running and session:updated fires', async () => {
+    const botInstance = Object.create(null);
+    (TelegramBotCore as any).mockImplementationOnce(function (this: any) {
+      Object.assign(this, botInstance);
+      this.start = vi.fn();
+      this.stop = vi.fn();
+      this.isRunning = vi.fn().mockReturnValue(true);
+      this.on = vi.fn();
+      this.removeListener = vi.fn();
+      this.emit = vi.fn();
+    });
+
+    registerIPCHandlers(() => null);
+
+    const handler = getSessionUpdatedHandler();
+    expect(handler).toBeDefined();
+
+    const event = { id: 'sess-1', name: 'renamed', topicId: 42, timestamp: Date.now() };
+    handler!(event);
+
+    const tmInstance = (TopicManager as any).mock.instances[0];
+    expect(tmInstance.renameSessionTopic).toHaveBeenCalledWith(event);
+  });
+
+  it('does not call renameSessionTopic when bot is not running', () => {
+    registerIPCHandlers(() => null);
+
+    const handler = getSessionUpdatedHandler();
+    expect(handler).toBeDefined();
+
+    const event = { id: 'sess-1', name: 'renamed', topicId: 42, timestamp: Date.now() };
+    handler!(event);
+
+    const tmInstance = (TopicManager as any).mock.instances[0];
+    expect(tmInstance.renameSessionTopic).not.toHaveBeenCalled();
   });
 });

@@ -56,10 +56,31 @@ export function initTelegramModules(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const topicClosedHandler = (msg: any) => {
     if (msg.forum_topic_closed && msg.message_thread_id) {
-      topicManager.handleTopicClosed(msg.message_thread_id);
+      const topicId: number = msg.message_thread_id;
+      const session = topicManager.findSessionByTopicId(topicId);
+      topicManager.handleTopicClosed(topicId);
+      if (session) {
+        try { ptyManager.kill(session.id); } catch { /* already dead */ }
+        sessionManager.removeSession(session.id);
+      }
     }
   };
   bot.on('message', topicClosedHandler);
+
+  // Listen for forum_topic_edited events — rename Helm session to match
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const topicEditedHandler = (msg: any) => {
+    if (msg.forum_topic_edited && msg.message_thread_id) {
+      const newName: string | undefined = msg.forum_topic_edited.name;
+      if (!newName) return; // icon-only edit, name unchanged
+      const session = topicManager.findSessionByTopicId(msg.message_thread_id);
+      if (!session) return;
+      const prefix = `[${instanceName}] `;
+      const stripped = newName.startsWith(prefix) ? newName.slice(prefix.length) : newName;
+      sessionManager.renameSession(session.id, stripped);
+    }
+  };
+  bot.on('message', topicEditedHandler);
 
   // Forward reaction events to the relay service
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -78,6 +99,7 @@ export function initTelegramModules(
       cleanupTopicInput();
       cleanupCommands();
       bot.removeListener('message', topicClosedHandler);
+      bot.removeListener('message', topicEditedHandler);
       bot.removeListener('message_reaction', reactionHandler);
       helmControlService.setTelegramBridge(null);
       dashboard.dispose();

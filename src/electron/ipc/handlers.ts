@@ -212,6 +212,12 @@ export function registerIPCHandlers(
       win.webContents.send('session:updated', event);
     }
 
+    if (telegramBot.isRunning()) {
+      topicManager.renameSessionTopic(event).catch(err =>
+        logger.error(`[Telegram] Failed to rename topic for ${event.id}: ${err}`),
+      );
+    }
+
     const sessionWindowId = windowManager.getWindowIdForSession(event.id);
     if (sessionWindowId === undefined) return;
     const sessionWindow = windowManager.getWindow(sessionWindowId);
