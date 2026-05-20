@@ -420,6 +420,10 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   projectRemoveDir: (id: string, dirPath: string) =>
     ipcRenderer.invoke('project:removeDir', id, dirPath),
 
+  /** Promote a project alternate directory to the main directory */
+  projectSetMainDir: (id: string, dirPath: string) =>
+    ipcRenderer.invoke('project:setMainDir', id, dirPath),
+
   // ========================================================================
   // Skills
   // ========================================================================

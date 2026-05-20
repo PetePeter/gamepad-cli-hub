@@ -102,4 +102,16 @@ export function setupProjectHandlers(projectStore: ProjectStore, planManager?: P
       return { success: false, error: String(error) };
     }
   });
+
+  ipcMain.handle('project:setMainDir', (_event, id: string, dirPath: string) => {
+    try {
+      projectStore.setMainDirectory(id, dirPath);
+      projectStore.save();
+      logger.info(`[IPC] Set main directory "${dirPath}" for project ${id}`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[IPC] Failed to set main directory for project ${id}: ${error}`);
+      return { success: false, error: String(error) };
+    }
+  });
 }

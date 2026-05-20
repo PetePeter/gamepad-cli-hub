@@ -3,7 +3,7 @@ import { appClient, attachmentsClient, backupsClient, configClient, contextsClie
 /**
  * ProjectsTab.vue — Project list CRUD with expandable directory management.
  *
- * Reads from the project IPC bridge (projectList/Update/Delete/AddDir/RemoveDir).
+ * Reads from the project IPC bridge (projectList/Update/Delete/AddDir/RemoveDir/SetMainDir).
  * Projects can be created explicitly and are also auto-created when directories
  * are opened; this tab lets users rename, reorganise directories, and delete projects.
  */
@@ -157,6 +157,15 @@ async function onRemoveDir(projectId: string, dirPath: string): Promise<void> {
   } catch (error) { errorMessage.value = String(error); }
   await refresh();
 }
+
+async function onSetMainDir(projectId: string, dirPath: string): Promise<void> {
+  try {
+    errorMessage.value = '';
+    const result = await projectsClient.projectSetMainDir(projectId, dirPath);
+    if (result?.success === false) errorMessage.value = result.error || 'Set main directory failed';
+  } catch (error) { errorMessage.value = String(error); }
+  await refresh();
+}
 </script>
 
 <template>
@@ -230,6 +239,11 @@ async function onRemoveDir(projectId: string, dirPath: string): Promise<void> {
             class="settings-project-dir"
           >
             <span class="settings-project-dir__path">{{ altPath }}</span>
+            <button
+              class="btn btn--secondary btn--sm focusable"
+              title="Set as main directory"
+              @click="onSetMainDir(project.id, altPath)"
+            >Set as Main</button>
             <button
               class="btn btn--ghost btn--sm focusable"
               title="Remove directory"

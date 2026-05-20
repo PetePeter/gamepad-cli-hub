@@ -145,6 +145,55 @@ describe('ProjectStore', () => {
     });
   });
 
+  describe('setMainDirectory', () => {
+    it('promotes an alternate path to canonical and demotes the old canonical path', () => {
+      const store = new ProjectStore(() => 'X:\\coding\\repo', projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+
+      store.setMainDirectory(record.id, 'X:\\coding\\worktree-b');
+
+      expect(record.canonicalPath).toBe('x:\\coding\\worktree-b');
+      expect(record.alternatePaths).toEqual(['x:\\coding\\repo']);
+      expect(store.findByPath('X:\\coding\\repo')?.id).toBe(record.id);
+      expect(store.findByPath('X:\\coding\\worktree-b')?.id).toBe(record.id);
+    });
+
+    it('keeps the user-selected main directory during later project merges', () => {
+      const store = new ProjectStore((cwd, args) => {
+        if (args.includes('--show-toplevel')) return cwd.includes('worktree-b') ? 'X:\\coding\\worktree-b' : 'X:\\coding\\repo';
+        if (args.includes('--git-common-dir')) return 'X:\\coding\\repo\\.git';
+        return null;
+      }, projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.resolveForPath('X:\\coding\\worktree-b');
+      store.setMainDirectory(record.id, 'X:\\coding\\worktree-b');
+
+      store.resolveForPath('X:\\coding\\repo\\packages\\ui');
+
+      expect(record.canonicalPath).toBe('x:\\coding\\worktree-b');
+      expect(record.alternatePaths).toContain('x:\\coding\\repo');
+    });
+
+    it('throws if the path is not already part of the project', () => {
+      const store = new ProjectStore(() => 'X:\\coding\\repo', projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+
+      expect(() => store.setMainDirectory(record.id, 'X:\\coding\\other')).toThrow('Main directory must already belong to the project');
+    });
+
+    it('is a no-op when the selected path is already canonical', () => {
+      const store = new ProjectStore(() => 'X:\\coding\\repo', projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.save();
+
+      store.setMainDirectory(record.id, 'X:\\coding\\repo');
+
+      expect(record.canonicalPath).toBe('x:\\coding\\repo');
+      expect(store.isDirty()).toBe(false);
+    });
+  });
+
   describe('rename', () => {
     it('updates name and updatedAt', () => {
       const store = new ProjectStore(() => 'X:\\coding\\repo', projectsFile);
