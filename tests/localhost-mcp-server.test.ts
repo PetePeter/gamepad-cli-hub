@@ -1608,7 +1608,6 @@ describe('LocalhostMcpServer', () => {
       });
       const json = await response.json();
       expect((service.completePlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('p1', 'All tests pass and feature works');
-      expect(json.result.structuredContent.completionNotes).toBe('All tests pass and feature works');
       expect(json.result.structuredContent.followUpPlans).toEqual([
         { id: 'p2', humanId: 'P-0002', title: 'Follow up', status: 'ready', autoImplement: true },
         { id: 'p3', humanId: 'P-0003', title: 'Manual QA', status: 'planning', autoImplement: false },
@@ -1617,7 +1616,7 @@ describe('LocalhostMcpServer', () => {
         { id: 'p2', humanId: 'P-0002', title: 'Follow up', status: 'ready', autoImplement: true },
       ]);
       expect(json.result.structuredContent.continueWithAutoFollowUps).toBe(true);
-      expect(json.result.structuredContent.testingInstructionsReminder).toContain('Notify the user');
+      expect(json.result.structuredContent.testingInstructions).toContain('notify_user');
     });
 
     it('rejects missing documentation param', async () => {
@@ -1688,11 +1687,8 @@ describe('LocalhostMcpServer', () => {
       expect((service.notifyUser as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
         's1',
         'Plan completed — Task',
-        expect.stringContaining('All tests pass and feature works'),
+        'All tests pass and feature works',
       );
-      const content = (service.notifyUser as unknown as ReturnType<typeof vi.fn>).mock.calls[0][2];
-      expect(content).toContain('Testing guidance:');
-      expect(content).toContain('keep that notification visible in Helm until they dismiss it');
     });
 
     it('does not throw when notifyUser fails during plan completion', async () => {
@@ -1724,7 +1720,7 @@ describe('LocalhostMcpServer', () => {
       });
       const json = await response.json();
       expect(json.error).toBeUndefined();
-      expect(json.result.structuredContent.status).toBe('done');
+      expect(json.result.structuredContent.continueWithAutoFollowUps).toBe(false);
     });
   });
 

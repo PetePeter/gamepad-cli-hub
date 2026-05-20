@@ -3,14 +3,12 @@
  * Used by the completion recap gate to enforce fresh-read requirements.
  */
 
-const STALE_TIME_MS = 10 * 60 * 1000; // 10 minutes
-const STALE_WRITE_COUNT = 50;
+const STALE_TIME_MS = 3 * 60 * 1000; // 3 minutes
 
 interface ReadRecord {
   planId: string;
   sessionId: string;
-  readAt: number;        // Date.now()
-  ptyWriteCount: number; // write count for session at moment of read
+  readAt: number; // Date.now()
 }
 
 export class PlanReadTracker {
@@ -20,12 +18,11 @@ export class PlanReadTracker {
     return `${planId}:${sessionId}`;
   }
 
-  recordRead(planId: string, sessionId: string, ptyWriteCount: number): void {
+  recordRead(planId: string, sessionId: string): void {
     this.records.set(this.key(planId, sessionId), {
       planId,
       sessionId,
       readAt: Date.now(),
-      ptyWriteCount,
     });
   }
 
@@ -33,11 +30,9 @@ export class PlanReadTracker {
     return this.records.get(this.key(planId, sessionId));
   }
 
-  /** Stale = BOTH time elapsed > STALE_TIME_MS AND writes since read > STALE_WRITE_COUNT. */
-  isStale(record: ReadRecord, currentWriteCount: number, now: number): boolean {
-    const timeExceeded = now - record.readAt > STALE_TIME_MS;
-    const writesExceeded = currentWriteCount - record.ptyWriteCount > STALE_WRITE_COUNT;
-    return timeExceeded && writesExceeded;
+  /** Stale = read more than 3 minutes ago. */
+  isStale(record: ReadRecord, now: number): boolean {
+    return now - record.readAt > STALE_TIME_MS;
   }
 
   /** Remove all records for a session (e.g. on session close). */

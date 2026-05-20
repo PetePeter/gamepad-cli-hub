@@ -22,7 +22,6 @@ import {
   normalizeStructuredContent,
 } from './tools/validation.js';
 import { PlanReadTracker } from '../session/plan-read-tracker.js';
-import { formatPlanRecap } from '../session/recap-formatter.js';
 import type { PtyManager } from '../session/pty-manager.js';
 
 type JsonRpcId = string | number | null;
@@ -208,8 +207,7 @@ export class LocalhostMcpServer {
             completePlanWithValidation: this.completePlanWithValidation.bind(this, authContext),
             onPlanRead: (planId: string) => {
               if (authContext.sessionId) {
-                const writeCount = this.ptyManager?.getWriteCount(authContext.sessionId) ?? 0;
-                this.planReadTracker.recordRead(planId, authContext.sessionId, writeCount);
+                this.planReadTracker.recordRead(planId, authContext.sessionId);
               }
             },
           };
@@ -269,25 +267,19 @@ export class LocalhostMcpServer {
       if (codingSessionId) {
         const readRecord = this.planReadTracker.getRead(id, codingSessionId);
         const now = Date.now();
-        const currentWriteCount = this.ptyManager?.getWriteCount(codingSessionId) ?? 0;
+        const humanId = current.humanId ?? id;
 
         if (!readRecord) {
-          // Gate 1 — never read
-          const block = formatPlanRecap(current, 'never-read');
-          this.ptyManager?.write(codingSessionId, block);
-          throw new Error(`Plan completion blocked: you have not read plan ${current.humanId ?? id} in this session. Call plan_get first.`);
+          throw new Error(`Plan completion blocked — ${humanId}: call plan_get to read the plan, verify criteria, then call plan_complete again.`);
         }
 
-        if (this.planReadTracker.isStale(readRecord, currentWriteCount, now)) {
-          // Gate 2 — stale read
+        if (this.planReadTracker.isStale(readRecord, now)) {
           const minutesAgo = Math.floor((now - readRecord.readAt) / 60_000);
-          const writesSince = currentWriteCount - readRecord.ptyWriteCount;
-          const block = formatPlanRecap(current, 'stale', { minutesAgo, writesSince });
-          this.ptyManager?.write(codingSessionId, block);
-          throw new Error(`Plan completion blocked: your read of plan ${current.humanId ?? id} is stale (${minutesAgo} min ago, ${writesSince} writes). Re-read with plan_get.`);
+          throw new Error(`Plan completion blocked — ${humanId}: read is ${minutesAgo} min old (limit 3 min). Re-read with plan_get, verify criteria, then call plan_complete again.`);
         }
       }
     }
+
     const completed = requireResult(
       this.service.completePlan(id, documentation),
       `Plan ${id} could not be completed from its current state`,
@@ -305,37 +297,20 @@ export class LocalhostMcpServer {
         autoImplement: Boolean(item.autoImplement),
       }));
     const autoFollowUpPlans = followUpPlans.filter((item) => item.autoImplement && item.status === 'ready');
-    const testingInstructionsReminder = 'Notify the user with concrete steps they can run to test this completed plan, and keep that notification visible in Helm until they dismiss it.';
-    const notificationContent = `${documentation}\n\nTesting guidance: ${testingInstructionsReminder}`;
 
-    // Emit a persistent in-app notification so the user sees completion guidance
     if (completed.sessionId) {
       try {
-        this.service.notifyUser(
-          completed.sessionId,
-          `Plan completed — ${completed.title}`,
-          notificationContent,
-        );
+        this.service.notifyUser(completed.sessionId, `Plan completed — ${completed.title}`, documentation);
       } catch {
         // Notification mode may not be 'llm'; ignore rather than fail the completion
       }
     }
 
-    // Gate 3 pass — write recap block to PTY when completionRecap is enabled
-    if (current.completionRecap) {
-      const recapSessionId = completed.sessionId ?? authContext.sessionId;
-      if (recapSessionId && this.ptyManager) {
-        const block = formatPlanRecap(current, 'pass');
-        this.ptyManager.write(recapSessionId, block);
-      }
-    }
-
     return {
-      ...completed,
-      testingInstructionsReminder,
       followUpPlans,
       autoFollowUpPlans,
       continueWithAutoFollowUps: autoFollowUpPlans.length > 0,
+      testingInstructions: 'Use notify_user to send the user concrete test steps to validate this plan. The notification stays visible in Helm until dismissed.',
     };
   }
 
