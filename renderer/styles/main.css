@@ -3790,7 +3790,6 @@ kbd {
   font-size: 12px;
   font-family: 'Consolas', 'Courier New', monospace;
   min-height: 60px;
-  max-height: 50vh;
   outline: none;
   line-height: 1.4;
 }

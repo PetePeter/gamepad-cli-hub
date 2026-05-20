@@ -14,6 +14,7 @@ const props = withDefaults(defineProps<{
   rows?: number;
   minRows?: number;
   maxRows?: number;
+  maxHeightPx?: number;
   textareaClass?: string;
   fill?: boolean;
 }>(), {
@@ -21,6 +22,7 @@ const props = withDefaults(defineProps<{
   rows: 3,
   minRows: 3,
   maxRows: 14,
+  maxHeightPx: undefined,
   textareaClass: '',
   fill: false,
 });
@@ -50,7 +52,7 @@ function autosize(): void {
   const parsedLineHeight = parseFloat(getComputedStyle(el).lineHeight || '18');
   const lineHeight = Number.isFinite(parsedLineHeight) ? parsedLineHeight : 18;
   const minHeight = lineHeight * props.minRows;
-  const maxHeight = lineHeight * props.maxRows;
+  const maxHeight = Math.min(lineHeight * props.maxRows, props.maxHeightPx ?? Infinity);
   const nextHeight = Math.min(Math.max(el.scrollHeight, manualHeight.value ?? 0, minHeight), maxHeight);
   el.style.height = `${nextHeight}px`;
   el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden';
@@ -82,7 +84,7 @@ function clampHeight(height: number): number {
   if (!el) return height;
   const parsedLineHeight = parseFloat(getComputedStyle(el).lineHeight || '18');
   const lineHeight = Number.isFinite(parsedLineHeight) ? parsedLineHeight : 18;
-  return Math.min(Math.max(height, lineHeight * props.minRows), lineHeight * props.maxRows);
+  return Math.min(Math.max(height, lineHeight * props.minRows), Math.min(lineHeight * props.maxRows, props.maxHeightPx ?? Infinity));
 }
 
 function onResizeMove(event: PointerEvent): void {

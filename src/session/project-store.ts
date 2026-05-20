@@ -41,7 +41,6 @@ function mergeProjectPath(record: ProjectRecord, identity: ProjectIdentity, norm
     record.rootKind = identity.rootKind;
     record.gitCommonDir = identity.gitCommonDir;
     record.repoRootPath = identity.repoRootPath;
-    record.name = dirDisplayNameFromPath(nextCanonicalPath);
     record.updatedAt = Date.now();
   }
 

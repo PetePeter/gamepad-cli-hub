@@ -98,6 +98,7 @@ import {
 } from './plans/plan-screen.js';
 import { deliverBulkText } from './paste-handler.js';
 import { deliverPromptSequence } from './sequence-delivery.js';
+import { buildPlannerDirectories } from './screens/planner-directories.js';
 
 // Sidebar components
 import StatusStrip from './components/sidebar/StatusStrip.vue';
@@ -354,7 +355,7 @@ const spawnItems = computed(() =>
 );
 
 const plansDirItems = computed(() =>
-  sessionsState.directories.map(d => ({
+  buildPlannerDirectories(sessionsState.directories).map(d => ({
     name: d.name,
     path: d.path,
     startableCount: state.planDirStartableCounts.get(d.path) ?? 0,

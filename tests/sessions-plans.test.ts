@@ -265,6 +265,20 @@ describe('Sessions Plans Grid', () => {
       plans.handlePlansZone('DPadRight', 'right');
       expect(sessionsState.plansFocusIndex).toBe(1);
     });
+
+    it('navigates the project-collapsed planner list', () => {
+      sessionsState.directories = [
+        { name: 'repo', path: '/repo', projectId: 'p1', projectName: 'Repo', isCanonical: true },
+        { name: 'repo app', path: '/repo/app', projectId: 'p1', projectName: 'Repo' },
+        { name: 'other', path: '/other', projectId: 'p2', projectName: 'Other', isCanonical: true },
+      ];
+      sessionsState.plansFocusIndex = 0;
+
+      plans.handlePlansZone('DPadRight', 'right');
+      expect(sessionsState.plansFocusIndex).toBe(1);
+      plans.handlePlansZone('DPadDown', 'down');
+      expect(sessionsState.plansFocusIndex).toBe(1);
+    });
   });
 
   // ==========================================================================
@@ -284,6 +298,18 @@ describe('Sessions Plans Grid', () => {
       // Wait for dynamic import to resolve
       await flush();
       expect(mockOpenPlan).toHaveBeenCalledWith('/projects/a');
+    });
+
+    it('A button opens the canonical folder for a project group', async () => {
+      sessionsState.directories = [
+        { name: 'repo app', path: '/repo/app', projectId: 'p1', projectName: 'Repo' },
+        { name: 'repo', path: '/repo', projectId: 'p1', projectName: 'Repo', isCanonical: true },
+      ];
+
+      const consumed = plans.handlePlansZoneButton('A');
+      expect(consumed).toBe(true);
+      await flush();
+      expect(mockOpenPlan).toHaveBeenCalledWith('/repo');
     });
 
     it('B button returns to sessions zone', () => {

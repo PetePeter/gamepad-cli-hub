@@ -823,6 +823,114 @@ describe('DraftEditor', () => {
     expect(w.emitted('context-save')).toEqual([[{ title: 'Title', content: 'Content', type: 'Knowledge', permission: 'readonly' }]]);
   });
 
+  // --- PromptTextarea maxHeightPx prop (P-0318) ---
+
+  it('clampHeight respects maxHeightPx when smaller than maxRows limit', async () => {
+    const w = mount(PromptTextarea, {
+      attachTo: document.body,
+      props: {
+        modelValue: '',
+        minRows: 2,
+        maxRows: 50,
+        maxHeightPx: 200,
+      },
+    });
+    await flushPromises();
+    const vm = w.vm as any;
+    const textarea = w.find('.prompt-textarea__editor').element as HTMLTextAreaElement;
+    // request a height well above both limits
+    vm.setHeight(500);
+    await flushPromises();
+    const parsedHeight = parseFloat(textarea.style.height);
+    expect(parsedHeight).toBeLessThanOrEqual(200);
+    w.unmount();
+  });
+
+  it('clampHeight ignores maxHeightPx when not provided, uses maxRows', async () => {
+    const w = mount(PromptTextarea, {
+      attachTo: document.body,
+      props: {
+        modelValue: '',
+        minRows: 2,
+        maxRows: 5,
+      },
+    });
+    await flushPromises();
+    const vm = w.vm as any;
+    const textarea = w.find('.prompt-textarea__editor').element as HTMLTextAreaElement;
+    // lineHeight ≈ 26px (14px * 1.45 + padding), so 5 rows ≈ 130px
+    vm.setHeight(500);
+    await flushPromises();
+    const parsedHeight = parseFloat(textarea.style.height);
+    // Should be clamped to maxRows * lineHeight, well below 500
+    expect(parsedHeight).toBeLessThan(500);
+    expect(parsedHeight).toBeLessThanOrEqual(5 * 30); // generous upper bound
+    w.unmount();
+  });
+
+  it('autosize respects maxHeightPx for large content', async () => {
+    const w = mount(PromptTextarea, {
+      attachTo: document.body,
+      props: {
+        modelValue: '\n'.repeat(100),
+        minRows: 2,
+        maxRows: 200,
+        maxHeightPx: 150,
+      },
+    });
+    await flushPromises();
+    const textarea = w.find('.prompt-textarea__editor').element as HTMLTextAreaElement;
+    const parsedHeight = parseFloat(textarea.style.height);
+    expect(parsedHeight).toBeLessThanOrEqual(150);
+    w.unmount();
+  });
+
+  // --- DraftEditor plan mode maxHeightPx (P-0318) ---
+
+  it('passes maxHeightPx to PromptTextarea in plan mode', async () => {
+    (window as any).helm = { config: { configGetEditorPrefs: vi.fn().mockResolvedValue({}), configSetEditorPrefs: vi.fn().mockResolvedValue({}) } };
+
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'plan',
+        sessionId: 'sess-1',
+        initialLabel: 'Task',
+        initialText: 'Body',
+        planStatus: 'coding',
+        planCallbacks: { onSave: vi.fn(), onDelete: vi.fn() },
+      },
+    });
+    await flushPromises();
+
+    const promptTextarea = w.findComponent(PromptTextarea);
+    // Plan mode should pass a maxHeightPx (75% of viewport)
+    expect(promptTextarea.props('maxHeightPx')).toBeGreaterThan(0);
+    expect(promptTextarea.props('maxHeightPx')).toBeLessThanOrEqual(window.innerHeight);
+
+    delete (window as any).helm;
+  });
+
+  it('does not pass maxHeightPx in draft mode', async () => {
+    (window as any).helm = { config: { configGetEditorPrefs: vi.fn().mockResolvedValue({}), configSetEditorPrefs: vi.fn().mockResolvedValue({}) } };
+
+    const w = mount(DraftEditor, {
+      props: {
+        visible: true,
+        mode: 'draft',
+        sessionId: 'sess-1',
+        initialLabel: 'Draft',
+        initialText: '',
+      },
+    });
+    await flushPromises();
+
+    const promptTextarea = w.findComponent(PromptTextarea);
+    expect(promptTextarea.props('maxHeightPx')).toBeUndefined();
+
+    delete (window as any).helm;
+  });
+
   // --- DraftEditor resize persistence (P-0309) ---
 
   it('applies persisted plan editor height on mount', async () => {

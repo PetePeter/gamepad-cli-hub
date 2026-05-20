@@ -10,6 +10,7 @@ import { useNavigationStore } from '../stores/navigation.js';
 import { isSpawnCollapsed } from '../sidebar/section-collapse.js';
 import { state } from '../state.js';
 import { plansClient } from '../ipc/clients.js';
+import { buildPlannerDirectories } from './planner-directories.js';
 
 // Circular import — safe: all usages are inside function bodies, not at module-evaluation time.
 import { updateAllFocus } from './sessions.js';
@@ -20,7 +21,8 @@ import { updateAllFocus } from './sessions.js';
 
 export function handlePlansZone(button: string, dir: string | null): void {
   // Read directory count from state — Vue owns the DOM so we can't rely on DOM button count.
-  const total = sessionsState.directories.length;
+  const plannerDirs = buildPlannerDirectories(sessionsState.directories);
+  const total = plannerDirs.length;
   if (total === 0) return;
 
   const cols = 2;
@@ -73,7 +75,7 @@ export function handlePlansZoneButton(button: string): boolean {
   switch (button) {
     case 'A': {
       // Read from state — Vue owns the DOM, so we can't rely on DOM button order.
-      const dir = sessionsState.directories[sessionsState.plansFocusIndex];
+      const dir = buildPlannerDirectories(sessionsState.directories)[sessionsState.plansFocusIndex];
       if (dir?.path) {
         void useNavigationStore().openPlan(dir.path);
       }

@@ -707,7 +707,7 @@ describe('DirPickerModal.vue', () => {
   it('sections directories by project when project metadata is present', () => {
     const w = factory({
       items: [
-        { name: 'repo root', path: 'C:\\dev\\repo', projectId: 'p1', projectName: 'Repo' },
+        { name: 'repo root', path: 'C:\\dev\\repo', projectId: 'p1', projectName: 'Repo', isCanonical: true },
         { name: 'repo app', path: 'C:\\dev\\repo\\app', projectId: 'p1', projectName: 'Repo' },
         { name: 'other', path: 'C:\\dev\\other', projectId: 'p2', projectName: 'Other' },
       ],
@@ -716,6 +716,7 @@ describe('DirPickerModal.vue', () => {
     const sections = w.findAll('.dir-picker-section');
     expect(sections.map(section => section.text())).toEqual(['Repo', 'Other']);
     expect(w.findAll('.dir-picker-item')).toHaveLength(3);
+    expect(w.find('.dir-picker-item__badge').text()).toBe('[Main]');
     w.unmount();
   });
 

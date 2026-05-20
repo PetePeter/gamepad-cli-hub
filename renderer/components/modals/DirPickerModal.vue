@@ -159,7 +159,10 @@ defineExpose({ handleButton });
               @keydown="suppressActivationKey"
               @click="selectDir(i)"
             >
-              <span class="dir-picker-item__name">{{ item.name }}</span>
+              <span class="dir-picker-item__name">
+                {{ item.name }}
+                <span v-if="item.isCanonical" class="dir-picker-item__badge">[Main]</span>
+              </span>
               <span class="dir-picker-item__path">{{ item.path }}</span>
             </div>
           </template>
@@ -179,5 +182,12 @@ defineExpose({ handleButton });
   font-weight: 700;
   color: var(--text-secondary);
   text-transform: uppercase;
+}
+
+.dir-picker-item__badge {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
 }
 </style>

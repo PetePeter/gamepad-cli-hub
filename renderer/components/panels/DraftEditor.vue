@@ -142,6 +142,7 @@ const attachmentError = ref('');
 
 const heightDebounceTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const editorHeightKey = computed(() => isDraft.value ? 'draftEditorHeight' : isContext.value ? 'contextEditorHeight' : 'planEditorHeight');
+const planEditorMaxHeightPx = computed(() => isPlan.value ? Math.round(window.innerHeight * 0.75) : undefined);
 
 const isDraft = computed(() => props.mode === 'draft');
 const isPlan = computed(() => props.mode === 'plan');
@@ -540,6 +541,7 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
         :rows="4"
         :min-rows="4"
         :max-rows="18"
+        :max-height-px="planEditorMaxHeightPx"
         textarea-class="draft-editor-content"
         @resized="scheduleHeightSave"
       />

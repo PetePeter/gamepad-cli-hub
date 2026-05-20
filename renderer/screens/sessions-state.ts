@@ -5,6 +5,7 @@
 
 import { reactive } from 'vue';
 import type { NavItem, SessionGroup, SessionGroupPrefs } from '../session-groups.js';
+import type { ProjectDirectoryItem } from './planner-directories.js';
 
 export type SessionsFocus = 'sessions' | 'spawn' | 'plans';
 
@@ -14,7 +15,7 @@ export interface SessionsScreenState {
   spawnFocusIndex: number;
   cardColumn: 0 | 1 | 2 | 3 | 4;
   cliTypes: string[];
-  directories: Array<{ name: string; path: string; projectId?: string; projectName?: string; isCanonical?: boolean }>;
+  directories: ProjectDirectoryItem[];
   editingSessionId: string | null;
   /** Flat navigation list (group headers + session cards). */
   navList: NavItem[];
