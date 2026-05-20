@@ -53,9 +53,10 @@ function autosize(): void {
   const lineHeight = Number.isFinite(parsedLineHeight) ? parsedLineHeight : 18;
   const minHeight = lineHeight * props.minRows;
   const maxHeight = props.maxHeightPx ?? lineHeight * props.maxRows;
-  const nextHeight = Math.min(Math.max(el.scrollHeight, manualHeight.value ?? 0, minHeight), maxHeight);
+  const contentFloor = manualHeight.value != null ? 0 : el.scrollHeight;
+  const nextHeight = Math.min(Math.max(contentFloor, manualHeight.value ?? 0, minHeight), maxHeight);
   el.style.height = `${nextHeight}px`;
-  el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  el.style.overflowY = el.scrollHeight > nextHeight ? 'auto' : 'hidden';
 }
 
 function onInput(event: Event): void {

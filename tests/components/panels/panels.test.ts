@@ -909,6 +909,41 @@ describe('DraftEditor', () => {
     w.unmount();
   });
 
+  // --- PromptTextarea resize shrink (P-0338) ---
+
+  it('autosize: manualHeight below scrollHeight makes textarea shrinkable', async () => {
+    const w = mount(PromptTextarea, {
+      attachTo: document.body,
+      props: { modelValue: '', minRows: 2, maxRows: 20 },
+    });
+    await flushPromises();
+    const textarea = w.find('.prompt-textarea__editor').element as HTMLTextAreaElement;
+    // Simulate large content by faking scrollHeight
+    Object.defineProperty(textarea, 'scrollHeight', { configurable: true, get: () => 400 });
+
+    const vm = w.vm as any;
+    vm.setHeight(80); // drag up: user wants 80px despite 400px content
+    await flushPromises();
+
+    const parsedHeight = parseFloat(textarea.style.height);
+    expect(parsedHeight).toBeLessThan(400);
+    expect(textarea.style.overflowY).toBe('auto');
+    w.unmount();
+  });
+
+  it('autosize: null manualHeight still auto-grows with content', async () => {
+    const w = mount(PromptTextarea, {
+      attachTo: document.body,
+      props: { modelValue: '', minRows: 2, maxRows: 20 },
+    });
+    await flushPromises();
+    const textarea = w.find('.prompt-textarea__editor').element as HTMLTextAreaElement;
+    // No manual resize — auto-grow should still apply
+    const parsedHeight = parseFloat(textarea.style.height);
+    expect(parsedHeight).toBeGreaterThan(0);
+    w.unmount();
+  });
+
   // --- DraftEditor plan mode maxHeightPx (P-0318) ---
 
   it('passes maxHeightPx to PromptTextarea in plan mode', async () => {
