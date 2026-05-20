@@ -21,9 +21,9 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skills_list',
+    name: 'skill_list',
     title: 'List Skills',
-    description: 'List Helm skills (user-managed and system) as compact summaries. Pass projectId or dirPath to filter to skills applicable to one project. Use skills_get when you need the full body before applying or editing a skill.',
+    description: 'List Helm skills (user-managed and system) as compact summaries. Pass projectId or dirPath to filter to skills applicable to one project. Use skill_get when you need the full body before applying or editing a skill.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -34,7 +34,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skills_get',
+    name: 'skill_get',
     title: 'Get Skill',
     description: 'Fetch one Helm skill by id or resolve the effective skill by type. Pass id for exact lookup, or pass type with optional projectId/dirPath for type-based resolution (respects project scope precedence).',
     inputSchema: {
@@ -49,7 +49,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skills_submit_feedback',
+    name: 'skill_submit_feedback',
     title: 'Submit Skill Feedback',
     description: 'Submit LLM feedback for a user-managed Helm skill after applying it. Stores stars, summary, optional improvement, and caller CLI attribution.',
     inputSchema: {
@@ -65,7 +65,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skills_create',
+    name: 'skill_create',
     title: 'Create Skill',
     description: 'Create a user-managed Helm skill persisted in config/skills.yaml. Omit projectIds or set allProjects=true for a global skill.',
     inputSchema: {
@@ -84,7 +84,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skills_update',
+    name: 'skill_update',
     title: 'Update Skill',
     description: 'Update a user-managed Helm skill. Protected skills reject AI amendments unless aiAmendable is enabled.',
     inputSchema: {
@@ -104,7 +104,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skills_delete',
+    name: 'skill_delete',
     title: 'Delete Skill',
     description: 'Delete a user-managed Helm skill by id. System skills cannot be deleted.',
     inputSchema: {
@@ -113,20 +113,6 @@ export const MCP_TOOLS: McpTool[] = [
         id: { type: 'string' },
       },
       required: ['id'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'skill_activate',
-    title: 'Activate Skill',
-    description: 'Load and activate a skill by ID or type. Returns full skill content and metadata to enable agents to apply the skill.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        skillId: { type: 'string', description: 'Skill ID (UUID) or type name to activate. Lookup is case-insensitive for type matching.' },
-        context: { type: 'string', description: 'Reserved for future use.' },
-      },
-      required: ['skillId'],
       additionalProperties: false,
     },
   },

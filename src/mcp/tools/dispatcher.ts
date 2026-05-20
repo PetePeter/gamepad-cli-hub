@@ -39,12 +39,12 @@ export async function callMcpTool(
         return service.plansSummary(asString(args.dirPath, 'dirPath is required'));
       case 'tools_list':
         return service.listClis();
-      case 'skills_list':
+      case 'skill_list':
         return service.listSkills({
           ...(typeof args.projectId === 'string' ? { projectId: args.projectId } : {}),
           ...(typeof args.dirPath === 'string' ? { dirPath: args.dirPath } : {}),
         });
-      case 'skills_get': {
+      case 'skill_get': {
         const type = typeof args.type === 'string' ? args.type : undefined;
         if (type && args.id !== undefined) {
           throw new Error('Pass either id or type to skills_get, not both');
@@ -63,7 +63,7 @@ export async function callMcpTool(
           `Skill not found: ${asString(args.id, 'id is required')}`,
         );
       }
-      case 'skills_submit_feedback':
+      case 'skill_submit_feedback':
         return service.submitSkillFeedback(
           asString(args.skillId, 'skillId is required'),
           Number(args.stars),
@@ -71,7 +71,7 @@ export async function callMcpTool(
           typeof args.improvement === 'string' ? args.improvement : undefined,
           authContext,
         );
-      case 'skills_create':
+      case 'skill_create':
         return service.createSkill({
           name: asString(args.name, 'name is required'),
           ...(typeof args.description === 'string' ? { description: args.description } : {}),
@@ -81,7 +81,7 @@ export async function callMcpTool(
           ...(typeof args.allProjects === 'boolean' ? { allProjects: args.allProjects } : {}),
           ...(Array.isArray(args.projectIds) ? { projectIds: args.projectIds.filter((item): item is string => typeof item === 'string') } : {}),
         });
-      case 'skills_update': {
+      case 'skill_update': {
         const id = asString(args.id, 'id is required');
         const updates: Record<string, unknown> = {};
         for (const field of ['name', 'description', 'body', 'type', 'aiAmendable', 'allProjects', 'projectIds'] as const) {
@@ -92,21 +92,13 @@ export async function callMcpTool(
         }
         return service.updateSkill(id, updates);
       }
-      case 'skills_delete':
+      case 'skill_delete':
         return {
           deleted: requireBooleanResult(
             service.deleteSkill(asString(args.id, 'id is required')),
             `Skill not found: ${asString(args.id, 'id is required')}`,
           ),
         };
-      case 'skill_activate': {
-        const skillId = asString(args.skillId, 'skillId is required');
-        const context = typeof args.context === 'string' ? args.context : undefined;
-        return requireResult(
-          service.activateSkill(skillId, context),
-          `Skill not found: ${skillId}`,
-        );
-      }
       case 'plan_get':
         return requireResult(
           service.getPlan(asString(args.uuid, 'uuid is required')),

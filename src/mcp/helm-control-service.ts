@@ -505,29 +505,6 @@ export class HelmControlService extends EventEmitter {
     return this.prepareSkillForUse(this.skillManager.resolveEffective(type, projectId ?? undefined));
   }
 
-  /**
-   * Activate and load a skill by ID or type, with optional context guidance.
-   * Returns full skill content and metadata. Lookup is case-insensitive for type matching.
-   * Increments use count and appends feedback footer for user-managed skills.
-   */
-  activateSkill(skillId: string, context?: string): Skill | null {
-    // Try direct ID lookup first (case-sensitive)
-    let skill = this.skillManager.get(skillId);
-    if (skill) {
-      return this.prepareSkillForUse(skill);
-    }
-
-    // Try case-insensitive type lookup
-    skill = this.skillManager.resolveEffective(skillId.toLowerCase(), undefined);
-    if (skill) {
-      return this.prepareSkillForUse(skill);
-    }
-
-    // Context parameter is for future enhancement: skill-specific guidance
-    // (not currently used, but available for future skill_activate enhancements)
-    return null;
-  }
-
   deleteSkill(id: string): boolean {
     return this.skillManager.delete(id);
   }
@@ -558,7 +535,7 @@ export class HelmControlService extends EventEmitter {
     const skill = this.skillManager.get(id);
     if (!skill) throw new Error(`Skill not found: ${id}`);
     if (!authContext?.sessionId) {
-      throw new Error('skills_submit_feedback requires a session-scoped MCP caller');
+      throw new Error('skill_submit_feedback requires a session-scoped MCP caller');
     }
     const session = this.sessionManager.getSession(authContext.sessionId);
     if (!session) {
