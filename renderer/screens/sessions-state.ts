@@ -14,7 +14,7 @@ export interface SessionsScreenState {
   spawnFocusIndex: number;
   cardColumn: 0 | 1 | 2 | 3 | 4;
   cliTypes: string[];
-  directories: Array<{ name: string; path: string }>;
+  directories: Array<{ name: string; path: string; projectId?: string; projectName?: string; isCanonical?: boolean }>;
   editingSessionId: string | null;
   /** Flat navigation list (group headers + session cards). */
   navList: NavItem[];

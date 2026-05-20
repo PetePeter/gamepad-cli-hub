@@ -27,9 +27,6 @@ export interface SidebarControllerDeps {
   doCloseSession: (sessionId: string) => void | Promise<void>;
 }
 
-function normalizePathForMatch(path: string): string {
-  return path.toLowerCase();
-}
 
 export function useSidebarController(deps: SidebarControllerDeps) {
   const overviewCollapsedIds = ref<Set<string>>(new Set());
@@ -40,23 +37,8 @@ export function useSidebarController(deps: SidebarControllerDeps) {
   const schedulerPopupVisible = ref(false);
   const schedulerPopupTaskId = ref<string | null>(null);
 
-  function findProjectForDirPath(dirPath: string) {
-    const normalized = normalizePathForMatch(dirPath);
-    return state.projects.find(project =>
-      normalizePathForMatch(project.canonicalPath) === normalized
-      || project.alternatePaths.some(alt => normalizePathForMatch(alt) === normalized));
-  }
-
-  function buildDirPickerItems(dirs: Array<{ name: string; path: string }>) {
-    return dirs.map(dir => {
-      const project = findProjectForDirPath(dir.path);
-      return {
-        name: dir.name,
-        path: dir.path,
-        projectId: project?.id,
-        projectName: project?.name,
-      };
-    });
+  function buildDirPickerItems(dirs: Array<{ name: string; path: string; projectId?: string; projectName?: string; isCanonical?: boolean }>) {
+    return dirs;
   }
 
   async function onSessionClick(sessionId: string): Promise<void> {

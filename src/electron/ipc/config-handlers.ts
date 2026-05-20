@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { type ConfigLoader, type PlanFilterConfig, type EditorPrefs } from '../../config/loader.js';
 import type { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
 import type { ProjectStore } from '../../session/project-store.js';
+import { normalizeProjectPath, dirDisplayNameFromPath } from '../../session/project-identity.js';
 import { logger } from '../../utils/logger.js';
 
 export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServer?: LocalhostMcpServer, projectStore?: ProjectStore): void {
@@ -116,15 +117,38 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
 
   ipcMain.handle('config:getWorkingDirs', () => {
     try {
-      const configured = configLoader.getWorkingDirectories();
-      if (!projectStore) return configured;
-      const configuredPaths = new Set(configured.map((d) => d.path.toLowerCase()));
-      const extras = projectStore.list().flatMap((record) =>
-        record.alternatePaths
-          .filter((p) => !configuredPaths.has(p.toLowerCase()))
-          .map((p) => ({ name: p.split(/[/\\]/).pop() ?? p, path: p })),
-      );
-      return extras.length > 0 ? [...configured, ...extras] : configured;
+      type DirItem = { name: string; path: string; projectId?: string; projectName?: string; isCanonical?: boolean };
+      const yielded = new Set<string>();
+      const items: DirItem[] = [];
+
+      if (projectStore) {
+        for (const record of projectStore.list()) {
+          const projectName = dirDisplayNameFromPath(record.canonicalPath);
+          const canonicalKey = normalizeProjectPath(record.canonicalPath);
+          if (!yielded.has(canonicalKey)) {
+            yielded.add(canonicalKey);
+            items.push({ name: projectName, path: record.canonicalPath, projectId: record.id, projectName, isCanonical: true });
+          }
+          for (const alt of record.alternatePaths) {
+            const altKey = normalizeProjectPath(alt);
+            if (!yielded.has(altKey)) {
+              yielded.add(altKey);
+              items.push({ name: dirDisplayNameFromPath(alt), path: alt, projectId: record.id, projectName, isCanonical: false });
+            }
+          }
+        }
+      }
+
+      // Include configured dirs not already covered by any project
+      for (const dir of configLoader.getWorkingDirectories()) {
+        const key = normalizeProjectPath(dir.path);
+        if (!yielded.has(key)) {
+          yielded.add(key);
+          items.push({ name: dir.name, path: dir.path });
+        }
+      }
+
+      return items;
     } catch (error) {
       logger.error(`[IPC] Failed to get working dirs: ${error}`);
       return [];

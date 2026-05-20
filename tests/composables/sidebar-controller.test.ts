@@ -134,8 +134,8 @@ describe('useSidebarController', () => {
   });
 
   it('opens the directory picker when spawn directories exist', async () => {
-    mocks.state.projects = [{ id: 'p1', name: 'Hub', canonicalPath: 'x:\\coding\\hub', alternatePaths: [] }];
-    mocks.sessionsState.directories = [{ name: 'Hub', path: 'X:\\coding\\hub' }];
+    // Project info is now provided by the IPC layer; no renderer-side enrichment needed.
+    mocks.sessionsState.directories = [{ name: 'Hub', path: 'X:\\coding\\hub', projectId: 'p1', projectName: 'Hub', isCanonical: true }];
     const { controller, deps } = createController();
 
     await controller.onSpawn('codex');
@@ -146,6 +146,7 @@ describe('useSidebarController', () => {
       path: 'X:\\coding\\hub',
       projectId: 'p1',
       projectName: 'Hub',
+      isCanonical: true,
     }]);
     expect(deps.doSpawn).not.toHaveBeenCalled();
   });

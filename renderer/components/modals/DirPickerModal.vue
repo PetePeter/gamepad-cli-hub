@@ -15,6 +15,7 @@ interface DirItem {
   path: string;
   projectId?: string;
   projectName?: string;
+  isCanonical?: boolean;
 }
 
 const MODAL_ID = 'dir-picker';
@@ -50,6 +51,13 @@ const sections = computed(() => {
     if (!grouped.has(key)) grouped.set(key, { title, items: [] });
     grouped.get(key)!.items.push({ item, index });
   });
+  for (const section of grouped.values()) {
+    section.items.sort((a, b) => {
+      if (a.item.isCanonical && !b.item.isCanonical) return -1;
+      if (!a.item.isCanonical && b.item.isCanonical) return 1;
+      return 0;
+    });
+  }
   return [...grouped.values()];
 });
 
