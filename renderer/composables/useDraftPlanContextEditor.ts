@@ -30,6 +30,7 @@ export function useDraftPlanContextEditor(deps: DraftPlanContextEditorDeps) {
   const draftEditorPlanStateInfo = ref('');
   const draftEditorPlanType = ref<PlanType | undefined>(undefined);
   const draftEditorPlanAutoImplement = ref(false);
+  const draftEditorPlanCompletionRecap = ref(false);
   const draftEditorPlanHumanId = ref('');
   const draftEditorPlanCreatedAt = ref<number | null>(null);
   const draftEditorPlanStateUpdatedAt = ref<number | null>(null);
@@ -57,7 +58,7 @@ export function useDraftPlanContextEditor(deps: DraftPlanContextEditorDeps) {
 
   function openPlanEditor(
     sessionId: string,
-    plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
+    plan: { id: string; title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean; completionRecap?: boolean; humanId?: string; createdAt?: number; stateUpdatedAt?: number; completionNotes?: string },
     callbacks: PlanCallbacks,
   ): void {
     draftEditorMode.value = 'plan';
@@ -67,6 +68,7 @@ export function useDraftPlanContextEditor(deps: DraftPlanContextEditorDeps) {
     draftEditorPlanStateInfo.value = plan.stateInfo ?? '';
     draftEditorPlanType.value = plan.type;
     draftEditorPlanAutoImplement.value = Boolean(plan.autoImplement);
+    draftEditorPlanCompletionRecap.value = Boolean(plan.completionRecap);
     draftEditorPlanHumanId.value = plan.humanId ?? '';
     draftEditorPlanCreatedAt.value = plan.createdAt ?? null;
     draftEditorPlanStateUpdatedAt.value = plan.stateUpdatedAt ?? plan.createdAt ?? null;
@@ -196,7 +198,7 @@ export function useDraftPlanContextEditor(deps: DraftPlanContextEditorDeps) {
     closeDraftEditor();
   }
 
-  async function onPlanSave(updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean }): Promise<void> {
+  async function onPlanSave(updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean; completionRecap?: boolean }): Promise<void> {
     await draftEditorPlanCallbacks.value?.onSave?.(updates);
   }
 
@@ -240,6 +242,7 @@ export function useDraftPlanContextEditor(deps: DraftPlanContextEditorDeps) {
     draftEditorPlanStateInfo,
     draftEditorPlanType,
     draftEditorPlanAutoImplement,
+    draftEditorPlanCompletionRecap,
     draftEditorPlanHumanId,
     draftEditorPlanCreatedAt,
     draftEditorPlanStateUpdatedAt,

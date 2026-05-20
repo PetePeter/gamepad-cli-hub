@@ -150,7 +150,7 @@ export function registerIPCHandlers(
     enabled: configLoader.getMcpConfig().enabled,
     port: configLoader.getMcpConfig().port,
     token: configLoader.getMcpConfig().authToken,
-  });
+  }, ptyManager);
 
   // Pattern matcher uses raw deliverText for send-text rule actions.
   const patternMatcher = new PatternMatcher(

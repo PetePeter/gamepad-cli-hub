@@ -42,6 +42,8 @@ export interface PlanItem {
   type?: PlanType;
   /** When true, unlocked follow-up work can be continued automatically after completion. */
   autoImplement?: boolean;
+  /** When true, plan_complete runs a three-tier read gate before allowing completion. */
+  completionRecap?: boolean;
   /** Optional first-class sequence/swimlane membership. */
   sequenceId?: string;
   /** Creation timestamp */

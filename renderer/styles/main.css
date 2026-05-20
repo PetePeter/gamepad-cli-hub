@@ -3680,7 +3680,7 @@ kbd {
 }
 
 .draft-editor-plan-meta {
-  color: var(--text-dim);
+  color: #aaa;
   font-size: 11px;
   margin: 0 0 8px;
 }

@@ -21,6 +21,9 @@ import {
   requireBooleanResult,
   normalizeStructuredContent,
 } from './tools/validation.js';
+import { PlanReadTracker } from '../session/plan-read-tracker.js';
+import { formatPlanRecap } from '../session/recap-formatter.js';
+import type { PtyManager } from '../session/pty-manager.js';
 
 type JsonRpcId = string | number | null;
 
@@ -62,11 +65,15 @@ export class LocalhostMcpServer {
   private port: number;
   private token: string;
   private enabled: boolean;
+  private readonly planReadTracker = new PlanReadTracker();
+  private ptyManager?: PtyManager;
 
   constructor(
     private readonly service: HelmControlService,
     options: LocalhostMcpServerOptions = {},
+    ptyManager?: PtyManager,
   ) {
+    this.ptyManager = ptyManager;
     const env = options.env ?? process.env;
     this.host = options.host ?? env.HELM_MCP_HOST ?? DEFAULT_HOST;
     this.port = options.port ?? parsePort(env.HELM_MCP_PORT) ?? DEFAULT_PORT;
@@ -198,7 +205,13 @@ export class LocalhostMcpServer {
           const deps = {
             service: this.service,
             setPlanStateWithValidation: this.setPlanStateWithValidation.bind(this),
-            completePlanWithValidation: this.completePlanWithValidation.bind(this),
+            completePlanWithValidation: this.completePlanWithValidation.bind(this, authContext),
+            onPlanRead: (planId: string) => {
+              if (authContext.sessionId) {
+                const writeCount = this.ptyManager?.getWriteCount(authContext.sessionId) ?? 0;
+                this.planReadTracker.recordRead(planId, authContext.sessionId, writeCount);
+              }
+            },
           };
           const result = await callMcpTool(deps, name, args, authContext);
           const structuredContent = normalizeStructuredContent(result);
@@ -244,11 +257,37 @@ export class LocalhostMcpServer {
     );
   }
 
-  private completePlanWithValidation(id: string, documentation: string): unknown {
+  private completePlanWithValidation(authContext: AuthContext, id: string, documentation: string): unknown {
     if (documentation.trim().length < 10) {
       throw new Error('documentation must be at least 10 characters');
     }
     const current = requireResult(this.service.getPlan(id), `Plan not found: ${id}`);
+
+    // Completion recap gate — runs when plan has completionRecap: true
+    if (current.completionRecap) {
+      const codingSessionId = current.sessionId ?? authContext.sessionId;
+      if (codingSessionId) {
+        const readRecord = this.planReadTracker.getRead(id, codingSessionId);
+        const now = Date.now();
+        const currentWriteCount = this.ptyManager?.getWriteCount(codingSessionId) ?? 0;
+
+        if (!readRecord) {
+          // Gate 1 — never read
+          const block = formatPlanRecap(current, 'never-read');
+          this.ptyManager?.write(codingSessionId, block);
+          throw new Error(`Plan completion blocked: you have not read plan ${current.humanId ?? id} in this session. Call plan_get first.`);
+        }
+
+        if (this.planReadTracker.isStale(readRecord, currentWriteCount, now)) {
+          // Gate 2 — stale read
+          const minutesAgo = Math.floor((now - readRecord.readAt) / 60_000);
+          const writesSince = currentWriteCount - readRecord.ptyWriteCount;
+          const block = formatPlanRecap(current, 'stale', { minutesAgo, writesSince });
+          this.ptyManager?.write(codingSessionId, block);
+          throw new Error(`Plan completion blocked: your read of plan ${current.humanId ?? id} is stale (${minutesAgo} min ago, ${writesSince} writes). Re-read with plan_get.`);
+        }
+      }
+    }
     const completed = requireResult(
       this.service.completePlan(id, documentation),
       `Plan ${id} could not be completed from its current state`,
@@ -279,6 +318,15 @@ export class LocalhostMcpServer {
         );
       } catch {
         // Notification mode may not be 'llm'; ignore rather than fail the completion
+      }
+    }
+
+    // Gate 3 pass — write recap block to PTY when completionRecap is enabled
+    if (current.completionRecap) {
+      const recapSessionId = completed.sessionId ?? authContext.sessionId;
+      if (recapSessionId && this.ptyManager) {
+        const block = formatPlanRecap(current, 'pass');
+        this.ptyManager.write(recapSessionId, block);
       }
     }
 

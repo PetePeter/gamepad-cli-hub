@@ -22,7 +22,7 @@ type ContextBoundPlan = {
 };
 
 export interface PlanCallbacks {
-  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: 'bug' | 'feature' | 'research'; autoImplement?: boolean }) => void;
+  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: 'bug' | 'feature' | 'research'; autoImplement?: boolean; completionRecap?: boolean }) => void;
   onDelete: () => void;
   onDone?: () => void;
   onApply?: () => void;
@@ -51,6 +51,7 @@ export interface DraftEditorProps {
   planStateUpdatedAt?: number | null;
   planType?: 'bug' | 'feature' | 'research';
   planAutoImplement?: boolean;
+  planCompletionRecap?: boolean;
   planCallbacks?: PlanCallbacks | null;
   contextId?: string | null;
   contextType?: string;
@@ -74,6 +75,7 @@ const props = withDefaults(defineProps<DraftEditorProps>(), {
   planStateUpdatedAt: null,
   planType: undefined,
   planAutoImplement: false,
+  planCompletionRecap: false,
   planCallbacks: null,
   contextId: null,
   contextType: 'Knowledge',
@@ -91,7 +93,7 @@ const emit = defineEmits<{
   apply: [{ label: string; text: string }];
   delete: [];
   close: [];
-  'plan-save': [updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: 'bug' | 'feature' | 'research'; autoImplement?: boolean }];
+  'plan-save': [updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: 'bug' | 'feature' | 'research'; autoImplement?: boolean; completionRecap?: boolean }];
   'plan-apply': [];
   'plan-done': [];
   'plan-delete': [];
@@ -105,6 +107,7 @@ const status = ref<PlanStatus>(props.planStatus);
 const stateInfo = ref(props.planStateInfo);
 const type = ref<'bug' | 'feature' | 'research' | undefined>(props.planType);
 const autoImplement = ref(Boolean(props.planAutoImplement));
+const completionRecap = ref(false);
 const saveStatus = ref<'clean' | 'unsaved' | 'saving' | 'saved'>('clean');
 const autoSaveTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 const focusIndex = ref(0);
@@ -116,6 +119,7 @@ const origStatus = ref<PlanStatus>(props.planStatus);
 const origStateInfo = ref(props.planStateInfo);
 const origType = ref<'bug' | 'feature' | 'research' | undefined>(props.planType);
 const origAutoImplement = ref(Boolean(props.planAutoImplement));
+const origCompletionRecap = ref(false);
 const ctxType = ref(props.contextType);
 const ctxPermission = ref<'readonly' | 'writable'>(props.contextPermission);
 const origCtxType = ref(props.contextType);
@@ -127,6 +131,8 @@ const labelInputRef = ref<HTMLInputElement | null>(null);
 const stateSelectRef = ref<HTMLSelectElement | null>(null);
 const stateInfoRef = ref<HTMLInputElement | null>(null);
 const typeSelectRef = ref<HTMLSelectElement | null>(null);
+const autoImplementRef = ref<HTMLInputElement | null>(null);
+const completionRecapRef = ref<HTMLInputElement | null>(null);
 const bodyPromptRef = ref<InstanceType<typeof PromptTextarea> | null>(null);
 
 const attachments = ref<PlanAttachment[]>([]);
@@ -181,7 +187,7 @@ const STATUS_ICONS: Record<PlanStatus, string> = {
 const hasUnsavedChanges = computed(() => {
   if (isDraft.value) return label.value.trim() !== origLabel.value || text.value !== origText.value;
   if (isContext.value) return label.value !== origLabel.value || text.value !== origText.value || ctxType.value !== origCtxType.value || ctxPermission.value !== origCtxPermission.value || props.contextPendingUnbindCount > 0;
-  return label.value !== origLabel.value || text.value !== origText.value || status.value !== origStatus.value || stateInfo.value !== origStateInfo.value || type.value !== origType.value || autoImplement.value !== origAutoImplement.value;
+  return label.value !== origLabel.value || text.value !== origText.value || status.value !== origStatus.value || stateInfo.value !== origStateInfo.value || type.value !== origType.value || autoImplement.value !== origAutoImplement.value || completionRecap.value !== origCompletionRecap.value;
 });
 
 const saveStatusText = computed(() => ({ unsaved: '● Unsaved', saving: '◑ Saving…', saved: '✓ Saved' }[saveStatus.value] ?? ''));
@@ -202,12 +208,14 @@ const focusableElements = computed<FocusableTarget[]>(() => {
   if (showPlanStateSelect.value) {
     elements.push(typeSelectRef.value);
     elements.push(stateSelectRef.value);
+    if (showPlanStateInfo.value) elements.push(stateInfoRef.value);
+    elements.push(autoImplementRef.value);
+    elements.push(completionRecapRef.value);
   }
   if (isContext.value) {
     elements.push(ctxTypeInputRef.value);
     elements.push(ctxPermissionSelectRef.value);
   }
-  if (showPlanStateInfo.value) elements.push(stateInfoRef.value);
   const focusables: FocusableTarget[] = elements.filter(Boolean) as HTMLElement[];
   if (bodyPromptRef.value) focusables.push(bodyPromptRef.value);
   return focusables;
@@ -222,12 +230,14 @@ watch(() => props.visible, (visible) => {
     stateInfo.value = props.planStateInfo;
     type.value = props.planType;
     autoImplement.value = Boolean(props.planAutoImplement);
+    completionRecap.value = props.planCompletionRecap ?? false;
     origLabel.value = props.initialLabel;
     origText.value = props.initialText;
     origStatus.value = props.planStatus;
     origStateInfo.value = props.planStateInfo;
     origType.value = props.planType;
     origAutoImplement.value = Boolean(props.planAutoImplement);
+    origCompletionRecap.value = props.planCompletionRecap ?? false;
     if (isContext.value) {
       ctxType.value = props.contextType;
       ctxPermission.value = props.contextPermission;
@@ -262,12 +272,14 @@ watch(() => props.planId, () => {
   stateInfo.value = props.planStateInfo;
   type.value = props.planType;
   autoImplement.value = Boolean(props.planAutoImplement);
+  completionRecap.value = (props as any).planCompletionRecap ?? false;
   origLabel.value = props.initialLabel;
   origText.value = props.initialText;
   origStatus.value = props.planStatus;
   origStateInfo.value = props.planStateInfo;
   origType.value = props.planType;
   origAutoImplement.value = Boolean(props.planAutoImplement);
+  origCompletionRecap.value = (props as any).planCompletionRecap ?? false;
   saveStatus.value = 'clean';
   nextTick(() => { hydratingFromProps.value = false; });
 });
@@ -287,7 +299,7 @@ watch(() => props.contextId, () => {
   nextTick(() => { hydratingFromProps.value = false; });
 });
 
-watch([label, text, status, stateInfo, type, autoImplement, ctxType, ctxPermission, () => props.contextPendingUnbindCount], () => {
+watch([label, text, status, stateInfo, type, autoImplement, completionRecap, ctxType, ctxPermission, () => props.contextPendingUnbindCount], () => {
   if (!props.visible || hydratingFromProps.value) return;
   if (saveStatus.value === 'clean' || saveStatus.value === 'saved') saveStatus.value = 'unsaved';
   scheduleAutoSave();
@@ -318,7 +330,7 @@ function onSave(): void {
     emit('close');
   } else {
     if (!canSavePlan.value) { stateInfoRef.value?.focus(); return; }
-    emit('plan-save', { title: label.value, description: text.value, status: status.value, stateInfo: stateInfo.value.trim(), type: type.value, autoImplement: autoImplement.value });
+    emit('plan-save', { title: label.value, description: text.value, status: status.value, stateInfo: stateInfo.value.trim(), type: type.value, autoImplement: autoImplement.value, completionRecap: completionRecap.value });
     emit('close');
   }
 }
@@ -331,7 +343,7 @@ function onApply(): void {
 function onDone(): void {
   status.value = 'done';
   if (!canSavePlan.value) { stateInfoRef.value?.focus(); return; }
-  emit('plan-save', { title: label.value, description: text.value, status: 'done', stateInfo: stateInfo.value.trim(), type: type.value, autoImplement: autoImplement.value });
+  emit('plan-save', { title: label.value, description: text.value, status: 'done', stateInfo: stateInfo.value.trim(), type: type.value, autoImplement: autoImplement.value, completionRecap: completionRecap.value });
   emit('close');
 }
 
@@ -377,8 +389,8 @@ function doAutoSave(): void {
   } else {
     if (!props.planCallbacks?.onSave || !canSavePlan.value) return;
     saveStatus.value = 'saving';
-    props.planCallbacks.onSave({ title: label.value, description: text.value, status: status.value, stateInfo: stateInfo.value.trim(), type: type.value, autoImplement: autoImplement.value });
-    origLabel.value = label.value; origText.value = text.value; origStatus.value = status.value; origStateInfo.value = stateInfo.value.trim(); origType.value = type.value; origAutoImplement.value = autoImplement.value; saveStatus.value = 'saved';
+    props.planCallbacks.onSave({ title: label.value, description: text.value, status: status.value, stateInfo: stateInfo.value.trim(), type: type.value, autoImplement: autoImplement.value, completionRecap: completionRecap.value });
+    origLabel.value = label.value; origText.value = text.value; origStatus.value = status.value; origStateInfo.value = stateInfo.value.trim(); origType.value = type.value; origAutoImplement.value = autoImplement.value; origCompletionRecap.value = completionRecap.value; saveStatus.value = 'saved';
   }
   setTimeout(() => { if (saveStatus.value === 'saved') saveStatus.value = 'clean'; }, 2000);
 }
@@ -486,40 +498,52 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
     </div>
     <div v-if="planMetaText" class="draft-editor-plan-meta">{{ planMetaText }}</div>
 
-    <div class="draft-editor-title-row">
-      <input ref="labelInputRef" v-model="label" type="text" class="draft-editor-label" placeholder="Title..." maxlength="100" @keydown="onLabelKeyDown" />
-      <select v-if="isPlan" ref="typeSelectRef" v-model="type" class="draft-editor-plan-select draft-editor-type-select">
-        <option :value="undefined">None</option><option value="bug">Bug</option><option value="feature">Feature</option><option value="research">Research</option>
-      </select>
-      <label v-if="isPlan" class="draft-editor-plan-checkbox">
-        <input v-model="autoImplement" type="checkbox">
-        <span>Auto</span>
-      </label>
-      <!-- Context type (free text with datalist) -->
-      <input v-if="isContext" ref="ctxTypeInputRef" v-model="ctxType" type="text" class="draft-editor-plan-select draft-editor-type-select" placeholder="Type..." maxlength="50" list="context-type-options" />
-      <datalist id="context-type-options">
-        <option value="Testing" /><option value="Coding" /><option value="Review" /><option value="Knowledge" />
-      </datalist>
-      <!-- Context permission select -->
-      <select v-if="isContext" ref="ctxPermissionSelectRef" v-model="ctxPermission" class="draft-editor-plan-select draft-editor-permission-select">
-        <option value="readonly">readonly</option><option value="writable">writable</option>
-      </select>
-      <select v-if="showPlanStateSelect" ref="stateSelectRef" v-model="status" class="draft-editor-plan-select draft-editor-status-select" @change="onStateSelectChange">
-        <option value="planning">⏸ Planning</option><option value="ready">▶ Ready</option><option value="coding">🔄 Coding</option><option value="review">⏳ Review</option><option value="blocked">⛔ Blocked</option><option value="done">✓ Done</option>
-      </select>
-      <input v-if="showPlanStateInfo" ref="stateInfoRef" v-model="stateInfo" type="text" class="draft-editor-plan-info" :placeholder="status === 'done' ? 'Required completion notes...' : requiresStateInfo ? 'Required blocker reason...' : 'Add state context...'" maxlength="200" />
-    </div>
+    <div class="plan-edit-rows">
+      <!-- Row 1: Title -->
+      <div class="plan-edit-row-title">
+        <input ref="labelInputRef" v-model="label" type="text" class="draft-editor-label" placeholder="Title..." maxlength="100" @keydown="onLabelKeyDown" />
+      </div>
 
-    <PromptTextarea
-      ref="bodyPromptRef"
-      v-model="text"
-      placeholder="Enter your prompt..."
-      :rows="4"
-      :min-rows="4"
-      :max-rows="18"
-      textarea-class="draft-editor-content"
-      @resized="scheduleHeightSave"
-    />
+      <!-- Row 2: Controls — Feature | State | State context | Auto-implement | Completion recap -->
+      <div class="plan-edit-row-controls">
+        <select v-if="isPlan" ref="typeSelectRef" v-model="type" class="draft-editor-plan-select draft-editor-type-select">
+          <option :value="undefined">None</option><option value="bug">Bug</option><option value="feature">Feature</option><option value="research">Research</option>
+        </select>
+        <select v-if="showPlanStateSelect" ref="stateSelectRef" v-model="status" class="draft-editor-plan-select draft-editor-status-select" @change="onStateSelectChange">
+          <option value="planning">⏸ Planning</option><option value="ready">▶ Ready</option><option value="coding">🔄 Coding</option><option value="review">⏳ Review</option><option value="blocked">⛔ Blocked</option><option value="done">✓ Done</option>
+        </select>
+        <input v-if="showPlanStateInfo" ref="stateInfoRef" v-model="stateInfo" type="text" class="draft-editor-plan-info" :placeholder="status === 'done' ? 'Required completion notes...' : requiresStateInfo ? 'Required blocker reason...' : 'Add state context...'" maxlength="200" />
+        <label v-if="isPlan" class="draft-editor-plan-checkbox">
+          <input ref="autoImplementRef" v-model="autoImplement" type="checkbox">
+          <span>Auto-implement</span>
+        </label>
+        <label v-if="isPlan" class="draft-editor-plan-checkbox" title="When this plan is marked done, the hub verifies you recently read the plan, then writes its Acceptance Criteria into your terminal — forcing re-verification">
+          <input ref="completionRecapRef" v-model="completionRecap" type="checkbox">
+          <span>Completion recap <span class="tooltip-icon">ⓘ</span></span>
+        </label>
+        <!-- Context type (free text with datalist) -->
+        <input v-if="isContext" ref="ctxTypeInputRef" v-model="ctxType" type="text" class="draft-editor-plan-select draft-editor-type-select" placeholder="Type..." maxlength="50" list="context-type-options" />
+        <datalist id="context-type-options">
+          <option value="Testing" /><option value="Coding" /><option value="Review" /><option value="Knowledge" />
+        </datalist>
+        <!-- Context permission select -->
+        <select v-if="isContext" ref="ctxPermissionSelectRef" v-model="ctxPermission" class="draft-editor-plan-select draft-editor-permission-select">
+          <option value="readonly">readonly</option><option value="writable">writable</option>
+        </select>
+      </div>
+
+      <!-- Row 3: Content -->
+      <PromptTextarea
+        ref="bodyPromptRef"
+        v-model="text"
+        placeholder="Enter your prompt..."
+        :rows="4"
+        :min-rows="4"
+        :max-rows="18"
+        textarea-class="draft-editor-content"
+        @resized="scheduleHeightSave"
+      />
+    </div>
 
     <div v-if="isContext && hasContextBindings" class="context-bound">
       <div class="context-bound__header"><span class="context-bound__title">Bound To</span></div>
@@ -564,6 +588,11 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
 </template>
 
 <style scoped>
+.plan-edit-rows { display: flex; flex-direction: column; gap: 6px; }
+.plan-edit-row-title input { width: 100%; }
+.plan-edit-row-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tooltip-icon { color: var(--text-muted, #8b949e); font-size: 11px; cursor: help; }
+.draft-editor-plan-checkbox:hover .tooltip-icon { color: var(--accent, #58a6ff); }
 .draft-editor-attachments { border-top: 1px solid #2a2a2a; padding-top: 10px; margin-top: 4px; display: flex; flex-direction: column; gap: 6px; }
 .draft-editor-attachments__header { display: flex; align-items: center; justify-content: space-between; }
 .draft-editor-attachments__title { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }

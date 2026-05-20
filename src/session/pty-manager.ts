@@ -67,6 +67,7 @@ export class PtyManager extends EventEmitter {
   private factory: PtyFactory;
   private textDeliveryHandler?: (sessionId: string, text: string, options?: TextDeliveryOptions) => Promise<void>;
   private terminalOutputBuffer = new TerminalOutputBuffer();
+  private writeCounts: Map<string, number> = new Map();
 
   constructor(factory?: PtyFactory) {
     super();
@@ -120,6 +121,7 @@ export class PtyManager extends EventEmitter {
     ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
       this.ptys.delete(sessionId);
       this.terminalOutputBuffer.clear(sessionId);
+      this.writeCounts.delete(sessionId);
       this.emit('exit', sessionId, exitCode);
     });
 
@@ -154,9 +156,15 @@ export class PtyManager extends EventEmitter {
     }
     try {
       pty.write(data);
+      this.writeCounts.set(sessionId, (this.writeCounts.get(sessionId) ?? 0) + 1);
     } catch (error) {
       logger.error(`[PTY] Write failed for session=${sessionId}: ${error}`);
     }
+  }
+
+  /** Get the number of PTY writes made to a session. Returns 0 if not tracked. */
+  getWriteCount(sessionId: string): number {
+    return this.writeCounts.get(sessionId) ?? 0;
   }
 
   /** Configure a higher-level text delivery path that can honor per-CLI insertion modes. */
@@ -206,6 +214,7 @@ export class PtyManager extends EventEmitter {
     }
     this.ptys.delete(sessionId);
     this.terminalOutputBuffer.clear(sessionId);
+    this.writeCounts.delete(sessionId);
   }
 
   /** Kill all PTY processes. */
@@ -219,6 +228,7 @@ export class PtyManager extends EventEmitter {
     }
     this.ptys.clear();
     this.terminalOutputBuffer.clearAll();
+    this.writeCounts.clear();
   }
 
   /** Check if a PTY exists for a session. */

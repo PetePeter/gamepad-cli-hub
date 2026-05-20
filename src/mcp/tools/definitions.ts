@@ -21,7 +21,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skill_list',
+    name: 'skills_list',
     title: 'List Skills',
     description: 'List Helm skills (user-managed and system) as compact summaries. Pass projectId or dirPath to filter to skills applicable to one project. Use skill_get when you need the full body before applying or editing a skill.',
     inputSchema: {
@@ -34,7 +34,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skill_get',
+    name: 'skills_get',
     title: 'Get Skill',
     description: 'Fetch one Helm skill by id or resolve the effective skill by type. Pass id for exact lookup, or pass type with optional projectId/dirPath for type-based resolution (respects project scope precedence).',
     inputSchema: {
@@ -49,7 +49,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skill_submit_feedback',
+    name: 'skills_submit_feedback',
     title: 'Submit Skill Feedback',
     description: 'Submit LLM feedback for a user-managed Helm skill after applying it. Stores stars, summary, optional improvement, and caller CLI attribution.',
     inputSchema: {
@@ -65,7 +65,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skill_create',
+    name: 'skills_create',
     title: 'Create Skill',
     description: 'Create a user-managed Helm skill persisted in config/skills.yaml. Omit projectIds or set allProjects=true for a global skill.',
     inputSchema: {
@@ -84,7 +84,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skill_update',
+    name: 'skills_update',
     title: 'Update Skill',
     description: 'Update a user-managed Helm skill. Protected skills reject AI amendments unless aiAmendable is enabled.',
     inputSchema: {
@@ -104,7 +104,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skill_delete',
+    name: 'skills_delete',
     title: 'Delete Skill',
     description: 'Delete a user-managed Helm skill by id. System skills cannot be deleted.',
     inputSchema: {

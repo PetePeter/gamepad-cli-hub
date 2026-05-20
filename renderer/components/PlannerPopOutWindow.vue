@@ -78,6 +78,7 @@ const {
   draftEditorPlanStateInfo,
   draftEditorPlanType,
   draftEditorPlanAutoImplement,
+  draftEditorPlanCompletionRecap,
   draftEditorPlanHumanId,
   draftEditorPlanCreatedAt,
   draftEditorPlanStateUpdatedAt,
@@ -209,6 +210,7 @@ onUnmounted(() => {
       :plan-state-info="draftEditorPlanStateInfo"
       :plan-type="draftEditorPlanType"
       :plan-auto-implement="draftEditorPlanAutoImplement"
+      :plan-completion-recap="draftEditorPlanCompletionRecap"
       :plan-human-id="draftEditorPlanHumanId"
       :plan-created-at="draftEditorPlanCreatedAt"
       :plan-state-updated-at="draftEditorPlanStateUpdatedAt"

@@ -352,6 +352,7 @@ describe('DraftEditor', () => {
         stateInfo: 'Waiting on API key',
         type: undefined,
         autoImplement: false,
+        completionRecap: false,
       },
     ]]);
   });

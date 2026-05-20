@@ -33,7 +33,7 @@ function makeDefaultFilters() {
 }
 
 export interface PlanEditorCallbacks {
-  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean }) => void | Promise<void>;
+  onSave: (updates: { title: string; description: string; status: PlanStatus; stateInfo?: string; type?: PlanType; autoImplement?: boolean; completionRecap?: boolean }) => void | Promise<void>;
   onDelete: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
   onApply?: () => void | Promise<void>;
@@ -720,11 +720,11 @@ export function handlePlanScreenAction(button: string): boolean {
   return false;
 }
 
-async function handleSave(planId: string, updates: { title: string; description: string; status: PlanItem['status']; stateInfo?: string; type?: PlanType; autoImplement?: boolean }): Promise<void> {
+async function handleSave(planId: string, updates: { title: string; description: string; status: PlanItem['status']; stateInfo?: string; type?: PlanType; autoImplement?: boolean; completionRecap?: boolean }): Promise<void> {
   const current = getPlanItemById(planId);
   if (!current) return;
   try {
-    await plansClient.planUpdate(planId, updates);
+    await plansClient.planUpdate(planId, { ...updates, completionRecap: updates.completionRecap });
     if (current && updates.status === 'done' && current.status !== 'done') {
       if (current.status !== 'coding' && current.status !== 'review') {
         showBriefNotice('Only coding or review plans can be marked done');
