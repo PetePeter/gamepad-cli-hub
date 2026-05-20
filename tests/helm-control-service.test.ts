@@ -611,8 +611,8 @@ describe('HelmControlService.getSessionInfo', () => {
       expect.stringContaining('plan_set_state'),
       expect.stringContaining('QUESTION:'),
       expect.stringContaining('session_read_terminal'),
-      expect.stringContaining('skills_get'),
-      expect.stringContaining('skills_list'),
+      expect.stringContaining('skill_get'),
+      expect.stringContaining('skill_list'),
     ]));
 
     expect(info).not.toHaveProperty('system_skill_types');

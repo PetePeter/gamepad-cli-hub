@@ -196,7 +196,7 @@ describe('LocalhostMcpServer', () => {
     });
     const toolsJson = await toolsResponse.json();
     expect(Array.isArray(toolsJson.result.tools)).toBe(true);
-    expect(toolsJson.result.tools.some((tool: { name: string }) => tool.name === 'plans_list')).toBe(true);
+    expect(toolsJson.result.tools.some((tool: { name: string }) => tool.name === 'plan_list')).toBe(true);
     const planCreateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_create');
     const planCompleteTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_complete');
     const planNextLinkTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_nextplan_link');
@@ -213,8 +213,8 @@ describe('LocalhostMcpServer', () => {
     const notifyUserTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'notify_user');
     const appVisibilityTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'get_app_visibility');
     const restartHelmTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'restart_helm');
-    const skillsUpdateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'skills_update');
-    const skillsDeleteTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'skills_delete');
+    const skillsUpdateTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'skill_update');
+    const skillsDeleteTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'skill_delete');
     const contextBindTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'context_bind');
     const contextUnbindTool = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'context_unbind');
     expect(planCreateTool.description).toContain('Problem Statement');
@@ -310,7 +310,7 @@ describe('LocalhostMcpServer', () => {
       jsonrpc: '2.0',
       id: 31,
       method: 'tools/call',
-      params: { name: 'skills_list', arguments: {} },
+      params: { name: 'skill_list', arguments: {} },
     });
     const listJson = await listResponse.json();
     expect(listJson.result.structuredContent.items[0].name).toBe('Review');
@@ -320,7 +320,7 @@ describe('LocalhostMcpServer', () => {
       jsonrpc: '2.0',
       id: 310,
       method: 'tools/call',
-      params: { name: 'skills_list', arguments: { projectId: 'project-1' } },
+      params: { name: 'skill_list', arguments: { projectId: 'project-1' } },
     });
     await filteredListResponse.json();
     expect(service.listSkills).toHaveBeenCalledWith({ projectId: 'project-1' });
@@ -329,7 +329,7 @@ describe('LocalhostMcpServer', () => {
       jsonrpc: '2.0',
       id: 32,
       method: 'tools/call',
-      params: { name: 'skills_get', arguments: { id: 'skill-1' } },
+      params: { name: 'skill_get', arguments: { id: 'skill-1' } },
     });
     const getJson = await getResponse.json();
     expect(getJson.result.structuredContent.body).toBe('Check the diff');
@@ -338,7 +338,7 @@ describe('LocalhostMcpServer', () => {
       jsonrpc: '2.0',
       id: 321,
       method: 'tools/call',
-      params: { name: 'skills_submit_feedback', arguments: { skillId: 'skill-1', stars: 5, summary: 'Useful' } },
+      params: { name: 'skill_submit_feedback', arguments: { skillId: 'skill-1', stars: 5, summary: 'Useful' } },
     }, { 'x-helm-session-id': 's1' });
     const feedbackJson = await feedbackResponse.json();
     expect(feedbackJson.result.structuredContent.reviewCount).toBe(1);
@@ -348,7 +348,7 @@ describe('LocalhostMcpServer', () => {
       jsonrpc: '2.0',
       id: 33,
       method: 'tools/call',
-      params: { name: 'skills_create', arguments: { name: 'Commit', aiAmendable: true, allProjects: false, projectIds: ['project-1'] } },
+      params: { name: 'skill_create', arguments: { name: 'Commit', aiAmendable: true, allProjects: false, projectIds: ['project-1'] } },
     });
     const createJson = await createResponse.json();
     expect(createJson.result.structuredContent).toMatchObject({ name: 'Commit', aiAmendable: true, allProjects: false, projectIds: ['project-1'] });
@@ -357,14 +357,14 @@ describe('LocalhostMcpServer', () => {
       jsonrpc: '2.0',
       id: 34,
       method: 'tools/call',
-      params: { name: 'skills_update', arguments: { id: 'skill-1', body: 'Updated', aiAmendable: true, allProjects: false, projectIds: ['project-1'] } },
+      params: { name: 'skill_update', arguments: { id: 'skill-1', body: 'Updated', aiAmendable: true, allProjects: false, projectIds: ['project-1'] } },
     });
     const updateJson = await updateResponse.json();
     expect(updateJson.result.structuredContent.body).toBe('Updated');
     expect(service.updateSkill).toHaveBeenCalledWith('skill-1', { body: 'Updated', aiAmendable: true, allProjects: false, projectIds: ['project-1'] });
   });
 
-  it('supports type-based skill lookup via skills_get', async () => {
+  it('supports type-based skill lookup via skill_get', async () => {
     const server = new LocalhostMcpServer(makeService(), { token: 'secret-token', port: 0 });
     servers.push(server);
     await server.start();
@@ -375,7 +375,7 @@ describe('LocalhostMcpServer', () => {
       id: 1,
       method: 'tools/call',
       params: {
-        name: 'skills_get',
+        name: 'skill_get',
         arguments: { type: 'session-guide' },
       },
     });
@@ -384,7 +384,7 @@ describe('LocalhostMcpServer', () => {
     expect(json.result.content[0].text).toContain('session-guide');
   });
 
-  it('supports skills_delete', async () => {
+  it('supports skill_delete', async () => {
     const server = new LocalhostMcpServer(makeService(), { token: 'secret-token', port: 0 });
     servers.push(server);
     await server.start();
@@ -395,7 +395,7 @@ describe('LocalhostMcpServer', () => {
       id: 1,
       method: 'tools/call',
       params: {
-        name: 'skills_delete',
+        name: 'skill_delete',
         arguments: { id: 'skill-1' },
       },
     });
@@ -403,7 +403,7 @@ describe('LocalhostMcpServer', () => {
     expect(json.result.content[0].text).toContain('"deleted": true');
   });
 
-  it('skills_get with type returns error when not found', async () => {
+  it('skill_get with type returns error when not found', async () => {
     const svc = makeService();
     (svc.resolveSkill as ReturnType<typeof vi.fn>).mockReturnValueOnce(null);
     const server = new LocalhostMcpServer(svc, { token: 'secret-token', port: 0 });
@@ -416,7 +416,7 @@ describe('LocalhostMcpServer', () => {
       id: 1,
       method: 'tools/call',
       params: {
-        name: 'skills_get',
+        name: 'skill_get',
         arguments: { type: 'nonexistent' },
       },
     });
@@ -424,7 +424,7 @@ describe('LocalhostMcpServer', () => {
     expect(json.error.message).toContain('not found');
   });
 
-  it('skills_get rejects ambiguous id and type lookup', async () => {
+  it('skill_get rejects ambiguous id and type lookup', async () => {
     const server = new LocalhostMcpServer(makeService(), { token: 'secret-token', port: 0 });
     servers.push(server);
     await server.start();
@@ -435,7 +435,7 @@ describe('LocalhostMcpServer', () => {
       id: 1,
       method: 'tools/call',
       params: {
-        name: 'skills_get',
+        name: 'skill_get',
         arguments: { id: 'skill-1', type: 'session-guide' },
       },
     });
@@ -1005,7 +1005,7 @@ describe('LocalhostMcpServer', () => {
       id: 31,
       method: 'tools/call',
       params: {
-        name: 'plans_list',
+        name: 'plan_list',
         arguments: { dirPath: 'X:\\coding\\gamepad-cli-hub' },
       },
     });
@@ -1015,7 +1015,7 @@ describe('LocalhostMcpServer', () => {
     });
   });
 
-  it('plans_summary dispatches to plansSummary and wraps array result', async () => {
+  it('plan_summary dispatches to plansSummary and wraps array result', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);
@@ -1027,7 +1027,7 @@ describe('LocalhostMcpServer', () => {
       id: 32,
       method: 'tools/call',
       params: {
-        name: 'plans_summary',
+        name: 'plan_summary',
         arguments: { dirPath: 'X:\\coding\\gamepad-cli-hub' },
       },
     });
@@ -1050,7 +1050,7 @@ describe('LocalhostMcpServer', () => {
       id: 34,
       method: 'tools/call',
       params: {
-        name: 'tools_list',
+        name: 'tool_list',
         arguments: {},
       },
     });
@@ -1081,7 +1081,7 @@ describe('LocalhostMcpServer', () => {
     expect(json.result.structuredContent).toEqual({ id: 's2', name: 'Builder', cliType: 'codex', workingDir: 'X:\\coding\\gamepad-cli-hub' });
   });
 
-  it('passes an optional dirPath filter into sessions_list', async () => {
+  it('passes an optional dirPath filter into session_list', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);
@@ -1093,7 +1093,7 @@ describe('LocalhostMcpServer', () => {
       id: 33,
       method: 'tools/call',
       params: {
-        name: 'sessions_list',
+        name: 'session_list',
         arguments: { dirPath: 'X:\\coding\\gamepad-cli-hub' },
       },
     });
@@ -1101,7 +1101,7 @@ describe('LocalhostMcpServer', () => {
     expect((service.listSessions as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('X:\\coding\\gamepad-cli-hub', undefined);
   });
 
-  it('passes an optional projectId filter into sessions_list', async () => {
+  it('passes an optional projectId filter into session_list', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);
@@ -1113,7 +1113,7 @@ describe('LocalhostMcpServer', () => {
       id: 34,
       method: 'tools/call',
       params: {
-        name: 'sessions_list',
+        name: 'session_list',
         arguments: { projectId: 'proj-123' },
       },
     });
@@ -1121,7 +1121,7 @@ describe('LocalhostMcpServer', () => {
     expect((service.listSessions as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(undefined, 'proj-123');
   });
 
-  it('calls listDirectories for directories_list', async () => {
+  it('calls listDirectories for directory_list', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);
@@ -1133,7 +1133,7 @@ describe('LocalhostMcpServer', () => {
       id: 35,
       method: 'tools/call',
       params: {
-        name: 'directories_list',
+        name: 'directory_list',
         arguments: {},
       },
     });

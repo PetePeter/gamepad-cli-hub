@@ -40,9 +40,9 @@ export function getSessionInfo(
       'ALWAYS create a separate QUESTION: plan for blocking questions that must survive chat, link it to the blocked plan with plan_nextplan_link, and leave the original plan body intact unless explicitly asked to edit it.',
       'ALWAYS prefer context_* tools for durable memory that should survive this session; link durable context to the relevant plan or sequence when useful, and mention related session or plan IDs when that helps future readers.',
       'ALWAYS send inter-LLM handoffs with session_send_text, then call session_read_terminal on the recipient and verify evidence of receipt before assuming delivery succeeded.',
-      'ALWAYS fetch detailed workflow guidance just-in-time: use skills_get(type: "session-send-text") for inter-LLM handoff protocol, skills_get(type: "agent-plan") for plan management workflow, and skills_get(type: "notification") for notification routing — do not request these unless the task requires them.',
-      'ALWAYS call skills_list at the start of a new task to check for applicable user-managed skills — only fetch and apply skills whose description directly matches the task at hand; do not over-interpret or stretch skill relevance.',
-      'After retrieving and applying a user skill via skills_get, call skills_submit_feedback with stars (1-5), value_summary, and optional improvement_suggestion.',
+      'ALWAYS fetch detailed workflow guidance just-in-time: use skill_get(type: "session-send-text") for inter-LLM handoff protocol, skill_get(type: "agent-plan") for plan management workflow, and skill_get(type: "notification") for notification routing — do not request these unless the task requires them.',
+      'ALWAYS call skill_list at the start of a new task to check for applicable user-managed skills — only fetch and apply skills whose description directly matches the task at hand; do not over-interpret or stretch skill relevance.',
+      'After retrieving and applying a user skill via skill_get, call skill_submit_feedback with stars (1-5), value_summary, and optional improvement_suggestion.',
     ],
     your_session_id: sessionId,
     your_working_dir: sessionInfo?.workingDir ?? '',
@@ -54,7 +54,7 @@ export function getSessionInfo(
   };
 }
 
-/** Compact project stubs — query projects_list for full details. */
+/** Compact project stubs — query project_list for full details. */
 function getAvailableProjects(projectStore?: ProjectStore): ProjectInfo[] {
   if (!projectStore) return [];
   return projectStore.list().map(r => ({

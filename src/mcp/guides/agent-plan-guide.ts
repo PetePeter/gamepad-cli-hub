@@ -41,7 +41,7 @@ export function buildAgentPlanGuide() {
       'When the phase changes, re-check the effective context list and fetch any newly relevant context before continuing.',
     ],
     durable_context_guide: [
-      'Use projects_list to find the projectId, then use context_list, context_get, context_create, context_update, and context_append for durable project-level memory that should survive this session or help later sessions.',
+      'Use project_list to find the projectId, then use context_list, context_get, context_create, context_update, and context_append for durable project-level memory that should survive this session or help later sessions.',
       'When durable context is about a concrete task or investigation, link it to the relevant plan or sequence and mention the related plan/session IDs in the context body when helpful.',
       'Prefer context nodes over sequence sharedMemory for new long-lived notes, decisions, and collected evidence.',
     ],

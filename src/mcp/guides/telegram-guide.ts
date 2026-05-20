@@ -1,6 +1,6 @@
 /**
  * Static data for the Telegram voice & attachment guide.
- * Fetched just-in-time via skills_get(type: "telegram").
+ * Fetched just-in-time via skill_get(type: "telegram").
  */
 export function buildTelegramGuide() {
   return {

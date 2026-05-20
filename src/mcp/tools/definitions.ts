@@ -11,7 +11,7 @@ export const REQUIRED_PLAN_DESCRIPTION_SECTIONS = [
 
 export const MCP_TOOLS: McpTool[] = [
   {
-    name: 'tools_list',
+    name: 'tool_list',
     title: 'List CLI Types',
     description: 'List CLI types configured in Helm and the configured working directories they can be spawned into. Call this near the start of a Helm workflow when you need to know what CLIs and spawn targets are actually available before creating a session.',
     inputSchema: {
@@ -21,7 +21,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skills_list',
+    name: 'skill_list',
     title: 'List Skills',
     description: 'List Helm skills (user-managed and system) as compact summaries. Pass projectId or dirPath to filter to skills applicable to one project. Use skill_get when you need the full body before applying or editing a skill.',
     inputSchema: {
@@ -34,7 +34,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skills_get',
+    name: 'skill_get',
     title: 'Get Skill',
     description: 'Fetch one Helm skill by id or resolve the effective skill by type. Pass id for exact lookup, or pass type with optional projectId/dirPath for type-based resolution (respects project scope precedence).',
     inputSchema: {
@@ -49,7 +49,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skills_submit_feedback',
+    name: 'skill_submit_feedback',
     title: 'Submit Skill Feedback',
     description: 'Submit LLM feedback for a user-managed Helm skill after applying it. Stores stars, summary, optional improvement, and caller CLI attribution.',
     inputSchema: {
@@ -65,7 +65,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skills_create',
+    name: 'skill_create',
     title: 'Create Skill',
     description: 'Create a user-managed Helm skill persisted in config/skills.yaml. Omit projectIds or set allProjects=true for a global skill.',
     inputSchema: {
@@ -84,7 +84,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skills_update',
+    name: 'skill_update',
     title: 'Update Skill',
     description: 'Update a user-managed Helm skill. Protected skills reject AI amendments unless aiAmendable is enabled.',
     inputSchema: {
@@ -104,7 +104,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'skills_delete',
+    name: 'skill_delete',
     title: 'Delete Skill',
     description: 'Delete a user-managed Helm skill by id. System skills cannot be deleted.',
     inputSchema: {
@@ -117,7 +117,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'plans_list',
+    name: 'plan_list',
     title: 'List Plans',
     description: 'List all plan items for a directory. Use this before editing or assigning plan work so you can reference the human-readable P-00xx plan IDs Helm returns.',
     inputSchema: {
@@ -128,7 +128,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'plans_summary',
+    name: 'plan_summary',
     title: 'Plans Summary',
     description: 'List all plans for a directory as a compact summary — status, canonical ID, human-readable P-00xx ID, title, and dependency relationships. Call this first when orienting to a project so you know what work exists and what is blocked by what. Use plan_get for the full description of a specific plan before claiming, updating, or creating linked follow-ups.',
     inputSchema: {
@@ -388,7 +388,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'context_list',
     title: 'List Context Nodes',
-    description: 'List project-level context nodes. Use projects_list first when you need the projectId for a directory or repo.',
+    description: 'List project-level context nodes. Use project_list first when you need the projectId for a directory or repo.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -579,7 +579,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'directories_list',
+    name: 'directory_list',
     title: 'List Directories',
     description: 'List all directories that Helm knows about: configured folders plus directories that currently have plans or sessions. Alternate folders remain separate selectable dirPath entries while sharing projectId when they belong to the same project.',
     inputSchema: {
@@ -589,7 +589,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'projects_list',
+    name: 'project_list',
     title: 'List Projects',
     description: 'List all known projects with their IDs, names, canonical paths, directories, and root kinds. Call this before creating plans or sessions to discover which project directories Helm tracks.',
     inputSchema: {
@@ -599,7 +599,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'project_dirs_list',
+    name: 'project_dir_list',
     title: 'List Project Directories',
     description: 'List all directories (canonical and alternate) for a project by its ID.',
     inputSchema: {
@@ -655,7 +655,7 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'sessions_list',
+    name: 'session_list',
     title: 'List Sessions',
     description: 'List currently known Helm sessions, optionally filtered to one working directory or project. Call this before sending text so you can target an existing session instead of spawning blindly.',
     inputSchema: {
@@ -781,7 +781,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'session_info',
     title: 'Get Session Info',
-    description: 'Retrieve current session context including MCP endpoint URL, AIAGENT state registry, available projects, and durable-context guidance. WHEN: call this at session startup before other Helm workflow actions, then immediately call session_set_aiagent_state for your current phase. Returns mandatory_rules, mcp_url, mcp_token, available_projects stubs (call projects_list for full details), and the canonical list of valid AIAGENT-* state tags.',
+    description: 'Retrieve current session context including MCP endpoint URL, AIAGENT state registry, available projects, and durable-context guidance. WHEN: call this at session startup before other Helm workflow actions, then immediately call session_set_aiagent_state for your current phase. Returns mandatory_rules, mcp_url, mcp_token, available_projects stubs (call project_list for full details), and the canonical list of valid AIAGENT-* state tags.',
     inputSchema: {
       type: 'object',
       properties: {},

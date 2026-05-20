@@ -42,7 +42,7 @@ import type { ProjectStore } from '../session/project-store.js';
 import { CapabilityDetector } from '../session/capability-detector.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
 
-const SKILL_FEEDBACK_FOOTER = '---\nSkill applied. Call skills_submit_feedback("{skillId}", stars, summary, improvement?) to rate it.';
+const SKILL_FEEDBACK_FOOTER = '---\nSkill applied. Call skill_submit_feedback("{skillId}", stars, summary, improvement?) to rate it.';
 
 export interface SessionSummary {
   id: string;
@@ -143,11 +143,11 @@ export class HelmControlService extends EventEmitter {
     this.skillManager = skillManager ?? new SkillManager(getSkillsPath ? getSkillsPath.call(configLoader) : 'src/config/skills.yaml');
     this.skillAnalyticsManager = skillAnalyticsManager ?? new SkillAnalyticsManager(getSkillAnalyticsPath ? getSkillAnalyticsPath.call(configLoader) : 'src/config/skill-analytics.json');
 
-    // Register built-in system skills (detailed guidance fetched just-in-time via skills_get)
+    // Register built-in system skills (detailed guidance fetched just-in-time via skill_get)
     this.skillManager.registerSystemSkill({
       id: 'sys-session-send-text',
       name: 'Session Send Text Guide',
-      description: 'Inter-LLM handoff protocol via session_send_text. Fetch with skills_get(type: "session-send-text").',
+      description: 'Inter-LLM handoff protocol via session_send_text. Fetch with skill_get(type: "session-send-text").',
       body: JSON.stringify(buildSessionSendTextGuide(), null, 2),
       aiAmendable: false,
       allProjects: true,
@@ -158,7 +158,7 @@ export class HelmControlService extends EventEmitter {
     this.skillManager.registerSystemSkill({
       id: 'sys-agent-plan',
       name: 'Agent Plan Guide',
-      description: 'Plan management workflow guidance. Fetch with skills_get(type: "agent-plan").',
+      description: 'Plan management workflow guidance. Fetch with skill_get(type: "agent-plan").',
       body: JSON.stringify(buildAgentPlanGuide(), null, 2),
       aiAmendable: false,
       allProjects: true,
@@ -169,7 +169,7 @@ export class HelmControlService extends EventEmitter {
     this.skillManager.registerSystemSkill({
       id: 'sys-notification',
       name: 'Notification Guide',
-      description: 'Notification routing guidance. Fetch with skills_get(type: "notification").',
+      description: 'Notification routing guidance. Fetch with skill_get(type: "notification").',
       body: JSON.stringify(buildNotificationGuide(), null, 2),
       aiAmendable: false,
       allProjects: true,
@@ -180,7 +180,7 @@ export class HelmControlService extends EventEmitter {
     this.skillManager.registerSystemSkill({
       id: 'sys-telegram',
       name: 'Telegram Voice & Attachment Guide',
-      description: 'Telegram capabilities, voice memo workflows (openwhisper/piper/ffmpeg), and attachment format guide. Fetch with skills_get(type: "telegram").',
+      description: 'Telegram capabilities, voice memo workflows (openwhisper/piper/ffmpeg), and attachment format guide. Fetch with skill_get(type: "telegram").',
       body: JSON.stringify(buildTelegramGuide(), null, 2),
       aiAmendable: false,
       allProjects: true,
