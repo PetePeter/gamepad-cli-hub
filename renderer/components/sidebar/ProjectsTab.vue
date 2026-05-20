@@ -219,6 +219,13 @@ async function onSetMainDir(projectId: string, dirPath: string): Promise<void> {
           <span class="settings-project-badge">{{ project.rootKind }}</span>
 
           <button
+            v-if="editingId !== project.id"
+            class="btn btn--secondary btn--sm focusable"
+            title="Rename project"
+            @click="startEditing(project)"
+          >Rename</button>
+
+          <button
             class="btn btn--danger btn--sm focusable"
             title="Deletes this project and all Helm plans owned by it"
             @click="onDeleteClick(project.id)"
