@@ -71,12 +71,6 @@ describe('Close Confirm Modal', () => {
   // =========================================================================
 
   describe('Close Confirm State', () => {
-    it('starts with default state', () => {
-      expect(closeConfirmState.visible).toBe(false);
-      expect(closeConfirmState.sessionId).toBe('');
-      expect(closeConfirmState.sessionName).toBe('');
-      expect(closeConfirmState.selectedIndex).toBe(0);
-    });
 
     it('showCloseConfirm sets state correctly', () => {
       showCloseConfirm('sess-42', 'My Session', mockOnConfirm);

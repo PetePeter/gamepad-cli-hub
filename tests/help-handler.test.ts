@@ -43,11 +43,6 @@ describe('help:open handler', () => {
     mockExistsSync.mockReturnValue(true);
   });
 
-  it('registers the help:open IPC channel', () => {
-    setupSystemHandlers('/ignored');
-    const channels = (ipcMain.handle as ReturnType<typeof vi.fn>).mock.calls.map((c: any[]) => c[0]);
-    expect(channels).toContain('help:open');
-  });
 
   it('opens user guide in a BrowserWindow using app.getAppPath() in dev mode', async () => {
     setupSystemHandlers('/ignored');

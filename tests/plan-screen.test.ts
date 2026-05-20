@@ -819,7 +819,7 @@ describe('plan screen bridge', () => {
       description: 'Still editing A',
       status: 'planning',
     });
-    expect(mockPlanSetState).toHaveBeenCalledWith('a', 'planning', undefined, undefined);
+    expect(mockPlanSetState).toHaveBeenCalledWith('a', 'planning', undefined);
   });
 
   it('loads and saves attachment filters without dropping them back to defaults', async () => {
@@ -1021,7 +1021,7 @@ describe('plan screen bridge', () => {
       status: 'blocked',
       stateInfo: 'Waiting',
     });
-    expect(mockPlanSetState).toHaveBeenCalledWith('a', 'blocked', 'Waiting', undefined);
+    expect(mockPlanSetState).toHaveBeenCalledWith('a', 'blocked', 'Waiting');
   });
 
   it('does not assign the active session when saving an unowned plan as review', async () => {
@@ -1045,7 +1045,7 @@ describe('plan screen bridge', () => {
       status: 'review',
     });
 
-    expect(mockPlanSetState).toHaveBeenCalledWith('a', 'review', undefined, undefined);
+    expect(mockPlanSetState).toHaveBeenCalledWith('a', 'review', undefined);
   });
 
   it('saves an explicit planning status without forcing it back to ready', async () => {
@@ -1069,7 +1069,7 @@ describe('plan screen bridge', () => {
       status: 'planning',
     });
 
-    expect(mockPlanSetState).toHaveBeenCalledWith('a', 'planning', undefined, undefined);
+    expect(mockPlanSetState).toHaveBeenCalledWith('a', 'planning', undefined);
   });
 
   it('saves done through planComplete with completion notes', async () => {

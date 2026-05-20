@@ -339,7 +339,7 @@ export class ScheduledTaskManager extends EventEmitter {
         const firstPlanId = task.planIds[0];
         const plan = this.planManager.getItem(firstPlanId);
         if (plan) {
-          this.planManager.setState(firstPlanId, 'coding', '', sessionId);
+          this.planManager.setState(firstPlanId, 'coding', '');
           logger.info(`[ScheduledTaskManager] Set working plan ${firstPlanId} for session ${sessionId}`);
         }
       }

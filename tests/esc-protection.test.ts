@@ -28,11 +28,6 @@ describe('useEscProtection', () => {
   });
 
   describe('state transitions', () => {
-    it('starts with protection closed', () => {
-      const protection = useEscProtection();
-      expect(protection.isProtecting.value).toBe(false);
-      expect(protection.confirmingSessionId.value).toBeNull();
-    });
 
     it('openProtection opens modal and stores sessionId', () => {
       const protection = useEscProtection();

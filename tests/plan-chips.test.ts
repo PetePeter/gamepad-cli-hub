@@ -142,7 +142,7 @@ describe('Plan chip store integration', () => {
       status: 'review',
     });
 
-    expect(window.gamepadCli.planSetState).toHaveBeenCalledWith('start-1', 'review', undefined, undefined);
+    expect(window.gamepadCli.planSetState).toHaveBeenCalledWith('start-1', 'review', undefined);
   });
 
   it('saves chip plans as done through completion notes', async () => {

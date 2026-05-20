@@ -408,9 +408,6 @@ function resolvePlanTargetSessionId(item: PlanItem): string | null {
   if (activeSession?.workingDir && pathsMatch(activeSession.workingDir, item.dirPath)) {
     return activeSession.id;
   }
-  if (item.sessionId && state.sessions.some((session) => session.id === item.sessionId)) {
-    return item.sessionId;
-  }
   const dirSession = state.sessions.find((session) => session.workingDir && pathsMatch(session.workingDir, item.dirPath));
   return dirSession?.id ?? null;
 }
@@ -738,17 +735,7 @@ async function handleSave(planId: string, updates: { title: string; description:
         showBriefNotice('Select or open a session in this directory before marking a plan as coding');
         return;
       }
-      // Only coding claims a session from the editor. Paused states preserve
-      // any existing owner in PlanManager without assigning the active session.
-      const ownerSessionId = updates.status === 'coding'
-        ? targetSessionId ?? undefined
-        : undefined;
-      await plansClient.planSetState(
-        planId,
-        updates.status,
-        updates.stateInfo,
-        ownerSessionId,
-      );
+      await plansClient.planSetState(planId, updates.status, updates.stateInfo);
     }
     await refreshCanvas();
   } catch (err) {

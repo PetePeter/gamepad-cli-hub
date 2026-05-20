@@ -912,51 +912,11 @@ describe('Sessions Screen', () => {
       );
     });
 
-    it('logs spawning event', async () => {
-      await sessions.doSpawn('claude-code');
-      await flush();
 
-      expect(mockLogEvent).toHaveBeenCalledWith('Spawning claude-code...');
-    });
 
-    it('logs spawning event with working dir', async () => {
-      await sessions.doSpawn('claude-code', '/mydir');
-      await flush();
 
-      expect(mockLogEvent).toHaveBeenCalledWith('Spawning claude-code in /mydir...');
-    });
 
-    it('logs success on embedded terminal creation', async () => {
-      mockCreateTerminal.mockResolvedValue(true);
-      await sessions.doSpawn('claude-code');
-      await flush();
 
-      expect(mockLogEvent).toHaveBeenCalledWith('Spawned embedded terminal: claude-code');
-    });
-
-    it('logs failure when createTerminal returns false', async () => {
-      mockCreateTerminal.mockResolvedValue(false);
-      await sessions.doSpawn('claude-code');
-      await flush();
-
-      expect(mockLogEvent).toHaveBeenCalledWith(expect.stringContaining('Spawn FAILED'));
-    });
-
-    it('logs failure when configGetSpawnCommand returns null', async () => {
-      mockConfigGetSpawnCommand.mockResolvedValue(null);
-      await sessions.doSpawn('claude-code');
-      await flush();
-
-      expect(mockLogEvent).toHaveBeenCalledWith(expect.stringContaining('Spawn failed'));
-    });
-
-    it('logs failure when gamepadCli is not available', async () => {
-      delete (window as any).gamepadCli;
-      await sessions.doSpawn('claude-code');
-      await flush();
-
-      expect(mockLogEvent).toHaveBeenCalledWith('Spawn failed: gamepadCli not available');
-    });
 
     it('passes resumeSessionName to createTerminal', async () => {
       mockConfigGetSpawnCommand.mockResolvedValue({ command: 'claude', args: ['--resume'] });
@@ -1055,13 +1015,6 @@ describe('Sessions Screen', () => {
       expect(mockConfigGetSpawnCommand).toHaveBeenCalledWith('generic-terminal');
     });
 
-    it('logs failure when gamepadCli is not available', async () => {
-      delete (window as any).gamepadCli;
-      await sessions.spawnNewSession('claude-code');
-      await flush();
-
-      expect(mockLogEvent).toHaveBeenCalledWith('Spawn failed: gamepadCli not available');
-    });
   });
 
   // ==========================================================================

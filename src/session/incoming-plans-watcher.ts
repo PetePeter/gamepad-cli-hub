@@ -228,7 +228,6 @@ export class IncomingPlansWatcher extends EventEmitter {
       stateUpdatedAt: (raw.stateUpdatedAt as number) ?? (raw.updatedAt as number) ?? now,
       updatedAt: now,
     };
-    if (raw.sessionId) item.sessionId = raw.sessionId as string;
     if (raw.stateInfo) item.stateInfo = raw.stateInfo as string;
 
     return { ok: true, item };

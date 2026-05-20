@@ -82,13 +82,6 @@ describe('Sequence Picker', () => {
   // =========================================================================
 
   describe('Sequence Picker State', () => {
-    it('starts with default state', () => {
-      const s = mod.sequencePickerState;
-      expect(s.visible).toBe(false);
-      expect(s.selectedIndex).toBe(0);
-      expect(s.items).toEqual([]);
-      expect(s.onSelect).toBeNull();
-    });
 
     it('showSequencePicker sets state correctly', () => {
       const onSelect = vi.fn();

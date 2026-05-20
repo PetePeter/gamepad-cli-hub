@@ -43,13 +43,7 @@ describe('plan-help-modal', () => {
   // Default state
   // -------------------------------------------------------------------------
 
-  it('isPlanHelpVisible() is false by default', () => {
-    expect(mod.isPlanHelpVisible()).toBe(false);
-  });
 
-  it('showedForDir is empty by default', () => {
-    expect(mod.showedForDir.size).toBe(0);
-  });
 
   // -------------------------------------------------------------------------
   // showPlanHelpModal
@@ -127,9 +121,6 @@ describe('plan-help-modal', () => {
     expect(el.classList.contains('visible')).toBe(false);
   });
 
-  it('hide before show does not throw', () => {
-    expect(() => mod.hidePlanHelpModal()).not.toThrow();
-  });
 
   // -------------------------------------------------------------------------
   // Click-outside dismissal

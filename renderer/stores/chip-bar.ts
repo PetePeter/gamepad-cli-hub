@@ -67,8 +67,7 @@ export const useChipBarStore = defineStore('chip-bar', () => {
         if (updates.status === 'done' && item.status !== 'done') {
           await plansClient.planComplete(planId, updates.stateInfo);
         } else if (item.status !== 'done') {
-          const ownerSessionId = updates.status === 'coding' ? state.activeSessionId || item.sessionId : undefined;
-          await plansClient.planSetState(planId, updates.status, updates.stateInfo, ownerSessionId);
+          await plansClient.planSetState(planId, updates.status, updates.stateInfo);
         }
         await refresh(sessionId);
       };

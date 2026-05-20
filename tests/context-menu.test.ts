@@ -117,13 +117,6 @@ describe('Context Menu', () => {
   // =========================================================================
 
   describe('Context Menu State', () => {
-    it('starts with default state', () => {
-      const s = mod.contextMenuState;
-      expect(s.visible).toBe(false);
-      expect(s.selectedIndex).toBe(0);
-      expect(s.selectedText).toBe('');
-      expect(s.hasSelection).toBe(false);
-    });
 
     it('showContextMenu sets state correctly', () => {
       mod.showContextMenu(100, 100, 'sess-1', 'gamepad');

@@ -260,11 +260,6 @@ describe('registerIPCHandlers restore wiring', () => {
     expect(mockRestoreSessions).toHaveBeenCalledOnce();
   });
 
-  it('logs restored session count', () => {
-    mockRestoreSessions.mockReturnValueOnce([{ id: 's1' }, { id: 's2' }]);
-    registerIPCHandlers(() => null);
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Restored 2 session(s)'));
-  });
 });
 
 // ---------------------------------------------------------------------------

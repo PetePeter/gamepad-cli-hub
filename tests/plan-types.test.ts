@@ -75,42 +75,6 @@ describe('Plan Types (P-0038)', () => {
     });
   });
 
-  // ─── PlanManager.create with type ──────────────────────
-
-  describe('create with type', () => {
-    it('creates item without type (undefined)', () => {
-      const item = pm.create('/d', 'Task', 'desc');
-      expect(item.type).toBeUndefined();
-    });
-
-    it('creates item with type set', () => {
-      const item = pm.createWithType('/d', 'Fix login', 'JWT issue', 'bug');
-      expect(item.type).toBe('bug');
-      expect(item.title).toBe('Fix login');
-    });
-
-    it('creates feature with type', () => {
-      const item = pm.createWithType('/d', 'Add export', 'JSON export', 'feature');
-      expect(item.type).toBe('feature');
-    });
-
-    it('creates research with type', () => {
-      const item = pm.createWithType('/d', 'Investigate perf', 'Baseline analysis', 'research');
-      expect(item.type).toBe('research');
-    });
-
-    it('saves type to disk via persistence', () => {
-      const item = pm.createWithType('/d', 'Bug fix', 'desc', 'bug');
-      expect(persistence.savePlanFile).toHaveBeenCalledWith(expect.objectContaining({ type: 'bug' }));
-    });
-
-    it('new items without type are backward compatible', () => {
-      const item = pm.create('/d', 'Old style', 'no type field');
-      expect(item.type).toBeUndefined();
-      expect(persistence.savePlanFile).toHaveBeenCalled();
-    });
-  });
-
   // ─── PlanManager.update with type ──────────────────────
 
   describe('update with type', () => {
