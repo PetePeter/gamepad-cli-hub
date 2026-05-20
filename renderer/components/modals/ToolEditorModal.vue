@@ -49,7 +49,7 @@ export interface ToolEditorData {
 
 const props = defineProps<{
   visible: boolean;
-  mode: 'add' | 'edit';
+  mode: 'add' | 'edit' | 'clone';
   editKey: string;
   initialData: ToolEditorData;
 }>();
@@ -98,7 +98,11 @@ const { onKeydown } = useFocusTrap(overlayRef);
 let nextEnvId = 1;
 
 const title = computed(() =>
-  props.mode === 'add' ? 'Add CLI Type' : `Edit CLI Type: ${props.editKey}`,
+  props.mode === 'add'
+    ? 'Add CLI Type'
+    : props.mode === 'clone'
+      ? `Clone CLI Type: ${props.editKey}`
+      : `Edit CLI Type: ${props.editKey}`,
 );
 const pasteModeWarning = computed(() => getNonPtyPasteModeWarning(pasteMode.value));
 

@@ -205,7 +205,7 @@ const EMPTY_TOOL_DATA: ToolEditorBridgeData = {
 
 export const toolEditor = reactive({
   visible: false,
-  mode: 'add' as 'add' | 'edit',
+  mode: 'add' as 'add' | 'edit' | 'clone',
   editKey: '',
   initialData: { ...EMPTY_TOOL_DATA } as ToolEditorBridgeData,
 });

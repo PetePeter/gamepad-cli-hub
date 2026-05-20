@@ -18,6 +18,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   add: [];
   edit: [key: string];
+  clone: [key: string];
   delete: [key: string];
   move: [key: string, direction: 'up' | 'down'];
 }>();
@@ -51,6 +52,7 @@ const emit = defineEmits<{
             title="Move down"
             @click="emit('move', tool.key, 'down')"
           >&#9660;</button>
+          <button class="focusable" @click="emit('clone', tool.key)">Clone</button>
           <button class="focusable" @click="emit('edit', tool.key)">Edit</button>
           <button class="focusable danger" @click="emit('delete', tool.key)">Delete</button>
         </div>

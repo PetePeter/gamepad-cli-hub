@@ -10,6 +10,7 @@ import {
   buildToolEditorOptions,
   setToolEditorCallback,
   toolEditor,
+  type ToolEditorBridgeData,
 } from '../stores/modal-bridge.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
 
@@ -257,6 +258,60 @@ export function useSettingsController(options: {
     ];
   }
 
+  function makeCliTypeKey(name: string): string {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+
+  function makeUniqueCloneName(sourceName: string): string {
+    const existingKeys = new Set(settingsCliTypes.value);
+    const existingNames = new Set(settingsTools.value.map((tool) => tool.name.trim().toLowerCase()));
+    const baseName = sourceName.trim() || 'CLI Type';
+    let index = 1;
+    while (true) {
+      const candidate = index === 1 ? `${baseName} Copy` : `${baseName} Copy ${index}`;
+      const candidateKey = makeCliTypeKey(candidate);
+      if (!existingKeys.has(candidateKey) && !existingNames.has(candidate.toLowerCase())) {
+        return candidate;
+      }
+      index++;
+    }
+  }
+
+  function buildToolEditorData(value: any, fallbackName: string): ToolEditorBridgeData {
+    return {
+      name: value?.name || fallbackName,
+      env: Array.isArray(value?.env)
+        ? value.env.map((i: any) => ({ name: i.name || '', value: i.value || '', mode: i.mode }))
+        : [],
+      initialPromptDelay: value?.initialPromptDelay ?? 0,
+      pasteMode: value?.pasteMode || 'pty',
+      spawnCommand: value?.spawnCommand || '',
+      resumeCommand: value?.resumeCommand || '',
+      continueCommand: value?.continueCommand || '',
+      renameCommand: value?.renameCommand || '',
+      handoffCommand: value?.handoffCommand || '',
+      helmInitialPrompt: Boolean(value?.helmInitialPrompt),
+      helmPreambleForInterSession: value?.helmPreambleForInterSession !== false,
+      largeTextAsTempFile: Boolean(value?.largeTextAsTempFile),
+      submitSuffix: value?.submitSuffix ?? '\\r',
+      initialPrompt: Array.isArray(value?.initialPrompt)
+        ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))
+        : [],
+    };
+  }
+
+  async function refreshAfterToolChange(nextTab?: string): Promise<void> {
+    state.cliTypes = await configClient.configGetCliTypes();
+    state.availableSpawnTypes = state.cliTypes;
+    if (nextTab) {
+      settingsTab.value = nextTab;
+      state.settingsTab = nextTab;
+    }
+    await initConfigCache();
+    options.reloadSessions?.();
+    await loadSettingsData();
+  }
+
   async function loadTools(): Promise<void> {
     try {
       const toolsData = await toolsClient.toolsGetAll();
@@ -397,7 +452,7 @@ export function useSettingsController(options: {
         logEvent('Add CLI type: name is required');
         return;
       }
-      const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const key = makeCliTypeKey(name);
       const validItems = (values._promptItems || []).filter((item: { sequence: string }) => item.sequence.trim());
       const initialPromptDelay = values.initialPromptDelay || 0;
       const addResult = await toolsClient.toolsAddCliType(
@@ -409,11 +464,7 @@ export function useSettingsController(options: {
       );
       if (addResult.success) {
         logEvent(`Added CLI type: ${key}`);
-        state.cliTypes = await configClient.configGetCliTypes();
-        state.availableSpawnTypes = state.cliTypes;
-        await initConfigCache();
-        options.reloadSessions?.();
-        await loadSettingsData();
+        await refreshAfterToolChange();
         return;
       }
       logEvent(`Failed to add CLI type: ${addResult.error || 'unknown error'}`);
@@ -429,26 +480,7 @@ export function useSettingsController(options: {
 
       toolEditor.mode = 'edit';
       toolEditor.editKey = key;
-      toolEditor.initialData = {
-        name: value.name || key,
-        env: Array.isArray(value.env)
-          ? value.env.map((i: any) => ({ name: i.name || '', value: i.value || '' }))
-          : [],
-        initialPromptDelay: value.initialPromptDelay ?? 0,
-        pasteMode: value.pasteMode || 'pty',
-        spawnCommand: value.spawnCommand || '',
-        resumeCommand: value.resumeCommand || '',
-        continueCommand: value.continueCommand || '',
-        renameCommand: value.renameCommand || '',
-        handoffCommand: value.handoffCommand || '',
-        helmInitialPrompt: Boolean(value.helmInitialPrompt),
-        helmPreambleForInterSession: value.helmPreambleForInterSession !== false,
-        largeTextAsTempFile: Boolean(value.largeTextAsTempFile),
-        submitSuffix: value.submitSuffix ?? '\\r',
-        initialPrompt: Array.isArray(value.initialPrompt)
-          ? value.initialPrompt.map((i: any) => ({ label: i.label || '', sequence: i.sequence || '' }))
-          : [],
-      };
+      toolEditor.initialData = buildToolEditorData(value, key);
       setToolEditorCallback(async (values) => {
         const validItems = (values._promptItems || []).filter((item: { sequence: string }) => item.sequence.trim());
         const initialPromptDelay = values.initialPromptDelay || 0;
@@ -461,11 +493,7 @@ export function useSettingsController(options: {
         );
         if (updateResult.success) {
           logEvent(`Updated CLI type: ${key}`);
-          state.cliTypes = await configClient.configGetCliTypes();
-          state.availableSpawnTypes = state.cliTypes;
-          await initConfigCache();
-          options.reloadSessions?.();
-          await loadSettingsData();
+          await refreshAfterToolChange();
           return;
         }
         logEvent(`Failed to update CLI type: ${updateResult.error || 'unknown error'}`);
@@ -473,6 +501,47 @@ export function useSettingsController(options: {
       toolEditor.visible = true;
     } catch (error) {
       console.error('Failed to load tool for edit:', error);
+    }
+  }
+
+  async function onToolClone(key: string): Promise<void> {
+    try {
+      const toolsData = await toolsClient.toolsGetAll();
+      const value = toolsData?.cliTypes?.[key];
+      if (!value) return;
+
+      toolEditor.mode = 'clone';
+      toolEditor.editKey = key;
+      toolEditor.initialData = {
+        ...buildToolEditorData(value, key),
+        name: makeUniqueCloneName(value.name || key),
+      };
+      setToolEditorCallback(async (values) => {
+        const name = values.name?.trim();
+        if (!name) {
+          logEvent('Clone CLI type: name is required');
+          return;
+        }
+        const cloneKey = makeCliTypeKey(name);
+        const validItems = (values._promptItems || []).filter((item: { sequence: string }) => item.sequence.trim());
+        const initialPromptDelay = values.initialPromptDelay || 0;
+        const addResult = await toolsClient.toolsAddCliType(
+          cloneKey,
+          name,
+          validItems,
+          initialPromptDelay,
+          buildToolEditorOptions(values),
+        );
+        if (addResult.success) {
+          logEvent(`Cloned CLI type ${key} to ${cloneKey}`);
+          await refreshAfterToolChange(cloneKey);
+          return;
+        }
+        logEvent(`Failed to clone CLI type: ${addResult.error || 'unknown error'}`);
+      });
+      toolEditor.visible = true;
+    } catch (error) {
+      console.error('Failed to load tool for clone:', error);
     }
   }
 
@@ -1043,6 +1112,7 @@ export function useSettingsController(options: {
     buildSettingsTabs,
     onToolAdd,
     onToolEdit,
+    onToolClone,
     onToolDelete,
     onToolReorder,
     onDirectoryAdd,

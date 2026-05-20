@@ -228,6 +228,7 @@ const {
   buildSettingsTabs,
   onToolAdd,
   onToolEdit,
+  onToolClone,
   onToolDelete,
   onToolReorder,
   onDirectoryAdd,
@@ -889,6 +890,7 @@ onUnmounted(() => {
               :tools="settingsTools"
               @add="onToolAdd"
               @edit="onToolEdit"
+              @clone="onToolClone"
               @delete="onToolDelete"
               @move="onToolReorder"
             />
