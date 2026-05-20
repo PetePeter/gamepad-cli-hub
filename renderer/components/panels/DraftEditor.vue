@@ -485,7 +485,11 @@ defineExpose({ handleButton, hasUnsavedChanges: getHasUnsavedChanges });
 </script>
 
 <template>
-  <div v-if="visible" class="draft-editor">
+  <div
+    v-if="visible"
+    class="draft-editor"
+    :class="{ 'draft-editor--plan': isPlan }"
+  >
     <div class="draft-editor-header">
       <span class="draft-editor-title">{{ titleText }}</span>
       <div class="draft-editor-actions">

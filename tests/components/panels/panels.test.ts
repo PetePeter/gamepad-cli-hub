@@ -846,6 +846,29 @@ describe('DraftEditor', () => {
     w.unmount();
   });
 
+  it('clampHeight lets maxHeightPx exceed the maxRows limit when provided', async () => {
+    const w = mount(PromptTextarea, {
+      attachTo: document.body,
+      props: {
+        modelValue: '',
+        minRows: 2,
+        maxRows: 5,
+        maxHeightPx: 420,
+      },
+    });
+    await flushPromises();
+    const vm = w.vm as any;
+    const textarea = w.find('.prompt-textarea__editor').element as HTMLTextAreaElement;
+
+    vm.setHeight(400);
+    await flushPromises();
+
+    const parsedHeight = parseFloat(textarea.style.height);
+    expect(parsedHeight).toBeGreaterThan(5 * 30);
+    expect(parsedHeight).toBeLessThanOrEqual(420);
+    w.unmount();
+  });
+
   it('clampHeight ignores maxHeightPx when not provided, uses maxRows', async () => {
     const w = mount(PromptTextarea, {
       attachTo: document.body,
@@ -907,6 +930,7 @@ describe('DraftEditor', () => {
     // Plan mode should pass a maxHeightPx (75% of viewport)
     expect(promptTextarea.props('maxHeightPx')).toBeGreaterThan(0);
     expect(promptTextarea.props('maxHeightPx')).toBeLessThanOrEqual(window.innerHeight);
+    expect(w.find('.draft-editor').classes()).toContain('draft-editor--plan');
 
     delete (window as any).helm;
   });

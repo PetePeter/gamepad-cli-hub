@@ -3704,6 +3704,10 @@ kbd {
   overflow-y: auto;
 }
 
+.draft-editor--plan {
+  max-height: 82vh;
+}
+
 .draft-editor-header {
   display: flex;
   justify-content: space-between;
