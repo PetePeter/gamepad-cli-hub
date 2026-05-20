@@ -727,10 +727,6 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   planContextGet: (id: string) =>
     ipcRenderer.invoke('plan:context-get', id),
 
-  /** Append text to a writable context node */
-  planContextAppend: (id: string, text: string, expectedUpdatedAt?: number) =>
-    ipcRenderer.invoke('plan:context-append', id, text, expectedUpdatedAt),
-
   /** Persist the X/Y position of a context node */
   planContextSetPosition: (id: string, x: number | null, y: number | null) =>
     ipcRenderer.invoke('plan:context-set-position', id, x, y),

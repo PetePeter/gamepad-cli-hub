@@ -66,21 +66,6 @@ export class HelmPlanSequenceService {
     return updated;
   }
 
-  appendPlanSequenceMemory(id: string, text: string, expectedUpdatedAt?: number): PlanSequence {
-    const sequence = this.planManager.getSequence(id);
-    if (!sequence) {
-      throw new Error(`Sequence not found: ${id}`);
-    }
-    this.assertSequenceMutex(sequence, expectedUpdatedAt);
-    const separator = sequence.sharedMemory.trim().length > 0 ? '\n\n' : '';
-    const updated = this.planManager.updateSequence(id, {
-      sharedMemory: `${sequence.sharedMemory}${separator}${text}`,
-    });
-    if (!updated) {
-      throw new Error(`Sequence not found: ${id}`);
-    }
-    return updated;
-  }
 
   deletePlanSequence(id: string): boolean {
     return this.planManager.deleteSequence(id);

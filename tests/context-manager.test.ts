@@ -111,6 +111,25 @@ describe('ContextManager', () => {
     expect(manager.get(created.id)).toEqual(updated);
   });
 
+  it('update() succeeds when expectedUpdatedAt matches current updatedAt', () => {
+    const ctx = manager.create('project-1', { title: 'Node', permission: 'writable', content: 'v1' });
+    const result = manager.update(ctx.id, { content: 'v2' }, ctx.updatedAt);
+    expect(result).not.toBeNull();
+    expect(result!.content).toBe('v2');
+  });
+
+  it('update() throws when expectedUpdatedAt is stale', () => {
+    const ctx = manager.create('project-1', { title: 'Node', permission: 'writable', content: 'v1' });
+    expect(() => manager.update(ctx.id, { content: 'v2' }, ctx.updatedAt - 1)).toThrow('updated concurrently');
+  });
+
+  it('update() succeeds when expectedUpdatedAt is omitted', () => {
+    const ctx = manager.create('project-1', { title: 'Node', permission: 'writable', content: 'v1' });
+    const result = manager.update(ctx.id, { content: 'v2' });
+    expect(result).not.toBeNull();
+    expect(result!.content).toBe('v2');
+  });
+
   it('unlinks a single binding without deleting the context', () => {
     const created = manager.create('project-1', { title: 'Shared Notes', permission: 'readonly' });
     manager.bind(created.id, 'sequence', 'seq-1');

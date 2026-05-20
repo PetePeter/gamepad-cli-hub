@@ -142,7 +142,6 @@ export const PRELOAD_API_DOMAINS = {
     'planContextUpdate',
     'planContextDelete',
     'planContextGet',
-    'planContextAppend',
     'planContextSetPosition',
     'planContextBind',
     'planContextUnbind',

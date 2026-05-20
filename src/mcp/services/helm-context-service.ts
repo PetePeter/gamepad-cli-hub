@@ -52,18 +52,15 @@ export class HelmContextService {
       x?: number | null;
       y?: number | null;
     },
+    expectedUpdatedAt?: number,
   ): ContextNode {
-    const updated = this.contextManager.update(id, updates);
+    const updated = this.contextManager.update(id, updates, expectedUpdatedAt);
     if (!updated) throw new Error(`Context not found: ${id}`);
     return updated;
   }
 
   deleteContext(id: string): boolean {
     return this.contextManager.delete(id);
-  }
-
-  appendContext(id: string, text: string, expectedUpdatedAt?: number): ContextNode {
-    return this.contextManager.append(id, text, expectedUpdatedAt);
   }
 
   setContextPosition(id: string, x: number | null, y: number | null): ContextNode {

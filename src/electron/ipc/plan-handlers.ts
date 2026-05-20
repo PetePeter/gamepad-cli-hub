@@ -226,10 +226,6 @@ export function setupPlanHandlers(
     };
   });
 
-  ipcMain.handle('plan:context-append', (_event, id: string, text: string, expectedUpdatedAt?: number) => {
-    return contextManager?.append(id, text, expectedUpdatedAt) ?? null;
-  });
-
   ipcMain.handle('plan:context-set-position', (_event, id: string, x: number | null, y: number | null) => {
     return contextManager?.setPosition(id, x, y) ?? null;
   });

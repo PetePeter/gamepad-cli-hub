@@ -316,9 +316,6 @@ export class HelmControlService extends EventEmitter {
     return this.planSequenceService.updatePlanSequence(id, updates);
   }
 
-  appendPlanSequenceMemory(id: string, text: string, expectedUpdatedAt?: number): PlanSequence {
-    return this.planSequenceService.appendPlanSequenceMemory(id, text, expectedUpdatedAt);
-  }
 
   deletePlanSequence(id: string): boolean {
     return this.planSequenceService.deletePlanSequence(id);
@@ -366,17 +363,15 @@ export class HelmControlService extends EventEmitter {
       x?: number | null;
       y?: number | null;
     },
+    expectedUpdatedAt?: number,
   ): ContextNode {
-    return this.contextService.updateContext(id, updates);
+    return this.contextService.updateContext(id, updates, expectedUpdatedAt);
   }
 
   deleteContext(id: string): boolean {
     return this.contextService.deleteContext(id);
   }
 
-  appendContext(id: string, text: string, expectedUpdatedAt?: number): ContextNode {
-    return this.contextService.appendContext(id, text, expectedUpdatedAt);
-  }
 
   setContextPosition(id: string, x: number | null, y: number | null): ContextNode {
     return this.contextService.setContextPosition(id, x, y);

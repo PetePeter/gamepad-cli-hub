@@ -90,9 +90,13 @@ export class ContextManager extends EventEmitter {
       x?: number | null;
       y?: number | null;
     },
+    expectedUpdatedAt?: number,
   ): ContextNode | null {
     const context = this.contexts.get(id);
     if (!context) return null;
+    if (expectedUpdatedAt !== undefined && context.updatedAt !== expectedUpdatedAt) {
+      throw new Error(`Context ${id} was updated concurrently. Expected updatedAt=${expectedUpdatedAt}, current updatedAt=${context.updatedAt}. Re-read it before updating.`);
+    }
     if (updates.title !== undefined) context.title = updates.title;
     if (updates.type !== undefined) context.type = updates.type.trim() || context.type;
     if (updates.permission !== undefined) context.permission = updates.permission;

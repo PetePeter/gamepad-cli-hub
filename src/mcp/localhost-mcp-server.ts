@@ -416,7 +416,7 @@ function getToolReminder(name: string): string {
   if (name === 'plan_complete') {
     return 'Reminder: tell the user exactly what to test, then inspect followUpPlans and continue with any ready autoFollowUpPlans.';
   }
-  if (name === 'sequence_list' || name === 'sequence_update' || name === 'sequence_memory_append') {
+  if (name === 'sequence_list' || name === 'sequence_update') {
     return 'Reminder: sequence.sharedMemory is shared by every plan in that sequence. Re-read the sequence and pass expectedUpdatedAt when updating or appending to avoid overwriting another LLM.';
   }
   return '';

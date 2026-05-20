@@ -261,31 +261,6 @@ describe('HelmControlService plan sequences', () => {
     ]);
   });
 
-  it('requires expectedUpdatedAt to match for mutexed sequence memory appends', () => {
-    const { service, planManager } = makeService();
-    const sequence = {
-      id: 'seq-1',
-      dirPath: '/work',
-      title: 'Sequence',
-      missionStatement: 'Mission',
-      sharedMemory: 'Before',
-      order: 0,
-      createdAt: 1,
-      updatedAt: 22,
-    };
-    (planManager as any).getSequence = vi.fn(() => sequence);
-    (planManager as any).updateSequence = vi.fn((_id: string, updates: { sharedMemory: string }) => ({
-      ...sequence,
-      ...updates,
-      updatedAt: 23,
-    }));
-
-    expect(() => service.appendPlanSequenceMemory('seq-1', 'After', 21)).toThrow('updated concurrently');
-    expect(service.appendPlanSequenceMemory('seq-1', 'After', 22)).toMatchObject({
-      sharedMemory: 'Before\n\nAfter',
-      updatedAt: 23,
-    });
-  });
 });
 
 describe('HelmControlService effective plan context', () => {

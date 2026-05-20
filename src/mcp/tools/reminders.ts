@@ -25,7 +25,7 @@ export function getToolReminder(name: string): string {
   if (name === 'notify_user') {
     return 'Reminder: after notifying, update your phase - call session_set_aiagent_state with "completed" if work is done, or "idle" if standing down.';
   }
-  if (name === 'sequence_list' || name === 'sequence_update' || name === 'sequence_memory_append') {
+  if (name === 'sequence_list' || name === 'sequence_update') {
     return 'Reminder: sequence.sharedMemory is shared by every plan in that sequence. Re-read the sequence and pass expectedUpdatedAt when updating or appending to avoid overwriting another LLM.';
   }
   return '';

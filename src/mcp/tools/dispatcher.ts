@@ -204,12 +204,6 @@ export async function callMcpTool(
             ...(typeof args.expectedUpdatedAt === 'number' ? { expectedUpdatedAt: args.expectedUpdatedAt } : {}),
           },
         );
-      case 'sequence_memory_append':
-        return service.appendPlanSequenceMemory(
-          asString(args.id, 'id is required'),
-          asString(args.text, 'text is required'),
-          typeof args.expectedUpdatedAt === 'number' ? args.expectedUpdatedAt : undefined,
-        );
       case 'sequence_delete':
         return {
           deleted: requireBooleanResult(
@@ -235,14 +229,18 @@ export async function callMcpTool(
           ...(typeof args.y === 'number' || args.y === null ? { y: args.y as number | null } : {}),
         });
       case 'context_update':
-        return service.updateContext(asString(args.id, 'id is required'), {
-          ...(typeof args.title === 'string' ? { title: args.title } : {}),
-          ...(typeof args.type === 'string' ? { type: args.type } : {}),
-          ...(args.permission === 'readonly' || args.permission === 'writable' ? { permission: args.permission } : {}),
-          ...(typeof args.content === 'string' ? { content: args.content } : {}),
-          ...(typeof args.x === 'number' || args.x === null ? { x: args.x as number | null } : {}),
-          ...(typeof args.y === 'number' || args.y === null ? { y: args.y as number | null } : {}),
-        });
+        return service.updateContext(
+          asString(args.id, 'id is required'),
+          {
+            ...(typeof args.title === 'string' ? { title: args.title } : {}),
+            ...(typeof args.type === 'string' ? { type: args.type } : {}),
+            ...(args.permission === 'readonly' || args.permission === 'writable' ? { permission: args.permission } : {}),
+            ...(typeof args.content === 'string' ? { content: args.content } : {}),
+            ...(typeof args.x === 'number' || args.x === null ? { x: args.x as number | null } : {}),
+            ...(typeof args.y === 'number' || args.y === null ? { y: args.y as number | null } : {}),
+          },
+          typeof args.expectedUpdatedAt === 'number' ? args.expectedUpdatedAt : undefined,
+        );
       case 'context_delete':
         return {
           deleted: requireBooleanResult(
@@ -254,12 +252,6 @@ export async function callMcpTool(
         return requireResult(
           service.getContext(asString(args.id, 'id is required')),
           `Context not found: ${asString(args.id, 'id is required')}`,
-        );
-      case 'context_append':
-        return service.appendContext(
-          asString(args.id, 'id is required'),
-          asString(args.text, 'text is required'),
-          typeof args.expectedUpdatedAt === 'number' ? args.expectedUpdatedAt : undefined,
         );
       case 'context_set_position':
         return service.setContextPosition(

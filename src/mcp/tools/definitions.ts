@@ -347,21 +347,6 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'sequence_memory_append',
-    title: 'Append Sequence Memory',
-    description: 'Append text to a sequence sharedMemory store when maintaining existing legacy memory. Prefer context_* tools for new durable notes. Pass expectedUpdatedAt from the last read to make the append mutexable and fail on concurrent changes.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string' },
-        text: { type: 'string' },
-        expectedUpdatedAt: { type: 'number' },
-      },
-      required: ['id', 'text'],
-      additionalProperties: false,
-    },
-  },
-  {
     name: 'sequence_delete',
     title: 'Delete Sequence',
     description: 'Delete a sequence/shared-memory store and clear sequence membership from its member plans.',
@@ -421,7 +406,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'context_update',
     title: 'Update Context Node',
-    description: 'Update a context node by ID. This can change the title, free-text type, permission mode, content, or stored position.',
+    description: 'Update a context node by ID. This can change the title, free-text type, permission mode, content, or stored position. Pass expectedUpdatedAt from the last read to enforce mutex-safe writes and reject stale updates.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -432,6 +417,7 @@ export const MCP_TOOLS: McpTool[] = [
         content: { type: 'string' },
         x: { anyOf: [{ type: 'number' }, { type: 'null' }] },
         y: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+        expectedUpdatedAt: { type: 'number' },
       },
       required: ['id'],
       additionalProperties: false,
@@ -460,21 +446,6 @@ export const MCP_TOOLS: McpTool[] = [
         id: { type: 'string' },
       },
       required: ['id'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'context_append',
-    title: 'Append Context Content',
-    description: 'Append text to a writable context node. Pass expectedUpdatedAt from the last read to make the append mutexable and fail on concurrent changes.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string' },
-        text: { type: 'string' },
-        expectedUpdatedAt: { type: 'number' },
-      },
-      required: ['id', 'text'],
       additionalProperties: false,
     },
   },
