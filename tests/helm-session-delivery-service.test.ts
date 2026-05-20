@@ -143,18 +143,18 @@ describe('HelmSessionDeliveryService', () => {
         });
 
         expect(result.ok).toBe(true);
+        // payloadRef removed from envelope — path lives only in the preamble notice
         const envelopeCall = ptyManager.deliverText.mock.calls.find((c: any[]) => String(c[1]).startsWith('[HELM_MSG]'));
         const envelopeText = String(envelopeCall?.[1] ?? '').slice('[HELM_MSG]'.length);
         const envelope = JSON.parse(envelopeText);
-        expect(envelope.payloadRef.kind).toBe('temp_file');
-        expect(envelope.payloadRef.path).toContain('helm-large-text-session-send-text');
-        expect(envelope.payloadRef.label).toBe('session_send_text payload');
-        expect(envelope.payloadRef.instruction).toBeUndefined();
-        const tempFilePath = envelope.payloadRef.path as string;
-        expect(readFileSync(tempFilePath, 'utf8')).toBe('this is a large payload');
+        expect(envelope.payloadRef).toBeUndefined();
         const noticeCall = ptyManager.deliverText.mock.calls.find((c: any[]) => String(c[1]).includes('Read the full file at:'));
-        expect(noticeCall?.[1]).toContain(tempFilePath);
-        expect(noticeCall?.[1]).not.toContain('this is a large payload');
+        const noticeText = String(noticeCall?.[1] ?? '');
+        const pathLine = noticeText.split('\n').find((l) => l.startsWith('Read the full file at:'));
+        const tempFilePath = pathLine?.slice('Read the full file at:'.length).trim() ?? '';
+        expect(tempFilePath).toContain('helm-large-text-session-send-text');
+        expect(readFileSync(tempFilePath, 'utf8')).toBe('this is a large payload');
+        expect(noticeText).not.toContain('this is a large payload');
       } finally {
         if (oldThreshold === undefined) delete process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD;
         else process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD = oldThreshold;
