@@ -53,7 +53,7 @@ export class HelmSessionService {
     return session ? this.toSessionSummary(session) : null;
   }
 
-  spawnCli(cliType: string, dirPath: string, name: string): SessionSummary {
+  spawnCli(cliType: string, dirPath: string, name: string): { id: string } {
     const workingDir = this.requireWorkingDirectory(dirPath);
     this.requireCliEntry(cliType);
     const sessionName = name.trim();
@@ -67,10 +67,10 @@ export class HelmSessionService {
       fallbackCompleteDelayMs: 500,
     });
 
-    return this.toSessionSummary(requireResult(this.sessionManager.getSession(sessionId), `Session not found: ${sessionId}`));
+    return { id: sessionId };
   }
 
-  closeSession(sessionRef: string): { sessionId: string; name: string } {
+  closeSession(sessionRef: string): { ok: true } {
     const session = this.findSession(sessionRef);
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);
@@ -81,17 +81,17 @@ export class HelmSessionService {
       logger.warn(`[HelmControlService] Failed to kill PTY for session ${session.id}: ${killError}`);
     }
     this.sessionManager.removeSession(session.id);
-    return { sessionId: session.id, name: session.name };
+    return { ok: true };
   }
 
-  setAiagentState(sessionRef: string, state: 'planning' | 'implementing' | 'completed' | 'idle'): { sessionId: string; name: string; state: string } {
+  setAiagentState(sessionRef: string, state: 'planning' | 'implementing' | 'completed' | 'idle'): { ok: true } {
     const session = this.findSession(sessionRef);
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);
     }
 
     this.sessionManager.updateSession(session.id, { aiagentState: state });
-    return { sessionId: session.id, name: session.name, state };
+    return { ok: true };
   }
 
   readSessionTerminal(
@@ -117,9 +117,7 @@ export class HelmSessionService {
       name: session.name,
       cliType: session.cliType,
       workingDir: session.workingDir,
-      requestedLines,
       returnedLines: Math.max(rawLength, strippedLength),
-      mode,
       ptyRunning: this.ptyManager.has(session.id),
       ...(tail.lastOutputAt !== undefined ? { lastOutputAt: tail.lastOutputAt } : {}),
       ...(tail.raw ? { raw: tail.raw } : {}),
@@ -127,10 +125,7 @@ export class HelmSessionService {
     };
   }
 
-  setSessionWorkingPlan(
-    sessionRef: string,
-    planId: string,
-  ): { sessionId: string; name: string; planId: string; planTitle: string; planStatus: PlanStatus } {
+  setSessionWorkingPlan(sessionRef: string, planId: string): { ok: true } {
     return this.planService.setWorkingPlan(sessionRef, planId);
   }
 

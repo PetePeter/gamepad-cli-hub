@@ -77,9 +77,7 @@ export interface SessionTerminalTailResponse {
   name: string;
   cliType: string;
   workingDir?: string;
-  requestedLines: number;
   returnedLines: number;
-  mode: TerminalOutputMode;
   ptyRunning: boolean;
   lastOutputAt?: number;
   raw?: string[];
@@ -249,11 +247,11 @@ export class HelmControlService extends EventEmitter {
     return this.planService.getPlanIdMapping(humanId);
   }
 
-  createPlan(dirPath: string, title: string, description: string, type?: PlanType, autoImplement?: boolean): PlanItem {
+  createPlan(dirPath: string, title: string, description: string, type?: PlanType, autoImplement?: boolean): { id: string; humanId: string } {
     return this.planService.createPlan(dirPath, title, description, type, autoImplement);
   }
 
-  updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType | null; autoImplement?: boolean; completionRecap?: boolean }): PlanItem | null {
+  updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType | null; autoImplement?: boolean; completionRecap?: boolean }): { ok: true; updatedAt: number } {
     return this.planService.updatePlan(id, updates);
   }
 
@@ -265,7 +263,7 @@ export class HelmControlService extends EventEmitter {
     return this.planService.completePlan(id, completionNotes);
   }
 
-  reopenPlan(id: string): PlanItem | null {
+  reopenPlan(id: string): { ok: true } {
     return this.planService.reopenPlan(id);
   }
 
@@ -273,7 +271,7 @@ export class HelmControlService extends EventEmitter {
     id: string,
     status: Exclude<PlanStatus, 'done'>,
     stateInfo?: string,
-  ): PlanItem | null {
+  ): { ok: true } {
     return this.planService.setPlanState(id, status, stateInfo);
   }
 
@@ -305,14 +303,14 @@ export class HelmControlService extends EventEmitter {
     return this.planSequenceService.getPlanSequence(id);
   }
 
-  createPlanSequence(input: { dirPath: string; title: string; missionStatement?: string; sharedMemory?: string }): PlanSequence {
+  createPlanSequence(input: { dirPath: string; title: string; missionStatement?: string; sharedMemory?: string }): { id: string } {
     return this.planSequenceService.createPlanSequence(input);
   }
 
   updatePlanSequence(
     id: string,
     updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number; expectedUpdatedAt?: number },
-  ): PlanSequence {
+  ): { ok: true; updatedAt: number } {
     return this.planSequenceService.updatePlanSequence(id, updates);
   }
 
@@ -321,7 +319,7 @@ export class HelmControlService extends EventEmitter {
     return this.planSequenceService.deletePlanSequence(id);
   }
 
-  assignPlanSequence(planRef: string, sequenceId: string | null): PlanItem {
+  assignPlanSequence(planRef: string, sequenceId: string | null): { ok: true } {
     return this.planSequenceService.assignPlanSequence(planRef, sequenceId);
   }
 
@@ -345,7 +343,7 @@ export class HelmControlService extends EventEmitter {
     content?: string;
     x?: number | null;
     y?: number | null;
-  }): ContextNode {
+  }): { id: string } {
     return this.contextService.createContext(input);
   }
 
@@ -364,7 +362,7 @@ export class HelmControlService extends EventEmitter {
       y?: number | null;
     },
     expectedUpdatedAt?: number,
-  ): ContextNode {
+  ): { ok: true; updatedAt: number } {
     return this.contextService.updateContext(id, updates, expectedUpdatedAt);
   }
 
@@ -373,7 +371,7 @@ export class HelmControlService extends EventEmitter {
   }
 
 
-  setContextPosition(id: string, x: number | null, y: number | null): ContextNode {
+  setContextPosition(id: string, x: number | null, y: number | null): { ok: true } {
     return this.contextService.setContextPosition(id, x, y);
   }
 
@@ -400,7 +398,7 @@ export class HelmControlService extends EventEmitter {
   addPlanAttachment(
     planRef: string,
     input: { filePath: string; contentType?: string; text?: unknown; contentBase64?: unknown },
-  ): PlanAttachment {
+  ): { id: string } {
     return this.planAttachmentService.addPlanAttachment(planRef, input);
   }
 
@@ -489,12 +487,14 @@ export class HelmControlService extends EventEmitter {
     return this.prepareSkillForUse(this.skillManager.get(id));
   }
 
-  createSkill(input: SkillCreateInput): Skill {
-    return this.skillManager.create(input);
+  createSkill(input: SkillCreateInput): { id: string } {
+    const skill = this.skillManager.create(input);
+    return { id: skill.id };
   }
 
-  updateSkill(id: string, updates: SkillUpdateInput): Skill {
-    return this.skillManager.update(id, updates, { requireAiAmendable: true });
+  updateSkill(id: string, updates: SkillUpdateInput): { ok: true } {
+    this.skillManager.update(id, updates, { requireAiAmendable: true });
+    return { ok: true };
   }
 
   resolveSkill(type: string, filter?: { projectId?: string; dirPath?: string }): Skill | null {
@@ -546,7 +546,7 @@ export class HelmControlService extends EventEmitter {
       cliType: session.cliType,
       timestamp: new Date().toISOString(),
     } satisfies SkillReview);
-    return { received: true };
+    return { ok: true };
   }
 
   private prepareSkillForUse(skill: Skill | null): Skill | null {

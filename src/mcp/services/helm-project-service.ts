@@ -23,17 +23,15 @@ export class HelmProjectService {
     return [record.canonicalPath, ...record.alternatePaths];
   }
 
-  addProjectDir(projectId: string, dirPath: string) {
+  addProjectDir(projectId: string, dirPath: string): { ok: true } {
     this.projectStore.addDirectory(projectId, dirPath);
     this.projectStore.save();
-    const record = this.projectStore.getById(projectId)!;
-    return [record.canonicalPath, ...record.alternatePaths];
+    return { ok: true };
   }
 
-  removeProjectDir(projectId: string, dirPath: string) {
+  removeProjectDir(projectId: string, dirPath: string): { ok: true } {
     this.projectStore.removeDirectory(projectId, dirPath);
     this.projectStore.save();
-    const record = this.projectStore.getById(projectId)!;
-    return [record.canonicalPath, ...record.alternatePaths];
+    return { ok: true };
   }
 }

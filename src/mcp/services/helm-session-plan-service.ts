@@ -20,10 +20,7 @@ export class HelmSessionPlanService {
     private readonly configLoader: ConfigLoader,
   ) {}
 
-  setWorkingPlan(
-    sessionRef: string,
-    planId: string,
-  ): { sessionId: string; name: string; planId: string; planTitle: string; planStatus: PlanStatus } {
+  setWorkingPlan(sessionRef: string, planId: string): { ok: true } {
     logger.info(`[MCP:Service] setSessionWorkingPlan session=${sessionRef} plan=${planId}`);
     const session = this.findSession(sessionRef);
     if (!session) {
@@ -41,28 +38,13 @@ export class HelmSessionPlanService {
       throw new Error(`Plan ${planId} is not active or ready`);
     }
 
-    const planIsAlreadyOwnedBySession =
-      plan.sessionId === session.id &&
-      (plan.status === 'coding' || plan.status === 'review' || plan.status === 'blocked');
+    if (plan.status === 'ready') {
+      const result = this.planManager.setState(plan.id, 'coding');
+      if (!result) throw new Error(`Plan ${planId} could not be set to coding`);
+    }
 
-    const updatedPlan = planIsAlreadyOwnedBySession
-      ? plan
-      : (() => {
-          if (plan.sessionId && plan.sessionId !== session.id) {
-            throw new Error(`Plan ${planId} is already assigned to session ${plan.sessionId}`);
-          }
-          return this.planManager.setState(plan.id, 'coding', undefined, session.id)
-            ?? (() => { throw new Error(`Plan ${planId} could not be assigned to session ${session.id}`); })();
-        })();
-
-    this.sessionManager.updateSession(session.id, { currentPlanId: updatedPlan.id });
-    return {
-      sessionId: session.id,
-      name: session.name,
-      planId: updatedPlan.id,
-      planTitle: updatedPlan.title,
-      planStatus: updatedPlan.status,
-    };
+    this.sessionManager.updateSession(session.id, { currentPlanId: plan.id });
+    return { ok: true };
   }
 
   private findSession(sessionRef: string): SessionInfo | null {

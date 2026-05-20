@@ -25,7 +25,7 @@ export class HelmPlanAttachmentService {
   addPlanAttachment(
     planRef: string,
     input: { filePath: string; contentType?: string; text?: unknown; contentBase64?: unknown },
-  ): PlanAttachment {
+  ): { id: string } {
     const plan = this.resolvePlanRef(planRef, 'Plan');
     if (!plan) {
       throw new Error(`Plan not found: ${planRef}`);
@@ -43,11 +43,12 @@ export class HelmPlanAttachmentService {
       throw new Error('filePath must be an absolute path');
     }
     const content = readFileSync(input.filePath);
-    return this.attachmentManager.add(plan.item.id, {
+    const attachment = this.attachmentManager.add(plan.item.id, {
       filename: basename(input.filePath),
       content,
       ...(input.contentType ? { contentType: input.contentType } : {}),
     });
+    return { id: attachment.id };
   }
 
   deletePlanAttachment(planRef: string, attachmentId: string): boolean {

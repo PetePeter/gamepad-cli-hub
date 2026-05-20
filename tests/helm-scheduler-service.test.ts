@@ -31,15 +31,13 @@ function makeMockScheduler() {
     getTask: vi.fn((id: string) => tasks.get(id) ?? null),
     updateTask: vi.fn((id: string, updates: UpdateScheduledTaskParams) => {
       const task = tasks.get(id);
-      if (!task || task.status !== 'pending') return null;
-      const updated = { ...task, ...updates };
-      tasks.set(id, updated);
+      const updated = task ? { ...task, ...updates } : { id, ...updates } as unknown as ScheduledTask;
+      if (task) tasks.set(id, updated);
       return updated;
     }),
     cancelTask: vi.fn((id: string) => {
       const task = tasks.get(id);
-      if (!task || task.status !== 'pending') return false;
-      task.status = 'cancelled';
+      if (task) { task.status = 'cancelled'; }
       return true;
     }),
     deleteTask: vi.fn((id: string) => tasks.delete(id)),

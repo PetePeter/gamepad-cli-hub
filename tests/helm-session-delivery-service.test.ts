@@ -142,19 +142,18 @@ describe('HelmSessionDeliveryService', () => {
           senderSessionName: sender.name,
         });
 
-        expect(result.tempFilePath).toContain('helm-large-text-session-send-text');
-        expect(readFileSync(result.tempFilePath!, 'utf8')).toBe('this is a large payload');
+        expect(result.ok).toBe(true);
         const envelopeCall = ptyManager.deliverText.mock.calls.find((c: any[]) => String(c[1]).startsWith('[HELM_MSG]'));
         const envelopeText = String(envelopeCall?.[1] ?? '').slice('[HELM_MSG]'.length);
         const envelope = JSON.parse(envelopeText);
-        expect(envelope.payloadRef).toMatchObject({
-          kind: 'temp_file',
-          path: result.tempFilePath,
-          label: 'session_send_text payload',
-        });
+        expect(envelope.payloadRef.kind).toBe('temp_file');
+        expect(envelope.payloadRef.path).toContain('helm-large-text-session-send-text');
+        expect(envelope.payloadRef.label).toBe('session_send_text payload');
         expect(envelope.payloadRef.instruction).toBeUndefined();
+        const tempFilePath = envelope.payloadRef.path as string;
+        expect(readFileSync(tempFilePath, 'utf8')).toBe('this is a large payload');
         const noticeCall = ptyManager.deliverText.mock.calls.find((c: any[]) => String(c[1]).includes('Read the full file at:'));
-        expect(noticeCall?.[1]).toContain(result.tempFilePath);
+        expect(noticeCall?.[1]).toContain(tempFilePath);
         expect(noticeCall?.[1]).not.toContain('this is a large payload');
       } finally {
         if (oldThreshold === undefined) delete process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD;
@@ -211,9 +210,8 @@ describe('HelmSessionDeliveryService', () => {
         senderSessionId: sender.id,
         senderSessionName: sender.name,
       });
-      expect(result.success).toBe(true);
-      expect(result.sessionId).toBe(receiver.id);
-      expect(result.name).toBe(receiver.name);
+      expect(result.ok).toBe(true);
+      expect(result.verified).toBeDefined();
     });
   });
 });

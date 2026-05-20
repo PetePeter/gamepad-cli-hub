@@ -244,10 +244,7 @@ export class LocalhostMcpServer {
     status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked',
     stateInfo?: string,
   ): unknown {
-    return requireResult(
-      this.service.setPlanState(id, status, stateInfo),
-      `Plan ${id} could not be set to ${status} from its current state`,
-    );
+    return this.service.setPlanState(id, status, stateInfo);
   }
 
   private completePlanWithValidation(authContext: AuthContext, id: string, documentation: string): unknown {
@@ -301,12 +298,7 @@ export class LocalhostMcpServer {
       }
     }
 
-    return {
-      followUpPlans,
-      autoFollowUpPlans,
-      continueWithAutoFollowUps: autoFollowUpPlans.length > 0,
-      testingInstructions: 'Use notify_user to send the user concrete test steps to validate this plan. The notification stays visible in Helm until dismissed.',
-    };
+    return { followUpPlans };
   }
 
   private getAuthContext(req: IncomingMessage): AuthContext | null {
@@ -414,7 +406,7 @@ function getToolReminder(name: string): string {
     return 'Reminder: ownership is explicit. Use session_set_working_plan after claiming work so Helm shows the session as working on this plan.';
   }
   if (name === 'plan_complete') {
-    return 'Reminder: tell the user exactly what to test, then inspect followUpPlans and continue with any ready autoFollowUpPlans.';
+    return 'Reminder: notify_user with concrete test steps, then check followUpPlans for any newly ready plans.';
   }
   if (name === 'sequence_list' || name === 'sequence_update') {
     return 'Reminder: sequence.sharedMemory is shared by every plan in that sequence. Re-read the sequence and pass expectedUpdatedAt when updating or appending to avoid overwriting another LLM.';

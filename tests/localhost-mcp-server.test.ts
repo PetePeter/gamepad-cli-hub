@@ -1182,7 +1182,7 @@ describe('LocalhostMcpServer', () => {
   it('returns explicit errors instead of null structured content for invalid plan transitions', async () => {
     const service = makeService();
     (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'ready' });
-    (service.setPlanState as unknown as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    (service.setPlanState as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => { throw new Error('Plan p1 could not be set to blocked'); });
 
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);
@@ -1615,11 +1615,8 @@ describe('LocalhostMcpServer', () => {
         { id: 'p2', humanId: 'P-0002', title: 'Follow up', status: 'ready', autoImplement: true },
         { id: 'p3', humanId: 'P-0003', title: 'Manual QA', status: 'planning', autoImplement: false },
       ]);
-      expect(json.result.structuredContent.autoFollowUpPlans).toEqual([
-        { id: 'p2', humanId: 'P-0002', title: 'Follow up', status: 'ready', autoImplement: true },
-      ]);
-      expect(json.result.structuredContent.continueWithAutoFollowUps).toBe(true);
-      expect(json.result.structuredContent.testingInstructions).toContain('notify_user');
+      expect(json.result.structuredContent.autoFollowUpPlans).toBeUndefined();
+      expect(json.result.structuredContent.testingInstructions).toBeUndefined();
     });
 
     it('rejects missing documentation param', async () => {
@@ -1724,7 +1721,6 @@ describe('LocalhostMcpServer', () => {
       });
       const json = await response.json();
       expect(json.error).toBeUndefined();
-      expect(json.result.structuredContent.continueWithAutoFollowUps).toBe(false);
     });
   });
 

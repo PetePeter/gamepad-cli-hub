@@ -45,15 +45,16 @@ export class HelmPlanSequenceService {
     };
   }
 
-  createPlanSequence(input: { dirPath: string; title: string; missionStatement?: string; sharedMemory?: string }): PlanSequence {
+  createPlanSequence(input: { dirPath: string; title: string; missionStatement?: string; sharedMemory?: string }): { id: string } {
     this.requireWorkingDirectory(input.dirPath);
-    return this.planManager.createSequence(input.dirPath, input.title, input.missionStatement ?? '', input.sharedMemory ?? '');
+    const seq = this.planManager.createSequence(input.dirPath, input.title, input.missionStatement ?? '', input.sharedMemory ?? '');
+    return { id: seq.id };
   }
 
   updatePlanSequence(
     id: string,
     updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number; expectedUpdatedAt?: number },
-  ): PlanSequence {
+  ): { ok: true; updatedAt: number } {
     const sequence = this.planManager.getSequence(id);
     if (!sequence) {
       throw new Error(`Sequence not found: ${id}`);
@@ -63,7 +64,7 @@ export class HelmPlanSequenceService {
     if (!updated) {
       throw new Error(`Sequence not found: ${id}`);
     }
-    return updated;
+    return { ok: true, updatedAt: updated.updatedAt };
   }
 
 
@@ -71,7 +72,7 @@ export class HelmPlanSequenceService {
     return this.planManager.deleteSequence(id);
   }
 
-  assignPlanSequence(planRef: string, sequenceId: string | null): PlanItem {
+  assignPlanSequence(planRef: string, sequenceId: string | null): { ok: true } {
     const plan = this.resolvePlanRef(planRef, 'Plan')?.item ?? null;
     if (!plan) {
       throw new Error(`Plan not found: ${planRef}`);
@@ -80,7 +81,7 @@ export class HelmPlanSequenceService {
     if (!updated) {
       throw new Error(sequenceId ? `Sequence not found or not in plan directory: ${sequenceId}` : `Plan not found: ${planRef}`);
     }
-    return updated;
+    return { ok: true };
   }
 
   private resolvePlanRef(ref: string, label: string): Extract<PlanRefResolution, { status: 'found' }> | null {

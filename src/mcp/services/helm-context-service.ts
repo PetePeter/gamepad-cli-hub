@@ -37,9 +37,10 @@ export class HelmContextService {
     content?: string;
     x?: number | null;
     y?: number | null;
-  }): ContextNode {
+  }): { id: string } {
     this.requireProject(input.projectId);
-    return this.contextManager.create(input.projectId, input);
+    const node = this.contextManager.create(input.projectId, input);
+    return { id: node.id };
   }
 
   updateContext(
@@ -53,18 +54,19 @@ export class HelmContextService {
       y?: number | null;
     },
     expectedUpdatedAt?: number,
-  ): ContextNode {
+  ): { ok: true; updatedAt: number } {
     const updated = this.contextManager.update(id, updates, expectedUpdatedAt);
     if (!updated) throw new Error(`Context not found: ${id}`);
-    return updated;
+    return { ok: true, updatedAt: updated.updatedAt };
   }
 
   deleteContext(id: string): boolean {
     return this.contextManager.delete(id);
   }
 
-  setContextPosition(id: string, x: number | null, y: number | null): ContextNode {
-    return this.contextManager.setPosition(id, x, y);
+  setContextPosition(id: string, x: number | null, y: number | null): { ok: true } {
+    this.contextManager.setPosition(id, x, y);
+    return { ok: true };
   }
 
   bindContext(id: string, targetType: ContextBindingTargetType, targetId: string): boolean {

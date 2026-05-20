@@ -8,12 +8,13 @@ import type { CreateScheduledTaskParams, ScheduledTask, UpdateScheduledTaskParam
 export class HelmSchedulerService {
   constructor(private readonly scheduler: ScheduledTaskManager) {}
 
-  createTask(params: Omit<CreateScheduledTaskParams, 'scheduledTime' | 'endDate'> & { scheduledTime: string; endDate?: string }): ScheduledTask {
-    return this.scheduler.createTask({
+  createTask(params: Omit<CreateScheduledTaskParams, 'scheduledTime' | 'endDate'> & { scheduledTime: string; endDate?: string }): { id: string } {
+    const task = this.scheduler.createTask({
       ...params,
       scheduledTime: new Date(params.scheduledTime),
       endDate: params.endDate ? new Date(params.endDate) : undefined,
     });
+    return { id: task.id };
   }
 
   listTasks(): ScheduledTask[] {
@@ -24,7 +25,7 @@ export class HelmSchedulerService {
     return this.scheduler.getTask(id);
   }
 
-  updateTask(id: string, updates: Omit<UpdateScheduledTaskParams, 'scheduledTime' | 'endDate'> & { scheduledTime?: string; endDate?: string }): ScheduledTask | null {
+  updateTask(id: string, updates: Omit<UpdateScheduledTaskParams, 'scheduledTime' | 'endDate'> & { scheduledTime?: string; endDate?: string }): { ok: true } {
     const converted: UpdateScheduledTaskParams = {
       ...updates,
       scheduledTime: updates.scheduledTime ? new Date(updates.scheduledTime) : undefined,
@@ -32,11 +33,15 @@ export class HelmSchedulerService {
     if (Object.prototype.hasOwnProperty.call(updates, 'endDate')) {
       converted.endDate = updates.endDate ? new Date(updates.endDate) : undefined;
     }
-    return this.scheduler.updateTask(id, converted);
+    const result = this.scheduler.updateTask(id, converted);
+    if (!result) throw new Error(`Scheduled task not found: ${id}`);
+    return { ok: true };
   }
 
-  cancelTask(id: string): boolean {
-    return this.scheduler.cancelTask(id);
+  cancelTask(id: string): { ok: true } {
+    const cancelled = this.scheduler.cancelTask(id);
+    if (!cancelled) throw new Error(`Scheduled task not found: ${id}`);
+    return { ok: true };
   }
 
   deleteTask(id: string): boolean {

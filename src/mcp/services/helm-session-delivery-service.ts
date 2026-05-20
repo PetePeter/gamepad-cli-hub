@@ -45,7 +45,7 @@ export class HelmSessionDeliveryService {
     sessionRef: string,
     text: string,
     options?: { senderSessionId?: string; senderSessionName?: string; expectsResponse?: boolean },
-  ): Promise<{ success: true; sessionId: string; name: string; preambleUsed: boolean; tempFilePath?: string; deliveryVerification?: DeliveryVerificationResult }> {
+  ): Promise<{ ok: true; preambleUsed: boolean; verified: boolean }> {
     const session = this.findSession(sessionRef);
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);
@@ -131,14 +131,8 @@ export class HelmSessionDeliveryService {
       logger.warn(`[HelmSessionDelivery] Delivery verification for ${session.id}: ${deliveryVerification.status} (${deliveryVerification.detail})`);
     }
 
-    return {
-      success: true,
-      sessionId: session.id,
-      name: session.name,
-      preambleUsed: usePreamble,
-      ...(tempFilePath ? { tempFilePath } : {}),
-      ...(deliveryVerification ? { deliveryVerification } : {}),
-    };
+    const verified = !deliveryVerification || deliveryVerification.status === 'confirmed' || deliveryVerification.status === 'retry_confirmed';
+    return { ok: true, preambleUsed: usePreamble, verified };
   }
 
   /**
@@ -149,7 +143,7 @@ export class HelmSessionDeliveryService {
     sessionRef: string,
     sequence: string,
     options?: { senderSessionId?: string; senderSessionName?: string; impliedSubmit?: boolean; verify?: boolean },
-  ): Promise<{ success: true; sessionId: string; name: string; deliveryVerification?: DeliveryVerificationResult }> {
+  ): Promise<{ ok: true; verified: boolean }> {
     const session = this.findSession(sessionRef);
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);
@@ -181,12 +175,8 @@ export class HelmSessionDeliveryService {
       logger.warn(`[HelmSessionDelivery] Delivery verification for terminal input to ${session.id}: ${deliveryVerification.status} (${deliveryVerification.detail})`);
     }
 
-    return {
-      success: true,
-      sessionId: session.id,
-      name: session.name,
-      ...(deliveryVerification ? { deliveryVerification } : {}),
-    };
+    const verified = !deliveryVerification || deliveryVerification.status === 'confirmed' || deliveryVerification.status === 'retry_confirmed';
+    return { ok: true, verified };
   }
 
   private findSession(sessionRef: string): SessionInfo | null {

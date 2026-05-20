@@ -174,7 +174,7 @@ describe('HelmControlService.sendTextToSession', () => {
       senderSessionName: 'Sender',
     });
 
-    expect(result.sessionId).toBe('potato-4');
+    expect(result.ok).toBe(true);
     expect(ptyManager.deliverText).toHaveBeenCalledWith('potato-4', expect.stringContaining('hello potato'));
   });
 
@@ -192,7 +192,7 @@ describe('HelmControlService.sendTextToSession', () => {
       senderSessionName: 'Sender',
     });
 
-    expect(result.sessionId).toBe('codex-1');
+    expect(result.ok).toBe(true);
     expect(ptyManager.deliverText).toHaveBeenCalledWith('codex-1', expect.stringContaining('hello codex'));
   });
 
@@ -216,7 +216,7 @@ describe('HelmControlService.setAiagentState', () => {
 
     const result = service.setAiagentState('s1', 'completed');
 
-    expect(result).toEqual({ sessionId: 's1', name: 'Claude', state: 'completed' });
+    expect(result).toEqual({ ok: true });
     expect(sessionManager.updateSession).toHaveBeenCalledWith('s1', { aiagentState: 'completed' });
   });
 });
@@ -462,15 +462,9 @@ describe('HelmControlService.spawnCli', () => {
 
     const result = service.setSessionWorkingPlan('s1', 'plan-1');
 
-    expect(planManager.setState).toHaveBeenCalledWith('plan-1', 'coding', undefined, 's1');
+    expect(planManager.setState).toHaveBeenCalledWith('plan-1', 'coding');
     expect(sessionManager.updateSession).toHaveBeenCalledWith('s1', { currentPlanId: 'plan-1' });
-    expect(result).toEqual({
-      sessionId: 's1',
-      name: 'Claude',
-      planId: 'plan-1',
-      planTitle: 'Auth refactor',
-      planStatus: 'coding',
-    });
+    expect(result).toEqual({ ok: true });
   });
 
   it('matches Windows session and plan directories case-insensitively when setting the working plan', () => {
@@ -504,7 +498,7 @@ describe('HelmControlService.spawnCli', () => {
     const result = service.setSessionWorkingPlan('s1', 'plan-1');
 
     expect(sessionManager.updateSession).toHaveBeenCalledWith('s1', { currentPlanId: 'plan-1' });
-    expect(result.planTitle).toBe('Lowercase drive');
+    expect(result).toEqual({ ok: true });
   });
 
   it('accepts P-id plan references when setting the explicit working plan', () => {
@@ -532,8 +526,8 @@ describe('HelmControlService.spawnCli', () => {
 
     const result = service.setSessionWorkingPlan('s1', 'P-0042');
 
-    expect(planManager.setState).toHaveBeenCalledWith('plan-1', 'coding', undefined, 's1');
-    expect(result.planId).toBe('plan-1');
+    expect(planManager.setState).toHaveBeenCalledWith('plan-1', 'coding');
+    expect(result).toEqual({ ok: true });
   });
 
   it('reports ambiguous P-id references clearly', () => {
@@ -864,9 +858,7 @@ describe('HelmControlService.readSessionTerminal', () => {
       name: 'Claude',
       cliType: 'claude-code',
       workingDir: '/work',
-      requestedLines: 120,
       returnedLines: 1,
-      mode: 'both',
       ptyRunning: true,
       lastOutputAt: 1234,
       raw: ['\x1b[31mraw\x1b[0m'],
@@ -922,7 +914,7 @@ describe('HelmControlService plan attachments', () => {
         content: Buffer.from('hello world'),
         contentType: 'text/plain',
       });
-      expect(attachment.sizeBytes).toBe(11);
+      expect(attachment.id).toBe('a1');
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -1136,7 +1128,7 @@ describe('HelmControlService.closeSession', () => {
 
     expect(ptyManager.kill).toHaveBeenCalledWith('s1');
     expect(sessionManager.removeSession).toHaveBeenCalledWith('s1');
-    expect(result).toEqual({ sessionId: 's1', name: 'Claude' });
+    expect(result).toEqual({ ok: true });
   });
 
   it('accepts both sessionId and session name', () => {
@@ -1150,7 +1142,7 @@ describe('HelmControlService.closeSession', () => {
 
     expect(ptyManager.kill).toHaveBeenCalledWith('s1');
     expect(sessionManager.removeSession).toHaveBeenCalledWith('s1');
-    expect(result).toEqual({ sessionId: 's1', name: 'Claude' });
+    expect(result).toEqual({ ok: true });
   });
 
   it('throws when session not found', () => {
@@ -1179,7 +1171,7 @@ describe('HelmControlService.closeSession', () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('Failed to kill PTY for session s1:'),
     );
-    expect(result).toEqual({ sessionId: 's1', name: 'Claude' });
+    expect(result).toEqual({ ok: true });
   });
 });
 
@@ -1383,9 +1375,7 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
       senderSessionName: 'Sender',
     });
     expect(noPreambleResult).toMatchObject({
-      success: true,
-      sessionId: 's1',
-      name: 'Claude',
+      ok: true,
       preambleUsed: false,
     });
 
@@ -1398,9 +1388,7 @@ describe('HelmControlService.sendTextToSession — helmPreambleForInterSession t
       senderSessionName: 'Sender',
     });
     expect(preambleResult).toMatchObject({
-      success: true,
-      sessionId: 's1',
-      name: 'Claude',
+      ok: true,
       preambleUsed: true,
     });
   });

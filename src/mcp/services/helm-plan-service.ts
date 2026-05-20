@@ -79,14 +79,15 @@ export class HelmPlanService {
     };
   }
 
-  createPlan(dirPath: string, title: string, description: string, type?: PlanType, autoImplement?: boolean): PlanItem {
+  createPlan(dirPath: string, title: string, description: string, type?: PlanType, autoImplement?: boolean): { id: string; humanId: string } {
     this.requireWorkingDirectory(dirPath);
-    return this.planManager.createWithType(dirPath, title, description, type, autoImplement);
+    const item = this.planManager.createWithType(dirPath, title, description, type, autoImplement);
+    return { id: item.id, humanId: item.humanId ?? item.id };
   }
 
-  updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType | null; autoImplement?: boolean; completionRecap?: boolean }): PlanItem | null {
+  updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType | null; autoImplement?: boolean; completionRecap?: boolean }): { ok: true; updatedAt: number } {
     const plan = this.resolvePlanRef(id, 'Plan');
-    if (!plan) return null;
+    if (!plan) throw new Error(`Plan not found: ${id}`);
     const nextUpdates: { title?: string; description?: string; type?: PlanType; autoImplement?: boolean; completionRecap?: boolean } = {
       ...(updates.title !== undefined ? { title: updates.title } : {}),
       ...(updates.description !== undefined ? { description: updates.description } : {}),
@@ -100,7 +101,9 @@ export class HelmPlanService {
     if (Object.prototype.hasOwnProperty.call(updates, 'completionRecap')) {
       nextUpdates.completionRecap = updates.completionRecap;
     }
-    return this.planManager.updateWithType(plan.item.id, nextUpdates);
+    const updated = this.planManager.updateWithType(plan.item.id, nextUpdates);
+    if (!updated) throw new Error(`Plan not found: ${id}`);
+    return { ok: true, updatedAt: updated.updatedAt };
   }
 
   deletePlan(id: string): boolean {
@@ -119,20 +122,26 @@ export class HelmPlanService {
     return plan ? this.planManager.completeItem(plan.item.id, completionNotes) : null;
   }
 
-  reopenPlan(id: string): PlanItem | null {
+  reopenPlan(id: string): { ok: true } {
     logger.info(`[MCP:Service] reopenPlan id=${id}`);
     const plan = this.resolvePlanRef(id, 'Plan');
-    return plan ? this.planManager.reopenItem(plan.item.id) : null;
+    if (!plan) throw new Error(`Plan not found: ${id}`);
+    const result = this.planManager.reopenItem(plan.item.id);
+    if (!result) throw new Error(`Plan ${id} could not be reopened from its current state`);
+    return { ok: true };
   }
 
   setPlanState(
     id: string,
     status: Exclude<PlanStatus, 'done'>,
     stateInfo?: string,
-  ): PlanItem | null {
+  ): { ok: true } {
     logger.info(`[MCP:Service] setPlanState id=${id} status=${status}`);
     const plan = this.resolvePlanRef(id, 'Plan');
-    return plan ? this.planManager.setState(plan.item.id, status, stateInfo) : null;
+    if (!plan) throw new Error(`Plan not found: ${id}`);
+    const result = this.planManager.setState(plan.item.id, status, stateInfo);
+    if (!result) throw new Error(`Plan ${id} could not be set to ${status} from its current state`);
+    return { ok: true };
   }
 
   linkPlans(fromId: string, toId: string): void {
