@@ -52,7 +52,7 @@ function autosize(): void {
   const parsedLineHeight = parseFloat(getComputedStyle(el).lineHeight || '18');
   const lineHeight = Number.isFinite(parsedLineHeight) ? parsedLineHeight : 18;
   const minHeight = lineHeight * props.minRows;
-  const maxHeight = Math.min(lineHeight * props.maxRows, props.maxHeightPx ?? Infinity);
+  const maxHeight = props.maxHeightPx ?? lineHeight * props.maxRows;
   const nextHeight = Math.min(Math.max(el.scrollHeight, manualHeight.value ?? 0, minHeight), maxHeight);
   el.style.height = `${nextHeight}px`;
   el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden';
@@ -84,7 +84,8 @@ function clampHeight(height: number): number {
   if (!el) return height;
   const parsedLineHeight = parseFloat(getComputedStyle(el).lineHeight || '18');
   const lineHeight = Number.isFinite(parsedLineHeight) ? parsedLineHeight : 18;
-  return Math.min(Math.max(height, lineHeight * props.minRows), Math.min(lineHeight * props.maxRows, props.maxHeightPx ?? Infinity));
+  const maxHeight = props.maxHeightPx ?? lineHeight * props.maxRows;
+  return Math.min(Math.max(height, lineHeight * props.minRows), maxHeight);
 }
 
 function onResizeMove(event: PointerEvent): void {
