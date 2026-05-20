@@ -428,6 +428,15 @@ function getToolReminder(name: string): string {
   if (name === 'session_info') {
     return 'Reminder: now call session_set_aiagent_state for your current phase. If a Helm plan is assigned and you are implementing it, claim it with plan_set_state status=coding and sessionId, then call session_set_working_plan.';
   }
+  if (name === 'plans_list') {
+    return '💡 Skills: the user has defined custom skills for this project. Call skill_list before starting work — there may be one directly applicable to this task.';
+  }
+  if (name === 'plan_get') {
+    return '💡 Before implementing: call skill_list to check for user-defined skills applicable to this task.';
+  }
+  if (name === 'skill_get') {
+    return 'Reminder: after applying this skill, call skill_submit_feedback with stars (1–5), value_summary, and an optional improvement_suggestion.';
+  }
   if (name === 'plan_create') {
     return `Reminder: creating a plan does not assign ownership. Plan descriptions should include: ${REQUIRED_PLAN_DESCRIPTION_SECTIONS.join(', ')}. For blocking questions, create a separate "QUESTION: ..." plan and link it to the original blocked plan with plan_nextplan_link. When you begin implementation, explicitly call plan_set_state with status "coding" and your sessionId, then call session_set_working_plan.`;
   }
