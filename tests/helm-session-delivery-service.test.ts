@@ -152,9 +152,9 @@ describe('HelmSessionDeliveryService', () => {
           path: result.tempFilePath,
           label: 'session_send_text payload',
         });
-        expect(envelope.payloadRef.instruction).toContain(result.tempFilePath);
-        const noticeCall = ptyManager.deliverText.mock.calls.find((c: any[]) => String(c[1]).includes('Read the full file at:'));
-        expect(noticeCall?.[1]).toContain(result.tempFilePath);
+        expect(envelope.payloadRef.instruction).toBeUndefined();
+        const noticeCall = ptyManager.deliverText.mock.calls.find((c: any[]) => String(c[1]).includes('payloadRef path above'));
+        expect(noticeCall?.[1]).not.toContain(result.tempFilePath);
         expect(noticeCall?.[1]).not.toContain('this is a large payload');
       } finally {
         if (oldThreshold === undefined) delete process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD;

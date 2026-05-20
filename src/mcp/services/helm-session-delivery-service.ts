@@ -17,7 +17,6 @@ interface HelmMessagePayloadRef {
   kind: 'temp_file';
   path: string;
   label: string;
-  instruction: string;
 }
 
 function getDeliveryVerifyDelayMs(): number {
@@ -74,7 +73,6 @@ export class HelmSessionDeliveryService {
         kind: 'temp_file',
         path: tempFilePath,
         label: 'session_send_text payload',
-        instruction: `Read the full instructions from this file before acting: ${tempFilePath}`,
       };
       logger.info(`[HelmSessionDelivery] Wrote large session_send_text payload to temp file for ${session.id}: ${tempFilePath}`);
     }
