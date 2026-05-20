@@ -244,6 +244,9 @@ export interface EditorPrefs {
   planEditorHeight?: number;
   editorPopupWidth?: number;
   editorPopupHeight?: number;
+  sequenceModalWidth?: number;
+  sequenceModalHeight?: number;
+  sequenceModalBounds?: { left: number; top: number; right: number; bottom: number };
 }
 
 export interface SettingsConfig {

@@ -3269,11 +3269,37 @@ kbd {
   width: 480px;
   max-width: 90vw;
   max-height: 90vh;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   resize: both;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.plan-sequence-modal__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  gap: 12px;
+}
+
+.plan-sequence-modal__field--memory {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-sequence-modal__field--memory .plan-sequence-modal__textarea {
+  flex: 1 1 auto;
+  min-height: 0;
+  resize: none;
+  overflow-y: auto;
+  height: 100%;
 }
 
 .plan-sequence-modal__header {

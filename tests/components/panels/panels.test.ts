@@ -3,7 +3,7 @@
  *
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 
 // Mock state-colors before component imports
@@ -22,6 +22,7 @@ import PromptTextarea from '../../../renderer/components/common/PromptTextarea.v
 import PlanScreen from '../../../renderer/components/panels/PlanScreen.vue';
 import MainView from '../../../renderer/components/panels/MainView.vue';
 import ChipBar from '../../../renderer/components/chips/ChipBar.vue';
+import SequencePanel from '../../../renderer/components/panels/SequencePanel.vue';
 
 // ---------------------------------------------------------------------------
 // TerminalPane
@@ -1542,5 +1543,100 @@ describe('ChipBar', () => {
     const chips = w.findAll('.plan-chip');
     expect(chips[0].classes()).toContain('plan-chip--ready');
     expect(chips[1].classes()).toContain('plan-chip--coding');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SequencePanel
+// ---------------------------------------------------------------------------
+describe('SequencePanel', () => {
+  const baseProps = { sequences: [], selectedItem: null };
+  let wrapper: ReturnType<typeof mount>;
+
+  function makeConfigMock(prefs: Record<string, unknown> = {}) {
+    return {
+      configGetEditorPrefs: vi.fn().mockResolvedValue(prefs),
+      configSetEditorPrefs: vi.fn().mockResolvedValue({ success: true }),
+    };
+  }
+
+  beforeEach(() => {
+    (global as any).ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    (window as any).helm = { config: makeConfigMock() };
+  });
+
+  afterEach(() => {
+    wrapper?.unmount();
+    document.body.innerHTML = '';
+    delete (window as any).helm;
+  });
+
+  it('modal is hidden before open', () => {
+    wrapper = mount(SequencePanel, { props: baseProps, attachTo: document.body });
+    expect(document.querySelector('.plan-sequence-modal')).toBeNull();
+  });
+
+  it('shows create modal with correct header', async () => {
+    wrapper = mount(SequencePanel, { props: baseProps, attachTo: document.body });
+    (wrapper.vm as any).openCreate();
+    await flushPromises();
+    expect(document.querySelector('.plan-sequence-modal__header')?.textContent).toContain('New Sequence');
+  });
+
+  it('shows edit modal with populated fields', async () => {
+    const seq = { id: 's1', title: 'Alpha', missionStatement: 'Do stuff', sharedMemory: 'Notes', order: 0 };
+    wrapper = mount(SequencePanel, { props: { sequences: [seq], selectedItem: null }, attachTo: document.body });
+    (wrapper.vm as any).openEdit(seq);
+    await flushPromises();
+    expect(document.querySelector('.plan-sequence-modal__header')?.textContent).toContain('Edit Sequence');
+    const input = document.querySelector('.plan-sequence-modal__input') as HTMLInputElement;
+    expect(input?.value).toBe('Alpha');
+  });
+
+  it('emits createSequence on save in create mode', async () => {
+    wrapper = mount(SequencePanel, { props: baseProps, attachTo: document.body });
+    (wrapper.vm as any).openCreate();
+    await flushPromises();
+    const input = document.querySelector('.plan-sequence-modal__input') as HTMLInputElement;
+    input.value = 'My Seq';
+    input.dispatchEvent(new Event('input'));
+    await flushPromises();
+    (document.querySelector('.btn--primary') as HTMLElement).click();
+    await flushPromises();
+    expect(wrapper.emitted('createSequence')).toBeTruthy();
+  });
+
+  it('structural: __body and __actions are siblings inside the modal', async () => {
+    wrapper = mount(SequencePanel, { props: baseProps, attachTo: document.body });
+    (wrapper.vm as any).openCreate();
+    await flushPromises();
+    const modal = document.querySelector('.plan-sequence-modal')!;
+    expect(modal.querySelector('.plan-sequence-modal__body')).not.toBeNull();
+    expect(modal.querySelector('.plan-sequence-modal__actions')).not.toBeNull();
+    expect(modal.querySelector('.plan-sequence-modal__body .plan-sequence-modal__actions')).toBeNull();
+  });
+
+  it('applies sequenceModalBounds pref to modal size', async () => {
+    (window as any).helm = { config: makeConfigMock({ sequenceModalBounds: { left: 100, top: 50, right: 700, bottom: 450 } }) };
+    wrapper = mount(SequencePanel, { props: baseProps, attachTo: document.body });
+    (wrapper.vm as any).openCreate();
+    await flushPromises();
+    const modal = document.querySelector('.plan-sequence-modal') as HTMLElement;
+    expect(modal.style.width).toBe('600px');
+    expect(modal.style.height).toBe('400px');
+  });
+
+  it('applies legacy sequenceModalWidth/Height prefs', async () => {
+    (window as any).helm = { config: makeConfigMock({ sequenceModalWidth: 520, sequenceModalHeight: 380 }) };
+    wrapper = mount(SequencePanel, { props: baseProps, attachTo: document.body });
+    (wrapper.vm as any).openCreate();
+    await flushPromises();
+    const modal = document.querySelector('.plan-sequence-modal') as HTMLElement;
+    expect(modal.style.width).toBe('520px');
+    expect(modal.style.height).toBe('380px');
   });
 });

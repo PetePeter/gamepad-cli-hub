@@ -226,9 +226,12 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     planEditorHeight?: number;
     editorPopupWidth?: number;
     editorPopupHeight?: number;
+    sequenceModalWidth?: number;
+    sequenceModalHeight?: number;
+    sequenceModalBounds?: { left: number; top: number; right: number; bottom: number };
   }>,
 
-  configSetEditorPrefs: (prefs: { draftEditorHeight?: number; contextEditorHeight?: number; planEditorHeight?: number; editorPopupWidth?: number; editorPopupHeight?: number }) =>
+  configSetEditorPrefs: (prefs: { draftEditorHeight?: number; contextEditorHeight?: number; planEditorHeight?: number; editorPopupWidth?: number; editorPopupHeight?: number; sequenceModalWidth?: number; sequenceModalHeight?: number; sequenceModalBounds?: { left: number; top: number; right: number; bottom: number } }) =>
     ipcRenderer.invoke('config:setEditorPrefs', prefs),
 
   // ========================================================================

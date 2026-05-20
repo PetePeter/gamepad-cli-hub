@@ -31,11 +31,18 @@ const selectedSequence = computed(() =>
 
 function onModalResize(): void {
   if (!modalRef.value || !modalVisible.value) return;
-  const { width, height } = modalRef.value.getBoundingClientRect();
+  const rect = modalRef.value.getBoundingClientRect();
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     saveTimer = null;
-    await configClient.configSetEditorPrefs?.({ sequenceModalWidth: Math.round(width), sequenceModalHeight: Math.round(height) });
+    await configClient.configSetEditorPrefs?.({
+      sequenceModalBounds: {
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        right: Math.round(rect.right),
+        bottom: Math.round(rect.bottom),
+      },
+    });
   }, 300);
 }
 
@@ -53,12 +60,26 @@ function stopObserving(): void {
 
 async function applyPersistedSize(): Promise<void> {
   const prefs = await configClient.configGetEditorPrefs?.() ?? {};
+  if (!modalRef.value) return;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const minW = 300;
+  const minH = 200;
+
+  const bounds = prefs.sequenceModalBounds;
+  if (bounds && Number.isFinite(bounds.right - bounds.left) && Number.isFinite(bounds.bottom - bounds.top)) {
+    const w = Math.min(Math.max(bounds.right - bounds.left, minW), vw * 0.95);
+    const h = Math.min(Math.max(bounds.bottom - bounds.top, minH), vh * 0.95);
+    modalRef.value.style.width = `${w}px`;
+    modalRef.value.style.height = `${h}px`;
+    return;
+  }
+
+  // Backward compat: old width/height-only prefs
   const w = prefs.sequenceModalWidth as number | undefined;
   const h = prefs.sequenceModalHeight as number | undefined;
-  if (modalRef.value) {
-    if (Number.isFinite(w) && w! > 0) modalRef.value.style.width = `${w}px`;
-    if (Number.isFinite(h) && h! > 0) modalRef.value.style.height = `${h}px`;
-  }
+  if (Number.isFinite(w) && w! > 0) modalRef.value.style.width = `${Math.min(w!, vw * 0.95)}px`;
+  if (Number.isFinite(h) && h! > 0) modalRef.value.style.height = `${Math.min(h!, vh * 0.95)}px`;
 }
 
 function openCreate(): void {
@@ -131,35 +152,36 @@ defineExpose({ openCreate, openEdit });
           {{ modalMode === 'create' ? 'New Sequence' : 'Edit Sequence' }}
         </div>
 
-        <label class="plan-sequence-modal__field">
-          <span>Title</span>
-          <input
-            v-model="draft.title"
-            class="plan-sequence-modal__input"
-            placeholder="Sequence title..."
-            maxlength="100"
-          />
-        </label>
+        <div class="plan-sequence-modal__body">
+          <label class="plan-sequence-modal__field">
+            <span>Title</span>
+            <input
+              v-model="draft.title"
+              class="plan-sequence-modal__input"
+              placeholder="Sequence title..."
+              maxlength="100"
+            />
+          </label>
 
-        <label class="plan-sequence-modal__field">
-          <span>Mission</span>
-          <textarea
-            v-model="draft.missionStatement"
-            class="plan-sequence-modal__textarea"
-            placeholder="What is this sequence working toward?"
-            rows="3"
-          />
-        </label>
+          <label class="plan-sequence-modal__field plan-sequence-modal__field--mission">
+            <span>Mission</span>
+            <textarea
+              v-model="draft.missionStatement"
+              class="plan-sequence-modal__textarea"
+              placeholder="What is this sequence working toward?"
+              rows="3"
+            />
+          </label>
 
-        <label class="plan-sequence-modal__field">
-          <span>Memory</span>
-          <textarea
-            v-model="draft.sharedMemory"
-            class="plan-sequence-modal__textarea"
-            placeholder="Legacy coordination notes for plans in this sequence..."
-            rows="3"
-          />
-        </label>
+          <label class="plan-sequence-modal__field plan-sequence-modal__field--memory">
+            <span>Memory</span>
+            <textarea
+              v-model="draft.sharedMemory"
+              class="plan-sequence-modal__textarea"
+              placeholder="Legacy coordination notes for plans in this sequence..."
+            />
+          </label>
+        </div>
 
         <div class="plan-sequence-modal__actions">
           <button class="btn btn--primary btn--sm" @click="onSave">
