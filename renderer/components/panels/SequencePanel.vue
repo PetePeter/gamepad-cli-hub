@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import type { PlanItem, PlanSequence } from '../../../src/types/plan.js';
+import { configClient } from '../../ipc/clients.js';
 
 const props = defineProps<{
   sequences: PlanSequence[];
@@ -9,21 +10,56 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   createSequence: [title: string, missionStatement: string, sharedMemory: string];
-  assignSequence: [planId: string, sequenceId: string | null];
-  updateSequence: [id: string, updates: { title?: string; missionStatement?: string; sharedMemory?: string }];
+  updateSequence: [id: string, updates: { title?: string; missionStatement?: string; sharedMemory?: string; order?: number }];
   deleteSequence: [id: string];
+  deleteSequenceWithPlans: [id: string];
 }>();
 
 const modalVisible = ref(false);
 const modalMode = ref<'create' | 'edit'>('create');
 const deleteConfirm = ref(false);
 const draft = reactive({ id: '', title: '', missionStatement: '', sharedMemory: '' });
+const modalRef = ref<HTMLDivElement | null>(null);
+let resizeObserver: ResizeObserver | null = null;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 const selectedSequence = computed(() =>
   props.selectedItem?.sequenceId
     ? props.sequences.find((s) => s.id === props.selectedItem!.sequenceId) ?? null
     : null,
 );
+
+function onModalResize(): void {
+  if (!modalRef.value || !modalVisible.value) return;
+  const { width, height } = modalRef.value.getBoundingClientRect();
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    saveTimer = null;
+    await configClient.configSetEditorPrefs?.({ sequenceModalWidth: Math.round(width), sequenceModalHeight: Math.round(height) });
+  }, 300);
+}
+
+function startObserving(): void {
+  if (resizeObserver || !modalRef.value) return;
+  resizeObserver = new ResizeObserver(onModalResize);
+  resizeObserver.observe(modalRef.value);
+}
+
+function stopObserving(): void {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+}
+
+async function applyPersistedSize(): Promise<void> {
+  const prefs = await configClient.configGetEditorPrefs?.() ?? {};
+  const w = prefs.sequenceModalWidth as number | undefined;
+  const h = prefs.sequenceModalHeight as number | undefined;
+  if (modalRef.value) {
+    if (Number.isFinite(w) && w! > 0) modalRef.value.style.width = `${w}px`;
+    if (Number.isFinite(h) && h! > 0) modalRef.value.style.height = `${h}px`;
+  }
+}
 
 function openCreate(): void {
   draft.id = '';
@@ -33,10 +69,11 @@ function openCreate(): void {
   deleteConfirm.value = false;
   modalMode.value = 'create';
   modalVisible.value = true;
+  nextTick(() => { void applyPersistedSize(); startObserving(); });
 }
 
-function openEdit(): void {
-  const seq = selectedSequence.value;
+function openEdit(sequence?: PlanSequence): void {
+  const seq = sequence ?? selectedSequence.value;
   if (!seq) return;
   draft.id = seq.id;
   draft.title = seq.title;
@@ -45,7 +82,12 @@ function openEdit(): void {
   deleteConfirm.value = false;
   modalMode.value = 'edit';
   modalVisible.value = true;
+  nextTick(() => { void applyPersistedSize(); startObserving(); });
 }
+
+watch(modalVisible, (v) => { if (!v) stopObserving(); });
+
+onBeforeUnmount(stopObserving);
 
 function onSave(): void {
   if (modalMode.value === 'create') {
@@ -69,36 +111,22 @@ function onDelete(): void {
   modalVisible.value = false;
 }
 
-function onAssign(event: Event): void {
-  if (!props.selectedItem) return;
-  const value = (event.target as HTMLSelectElement).value;
-  emit('assignSequence', props.selectedItem.id, value || null);
+function onDeleteWithPlans(): void {
+  if (!deleteConfirm.value) {
+    deleteConfirm.value = true;
+    return;
+  }
+  emit('deleteSequenceWithPlans', draft.id);
+  modalVisible.value = false;
 }
+
+defineExpose({ openCreate, openEdit });
 </script>
 
 <template>
-  <section class="sequence-panel">
-    <div class="sequence-panel__header">
-      <span class="sequence-panel__label">Sequence</span>
-      <button class="plan-header__btn plan-header__btn--secondary" @click="openCreate">New Sequence</button>
-    </div>
-
-    <div v-if="selectedItem" class="sequence-panel__row">
-      <select class="sequence-panel__select" :value="selectedItem.sequenceId ?? ''" @change="onAssign">
-        <option value="">None</option>
-        <option v-for="seq in sequences" :key="seq.id" :value="seq.id">{{ seq.title }}</option>
-      </select>
-      <template v-if="selectedSequence">
-        <button class="plan-header__btn plan-header__btn--secondary" @click="emit('assignSequence', selectedItem.id, null)">Unlink Plan</button>
-        <button class="plan-header__btn plan-header__btn--secondary" @click="openEdit">Edit</button>
-        <button class="plan-header__btn plan-header__btn--danger" @click="emit('deleteSequence', selectedSequence.id)">Delete Sequence</button>
-      </template>
-    </div>
-  </section>
-
   <Teleport to="body">
-    <div v-if="modalVisible" class="plan-sequence-modal-overlay" @mousedown.self="modalVisible = false">
-      <div class="plan-sequence-modal">
+    <div v-if="modalVisible" class="modal-overlay modal--visible plan-sequence-modal-overlay" @mousedown.self="modalVisible = false">
+      <div ref="modalRef" class="plan-sequence-modal">
         <div class="plan-sequence-modal__header">
           {{ modalMode === 'create' ? 'New Sequence' : 'Edit Sequence' }}
         </div>
@@ -143,6 +171,12 @@ function onAssign(event: Event): void {
             :class="deleteConfirm ? 'btn--danger' : 'btn--secondary'"
             @click="onDelete"
           >{{ deleteConfirm ? 'Confirm Delete' : 'Delete' }}</button>
+          <button
+            v-if="modalMode === 'edit'"
+            class="btn btn--sm"
+            :class="deleteConfirm ? 'btn--danger' : 'btn--secondary'"
+            @click="onDeleteWithPlans"
+          >{{ deleteConfirm ? 'Confirm Delete All' : 'Delete + Plans' }}</button>
           <button class="btn btn--secondary btn--sm" @click="modalVisible = false">Cancel</button>
         </div>
       </div>

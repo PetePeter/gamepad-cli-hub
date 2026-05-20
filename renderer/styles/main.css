@@ -3232,6 +3232,24 @@ kbd {
   height: 28px;
   padding: 0 8px;
 }
+
+.sequence-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sequence-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sequence-panel__label {
+  color: #bbb;
+  font-size: 12px;
+  font-weight: 700;
+}
 /* Sequence editor modal */
 .plan-sequence-modal-overlay {
   position: fixed;
@@ -3250,6 +3268,9 @@ kbd {
   padding: 20px;
   width: 480px;
   max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  resize: both;
   display: flex;
   flex-direction: column;
   gap: 12px;

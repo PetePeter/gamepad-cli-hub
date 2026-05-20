@@ -7,6 +7,7 @@ import type { ContextBindingTargetType, ContextNode } from '../../../src/types/c
 import type { LayoutResult } from '../../plans/plan-layout.js';
 import type { TriState } from '../../plans/plan-screen.js';
 import SplitAddButton from '../buttons/SplitAddButton.vue';
+import SequencePanel from './SequencePanel.vue';
 import { isEditableElement } from '../../input/input-ownership.js';
 
 const NODE_W = 200;
@@ -106,6 +107,7 @@ const emit = defineEmits<{
 
 const wrapperRef = ref<HTMLElement | null>(null);
 const svgRef = ref<SVGSVGElement | null>(null);
+const seqPanelRef = ref<InstanceType<typeof SequencePanel> | null>(null);
 const viewBox = ref({ x: 0, y: 0, w: 800, h: 600 });
 const isPanning = ref(false);
 const panStart = ref({ x: 0, y: 0, vbx: 0, vby: 0 });
@@ -175,9 +177,6 @@ const contextLinkState = ref<{
   hoveredPlanId: string | null;
 } | null>(null);
 
-const seqModalVisible = ref(false);
-const seqModalMode = ref<'create' | 'edit'>('create');
-const seqDraft = reactive({ id: '', title: '', missionStatement: '', sharedMemory: '' });
 
 const nodeMap = computed(() => {
   const map = new Map<string, LayoutResult['nodes'][number]>();
@@ -598,19 +597,10 @@ function unlinkFromSequence(id: string, e: MouseEvent): void {
   emit('assignSequence', id, null);
 }
 
-function openSeqCreate(): void {
-  seqDraft.id = '';
-  seqDraft.title = '';
-  seqDraft.missionStatement = '';
-  seqDraft.sharedMemory = '';
-  seqModalMode.value = 'create';
-  seqModalVisible.value = true;
-}
-
 function handleAddSelection(value: 'plan' | 'context' | 'sequence'): void {
   if (value === 'plan') emit('addNode');
   else if (value === 'context') emit('addContext');
-  else openSeqCreate();
+  else seqPanelRef.value?.openCreate();
 }
 
 function sequenceContextTitle(sequenceId: string): string {
@@ -634,7 +624,6 @@ function focusPlanScreen(): void {
 }
 
 function shouldIgnoreDeleteKey(): boolean {
-  if (seqModalVisible.value) return true;
   const active = document.activeElement;
   if (active && active !== wrapperRef.value && isEditableElement(active)) return true;
   return Boolean(document.querySelector('.modal-overlay.modal--visible, .scheduled-tasks-tab--popup, .scheduler-popup-backdrop'));
@@ -655,38 +644,6 @@ function onPlanKeydown(event: KeyboardEvent): void {
   if (!selectedPlanId) return;
   event.preventDefault();
   emit('deleteNode', selectedPlanId);
-}
-
-function openSeqEdit(sequence: PlanSequence): void {
-  seqDraft.id = sequence.id;
-  seqDraft.title = sequence.title;
-  seqDraft.missionStatement = sequence.missionStatement ?? '';
-  seqDraft.sharedMemory = sequence.sharedMemory ?? '';
-  seqModalMode.value = 'edit';
-  seqModalVisible.value = true;
-}
-
-function onSeqSave(): void {
-  if (seqModalMode.value === 'create') {
-    emit('createSequence', seqDraft.title, seqDraft.missionStatement, seqDraft.sharedMemory);
-  } else {
-    emit('updateSequence', seqDraft.id, {
-      title: seqDraft.title,
-      missionStatement: seqDraft.missionStatement,
-      sharedMemory: seqDraft.sharedMemory,
-    });
-  }
-  seqModalVisible.value = false;
-}
-
-function onSeqDelete(): void {
-  emit('deleteSequence', seqDraft.id);
-  seqModalVisible.value = false;
-}
-
-function onSeqDeleteWithPlans(): void {
-  emit('deleteSequenceWithPlans', seqDraft.id);
-  seqModalVisible.value = false;
 }
 
 onUnmounted(() => {
@@ -804,7 +761,7 @@ onUnmounted(() => {
             :transform="`translate(${box.width - 30}, 6)`"
             @mousedown.stop
             @mouseup.stop
-            @click.stop="openSeqEdit(box.sequence)"
+            @click.stop="seqPanelRef?.openEdit(box.sequence)"
           >
             <title>Edit sequence</title>
             <rect width="22" height="20" rx="4" pointer-events="all" />
@@ -1010,64 +967,17 @@ onUnmounted(() => {
         <span class="plan-inspector__title">{{ selectedItem?.title }}</span>
       </div>
     </div>
+
+    <SequencePanel
+      ref="seqPanelRef"
+      :sequences="sequences"
+      :selected-item="selectedItem"
+      @create-sequence="(t, m, s) => emit('createSequence', t, m, s)"
+      @update-sequence="(id, u) => emit('updateSequence', id, u)"
+      @delete-sequence="(id) => emit('deleteSequence', id)"
+      @delete-sequence-with-plans="(id) => emit('deleteSequenceWithPlans', id)"
+    />
   </div>
-
-  <Teleport to="body">
-    <div v-if="seqModalVisible" class="plan-sequence-modal-overlay" @mousedown.self="seqModalVisible = false">
-      <div class="plan-sequence-modal">
-        <div class="plan-sequence-modal__header">
-          {{ seqModalMode === 'create' ? 'New Sequence' : 'Edit Sequence' }}
-        </div>
-
-        <label class="plan-sequence-modal__field">
-          <span>Title</span>
-          <input
-            v-model="seqDraft.title"
-            class="plan-sequence-modal__input"
-            placeholder="Sequence title..."
-            maxlength="100"
-          />
-        </label>
-
-        <label class="plan-sequence-modal__field">
-          <span>Mission</span>
-          <textarea
-            v-model="seqDraft.missionStatement"
-            class="plan-sequence-modal__textarea"
-            placeholder="What is this sequence working toward?"
-            rows="3"
-          />
-        </label>
-
-        <label class="plan-sequence-modal__field">
-          <span>Memory</span>
-          <textarea
-            v-model="seqDraft.sharedMemory"
-            class="plan-sequence-modal__textarea"
-            placeholder="Legacy coordination notes for plans in this sequence..."
-            rows="3"
-          />
-        </label>
-
-        <div class="plan-sequence-modal__actions">
-          <button class="btn btn--primary btn--sm" @click="onSeqSave">
-            {{ seqModalMode === 'create' ? 'Create' : 'Save' }}
-          </button>
-          <button
-            v-if="seqModalMode === 'edit'"
-            class="btn btn--sm btn--secondary"
-            @click="onSeqDelete"
-          >Delete</button>
-          <button
-            v-if="seqModalMode === 'edit'"
-            class="btn btn--sm btn--secondary"
-            @click="onSeqDeleteWithPlans"
-          >Delete + Plans</button>
-          <button class="btn btn--secondary btn--sm" @click="seqModalVisible = false">Cancel</button>
-        </div>
-      </div>
-    </div>
-  </Teleport>
 </template>
 
 <style scoped>
