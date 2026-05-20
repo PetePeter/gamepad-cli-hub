@@ -209,7 +209,7 @@ describe('persistence', () => {
       );
 
       const result = loadSessions();
-      expect(result[0].projectPath).toBe('X:\\coding\\repo-a');
+      expect(result[0].projectPath).toBe('x:\\coding\\repo-a');
     });
   });
 
@@ -369,7 +369,7 @@ describe('SessionManager persistence integration', () => {
     projectManager.addSession({ ...mockSession1, workingDir: 'X:\\coding\\repo-a' });
 
     expect(projectManager.getSession(mockSession1.id)?.projectId).toBe('project-1');
-    expect(projectManager.getSession(mockSession1.id)?.projectPath).toBe('X:\\coding\\repo-a');
+    expect(projectManager.getSession(mockSession1.id)?.projectPath).toBe('x:\\coding\\repo-a');
     expect(projectStore.resolveForPath).toHaveBeenCalledWith('X:\\coding\\repo-a');
   });
 

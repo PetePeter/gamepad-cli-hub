@@ -4,6 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EventEmitter } from 'events';
+import { normalizeProjectPath } from '../src/session/project-identity.js';
 
 const handlers = new Map<string, Function>();
 vi.mock('electron', () => ({
@@ -129,7 +130,7 @@ describe('pty:spawn resume logic', () => {
       command: undefined,
       args: undefined,
       rawCommand: 'claude --resume "hub-sid-1"',
-      cwd: '/work',
+      cwd: normalizeProjectPath('/work'),
       env: expect.objectContaining({
         HELM_SESSION_ID: 'sid-1',
         HELM_SESSION_NAME: 'claude-code',
@@ -154,7 +155,7 @@ describe('pty:spawn resume logic', () => {
       command: undefined,
       args: undefined,
       rawCommand: 'claude --continue',
-      cwd: '/work',
+      cwd: normalizeProjectPath('/work'),
       env: expect.objectContaining({
         HELM_SESSION_ID: 'sid-1',
         HELM_SESSION_NAME: 'claude-code',
@@ -177,7 +178,7 @@ describe('pty:spawn resume logic', () => {
       command: 'bash',
       args: ['-l'],
       rawCommand: undefined,
-      cwd: '/work',
+      cwd: normalizeProjectPath('/work'),
       env: expect.objectContaining({
         HELM_SESSION_ID: 'sid-1',
         HELM_SESSION_NAME: 'generic',
@@ -327,7 +328,7 @@ describe('pty:spawn resume logic', () => {
       command: undefined,
       args: undefined,
       rawCommand: `claude --session-id ${uuid}`,
-      cwd: '/work',
+      cwd: normalizeProjectPath('/work'),
       env: expect.objectContaining({
         HELM_SESSION_ID: 'sid-1',
         HELM_SESSION_NAME: 'claude-code',
@@ -443,7 +444,7 @@ describe('pty:spawn resume logic', () => {
       command: 'bash',
       args: ['-l'],
       rawCommand: undefined,
-      cwd: '/work',
+      cwd: normalizeProjectPath('/work'),
       env: expect.objectContaining({
         HELM_SESSION_ID: 'sid-1',
         HELM_SESSION_NAME: 'generic',
@@ -467,7 +468,7 @@ describe('pty:spawn resume logic', () => {
       command: undefined,
       args: undefined,
       rawCommand: 'claude --resume=abc-123',
-      cwd: '/work',
+      cwd: normalizeProjectPath('/work'),
       env: expect.objectContaining({
         HELM_SESSION_ID: 'sid-1',
         HELM_SESSION_NAME: 'claude-code',
@@ -532,7 +533,7 @@ describe('pty:spawn resume logic', () => {
       command: 'claude',
       args: ['--flag'],
       rawCommand: undefined,
-      cwd: '/work',
+      cwd: normalizeProjectPath('/work'),
       env: expect.objectContaining({
         HELM_SESSION_ID: 'sid-1',
         HELM_SESSION_NAME: 'claude-code',

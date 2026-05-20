@@ -108,7 +108,7 @@ describe('migrateProjects', () => {
 
     expect(projects[0]?.canonicalPath).toBe('x:\\coding\\repo-a');
     expect(projects[0]?.alternatePaths).toEqual([]);
-    expect(sessions[0]?.workingDir).toBe('X:\\coding\\repo-a\\packages\\ui');
+    expect(sessions[0]?.workingDir).toBe('x:\\coding\\repo-a\\packages\\ui');
     expect(sessions[0]?.projectId).toBe(projects[0]?.id);
   });
 

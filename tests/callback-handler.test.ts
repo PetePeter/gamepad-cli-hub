@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { normalizeProjectPath } from '../src/session/project-identity.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
@@ -516,7 +517,7 @@ describe('setupCallbackHandler', () => {
 
       expect(mockPtyManager.spawn).toHaveBeenCalledWith(
         expect.objectContaining({
-          cwd: '/proj',
+          cwd: normalizeProjectPath('/proj'),
           env: expect.objectContaining({
             TEST_LITERAL: 'literal-value',
             TEST_REF: 'resolved-value',
@@ -528,7 +529,7 @@ describe('setupCallbackHandler', () => {
         }),
       );
       expect(mockSessionManager.addSession).toHaveBeenCalledWith(
-        expect.objectContaining({ cliType: 'claude', workingDir: '/proj' }),
+        expect.objectContaining({ cliType: 'claude', workingDir: normalizeProjectPath('/proj') }),
       );
       expect(scheduleInitialPrompt).toHaveBeenCalledWith(
         expect.any(String),

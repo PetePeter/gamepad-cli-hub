@@ -28,10 +28,10 @@ export function writeLargeTextTempFile(text: string, label: string): string {
   return tempPath;
 }
 
-export function buildLargeTextTempFileNotice(_tempPath: string, label: string): string {
+export function buildLargeTextTempFileNotice(tempPath: string, label: string): string {
   return [
     `A large ${label} was written to a Helm temp file.`,
-    'Read the file at the payloadRef path above and follow its instructions.',
+    `Read the full file at: ${tempPath}`,
     'Delete the temp file after processing.',
   ].join('\n');
 }

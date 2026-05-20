@@ -32,7 +32,7 @@ describe('spawnConfiguredSession', () => {
       cliType: 'claude-code',
       cliSessionName: 'resume-123',
       processId: 1234,
-      workingDir: 'X:\\coding\\gamepad-cli-hub',
+      workingDir: 'x:\\coding\\gamepad-cli-hub',
     }));
     expect(addSession).not.toHaveBeenCalled();
   });
@@ -63,7 +63,7 @@ describe('spawnConfiguredSession', () => {
       id: 'sess-new',
       cliType: 'claude-code',
       processId: 4321,
-      workingDir: 'X:\\coding\\gamepad-cli-hub',
+      workingDir: 'x:\\coding\\gamepad-cli-hub',
     }));
     expect(updateSession).not.toHaveBeenCalled();
   });

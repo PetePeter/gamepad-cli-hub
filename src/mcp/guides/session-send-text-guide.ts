@@ -10,11 +10,12 @@
  */
 export function buildSessionSendTextGuide() {
   return {
-    description: 'Send text to another session via session_send_text. Helm wraps in [HELM_MSG] envelope; replies auto-paste to your session when expectsResponse=true.',
+    description: 'Send text to another session via session_send_text. Helm wraps in [HELM_MSG] envelope; sender polls every 3 minutes until reply arrives when expectsResponse=true.',
     inter_llm_handoff_protocol: [
       'Call session_send_text(sessionId, text, senderSessionId); Helm submits it automatically.',
-      'After send, call session_read_terminal on recipient and verify receipt in terminal tail.',
-      'If no receipt evidence, warn user instead of assuming success.',
+      'Poll session_read_terminal on the recipient every 3 minutes.',
+      '  Evidence of processing: HELM_MSG envelope visible in terminal tail, or new output/activity has started.',
+      'If expectsResponse=true, wait — the reply will auto-paste to your session; stop polling once reply arrives.',
     ],
     required_args: { sessionId: 'Destination session ID (MUST differ from senderSessionId)', text: 'Text to send', senderSessionId: 'Your session ID from HELM_SESSION_ID env var' },
     optional_args: { expectsResponse: 'Boolean, default false. True = reply auto-pastes to your session' },

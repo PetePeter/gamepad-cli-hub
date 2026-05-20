@@ -980,14 +980,14 @@ describe('ToolsTab', () => {
   it('emits edit on edit button click', async () => {
     const w = mount(ToolsTab, { props: { tools } });
     const items = w.findAll('.settings-list-item');
-    await items[0].findAll('button')[2].trigger('click');
+    await items[0].findAll('button')[3].trigger('click');
     expect(w.emitted('edit')).toEqual([['claude-code']]);
   });
 
   it('emits delete on delete button click', async () => {
     const w = mount(ToolsTab, { props: { tools } });
     const items = w.findAll('.settings-list-item');
-    await items[0].findAll('button')[3].trigger('click');
+    await items[0].findAll('button')[4].trigger('click');
     expect(w.emitted('delete')).toEqual([['claude-code']]);
   });
 
