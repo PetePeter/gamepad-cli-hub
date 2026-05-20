@@ -3287,6 +3287,20 @@ kbd {
   height: 32px;
 }
 
+.plan-sequence-modal__textarea {
+  background: #141414;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #ddd;
+  font-size: 13px;
+  padding: 6px 8px;
+  font-family: inherit;
+  resize: vertical;
+  width: 100%;
+  min-height: 4.5em;
+  box-sizing: border-box;
+}
+
 .plan-sequence-modal__actions {
   display: flex;
   gap: 8px;

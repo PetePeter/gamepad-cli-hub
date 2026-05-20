@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Completion Recap — Feature Proposal (v3)</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #e6edf3;
+    --muted: #8b949e; --accent: #58a6ff; --green: #3fb950; --yellow: #d29922;
+    --purple: #a371f7; --red: #f85149; --orange: #e3642b; --code-bg: #1f2428;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.6; padding: 32px; max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 26px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+  h2 { font-size: 17px; font-weight: 600; color: var(--text); margin: 32px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin: 20px 0 8px; }
+  p { color: var(--muted); margin-bottom: 10px; }
+  code { background: var(--code-bg); border-radius: 3px; padding: 1px 5px; font-size: 11px; color: #79c0ff; font-family: 'Courier New', monospace; }
+  pre { background: var(--code-bg); border-radius: 6px; padding: 14px 16px; font-size: 12px; color: #cdd9e5; font-family: 'Courier New', monospace; overflow-x: auto; line-height: 1.7; margin: 10px 0; }
+  .meta { color: var(--muted); font-size: 12px; margin-bottom: 28px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-right: 4px; }
+  .bf { background: rgba(88,166,255,0.12); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+  .bv { background: rgba(210,153,34,0.12); color: var(--yellow); border: 1px solid rgba(210,153,34,0.3); }
+  .bl { background: rgba(63,185,80,0.12); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; margin-bottom: 14px; }
+  .ca { border-left: 3px solid var(--accent); }
+  .cg { border-left: 3px solid var(--green); }
+  .cy { border-left: 3px solid var(--yellow); }
+  .cp { border-left: 3px solid var(--purple); }
+  .cr { border-left: 3px solid var(--red); }
+  .co { border-left: 3px solid var(--orange); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+
+  /* Decision tree */
+  .dtree { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; }
+  .dnode { display: flex; align-items: flex-start; gap: 12px; margin: 8px 0; }
+  .dnode-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .dnode-body { flex: 1; }
+  .dnode-q { color: var(--text); font-weight: 600; font-size: 13px; }
+  .dnode-a { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .dindent { padding-left: 30px; border-left: 2px solid rgba(255,255,255,0.06); margin-left: 9px; }
+  .outcome-red { color: var(--red); font-weight: 600; font-size: 12px; }
+  .outcome-yellow { color: var(--yellow); font-weight: 600; font-size: 12px; }
+  .outcome-green { color: var(--green); font-weight: 600; font-size: 12px; }
+
+  /* PTY blocks */
+  .pty { background: #0a0c0f; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.9; margin: 10px 0; }
+  .pty .dim { color: #3d444d; }
+  .pty .hdr { color: var(--yellow); font-weight: bold; }
+  .pty .hdr-red { color: var(--red); font-weight: bold; }
+  .pty .hdr-orange { color: var(--orange); font-weight: bold; }
+  .pty .lbl { color: var(--muted); }
+  .pty .txt { color: #cdd9e5; }
+  .pty .crit { color: var(--green); }
+  .pty .warn { color: var(--yellow); }
+  .pty .prompt { color: var(--accent); }
+
+  /* Wireframe */
+  .wireframe { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; font-family: 'Courier New', monospace; font-size: 12px; line-height: 2.1; }
+  .wrow { display: flex; gap: 8px; align-items: center; padding: 2px 0; border-bottom: 1px dashed rgba(255,255,255,0.05); }
+  .wrow:last-child { border-bottom: none; }
+  .wrl { font-size: 10px; color: var(--muted); width: 84px; flex-shrink: 0; font-style: italic; }
+  .wf { background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; flex: 1; color: var(--text); }
+  .wfsm { flex: 0 0 auto; padding: 3px 10px; }
+  .wfck { flex: 0 0 auto; display: flex; align-items: center; gap: 5px; padding: 3px 10px; }
+  .wfnew { background: rgba(63,185,80,0.12); border-color: rgba(63,185,80,0.4); color: var(--green); }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th { text-align: left; padding: 8px 12px; font-size: 12px; font-weight: 600; color: var(--muted); background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); }
+  td { padding: 8px 12px; border-bottom: 1px solid rgba(48,54,61,0.4); font-size: 12px; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+
+  .flist { list-style: none; }
+  .flist li { padding: 6px 0; border-bottom: 1px solid rgba(48,54,61,0.35); font-size: 13px; display: flex; gap: 10px; align-items: baseline; }
+  .flist li:last-child { border-bottom: none; }
+  .fp { color: var(--accent); font-family: monospace; font-size: 12px; white-space: nowrap; }
+  .fd { color: var(--muted); }
+  .fnew { color: var(--green); font-size: 10px; font-weight: 700; margin-left: 4px; }
+
+  .criteria { list-style: none; }
+  .criteria li { padding: 4px 0; padding-left: 20px; position: relative; color: var(--muted); font-size: 13px; }
+  .criteria li::before { content: '✓'; position: absolute; left: 0; color: var(--green); font-weight: 700; }
+
+  .pills { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+  .pill { padding: 5px 13px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1px solid; }
+  .pg { background: rgba(63,185,80,0.08); border-color: var(--green); color: var(--green); }
+  .py { background: rgba(210,153,34,0.08); border-color: var(--yellow); color: var(--yellow); }
+  .pp { background: rgba(163,113,247,0.08); border-color: var(--purple); color: var(--purple); }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+</style>
+</head>
+<body>
+
+<h1>Completion Recap — Feature Proposal</h1>
+<p class="meta">
+  <span class="badge bf">Feature</span>
+  <span class="badge bl">Low Risk</span>
+  <span class="badge bv">v3 — read-tracker gate</span>
+  &nbsp;·&nbsp; gamepad-cli-hub &nbsp;·&nbsp; 2026-05-20
+</p>
+
+<!-- ─── Problem ────────────────────────────────── -->
+<h2>Problem Statement</h2>
+<div class="grid2">
+  <div class="card cr">
+    <h3>The Gap</h3>
+    <p>When an AI agent calls <code>plan_complete</code>, the hub accepts it unconditionally. There is no check that the agent actually read the plan, let alone read it recently enough to still remember what "done" means. LLMs drift — plans get closed with partial work because the agent convinced itself it was done without ever re-checking the criteria it agreed to at the start.</p>
+  </div>
+  <div class="card cg">
+    <h3>User POV</h3>
+    <p>"I want the hub to gate plan completion on read-verification. If the agent never read the plan — call BS. If it read it ages ago and made a ton of changes since — ask it to re-read. Only if it read it recently should it be allowed to complete and get the recap. The plan might not even have AC sections — in that case, tell the LLM to go re-read the description anyway."</p>
+  </div>
+</div>
+
+<!-- ─── Core Mechanic ──────────────────────────── -->
+<h2>Core Mechanic — Three-Tier Read Gate</h2>
+<p>The hub tracks every <code>plan_get</code> call per (plan, session) pair — recording the timestamp and PTY write count at the moment of the read. On <code>plan_complete</code>, three checks run in order:</p>
+
+<div class="dtree">
+  <div class="dnode">
+    <span class="dnode-icon">🔍</span>
+    <div class="dnode-body">
+      <div class="dnode-q">Has this session ever called plan_get for this plan?</div>
+      <div class="dnode-a">Checked via <code>PlanReadTracker.getRead(planId, sessionId)</code></div>
+    </div>
+  </div>
+  <div class="dindent">
+    <div class="dnode">
+      <span class="dnode-icon">❌</span>
+      <div class="dnode-body">
+        <div class="outcome-red">NO → GATE 1: "You haven't read this plan."</div>
+        <div class="dnode-a">Write CALL-BS block to PTY. plan_complete is rejected — status stays unchanged.</div>
+      </div>
+    </div>
+    <div class="dnode">
+      <span class="dnode-icon">✅</span>
+      <div class="dnode-body">
+        <div class="dnode-q">Is the read stale? (time elapsed > threshold AND PTY writes since read > threshold)</div>
+        <div class="dnode-a">Stale = <code>now − readAt &gt; staleTimeMs</code> <strong>AND</strong> <code>currentWrites − writesAtRead &gt; staleWriteCount</code></div>
+      </div>
+    </div>
+    <div class="dindent">
+      <div class="dnode">
+        <span class="dnode-icon">⚠️</span>
+        <div class="dnode-body">
+          <div class="outcome-yellow">YES → GATE 2: "You read this plan N minutes ago and have made significant changes since."</div>
+          <div class="dnode-a">Write STALE-READ block to PTY. plan_complete rejected — status unchanged.</div>
+        </div>
+      </div>
+      <div class="dnode">
+        <span class="dnode-icon">✅</span>
+        <div class="dnode-body">
+          <div class="dnode-q">Fresh read — does the plan description contain AC or Done Statement sections?</div>
+        </div>
+      </div>
+      <div class="dindent">
+        <div class="dnode">
+          <span class="dnode-icon">📋</span>
+          <div class="dnode-body">
+            <div class="outcome-green">YES → GATE 3 PASS: Write RECAP block with extracted criteria to PTY. plan_complete proceeds.</div>
+          </div>
+        </div>
+        <div class="dnode">
+          <span class="dnode-icon">📄</span>
+          <div class="dnode-body">
+            <div class="outcome-green">NO SECTIONS → GATE 3 PASS (soft): Write RECAP block with re-read instruction to PTY. plan_complete proceeds.</div>
+            <div class="dnode-a">No criteria to list, but agent is told to re-read the plan description and verify manually.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:14px;">Gates 1 and 2 <strong>block completion</strong> — the plan stays in its current status. Gate 3 always allows completion but gives the LLM the recap to respond to.</p>
+
+<!-- ─── PTY Output Formats ─────────────────────── -->
+<h2>PTY Output — All Three Formats</h2>
+
+<h3>Gate 1 — Never Read (Call BS)</h3>
+<div class="pty">
+  <div class="dim">────────────────────────────────────────────────</div>
+  <div class="hdr-red">❌ PLAN COMPLETION BLOCKED — P-0318</div>
+  <div class="dim">────────────────────────────────────────────────</div>
+  <div class="warn">You have not read this plan in this session.</div>
+  <div class="txt"> </div>
+  <div class="lbl">Action required:</div>
+  <div class="txt">  Call plan_get with id "d9caf647-..." to read the plan,</div>
+  <div class="txt">  verify your work against its criteria, then call plan_complete again.</div>
+  <div class="dim">────────────────────────────────────────────────</div>
+  <div class="prompt">$</div>
+</div>
+
+<h3>Gate 2 — Stale Read (Re-read Required)</h3>
+<div class="pty">
+  <div class="dim">────────────────────────────────────────────────</div>
+  <div class="hdr-orange">⚠️  STALE READ — P-0318</div>
+  <div class="dim">────────────────────────────────────────────────</div>
+  <div class="warn">You read this plan 23 minutes ago and have made</div>
+  <div class="warn">147 PTY writes since then.</div>
+  <div class="txt"> </div>
+  <div class="lbl">Action required:</div>
+  <div class="txt">  Re-read the plan with plan_get, verify your work</div>
+  <div class="txt">  against its criteria, then call plan_complete again.</div>
+  <div class="dim">────────────────────────────────────────────────</div>
+  <div class="prompt">$</div>
+</div>
+
+<h3>Gate 3 — Fresh Read, Sections Found (Recap)</h3>
+<div class="pty">
+  <div class="dim">────────────────────────────────────────────────</div>
+  <div class="hdr">🔁 COMPLETION RECAP — P-0318</div>
+  <div class="dim">────────────────────────────────────────────────</div>
+  <div class="lbl">Title:  <span class="txt">Completion Recap checkbox in plan edit panel</span></div>
+  <div class="txt"> </div>
+  <div class="lbl">Acceptance Criteria:</div>
+  <div class="crit">  ✓ Completion recap checkbox visible alongside Auto-implement</div>
+  <div class="crit">  ✓ Tooltip present and accurate</div>
+  <div class="crit">  ✓ Flag persists across saves and restarts</div>
+  <div class="crit">  ✓ recap=ON + plan_complete → PTY quality gate fires</div>
+  <div class="crit">  ✓ 4-row edit layout implemented</div>
+  <div class="txt"> </div>
+  <div class="lbl">Please confirm each criterion is met before continuing.</div>
+  <div class="dim">────────────────────────────────────────────────</div>
+  <div class="prompt">$</div>
+</div>
+
+<h3>Gate 3 — Fresh Read, No Sections Found (Soft Recap)</h3>
+<div class="pty">
+  <div class="dim">────────────────────────────────────────────────</div>
+  <div class="hdr">🔁 COMPLETION RECAP — P-0318</div>
+  <div class="dim">────────────────────────────────────────────────</div>
+  <div class="lbl">Title:  <span class="txt">Completion Recap checkbox in plan edit panel</span></div>
+  <div class="txt"> </div>
+  <div class="warn">No Acceptance Criteria or Done Statement sections found in this plan.</div>
+  <div class="txt"> </div>
+  <div class="lbl">Action:</div>
+  <div class="txt">  Re-read the plan description (plan_get) and manually verify</div>
+  <div class="txt">  your work covers what was asked before continuing.</div>
+  <div class="dim">────────────────────────────────────────────────</div>
+  <div class="prompt">$</div>
+</div>
+
+<!-- ─── PlanReadTracker ────────────────────────── -->
+<h2>PlanReadTracker — New Module</h2>
+<div class="card cp">
+  <p>A lightweight in-memory tracker (no disk persistence needed — lost on restart is fine, since a fresh session should re-read anyway).</p>
+  <pre>interface ReadRecord {
+  planId:         string
+  sessionId:      string
+  readAt:         number   // Date.now() at moment of plan_get
+  ptyWriteCount:  number   // PTY write count for this session at moment of read
+}
+
+class PlanReadTracker {
+  recordRead(planId, sessionId, ptyWriteCount): void
+  getRead(planId, sessionId): ReadRecord | undefined
+  isStale(record, currentWriteCount, now): boolean
+    // stale = (now - readAt > STALE_TIME_MS) AND (currentWrites - record.ptyWriteCount > STALE_WRITE_COUNT)
+  clear(sessionId): void   // called on session close
+}</pre>
+  <p>Defaults: <code>STALE_TIME_MS = 10 * 60 * 1000</code> (10 min) · <code>STALE_WRITE_COUNT = 50</code> PTY writes</p>
+  <p>Both thresholds must be exceeded simultaneously — long time with no activity is not stale; lots of writes in 30 seconds is not stale.</p>
+</div>
+
+<!-- ─── PTY Write Count ────────────────────────── -->
+<h2>PTY Write Count Tracking</h2>
+<p><code>PtyManager</code> already receives every <code>pty:write</code> call. Add a per-session counter incremented on each write, readable via <code>ptyManager.getWriteCount(sessionId)</code>. Reset to 0 on session close.</p>
+
+<!-- ─── Integration Points ────────────────────── -->
+<h2>Integration Points</h2>
+<table>
+  <thead><tr><th>Event</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td><code>plan_get</code> MCP tool called</td><td><code>PlanReadTracker.recordRead(planId, sessionId, ptyWriteCount)</code></td></tr>
+    <tr><td><code>plan:get</code> IPC called from renderer</td><td>Same — record read if a sessionId is known for the editor context</td></tr>
+    <tr><td><code>plan_complete</code> MCP tool called</td><td>Run three-tier gate check; write appropriate PTY block; reject or allow</td></tr>
+    <tr><td><code>plan:complete</code> IPC (editor save)</td><td>Same gate — session is the currently active session for the plan</td></tr>
+    <tr><td>Session closed</td><td><code>PlanReadTracker.clear(sessionId)</code></td></tr>
+  </tbody>
+</table>
+
+<!-- ─── Stale Thresholds Config ───────────────── -->
+<h2>Staleness Thresholds</h2>
+<p>Both conditions must be true simultaneously to trigger Gate 2:</p>
+<table>
+  <thead><tr><th>Threshold</th><th>Default</th><th>Rationale</th></tr></thead>
+  <tbody>
+    <tr><td><code>staleTimeMs</code></td><td>10 minutes</td><td>Long enough that a quick multi-file fix doesn't trigger it</td></tr>
+    <tr><td><code>staleWriteCount</code></td><td>50 PTY writes</td><td>Filters out trivial activity; meaningful work typically exceeds this</td></tr>
+  </tbody>
+</table>
+
+<!-- ─── Edit Panel Layout ─────────────────────── -->
+<h2>Proposed Edit Panel Layout (DraftEditor.vue)</h2>
+<div class="wireframe">
+  <div class="wrow">
+    <span class="wrl">Row 1 — Title</span>
+    <span class="wf">Plan title text input (full width)</span>
+  </div>
+  <div class="wrow">
+    <span class="wrl">Row 2 — Controls</span>
+    <span class="wf wfsm">Type ▾</span>
+    <span class="wf wfsm">Status ▾</span>
+    <span class="wf wfck">☑ Auto-implement</span>
+    <span class="wf wfck wfnew">☑ Completion recap ⓘ</span>
+  </div>
+  <div class="wrow">
+    <span class="wrl">Row 3 — Context</span>
+    <span class="wf">State context / completion notes (conditional — blocked or done only)</span>
+  </div>
+  <div class="wrow">
+    <span class="wrl">Row 4 — Content</span>
+    <span class="wf" style="min-height:62px;">Description textarea (full width, resizable)</span>
+  </div>
+</div>
+<p style="margin-top:10px;">Tooltip: <em>"When this plan is marked done, the hub verifies you recently read the plan, then writes its Acceptance Criteria into your terminal — forcing re-verification."</em></p>
+
+<!-- ─── Files Affected ────────────────────────── -->
+<h2>Files / Classes Affected</h2>
+<ul class="flist">
+  <li><span class="fp">src/types/plan.ts</span><span class="fd">Add <code>completionRecap?: boolean</code> to <code>PlanItem</code></span></li>
+  <li><span class="fp">src/session/plan-read-tracker.ts</span><span class="fd">NEW — <code>PlanReadTracker</code> class: recordRead, getRead, isStale, clear</span><span class="fnew">NEW</span></li>
+  <li><span class="fp">src/session/recap-formatter.ts</span><span class="fd">NEW — <code>formatPlanRecap(item, outcome)</code>: formats Gate 1 / Gate 2 / Gate 3 PTY blocks</span><span class="fnew">NEW</span></li>
+  <li><span class="fp">src/session/pty-manager.ts</span><span class="fd">Add per-session PTY write counter; expose <code>getWriteCount(sessionId)</code>; reset on session close</span></li>
+  <li><span class="fp">src/session/plan-manager.ts</span><span class="fd">Pass <code>completionRecap</code> through create/update; <code>planComplete</code> returns gate outcome so caller can write PTY</span></li>
+  <li><span class="fp">src/electron/ipc/plan-handlers.ts</span><span class="fd">Wire <code>PlanReadTracker.recordRead</code> on <code>plan:get</code>; run gate on <code>plan:complete</code>/<code>plan_complete</code> MCP; call <code>ptyWrite</code> with formatted block</span></li>
+  <li><span class="fp">renderer/components/panels/DraftEditor.vue</span><span class="fd">4-row layout; add <code>completionRecap</code> checkbox + tooltip; pass flag in save payload</span></li>
+  <li><span class="fp">renderer/plans/plan-screen.ts</span><span class="fd">Forward <code>completionRecap</code> through <code>PlanEditorCallbacks.onSave</code></span></li>
+</ul>
+
+<!-- ─── TDD ───────────────────────────────────── -->
+<h2>TDD Suggestions</h2>
+<div class="card">
+  <ul class="criteria">
+    <li><code>PlanReadTracker.recordRead()</code> stores record retrievable by getRead</li>
+    <li><code>PlanReadTracker.isStale()</code> returns false when only time exceeded (writes below threshold)</li>
+    <li><code>PlanReadTracker.isStale()</code> returns false when only writes exceeded (time below threshold)</li>
+    <li><code>PlanReadTracker.isStale()</code> returns true when both time AND writes exceed thresholds</li>
+    <li><code>PlanReadTracker.clear(sessionId)</code> removes all records for that session</li>
+    <li><code>formatPlanRecap(item, 'never-read')</code> produces Gate 1 block with plan_get instruction</li>
+    <li><code>formatPlanRecap(item, 'stale', { minutesAgo, writesSince })</code> produces Gate 2 block with elapsed stats</li>
+    <li><code>formatPlanRecap(item, 'pass')</code> with AC section → Gate 3 block listing criteria</li>
+    <li><code>formatPlanRecap(item, 'pass')</code> with Done Statement section → Gate 3 block listing done items</li>
+    <li><code>formatPlanRecap(item, 'pass')</code> with no sections → Gate 3 soft block with re-read instruction</li>
+    <li>plan-handlers: <code>plan:get</code> calls <code>PlanReadTracker.recordRead</code> with current PTY write count</li>
+    <li>plan-handlers: <code>plan:complete</code> with no prior read → ptyWrite Gate 1, returns error (plan not marked done)</li>
+    <li>plan-handlers: <code>plan:complete</code> with stale read → ptyWrite Gate 2, returns error</li>
+    <li>plan-handlers: <code>plan:complete</code> with fresh read → ptyWrite Gate 3, plan marked done</li>
+    <li>plan-handlers: <code>plan:complete</code> with <code>completionRecap=false</code> → no PTY write, normal completion</li>
+    <li><code>PtyManager</code> write counter increments on each pty:write; resets on session close</li>
+  </ul>
+</div>
+
+<!-- ─── Acceptance Criteria ───────────────────── -->
+<h2>Acceptance Criteria</h2>
+<div class="card cg">
+  <ul class="criteria">
+    <li>"Completion recap" checkbox in plan edit form, row 2 alongside Auto-implement</li>
+    <li>Tooltip present and accurate</li>
+    <li>Flag persists across saves and restarts</li>
+    <li>Gate 1: agent completes without reading → plan stays unchanged, Gate 1 PTY block written</li>
+    <li>Gate 2: agent read the plan but has been working for &gt;10 min with &gt;50 writes since → plan stays, Gate 2 block written with real elapsed minutes and write count</li>
+    <li>Gate 3: fresh read + AC/Done Statement found → plan marked done, recap block written</li>
+    <li>Gate 3 soft: fresh read + no sections → plan marked done, re-read instruction written</li>
+    <li>recap=OFF → no gate checks, normal completion</li>
+    <li>No sessionId on plan → gate skipped silently</li>
+    <li>4-row edit layout implemented; existing plans (no flag) behave as recap=OFF</li>
+    <li>Gamepad D-pad cycles through new checkbox; tooltip on focus</li>
+  </ul>
+</div>
+
+<!-- ─── Complexity ────────────────────────────── -->
+<h2>Complexity Assessment</h2>
+<div class="pills">
+  <span class="pill pg">Effort: Medium (2–3 days)</span>
+  <span class="pill pg">Risk: Low — additive, flag-gated</span>
+  <span class="pill pp">Touch points: 6 files + 2 new</span>
+  <span class="pill py">No disk persistence for read tracker — restart clears it (intentional)</span>
+</div>
+
+<hr>
+<p style="font-size:11px;color:var(--muted);text-align:center;">gamepad-cli-hub · completion-recap-proposal v3 · 2026-05-20</p>
+</body>
+</html>

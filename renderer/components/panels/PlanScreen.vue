@@ -7,7 +7,6 @@ import type { ContextBindingTargetType, ContextNode } from '../../../src/types/c
 import type { LayoutResult } from '../../plans/plan-layout.js';
 import type { TriState } from '../../plans/plan-screen.js';
 import SplitAddButton from '../buttons/SplitAddButton.vue';
-import PromptTextarea from '../common/PromptTextarea.vue';
 import { isEditableElement } from '../../input/input-ownership.js';
 
 const NODE_W = 200;
@@ -1032,23 +1031,21 @@ onUnmounted(() => {
 
         <label class="plan-sequence-modal__field">
           <span>Mission</span>
-          <PromptTextarea
+          <textarea
             v-model="seqDraft.missionStatement"
+            class="plan-sequence-modal__textarea"
             placeholder="What is this sequence working toward?"
-            :rows="3"
-            :min-rows="3"
-            :max-rows="10"
+            rows="3"
           />
         </label>
 
         <label class="plan-sequence-modal__field">
           <span>Memory</span>
-          <PromptTextarea
+          <textarea
             v-model="seqDraft.sharedMemory"
+            class="plan-sequence-modal__textarea"
             placeholder="Legacy coordination notes for plans in this sequence..."
-            :rows="3"
-            :min-rows="3"
-            :max-rows="10"
+            rows="3"
           />
         </label>
 

@@ -149,19 +149,3 @@ function onAssign(event: Event): void {
     </div>
   </Teleport>
 </template>
-
-<style scoped>
-.plan-sequence-modal__textarea {
-  resize: vertical;
-  width: 100%;
-  min-height: 4.5em;
-  padding: 6px 8px;
-  font-size: inherit;
-  font-family: inherit;
-  background: var(--bg-input, #1a1a1a);
-  color: var(--text-primary, #e0e0e0);
-  border: 1px solid var(--border-color, #333);
-  border-radius: 4px;
-  box-sizing: border-box;
-}
-</style>
