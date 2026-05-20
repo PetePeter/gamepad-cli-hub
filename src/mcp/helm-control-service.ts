@@ -251,7 +251,7 @@ export class HelmControlService extends EventEmitter {
     return this.planService.createPlan(dirPath, title, description, type, autoImplement);
   }
 
-  updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType | null; autoImplement?: boolean }): PlanItem | null {
+  updatePlan(id: string, updates: { title?: string; description?: string; type?: PlanType | null; autoImplement?: boolean; completionRecap?: boolean }): PlanItem | null {
     return this.planService.updatePlan(id, updates);
   }
 

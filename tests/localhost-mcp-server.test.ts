@@ -45,7 +45,7 @@ function makeService(): HelmControlService {
     listPlanContexts: vi.fn((_planId: string) => [{ id: 'ctx-1', type: 'Testing', source: 'both' }]),
     getPlanSequence: vi.fn((id: string) => ({ id, dirPath: '/proj', title: 'Sequence', missionStatement: 'Mission', sharedMemory: 'Shared', order: 0, createdAt: 1, updatedAt: 1, memberPlanIds: ['p1'], memberHumanIds: ['P-0001'] })),
     createPlan: vi.fn((dirPath: string, title: string, description: string, type?: string) => ({ id: 'created', dirPath, title, description, status: 'ready', ...(type ? { type } : {}) })),
-    updatePlan: vi.fn((id: string, updates: { title?: string; description?: string; type?: string | null; autoImplement?: boolean }) => ({ id, dirPath: '/proj', title: updates.title ?? 'Task', description: updates.description ?? 'Desc', status: 'ready', ...(updates.type ? { type: updates.type } : {}), ...(updates.autoImplement !== undefined ? { autoImplement: updates.autoImplement } : {}) })),
+    updatePlan: vi.fn((id: string, updates: { title?: string; description?: string; type?: string | null; autoImplement?: boolean; completionRecap?: boolean }) => ({ id, dirPath: '/proj', title: updates.title ?? 'Task', description: updates.description ?? 'Desc', status: 'ready', ...(updates.type ? { type: updates.type } : {}), ...(updates.autoImplement !== undefined ? { autoImplement: updates.autoImplement } : {}), ...(updates.completionRecap !== undefined ? { completionRecap: updates.completionRecap } : {}) })),
     deletePlan: vi.fn(() => true),
     completePlan: vi.fn((id: string, _notes?: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done' })),
     setPlanState: vi.fn((id: string, status: string) => ({ id, dirPath: '/proj', title: 'Task', description: 'Desc', status })),
@@ -750,6 +750,38 @@ describe('LocalhostMcpServer', () => {
     const updateJson = await updateResponse.json();
     expect((service.updatePlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('p1', { autoImplement: true });
     expect(updateJson.result.structuredContent.autoImplement).toBe(true);
+  });
+
+  it('advertises and sets completionRecap through plan_update MCP calls', async () => {
+    const service = makeService();
+    const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    const toolsResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 403,
+      method: 'tools/list',
+    });
+    const toolsJson = await toolsResponse.json();
+    const planUpdate = toolsJson.result.tools.find((tool: { name: string }) => tool.name === 'plan_update');
+    expect(planUpdate.description).toContain('completion recap');
+    expect(planUpdate.description).toContain('completionRecap true or false');
+    expect(planUpdate.inputSchema.properties.completionRecap).toEqual({ type: 'boolean' });
+
+    const updateResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 404,
+      method: 'tools/call',
+      params: {
+        name: 'plan_update',
+        arguments: { uuid: 'p1', completionRecap: true },
+      },
+    });
+    const updateJson = await updateResponse.json();
+    expect((service.updatePlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('p1', { completionRecap: true });
+    expect(updateJson.result.structuredContent.completionRecap).toBe(true);
   });
 
   it('dispatches plan attachment tools through the MCP surface', async () => {

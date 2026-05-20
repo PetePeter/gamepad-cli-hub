@@ -136,6 +136,7 @@ export async function callMcpTool(
             ...(typeof args.description === 'string' ? { description: args.description } : {}),
             ...(Object.prototype.hasOwnProperty.call(args, 'type') ? { type: asPlanTypeOrNull(args.type) } : {}),
             ...(typeof args.autoImplement === 'boolean' ? { autoImplement: args.autoImplement } : {}),
+            ...(typeof args.completionRecap === 'boolean' ? { completionRecap: args.completionRecap } : {}),
           }),
           `Plan not found: ${asString(args.uuid, 'uuid is required')}`,
         );
