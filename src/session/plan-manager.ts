@@ -449,11 +449,6 @@ export class PlanManager extends EventEmitter {
     });
   }
 
-  /** Get items currently being worked on by a specific session. */
-  getDoingForSession(sessionId: string): PlanItem[] {
-    return [...this.items.values()].filter(i => ACTIVE_PLAN_STATUSES.has(i.status) && i.sessionId === sessionId);
-  }
-
   /** Get all active plan items for a directory across every session. */
   getAllDoingForDirectory(dirPath: string): PlanItem[] {
     return this.getForDirectory(dirPath).filter(i => ACTIVE_PLAN_STATUSES.has(i.status));
@@ -490,8 +485,8 @@ export class PlanManager extends EventEmitter {
     return true;
   }
 
-  /** Apply a ready plan to a session (ready → coding). */
-  applyItem(id: string, sessionId: string): PlanItem | null {
+  /** Apply a ready plan to coding state (ready → coding). */
+  applyItem(id: string): PlanItem | null {
     const item = this.items.get(id);
     if (!item) return null;
 
@@ -500,14 +495,13 @@ export class PlanManager extends EventEmitter {
     if (!isStartable(item, this.dependencies, items) && item.status !== 'ready') return null;
 
     item.status = 'coding';
-    item.sessionId = sessionId;
     item.stateInfo = undefined;
     item.updatedAt = Date.now();
     item.stateUpdatedAt = item.updatedAt;
 
     savePlanFile(item);
     this.emit('plan:changed', item.dirPath);
-    logger.info(`[PlanManager] Applied plan "${item.title}" (${id}) to session ${sessionId}`);
+    logger.info(`[PlanManager] Applied plan "${item.title}" (${id})`);
     return item;
   }
 
@@ -523,7 +517,6 @@ export class PlanManager extends EventEmitter {
     const prevStatus = item.status;
     item.completionNotes = completionNotes.trim();
     item.status = 'done';
-    item.sessionId = undefined;
     item.stateInfo = undefined;
     item.updatedAt = Date.now();
     item.stateUpdatedAt = item.updatedAt;
@@ -546,7 +539,6 @@ export class PlanManager extends EventEmitter {
     const allBlockersDone = blockers.every(b => b?.status === 'done');
 
     item.status = allBlockersDone ? 'ready' : 'planning';
-    item.sessionId = undefined;
     item.stateInfo = undefined;
     item.updatedAt = Date.now();
     item.stateUpdatedAt = item.updatedAt;
@@ -561,9 +553,8 @@ export class PlanManager extends EventEmitter {
   /** Manually update a plan item's state outside the normal apply/complete flow.
    * Cannot transition to 'done' — only completeItem can do that.
    * 'blocked' state requires non-empty stateInfo (reason why blocked).
-   * When transitioning to 'coding', sessionId is required.
    */
-  setState(id: string, status: Exclude<PlanStatus, 'done'>, stateInfo = '', sessionId?: string): PlanItem | null {
+  setState(id: string, status: Exclude<PlanStatus, 'done'>, stateInfo = ''): PlanItem | null {
     // Validate status is a valid PlanStatus (not 'done')
     const validStatuses: Exclude<PlanStatus, 'done'>[] = ['planning', 'ready', 'coding', 'review', 'blocked'];
     if (!validStatuses.includes(status)) {
@@ -577,19 +568,6 @@ export class PlanManager extends EventEmitter {
     if (status === 'blocked' && !stateInfo.trim()) {
       logger.warn(`[PlanManager] setState blocked rejected: requires stateInfo reason for ${id}`);
       return null;
-    }
-
-    // 'coding' requires sessionId — keep existing or require explicit
-    if (status === 'coding') {
-      const nextSessionId = sessionId ?? item.sessionId;
-      if (!nextSessionId) return null;
-      item.sessionId = nextSessionId;
-    } else if (status === 'review' || status === 'blocked') {
-      // Active pause states — preserve existing owner, allow explicit reassignment
-      item.sessionId = sessionId ?? item.sessionId;
-    } else {
-      // planning / ready — pre-work states, clear stale ownership
-      item.sessionId = undefined;
     }
 
     const prevStatus = item.status;

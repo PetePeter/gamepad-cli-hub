@@ -18,7 +18,6 @@ export interface McpToolDispatcherDeps {
     id: string,
     status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked',
     stateInfo?: string,
-    sessionId?: string,
   ) => unknown;
   completePlanWithValidation: (id: string, documentation: string) => unknown;
   /** Optional hook called after plan_get succeeds; used to record a read for the recap gate. */
@@ -152,7 +151,6 @@ export async function callMcpTool(
           asString(args.uuid, 'uuid is required'),
           asPlanStatus(args.status),
           typeof args.stateInfo === 'string' ? args.stateInfo : undefined,
-          typeof args.sessionId === 'string' ? args.sessionId : undefined,
         );
       case 'plan_complete':
         return completePlanWithValidation(

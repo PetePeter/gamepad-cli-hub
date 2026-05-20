@@ -276,7 +276,7 @@ async function refreshPlanCounts(): Promise<void> {
     }
 
     try {
-      const doing = await plansClient.planDoingForSession(session.id);
+      const doing = await plansClient.planDoingForSession(session.workingDir);
       if (doing.length > 0) state.planCodingCounts.set(session.id, doing.length);
       const plan = session.currentPlanId
         ? (doing.find((entry) => entry.id === session.currentPlanId) ?? doing[0])

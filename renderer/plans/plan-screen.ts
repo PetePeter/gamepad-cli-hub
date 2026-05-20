@@ -784,7 +784,7 @@ async function handleApplyFromCanvas(item: PlanItem): Promise<void> {
 
     await deliverPromptSequence(targetSessionId, `work for you to do is here: ${result.path}{Send}`);
     if (item.status === 'ready') {
-      await plansClient.planApply(item.id, targetSessionId);
+      await plansClient.planApply(item.id);
     }
 
     planScreenState.selectedId = null;

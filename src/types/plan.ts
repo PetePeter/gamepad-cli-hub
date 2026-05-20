@@ -32,8 +32,6 @@ export interface PlanItem {
   description: string;
   /** Current lifecycle status */
   status: PlanStatus;
-  /** Session ID when status is 'coding' or 'review' (which session picked it up) */
-  sessionId?: string;
   /** Extra context for blocked/question states */
   stateInfo?: string;
   /** Documentation of what was accomplished when completing this plan (required by plan_complete) */

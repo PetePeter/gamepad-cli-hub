@@ -1202,9 +1202,11 @@ describe('LocalhostMcpServer', () => {
     expect(json.error.message).toContain('could not be set to blocked');
   });
 
-  it('requires a sessionId when setting an unassigned plan to doing', async () => {
+  it('sets plan to coding without sessionId (P-0342: plans are shared)', async () => {
     const service = makeService();
-    (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'ready' });
+    const plan = { id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'ready' };
+    (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue(plan);
+    (service.setPlanState as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ ...plan, status: 'coding' });
 
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);
@@ -1221,7 +1223,8 @@ describe('LocalhostMcpServer', () => {
       },
     });
     const json = await response.json();
-    expect(json.error.message).toContain('sessionId is required');
+    expect(json.error).toBeUndefined();
+    expect(service.setPlanState).toHaveBeenCalled();
   });
 
   it('returns explicit not-found errors for session_get', async () => {
@@ -1659,15 +1662,16 @@ describe('LocalhostMcpServer', () => {
       expect(json.error.message).toContain('at least 10 characters');
     });
 
-    it('emits an in-app notification when the completed plan has a sessionId', async () => {
+    it('emits an in-app notification to the calling session on completion', async () => {
       const service = makeService();
       (service.getPlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'coding' });
-      (service.completePlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done', completionNotes: 'All tests pass', sessionId: 's1' });
+      (service.completePlan as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 'p1', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done', completionNotes: 'All tests pass' });
       (service.exportDirectory as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
         dirPath: '/proj',
         items: [{ id: 'p1', humanId: 'P-0001', dirPath: '/proj', title: 'Task', description: 'Desc', status: 'done' }],
         dependencies: [],
       });
+      (service.getSession as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ id: 's1', name: 'Claude' });
 
       const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
       servers.push(server);
@@ -1682,7 +1686,7 @@ describe('LocalhostMcpServer', () => {
           name: 'plan_complete',
           arguments: { uuid: 'p1', documentation: 'All tests pass and feature works' },
         },
-      });
+      }, { 'x-helm-session-id': 's1' });
 
       expect((service.notifyUser as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
         's1',

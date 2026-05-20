@@ -572,7 +572,7 @@ describe('PlanManager', () => {
       pm.addDependency(a.id, b.id);
 
       // Complete a
-      pm.applyItem(a.id, 'session-1');
+      pm.applyItem(a.id);
       pm.completeItem(a.id, 'Completed this task successfully');
 
       expect(pm.getItem(b.id)!.status).toBe('ready');
@@ -586,7 +586,7 @@ describe('PlanManager', () => {
       pm.addDependency(b.id, c.id);
 
       // Complete a but not b
-      pm.applyItem(a.id, 'session-1');
+      pm.applyItem(a.id);
       pm.completeItem(a.id, 'Completed this task successfully');
 
       expect(pm.getItem(c.id)!.status).toBe('planning');
@@ -600,13 +600,13 @@ describe('PlanManager', () => {
       pm.addDependency(b.id, c.id);
 
       // Complete a → b becomes startable
-      pm.applyItem(a.id, 's1');
+      pm.applyItem(a.id);
       pm.completeItem(a.id, 'Completed this task successfully');
       expect(pm.getItem(b.id)!.status).toBe('ready');
       expect(pm.getItem(c.id)!.status).toBe('planning');
 
       // Complete b → c becomes startable
-      pm.applyItem(b.id, 's1');
+      pm.applyItem(b.id);
       pm.completeItem(b.id, 'Completed this task successfully');
       expect(pm.getItem(c.id)!.status).toBe('ready');
     });
@@ -615,13 +615,12 @@ describe('PlanManager', () => {
   // ─── Lifecycle ─────────────────────────────────────────
 
   describe('applyItem', () => {
-    it('transitions startable→doing with sessionId', () => {
+    it('transitions startable→coding', () => {
       const item = pm.create('/d', 'Task', '');
-      const applied = pm.applyItem(item.id, 'session-42');
+      const applied = pm.applyItem(item.id);
 
       expect(applied).not.toBeNull();
       expect(applied!.status).toBe('coding');
-      expect(applied!.sessionId).toBe('session-42');
     });
 
     it('rejects non-startable items', () => {
@@ -630,7 +629,7 @@ describe('PlanManager', () => {
       pm.addDependency(a.id, b.id);
 
       // b is pending — cannot apply
-      expect(pm.applyItem(b.id, 'session-1')).toBeNull();
+      expect(pm.applyItem(b.id)).toBeNull();
     });
   });
 
@@ -640,7 +639,7 @@ describe('PlanManager', () => {
       const b = pm.create('/d', 'B', '');
       pm.addDependency(a.id, b.id);
 
-      pm.applyItem(a.id, 's1');
+      pm.applyItem(a.id);
       const completed = pm.completeItem(a.id, 'Completed this task successfully');
 
       expect(completed).not.toBeNull();
@@ -657,7 +656,7 @@ describe('PlanManager', () => {
     describe('completionNotes validation', () => {
       it('stores completionNotes when completing', () => {
         const item = pm.create('/d', 'Task', '');
-        pm.applyItem(item.id, 's1');
+        pm.applyItem(item.id);
         const completed = pm.completeItem(item.id, 'Built the auth middleware with JWT validation');
         expect(completed).not.toBeNull();
         expect(completed!.completionNotes).toBe('Built the auth middleware with JWT validation');
@@ -666,42 +665,42 @@ describe('PlanManager', () => {
 
       it('rejects missing completionNotes (undefined)', () => {
         const item = pm.create('/d', 'Task', '');
-        pm.applyItem(item.id, 's1');
+        pm.applyItem(item.id);
         expect(pm.completeItem(item.id, undefined)).toBeNull();
         expect(pm.getItem(item.id)!.status).toBe('coding');
       });
 
       it('rejects empty completionNotes', () => {
         const item = pm.create('/d', 'Task', '');
-        pm.applyItem(item.id, 's1');
+        pm.applyItem(item.id);
         expect(pm.completeItem(item.id, '')).toBeNull();
         expect(pm.getItem(item.id)!.status).toBe('coding');
       });
 
       it('rejects whitespace-only completionNotes', () => {
         const item = pm.create('/d', 'Task', '');
-        pm.applyItem(item.id, 's1');
+        pm.applyItem(item.id);
         expect(pm.completeItem(item.id, '   ')).toBeNull();
         expect(pm.getItem(item.id)!.status).toBe('coding');
       });
 
       it('rejects completionNotes shorter than 10 characters', () => {
         const item = pm.create('/d', 'Task', '');
-        pm.applyItem(item.id, 's1');
+        pm.applyItem(item.id);
         expect(pm.completeItem(item.id, 'Short')).toBeNull();
         expect(pm.getItem(item.id)!.status).toBe('coding');
       });
 
       it('trims completionNotes before storing', () => {
         const item = pm.create('/d', 'Task', '');
-        pm.applyItem(item.id, 's1');
+        pm.applyItem(item.id);
         const completed = pm.completeItem(item.id, '  Padded completion notes  ');
         expect(completed!.completionNotes).toBe('Padded completion notes');
       });
 
       it('persists completionNotes to disk via savePlanFile', () => {
         const item = pm.create('/d', 'Task', '');
-        pm.applyItem(item.id, 's1');
+        pm.applyItem(item.id);
         pm.completeItem(item.id, 'Persisted completion notes');
         expect(persistence.savePlanFile).toHaveBeenCalledWith(
           expect.objectContaining({ completionNotes: 'Persisted completion notes' }),
@@ -751,28 +750,24 @@ describe('PlanManager', () => {
       expect(startable[0].id).toBe(a.id);
     });
 
-    it('getDoingForSession returns items being worked on by sessionId', () => {
-      const a = pm.create('/d', 'A', '');
-      const b = pm.create('/d', 'B', '');
-      pm.applyItem(a.id, 'session-1');
-      pm.applyItem(b.id, 'session-2');
-
-      const doing = pm.getDoingForSession('session-1');
-      expect(doing).toHaveLength(1);
-      expect(doing[0].id).toBe(a.id);
-    });
-
-    it('getAllDoingForDirectory returns active plans across sessions', () => {
+    it('getAllDoingForDirectory returns active plans regardless of which session set them coding', () => {
       const a = pm.create('/d', 'A', '');
       const b = pm.create('/d', 'B', '');
       const c = pm.create('/other', 'C', '');
-      pm.applyItem(a.id, 'session-1');
-      pm.applyItem(b.id, 'session-2');
-      pm.applyItem(c.id, 'session-3');
+      pm.applyItem(a.id);
+      pm.applyItem(b.id);
+      pm.applyItem(c.id);
 
       const doing = pm.getAllDoingForDirectory('/d');
       expect(doing).toHaveLength(2);
       expect(doing.map(item => item.id)).toEqual(expect.arrayContaining([a.id, b.id]));
+    });
+
+    it('plan items do not carry a sessionId field after applyItem', () => {
+      const item = pm.create('/d', 'Task', '');
+      const applied = pm.applyItem(item.id);
+      expect(applied).not.toBeNull();
+      expect(applied!).not.toHaveProperty('sessionId');
     });
   });
 
@@ -781,7 +776,7 @@ describe('PlanManager', () => {
       const a = pm.create('/d', 'A', '');
       const b = pm.create('/d', 'B', '');
       pm.addDependency(a.id, b.id);
-      pm.applyItem(a.id, 'session-1');
+      pm.applyItem(a.id);
       pm.setState(a.id, 'blocked', 'Waiting for review');
       pm.removeDependency(a.id, b.id);
 
@@ -793,7 +788,7 @@ describe('PlanManager', () => {
       const a = pm.create('/d', 'A', '');
       const b = pm.create('/d', 'B', '');
       pm.addDependency(a.id, b.id);
-      pm.applyItem(a.id, 'session-1');
+      pm.applyItem(a.id);
       pm.setState(a.id, 'blocked', 'Need product input');
       pm.removeDependency(a.id, b.id);
 
@@ -801,33 +796,30 @@ describe('PlanManager', () => {
       expect(pm.getItem(a.id)?.stateInfo).toBe('Need product input');
     });
 
-    it('allows blocked to return to doing', () => {
+    it('allows blocked to return to coding', () => {
       const item = pm.create('/d', 'Task', '');
-      pm.applyItem(item.id, 'session-1');
+      pm.applyItem(item.id);
       pm.setState(item.id, 'blocked', 'Waiting on CI');
 
       const updated = pm.setState(item.id, 'coding');
       expect(updated).not.toBeNull();
       expect(updated?.status).toBe('coding');
-      expect(updated?.sessionId).toBe('session-1');
       expect(updated?.stateInfo).toBeUndefined();
     });
 
-    it('clears session ownership when moving back to planning or ready', () => {
+    it('allows moving back to planning or ready', () => {
       const blocker = pm.create('/d', 'Blocker', '');
       const item = pm.create('/d', 'Task', '');
       pm.addDependency(blocker.id, item.id);
-      pm.setState(item.id, 'coding', '', 'session-1');
+      pm.setState(item.id, 'coding');
 
       const planning = pm.setState(item.id, 'planning');
       expect(planning?.status).toBe('planning');
-      expect(planning?.sessionId).toBeUndefined();
 
       const readyItem = pm.create('/d', 'Ready task', '');
-      pm.setState(readyItem.id, 'coding', '', 'session-2');
+      pm.setState(readyItem.id, 'coding');
       const ready = pm.setState(readyItem.id, 'ready');
       expect(ready?.status).toBe('ready');
-      expect(ready?.sessionId).toBeUndefined();
     });
 
     it('preserves an explicit planning state even when dependencies are satisfied', () => {
@@ -839,44 +831,29 @@ describe('PlanManager', () => {
       expect(pm.getItem(item.id)?.status).toBe('planning');
     });
 
-    it('allows a startable planning item to move to coding with a session', () => {
+    it('allows a startable planning item to move to coding', () => {
       const item = pm.create('/d', 'Task', '');
       pm.setState(item.id, 'planning');
 
-      const coding = pm.setState(item.id, 'coding', '', 'session-1');
+      const coding = pm.setState(item.id, 'coding');
 
       expect(coding?.status).toBe('coding');
-      expect(coding?.sessionId).toBe('session-1');
     });
 
-    it('preserves existing session ownership for review and blocked', () => {
+    it('transitions through review and blocked states', () => {
       const item = pm.create('/d', 'Task', '');
-      pm.applyItem(item.id, 'session-1');
+      pm.applyItem(item.id);
 
       const review = pm.setState(item.id, 'review');
       expect(review?.status).toBe('review');
-      expect(review?.sessionId).toBe('session-1');
 
       const blocked = pm.setState(item.id, 'blocked', 'Waiting on review');
       expect(blocked?.status).toBe('blocked');
-      expect(blocked?.sessionId).toBe('session-1');
-    });
-
-    it('does not assign review or blocked ownership without an explicit session', () => {
-      const item = pm.create('/d', 'Task', '');
-
-      const blocked = pm.setState(item.id, 'blocked', 'Waiting on decision');
-      expect(blocked?.status).toBe('blocked');
-      expect(blocked?.sessionId).toBeUndefined();
-
-      const review = pm.setState(item.id, 'review');
-      expect(review?.status).toBe('review');
-      expect(review?.sessionId).toBeUndefined();
     });
 
     it('rejects done to pending', () => {
       const item = pm.create('/d', 'Task', '');
-      pm.applyItem(item.id, 'session-1');
+      pm.applyItem(item.id);
       pm.completeItem(item.id, 'Completed this task successfully');
 
       expect(pm.setState(item.id, 'planning')).toBeNull();
@@ -944,14 +921,14 @@ describe('PlanManager', () => {
       const handler = vi.fn();
       pm.on('plan:changed', handler);
 
-      pm.applyItem(item.id, 's1');
+      pm.applyItem(item.id);
 
       expect(handler).toHaveBeenCalledWith('/d');
     });
 
     it('emits plan:changed on completeItem', () => {
       const item = pm.create('/d', 'Task', '');
-      pm.applyItem(item.id, 's1');
+      pm.applyItem(item.id);
       const handler = vi.fn();
       pm.on('plan:changed', handler);
 
@@ -1062,7 +1039,7 @@ describe('PlanManager', () => {
       expect(pm.getItem(y.id)!.status).toBe('planning');
       expect(pm.getItem(z.id)!.status).toBe('planning');
 
-      pm.applyItem(blocker.id, 's1');
+      pm.applyItem(blocker.id);
       pm.completeItem(blocker.id, 'Completed this task successfully');
 
       expect(pm.getItem(x.id)!.status).toBe('ready');
@@ -1082,11 +1059,11 @@ describe('PlanManager', () => {
 
     it('deletes only done items, leaves non-done items', () => {
       const done1 = pm.create('/proj', 'Done1', '');
-      pm.applyItem(done1.id, 's1');
+      pm.applyItem(done1.id);
       pm.completeItem(done1.id, 'Completed this task successfully');
 
       const doing1 = pm.create('/proj', 'Doing1', '');
-      pm.applyItem(doing1.id, 's2');
+      pm.applyItem(doing1.id);
 
       const startable1 = pm.create('/proj', 'Startable1', '');
 
@@ -1099,11 +1076,11 @@ describe('PlanManager', () => {
 
     it('returns count of deleted items', () => {
       const a = pm.create('/proj', 'A', '');
-      pm.applyItem(a.id, 's1');
+      pm.applyItem(a.id);
       pm.completeItem(a.id, 'Completed this task successfully');
 
       const b = pm.create('/proj', 'B', '');
-      pm.applyItem(b.id, 's2');
+      pm.applyItem(b.id);
       pm.completeItem(b.id, 'Completed this task successfully');
 
       pm.create('/proj', 'C', '');
@@ -1114,7 +1091,7 @@ describe('PlanManager', () => {
     it('returns 0 when no done items exist', () => {
       pm.create('/proj', 'Active', '');
       const doing = pm.create('/proj', 'Doing', '');
-      pm.applyItem(doing.id, 's1');
+      pm.applyItem(doing.id);
 
       expect(pm.deleteCompletedForDirectory('/proj')).toBe(0);
     });
@@ -1125,7 +1102,7 @@ describe('PlanManager', () => {
 
     it('emits plan:changed event', () => {
       const item = pm.create('/proj', 'Task', '');
-      pm.applyItem(item.id, 's1');
+      pm.applyItem(item.id);
       pm.completeItem(item.id, 'Completed this task successfully');
 
       const handler = vi.fn();
@@ -1138,11 +1115,11 @@ describe('PlanManager', () => {
 
     it('does not delete done items in other directories', () => {
       const inTarget = pm.create('/proj', 'Target', '');
-      pm.applyItem(inTarget.id, 's1');
+      pm.applyItem(inTarget.id);
       pm.completeItem(inTarget.id, 'Completed this task successfully');
 
       const inOther = pm.create('/other', 'Other', '');
-      pm.applyItem(inOther.id, 's2');
+      pm.applyItem(inOther.id);
       pm.completeItem(inOther.id, 'Completed this task successfully');
 
       pm.deleteCompletedForDirectory('/proj');

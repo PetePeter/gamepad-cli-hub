@@ -634,9 +634,9 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   planRemoveDep: (fromId: string, toId: string) =>
     ipcRenderer.invoke('plan:removeDep', fromId, toId),
 
-  /** Apply a ready plan to a session (ready → coding) */
-  planApply: (id: string, sessionId: string) =>
-    ipcRenderer.invoke('plan:apply', id, sessionId),
+  /** Apply a ready plan to coding state (ready → coding) */
+  planApply: (id: string) =>
+    ipcRenderer.invoke('plan:apply', id),
 
   /** Mark a coding or review plan as complete (coding/review → done) */
   planComplete: (id: string, completionNotes?: string) =>
@@ -651,16 +651,15 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     id: string,
     status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked' | 'done',
     stateInfo?: string,
-    sessionId?: string,
-  ) => ipcRenderer.invoke('plan:setState', id, status, stateInfo, sessionId),
+  ) => ipcRenderer.invoke('plan:setState', id, status, stateInfo),
 
   /** Get ready plans for a directory */
   planStartableForDir: (dirPath: string) =>
     ipcRenderer.invoke('plan:startableForDir', dirPath),
 
-  /** Get plans currently being worked on by a session */
-  planDoingForSession: (sessionId: string) =>
-    ipcRenderer.invoke('plan:doingForSession', sessionId),
+  /** Get plans currently active (coding/review/blocked) in a directory */
+  planDoingForSession: (dirPath: string) =>
+    ipcRenderer.invoke('plan:doingForSession', dirPath),
 
   /** Get all active plans for a directory across sessions */
   planGetAllDoingForDir: (dirPath: string) =>

@@ -273,9 +273,8 @@ export class HelmControlService extends EventEmitter {
     id: string,
     status: Exclude<PlanStatus, 'done'>,
     stateInfo?: string,
-    sessionId?: string,
   ): PlanItem | null {
-    return this.planService.setPlanState(id, status, stateInfo, sessionId);
+    return this.planService.setPlanState(id, status, stateInfo);
   }
 
   linkPlans(fromId: string, toId: string): void {

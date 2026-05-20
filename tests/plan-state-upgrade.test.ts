@@ -65,7 +65,7 @@ describe('Plan State Upgrade (P-0035)', () => {
       expect(isStartable(bBlocked, pm.exportAll()['/d'].dependencies ?? [], pm.exportAll()['/d'].items ?? [])).toBe(false);
 
       // Complete a — now b should become ready
-      pm.applyItem(a.id, 's1');
+      pm.applyItem(a.id);
       pm.completeItem(a.id, 'Completed this task successfully');
 
       const bReady = pm.getItem(b.id)!;
@@ -98,7 +98,7 @@ describe('Plan State Upgrade (P-0035)', () => {
       expect(bItem.status).toBe('planning');
 
       // Complete a → b becomes ready
-      pm.applyItem(a.id, 's1');
+      pm.applyItem(a.id);
       pm.completeItem(a.id, 'Completed this task successfully');
 
       bItem = pm.getItem(b.id)!;
@@ -109,16 +109,15 @@ describe('Plan State Upgrade (P-0035)', () => {
       const item = pm.create('/d', 'Task', '');
       pm.setState(item.id, 'ready');
 
-      const result = pm.setState(item.id, 'coding', '', 'agent-session-1');
+      const result = pm.setState(item.id, 'coding');
       expect(result).not.toBeNull();
       expect(result!.status).toBe('coding');
-      expect(result!.sessionId).toBe('agent-session-1');
     });
 
     it('coding → review (agent marks for review)', () => {
       const item = pm.create('/d', 'Task', '');
       pm.setState(item.id, 'ready');
-      pm.setState(item.id, 'coding', '', 'agent-session-1');
+      pm.setState(item.id, 'coding');
 
       const result = pm.setState(item.id, 'review');
       expect(result).not.toBeNull();
@@ -128,7 +127,7 @@ describe('Plan State Upgrade (P-0035)', () => {
     it('review → done (human approves via plan_complete only)', () => {
       const item = pm.create('/d', 'Task', '');
       pm.setState(item.id, 'ready');
-      pm.setState(item.id, 'coding', '', 'agent-session-1');
+      pm.setState(item.id, 'coding');
       pm.setState(item.id, 'review');
 
       // setState should NOT allow direct transition to done
@@ -224,7 +223,7 @@ describe('Plan State Upgrade (P-0035)', () => {
     it('only plan_complete can reach done state', () => {
       const item = pm.create('/d', 'Task', '');
       pm.setState(item.id, 'ready');
-      pm.setState(item.id, 'coding', '', 'agent-session-1');
+      pm.setState(item.id, 'coding');
       pm.setState(item.id, 'review');
 
       // Try direct transition via setState — should fail
@@ -286,7 +285,6 @@ describe('Plan State Upgrade (P-0035)', () => {
         title: 'Old Plan',
         description: 'Legacy',
         status: 'doing',
-        sessionId: 's1',
         createdAt: 100,
         updatedAt: 101,
       } as PlanItem);
@@ -295,7 +293,6 @@ describe('Plan State Upgrade (P-0035)', () => {
 
       const item = pm.getItem('old-id')!;
       expect(item.status).toBe('coding');
-      expect(item.sessionId).toBe('s1');
     });
 
     it('migrates wait-tests → review on load', () => {
@@ -306,7 +303,6 @@ describe('Plan State Upgrade (P-0035)', () => {
         title: 'Old Plan',
         description: 'Legacy',
         status: 'wait-tests',
-        sessionId: 's1',
         createdAt: 100,
         updatedAt: 101,
       } as PlanItem);
@@ -315,7 +311,6 @@ describe('Plan State Upgrade (P-0035)', () => {
 
       const item = pm.getItem('old-id')!;
       expect(item.status).toBe('review');
-      expect(item.sessionId).toBe('s1');
     });
 
     it('migrates question → blocked (preserves original stateInfo) on load', () => {
@@ -404,7 +399,7 @@ describe('Plan State Upgrade (P-0035)', () => {
       expect(pm.getItem(b.id)!.status).toBe('planning');
 
       // Complete a
-      pm.applyItem(a.id, 's1');
+      pm.applyItem(a.id);
       pm.completeItem(a.id, 'Completed this task successfully');
 
       // b should now be ready (all deps done)
@@ -422,14 +417,14 @@ describe('Plan State Upgrade (P-0035)', () => {
       expect(pm.getItem(c.id)!.status).toBe('planning');
 
       // Complete A
-      pm.applyItem(a.id, 's1');
+      pm.applyItem(a.id);
       pm.completeItem(a.id, 'Completed this task successfully');
 
       expect(pm.getItem(b.id)!.status).toBe('ready');
       expect(pm.getItem(c.id)!.status).toBe('planning'); // Still blocked by B
 
       // Complete B
-      pm.applyItem(b.id, 's1');
+      pm.applyItem(b.id);
       pm.completeItem(b.id, 'Completed this task successfully');
 
       expect(pm.getItem(c.id)!.status).toBe('ready');

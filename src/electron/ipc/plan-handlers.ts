@@ -111,9 +111,8 @@ export function setupPlanHandlers(
     return planManager.removeDependency(fromId, toId);
   });
 
-  ipcMain.handle('plan:apply', (_event, id: string, sessionId: string) => {
-    // Apply transitions a ready plan to coding state (ready → coding)
-    return planManager.applyItem(id, sessionId);
+  ipcMain.handle('plan:apply', (_event, id: string) => {
+    return planManager.applyItem(id);
   });
 
   ipcMain.handle('plan:complete', (_event, id: string, completionNotes?: string) => {
@@ -126,8 +125,8 @@ export function setupPlanHandlers(
 
   ipcMain.handle(
     'plan:setState',
-    (_event, id: string, status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked', stateInfo?: string, sessionId?: string) => {
-      return planManager.setState(id, status, stateInfo, sessionId);
+    (_event, id: string, status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked', stateInfo?: string) => {
+      return planManager.setState(id, status, stateInfo);
     },
   );
 
@@ -135,8 +134,8 @@ export function setupPlanHandlers(
     return planManager.getStartableForDirectory(dirPath);
   });
 
-  ipcMain.handle('plan:doingForSession', (_event, sessionId: string) => {
-    return planManager.getDoingForSession(sessionId);
+  ipcMain.handle('plan:doingForSession', (_event, dirPath: string) => {
+    return planManager.getAllDoingForDirectory(dirPath);
   });
 
   ipcMain.handle('plan:getAllDoingForDir', (_event, dirPath: string) => {

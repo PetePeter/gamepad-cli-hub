@@ -1147,7 +1147,7 @@ describe('plan screen bridge', () => {
 
     expect(mockWriteTempContent).toHaveBeenCalledWith('Alpha');
     expect(mockDeliverPromptSequence).toHaveBeenCalledWith('session-1', 'work for you to do is here: /tmp/helm-work.txt{Send}');
-    expect(mockPlanApply).toHaveBeenCalledWith('a', 'session-1');
+    expect(mockPlanApply).toHaveBeenCalledWith('a');
   });
 
   it('opens the editor in done mode from the canvas Done action', async () => {

@@ -243,14 +243,9 @@ export class LocalhostMcpServer {
     id: string,
     status: 'planning' | 'ready' | 'coding' | 'review' | 'blocked',
     stateInfo?: string,
-    sessionId?: string,
   ): unknown {
-    const current = requireResult(this.service.getPlan(id), `Plan not found: ${id}`);
-    if (status === 'coding' && !sessionId && !current.sessionId) {
-      throw new Error('sessionId is required when setting a plan to coding unless it is already assigned to a session');
-    }
     return requireResult(
-      this.service.setPlanState(id, status, stateInfo, sessionId),
+      this.service.setPlanState(id, status, stateInfo),
       `Plan ${id} could not be set to ${status} from its current state`,
     );
   }
@@ -263,9 +258,9 @@ export class LocalhostMcpServer {
 
     // Completion recap gate — runs when plan has completionRecap: true
     if (current.completionRecap) {
-      const codingSessionId = current.sessionId ?? authContext.sessionId;
-      if (codingSessionId) {
-        const readRecord = this.planReadTracker.getRead(id, codingSessionId);
+      const callingSessionId = authContext.sessionId;
+      if (callingSessionId) {
+        const readRecord = this.planReadTracker.getRead(id, callingSessionId);
         const now = Date.now();
         const humanId = current.humanId ?? id;
 
@@ -298,9 +293,9 @@ export class LocalhostMcpServer {
       }));
     const autoFollowUpPlans = followUpPlans.filter((item) => item.autoImplement && item.status === 'ready');
 
-    if (completed.sessionId) {
+    if (authContext.sessionId) {
       try {
-        this.service.notifyUser(completed.sessionId, `Plan completed — ${completed.title}`, documentation);
+        this.service.notifyUser(authContext.sessionId, `Plan completed — ${completed.title}`, documentation);
       } catch {
         // Notification mode may not be 'llm'; ignore rather than fail the completion
       }

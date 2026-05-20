@@ -129,11 +129,10 @@ export class HelmPlanService {
     id: string,
     status: Exclude<PlanStatus, 'done'>,
     stateInfo?: string,
-    sessionId?: string,
   ): PlanItem | null {
-    logger.info(`[MCP:Service] setPlanState id=${id} status=${status} sessionId=${sessionId ?? '-'}`);
+    logger.info(`[MCP:Service] setPlanState id=${id} status=${status}`);
     const plan = this.resolvePlanRef(id, 'Plan');
-    return plan ? this.planManager.setState(plan.item.id, status, stateInfo, sessionId) : null;
+    return plan ? this.planManager.setState(plan.item.id, status, stateInfo) : null;
   }
 
   linkPlans(fromId: string, toId: string): void {

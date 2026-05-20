@@ -190,11 +190,10 @@ describe('plan IPC handlers', () => {
 
   // ─── Lifecycle ─────────────────────────────────────────
 
-  it('plan:apply transitions ready → coding with sessionId', async () => {
+  it('plan:apply transitions ready → coding', async () => {
     const item = await handlers.get('plan:create')!({}, '/proj', 'Task', '');
-    const applied = await handlers.get('plan:apply')!({}, item.id, 'sess-42');
+    const applied = await handlers.get('plan:apply')!({}, item.id);
     expect(applied.status).toBe('coding');
-    expect(applied.sessionId).toBe('sess-42');
   });
 
   it('plan:apply returns null for non-startable item', async () => {
@@ -203,13 +202,13 @@ describe('plan IPC handlers', () => {
     await handlers.get('plan:addDep')!({}, a.id, b.id);
 
     // B is pending (blocked by A), cannot apply
-    const result = await handlers.get('plan:apply')!({}, b.id, 'sess-1');
+    const result = await handlers.get('plan:apply')!({}, b.id);
     expect(result).toBeNull();
   });
 
   it('plan:complete transitions doing → done', async () => {
     const item = await handlers.get('plan:create')!({}, '/proj', 'Task', '');
-    await handlers.get('plan:apply')!({}, item.id, 'sess-1');
+    await handlers.get('plan:apply')!({}, item.id);
     const completed = await handlers.get('plan:complete')!({}, item.id, 'Completed this task successfully');
     expect(completed.status).toBe('done');
     expect(completed.completionNotes).toBe('Completed this task successfully');
@@ -224,9 +223,9 @@ describe('plan IPC handlers', () => {
 
   it('plan:setState updates status and stateInfo', async () => {
     const item = await handlers.get('plan:create')!({}, '/proj', 'Task', '');
-    await handlers.get('plan:apply')!({}, item.id, 'sess-1');
+    await handlers.get('plan:apply')!({}, item.id);
 
-    const updated = await handlers.get('plan:setState')!({}, item.id, 'blocked', 'Waiting on API', 'sess-1');
+    const updated = await handlers.get('plan:setState')!({}, item.id, 'blocked', 'Waiting on API');
     expect(updated.status).toBe('blocked');
     expect(updated.stateInfo).toBe('Waiting on API');
   });
@@ -255,25 +254,26 @@ describe('plan IPC handlers', () => {
     expect(startable[0].id).toBe(a.id);
   });
 
-  it('plan:doingForSession returns items assigned to a session', async () => {
+  it('plan:doingForSession returns active plans for the directory', async () => {
     const item = await handlers.get('plan:create')!({}, '/proj', 'Working', '');
-    await handlers.get('plan:apply')!({}, item.id, 'sess-99');
+    await handlers.get('plan:apply')!({}, item.id);
 
-    const doing = await handlers.get('plan:doingForSession')!({}, 'sess-99');
+    const doing = await handlers.get('plan:doingForSession')!({}, '/proj');
     expect(doing).toHaveLength(1);
     expect(doing[0].title).toBe('Working');
   });
 
-  it('plan:doingForSession returns empty array for unknown session', async () => {
-    const doing = await handlers.get('plan:doingForSession')!({}, 'nobody');
+  it('plan:doingForSession returns empty array for directory with no active plans', async () => {
+    await handlers.get('plan:create')!({}, '/proj', 'Pending', '');
+    const doing = await handlers.get('plan:doingForSession')!({}, '/proj');
     expect(doing).toHaveLength(0);
   });
 
-  it('plan:getAllDoingForDir returns active plans across sessions', async () => {
+  it('plan:getAllDoingForDir returns active plans', async () => {
     const first = await handlers.get('plan:create')!({}, '/proj', 'First', '');
     const second = await handlers.get('plan:create')!({}, '/proj', 'Second', '');
-    await handlers.get('plan:apply')!({}, first.id, 'sess-1');
-    await handlers.get('plan:apply')!({}, second.id, 'sess-2');
+    await handlers.get('plan:apply')!({}, first.id);
+    await handlers.get('plan:apply')!({}, second.id);
 
     const doing = await handlers.get('plan:getAllDoingForDir')!({}, '/proj');
     expect(doing).toHaveLength(2);
@@ -292,7 +292,7 @@ describe('plan IPC handlers', () => {
     expect(bItem.status).toBe('planning');
 
     // Complete A → B becomes ready
-    await handlers.get('plan:apply')!({}, a.id, 'sess-1');
+    await handlers.get('plan:apply')!({}, a.id);
     await handlers.get('plan:complete')!({}, a.id, 'Completed this task successfully');
 
     bItem = (await handlers.get('plan:list')!({}, '/proj')).find((i: any) => i.id === b.id);
