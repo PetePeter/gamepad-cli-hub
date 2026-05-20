@@ -242,7 +242,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
         this.sessionManager.updateSession(session.id, { interactionChannel: 'telegram' });
         text = TELEGRAM_MODE_INSTRUCTIONS + '\n\n' + wrapped;
       }
-      const verification = await deliverPromptSequenceToSession({
+      await deliverPromptSequenceToSession({
         sessionId: session.id,
         text,
         ptyManager: this.ptyManager,
@@ -252,9 +252,10 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
           label: 'telegram message',
           delayMs: 4000,
           retrySubmit: true,
+          background: true,
+          onComplete: (result) => void this.warnIfDeliveryUnconfirmed(session.id, topicId, result),
         },
       });
-      await this.warnIfDeliveryUnconfirmed(session.id, topicId, verification);
       logger.info(`[TelegramRelay] Injected user message to session ${session.id}`);
       return true;
     }
@@ -263,7 +264,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     const active = this.sessionManager.getActiveSession();
     if (active) {
       const wrapped = wrapTelegramEnvelope(this.resolveTelegramTextPayload(active, msg.text), from, chatId);
-      const verification = await deliverPromptSequenceToSession({
+      await deliverPromptSequenceToSession({
         sessionId: active.id,
         text: wrapped,
         ptyManager: this.ptyManager,
@@ -273,9 +274,10 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
           label: 'telegram message',
           delayMs: 4000,
           retrySubmit: true,
+          background: true,
+          onComplete: (result) => void this.warnIfDeliveryUnconfirmed(active.id, topicId, result),
         },
       });
-      await this.warnIfDeliveryUnconfirmed(active.id, topicId, verification);
       logger.info(`[TelegramRelay] Injected user message to active session ${active.id} (unmapped topic ${topicId})`);
       return true;
     }
@@ -295,73 +297,76 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
 
   /**
    * Handle a Telegram message containing an attachment (photo, document, video, voice).
-   * Downloads the file to disk and delivers a metadata envelope to the CLI session.
+   * Resolves the target session synchronously, then fires download + transcribe + deliver
+   * in a background task so the Telegram polling loop is not blocked by IO.
    */
   async handleIncomingAttachment(msg: TelegramBot.Message): Promise<boolean> {
     const attachment = extractAttachmentInfo(msg);
     if (!attachment) return false;
 
+    // Resolve target session before any IO so we can reject early without downloading.
+    const topicId = msg.message_thread_id;
+    const session = topicId ? this.topicManager.findSessionByTopicId(topicId) : undefined;
+    const targetSession = session ?? this.sessionManager.getActiveSession();
+    if (!targetSession) return false;
+
     const destDir = path.join(process.env.APPDATA || process.env.HOME || '.', 'Helm', 'tmp', 'telegram-attachments');
-
-    const filePath = await this.telegramBot.downloadFile(attachment.fileId, destDir, attachment.fileName);
-    if (!this.isValidDownloadedFile(filePath)) {
-      logger.warn(`[TelegramRelay] Failed to download attachment: ${attachment.fileId}; path=${filePath ?? 'null'}`);
-      return false;
-    }
-
     const from = msg.from?.username ? `@${msg.from.username}` : 'unknown';
     const chatId = msg.chat.id;
     const caption = attachment.caption || '';
     const fileSize = attachment.fileSize ?? 0;
-    const transcription = await this.transcribeAttachmentIfAudio(attachment.type, filePath, attachment.mimeType);
 
-    const envelope = [
-      `[HELM_TELEGRAM_ATTACHMENT${from === 'unknown' ? '' : ` from:${from}`} chat:${chatId}]`,
-      `type: ${attachment.type}`,
-      `file_name: ${attachment.fileName}`,
-      `file_path: ${filePath}`,
-      `file_size: ${fileSize}`,
-      `mime_type: ${attachment.mimeType}`,
-      ...(transcription ? [
-        `transcription_path: ${transcription.transcriptPath}`,
-        `transcription_text: ${oneLine(transcription.text)}`,
-      ] : []),
-      ...(caption ? [`caption: ${caption}`] : []),
-      `[/HELM_TELEGRAM_ATTACHMENT]`,
-      `Respond via telegram_chat MCP tool.`,
-    ].join('\n');
+    // Fire download + transcribe + deliver in the background.
+    void (async () => {
+      const filePath = await this.telegramBot.downloadFile(attachment.fileId, destDir, attachment.fileName);
+      if (!this.isValidDownloadedFile(filePath)) {
+        logger.warn(`[TelegramRelay] Failed to download attachment: ${attachment.fileId}; path=${filePath ?? 'null'}`);
+        return;
+      }
 
-    // Find session by topic mapping
-    const topicId = msg.message_thread_id;
-    const session = topicId
-      ? this.topicManager.findSessionByTopicId(topicId)
-      : undefined;
+      const transcription = await this.transcribeAttachmentIfAudio(attachment.type, filePath, attachment.mimeType);
 
-    const targetSession = session ?? this.sessionManager.getActiveSession();
-    if (!targetSession) return false;
+      const envelope = [
+        `[HELM_TELEGRAM_ATTACHMENT${from === 'unknown' ? '' : ` from:${from}`} chat:${chatId}]`,
+        `type: ${attachment.type}`,
+        `file_name: ${attachment.fileName}`,
+        `file_path: ${filePath}`,
+        `file_size: ${fileSize}`,
+        `mime_type: ${attachment.mimeType}`,
+        ...(transcription ? [
+          `transcription_path: ${transcription.transcriptPath}`,
+          `transcription_text: ${oneLine(transcription.text)}`,
+        ] : []),
+        ...(caption ? [`caption: ${caption}`] : []),
+        `[/HELM_TELEGRAM_ATTACHMENT]`,
+        `Respond via telegram_chat MCP tool.`,
+      ].join('\n');
 
-    // Set channel affinity and inject first-contact instructions
-    let text = envelope;
-    if (targetSession.interactionChannel !== 'telegram') {
-      this.sessionManager.updateSession(targetSession.id, { interactionChannel: 'telegram' });
-      text = TELEGRAM_MODE_INSTRUCTIONS + '\n\n' + envelope;
-    }
+      let text = envelope;
+      if (targetSession.interactionChannel !== 'telegram') {
+        this.sessionManager.updateSession(targetSession.id, { interactionChannel: 'telegram' });
+        text = TELEGRAM_MODE_INSTRUCTIONS + '\n\n' + envelope;
+      }
 
-    const verification = await deliverPromptSequenceToSession({
-      sessionId: targetSession.id,
-      text,
-      ptyManager: this.ptyManager,
-      sessionManager: this.sessionManager,
-      configLoader: this.configLoader,
-      verifyDelivery: {
-        label: 'telegram attachment',
-        delayMs: 4000,
-        retrySubmit: true,
-      },
+      await deliverPromptSequenceToSession({
+        sessionId: targetSession.id,
+        text,
+        ptyManager: this.ptyManager,
+        sessionManager: this.sessionManager,
+        configLoader: this.configLoader,
+        verifyDelivery: {
+          label: 'telegram attachment',
+          delayMs: 4000,
+          retrySubmit: true,
+          background: true,
+          onComplete: (result) => void this.warnIfDeliveryUnconfirmed(targetSession.id, topicId, result),
+        },
+      });
+      logger.info(`[TelegramRelay] Injected attachment (${attachment.type}) to session ${targetSession.id}: ${filePath}`);
+    })().catch((err) => {
+      logger.warn(`[TelegramRelay] Attachment processing error for ${targetSession.id}: ${err}`);
     });
-    await this.warnIfDeliveryUnconfirmed(targetSession.id, topicId, verification);
 
-    logger.info(`[TelegramRelay] Injected attachment (${attachment.type}) to session ${targetSession.id}: ${filePath}`);
     return true;
   }
 

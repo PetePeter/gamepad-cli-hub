@@ -159,7 +159,7 @@ export function registerIPCHandlers(
   );
 
   const cleanupSession = setupSessionHandlers(sessionManager, ptyManager, draftManager, windowManager, configLoader);
-  setupConfigHandlers(configLoader, localhostMcpServer);
+  setupConfigHandlers(configLoader, localhostMcpServer, projectStore);
   setupEditorHandlers(configLoader);
   setupToolsHandlers(configLoader);
   setupKeyboardHandlers(keyboard);

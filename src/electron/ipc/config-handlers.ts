@@ -9,9 +9,10 @@ import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { type ConfigLoader, type PlanFilterConfig, type EditorPrefs } from '../../config/loader.js';
 import type { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
+import type { ProjectStore } from '../../session/project-store.js';
 import { logger } from '../../utils/logger.js';
 
-export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServer?: LocalhostMcpServer): void {
+export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServer?: LocalhostMcpServer, projectStore?: ProjectStore): void {
   ipcMain.handle('config:getAll', () => {
     try {
       configLoader.load();
@@ -115,7 +116,15 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
 
   ipcMain.handle('config:getWorkingDirs', () => {
     try {
-      return configLoader.getWorkingDirectories();
+      const configured = configLoader.getWorkingDirectories();
+      if (!projectStore) return configured;
+      const configuredPaths = new Set(configured.map((d) => d.path.toLowerCase()));
+      const extras = projectStore.list().flatMap((record) =>
+        record.alternatePaths
+          .filter((p) => !configuredPaths.has(p.toLowerCase()))
+          .map((p) => ({ name: p.split(/[/\\]/).pop() ?? p, path: p })),
+      );
+      return extras.length > 0 ? [...configured, ...extras] : configured;
     } catch (error) {
       logger.error(`[IPC] Failed to get working dirs: ${error}`);
       return [];

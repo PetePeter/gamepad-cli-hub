@@ -4,6 +4,7 @@ import type { ConfigLoader } from '../config/loader.js';
 import type { PtyManager } from './pty-manager.js';
 import type { SessionManager } from './manager.js';
 import type { DeliveryContext, TextDeliveryOptions } from './delivery-context.js';
+import { logger } from '../utils/logger.js';
 import {
   captureDeliverySnapshot,
   verifyDeliveryAfterDelay,
@@ -110,6 +111,9 @@ export async function deliverPromptSequenceToSession(input: {
     label?: string;
     delayMs?: number;
     retrySubmit?: boolean;
+    /** Run verification in background — returns undefined immediately, calls onComplete when done. */
+    background?: boolean;
+    onComplete?: (result: DeliveryVerificationResult) => void;
   };
 }): Promise<DeliveryVerificationResult | undefined> {
   const { sessionId, text, ptyManager, sessionManager, configLoader, impliedSubmit, deliveryContext, verifyDelivery } = input;
@@ -145,7 +149,7 @@ export async function deliverPromptSequenceToSession(input: {
   if (!verifyDelivery) return undefined;
 
   const deliveredAt = Date.now();
-  return verifyDeliveryAfterDelay({
+  const verifyRequest = {
     sessionId,
     text,
     ptyManager,
@@ -154,5 +158,14 @@ export async function deliverPromptSequenceToSession(input: {
     label: verifyDelivery.label,
     delayMs: verifyDelivery.delayMs,
     retrySubmit: verifyDelivery.retrySubmit ?? true,
-  }, beforeVerification, deliveredAt);
+  };
+
+  if (verifyDelivery.background) {
+    verifyDeliveryAfterDelay(verifyRequest, beforeVerification, deliveredAt)
+      .then((result) => verifyDelivery.onComplete?.(result))
+      .catch((err) => logger.warn(`[SequenceDelivery] Background verification error for ${sessionId}: ${err}`));
+    return undefined;
+  }
+
+  return verifyDeliveryAfterDelay(verifyRequest, beforeVerification, deliveredAt);
 }

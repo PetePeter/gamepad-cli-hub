@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TelegramRelayService } from '../src/telegram/relay-service.js';
 import * as fs from 'fs';
 import { closeSync, mkdtempSync, openSync, readFileSync, rmSync } from 'fs';
@@ -316,6 +316,11 @@ describe('TelegramRelayService', () => {
   });
 
   describe('incoming attachments', () => {
+    // Attachment handling is fire-and-forget — use fake timers so vi.runAllTimersAsync()
+    // can flush the background promise chain (including the 200ms submit delay).
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
     it('photo message downloads file and delivers envelope with file_path', async () => {
       const { relay, bot, ptyManager } = makeRelay();
       const filePath = tempAttachmentPath('photo_77.jpg');
@@ -333,6 +338,8 @@ describe('TelegramRelayService', () => {
       } as any);
 
       expect(consumed).toBe(true);
+      await vi.runAllTimersAsync();
+
       expect(bot.downloadFile).toHaveBeenCalledWith('large', expect.stringContaining('telegram-attachments'), 'photo_77.jpg');
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('[HELM_TELEGRAM_ATTACHMENT from:@testuser'));
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('type: photo'));
@@ -360,6 +367,8 @@ describe('TelegramRelayService', () => {
       } as any);
 
       expect(consumed).toBe(true);
+      await vi.runAllTimersAsync();
+
       expect(bot.downloadFile).toHaveBeenCalledWith('doc1', expect.stringContaining('telegram-attachments'), 'report.pdf');
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('type: document'));
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('file_name: report.pdf'));
@@ -386,6 +395,8 @@ describe('TelegramRelayService', () => {
       } as any);
 
       expect(consumed).toBe(true);
+      await vi.runAllTimersAsync();
+
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('type: video'));
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('file_name: clip.mp4'));
       rmSync(path.dirname(filePath), { recursive: true, force: true });
@@ -409,6 +420,8 @@ describe('TelegramRelayService', () => {
       } as any);
 
       expect(consumed).toBe(true);
+      await vi.runAllTimersAsync();
+
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('type: voice'));
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('mime_type: audio/ogg'));
       rmSync(path.dirname(filePath), { recursive: true, force: true });
@@ -449,6 +462,8 @@ describe('TelegramRelayService', () => {
       } as any);
 
       expect(consumed).toBe(true);
+      await vi.runAllTimersAsync();
+
       expect(transcriber.transcribe).toHaveBeenCalledWith(filePath, 'audio/ogg');
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining(`transcription_path: ${transcriptPath}`));
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('transcription_text: ship the tiny audio bridge'));
@@ -470,6 +485,8 @@ describe('TelegramRelayService', () => {
       } as any);
 
       expect(consumed).toBe(true);
+      await vi.runAllTimersAsync();
+
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('caption: Here is a screenshot'));
       rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
@@ -492,8 +509,8 @@ describe('TelegramRelayService', () => {
       rmSync(path.dirname(filePath), { recursive: true, force: true });
     });
 
-    it('returns false when download fails', async () => {
-      const { relay, bot } = makeRelay();
+    it('returns true but does not deliver when download fails', async () => {
+      const { relay, bot, ptyManager } = makeRelay();
       bot.downloadFile.mockResolvedValue(null);
 
       const consumed = await relay.handleIncomingTelegramMessage({
@@ -504,10 +521,12 @@ describe('TelegramRelayService', () => {
         photo: [{ file_id: 'p1', file_size: 1000 }],
       } as any);
 
-      expect(consumed).toBe(false);
+      expect(consumed).toBe(true); // message claimed; download failure is handled internally
+      await vi.runAllTimersAsync();
+      expect(ptyManager.deliverText).not.toHaveBeenCalled();
     });
 
-    it('returns false when download path is empty', async () => {
+    it('returns true but does not deliver when download path is empty', async () => {
       const { relay, bot, ptyManager } = makeRelay();
       bot.downloadFile.mockResolvedValue('');
 
@@ -519,11 +538,12 @@ describe('TelegramRelayService', () => {
         photo: [{ file_id: 'p1', file_size: 1000 }],
       } as any);
 
-      expect(consumed).toBe(false);
+      expect(consumed).toBe(true);
+      await vi.runAllTimersAsync();
       expect(ptyManager.deliverText).not.toHaveBeenCalled();
     });
 
-    it('returns false when download path is whitespace', async () => {
+    it('returns true but does not deliver when download path is whitespace', async () => {
       const { relay, bot, ptyManager } = makeRelay();
       bot.downloadFile.mockResolvedValue('   ');
 
@@ -535,11 +555,12 @@ describe('TelegramRelayService', () => {
         photo: [{ file_id: 'p1', file_size: 1000 }],
       } as any);
 
-      expect(consumed).toBe(false);
+      expect(consumed).toBe(true);
+      await vi.runAllTimersAsync();
       expect(ptyManager.deliverText).not.toHaveBeenCalled();
     });
 
-    it('returns false when download path does not exist', async () => {
+    it('returns true but does not deliver when download path does not exist', async () => {
       const { relay, bot, ptyManager } = makeRelay();
       bot.downloadFile.mockResolvedValue(path.join(tmpdir(), 'missing-telegram-file.jpg'));
 
@@ -551,7 +572,8 @@ describe('TelegramRelayService', () => {
         photo: [{ file_id: 'p1', file_size: 1000 }],
       } as any);
 
-      expect(consumed).toBe(false);
+      expect(consumed).toBe(true);
+      await vi.runAllTimersAsync();
       expect(ptyManager.deliverText).not.toHaveBeenCalled();
     });
   });
@@ -644,6 +666,7 @@ describe('TelegramRelayService', () => {
     });
 
     it('injects first-contact instructions for attachment messages too', async () => {
+      vi.useFakeTimers();
       const { relay, ptyManager, bot } = makeRelay();
       const filePath = tempAttachmentPath('report.pdf');
       bot.downloadFile.mockResolvedValue(filePath);
@@ -653,6 +676,8 @@ describe('TelegramRelayService', () => {
         chat: { id: 12345 }, from: { username: 'tguser' },
         document: { file_id: 'doc123', file_name: 'report.pdf', mime_type: 'application/pdf', file_size: 1024 },
       } as any);
+      await vi.runAllTimersAsync();
+      vi.useRealTimers();
 
       expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('HELM_TELEGRAM_MODE'));
       rmSync(path.dirname(filePath), { recursive: true, force: true });

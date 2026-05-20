@@ -6,6 +6,8 @@ import { TerminalOutputBuffer, type TerminalOutputMode, type TerminalTail } from
 
 const esmRequire = createRequire(import.meta.url);
 
+const DELIVER_TEXT_TIMEOUT_MS = 10_000;
+
 export interface PtyProcess {
   pid: number;
   write(data: string): void;
@@ -167,7 +169,12 @@ export class PtyManager extends EventEmitter {
     if (!text && !options?.submitSuffix) return;
     if (this.textDeliveryHandler) {
       try {
-        await this.textDeliveryHandler(sessionId, text, options);
+        await Promise.race([
+          this.textDeliveryHandler(sessionId, text, options),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('deliverText handler timed out')), DELIVER_TEXT_TIMEOUT_MS),
+          ),
+        ]);
         return;
       } catch (error) {
         logger.warn(`[PTY] Preferred text delivery failed for ${sessionId}, falling back to PTY write: ${error}`);

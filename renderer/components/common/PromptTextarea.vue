@@ -256,15 +256,16 @@ defineExpose({ focus, setHeight });
 
 .prompt-textarea__resize-grip {
   position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 5px;
-  height: 10px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: ns-resize;
   touch-action: none;
+  z-index: 1;
 }
 
 .prompt-textarea__resize-grip span {
