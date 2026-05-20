@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
 import type { PlanItem, PlanSequence } from '../../../src/types/plan.js';
-import PromptTextarea from '../common/PromptTextarea.vue';
 
 const props = defineProps<{
   sequences: PlanSequence[];
@@ -116,23 +115,21 @@ function onAssign(event: Event): void {
 
         <label class="plan-sequence-modal__field">
           <span>Mission</span>
-          <PromptTextarea
+          <textarea
             v-model="draft.missionStatement"
+            class="plan-sequence-modal__textarea"
             placeholder="What is this sequence working toward?"
-            :rows="3"
-            :min-rows="3"
-            :max-rows="10"
+            rows="3"
           />
         </label>
 
         <label class="plan-sequence-modal__field">
           <span>Memory</span>
-          <PromptTextarea
+          <textarea
             v-model="draft.sharedMemory"
+            class="plan-sequence-modal__textarea"
             placeholder="Legacy coordination notes for plans in this sequence..."
-            :rows="3"
-            :min-rows="3"
-            :max-rows="10"
+            rows="3"
           />
         </label>
 
@@ -152,3 +149,19 @@ function onAssign(event: Event): void {
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+.plan-sequence-modal__textarea {
+  resize: vertical;
+  width: 100%;
+  min-height: 4.5em;
+  padding: 6px 8px;
+  font-size: inherit;
+  font-family: inherit;
+  background: var(--bg-input, #1a1a1a);
+  color: var(--text-primary, #e0e0e0);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+</style>
