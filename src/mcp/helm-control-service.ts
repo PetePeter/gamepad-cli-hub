@@ -541,7 +541,7 @@ export class HelmControlService extends EventEmitter {
     if (!session) {
       throw new Error(`Session not found: ${authContext.sessionId}`);
     }
-    return this.skillAnalyticsManager.addReview(id, {
+    this.skillAnalyticsManager.addReview(id, {
       stars,
       summary,
       ...(improvement ? { improvement } : {}),
@@ -549,6 +549,7 @@ export class HelmControlService extends EventEmitter {
       cliType: session.cliType,
       timestamp: new Date().toISOString(),
     } satisfies SkillReview);
+    return { received: true };
   }
 
   private withSkillStats(skills: SkillSummary[]): SkillSummary[] {
