@@ -3665,6 +3665,8 @@ kbd {
   flex-shrink: 0;
   position: relative;
   z-index: 20;
+  max-height: 55vh;
+  overflow-y: auto;
 }
 
 .draft-editor-header {
