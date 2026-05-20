@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-const DEFAULT_LARGE_TEXT_THRESHOLD = 8 * 1024;
+const DEFAULT_LARGE_TEXT_THRESHOLD = 1024;
 
 export function getLargeTextThreshold(): number {
   const configured = process.env.HELM_LARGE_TEXT_TEMP_FILE_THRESHOLD;

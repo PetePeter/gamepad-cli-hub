@@ -13,6 +13,13 @@ import {
 
 const DEFAULT_DELIVERY_VERIFY_DELAY_MS = 4000;
 
+interface HelmMessagePayloadRef {
+  kind: 'temp_file';
+  path: string;
+  label: string;
+  instruction: string;
+}
+
 function getDeliveryVerifyDelayMs(): number {
   const configured = process.env.HELM_INTERSESSION_VERIFY_DELAY_MS;
   if (configured === undefined) return DEFAULT_DELIVERY_VERIFY_DELAY_MS;
@@ -59,9 +66,16 @@ export class HelmSessionDeliveryService {
     const usePreamble = recipientEntry?.helmPreambleForInterSession ?? true;
     let deliveryText = text;
     let tempFilePath: string | undefined;
+    let payloadRef: HelmMessagePayloadRef | undefined;
     if (shouldSendLargeTextAsTempFile(recipientEntry?.largeTextAsTempFile, text)) {
       tempFilePath = writeLargeTextTempFile(text, 'session-send-text');
       deliveryText = buildLargeTextTempFileNotice(tempFilePath, 'session_send_text payload');
+      payloadRef = {
+        kind: 'temp_file',
+        path: tempFilePath,
+        label: 'session_send_text payload',
+        instruction: `Read the full instructions from this file before acting: ${tempFilePath}`,
+      };
       logger.info(`[HelmSessionDelivery] Wrote large session_send_text payload to temp file for ${session.id}: ${tempFilePath}`);
     }
 
@@ -76,6 +90,7 @@ export class HelmSessionDeliveryService {
         fromSessionName: options.senderSessionName,
         expectsResponse,
         timestamp: new Date().toISOString(),
+        ...(payloadRef ? { payloadRef } : {}),
       });
 
       const tag = expectsResponse

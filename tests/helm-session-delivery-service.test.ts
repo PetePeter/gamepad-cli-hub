@@ -144,6 +144,15 @@ describe('HelmSessionDeliveryService', () => {
 
         expect(result.tempFilePath).toContain('helm-large-text-session-send-text');
         expect(readFileSync(result.tempFilePath!, 'utf8')).toBe('this is a large payload');
+        const envelopeCall = ptyManager.deliverText.mock.calls.find((c: any[]) => String(c[1]).startsWith('[HELM_MSG]'));
+        const envelopeText = String(envelopeCall?.[1] ?? '').slice('[HELM_MSG]'.length);
+        const envelope = JSON.parse(envelopeText);
+        expect(envelope.payloadRef).toMatchObject({
+          kind: 'temp_file',
+          path: result.tempFilePath,
+          label: 'session_send_text payload',
+        });
+        expect(envelope.payloadRef.instruction).toContain(result.tempFilePath);
         const noticeCall = ptyManager.deliverText.mock.calls.find((c: any[]) => String(c[1]).includes('Read the full file at:'));
         expect(noticeCall?.[1]).toContain(result.tempFilePath);
         expect(noticeCall?.[1]).not.toContain('this is a large payload');
