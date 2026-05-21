@@ -94,14 +94,8 @@ describe('PlanManager', () => {
     });
 
     it('skips resolveForPath on load when item already has projectId', () => {
-      let gitCallCount = 0;
-      const gitRunner = vi.fn(() => {
-        gitCallCount++;
-        return '/projects/backend';
-      });
-
-      const tmpProjectsFile = path.join(os.tmpdir(), `helm-test-projects-${Date.now()}.json`);
-      const projectStore = new ProjectStore(gitRunner, tmpProjectsFile);
+      const resolveForPath = vi.fn(() => ({ id: 'project-1' }));
+      const projectStore = { resolveForPath, save: vi.fn() } as any;
 
       // Pre-load an item that already has projectId
       (persistence.listPlanFiles as unknown as ReturnType<typeof vi.fn>).mockReturnValue(['test.json']);
@@ -119,16 +113,13 @@ describe('PlanManager', () => {
 
       const withProjects = new PlanManager(projectStore);
 
-      // ensurePlanMetadata skipped git (item has projectId)
-      // Only recomputeStartable → getForDirectory → resolveProjectId triggers git once
-      expect(gitCallCount).toBe(2); // 2 git calls for that one resolveForPath
+      // Item already had projectId — ensurePlanMetadata skips resolveForPath.
+      // recomputeStartable → resolveProjectId calls it once during construction.
+      expect(resolveForPath).toHaveBeenCalledTimes(1);
 
-      // Subsequent getForDirectory calls are cached — no new git calls
+      // getForDirectory triggers resolveProjectId again (no caching at this layer).
       withProjects.getForDirectory('/projects/backend');
-      expect(gitCallCount).toBe(2);
-
-      // Cleanup
-      fs.rmSync(tmpProjectsFile, { force: true });
+      expect(resolveForPath).toHaveBeenCalledTimes(2);
     });
   });
 

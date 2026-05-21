@@ -6,7 +6,7 @@ import { atomicWriteFileSync, isRecord, isString } from './persistence-utils.js'
 
 function isProjectRecord(value: unknown): value is ProjectRecord {
   if (!isRecord(value)) return false;
-  return isString(value.id) && isString(value.key) && isString(value.name) && isString(value.canonicalPath);
+  return isString(value.id) && isString(value.name) && isString(value.canonicalPath);
 }
 
 export function saveProjectRecords(projects: ProjectRecord[], projectsFile = DEFAULT_PROJECTS_FILE): void {

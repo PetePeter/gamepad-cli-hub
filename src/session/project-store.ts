@@ -1,54 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { loadProjectRecords, saveProjectRecords } from './persistence.js';
-import { dirDisplayNameFromPath, inspectProjectIdentity, normalizeProjectPath, type GitRunner } from './project-identity.js';
-import type { ProjectIdentity, ProjectRecord } from '../types/project.js';
-
-function sortProjectPaths(paths: string[]): string[] {
-  return [...paths].sort((a, b) => a.length - b.length || a.localeCompare(b));
-}
-
-function findProjectByPath(records: ProjectRecord[], normalizedPath: string): ProjectRecord | undefined {
-  return records.find((record) =>
-    normalizeProjectPath(record.canonicalPath) === normalizedPath
-    || record.alternatePaths.some((candidate) => normalizeProjectPath(candidate) === normalizedPath));
-}
-
-function mergeProjectPath(record: ProjectRecord, identity: ProjectIdentity, normalizedPath: string): boolean {
-  const pathSet = new Set<string>([
-    normalizeProjectPath(record.canonicalPath),
-    ...record.alternatePaths.map(normalizeProjectPath),
-    normalizedPath,
-    identity.canonicalPathHint,
-  ]);
-  const canonicalPath = normalizeProjectPath(record.canonicalPath);
-  const nextAlternatePaths = sortProjectPaths([...pathSet].filter((candidate) => candidate !== canonicalPath));
-
-  const changed =
-    record.canonicalPath !== canonicalPath
-    || record.rootKind !== identity.rootKind
-    || record.gitCommonDir !== identity.gitCommonDir
-    || record.repoRootPath !== identity.repoRootPath
-    || record.alternatePaths.length !== nextAlternatePaths.length
-    || record.alternatePaths.some((candidate, index) => nextAlternatePaths[index] !== candidate);
-
-  if (changed) {
-    record.canonicalPath = canonicalPath;
-    record.alternatePaths = nextAlternatePaths;
-    record.rootKind = identity.rootKind;
-    record.gitCommonDir = identity.gitCommonDir;
-    record.repoRootPath = identity.repoRootPath;
-    record.updatedAt = Date.now();
-  }
-
-  return changed;
-}
+import { dirDisplayNameFromPath, normalizeProjectPath } from './project-identity.js';
+import type { ProjectRecord } from '../types/project.js';
 
 export class ProjectStore {
   private records: ProjectRecord[];
   private dirty = false;
   private cache = new Map<string, ProjectRecord>();
 
-  constructor(private readonly runGit?: GitRunner, private readonly projectsFile?: string) {
+  constructor(private readonly projectsFile?: string) {
     this.records = loadProjectRecords(projectsFile);
   }
 
@@ -56,41 +16,34 @@ export class ProjectStore {
     return [...this.records];
   }
 
+  /**
+   * Find or create a project for the given directory path.
+   * Projects are keyed by their normalized canonical path — no git detection,
+   * no worktree collapsing.
+   */
   resolveForPath(dirPath: string): ProjectRecord {
-    const cacheKey = normalizeProjectPath(dirPath);
-    const cached = this.cache.get(cacheKey);
+    const normalized = normalizeProjectPath(dirPath);
+    const cached = this.cache.get(normalized);
     if (cached) return cached;
 
-    const identity = inspectProjectIdentity(dirPath, this.runGit);
-    const observedProjectPath = identity.repoRootPath ?? normalizeProjectPath(dirPath);
-
-    let record = this.records.find((candidate) => candidate.key === identity.key)
-      ?? findProjectByPath(this.records, observedProjectPath);
+    let record = this.records.find(
+      (r) => normalizeProjectPath(r.canonicalPath) === normalized,
+    );
 
     if (!record) {
       const now = Date.now();
       record = {
         id: randomUUID(),
-        key: identity.key,
-        name: dirDisplayNameFromPath(identity.canonicalPathHint),
-        canonicalPath: identity.canonicalPathHint,
-        alternatePaths: observedProjectPath === identity.canonicalPathHint ? [] : [observedProjectPath],
-        rootKind: identity.rootKind,
-        gitCommonDir: identity.gitCommonDir,
-        repoRootPath: identity.repoRootPath,
+        name: dirDisplayNameFromPath(dirPath),
+        canonicalPath: normalized,
         createdAt: now,
         updatedAt: now,
       };
       this.records.push(record);
       this.dirty = true;
-      this.cache.set(cacheKey, record);
-      return record;
     }
 
-    if (mergeProjectPath(record, identity, observedProjectPath)) {
-      this.dirty = true;
-    }
-    this.cache.set(cacheKey, record);
+    this.cache.set(normalized, record);
     return record;
   }
 
@@ -108,58 +61,25 @@ export class ProjectStore {
     return this.records.find((r) => r.id === id);
   }
 
+  /** Find a project whose canonical path matches the given directory. */
   findByPath(dirPath: string): ProjectRecord | undefined {
-    return findProjectByPath(this.records, normalizeProjectPath(dirPath));
-  }
-
-  addDirectory(projectId: string, dirPath: string): void {
-    const record = this.requireRecord(projectId);
     const normalized = normalizeProjectPath(dirPath);
-    if (normalized === normalizeProjectPath(record.canonicalPath)) {
-      throw new Error('Cannot add canonical path as an alternate directory');
-    }
-    if (record.alternatePaths.some((p) => normalizeProjectPath(p) === normalized)) return;
-    record.alternatePaths = sortProjectPaths([...record.alternatePaths, normalized]);
-    record.updatedAt = Date.now();
-    this.cache.set(normalized, record);
-    this.dirty = true;
+    return this.records.find(
+      (r) => normalizeProjectPath(r.canonicalPath) === normalized,
+    );
   }
 
-  removeDirectory(projectId: string, dirPath: string): void {
-    const record = this.requireRecord(projectId);
-    const normalized = normalizeProjectPath(dirPath);
-    if (normalized === normalizeProjectPath(record.canonicalPath)) {
-      throw new Error('Cannot remove the canonical path');
-    }
-    const before = record.alternatePaths.length;
-    record.alternatePaths = record.alternatePaths.filter((p) => normalizeProjectPath(p) !== normalized);
-    if (record.alternatePaths.length === before) return;
-    record.updatedAt = Date.now();
-    this.cache.delete(normalized);
-    this.dirty = true;
-  }
+  /**
+   * No-op retained for IPC compatibility. Projects are now single-path records;
+   * there are no alternate paths to manage.
+   */
+  addDirectory(_projectId: string, _dirPath: string): void {}
 
-  setMainDirectory(projectId: string, dirPath: string): void {
-    const record = this.requireRecord(projectId);
-    const normalized = normalizeProjectPath(dirPath);
-    const canonicalPath = normalizeProjectPath(record.canonicalPath);
-    if (normalized === canonicalPath) return;
+  /** No-op retained for IPC compatibility. */
+  removeDirectory(_projectId: string, _dirPath: string): void {}
 
-    const alternatePaths = record.alternatePaths.map(normalizeProjectPath);
-    if (!alternatePaths.includes(normalized)) {
-      throw new Error('Main directory must already belong to the project');
-    }
-
-    record.canonicalPath = normalized;
-    record.alternatePaths = sortProjectPaths([
-      canonicalPath,
-      ...alternatePaths.filter((candidate) => candidate !== normalized),
-    ]);
-    record.updatedAt = Date.now();
-    this.cache.set(normalized, record);
-    this.cache.set(canonicalPath, record);
-    this.dirty = true;
-  }
+  /** No-op retained for IPC compatibility. */
+  setMainDirectory(_projectId: string, _dirPath: string): void {}
 
   rename(projectId: string, name: string): void {
     const trimmed = name.trim();
@@ -176,7 +96,6 @@ export class ProjectStore {
     const record = this.records[idx];
     this.records.splice(idx, 1);
     this.cache.delete(normalizeProjectPath(record.canonicalPath));
-    for (const alt of record.alternatePaths) this.cache.delete(normalizeProjectPath(alt));
     this.dirty = true;
   }
 

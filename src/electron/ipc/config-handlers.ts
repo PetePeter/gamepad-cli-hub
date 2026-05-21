@@ -123,18 +123,10 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
 
       if (projectStore) {
         for (const record of projectStore.list()) {
-          const projectName = record.name;
           const canonicalKey = normalizeProjectPath(record.canonicalPath);
           if (!yielded.has(canonicalKey)) {
             yielded.add(canonicalKey);
-            items.push({ name: dirDisplayNameFromPath(record.canonicalPath), path: record.canonicalPath, projectId: record.id, projectName, isCanonical: true });
-          }
-          for (const alt of record.alternatePaths) {
-            const altKey = normalizeProjectPath(alt);
-            if (!yielded.has(altKey)) {
-              yielded.add(altKey);
-              items.push({ name: dirDisplayNameFromPath(alt), path: alt, projectId: record.id, projectName, isCanonical: false });
-            }
+            items.push({ name: dirDisplayNameFromPath(record.canonicalPath), path: record.canonicalPath, projectId: record.id, projectName: record.name, isCanonical: true });
           }
         }
       }

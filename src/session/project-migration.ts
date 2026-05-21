@@ -5,7 +5,6 @@ import { getConfigDir } from '../utils/app-paths.js';
 import { logger } from '../utils/logger.js';
 import { listPlanFiles, loadPlanFile, loadPlanSequences, savePlanFile, savePlanSequences, saveSessions, loadSessions } from './persistence.js';
 import { ProjectStore } from './project-store.js';
-import type { GitRunner } from './project-identity.js';
 
 const __migration_dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -50,11 +49,10 @@ function ensureBackupCopy(sourcePath: string, backupPath: string): void {
  * First-run project migration:
  * - creates stable Project records from existing plans/sequences/sessions
  * - annotates those records with projectId
- * - collapses many worktree paths into one project when git common-dir matches
  *
  * The migration is idempotent: re-running only re-saves when project linkage changed.
  */
-export function migrateProjects(configDir?: string, runGit?: GitRunner): ProjectMigrationResult {
+export function migrateProjects(configDir?: string): ProjectMigrationResult {
   const resolvedConfigDir = configDir ?? getConfigDir(__migration_dirname);
   const plansDir = join(resolvedConfigDir, 'plans');
   const sequencesFile = join(resolvedConfigDir, 'plan-sequences.json');
@@ -63,7 +61,7 @@ export function migrateProjects(configDir?: string, runGit?: GitRunner): Project
   const markerFile = join(resolvedConfigDir, 'project-migration-state.json');
   const backupDir = join(resolvedConfigDir, 'project-migration-backup');
 
-  const store = new ProjectStore(runGit, projectsFile);
+  const store = new ProjectStore(projectsFile);
   const existingMarker = readMarker(markerFile);
   const marker: ProjectMigrationMarker = existingMarker ?? {
     version: PROJECT_MIGRATION_VERSION,

@@ -415,15 +415,15 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   /** Delete a project record */
   projectDelete: (id: string) => ipcRenderer.invoke('project:delete', id),
 
-  /** Add a directory path to a project's alternatePaths */
+  /** No-op: retained for API compatibility; projects are single-path records. */
   projectAddDir: (id: string, dirPath: string) =>
     ipcRenderer.invoke('project:addDir', id, dirPath),
 
-  /** Remove a directory path from a project's alternatePaths */
+  /** No-op: retained for API compatibility; projects are single-path records. */
   projectRemoveDir: (id: string, dirPath: string) =>
     ipcRenderer.invoke('project:removeDir', id, dirPath),
 
-  /** Promote a project alternate directory to the main directory */
+  /** No-op: retained for API compatibility; projects are single-path records. */
   projectSetMainDir: (id: string, dirPath: string) =>
     ipcRenderer.invoke('project:setMainDir', id, dirPath),
 

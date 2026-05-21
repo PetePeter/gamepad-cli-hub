@@ -21,28 +21,18 @@ function makeSessionManager(sessions: Array<{ workingDir?: string; projectPath?:
 
 function makePlanManager(planDirs: string[]) {
   return {
-    getForDirectory: vi.fn((dir: string) => {
-      // Simulate project-aware aggregation: if dir is the canonical path,
-      // return items from all worktrees under the same project root
-      if (dir === '/repo/main') {
-        return planDirs
-          .filter((d) => d === '/repo/main' || d === '/repo/worktree-a')
-          .map((d) => ({ id: 'p1', dirPath: d }));
-      }
-      return planDirs.includes(dir) ? [{ id: 'p1', dirPath: dir }] : [];
-    }),
+    getForDirectory: vi.fn((dir: string) =>
+      planDirs.includes(dir) ? [{ id: 'p1', dirPath: dir }] : [],
+    ),
     getAllPlanDirectories: vi.fn(() => planDirs),
   };
 }
 
 function makeProjectStore(records: Array<{ id: string; canonicalPath: string; name: string }>) {
   return {
-    resolveForPath: vi.fn((path: string) => {
-      const rec = records.find((r) => r.canonicalPath === path || path === '/repo/worktree-a');
-      if (rec) return rec;
-      if (path === '/repo/worktree-a') return records[0];
-      return { id: `proj-${path}`, canonicalPath: path, name: path.split(/[/\\]/).pop() ?? path };
-    }),
+    findByPath: vi.fn((path: string) =>
+      records.find((r) => r.canonicalPath === path),
+    ),
   };
 }
 
@@ -95,60 +85,65 @@ describe('HelmDirectoryService', () => {
     expect(sessionDir?.source).not.toContain('config');
   });
 
-  it('keeps alternate folders as separate entries with same projectId', () => {
+  it('lists two manually-configured folders as separate entries with their own projectIds', () => {
     const configLoader = makeConfigLoader([
       { path: '/repo/main', name: 'Main' },
-      { path: '/repo/worktree-a', name: 'WT A' },
+      { path: '/repo/other', name: 'Other' },
     ]);
     const sessionManager = makeSessionManager([
       { workingDir: '/repo/main', projectPath: '/repo/main' },
-      { workingDir: '/repo/worktree-a', projectPath: '/repo/worktree-a' },
+      { workingDir: '/repo/other', projectPath: '/repo/other' },
     ]);
-    const planManager = makePlanManager(['/repo/main', '/repo/worktree-a']);
-    const projectStore = makeProjectStore([{ id: 'proj-1', canonicalPath: '/repo/main', name: 'repo' }]);
-
-    const service = new HelmDirectoryService(configLoader as any, sessionManager as any, planManager as any, projectStore as any);
-    const dirs = service.listDirectories();
-
-    expect(dirs).toHaveLength(2);
-    expect(dirs[0].dirPath).toBe('/repo/main');
-    expect(dirs[1].dirPath).toBe('/repo/worktree-a');
-    expect(dirs[0].projectId).toBe('proj-1');
-    expect(dirs[1].projectId).toBe('proj-1');
-    expect(dirs[0].source).toContain('config');
-    expect(dirs[1].source).toContain('config');
-  });
-
-  it('returns separate entries for each configured alternate folder', () => {
-    const configLoader = makeConfigLoader([
-      { path: '/repo/main', name: 'Main' },
-      { path: '/repo/worktree-a', name: 'WT A' },
+    const planManager = makePlanManager(['/repo/main', '/repo/other']);
+    const projectStore = makeProjectStore([
+      { id: 'proj-1', canonicalPath: '/repo/main', name: 'repo' },
+      { id: 'proj-2', canonicalPath: '/repo/other', name: 'other' },
     ]);
-    const sessionManager = makeSessionManager([]);
-    const planManager = makePlanManager([]);
-    const projectStore = makeProjectStore([{ id: 'proj-1', canonicalPath: '/repo/main', name: 'repo' }]);
 
     const service = new HelmDirectoryService(configLoader as any, sessionManager as any, planManager as any, projectStore as any);
     const dirs = service.listDirectories();
 
     expect(dirs).toHaveLength(2);
     const main = dirs.find((d) => d.dirPath === '/repo/main');
-    const wt = dirs.find((d) => d.dirPath === '/repo/worktree-a');
+    const other = dirs.find((d) => d.dirPath === '/repo/other');
     expect(main?.projectId).toBe('proj-1');
-    expect(wt?.projectId).toBe('proj-1');
-    expect(main?.name).toBe('Main');
-    expect(wt?.name).toBe('WT A');
+    expect(other?.projectId).toBe('proj-2');
+    expect(main?.source).toContain('config');
+    expect(other?.source).toContain('config');
   });
 
-  it('routes session and plan counts to the correct alternate entry', () => {
+  it('returns separate entries for each configured folder', () => {
     const configLoader = makeConfigLoader([
       { path: '/repo/main', name: 'Main' },
-      { path: '/repo/worktree-a', name: 'WT A' },
+      { path: '/repo/other', name: 'Other' },
+    ]);
+    const sessionManager = makeSessionManager([]);
+    const planManager = makePlanManager([]);
+    const projectStore = makeProjectStore([
+      { id: 'proj-1', canonicalPath: '/repo/main', name: 'repo' },
+    ]);
+
+    const service = new HelmDirectoryService(configLoader as any, sessionManager as any, planManager as any, projectStore as any);
+    const dirs = service.listDirectories();
+
+    expect(dirs).toHaveLength(2);
+    const main = dirs.find((d) => d.dirPath === '/repo/main');
+    const other = dirs.find((d) => d.dirPath === '/repo/other');
+    expect(main?.projectId).toBe('proj-1');
+    expect(other?.projectId).toBeUndefined();
+    expect(main?.name).toBe('Main');
+    expect(other?.name).toBe('Other');
+  });
+
+  it('routes session and plan counts to the correct folder entry', () => {
+    const configLoader = makeConfigLoader([
+      { path: '/repo/main', name: 'Main' },
+      { path: '/repo/other', name: 'Other' },
     ]);
     const sessionManager = makeSessionManager([
       { workingDir: '/repo/main', projectPath: '/repo/main' },
-      { workingDir: '/repo/worktree-a', projectPath: '/repo/worktree-a' },
-      { workingDir: '/repo/worktree-a', projectPath: '/repo/worktree-a' },
+      { workingDir: '/repo/other', projectPath: '/repo/other' },
+      { workingDir: '/repo/other', projectPath: '/repo/other' },
     ]);
     const planManager = makePlanManager(['/repo/main', '/repo/main']);
     const projectStore = makeProjectStore([{ id: 'proj-1', canonicalPath: '/repo/main', name: 'repo' }]);
@@ -157,29 +152,22 @@ describe('HelmDirectoryService', () => {
     const dirs = service.listDirectories();
 
     const main = dirs.find((d) => d.dirPath === '/repo/main');
-    const wt = dirs.find((d) => d.dirPath === '/repo/worktree-a');
+    const other = dirs.find((d) => d.dirPath === '/repo/other');
     expect(main?.sessionCount).toBe(1);
-    expect(wt?.sessionCount).toBe(2);
+    expect(other?.sessionCount).toBe(2);
     expect(main?.source).toContain('plans');
   });
 
-  it('does not count canonical projectPath sessions on alternate folder rows', () => {
-    const configLoader = makeConfigLoader([
-      { path: '/repo/main', name: 'Main' },
-      { path: '/repo/worktree-a', name: 'WT A' },
-    ]);
-    const sessionManager = makeSessionManager([
-      { workingDir: '/repo/worktree-a', projectPath: '/repo/main' },
-    ]);
+  it('directory with no project record has no projectId', () => {
+    const configLoader = makeConfigLoader([{ path: '/repo/main', name: 'Main' }]);
+    const sessionManager = makeSessionManager([]);
     const planManager = makePlanManager([]);
-    const projectStore = makeProjectStore([{ id: 'proj-1', canonicalPath: '/repo/main', name: 'repo' }]);
+    const projectStore = makeProjectStore([]);
 
     const service = new HelmDirectoryService(configLoader as any, sessionManager as any, planManager as any, projectStore as any);
     const dirs = service.listDirectories();
 
-    const main = dirs.find((d) => d.dirPath === '/repo/main');
-    const wt = dirs.find((d) => d.dirPath === '/repo/worktree-a');
-    expect(main?.sessionCount).toBe(0);
-    expect(wt?.sessionCount).toBe(1);
+    expect(dirs).toHaveLength(1);
+    expect(dirs[0].projectId).toBeUndefined();
   });
 });

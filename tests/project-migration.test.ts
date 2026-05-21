@@ -36,15 +36,15 @@ describe('migrateProjects', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('creates one project for multiple worktrees sharing the same git common-dir', () => {
-    const worktreeA = 'X:\\coding\\repo-a';
-    const worktreeB = 'X:\\coding\\repo-b';
+  it('creates one project per distinct directory path', () => {
+    const dirA = 'X:\\coding\\repo-a';
+    const dirB = 'X:\\coding\\repo-b';
 
-    savePlanFile(makePlan('aaaa0001-0000-0000-0000-000000000001', worktreeA), path.join(tmpDir, 'plans'));
-    savePlanFile(makePlan('bbbb0002-0000-0000-0000-000000000002', worktreeB), path.join(tmpDir, 'plans'));
+    savePlanFile(makePlan('aaaa0001-0000-0000-0000-000000000001', dirA), path.join(tmpDir, 'plans'));
+    savePlanFile(makePlan('bbbb0002-0000-0000-0000-000000000002', dirB), path.join(tmpDir, 'plans'));
     savePlanSequences([{
       id: 'seq-1',
-      dirPath: worktreeB,
+      dirPath: dirB,
       title: 'Mission',
       missionStatement: '',
       sharedMemory: '',
@@ -58,70 +58,61 @@ describe('migrateProjects', () => {
         name: 'Codex',
         cliType: 'codex',
         processId: 1,
-        workingDir: worktreeA,
+        workingDir: dirA,
       } satisfies SessionInfo],
     }), 'utf8');
 
-    const runGit = (cwd: string, args: string[]) => {
-      if (args.includes('--show-toplevel')) return cwd;
-      if (args.includes('--git-common-dir')) return 'X:\\coding\\repo\\.git';
-      return null;
-    };
-
-    const result = migrateProjects(tmpDir, runGit);
+    const result = migrateProjects(tmpDir);
     const projects = loadProjectRecords(path.join(tmpDir, 'projects.json'));
     const planA = loadPlanFile('X%3A%5Ccoding%5Crepo-a@aaaa0001-0000-0000-0000-000000000001.json', path.join(tmpDir, 'plans'));
     const planB = loadPlanFile('X%3A%5Ccoding%5Crepo-b@bbbb0002-0000-0000-0000-000000000002.json', path.join(tmpDir, 'plans'));
     const sequences = loadPlanSequences(path.join(tmpDir, 'plan-sequences.json'));
     const sessions = loadSessions(path.join(tmpDir, 'sessions.yaml'));
 
+    // Two distinct directories → two separate projects
     expect(result.updatedPlans).toBe(2);
     expect(result.updatedSequences).toBe(1);
     expect(result.updatedSessions).toBe(1);
-    expect(projects).toHaveLength(1);
-    expect(projects[0].alternatePaths).toContain('x:\\coding\\repo-b');
-    expect(planA?.projectId).toBe(projects[0].id);
-    expect(planB?.projectId).toBe(projects[0].id);
-    expect(sequences[0]?.projectId).toBe(projects[0].id);
-    expect(sessions[0]?.projectId).toBe(projects[0].id);
+    expect(projects).toHaveLength(2);
+
+    const projectForA = projects.find(p => p.canonicalPath === 'x:\\coding\\repo-a');
+    const projectForB = projects.find(p => p.canonicalPath === 'x:\\coding\\repo-b');
+    expect(projectForA).toBeDefined();
+    expect(projectForB).toBeDefined();
+    expect(planA?.projectId).toBe(projectForA!.id);
+    expect(planB?.projectId).toBe(projectForB!.id);
+    expect(sequences[0]?.projectId).toBe(projectForB!.id);
+    expect(sessions[0]?.projectId).toBe(projectForA!.id);
   });
 
-  it('keeps session workingDir intact while consolidating the owning project to the worktree root', () => {
+  it('keeps session workingDir intact and links it to the correct project', () => {
     fs.writeFileSync(path.join(tmpDir, 'sessions.yaml'), YAML.stringify({
       sessions: [{
         id: 's1',
         name: 'Codex',
         cliType: 'codex',
         processId: 1,
-        workingDir: 'X:\\coding\\repo-a\\packages\\ui',
+        workingDir: 'X:\\coding\\repo-a',
       } satisfies SessionInfo],
     }), 'utf8');
 
-    migrateProjects(tmpDir, (_cwd, args) => {
-      if (args.includes('--show-toplevel')) return 'X:\\coding\\repo-a';
-      if (args.includes('--git-common-dir')) return 'X:\\coding\\repo\\.git';
-      return null;
-    });
+    migrateProjects(tmpDir);
 
     const projects = loadProjectRecords(path.join(tmpDir, 'projects.json'));
     const sessions = loadSessions(path.join(tmpDir, 'sessions.yaml'));
 
+    // canonicalPath is normalized; workingDir is preserved as the original string
     expect(projects[0]?.canonicalPath).toBe('x:\\coding\\repo-a');
-    expect(projects[0]?.alternatePaths).toEqual([]);
-    expect(sessions[0]?.workingDir).toBe('x:\\coding\\repo-a\\packages\\ui');
+    expect(sessions[0]?.workingDir).toBe('x:\\coding\\repo-a'); // loadSessions normalizes to lowercase on Windows
     expect(sessions[0]?.projectId).toBe(projects[0]?.id);
+
   });
 
   it('is idempotent on repeat startup', () => {
     savePlanFile(makePlan('aaaa0001-0000-0000-0000-000000000001', 'X:\\coding\\repo-a'), path.join(tmpDir, 'plans'));
-    const runGit = (cwd: string, args: string[]) => {
-      if (args.includes('--show-toplevel')) return cwd;
-      if (args.includes('--git-common-dir')) return 'X:\\coding\\repo\\.git';
-      return null;
-    };
 
-    const first = migrateProjects(tmpDir, runGit);
-    const second = migrateProjects(tmpDir, runGit);
+    const first = migrateProjects(tmpDir);
+    const second = migrateProjects(tmpDir);
 
     expect(first.updatedPlans).toBe(1);
     expect(second.updatedPlans).toBe(0);
@@ -142,7 +133,7 @@ describe('migrateProjects', () => {
       } satisfies SessionInfo],
     }), 'utf8');
 
-    migrateProjects(tmpDir, () => null);
+    migrateProjects(tmpDir);
 
     const marker = JSON.parse(fs.readFileSync(path.join(tmpDir, 'project-migration-state.json'), 'utf8'));
     expect(marker.status).toBe('completed');
@@ -159,7 +150,7 @@ describe('migrateProjects', () => {
       backupDir: path.join(tmpDir, 'project-migration-backup'),
     }, null, 2), 'utf8');
 
-    const result = migrateProjects(tmpDir, () => null);
+    const result = migrateProjects(tmpDir);
     const marker = JSON.parse(fs.readFileSync(path.join(tmpDir, 'project-migration-state.json'), 'utf8'));
 
     expect(result.updatedPlans).toBe(1);

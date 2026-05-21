@@ -12,15 +12,14 @@ export class HelmProjectService {
       id: r.id,
       name: r.name,
       canonicalPath: r.canonicalPath,
-      directories: [r.canonicalPath, ...r.alternatePaths],
-      rootKind: r.rootKind,
+      directories: [r.canonicalPath],
     }));
   }
 
   listProjectDirs(projectId: string) {
     const record = this.projectStore.getById(projectId);
     if (!record) throw new Error(`Project not found: ${projectId}`);
-    return [record.canonicalPath, ...record.alternatePaths];
+    return [record.canonicalPath];
   }
 
   addProjectDir(projectId: string, dirPath: string): { ok: true } {

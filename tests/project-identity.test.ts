@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { inspectProjectIdentity, normalizeProjectPath } from '../src/session/project-identity.js';
+import { normalizeProjectPath, dirDisplayNameFromPath } from '../src/session/project-identity.js';
 
 describe('normalizeProjectPath', () => {
   it('normalizes path case and trailing slashes on Windows-style paths', () => {
@@ -7,37 +7,16 @@ describe('normalizeProjectPath', () => {
   });
 });
 
-describe('inspectProjectIdentity', () => {
-  it('uses git common-dir as the stable merge key for git worktrees', () => {
-    const runGit = (cwd: string, args: string[]) => {
-      if (args.includes('--show-toplevel')) return `${cwd}\\repo-root`;
-      if (args.includes('--git-common-dir')) return 'X:\\coding\\repo\\.git';
-      return null;
-    };
-
-    const identity = inspectProjectIdentity('X:\\coding\\repo-worktree-a', runGit);
-
-    expect(identity.rootKind).toBe('git');
-    expect(identity.key).toBe('git:x:\\coding\\repo\\.git');
-    expect(identity.repoRootPath).toBe('x:\\coding\\repo-worktree-a\\repo-root');
+describe('dirDisplayNameFromPath', () => {
+  it('extracts the last segment from a backslash path', () => {
+    expect(dirDisplayNameFromPath('X:\\coding\\my-project')).toBe('my-project');
   });
 
-  it('keeps repoRootPath distinct from a deeper cwd inside the repo', () => {
-    const identity = inspectProjectIdentity('X:\\coding\\repo-worktree-a\\packages\\ui', (_cwd, args) => {
-      if (args.includes('--show-toplevel')) return 'X:\\coding\\repo-worktree-a';
-      if (args.includes('--git-common-dir')) return 'X:\\coding\\repo\\.git';
-      return null;
-    });
-
-    expect(identity.repoRootPath).toBe('x:\\coding\\repo-worktree-a');
-    expect(identity.canonicalPathHint).toBe('x:\\coding\\repo-worktree-a');
+  it('extracts the last segment from a forward-slash path', () => {
+    expect(dirDisplayNameFromPath('/home/user/my-project')).toBe('my-project');
   });
 
-  it('falls back to normalized path identity outside git repos', () => {
-    const identity = inspectProjectIdentity('X:\\coding\\standalone', () => null);
-
-    expect(identity.rootKind).toBe('path');
-    expect(identity.key).toBe('path:x:\\coding\\standalone');
-    expect(identity.canonicalPathHint).toBe('x:\\coding\\standalone');
+  it('handles trailing slash', () => {
+    expect(dirDisplayNameFromPath('X:\\coding\\my-project\\')).toBe('my-project');
   });
 });

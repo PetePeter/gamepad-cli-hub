@@ -32,7 +32,7 @@ export class HelmDirectoryService {
     const consolidated = new Map<string, DirectorySummary>();
 
     const mergeEntry = (rawPath: string, sourceTag: 'config' | 'plans' | 'sessions', name?: string) => {
-      const project = this.projectStore?.resolveForPath(rawPath);
+      const project = this.projectStore?.findByPath(rawPath);
       const projectId = project?.id;
       const dirPath = rawPath;
       const existing = consolidated.get(dirPath);
