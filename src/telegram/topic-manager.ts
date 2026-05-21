@@ -37,6 +37,8 @@ export interface StaleTopicCleanupResult extends StaleTopicPreview {
  * Topic naming convention: `[InstanceName] session-name`
  */
 export class TopicManager {
+  private topicNames = new Map<number, string>();
+
   constructor(
     private bot: TelegramBotCore,
     private sessionManager: SessionManager,
@@ -95,6 +97,7 @@ export class TopicManager {
 
     const topicId = topic.message_thread_id;
     this.updateSessionTopicId(session.id, topicId);
+    this.topicNames.set(topicId, topicName);
     logger.info(`[TopicManager] Created topic ${topicId} for session ${session.id}: "${topicName}"`);
 
     await this.bot.sendToTopic(
@@ -113,6 +116,7 @@ export class TopicManager {
     if (!session.topicId) return;
 
     await this.bot.deleteForumTopic(session.topicId);
+    this.topicNames.delete(session.topicId);
     logger.info(`[TopicManager] Deleted topic ${session.topicId} for session ${session.id}`);
   }
 
@@ -123,6 +127,7 @@ export class TopicManager {
     const session = this.sessionManager.getSession(sessionId);
     if (!session?.topicId) return;
     await this.bot.deleteForumTopic(session.topicId);
+    this.topicNames.delete(session.topicId);
     this.updateSessionTopicId(sessionId, undefined);
     logger.info(`[TopicManager] Deleted topic ${session.topicId} and cleared topicId for session ${sessionId}`);
   }
@@ -135,6 +140,7 @@ export class TopicManager {
   handleTopicClosed(topicId: number): void {
     const session = this.findSessionByTopicId(topicId);
     if (session) {
+      this.topicNames.delete(topicId);
       this.updateSessionTopicId(session.id, undefined);
       logger.info(`[TopicManager] Topic ${topicId} closed by user, cleared topicId for session ${session.id}`);
     }
@@ -142,11 +148,14 @@ export class TopicManager {
 
   /**
    * Rename a session's topic to match the new session name.
+   * No-ops if the name is unchanged to avoid Telegram's TOPIC_NOT_MODIFIED error.
    */
   async renameSessionTopic(session: SessionInfo): Promise<void> {
     if (!session.topicId) return;
     const newName = this.formatTopicName(session.name);
+    if (this.topicNames.get(session.topicId) === newName) return;
     await this.bot.editForumTopic(session.topicId, newName);
+    this.topicNames.set(session.topicId, newName);
   }
 
   /**

@@ -484,7 +484,10 @@ export class TelegramBotCore extends EventEmitter {
 
   private handleMessage(msg: TelegramBot.Message): void {
     if (!this.isAuthorized(msg.from?.id)) {
-      logger.warn(`[Telegram] Unauthorized message from user ${msg.from?.id}`);
+      const who = msg.from;
+      const label = who?.username ? `@${who.username}` : (who?.first_name ?? 'unknown');
+      const safeText = (msg.text ?? '<no text>').replace(/[\x00-\x1F\x7F]/g, ' ').slice(0, 200);
+      logger.warn(`[Telegram] Unauthorized message from user ${who?.id} (${label}): ${safeText}`);
       return;
     }
 
