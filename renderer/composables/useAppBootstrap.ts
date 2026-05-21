@@ -61,7 +61,6 @@ type RendererProjectRecord = {
   name: string;
   canonicalPath: string;
   alternatePaths?: string[];
-  rootKind?: string;
 };
 
 // Sort preferences (module-level state to match legacy behaviour)
@@ -120,7 +119,6 @@ export async function refreshProjects(): Promise<void> {
       name: project.name,
       canonicalPath: project.canonicalPath,
       alternatePaths: project.alternatePaths || [],
-      rootKind: project.rootKind,
     }));
   } catch (error) {
     console.error('[Bootstrap] Failed to load projects:', error);

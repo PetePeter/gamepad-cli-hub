@@ -165,7 +165,10 @@ export class HelmSessionService {
   }
 
   private requireWorkingDirectory(dirPath: string) {
-    const workingDir = this.configLoader.getWorkingDirectories().find((entry) => entry.path === dirPath);
+    const normalized = normalizeProjectPath(dirPath);
+    const workingDir = this.configLoader.getWorkingDirectories().find(
+      (entry) => normalizeProjectPath(entry.path) === normalized,
+    );
     if (!workingDir) {
       throw new Error(`Working directory is not configured in Helm: ${dirPath}`);
     }

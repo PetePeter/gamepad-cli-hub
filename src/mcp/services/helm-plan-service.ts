@@ -1,4 +1,5 @@
 import { logger } from '../../utils/logger.js';
+import { normalizeProjectPath } from '../../session/project-identity.js';
 import type { ConfigLoader } from '../../config/loader.js';
 import type { PlanManager, PlanRefResolution } from '../../session/plan-manager.js';
 import type { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
@@ -19,11 +20,11 @@ export class HelmPlanService {
   ) {}
 
   listPlans(dirPath: string): PlanItem[] {
-    return this.planManager.getForDirectory(dirPath);
+    return this.planManager.getForDirectory(normalizeProjectPath(dirPath));
   }
 
   plansSummary(dirPath: string) {
-    const exported = this.planManager.exportDirectory(dirPath);
+    const exported = this.planManager.exportDirectory(normalizeProjectPath(dirPath));
     if (!exported) return [];
     const { items, dependencies } = exported;
     const idToHumanId = new Map(items.map((i) => [i.id, i.humanId ?? i.id]));
@@ -80,8 +81,8 @@ export class HelmPlanService {
   }
 
   createPlan(dirPath: string, title: string, description: string, type?: PlanType, autoImplement?: boolean): { id: string; humanId: string } {
-    this.requireWorkingDirectory(dirPath);
-    const item = this.planManager.createWithType(dirPath, title, description, type, autoImplement);
+    const normalizedDir = this.requireWorkingDirectory(dirPath).path;
+    const item = this.planManager.createWithType(normalizedDir, title, description, type, autoImplement);
     return { id: item.id, humanId: item.humanId ?? item.id };
   }
 
@@ -230,7 +231,10 @@ export class HelmPlanService {
   }
 
   private requireWorkingDirectory(dirPath: string) {
-    const workingDir = this.configLoader.getWorkingDirectories().find((entry) => entry.path === dirPath);
+    const normalized = normalizeProjectPath(dirPath);
+    const workingDir = this.configLoader.getWorkingDirectories().find(
+      (entry) => normalizeProjectPath(entry.path) === normalized,
+    );
     if (!workingDir) {
       throw new Error(`Working directory is not configured in Helm: ${dirPath}`);
     }

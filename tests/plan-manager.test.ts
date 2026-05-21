@@ -83,6 +83,7 @@ describe('PlanManager', () => {
     it('assigns projectId immediately when a project store is provided', () => {
       const projectStore = {
         resolveForPath: vi.fn(() => ({ id: 'project-1' })),
+        findByPath: vi.fn(() => ({ id: 'project-1' })),
         save: vi.fn(),
       } as any;
       const withProjects = new PlanManager(projectStore);
@@ -95,7 +96,8 @@ describe('PlanManager', () => {
 
     it('skips resolveForPath on load when item already has projectId', () => {
       const resolveForPath = vi.fn(() => ({ id: 'project-1' }));
-      const projectStore = { resolveForPath, save: vi.fn() } as any;
+      const findByPath = vi.fn(() => ({ id: 'project-1' }));
+      const projectStore = { resolveForPath, findByPath, save: vi.fn() } as any;
 
       // Pre-load an item that already has projectId
       (persistence.listPlanFiles as unknown as ReturnType<typeof vi.fn>).mockReturnValue(['test.json']);
@@ -114,12 +116,13 @@ describe('PlanManager', () => {
       const withProjects = new PlanManager(projectStore);
 
       // Item already had projectId — ensurePlanMetadata skips resolveForPath.
-      // recomputeStartable → resolveProjectId calls it once during construction.
-      expect(resolveForPath).toHaveBeenCalledTimes(1);
+      // recomputeStartable → resolveProjectId uses findByPath (read-only) once during construction.
+      expect(resolveForPath).not.toHaveBeenCalled();
+      expect(findByPath).toHaveBeenCalledTimes(1);
 
-      // getForDirectory triggers resolveProjectId again (no caching at this layer).
+      // getForDirectory triggers resolveProjectId (findByPath) again (no caching at this layer).
       withProjects.getForDirectory('/projects/backend');
-      expect(resolveForPath).toHaveBeenCalledTimes(2);
+      expect(findByPath).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -151,6 +154,7 @@ describe('PlanManager', () => {
     it('assigns projectId to new sequences when a project store is provided', () => {
       const projectStore = {
         resolveForPath: vi.fn(() => ({ id: 'project-1' })),
+        findByPath: vi.fn(() => ({ id: 'project-1' })),
         save: vi.fn(),
       } as any;
       const withProjects = new PlanManager(projectStore);
@@ -189,6 +193,9 @@ describe('PlanManager', () => {
     it('allows sequence assignment across worktrees when both belong to one project', () => {
       const projectStore = {
         resolveForPath: vi.fn((dirPath: string) => ({
+          id: dirPath.includes('repo') ? 'project-1' : 'project-2',
+        })),
+        findByPath: vi.fn((dirPath: string) => ({
           id: dirPath.includes('repo') ? 'project-1' : 'project-2',
         })),
         save: vi.fn(),
@@ -716,6 +723,9 @@ describe('PlanManager', () => {
     it('aggregates same-project plans across worktrees when a project store is provided', () => {
       const projectStore = {
         resolveForPath: vi.fn((dirPath: string) => ({
+          id: dirPath.includes('repo') ? 'project-1' : 'project-2',
+        })),
+        findByPath: vi.fn((dirPath: string) => ({
           id: dirPath.includes('repo') ? 'project-1' : 'project-2',
         })),
         save: vi.fn(),

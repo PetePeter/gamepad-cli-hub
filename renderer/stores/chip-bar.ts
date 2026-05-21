@@ -88,7 +88,7 @@ async function loadPlans(sessionId: string): Promise<ChipBarPlan[]> {
   const cwd = session?.workingDir ?? '';
   let activePlans: Array<{ id: string; humanId?: string; title: string; type?: string; status: string }> = [];
   let readyPlans: Array<{ id: string; humanId?: string; title: string; type?: string }> = [];
-  try { activePlans = cwd && plansClient.planGetAllDoingForDir ? await plansClient.planGetAllDoingForDir(cwd) : await plansClient.planDoingForSession(sessionId); } catch { activePlans = []; }
+  try { activePlans = cwd ? (plansClient.planGetAllDoingForDir ? await plansClient.planGetAllDoingForDir(cwd) : await plansClient.planDoingForSession(cwd)) : []; } catch { activePlans = []; }
   try { if (cwd) readyPlans = await plansClient.planStartableForDir(cwd); } catch { readyPlans = []; }
   return [
     ...activePlans.filter((plan) => ACTIVE_PLAN_STATUSES.has(toChipStatus(plan.status))).map((plan) => ({ id: plan.id, humanId: plan.humanId, title: plan.title, type: plan.type as 'bug' | 'feature' | 'research' | undefined, status: toChipStatus(plan.status) })),

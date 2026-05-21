@@ -12,13 +12,9 @@ import { useAppStore } from '../../stores/app.js';
 
 interface ProjectRecord {
   id: string;
-  key: string;
   name: string;
   canonicalPath: string;
   alternatePaths: string[];
-  rootKind: string;
-  gitCommonDir?: string;
-  repoRootPath?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -43,7 +39,6 @@ async function refresh(): Promise<void> {
       name: project.name,
       canonicalPath: project.canonicalPath,
       alternatePaths: project.alternatePaths || [],
-      rootKind: project.rootKind,
     })));
     emit('changed');
   } catch {
@@ -215,8 +210,6 @@ async function onSetMainDir(projectId: string, dirPath: string): Promise<void> {
             title="Double-click to rename"
             @dblclick="startEditing(project)"
           >{{ project.name }}</span>
-
-          <span class="settings-project-badge">{{ project.rootKind }}</span>
 
           <button
             v-if="editingId !== project.id"

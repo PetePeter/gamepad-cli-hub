@@ -800,7 +800,7 @@ export class PlanManager extends EventEmitter {
 
   private resolveProjectId(dirPath: string): string | null {
     if (!this.projectStore) return null;
-    return this.projectStore.resolveForPath(dirPath).id;
+    return this.projectStore.findByPath(dirPath)?.id ?? null;
   }
 
   getProjectIdForDirectory(dirPath: string): string | null {

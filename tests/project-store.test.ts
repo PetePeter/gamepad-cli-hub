@@ -72,25 +72,119 @@ describe('ProjectStore', () => {
       expect(store.findByPath('X:\\coding\\repo')?.id).toBe(record.id);
       expect(store.findByPath('X:\\coding\\other')).toBeUndefined();
     });
+
+    it('finds a record by alternate path', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+      expect(store.findByPath('X:\\coding\\worktree-b')?.id).toBe(record.id);
+    });
+
+    it('is case-insensitive for alternate paths', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\Worktree-B');
+      expect(store.findByPath('x:\\coding\\worktree-b')?.id).toBe(record.id);
+    });
   });
 
-  describe('addDirectory / removeDirectory / setMainDirectory', () => {
-    it('addDirectory is a no-op and does not throw', () => {
+  describe('addDirectory', () => {
+    it('adds a path to alternatePaths', () => {
       const store = new ProjectStore(projectsFile);
       const record = store.resolveForPath('X:\\coding\\repo');
-      expect(() => store.addDirectory(record.id, 'X:\\coding\\worktree-b')).not.toThrow();
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+      expect(record.alternatePaths).toContain('x:\\coding\\worktree-b');
     });
 
-    it('removeDirectory is a no-op and does not throw', () => {
+    it('normalizes the path before adding', () => {
       const store = new ProjectStore(projectsFile);
       const record = store.resolveForPath('X:\\coding\\repo');
-      expect(() => store.removeDirectory(record.id, 'X:\\coding\\worktree-b')).not.toThrow();
+      store.addDirectory(record.id, 'X:\\Coding\\Worktree-B\\');
+      expect(record.alternatePaths).toContain('x:\\coding\\worktree-b');
     });
 
-    it('setMainDirectory is a no-op and does not throw', () => {
+    it('is idempotent — no duplicate entries', () => {
       const store = new ProjectStore(projectsFile);
       const record = store.resolveForPath('X:\\coding\\repo');
-      expect(() => store.setMainDirectory(record.id, 'X:\\coding\\repo')).not.toThrow();
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+      expect(record.alternatePaths?.filter(p => p === 'x:\\coding\\worktree-b')).toHaveLength(1);
+    });
+
+    it('throws for unknown project id', () => {
+      const store = new ProjectStore(projectsFile);
+      expect(() => store.addDirectory('nonexistent', 'X:\\coding\\extra')).toThrow();
+    });
+
+    it('marks store dirty', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.save();
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+      expect(store.isDirty()).toBe(true);
+    });
+  });
+
+  describe('removeDirectory', () => {
+    it('removes a path from alternatePaths', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+      store.removeDirectory(record.id, 'X:\\coding\\worktree-b');
+      expect(record.alternatePaths).not.toContain('x:\\coding\\worktree-b');
+    });
+
+    it('is silent when path not present', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      expect(() => store.removeDirectory(record.id, 'X:\\coding\\missing')).not.toThrow();
+    });
+
+    it('throws for unknown project id', () => {
+      const store = new ProjectStore(projectsFile);
+      expect(() => store.removeDirectory('nonexistent', 'X:\\coding\\extra')).toThrow();
+    });
+
+    it('marks store dirty', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+      store.save();
+      store.removeDirectory(record.id, 'X:\\coding\\worktree-b');
+      expect(store.isDirty()).toBe(true);
+    });
+  });
+
+  describe('setMainDirectory', () => {
+    it('swaps an alternate path into canonicalPath', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+      store.setMainDirectory(record.id, 'X:\\coding\\worktree-b');
+      expect(record.canonicalPath).toBe('x:\\coding\\worktree-b');
+    });
+
+    it('old canonical becomes an alternate after swap', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+      store.setMainDirectory(record.id, 'X:\\coding\\worktree-b');
+      expect(record.alternatePaths).toContain('x:\\coding\\repo');
+    });
+
+    it('throws if path is not an alternate', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      expect(() => store.setMainDirectory(record.id, 'X:\\coding\\not-an-alt')).toThrow();
+    });
+
+    it('marks store dirty', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+      store.save();
+      store.setMainDirectory(record.id, 'X:\\coding\\worktree-b');
+      expect(store.isDirty()).toBe(true);
     });
   });
 
@@ -157,6 +251,16 @@ describe('ProjectStore', () => {
 
       const store2 = new ProjectStore(projectsFile);
       expect(store2.getById(record.id)?.canonicalPath).toBe(record.canonicalPath);
+    });
+
+    it('persists alternatePaths through save and reload', () => {
+      const store = new ProjectStore(projectsFile);
+      const record = store.resolveForPath('X:\\coding\\repo');
+      store.addDirectory(record.id, 'X:\\coding\\worktree-b');
+      store.save();
+
+      const store2 = new ProjectStore(projectsFile);
+      expect(store2.getById(record.id)?.alternatePaths).toContain('x:\\coding\\worktree-b');
     });
   });
 });

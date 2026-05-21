@@ -27,7 +27,6 @@ export interface ProjectSummary {
   name: string;
   canonicalPath: string;
   alternatePaths: string[];
-  rootKind?: string;
 }
 
 export interface ButtonEvent {

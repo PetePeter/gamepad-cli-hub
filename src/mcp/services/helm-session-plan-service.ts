@@ -1,14 +1,10 @@
 import { logger } from '../../utils/logger.js';
+import { normalizeProjectPath } from '../../session/project-identity.js';
 import type { ConfigLoader } from '../../config/loader.js';
 import type { PlanManager, PlanRefResolution } from '../../session/plan-manager.js';
 import type { SessionManager } from '../../session/manager.js';
 import type { PlanStatus } from '../../types/plan.js';
 import type { SessionInfo } from '../../types/session.js';
-
-function normalizeDirectoryPath(dirPath: string): string {
-  const normalized = dirPath.replace(/\\/g, '/').replace(/\/+$/, '');
-  return /^[a-z]:\//i.test(normalized) ? normalized.toLowerCase() : normalized;
-}
 
 /**
  * Assigns working plans to sessions with cross-directory and ownership validation.
@@ -31,7 +27,7 @@ export class HelmSessionPlanService {
     if (!plan) {
       throw new Error(`Plan not found: ${planId}`);
     }
-    if (session.workingDir && normalizeDirectoryPath(plan.dirPath) !== normalizeDirectoryPath(session.workingDir)) {
+    if (session.workingDir && normalizeProjectPath(plan.dirPath) !== normalizeProjectPath(session.workingDir)) {
       throw new Error(`Plan ${planId} does not belong to session directory ${session.workingDir}`);
     }
     if (plan.status === 'done' || plan.status === 'planning') {

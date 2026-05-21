@@ -128,6 +128,13 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
             yielded.add(canonicalKey);
             items.push({ name: dirDisplayNameFromPath(record.canonicalPath), path: record.canonicalPath, projectId: record.id, projectName: record.name, isCanonical: true });
           }
+          for (const altPath of record.alternatePaths ?? []) {
+            const altKey = normalizeProjectPath(altPath);
+            if (!yielded.has(altKey)) {
+              yielded.add(altKey);
+              items.push({ name: dirDisplayNameFromPath(altPath), path: altPath, projectId: record.id, projectName: record.name, isCanonical: false });
+            }
+          }
         }
       }
 
