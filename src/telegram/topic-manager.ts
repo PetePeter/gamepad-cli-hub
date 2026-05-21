@@ -61,6 +61,7 @@ export class TopicManager {
       const alive = await this.probeTopic(session.topicId);
       if (alive) {
         logger.info(`[TopicManager] Topic ${session.topicId} alive for session ${session.id}`);
+        this.topicNames.set(session.topicId, this.formatTopicName(session.name));
         return session.topicId;
       }
       logger.warn(`[TopicManager] Topic ${session.topicId} dead for session ${session.id}, recreating`);
@@ -154,8 +155,8 @@ export class TopicManager {
     if (!session.topicId) return;
     const newName = this.formatTopicName(session.name);
     if (this.topicNames.get(session.topicId) === newName) return;
-    await this.bot.editForumTopic(session.topicId, newName);
-    this.topicNames.set(session.topicId, newName);
+    const ok = await this.bot.editForumTopic(session.topicId, newName);
+    if (ok) this.topicNames.set(session.topicId, newName);
   }
 
   /**
