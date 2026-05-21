@@ -178,6 +178,18 @@ async function handleClose(
   });
 
   ptyManager.kill(session.id);
+
+  // Explicitly delete the forum topic before removing the session so the
+  // Telegram API call completes synchronously within this update handler.
+  // The session:removed handler in handlers.ts will also attempt closeSessionTopic()
+  // as a fallback for other removal paths — a second call on an already-deleted
+  // topic fails silently, so leaving that intact is safe.
+  try {
+    await topicManager.closeSessionTopic(session);
+  } catch (err) {
+    logger.warn('[CommandHandler] closeSessionTopic failed during /close — proceeding with session removal', { err });
+  }
+
   if (sessionManager.hasSession(session.id)) {
     sessionManager.removeSession(session.id);
   }
