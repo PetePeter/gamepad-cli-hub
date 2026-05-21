@@ -533,6 +533,7 @@ export function useSettingsController(options: {
           buildToolEditorOptions(values),
         );
         if (addResult.success) {
+          await configClient.configCopyCliBindings(key, cloneKey);
           logEvent(`Cloned CLI type ${key} to ${cloneKey}`);
           await refreshAfterToolChange(cloneKey);
           return;
