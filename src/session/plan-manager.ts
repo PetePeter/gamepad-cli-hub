@@ -454,6 +454,23 @@ export class PlanManager extends EventEmitter {
     return this.getForDirectory(dirPath).filter(i => ACTIVE_PLAN_STATUSES.has(i.status));
   }
 
+  /** Get active plan items claimed by a specific session. */
+  getDoingForSession(sessionId: string): PlanItem[] {
+    return [...this.items.values()].filter(
+      (i) => i.sessionId === sessionId && ACTIVE_PLAN_STATUSES.has(i.status),
+    );
+  }
+
+  /** Record a session claim on a plan. Unconditional — overrides any prior claim. */
+  claimPlan(id: string, sessionId: string): void {
+    const item = this.items.get(id);
+    if (!item) return;
+    item.sessionId = sessionId;
+    item.updatedAt = Date.now();
+    savePlanFile(item);
+    this.emit('plan:changed', item.dirPath);
+  }
+
   /** Add a dependency edge. Returns false if rejected (cycle, self-loop, cross-dir). */
   addDependency(fromId: string, toId: string): boolean {
     if (!this.canAddDependency(fromId, toId)) return false;
@@ -518,6 +535,7 @@ export class PlanManager extends EventEmitter {
     item.completionNotes = completionNotes.trim();
     item.status = 'done';
     item.stateInfo = undefined;
+    item.sessionId = undefined;
     item.updatedAt = Date.now();
     item.stateUpdatedAt = item.updatedAt;
 

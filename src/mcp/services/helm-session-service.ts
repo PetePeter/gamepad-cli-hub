@@ -125,8 +125,8 @@ export class HelmSessionService {
     };
   }
 
-  setSessionWorkingPlan(sessionRef: string, planId: string): { ok: true } {
-    return this.planService.setWorkingPlan(sessionRef, planId);
+  claimSessionPlan(sessionRef: string, planId: string): { ok: true } {
+    return this.planService.claimPlan(sessionRef, planId);
   }
 
   private toSessionSummary(session: SessionInfo): SessionSummary {

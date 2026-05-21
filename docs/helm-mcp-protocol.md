@@ -326,7 +326,7 @@ Reply to me
 | `session_send_text(name, text, options)` | Send text with optional envelope |
 | `session_get(name)` | Get session metadata |
 | `sessions_list(dirPath?)` | List active sessions |
-| `session_set_working_plan(name, planId)` | Coordinate on shared plans |
+| `session_plan_claim(sessionId, planId)` | Claim a plan: records ownership, transitions ready→coding, shows plan badge |
 
 ## See Also
 

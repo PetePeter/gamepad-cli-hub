@@ -44,6 +44,8 @@ export interface PlanItem {
   completionRecap?: boolean;
   /** Optional first-class sequence/swimlane membership. */
   sequenceId?: string;
+  /** Session that has claimed this plan. Set by session_plan_claim. Cleared on done. */
+  sessionId?: string;
   /** Creation timestamp */
   createdAt: number;
   /** Timestamp when the current lifecycle status last changed. */

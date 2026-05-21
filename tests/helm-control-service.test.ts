@@ -45,6 +45,7 @@ function makeService() {
       return item ? { status: 'found' as const, item } : { status: 'missing' as const };
     }),
     setState: vi.fn(),
+    claimPlan: vi.fn(),
   };
   const configLoader = {
     getWorkingDirectories: vi.fn(() => [{ name: 'Helm', path: '/work' }]),
@@ -460,7 +461,7 @@ describe('HelmControlService.spawnCli', () => {
       sessionId: 's1',
     });
 
-    const result = service.setSessionWorkingPlan('s1', 'plan-1');
+    const result = service.claimSessionPlan('s1', 'plan-1');
 
     expect(planManager.setState).toHaveBeenCalledWith('plan-1', 'coding');
     expect(sessionManager.updateSession).toHaveBeenCalledWith('s1', { currentPlanId: 'plan-1' });
@@ -495,7 +496,7 @@ describe('HelmControlService.spawnCli', () => {
       sessionId: 's1',
     });
 
-    const result = service.setSessionWorkingPlan('s1', 'plan-1');
+    const result = service.claimSessionPlan('s1', 'plan-1');
 
     expect(sessionManager.updateSession).toHaveBeenCalledWith('s1', { currentPlanId: 'plan-1' });
     expect(result).toEqual({ ok: true });
@@ -524,7 +525,7 @@ describe('HelmControlService.spawnCli', () => {
     ));
     (planManager.setState as ReturnType<typeof vi.fn>).mockReturnValue({ ...plan, status: 'coding', sessionId: 's1' });
 
-    const result = service.setSessionWorkingPlan('s1', 'P-0042');
+    const result = service.claimSessionPlan('s1', 'P-0042');
 
     expect(planManager.setState).toHaveBeenCalledWith('plan-1', 'coding');
     expect(result).toEqual({ ok: true });
@@ -547,7 +548,7 @@ describe('HelmControlService.spawnCli', () => {
       ],
     });
 
-    expect(() => service.setSessionWorkingPlan('s1', 'P-0042')).toThrow('Plan reference is ambiguous: P-0042');
+    expect(() => service.claimSessionPlan('s1', 'P-0042')).toThrow('Plan reference is ambiguous: P-0042');
   });
 });
 
@@ -578,7 +579,7 @@ describe('HelmControlService.getSessionInfo', () => {
     expect(info.mandatory_rules).toEqual(expect.arrayContaining([
       expect.stringContaining('session_set_aiagent_state'),
       expect.stringContaining('plan_context_list'),
-      expect.stringContaining('plan_set_state'),
+      expect.stringContaining('session_plan_claim'),
       expect.stringContaining('QUESTION:'),
       expect.stringContaining('session_read_terminal'),
       expect.stringContaining('skill_get'),

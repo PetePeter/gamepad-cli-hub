@@ -163,7 +163,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_create',
     title: 'Create Plan',
-    description: `Create a plan item in a directory when follow-up work, later cleanup, or a blocking question should survive the current session. Optionally set type to "bug", "feature", or "research", and set autoImplement=true when this ready follow-up may be picked up automatically after its prerequisite is completed. The description should include these sections: ${REQUIRED_PLAN_DESCRIPTION_SECTIONS.join(', ')}. For blocking questions, create a separate plan titled "QUESTION: ..." and link it to the original blocked plan with plan_nextplan_link so the question must be resolved first. The new plan starts in "planning" status with no session owner. When you begin working on this plan, claim it by calling plan_set_state with status "coding" and your sessionId, then call session_set_working_plan.`,
+    description: `Create a plan item in a directory when follow-up work, later cleanup, or a blocking question should survive the current session. Optionally set type to "bug", "feature", or "research", and set autoImplement=true when this ready follow-up may be picked up automatically after its prerequisite is completed. The description should include these sections: ${REQUIRED_PLAN_DESCRIPTION_SECTIONS.join(', ')}. For blocking questions, create a separate plan titled "QUESTION: ..." and link it to the original blocked plan with plan_nextplan_link so the question must be resolved first. The new plan starts in "planning" status with no session owner. When you begin working on this plan, call session_plan_claim with your sessionId and the planId to claim it.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -209,7 +209,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'plan_set_state',
     title: 'Set Plan State',
-    description: 'Set a plan item state by UUID to planning, ready, coding, review, or blocked. Use this when the lifecycle state itself changed; if you only need the session row to point at the current plan, prefer session_set_working_plan. IMPORTANT: When setting status to "coding", you must pass sessionId to claim ownership. The "planning" and "ready" states automatically clear any previous session owner. "review" and "blocked" preserve existing ownership. Always call session_set_working_plan after claiming a plan to update the session\'s visible working plan. Use plan_get_id to convert P-00xx format to UUID.',
+    description: 'Set a plan item state by UUID to planning, ready, coding, review, or blocked. Use this when the lifecycle state itself changed. Use plan_get_id to convert P-00xx format to UUID.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -736,9 +736,9 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
-    name: 'session_set_working_plan',
-    title: 'Set Session Working Plan',
-    description: 'Update which plan the session row should show as currently being worked on, assigning the plan to that session when allowed. planId accepts either the canonical UUID or P-00xx human-readable ID. WHEN: call this immediately after claiming implementation work with plan_set_state status=coding so Helm shows the active plan badge on the session row; also call it whenever you intentionally move to a different plan item.',
+    name: 'session_plan_claim',
+    title: 'Claim Plan',
+    description: 'Claim a plan for this session: records plan.sessionId, auto-transitions ready→coding, and shows the plan badge on the session row. planId accepts UUID or P-00xx human-readable ID. WHEN: call this before beginning implementation of any plan so Helm assigns ownership and shows the badge; also call it when intentionally switching to a different plan item.',
     inputSchema: {
       type: 'object',
       properties: {

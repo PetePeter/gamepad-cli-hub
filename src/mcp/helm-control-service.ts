@@ -580,8 +580,8 @@ export class HelmControlService extends EventEmitter {
     return this.sessionService.readSessionTerminal(sessionRef, requestedLines, mode, stripBlankLines);
   }
 
-  setSessionWorkingPlan(sessionRef: string, planId: string) {
-    return this.sessionService.setSessionWorkingPlan(sessionRef, planId);
+  claimSessionPlan(sessionRef: string, planId: string) {
+    return this.sessionService.claimSessionPlan(sessionRef, planId);
   }
 
   // ---------------------------------------------------------------------------

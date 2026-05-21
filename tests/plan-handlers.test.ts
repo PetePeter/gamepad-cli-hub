@@ -254,18 +254,19 @@ describe('plan IPC handlers', () => {
     expect(startable[0].id).toBe(a.id);
   });
 
-  it('plan:doingForSession returns active plans for the directory', async () => {
+  it('plan:doingForSession returns active plans claimed by the session', async () => {
     const item = await handlers.get('plan:create')!({}, '/proj', 'Working', '');
     await handlers.get('plan:apply')!({}, item.id);
+    planManager.claimPlan(item.id, 'session-abc');
 
-    const doing = await handlers.get('plan:doingForSession')!({}, '/proj');
+    const doing = await handlers.get('plan:doingForSession')!({}, 'session-abc');
     expect(doing).toHaveLength(1);
     expect(doing[0].title).toBe('Working');
   });
 
-  it('plan:doingForSession returns empty array for directory with no active plans', async () => {
+  it('plan:doingForSession returns empty array when session has no claimed plans', async () => {
     await handlers.get('plan:create')!({}, '/proj', 'Pending', '');
-    const doing = await handlers.get('plan:doingForSession')!({}, '/proj');
+    const doing = await handlers.get('plan:doingForSession')!({}, 'session-xyz');
     expect(doing).toHaveLength(0);
   });
 

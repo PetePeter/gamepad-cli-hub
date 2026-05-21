@@ -16,8 +16,8 @@ export class HelmSessionPlanService {
     private readonly configLoader: ConfigLoader,
   ) {}
 
-  setWorkingPlan(sessionRef: string, planId: string): { ok: true } {
-    logger.info(`[MCP:Service] setSessionWorkingPlan session=${sessionRef} plan=${planId}`);
+  claimPlan(sessionRef: string, planId: string): { ok: true } {
+    logger.info(`[MCP:Service] claimPlan session=${sessionRef} plan=${planId}`);
     const session = this.findSession(sessionRef);
     if (!session) {
       throw new Error(`Session not found: ${sessionRef}`);
@@ -39,6 +39,7 @@ export class HelmSessionPlanService {
       if (!result) throw new Error(`Plan ${planId} could not be set to coding`);
     }
 
+    this.planManager.claimPlan(plan.id, session.id);
     this.sessionManager.updateSession(session.id, { currentPlanId: plan.id });
     return { ok: true };
   }

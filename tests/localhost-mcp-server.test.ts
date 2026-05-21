@@ -98,7 +98,7 @@ function makeService(): HelmControlService {
       stripped: ['hello'],
       lastOutputAt: 1234,
     })),
-    setSessionWorkingPlan: vi.fn((sessionRef: string, planId: string) => ({ sessionId: sessionRef, name: 'Claude', planId, planTitle: 'Task', planStatus: 'coding' })),
+    claimSessionPlan: vi.fn((sessionRef: string, planId: string) => ({ sessionId: sessionRef, name: 'Claude', planId, planTitle: 'Task', planStatus: 'coding' })),
     getTelegramStatus: vi.fn(() => ({
       enabled: true,
       configured: true,
@@ -221,14 +221,14 @@ describe('LocalhostMcpServer', () => {
     expect(planCreateTool.description).toContain('Acceptance Criteria');
     expect(planCreateTool.description).toContain('QUESTION:');
     expect(planCreateTool.description).toContain('plan_nextplan_link');
-    expect(planCreateTool.description).toContain('claim it by calling plan_set_state');
+    expect(planCreateTool.description).toContain('session_plan_claim');
     expect(planCompleteTool.description).toContain('P-00xx');
     expect(planCompleteTool.description).toContain('implemented behavior');
     expect(planCompleteTool.description).toContain('tests or review');
     expect(planNextLinkTool.description).toContain('blocking questions');
     expect(planSetStateTool.description).toContain('planning');
     expect(planSetStateTool.description).toContain('ready');
-    expect(planSetStateTool.description).toContain('session_set_working_plan');
+    expect(planSetStateTool.description).not.toContain('session_set_working_plan');
     expect(sendTextTool.description).toContain('always submitted atomically');
     expect(sendTextTool.description).toContain('session_read_terminal');
     expect(readTerminalTool.description).toContain('terminal tail');
@@ -586,7 +586,7 @@ describe('LocalhostMcpServer', () => {
     });
   });
 
-  it('dispatches session_set_working_plan through the MCP surface', async () => {
+  it('dispatches session_plan_claim through the MCP surface', async () => {
     const service = makeService();
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);
@@ -598,12 +598,12 @@ describe('LocalhostMcpServer', () => {
       id: 36,
       method: 'tools/call',
       params: {
-        name: 'session_set_working_plan',
+        name: 'session_plan_claim',
         arguments: { sessionId: 's1', planId: 'plan-1' },
       },
     });
     const json = await response.json();
-    expect((service.setSessionWorkingPlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'plan-1');
+    expect((service.claimSessionPlan as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith('s1', 'plan-1');
     expect(json.result.structuredContent).toEqual({
       sessionId: 's1',
       name: 'Claude',
@@ -668,7 +668,7 @@ describe('LocalhostMcpServer', () => {
     expect(createJson.result.content[0].text).toContain('Problem Statement');
     expect(createJson.result.content[0].text).toContain('QUESTION:');
     expect(createJson.result.content[0].text).toContain('plan_nextplan_link');
-    expect(createJson.result.content[0].text).toContain('session_set_working_plan');
+    expect(createJson.result.content[0].text).toContain('session_plan_claim');
 
     const setStateResponse = await rpc(port, 'secret-token', {
       jsonrpc: '2.0',
@@ -687,8 +687,8 @@ describe('LocalhostMcpServer', () => {
       description: 'Desc',
       status: 'coding',
     });
-    expect(setStateJson.result.content[0].text).toContain('Reminder: ownership is explicit');
-    expect(setStateJson.result.content[0].text).toContain('session_set_working_plan');
+    expect(setStateJson.result.content[0].text).toContain('Reminder: to claim work');
+    expect(setStateJson.result.content[0].text).toContain('session_plan_claim');
   });
 
   it('sets plan type through plan_create and plan_update MCP calls', async () => {

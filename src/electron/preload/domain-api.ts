@@ -657,9 +657,9 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   planStartableForDir: (dirPath: string) =>
     ipcRenderer.invoke('plan:startableForDir', dirPath),
 
-  /** Get plans currently active (coding/review/blocked) in a directory */
-  planDoingForSession: (dirPath: string) =>
-    ipcRenderer.invoke('plan:doingForSession', dirPath),
+  /** Get plans claimed by a specific session */
+  planDoingForSession: (sessionId: string) =>
+    ipcRenderer.invoke('plan:doingForSession', sessionId),
 
   /** Get all active plans for a directory across sessions */
   planGetAllDoingForDir: (dirPath: string) =>

@@ -297,9 +297,8 @@ stateDiagram-v2
 
 Starting implementation:
 
-1. Call `plan_set_state` with `status: "coding"` and your `sessionId` when claiming a plan.
-2. Call `session_set_working_plan` so Helm shows the plan on the session row.
-3. Call `session_set_aiagent_state` with `state: "implementing"` when edits, commands, or other execution begins.
+1. Call `session_plan_claim` with your `sessionId` and `planId` — this claims the plan, transitions it to coding, and shows the badge on the session row.
+2. Call `session_set_aiagent_state` with `state: "implementing"` when edits, commands, or other execution begins.
 
 Blocked by a question:
 

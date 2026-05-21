@@ -134,8 +134,8 @@ export function setupPlanHandlers(
     return planManager.getStartableForDirectory(dirPath);
   });
 
-  ipcMain.handle('plan:doingForSession', (_event, dirPath: string) => {
-    return planManager.getAllDoingForDirectory(dirPath);
+  ipcMain.handle('plan:doingForSession', (_event, sessionId: string) => {
+    return planManager.getDoingForSession(sessionId);
   });
 
   ipcMain.handle('plan:getAllDoingForDir', (_event, dirPath: string) => {

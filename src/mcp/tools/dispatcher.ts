@@ -413,8 +413,8 @@ export async function callMcpTool(
           asTerminalOutputMode(args.mode),
           typeof args.stripBlankLines === 'boolean' ? args.stripBlankLines : undefined,
         );
-      case 'session_set_working_plan':
-        return service.setSessionWorkingPlan(
+      case 'session_plan_claim':
+        return service.claimSessionPlan(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),
           asString(args.planId, 'planId is required'),
         );

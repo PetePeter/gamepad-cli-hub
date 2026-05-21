@@ -331,7 +331,7 @@ The MCP server exposes the following tools for external clients:
 | `session_get` | Get a session by ID or exact display name |
 | `session_send_text` | Send text to a running session's PTY |
 | `session_read_terminal` | Read the recent terminal tail for any known session, with `raw`, `stripped`, or `both` output modes |
-| `session_set_working_plan` | Show which plan a session is currently working on |
+| `session_plan_claim` | Claim a plan: records ownership, transitions ready→coding, shows plan badge on session row |
 | `session_set_aiagent_state` | Update the session AIAGENT state icon |
 | `session_info` | Return MCP endpoint, AIAGENT state registry, directories, tool descriptions, and agent plan guidance |
 
