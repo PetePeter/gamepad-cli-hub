@@ -27,7 +27,7 @@ import {
   setDraftEditorVisibilityChecker as setDraftEditorCompatibilityVisibilityChecker,
   setDraftEditorButtonHandler as setDraftEditorCompatibilityButtonHandler,
   setPlanChangesChecker as setPlanCompatibilityChangesChecker,
-} from '../drafts/draft-editor.js';
+} from '../stores/draft-editor-registry.js';
 import { saveDraftWithStableId } from '../drafts/draft-save.js';
 import { configClient, draftsClient, eventsClient, sessionsClient, terminalClient } from '../ipc/clients.js';
 
@@ -249,20 +249,6 @@ async function onContextMenuAction(action: string): Promise<void> {
       try { await sessionsClient.sessionSnapBack(props.sessionId); }
       catch (error) { console.error('Failed to snap back:', error); }
       break;
-    case 'drafts': {
-      const { showDraftSubmenu } = await import('../modals/draft-submenu.js');
-      const drafts = await draftsClient.draftList(props.sessionId);
-      showDraftSubmenu(drafts, {
-        onNewDraft: () => openDraftEditor(props.sessionId),
-        onApply: (draft) => {
-          if (draft.text) void deliverPromptSequence(props.sessionId, draft.text);
-          void draftsClient.draftDelete(draft.id);
-        },
-        onEdit: (draft) => openDraftEditor(props.sessionId, draft),
-        onDelete: (draft) => draftsClient.draftDelete(draft.id),
-      });
-      break;
-    }
   }
 }
 

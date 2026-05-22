@@ -36,7 +36,8 @@ const mockGetCliIcon = vi.fn((_type: string) => '🤖');
 const mockGetCliDisplayName = vi.fn((type: string) => type || 'Unknown');
 const mockRenderFooterBindings = vi.fn();
 const mockSwitchTo = vi.fn();
-const mockShowCloseConfirm = vi.fn();
+const mockSetCloseConfirmCallback = vi.fn();
+const mockCloseConfirm = { visible: false, sessionId: '', sessionName: '', draftCount: 0 };
 const mockHidePlanScreen = vi.fn();
 const mockShowPlanScreen = vi.fn();
 let mockPlanScreenVisible = false;
@@ -79,8 +80,9 @@ vi.mock('../renderer/utils.js', () => {
   };
 });
 
-vi.mock('../renderer/modals/close-confirm.js', () => ({
-  showCloseConfirm: mockShowCloseConfirm,
+vi.mock('../renderer/stores/modal-bridge.js', () => ({
+  closeConfirm: mockCloseConfirm,
+  setCloseConfirmCallback: mockSetCloseConfirmCallback,
 }));
 
 vi.mock('../renderer/plans/plan-screen.js', () => ({
@@ -583,7 +585,9 @@ describe('Sessions Screen', () => {
       }));
       await flush();
 
-      expect(mockShowCloseConfirm).toHaveBeenCalledWith('s-1', 'Session 1', expect.any(Function), expect.any(Number));
+      expect(mockCloseConfirm.sessionId).toBe('s-1');
+      expect(mockCloseConfirm.sessionName).toBe('Session 1');
+      expect(mockSetCloseConfirmCallback).toHaveBeenCalledWith(expect.any(Function));
     });
   });
 
@@ -1473,7 +1477,8 @@ describe('Sessions Screen', () => {
       sessionsState.cardColumn = 4;
       sessions.handleSessionsScreenButton('A');
       await flush();
-      expect(mockShowCloseConfirm).toHaveBeenCalledWith('s-0', expect.any(String), expect.any(Function), expect.any(Number));
+      expect(mockCloseConfirm.sessionId).toBe('s-0');
+      expect(mockSetCloseConfirmCallback).toHaveBeenCalledWith(expect.any(Function));
     });
 
     it('A at col=4 close confirm callback closes the session via IPC', async () => {
@@ -1481,7 +1486,7 @@ describe('Sessions Screen', () => {
       sessions.handleSessionsScreenButton('A');
       await flush();
       // Extract the onConfirm callback and invoke it
-      const onConfirm = mockShowCloseConfirm.mock.calls[0][2];
+      const onConfirm = mockSetCloseConfirmCallback.mock.calls[0][0];
       await onConfirm('s-0');
       await flush();
       expect(mockSessionClose).toHaveBeenCalledWith('s-0');

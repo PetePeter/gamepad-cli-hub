@@ -39,7 +39,7 @@ vi.mock('../renderer/plans/plan-layout.js', () => ({
   computeLayout: (...args: unknown[]) => mockComputeLayout(...args),
 }));
 
-vi.mock('../renderer/drafts/draft-editor.js', () => ({
+vi.mock('../renderer/stores/draft-editor-registry.js', () => ({
   showPlanInEditor: (...args: unknown[]) => mockShowPlanInEditor(...args),
   hideDraftEditor: () => mockHideDraftEditor(),
   isDraftEditorVisible: () => false,
@@ -105,7 +105,7 @@ async function getModule() {
 }
 
 async function getPlanDeleteConfirmModule() {
-  return await import('../renderer/modals/plan-delete-confirm.js');
+  return await import('../renderer/stores/modal-bridge.js');
 }
 
 /** Flush microtask queue so async fire-and-forget completes. */
@@ -218,8 +218,6 @@ describe('Project Planner canvas gamepad navigation', () => {
 
     mod = await getModule();
     mod.setPlanEditorOpener(mockShowPlanInEditor);
-    const { initPlanDeleteConfirmClickHandlers } = await getPlanDeleteConfirmModule();
-    initPlanDeleteConfirmClickHandlers();
     // Ensure hidden state
     mod.hidePlanScreen();
   });

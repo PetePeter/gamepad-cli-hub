@@ -62,7 +62,7 @@ const {
   mockSessionSetActive: vi.fn(),
 }));
 
-vi.mock('../renderer/drafts/draft-editor.js', () => ({
+vi.mock('../renderer/stores/draft-editor-registry.js', () => ({
   hideDraftEditor: mockHideDraftEditor,
   showDraftEditor: vi.fn(),
   showPlanInEditor: vi.fn(),

@@ -20,7 +20,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { state } from '../state.js';
 import { sessionsState } from '../screens/sessions-state.js';
-import { hideDraftEditor } from '../drafts/draft-editor.js';
+import { hideDraftEditor } from './draft-editor-registry.js';
 import {
   showView,
   onViewChange,

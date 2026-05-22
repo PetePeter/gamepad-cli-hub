@@ -69,10 +69,8 @@ import {
   draftSubmenu,
   toolEditor,
   isAnyBridgeModalVisible,
+  showSequencePicker,
 } from './stores/modal-bridge.js';
-import { collectSequenceItems } from './modals/context-menu.js';
-import { showSequencePicker } from './modals/sequence-picker.js';
-import { showDraftSubmenu } from './modals/draft-submenu.js';
 import { showEditorPopup } from './editor/editor-popup.js';
 import DraftEditor from './components/panels/DraftEditor.vue';
 import type { ScheduledTask } from '../../src/types/scheduled-task.js';
@@ -83,7 +81,7 @@ import {
   setDraftEditorVisibilityChecker as setDraftEditorCompatibilityVisibilityChecker,
   setDraftEditorButtonHandler as setDraftEditorCompatibilityButtonHandler,
   setPlanChangesChecker as setPlanCompatibilityChangesChecker,
-} from './drafts/draft-editor.js';
+} from './stores/draft-editor-registry.js';
 import {
   setPlanEditorOpener as setChipBarPlanEditorOpener,
 } from './stores/chip-bar.js';
@@ -542,7 +540,9 @@ function onContextMenuAction(action: string): void {
       break;
     }
     case 'sequences': {
-      const items = collectSequenceItems();
+      const activeSession = state.activeSessionId ? state.sessions.find(s => s.id === state.activeSessionId) : null;
+      const seqs = activeSession ? state.cliSequencesCache[activeSession.cliType] : null;
+      const items = seqs ? Object.values(seqs).flat() : [];
       if (items.length > 0) {
         showSequencePicker(items, (seq) => {
           if (state.activeSessionId) void executeSequence(seq);
@@ -551,7 +551,12 @@ function onContextMenuAction(action: string): void {
       break;
     }
     case 'drafts':
-      void showDraftSubmenu();
+      if (state.activeSessionId) {
+        void draftsClient.draftList(state.activeSessionId).then(drafts => {
+          draftSubmenu.visible = true;
+          draftSubmenu.items = [...(drafts ?? [])];
+        });
+      }
       break;
     case 'snap-out':
       if (state.activeSessionId) void onSessionSnapOut(state.activeSessionId);

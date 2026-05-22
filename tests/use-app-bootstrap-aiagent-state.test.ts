@@ -94,7 +94,7 @@ vi.mock('../renderer/screens/sessions.js', () => ({
   updateSessionsFocus: vi.fn(),
 }));
 
-vi.mock('../renderer/drafts/draft-editor.js', () => ({
+vi.mock('../renderer/stores/draft-editor-registry.js', () => ({
   initDraftEditor: vi.fn(),
 }));
 

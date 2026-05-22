@@ -10,7 +10,7 @@ import { state } from '../state.js';
 import { sessionsState } from './sessions-state.js';
 import { logEvent, getCliDisplayName, toDirection } from '../utils.js';
 import type { Session } from '../state.js';
-import { showCloseConfirm } from '../modals/close-confirm.js';
+import { closeConfirm, setCloseConfirmCallback } from '../stores/modal-bridge.js';
 import { sortSessions, type SessionSortField, type SortDirection } from '../sort-logic.js';
 import {
   groupSessionsByDirectory, buildFlatNavList,
@@ -289,7 +289,11 @@ function confirmCloseSessionById(sessionId: string): void {
     ? session.name
     : getCliDisplayName(session.cliType);
 
-  showCloseConfirm(session.id, displayName, doCloseSession, getDraftCountCache(session.id));
+  closeConfirm.visible = true;
+  closeConfirm.sessionId = session.id;
+  closeConfirm.sessionName = displayName;
+  closeConfirm.draftCount = getDraftCountCache(session.id) ?? 0;
+  setCloseConfirmCallback(doCloseSession);
 }
 
 function getFocusedRenderedSessionCard(): HTMLElement | null {

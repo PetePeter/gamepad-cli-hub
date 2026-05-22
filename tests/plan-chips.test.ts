@@ -16,7 +16,7 @@ const mockShowPlanInEditor = vi.fn();
 const mockHideDraftEditor = vi.fn();
 const mockDeliverBulkText = vi.fn();
 
-vi.mock('../renderer/drafts/draft-editor.js', () => ({
+vi.mock('../renderer/stores/draft-editor-registry.js', () => ({
   showDraftEditor: vi.fn(),
   hideDraftEditor: (...args: unknown[]) => mockHideDraftEditor(...args),
 }));

@@ -11,7 +11,7 @@ import { executeSequenceString, keyToPtySequence, comboToPtySequence } from '../
 import type { Binding } from '../src/config/loader.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { deliverBulkText } from './paste-handler.js';
-import { showDraftEditor } from './drafts/draft-editor.js';
+import { showDraftEditor } from './stores/draft-editor-registry.js';
 import { configClient, keyboardClient, terminalClient, toolsClient } from './ipc/clients.js';
 
 function executeScroll(binding: { direction: string; lines?: number }): void {
@@ -155,7 +155,7 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
         executeScroll(binding);
         break;
       case 'context-menu': {
-        const { showContextMenu } = await import('./modals/context-menu.js');
+        const { showContextMenu } = await import('./stores/modal-bridge.js');
         const tm = getTerminalManager();
         if (tm) showContextMenu(window.innerWidth / 2, window.innerHeight / 2, state.activeSessionId || '', 'gamepad');
         break;
@@ -173,7 +173,7 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
           console.warn(`[Renderer] sequence-list binding for ${button} has no items`);
           break;
         }
-        const { showSequencePicker } = await import('./modals/sequence-picker.js');
+        const { showSequencePicker } = await import('./stores/modal-bridge.js');
         showSequencePicker(items, (sequence) => executeSequence(sequence));
         break;
       }

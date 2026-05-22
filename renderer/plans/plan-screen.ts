@@ -4,7 +4,7 @@ import type { ContextBindingTargetType, ContextNode } from '../../src/types/cont
 import type { LayoutNode, LayoutResult } from './plan-layout.js';
 import { computeLayout } from './plan-layout.js';
 import { deliverPromptSequence } from '../sequence-delivery.js';
-import { hidePlanDeleteConfirm, showPlanDeleteConfirm } from '../modals/plan-delete-confirm.js';
+import { hidePlanDeleteConfirm, showPlanDeleteConfirm } from '../stores/modal-bridge.js';
 import { clearDonePlans, setClearDonePlansCallback } from '../stores/modal-bridge.js';
 import { state } from '../state.js';
 import { registerView, showView, currentView, type ViewMountContext } from '../main-view/main-view-manager.js';

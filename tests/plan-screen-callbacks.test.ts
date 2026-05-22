@@ -63,12 +63,9 @@ vi.mock('../renderer/sequence-delivery.js', () => ({
   deliverPromptSequence: (...args: unknown[]) => mockDeliverPromptSequence(...args),
 }));
 
-vi.mock('../renderer/modals/plan-delete-confirm.js', () => ({
+vi.mock('../renderer/stores/modal-bridge.js', () => ({
   showPlanDeleteConfirm: (...args: unknown[]) => mockShowPlanDeleteConfirm(...args),
   hidePlanDeleteConfirm: (...args: unknown[]) => mockHidePlanDeleteConfirm(...args),
-}));
-
-vi.mock('../renderer/stores/modal-bridge.js', () => ({
   clearDonePlans,
   setClearDonePlansCallback: (cb: () => Promise<void>) => { clearDoneCallback = cb; },
 }));
