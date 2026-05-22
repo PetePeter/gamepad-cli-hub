@@ -142,6 +142,21 @@ export class ContextManager extends EventEmitter {
     return true;
   }
 
+  /** Remove all bindings pointing at a deleted target (sequence or plan). Returns count removed. */
+  removeBindingsForTarget(targetType: ContextBindingTargetType, targetId: string): number {
+    const removed = this.bindings.filter((b) => b.targetType === targetType && b.targetId === targetId);
+    if (removed.length === 0) return 0;
+    const affectedProjects = new Set(
+      removed.map((b) => this.contexts.get(b.contextId)?.projectId).filter((id): id is string => id !== undefined),
+    );
+    this.bindings = this.bindings.filter((b) => !(b.targetType === targetType && b.targetId === targetId));
+    this.persistBindings();
+    for (const projectId of affectedProjects) {
+      this.emit('context:changed', projectId);
+    }
+    return removed.length;
+  }
+
   getBindingsForContext(contextId: string): ContextBinding[] {
     return this.bindings.filter((binding) => binding.contextId === contextId);
   }

@@ -8,10 +8,11 @@
 import { ipcMain } from 'electron';
 import type { ProjectStore } from '../../session/project-store.js';
 import type { PlanManager } from '../../session/plan-manager.js';
+import type { ContextManager } from '../../session/context-manager.js';
 import { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
 import { logger } from '../../utils/logger.js';
 
-export function setupProjectHandlers(projectStore: ProjectStore, planManager?: PlanManager): void {
+export function setupProjectHandlers(projectStore: ProjectStore, planManager?: PlanManager, contextManager?: ContextManager): void {
   const attachmentManager = planManager ? new PlanAttachmentManager(planManager) : null;
 
   ipcMain.handle('project:list', () => {
@@ -65,9 +66,13 @@ export function setupProjectHandlers(projectStore: ProjectStore, planManager?: P
       if (!project) {
         return { success: false, error: `Project not found: ${id}` };
       }
-      const deletedPlans = planManager?.deleteForProject(id) ?? { plansDeleted: 0, sequencesDeleted: 0, planIds: [] };
+      const deletedPlans = planManager?.deleteForProject(id) ?? { plansDeleted: 0, sequencesDeleted: 0, planIds: [], sequenceIds: [] };
       for (const planId of deletedPlans.planIds) {
         attachmentManager?.deletePlanAttachments(planId);
+        contextManager?.removeBindingsForTarget('plan', planId);
+      }
+      for (const sequenceId of deletedPlans.sequenceIds) {
+        contextManager?.removeBindingsForTarget('sequence', sequenceId);
       }
       projectStore.delete(id);
       projectStore.save();

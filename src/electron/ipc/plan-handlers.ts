@@ -92,14 +92,20 @@ export function setupPlanHandlers(
 
   ipcMain.handle('plan:delete', (_event, id: string) => {
     const result = planManager.delete(id);
-    if (result) attachmentManager.deletePlanAttachments(id);
+    if (result) {
+      attachmentManager.deletePlanAttachments(id);
+      contextManager?.removeBindingsForTarget('plan', id);
+    }
     return result;
   });
 
   ipcMain.handle('plan:clearCompleted', (_event, dirPath: string) => {
     const doneItems = planManager.getForDirectory(dirPath).filter(i => i.status === 'done');
     const count = planManager.deleteCompletedForDirectory(dirPath);
-    for (const item of doneItems) attachmentManager.deletePlanAttachments(item.id);
+    for (const item of doneItems) {
+      attachmentManager.deletePlanAttachments(item.id);
+      contextManager?.removeBindingsForTarget('plan', item.id);
+    }
     return count;
   });
 
@@ -173,11 +179,22 @@ export function setupPlanHandlers(
   );
 
   ipcMain.handle('plan:sequence-delete', (_event, id: string) => {
-    return planManager.deleteSequence(id);
+    const result = planManager.deleteSequence(id);
+    if (result) contextManager?.removeBindingsForTarget('sequence', id);
+    return result;
   });
 
   ipcMain.handle('plan:sequence-delete-with-plans', (_event, id: string) => {
-    return planManager.deleteSequenceWithPlans(id);
+    const sequence = planManager.getSequence(id);
+    const memberPlanIds = sequence
+      ? planManager.getForDirectory(sequence.dirPath).filter((p) => p.sequenceId === id).map((p) => p.id)
+      : [];
+    const result = planManager.deleteSequenceWithPlans(id);
+    if (result) {
+      contextManager?.removeBindingsForTarget('sequence', id);
+      for (const planId of memberPlanIds) contextManager?.removeBindingsForTarget('plan', planId);
+    }
+    return result;
   });
 
   ipcMain.handle('plan:sequence-assign', (_event, planId: string, sequenceId: string | null) => {

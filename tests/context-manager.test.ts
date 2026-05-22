@@ -163,6 +163,50 @@ describe('ContextManager', () => {
     expect(manager.listForProject('project-1')).toEqual([]);
   });
 
+  it('removeBindingsForTarget removes all bindings for a deleted sequence', () => {
+    const ctx1 = manager.create('project-1', { title: 'A', permission: 'readonly' });
+    const ctx2 = manager.create('project-1', { title: 'B', permission: 'readonly' });
+    manager.bind(ctx1.id, 'sequence', 'seq-1');
+    manager.bind(ctx2.id, 'sequence', 'seq-1');
+    manager.bind(ctx1.id, 'plan', 'plan-1');
+
+    const removed = manager.removeBindingsForTarget('sequence', 'seq-1');
+    expect(removed).toBe(2);
+    expect(manager.getSequenceIdsForContext(ctx1.id)).toEqual([]);
+    expect(manager.getSequenceIdsForContext(ctx2.id)).toEqual([]);
+    expect(manager.getPlanIdsForContext(ctx1.id)).toEqual(['plan-1']);
+  });
+
+  it('removeBindingsForTarget removes all bindings for a deleted plan', () => {
+    const ctx = manager.create('project-1', { title: 'A', permission: 'readonly' });
+    manager.bind(ctx.id, 'plan', 'plan-1');
+    manager.bind(ctx.id, 'sequence', 'seq-1');
+
+    const removed = manager.removeBindingsForTarget('plan', 'plan-1');
+    expect(removed).toBe(1);
+    expect(manager.getPlanIdsForContext(ctx.id)).toEqual([]);
+    expect(manager.getSequenceIdsForContext(ctx.id)).toEqual(['seq-1']);
+  });
+
+  it('removeBindingsForTarget returns 0 and is a no-op when target has no bindings', () => {
+    const removed = manager.removeBindingsForTarget('sequence', 'nonexistent');
+    expect(removed).toBe(0);
+  });
+
+  it('removeBindingsForTarget persists and emits context:changed', () => {
+    const ctx = manager.create('project-1', { title: 'A', permission: 'readonly' });
+    manager.bind(ctx.id, 'sequence', 'seq-1');
+    const persistSpy = vi.mocked(persistence.savePlanContextBindings);
+    const callsBefore = persistSpy.mock.calls.length;
+    const emitted: string[] = [];
+    manager.on('context:changed', (projectId: string) => emitted.push(projectId));
+
+    manager.removeBindingsForTarget('sequence', 'seq-1');
+
+    expect(persistSpy.mock.calls.length).toBeGreaterThan(callsBefore);
+    expect(emitted).toContain('project-1');
+  });
+
   it('upgrades legacy sequence-only bindings on load', () => {
     const created = { id: 'ctx-1', dirPath: '/proj', title: 'Legacy', type: 'Knowledge', permission: 'readonly', content: '', x: null, y: null, createdAt: 1, updatedAt: 1 };
     (persistence.loadPlanContexts as unknown as ReturnType<typeof vi.fn>).mockReturnValue([created]);

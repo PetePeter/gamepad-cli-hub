@@ -365,7 +365,7 @@ export class PlanManager extends EventEmitter {
   }
 
   /** Delete all plan items and sequences owned by a project. */
-  deleteForProject(projectId: string): { plansDeleted: number; sequencesDeleted: number; planIds: string[]; dirPaths: string[] } {
+  deleteForProject(projectId: string): { plansDeleted: number; sequencesDeleted: number; planIds: string[]; sequenceIds: string[]; dirPaths: string[] } {
     const items = this.getForProject(projectId);
     const planIds = items.map((item) => item.id);
     const planIdSet = new Set(planIds);
@@ -403,7 +403,7 @@ export class PlanManager extends EventEmitter {
     if (items.length > 0 || sequenceIds.size > 0) {
       logger.info(`[PlanManager] Deleted ${items.length} plan(s) and ${sequenceIds.size} sequence(s) for project ${projectId}`);
     }
-    return { plansDeleted: items.length, sequencesDeleted: sequenceIds.size, planIds, dirPaths };
+    return { plansDeleted: items.length, sequencesDeleted: sequenceIds.size, planIds, sequenceIds: [...sequenceIds], dirPaths };
   }
 
   /** Get a single plan item by ID. */
