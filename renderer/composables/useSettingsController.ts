@@ -149,6 +149,7 @@ export function useSettingsController(options: {
   const settingsMcpConfig = ref<SettingsMcpConfig>({ enabled: false, port: 47373, authToken: '' });
   const settingsSkills = ref<SettingsSkillSummary[]>([]);
   const settingsSkillDraft = ref<SettingsSkillDraft>(emptySkillDraft());
+  const skillBodyCache = ref<Record<string, string>>({});
   const settingsBindings = ref<SettingsBindingEntry[]>([]);
   const settingsSequenceGroups = ref<SettingsSequenceGroup[]>([]);
   const settingsBindingSortField = ref<BindingSortField>('button');
@@ -981,6 +982,14 @@ export function useSettingsController(options: {
     logEvent('Reset all skill use counts');
   }
 
+  async function onSkillLoadBodies(): Promise<void> {
+    const ids = settingsSkills.value.map((s) => s.id).filter((id) => !(id in skillBodyCache.value));
+    await Promise.all(ids.map(async (id) => {
+      const skill = await skillsClient.skillGet(id);
+      if (skill) skillBodyCache.value[id] = skill.body ?? '';
+    }));
+  }
+
   function onBindingAdd(button?: string): void {
     const targetButton = button || settingsAddableButtons.value[0];
     if (!targetButton) {
@@ -1102,6 +1111,7 @@ export function useSettingsController(options: {
     settingsMcpConfig,
     settingsSkills,
     settingsSkillDraft,
+    skillBodyCache,
     settingsBindings,
     settingsSequenceGroups,
     settingsBindingSortField,
@@ -1138,6 +1148,7 @@ export function useSettingsController(options: {
     onSkillClearReviews,
     onSkillResetUseCount,
     onSkillResetAllCounts,
+    onSkillLoadBodies,
     onBindingAdd,
     onBindingDelete,
     onBindingCopyFrom,

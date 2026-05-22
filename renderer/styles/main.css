@@ -1951,6 +1951,36 @@ kbd {
   width: 100%;
 }
 
+.skill-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.skill-filter-input {
+  width: 100%;
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 4px 8px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.skill-filter-input:focus {
+  border-color: #555;
+}
+
+.skill-filter-badges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
 .settings-skill-editor {
   padding: var(--spacing-md);
   background: var(--bg-secondary);

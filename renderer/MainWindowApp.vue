@@ -217,6 +217,7 @@ const {
   settingsMcpConfig,
   settingsSkills,
   settingsSkillDraft,
+  skillBodyCache,
   settingsBindings,
   settingsSequenceGroups,
   settingsBindingSortField,
@@ -253,6 +254,7 @@ const {
   onSkillClearReviews,
   onSkillResetUseCount,
   onSkillResetAllCounts,
+  onSkillLoadBodies,
   onBindingAdd,
   onBindingDelete,
   onBindingCopyFrom,
@@ -926,6 +928,7 @@ onUnmounted(() => {
               :skills="settingsSkills"
               :draft="settingsSkillDraft"
               :projects="settingsProjects"
+              :body-cache="skillBodyCache"
               @select="onSkillSelect"
               @new="onSkillNew"
               @save="onSkillSave"
@@ -934,6 +937,7 @@ onUnmounted(() => {
               @clear-reviews="onSkillClearReviews"
               @reset-use-count="onSkillResetUseCount"
               @reset-all-counts="onSkillResetAllCounts"
+              @load-bodies="onSkillLoadBodies"
             />
             <BackupTab
               v-else-if="activeTab === 'backups'"

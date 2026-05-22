@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
 export interface SkillSummary {
   id: string;
@@ -46,10 +46,15 @@ export interface SkillProject {
   canonicalPath: string;
 }
 
+const FILTER_BADGES_KEY = 'helm:skill-filter-badges';
+
+interface FilterBadges { name: boolean; trigger: boolean; body: boolean }
+
 const props = defineProps<{
   skills: SkillSummary[];
   draft: SkillDraft;
   projects: SkillProject[];
+  bodyCache?: Record<string, string>;
 }>();
 
 const emit = defineEmits<{
@@ -61,7 +66,41 @@ const emit = defineEmits<{
   clearReviews: [id: string];
   resetUseCount: [id: string];
   resetAllCounts: [];
+  loadBodies: [];
 }>();
+
+const filterText = ref('');
+const filterBadges = ref<FilterBadges>({ name: true, trigger: false, body: false });
+const bodiesRequested = ref(false);
+
+onMounted(() => {
+  try {
+    const saved = localStorage.getItem(FILTER_BADGES_KEY);
+    if (saved) filterBadges.value = { name: true, trigger: false, body: false, ...JSON.parse(saved) };
+  } catch { /* ignore */ }
+});
+
+watch(filterBadges, (badges) => {
+  localStorage.setItem(FILTER_BADGES_KEY, JSON.stringify(badges));
+  if (badges.body && !bodiesRequested.value) {
+    bodiesRequested.value = true;
+    emit('loadBodies');
+  }
+}, { deep: true });
+
+const filteredSkills = computed(() => {
+  const text = filterText.value.trim().toLowerCase();
+  if (!text) return props.skills;
+  return props.skills.filter((skill) => {
+    if (filterBadges.value.name && skill.name.toLowerCase().includes(text)) return true;
+    if (filterBadges.value.trigger && skill.description.toLowerCase().includes(text)) return true;
+    if (filterBadges.value.body) {
+      const body = props.bodyCache?.[skill.id] ?? '';
+      if (body.toLowerCase().includes(text)) return true;
+    }
+    return false;
+  });
+});
 
 const localDraft = ref<SkillDraft>({ ...props.draft });
 
@@ -194,9 +233,35 @@ function formatReviewDate(timestamp: string): string {
 <template>
   <div class="settings-skills-panel">
     <div class="settings-skills-list">
+      <div class="skill-filter-bar">
+        <input
+          v-model="filterText"
+          class="skill-filter-input focusable"
+          type="text"
+          placeholder="Filter skills…"
+        />
+        <div class="skill-filter-badges">
+          <button
+            class="plan-header__chip focusable"
+            :class="{ yes: filterBadges.name }"
+            @click="filterBadges.name = !filterBadges.name"
+          >name</button>
+          <button
+            class="plan-header__chip focusable"
+            :class="{ yes: filterBadges.trigger }"
+            @click="filterBadges.trigger = !filterBadges.trigger"
+          >trigger</button>
+          <button
+            class="plan-header__chip focusable"
+            :class="{ yes: filterBadges.body }"
+            @click="filterBadges.body = !filterBadges.body"
+          >body</button>
+        </div>
+      </div>
+
       <div class="settings-list">
         <button
-          v-for="skill in skills"
+          v-for="skill in filteredSkills"
           :key="skill.id"
           class="settings-list-item settings-skill-item focusable"
           :class="{ 'settings-skill-item--active': skill.id === selectedId }"
@@ -223,8 +288,8 @@ function formatReviewDate(timestamp: string): string {
         </button>
       </div>
 
-      <div v-if="skills.length === 0" class="tools-empty">
-        No skills configured.
+      <div v-if="filteredSkills.length === 0" class="tools-empty">
+        {{ skills.length === 0 ? 'No skills configured.' : 'No skills match filter.' }}
       </div>
 
       <div class="settings-tool-actions">
