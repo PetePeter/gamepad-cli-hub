@@ -68,6 +68,10 @@ vi.mock('../renderer/stores/modal-bridge.js', () => ({
   hidePlanDeleteConfirm: (...args: unknown[]) => mockHidePlanDeleteConfirm(...args),
   clearDonePlans,
   setClearDonePlansCallback: (cb: () => Promise<void>) => { clearDoneCallback = cb; },
+  showPlanHelpModal: (...args: unknown[]) => mockShowPlanHelpModal(...args),
+  hidePlanHelpModal: (...args: unknown[]) => mockHidePlanHelpModal(...args),
+  isPlanHelpVisible: () => mockIsPlanHelpVisible(),
+  planHelp: { visible: false },
 }));
 
 vi.mock('../renderer/state.js', () => ({
@@ -96,11 +100,6 @@ vi.mock('../renderer/main-view/main-view-manager.js', () => ({
   currentView: () => currentViewName,
 }));
 
-vi.mock('../renderer/plans/plan-help-modal.js', () => ({
-  showPlanHelpModal: (...args: unknown[]) => mockShowPlanHelpModal(...args),
-  hidePlanHelpModal: (...args: unknown[]) => mockHidePlanHelpModal(...args),
-  isPlanHelpVisible: () => mockIsPlanHelpVisible(),
-}));
 
 function fakeLayout(ids: string[]) {
   return {

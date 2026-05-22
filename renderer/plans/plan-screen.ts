@@ -5,10 +5,9 @@ import type { LayoutNode, LayoutResult } from './plan-layout.js';
 import { computeLayout } from './plan-layout.js';
 import { deliverPromptSequence } from '../sequence-delivery.js';
 import { hidePlanDeleteConfirm, showPlanDeleteConfirm } from '../stores/modal-bridge.js';
-import { clearDonePlans, setClearDonePlansCallback } from '../stores/modal-bridge.js';
+import { clearDonePlans, setClearDonePlansCallback, showPlanHelpModal, hidePlanHelpModal, isPlanHelpVisible } from '../stores/modal-bridge.js';
 import { state } from '../state.js';
 import { registerView, showView, currentView, type ViewMountContext } from '../main-view/main-view-manager.js';
-import { hidePlanHelpModal, isPlanHelpVisible, showPlanHelpModal } from './plan-help-modal.js';
 import { pathsMatch } from '../session-groups.js';
 import {
   attachmentsClient,

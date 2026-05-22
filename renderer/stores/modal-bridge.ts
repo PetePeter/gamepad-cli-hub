@@ -321,6 +321,28 @@ export function buildToolEditorOptions(values: Record<string, any>): {
 }
 
 // ============================================================================
+// Plan Help Modal
+// ============================================================================
+
+export const planHelp = reactive({ visible: false });
+
+const _showedForDir = new Set<string>();
+
+export function showPlanHelpModal(dir: string): void {
+  if (_showedForDir.has(dir)) return;
+  _showedForDir.add(dir);
+  planHelp.visible = true;
+}
+
+export function hidePlanHelpModal(): void {
+  planHelp.visible = false;
+}
+
+export function isPlanHelpVisible(): boolean {
+  return planHelp.visible;
+}
+
+// ============================================================================
 // Guard helper — check if ANY bridge modal is visible (for race condition guard)
 // ============================================================================
 
@@ -334,6 +356,6 @@ export function isAnyBridgeModalVisible(): boolean {
   return closeConfirm.visible || contextMenu.visible || planDeleteConfirm.visible ||
     clearDonePlans.visible || sequencePicker.visible || quickSpawn.visible || dirPicker.visible ||
     draftSubmenu.visible || formModal.visible || editorPopupStore.visible || toolEditor.visible ||
-    escProtection.isProtecting.value;
+    planHelp.visible || escProtection.isProtecting.value;
 }
 

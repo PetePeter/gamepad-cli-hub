@@ -11,6 +11,7 @@ import {
   draftSubmenu,
   formModal, getFormModalResolve,
   toolEditor, getToolEditorCallback,
+  planHelp, hidePlanHelpModal,
 } from '../../stores/modal-bridge.js';
 import type { ScheduledTask } from '../../../src/types/scheduled-task.js';
 import CloseConfirmModal from '../modals/CloseConfirmModal.vue';
@@ -25,6 +26,7 @@ import ToolEditorModal from '../modals/ToolEditorModal.vue';
 import EditorPopup from '../modals/EditorPopup.vue';
 import BindingEditorModal from '../modals/BindingEditorModal.vue';
 import EscProtectionModal from '../modals/EscProtectionModal.vue';
+import PlanHelpModal from '../modals/PlanHelpModal.vue';
 import BackupRestoreModal from '../modals/BackupRestoreModal.vue';
 import ClearDonePlansModal from '../modals/ClearDonePlansModal.vue';
 import ScheduledTasksTab from '../sidebar/ScheduledTasksTab.vue';
@@ -262,6 +264,8 @@ function onToolEditorSave(values: any): void {
   />
 
   <EscProtectionModal />
+
+  <PlanHelpModal v-if="planHelp.visible" @dismiss="hidePlanHelpModal()" />
 
   <BackupRestoreModal
     :visible="backupRestore.visible"

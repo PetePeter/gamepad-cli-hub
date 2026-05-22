@@ -42,7 +42,6 @@ export function showPlanInEditor(
 }
 
 export function hideDraftEditor(): void { _closer?.(); }
-export function closeEditor(): void { _closer?.(); }
 
 export function isDraftEditorVisible(): boolean { return _visibilityChecker?.() ?? false; }
 

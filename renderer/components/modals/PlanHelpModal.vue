@@ -1,51 +1,28 @@
+<script setup lang="ts">
 /**
- * Plan Help Modal — informational overlay shown on first visit to an empty plan.
- *
- * Non-interactive: dismiss with B button, Escape, or click-outside.
- * Shown at most once per directory per session.
+ * PlanHelpModal — informational overlay shown on first visit to an empty plan.
+ * Replaces plans/plan-help-modal.ts DOM manipulation.
  */
+import { onMounted, onUnmounted } from 'vue';
+import { useModalStack } from '../../composables/useModalStack.js';
 
-let overlayEl: HTMLElement | null = null;
-let _visible = false;
+const MODAL_ID = 'plan-help';
 
-/** @internal — exposed for test observability only */
-export const showedForDir = new Set<string>();
+const emit = defineEmits<{ (e: 'dismiss'): void }>();
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+const modalStack = useModalStack();
 
-/**
- * Show the help modal for the given directory.
- * No-ops if already shown for this directory this session.
- */
-export function showPlanHelpModal(dir: string): void {
-  if (showedForDir.has(dir)) return;
-  showedForDir.add(dir);
-  _visible = true;
-  ensureOverlay();
-  overlayEl!.classList.add('visible');
+function handleButton(button: string): boolean {
+  if (button === 'B') { emit('dismiss'); return true; }
+  return false;
 }
 
-export function hidePlanHelpModal(): void {
-  _visible = false;
-  if (overlayEl) overlayEl.classList.remove('visible');
-}
+onMounted(() => modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: [] }));
+onUnmounted(() => modalStack.pop(MODAL_ID));
+</script>
 
-export function isPlanHelpVisible(): boolean {
-  return _visible;
-}
-
-// ---------------------------------------------------------------------------
-// DOM
-// ---------------------------------------------------------------------------
-
-function ensureOverlay(): void {
-  if (overlayEl?.isConnected) return;
-
-  overlayEl = document.createElement('div');
-  overlayEl.className = 'plan-help-overlay';
-  overlayEl.innerHTML = `
+<template>
+  <div class="plan-help-overlay" @click.self="emit('dismiss')">
     <div class="plan-help-modal" role="dialog" aria-modal="true" aria-label="How Plans Work">
       <h2 class="plan-help-title">How Plans Work</h2>
       <p class="plan-help-desc">A plan is a set of work items that can depend on each other — complete some before others can start.</p>
@@ -75,12 +52,17 @@ function ensureOverlay(): void {
       <p class="plan-help-hint plan-help-mouse-only">⚠️ This screen requires a mouse — it is not operable with the gamepad.</p>
       <p class="plan-help-dismiss">B button · Esc · click outside to dismiss</p>
     </div>
-  `;
+  </div>
+</template>
 
-  // Click-outside dismisses
-  overlayEl.addEventListener('click', (e) => {
-    if (e.target === overlayEl) hidePlanHelpModal();
-  });
-
-  document.body.appendChild(overlayEl);
+<style scoped>
+.plan-help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+</style>

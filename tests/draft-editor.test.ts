@@ -44,15 +44,14 @@ describe('draft editor bridge', () => {
     );
   });
 
-  it('delegates hideDraftEditor and closeEditor to the registered closer', async () => {
+  it('delegates hideDraftEditor to the registered closer', async () => {
     const mod = await getModule();
     const closer = vi.fn();
     mod.setDraftEditorCloser(closer);
 
     mod.hideDraftEditor();
-    mod.closeEditor();
 
-    expect(closer).toHaveBeenCalledTimes(2);
+    expect(closer).toHaveBeenCalledTimes(1);
   });
 
   it('reports visibility and unsaved state through registered checkers', async () => {
