@@ -256,6 +256,29 @@ export function spawnToolKeyboard(
   return rows;
 }
 
+/**
+ * Build the spawn wizard project selection keyboard.
+ * Each button navigates to spawn:project:{id} to pick a folder within that project.
+ */
+export function spawnProjectKeyboard(
+  projects: Array<{ id: string; name: string }>,
+): TelegramBot.InlineKeyboardButton[][] {
+  const rows: TelegramBot.InlineKeyboardButton[][] = [];
+  const row: TelegramBot.InlineKeyboardButton[] = [];
+
+  for (const project of projects) {
+    row.push({ text: truncLabel(project.name), callback_data: `spawn:project:${project.id}` });
+    if (row.length >= 3) {
+      rows.push([...row]);
+      row.length = 0;
+    }
+  }
+
+  if (row.length > 0) rows.push([...row]);
+  rows.push([{ text: '🔙 Back', callback_data: 'spawn:start' }]);
+  return rows;
+}
+
 /** Build a Talk button for a session in the pinned dashboard. */
 export function sessionTalkButton(session: SessionInfo): TelegramBot.InlineKeyboardButton {
   return { text: '💬 Talk', callback_data: `talk:${session.id}` };

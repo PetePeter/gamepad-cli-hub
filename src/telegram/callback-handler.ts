@@ -11,7 +11,7 @@
  *   sessions:list       — Show directory list
  *   dir:{path}          — Drill into directory
  *   sess:{sessionId}    — Show session controls
- *   spawn:start / spawn:tool:{name} / spawn:dir:{path} — Spawn wizard
+ *   spawn:start / spawn:tool:{name} / spawn:project:{id} / spawn:dir:{pathIndex} — Spawn wizard
  *   cancel:{sessionId}  — Ctrl+C
  *   accept:{sessionId}  — Enter (accept)
  *   status:all          — Full status overview
@@ -24,12 +24,14 @@ import type { TopicManager } from './topic-manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
+import type { ProjectStore } from '../session/project-store.js';
 import {
   directoryListKeyboard,
   sessionListKeyboard,
   sessionControlKeyboard,
   spawnToolKeyboard,
   spawnDirKeyboard,
+  spawnProjectKeyboard,
   resolvePathIndex,
 } from './keyboards.js';
 import { sendPeekOutput } from './command-handler.js';
@@ -50,6 +52,7 @@ export function setupCallbackHandler(
   ptyManager: PtyManager,
   configLoader: ConfigLoader,
   draftManager?: { clearSession(sessionId: string): void },
+  projectStore?: ProjectStore,
 ): () => void {
   const handler = async (query: TelegramBot.CallbackQuery) => {
     const data = query.data;
@@ -59,7 +62,7 @@ export function setupCallbackHandler(
       await routeCallback(
         data, query, bot, topicManager,
         sessionManager, ptyManager, configLoader,
-        draftManager,
+        draftManager, projectStore,
       );
     } catch (err) {
       logger.error(`[CallbackHandler] Error processing ${data}: ${err}`);
@@ -87,6 +90,7 @@ async function routeCallback(
   ptyManager: PtyManager,
   configLoader: ConfigLoader,
   draftManager?: { clearSession(sessionId: string): void },
+  projectStore?: ProjectStore,
 ): Promise<void> {
   const [action, ...rest] = data.split(':');
   const payload = rest.join(':');
@@ -123,7 +127,7 @@ async function routeCallback(
       await handleAccept(bot, ptyManager, payload, query);
       break;
     case 'spawn':
-      await handleSpawn(bot, topicManager, sessionManager, ptyManager, configLoader, payload, query);
+      await handleSpawn(bot, topicManager, sessionManager, ptyManager, configLoader, projectStore, payload, query);
       break;
     case 'talk':
       await handleTalk(bot, topicManager, sessionManager, ptyManager, configLoader, payload, query);
@@ -399,19 +403,55 @@ async function handleTalk(
 const spawnWizardState = new Map<number, { tool: string; createdAt: number }>();
 const SPAWN_WIZARD_TTL_MS = 5 * 60 * 1000;
 
+/**
+ * Groups working directories by their Helm project record.
+ * Dirs with no matching project are skipped.
+ * Exported for unit testing.
+ */
+export function groupDirsByProject(
+  dirs: Array<{ name: string; path: string }>,
+  projectStore: { findByPath(path: string): { id: string; name: string } | undefined },
+): Map<{ id: string; name: string }, Array<{ name: string; path: string }>> {
+  const groups = new Map<{ id: string; name: string }, Array<{ name: string; path: string }>>();
+  const projectById = new Map<string, { id: string; name: string }>();
+
+  for (const dir of dirs) {
+    const project = projectStore.findByPath(dir.path);
+    if (!project) continue;
+
+    // Use canonical project reference by id to ensure same-project dirs group correctly
+    let canonical = projectById.get(project.id);
+    if (!canonical) {
+      canonical = project;
+      projectById.set(project.id, project);
+    }
+
+    const existing = groups.get(canonical);
+    if (existing) {
+      existing.push(dir);
+    } else {
+      groups.set(canonical, [dir]);
+    }
+  }
+  return groups;
+}
+
 async function handleSpawn(
   bot: TelegramBotCore,
   topicManager: TopicManager,
   sessionManager: SessionManager,
   ptyManager: PtyManager,
   configLoader: ConfigLoader,
+  projectStore: ProjectStore | undefined,
   payload: string,
   query: TelegramBot.CallbackQuery,
 ): Promise<void> {
   if (payload === 'start') {
     await handleSpawnToolSelect(bot, configLoader, query);
   } else if (payload.startsWith('tool:')) {
-    await handleSpawnDirSelect(bot, configLoader, payload.substring(5), query);
+    await handleSpawnProjectSelect(bot, configLoader, projectStore, payload.substring(5), query);
+  } else if (payload.startsWith('project:')) {
+    await handleSpawnDirSelect(bot, topicManager, sessionManager, ptyManager, configLoader, projectStore, payload.substring(8), query);
   } else if (payload.startsWith('dir:')) {
     await handleSpawnExec(bot, topicManager, sessionManager, ptyManager, configLoader, payload.substring(4), query);
   }
@@ -429,48 +469,97 @@ async function handleSpawnToolSelect(
   await bot.answerCallback(query.id);
 }
 
-async function handleSpawnDirSelect(
+/**
+ * Step 2: store selected tool, then show project keyboard (or flat dir list if no projectStore).
+ * Renamed from handleSpawnDirSelect — now shows projects as an intermediate step.
+ */
+async function handleSpawnProjectSelect(
   bot: TelegramBotCore,
   configLoader: ConfigLoader,
+  projectStore: ProjectStore | undefined,
   toolName: string,
   query: TelegramBot.CallbackQuery,
 ): Promise<void> {
-  // Store selected tool so we can retrieve it when the dir is picked
   spawnWizardState.set(query.from.id, { tool: toolName, createdAt: Date.now() });
 
-  const dirs = configLoader.getWorkingDirectories();
-  const keyboard = spawnDirKeyboard(dirs);
+  if (!projectStore) {
+    // Fallback: no project store, show flat dir list (backward compat)
+    const dirs = configLoader.getWorkingDirectories();
+    const keyboard = spawnDirKeyboard(dirs);
+    await editOriginalMessage(bot, query, `📂 Select directory for ${toolName}:`, keyboard);
+    await bot.answerCallback(query.id, `Selected: ${toolName}`);
+    return;
+  }
 
-  await editOriginalMessage(bot, query, `📂 Select directory for ${toolName}:`, keyboard);
+  const dirs = configLoader.getWorkingDirectories();
+  const groups = groupDirsByProject(dirs, projectStore);
+  const projects = [...groups.keys()];
+
+  const keyboard = spawnProjectKeyboard(projects);
+  await editOriginalMessage(bot, query, `🗂️ Select project for ${toolName}:`, keyboard);
   await bot.answerCallback(query.id, `Selected: ${toolName}`);
 }
 
-/** Step 3: actually spawn the session and create a topic for it. */
-async function handleSpawnExec(
+/**
+ * Step 3: project selected — auto-spawn if single dir, else show folder picker.
+ * topicManager kept in signature for future use (topic creation is currently event-driven).
+ */
+async function handleSpawnDirSelect(
   bot: TelegramBotCore,
-  topicManager: TopicManager,
+  _topicManager: TopicManager,
   sessionManager: SessionManager,
   ptyManager: PtyManager,
   configLoader: ConfigLoader,
-  pathIndex: string,
+  projectStore: ProjectStore | undefined,
+  projectId: string,
   query: TelegramBot.CallbackQuery,
 ): Promise<void> {
   const userId = query.from.id;
   const entry = spawnWizardState.get(userId);
-  spawnWizardState.delete(userId);
 
   if (!entry || Date.now() - entry.createdAt > SPAWN_WIZARD_TTL_MS) {
-    await bot.answerCallback(query.id, '❌ No tool selected or wizard expired. Start over with /spawn');
-    return;
-  }
-  const cliType = entry.tool;
-
-  const dirPath = resolvePathIndex(pathIndex);
-  if (!dirPath) {
-    await bot.answerCallback(query.id, '❌ Directory not found. Start over with /spawn');
+    await bot.answerCallback(query.id, '❌ Wizard expired. Start over with /spawn');
     return;
   }
 
+  if (!projectStore) {
+    await bot.answerCallback(query.id, '❌ Project store unavailable');
+    return;
+  }
+
+  const dirs = configLoader.getWorkingDirectories();
+  const groups = groupDirsByProject(dirs, projectStore);
+  const projectEntry = [...groups.entries()].find(([p]) => p.id === projectId);
+
+  if (!projectEntry) {
+    await bot.answerCallback(query.id, '❌ Project not found. Start over with /spawn');
+    return;
+  }
+
+  const [, projectDirs] = projectEntry;
+
+  if (projectDirs.length === 1) {
+    // Single folder — auto-spawn without showing folder step
+    spawnWizardState.delete(userId);
+    await doSpawnSession(bot, sessionManager, ptyManager, configLoader, entry.tool, projectDirs[0].path, query);
+    return;
+  }
+
+  const keyboard = spawnDirKeyboard(projectDirs);
+  await editOriginalMessage(bot, query, `📂 Select folder for ${entry.tool}:`, keyboard);
+  await bot.answerCallback(query.id);
+}
+
+/** Core spawn logic — shared by handleSpawnExec (dir picked) and handleSpawnDirSelect (auto-spawn). */
+async function doSpawnSession(
+  bot: TelegramBotCore,
+  sessionManager: SessionManager,
+  ptyManager: PtyManager,
+  configLoader: ConfigLoader,
+  cliType: string,
+  dirPath: string,
+  query: TelegramBot.CallbackQuery,
+): Promise<void> {
   try {
     configLoader.reloadActiveProfileIfChanged();
     const spawnConfig = configLoader.getSpawnConfig(cliType);
@@ -486,8 +575,6 @@ async function handleSpawnExec(
       fallbackCompleteDelayMs: 500,
     });
 
-    // Topic creation handled by session:added event in handlers.ts — no duplicate call here
-
     await bot.answerCallback(query.id, `🚀 Spawned ${cliType}!`);
 
     const msg = query.message;
@@ -498,12 +585,39 @@ async function handleSpawnExec(
         { parse_mode: 'HTML', message_thread_id: msg.message_thread_id },
       );
     }
-
     logger.info(`[SpawnWizard] Spawned ${cliType} in ${dirPath} → session ${sessionId}`);
   } catch (err) {
     logger.error(`[SpawnWizard] Spawn failed: ${err}`);
     await bot.answerCallback(query.id, '❌ Spawn failed');
   }
+}
+
+/** Step 4 (final): dir was explicitly chosen from the folder keyboard — spawn the session. */
+async function handleSpawnExec(
+  bot: TelegramBotCore,
+  _topicManager: TopicManager,
+  sessionManager: SessionManager,
+  ptyManager: PtyManager,
+  configLoader: ConfigLoader,
+  pathIndex: string,
+  query: TelegramBot.CallbackQuery,
+): Promise<void> {
+  const userId = query.from.id;
+  const entry = spawnWizardState.get(userId);
+  spawnWizardState.delete(userId);
+
+  if (!entry || Date.now() - entry.createdAt > SPAWN_WIZARD_TTL_MS) {
+    await bot.answerCallback(query.id, '❌ No tool selected or wizard expired. Start over with /spawn');
+    return;
+  }
+
+  const dirPath = resolvePathIndex(pathIndex);
+  if (!dirPath) {
+    await bot.answerCallback(query.id, '❌ Directory not found. Start over with /spawn');
+    return;
+  }
+
+  await doSpawnSession(bot, sessionManager, ptyManager, configLoader, entry.tool, dirPath, query);
 }
 
 // ---------------------------------------------------------------------------

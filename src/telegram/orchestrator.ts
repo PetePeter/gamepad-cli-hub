@@ -12,6 +12,7 @@ import type { TelegramNotifier } from './notifier.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { ConfigLoader } from '../config/loader.js';
+import type { ProjectStore } from '../session/project-store.js';
 import { PinnedDashboard } from './pinned-dashboard.js';
 import { TelegramRelayService } from './relay-service.js';
 import { setupCallbackHandler } from './callback-handler.js';
@@ -35,6 +36,7 @@ export function initTelegramModules(
   configLoader: ConfigLoader,
   helmControlService: HelmControlService,
   draftManager?: { clearSession(sessionId: string): void },
+  projectStore?: ProjectStore,
 ): TelegramModules {
   const instanceName = configLoader.getTelegramConfig().instanceName;
   const dashboard = new PinnedDashboard(bot, sessionManager, instanceName);
@@ -43,7 +45,7 @@ export function initTelegramModules(
 
   const cleanupCallbacks = setupCallbackHandler(
     bot, topicManager, sessionManager, ptyManager,
-    configLoader, draftManager,
+    configLoader, draftManager, projectStore,
   );
 
   const cleanupTopicInput = setupTopicInput(

@@ -133,7 +133,7 @@ export function registerIPCHandlers(
   // Initialize all telegram modules (Phase 1+2+3)
   const telegramModules = initTelegramModules(
     telegramBot, topicManager, telegramNotifier,
-    sessionManager, ptyManager, configLoader, helmControlService, draftManager,
+    sessionManager, ptyManager, configLoader, helmControlService, draftManager, projectStore,
   );
 
   // Restore sessions persisted from previous run
