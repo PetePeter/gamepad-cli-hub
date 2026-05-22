@@ -59,6 +59,7 @@ function makeTopicManager(session: any = null) {
   return {
     findSessionByTopicId: vi.fn((_id: number) => session),
     handleTopicClosed: vi.fn(),
+    closeSessionTopic: vi.fn().mockResolvedValue(undefined),
     renameSessionTopic: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -103,6 +104,7 @@ describe('forum_topic_closed → close Helm session', () => {
 
     bot.emit('message', { forum_topic_closed: {}, message_thread_id: 42 });
 
+    expect(topicManager.closeSessionTopic).toHaveBeenCalledWith(session);
     expect(topicManager.handleTopicClosed).toHaveBeenCalledWith(42);
     expect(ptyManager.kill).toHaveBeenCalledWith('sess-1');
     expect(sessionManager.removeSession).toHaveBeenCalledWith('sess-1');

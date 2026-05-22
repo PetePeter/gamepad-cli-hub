@@ -172,11 +172,6 @@ async function handleClose(
     return;
   }
 
-  await bot.sendMessage(`🔴 Closing session <b>${escapeHtml(session.name)}</b>…`, {
-    message_thread_id: topicId,
-    parse_mode: 'HTML',
-  });
-
   ptyManager.kill(session.id);
 
   // Explicitly delete the forum topic before removing the session so the

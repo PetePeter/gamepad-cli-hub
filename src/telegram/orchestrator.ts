@@ -58,6 +58,13 @@ export function initTelegramModules(
     if (msg.forum_topic_closed && msg.message_thread_id) {
       const topicId: number = msg.message_thread_id;
       const session = topicManager.findSessionByTopicId(topicId);
+      // Delete the forum topic before handleTopicClosed clears session.topicId —
+      // otherwise the session:removed listener sees topicId=undefined and skips deletion.
+      if (session) {
+        topicManager.closeSessionTopic(session).catch(err =>
+          logger.warn(`[Telegram] Failed to delete topic ${topicId} on close: ${err}`),
+        );
+      }
       topicManager.handleTopicClosed(topicId);
       if (session) {
         try { ptyManager.kill(session.id); } catch { /* already dead */ }
