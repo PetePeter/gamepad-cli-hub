@@ -46,16 +46,9 @@ function envSetupLines(entries: Array<{ name: string; value: string }>): string 
 const codexEnv = computed(() => envForCli('codex'));
 const codexSetup = computed(() => {
   const env = envSetupLines(codexEnv.value);
-  let cmd: string;
-  if (useEnvVar.value) {
-    cmd = [
-      `set HELM_MCP_TOKEN=${props.tokenLiteral}`,
-      `setx HELM_MCP_TOKEN "${props.tokenLiteral}"`,
-      `codex mcp add helm --url ${props.endpoint} --bearer-token-env-var HELM_MCP_TOKEN`,
-    ].join('\n');
-  } else {
-    cmd = `codex mcp add helm --url ${props.endpoint} --bearer-token ${props.tokenLiteral}`;
-  }
+  const cmd = useEnvVar.value
+    ? `codex mcp add helm --url ${props.endpoint} --bearer-token-env-var HELM_MCP_TOKEN`
+    : `codex mcp add helm --url ${props.endpoint} --bearer-token ${props.tokenLiteral}`;
   return env ? `${env}\n${cmd}` : cmd;
 });
 
@@ -69,7 +62,8 @@ const claudeSetup = computed(() => {
 const copilotEnv = computed(() => envForCli('copilot', 'copilot-cli'));
 const copilotSetup = computed(() => {
   const env = envSetupLines(copilotEnv.value);
-  const cmd = `copilot mcp add --transport http helm ${props.endpoint} --header "Authorization: Bearer ${props.tokenLiteral}"`;
+  const bearer = useEnvVar.value ? '${HELM_MCP_TOKEN}' : props.tokenLiteral;
+  const cmd = `copilot mcp add --transport http helm ${props.endpoint} --header "Authorization: Bearer ${bearer}"`;
   return env ? `${env}\n${cmd}` : cmd;
 });
 
@@ -166,7 +160,7 @@ function onRunInCmd(command: string): void {
 
     <div class="settings-list-item">
       <div class="settings-list-item__info">
-        <span class="settings-list-item__name">OpenCode setup</span>
+        <span class="settings-list-item__name">OpenCode setup ⚠️ experimental — not actively tested</span>
         <pre class="mcp-command-block">{{ opencodeSetup }}</pre>
         <div class="mcp-snippet-actions">
           <button class="btn btn--secondary btn--sm focusable" @click="copySnippet(opencodeSetup)">
