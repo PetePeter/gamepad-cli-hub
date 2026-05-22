@@ -116,7 +116,11 @@ export class TopicManager {
   async closeSessionTopic(session: SessionInfo): Promise<void> {
     if (!session.topicId) return;
 
-    await this.bot.deleteForumTopic(session.topicId);
+    const deleted = await this.bot.deleteForumTopic(session.topicId);
+    if (!deleted) {
+      logger.error(`[TopicManager] Failed to delete topic ${session.topicId} for session ${session.id}`);
+      return;
+    }
     this.topicNames.delete(session.topicId);
     logger.info(`[TopicManager] Deleted topic ${session.topicId} for session ${session.id}`);
   }
@@ -127,7 +131,11 @@ export class TopicManager {
   async deleteTopic(sessionId: string): Promise<void> {
     const session = this.sessionManager.getSession(sessionId);
     if (!session?.topicId) return;
-    await this.bot.deleteForumTopic(session.topicId);
+    const deleted = await this.bot.deleteForumTopic(session.topicId);
+    if (!deleted) {
+      logger.error(`[TopicManager] Failed to delete topic ${session.topicId} for session ${sessionId}`);
+      return;
+    }
     this.topicNames.delete(session.topicId);
     this.updateSessionTopicId(sessionId, undefined);
     logger.info(`[TopicManager] Deleted topic ${session.topicId} and cleared topicId for session ${sessionId}`);
