@@ -21,7 +21,7 @@ import { getCliDisplayName, getCliIcon } from './utils.js';
 import { initConfigCache, executeSequence } from './bindings.js';
 import { doSpawn, doSpawnShell, switchToSession, doCloseSession,
   bootstrap, teardown, startTimerRefresh, stopTimerRefresh,
-  setPendingContextText, restoreSnappedBackSession, refreshProjects,
+  setPendingContextText, restoreSnappedBackSession, refreshProjects, refreshSessions,
 } from './composables/useAppBootstrap.js';
 import { formatElapsed } from '../src/utils/time-parser.js';
 import { findNavIndexBySessionId, getVisibleSessions, isSessionHiddenFromOverview, resolveGroupDisplayName } from './session-groups.js';
@@ -898,7 +898,7 @@ onUnmounted(() => {
             />
             <ProjectsTab
               v-else-if="activeTab === 'projects'"
-              @changed="refreshProjects"
+              @changed="refreshSessions"
             />
             <ChipbarActionsTab
               v-else-if="activeTab === 'chipbar-actions'"
@@ -996,7 +996,7 @@ onUnmounted(() => {
       <div id="plannerSection" v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': plannerCollapsed }">
         <div class="section-label" @click="togglePlannerCollapse">
           <button class="section-toggle">{{ plannerCollapsed ? '▲' : '▼' }}</button>
-          <span>Folder Planner</span>
+          <span>Project Planner</span>
         </div>
         <PlansGrid
           v-show="!plannerCollapsed"

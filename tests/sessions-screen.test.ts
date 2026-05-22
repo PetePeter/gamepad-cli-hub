@@ -139,7 +139,7 @@ function buildSidebarDom(): void {
       <div class="spawn-grid" id="spawnGrid"></div>
     </div>
     <div class="spawn-section" id="plannerSection">
-      <h3 class="section-label">Folder Planner</h3>
+      <h3 class="section-label">Project Planner</h3>
       <div class="plans-grid" id="plansGrid"></div>
     </div>
     <div id="mainArea">

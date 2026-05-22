@@ -171,7 +171,7 @@ describe('plan navigation — group header Plans button', () => {
 // Gamepad D-pad navigation on plan canvas
 // ---------------------------------------------------------------------------
 
-describe('Folder Planner canvas gamepad navigation', () => {
+describe('Project Planner canvas gamepad navigation', () => {
   let mod: Awaited<ReturnType<typeof getModule>>;
 
   // Two layers: layer 0 has 1 node, layer 1 has 3 nodes

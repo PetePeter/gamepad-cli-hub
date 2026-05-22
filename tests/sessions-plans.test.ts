@@ -88,7 +88,7 @@ function buildDom(): void {
         <div class="spawn-grid" id="spawnGrid"></div>
       </div>
       <div id="plansGridSection" class="spawn-section">
-        <div class="section-label">Folder Planner</div>
+        <div class="section-label">Project Planner</div>
         <div id="plansGrid" class="spawn-grid"></div>
       </div>
     </section>

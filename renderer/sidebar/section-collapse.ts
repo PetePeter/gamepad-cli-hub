@@ -1,5 +1,5 @@
 /**
- * Collapsible sidebar sections (Quick Spawn / Folder Planner).
+ * Collapsible sidebar sections (Quick Spawn / Project Planner).
  *
  * The entire section label is clickable to toggle collapse/expand.
  * State persists via config:getCollapsePrefs / config:setCollapsePrefs IPC.
