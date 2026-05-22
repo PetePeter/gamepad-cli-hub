@@ -53,6 +53,7 @@ export function getAvailableTools(): McpToolSummary[] {
     { name: 'session_read_terminal', title: 'Read Session Terminal', description: 'Read the recent terminal tail for any known session by ID or exact display name, with raw, stripped, or both output modes.' },
     { name: 'session_plan_claim', title: 'Claim Plan', description: 'Claim a plan for this session: records ownership, auto-transitions ready→coding, and shows the plan badge on the session row.' },
     { name: 'session_set_aiagent_state', title: 'Set Session AIAGENT State', description: 'Update the durable AIAGENT phase for a session. Valid states: planning, implementing, completed, idle.' },
+    { name: 'session_rename', title: 'Rename Session', description: 'Rename a Helm session by ID or name. Also updates the Telegram topic name.' },
     { name: 'session_close', title: 'Close Session', description: 'Close a Helm session and stop its PTY.' },
     { name: 'session_info', title: 'Get Session Info', description: 'Retrieve MCP endpoint, AIAGENT state registry, available projects, and agent planning guidance. Call this at session startup before other Helm workflow actions, then call project_list for directory details.' },
     { name: 'notify_user', title: 'Notify User', description: 'Send an LLM-directed notification with smart delivery routing when work completes, you are blocked for user input, or an error stops progress.' },

@@ -84,6 +84,15 @@ export class HelmSessionService {
     return { ok: true };
   }
 
+  renameSession(sessionRef: string, name: string): { ok: true } {
+    const session = this.findSession(sessionRef);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionRef}`);
+    }
+    this.sessionManager.renameSession(session.id, name.trim());
+    return { ok: true };
+  }
+
   setAiagentState(sessionRef: string, state: 'planning' | 'implementing' | 'completed' | 'idle'): { ok: true } {
     const session = this.findSession(sessionRef);
     if (!session) {

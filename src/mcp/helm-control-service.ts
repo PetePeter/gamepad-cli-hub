@@ -468,6 +468,10 @@ export class HelmControlService extends EventEmitter {
     return this.sessionService.spawnCli(cliType, dirPath, name);
   }
 
+  renameSession(sessionRef: string, name: string) {
+    return this.sessionService.renameSession(sessionRef, name);
+  }
+
   closeSession(sessionRef: string) {
     return this.sessionService.closeSession(sessionRef);
   }

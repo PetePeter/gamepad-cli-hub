@@ -780,6 +780,21 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'session_rename',
+    title: 'Rename Session',
+    description: 'Rename a Helm session. Accepts sessionId or session name. Also updates the Telegram topic name if Telegram is running.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        name: { type: 'string' },
+        newName: { type: 'string', description: 'New display name for the session (1–50 characters).' },
+      },
+      required: ['newName'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'session_close',
     title: 'Close Session',
     description: 'Kill the PTY process and remove a session from Helm. Use this when a task is complete and the session is no longer needed, or to recover from a stuck session. Accepts sessionId or session name.',

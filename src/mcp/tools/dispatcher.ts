@@ -425,6 +425,11 @@ export async function callMcpTool(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),
           asAiagentState(args.state, 'state must be one of planning, implementing, completed, or idle'),
         );
+      case 'session_rename':
+        return service.renameSession(
+          asString(args.sessionId ?? args.name, 'sessionId or name is required'),
+          asString(args.newName, 'newName is required'),
+        );
       case 'session_close':
         return service.closeSession(asString(args.sessionId ?? args.name, 'sessionId or name is required'));
       case 'restart_helm':
