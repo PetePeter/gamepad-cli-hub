@@ -89,7 +89,7 @@ export class TopicManager {
    * Updates the session's topicId in SessionManager.
    */
   async createTopicForSession(session: SessionInfo): Promise<number | null> {
-    const topicName = this.formatTopicName(session.name);
+    const topicName = this.formatTopicName(session.name, session.workingDir);
     const topic = await this.bot.createForumTopic(topicName);
     if (!topic) {
       logger.error(`[TopicManager] Failed to create topic for session ${session.id}`);
@@ -161,7 +161,7 @@ export class TopicManager {
    */
   async renameSessionTopic(session: SessionInfo): Promise<void> {
     if (!session.topicId) return;
-    const newName = this.formatTopicName(session.name);
+    const newName = this.formatTopicName(session.name, session.workingDir);
     if (this.topicNames.get(session.topicId) === newName) return;
     const ok = await this.bot.editForumTopic(session.topicId, newName);
     if (ok) this.topicNames.set(session.topicId, newName);
@@ -283,9 +283,10 @@ export class TopicManager {
     };
   }
 
-  /** Format a topic name with the instance prefix. */
-  private formatTopicName(sessionName: string): string {
-    return `[${this.instanceName}] ${sessionName}`;
+  /** Format a topic name with the instance prefix and working directory tail. */
+  private formatTopicName(sessionName: string, workingDir?: string): string {
+    const dir = workingDir ? ` (${workingDir.replace(/\\/g, '/').split('/').filter(Boolean).pop()})` : '';
+    return `[${this.instanceName}] ${sessionName}${dir}`;
   }
 
   /**
