@@ -39,7 +39,7 @@ import { deliverPromptSequenceToSession } from '../session/sequence-delivery.js'
 import { escapeHtml } from './utils.js';
 import { spawnConfiguredSession } from '../session/configured-session-spawn.js';
 import { logger } from '../utils/logger.js';
-import { normalizeProjectPath } from '../session/project-identity.js';
+import { normalizeProjectPath, dirDisplayNameFromPath } from '../session/project-identity.js';
 
 /**
  * Register callback query handler on the bot.
@@ -408,33 +408,6 @@ const SPAWN_WIZARD_TTL_MS = 5 * 60 * 1000;
  * Dirs with no matching project are skipped.
  * Exported for unit testing.
  */
-export function groupDirsByProject(
-  dirs: Array<{ name: string; path: string }>,
-  projectStore: { findByPath(path: string): { id: string; name: string } | undefined },
-): Map<{ id: string; name: string }, Array<{ name: string; path: string }>> {
-  const groups = new Map<{ id: string; name: string }, Array<{ name: string; path: string }>>();
-  const projectById = new Map<string, { id: string; name: string }>();
-
-  for (const dir of dirs) {
-    const project = projectStore.findByPath(dir.path);
-    if (!project) continue;
-
-    // Use canonical project reference by id to ensure same-project dirs group correctly
-    let canonical = projectById.get(project.id);
-    if (!canonical) {
-      canonical = project;
-      projectById.set(project.id, project);
-    }
-
-    const existing = groups.get(canonical);
-    if (existing) {
-      existing.push(dir);
-    } else {
-      groups.set(canonical, [dir]);
-    }
-  }
-  return groups;
-}
 
 async function handleSpawn(
   bot: TelegramBotCore,
@@ -475,7 +448,7 @@ async function handleSpawnToolSelect(
  */
 async function handleSpawnProjectSelect(
   bot: TelegramBotCore,
-  configLoader: ConfigLoader,
+  _configLoader: ConfigLoader,
   projectStore: ProjectStore | undefined,
   toolName: string,
   query: TelegramBot.CallbackQuery,
@@ -483,18 +456,11 @@ async function handleSpawnProjectSelect(
   spawnWizardState.set(query.from.id, { tool: toolName, createdAt: Date.now() });
 
   if (!projectStore) {
-    // Fallback: no project store, show flat dir list (backward compat)
-    const dirs = configLoader.getWorkingDirectories();
-    const keyboard = spawnDirKeyboard(dirs);
-    await editOriginalMessage(bot, query, `📂 Select directory for ${toolName}:`, keyboard);
-    await bot.answerCallback(query.id, `Selected: ${toolName}`);
+    await bot.answerCallback(query.id, '❌ Project store unavailable');
     return;
   }
 
-  const dirs = configLoader.getWorkingDirectories();
-  const groups = groupDirsByProject(dirs, projectStore);
-  const projects = [...groups.keys()];
-
+  const projects = projectStore.list();
   const keyboard = spawnProjectKeyboard(projects);
   await editOriginalMessage(bot, query, `🗂️ Select project for ${toolName}:`, keyboard);
   await bot.answerCallback(query.id, `Selected: ${toolName}`);
@@ -527,19 +493,16 @@ async function handleSpawnDirSelect(
     return;
   }
 
-  const dirs = configLoader.getWorkingDirectories();
-  const groups = groupDirsByProject(dirs, projectStore);
-  const projectEntry = [...groups.entries()].find(([p]) => p.id === projectId);
-
-  if (!projectEntry) {
+  const project = projectStore.getById(projectId);
+  if (!project) {
     await bot.answerCallback(query.id, '❌ Project not found. Start over with /spawn');
     return;
   }
 
-  const [, projectDirs] = projectEntry;
+  const allPaths = [project.canonicalPath, ...(project.alternatePaths ?? [])];
+  const projectDirs = allPaths.map(p => ({ name: dirDisplayNameFromPath(p), path: p }));
 
   if (projectDirs.length === 1) {
-    // Single folder — auto-spawn without showing folder step
     spawnWizardState.delete(userId);
     await doSpawnSession(bot, sessionManager, ptyManager, configLoader, entry.tool, projectDirs[0].path, query);
     return;

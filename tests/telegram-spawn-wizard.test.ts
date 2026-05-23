@@ -4,116 +4,11 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { groupDirsByProject } from '../src/telegram/callback-handler.js';
 import { spawnProjectKeyboard, _resetPathRegistry } from '../src/telegram/keyboards.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
-
-// ---------------------------------------------------------------------------
-// groupDirsByProject
-// ---------------------------------------------------------------------------
-
-describe('groupDirsByProject', () => {
-  const makeStore = (mapping: Record<string, { id: string; name: string } | undefined>) => ({
-    findByPath: (path: string) => mapping[path],
-  });
-
-  it('groups dirs that share the same project id under one key', () => {
-    const project = { id: 'proj-1', name: 'MyApp' };
-    const store = makeStore({
-      '/repo/main': project,
-      '/repo/feature': project,
-    });
-    const dirs = [
-      { name: 'main', path: '/repo/main' },
-      { name: 'feature', path: '/repo/feature' },
-    ];
-
-    const groups = groupDirsByProject(dirs, store);
-
-    expect(groups.size).toBe(1);
-    const [key, values] = [...groups.entries()][0];
-    expect(key.id).toBe('proj-1');
-    expect(values).toHaveLength(2);
-    expect(values.map(d => d.path)).toEqual(['/repo/main', '/repo/feature']);
-  });
-
-  it('skips dirs where findByPath returns undefined', () => {
-    const store = makeStore({
-      '/repo/known': { id: 'p1', name: 'Known' },
-      // '/repo/unknown' not present → undefined
-    });
-    const dirs = [
-      { name: 'known', path: '/repo/known' },
-      { name: 'unknown', path: '/repo/unknown' },
-    ];
-
-    const groups = groupDirsByProject(dirs, store);
-
-    expect(groups.size).toBe(1);
-    const values = [...groups.values()][0];
-    expect(values).toHaveLength(1);
-    expect(values[0].path).toBe('/repo/known');
-  });
-
-  it('creates separate entries for dirs belonging to different projects', () => {
-    const projA = { id: 'a', name: 'Alpha' };
-    const projB = { id: 'b', name: 'Beta' };
-    const store = makeStore({
-      '/alpha/src': projA,
-      '/beta/src': projB,
-    });
-    const dirs = [
-      { name: 'src', path: '/alpha/src' },
-      { name: 'src', path: '/beta/src' },
-    ];
-
-    const groups = groupDirsByProject(dirs, store);
-
-    expect(groups.size).toBe(2);
-    const ids = [...groups.keys()].map(k => k.id);
-    expect(ids).toContain('a');
-    expect(ids).toContain('b');
-  });
-
-  it('returns empty map when all dirs have no matching project', () => {
-    const store = makeStore({});
-    const dirs = [{ name: 'x', path: '/x' }];
-
-    const groups = groupDirsByProject(dirs, store);
-
-    expect(groups.size).toBe(0);
-  });
-
-  it('returns empty map for empty dirs input', () => {
-    const store = makeStore({ '/x': { id: 'p1', name: 'P' } });
-
-    const groups = groupDirsByProject([], store);
-
-    expect(groups.size).toBe(0);
-  });
-
-  it('uses a canonical reference so all dirs of the same project share one Map key', () => {
-    // findByPath returns a NEW object each call with the same id — groupDirsByProject
-    // must deduplicate by id to keep a single Map key
-    const store = {
-      findByPath: (path: string) =>
-        path.startsWith('/proj') ? { id: 'same', name: 'Same' } : undefined,
-    };
-    const dirs = [
-      { name: 'a', path: '/proj/a' },
-      { name: 'b', path: '/proj/b' },
-      { name: 'c', path: '/proj/c' },
-    ];
-
-    const groups = groupDirsByProject(dirs, store);
-
-    expect(groups.size).toBe(1);
-    expect([...groups.values()][0]).toHaveLength(3);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // spawnProjectKeyboard
