@@ -52,7 +52,7 @@ export function initTelegramModules(
     bot, topicManager, ptyManager, configLoader, sessionManager, relayService,
   );
 
-  const cleanupCommands = setupCommandHandler(bot, sessionManager, ptyManager, topicManager);
+  const cleanupCommands = setupCommandHandler(bot, sessionManager, ptyManager, topicManager, helmControlService);
 
   // Listen for forum_topic_closed events from Telegram
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

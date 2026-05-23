@@ -9,6 +9,7 @@ import type { TelegramBotCore } from './bot.js';
 import type { SessionManager } from '../session/manager.js';
 import type { PtyManager } from '../session/pty-manager.js';
 import type { TopicManager } from './topic-manager.js';
+import type { HelmControlService } from '../mcp/helm-control-service.js';
 import path from 'path';
 import { cleanTerminalOutput, escapeHtml } from './utils.js';
 import { peekSessionPickerKeyboard, helpKeyboard, directoryListKeyboard } from './keyboards.js';
@@ -25,6 +26,7 @@ export const TELEGRAM_COMMANDS: ReadonlyArray<{ command: string; description: st
   { command: 'status', description: 'Show status of all sessions' },
   { command: 'close', description: 'Close the session linked to this topic' },
   { command: 'closeall', description: 'Close all active sessions' },
+  { command: 'restart', description: 'Restart the Helm application' },
 ];
 
 export function setupCommandHandler(
@@ -32,6 +34,7 @@ export function setupCommandHandler(
   sessionManager: SessionManager,
   ptyManager: PtyManager,
   topicManager: TopicManager,
+  helmControlService: HelmControlService,
 ): () => void {
   const handlers: Array<() => void> = [];
 
@@ -55,6 +58,7 @@ export function setupCommandHandler(
   registerCommandHandler('status', async (msg) => handleStatusCommand(bot, sessionManager, msg));
   registerCommandHandler('close', async (msg) => handleClose(bot, sessionManager, ptyManager, topicManager, msg));
   registerCommandHandler('closeall', async (msg) => handleCloseAllCommand(bot, sessionManager, ptyManager, msg));
+  registerCommandHandler('restart', async (msg) => handleRestart(bot, helmControlService, msg));
 
   return () => {
     for (const dispose of handlers) dispose();
@@ -214,6 +218,15 @@ async function handleCloseAllCommand(
       },
     },
   );
+}
+
+async function handleRestart(
+  bot: TelegramBotCore,
+  helmControlService: HelmControlService,
+  msg: TelegramBot.Message,
+): Promise<void> {
+  await bot.sendMessage('🔄 Restarting Helm...', { message_thread_id: msg.message_thread_id });
+  helmControlService.restartHelm();
 }
 
 async function handlePeek(
