@@ -10,7 +10,7 @@
 
 import { keyToPtyEscape, comboToPtyEscape } from './bindings.js';
 import { parseSequence, type SequenceAction } from '../src/input/sequence-parser.js';
-import { isDraftEditorVisible } from './drafts/draft-editor.js';
+import { isDraftEditorVisible } from './stores/draft-editor-registry.js';
 import { showEditorPopup } from './editor/editor-popup.js';
 import {
   getActiveInputContext,

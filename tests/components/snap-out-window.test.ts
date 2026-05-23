@@ -44,7 +44,7 @@ vi.mock('../../renderer/paste-handler.js', () => ({
   deliverBulkText: vi.fn(),
 }));
 
-vi.mock('../../renderer/drafts/draft-editor.js', () => ({
+vi.mock('../../renderer/stores/draft-editor-registry.js', () => ({
   showDraftEditor: vi.fn(),
   initDraftEditor: vi.fn(),
   setDraftEditorOpener: vi.fn(),

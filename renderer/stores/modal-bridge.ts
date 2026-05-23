@@ -9,6 +9,7 @@
  */
 
 import { reactive } from 'vue';
+import { getTerminalManager } from '../runtime/terminal-provider.js';
 
 // ============================================================================
 // Close Confirm
@@ -39,6 +40,34 @@ export const contextMenu = reactive({
   sourceSessionId: '',
 });
 
+export function showContextMenu(
+  x: number, y: number, sessionId: string, mode: 'mouse' | 'gamepad',
+  preCapturedText?: string, preCapturedHasSelection?: boolean,
+): void {
+  let selectedText: string;
+  let hasSelection: boolean;
+  if (preCapturedText !== undefined && preCapturedHasSelection !== undefined) {
+    selectedText = preCapturedText;
+    hasSelection = preCapturedHasSelection;
+  } else {
+    const tm = getTerminalManager();
+    const view = tm?.getActiveView() ?? null;
+    selectedText = view?.getSelection() ?? '';
+    hasSelection = view?.hasSelection() ?? false;
+  }
+  contextMenu.visible = true;
+  contextMenu.mode = mode;
+  contextMenu.mouseX = x;
+  contextMenu.mouseY = y;
+  contextMenu.selectedText = selectedText;
+  contextMenu.hasSelection = hasSelection;
+  contextMenu.sourceSessionId = sessionId;
+}
+
+export function hideContextMenu(): void {
+  contextMenu.visible = false;
+}
+
 // ============================================================================
 // Plan Delete Confirm
 // ============================================================================
@@ -55,6 +84,30 @@ export const planDeleteConfirm = reactive({
 let _planDeleteOnConfirm: (() => void) | null = null;
 export function setPlanDeleteCallback(cb: (() => void) | null): void { _planDeleteOnConfirm = cb; }
 export function getPlanDeleteCallback(): (() => void) | null { return _planDeleteOnConfirm; }
+
+export function showPlanDeleteConfirm(
+  planTitle: string,
+  onConfirm: () => void,
+  options: Partial<{ itemKind: string; title: string; message: string; confirmLabel: string }> = {},
+): void {
+  planDeleteConfirm.visible = true;
+  planDeleteConfirm.planTitle = planTitle;
+  planDeleteConfirm.itemKind = options.itemKind ?? 'plan item';
+  planDeleteConfirm.title = options.title ?? 'Delete Plan Item';
+  planDeleteConfirm.message = options.message ?? '';
+  planDeleteConfirm.confirmLabel = options.confirmLabel ?? 'Delete';
+  setPlanDeleteCallback(onConfirm);
+}
+
+export function hidePlanDeleteConfirm(): void {
+  planDeleteConfirm.visible = false;
+  planDeleteConfirm.planTitle = '';
+  planDeleteConfirm.itemKind = 'plan item';
+  planDeleteConfirm.title = 'Delete Plan Item';
+  planDeleteConfirm.message = '';
+  planDeleteConfirm.confirmLabel = 'Delete';
+  setPlanDeleteCallback(null);
+}
 
 // ============================================================================
 // Clear Done Plans Confirm
@@ -82,6 +135,16 @@ export const sequencePicker = reactive({
 let _sequencePickerOnSelect: ((sequence: string) => void) | null = null;
 export function setSequencePickerCallback(cb: ((sequence: string) => void) | null): void { _sequencePickerOnSelect = cb; }
 export function getSequencePickerCallback(): ((sequence: string) => void) | null { return _sequencePickerOnSelect; }
+export function showSequencePicker(items: Array<{ label: string; sequence: string }>, onSelect: (sequence: string) => void): void {
+  if (items.length === 0) return;
+  sequencePicker.visible = true;
+  sequencePicker.items = [...items];
+  setSequencePickerCallback(onSelect);
+}
+export function hideSequencePicker(): void {
+  sequencePicker.visible = false;
+  setSequencePickerCallback(null);
+}
 
 // ============================================================================
 // Quick Spawn
@@ -258,6 +321,28 @@ export function buildToolEditorOptions(values: Record<string, any>): {
 }
 
 // ============================================================================
+// Plan Help Modal
+// ============================================================================
+
+export const planHelp = reactive({ visible: false });
+
+const _showedForDir = new Set<string>();
+
+export function showPlanHelpModal(dir: string): void {
+  if (_showedForDir.has(dir)) return;
+  _showedForDir.add(dir);
+  planHelp.visible = true;
+}
+
+export function hidePlanHelpModal(): void {
+  planHelp.visible = false;
+}
+
+export function isPlanHelpVisible(): boolean {
+  return planHelp.visible;
+}
+
+// ============================================================================
 // Guard helper — check if ANY bridge modal is visible (for race condition guard)
 // ============================================================================
 
@@ -271,6 +356,6 @@ export function isAnyBridgeModalVisible(): boolean {
   return closeConfirm.visible || contextMenu.visible || planDeleteConfirm.visible ||
     clearDonePlans.visible || sequencePicker.visible || quickSpawn.visible || dirPicker.visible ||
     draftSubmenu.visible || formModal.visible || editorPopupStore.visible || toolEditor.visible ||
-    escProtection.isProtecting.value;
+    planHelp.visible || escProtection.isProtecting.value;
 }
 

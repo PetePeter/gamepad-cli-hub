@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 async function getModule() {
-  return await import('../renderer/drafts/draft-editor.js');
+  return await import('../renderer/stores/draft-editor-registry.js');
 }
 
 describe('draft editor bridge', () => {
@@ -44,15 +44,14 @@ describe('draft editor bridge', () => {
     );
   });
 
-  it('delegates hideDraftEditor and closeEditor to the registered closer', async () => {
+  it('delegates hideDraftEditor to the registered closer', async () => {
     const mod = await getModule();
     const closer = vi.fn();
     mod.setDraftEditorCloser(closer);
 
     mod.hideDraftEditor();
-    mod.closeEditor();
 
-    expect(closer).toHaveBeenCalledTimes(2);
+    expect(closer).toHaveBeenCalledTimes(1);
   });
 
   it('reports visibility and unsaved state through registered checkers', async () => {
@@ -80,13 +79,8 @@ describe('draft editor bridge', () => {
 
     mod.handleDraftEditorButton('DPadDown');
 
-    expect(warnSpy).toHaveBeenCalledWith('[DraftEditor] handleDraftEditorButton called but no handler registered');
+    expect(warnSpy).toHaveBeenCalledWith('[DraftEditorRegistry] handleDraftEditorButton called but no handler registered');
     warnSpy.mockRestore();
   });
 
-  it('keeps initDraftEditor as a harmless compatibility stub', async () => {
-    const mod = await getModule();
-
-    expect(() => mod.initDraftEditor()).not.toThrow();
-  });
 });

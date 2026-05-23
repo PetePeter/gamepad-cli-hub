@@ -31,7 +31,7 @@ vi.mock('../renderer/bindings', () => ({
 vi.mock('../renderer/editor/editor-popup.js', () => ({ showEditorPopup: vi.fn() }));
 vi.mock('../renderer/state.js', () => ({ state: mockState }));
 vi.mock('../renderer/runtime/terminal-provider.js', () => ({ getTerminalManager: mockGetTerminalManager }));
-vi.mock('../renderer/drafts/draft-editor.js', () => ({ isDraftEditorVisible: () => false }));
+vi.mock('../renderer/stores/draft-editor-registry.js', () => ({ isDraftEditorVisible: () => false }));
 
 import { deliverBulkText } from '../renderer/paste-handler';
 
