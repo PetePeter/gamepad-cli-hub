@@ -10,10 +10,10 @@
  */
 export function buildSessionSendTextGuide() {
   return {
-    description: 'Send text to another session via session_send_text. Helm wraps in [HELM_MSG] envelope; sender polls every 3 minutes until reply arrives when expectsResponse=true.',
+    description: 'Send text to another session via session_send_text. Helm wraps in [HELM_MSG] envelope; sender polls every 10 minutes until reply arrives when expectsResponse=true.',
     inter_llm_handoff_protocol: [
       'Call session_send_text(sessionId, text, senderSessionId); Helm submits it automatically.',
-      'Poll session_read_terminal on the recipient every 3 minutes.',
+      'Poll session_read_terminal on the recipient every 10 minutes. DO NOT poll more frequently than 10 minutes.',
       '  Evidence of processing: HELM_MSG envelope visible in terminal tail, or new output/activity has started.',
       'If expectsResponse=true, wait — the reply will auto-paste to your session; stop polling once reply arrives.',
     ],
