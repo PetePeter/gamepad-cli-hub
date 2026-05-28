@@ -82,7 +82,7 @@ describe('TopicManager', () => {
       const topicId = await tm.ensureTopic(session);
 
       expect(topicId).toBe(100);
-      expect(bot.createForumTopic).toHaveBeenCalledWith('[Home] my-session');
+      expect(bot.createForumTopic).toHaveBeenCalledWith('[Home] my-session (app)');
       // Should send initial info message to the new topic
       expect(bot.sendToTopic).toHaveBeenCalledWith(
         100,
@@ -114,7 +114,7 @@ describe('TopicManager', () => {
       const topicId = await tm.ensureTopic(session);
 
       expect(topicId).toBe(100);
-      expect(bot.createForumTopic).toHaveBeenCalledWith('[Home] my-session');
+      expect(bot.createForumTopic).toHaveBeenCalledWith('[Home] my-session (app)');
     });
 
     it('stores topicId on session and calls saveSessions', async () => {
@@ -153,8 +153,8 @@ describe('TopicManager', () => {
       await topicMgr.ensureAllTopics();
 
       expect(bot.createForumTopic).toHaveBeenCalledTimes(2);
-      expect(bot.createForumTopic).toHaveBeenCalledWith('[Work] alpha');
-      expect(bot.createForumTopic).toHaveBeenCalledWith('[Work] beta');
+      expect(bot.createForumTopic).toHaveBeenCalledWith('[Work] alpha (app)');
+      expect(bot.createForumTopic).toHaveBeenCalledWith('[Work] beta (app)');
     });
 
     it('skips sessions that already have valid topics', async () => {
@@ -240,7 +240,7 @@ describe('TopicManager', () => {
 
       await tm.renameSessionTopic(session);
 
-      expect(bot.editForumTopic).toHaveBeenCalledWith(42, '[Home] renamed');
+      expect(bot.editForumTopic).toHaveBeenCalledWith(42, '[Home] renamed (app)');
     });
 
     it('no-ops when session has no topicId', async () => {
@@ -357,14 +357,14 @@ describe('TopicManager', () => {
     it('formats topic name as [InstanceName] session-name', async () => {
       await tm.ensureTopic(session);
 
-      expect(bot.createForumTopic).toHaveBeenCalledWith('[Home] my-session');
+      expect(bot.createForumTopic).toHaveBeenCalledWith('[Home] my-session (app)');
     });
 
     it('uses updated instance name after setInstanceName', async () => {
       tm.setInstanceName('Office');
       await tm.ensureTopic(session);
 
-      expect(bot.createForumTopic).toHaveBeenCalledWith('[Office] my-session');
+      expect(bot.createForumTopic).toHaveBeenCalledWith('[Office] my-session (app)');
     });
   });
 });

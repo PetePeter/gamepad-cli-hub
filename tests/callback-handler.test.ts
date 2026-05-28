@@ -30,6 +30,7 @@ vi.mock('../src/telegram/keyboards.js', () => ({
   })),
   spawnToolKeyboard: vi.fn(() => [[{ text: 'stub', callback_data: 'stub' }]]),
   spawnDirKeyboard: vi.fn(() => [[{ text: 'stub', callback_data: 'stub' }]]),
+  spawnProjectKeyboard: vi.fn(() => [[{ text: 'stub', callback_data: 'stub' }]]),
   // Path registry: in tests, keys are raw paths; resolvePathIndex returns them as-is
   resolvePathIndex: vi.fn((key: string) => key),
 }));
@@ -460,14 +461,16 @@ describe('setupCallbackHandler', () => {
 
     it('shows directory selection on spawn:tool:{name}', async () => {
       configLoader = createMockConfigLoader([], {}, [{ name: 'proj', path: '/proj' }]);
+      const mockProjectStore = { list: vi.fn().mockReturnValue([]) };
       setupCallbackHandler(
         bot as any, createMockTopicManager(), sessionManager as any,
         ptyManager as any, configLoader as any,
+        undefined, mockProjectStore as any,
       );
       handler = (bot.on as any).mock.calls.at(-1)[1];
 
       await handler(makeQuery('spawn:tool:claude'));
-      expect(configLoader.getWorkingDirectories).toHaveBeenCalled();
+      expect(mockProjectStore.list).toHaveBeenCalled();
       expect(bot.answerCallback).toHaveBeenCalledWith('q1', 'Selected: claude');
     });
 
