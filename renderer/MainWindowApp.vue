@@ -133,6 +133,8 @@ import ChipBar from './components/chips/ChipBar.vue';
 import ChipActionBar from './components/chips/ChipActionBar.vue';
 import { useChipBarStore } from './stores/chip-bar.js';
 import { useNavigationStore } from './stores/navigation.js';
+import { useSessionsScreenStore } from './stores/sessions-screen.js';
+import { useSessionJumpKeys } from './composables/useSessionJumpKeys.js';
 import { useLlmNotificationsStore } from './stores/llmNotifications.js';
 
 // ============================================================================
@@ -144,6 +146,7 @@ const settingsVisible = ref(false);
 const terminalContainerRef = ref<HTMLElement | null>(null);
 const chipBarStore = useChipBarStore();
 const navStore = useNavigationStore();
+const sessionsScreenStore = useSessionsScreenStore();
 const llmNotificationsStore = useLlmNotificationsStore();
 
 const {
@@ -476,6 +479,8 @@ function sessionElapsedText(sessionId: string): string {
   if (ts === undefined) return '';
   return formatElapsed(Date.now() - ts);
 }
+
+useSessionJumpKeys();
 
 const { handleButton, handleRelease, handleModalKeyboardBridge } = useInputRouter({
   settingsVisible,
@@ -865,6 +870,7 @@ onUnmounted(() => {
             :resolve-group-display-name="resolveGroupDisplayName"
             :is-session-hidden-from-overview="(session) => isSessionHiddenFromOverview(session, sessionsState.groupPrefs)"
             :session-elapsed-text="sessionElapsedText"
+            :session-shortcut-map="sessionsScreenStore.sessionShortcutMap"
             @show-global-overview="onShowGlobalOverview"
             @toggle-group-collapse="onGroupToggleCollapse"
             @show-overview="onShowOverview"

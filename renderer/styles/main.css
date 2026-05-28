@@ -752,6 +752,26 @@ button {
   gap: 6px;
   min-width: 0;
 }
+.session-jump-key {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(79, 208, 139, 0.08);
+  border: 1px solid rgba(79, 208, 139, 0.25);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: monospace;
+  color: rgba(79, 208, 139, 0.6);
+  line-height: 1.5;
+  flex-shrink: 0;
+  min-width: 20px;
+  justify-content: center;
+}
+.session-jump-key--empty {
+  background: none;
+  border-color: transparent;
+}
 .session-working-plan {
   margin-left: auto;
   min-width: 0;

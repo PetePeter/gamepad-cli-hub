@@ -408,6 +408,7 @@ function makeSessionListProps(overrides: Record<string, any> = {}) {
     resolveGroupDisplayName: vi.fn((dirPath: string) => dirPath.split('/').pop() || dirPath),
     isSessionHiddenFromOverview: vi.fn(() => false),
     sessionElapsedText: vi.fn(() => '2m ago'),
+    sessionShortcutMap: new Map<string, number>([['s1', 1]]),
     ...overrides,
   };
 }

@@ -39,6 +39,7 @@ export interface SessionCardProps {
   scheduledAt?: string | null;
   isSnappedOut?: boolean;
   llmNotifications?: Array<{ id: string; title: string; content: string; createdAt?: number }>;
+  shortcutKey?: number | null;
 }
 
 // --- Constants ---
@@ -234,6 +235,8 @@ function onCardClick(e: MouseEvent): void {
         <button class="session-rename-cancel" title="Cancel (Escape)" @click.stop="emit('cancelRename')">×</button>
       </template>
       <template v-else>
+        <span v-if="shortcutKey != null" class="session-jump-key">^{{ shortcutKey }}</span>
+        <span v-else class="session-jump-key session-jump-key--empty" aria-hidden="true" />
         <span class="session-name">{{ displayName }}</span>
         <span
           v-if="workingPlanLabel"

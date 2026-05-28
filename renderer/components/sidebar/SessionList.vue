@@ -60,6 +60,7 @@ const props = defineProps<{
   resolveGroupDisplayName: (dirPath: string, directories: SessionListDirectory[], projects?: SessionListProject[]) => string;
   isSessionHiddenFromOverview: (session: SessionListGroupSession) => boolean;
   sessionElapsedText: (sessionId: string) => string;
+  sessionShortcutMap: Map<string, number>;
 }>();
 
 const emit = defineEmits<{
@@ -144,6 +145,7 @@ function onSessionStateChange(sessionId: string, newState: string): void {
               :scheduled-at="pendingSchedules.get(session.id) ?? null"
               :is-snapped-out="snappedOutSessions.has(session.id)"
               :llm-notifications="llmNotifications.get(session.id) ?? []"
+              :shortcut-key="sessionShortcutMap.get(session.id) ?? null"
               @click="emit('sessionClick', $event)"
               @rename="emit('sessionRename', $event)"
               @commit-rename="onCommitRename"

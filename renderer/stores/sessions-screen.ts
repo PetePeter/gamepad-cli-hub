@@ -9,6 +9,8 @@
 import { defineStore } from 'pinia';
 import { reactive, computed } from 'vue';
 import type { NavItem, SessionGroup, SessionGroupPrefs } from '../session-groups.js';
+import { isSessionHiddenFromOverview } from '../session-groups.js';
+import { buildSessionShortcutMap } from '../utils/session-shortcut-map.js';
 import type { ProjectDirectoryItem } from '../screens/planner-directories.js';
 
 export type SessionsFocus = 'sessions' | 'spawn' | 'plans';
@@ -73,6 +75,22 @@ export const useSessionsScreenStore = defineStore('sessionsScreen', () => {
     return null;
   });
 
+  const hiddenSessionIds = computed<Set<string>>(() => {
+    const hidden = new Set<string>();
+    for (const group of sessionsState.groups) {
+      for (const session of group.sessions) {
+        if (isSessionHiddenFromOverview(session, sessionsState.groupPrefs)) {
+          hidden.add(session.id);
+        }
+      }
+    }
+    return hidden;
+  });
+
+  const sessionShortcutMap = computed<Map<string, number>>(() =>
+    buildSessionShortcutMap(sessionsState.navList, hiddenSessionIds.value),
+  );
+
   function setFocus(zone: SessionsFocus): void {
     sessionsState.activeFocus = zone;
   }
@@ -98,6 +116,8 @@ export const useSessionsScreenStore = defineStore('sessionsScreen', () => {
     isOverviewOpen,
     activeNavItem,
     focusedGroup,
+    hiddenSessionIds,
+    sessionShortcutMap,
     setFocus,
     openOverview,
     closeOverview,
