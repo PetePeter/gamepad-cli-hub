@@ -1,8 +1,8 @@
 /**
- * Config loader unit tests — split config system
+ * Config loader unit tests — dedicated store system
  *
- * Tests cover: loading from 4 files, existing getters, setBinding,
- * profile CRUD, working directory CRUD, and tools CRUD.
+ * Tests cover: loading from cli-types.yaml / bindings.yaml / input-config.yaml,
+ * existing getters, setBinding, CLI type CRUD, working directory CRUD, and sequences.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
@@ -33,41 +33,42 @@ function readYaml<T>(relativePath: string): T {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-const SETTINGS = { activeProfile: 'default' };
+const SETTINGS = { hapticFeedback: true, notifications: true, escProtectionEnabled: true };
 
-const DEFAULT_PROFILE = {
-  name: 'Default',
-  tools: {
-    'claude-code': {
-      name: 'Claude Code',
-      command: 'cc',
-      initialPrompt: [],
-    },
-    'copilot-cli': {
-      name: 'GitHub Copilot CLI',
-      command: 'copilot',
-      initialPrompt: [],
-    },
+const CLI_TYPES = {
+  'claude-code': {
+    name: 'Claude Code',
+    spawnCommand: 'cc',
+    initialPrompt: [],
   },
-  workingDirectories: [
-    { name: 'Projects', path: 'X:\\coding' },
-    { name: 'Home', path: 'C:\\Users\\oscar' },
-  ],
-  bindings: {
-    'claude-code': {
-      A: { action: 'keyboard', sequence: '{Ctrl+L}' },
-      B: { action: 'voice', key: 'Space', mode: 'hold' },
-    },
-    'copilot-cli': {
-      A: { action: 'keyboard', sequence: '{Ctrl+L}' },
-      Y: { action: 'keyboard', sequence: '{Ctrl+C}' },
-    },
+  'copilot-cli': {
+    name: 'GitHub Copilot CLI',
+    spawnCommand: 'copilot',
+    initialPrompt: [],
   },
 };
 
+const BINDINGS = {
+  'claude-code': {
+    A: { action: 'keyboard', sequence: '{Ctrl+L}' },
+    B: { action: 'voice', key: 'Space', mode: 'hold' },
+  },
+  'copilot-cli': {
+    A: { action: 'keyboard', sequence: '{Ctrl+L}' },
+    Y: { action: 'keyboard', sequence: '{Ctrl+C}' },
+  },
+};
+
+const WORKING_DIRS = [
+  { name: 'Projects', path: 'X:\\coding' },
+  { name: 'Home', path: 'C:\\Users\\oscar' },
+];
+
 function setupTestFiles(): void {
   writeYaml('settings.yaml', SETTINGS);
-  writeYaml('profiles/default.yaml', DEFAULT_PROFILE);
+  writeYaml('cli-types.yaml', CLI_TYPES);
+  writeYaml('bindings.yaml', BINDINGS);
+  writeYaml('input-config.yaml', { workingDirectories: WORKING_DIRS });
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +100,7 @@ describe('ConfigLoader', () => {
   // =========================================================================
 
   describe('load', () => {
-    it('loads all four config files without error', () => {
+    it('loads all config files without error', () => {
       expect(() => loader.load()).not.toThrow();
     });
 
@@ -108,9 +109,9 @@ describe('ConfigLoader', () => {
       expect(() => loader.load()).toThrow('Configuration file not found');
     });
 
-    it('throws when active profile file is missing', () => {
-      fs.unlinkSync(path.join(TEST_DIR, 'profiles', 'default.yaml'));
-      expect(() => loader.load()).toThrow('Configuration file not found');
+    it('loads successfully when cli-types.yaml is absent (empty store)', () => {
+      fs.unlinkSync(path.join(TEST_DIR, 'cli-types.yaml'));
+      expect(() => loader.load()).not.toThrow();
     });
   });
 
@@ -119,10 +120,10 @@ describe('ConfigLoader', () => {
   // =========================================================================
 
   describe('getBindings', () => {
-    it('returns bindings for a valid CLI type from the active profile', () => {
+    it('returns bindings for a valid CLI type', () => {
       loader.load();
       const bindings = loader.getBindings('claude-code');
-      expect(bindings).toEqual(DEFAULT_PROFILE.bindings['claude-code']);
+      expect(bindings).toEqual(BINDINGS['claude-code']);
     });
 
     it('returns null for non-existent CLI type', () => {
@@ -136,7 +137,7 @@ describe('ConfigLoader', () => {
   });
 
   describe('getSpawnConfig', () => {
-    it('returns built spawn config from tools.yaml', () => {
+    it('returns built spawn config from cli-types.yaml', () => {
       loader.load();
       expect(loader.getSpawnConfig('claude-code')).toEqual({ command: 'cc', args: [] });
     });
@@ -152,7 +153,7 @@ describe('ConfigLoader', () => {
   });
 
   describe('getCliTypeName', () => {
-    it('returns name from tools.yaml', () => {
+    it('returns name from cli-types.yaml', () => {
       loader.load();
       expect(loader.getCliTypeName('claude-code')).toBe('Claude Code');
     });
@@ -164,26 +165,25 @@ describe('ConfigLoader', () => {
   });
 
   describe('getCliTypes', () => {
-    it('returns CLI type keys from tools.yaml', () => {
+    it('returns CLI type keys from cli-types.yaml', () => {
       loader.load();
       expect(loader.getCliTypes()).toEqual(['claude-code', 'copilot-cli']);
     });
   });
 
   describe('getWorkingDirectories', () => {
-    it('returns directories from directories.yaml', () => {
+    it('returns directories from input-config.yaml', () => {
       loader.load();
-      expect(loader.getWorkingDirectories()).toEqual(DEFAULT_PROFILE.workingDirectories);
+      expect(loader.getWorkingDirectories()).toEqual(WORKING_DIRS);
     });
   });
 
   describe('getChipbarActions', () => {
     it('returns the incoming inbox path, not the plans root', () => {
-      const profile = {
-        ...DEFAULT_PROFILE,
+      writeYaml('input-config.yaml', {
+        workingDirectories: WORKING_DIRS,
         chipActions: [{ label: '💾 Save Plan', sequence: 'save to {plansDir}{Enter}' }],
-      };
-      writeYaml('profiles/default.yaml', profile);
+      });
 
       loader.load();
 
@@ -279,8 +279,8 @@ describe('ConfigLoader', () => {
 
       expect(loader.getBindings('claude-code')!['X']).toEqual(newBinding);
 
-      const onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.bindings['claude-code']['X']).toEqual(newBinding);
+      const onDisk = readYaml<any>('bindings.yaml');
+      expect(onDisk['claude-code']['X']).toEqual(newBinding);
     });
 
     it('throws error for unknown CLI type', () => {
@@ -302,8 +302,8 @@ describe('ConfigLoader', () => {
 
       expect(loader.getBindings('claude-code')!['Y']).toEqual(seqListBinding);
 
-      const onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.bindings['claude-code']['Y']).toEqual(seqListBinding);
+      const onDisk = readYaml<any>('bindings.yaml');
+      expect(onDisk['claude-code']['Y']).toEqual(seqListBinding);
     });
 
     it('round-trips sequence-list binding through save and reload', () => {
@@ -391,26 +391,22 @@ describe('ConfigLoader', () => {
 
   describe('Sequences', () => {
     beforeEach(() => {
-      // Set up a profile with sequences
-      const profileWithSequences = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          ...DEFAULT_PROFILE.tools,
-          'claude-code': {
-            ...DEFAULT_PROFILE.tools['claude-code'],
-            sequences: {
-              prompts: [
-                { label: 'commit', sequence: 'use skill(commit)' },
-                { label: 'review', sequence: 'use skill(code-review-it)' },
-              ],
-              snippets: [
-                { label: 'hello', sequence: 'Hello world!' },
-              ],
-            },
+      // Set up cli-types with sequences
+      writeYaml('cli-types.yaml', {
+        ...CLI_TYPES,
+        'claude-code': {
+          ...CLI_TYPES['claude-code'],
+          sequences: {
+            prompts: [
+              { label: 'commit', sequence: 'use skill(commit)' },
+              { label: 'review', sequence: 'use skill(code-review-it)' },
+            ],
+            snippets: [
+              { label: 'hello', sequence: 'Hello world!' },
+            ],
           },
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithSequences);
+      });
       loader = new ConfigLoader(TEST_DIR);
     });
 
@@ -558,7 +554,7 @@ describe('ConfigLoader', () => {
       expect(dirs).toHaveLength(3);
       expect(dirs[2]).toEqual({ name: 'New', path: 'D:\\new' });
 
-      const onDisk = readYaml<any>('profiles/default.yaml');
+      const onDisk = readYaml<any>('input-config.yaml');
       expect(onDisk.workingDirectories).toHaveLength(3);
     });
 
@@ -602,9 +598,9 @@ describe('ConfigLoader', () => {
       expect(loader.getCliTypeName('new-tool')).toBe('New Tool');
       expect(loader.getSpawnConfig('new-tool')).toEqual({ command: 'echo', args: [] });
 
-      const onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.tools['new-tool']).toBeDefined();
-      expect(onDisk.tools['new-tool'].spawnCommand).toBe('echo');
+      const onDisk = readYaml<any>('cli-types.yaml');
+      expect(onDisk['new-tool']).toBeDefined();
+      expect(onDisk['new-tool'].spawnCommand).toBe('echo');
     });
 
     it('addCliType throws if key already exists', () => {
@@ -633,8 +629,8 @@ describe('ConfigLoader', () => {
 
       expect(loader.getCliTypes()).not.toContain('copilot-cli');
 
-      const onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.tools['copilot-cli']).toBeUndefined();
+      const onDisk = readYaml<any>('cli-types.yaml');
+      expect(onDisk['copilot-cli']).toBeUndefined();
     });
 
     it('removeCliType throws for non-existent key', () => {
@@ -643,24 +639,19 @@ describe('ConfigLoader', () => {
     });
 
     it('initialPromptDelay is preserved through updateCliType', () => {
-      // Write a profile with initialPromptDelay set on a tool
-      const profileWithDelay = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          'claude-code': {
-            name: 'Claude Code',
-            command: 'cc',
-            initialPrompt: [{ label: 'Prompt', sequence: 'hello' }],
-            initialPromptDelay: 3000,
-          },
-          'copilot-cli': {
-            name: 'GitHub Copilot CLI',
-            command: 'copilot',
-            initialPrompt: [],
-          },
+      writeYaml('cli-types.yaml', {
+        'claude-code': {
+          name: 'Claude Code',
+          spawnCommand: 'cc',
+          initialPrompt: [{ label: 'Prompt', sequence: 'hello' }],
+          initialPromptDelay: 3000,
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithDelay);
+        'copilot-cli': {
+          name: 'GitHub Copilot CLI',
+          spawnCommand: 'copilot',
+          initialPrompt: [],
+        },
+      });
       loader.load();
 
       // Update name and command — delay should survive
@@ -674,23 +665,19 @@ describe('ConfigLoader', () => {
       expect(entry!.initialPromptDelay).toBe(3000);
 
       // Verify persisted to disk
-      const onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.tools['claude-code'].initialPromptDelay).toBe(3000);
+      const onDisk = readYaml<any>('cli-types.yaml');
+      expect(onDisk['claude-code'].initialPromptDelay).toBe(3000);
     });
 
     it('initialPromptDelay is loaded from disk on fresh load', () => {
-      const profileWithDelay = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          'claude-code': {
-            name: 'Claude Code',
-            command: 'cc',
-            initialPrompt: [],
-            initialPromptDelay: 1500,
-          },
+      writeYaml('cli-types.yaml', {
+        'claude-code': {
+          name: 'Claude Code',
+          spawnCommand: 'cc',
+          initialPrompt: [],
+          initialPromptDelay: 1500,
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithDelay);
+      });
       loader.load();
 
       const entry = loader.getCliTypeEntry('claude-code');
@@ -711,8 +698,8 @@ describe('ConfigLoader', () => {
       expect(entry).not.toBeNull();
       expect(entry!.initialPromptDelay).toBe(5000);
 
-      const onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.tools['my-tool'].initialPromptDelay).toBe(5000);
+      const onDisk = readYaml<any>('cli-types.yaml');
+      expect(onDisk['my-tool'].initialPromptDelay).toBe(5000);
     });
 
     it('addCliType saves helmInitialPrompt option', () => {
@@ -724,8 +711,8 @@ describe('ConfigLoader', () => {
       const entry = loader.getCliTypeEntry('my-tool');
       expect(entry!.helmInitialPrompt).toBe(true);
 
-      const onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.tools['my-tool'].helmInitialPrompt).toBe(true);
+      const onDisk = readYaml<any>('cli-types.yaml');
+      expect(onDisk['my-tool'].helmInitialPrompt).toBe(true);
     });
 
     it('addCliType saves disabled Helm inter-session preamble option', () => {
@@ -737,8 +724,8 @@ describe('ConfigLoader', () => {
       const entry = loader.getCliTypeEntry('my-tool');
       expect(entry!.helmPreambleForInterSession).toBe(false);
 
-      const onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.tools['my-tool'].helmPreambleForInterSession).toBe(false);
+      const onDisk = readYaml<any>('cli-types.yaml');
+      expect(onDisk['my-tool'].helmPreambleForInterSession).toBe(false);
     });
 
     it('updateCliType persists disabled Helm inter-session preamble and omits enabled default', () => {
@@ -750,8 +737,8 @@ describe('ConfigLoader', () => {
 
       let entry = loader.getCliTypeEntry('claude-code');
       expect(entry!.helmPreambleForInterSession).toBe(false);
-      let onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.tools['claude-code'].helmPreambleForInterSession).toBe(false);
+      let onDisk = readYaml<any>('cli-types.yaml');
+      expect(onDisk['claude-code'].helmPreambleForInterSession).toBe(false);
 
       loader.updateCliType('claude-code', 'Claude Code', [{ label: 'Prompt', sequence: 'hello' }], 5000, {
         helmPreambleForInterSession: true,
@@ -759,28 +746,24 @@ describe('ConfigLoader', () => {
 
       entry = loader.getCliTypeEntry('claude-code');
       expect(entry!.helmPreambleForInterSession).toBeUndefined();
-      onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.tools['claude-code'].helmPreambleForInterSession).toBeUndefined();
+      onDisk = readYaml<any>('cli-types.yaml');
+      expect(onDisk['claude-code'].helmPreambleForInterSession).toBeUndefined();
     });
 
     it('updateCliType with initialPromptDelay saves new value (not preserving old)', () => {
-      const profileWithDelay = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          'claude-code': {
-            name: 'Claude Code',
-            command: 'cc',
-            initialPrompt: [],
-            initialPromptDelay: 3000,
-          },
-          'copilot-cli': {
-            name: 'GitHub Copilot CLI',
-            command: 'copilot',
-            initialPrompt: [],
-          },
+      writeYaml('cli-types.yaml', {
+        'claude-code': {
+          name: 'Claude Code',
+          spawnCommand: 'cc',
+          initialPrompt: [],
+          initialPromptDelay: 3000,
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithDelay);
+        'copilot-cli': {
+          name: 'GitHub Copilot CLI',
+          spawnCommand: 'copilot',
+          initialPrompt: [],
+        },
+      });
       loader.load();
 
       loader.updateCliType('claude-code', 'CC Updated', 'cc2', [{ label: 'Prompt', sequence: 'prompt' }], 7000);
@@ -788,8 +771,8 @@ describe('ConfigLoader', () => {
       const entry = loader.getCliTypeEntry('claude-code');
       expect(entry!.initialPromptDelay).toBe(7000);
 
-      const onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.tools['claude-code'].initialPromptDelay).toBe(7000);
+      const onDisk = readYaml<any>('cli-types.yaml');
+      expect(onDisk['claude-code'].initialPromptDelay).toBe(7000);
     });
 
     it('updateCliType saves helmInitialPrompt option', () => {
@@ -808,26 +791,22 @@ describe('ConfigLoader', () => {
       entry = loader.getCliTypeEntry('claude-code');
       expect(entry!.helmInitialPrompt).toBe(false);
 
-      const onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.tools['claude-code'].helmInitialPrompt).toBe(false);
+      const onDisk = readYaml<any>('cli-types.yaml');
+      expect(onDisk['claude-code'].helmInitialPrompt).toBe(false);
     });
 
     it('updateCliType preserves sequences and other optional fields', () => {
-      const profileWithExtras = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          ...DEFAULT_PROFILE.tools,
-          'claude-code': {
-            ...DEFAULT_PROFILE.tools['claude-code'],
-            sequences: { prompts: [{ label: 'commit', sequence: 'use skill(commit)' }] },
-            handoffCommand: 'go implement it\r',
-            renameCommand: '/session {cliSessionName}',
-            resumeCommand: 'claude --resume {cliSessionName}',
-            continueCommand: 'claude --continue',
-          },
+      writeYaml('cli-types.yaml', {
+        ...CLI_TYPES,
+        'claude-code': {
+          ...CLI_TYPES['claude-code'],
+          sequences: { prompts: [{ label: 'commit', sequence: 'use skill(commit)' }] },
+          handoffCommand: 'go implement it\r',
+          renameCommand: '/session {cliSessionName}',
+          resumeCommand: 'claude --resume {cliSessionName}',
+          continueCommand: 'claude --continue',
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithExtras);
+      });
       loader = new ConfigLoader(TEST_DIR);
       loader.load();
 
@@ -855,14 +834,10 @@ describe('ConfigLoader', () => {
     });
 
     it('updateCliType with empty string clears optional field', () => {
-      const profileWithHandoff = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          ...DEFAULT_PROFILE.tools,
-          'claude-code': { ...DEFAULT_PROFILE.tools['claude-code'], handoffCommand: 'go' },
-        },
-      };
-      writeYaml('profiles/default.yaml', profileWithHandoff);
+      writeYaml('cli-types.yaml', {
+        ...CLI_TYPES,
+        'claude-code': { ...CLI_TYPES['claude-code'], handoffCommand: 'go' },
+      });
       loader = new ConfigLoader(TEST_DIR);
       loader.load();
 
@@ -944,17 +919,13 @@ describe('ConfigLoader', () => {
     });
 
     it('updateCliType with env replaces environment variable entries', () => {
-      const profileWithEnv = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          ...DEFAULT_PROFILE.tools,
-          'claude-code': {
-            ...DEFAULT_PROFILE.tools['claude-code'],
-            env: [{ name: 'OLD_KEY', value: 'old-value' }],
-          },
+      writeYaml('cli-types.yaml', {
+        ...CLI_TYPES,
+        'claude-code': {
+          ...CLI_TYPES['claude-code'],
+          env: [{ name: 'OLD_KEY', value: 'old-value' }],
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithEnv);
+      });
       loader = new ConfigLoader(TEST_DIR);
       loader.load();
 
@@ -973,14 +944,10 @@ describe('ConfigLoader', () => {
     });
 
     it('updateCliType with empty spawnCommand clears the fresh launch template', () => {
-      const profileWithSpawnCommand = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          ...DEFAULT_PROFILE.tools,
-          'claude-code': { ...DEFAULT_PROFILE.tools['claude-code'], spawnCommand: 'cc --verbose' },
-        },
-      };
-      writeYaml('profiles/default.yaml', profileWithSpawnCommand);
+      writeYaml('cli-types.yaml', {
+        ...CLI_TYPES,
+        'claude-code': { ...CLI_TYPES['claude-code'], spawnCommand: 'cc --verbose' },
+      });
       loader = new ConfigLoader(TEST_DIR);
       loader.load();
 
@@ -990,17 +957,13 @@ describe('ConfigLoader', () => {
     });
 
     it('updateCliType with empty env clears env field', () => {
-      const profileWithEnv = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          ...DEFAULT_PROFILE.tools,
-          'claude-code': {
-            ...DEFAULT_PROFILE.tools['claude-code'],
-            env: [{ name: 'COPILOT_MODEL', value: 'qwen' }],
-          },
+      writeYaml('cli-types.yaml', {
+        ...CLI_TYPES,
+        'claude-code': {
+          ...CLI_TYPES['claude-code'],
+          env: [{ name: 'COPILOT_MODEL', value: 'qwen' }],
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithEnv);
+      });
       loader = new ConfigLoader(TEST_DIR);
       loader.load();
 
@@ -1023,21 +986,17 @@ describe('ConfigLoader', () => {
     });
 
     it('env round-trip preserves on disk and sanitizes invalid entries on load', () => {
-      const profileWithEnv = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          ...DEFAULT_PROFILE.tools,
-          'claude-code': {
-            ...DEFAULT_PROFILE.tools['claude-code'],
-            env: [
-              { name: 'COPILOT_PROVIDER_BASE_URL', value: 'http://localhost:1234' },
-              { name: '  COPILOT_MODEL  ', value: 'qwen' },
-              { name: '', value: 'ignored' },
-            ],
-          },
+      writeYaml('cli-types.yaml', {
+        ...CLI_TYPES,
+        'claude-code': {
+          ...CLI_TYPES['claude-code'],
+          env: [
+            { name: 'COPILOT_PROVIDER_BASE_URL', value: 'http://localhost:1234' },
+            { name: '  COPILOT_MODEL  ', value: 'qwen' },
+            { name: '', value: 'ignored' },
+          ],
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithEnv);
+      });
 
       const fresh = new ConfigLoader(TEST_DIR);
       fresh.load();
@@ -1060,19 +1019,15 @@ describe('ConfigLoader', () => {
     });
 
     it('updateCliType round-trip preserves all fields on disk', () => {
-      const profileWithAll = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          ...DEFAULT_PROFILE.tools,
-          'claude-code': {
-            ...DEFAULT_PROFILE.tools['claude-code'],
-            sequences: { prompts: [{ label: 'x', sequence: 'y' }] },
-            handoffCommand: 'h',
-            continueCommand: 'c',
-          },
+      writeYaml('cli-types.yaml', {
+        ...CLI_TYPES,
+        'claude-code': {
+          ...CLI_TYPES['claude-code'],
+          sequences: { prompts: [{ label: 'x', sequence: 'y' }] },
+          handoffCommand: 'h',
+          continueCommand: 'c',
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithAll);
+      });
       loader = new ConfigLoader(TEST_DIR);
       loader.load();
 
@@ -1090,18 +1045,14 @@ describe('ConfigLoader', () => {
     });
 
     it('auto-migrates string initialPrompt to SequenceListItem array on load', () => {
-      const profileWithStringPrompt = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          'claude-code': {
-            name: 'Claude Code',
-            command: 'cc',
-            initialPrompt: 'hello world',
-            initialPromptDelay: 1000,
-          },
+      writeYaml('cli-types.yaml', {
+        'claude-code': {
+          name: 'Claude Code',
+          spawnCommand: 'cc',
+          initialPrompt: 'hello world',
+          initialPromptDelay: 1000,
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithStringPrompt);
+      });
       loader.load();
 
       const entry = loader.getCliTypeEntry('claude-code');
@@ -1109,22 +1060,18 @@ describe('ConfigLoader', () => {
       expect(entry!.initialPromptDelay).toBe(1000);
 
       // Verify migrated on disk too
-      const onDisk = readYaml<any>('profiles/default.yaml');
-      expect(onDisk.tools['claude-code'].initialPrompt).toEqual([{ label: 'Prompt', sequence: 'hello world' }]);
+      const onDisk = readYaml<any>('cli-types.yaml');
+      expect(onDisk['claude-code'].initialPrompt).toEqual([{ label: 'Prompt', sequence: 'hello world' }]);
     });
 
     it('auto-migrates empty string initialPrompt to empty array', () => {
-      const profileWithEmptyPrompt = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          'claude-code': {
-            name: 'Claude Code',
-            command: 'cc',
-            initialPrompt: '',
-          },
+      writeYaml('cli-types.yaml', {
+        'claude-code': {
+          name: 'Claude Code',
+          spawnCommand: 'cc',
+          initialPrompt: '',
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithEmptyPrompt);
+      });
       loader.load();
 
       const entry = loader.getCliTypeEntry('claude-code');
@@ -1132,17 +1079,13 @@ describe('ConfigLoader', () => {
     });
 
     it('does not re-migrate already-migrated initialPrompt arrays', () => {
-      const profileWithArray = {
-        ...DEFAULT_PROFILE,
-        tools: {
-          'claude-code': {
-            name: 'Claude Code',
-            command: 'cc',
-            initialPrompt: [{ label: 'Cmd', sequence: '/clear{Enter}' }],
-          },
+      writeYaml('cli-types.yaml', {
+        'claude-code': {
+          name: 'Claude Code',
+          spawnCommand: 'cc',
+          initialPrompt: [{ label: 'Cmd', sequence: '/clear{Enter}' }],
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithArray);
+      });
       loader.load();
 
       const entry = loader.getCliTypeEntry('claude-code');
@@ -1152,17 +1095,11 @@ describe('ConfigLoader', () => {
 
   describe('button naming in bindings', () => {
     it('loads bindings with Sandwich button name', () => {
-      const profileWithSandwich = {
-        name: 'Test',
-        tools: DEFAULT_PROFILE.tools,
-        workingDirectories: DEFAULT_PROFILE.workingDirectories,
-        bindings: {
-          'claude-code': {
-            Sandwich: { action: 'keyboard', sequence: '{Escape}' },
-          },
+      writeYaml('bindings.yaml', {
+        'claude-code': {
+          Sandwich: { action: 'keyboard', sequence: '{Escape}' },
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithSandwich);
+      });
       loader.load();
 
       const bindings = loader.getBindings('claude-code');
@@ -1171,18 +1108,12 @@ describe('ConfigLoader', () => {
     });
 
     it('loads bindings with Xbox button name', () => {
-      const profileWithXbox = {
-        name: 'Test',
-        tools: DEFAULT_PROFILE.tools,
-        workingDirectories: DEFAULT_PROFILE.workingDirectories,
-        bindings: {
-          'claude-code': {
-            Xbox: { action: 'keyboard', sequence: '{Enter}' },
-            Back: { action: 'keyboard', sequence: '{Escape}' },
-          },
+      writeYaml('bindings.yaml', {
+        'claude-code': {
+          Xbox: { action: 'keyboard', sequence: '{Enter}' },
+          Back: { action: 'keyboard', sequence: '{Escape}' },
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithXbox);
+      });
       loader.load();
 
       const bindings = loader.getBindings('claude-code');
@@ -1207,7 +1138,7 @@ describe('ConfigLoader', () => {
   // =========================================================================
 
   describe('getStickConfig', () => {
-    it('returns defaults when profile has no sticks section', () => {
+    it('returns defaults when input-config has no sticks section', () => {
       loader.load();
       const left = loader.getStickConfig('left');
       expect(left).toEqual({ mode: 'disabled', deadzone: 0.25, repeatRate: 50 });
@@ -1216,15 +1147,14 @@ describe('ConfigLoader', () => {
       expect(right).toEqual({ mode: 'disabled', deadzone: 0.25, repeatRate: 50 });
     });
 
-    it('returns stick config from profile when present', () => {
-      const profileWithSticks = {
-        ...DEFAULT_PROFILE,
+    it('returns stick config from input-config when present', () => {
+      writeYaml('input-config.yaml', {
+        workingDirectories: WORKING_DIRS,
         sticks: {
           left: { mode: 'cursor', deadzone: 0.3, repeatRate: 80 },
           right: { mode: 'scroll', deadzone: 0.2, repeatRate: 150 },
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithSticks);
+      });
       loader.load();
 
       expect(loader.getStickConfig('left')).toEqual({ mode: 'cursor', deadzone: 0.3, repeatRate: 80 });
@@ -1232,13 +1162,12 @@ describe('ConfigLoader', () => {
     });
 
     it('returns defaults for missing stick when only one is configured', () => {
-      const profileWithOneStick = {
-        ...DEFAULT_PROFILE,
+      writeYaml('input-config.yaml', {
+        workingDirectories: WORKING_DIRS,
         sticks: {
           left: { mode: 'cursor', deadzone: 0.25, repeatRate: 100 },
         },
-      };
-      writeYaml('profiles/default.yaml', profileWithOneStick);
+      });
       loader.load();
 
       expect(loader.getStickConfig('left')).toEqual({ mode: 'cursor', deadzone: 0.25, repeatRate: 100 });
@@ -1255,28 +1184,26 @@ describe('ConfigLoader', () => {
   // =========================================================================
 
   describe('getDpadConfig', () => {
-    it('returns defaults when profile has no dpad section', () => {
+    it('returns defaults when input-config has no dpad section', () => {
       loader.load();
       expect(loader.getDpadConfig()).toEqual({ initialDelay: 400, repeatRate: 120 });
     });
 
-    it('returns dpad config from profile when present', () => {
-      const profileWithDpad = {
-        ...DEFAULT_PROFILE,
+    it('returns dpad config from input-config when present', () => {
+      writeYaml('input-config.yaml', {
+        workingDirectories: WORKING_DIRS,
         dpad: { initialDelay: 300, repeatRate: 80 },
-      };
-      writeYaml('profiles/default.yaml', profileWithDpad);
+      });
       loader.load();
 
       expect(loader.getDpadConfig()).toEqual({ initialDelay: 300, repeatRate: 80 });
     });
 
     it('fills in defaults for partial dpad config', () => {
-      const profileWithPartialDpad = {
-        ...DEFAULT_PROFILE,
+      writeYaml('input-config.yaml', {
+        workingDirectories: WORKING_DIRS,
         dpad: { initialDelay: 500 },
-      };
-      writeYaml('profiles/default.yaml', profileWithPartialDpad);
+      });
       loader.load();
 
       expect(loader.getDpadConfig()).toEqual({ initialDelay: 500, repeatRate: 120 });
@@ -1288,17 +1215,16 @@ describe('ConfigLoader', () => {
   // =========================================================================
 
   describe('getActivityTimeout', () => {
-    it('returns default 5000ms when profile has no activity section', () => {
+    it('returns default 5000ms when input-config has no activity section', () => {
       loader.load();
       expect(loader.getActivityTimeout()).toBe(5000);
     });
 
-    it('returns activity timeout from profile when present', () => {
-      const profileWithActivity = {
-        ...DEFAULT_PROFILE,
+    it('returns activity timeout from input-config when present', () => {
+      writeYaml('input-config.yaml', {
+        workingDirectories: WORKING_DIRS,
         activity: { timeoutMs: 45000 },
-      };
-      writeYaml('profiles/default.yaml', profileWithActivity);
+      });
       loader.load();
 
       expect(loader.getActivityTimeout()).toBe(45000);
@@ -1306,28 +1232,27 @@ describe('ConfigLoader', () => {
   });
 
   describe('setActivityTimeout', () => {
-    it('sets activity timeout and persists to profile', () => {
+    it('sets activity timeout and persists to input-config', () => {
       loader.load();
       loader.setActivityTimeout(60000);
 
       expect(loader.getActivityTimeout()).toBe(60000);
 
-      const profile = readYaml<typeof DEFAULT_PROFILE & { activity?: { timeoutMs: number } }>('profiles/default.yaml');
-      expect(profile.activity?.timeoutMs).toBe(60000);
+      const config = readYaml<any>('input-config.yaml');
+      expect(config.activity?.timeoutMs).toBe(60000);
     });
 
     it('updates existing activity config', () => {
-      const profileWithActivity = {
-        ...DEFAULT_PROFILE,
+      writeYaml('input-config.yaml', {
+        workingDirectories: WORKING_DIRS,
         activity: { timeoutMs: 45000 },
-      };
-      writeYaml('profiles/default.yaml', profileWithActivity);
+      });
       loader.load();
 
       loader.setActivityTimeout(15000);
 
-      const profile = readYaml<typeof DEFAULT_PROFILE & { activity?: { timeoutMs: number } }>('profiles/default.yaml');
-      expect(profile.activity?.timeoutMs).toBe(15000);
+      const config = readYaml<any>('input-config.yaml');
+      expect(config.activity?.timeoutMs).toBe(15000);
     });
   });
 
@@ -1364,13 +1289,13 @@ describe('ConfigLoader', () => {
 
   describe('hapticFeedback', () => {
     it('defaults to true when not present in settings.yaml', () => {
-      // SETTINGS fixture has no hapticFeedback key
+      // SETTINGS fixture has hapticFeedback: true
       loader.load();
       expect(loader.getHapticFeedback()).toBe(true);
     });
 
     it('reads hapticFeedback from settings.yaml when present', () => {
-      writeYaml('settings.yaml', { activeProfile: 'default', hapticFeedback: false });
+      writeYaml('settings.yaml', { hapticFeedback: false });
       loader.load();
       expect(loader.getHapticFeedback()).toBe(false);
     });
@@ -1404,19 +1329,18 @@ describe('ConfigLoader', () => {
 
   describe('sidebar preferences', () => {
     it('getSidebarPrefs returns defaults when settings.yaml has no sidebar section', () => {
-      // SETTINGS fixture has no sidebar key
       loader.load();
       expect(loader.getSidebarPrefs()).toEqual({ width: 1280, height: undefined, x: undefined, y: undefined });
     });
 
     it('getSidebarPrefs reads saved values from settings.yaml', () => {
-      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { width: 400 } });
+      writeYaml('settings.yaml', { sidebar: { width: 400 } });
       loader.load();
       expect(loader.getSidebarPrefs()).toMatchObject({ width: 400 });
     });
 
     it('setSidebarPrefs updates only width', () => {
-      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: { width: 320 } });
+      writeYaml('settings.yaml', { sidebar: { width: 320 } });
       loader.load();
       loader.setSidebarPrefs({ width: 400 });
       expect(loader.getSidebarPrefs()).toMatchObject({ width: 400 });
@@ -1431,7 +1355,7 @@ describe('ConfigLoader', () => {
     });
 
     it('getSidebarPrefs fills missing fields from defaults', () => {
-      writeYaml('settings.yaml', { activeProfile: 'default', sidebar: {} });
+      writeYaml('settings.yaml', { sidebar: {} });
       loader.load();
       expect(loader.getSidebarPrefs()).toEqual({ width: 1280, height: undefined, x: undefined, y: undefined });
     });
@@ -1456,15 +1380,13 @@ describe('ConfigLoader', () => {
 
   describe('buildSpawnConfig', () => {
     it('builds spawn config with command', () => {
-      const profile = { ...DEFAULT_PROFILE, tools: { test: { name: 'Test', command: 'python' } } };
-      writeYaml('profiles/default.yaml', profile);
+      writeYaml('cli-types.yaml', { test: { name: 'Test', spawnCommand: 'python' } });
       loader.load();
       expect(loader.getSpawnConfig('test')).toEqual({ command: 'python', args: [] });
     });
 
     it('builds spawn config without command', () => {
-      const profile = { ...DEFAULT_PROFILE, tools: { test: { name: 'Test', command: '' } } };
-      writeYaml('profiles/default.yaml', profile);
+      writeYaml('cli-types.yaml', { test: { name: 'Test', spawnCommand: '' } });
       loader.load();
       expect(loader.getSpawnConfig('test')).toEqual({ command: '', args: [] });
     });

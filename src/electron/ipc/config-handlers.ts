@@ -509,13 +509,7 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
 
   ipcMain.handle('config:setChipbarActions', (_event, actions: Array<{ label: string; sequence: string }>) => {
     try {
-      // Update the active profile with new chipbar actions
-      const profile = configLoader['activeProfile'];
-      if (!profile) {
-        throw new Error('No active profile loaded');
-      }
-      profile.chipActions = actions;
-      configLoader['saveActiveProfile']();
+      configLoader.setChipbarActions(actions);
       logger.info(`[IPC] Updated chipbar actions: ${actions.length} actions`);
       return { success: true };
     } catch (error) {

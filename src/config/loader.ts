@@ -1,4 +1,3 @@
-import * as fs from 'fs';
 import * as path from 'path';
 import logger from '../utils/logger.js';
 import { getConfigDir, isPackaged, seedConfigIfNeeded } from '../utils/app-paths.js';
@@ -11,7 +10,10 @@ import {
   type EnvVarEntry,
   type SpawnConfig,
 } from './loader-helpers.js';
-import { ProfileManager } from './profile-manager.js';
+import { CliTypeStore } from './cli-type-store.js';
+import { BindingStore } from './binding-store.js';
+import { InputConfigStore } from './input-config-store.js';
+import { migrateFromProfile } from './profile-migrator.js';
 import { DEFAULT_MCP_CONFIG, SettingsManager } from './settings-manager.js';
 import { TelegramConfigManager } from './telegram-config-manager.js';
 
@@ -278,6 +280,10 @@ export interface ChipbarAction {
   sequence: string;
 }
 
+/**
+ * ProfileConfig is kept for backward type compatibility with any consumers that
+ * may import it. The profile system itself has been replaced by dedicated stores.
+ */
 export interface ProfileConfig {
   version?: number;
   name: string;
@@ -306,8 +312,6 @@ export interface DpadConfig {
 export interface ActivityConfig {
   timeoutMs: number;  // ms of no output before considering session inactive (default 5000)
 }
-
-const DEFAULT_ACTIVITY_CONFIG: ActivityConfig = { timeoutMs: 5000 };
 
 type StickMode = 'cursor' | 'scroll' | 'disabled';
 
@@ -355,17 +359,18 @@ seedConfigIfNeeded(sourceConfigDir, DEFAULT_CONFIG_DIR);
 
 export class ConfigLoader {
   private configDir: string;
-  private profileManager: ProfileManager;
+  private cliTypeStore: CliTypeStore;
+  private bindingStore: BindingStore;
+  private inputConfigStore: InputConfigStore;
   private settingsManager: SettingsManager;
   private telegramConfigManager: TelegramConfigManager;
   private settings: SettingsConfig | null = null;
-  private activeProfile: ProfileConfig | null = null;
-  private activeProfileName: string = 'default';
-  private activeProfileMtime: number = 0;
 
   constructor(configDir: string = DEFAULT_CONFIG_DIR) {
     this.configDir = configDir;
-    this.profileManager = new ProfileManager(configDir, this.activeProfileName);
+    this.cliTypeStore = new CliTypeStore(configDir);
+    this.bindingStore = new BindingStore(configDir);
+    this.inputConfigStore = new InputConfigStore(configDir);
     this.settingsManager = new SettingsManager(configDir);
     this.telegramConfigManager = new TelegramConfigManager(
       () => this.settings,
@@ -377,146 +382,123 @@ export class ConfigLoader {
 
   load(): void {
     this.loadSettings();
-    this.loadActiveProfile();
-    this.migrateGlobalFiles();
+    this.cliTypeStore.load();
+    this.bindingStore.load();
+    this.inputConfigStore.load();
+    migrateFromProfile(this.configDir, this.cliTypeStore, this.bindingStore, this.inputConfigStore);
   }
 
   private loadSettings(): void {
     this.settings = this.settingsManager.load();
   }
 
-  private loadActiveProfile(): void {
-    const loaded = this.profileManager.loadActiveProfile();
-    this.activeProfile = loaded.profile;
-    this.activeProfileMtime = loaded.mtimeMs;
-  }
-
+  /**
+   * No-op: profile system removed. Configuration is now managed by dedicated stores
+   * (CliTypeStore, BindingStore, InputConfigStore). Kept for API compatibility.
+   */
   reloadActiveProfileIfChanged(): void {
-    try {
-      const loaded = this.profileManager.reloadIfChanged(this.activeProfileMtime);
-      if (!loaded) return;
-      this.activeProfile = loaded.profile;
-      this.activeProfileMtime = loaded.mtimeMs;
-    } catch (err) {
-      logger.warn(`[Config] reloadActiveProfileIfChanged failed, keeping existing profile: ${err}`);
-    }
-  }
-
-  private migrateGlobalFiles(): void {
-    if (this.profileManager.migrateGlobalFiles()) {
-      this.loadActiveProfile();
-    }
+    // No-op: profile system removed
   }
 
   // ---------- Existing read methods (backward compatible) ---------------
 
   private ensureLoaded(): void {
-    if (!this.activeProfile) {
+    if (!this.settings) {
       throw new Error('Configuration not loaded. Call load() first.');
     }
   }
 
   getBindings(cliType: string): ButtonBindings | null {
     this.ensureLoaded();
-    return this.activeProfile!.bindings[cliType] ?? null;
+    return this.bindingStore.get(cliType);
   }
 
   getSpawnConfig(cliType: string): SpawnConfig | null {
     this.ensureLoaded();
-    const config = this.activeProfile!.tools[cliType];
+    const config = this.cliTypeStore.get(cliType);
     if (!config) return null;
     return this.buildSpawnConfig(config);
   }
 
   getCliTypeEntry(cliType: string): CliTypeConfig | null {
     this.ensureLoaded();
-    return this.activeProfile!.tools[cliType] ?? null;
+    return this.cliTypeStore.get(cliType) ?? null;
   }
 
   getCliTypeName(cliType: string): string | null {
     this.ensureLoaded();
-    return this.activeProfile!.tools[cliType]?.name ?? null;
+    return this.cliTypeStore.get(cliType)?.name ?? null;
   }
 
   getCliTypes(): string[] {
     this.ensureLoaded();
-    return Object.keys(this.activeProfile!.tools);
+    return this.cliTypeStore.list();
   }
 
   /** Get all named sequence groups for a CLI type */
   getSequences(cliType: string): Record<string, SequenceListItem[]> {
     this.ensureLoaded();
-    return this.activeProfile!.tools[cliType]?.sequences ?? {};
+    return this.cliTypeStore.get(cliType)?.sequences ?? {};
   }
 
   /** Get a specific named sequence group for a CLI type */
   getSequenceGroup(cliType: string, groupId: string): SequenceListItem[] | null {
     this.ensureLoaded();
-    return this.activeProfile!.tools[cliType]?.sequences?.[groupId] ?? null;
+    return this.cliTypeStore.get(cliType)?.sequences?.[groupId] ?? null;
   }
 
   /** Create or update a named sequence group for a CLI type */
   setSequenceGroup(cliType: string, groupId: string, items: SequenceListItem[]): void {
     this.ensureLoaded();
-    const tool = this.activeProfile!.tools[cliType];
-    if (!tool) throw new Error(`Unknown CLI type: ${cliType}`);
-    if (!tool.sequences) tool.sequences = {};
-    tool.sequences[groupId] = items;
-    this.saveActiveProfile();
+    const entry = this.cliTypeStore.get(cliType);
+    if (!entry) throw new Error(`Unknown CLI type: ${cliType}`);
+    if (!entry.sequences) entry.sequences = {};
+    entry.sequences[groupId] = items;
+    this.cliTypeStore.set(cliType, entry);
   }
 
   /** Remove a named sequence group for a CLI type */
   removeSequenceGroup(cliType: string, groupId: string): void {
     this.ensureLoaded();
-    const tool = this.activeProfile!.tools[cliType];
-    if (tool?.sequences) {
-      delete tool.sequences[groupId];
-      if (Object.keys(tool.sequences).length === 0) delete tool.sequences;
+    const entry = this.cliTypeStore.get(cliType);
+    if (entry?.sequences) {
+      delete entry.sequences[groupId];
+      if (Object.keys(entry.sequences).length === 0) delete entry.sequences;
+      this.cliTypeStore.set(cliType, entry);
     }
-    this.saveActiveProfile();
   }
 
   getStickConfig(stick: 'left' | 'right'): StickConfig {
     this.ensureLoaded();
-    const defaults: StickConfig = { mode: 'disabled', deadzone: 0.25, repeatRate: 50 };
-    const profileStick = this.activeProfile!.sticks?.[stick];
-    if (!profileStick) return defaults;
-    return {
-      mode: profileStick.mode ?? defaults.mode,
-      deadzone: profileStick.deadzone ?? defaults.deadzone,
-      repeatRate: profileStick.repeatRate ?? defaults.repeatRate,
-    };
+    return this.inputConfigStore.getStickConfig(stick);
   }
 
   getDpadConfig(): DpadConfig {
-    const dpad = this.activeProfile?.dpad;
-    return {
-      initialDelay: dpad?.initialDelay ?? 400,
-      repeatRate: dpad?.repeatRate ?? 120,
-    };
+    this.ensureLoaded();
+    return this.inputConfigStore.getDpadConfig();
   }
 
   getActivityTimeout(): number {
     this.ensureLoaded();
-    return this.activeProfile!.activity?.timeoutMs ?? DEFAULT_ACTIVITY_CONFIG.timeoutMs;
+    return this.inputConfigStore.getActivityTimeout();
   }
 
   setActivityTimeout(timeoutMs: number): void {
     this.ensureLoaded();
-    if (!this.activeProfile!.activity) {
-      this.activeProfile!.activity = { timeoutMs };
-    } else {
-      this.activeProfile!.activity.timeoutMs = timeoutMs;
-    }
-    this.saveActiveProfile();
+    this.inputConfigStore.setActivityTimeout(timeoutMs);
   }
 
   getChipbarActions(): { actions: ChipbarAction[]; inboxDir: string } {
     this.ensureLoaded();
     return {
-      actions: this.activeProfile!.chipActions ?? [],
+      actions: this.inputConfigStore.getChipbarActions(),
       inboxDir: path.join(this.configDir, 'plans', 'incoming'),
     };
+  }
+
+  setChipbarActions(actions: ChipbarAction[]): void {
+    this.ensureLoaded();
+    this.inputConfigStore.setChipbarActions(actions);
   }
 
   getSkillsPath(): string {
@@ -529,62 +511,51 @@ export class ConfigLoader {
 
   getWorkingDirectories(): WorkingDirectory[] {
     this.ensureLoaded();
-    return this.activeProfile!.workingDirectories || [];
+    return this.inputConfigStore.getWorkingDirectories();
   }
 
   // ---------- Binding edit (backward compatible) -----------------------
 
   setBinding(button: string, cliType: string, binding: Binding): void {
     this.ensureLoaded();
-    if (!this.activeProfile!.bindings[cliType]) {
-      // Auto-create entry if CLI type exists in tools but not yet in profile
-      if (this.activeProfile!.tools[cliType]) {
-        this.activeProfile!.bindings[cliType] = {};
+    // Auto-create binding entry if CLI type exists in tools but not yet in bindings
+    if (!this.bindingStore.get(cliType)) {
+      if (this.cliTypeStore.get(cliType)) {
+        this.bindingStore.ensureCliType(cliType);
       } else {
         throw new Error(`Unknown CLI type: ${cliType}`);
       }
     }
-    this.activeProfile!.bindings[cliType][button] = binding;
-    this.saveActiveProfile();
+    this.bindingStore.setButton(button, cliType, binding);
   }
 
   removeBinding(button: string, cliType: string): void {
     this.ensureLoaded();
-    if (this.activeProfile!.bindings[cliType]) {
-      delete this.activeProfile!.bindings[cliType][button];
-    }
-    this.saveActiveProfile();
+    this.bindingStore.removeButton(button, cliType);
   }
 
   copyCliBindings(sourceCli: string, targetCli: string): number {
     this.ensureLoaded();
-    const sourceBindings = this.activeProfile!.bindings[sourceCli];
-    if (!sourceBindings) {
+    // Validate source has bindings
+    if (!this.bindingStore.get(sourceCli)) {
       throw new Error(`No bindings found for source: ${sourceCli}`);
     }
-    if (!this.activeProfile!.bindings[targetCli]) {
-      if (this.activeProfile!.tools[targetCli]) {
-        this.activeProfile!.bindings[targetCli] = {};
-      } else {
-        throw new Error(`Unknown target CLI type: ${targetCli}`);
-      }
+    // Validate target CLI type exists
+    if (!this.cliTypeStore.get(targetCli)) {
+      throw new Error(`Unknown target CLI type: ${targetCli}`);
     }
-    let count = 0;
-    for (const [button, binding] of Object.entries(sourceBindings)) {
-      this.activeProfile!.bindings[targetCli][button] = { ...binding };
-      count++;
-    }
+    const count = this.bindingStore.copy(sourceCli, targetCli);
 
     // Copy sequences from source CLI type to target
-    const sourceSequences = this.activeProfile!.tools[sourceCli]?.sequences;
+    const sourceEntry = this.cliTypeStore.get(sourceCli);
+    const sourceSequences = sourceEntry?.sequences;
     if (sourceSequences && Object.keys(sourceSequences).length > 0) {
-      if (!this.activeProfile!.tools[targetCli]) {
-        throw new Error(`Unknown target CLI type: ${targetCli}`);
-      }
-      this.activeProfile!.tools[targetCli].sequences = structuredClone(sourceSequences);
+      const targetEntry = this.cliTypeStore.get(targetCli);
+      if (!targetEntry) throw new Error(`Unknown target CLI type: ${targetCli}`);
+      targetEntry.sequences = structuredClone(sourceSequences);
+      this.cliTypeStore.set(targetCli, targetEntry);
     }
 
-    this.saveActiveProfile();
     return count;
   }
 
@@ -831,37 +802,22 @@ export class ConfigLoader {
 
   addWorkingDirectory(name: string, dirPath: string): void {
     this.ensureLoaded();
-    this.activeProfile!.workingDirectories.push({ name, path: dirPath });
-    this.saveActiveProfile();
+    this.inputConfigStore.addWorkingDirectory(name, dirPath);
   }
 
   updateWorkingDirectory(index: number, name: string, dirPath: string): void {
     this.ensureLoaded();
-    const dirs = this.activeProfile!.workingDirectories;
-    if (index < 0 || index >= dirs.length) {
-      throw new Error(`Invalid working directory index: ${index}`);
-    }
-    dirs[index] = { name, path: dirPath };
-    this.saveActiveProfile();
+    this.inputConfigStore.updateWorkingDirectory(index, name, dirPath);
   }
 
   removeWorkingDirectory(index: number): void {
     this.ensureLoaded();
-    const dirs = this.activeProfile!.workingDirectories;
-    if (index < 0 || index >= dirs.length) {
-      throw new Error(`Invalid working directory index: ${index}`);
-    }
-    dirs.splice(index, 1);
-    this.saveActiveProfile();
+    this.inputConfigStore.removeWorkingDirectory(index);
   }
 
   reorderWorkingDirectory(index: number, direction: 'up' | 'down'): void {
     this.ensureLoaded();
-    const dirs = this.activeProfile!.workingDirectories;
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= dirs.length) return;
-    [dirs[index], dirs[targetIndex]] = [dirs[targetIndex], dirs[index]];
-    this.saveActiveProfile();
+    this.inputConfigStore.reorderWorkingDirectory(index, direction);
   }
 
   // ---------- Tools CRUD -----------------------------------------------
@@ -874,7 +830,7 @@ export class ConfigLoader {
     maybeOptions?: CliTypeOptions,
   ): void {
     this.ensureLoaded();
-    if (this.activeProfile!.tools[key]) {
+    if (this.cliTypeStore.get(key)) {
       throw new Error(`CLI type already exists: ${key}`);
     }
     const legacyCommand = typeof legacyCommandOrInitialPrompt === 'string' ? legacyCommandOrInitialPrompt.trim() : '';
@@ -900,8 +856,7 @@ export class ConfigLoader {
     if (options?.helmPreambleForInterSession !== undefined) tool.helmPreambleForInterSession = options.helmPreambleForInterSession;
     if (options?.largeTextAsTempFile === true) tool.largeTextAsTempFile = true;
     if (options?.pasteMode) tool.pasteMode = options.pasteMode;
-    this.activeProfile!.tools[key] = tool;
-    this.saveActiveProfile();
+    this.cliTypeStore.add(key, tool);
   }
 
   updateCliType(
@@ -912,7 +867,7 @@ export class ConfigLoader {
     maybeOptions?: CliTypeOptions,
   ): void {
     this.ensureLoaded();
-    if (!this.activeProfile!.tools[key]) {
+    if (!this.cliTypeStore.get(key)) {
       throw new Error(`CLI type not found: ${key}`);
     }
     const legacyCommand = typeof legacyCommandOrInitialPrompt === 'string' ? legacyCommandOrInitialPrompt.trim() : '';
@@ -925,7 +880,7 @@ export class ConfigLoader {
     const options = isCliTypeOptions(initialPromptDelayOrOptions)
       ? initialPromptDelayOrOptions
       : maybeOptions;
-    const existing = this.activeProfile!.tools[key];
+    const existing = this.cliTypeStore.get(key)!;
     // Merge — preserve fields not provided (sequences, etc.)
     existing.name = name;
     existing.initialPrompt = initialPrompt;
@@ -963,66 +918,56 @@ export class ConfigLoader {
       }
     }
 
-    this.saveActiveProfile();
+    this.cliTypeStore.set(key, existing);
   }
 
   removeCliType(key: string): void {
     this.ensureLoaded();
-    if (!this.activeProfile!.tools[key]) {
-      throw new Error(`CLI type not found: ${key}`);
-    }
-    delete this.activeProfile!.tools[key];
-    this.saveActiveProfile();
+    this.cliTypeStore.remove(key);
   }
 
   reorderCliType(index: number, direction: 'up' | 'down'): void {
     this.ensureLoaded();
-    const keys = Object.keys(this.activeProfile!.tools);
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= keys.length) return;
-    const entries = Object.entries(this.activeProfile!.tools);
-    [entries[index], entries[targetIndex]] = [entries[targetIndex], entries[index]];
-    this.activeProfile!.tools = Object.fromEntries(entries);
-    this.saveActiveProfile();
+    this.cliTypeStore.reorder(index, direction);
   }
 
   // ---------- Pattern rule CRUD -------------------------------------------
 
   getPatterns(cliType: string): PatternRule[] {
     this.ensureLoaded();
-    return this.activeProfile!.tools[cliType]?.patterns ?? [];
+    return this.cliTypeStore.get(cliType)?.patterns ?? [];
   }
 
   addPattern(cliType: string, rule: PatternRule): void {
     this.ensureLoaded();
-    const entry = this.activeProfile!.tools[cliType];
+    const entry = this.cliTypeStore.get(cliType);
     if (!entry) throw new Error(`CLI type not found: ${cliType}`);
     if (!entry.patterns) entry.patterns = [];
     entry.patterns.push(rule);
-    this.saveActiveProfile();
+    this.cliTypeStore.set(cliType, entry);
   }
 
   updatePattern(cliType: string, index: number, rule: PatternRule): void {
     this.ensureLoaded();
-    const patterns = this.activeProfile!.tools[cliType]?.patterns;
+    const entry = this.cliTypeStore.get(cliType);
+    const patterns = entry?.patterns;
     if (!patterns || index < 0 || index >= patterns.length) {
       throw new Error(`Pattern index ${index} out of range for CLI type: ${cliType}`);
     }
     patterns[index] = rule;
-    this.saveActiveProfile();
+    this.cliTypeStore.set(cliType, entry!);
   }
 
   removePattern(cliType: string, index: number): void {
     this.ensureLoaded();
-    const patterns = this.activeProfile!.tools[cliType]?.patterns;
+    const entry = this.cliTypeStore.get(cliType);
+    const patterns = entry?.patterns;
     if (!patterns || index < 0 || index >= patterns.length) {
       throw new Error(`Pattern index ${index} out of range for CLI type: ${cliType}`);
     }
     patterns.splice(index, 1);
-    this.saveActiveProfile();
+    this.cliTypeStore.set(cliType, entry!);
   }
-
-
 
   private buildSpawnConfig(config: CliTypeConfig): SpawnConfig {
     return parseCommandTemplate(config.spawnCommand);
@@ -1033,13 +978,5 @@ export class ConfigLoader {
   private saveSettings(): void {
     if (!this.settings) return;
     this.settingsManager.saveNow(this.settings);
-  }
-
-  private saveActiveProfile(): void {
-    if (!this.activeProfile) return;
-    this.profileManager.save(this.activeProfile);
-    try {
-      this.activeProfileMtime = fs.statSync(this.profileManager.profilePath).mtimeMs;
-    } catch { /* keep old mtime */ }
   }
 }
