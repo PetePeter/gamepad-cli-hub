@@ -3,42 +3,38 @@
  * Extracted from session-info-guide.ts to keep that file under 100 lines.
  */
 
-/**
- * Build the notification_guide object embedded in SessionInfoResponse.
- * Documents when and how to notify users, routing outcomes, Telegram usage,
- * and examples for common notification scenarios.
- */
-export function buildNotificationGuide() {
-  return {
-    description: 'MANDATORY: call notify_user on key events. Helm routes to toast / taskbar flash / bubble / Telegram automatically based on screen state.',
-    preferred_tool: 'notify_user',
-    when_to_notify: [
-      'ALWAYS notify when work completes (session → completed): title "Work complete", 1-2 sentence TLDR of what changed.',
-      'ALWAYS notify when blocked on a user decision before calling AskUserQuestion: title "Need your input", brief blocker summary.',
-      'ALWAYS notify when an error stops progress: title "⚠️ Error during implementation", brief error + action needed.',
-      'ALWAYS notify when a background event the user asked about has fired (build green, deploy done, watcher fired).',
-    ],
-    when_not_to_notify: [
-      'User is actively viewing this session (skip - they see output directly).',
-      'Routine progress, intermediate logs, or low-priority updates.',
-    ],
-    routing_outcomes: {
-      toast: 'Window hidden — Helm shows native OS toast.',
-      taskbar_flash: 'Window visible but not focused — OS toast + taskbar icon flashes.',
-      bubble: 'Window visible, focused, different session — in-app bubble.',
-      telegram: 'Screen locked — Telegram (if configured).',
-      none: 'User viewing this session — suppressed.',
-    },
-    examples: [
-      { scenario: 'Long task finished while user away', tool: 'notify_user', title: 'Work complete', content: 'Migrated auth middleware to JWT. 3 files changed, 12 tests pass.', rationale: 'Helm routes to toast or Telegram automatically.' },
-      { scenario: 'Need user decision to continue', tool: 'notify_user', title: 'Need your input to continue', content: 'Profile has two conflicting port configs - which one should win?', rationale: 'Stop and wait for user response.' },
-      { scenario: 'Error stops progress', tool: 'notify_user', title: 'Error during implementation', content: 'TypeScript build failed - missing type export in session-manager.ts.', rationale: 'Alert user so they can investigate or redirect.' },
-    ],
-    llm_triggers: [
-      { trigger: 'Work complete (session → completed)', action: 'notify_user with title "Work complete" + 1-2 sentence TLDR of what was done (files, features, bugs fixed).' },
-      { trigger: 'Blocking question before AskUserQuestion', action: 'notify_user with title "Need your input to continue" + brief blocker summary, then call AskUserQuestion.' },
-      { trigger: 'Tests/verification failed after changes', action: 'notify_user with title "Tests failed, fixing now" + 1-line failure summary.' },
-      { trigger: 'Unexpected error during implementation', action: 'notify_user with title "⚠️ Error during implementation" + brief error + action needed.' },
-    ],
-  };
+export function buildNotificationGuide(): string {
+  return `\
+[notification]
+description = "MANDATORY: call notify_user on key events. Helm routes to toast / taskbar flash / bubble / Telegram automatically based on screen state."
+preferred_tool = "notify_user"
+
+[when_to_notify]
+rule_1 = "ALWAYS notify when work completes (session → completed): title \\"Work complete\\", 1-2 sentence TLDR of what changed."
+rule_2 = "ALWAYS notify when blocked on a user decision before calling AskUserQuestion: title \\"Need your input\\", brief blocker summary."
+rule_3 = "ALWAYS notify when an error stops progress: title \\"⚠️ Error during implementation\\", brief error + action needed."
+rule_4 = "ALWAYS notify when a background event the user asked about has fired (build green, deploy done, watcher fired)."
+
+[when_not_to_notify]
+rule_1 = "User is actively viewing this session (skip - they see output directly)."
+rule_2 = "Routine progress, intermediate logs, or low-priority updates."
+
+[routing_outcomes]
+toast = "Window hidden — Helm shows native OS toast."
+taskbar_flash = "Window visible but not focused — OS toast + taskbar icon flashes."
+bubble = "Window visible, focused, different session — in-app bubble."
+telegram = "Screen locked — Telegram (if configured)."
+none = "User viewing this session — suppressed."
+
+[examples]
+long_task_finished = { tool = "notify_user", title = "Work complete", content = "Migrated auth middleware to JWT. 3 files changed, 12 tests pass." }
+need_decision = { tool = "notify_user", title = "Need your input to continue", content = "Profile has two conflicting port configs - which one should win?" }
+error_stops_progress = { tool = "notify_user", title = "Error during implementation", content = "TypeScript build failed - missing type export in session-manager.ts." }
+
+[llm_triggers]
+work_complete = "notify_user with title \\"Work complete\\" + 1-2 sentence TLDR of what was done."
+blocking_question = "notify_user with title \\"Need your input to continue\\" + brief blocker summary, then call AskUserQuestion."
+tests_failed = "notify_user with title \\"Tests failed, fixing now\\" + 1-line failure summary."
+unexpected_error = "notify_user with title \\"⚠️ Error during implementation\\" + brief error + action needed."
+`;
 }

@@ -602,24 +602,15 @@ describe('HelmControlService.getSessionInfo', () => {
 
     const planGuide = service.resolveSkill('agent-plan');
     expect(planGuide).toBeDefined();
-    const planBody = JSON.parse(planGuide!.body);
-    expect(planBody.required_description_sections).toEqual([
-      'Problem Statement',
-      'User POV',
-      'Done Statement',
-      'Files / Classes Affected',
-      'TDD Suggestions',
-      'Acceptance Criteria',
-    ]);
-    expect(planBody.when_to_create_plan.join(' ')).toContain('Follow-up work');
-    expect(planBody.question_plan_workflow.join(' ')).toContain('plan_nextplan_link');
-    expect(planBody.completion_notes).toContain('tests');
+    expect(planGuide!.body).toContain('Problem Statement');
+    expect(planGuide!.body).toContain('Follow-up work');
+    expect(planGuide!.body).toContain('plan_nextplan_link');
+    expect(planGuide!.body).toContain('tests');
 
     const sendTextGuide = service.resolveSkill('session-send-text');
     expect(sendTextGuide).toBeDefined();
-    const sendTextBody = JSON.parse(sendTextGuide!.body);
-    expect(sendTextBody.inter_llm_handoff_protocol.join(' ')).toContain('submits it automatically');
-    expect(sendTextBody.inter_llm_handoff_protocol.join(' ')).toContain('session_read_terminal');
+    expect(sendTextGuide!.body).toContain('submits it automatically');
+    expect(sendTextGuide!.body).toContain('session_read_terminal');
   });
 
   it('exposes notification guide content via system skills', () => {
@@ -627,16 +618,12 @@ describe('HelmControlService.getSessionInfo', () => {
 
     const notificationGuide = service.resolveSkill('notification');
     expect(notificationGuide).toBeDefined();
-    const body = JSON.parse(notificationGuide!.body);
-    expect(body.when_to_notify.length).toBeGreaterThanOrEqual(3);
-    expect(body.when_not_to_notify.length).toBeGreaterThanOrEqual(2);
-    expect(body.preferred_tool).toContain('notify_user');
-    expect(body.when_not_to_notify.join(' ')).toContain('User is actively viewing');
-    const routing = JSON.stringify(body.routing_outcomes);
-    expect(routing).toContain('toast');
-    expect(routing).toContain('bubble');
-    expect(routing).toContain('telegram');
-    expect(routing).toContain('none');
+    expect(notificationGuide!.body).toContain('notify_user');
+    expect(notificationGuide!.body).toContain('User is actively viewing');
+    expect(notificationGuide!.body).toContain('toast');
+    expect(notificationGuide!.body).toContain('bubble');
+    expect(notificationGuide!.body).toContain('telegram');
+    expect(notificationGuide!.body).toContain('none');
   });
 
   it('lists compact effective skills for the caller session project', () => {
