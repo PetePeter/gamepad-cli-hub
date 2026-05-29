@@ -38,6 +38,7 @@ import { buildSessionSendTextGuide } from './guides/session-send-text-guide.js';
 import { buildAgentPlanGuide } from './guides/agent-plan-guide.js';
 import { buildNotificationGuide } from './guides/notification-guide.js';
 import { buildTelegramGuide } from './guides/telegram-guide.js';
+import { buildStartupGuide } from './guides/startup-guide.js';
 import type { ProjectStore } from '../session/project-store.js';
 import { CapabilityDetector } from '../session/capability-detector.js';
 export { parseSubmitSuffix } from './submit-suffix.js';
@@ -56,12 +57,6 @@ export interface SessionSummary {
   cliSessionName?: string;
   currentPlanId?: string;
   windowId?: number;
-}
-
-export interface ProjectInfo {
-  id: string;
-  name: string;
-  canonicalPath: string;
 }
 
 export interface CliSummary {
@@ -85,22 +80,9 @@ export interface SessionTerminalTailResponse {
 }
 
 export interface SessionInfoResponse {
-  mandatory_rules: string[];
   your_session_id: string;
   your_working_dir: string;
-  mcp_url: string;
-  mcp_token: string;
-  available_projects: ProjectInfo[];
-  skills: Array<{ id: string; name: string; triggerWhen: string }>;
-  telegramCapabilities: {
-    available: boolean;
-    openwhisper: boolean;
-    openwhisperPath?: string;
-    piper: boolean;
-    piperPath?: string;
-    ffmpeg: boolean;
-    ffmpegPath?: string;
-  };
+  helm_workflow: string;
 }
 
 type McpSkillSummary = Omit<SkillSummary, 'useCount' | 'avgRating' | 'reviewCount'>;
@@ -186,6 +168,18 @@ export class HelmControlService extends EventEmitter {
       allProjects: true,
       projectIds: [],
       type: 'telegram',
+      source: 'system',
+    });
+
+    this.skillManager.registerSystemSkill({
+      id: 'sys-startup',
+      name: 'Helm Startup Rules',
+      description: 'Mandatory Helm workflow rules for AI agents. Fetch with skill_get(type: "startup").',
+      body: buildStartupGuide(),
+      aiAmendable: false,
+      allProjects: true,
+      projectIds: [],
+      type: 'startup',
       source: 'system',
     });
 
@@ -612,13 +606,8 @@ export class HelmControlService extends EventEmitter {
   // Session info guide
   // ---------------------------------------------------------------------------
 
-  /**
-   * Get session info with MCP endpoint and AIAGENT state registry.
-   * Called via session_info MCP tool — autocall endpoint provides context to AI agents.
-   */
   getSessionInfo(authContext?: { sessionId?: string; sessionName?: string }): SessionInfoResponse {
-    const projectId = this.resolveProjectIdForSession(authContext);
-    return getSessionInfo(this.configLoader, this.sessionManager, authContext, this.projectStore, this.skillManager.listForProject(projectId), this.capabilityDetector);
+    return getSessionInfo(this.sessionManager, authContext);
   }
 
   // ---------------------------------------------------------------------------

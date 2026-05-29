@@ -571,27 +571,30 @@ describe('HelmControlService optional domain services', () => {
 });
 
 describe('HelmControlService.getSessionInfo', () => {
-  it('returns mandatory rules without duplicating the MCP tool list', () => {
+  it('returns only session identity and helm_workflow pointer', () => {
     const { service } = makeService();
 
     const info = service.getSessionInfo({ sessionId: 's1', sessionName: 'Claude' });
 
-    expect(info.mandatory_rules).toEqual(expect.arrayContaining([
-      expect.stringContaining('session_set_aiagent_state'),
-      expect.stringContaining('plan_context_list'),
-      expect.stringContaining('session_plan_claim'),
-      expect.stringContaining('QUESTION:'),
-      expect.stringContaining('session_read_terminal'),
-      expect.stringContaining('skill_get'),
-      expect.stringContaining('skill_list'),
-    ]));
+    expect(Object.keys(info).sort()).toEqual(['helm_workflow', 'your_session_id', 'your_working_dir']);
+    expect(info.helm_workflow).toContain('startup');
+    expect(info).not.toHaveProperty('mandatory_rules');
+    expect(info).not.toHaveProperty('mcp_url');
+    expect(info).not.toHaveProperty('mcp_token');
+    expect(info).not.toHaveProperty('telegramCapabilities');
+    expect(info).not.toHaveProperty('available_projects');
+    expect(info).not.toHaveProperty('skills');
+  });
 
-    expect(info).not.toHaveProperty('system_skill_types');
-    expect(info).not.toHaveProperty('aiagent_states');
-    expect(info).not.toHaveProperty('available_tools');
-    expect(info).not.toHaveProperty('session_send_text_guide');
-    expect(info).not.toHaveProperty('agent_plan_guide');
-    expect(info).not.toHaveProperty('notification_guide');
+  it('sys-startup skill is reachable and contains workflow rules', () => {
+    const { service } = makeService();
+
+    const startup = service.resolveSkill('startup');
+    expect(startup).not.toBeNull();
+    expect(startup!.body).toContain('session_plan_claim');
+    expect(startup!.body).toContain('notify_user');
+    expect(startup!.body).toContain('plan_get');
+    expect(startup!.body).toContain('skill_submit_feedback');
   });
 
   it('exposes guide content via system skills', () => {

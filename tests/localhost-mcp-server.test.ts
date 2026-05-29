@@ -1466,20 +1466,13 @@ describe('LocalhostMcpServer', () => {
     expect(content).not.toHaveProperty('notification_guide');
   });
 
-  it('session_info returns complete SessionInfo with MCP endpoint and state registry', async () => {
+  it('session_info returns tiny identity response with helm_workflow pointer', async () => {
     const service = makeService();
-    (service as any).getSessionInfo = vi.fn((authContext) => ({
-      sessionId: 'sess-123',
-      sessionName: 'Claude-Main',
-      cliType: 'claude-code',
-      workingDir: 'X:\\coding\\gamepad-cli-hub',
-      mcp_url: 'http://127.0.0.1:47373/mcp',
-      mcp_token: 'secret-token-value',
-      available_projects: [
-        { id: 'proj-1', name: 'Helm', canonicalPath: 'X:\\coding\\gamepad-cli-hub' },
-      ],
+    (service as any).getSessionInfo = vi.fn(() => ({
+      your_session_id: 'sess-123',
+      your_working_dir: 'X:\\coding\\gamepad-cli-hub',
+      helm_workflow: 'call skill_get(type:"startup") for mandatory rules',
     }));
-
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);
     await server.start();
@@ -1489,21 +1482,16 @@ describe('LocalhostMcpServer', () => {
       jsonrpc: '2.0',
       id: 100,
       method: 'tools/call',
-      params: {
-        name: 'session_info',
-        arguments: {},
-      },
+      params: { name: 'session_info', arguments: {} },
     });
 
     const json = await response.json();
-    expect((service as any).getSessionInfo).toHaveBeenCalled();
     const content = json.result.structuredContent;
-    expect(content.sessionId).toBe('sess-123');
-    expect(content.sessionName).toBe('Claude-Main');
-    expect(content.cliType).toBe('claude-code');
-    expect(content.mcp_url).toBe('http://127.0.0.1:47373/mcp');
-    expect(content.available_tools).toBeUndefined();
-    expect(content.available_projects).toHaveLength(1);
+    expect(Object.keys(content).sort()).toEqual(['helm_workflow', 'your_session_id', 'your_working_dir']);
+    expect(content.helm_workflow).toContain('startup');
+    expect(content).not.toHaveProperty('mandatory_rules');
+    expect(content).not.toHaveProperty('mcp_url');
+    expect(content).not.toHaveProperty('available_projects');
   });
 
   it('session_info tool is included in tools/list response', async () => {
@@ -1524,19 +1512,17 @@ describe('LocalhostMcpServer', () => {
     const sessionInfoTool = json.result.tools.find((t: { name: string }) => t.name === 'session_info');
     expect(sessionInfoTool).toBeDefined();
     expect(sessionInfoTool.title).toBe('Get Session Info');
-    expect(sessionInfoTool.description).toContain('AIAGENT state registry');
-    expect(sessionInfoTool.description).toContain('WHEN:');
     expect(sessionInfoTool.description).toContain('session_set_aiagent_state');
+    expect(sessionInfoTool.description).toContain('startup');
     expect(sessionInfoTool.inputSchema.properties).toEqual({});
   });
 
   it('session_info response reminds agents to set AIAGENT state', async () => {
     const service = makeService();
     (service as any).getSessionInfo = vi.fn(() => ({
-      mandatory_rules: ['ALWAYS call session_set_aiagent_state when your phase changes.'],
-      mcp_url: 'http://127.0.0.1:47373/mcp',
-      mcp_token: 'secret-token-value',
-      available_projects: [],
+      your_session_id: 'test-session',
+      your_working_dir: '/home/user/project',
+      helm_workflow: 'call skill_get(type:"startup") for mandatory rules',
     }));
     const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
     servers.push(server);
@@ -1552,7 +1538,7 @@ describe('LocalhostMcpServer', () => {
 
     const json = await response.json();
     expect(json.result.content[0].text).toContain('Reminder: now call session_set_aiagent_state');
-    expect(json.result.structuredContent.mandatory_rules[0]).toContain('session_set_aiagent_state');
+    expect(json.result.structuredContent.helm_workflow).toContain('startup');
   });
 
   it('session_read_terminal response reminds agents to verify handoff receipt', async () => {

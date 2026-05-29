@@ -1,0 +1,40 @@
+import { describe, it, expect } from 'vitest';
+import { buildStartupGuide } from './startup-guide';
+
+describe('buildStartupGuide', () => {
+  it('returns a non-empty string', () => {
+    expect(typeof buildStartupGuide()).toBe('string');
+    expect(buildStartupGuide().length).toBeGreaterThan(0);
+  });
+
+  it('returns exactly 10 newline-separated rules', () => {
+    const lines = buildStartupGuide().trim().split('\n').filter(l => l.trim().length > 0);
+    expect(lines).toHaveLength(10);
+  });
+
+  it('contains no JSON structural syntax', () => {
+    const body = buildStartupGuide();
+    expect(body).not.toMatch(/^\s*\{/);
+    expect(body).not.toMatch(/"[a-z_]+"\s*:/);
+  });
+
+  it('contains session_plan_claim', () => {
+    expect(buildStartupGuide()).toContain('session_plan_claim');
+  });
+
+  it('contains plan_get', () => {
+    expect(buildStartupGuide()).toContain('plan_get');
+  });
+
+  it('contains notify_user', () => {
+    expect(buildStartupGuide()).toContain('notify_user');
+  });
+
+  it('contains skill_submit_feedback', () => {
+    expect(buildStartupGuide()).toContain('skill_submit_feedback');
+  });
+
+  it('contains session_set_aiagent_state', () => {
+    expect(buildStartupGuide()).toContain('session_set_aiagent_state');
+  });
+});
