@@ -342,6 +342,24 @@ export class TelegramBotCore extends EventEmitter {
     }
   }
 
+  /** Set an emoji reaction on a message (replaces any existing bot reaction). */
+  async setMessageReaction(chatId: number | string, messageId: number, emoji: string): Promise<void> {
+    if (!this.bot) return;
+    try {
+      await this.withTimeout(
+        (this.bot as any).makeRequest('setMessageReaction', {
+          chat_id: chatId,
+          message_id: messageId,
+          reaction: [{ type: 'emoji', emoji }],
+          is_big: false,
+        }),
+        'setMessageReaction',
+      );
+    } catch (err) {
+      logger.warn(`[Telegram] setMessageReaction failed: ${err}`);
+    }
+  }
+
   // ==========================================================================
   // Forum topic management
   // ==========================================================================

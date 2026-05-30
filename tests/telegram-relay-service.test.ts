@@ -21,6 +21,7 @@ function makeRelay() {
     sendPhoto: vi.fn().mockResolvedValue({ message_id: 101 }),
     sendVideo: vi.fn().mockResolvedValue({ message_id: 102 }),
     downloadFile: vi.fn().mockResolvedValue('/tmp/test/photo.jpg'),
+    setMessageReaction: vi.fn().mockResolvedValue(undefined),
   };
   const session = { id: 's1', name: 'Claude', cliType: 'claude-code', topicId: 42 };
   const topicManager = {

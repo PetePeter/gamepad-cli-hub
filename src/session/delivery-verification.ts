@@ -105,8 +105,15 @@ function classifyDelivery(
     && (deliveredAt - before.lastOutputAt) < SESSION_ACTIVE_THRESHOLD_MS;
 
   if ((outputAdvanced || tailChanged) && (!containsDeliveredText || hadSnippetBefore)) {
-    if (sessionWasAlreadyActive && !hadSnippetBefore && !retryAttempted) {
-      return makeResult(request, 'no_signal', 'session was already active; delivered text never confirmed in tail', retryAttempted, delayMs);
+    if (sessionWasAlreadyActive && !hadSnippetBefore) {
+      // Output advancing in an already-busy session doesn't prove the new text was received.
+      return makeResult(
+        request,
+        retryAttempted ? 'retry_failed' : 'no_signal',
+        'session was already active; delivered text never confirmed in tail',
+        retryAttempted,
+        delayMs,
+      );
     }
     return makeResult(request, 'confirmed', 'terminal output advanced after delivery', retryAttempted, delayMs);
   }

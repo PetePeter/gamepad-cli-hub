@@ -99,9 +99,9 @@ describe('verifyDeliveryAfterDelay — busy-session false-positive prevention', 
     expect(result.status).not.toBe('retry_confirmed');
   });
 
-  it('allows retry_confirmed for active sessions — guard skipped on retry attempt', async () => {
+  it('returns retry_failed for active sessions even on retry — busy output is not confirmation', async () => {
     // First attempt: active session, no text in tail → no_signal
-    // Retry: output advanced and tail changed → retry_confirmed (guard not applied)
+    // Retry: output advanced but session was already active → guard still applies → retry_failed
     const before = { text: 'previous output', lastOutputAt: DELIVERED_AT - 500 };
     let callCount = 0;
     const request: DeliveryVerificationRequest = {
@@ -114,7 +114,7 @@ describe('verifyDeliveryAfterDelay — busy-session false-positive prevention', 
         getTerminalTail: vi.fn(() => {
           callCount++;
           // callCount=1: first classifyDelivery → old output, active session → no_signal
-          // callCount=2: retry classifyDelivery → new output, guard skipped → retry_confirmed
+          // callCount=2: retry classifyDelivery → new output, but guard still applies → retry_failed
           const isRetry = callCount >= 2;
           return {
             stripped: isRetry ? ['new response after retry'] : ['previous output'],
@@ -128,6 +128,6 @@ describe('verifyDeliveryAfterDelay — busy-session false-positive prevention', 
 
     const result = await verifyDeliveryAfterDelay(request, before, DELIVERED_AT);
 
-    expect(result.status).toBe('retry_confirmed');
+    expect(result.status).toBe('retry_failed');
   });
 });

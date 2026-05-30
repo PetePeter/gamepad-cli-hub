@@ -232,6 +232,8 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     const from = msg.from?.username ? `@${msg.from.username}` : 'unknown';
     const chatId = msg.chat.id;
 
+    const msgContext = { chatId, messageId: msg.message_id };
+
     // Find session by topic mapping
     const session = this.topicManager.findSessionByTopicId(topicId);
     if (session) {
@@ -253,9 +255,10 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
           delayMs: 4000,
           retrySubmit: true,
           background: true,
-          onComplete: (result) => void this.warnIfDeliveryUnconfirmed(session.id, topicId, result),
+          onComplete: (result) => void this.handleDeliveryVerification(session.id, topicId, result, msgContext),
         },
       });
+      void this.telegramBot.setMessageReaction(chatId, msg.message_id, '👀');
       logger.info(`[TelegramRelay] Injected user message to session ${session.id}`);
       return true;
     }
@@ -275,9 +278,10 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
           delayMs: 4000,
           retrySubmit: true,
           background: true,
-          onComplete: (result) => void this.warnIfDeliveryUnconfirmed(active.id, topicId, result),
+          onComplete: (result) => void this.handleDeliveryVerification(active.id, topicId, result, msgContext),
         },
       });
+      void this.telegramBot.setMessageReaction(chatId, msg.message_id, '👀');
       logger.info(`[TelegramRelay] Injected user message to active session ${active.id} (unmapped topic ${topicId})`);
       return true;
     }
@@ -359,7 +363,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
           delayMs: 4000,
           retrySubmit: true,
           background: true,
-          onComplete: (result) => void this.warnIfDeliveryUnconfirmed(targetSession.id, topicId, result),
+          onComplete: (result) => void this.handleDeliveryVerification(targetSession.id, topicId, result),
         },
       });
       logger.info(`[TelegramRelay] Injected attachment (${attachment.type}) to session ${targetSession.id}: ${filePath}`);
@@ -403,7 +407,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
         retrySubmit: true,
       },
     });
-    await this.warnIfDeliveryUnconfirmed(active.id, active.topicId, verification);
+    await this.handleDeliveryVerification(active.id, active.topicId, verification);
 
     logger.info(`[TelegramRelay] Injected reaction (${newEmojis}) to session ${active.id}`);
     return true;
@@ -502,12 +506,25 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     });
   }
 
-  private async warnIfDeliveryUnconfirmed(
+  private async handleDeliveryVerification(
     sessionId: string,
     topicId: number | undefined,
     verification: DeliveryVerificationResult | undefined,
+    msgContext?: { chatId: number; messageId: number },
   ): Promise<void> {
-    if (!verification || verification.status === 'confirmed' || verification.status === 'retry_confirmed') return;
+    if (!verification) return;
+
+    const confirmed = verification.status === 'confirmed' || verification.status === 'retry_confirmed';
+
+    if (msgContext && this.telegramBot.isRunning()) {
+      void this.telegramBot.setMessageReaction(
+        msgContext.chatId,
+        msgContext.messageId,
+        confirmed ? '✅' : '❌',
+      );
+    }
+
+    if (confirmed) return;
 
     logger.warn(`[TelegramRelay] Delivery verification for ${sessionId}: ${verification.status} (${verification.detail})`);
     if (!topicId || !this.telegramBot.isRunning()) return;
