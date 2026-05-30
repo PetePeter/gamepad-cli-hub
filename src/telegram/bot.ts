@@ -347,9 +347,7 @@ export class TelegramBotCore extends EventEmitter {
     if (!this.bot) return;
     try {
       await this.withTimeout(
-        (this.bot as any).makeRequest('setMessageReaction', {
-          chat_id: chatId,
-          message_id: messageId,
+        (this.bot as any).setMessageReaction(chatId, messageId, {
           reaction: [{ type: 'emoji', emoji }],
           is_big: false,
         }),
