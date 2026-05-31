@@ -283,6 +283,11 @@ export class TopicManager {
     };
   }
 
+  /** Return the formatted topic name for a session (instance prefix + session name + dir tail). */
+  getFormattedName(session: SessionInfo): string {
+    return this.formatTopicName(session.name, session.workingDir);
+  }
+
   /** Format a topic name with the instance prefix and working directory tail. */
   private formatTopicName(sessionName: string, workingDir?: string): string {
     const dir = workingDir ? ` (${workingDir.replace(/\\/g, '/').split('/').filter(Boolean).pop()})` : '';

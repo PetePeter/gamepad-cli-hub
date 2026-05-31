@@ -366,6 +366,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
           onComplete: (result) => void this.handleDeliveryVerification(targetSession.id, topicId, result),
         },
       });
+      void this.telegramBot.setMessageReaction(chatId, msg.message_id, '👀');
       logger.info(`[TelegramRelay] Injected attachment (${attachment.type}) to session ${targetSession.id}: ${filePath}`);
     })().catch((err) => {
       logger.warn(`[TelegramRelay] Attachment processing error for ${targetSession.id}: ${err}`);

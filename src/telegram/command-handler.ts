@@ -52,7 +52,7 @@ export function setupCommandHandler(
   };
 
   registerCommandHandler('help', async (msg) => handleHelp(bot, sessionManager, topicManager, msg));
-  registerCommandHandler('peek', async (msg, args) => handlePeek(bot, sessionManager, ptyManager, msg, args));
+  registerCommandHandler('peek', async (msg, args) => handlePeek(bot, sessionManager, ptyManager, topicManager, msg, args));
   registerCommandHandler('sessions', async (msg) => handleSessionsCommand(bot, sessionManager, msg));
   registerCommandHandler('spawn', async (msg) => handleSpawnCommand(bot, msg));
   registerCommandHandler('status', async (msg) => handleStatusCommand(bot, sessionManager, msg));
@@ -233,6 +233,7 @@ async function handlePeek(
   bot: TelegramBotCore,
   sessionManager: SessionManager,
   ptyManager: PtyManager,
+  topicManager: TopicManager,
   msg: TelegramBot.Message,
   args: string,
 ): Promise<void> {
@@ -263,7 +264,7 @@ async function handlePeek(
     await sendPeekOutput(bot, ptyManager, msg, targetSession);
   } else {
     // Multiple sessions, no name given — show picker
-    const { text, keyboard } = peekSessionPickerKeyboard(sessions);
+    const { text, keyboard } = peekSessionPickerKeyboard(sessions, (s) => topicManager.getFormattedName(s));
     await bot.sendMessage(text, {
       reply_markup: { inline_keyboard: keyboard },
     });

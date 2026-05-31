@@ -338,6 +338,7 @@ function capitalize(s: string): string {
  */
 export function peekSessionPickerKeyboard(
   sessions: SessionInfo[],
+  getLabel?: (s: SessionInfo) => string,
 ): { text: string; keyboard: TelegramBot.InlineKeyboardButton[][] } {
   let text = `📺 Peek at which session?\n\n`;
   const buttons: TelegramBot.InlineKeyboardButton[][] = [];
@@ -345,10 +346,11 @@ export function peekSessionPickerKeyboard(
 
   for (const s of sessions) {
     const emoji = stateEmoji(s.state);
-    text += `${emoji} ${s.name}\n`;
+    const label = getLabel ? getLabel(s) : s.name;
+    text += `${emoji} ${label}\n`;
 
     row.push({
-      text: `${emoji} ${truncLabel(s.name)}`,
+      text: `${emoji} ${label}`,
       callback_data: `peek:${s.id}`,
     });
 
