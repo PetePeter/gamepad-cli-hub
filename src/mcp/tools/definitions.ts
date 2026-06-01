@@ -821,16 +821,17 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'notify_user',
     title: 'Notify User',
-    description: 'Send an LLM-directed notification with smart delivery routing. Call on work completion, when blocked waiting for user input, or when an error stops progress. Helm routes to toast, taskbar flash, bubble, or Telegram based on screen/window state. Returns delivered channel.',
+    description: 'Send an LLM-directed notification with smart delivery routing. Provide sessionId or exact session name. Call on work completion, when blocked waiting for user input, or when an error stops progress. Helm routes to toast, taskbar flash, bubble, or Telegram based on screen/window state. Returns delivered channel.',
     inputSchema: {
       type: 'object',
       properties: {
-        sessionId: { type: 'string' },
-        name: { type: 'string' },
+        sessionId: { type: 'string', description: 'Target Helm session ID. Provide this or name.' },
+        name: { type: 'string', description: 'Exact target Helm session name. Provide this or sessionId.' },
         title: { type: 'string' },
         content: { type: 'string' },
       },
       required: ['title', 'content'],
+      anyOf: [{ required: ['sessionId'] }, { required: ['name'] }],
       additionalProperties: false,
     },
   },

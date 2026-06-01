@@ -16,15 +16,14 @@ rule_3 = "ALWAYS notify when an error stops progress: title \\"⚠️ Error duri
 rule_4 = "ALWAYS notify when a background event the user asked about has fired (build green, deploy done, watcher fired)."
 
 [when_not_to_notify]
-rule_1 = "User is actively viewing this session (skip - they see output directly)."
-rule_2 = "Routine progress, intermediate logs, or low-priority updates."
+rule_1 = "Routine progress, intermediate logs, or low-priority updates."
 
 [routing_outcomes]
 toast = "Window hidden — Helm shows native OS toast."
 taskbar_flash = "Window visible but not focused — OS toast + taskbar icon flashes."
 bubble = "Window visible, focused, different session — in-app bubble."
 telegram = "Screen locked — Telegram (if configured)."
-none = "User viewing this session — suppressed."
+none = "No external channel was used."
 
 [examples]
 long_task_finished = { tool = "notify_user", title = "Work complete", content = "Migrated auth middleware to JWT. 3 files changed, 12 tests pass." }

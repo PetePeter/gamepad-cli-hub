@@ -56,7 +56,7 @@ export function getAvailableTools(): McpToolSummary[] {
     { name: 'session_rename', title: 'Rename Session', description: 'Rename a Helm session by ID or name. Also updates the Telegram topic name.' },
     { name: 'session_close', title: 'Close Session', description: 'Close a Helm session and stop its PTY.' },
     { name: 'session_info', title: 'Get Session Info', description: 'Retrieve MCP endpoint, AIAGENT state registry, available projects, and agent planning guidance. Call this at session startup before other Helm workflow actions, then call project_list for directory details.' },
-    { name: 'notify_user', title: 'Notify User', description: 'Send an LLM-directed notification with smart delivery routing when work completes, you are blocked for user input, or an error stops progress.' },
+    { name: 'notify_user', title: 'Notify User', description: 'Send an LLM-directed notification to a target session with smart delivery routing when work completes, you are blocked for user input, or an error stops progress.' },
     { name: 'get_app_visibility', title: 'Get App Visibility', description: 'Return app visibility, screen lock state, and activeSessionId for notification routing.' },
     { name: 'telegram_status', title: 'Telegram Status', description: 'Report whether Telegram is enabled, configured, running, and available for urgent mobile-friendly user communication.' },
     { name: 'telegram_chat', title: 'Send Telegram Chat', description: 'Send concise mobile-friendly text to the user via Telegram. Provide sessionId or name. Lines must be short; do not send large wide logs, tables, or code blocks.' },

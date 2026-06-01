@@ -38672,9 +38672,9 @@
       "weight": 1.0,
       "_src": "dist_electron_main_js",
       "_tgt": "dist_electron_main_currentlastoutputat",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_js",
-      "target": "dist_electron_main_currentlastoutputat",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_currentlastoutputat"
     },
     {
       "relation": "contains",
@@ -38684,9 +38684,9 @@
       "weight": 1.0,
       "_src": "dist_electron_main_js",
       "_tgt": "dist_electron_main_polluntil",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_js",
-      "target": "dist_electron_main_polluntil",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_polluntil"
     },
     {
       "relation": "contains",
@@ -41564,9 +41564,9 @@
       "weight": 1.0,
       "_src": "dist_electron_main_js",
       "_tgt": "dist_electron_main_reactionforstatus",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_js",
-      "target": "dist_electron_main_reactionforstatus",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_reactionforstatus"
     },
     {
       "relation": "contains",
@@ -49758,11 +49758,11 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L13393",
       "weight": 1.0,
-      "_src": "dist_electron_main_currentlastoutputat",
-      "_tgt": "dist_electron_main_getterminaltail",
+      "_src": "dist_electron_main_getterminaltail",
+      "_tgt": "dist_electron_main_currentlastoutputat",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_getterminaltail",
-      "target": "dist_electron_main_currentlastoutputat",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_currentlastoutputat"
     },
     {
       "relation": "calls",
@@ -56144,9 +56144,9 @@
       "weight": 1.0,
       "_src": "dist_electron_main_verifydeliveryafterdelay",
       "_tgt": "dist_electron_main_currentlastoutputat",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_verifydeliveryafterdelay",
-      "target": "dist_electron_main_currentlastoutputat",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_currentlastoutputat"
     },
     {
       "relation": "calls",
@@ -56156,9 +56156,9 @@
       "weight": 1.0,
       "_src": "dist_electron_main_verifydeliveryafterdelay",
       "_tgt": "dist_electron_main_polluntil",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_verifydeliveryafterdelay",
-      "target": "dist_electron_main_polluntil",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_polluntil"
     },
     {
       "relation": "calls",
@@ -56216,9 +56216,9 @@
       "weight": 1.0,
       "_src": "dist_electron_main_polluntil",
       "_tgt": "dist_electron_main_wait",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_polluntil",
-      "target": "dist_electron_main_wait",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_wait"
     },
     {
       "relation": "calls",
@@ -56226,8 +56226,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L12938",
       "weight": 1.0,
-      "_src": "dist_electron_main_classifydelivery",
-      "_tgt": "dist_electron_main_makeresult",
+      "_src": "dist_electron_main_makeresult",
+      "_tgt": "dist_electron_main_classifydelivery",
       "confidence_score": 1.0,
       "source": "dist_electron_main_makeresult",
       "target": "dist_electron_main_classifydelivery"
@@ -56358,8 +56358,8 @@
       "source_file": "dist-electron\\main.js",
       "source_location": "L13085",
       "weight": 1.0,
-      "_src": "dist_electron_main_capturedeliverysnapshot",
-      "_tgt": "dist_electron_main_deliverpromptsequencetosession",
+      "_src": "dist_electron_main_deliverpromptsequencetosession",
+      "_tgt": "dist_electron_main_capturedeliverysnapshot",
       "confidence_score": 1.0,
       "source": "dist_electron_main_deliverpromptsequencetosession",
       "target": "dist_electron_main_capturedeliverysnapshot"
@@ -62144,9 +62144,9 @@
       "weight": 1.0,
       "_src": "dist_electron_main_handledeliveryverification",
       "_tgt": "dist_electron_main_reactionforstatus",
+      "confidence_score": 1.0,
       "source": "dist_electron_main_handledeliveryverification",
-      "target": "dist_electron_main_reactionforstatus",
-      "confidence_score": 1.0
+      "target": "dist_electron_main_reactionforstatus"
     },
     {
       "relation": "calls",
@@ -102488,9 +102488,9 @@
       "weight": 1.0,
       "_src": "src_session_delivery_verification_ts",
       "_tgt": "session_delivery_verification_currentlastoutputat",
+      "confidence_score": 1.0,
       "source": "src_session_delivery_verification_ts",
-      "target": "session_delivery_verification_currentlastoutputat",
-      "confidence_score": 1.0
+      "target": "session_delivery_verification_currentlastoutputat"
     },
     {
       "relation": "contains",
@@ -102500,9 +102500,9 @@
       "weight": 1.0,
       "_src": "src_session_delivery_verification_ts",
       "_tgt": "session_delivery_verification_polluntil",
+      "confidence_score": 1.0,
       "source": "src_session_delivery_verification_ts",
-      "target": "session_delivery_verification_polluntil",
-      "confidence_score": 1.0
+      "target": "session_delivery_verification_polluntil"
     },
     {
       "relation": "contains",
@@ -102668,9 +102668,9 @@
       "weight": 1.0,
       "_src": "session_delivery_verification_verifydeliveryafterdelay",
       "_tgt": "session_delivery_verification_currentlastoutputat",
+      "confidence_score": 1.0,
       "source": "session_delivery_verification_verifydeliveryafterdelay",
-      "target": "session_delivery_verification_currentlastoutputat",
-      "confidence_score": 1.0
+      "target": "session_delivery_verification_currentlastoutputat"
     },
     {
       "relation": "calls",
@@ -102680,9 +102680,9 @@
       "weight": 1.0,
       "_src": "session_delivery_verification_verifydeliveryafterdelay",
       "_tgt": "session_delivery_verification_polluntil",
+      "confidence_score": 1.0,
       "source": "session_delivery_verification_verifydeliveryafterdelay",
-      "target": "session_delivery_verification_polluntil",
-      "confidence_score": 1.0
+      "target": "session_delivery_verification_polluntil"
     },
     {
       "relation": "calls",
@@ -102728,9 +102728,9 @@
       "weight": 1.0,
       "_src": "session_delivery_verification_polluntil",
       "_tgt": "session_delivery_verification_wait",
+      "confidence_score": 1.0,
       "source": "session_delivery_verification_polluntil",
-      "target": "session_delivery_verification_wait",
-      "confidence_score": 1.0
+      "target": "session_delivery_verification_wait"
     },
     {
       "relation": "calls",
@@ -102738,8 +102738,8 @@
       "source_file": "src\\session\\delivery-verification.ts",
       "source_location": "L87",
       "weight": 1.0,
-      "_src": "session_delivery_verification_classifydelivery",
-      "_tgt": "session_delivery_verification_makeresult",
+      "_src": "session_delivery_verification_makeresult",
+      "_tgt": "session_delivery_verification_classifydelivery",
       "confidence_score": 1.0,
       "source": "session_delivery_verification_makeresult",
       "target": "session_delivery_verification_classifydelivery"
@@ -113442,11 +113442,11 @@
       "source_file": "tests\\delivery-verification.test.ts",
       "source_location": "L4",
       "weight": 1.0,
-      "_src": "tests_delivery_verification_test_ts",
-      "_tgt": "src_session_terminal_output_buffer_ts",
+      "_src": "src_session_terminal_output_buffer_ts",
+      "_tgt": "tests_delivery_verification_test_ts",
+      "confidence_score": 1.0,
       "source": "src_session_terminal_output_buffer_ts",
-      "target": "tests_delivery_verification_test_ts",
-      "confidence_score": 1.0
+      "target": "tests_delivery_verification_test_ts"
     },
     {
       "relation": "imports_from",
@@ -117212,9 +117212,9 @@
       "weight": 1.0,
       "_src": "src_telegram_relay_service_ts",
       "_tgt": "telegram_relay_service_reactionforstatus",
+      "confidence_score": 1.0,
       "source": "src_telegram_relay_service_ts",
-      "target": "telegram_relay_service_reactionforstatus",
-      "confidence_score": 1.0
+      "target": "telegram_relay_service_reactionforstatus"
     },
     {
       "relation": "contains",
@@ -117848,9 +117848,9 @@
       "weight": 1.0,
       "_src": "telegram_relay_service_telegramrelayservice_handledeliveryverification",
       "_tgt": "telegram_relay_service_reactionforstatus",
+      "confidence_score": 1.0,
       "source": "telegram_relay_service_telegramrelayservice_handledeliveryverification",
-      "target": "telegram_relay_service_reactionforstatus",
-      "confidence_score": 1.0
+      "target": "telegram_relay_service_reactionforstatus"
     },
     {
       "relation": "imports_from",

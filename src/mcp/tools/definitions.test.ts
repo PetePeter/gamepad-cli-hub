@@ -27,5 +27,10 @@ describe('MCP_TOOLS', () => {
       expect(tool.inputSchema.required).toContain('title');
       expect(tool.inputSchema.required).toContain('content');
     });
+
+    it('should require either sessionId or name', () => {
+      const tool = getNotifyUserTool();
+      expect(tool.inputSchema.anyOf).toEqual([{ required: ['sessionId'] }, { required: ['name'] }]);
+    });
   });
 });

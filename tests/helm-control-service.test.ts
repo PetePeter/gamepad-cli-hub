@@ -619,7 +619,7 @@ describe('HelmControlService.getSessionInfo', () => {
     const notificationGuide = service.resolveSkill('notification');
     expect(notificationGuide).toBeDefined();
     expect(notificationGuide!.body).toContain('notify_user');
-    expect(notificationGuide!.body).toContain('User is actively viewing');
+    expect(notificationGuide!.body).toContain('Routine progress');
     expect(notificationGuide!.body).toContain('toast');
     expect(notificationGuide!.body).toContain('bubble');
     expect(notificationGuide!.body).toContain('telegram');
