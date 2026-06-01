@@ -102,6 +102,22 @@ describe('TelegramRelayService', () => {
     expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('Respond via telegram_chat MCP tool.'));
   });
 
+  it('handleIncomingTelegramMessage() does NOT set 👀 reaction immediately on inject', async () => {
+    // 👀 must only appear when verification reports confirmed. The inject path itself must be silent.
+    const { relay, bot } = makeRelay();
+
+    await relay.handleIncomingTelegramMessage({
+      message_id: 77,
+      message_thread_id: 42,
+      text: 'Yes, ship it',
+      chat: { id: 12345 },
+      from: { username: 'testuser' },
+    } as any);
+
+    // No reaction calls should be queued synchronously around the inject path.
+    expect(bot.setMessageReaction).not.toHaveBeenCalled();
+  });
+
   it('handleIncomingTelegramMessage() wraps active-session messages in envelope too', async () => {
     const { relay, ptyManager } = makeRelay();
 

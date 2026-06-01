@@ -6,128 +6,84 @@ vi.mock('../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-const DELIVERED_AT = 1_000_000;
-const TEXT = 'fix the bug in auth module please';
+const TEXT = 'fix the bug in auth module please make sure tests pass';
 
-function makeRequest(tailLines: string[], lastOutputAt: number, overrides?: Partial<DeliveryVerificationRequest>): DeliveryVerificationRequest {
+/**
+ * Build a request whose tail evolves through a scripted sequence of states.
+ * Each call to getTerminalTail consumes the next state, sticking on the final entry.
+ */
+function makeScriptedRequest(states: string[][]): DeliveryVerificationRequest {
+  let index = 0;
   return {
     sessionId: 's1',
     text: TEXT,
     submitSuffix: '\r',
-    delayMs: 0,
-    retrySubmit: false,
+    delayMs: 0, // fast-mode budgets for tests
     ptyManager: {
-      getTerminalTail: vi.fn(() => ({
-        stripped: tailLines,
-        raw: tailLines,
-        lastOutputAt,
-      })),
+      getTerminalTail: vi.fn(() => {
+        const state = states[Math.min(index, states.length - 1)];
+        index += 1;
+        return { stripped: state, raw: [], lastOutputAt: Date.now() };
+      }),
     },
-    ...overrides,
   };
 }
 
-describe('verifyDeliveryAfterDelay — busy-session false-positive prevention', () => {
-  it('returns no_signal when session was already active before delivery and text not in tail', async () => {
-    // Session was generating output 500ms before delivery — classic false-positive scenario
-    const before = { text: 'some earlier output', lastOutputAt: DELIVERED_AT - 500 };
-    const request = makeRequest(['different output line after delivery'], DELIVERED_AT + 100);
+describe('verifyDeliveryAfterDelay — seen→not-seen polling', () => {
+  it('returns confirmed when snippet appears in tail and then disappears', async () => {
+    // Sequence: empty → snippet present → snippet present → snippet gone
+    const request = makeScriptedRequest([
+      ['$ prompt'],
+      [`> ${TEXT}`],
+      [`> ${TEXT}`],
+      ['response output now'],
+    ]);
 
-    const result = await verifyDeliveryAfterDelay(request, before, DELIVERED_AT);
-
-    expect(result.status).not.toBe('confirmed');
-    expect(result.status).not.toBe('retry_confirmed');
-  });
-
-  it('returns confirmed when session was idle before delivery and output advances after', async () => {
-    // Session was idle 10s before delivery — output advance is caused by our delivery
-    const before = { text: 'idle prompt $', lastOutputAt: DELIVERED_AT - 10_000 };
-    const request = makeRequest(['processing your request...'], DELIVERED_AT + 100);
-
-    const result = await verifyDeliveryAfterDelay(request, before, DELIVERED_AT);
+    const result = await verifyDeliveryAfterDelay(request);
 
     expect(result.status).toBe('confirmed');
   });
 
-  it('returns confirmed when session was active but delivered text appears then scrolls away', async () => {
-    // Text was processed (appeared, then output continued past it)
-    const before = { text: 'generating...', lastOutputAt: DELIVERED_AT - 500 };
-    const request = makeRequest(
-      ['working on the auth bug now', 'checking the module...'],
-      DELIVERED_AT + 100,
-      { text: TEXT },
-    );
-    // Simulate: after tail does NOT contain the snippet but output continued
-    // The text appeared and was consumed — confirmed via output continued path
-    // Provide a before tail that DID contain the snippet to trigger hadSnippetBefore=false
-    const beforeWithText = { text: `> ${TEXT}`, lastOutputAt: DELIVERED_AT - 500 };
-    const afterTail = ['response to your request is here'];
-    const reqWithTailShift = {
-      ...request,
-      ptyManager: {
-        getTerminalTail: vi.fn()
-          .mockReturnValueOnce({ stripped: [`> ${TEXT}`], raw: [`> ${TEXT}`], lastOutputAt: DELIVERED_AT - 500 })
-          .mockReturnValue({ stripped: afterTail, raw: afterTail, lastOutputAt: DELIVERED_AT + 200 }),
-      },
-    };
+  it('returns no_signal when snippet never appears in tail (phase 1 timeout)', async () => {
+    // Snippet never shows up — all probes return unrelated tail
+    const request = makeScriptedRequest([['unrelated output line']]);
 
-    // Use captureDeliverySnapshot to get the 'before' (first call), then verify uses second call
-    const result = await verifyDeliveryAfterDelay(reqWithTailShift, beforeWithText, DELIVERED_AT);
+    const result = await verifyDeliveryAfterDelay(request);
 
-    // Had snippet before + output advanced → confirmed (intentional — text was pre-existing, new output is real signal)
-    expect(result.status).toBe('confirmed');
-  });
+    expect(result.status).toBe('no_signal');
+  }, 15000);
 
-  it('treats session as idle when lastOutputAt is just over threshold before delivery', async () => {
-    // 3001ms before delivery = idle → output advance counts as confirmation
-    const before = { text: 'waiting...', lastOutputAt: DELIVERED_AT - 3001 };
-    const request = makeRequest(['response started'], DELIVERED_AT + 50);
+  it('returns suspected_stuck when snippet appears but never leaves (phase 2 timeout)', async () => {
+    // Snippet shows up immediately and sticks around forever
+    const request = makeScriptedRequest([[`> ${TEXT}`]]);
 
-    const result = await verifyDeliveryAfterDelay(request, before, DELIVERED_AT);
+    const result = await verifyDeliveryAfterDelay(request);
 
-    expect(result.status).toBe('confirmed');
-  });
+    expect(result.status).toBe('suspected_stuck');
+  }, 15000);
 
-  it('treats session as active when lastOutputAt is just under threshold before delivery', async () => {
-    // 2999ms before delivery = still active → output advance is not proof
-    const before = { text: 'previous turn output', lastOutputAt: DELIVERED_AT - 2999 };
-    const request = makeRequest(['more output from previous turn'], DELIVERED_AT + 50);
-
-    const result = await verifyDeliveryAfterDelay(request, before, DELIVERED_AT);
-
-    expect(result.status).not.toBe('confirmed');
-    expect(result.status).not.toBe('retry_confirmed');
-  });
-
-  it('returns retry_failed for active sessions even on retry — busy output is not confirmation', async () => {
-    // First attempt: active session, no text in tail → no_signal
-    // Retry: output advanced but session was already active → guard still applies → retry_failed
-    const before = { text: 'previous output', lastOutputAt: DELIVERED_AT - 500 };
-    let callCount = 0;
+  it('returns unverifiable when getTerminalTail is unavailable', async () => {
     const request: DeliveryVerificationRequest = {
       sessionId: 's1',
       text: TEXT,
       submitSuffix: '\r',
       delayMs: 0,
-      retrySubmit: true,
-      ptyManager: {
-        getTerminalTail: vi.fn(() => {
-          callCount++;
-          // callCount=1: first classifyDelivery → old output, active session → no_signal
-          // callCount=2: retry classifyDelivery → new output, but guard still applies → retry_failed
-          const isRetry = callCount >= 2;
-          return {
-            stripped: isRetry ? ['new response after retry'] : ['previous output'],
-            raw: [],
-            lastOutputAt: isRetry ? DELIVERED_AT + 300 : DELIVERED_AT - 500,
-          };
-        }),
-        deliverText: vi.fn(() => Promise.resolve()),
-      },
+      ptyManager: {},
     };
 
-    const result = await verifyDeliveryAfterDelay(request, before, DELIVERED_AT);
+    const result = await verifyDeliveryAfterDelay(request);
 
-    expect(result.status).toBe('retry_failed');
+    expect(result.status).toBe('unverifiable');
+  });
+
+  it('retryAttempted is always false (no blind retries in new verifier)', async () => {
+    const request = makeScriptedRequest([
+      [`> ${TEXT}`],
+      ['response output now'],
+    ]);
+
+    const result = await verifyDeliveryAfterDelay(request);
+
+    expect(result.retryAttempted).toBe(false);
   });
 });

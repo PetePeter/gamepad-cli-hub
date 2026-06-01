@@ -258,7 +258,6 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
           onComplete: (result) => void this.handleDeliveryVerification(session.id, topicId, result, msgContext),
         },
       });
-      void this.telegramBot.setMessageReaction(chatId, msg.message_id, '👀');
       logger.info(`[TelegramRelay] Injected user message to session ${session.id}`);
       return true;
     }
@@ -281,7 +280,6 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
           onComplete: (result) => void this.handleDeliveryVerification(active.id, topicId, result, msgContext),
         },
       });
-      void this.telegramBot.setMessageReaction(chatId, msg.message_id, '👀');
       logger.info(`[TelegramRelay] Injected user message to active session ${active.id} (unmapped topic ${topicId})`);
       return true;
     }
@@ -363,10 +361,9 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
           delayMs: 4000,
           retrySubmit: true,
           background: true,
-          onComplete: (result) => void this.handleDeliveryVerification(targetSession.id, topicId, result),
+          onComplete: (result) => void this.handleDeliveryVerification(targetSession.id, topicId, result, { chatId, messageId: msg.message_id }),
         },
       });
-      void this.telegramBot.setMessageReaction(chatId, msg.message_id, '👀');
       logger.info(`[TelegramRelay] Injected attachment (${attachment.type}) to session ${targetSession.id}: ${filePath}`);
     })().catch((err) => {
       logger.warn(`[TelegramRelay] Attachment processing error for ${targetSession.id}: ${err}`);
@@ -516,16 +513,22 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     if (!verification) return;
 
     const confirmed = verification.status === 'confirmed' || verification.status === 'retry_confirmed';
+    const noSignal = verification.status === 'no_signal' || verification.status === 'retry_failed';
 
-    if (msgContext && this.telegramBot.isRunning()) {
+    // Reaction policy (seen→not-seen verifier):
+    //   confirmed   → 👀  (CLI received and moved past the message)
+    //   no_signal   → ❌  (message never appeared in tail; likely never reached CLI)
+    //   suspected_stuck / unverifiable → no reaction (silent)
+    if (msgContext && this.telegramBot.isRunning() && (confirmed || noSignal)) {
       void this.telegramBot.setMessageReaction(
         msgContext.chatId,
         msgContext.messageId,
-        confirmed ? '✅' : '❌',
+        confirmed ? '👀' : '❌',
       );
     }
 
-    if (confirmed) return;
+    // Only surface a warning to the topic when the message truly seems lost.
+    if (!noSignal) return;
 
     logger.warn(`[TelegramRelay] Delivery verification for ${sessionId}: ${verification.status} (${verification.detail})`);
     if (!topicId || !this.telegramBot.isRunning()) return;

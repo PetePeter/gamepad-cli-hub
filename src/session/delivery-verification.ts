@@ -1,6 +1,17 @@
 import { logger } from '../utils/logger.js';
 import type { TerminalTail } from './terminal-output-buffer.js';
 
+/**
+ * Delivery verification status.
+ *
+ * - confirmed: snippet appeared in tail and then disappeared (CLI consumed it and produced new output)
+ * - suspected_stuck: snippet appeared but never left the tail within the budget (CLI received but hasn't responded)
+ * - no_signal: snippet never appeared in the tail within the budget (likely never reached the CLI)
+ * - unverifiable: terminal tail accessor unavailable, cannot determine delivery
+ *
+ * Retained legacy statuses (retry_confirmed/retry_failed) are no longer produced by this verifier but
+ * remain in the union for downstream type compatibility during migration.
+ */
 export type DeliveryVerificationStatus =
   | 'confirmed'
   | 'suspected_stuck'
@@ -13,7 +24,9 @@ export interface DeliveryVerificationRequest {
   sessionId: string;
   text: string;
   label?: string;
+  /** Legacy field — ignored by the new seen→not-seen verifier. Kept for type compatibility. */
   delayMs?: number;
+  /** Legacy field — ignored. The new verifier does not perform blind retries. */
   retrySubmit?: boolean;
   submitSuffix: string;
   deliveryContext?: 'background' | 'interactive';
@@ -29,7 +42,9 @@ export interface DeliveryVerificationResult {
   sessionId: string;
   label?: string;
   detail: string;
+  /** Legacy field — always false; the new verifier never retries blindly. */
   retryAttempted: boolean;
+  /** Legacy field — represents total elapsed verification time. */
   delayMs: number;
 }
 
@@ -38,113 +53,133 @@ interface VerificationSnapshot {
   lastOutputAt?: number;
 }
 
-const DEFAULT_VERIFY_DELAY_MS = 4000;
-const VERIFY_TAIL_LINES = 25;
-// Sessions with output within this window before delivery are considered "already active".
-// In that case, output advancing after delivery is not proof the text was received as a new turn.
-const SESSION_ACTIVE_THRESHOLD_MS = 3000;
+// Number of tail lines to sample. Wider than the legacy 25 to give the snippet
+// a better chance of being visible before busy output scrolls it away.
+const VERIFY_TAIL_LINES = 50;
 
+// Phase 1 — "seen": how long to wait for the snippet to appear in the tail.
+const SEEN_TIMEOUT_MS = 8000;
+// Phase 2 — "not seen": once seen, how long to wait for the snippet to scroll past / be consumed.
+const NOT_SEEN_TIMEOUT_MS = 6000;
+// Poll interval used in both phases.
+const POLL_INTERVAL_MS = 200;
+
+// Fast-path budgets used when the caller passes delayMs === 0 (typically tests). The verifier
+// still runs the same seen→not-seen logic, but compresses the wait windows so unit tests don't
+// stall on the full 14-second budget when their fake tails never change.
+const FAST_SEEN_TIMEOUT_MS = 200;
+const FAST_NOT_SEEN_TIMEOUT_MS = 200;
+const FAST_POLL_INTERVAL_MS = 20;
+
+/**
+ * Capture a tail snapshot prior to delivery. The new verifier does not depend on this
+ * for correctness (it polls live state), but the helper is retained so callers like
+ * sequence-delivery can still pass a baseline through unchanged.
+ */
 export function captureDeliverySnapshot(request: Pick<DeliveryVerificationRequest, 'sessionId' | 'ptyManager'>): VerificationSnapshot | null {
   if (typeof request.ptyManager.getTerminalTail !== 'function') return null;
-  const tail = request.ptyManager.getTerminalTail(request.sessionId, VERIFY_TAIL_LINES, 'both', false);
-  return {
-    text: tailToText(tail),
-    lastOutputAt: tail.lastOutputAt,
-  };
+  const tail = request.ptyManager.getTerminalTail(request.sessionId, VERIFY_TAIL_LINES, 'stripped', false);
+  return { text: tailToText(tail), lastOutputAt: tail.lastOutputAt };
 }
 
+/**
+ * Seen→not-seen verification.
+ *
+ * Phase 1 polls the tail until the snippet appears (confirms the CLI's prompt buffer
+ * actually echoed our text). Phase 2 keeps polling until the snippet has scrolled out
+ * of the tail (confirms the CLI moved past our input — i.e. is generating a response).
+ *
+ * The `before` snapshot and `deliveredAt` parameters are accepted for signature stability
+ * with the previous verifier but are not used in the new logic.
+ */
 export async function verifyDeliveryAfterDelay(
   request: DeliveryVerificationRequest,
-  before: VerificationSnapshot | null,
-  deliveredAt = Date.now(),
+  _before: VerificationSnapshot | null = null,
+  _deliveredAt: number = Date.now(),
 ): Promise<DeliveryVerificationResult> {
-  const delayMs = request.delayMs ?? DEFAULT_VERIFY_DELAY_MS;
   if (typeof request.ptyManager.getTerminalTail !== 'function') {
-    return makeResult(request, 'unverifiable', 'terminal tail is unavailable', false, delayMs);
-  }
-
-  await wait(delayMs);
-
-  let result = classifyDelivery(request, before, deliveredAt, false, delayMs);
-  if (result.status === 'confirmed' || !request.retrySubmit) return result;
-
-  await retrySubmit(request);
-  await wait(delayMs === 0 ? 0 : Math.max(750, Math.min(delayMs, 1500)));
-
-  const retryResult = classifyDelivery(request, before, deliveredAt, true, delayMs);
-  result = retryResult.status === 'confirmed'
-    ? { ...retryResult, status: 'retry_confirmed', retryAttempted: true }
-    : { ...retryResult, status: 'retry_failed', retryAttempted: true };
-
-  return result;
-}
-
-function classifyDelivery(
-  request: DeliveryVerificationRequest,
-  before: VerificationSnapshot | null,
-  deliveredAt: number,
-  retryAttempted: boolean,
-  delayMs: number,
-): DeliveryVerificationResult {
-  if (typeof request.ptyManager.getTerminalTail !== 'function') {
-    return makeResult(request, 'unverifiable', 'terminal tail is unavailable', retryAttempted, delayMs);
-  }
-
-  const after = captureDeliverySnapshot(request);
-  if (!after) {
-    return makeResult(request, 'unverifiable', 'terminal tail returned no data', retryAttempted, delayMs);
+    return makeResult(request, 'unverifiable', 'terminal tail is unavailable', 0);
   }
 
   const snippets = deliverySnippets(request.text);
-  const containsDeliveredText = snippets.some((snippet) => after.text.includes(snippet));
-  const hadSnippetBefore = snippets.some((snippet) => before?.text.includes(snippet));
-  const deliveredTextAtTail = snippets.some((snippet) => isSnippetNearTail(after.text, snippet));
-  const outputAdvanced = typeof after.lastOutputAt === 'number' && after.lastOutputAt >= deliveredAt;
-  const tailChanged = before ? after.text !== before.text : after.text.trim().length > 0;
-  const sessionWasAlreadyActive = typeof before?.lastOutputAt === 'number'
-    && (deliveredAt - before.lastOutputAt) < SESSION_ACTIVE_THRESHOLD_MS;
-
-  if ((outputAdvanced || tailChanged) && (!containsDeliveredText || hadSnippetBefore)) {
-    if (sessionWasAlreadyActive && !hadSnippetBefore) {
-      // Output advancing in an already-busy session doesn't prove the new text was received.
-      return makeResult(
-        request,
-        retryAttempted ? 'retry_failed' : 'no_signal',
-        'session was already active; delivered text never confirmed in tail',
-        retryAttempted,
-        delayMs,
-      );
-    }
-    return makeResult(request, 'confirmed', 'terminal output advanced after delivery', retryAttempted, delayMs);
+  if (snippets.length === 0) {
+    return makeResult(request, 'unverifiable', 'no usable snippet derived from delivered text', 0);
   }
 
-  if (containsDeliveredText) {
-    if (tailChanged && !deliveredTextAtTail) {
-      return makeResult(request, 'confirmed', 'terminal output continued after delivered text', retryAttempted, delayMs);
-    }
-    return makeResult(request, 'suspected_stuck', 'delivered text is still visible in terminal tail', retryAttempted, delayMs);
+  const startedAt = Date.now();
+  const fastMode = request.delayMs === 0;
+  const seenBudget = fastMode ? FAST_SEEN_TIMEOUT_MS : SEEN_TIMEOUT_MS;
+  const notSeenBudget = fastMode ? FAST_NOT_SEEN_TIMEOUT_MS : NOT_SEEN_TIMEOUT_MS;
+  const pollInterval = fastMode ? FAST_POLL_INTERVAL_MS : POLL_INTERVAL_MS;
+
+  // Phase 1: wait for the snippet to appear in the tail.
+  const seenAt = await pollUntil(
+    () => snippetPresent(request, snippets),
+    true,
+    seenBudget,
+    pollInterval,
+  );
+
+  if (!seenAt) {
+    const elapsed = Date.now() - startedAt;
+    return makeResult(request, 'no_signal', `snippet never appeared in tail within ${seenBudget}ms`, elapsed);
   }
 
-  if (tailChanged) {
-    return makeResult(request, 'confirmed', 'terminal tail changed after delivery', retryAttempted, delayMs);
+  // Phase 2: wait for the snippet to disappear from the tail.
+  const goneAt = await pollUntil(
+    () => snippetPresent(request, snippets),
+    false,
+    notSeenBudget,
+    pollInterval,
+  );
+
+  const elapsed = Date.now() - startedAt;
+
+  if (!goneAt) {
+    return makeResult(
+      request,
+      'suspected_stuck',
+      `snippet still visible in tail ${notSeenBudget}ms after being seen`,
+      elapsed,
+    );
   }
 
-  return makeResult(request, 'no_signal', 'no terminal output change after delivery', retryAttempted, delayMs);
+  return makeResult(request, 'confirmed', 'snippet appeared in tail and then moved past it', elapsed);
 }
 
-async function retrySubmit(request: DeliveryVerificationRequest): Promise<void> {
+/**
+ * Poll the predicate every `intervalMs` until it matches `expected` or the budget
+ * is exhausted. Returns the timestamp at which the match occurred, or null on timeout.
+ */
+async function pollUntil(
+  predicate: () => boolean,
+  expected: boolean,
+  budgetMs: number,
+  intervalMs: number,
+): Promise<number | null> {
+  const deadline = Date.now() + budgetMs;
+  // Always do an immediate first check before any sleep.
+  if (predicate() === expected) return Date.now();
+  while (Date.now() < deadline) {
+    await wait(intervalMs);
+    if (predicate() === expected) return Date.now();
+  }
+  return null;
+}
+
+/**
+ * Probe the current tail for any of the candidate snippets.
+ * Returns false on errors so the caller treats the probe as "not present" and keeps polling.
+ */
+function snippetPresent(request: DeliveryVerificationRequest, snippets: string[]): boolean {
   try {
-    if (typeof request.ptyManager.deliverText === 'function') {
-      await request.ptyManager.deliverText(request.sessionId, '', {
-        submitSuffix: request.submitSuffix,
-        ...(request.deliveryContext ? { deliveryContext: request.deliveryContext } : {}),
-      });
-      logger.warn(`[DeliveryVerification] Retried submit suffix for ${request.sessionId} (${request.label ?? 'delivery'})`);
-      return;
-    }
-    request.ptyManager.write?.(request.sessionId, request.submitSuffix);
-  } catch (error) {
-    logger.warn(`[DeliveryVerification] Submit retry failed for ${request.sessionId}: ${error}`);
+    const tail = request.ptyManager.getTerminalTail?.(request.sessionId, VERIFY_TAIL_LINES, 'stripped', false);
+    if (!tail) return false;
+    const text = tailToText(tail);
+    return snippets.some((snippet) => text.includes(snippet));
+  } catch (err) {
+    logger.warn(`[DeliveryVerification] tail probe failed for ${request.sessionId}: ${err}`);
+    return false;
   }
 }
 
@@ -152,7 +187,6 @@ function makeResult(
   request: DeliveryVerificationRequest,
   status: DeliveryVerificationStatus,
   detail: string,
-  retryAttempted: boolean,
   delayMs: number,
 ): DeliveryVerificationResult {
   return {
@@ -160,11 +194,16 @@ function makeResult(
     sessionId: request.sessionId,
     ...(request.label ? { label: request.label } : {}),
     detail,
-    retryAttempted,
+    retryAttempted: false,
     delayMs,
   };
 }
 
+/**
+ * Build a small set of candidate snippets from the delivered text. Snippets are normalized
+ * (control-token stripped, whitespace collapsed, capped at 96 chars) and filtered to those
+ * long enough to be reasonably distinctive (>=18 chars).
+ */
 function deliverySnippets(text: string): string[] {
   const normalized = text
     .replace(/\{(?:Enter|Send|NoSend|NoEnter|Wait\s+\d+)\}/gi, ' ')
@@ -181,15 +220,6 @@ function deliverySnippets(text: string): string[] {
     .map((candidate) => candidate.slice(0, 96))
     .filter((candidate) => candidate.length >= 18)
     .slice(0, 4);
-}
-
-function isSnippetNearTail(text: string, snippet: string): boolean {
-  const index = text.lastIndexOf(snippet);
-  if (index < 0) return false;
-  const rawTrailing = text.slice(index + snippet.length);
-  if (/\n\s*\S/.test(rawTrailing)) return false;
-  const trailing = rawTrailing.replace(/\s+/g, ' ').trim();
-  return trailing.length < 80;
 }
 
 function tailToText(tail: TerminalTail): string {

@@ -23,9 +23,9 @@ describe('shared low-level utilities', () => {
       .toBe('A&amp;B &lt;tag&gt; &quot;quoted&quot; &#x27;single&#x27;');
   });
 
-  it('formats agent Telegram messages with existing text-node escaping', () => {
+  it('formats agent Telegram messages with HTML escaping only', () => {
     expect(formatAgentMessageForTelegram(`Hi <user> "ok"`))
-      .toBe('Agent message:\n\nHi &lt;user&gt; "ok"');
+      .toBe('Hi &lt;user&gt; "ok"');
   });
 
   it('validates mobile-friendly Telegram text in one shared place', () => {

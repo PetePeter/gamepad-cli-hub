@@ -339,63 +339,57 @@ describe('deliverPromptSequenceToSession', () => {
     });
   });
 
-  describe('delivery verification', () => {
-    it('confirms delivery when terminal tail advances after submit', async () => {
+  describe('delivery verification (seen→not-seen polling)', () => {
+    it('confirms delivery when the prompt appears in tail and then disappears', async () => {
+      const text = 'hello please execute this prompt now';
       const mocks = makeMocks();
       const tails = [
         { stripped: ['ready'], raw: ['ready'], lastOutputAt: 1000 },
-        { stripped: ['thinking...'], raw: ['thinking...'], lastOutputAt: Date.now() + 10 },
+        { stripped: [`> ${text}`], raw: [`> ${text}`], lastOutputAt: Date.now() + 10 },
+        { stripped: ['Working on it now with a real response.'], raw: [], lastOutputAt: Date.now() + 20 },
       ];
-      mocks.ptyManager.getTerminalTail = vi.fn(() => tails.shift() ?? tails[0]) as any;
+      mocks.ptyManager.getTerminalTail = vi.fn(() => tails.shift() ?? tails[tails.length - 1] ?? { stripped: [], raw: [], lastOutputAt: 0 }) as any;
 
-      const result = await deliver('hello', mocks, {
-        verifyDelivery: { label: 'test delivery', delayMs: 0, retrySubmit: true },
+      const result = await deliver(text, mocks, {
+        verifyDelivery: { label: 'test delivery', delayMs: 0 },
       });
 
       expect(result?.status).toBe('confirmed');
-      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
+      // Only the initial submit — the new verifier does not perform blind retries.
       const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter((c: any[]) => c[2]?.submitSuffix === '\r');
       expect(submitCalls).toHaveLength(1);
     });
 
-    it('retries submit when delivered text still appears stuck in the tail', async () => {
+    it('returns suspected_stuck when the prompt remains visible in the tail forever', async () => {
+      const text = 'hello please execute this prompt now';
       const mocks = makeMocks();
       const stuckTail = {
-        stripped: ['> hello please execute this prompt now'],
-        raw: ['> hello please execute this prompt now'],
+        stripped: [`> ${text}`],
+        raw: [`> ${text}`],
         lastOutputAt: 1000,
       };
       mocks.ptyManager.getTerminalTail = vi.fn(() => stuckTail) as any;
 
-      const result = await deliver('hello please execute this prompt now', mocks, {
-        verifyDelivery: { label: 'test delivery', delayMs: 0, retrySubmit: true },
+      const result = await deliver(text, mocks, {
+        verifyDelivery: { label: 'test delivery', delayMs: 0 },
       });
 
-      expect(result?.status).toBe('retry_failed');
-      const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter((c: any[]) => c[2]?.submitSuffix === '\r');
-      expect(submitCalls).toHaveLength(2);
-    });
-
-    it('does not retry when the prompt remains in transcript but output continued', async () => {
-      const mocks = makeMocks();
-      const tails = [
-        { stripped: ['ready'], raw: ['ready'], lastOutputAt: 1000 },
-        {
-          stripped: ['> hello please execute this prompt now', 'Working on it now with a real response after the prompt.'],
-          raw: ['> hello please execute this prompt now', 'Working on it now with a real response after the prompt.'],
-          lastOutputAt: Date.now() + 10,
-        },
-      ];
-      const afterTail = tails[1];
-      mocks.ptyManager.getTerminalTail = vi.fn(() => tails.shift() ?? afterTail) as any;
-
-      const result = await deliver('hello please execute this prompt now', mocks, {
-        verifyDelivery: { label: 'test delivery', delayMs: 0, retrySubmit: true },
-      });
-
-      expect(result?.status).toBe('confirmed');
+      expect(result?.status).toBe('suspected_stuck');
+      // No retry — the new verifier never re-submits.
       const submitCalls = mocks.ptyManager.deliverText.mock.calls.filter((c: any[]) => c[2]?.submitSuffix === '\r');
       expect(submitCalls).toHaveLength(1);
+    });
+
+    it('returns no_signal when the snippet never appears in the tail', async () => {
+      const mocks = makeMocks();
+      const tail = { stripped: ['unrelated output'], raw: [], lastOutputAt: 1000 };
+      mocks.ptyManager.getTerminalTail = vi.fn(() => tail) as any;
+
+      const result = await deliver('hello please execute this prompt now', mocks, {
+        verifyDelivery: { label: 'test delivery', delayMs: 0 },
+      });
+
+      expect(result?.status).toBe('no_signal');
     });
   });
 });

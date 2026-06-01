@@ -8,7 +8,7 @@ export function escapeHtml(text: string): string {
 }
 
 export function formatAgentMessageForTelegram(text: string): string {
-  return `Agent message:\n\n${escapeHtmlText(text)}`;
+  return escapeHtmlText(text);
 }
 
 /** Validate that Telegram text is mobile-friendly: short lines, under 1600 chars. */
