@@ -30,6 +30,12 @@ Helm is an Electron desktop app that lets you control multiple AI coding CLI ses
 - **Session recovery** — Sessions survive app crashes and restarts, with per-CLI resume commands and snapped-out window recovery
 - **Helm MCP server** — Control sessions from Claude Code or other AI agents via MCP tools (send text, read terminal, manage plans)
 - **Configurable submit suffix** — Per-CLI text terminator (CR/LF/CRLF) for inter-session messaging and paste delivery
+- **Projects & contexts** — Group working directories into stable project identities with reusable knowledge contexts
+- **Skills system** — Create, manage, and rate reusable instruction templates scoped per-project or globally
+- **Snap-out windows** — Detach any session or the planner into its own window for side-by-side work
+- **Session jump keys** — Ctrl+1 through Ctrl+9 jump directly to the Nth session
+- **Toast notifications** — In-app transient notifications for events like plan imports
+- **Incoming plan import** — CLI sessions can write plan files that Helm auto-imports with validation
 
 ---
 
@@ -95,12 +101,27 @@ Plug in a controller (USB or Bluetooth). The app detects it automatically — Xb
 | F5 | Mapped to Y button |
 | Ctrl+V | Paste clipboard text to active terminal |
 | Ctrl+G | Open in-app Prompt Editor (textarea + recent-prompts history) — Ctrl+Enter sends to active terminal |
+| Ctrl+1-9, Ctrl+0 | Jump to Nth session in sidebar order |
+| Ctrl+Shift+E | Toggle eye visibility for the selected session |
 
 Every binding is remappable per CLI type. See [docs/controls.md](docs/controls.md) for the full mapping.
 
+### Context Menu
+
+Right-click the terminal area (or bind a button to `context-menu`) for quick actions:
+
+| Item | Description |
+|------|-------------|
+| 📋 Copy | Copy terminal selection to clipboard |
+| 📥 Paste | Paste clipboard to active PTY |
+| ✏️ Compose in Editor | Open in-app Prompt Editor to compose prompt — sent to active PTY on send |
+| ➕ New Session | Quick-spawn picker (pre-selects active CLI type & directory) |
+| 📋➕ New Session with Selection | Spawn with selected text as context |
+| ⏩ Prompts | Open sequence picker with preconfigured commands |
+
 ---
 
-## Session Groups & Overview
+## Session Management
 
 Sessions are automatically grouped by working directory. Each group has a collapsible header showing the directory name and session count.
 
@@ -118,17 +139,11 @@ Both overview modes show:
 
 See [docs/group-overview.md](docs/group-overview.md) for details.
 
----
+Any session can be detached into its own Electron window — click the snap-out button or bind a gamepad action. The detached window includes the full terminal, chip bar with plan actions, draft editor, and context menu.
 
-## Plans, Drafts & Chip Bar
+The planner canvas can also be popped out into a separate window for side-by-side plan work.
 
-Each working directory can have its own plan graph. Plan items live in a dependency-aware canvas with `planning`, `ready`, `coding`, `review`, `blocked`, and `done` states. Ready work appears as chips near the active terminal so you can pick it up quickly, and active work can be completed from the same strip.
-
-Drafts, Plans, and Contexts are separate primitives: Drafts are per-session prompt memos, Plans are durable per-directory work items, and Contexts are reusable project knowledge nodes that can be bound to plans or sequences. Plan items persist as individual JSON files under `config/plans/` with dependencies in `config/plan-dependencies.json`; `config/plans.yaml` is legacy migration input only.
-
-The same strip also shows draft prompts and reusable chip-bar actions. In practice this means you can keep a few common prompts or workflows one click away while a session is busy.
-
-See [docs/directory-plans.md](docs/directory-plans.md) and [docs/config-system.md](docs/config-system.md) for the planner and chip-bar details.
+Use Ctrl+Shift+S to switch back to the last selected session, including snapped-out windows.
 
 ---
 
@@ -145,70 +160,6 @@ The app also watches for `AIAGENT-*` keywords in PTY output to detect CLI state 
 **Windows toast notifications** fire when a session goes inactive while implementing or planning — so you know when a long task finishes without staring at the screen.
 
 **LLM-directed notifications** let sessions route notifications to other sessions, Telegram, or Windows toasts with smart delivery — the AI decides where the notification goes based on context and urgency.
-
----
-
-## Telegram Bot
-
-Control your sessions remotely via a Telegram bot with forum topics. Each session gets its own topic thread that mirrors terminal output and forwards your input directly to the PTY.
-
-### Setup
-
-Settings → Telegram → follow the collapsible setup guide (bot token + chat ID). The bot creates forum topics automatically — one per session.
-
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| `/sessions` | Browse directories → sessions with inline buttons |
-| `/status` | Show all session states at a glance |
-| `/spawn` | 3-step wizard: pick CLI tool → pick directory → session created |
-| `/send <text>` | Send text directly to the active session's PTY |
-| `/close` | Close the current topic's session |
-
-### Features
-
-- **Activity-gated output** — Terminal output streams to Telegram, but batched intelligently: buffers while the session is active, flushes when it goes quiet (>10s silence)
-- **Topic input forwarding** — Type in a session's topic and it goes straight to the PTY
-- **Audio transcription** — Voice/audio attachments are saved with transcript text and a transcript file path when OpenWhispr is configured
-- **Pinned dashboard** — Auto-updating message with all sessions grouped by directory, Talk button for quick access
-- **Topic lifecycle sync** — Closing a session automatically closes its Telegram topic
-- **MCP tool consolidation** — Three MCP tools (`status`, `chat`, `close`) for programmatic bot control
-
----
-
-## Context Menu
-
-Right-click the terminal area (or bind a button to `context-menu`) for quick actions:
-
-| Item | Description |
-|------|-------------|
-| 📋 Copy | Copy terminal selection to clipboard |
-| 📥 Paste | Paste clipboard to active PTY |
-| ✏️ Compose in Editor | Open in-app Prompt Editor to compose prompt — sent to active PTY on send |
-| ➕ New Session | Quick-spawn picker (pre-selects active CLI type & directory) |
-| 📋➕ New Session with Selection | Spawn with selected text as context |
-| ⏩ Prompts | Open sequence picker with preconfigured commands |
-
----
-
-## Voice Control
-
-The app works with **OpenWhisper** (or any voice-to-text tool that listens for a hotkey). Bind a gamepad button to simulate a keypress, and OpenWhisper starts listening. When it transcribes your speech, the text flows directly into the active terminal.
-
-```yaml
-LeftTrigger:
-  action: voice
-  key: F1
-  mode: tap
-```
-
-Voice bindings support two routing modes:
-
-| Mode | Description |
-|------|-------------|
-| **OS (default)** | Key simulated at the OS level via robotjs — works with external apps |
-| **Terminal** | Key sent as an escape sequence to the active PTY (`target: terminal`) |
 
 ---
 
@@ -252,24 +203,114 @@ tools:
 
 ---
 
-## Configuration
+## Voice Control
 
-Everything is configurable from the in-app settings UI: profiles, tool commands, working directories, button bindings, Telegram integration, and quick actions.
+The app works with **OpenWhisper** (or any voice-to-text tool that listens for a hotkey). Bind a gamepad button to simulate a keypress, and OpenWhisper starts listening. When it transcribes your speech, the text flows directly into the active terminal.
 
-### Profiles
+```yaml
+LeftTrigger:
+  action: voice
+  key: F1
+  mode: tap
+```
 
-Profiles let you keep different setups for different workflows. You can switch profiles with Back/Start or from Settings.
+Voice bindings support two routing modes:
 
-### Binding Actions
+| Mode | Description |
+|------|-------------|
+| **OS (default)** | Key simulated at the OS level via robotjs — works with external apps |
+| **Terminal** | Key sent as an escape sequence to the active PTY (`target: terminal`) |
 
-| Action | Description |
-|--------|-------------|
-| `keyboard` | Send a sequence of keystrokes to the terminal |
-| `voice` | Simulate a keypress for voice recognition (OS or PTY routing) |
-| `scroll` | Scroll the terminal buffer up/down |
-| `context-menu` | Open the context menu overlay |
-| `sequence-list` | Show a picker of named sequences (reference a group or inline items) |
-| `new-draft` | Open the draft editor for the active session |
+---
+
+## Plans, Drafts & Chip Bar
+
+Each working directory can have its own plan graph. Plan items live in a dependency-aware canvas with `planning`, `ready`, `coding`, `review`, `blocked`, and `done` states. Ready work appears as chips near the active terminal so you can pick it up quickly, and active work can be completed from the same strip.
+
+Drafts, Plans, and Contexts are separate primitives: Drafts are per-session prompt memos, Plans are durable per-directory work items, and Contexts are reusable project knowledge nodes that can be bound to plans or sequences. Plan items persist as individual JSON files under `config/plans/` with dependencies in `config/plan-dependencies.json`; `config/plans.yaml` is legacy migration input only.
+
+The same strip also shows draft prompts and reusable chip-bar actions. In practice this means you can keep a few common prompts or workflows one click away while a session is busy.
+
+### Contexts
+
+Contexts are project-level knowledge nodes with title, content, type, and permission (readonly/writable). They live on the planner canvas as draggable cards and can be bound to plans or sequences. A context bound to a plan is automatically surfaced when working on that plan, providing just-in-time reference material.
+
+Create contexts from the planner's split add button. Use the context editor to set content, permissions, and bindings. Contexts persist per-project and survive app restarts.
+
+### Plan Sequences
+
+Group related plans into sequences with shared memory. Sequences render as labeled lanes in the planner canvas with distinct bounding boxes.
+
+### Incoming Plan Import
+
+CLI sessions can create plan items by writing JSON files to `config/plans/incoming/`. Helm watches this directory and automatically imports valid plan items into the appropriate project. On success, a toast notification confirms the import; on validation failure, an error toast is shown. The source file is deleted after processing.
+
+### Plan Backups
+
+Automatic rolling-window snapshots of plan data per directory. Restore from the planner screen or Settings.
+
+See [docs/directory-plans.md](docs/directory-plans.md) and [docs/config-system.md](docs/config-system.md) for the planner and chip-bar details.
+
+---
+
+## Projects
+
+Projects are stable identities that group working directories — useful when repos have multiple worktrees or when planning data should survive directory moves.
+
+Each project has a canonical directory and optional alternate directories. Plans, sequences, and contexts are scoped to projects rather than raw paths, so renaming or moving a folder doesn't lose your planning data.
+
+Manage projects from Settings → Projects. You can create, rename, add/remove directories, and delete projects (which cascades to associated plans, sequences, and attachments).
+
+---
+
+## Skills
+
+Skills are reusable instruction templates that can be loaded by AI agents at runtime. Create skills from Settings → Skills with a name, description, body text, and optional type tag.
+
+- **Per-project or global** — Scope skills to specific projects or make them available everywhere
+- **AI-amendable** — Mark skills as editable by agents (when enabled, agents can improve them based on usage feedback)
+- **Analytics** — Track use counts, star ratings (1-5), and written feedback reviews
+- **Cloning** — Duplicate a skill to use as a starting point for a new one
+
+---
+
+## Telegram Bot
+
+Control your sessions remotely via a Telegram bot with forum topics. Each session gets its own topic thread that mirrors terminal output and forwards your input directly to the PTY.
+
+### Setup
+
+Settings → Telegram → follow the collapsible setup guide (bot token + chat ID). The bot creates forum topics automatically — one per session.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `/sessions` | Browse directories → sessions with inline buttons |
+| `/status` | Show all session states at a glance |
+| `/spawn` | 3-step wizard: pick CLI tool → pick directory → session created |
+| `/send <text>` | Send text directly to the active session's PTY |
+| `/close` | Close the current topic's session |
+
+### Features
+
+- **Activity-gated output** — Terminal output streams to Telegram, but batched intelligently: buffers while the session is active, flushes when it goes quiet (>10s silence)
+- **Topic input forwarding** — Type in a session's topic and it goes straight to the PTY
+- **Audio transcription** — Voice/audio attachments are saved with transcript text and a transcript file path when OpenWhispr is configured
+- **Pinned dashboard** — Auto-updating message with all sessions grouped by directory, Talk button for quick access
+- **Topic lifecycle sync** — Closing a session automatically closes its Telegram topic
+- **MCP tool consolidation** — Three MCP tools (`status`, `chat`, `close`) for programmatic bot control
+
+---
+
+## Pattern Matcher
+
+Define per-CLI regex rules that auto-fire when PTY output matches. Two action types:
+
+- **send-text** — Immediately sends a sequence to the PTY
+- **wait-until** — Parses a time from the matched output and fires at that time
+
+Rules have per-session cooldowns to prevent rapid re-triggering. Pending schedules are cancellable from the session card.
 
 ---
 
@@ -285,29 +326,6 @@ Schedule from the Sessions screen via the scheduler section or from Settings.
 
 ---
 
-## Pattern Matcher
-
-Define per-CLI regex rules that auto-fire when PTY output matches. Two action types:
-
-- **send-text** — Immediately sends a sequence to the PTY
-- **wait-until** — Parses a time from the matched output and fires at that time
-
-Rules have per-session cooldowns to prevent rapid re-triggering. Pending schedules are cancellable from the session card.
-
----
-
-## Plan Sequences
-
-Group related plans into sequences with shared memory. Sequences render as labeled lanes in the planner canvas with distinct bounding boxes.
-
----
-
-## Plan Backups
-
-Automatic rolling-window snapshots of plan data per directory. Restore from the planner screen or Settings.
-
----
-
 ## Helm MCP Server
 
 Control sessions from Claude Code or other AI agents via MCP tools (send text, read terminal, manage plans, etc.). The MCP server starts automatically with the app.
@@ -315,6 +333,10 @@ Control sessions from Claude Code or other AI agents via MCP tools (send text, r
 ### Quick Start
 
 Agents call `session_info` on startup to get the MCP endpoint URL, auth token, and AIAGENT state registry. From there they can send text between sessions, read terminal output, manage plans, and coordinate work.
+
+### CLI Setup
+
+Settings → MCP Server provides ready-to-use setup instructions for configuring Claude Code and Codex CLI to connect to Helm's MCP server, including env var detection per CLI type and one-click "run in cmd.exe" buttons per snippet.
 
 ### Key Concepts
 
@@ -333,14 +355,56 @@ Agents call `session_info` on startup to get the MCP endpoint URL, auth token, a
 | [helm-mcp-client-guide.md](docs/helm-mcp-client-guide.md) | Client implementation guide for parsing envelopes and replying |
 | [helm-session-info.md](docs/helm-session-info.md) | `session_info` tool reference, AIAGENT state registry, plan/attachment guides |
 
+## Configuration
+
+### Settings Tabs
+
+| Tab | What it configures |
+|-----|-------------------|
+| Tools | CLI commands, paste modes, env vars, initial prompts, per-CLI pattern rules |
+| Directories | Working directories with bookmarks and auto-bookmarking |
+| Bindings | Per-CLI gamepad button and keyboard bindings |
+| Profiles | Named configuration sets that swap tools, directories, and bindings |
+| Projects | Project identities grouping working directories |
+| Skills | Reusable instruction templates with analytics |
+| MCP Server | Helm MCP server configuration with per-CLI setup instructions |
+| Chipbar / Quick Actions | Reusable prompt templates and workflow shortcuts |
+| Backups | Plan backup configuration and restore |
+| Scheduled Tasks | One-time and recurring prompt schedules |
+| Telegram | Bot token, chat ID, and monitoring configuration |
+
+### Profiles
+
+Profiles let you keep different setups for different workflows. You can switch profiles with Back/Start or from Settings.
+
+### Tool Editor
+
+Each CLI tool has an advanced editor (accessible from Settings → Tools) with options beyond basic command configuration:
+
+| Option | Description |
+|--------|-------------|
+| Paste mode | How clipboard content is delivered: `pty` (direct write), `ptyindividual` (character-by-character), `sendkeys` (OS simulation), `sendkeysindividual`, or `clippaste` |
+| Large text as temp file | Writes pasted text above the size threshold to a temp file instead of inline |
+| Helm initial prompt | Whether Helm handles the initial prompt delivery sequence |
+| Environment variables | Per-CLI env vars with `replace`, `append`, or `prepend` modes |
+| Submit suffix | Text terminator for inter-session messaging: CR, LF, or CRLF |
+
+### Binding Actions
+
+| Action | Description |
+|--------|-------------|
+| `keyboard` | Send a sequence of keystrokes to the terminal |
+| `voice` | Simulate a keypress for voice recognition (OS or PTY routing) |
+| `scroll` | Scroll the terminal buffer up/down |
+| `context-menu` | Open the context menu overlay |
+| `sequence-list` | Show a picker of named sequences (reference a group or inline items) |
+| `new-draft` | Open the draft editor for the active session |
+
+---
+
 ## Build & Test
 
-```bash
-npm install
-npm start
-```
-
-If you want the development and packaging details, see [docs/build-and-test.md](docs/build-and-test.md).
+See [docs/build-and-test.md](docs/build-and-test.md) for development and packaging details.
 
 ---
 
@@ -355,10 +419,14 @@ User-facing docs are in `docs/`:
 | [directory-plans.md](docs/directory-plans.md) | Planner canvas, plan lifecycle, persistence, and chips |
 | [config-system.md](docs/config-system.md) | Profile setup, bindings, tool configuration, and sequences |
 | [plan-backup-restore.md](docs/plan-backup-restore.md) | Plan backup snapshots, restore workflow, configuration |
+| [terminal-architecture.md](docs/terminal-architecture.md) | PTY stack, input/output routing, activity dots |
+| [modules.md](docs/modules.md) | Module reference — all modules, stores, composables, and components |
+| [file-structure.md](docs/file-structure.md) | Complete directory tree with per-file descriptions |
 | [helm-mcp-protocol.md](docs/helm-mcp-protocol.md) | Inter-session coordination, plan workflow, environment variables |
 | [helm-envelope-reference.md](docs/helm-envelope-reference.md) | `[HELM_MSG]` envelope format quick reference |
 | [helm-mcp-client-guide.md](docs/helm-mcp-client-guide.md) | Client implementation guide for MCP envelope parsing |
 | [helm-session-info.md](docs/helm-session-info.md) | `session_info` tool, AIAGENT states, plan attachments |
+| [plans-file-structure.md](docs/plans-file-structure.md) | Plan persistence format and file layout |
 | [CHANGELOG.md](CHANGELOG.md) | Versioned release notes |
 
 ---
