@@ -339,16 +339,21 @@ describe('deliverPromptSequenceToSession', () => {
     });
   });
 
-  describe('delivery verification (seen→not-seen polling)', () => {
-    it('confirms delivery when the prompt appears in tail and then disappears', async () => {
+  describe('delivery verification (activity-timestamp polling)', () => {
+    it('confirms delivery when tail activity advances twice after delivery', async () => {
+      const { TerminalOutputBuffer } = await import('../src/session/terminal-output-buffer.js');
       const text = 'hello please execute this prompt now';
       const mocks = makeMocks();
-      const tails = [
-        { stripped: ['ready'], raw: ['ready'], lastOutputAt: 1000 },
-        { stripped: [`> ${text}`], raw: [`> ${text}`], lastOutputAt: Date.now() + 10 },
-        { stripped: ['Working on it now with a real response.'], raw: [], lastOutputAt: Date.now() + 20 },
-      ];
-      mocks.ptyManager.getTerminalTail = vi.fn(() => tails.shift() ?? tails[tails.length - 1] ?? { stripped: [], raw: [], lastOutputAt: 0 }) as any;
+      const buffer = new TerminalOutputBuffer();
+      buffer.append('s1', 'baseline\n');
+      mocks.ptyManager.getTerminalTail = ((sid: string, lines: number, mode: any, strip?: boolean) =>
+        buffer.tail(sid, lines, mode, strip)) as any;
+
+      // Note: SUBMIT_DELAY_MS = 200ms inside deliver() before verification starts.
+      // Phase 1 advance: ~50ms into verification window.
+      setTimeout(() => buffer.append('s1', 'echo of input\n'), 250);
+      // Phase 2 advance: must beat firstAdvance + 250ms gap.
+      setTimeout(() => buffer.append('s1', 'response part 1\n'), 600);
 
       const result = await deliver(text, mocks, {
         verifyDelivery: { label: 'test delivery', delayMs: 0 },
@@ -360,15 +365,18 @@ describe('deliverPromptSequenceToSession', () => {
       expect(submitCalls).toHaveLength(1);
     });
 
-    it('returns suspected_stuck when the prompt remains visible in the tail forever', async () => {
+    it('returns suspected_stuck when tail activity advances once then stalls', async () => {
+      const { TerminalOutputBuffer } = await import('../src/session/terminal-output-buffer.js');
       const text = 'hello please execute this prompt now';
       const mocks = makeMocks();
-      const stuckTail = {
-        stripped: [`> ${text}`],
-        raw: [`> ${text}`],
-        lastOutputAt: 1000,
-      };
-      mocks.ptyManager.getTerminalTail = vi.fn(() => stuckTail) as any;
+      const buffer = new TerminalOutputBuffer();
+      buffer.append('s1', 'baseline\n');
+      mocks.ptyManager.getTerminalTail = ((sid: string, lines: number, mode: any, strip?: boolean) =>
+        buffer.tail(sid, lines, mode, strip)) as any;
+
+      // One advance — no further activity. Fires after SUBMIT_DELAY_MS=200ms so
+      // verification observes it as a fresh Phase 1 advance, then nothing more.
+      setTimeout(() => buffer.append('s1', 'echo of input\n'), 250);
 
       const result = await deliver(text, mocks, {
         verifyDelivery: { label: 'test delivery', delayMs: 0 },
@@ -380,10 +388,13 @@ describe('deliverPromptSequenceToSession', () => {
       expect(submitCalls).toHaveLength(1);
     });
 
-    it('returns no_signal when the snippet never appears in the tail', async () => {
+    it('returns no_signal when tail activity never advances', async () => {
+      const { TerminalOutputBuffer } = await import('../src/session/terminal-output-buffer.js');
       const mocks = makeMocks();
-      const tail = { stripped: ['unrelated output'], raw: [], lastOutputAt: 1000 };
-      mocks.ptyManager.getTerminalTail = vi.fn(() => tail) as any;
+      const buffer = new TerminalOutputBuffer();
+      buffer.append('s1', 'baseline only\n');
+      mocks.ptyManager.getTerminalTail = ((sid: string, lines: number, mode: any, strip?: boolean) =>
+        buffer.tail(sid, lines, mode, strip)) as any;
 
       const result = await deliver('hello please execute this prompt now', mocks, {
         verifyDelivery: { label: 'test delivery', delayMs: 0 },

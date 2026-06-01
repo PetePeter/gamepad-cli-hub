@@ -3,7 +3,7 @@ import { useNavigationStore } from '../stores/navigation.js';
 import { useSessionsScreenStore } from '../stores/sessions-screen.js';
 
 /**
- * Registers Ctrl+1–9 and Ctrl+0 keyboard shortcuts to jump directly to
+ * Registers Ctrl+1-9 and Ctrl+0 keyboard shortcuts to jump directly to
  * the Nth visible session in sidebar order.
  *
  * Blocked when any modal overlay is visible to avoid conflicting with
@@ -26,12 +26,13 @@ export function useSessionJumpKeys(): void {
     for (const [sessionId, assignedKey] of screenStore.sessionShortcutMap) {
       if (assignedKey === displayKey) {
         e.preventDefault();
+        e.stopImmediatePropagation();
         void navStore.navigateToSession(sessionId);
         return;
       }
     }
   }
 
-  onMounted(() => document.addEventListener('keydown', onKeydown));
-  onUnmounted(() => document.removeEventListener('keydown', onKeydown));
+  onMounted(() => window.addEventListener('keydown', onKeydown, true));
+  onUnmounted(() => window.removeEventListener('keydown', onKeydown, true));
 }

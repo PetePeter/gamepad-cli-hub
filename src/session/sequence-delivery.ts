@@ -6,7 +6,6 @@ import type { SessionManager } from './manager.js';
 import type { DeliveryContext, TextDeliveryOptions } from './delivery-context.js';
 import { logger } from '../utils/logger.js';
 import {
-  captureDeliverySnapshot,
   verifyDeliveryAfterDelay,
   type DeliveryVerificationResult,
 } from './delivery-verification.js';
@@ -122,9 +121,6 @@ export async function deliverPromptSequenceToSession(input: {
 
   const cliEntry = configLoader.getCliTypeEntry(session.cliType);
   const submitSuffix = parseSubmitSuffix(cliEntry?.submitSuffix);
-  const beforeVerification = verifyDelivery
-    ? captureDeliverySnapshot({ sessionId, ptyManager })
-    : null;
 
   const processedText = escapeUnrecognizedBraces(text);
   const textDeliveryOptions: TextDeliveryOptions | undefined = deliveryContext ? { deliveryContext } : undefined;
@@ -148,7 +144,6 @@ export async function deliverPromptSequenceToSession(input: {
 
   if (!verifyDelivery) return undefined;
 
-  const deliveredAt = Date.now();
   const verifyRequest = {
     sessionId,
     text,
@@ -161,11 +156,11 @@ export async function deliverPromptSequenceToSession(input: {
   };
 
   if (verifyDelivery.background) {
-    verifyDeliveryAfterDelay(verifyRequest, beforeVerification, deliveredAt)
+    verifyDeliveryAfterDelay(verifyRequest)
       .then((result) => verifyDelivery.onComplete?.(result))
       .catch((err) => logger.warn(`[SequenceDelivery] Background verification error for ${sessionId}: ${err}`));
     return undefined;
   }
 
-  return verifyDeliveryAfterDelay(verifyRequest, beforeVerification, deliveredAt);
+  return verifyDeliveryAfterDelay(verifyRequest);
 }

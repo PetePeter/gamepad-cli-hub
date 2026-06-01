@@ -354,7 +354,7 @@ export class TelegramBotCore extends EventEmitter {
         'setMessageReaction',
       );
     } catch (err) {
-      logger.warn(`[Telegram] setMessageReaction failed: ${err}`);
+      logger.warn(`[Telegram] setMessageReaction failed (chat=${chatId} msg=${messageId} emoji=${emoji}): ${err}`);
     }
   }
 

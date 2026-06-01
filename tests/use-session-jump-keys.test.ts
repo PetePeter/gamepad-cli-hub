@@ -60,9 +60,15 @@ function makeSessionCard(id: string): NavItem {
   return { type: 'session-card' as const, id, groupIndex: 0 };
 }
 
-function fireCtrl(key: string): void {
-  const e = new KeyboardEvent('keydown', { key, ctrlKey: true, bubbles: true });
+function fireCtrl(key: string): KeyboardEvent {
+  const e = new KeyboardEvent('keydown', {
+    key,
+    ctrlKey: true,
+    bubbles: true,
+    cancelable: true,
+  });
   document.dispatchEvent(e);
+  return e;
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -90,10 +96,11 @@ describe('useSessionJumpKeys', () => {
 
     useSessionJumpKeys();
 
-    fireCtrl('1');
+    const e = fireCtrl('1');
 
     expect(mockNavigateToSession).toHaveBeenCalledOnce();
     expect(mockNavigateToSession).toHaveBeenCalledWith('s1');
+    expect(e.defaultPrevented).toBe(true);
   });
 
   it('Ctrl+0 navigates to the session mapped to slot 0 (10th position)', () => {
@@ -110,6 +117,26 @@ describe('useSessionJumpKeys', () => {
     expect(mockNavigateToSession).toHaveBeenCalledWith('j');
   });
 
+  it('intercepts mapped Ctrl+number before document listeners or terminal handlers can consume it', () => {
+    useSessionsScreenStore();
+    sessionsState.navList = ['s1', 's2', 's3'].map(makeSessionCard);
+    sessionsState.groups = [];
+
+    useSessionJumpKeys();
+
+    const downstreamListener = vi.fn();
+    document.addEventListener('keydown', downstreamListener);
+    try {
+      fireCtrl('3');
+    } finally {
+      document.removeEventListener('keydown', downstreamListener);
+    }
+
+    expect(mockNavigateToSession).toHaveBeenCalledOnce();
+    expect(mockNavigateToSession).toHaveBeenCalledWith('s3');
+    expect(downstreamListener).not.toHaveBeenCalled();
+  });
+
   it('unmapped key (Ctrl+5 when only 3 sessions exist) does not call navigateToSession', () => {
     const store = useSessionsScreenStore();
     sessionsState.navList = ['s1', 's2', 's3'].map(makeSessionCard);
@@ -117,9 +144,10 @@ describe('useSessionJumpKeys', () => {
 
     useSessionJumpKeys();
 
-    fireCtrl('5');
+    const e = fireCtrl('5');
 
     expect(mockNavigateToSession).not.toHaveBeenCalled();
+    expect(e.defaultPrevented).toBe(false);
   });
 
   it('blocks navigation when a modal overlay is visible', () => {
@@ -134,9 +162,10 @@ describe('useSessionJumpKeys', () => {
     overlay.className = 'modal-overlay modal--visible';
     document.body.appendChild(overlay);
 
-    fireCtrl('1');
+    const e = fireCtrl('1');
 
     expect(mockNavigateToSession).not.toHaveBeenCalled();
+    expect(e.defaultPrevented).toBe(false);
   });
 
   it('listener is removed after composable teardown — Ctrl+1 after unmount does not call navigate', () => {

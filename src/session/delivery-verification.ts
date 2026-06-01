@@ -1,13 +1,12 @@
 import { logger } from '../utils/logger.js';
-import type { TerminalTail } from './terminal-output-buffer.js';
 
 /**
  * Delivery verification status.
  *
- * - confirmed: snippet appeared in tail and then disappeared (CLI consumed it and produced new output)
- * - suspected_stuck: snippet appeared but never left the tail within the budget (CLI received but hasn't responded)
- * - no_signal: snippet never appeared in the tail within the budget (likely never reached the CLI)
- * - unverifiable: terminal tail accessor unavailable, cannot determine delivery
+ * - confirmed: tail's lastOutputAt advanced twice after delivery (CLI received and is generating)
+ * - suspected_stuck: tail advanced once (initial echo) but never advanced again (CLI received, no progress)
+ * - no_signal: tail's lastOutputAt never advanced from baseline (likely never reached the CLI)
+ * - unverifiable: terminal tail accessor unavailable or empty payload, cannot determine delivery
  *
  * Retained legacy statuses (retry_confirmed/retry_failed) are no longer produced by this verifier but
  * remain in the union for downstream type compatibility during migration.
@@ -24,14 +23,14 @@ export interface DeliveryVerificationRequest {
   sessionId: string;
   text: string;
   label?: string;
-  /** Legacy field — ignored by the new seen→not-seen verifier. Kept for type compatibility. */
+  /** Legacy field — ignored by the new activity-timestamp verifier. Kept for type compatibility. */
   delayMs?: number;
   /** Legacy field — ignored. The new verifier does not perform blind retries. */
   retrySubmit?: boolean;
   submitSuffix: string;
   deliveryContext?: 'background' | 'interactive';
   ptyManager: {
-    getTerminalTail?: (sessionId: string, lines: number, mode: 'raw' | 'stripped' | 'both', stripBlankLines?: boolean) => TerminalTail;
+    getTerminalTail?: (sessionId: string, lines: number, mode: 'raw' | 'stripped' | 'both', stripBlankLines?: boolean) => { lastOutputAt?: number } | undefined;
     deliverText?: (sessionId: string, text: string, options?: { submitSuffix?: string; deliveryContext?: 'background' | 'interactive' }) => Promise<void>;
     write?: (sessionId: string, data: string) => void;
   };
@@ -48,139 +47,132 @@ export interface DeliveryVerificationResult {
   delayMs: number;
 }
 
-interface VerificationSnapshot {
-  text: string;
-  lastOutputAt?: number;
-}
-
-// Number of tail lines to sample. Wider than the legacy 25 to give the snippet
-// a better chance of being visible before busy output scrolls it away.
-const VERIFY_TAIL_LINES = 50;
-
-// Phase 1 — "seen": how long to wait for the snippet to appear in the tail.
+// Phase 1 — "seen": how long to wait for the first lastOutputAt advance.
 const SEEN_TIMEOUT_MS = 8000;
-// Phase 2 — "not seen": once seen, how long to wait for the snippet to scroll past / be consumed.
+// Phase 2 — "moved past": after the first advance, how long to wait for another advance.
 const NOT_SEEN_TIMEOUT_MS = 6000;
 // Poll interval used in both phases.
 const POLL_INTERVAL_MS = 200;
 
-// Fast-path budgets used when the caller passes delayMs === 0 (typically tests). The verifier
-// still runs the same seen→not-seen logic, but compresses the wait windows so unit tests don't
-// stall on the full 14-second budget when their fake tails never change.
+// Minimum gap between first and second advance — a single fresh tick after the
+// initial echo confirms the CLI is actually generating output, not just echoing input.
+const MIN_PROGRESS_GAP_MS = 250;
+
+// Fast-path budgets used when the caller passes delayMs === 0 (typically tests). Same
+// seen→moved-past logic, compressed windows so unit tests don't stall on the full budget.
 const FAST_SEEN_TIMEOUT_MS = 200;
-const FAST_NOT_SEEN_TIMEOUT_MS = 200;
+const FAST_NOT_SEEN_TIMEOUT_MS = 600;
 const FAST_POLL_INTERVAL_MS = 20;
 
 /**
- * Capture a tail snapshot prior to delivery. The new verifier does not depend on this
- * for correctness (it polls live state), but the helper is retained so callers like
- * sequence-delivery can still pass a baseline through unchanged.
- */
-export function captureDeliverySnapshot(request: Pick<DeliveryVerificationRequest, 'sessionId' | 'ptyManager'>): VerificationSnapshot | null {
-  if (typeof request.ptyManager.getTerminalTail !== 'function') return null;
-  const tail = request.ptyManager.getTerminalTail(request.sessionId, VERIFY_TAIL_LINES, 'stripped', false);
-  return { text: tailToText(tail), lastOutputAt: tail.lastOutputAt };
-}
-
-/**
- * Seen→not-seen verification.
+ * Activity-timestamp delivery verification.
  *
- * Phase 1 polls the tail until the snippet appears (confirms the CLI's prompt buffer
- * actually echoed our text). Phase 2 keeps polling until the snippet has scrolled out
- * of the tail (confirms the CLI moved past our input — i.e. is generating a response).
+ * Phase 1 polls the tail's `lastOutputAt` until it advances past the baseline
+ * (confirms *some* output happened after delivery — typically the echo of our input).
+ * Phase 2 keeps polling until `lastOutputAt` advances again past the first-advance
+ * timestamp (confirms the CLI moved past the echo — i.e. is generating a response).
  *
- * The `before` snapshot and `deliveredAt` parameters are accepted for signature stability
+ * Why timestamps instead of substring matching: TUI CLIs (Claude Code, etc.) draw
+ * user input via ANSI boxes, so the delivered text rarely appears as a literal
+ * substring in the stripped tail. The lastOutputAt timestamp is a reliable signal
+ * that the PTY emitted bytes — regardless of how they render.
+ *
+ * The `_before` and `_deliveredAt` parameters are accepted for signature stability
  * with the previous verifier but are not used in the new logic.
  */
 export async function verifyDeliveryAfterDelay(
   request: DeliveryVerificationRequest,
-  _before: VerificationSnapshot | null = null,
-  _deliveredAt: number = Date.now(),
+  _before?: unknown,
+  _deliveredAt?: number,
 ): Promise<DeliveryVerificationResult> {
   if (typeof request.ptyManager.getTerminalTail !== 'function') {
     return makeResult(request, 'unverifiable', 'terminal tail is unavailable', 0);
   }
 
-  const snippets = deliverySnippets(request.text);
-  if (snippets.length === 0) {
-    return makeResult(request, 'unverifiable', 'no usable snippet derived from delivered text', 0);
+  if (!request.text && !request.submitSuffix) {
+    return makeResult(request, 'unverifiable', 'no payload delivered', 0);
   }
 
-  const startedAt = Date.now();
   const fastMode = request.delayMs === 0;
   const seenBudget = fastMode ? FAST_SEEN_TIMEOUT_MS : SEEN_TIMEOUT_MS;
   const notSeenBudget = fastMode ? FAST_NOT_SEEN_TIMEOUT_MS : NOT_SEEN_TIMEOUT_MS;
   const pollInterval = fastMode ? FAST_POLL_INTERVAL_MS : POLL_INTERVAL_MS;
 
-  // Phase 1: wait for the snippet to appear in the tail.
+  const startedAt = Date.now();
+  // Baseline: default to "just before now" so any tick at-or-after startedAt counts as advanced.
+  const baselineOutputAt = currentLastOutputAt(request) ?? (startedAt - 1);
+
+  // Phase 1: wait for lastOutputAt to advance past the baseline.
   const seenAt = await pollUntil(
-    () => snippetPresent(request, snippets),
-    true,
+    () => {
+      const v = currentLastOutputAt(request);
+      return v !== undefined && v > baselineOutputAt;
+    },
     seenBudget,
     pollInterval,
   );
 
   if (!seenAt) {
     const elapsed = Date.now() - startedAt;
-    return makeResult(request, 'no_signal', `snippet never appeared in tail within ${seenBudget}ms`, elapsed);
+    return makeResult(request, 'no_signal', `tail activity never advanced within ${seenBudget}ms`, elapsed);
   }
 
-  // Phase 2: wait for the snippet to disappear from the tail.
-  const goneAt = await pollUntil(
-    () => snippetPresent(request, snippets),
-    false,
+  const firstAdvanceAt = currentLastOutputAt(request) ?? seenAt;
+
+  // Phase 2: wait for lastOutputAt to advance again, past firstAdvanceAt + MIN_PROGRESS_GAP_MS.
+  const movedPastAt = await pollUntil(
+    () => {
+      const v = currentLastOutputAt(request);
+      return v !== undefined && v > firstAdvanceAt + MIN_PROGRESS_GAP_MS;
+    },
     notSeenBudget,
     pollInterval,
   );
 
   const elapsed = Date.now() - startedAt;
 
-  if (!goneAt) {
+  if (!movedPastAt) {
     return makeResult(
       request,
       'suspected_stuck',
-      `snippet still visible in tail ${notSeenBudget}ms after being seen`,
+      `tail activity stalled after initial advance for ${notSeenBudget}ms`,
       elapsed,
     );
   }
 
-  return makeResult(request, 'confirmed', 'snippet appeared in tail and then moved past it', elapsed);
+  return makeResult(request, 'confirmed', 'tail activity advanced twice — CLI is producing output', elapsed);
 }
 
 /**
- * Poll the predicate every `intervalMs` until it matches `expected` or the budget
- * is exhausted. Returns the timestamp at which the match occurred, or null on timeout.
+ * Probe the current tail's lastOutputAt timestamp. Returns undefined on probe
+ * failure so the caller treats it as "no activity yet" and keeps polling.
+ */
+function currentLastOutputAt(request: DeliveryVerificationRequest): number | undefined {
+  try {
+    const tail = request.ptyManager.getTerminalTail?.(request.sessionId, 1, 'stripped', false);
+    return tail?.lastOutputAt;
+  } catch (err) {
+    logger.warn(`[DeliveryVerification] tail probe failed for ${request.sessionId}: ${err}`);
+    return undefined;
+  }
+}
+
+/**
+ * Poll the predicate every `intervalMs` until it returns true or the budget
+ * is exhausted. Returns the timestamp at which it matched, or null on timeout.
  */
 async function pollUntil(
   predicate: () => boolean,
-  expected: boolean,
   budgetMs: number,
   intervalMs: number,
 ): Promise<number | null> {
   const deadline = Date.now() + budgetMs;
-  // Always do an immediate first check before any sleep.
-  if (predicate() === expected) return Date.now();
+  if (predicate()) return Date.now();
   while (Date.now() < deadline) {
     await wait(intervalMs);
-    if (predicate() === expected) return Date.now();
+    if (predicate()) return Date.now();
   }
   return null;
-}
-
-/**
- * Probe the current tail for any of the candidate snippets.
- * Returns false on errors so the caller treats the probe as "not present" and keeps polling.
- */
-function snippetPresent(request: DeliveryVerificationRequest, snippets: string[]): boolean {
-  try {
-    const tail = request.ptyManager.getTerminalTail?.(request.sessionId, VERIFY_TAIL_LINES, 'stripped', false);
-    if (!tail) return false;
-    const text = tailToText(tail);
-    return snippets.some((snippet) => text.includes(snippet));
-  } catch (err) {
-    logger.warn(`[DeliveryVerification] tail probe failed for ${request.sessionId}: ${err}`);
-    return false;
-  }
 }
 
 function makeResult(
@@ -197,36 +189,6 @@ function makeResult(
     retryAttempted: false,
     delayMs,
   };
-}
-
-/**
- * Build a small set of candidate snippets from the delivered text. Snippets are normalized
- * (control-token stripped, whitespace collapsed, capped at 96 chars) and filtered to those
- * long enough to be reasonably distinctive (>=18 chars).
- */
-function deliverySnippets(text: string): string[] {
-  const normalized = text
-    .replace(/\{(?:Enter|Send|NoSend|NoEnter|Wait\s+\d+)\}/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!normalized) return [];
-
-  const candidates = [
-    normalized.slice(0, 96),
-    ...normalized.split(/(?<=\.)\s+|\n+/).map((part) => part.trim()).filter(Boolean),
-  ];
-
-  return [...new Set(candidates)]
-    .map((candidate) => candidate.slice(0, 96))
-    .filter((candidate) => candidate.length >= 18)
-    .slice(0, 4);
-}
-
-function tailToText(tail: TerminalTail): string {
-  return [
-    ...(tail.stripped ?? []),
-    ...(tail.raw ?? []),
-  ].join('\n');
 }
 
 function wait(ms: number): Promise<void> {

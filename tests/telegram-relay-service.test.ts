@@ -102,8 +102,9 @@ describe('TelegramRelayService', () => {
     expect(ptyManager.deliverText).toHaveBeenCalledWith('s1', expect.stringContaining('Respond via telegram_chat MCP tool.'));
   });
 
-  it('handleIncomingTelegramMessage() does NOT set 👀 reaction immediately on inject', async () => {
-    // 👀 must only appear when verification reports confirmed. The inject path itself must be silent.
+  it('handleIncomingTelegramMessage() does NOT set 👀 on inject — only verification can produce 👀', async () => {
+    // 👀 must only appear when verification reports confirmed. With a fake ptyManager
+    // that has no getTerminalTail, verification returns unverifiable → ❓ (never 👀).
     const { relay, bot } = makeRelay();
 
     await relay.handleIncomingTelegramMessage({
@@ -114,8 +115,48 @@ describe('TelegramRelayService', () => {
       from: { username: 'testuser' },
     } as any);
 
-    // No reaction calls should be queued synchronously around the inject path.
-    expect(bot.setMessageReaction).not.toHaveBeenCalled();
+    const reactionEmojis = bot.setMessageReaction.mock.calls.map((c) => c[2]);
+    expect(reactionEmojis).not.toContain('👀');
+  });
+
+  describe('handleDeliveryVerification → reactions', () => {
+    const msgContext = { chatId: 12345, messageId: 77 };
+    const baseResult = { sessionId: 's1', detail: 'd', retryAttempted: false, delayMs: 0 };
+
+    it('confirmed → 👀, no topic message', async () => {
+      const { relay, bot } = makeRelay();
+      await (relay as any).handleDeliveryVerification('s1', 42, { ...baseResult, status: 'confirmed' }, msgContext);
+      expect(bot.setMessageReaction).toHaveBeenCalledWith(12345, 77, '👀');
+      expect(bot.sendToTopic).not.toHaveBeenCalled();
+    });
+
+    it('no_signal → ❌, no topic message', async () => {
+      const { relay, bot } = makeRelay();
+      await (relay as any).handleDeliveryVerification('s1', 42, { ...baseResult, status: 'no_signal' }, msgContext);
+      expect(bot.setMessageReaction).toHaveBeenCalledWith(12345, 77, '❌');
+      expect(bot.sendToTopic).not.toHaveBeenCalled();
+    });
+
+    it('suspected_stuck → ❓', async () => {
+      const { relay, bot } = makeRelay();
+      await (relay as any).handleDeliveryVerification('s1', 42, { ...baseResult, status: 'suspected_stuck' }, msgContext);
+      expect(bot.setMessageReaction).toHaveBeenCalledWith(12345, 77, '❓');
+      expect(bot.sendToTopic).not.toHaveBeenCalled();
+    });
+
+    it('unverifiable → ❓', async () => {
+      const { relay, bot } = makeRelay();
+      await (relay as any).handleDeliveryVerification('s1', 42, { ...baseResult, status: 'unverifiable' }, msgContext);
+      expect(bot.setMessageReaction).toHaveBeenCalledWith(12345, 77, '❓');
+      expect(bot.sendToTopic).not.toHaveBeenCalled();
+    });
+
+    it('msgContext absent → no reaction, no topic message', async () => {
+      const { relay, bot } = makeRelay();
+      await (relay as any).handleDeliveryVerification('s1', 42, { ...baseResult, status: 'no_signal' }, undefined);
+      expect(bot.setMessageReaction).not.toHaveBeenCalled();
+      expect(bot.sendToTopic).not.toHaveBeenCalled();
+    });
   });
 
   it('handleIncomingTelegramMessage() wraps active-session messages in envelope too', async () => {

@@ -506,41 +506,44 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
 
   private async handleDeliveryVerification(
     sessionId: string,
-    topicId: number | undefined,
+    _topicId: number | undefined,
     verification: DeliveryVerificationResult | undefined,
     msgContext?: { chatId: number; messageId: number },
   ): Promise<void> {
     if (!verification) return;
 
-    const confirmed = verification.status === 'confirmed' || verification.status === 'retry_confirmed';
-    const noSignal = verification.status === 'no_signal' || verification.status === 'retry_failed';
+    logger.debug(`[TelegramRelay] Delivery verification for ${sessionId}: ${verification.status} (${verification.detail})`);
 
-    // Reaction policy (seen→not-seen verifier):
-    //   confirmed   → 👀  (CLI received and moved past the message)
-    //   no_signal   → ❌  (message never appeared in tail; likely never reached CLI)
-    //   suspected_stuck / unverifiable → no reaction (silent)
-    if (msgContext && this.telegramBot.isRunning() && (confirmed || noSignal)) {
-      void this.telegramBot.setMessageReaction(
-        msgContext.chatId,
-        msgContext.messageId,
-        confirmed ? '👀' : '❌',
-      );
-    }
+    if (!msgContext || !this.telegramBot.isRunning()) return;
 
-    // Only surface a warning to the topic when the message truly seems lost.
-    if (!noSignal) return;
+    const emoji = reactionForStatus(verification.status);
+    if (!emoji) return;
 
-    logger.warn(`[TelegramRelay] Delivery verification for ${sessionId}: ${verification.status} (${verification.detail})`);
-    if (!topicId || !this.telegramBot.isRunning()) return;
+    void this.telegramBot.setMessageReaction(msgContext.chatId, msgContext.messageId, emoji);
+  }
+}
 
-    try {
-      await this.telegramBot.sendToTopic(
-        topicId,
-        'Helm could not confirm that the message was submitted. It retried Enter once; check the session if it stays quiet.',
-      );
-    } catch (error) {
-      logger.warn(`[TelegramRelay] Failed to send delivery warning: ${error}`);
-    }
+/**
+ * Map delivery verification status to a Telegram reaction emoji.
+ *   confirmed       → 👀  (CLI received and moved past the message)
+ *   no_signal       → ❌  (PTY produced no output after delivery; likely never received)
+ *   suspected_stuck → ❓  (CLI received but hasn't moved past — possibly stuck)
+ *   unverifiable    → ❓  (couldn't determine — terminal tail unavailable or empty payload)
+ * Returns null for statuses that should stay silent.
+ */
+function reactionForStatus(status: DeliveryVerificationResult['status']): string | null {
+  switch (status) {
+    case 'confirmed':
+    case 'retry_confirmed':
+      return '👀';
+    case 'no_signal':
+    case 'retry_failed':
+      return '❌';
+    case 'suspected_stuck':
+    case 'unverifiable':
+      return '❓';
+    default:
+      return null;
   }
 }
 
