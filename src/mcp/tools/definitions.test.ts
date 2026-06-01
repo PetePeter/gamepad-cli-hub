@@ -28,9 +28,14 @@ describe('MCP_TOOLS', () => {
       expect(tool.inputSchema.required).toContain('content');
     });
 
-    it('should require either sessionId or name', () => {
+    it('should accept sessionId or name as properties (enforced at runtime, not via schema anyOf)', () => {
       const tool = getNotifyUserTool();
-      expect(tool.inputSchema.anyOf).toEqual([{ required: ['sessionId'] }, { required: ['name'] }]);
+      // Strict function-schema validators (e.g. gpt-5.5/codex) reject top-level
+      // anyOf/oneOf/allOf/enum/not. The sessionId-or-name rule is enforced in the
+      // dispatcher instead, so the schema must NOT carry anyOf.
+      expect(tool.inputSchema.anyOf).toBeUndefined();
+      expect(tool.inputSchema.properties).toHaveProperty('sessionId');
+      expect(tool.inputSchema.properties).toHaveProperty('name');
     });
   });
 });

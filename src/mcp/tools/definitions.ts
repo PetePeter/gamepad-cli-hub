@@ -831,7 +831,6 @@ export const MCP_TOOLS: McpTool[] = [
         content: { type: 'string' },
       },
       required: ['title', 'content'],
-      anyOf: [{ required: ['sessionId'] }, { required: ['name'] }],
       additionalProperties: false,
     },
   },
