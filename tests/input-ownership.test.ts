@@ -111,6 +111,18 @@ describe('input ownership helper', () => {
     expect(getActiveInputContext({ activeElement: document.body, modalNavigationSelectors: '.modal-overlay.modal--visible' })).toBe('app-navigation');
   });
 
+  it('classifies xterm hosted textareas as terminal input', () => {
+    const terminal = document.createElement('div');
+    terminal.className = 'xterm';
+    const hiddenTextarea = document.createElement('textarea');
+    terminal.appendChild(hiddenTextarea);
+    document.body.appendChild(terminal);
+
+    expect(isEditableElement(hiddenTextarea)).toBe(true);
+    expect(isTerminalElement(hiddenTextarea)).toBe(true);
+    expect(getActiveInputContext({ activeElement: hiddenTextarea })).toBe('terminal');
+  });
+
   it('handles null and unrelated targets safely', () => {
     expect(isEditableElement(null)).toBe(false);
     expect(isTerminalElement(null)).toBe(false);

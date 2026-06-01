@@ -69,8 +69,8 @@ export function getActiveInputContext(options?: {
   modalNavigationSelectors?: string;
 }): InputOwnershipContext {
   const active = asElement(options?.activeElement ?? document.activeElement);
-  if (isEditableElement(active)) return 'editable-field';
   if (isTerminalElement(active)) return 'terminal';
+  if (isEditableElement(active)) return 'editable-field';
   if (options?.modalNavigationSelectors && isElementWithinSelectors(active, options.modalNavigationSelectors)) {
     return 'modal-navigation';
   }

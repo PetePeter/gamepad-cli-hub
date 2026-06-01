@@ -361,6 +361,26 @@ describe('keyboard relay', () => {
       document.body.removeChild(xtermDiv);
     });
 
+    it('Ctrl+V paste works when xterm.js hidden textarea has focus', async () => {
+      getActiveSessionId.mockReturnValue('sess-1');
+      (navigator.clipboard.readText as any).mockResolvedValue('paste from xterm textarea');
+
+      const xtermDiv = document.createElement('div');
+      xtermDiv.classList.add('xterm');
+      const hiddenTextarea = document.createElement('textarea');
+      xtermDiv.appendChild(hiddenTextarea);
+      document.body.appendChild(xtermDiv);
+      hiddenTextarea.focus();
+
+      const e = fireKey('v', { ctrlKey: true });
+      await new Promise(r => setTimeout(r, 10));
+
+      expect(e.defaultPrevented).toBe(true);
+      expect(navigator.clipboard.readText).toHaveBeenCalled();
+      expect(mockPtyWrite).toHaveBeenCalledWith('sess-1', 'paste from xterm textarea');
+      document.body.removeChild(xtermDiv);
+    });
+
     it('skips when an input field has focus', () => {
       getActiveSessionId.mockReturnValue('sess-1');
 
