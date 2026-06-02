@@ -772,6 +772,24 @@ button {
   background: none;
   border-color: transparent;
 }
+/* Jump-number badge for selection modals (cli/folder/sequence/menu pickers). */
+.jump-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 18px;
+  margin-right: 8px;
+  padding: 0 4px;
+  background: rgba(79, 208, 139, 0.08);
+  border: 1px solid rgba(79, 208, 139, 0.25);
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: monospace;
+  color: rgba(79, 208, 139, 0.6);
+  line-height: 1.5;
+}
 .session-working-plan {
   margin-left: auto;
   min-width: 0;

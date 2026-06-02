@@ -10,6 +10,7 @@ import { ref, watch, nextTick } from 'vue';
 import { SELECTION_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { useModalAutofocus } from '../../composables/useModalAutofocus.js';
 import { toDirection, getCliDisplayName } from '../../utils.js';
+import { jumpKeyLabel, jumpButtonToPosition } from '../../utils/jump-keys.js';
 
 const MODAL_ID = 'quick-spawn';
 
@@ -72,6 +73,11 @@ function handleButton(button: string): boolean {
     emit('update:visible', false);
     return true;
   }
+  const pos = jumpButtonToPosition(button);
+  if (pos !== null && pos < props.cliTypes.length) {
+    selectItem(pos);
+    return true;
+  }
   return true;
 }
 
@@ -125,6 +131,7 @@ defineExpose({ handleButton });
             @keydown="suppressActivationKey"
             @click="selectItem(i)"
           >
+            <span v-if="jumpKeyLabel(i) != null" class="jump-key">{{ jumpKeyLabel(i) }}</span>
             <span class="dir-picker-item__name">{{ getCliDisplayName(cliType) }}</span>
             <span class="dir-picker-item__path">{{ cliType }}</span>
           </div>

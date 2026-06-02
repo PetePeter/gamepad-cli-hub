@@ -9,6 +9,7 @@ import { computed, ref, watch, nextTick } from 'vue';
 import { SELECTION_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { useModalAutofocus } from '../../composables/useModalAutofocus.js';
 import { toDirection, getCliDisplayName } from '../../utils.js';
+import { jumpKeyLabel, jumpButtonToPosition } from '../../utils/jump-keys.js';
 
 interface DirItem {
   name: string;
@@ -102,6 +103,11 @@ function handleButton(button: string): boolean {
     emit('update:visible', false);
     return true;
   }
+  const pos = jumpButtonToPosition(button);
+  if (pos !== null && pos < props.items.length) {
+    selectDir(pos);
+    return true;
+  }
   return true;
 }
 
@@ -159,6 +165,7 @@ defineExpose({ handleButton });
               @keydown="suppressActivationKey"
               @click="selectDir(i)"
             >
+              <span v-if="jumpKeyLabel(i) != null" class="jump-key">{{ jumpKeyLabel(i) }}</span>
               <span class="dir-picker-item__name">
                 {{ item.name }}
                 <span v-if="item.isCanonical" class="dir-picker-item__badge">[Main]</span>

@@ -463,9 +463,9 @@ describe('SequencePickerModal.vue', () => {
     const w = factory();
     const rendered = w.findAll('.sequence-picker-item');
     expect(rendered).toHaveLength(3);
-    expect(rendered[0].text()).toBe('Clear');
-    expect(rendered[1].text()).toBe('Help');
-    expect(rendered[2].text()).toBe('Exit');
+    expect(rendered[0].text()).toContain('Clear');
+    expect(rendered[1].text()).toContain('Help');
+    expect(rendered[2].text()).toContain('Exit');
     w.unmount();
   });
 
@@ -618,6 +618,29 @@ describe('QuickSpawnModal.vue', () => {
     const vm = w.vm as any;
     vm.handleButton('B');
     expect(w.emitted('cancel')).toHaveLength(1);
+    w.unmount();
+  });
+
+  it('jump number Digit2 selects the second CLI type immediately', () => {
+    const w = factory();
+    const vm = w.vm as any;
+    vm.handleButton('Digit2');
+    expect(w.emitted('select')?.[0]).toEqual(['copilot-cli']);
+    w.unmount();
+  });
+
+  it('jump number out of range is ignored', () => {
+    const w = factory();
+    const vm = w.vm as any;
+    vm.handleButton('Digit5'); // only 3 items
+    expect(w.emitted('select')).toBeUndefined();
+    w.unmount();
+  });
+
+  it('renders jump-key badges on the first rows', () => {
+    const w = factory();
+    const badges = w.findAll('.jump-key');
+    expect(badges.map(b => b.text())).toEqual(['1', '2', '3']);
     w.unmount();
   });
 
@@ -972,8 +995,8 @@ describe('DraftSubmenu.vue', () => {
     const items = w.findAll('.context-menu-item');
     expect(items).toHaveLength(3); // New Draft + 2 drafts
     expect(items[0].text()).toContain('New Draft');
-    expect(items[1].text()).toBe('Draft 1');
-    expect(items[2].text()).toBe('Draft 2');
+    expect(items[1].text()).toContain('Draft 1');
+    expect(items[2].text()).toContain('Draft 2');
     w.unmount();
   });
 

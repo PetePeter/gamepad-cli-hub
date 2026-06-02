@@ -7,6 +7,7 @@
 import { ref, watch, nextTick } from 'vue';
 import { SELECTION_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { toDirection } from '../../utils.js';
+import { jumpKeyLabel, jumpButtonToPosition } from '../../utils/jump-keys.js';
 
 interface SequenceItem {
   label: string;
@@ -69,6 +70,11 @@ function handleButton(button: string): boolean {
     emit('update:visible', false);
     return true;
   }
+  const pos = jumpButtonToPosition(button);
+  if (pos !== null && pos < props.items.length) {
+    selectItem(pos);
+    return true;
+  }
   return true;
 }
 
@@ -99,6 +105,7 @@ defineExpose({ handleButton });
           :class="{ 'context-menu-item--selected': i === selectedIndex }"
           @click="selectItem(i)"
         >
+          <span v-if="jumpKeyLabel(i) != null" class="jump-key">{{ jumpKeyLabel(i) }}</span>
           {{ item.label }}
         </div>
       </div>

@@ -40,7 +40,10 @@ function makePtyManager(tail: string[]): PtyManager {
 }
 
 function makeTopicManager() {
-  return { findSessionByTopicId: vi.fn(() => null) } as any;
+  return {
+    findSessionByTopicId: vi.fn(() => null),
+    getFormattedName: vi.fn((s: { name: string }) => s.name),
+  } as any;
 }
 
 describe('setupCommandHandler', () => {

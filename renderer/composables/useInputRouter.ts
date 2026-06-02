@@ -230,6 +230,12 @@ export function useInputRouter(deps: InputRouterDeps) {
       if (!interceptKeys.has('escape')) return;
       e.preventDefault();
       stack.handleInput('B');
+    } else if (e.key >= '0' && e.key <= '9' && e.key.length === 1) {
+      // Jump numbers: bare digit selects the Nth row in a selection modal.
+      if (!interceptKeys.has('digits') || editableInModal) return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      e.preventDefault();
+      stack.handleInput(`Digit${e.key}`);
     }
   }
 

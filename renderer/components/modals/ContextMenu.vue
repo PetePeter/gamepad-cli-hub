@@ -8,6 +8,7 @@
 import { ref, watch, computed } from 'vue';
 import { SELECTION_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { toDirection } from '../../utils.js';
+import { jumpKeyLabel, jumpButtonToPosition } from '../../utils/jump-keys.js';
 
 interface MenuItem {
   id: string;
@@ -55,6 +56,16 @@ const enabledIndices = computed(() =>
   menuItems.value.map((item, i) => item.enabled ? i : -1).filter(i => i >= 0),
 );
 
+/** Jump-number label per menu index — numbers enabled items in order. */
+const jumpLabels = computed(() => {
+  const labels = new Map<number, number>();
+  enabledIndices.value.forEach((menuIdx, pos) => {
+    const label = jumpKeyLabel(pos);
+    if (label !== null) labels.set(menuIdx, label);
+  });
+  return labels;
+});
+
 watch(() => props.visible, (v) => {
   if (v) {
     // Select first enabled item
@@ -91,6 +102,11 @@ function handleButton(button: string): boolean {
   if (button === 'B') {
     emit('cancel');
     emit('update:visible', false);
+    return true;
+  }
+  const pos = jumpButtonToPosition(button);
+  if (pos !== null && pos < enabledIndices.value.length) {
+    executeItem(enabledIndices.value[pos]);
     return true;
   }
   return true;
@@ -137,6 +153,7 @@ defineExpose({ handleButton });
           :data-action="item.id"
           @click="item.enabled && executeItem(i)"
         >
+          <span v-if="jumpLabels.has(i)" class="jump-key">{{ jumpLabels.get(i) }}</span>
           {{ item.label }}
         </div>
       </div>

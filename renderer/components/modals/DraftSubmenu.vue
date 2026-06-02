@@ -8,6 +8,7 @@
 import { ref, watch, computed } from 'vue';
 import { SELECTION_KEYS, useModalStack } from '../../composables/useModalStack.js';
 import { toDirection } from '../../utils.js';
+import { jumpKeyLabel, jumpButtonToPosition } from '../../utils/jump-keys.js';
 
 interface DraftItem {
   id: string;
@@ -86,6 +87,11 @@ function handleSubmenuButton(button: string): boolean {
     emit('update:visible', false);
     return true;
   }
+  const pos = jumpButtonToPosition(button);
+  if (pos !== null && pos < itemCount.value) {
+    selectedIndex.value = pos;
+    return handleSubmenuButton('A');
+  }
   return true;
 }
 
@@ -153,7 +159,7 @@ defineExpose({ handleSubmenuButton, handleActionButton });
           class="context-menu-item"
           :class="{ 'context-menu-item--selected': selectedIndex === 0 }"
           @click="onItemClick(0)"
-        >📝 New Draft</div>
+        ><span v-if="jumpKeyLabel(0) != null" class="jump-key">{{ jumpKeyLabel(0) }}</span>📝 New Draft</div>
         <div v-if="drafts.length" class="context-menu-separator"></div>
         <div
           v-for="(draft, i) in drafts"
@@ -161,7 +167,7 @@ defineExpose({ handleSubmenuButton, handleActionButton });
           class="context-menu-item"
           :class="{ 'context-menu-item--selected': selectedIndex === i + 1 }"
           @click="onItemClick(i + 1)"
-        >{{ draft.label || `Draft ${i + 1}` }}</div>
+        ><span v-if="jumpKeyLabel(i + 1) != null" class="jump-key">{{ jumpKeyLabel(i + 1) }}</span>{{ draft.label || `Draft ${i + 1}` }}</div>
       </div>
     </div>
 

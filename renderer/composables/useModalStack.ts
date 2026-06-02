@@ -11,9 +11,9 @@
 
 import { ref, computed, readonly, type Ref, type DeepReadonly } from 'vue';
 
-export type InterceptKey = 'arrows' | 'tab' | 'enter' | 'escape' | 'space';
+export type InterceptKey = 'arrows' | 'tab' | 'enter' | 'escape' | 'space' | 'digits';
 
-export const SELECTION_KEYS = new Set<InterceptKey>(['arrows', 'tab', 'enter', 'escape', 'space']);
+export const SELECTION_KEYS = new Set<InterceptKey>(['arrows', 'tab', 'enter', 'escape', 'space', 'digits']);
 export const FORM_KEYS = new Set<InterceptKey>(['escape']);
 
 export interface ModalEntry {

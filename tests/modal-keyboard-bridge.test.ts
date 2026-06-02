@@ -31,7 +31,7 @@ describe('Modal keyboard bridge policy', () => {
   it('selection modal intercepts all bridge keys', () => {
     modalStack.push({ id: 'selection', handler: () => true, interceptKeys: SELECTION_KEYS });
 
-    expect([...modalStack.topInterceptKeys.value]).toEqual(['arrows', 'tab', 'enter', 'escape', 'space']);
+    expect([...modalStack.topInterceptKeys.value]).toEqual(['arrows', 'tab', 'enter', 'escape', 'space', 'digits']);
   });
 
   it('form modal intercepts escape only', () => {
@@ -64,6 +64,6 @@ describe('Modal keyboard bridge policy', () => {
     modalStack.pop('form');
 
     expect(modalStack.topId.value).toBe('selection');
-    expect([...modalStack.topInterceptKeys.value]).toEqual(['arrows', 'tab', 'enter', 'escape', 'space']);
+    expect([...modalStack.topInterceptKeys.value]).toEqual(['arrows', 'tab', 'enter', 'escape', 'space', 'digits']);
   });
 });
