@@ -346,6 +346,90 @@ describe('command:closeall handler', () => {
   });
 });
 
+describe('command:rename handler', () => {
+  it('renames the linked session when a name is given in a topic', async () => {
+    const { bot, sendMessage } = makeBot();
+    const session = makeSession('s1', 'worker');
+    const renameSession = vi.fn();
+    const sm = { getAllSessions: vi.fn(() => [session]), renameSession } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+    const tm = makeTopicManager();
+    tm.findSessionByTopicId = vi.fn(() => session);
+
+    setupCommandHandler(bot, sm, pm, tm);
+
+    const handler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0] === 'command:rename',
+    )?.[1];
+
+    expect(handler).toBeDefined();
+    await handler!({ message_thread_id: 42 } as any, 'new name');
+
+    expect(renameSession).toHaveBeenCalledWith('s1', 'new name');
+    const text = sendMessage.mock.calls[0][0];
+    expect(text).toContain('new name');
+  });
+
+  it('rejects when no name argument is given', async () => {
+    const { bot, sendMessage } = makeBot();
+    const session = makeSession('s1', 'worker');
+    const renameSession = vi.fn();
+    const sm = { getAllSessions: vi.fn(() => [session]), renameSession } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+    const tm = makeTopicManager();
+    tm.findSessionByTopicId = vi.fn(() => session);
+
+    setupCommandHandler(bot, sm, pm, tm);
+
+    const handler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0] === 'command:rename',
+    )?.[1];
+
+    await handler!({ message_thread_id: 42 } as any, '   ');
+
+    expect(renameSession).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalled();
+    expect(sendMessage.mock.calls[0][0]).toContain('/rename');
+  });
+
+  it('rejects when the topic has no linked session', async () => {
+    const { bot, sendMessage } = makeBot();
+    const renameSession = vi.fn();
+    const sm = { getAllSessions: vi.fn(() => []), renameSession } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+    const tm = makeTopicManager(); // findSessionByTopicId returns null
+
+    setupCommandHandler(bot, sm, pm, tm);
+
+    const handler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0] === 'command:rename',
+    )?.[1];
+
+    await handler!({ message_thread_id: 42 } as any, 'whatever');
+
+    expect(renameSession).not.toHaveBeenCalled();
+    expect(sendMessage.mock.calls[0][0]).toContain('No session');
+  });
+
+  it('rejects when used outside a topic', async () => {
+    const { bot, sendMessage } = makeBot();
+    const renameSession = vi.fn();
+    const sm = { getAllSessions: vi.fn(() => []), renameSession } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+
+    setupCommandHandler(bot, sm, pm, makeTopicManager());
+
+    const handler = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[0] === 'command:rename',
+    )?.[1];
+
+    await handler!({} as any, 'whatever');
+
+    expect(renameSession).not.toHaveBeenCalled();
+    expect(sendMessage.mock.calls[0][0]).toContain('topic');
+  });
+});
+
 describe('sendPeekOutput', () => {
   it('sends cleaned terminal output as HTML-escaped text', async () => {
     const { bot, sendMessage } = makeBot();

@@ -24,6 +24,7 @@ export const TELEGRAM_COMMANDS: ReadonlyArray<{ command: string; description: st
   { command: 'sessions', description: 'List and control active sessions' },
   { command: 'spawn', description: 'Create a new CLI session' },
   { command: 'status', description: 'Show status of all sessions' },
+  { command: 'rename', description: 'Rename the session linked to this topic' },
   { command: 'close', description: 'Close the session linked to this topic' },
   { command: 'closeall', description: 'Close all active sessions' },
   { command: 'restart', description: 'Restart the Helm application' },
@@ -56,8 +57,9 @@ export function setupCommandHandler(
   registerCommandHandler('sessions', async (msg) => handleSessionsCommand(bot, sessionManager, msg));
   registerCommandHandler('spawn', async (msg) => handleSpawnCommand(bot, msg));
   registerCommandHandler('status', async (msg) => handleStatusCommand(bot, sessionManager, msg));
+  registerCommandHandler('rename', async (msg, args) => handleRename(bot, sessionManager, topicManager, msg, args));
   registerCommandHandler('close', async (msg) => handleClose(bot, sessionManager, ptyManager, topicManager, msg));
-  registerCommandHandler('closeall', async (msg) => handleCloseAllCommand(bot, sessionManager, ptyManager, msg));
+  registerCommandHandler('closeall', async (msg) => handleCloseAllCommand(bot, sessionManager, msg));
   registerCommandHandler('restart', async (msg) => handleRestart(bot, helmControlService, msg));
 
   return () => {
@@ -153,6 +155,41 @@ async function handleStatusCommand(
 
   await bot.sendMessage(text, {
     message_thread_id: msg.message_thread_id,
+    parse_mode: 'HTML',
+  });
+}
+
+async function handleRename(
+  bot: TelegramBotCore,
+  sessionManager: SessionManager,
+  topicManager: TopicManager,
+  msg: TelegramBot.Message,
+  args: string,
+): Promise<void> {
+  const topicId = msg.message_thread_id;
+  if (!topicId) {
+    await bot.sendMessage('❌ Use /rename inside a session topic.', { message_thread_id: topicId });
+    return;
+  }
+
+  const newName = args.trim();
+  if (!newName) {
+    await bot.sendMessage('❌ Usage: /rename <name>', { message_thread_id: topicId });
+    return;
+  }
+
+  const session = topicManager.findSessionByTopicId(topicId);
+  if (!session) {
+    await bot.sendMessage('❌ No session linked to this topic.', { message_thread_id: topicId });
+    return;
+  }
+
+  // Renaming the session fires session:updated, which renameSessionTopic()
+  // picks up to rename the Telegram topic — same path as the MCP session_rename.
+  sessionManager.renameSession(session.id, newName);
+
+  await bot.sendMessage(`✏️ Renamed to <b>${escapeHtml(newName)}</b>`, {
+    message_thread_id: topicId,
     parse_mode: 'HTML',
   });
 }
