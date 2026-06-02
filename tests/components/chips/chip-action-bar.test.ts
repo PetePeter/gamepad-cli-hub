@@ -1,0 +1,47 @@
+/**
+ * ChipActionBar.vue — Alt+number accelerator badge + tooltip.
+ *
+ * @vitest-environment jsdom
+ */
+
+import { describe, it, expect } from 'vitest';
+import { mount } from '@vue/test-utils';
+import ChipActionBar from '../../../renderer/components/chips/ChipActionBar.vue';
+
+function makeActions(n: number) {
+  return Array.from({ length: n }, (_, i) => ({
+    label: `Action ${i + 1}`,
+    sequence: `seq${i + 1}{Enter}`,
+    preview: `preview ${i + 1}`,
+  }));
+}
+
+describe('ChipActionBar.vue', () => {
+  it('renders an ⌥n accelerator badge for the first nine actions', () => {
+    const w = mount(ChipActionBar, { props: { actions: makeActions(3) } });
+    const badges = w.findAll('.chip-action-btn__accel');
+    expect(badges.map(b => b.text())).toEqual(['⌥1', '⌥2', '⌥3']);
+    w.unmount();
+  });
+
+  it('does not render a badge for the tenth+ action', () => {
+    const w = mount(ChipActionBar, { props: { actions: makeActions(10) } });
+    const badges = w.findAll('.chip-action-btn__accel');
+    expect(badges).toHaveLength(9);
+    w.unmount();
+  });
+
+  it('tooltip includes the Alt+N accelerator and preview', () => {
+    const w = mount(ChipActionBar, { props: { actions: makeActions(1) } });
+    const btn = w.find('.chip-action-btn');
+    expect(btn.attributes('title')).toBe('Alt+1 — preview 1');
+    w.unmount();
+  });
+
+  it('emits the action sequence on click', async () => {
+    const w = mount(ChipActionBar, { props: { actions: makeActions(2) } });
+    await w.findAll('.chip-action-btn')[1].trigger('click');
+    expect(w.emitted('actionClick')?.[0]).toEqual(['seq2{Enter}']);
+    w.unmount();
+  });
+});

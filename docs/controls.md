@@ -39,6 +39,8 @@ Gamepad button and keyboard shortcut mappings.
 | F5 | Mapped to Y button |
 | Ctrl+V | Paste clipboard text to active terminal (PTY stdin) |
 | Ctrl+G | Open in-app Prompt Editor — textarea + recent-prompts sidebar (last 10), Ctrl+Enter sends to active terminal |
+| Ctrl+1-9, Ctrl+0 | Jump directly to the Nth session in sidebar order (badge: `^n`) |
+| Alt+1-9 | Fire the Nth chip bar quick-action for the active session (badge: `⌥n`) |
 | Tab / Shift+Tab | Cycle buttons in selection-mode modals (close-confirm, context-menu, sequence-picker, quick-spawn) |
 
 ## Navigation Priority Chain

@@ -135,6 +135,7 @@ import { useChipBarStore } from './stores/chip-bar.js';
 import { useNavigationStore } from './stores/navigation.js';
 import { useSessionsScreenStore } from './stores/sessions-screen.js';
 import { useSessionJumpKeys } from './composables/useSessionJumpKeys.js';
+import { useChipActionKeys } from './composables/useChipActionKeys.js';
 import { useLlmNotificationsStore } from './stores/llmNotifications.js';
 
 // ============================================================================
@@ -481,6 +482,7 @@ function sessionElapsedText(sessionId: string): string {
 }
 
 useSessionJumpKeys();
+useChipActionKeys();
 
 const { handleButton, handleRelease, handleModalKeyboardBridge } = useInputRouter({
   settingsVisible,

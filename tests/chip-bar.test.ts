@@ -35,13 +35,13 @@ describe('Chip components', () => {
     expect(wrapper.attributes('title')).toBe('P-0193 Refine chip bar');
   });
 
-  it('renders action button previews as tooltips', () => {
+  it('renders action button previews as tooltips with the Alt accelerator', () => {
     const wrapper = mount(ChipActionBar, {
       props: {
         actions: [{ label: 'Apply', sequence: 'run', preview: 'resolved preview' }],
       },
     });
-    expect(wrapper.find('button').attributes('title')).toBe('resolved preview');
+    expect(wrapper.find('button').attributes('title')).toBe('Alt+1 — resolved preview');
   });
 
   it('hides the chip bar when there are no plan chips or actions', () => {

@@ -657,6 +657,13 @@ export function useSettingsController(options: {
     }
   }
 
+  // Strip Vue reactivity before crossing the IPC boundary. Reactive proxies
+  // cannot be structured-cloned, so passing them to configSetChipbarActions
+  // throws DataCloneError and the save fails silently. See onChipbarActionEdit.
+  function toPlainActions(actions: SettingsChipbarAction[]): SettingsChipbarAction[] {
+    return actions.map((action) => ({ label: action.label, sequence: action.sequence }));
+  }
+
   async function onChipbarActionAdd(): Promise<void> {
     const result = await showFormModal('Add Chip Bar Action', [
       {
@@ -722,7 +729,7 @@ export function useSettingsController(options: {
     try {
       const updatedActions = [...settingsChipbarActions.value];
       updatedActions[index] = { label, sequence };
-      const saveResult = await configClient.configSetChipbarActions(updatedActions);
+      const saveResult = await configClient.configSetChipbarActions(toPlainActions(updatedActions));
       if (saveResult.success) {
         settingsChipbarActions.value = updatedActions;
         useChipBarStore().invalidateActions();
@@ -743,7 +750,7 @@ export function useSettingsController(options: {
 
     try {
       const updatedActions = settingsChipbarActions.value.filter((_, i) => i !== index);
-      const result = await configClient.configSetChipbarActions(updatedActions);
+      const result = await configClient.configSetChipbarActions(toPlainActions(updatedActions));
       if (result.success) {
         settingsChipbarActions.value = updatedActions;
         useChipBarStore().invalidateActions();
@@ -764,7 +771,7 @@ export function useSettingsController(options: {
     actions.splice(toIndex, 0, moved);
 
     try {
-      const result = await configClient.configSetChipbarActions(actions);
+      const result = await configClient.configSetChipbarActions(toPlainActions(actions));
       if (result.success) {
         settingsChipbarActions.value = actions;
         useChipBarStore().invalidateActions();
