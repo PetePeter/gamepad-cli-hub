@@ -255,7 +255,7 @@ export function resolveConfiguredSpawnEnv(
 export function resolveInitialPromptConfig(
   cliEntry: ReturnType<ConfigLoader['getCliTypeEntry']> | undefined,
   cliSessionName: string,
-): { initialPrompt?: SequenceListItem[]; initialPromptDelay?: number; helmInitialPrompt?: boolean; renameCommand?: string } {
+): { initialPrompt?: SequenceListItem[]; initialPromptDelay?: number; renameCommand?: string } {
   if (!cliEntry) return {};
   const renameCommand = cliEntry.renameCommand && cliSessionName
     ? cliEntry.renameCommand.replace('{cliSessionName}', cliSessionName)
@@ -263,7 +263,6 @@ export function resolveInitialPromptConfig(
   return {
     initialPrompt: cliEntry.initialPrompt,
     initialPromptDelay: cliEntry.initialPromptDelay,
-    helmInitialPrompt: cliEntry.helmInitialPrompt,
     renameCommand,
   };
 }

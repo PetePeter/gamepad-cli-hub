@@ -351,7 +351,7 @@ export class ScheduledTaskManager extends EventEmitter {
         prompt = `${task.initialPrompt}\n\nPlan references:\n${planRefs}`;
       }
 
-      // CLI init sequences (helmInitialPrompt + profile initialPrompt + rename) fire first.
+      // CLI init sequences (profile initialPrompt + rename) fire first.
       // Task user prompt fires as onComplete callback — after CLI is ready.
       const renameCommand = cliConfig.renameCommand
         ? cliConfig.renameCommand.replaceAll('{cliSessionName}', cliSessionName)
@@ -368,7 +368,6 @@ export class ScheduledTaskManager extends EventEmitter {
         {
           initialPrompt: cliConfig.initialPrompt,
           initialPromptDelay: cliConfig.initialPromptDelay,
-          helmInitialPrompt: cliConfig.helmInitialPrompt,
           renameCommand,
         },
         (sid, data) => this.ptyManager.write(sid, data),

@@ -19,7 +19,6 @@ export type CliTypeOptions = {
   spawnCommand?: string;
   resumeCommand?: string;
   continueCommand?: string;
-  helmInitialPrompt?: boolean;
   helmPreambleForInterSession?: boolean;
   largeTextAsTempFile?: boolean;
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';

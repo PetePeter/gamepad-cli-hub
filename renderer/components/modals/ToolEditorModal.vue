@@ -40,7 +40,6 @@ export interface ToolEditorData {
   continueCommand: string;
   renameCommand: string;
   handoffCommand: string;
-  helmInitialPrompt: boolean;
   helmPreambleForInterSession?: boolean;
   largeTextAsTempFile: boolean;
   submitSuffix: string;
@@ -65,7 +64,6 @@ const emit = defineEmits<{
     continueCommand: string;
     renameCommand: string;
     handoffCommand: string;
-    helmInitialPrompt: boolean;
     helmPreambleForInterSession?: boolean;
     largeTextAsTempFile: boolean;
     submitSuffix: string;
@@ -85,7 +83,6 @@ const resumeCommand = ref('');
 const continueCommand = ref('');
 const renameCommand = ref('');
 const handoffCommand = ref('');
-const helmInitialPrompt = ref(false);
 const helmPreambleForInterSession = ref(true);
 const largeTextAsTempFile = ref(false);
 const submitSuffix = ref<SubmitSuffixOption>('\\r');
@@ -145,7 +142,6 @@ function initForm(): void {
   continueCommand.value = d.continueCommand ?? '';
   renameCommand.value = d.renameCommand ?? '';
   handoffCommand.value = d.handoffCommand ?? '';
-  helmInitialPrompt.value = Boolean(d.helmInitialPrompt);
   helmPreambleForInterSession.value = d.helmPreambleForInterSession !== false;
   largeTextAsTempFile.value = Boolean(d.largeTextAsTempFile);
   submitSuffix.value = normalizeSubmitSuffix(d.submitSuffix);
@@ -157,8 +153,17 @@ function initForm(): void {
     : [];
 }
 
+const HELM_INIT_PROMPT = {
+  label: 'Helm session init',
+  sequence: 'Call session_info to get Helm MCP initial information.{Enter}',
+};
+
 function addPromptItem(): void {
   promptItems.value.push({ label: '', sequence: '' });
+}
+
+function addHelmInitPromptItem(): void {
+  promptItems.value.push({ ...HELM_INIT_PROMPT });
 }
 
 function removePromptItem(index: number): void {
@@ -188,7 +193,6 @@ function onSave(): void {
     continueCommand: continueCommand.value,
     renameCommand: renameCommand.value,
     handoffCommand: handoffCommand.value,
-    helmInitialPrompt: helmInitialPrompt.value,
     ...(helmPreambleForInterSession.value !== true ? { helmPreambleForInterSession: helmPreambleForInterSession.value } : {}),
     largeTextAsTempFile: largeTextAsTempFile.value,
     submitSuffix: submitSuffix.value,
@@ -305,7 +309,6 @@ defineExpose({ handleButton });
 
           <fieldset class="te-section te-section--prompts">
             <legend class="te-section__legend">Initial Prompts</legend>
-            <label class="te-checkbox-row"><input v-model="helmInitialPrompt" type="checkbox" /><span>Auto-include Helm session init</span></label>
             <div class="te-prompts-list">
               <div v-for="(item, idx) in promptItems" :key="idx" class="te-prompt-item">
                 <div class="te-prompt-item__header">
@@ -321,7 +324,10 @@ defineExpose({ handleButton });
                 />
               </div>
             </div>
-            <button type="button" class="btn btn--secondary sequence-list-add" @click="addPromptItem">+ Add Item</button>
+            <div class="te-prompts-actions">
+              <button type="button" class="btn btn--secondary sequence-list-add" @click="addPromptItem">+ Add Item</button>
+              <button type="button" class="btn btn--secondary" @click="addHelmInitPromptItem">+ Helm session init</button>
+            </div>
           </fieldset>
         </div>
 
@@ -361,6 +367,7 @@ defineExpose({ handleButton });
 .te-input--mono { font-family: 'Consolas', 'Courier New', monospace; font-size: var(--font-size-sm); }
 .te-input--sm { font-size: 11px; padding: var(--spacing-xs) var(--spacing-sm); }
 .te-section--prompts .te-prompts-list { display: flex; flex-direction: column; gap: var(--spacing-xs); min-height: 60px; padding-right: var(--spacing-xs); }
+.te-prompts-actions { display: flex; gap: var(--spacing-xs); flex-wrap: wrap; }
 .te-prompt-item { display: flex; flex-direction: column; gap: var(--spacing-xs); padding: var(--spacing-sm); background: var(--bg-secondary); border-radius: var(--radius-sm); }
 .te-prompt-item__header { display: flex; align-items: center; gap: 6px; }
 .te-prompt-item__header .te-input--sm { flex: 1; }

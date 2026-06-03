@@ -251,7 +251,6 @@ export interface ToolEditorBridgeData {
   continueCommand: string;
   renameCommand: string;
   handoffCommand: string;
-  helmInitialPrompt: boolean;
   helmPreambleForInterSession?: boolean;
   largeTextAsTempFile: boolean;
   submitSuffix: string;
@@ -261,7 +260,7 @@ export interface ToolEditorBridgeData {
 const EMPTY_TOOL_DATA: ToolEditorBridgeData = {
   name: '', env: [], initialPromptDelay: 2000,
   pasteMode: 'pty', spawnCommand: '', resumeCommand: '', continueCommand: '',
-  renameCommand: '', handoffCommand: '', helmInitialPrompt: false, helmPreambleForInterSession: true,
+  renameCommand: '', handoffCommand: '', helmPreambleForInterSession: true,
   largeTextAsTempFile: false,
   submitSuffix: '\\r', initialPrompt: [],
 };
@@ -286,7 +285,6 @@ export function buildToolEditorOptions(values: Record<string, any>): {
   spawnCommand?: string;
   resumeCommand?: string;
   continueCommand?: string;
-  helmInitialPrompt?: boolean;
   helmPreambleForInterSession?: boolean;
   largeTextAsTempFile?: boolean;
   pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste';
@@ -310,7 +308,6 @@ export function buildToolEditorOptions(values: Record<string, any>): {
   return {
     ...options,
     env,
-    helmInitialPrompt: Boolean(values.helmInitialPrompt),
     helmPreambleForInterSession: values.helmPreambleForInterSession !== false,
     largeTextAsTempFile: Boolean(values.largeTextAsTempFile),
     submitSuffix: typeof values.submitSuffix === 'string' ? values.submitSuffix : '\\r',

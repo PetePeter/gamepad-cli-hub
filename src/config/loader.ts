@@ -111,8 +111,6 @@ export interface CliTypeConfig {
   env?: EnvVarEntry[];
   initialPrompt?: SequenceListItem[];
   initialPromptDelay?: number;
-  /** Prepend the canonical Helm MCP session init prompt on fresh spawn. */
-  helmInitialPrompt?: boolean;
   /** Send [HELM_MSG] envelope when another Helm session sends text to this recipient. Default: true. When false, plain text only. */
   helmPreambleForInterSession?: boolean;
   /** For large session_send_text MCP handoffs, write the payload to a temp file and paste instructions with the path instead. */
@@ -852,7 +850,6 @@ export class ConfigLoader {
     if (options?.spawnCommand) tool.spawnCommand = options.spawnCommand;
     if (options?.resumeCommand) tool.resumeCommand = options.resumeCommand;
     if (options?.continueCommand) tool.continueCommand = options.continueCommand;
-    if (options?.helmInitialPrompt !== undefined) tool.helmInitialPrompt = options.helmInitialPrompt;
     if (options?.helmPreambleForInterSession !== undefined) tool.helmPreambleForInterSession = options.helmPreambleForInterSession;
     if (options?.largeTextAsTempFile === true) tool.largeTextAsTempFile = true;
     if (options?.pasteMode) tool.pasteMode = options.pasteMode;
@@ -898,9 +895,6 @@ export class ConfigLoader {
         if (val === undefined) continue;
         if (val === '') { delete (existing as any)[field]; }
         else { (existing as any)[field] = val; }
-      }
-      if (options.helmInitialPrompt !== undefined) {
-        existing.helmInitialPrompt = options.helmInitialPrompt;
       }
       if (options.helmPreambleForInterSession !== undefined) {
         if (options.helmPreambleForInterSession === true) {

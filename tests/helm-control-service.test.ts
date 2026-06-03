@@ -396,25 +396,6 @@ describe('HelmControlService.spawnCli', () => {
       expect(ptyManager.deliverText).toHaveBeenCalledWith(expect.any(String), '', { submitSuffix: '\r' });
     });
 
-    it('sends helmInitialPrompt when configured', async () => {
-      const { service, ptyManager, configLoader } = makeService();
-      (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({
-        name: 'GLM CC',
-        command: 'claude',
-        helmInitialPrompt: true,
-        initialPromptDelay: 500,
-      });
-
-      service.spawnCli('glm-cc', '/work', 'Worker');
-      vi.advanceTimersByTime(500);
-      await vi.runAllTimersAsync();
-
-      expect(ptyManager.deliverText).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.stringContaining('session_info'),
-      );
-    });
-
     it('delivers initialPrompt sequence after delay', async () => {
       const { service, ptyManager, configLoader } = makeService();
       (configLoader.getCliTypeEntry as ReturnType<typeof vi.fn>).mockReturnValue({

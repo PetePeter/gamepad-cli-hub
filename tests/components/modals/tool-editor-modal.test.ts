@@ -21,7 +21,6 @@ interface ToolEditorData {
   continueCommand: string;
   renameCommand: string;
   handoffCommand: string;
-  helmInitialPrompt: boolean;
   helmPreambleForInterSession?: boolean;
   largeTextAsTempFile: boolean;
   submitSuffix: string;
@@ -38,7 +37,6 @@ const DEFAULT_DATA: ToolEditorData = {
   continueCommand: '',
   renameCommand: '',
   handoffCommand: '',
-  helmInitialPrompt: false,
   helmPreambleForInterSession: true,
   largeTextAsTempFile: false,
   submitSuffix: '\\r',
@@ -150,7 +148,6 @@ describe('ToolEditorModal.vue', () => {
         env: [{ name: 'COPILOT_MODEL', value: 'qwen' }],
         initialPromptDelay: 3000,
         pasteMode: 'sendkeys',
-        helmInitialPrompt: true,
         largeTextAsTempFile: true,
         initialPrompt: [{ label: 'greet', sequence: 'hello' }],
       },
@@ -166,7 +163,6 @@ describe('ToolEditorModal.vue', () => {
     expect(values.env).toEqual([{ name: 'COPILOT_MODEL', value: 'qwen' }]);
     expect(values.initialPromptDelay).toBe(3000);
     expect(values.pasteMode).toBe('sendkeys');
-    expect(values.helmInitialPrompt).toBe(true);
     expect(values.largeTextAsTempFile).toBe(true);
     expect(values._promptItems).toEqual([{ label: 'greet', sequence: 'hello' }]);
     w.unmount();
@@ -185,22 +181,28 @@ describe('ToolEditorModal.vue', () => {
     w.unmount();
   });
 
-  it('round-trips the Helm initial prompt checkbox', async () => {
-    const w = factory({
-      initialData: { ...DEFAULT_DATA, helmInitialPrompt: true },
-    });
-    // Target the checkbox in the "Initial Prompts" section specifically
-    const checkboxes = w.findAll('.te-section--prompts .te-checkbox-row input');
-    const checkbox = checkboxes[0].element as HTMLInputElement;
-    expect(checkbox.checked).toBe(true);
+  it('appends a Helm session init prompt item via the button', async () => {
+    const w = factory({ initialData: { ...DEFAULT_DATA, initialPrompt: [] } });
 
-    await checkboxes[0].setValue(false);
+    const helmBtn = w.findAll('button').find(b => b.text() === '+ Helm session init')!;
+    expect(helmBtn).toBeTruthy();
+    await helmBtn.trigger('click');
+
     const saveBtn = w.findAll('button').find(b => b.text() === 'Save')!;
     await saveBtn.trigger('click');
     await flushPromises();
 
     const values = w.emitted('save')![0][0] as Record<string, unknown>;
-    expect(values.helmInitialPrompt).toBe(false);
+    expect(values._promptItems).toEqual([
+      { label: 'Helm session init', sequence: 'Call session_info to get Helm MCP initial information.{Enter}' },
+    ]);
+    w.unmount();
+  });
+
+  it('no longer renders the Auto-include Helm session init checkbox', () => {
+    const w = factory({ initialData: { ...DEFAULT_DATA } });
+    const labels = w.findAll('.te-section--prompts .te-checkbox-row');
+    expect(labels.length).toBe(0);
     w.unmount();
   });
 

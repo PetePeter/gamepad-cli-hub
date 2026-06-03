@@ -6,11 +6,8 @@ import type { SequenceListItem } from '../config/loader.js';
 export interface InitialPromptConfig {
   initialPrompt?: SequenceListItem[];
   initialPromptDelay?: number;
-  helmInitialPrompt?: boolean;
   renameCommand?: string;
 }
-
-export const HELM_INIT_SEQUENCE = 'Call session_info to get Helm MCP initial information.{Enter}';
 
 export function scheduleInitialPrompt(
   sessionId: string,
@@ -21,10 +18,7 @@ export function scheduleInitialPrompt(
   submitToPty?: (sessionId: string) => void | Promise<void>,
 ): (() => void) | null {
   const { initialPrompt, initialPromptDelay = 2000 } = config;
-  const promptItems = [
-    ...(config.helmInitialPrompt ? [{ label: 'Helm session init', sequence: HELM_INIT_SEQUENCE }] : []),
-    ...(initialPrompt ?? []),
-  ];
+  const promptItems = [...(initialPrompt ?? [])];
 
   const deliverText = onComplete
     ? (deliverTextOrOnComplete as ((sessionId: string, text: string) => Promise<void>) | undefined)

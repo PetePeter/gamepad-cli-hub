@@ -10,7 +10,6 @@ describe('buildToolEditorOptions', () => {
       renameCommand: ' rename-me ',
       handoffCommand: '  handoff ',
       env: [],
-      helmInitialPrompt: false,
       helmPreambleForInterSession: true,
       pasteMode: 'pty',
     };
@@ -82,13 +81,6 @@ describe('buildToolEditorOptions', () => {
     expect(result.env![0]).toEqual({ name: 'VALID', value: '' });
   });
 
-  it('sets helmInitialPrompt as boolean', () => {
-    expect(buildToolEditorOptions({ helmInitialPrompt: true }).helmInitialPrompt).toBe(true);
-    expect(buildToolEditorOptions({ helmInitialPrompt: false }).helmInitialPrompt).toBe(false);
-    expect(buildToolEditorOptions({ helmInitialPrompt: undefined }).helmInitialPrompt).toBe(false);
-    expect(buildToolEditorOptions({ helmInitialPrompt: 1 }).helmInitialPrompt).toBe(true);
-  });
-
   it('defaults helmPreambleForInterSession to true, respects explicit false', () => {
     expect(buildToolEditorOptions({}).helmPreambleForInterSession).toBe(true);
     expect(buildToolEditorOptions({ helmPreambleForInterSession: true }).helmPreambleForInterSession).toBe(true);
@@ -125,7 +117,6 @@ describe('buildToolEditorOptions', () => {
       renameCommand: '/rename',
       handoffCommand: 'handoff-text',
       env: [{ name: 'API_KEY', value: 'secret', mode: 'append' }],
-      helmInitialPrompt: true,
       helmPreambleForInterSession: false,
       largeTextAsTempFile: true,
       pasteMode: 'sendkeysindividual',
@@ -139,7 +130,6 @@ describe('buildToolEditorOptions', () => {
       renameCommand: '/rename',
       handoffCommand: 'handoff-text',
       env: [{ name: 'API_KEY', value: 'secret', mode: 'append' }],
-      helmInitialPrompt: true,
       helmPreambleForInterSession: false,
       largeTextAsTempFile: true,
       pasteMode: 'sendkeysindividual',

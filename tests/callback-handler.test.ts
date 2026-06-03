@@ -495,7 +495,6 @@ describe('setupCallbackHandler', () => {
       (configLoader as any).getCliTypeEntry = vi.fn(() => ({
         command: 'claude',
         spawnCommand: 'claude --session-id {cliSessionName}',
-        helmInitialPrompt: true,
         env: [
           { name: 'TEST_LITERAL', value: 'literal-value' },
           { name: 'TEST_REF', value: '%TELEGRAM_SPAWN_TEST_REF%' },
@@ -536,7 +535,7 @@ describe('setupCallbackHandler', () => {
       );
       expect(scheduleInitialPrompt).toHaveBeenCalledWith(
         expect.any(String),
-        expect.objectContaining({ helmInitialPrompt: true }),
+        expect.any(Object),
         expect.any(Function),
         expect.any(Function),
         expect.any(Function),
