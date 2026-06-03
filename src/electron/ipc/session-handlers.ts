@@ -73,6 +73,23 @@ export function setupSessionHandlers(
     return sessionManager.getActiveSession();
   });
 
+  // A snapped-out window pressed Ctrl+<n>: forward the display slot to the
+  // main window, which is the single authority on slot→session ordering. It
+  // resolves the slot and focuses the owning window (main or another popout).
+  ipcMain.handle('session:requestFocusSlot', (_event, slot: number) => {
+    const mainWin = windowManager.getMainWindow();
+    if (mainWin && !mainWin.isDestroyed()) {
+      mainWin.webContents.send('session:focusSlot', slot);
+    }
+    return { success: true };
+  });
+
+  // Raise the window that owns a session (main or a child popout) without
+  // changing which terminal tab is locally active.
+  ipcMain.handle('session:focusWindow', (_event, sessionId: string) => {
+    return windowManager.focusWindowForSession(sessionId);
+  });
+
   ipcMain.handle('session:remove', (_event, id: string) => {
     sessionManager.removeSession(id);
     return { success: true };

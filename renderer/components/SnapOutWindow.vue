@@ -5,6 +5,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { TerminalView } from '../terminal/terminal-view.js';
 import { useKeyboardRelay } from '../composables/useKeyboardRelay.js';
+import { useNumberAccelerator, slotToIndex } from '../composables/useNumberAccelerator.js';
 import { useAppStore } from '../stores/app.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
 import { deliverBulkText, deliverViaClipboardPaste } from '../paste-handler.js';
@@ -66,6 +67,25 @@ async function getEscProtectionEnabled(): Promise<boolean> {
 }
 
 useKeyboardRelay({ getActiveSessionId: () => props.sessionId, getEscProtectionEnabled });
+
+// Ctrl+<n>: ask the main window to focus the Nth session wherever it lives.
+// Alt+<n>: fire the Nth chip action for this popped-out session.
+// Resolution is async (round-trip to the main window), so we always consume
+// the key here — Ctrl+<n> is reserved for navigation in a popout and must
+// never leak a digit into the terminal, even when the slot maps to nothing.
+useNumberAccelerator({
+  modifier: 'ctrl',
+  onSlot: (slot) => { void sessionsClient.sessionRequestFocusSlot(slot); return true; },
+});
+useNumberAccelerator({
+  modifier: 'alt',
+  onSlot: (slot) => {
+    const action = chipBarStore.actions[slotToIndex(slot)];
+    if (!action) return false;
+    void chipBarStore.triggerAction(action.sequence);
+    return true;
+  },
+});
 
 function getFolderLabel(workingDir?: string): string {
   if (!workingDir) return 'No Folder';

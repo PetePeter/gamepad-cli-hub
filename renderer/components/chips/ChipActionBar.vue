@@ -7,15 +7,23 @@ const emit = defineEmits<{
   actionClick: [sequence: string];
 }>();
 
-// Alt+1..9 fire the first nine actions (see useChipActionKeys). The ⌥ glyph
-// keeps the badge visually distinct from the Ctrl-based ^n session-jump badge.
+// Alt+1..9 and Alt+0 fire the first ten actions (see useNumberAccelerator).
+// Slot 0 = the 10th action. The ⌥ glyph keeps the badge visually distinct
+// from the Ctrl-based ^n session-jump badge.
+function acceleratorDigit(index: number): number | null {
+  if (index < 9) return index + 1;
+  if (index === 9) return 0;
+  return null;
+}
+
 function accelerator(index: number): string | null {
-  return index < 9 ? `⌥${index + 1}` : null;
+  const digit = acceleratorDigit(index);
+  return digit === null ? null : `⌥${digit}`;
 }
 
 function tooltip(preview: string, index: number): string {
-  const accel = accelerator(index);
-  return accel ? `Alt+${index + 1} — ${preview}` : preview;
+  const digit = acceleratorDigit(index);
+  return digit === null ? preview : `Alt+${digit} — ${preview}`;
 }
 </script>
 

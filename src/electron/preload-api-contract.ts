@@ -20,6 +20,8 @@ export const PRELOAD_API_DOMAINS = {
     'sessionSnapBack',
     'sessionRename',
     'sessionSetState',
+    'sessionRequestFocusSlot',
+    'sessionFocusWindow',
   ],
   terminal: [
     'ptySpawn',
@@ -237,6 +239,7 @@ export const PRELOAD_API_DOMAINS = {
     'onSessionUpdated',
     'onSnapOut',
     'onSnapBack',
+    'onFocusSlot',
     'onPlanBackupCreated',
     'onPlanBackupDeleted',
     'onPlanBackupRestored',

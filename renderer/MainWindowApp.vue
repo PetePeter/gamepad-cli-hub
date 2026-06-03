@@ -134,8 +134,8 @@ import ChipActionBar from './components/chips/ChipActionBar.vue';
 import { useChipBarStore } from './stores/chip-bar.js';
 import { useNavigationStore } from './stores/navigation.js';
 import { useSessionsScreenStore } from './stores/sessions-screen.js';
-import { useSessionJumpKeys } from './composables/useSessionJumpKeys.js';
-import { useChipActionKeys } from './composables/useChipActionKeys.js';
+import { useNumberAccelerator, slotToIndex } from './composables/useNumberAccelerator.js';
+import { resolveFocusSlot } from './composables/focus-slot.js';
 import { useLlmNotificationsStore } from './stores/llmNotifications.js';
 
 // ============================================================================
@@ -199,6 +199,7 @@ const {
 let offTextDeliver: (() => void) | null = null;
 let unsubSnapOut: (() => void) | null = null;
 let unsubSnapBack: (() => void) | null = null;
+let unsubFocusSlot: (() => void) | null = null;
 let unsubLlmNotify: (() => void) | null = null;
 
 // Non-modal local state
@@ -481,8 +482,25 @@ function sessionElapsedText(sessionId: string): string {
   return formatElapsed(Date.now() - ts);
 }
 
-useSessionJumpKeys();
-useChipActionKeys();
+// Ctrl+<n> jumps to the Nth visible session; Alt+<n> fires the Nth chip action.
+useNumberAccelerator({
+  modifier: 'ctrl',
+  onSlot: (slot) => {
+    for (const [sessionId, assignedSlot] of sessionsScreenStore.sessionShortcutMap) {
+      if (assignedSlot === slot) { void navStore.navigateToSession(sessionId); return true; }
+    }
+    return false;
+  },
+});
+useNumberAccelerator({
+  modifier: 'alt',
+  onSlot: (slot) => {
+    const action = chipBarStore.actions[slotToIndex(slot)];
+    if (!action) return false;
+    void chipBarStore.triggerAction(action.sequence);
+    return true;
+  },
+});
 
 const { handleButton, handleRelease, handleModalKeyboardBridge } = useInputRouter({
   settingsVisible,
@@ -758,6 +776,24 @@ onMounted(async () => {
         })
       : null;
 
+    // A popout pressed Ctrl+<n>: the main window owns slot→session ordering, so
+    // it resolves the slot and raises the owning window. For a local session it
+    // also switches this window to that terminal; for a session that lives in
+    // another popout it only raises that popout, leaving this window's current
+    // view (plan/overview/terminal) untouched.
+    unsubFocusSlot = eventsClient.onFocusSlot
+      ? eventsClient.onFocusSlot((slot: number) => {
+          const action = resolveFocusSlot(
+            slot,
+            sessionsScreenStore.sessionShortcutMap,
+            (id) => state.snappedOutSessions.has(id),
+          );
+          if (!action) return;
+          if (action.switchToTerminal) void navStore.navigateToSession(action.sessionId);
+          void sessionsClient.sessionFocusWindow(action.sessionId);
+        })
+      : null;
+
     // LLM notification IPC listener
     unsubLlmNotify = eventsClient.onLlmNotify
       ? eventsClient.onLlmNotify(({ sessionId, title, content }) => {
@@ -809,6 +845,8 @@ onUnmounted(() => {
   unsubSnapOut = null;
   unsubSnapBack?.();
   unsubSnapBack = null;
+  unsubFocusSlot?.();
+  unsubFocusSlot = null;
   unsubLlmNotify?.();
   unsubLlmNotify = null;
   teardown();

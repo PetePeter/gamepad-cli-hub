@@ -24,10 +24,10 @@ describe('ChipActionBar.vue', () => {
     w.unmount();
   });
 
-  it('does not render a badge for the tenth+ action', () => {
-    const w = mount(ChipActionBar, { props: { actions: makeActions(10) } });
+  it('renders ⌥0 for the tenth action and no badge beyond it', () => {
+    const w = mount(ChipActionBar, { props: { actions: makeActions(11) } });
     const badges = w.findAll('.chip-action-btn__accel');
-    expect(badges).toHaveLength(9);
+    expect(badges.map(b => b.text())).toEqual(['⌥1', '⌥2', '⌥3', '⌥4', '⌥5', '⌥6', '⌥7', '⌥8', '⌥9', '⌥0']);
     w.unmount();
   });
 

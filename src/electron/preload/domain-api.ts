@@ -46,6 +46,17 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
    */
   sessionRename: (id: string, newName: string) => ipcRenderer.invoke('session:rename', id, newName),
 
+  /**
+   * From a snapped-out window: ask the main window to resolve a Ctrl+<n>
+   * display slot and focus the owning session's window.
+   */
+  sessionRequestFocusSlot: (slot: number) => ipcRenderer.invoke('session:requestFocusSlot', slot),
+
+  /**
+   * Raise the window that owns a session (main or a child popout).
+   */
+  sessionFocusWindow: (id: string) => ipcRenderer.invoke('session:focusWindow', id),
+
   // ========================================================================
   // Configuration
   // ========================================================================
@@ -377,6 +388,13 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     const listener = (_event: Electron.IpcRendererEvent, sessionId: string) => callback(sessionId);
     ipcRenderer.on('session:snapBack', listener);
     return () => ipcRenderer.removeListener('session:snapBack', listener);
+  },
+
+  /** Subscribe to Ctrl+<n> focus-slot requests forwarded from popout windows. */
+  onFocusSlot: (callback: (slot: number) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, slot: number) => callback(slot);
+    ipcRenderer.on('session:focusSlot', listener);
+    return () => ipcRenderer.removeListener('session:focusSlot', listener);
   },
 
   /**
