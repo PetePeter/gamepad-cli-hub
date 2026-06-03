@@ -166,11 +166,13 @@ defineExpose({ handleButton });
               @click="selectDir(i)"
             >
               <span v-if="jumpKeyLabel(i) != null" class="jump-key">{{ jumpKeyLabel(i) }}</span>
-              <span class="dir-picker-item__name">
-                {{ item.name }}
-                <span v-if="item.isCanonical" class="dir-picker-item__badge">[Main]</span>
+              <span class="dir-picker-item__body">
+                <span class="dir-picker-item__name">
+                  {{ item.name }}
+                  <span v-if="item.isCanonical" class="dir-picker-item__badge">[Main]</span>
+                </span>
+                <span class="dir-picker-item__path">{{ item.path }}</span>
               </span>
-              <span class="dir-picker-item__path">{{ item.path }}</span>
             </div>
           </template>
         </div>

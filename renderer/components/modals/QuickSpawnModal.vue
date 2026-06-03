@@ -132,8 +132,10 @@ defineExpose({ handleButton });
             @click="selectItem(i)"
           >
             <span v-if="jumpKeyLabel(i) != null" class="jump-key">{{ jumpKeyLabel(i) }}</span>
-            <span class="dir-picker-item__name">{{ getCliDisplayName(cliType) }}</span>
-            <span class="dir-picker-item__path">{{ cliType }}</span>
+            <span class="dir-picker-item__body">
+              <span class="dir-picker-item__name">{{ getCliDisplayName(cliType) }}</span>
+              <span class="dir-picker-item__path">{{ cliType }}</span>
+            </span>
           </div>
         </div>
         <div class="modal-footer">

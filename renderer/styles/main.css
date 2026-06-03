@@ -1477,13 +1477,20 @@ kbd {
 
 .dir-picker-item {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s;
   border: 1px solid transparent;
+}
+
+.dir-picker-item__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .dir-picker-item:hover,
