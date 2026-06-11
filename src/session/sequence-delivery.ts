@@ -122,6 +122,12 @@ export async function deliverPromptSequenceToSession(input: {
   const cliEntry = configLoader.getCliTypeEntry(session.cliType);
   const submitSuffix = parseSubmitSuffix(cliEntry?.submitSuffix);
 
+  // Nudge the recipient PTY with a transient resize before delivery. Full-screen
+  // TUIs (e.g. Copilot CLI) only redraw their input region on SIGWINCH; a hidden
+  // session that never received a fit keeps a stale size and drops the delivered
+  // text. Harmless for line-based CLIs (they ignore the size change).
+  await ptyManager.nudgeResize(sessionId);
+
   const processedText = escapeUnrecognizedBraces(text);
   const textDeliveryOptions: TextDeliveryOptions | undefined = deliveryContext ? { deliveryContext } : undefined;
   const deliverText = (sid: string, chunk: string, options?: TextDeliveryOptions): Promise<void> => (

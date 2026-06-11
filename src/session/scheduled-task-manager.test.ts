@@ -68,6 +68,8 @@ class FakePtyManager extends EventEmitter {
     this.writes.get(sessionId)!.push(text + suffix);
   }
 
+  async nudgeResize(_sessionId: string): Promise<void> {}
+
   getWrites(sessionId: string): string[] {
     return this.writes.get(sessionId) ?? [];
   }

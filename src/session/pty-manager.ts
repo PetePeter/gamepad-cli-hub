@@ -68,6 +68,8 @@ export class PtyManager extends EventEmitter {
   private textDeliveryHandler?: (sessionId: string, text: string, options?: TextDeliveryOptions) => Promise<void>;
   private terminalOutputBuffer = new TerminalOutputBuffer();
   private writeCounts: Map<string, number> = new Map();
+  /** Last-known PTY dimensions per session (node-pty's PtyProcess does not expose cols/rows). */
+  private sizes: Map<string, { cols: number; rows: number }> = new Map();
 
   constructor(factory?: PtyFactory) {
     super();
@@ -102,6 +104,7 @@ export class PtyManager extends EventEmitter {
     });
 
     this.ptys.set(sessionId, ptyProcess);
+    this.sizes.set(sessionId, { cols, rows });
 
     // Attach error handlers to internal pipe Sockets to prevent unhandled errors from crashing the process.
     // node-pty internals may change — guard with existence checks.
@@ -122,6 +125,7 @@ export class PtyManager extends EventEmitter {
       this.ptys.delete(sessionId);
       this.terminalOutputBuffer.clear(sessionId);
       this.writeCounts.delete(sessionId);
+      this.sizes.delete(sessionId);
       this.emit('exit', sessionId, exitCode);
     });
 
@@ -198,8 +202,30 @@ export class PtyManager extends EventEmitter {
     if (!pty) return;
     try {
       pty.resize(cols, rows);
+      this.sizes.set(sessionId, { cols, rows });
     } catch (error) {
       logger.error(`[PTY] Resize failed for session=${sessionId}: ${error}`);
+    }
+  }
+
+  /**
+   * Nudge a session's PTY with a transient resize (rows-1 then back), forcing the
+   * shell to emit SIGWINCH. Full-screen TUIs (e.g. Copilot CLI) redraw their input
+   * region on SIGWINCH; a hidden session that never received a fit/resize keeps a
+   * stale size, so text delivered to it lands in a mis-sized buffer. Sent before
+   * inter-session/Telegram text delivery so the recipient redraws first.
+   * No-op when size is unknown or too small to shrink.
+   */
+  async nudgeResize(sessionId: string): Promise<void> {
+    const pty = this.ptys.get(sessionId);
+    const size = this.sizes.get(sessionId);
+    if (!pty || !size || size.rows <= 1) return;
+    try {
+      pty.resize(size.cols, size.rows - 1);
+      await new Promise<void>((resolve) => setTimeout(resolve, 30));
+      pty.resize(size.cols, size.rows);
+    } catch (error) {
+      logger.error(`[PTY] Resize nudge failed for session=${sessionId}: ${error}`);
     }
   }
 
@@ -215,6 +241,7 @@ export class PtyManager extends EventEmitter {
     this.ptys.delete(sessionId);
     this.terminalOutputBuffer.clear(sessionId);
     this.writeCounts.delete(sessionId);
+    this.sizes.delete(sessionId);
   }
 
   /** Kill all PTY processes. */
@@ -229,6 +256,7 @@ export class PtyManager extends EventEmitter {
     this.ptys.clear();
     this.terminalOutputBuffer.clearAll();
     this.writeCounts.clear();
+    this.sizes.clear();
   }
 
   /** Check if a PTY exists for a session. */

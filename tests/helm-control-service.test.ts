@@ -18,6 +18,7 @@ function makeService() {
   const ptyManager = {
     has: vi.fn(() => true),
     deliverText: vi.fn(() => Promise.resolve()),
+    nudgeResize: vi.fn(() => Promise.resolve()),
     write: vi.fn(),
     spawn: vi.fn(() => ({ pid: 1234 })),
     kill: vi.fn(),

@@ -11,6 +11,7 @@ function makeMocks(overrides?: { submitSuffix?: string; cliType?: string }) {
   const ptyManager = {
     write: vi.fn(),
     deliverText: vi.fn(() => Promise.resolve()),
+    nudgeResize: vi.fn(() => Promise.resolve()),
     has: vi.fn(() => true),
     getTerminalTail: undefined as any,
   };
@@ -72,22 +73,25 @@ describe('deliverPromptSequenceToSession', () => {
 
   it('{Wait 500} delays between actions', async () => {
     vi.useFakeTimers();
-    const mocks = makeMocks();
+    try {
+      const mocks = makeMocks();
 
-    const promise = deliver('before{Wait 500}after', mocks);
+      const promise = deliver('before{Wait 500}after', mocks);
 
-    // 'before' is delivered immediately, then the wait starts
-    expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'before');
-    expect(mocks.ptyManager.deliverText).not.toHaveBeenCalledWith('s1', 'after');
+      // Flush the pre-delivery nudgeResize await so 'before' is delivered before the wait
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'before');
+      expect(mocks.ptyManager.deliverText).not.toHaveBeenCalledWith('s1', 'after');
 
-    // Advance past the 500ms wait plus the 200ms submit delay that fires afterwards
-    await vi.advanceTimersByTimeAsync(700);
-    await promise;
+      // Advance past the 500ms wait plus the 200ms submit delay that fires afterwards
+      await vi.advanceTimersByTimeAsync(700);
+      await promise;
 
-    expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'after');
-    expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
-
-    vi.useRealTimers();
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', 'after');
+      expect(mocks.ptyManager.deliverText).toHaveBeenCalledWith('s1', '', { submitSuffix: '\r' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('respects recipient CLI submit suffix (bash \\n)', async () => {

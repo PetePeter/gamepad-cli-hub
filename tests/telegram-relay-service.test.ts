@@ -36,6 +36,7 @@ function makeRelay() {
   const ptyManager = {
     write: vi.fn(),
     deliverText: vi.fn().mockResolvedValue(undefined),
+    nudgeResize: vi.fn().mockResolvedValue(undefined),
   };
   const configLoader = {
     getCliTypeEntry: vi.fn(() => ({ submitSuffix: '\\r' })),

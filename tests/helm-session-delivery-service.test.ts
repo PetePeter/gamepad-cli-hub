@@ -39,6 +39,7 @@ function makeDeps(opts?: { helmPreambleForInterSession?: boolean; largeTextAsTem
     has: vi.fn(() => true),
     write: vi.fn(),
     deliverText: vi.fn(async () => {}),
+    nudgeResize: vi.fn(async () => {}),
   };
 
   const configLoader = {
