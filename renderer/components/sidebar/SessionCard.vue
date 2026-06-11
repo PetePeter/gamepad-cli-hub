@@ -117,6 +117,23 @@ function colClass(col: number): string {
   return props.isFocused && props.focusColumn === col ? 'card-col-focused' : '';
 }
 
+// --- Clipboard copy-id ---
+
+const copied = ref(false);
+const sessionRef = computed(
+  () => `helm session: "${props.session.name}" (${props.session.cliType}) id=${props.session.id}`,
+);
+
+async function copyId(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(sessionRef.value);
+    copied.value = true;
+    setTimeout(() => { copied.value = false; }, 1200);
+  } catch {
+    console.warn('[SessionCard] clipboard write failed');
+  }
+}
+
 // --- Handlers ---
 
 function onRenameKeydown(e: KeyboardEvent): void {
@@ -186,6 +203,15 @@ function onCardClick(e: MouseEvent): void {
       <span style="flex: 1" />
 
       <span class="session-timer">{{ elapsedText }}</span>
+
+      <!-- Copy session id button -->
+      <button
+        class="session-copy-id"
+        :title="copied ? 'Copied!' : 'Copy session id'"
+        @click.stop="copyId"
+      >
+        {{ copied ? '✓' : '🔗' }}
+      </button>
 
       <!-- Rename button (hidden when editing) -->
       <button

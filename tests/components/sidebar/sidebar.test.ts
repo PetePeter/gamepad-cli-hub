@@ -287,6 +287,36 @@ describe('SessionCard', () => {
     expect(w.emitted('dismissNotification')).toEqual([['n1']]);
     expect(w.emitted('click')).toBeUndefined();
   });
+
+  it('copies session ref to clipboard on copy-id button click', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+
+    const w = mount(SessionCard, { props: makeCardProps() });
+    const btn = w.find('.session-copy-id');
+    expect(btn.exists()).toBe(true);
+    expect(btn.text()).toBe('🔗');
+
+    await btn.trigger('click');
+    await nextTick();
+
+    expect(writeText).toHaveBeenCalledWith(
+      'helm session: "test-session" (claude-code) id=s1',
+    );
+
+    vi.restoreAllMocks();
+  });
+
+  it('does not emit card click when copy-id button is clicked', async () => {
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+
+    const w = mount(SessionCard, { props: makeCardProps() });
+    await w.find('.session-copy-id').trigger('click');
+
+    expect(w.emitted('click')).toBeUndefined();
+
+    vi.restoreAllMocks();
+  });
 });
 
 // ============================================================================
