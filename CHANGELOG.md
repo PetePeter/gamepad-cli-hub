@@ -2,6 +2,28 @@
 
 All notable changes to gamepad-cli-hub are documented in this file.
 
+## [1.8.1] - 2026-06-13
+
+### Features
+
+- **Copy session ID** — New link button on session card top-row for quick clipboard copy of session ID
+
+### Fixes
+
+- **MCP port clash on relaunch** — Prevents the MCP server from failing to bind when Helm is restarted quickly
+- **Hidden PTY delivery** — Nudges non-visible recipient PTY with a transient resize before inter-session delivery
+
+## [1.8.0] - 2026-06-03
+
+### Features
+
+- **Editable prompt button in tool editor** — Replace Helm init checkbox with an editable prompt button for per-CLI initial prompt customization
+- **Snapout number accelerators** — Ctrl/Alt+number keyboard shortcuts work in popout (snapped-out) windows
+
+### Fixes
+
+- **Jump number positioning** — Move jump number to column 0, left of name in directory/CLI selectors
+
 ## [1.7.3] - 2026-05-20
 
 ### Features
