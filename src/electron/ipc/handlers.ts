@@ -53,6 +53,10 @@ import { HelmControlService } from '../../mcp/helm-control-service.js';
 import { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
 
 const TELEGRAM_AUTOSTART_DELAY_MS = 60_000;
+// On restart the previous instance may still be releasing the fixed MCP port.
+// Retry the same port (never a fallback) with backoff until it frees.
+const MCP_BIND_ATTEMPTS = 20;
+const MCP_BIND_RETRY_DELAY_MS = 250;
 
 export interface IpcStartupOptions {
   startupDelayMs?: number;
@@ -69,7 +73,7 @@ export function registerIPCHandlers(
   dirname?: string,
   configLoader: ConfigLoader = new ConfigLoader(),
   options: IpcStartupOptions = {},
-): { cleanup: () => void; sessionManager: SessionManager; ptyManager: PtyManager; incomingWatcher: IncomingPlansWatcher; windowManager: WindowManager; helmControlService: HelmControlService } {
+): { cleanup: () => Promise<void>; sessionManager: SessionManager; ptyManager: PtyManager; incomingWatcher: IncomingPlansWatcher; windowManager: WindowManager; helmControlService: HelmControlService } {
   logger.info('[IPC] Registering handlers');
   const startupDelayMs = Math.max(0, options.startupDelayMs ?? 0);
 
@@ -274,7 +278,7 @@ export function registerIPCHandlers(
   scheduledTaskManager.start();
 
   const startMcpServer = () => {
-    void localhostMcpServer.start().catch((error) => {
+    void localhostMcpServer.start({ attempts: MCP_BIND_ATTEMPTS, delayMs: MCP_BIND_RETRY_DELAY_MS }).catch((error) => {
     const isAddrInUse = error && typeof error === 'object' && 'code' in error && error.code === 'EADDRINUSE';
     const port = localhostMcpServer.getAddress()?.port ?? configLoader.getMcpConfig().port;
     if (isAddrInUse) {
@@ -297,7 +301,7 @@ export function registerIPCHandlers(
   if (!mcpStartTimer) startMcpServer();
 
   return {
-    cleanup: () => {
+    cleanup: async () => {
       if (telegramAutoStartTimer) clearTimeout(telegramAutoStartTimer);
       if (mcpStartTimer) clearTimeout(mcpStartTimer);
       cleanupTelegram();
@@ -309,9 +313,10 @@ export function registerIPCHandlers(
       textDeliverer.dispose();
       notificationManager.dispose();
       ptyManager.killAll();
-      void incomingWatcher.close();
+      await incomingWatcher.close();
       scheduledTaskManager.stop();
-      void localhostMcpServer.close();
+      // Await the socket close so the next instance can bind the fixed port.
+      await localhostMcpServer.close();
       logger.info('[IPC] Cleanup complete');
     },
     sessionManager,

@@ -44,13 +44,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
-let cleanupIPC: (() => void) | null = null;
+let cleanupIPC: (() => Promise<void>) | null = null;
+let isCleaningUp = false;
 let windowBounds = { width: 1280, height: 800, x: undefined as number | undefined, y: undefined as number | undefined };
 let mainWindowReadyToShow = false;
 let rendererStartupReady = false;
 let startupFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 const configLoader = new ConfigLoader();
 const RESTART_STARTUP_DELAY_MS = 3000;
+// Upper bound on shutdown cleanup; past this we quit regardless so a wedged
+// resource can never block the restart/relaunch flow.
+const CLEANUP_TIMEOUT_MS = 5000;
 
 function parseStartupDelayMs(args: string[]): number {
   const arg = args.find(value => value.startsWith('--startup-delay='));
@@ -365,15 +369,38 @@ app.on('window-all-closed', () => {
 /**
  * Application lifecycle - Before quit
  */
-app.on('before-quit', () => {
-  logger.info('[Main] App quitting');
+app.on('before-quit', (event) => {
+  // Nothing to await — let the default quit proceed.
+  if (!cleanupIPC) return;
 
+  // Re-entrancy guard: once cleanup is running we must not start it again. The
+  // first pass prevents the quit, awaits a clean shutdown (notably releasing the
+  // fixed MCP port so the relaunched instance can bind it), then exits for real.
+  if (isCleaningUp) return;
+  isCleaningUp = true;
+  event.preventDefault();
+
+  logger.info('[Main] App quitting — running cleanup before exit');
   closeSplashWindow();
 
-  if (cleanupIPC) {
-    cleanupIPC();
-    cleanupIPC = null;
-  }
+  const cleanup = cleanupIPC;
+  cleanupIPC = null;
+  // Never let a wedged resource block quit/relaunch — cap the wait, then proceed.
+  const cleanupWithTimeout = Promise.race([
+    cleanup(),
+    new Promise<void>(resolve => setTimeout(() => {
+      logger.warn('[Main] Cleanup timed out — quitting anyway');
+      resolve();
+    }, CLEANUP_TIMEOUT_MS)),
+  ]);
+  void cleanupWithTimeout
+    .catch((error) => logger.error(`[Main] Cleanup failed during quit: ${error}`))
+    .finally(() => {
+      // Re-issue quit; the guard above now lets the default proceed, emitting
+      // will-quit/quit so a pending app.relaunch() is honored.
+      logger.info('[Main] Cleanup complete — quitting');
+      app.quit();
+    });
 });
 
 /**

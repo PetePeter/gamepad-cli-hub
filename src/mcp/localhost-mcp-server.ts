@@ -55,6 +55,21 @@ export interface LocalhostMcpServerOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+export interface McpStartRetryOptions {
+  /** Total number of bind attempts (>=1). Only EADDRINUSE failures are retried. */
+  attempts?: number;
+  /** Delay between attempts, in milliseconds. */
+  delayMs?: number;
+}
+
+function isAddrInUse(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'EADDRINUSE';
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export class LocalhostMcpServer {
   private server = createServer((req, res) => {
     void this.handleRequest(req, res);
@@ -84,22 +99,48 @@ export class LocalhostMcpServer {
     return this.enabled && this.token.trim().length > 0;
   }
 
-  async start(): Promise<boolean> {
+  async start(retry: McpStartRetryOptions = {}): Promise<boolean> {
     if (!this.isEnabled()) {
       logger.info('[MCP] Localhost MCP server disabled by config or missing auth token');
       return false;
     }
     if (this.started) return true;
-    await new Promise<void>((resolve, reject) => {
-      this.server.once('error', reject);
-      this.server.listen(this.port, this.host, () => {
-        this.server.off('error', reject);
+
+    const attempts = Math.max(1, retry.attempts ?? 1);
+    const delayMs = Math.max(0, retry.delayMs ?? 0);
+
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        await this.listenOnce();
+        this.started = true;
+        logger.info(`[MCP] Listening on http://${this.host}:${this.port}${MCP_PATH}`);
+        return true;
+      } catch (error) {
+        // Only a busy port is worth retrying — a previous Helm instance may not
+        // have released the socket yet. Any other error is fatal immediately.
+        if (!isAddrInUse(error) || attempt === attempts) throw error;
+        logger.warn(`[MCP] Port ${this.port} in use, retrying in ${delayMs}ms (attempt ${attempt}/${attempts})`);
+        await delay(delayMs);
+      }
+    }
+    // Unreachable: the loop either returns or throws on the final attempt.
+    return false;
+  }
+
+  private listenOnce(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const onError = (error: Error) => {
+        this.server.off('listening', onListening);
+        reject(error);
+      };
+      const onListening = () => {
+        this.server.off('error', onError);
         resolve();
-      });
+      };
+      this.server.once('error', onError);
+      this.server.once('listening', onListening);
+      this.server.listen(this.port, this.host);
     });
-    this.started = true;
-    logger.info(`[MCP] Listening on http://${this.host}:${this.port}${MCP_PATH}`);
-    return true;
   }
 
   async applyConfig(config: McpConfig): Promise<void> {
@@ -124,6 +165,10 @@ export class LocalhostMcpServer {
 
   async close(): Promise<void> {
     if (!this.started) return;
+    // server.close() only resolves once every connection is gone. MCP clients use
+    // keep-alive sockets, so without forcibly terminating them close() can hang
+    // indefinitely — which would wedge app quit/relaunch. Force them shut first.
+    this.server.closeAllConnections?.();
     await new Promise<void>((resolve, reject) => {
       this.server.close((err) => {
         if (err) reject(err);

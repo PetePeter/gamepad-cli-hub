@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Agent, createServer as createHttpServer, request as httpRequest } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -157,6 +159,64 @@ describe('LocalhostMcpServer', () => {
     servers.push(server);
     await expect(server.start()).resolves.toBe(false);
     expect(server.getAddress()).toBeNull();
+  });
+
+  it('retries the same port until it frees (EADDRINUSE resilience)', async () => {
+    const blocker = createHttpServer();
+    const blockerPort = await new Promise<number>((resolve) => {
+      blocker.listen(0, '127.0.0.1', () => resolve((blocker.address() as AddressInfo).port));
+    });
+
+    const server = new LocalhostMcpServer(makeService(), { token: 'secret-token', port: blockerPort });
+    servers.push(server);
+
+    // Free the port mid-flight; a subsequent retry should bind the same port.
+    setTimeout(() => blocker.close(), 250);
+
+    await expect(server.start({ attempts: 20, delayMs: 100 })).resolves.toBe(true);
+    expect(server.getAddress()!.port).toBe(blockerPort);
+  });
+
+  it('throws EADDRINUSE after exhausting retries while the port stays busy', async () => {
+    const blocker = createHttpServer();
+    const blockerPort = await new Promise<number>((resolve) => {
+      blocker.listen(0, '127.0.0.1', () => resolve((blocker.address() as AddressInfo).port));
+    });
+
+    const server = new LocalhostMcpServer(makeService(), { token: 'secret-token', port: blockerPort });
+    servers.push(server);
+
+    await expect(server.start({ attempts: 3, delayMs: 20 })).rejects.toMatchObject({ code: 'EADDRINUSE' });
+
+    await new Promise<void>((resolve) => blocker.close(() => resolve()));
+  });
+
+  it('close() resolves promptly even with an idle keep-alive connection open', async () => {
+    const server = new LocalhostMcpServer(makeService(), { token: 'secret-token', port: 0 });
+    servers.push(server);
+    await server.start();
+    const port = server.getAddress()!.port;
+
+    // Open a keep-alive connection and leave the socket idle (not closed).
+    const agent = new Agent({ keepAlive: true });
+    await new Promise<void>((resolve, reject) => {
+      const req = httpRequest(
+        { host: '127.0.0.1', port, path: '/mcp', method: 'GET', agent },
+        (res) => { res.on('data', () => {}); res.on('end', () => resolve()); },
+      );
+      req.on('error', reject);
+      req.end();
+    });
+
+    // Without closeAllConnections() the lingering socket would make this hang.
+    await expect(
+      Promise.race([
+        server.close().then(() => 'closed'),
+        new Promise((resolve) => setTimeout(() => resolve('timeout'), 2000)),
+      ]),
+    ).resolves.toBe('closed');
+
+    agent.destroy();
   });
 
   it('requires bearer auth', async () => {
