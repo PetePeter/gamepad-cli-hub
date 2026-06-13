@@ -445,7 +445,15 @@ export async function callMcpTool(
       case 'telegram_status':
         return service.getTelegramStatus();
       case 'telegram_chat': {
-        const sessionRef = asString(args.sessionId ?? args.name, 'sessionId or name is required');
+        // Always route to the authenticated caller's own session so replies land
+        // on the correct topic. This is the only reliable identity — agent-supplied
+        // name/sessionId is ambiguous when multiple sessions share a name. Explicit
+        // args are honoured only as a fallback when no session-scoped token exists
+        // (e.g. global-token callers).
+        const sessionRef = asString(
+          authContext.sessionId ?? args.sessionId ?? args.name,
+          'sessionId or name is required',
+        );
         const message = asString(args.message, 'message is required');
         const filePath = typeof args.filePath === 'string' ? args.filePath : undefined;
         return service.sendTelegramChat(sessionRef, message, filePath);
