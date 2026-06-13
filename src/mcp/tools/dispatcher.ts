@@ -445,15 +445,22 @@ export async function callMcpTool(
       case 'telegram_status':
         return service.getTelegramStatus();
       case 'telegram_chat': {
-        // Always route to the authenticated caller's own session so replies land
-        // on the correct topic. This is the only reliable identity — agent-supplied
-        // name/sessionId is ambiguous when multiple sessions share a name. Explicit
-        // args are honoured only as a fallback when no session-scoped token exists
-        // (e.g. global-token callers).
-        const sessionRef = asString(
-          authContext.sessionId ?? args.sessionId ?? args.name,
-          'sessionId or name is required',
-        );
+        // Route replies to the authenticated caller's own session topic. The only
+        // trustworthy identity is the server-derived authContext.sessionId (from the
+        // X-Helm-Session-Id header / session token). An explicit args.sessionId UUID
+        // is accepted as a fallback for global-token callers, but resolving by NAME is
+        // rejected: duplicate session names are ambiguous and silently mis-route the
+        // reply to the wrong Telegram topic (cross-talk).
+        const sessionRef = authContext.sessionId ?? (typeof args.sessionId === 'string' ? args.sessionId : undefined);
+        if (!sessionRef) {
+          throw new Error(
+            'telegram_chat could not determine your session. Call session_info to get ' +
+              'your own sessionId and pass it as sessionId. Ensure Helm injected the ' +
+              'X-Helm-Session-Id header (HELM_SESSION_ID env var) at startup. ' +
+              'Resolving by name is not allowed — duplicate session names route replies ' +
+              'to the wrong Telegram topic.',
+          );
+        }
         const message = asString(args.message, 'message is required');
         const filePath = typeof args.filePath === 'string' ? args.filePath : undefined;
         return service.sendTelegramChat(sessionRef, message, filePath);

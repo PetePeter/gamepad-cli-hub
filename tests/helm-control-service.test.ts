@@ -1009,6 +1009,30 @@ describe('HelmControlService telegram channels', () => {
     expect(result.sent).toBe(true);
   });
 
+  it('routes telegram by session ID only, never by name', async () => {
+    const { service, sessionManager } = makeService();
+    // getSession resolves the UUID only; a session name does not resolve to a session.
+    (sessionManager.getSession as ReturnType<typeof vi.fn>).mockImplementation((ref: string) =>
+      ref === 's1' ? { id: 's1', name: 'dup-name', cliType: 'claude-code', workingDir: '/work' } : undefined,
+    );
+    const bridge = {
+      isRunning: vi.fn(() => true),
+      listChannels: vi.fn(() => []),
+      closeChannel: vi.fn(),
+      sendToUser: vi.fn(async () => ({ sent: true })),
+    };
+    service.setTelegramBridge(bridge);
+
+    const byId = await service.sendTelegramChat('s1', 'by id');
+    expect(byId.sent).toBe(true);
+    expect(bridge.sendToUser).toHaveBeenCalledWith({ sessionId: 's1', text: 'by id' });
+
+    // Passing a name must NOT route anywhere — it is rejected, never resolved.
+    const byName = await service.sendTelegramChat('dup-name', 'by name');
+    expect(byName.sent).toBe(false);
+    expect(byName.reason).toContain('not found by ID');
+  });
+
   it('rejects wide messages in sendTelegramChat', async () => {
     const { service } = makeService();
 

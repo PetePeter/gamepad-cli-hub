@@ -89,8 +89,12 @@ export class HelmTelegramService {
     } else {
       validateMobileFriendlyTelegramText(message);
     }
-    const session = this.findSession(sessionRef);
-    if (!session) return { sent: false, reason: `Session not found: ${sessionRef}` };
+    // Telegram replies are routed by session ID only — never by name. The dispatcher
+    // guarantees sessionRef is the verified caller's UUID (authContext or explicit
+    // sessionId). Using getSession (id-only) instead of findSession avoids any
+    // name-resolution fallback that could mis-route a reply to the wrong topic.
+    const session = this.sessionManager.getSession(sessionRef);
+    if (!session) return { sent: false, reason: `Session not found by ID: ${sessionRef}` };
     return this.telegramBridge.sendToUser({ sessionId: session.id, text: message, filePath });
   }
 

@@ -59,7 +59,7 @@ export function getAvailableTools(): McpToolSummary[] {
     { name: 'notify_user', title: 'Notify User', description: 'Send an LLM-directed notification to a target session with smart delivery routing when work completes, you are blocked for user input, or an error stops progress.' },
     { name: 'get_app_visibility', title: 'Get App Visibility', description: 'Return app visibility, screen lock state, and activeSessionId for notification routing.' },
     { name: 'telegram_status', title: 'Telegram Status', description: 'Report whether Telegram is enabled, configured, running, and available for urgent mobile-friendly user communication.' },
-    { name: 'telegram_chat', title: 'Send Telegram Chat', description: 'Send concise mobile-friendly text to the user via Telegram. Provide sessionId or name. Lines must be short; do not send large wide logs, tables, or code blocks.' },
+    { name: 'telegram_chat', title: 'Send Telegram Chat', description: 'Send concise mobile-friendly text to the user via Telegram. Replies go to YOUR OWN session topic automatically; sessionId is an optional override. Resolving by name is not supported. Lines must be short; do not send large wide logs, tables, or code blocks.' },
     { name: 'telegram_channel_close', title: 'Close Telegram Channel', description: 'Close one MCP Telegram communication channel without deleting unrelated session topics.' },
     { name: 'scheduler_create', title: 'Create Scheduler Entry', description: 'Create a scheduled task that spawns a CLI session at a specific time with a prompt. Supports once, interval, and cron modes.' },
     { name: 'scheduler_list', title: 'List Scheduler Entries', description: 'List all scheduled tasks.' },

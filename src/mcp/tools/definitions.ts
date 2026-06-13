@@ -857,12 +857,11 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'telegram_chat',
     title: 'Send Telegram Chat',
-    description: 'Send concise mobile-friendly text to the user via Telegram. Provide sessionId or name. Lines must be short; do not send large wide logs, tables, or code blocks.',
+    description: 'Send concise mobile-friendly text to the user via Telegram. Replies always go to YOUR OWN session topic (resolved from the X-Helm-Session-Id header); you do not need to pass sessionId. sessionId is an optional override for global-token callers. Resolving by name is not supported — duplicate names would mis-route. Lines must be short; do not send large wide logs, tables, or code blocks.',
     inputSchema: {
       type: 'object',
       properties: {
-        sessionId: { type: 'string' },
-        name: { type: 'string' },
+        sessionId: { type: 'string', description: 'Optional override — your own session UUID. Normally omit it; the server uses your authenticated identity.' },
         message: { type: 'string' },
         filePath: { type: 'string', description: 'Optional absolute file path to send as attachment. System reads file from disk.' },
       },

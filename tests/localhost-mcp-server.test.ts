@@ -2137,4 +2137,66 @@ describe('LocalhostMcpServer', () => {
       expect(json.error.message).toContain('Unknown sender session');
     });
   });
+
+  describe('telegram_chat caller routing', () => {
+    it('routes to the authenticated caller session, ignoring args.name', async () => {
+      const service = makeService();
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 90,
+        method: 'tools/call',
+        // A misleading name must NOT override the verified caller identity.
+        params: { name: 'telegram_chat', arguments: { name: 'some-other-session', message: 'hi' } },
+      }, { 'x-helm-session-id': 's1' });
+
+      const json = await response.json();
+      expect(json.result.structuredContent).toEqual({ sent: true });
+      expect(service.sendTelegramChat).toHaveBeenCalledWith('s1', 'hi', undefined);
+    });
+
+    it('rejects name-only calls with no caller identity instead of mis-routing', async () => {
+      const service = makeService();
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      // No x-helm-session-id header → anonymous; name alone is ambiguous.
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 91,
+        method: 'tools/call',
+        params: { name: 'telegram_chat', arguments: { name: 'claudecode-opus-low', message: 'hi' } },
+      });
+
+      const json = await response.json();
+      expect(json.error.message).toContain('could not determine your session');
+      expect(json.error.message).toContain('session_info');
+      expect(service.sendTelegramChat).not.toHaveBeenCalled();
+    });
+
+    it('accepts an explicit sessionId override for global-token callers', async () => {
+      const service = makeService();
+      const server = new LocalhostMcpServer(service, { token: 'secret-token', port: 0 });
+      servers.push(server);
+      await server.start();
+      const port = server.getAddress()!.port;
+
+      const response = await rpc(port, 'secret-token', {
+        jsonrpc: '2.0',
+        id: 92,
+        method: 'tools/call',
+        params: { name: 'telegram_chat', arguments: { sessionId: 's7', message: 'hi' } },
+      });
+
+      const json = await response.json();
+      expect(json.result.structuredContent).toEqual({ sent: true });
+      expect(service.sendTelegramChat).toHaveBeenCalledWith('s7', 'hi', undefined);
+    });
+  });
 });
