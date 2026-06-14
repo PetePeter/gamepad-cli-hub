@@ -13,6 +13,7 @@ import {
   type ToolEditorBridgeData,
 } from '../stores/modal-bridge.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
+import { useToast } from './useToast.js';
 
 export interface SettingsToolItem {
   key: string;
@@ -813,6 +814,16 @@ export function useSettingsController(options: {
       } else if (field === 'ffmpegPath') {
         await telegramClient.telegramSetConfig({ ffmpegPath: String(value) });
         settingsTelegramConfig.value.ffmpegPath = String(value);
+      }
+      // Voice capabilities are detected at MCP-connect time, so a path change here
+      // won't reach already-connected CLI clients until they reconnect.
+      const capabilityFields = ['ffmpegPath', 'piperPath', 'piperVoicePath', 'openWhisprPath', 'openWhisprModelPath'];
+      if (capabilityFields.includes(field)) {
+        useToast().addToast({
+          message: 'Voice capability changed — reconnect MCP clients (or restart Helm) to apply.',
+          type: 'info',
+          key: 'voice-capability-changed',
+        });
       }
     } catch (error) {
       console.error('Failed to update Telegram config:', error);

@@ -870,6 +870,20 @@ export const MCP_TOOLS: McpTool[] = [
     },
   },
   {
+    name: 'telegram_send_voice',
+    title: 'Send Telegram Voice Reply',
+    description: 'Helm synthesizes speech (piper→ffmpeg→OGG/Opus) and sends it as a native Telegram voice message to YOUR session topic. TEXT IS THE DEFAULT REPLY CHANNEL — only use voice when the user explicitly asks for a voice reply. Only available when piper+ffmpeg are configured.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string', description: 'Optional override — your own session UUID. Normally omit it; the server uses your authenticated identity.' },
+        text: { type: 'string', description: 'The text Helm will speak. Keep it concise and mobile-friendly.' },
+      },
+      required: ['text'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'telegram_channel_close',
     title: 'Close Telegram Channel',
     description: 'Close one MCP Telegram communication channel without deleting unrelated session topics.',

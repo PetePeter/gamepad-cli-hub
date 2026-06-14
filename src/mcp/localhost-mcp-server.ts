@@ -7,6 +7,7 @@ import { logger } from '../utils/logger.js';
 import { HelmControlService } from './helm-control-service.js';
 import { parseSessionAuthToken } from './session-auth.js';
 import { MCP_TOOLS, REQUIRED_PLAN_DESCRIPTION_SECTIONS } from './tools/definitions.js';
+import { filterToolsByCapabilities } from './tools/capability-gating.js';
 import type { McpTool } from './tools/types.js';
 import { callMcpTool } from './tools/dispatcher.js';
 import {
@@ -239,9 +240,11 @@ export class LocalhostMcpServer {
             serverInfo: { name: 'helm-localhost-mcp', version: '1.0.0' },
           });
           return;
-        case 'tools/list':
-          this.writeJsonRpcResult(res, id, { tools: TOOLS });
+        case 'tools/list': {
+          const caps = this.service.getTelegramStatus().capabilities;
+          this.writeJsonRpcResult(res, id, { tools: filterToolsByCapabilities(TOOLS, caps) });
           return;
+        }
         case 'tools/call': {
           const params = payload.params ?? {};
           const name = asString(params.name, 'Tool name is required');

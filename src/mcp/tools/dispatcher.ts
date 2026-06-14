@@ -465,6 +465,22 @@ export async function callMcpTool(
         const filePath = typeof args.filePath === 'string' ? args.filePath : undefined;
         return service.sendTelegramChat(sessionRef, message, filePath);
       }
+      case 'telegram_send_voice': {
+        // Mirror telegram_chat's identity resolution: route to the authenticated
+        // caller's own session topic. Voice replies must never resolve by name.
+        const sessionRef = authContext.sessionId ?? (typeof args.sessionId === 'string' ? args.sessionId : undefined);
+        if (!sessionRef) {
+          throw new Error(
+            'telegram_send_voice could not determine your session. Call session_info to get ' +
+              'your own sessionId and pass it as sessionId. Ensure Helm injected the ' +
+              'X-Helm-Session-Id header (HELM_SESSION_ID env var) at startup. ' +
+              'Resolving by name is not allowed — duplicate session names route replies ' +
+              'to the wrong Telegram topic.',
+          );
+        }
+        const text = asString(args.text, 'text is required');
+        return service.sendTelegramVoice(sessionRef, text);
+      }
       case 'telegram_channel_close':
         return service.closeTelegramChannel(asString(args.channelId, 'channelId is required'));
       case 'scheduler_create': {

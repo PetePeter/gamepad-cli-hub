@@ -1069,14 +1069,14 @@ describe('HelmControlService telegram channels', () => {
     expect(bridge.sendToUser).not.toHaveBeenCalled();
   });
 
-  it('getAvailableTools lists exactly 3 telegram tools and no removed tools', () => {
+  it('getAvailableTools lists exactly 4 telegram tools and no removed tools', () => {
     const tools = getAvailableTools() as Array<{ name: string }>;
     const tgTools = tools.filter((t: { name: string }) => t.name.startsWith('telegram_'));
 
     expect(tgTools.map((t: { name: string }) => t.name)).toEqual(
-      expect.arrayContaining(['telegram_status', 'telegram_chat', 'telegram_channel_close']),
+      expect.arrayContaining(['telegram_status', 'telegram_chat', 'telegram_send_voice', 'telegram_channel_close']),
     );
-    expect(tgTools).toHaveLength(3);
+    expect(tgTools).toHaveLength(4);
 
     // Removed tools must NOT be present
     const removedToolNames = ['telegram_send', 'telegram_set_output_mode', 'telegram_channel_create', 'telegram_channel_list'];

@@ -189,11 +189,11 @@ export class HelmControlService extends EventEmitter {
     this.planSequenceService = new HelmPlanSequenceService(planManager, configLoader);
     this.contextService = new HelmContextService(this.contextManager, planManager, configLoader);
     this.planAttachmentService = new HelmPlanAttachmentService(planManager, attachmentManager);
-    this.telegramService = new HelmTelegramService(configLoader, sessionManager);
+    this.capabilityDetector = new CapabilityDetector(configLoader);
+    this.telegramService = new HelmTelegramService(configLoader, sessionManager, this.capabilityDetector);
     this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager) : null;
     this.projectService = projectStore ? new HelmProjectService(projectStore) : null;
     this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager, projectStore);
-    this.capabilityDetector = new CapabilityDetector(configLoader);
   }
 
   // ---------------------------------------------------------------------------
@@ -628,6 +628,13 @@ export class HelmControlService extends EventEmitter {
     filePath?: string,
   ): Promise<{ sent: boolean; reason?: string }> {
     return this.telegramService.sendTelegramChat(sessionRef, message, filePath);
+  }
+
+  async sendTelegramVoice(
+    sessionRef: string,
+    text: string,
+  ): Promise<{ sent: boolean; reason?: string }> {
+    return this.telegramService.sendTelegramVoice(sessionRef, text);
   }
 
   notifyUser(sessionRef: string, title: string, content: string): { delivered: 'toast' | 'bubble' | 'telegram' | 'none' } {

@@ -168,7 +168,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     let messageId: number | undefined;
 
     if (input.filePath) {
-      const attachmentResult = await this.sendFileAttachment(input.filePath, channel.topicId, input.text);
+      const attachmentResult = await this.sendFileAttachment(input.filePath, channel.topicId, input.text, input.asVoice);
       if (!attachmentResult.sent) return attachmentResult;
       messageId = attachmentResult.documentId;
     } else {
@@ -415,6 +415,7 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
     filePath: string,
     topicId?: number,
     caption?: string,
+    asVoice?: boolean,
   ): Promise<TelegramSendToUserResult> {
     if (!path.isAbsolute(filePath)) {
       return { sent: false, reason: 'File path must be absolute' };
@@ -442,7 +443,9 @@ export class TelegramRelayService extends EventEmitter implements TelegramBridge
 
     let message: Awaited<ReturnType<typeof this.telegramBot.sendDocument>> | null = null;
 
-    if (mime.startsWith('image/')) {
+    if (asVoice && mime === 'audio/ogg') {
+      message = await this.telegramBot.sendVoice(buffer, opts);
+    } else if (mime.startsWith('image/')) {
       message = await this.telegramBot.sendPhoto(buffer, opts);
     } else if (mime.startsWith('video/')) {
       message = await this.telegramBot.sendVideo(buffer, opts);

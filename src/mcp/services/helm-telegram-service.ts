@@ -10,7 +10,10 @@ import type {
   TelegramStatus,
 } from '../../types/telegram-channel.js';
 import type { NotificationManager } from '../../session/notification-manager.js';
+import type { CapabilityDetector } from '../../session/capability-detector.js';
 import { validateMobileFriendlyTelegramText } from '../../telegram/utils.js';
+import { PiperTts } from '../../telegram/piper-tts.js';
+import { getTempDir } from '../../utils/app-paths.js';
 
 /**
  * Telegram messaging and LLM notification routing.
@@ -23,6 +26,7 @@ export class HelmTelegramService {
   constructor(
     private readonly configLoader: ConfigLoader,
     private readonly sessionManager: SessionManager,
+    private readonly capabilityDetector: CapabilityDetector,
   ) {}
 
   setTelegramBridge(bridge: TelegramBridge | null): void {
@@ -39,6 +43,7 @@ export class HelmTelegramService {
     const allowedUsersConfigured = Array.isArray(config.allowedUserIds) && config.allowedUserIds.length > 0;
     const configured = Boolean(config.botToken && chatConfigured && allowedUsersConfigured);
     const running = this.telegramBridge?.isRunning() ?? false;
+    const caps = this.capabilityDetector.getCapabilities();
     return {
       enabled: config.enabled,
       configured,
@@ -48,7 +53,58 @@ export class HelmTelegramService {
       allowedUsersConfigured,
       openChannels: this.telegramBridge?.listChannels().filter((channel) => channel.status === 'open').length ?? 0,
       guidance: 'Use Telegram only for mobile-friendly urgent blockers or after the user has already engaged through Telegram.',
+      capabilities: {
+        openwhisper: { available: caps.openwhisper, ...(caps.openwhisperPath ? { path: caps.openwhisperPath } : {}) },
+        piper: { available: caps.piper, ...(caps.piperPath ? { path: caps.piperPath } : {}) },
+        ffmpeg: { available: caps.ffmpeg, ...(caps.ffmpegPath ? { path: caps.ffmpegPath } : {}) },
+      },
     };
+  }
+
+  /**
+   * Synthesize the given text to an OGG/Opus voice message (piper → ffmpeg) and
+   * send it to the caller's own session topic. Helm owns the TTS pipeline; the
+   * LLM only supplies text. Returns a reason instead of throwing on the common
+   * not-ready cases so callers get actionable feedback.
+   */
+  async sendTelegramVoice(sessionRef: string, text: string): Promise<{ sent: boolean; reason?: string }> {
+    if (!this.telegramBridge?.isRunning()) {
+      return { sent: false, reason: 'Telegram bot is not running' };
+    }
+    const caps = this.capabilityDetector.getCapabilities();
+    if (!caps.piper) return { sent: false, reason: 'piper (text-to-speech) is not configured' };
+    if (!caps.ffmpeg) return { sent: false, reason: 'ffmpeg (audio conversion) is not configured' };
+    if (!text || text.trim() === '') {
+      return { sent: false, reason: 'text is empty' };
+    }
+    const session = this.sessionManager.getSession(sessionRef);
+    if (!session) return { sent: false, reason: `Session not found by ID: ${sessionRef}` };
+
+    const config = this.configLoader.getTelegramConfig();
+    let oggPath: string;
+    try {
+      const result = await new PiperTts({
+        piperPath: config.piperPath,
+        piperVoicePath: config.piperVoicePath,
+        ffmpegPath: config.ffmpegPath,
+        tmpDir: getTempDir(__dirname),
+      }).synthesize(text);
+      oggPath = result.oggPath;
+    } catch (err) {
+      return { sent: false, reason: err instanceof Error ? err.message : String(err) };
+    }
+
+    try {
+      const sendResult = await this.telegramBridge.sendToUser({
+        sessionId: session.id,
+        text: '',
+        filePath: oggPath,
+        asVoice: true,
+      });
+      return { sent: sendResult.sent, ...(sendResult.reason ? { reason: sendResult.reason } : {}) };
+    } finally {
+      fs.promises.unlink(oggPath).catch(() => {});
+    }
   }
 
   async closeTelegramChannel(channelId: string): Promise<TelegramChannel> {

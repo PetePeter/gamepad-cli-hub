@@ -204,6 +204,27 @@ export class TelegramBotCore extends EventEmitter {
     }
   }
 
+  /** Send an OGG/Opus buffer as a native Telegram voice message. */
+  async sendVoice(
+    buffer: Buffer,
+    options?: { caption?: string; topicId?: number },
+  ): Promise<TelegramBot.Message | null> {
+    if (!this.bot || !this.chatId) return null;
+    try {
+      const sendOptions: TelegramBot.SendVoiceOptions = { caption: options?.caption };
+      if (options?.topicId != null) {
+        sendOptions.message_thread_id = options.topicId;
+      }
+      return await this.withTimeout(
+        this.bot.sendVoice(this.chatId, Readable.from(buffer), sendOptions),
+        'sendVoice',
+      );
+    } catch (err) {
+      logger.error(`[Telegram] sendVoice failed: ${err}`);
+      return null;
+    }
+  }
+
   /** Send a photo to the configured chat or a specific topic. */
   async sendPhoto(
     buffer: Buffer,

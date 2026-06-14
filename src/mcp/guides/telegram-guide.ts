@@ -6,7 +6,8 @@ export function buildTelegramGuide(): string {
   return `\
 [telegram]
 description = "Telegram integration capabilities, voice memo workflows, and attachment guides for bidirectional voice communication."
-capabilities_source = "session_info.telegramCapabilities — check these flags before attempting any voice feature."
+capabilities_source = "telegram_status.capabilities — check these flags before attempting any voice feature."
+reply_channel_rule = "TEXT IS THE DEFAULT reply channel. Only send a voice reply when the user explicitly requests one."
 
 [capability_flags]
 available = "Telegram integration is enabled and configured."
@@ -23,13 +24,12 @@ step_4 = "Send to active session via session_send_text"
 fallback = "If openwhisper=false: reply to user \\"Voice memo received but speech-to-text is not configured. Please send text.\\""
 
 [text_to_voice]
-description = "LLM text → piper TTS → ffmpeg OGG → Telegram voice message."
-requires = "piper=true and ffmpeg=true"
-step_1 = "Generate WAV with piper: piper --model en_US-hfc_female-medium --output_file response.wav"
-step_2 = "Convert to OGG/Opus: ffmpeg -i response.wav -c:a libopus -b:a 96k response.ogg"
-step_3 = "Base64-encode response.ogg"
-step_4 = "Send via telegram_chat with attachment: { name: \\"response.ogg\\", data: base64, mime: \\"audio/ogg\\" }"
-fallback = "If piper=false or ffmpeg=false: send text response only."
+description = "Helm performs the entire TTS pipeline (piper → ffmpeg → OGG/Opus → Telegram voice message). You only supply text."
+requires = "piper=true and ffmpeg=true (check telegram_status.capabilities)"
+rule = "TEXT IS THE DEFAULT. Only send voice when the user explicitly asks for a voice reply."
+step_1 = "Call telegram_send_voice(text). Helm synthesizes speech and sends it to your session topic as a native voice message."
+note = "Do NOT run piper or ffmpeg yourself — Helm owns the pipeline. There is no manual base64/attachment step."
+fallback = "If piper=false or ffmpeg=false: the telegram_send_voice tool is unavailable; send a text response only."
 
 [attachment_format]
 preferred = "audio/ogg (OGG/Opus, 96kbps) — smallest file, native Telegram playback"

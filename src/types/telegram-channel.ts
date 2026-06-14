@@ -20,6 +20,11 @@ export interface TelegramStatus {
   allowedUsersConfigured: boolean;
   openChannels: number;
   guidance: string;
+  capabilities: {
+    openwhisper: { available: boolean; path?: string };
+    piper: { available: boolean; path?: string };
+    ffmpeg: { available: boolean; path?: string };
+  };
 }
 
 export interface TelegramChannelCreateInput {
@@ -32,6 +37,8 @@ export interface TelegramSendToUserInput {
   text: string;
   filePath?: string;
   keyboard?: TelegramBot.InlineKeyboardButton[][];
+  /** Send an audio/ogg attachment as a native Telegram voice message. */
+  asVoice?: boolean;
 }
 
 export type TelegramSendResult = { sent: boolean; reason?: string };
