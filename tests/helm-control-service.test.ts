@@ -1177,7 +1177,22 @@ describe('HelmControlService.restartHelm', () => {
     vi.restoreAllMocks();
   });
 
-  it('closes all sessions, emits restart-requested, and returns the closed count', () => {
+  it('preserves sessions by default so they resume after relaunch', () => {
+    const { service, ptyManager, sessionManager } = makeService();
+    (sessionManager.getAllSessions as ReturnType<typeof vi.fn>).mockReturnValue([
+      { id: 's1', name: 'One', cliType: 'claude-code' },
+      { id: 's2', name: 'Two', cliType: 'codex' },
+    ]);
+    const listener = vi.fn();
+    service.on('restart-requested', listener);
+
+    expect(service.restartHelm()).toEqual({ sessionsClosed: 0, resume: true });
+    expect(ptyManager.kill).not.toHaveBeenCalled();
+    expect(sessionManager.removeSession).not.toHaveBeenCalled();
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes all sessions, emits restart-requested, and returns the closed count when resume is false', () => {
     const { service, ptyManager, sessionManager } = makeService();
     (sessionManager.getAllSessions as ReturnType<typeof vi.fn>).mockReturnValue([
       { id: 's1', name: 'One', cliType: 'claude-code' },
@@ -1192,7 +1207,7 @@ describe('HelmControlService.restartHelm', () => {
     const listener = vi.fn();
     service.on('restart-requested', listener);
 
-    expect(service.restartHelm()).toEqual({ sessionsClosed: 3 });
+    expect(service.restartHelm(false)).toEqual({ sessionsClosed: 3, resume: false });
     expect(ptyManager.kill).toHaveBeenCalledWith('s1');
     expect(ptyManager.kill).toHaveBeenCalledWith('s2');
     expect(ptyManager.kill).toHaveBeenCalledWith('s3');
@@ -1206,7 +1221,7 @@ describe('HelmControlService.restartHelm', () => {
     const listener = vi.fn();
     service.on('restart-requested', listener);
 
-    expect(service.restartHelm()).toEqual({ sessionsClosed: 0 });
+    expect(service.restartHelm(false)).toEqual({ sessionsClosed: 0, resume: false });
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
@@ -1223,7 +1238,7 @@ describe('HelmControlService.restartHelm', () => {
     const listener = vi.fn();
     service.on('restart-requested', listener);
 
-    expect(service.restartHelm()).toEqual({ sessionsClosed: 3 });
+    expect(service.restartHelm(false)).toEqual({ sessionsClosed: 2, resume: false });
     expect(ptyManager.kill).toHaveBeenCalledWith('s1');
     expect(ptyManager.kill).toHaveBeenCalledWith('s3');
     expect(sessionManager.removeSession).toHaveBeenCalledTimes(2);

@@ -118,7 +118,7 @@ function makeService(): HelmControlService {
     })),
     notifyUser: vi.fn((sessionRef: string, title: string, content: string) => ({ delivered: 'bubble', sessionRef, title, content })),
     getAppVisibility: vi.fn(() => ({ visibility: 'visible-focused', screenLocked: false, activeSessionId: 's1' })),
-    restartHelm: vi.fn(() => ({ sessionsClosed: 2 })),
+    restartHelm: vi.fn((resume = true) => ({ sessionsClosed: resume ? 0 : 2, resume })),
     createScheduledTask: vi.fn((params: Record<string, unknown>) => ({ id: 'task-1', status: 'pending', ...params })),
     listScheduledTasks: vi.fn(() => [{ id: 'task-1', title: 'Follow up', status: 'pending' }]),
     getScheduledTask: vi.fn((id: string) => ({ id, title: 'Follow up', status: 'pending' })),
@@ -355,8 +355,22 @@ describe('LocalhostMcpServer', () => {
       },
     });
     const restartJson = await restartResponse.json();
-    expect((service.restartHelm as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledTimes(1);
-    expect(restartJson.result.structuredContent).toEqual({ sessionsClosed: 2 });
+    // No resume arg → defaults to resume:true (sessions preserved for auto-resume).
+    expect((service.restartHelm as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(true);
+    expect(restartJson.result.structuredContent).toEqual({ sessionsClosed: 0, resume: true });
+
+    const forceResponse = await rpc(port, 'secret-token', {
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'tools/call',
+      params: {
+        name: 'restart_helm',
+        arguments: { resume: false },
+      },
+    });
+    const forceJson = await forceResponse.json();
+    expect((service.restartHelm as unknown as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(false);
+    expect(forceJson.result.structuredContent).toEqual({ sessionsClosed: 2, resume: false });
   });
 
   it('dispatches skills tools through the MCP surface', async () => {

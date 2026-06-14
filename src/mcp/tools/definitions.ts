@@ -811,10 +811,12 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: 'restart_helm',
     title: 'Restart Helm',
-    description: 'Close all sessions and restart the Helm application. MCP and Telegram resume after a 3-second delay.',
+    description: 'Restart the Helm application. By default sessions are preserved and auto-resume after relaunch. Pass resume:false to close all sessions first (force restart). MCP and Telegram resume after a 3-second delay.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        resume: { type: 'boolean', description: 'Preserve and auto-resume existing sessions after relaunch. Defaults to true; set false to close all sessions first.' },
+      },
       additionalProperties: false,
     },
   },

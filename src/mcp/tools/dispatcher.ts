@@ -433,7 +433,7 @@ export async function callMcpTool(
       case 'session_close':
         return service.closeSession(asString(args.sessionId ?? args.name, 'sessionId or name is required'));
       case 'restart_helm':
-        return service.restartHelm();
+        return service.restartHelm(args.resume !== false);
       case 'notify_user':
         return service.notifyUser(
           asString(args.sessionId ?? args.name, 'sessionId or name is required'),

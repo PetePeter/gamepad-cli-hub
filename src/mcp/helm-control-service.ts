@@ -557,17 +557,26 @@ export class HelmControlService extends EventEmitter {
     };
   }
 
-  restartHelm(): { sessionsClosed: number } {
-    const sessions = this.sessionService.listSessions();
-    for (const session of sessions) {
-      try {
-        this.sessionService.closeSession(session.id);
-      } catch (error) {
-        logger.warn(`[HelmControl] Failed to close session ${session.id} during restart: ${error}`);
+  /**
+   * Restart Helm. By default (`resume === true`) sessions are left intact on disk
+   * so the relaunched instance auto-resumes them. Pass `resume === false` to close
+   * every session first — a force restart that comes back with no sessions.
+   */
+  restartHelm(resume = true): { sessionsClosed: number; resume: boolean } {
+    let sessionsClosed = 0;
+    if (!resume) {
+      const sessions = this.sessionService.listSessions();
+      for (const session of sessions) {
+        try {
+          this.sessionService.closeSession(session.id);
+          sessionsClosed++;
+        } catch (error) {
+          logger.warn(`[HelmControl] Failed to close session ${session.id} during restart: ${error}`);
+        }
       }
     }
     this.emit('restart-requested');
-    return { sessionsClosed: sessions.length };
+    return { sessionsClosed, resume };
   }
 
   setAiagentState(sessionRef: string, state: 'planning' | 'implementing' | 'completed' | 'idle') {

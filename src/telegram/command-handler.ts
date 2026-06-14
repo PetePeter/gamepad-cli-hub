@@ -27,7 +27,8 @@ export const TELEGRAM_COMMANDS: ReadonlyArray<{ command: string; description: st
   { command: 'rename', description: 'Rename the session linked to this topic' },
   { command: 'close', description: 'Close the session linked to this topic' },
   { command: 'closeall', description: 'Close all active sessions' },
-  { command: 'restart', description: 'Restart the Helm application' },
+  { command: 'restart', description: 'Restart Helm and resume existing sessions' },
+  { command: 'restart_force', description: 'Restart Helm WITHOUT resuming sessions (closes all first)' },
 ];
 
 export function setupCommandHandler(
@@ -60,7 +61,8 @@ export function setupCommandHandler(
   registerCommandHandler('rename', async (msg, args) => handleRename(bot, sessionManager, topicManager, msg, args));
   registerCommandHandler('close', async (msg) => handleClose(bot, sessionManager, ptyManager, topicManager, msg));
   registerCommandHandler('closeall', async (msg) => handleCloseAllCommand(bot, sessionManager, msg));
-  registerCommandHandler('restart', async (msg) => handleRestart(bot, helmControlService, msg));
+  registerCommandHandler('restart', async (msg) => handleRestart(bot, helmControlService, msg, true));
+  registerCommandHandler('restart_force', async (msg) => handleRestart(bot, helmControlService, msg, false));
 
   return () => {
     for (const dispose of handlers) dispose();
@@ -261,9 +263,13 @@ async function handleRestart(
   bot: TelegramBotCore,
   helmControlService: HelmControlService,
   msg: TelegramBot.Message,
+  resume: boolean,
 ): Promise<void> {
-  await bot.sendMessage('🔄 Restarting Helm...', { message_thread_id: msg.message_thread_id });
-  helmControlService.restartHelm();
+  const text = resume
+    ? '🔄 Restarting Helm (sessions will resume)...'
+    : '🔄 Force-restarting Helm (sessions will NOT resume)...';
+  await bot.sendMessage(text, { message_thread_id: msg.message_thread_id });
+  helmControlService.restartHelm(resume);
 }
 
 async function handlePeek(

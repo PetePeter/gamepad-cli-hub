@@ -80,6 +80,54 @@ describe('setupCommandHandler', () => {
   });
 });
 
+describe('restart commands', () => {
+  function getHandler(bot: TelegramBotCore, event: string): (msg: any, args: string) => Promise<void> {
+    const call = (bot.on as ReturnType<typeof vi.fn>).mock.calls.find((c) => c[0] === event);
+    if (!call) throw new Error(`handler not registered for ${event}`);
+    return call[1];
+  }
+
+  it('command:restart resumes sessions (restartHelm(true))', async () => {
+    const { bot } = makeBot();
+    const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+    const helm = { restartHelm: vi.fn() } as any;
+
+    setupCommandHandler(bot, sm, pm, makeTopicManager(), helm);
+    await getHandler(bot, 'command:restart')({ message_thread_id: 1 }, '');
+
+    expect(helm.restartHelm).toHaveBeenCalledWith(true);
+  });
+
+  it('command:restart_force closes sessions (restartHelm(false))', async () => {
+    const { bot } = makeBot();
+    const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+    const helm = { restartHelm: vi.fn() } as any;
+
+    setupCommandHandler(bot, sm, pm, makeTopicManager(), helm);
+    await getHandler(bot, 'command:restart_force')({ message_thread_id: 1 }, '');
+
+    expect(helm.restartHelm).toHaveBeenCalledWith(false);
+  });
+
+  it('all registered Telegram command names are Bot API-compatible', () => {
+    const { bot } = makeBot();
+    const sm = { getAllSessions: vi.fn(() => []) } as unknown as SessionManager;
+    const pm = {} as unknown as PtyManager;
+
+    setupCommandHandler(bot, sm, pm, makeTopicManager(), {} as any);
+
+    const registered = (bot.on as ReturnType<typeof vi.fn>).mock.calls
+      .map((c) => String(c[0]))
+      .filter((e) => e.startsWith('command:'))
+      .map((e) => e.slice('command:'.length));
+    for (const name of registered) {
+      expect(name).toMatch(/^[a-z0-9_]+$/);
+    }
+  });
+});
+
 describe('command:help handler', () => {
   it('sends all available slash commands', async () => {
     const { bot, sendMessage } = makeBot();
