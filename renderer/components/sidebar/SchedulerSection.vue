@@ -6,6 +6,7 @@ import type { ScheduledTask } from '../../../src/types/scheduled-task.js';
 const emit = defineEmits<{
   open: [taskId: string | null];
   delete: [task: ScheduledTask];
+  history: [];
 }>();
 
 const props = defineProps<{
@@ -60,7 +61,10 @@ onUnmounted(() => {
 
 <template>
   <div v-show="!props.collapsed" class="scheduler-section">
-    <button class="scheduler-create focusable" @click.stop="emit('open', null)">New Schedule</button>
+    <div class="scheduler-create-split">
+      <button class="scheduler-create scheduler-create--main focusable" @click.stop="emit('open', null)">New Schedule</button>
+      <button class="scheduler-create scheduler-create--hist focusable" type="button" title="Past Schedules" aria-label="Past Schedules" @click.stop="emit('history')">🕘</button>
+    </div>
     <div v-if="visibleTasks.length === 0" class="scheduler-empty">No scheduled runs</div>
     <div
       v-for="task in visibleTasks"
@@ -85,7 +89,6 @@ onUnmounted(() => {
   gap: 6px;
   padding: 0 8px 8px;
 }
-.scheduler-create,
 .scheduler-row {
   width: 100%;
   min-height: 30px;
@@ -96,8 +99,39 @@ onUnmounted(() => {
   cursor: pointer;
   font-size: 0.82rem;
 }
+.scheduler-create-split {
+  display: flex;
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
 .scheduler-create {
+  border: none;
+  background: var(--bg-secondary);
   color: var(--accent-primary);
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.scheduler-create--main {
+  flex: 1;
+  text-align: left;
+  padding: 0 8px;
+}
+.scheduler-create--hist {
+  width: 32px;
+  flex: 0 0 32px;
+  border-left: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+.scheduler-create--main:hover {
+  background: var(--bg-tertiary);
+}
+.scheduler-create--hist:hover {
+  color: var(--text-primary);
 }
 .scheduler-row {
   display: grid;
@@ -110,9 +144,6 @@ onUnmounted(() => {
 }
 .scheduler-row:hover {
   border-color: var(--border-color);
-}
-.scheduler-create:hover {
-  border-color: var(--accent-primary);
 }
 .scheduler-row--running {
   border-color: #ff9f1a;

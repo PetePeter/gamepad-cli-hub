@@ -1,5 +1,6 @@
-import { normalizeProjectPath } from '../../session/project-identity.js';
+import { resolveWorkingDirectory } from './working-dir-gate.js';
 import type { ConfigLoader } from '../../config/loader.js';
+import type { ProjectStore } from '../../session/project-store.js';
 import type { PlanManager, PlanRefResolution } from '../../session/plan-manager.js';
 import type { PlanItem, PlanSequence } from '../../types/plan.js';
 
@@ -11,6 +12,7 @@ export class HelmPlanSequenceService {
   constructor(
     private readonly planManager: PlanManager,
     private readonly configLoader: ConfigLoader,
+    private readonly projectStore?: ProjectStore,
   ) {}
 
   listPlanSequences(input: { dirPath?: string; planRef?: string }): Array<PlanSequence & { memberPlanIds: string[]; memberHumanIds: string[]; selectedForPlan?: boolean }> {
@@ -105,13 +107,6 @@ export class HelmPlanSequenceService {
   }
 
   private requireWorkingDirectory(dirPath: string) {
-    const normalized = normalizeProjectPath(dirPath);
-    const workingDir = this.configLoader.getWorkingDirectories().find(
-      (entry) => normalizeProjectPath(entry.path) === normalized,
-    );
-    if (!workingDir) {
-      throw new Error(`Working directory is not configured in Helm: ${dirPath}`);
-    }
-    return workingDir;
+    return resolveWorkingDirectory(this.configLoader, this.projectStore, dirPath);
   }
 }

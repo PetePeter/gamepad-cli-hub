@@ -1,6 +1,7 @@
 import { ipcRenderer } from 'electron';
 import type { PtyWriteOptions } from '../../session/delivery-context.js';
 import type { DraftPrompt } from '../../types/session.js';
+import type { ScheduledTaskHistoryEntry } from '../../types/scheduled-task.js';
 import {
   createPreloadDomains,
   type HelmPreloadApi,
@@ -986,11 +987,24 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
   /** Delete a scheduled task */
   scheduledTaskDelete: (id: string) => ipcRenderer.invoke('scheduled_task:delete', id),
 
+  /** List all scheduled task history entries (newest run first) */
+  scheduledTaskListHistory: (): Promise<ScheduledTaskHistoryEntry[]> => ipcRenderer.invoke('scheduled_task:listHistory'),
+
+  /** Remove all scheduled task history entries */
+  scheduledTaskClearHistory: (): Promise<void> => ipcRenderer.invoke('scheduled_task:clearHistory'),
+
   /** Subscribe to scheduled task change events */
   onScheduledTaskChanged: (callback: (task: { id: string; title: string; status: string }) => void) => {
     const listener = (_e: unknown, task: { id: string; title: string; status: string }) => callback(task);
     ipcRenderer.on('scheduled-task:changed', listener);
     return () => ipcRenderer.removeListener('scheduled-task:changed', listener);
+  },
+
+  /** Subscribe to scheduled task history change events */
+  onScheduledTaskHistoryChanged: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('scheduled-task-history:changed', listener);
+    return () => ipcRenderer.removeListener('scheduled-task-history:changed', listener);
   },
 
 } as const;

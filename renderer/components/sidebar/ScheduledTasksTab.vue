@@ -4,7 +4,7 @@ import { appClient, attachmentsClient, backupsClient, configClient, contextsClie
  * ScheduledTasksTab.vue -- UI for creating and managing scheduled tasks.
  */
 import { ref, computed, onMounted, onUnmounted, watch, ref as templateRef } from 'vue';
-import type { ScheduledTask, ScheduledTaskMode, ScheduledTaskScheduleKind } from '../../../src/types/scheduled-task.js';
+import type { ScheduledTask, ScheduledTaskHistoryEntry, ScheduledTaskMode, ScheduledTaskScheduleKind } from '../../../src/types/scheduled-task.js';
 import { CronEngine } from '../../../src/utils/cron-engine.js';
 import QuickSpawnModal from '../modals/QuickSpawnModal.vue';
 import DirPickerModal from '../modals/DirPickerModal.vue';
@@ -24,8 +24,9 @@ const emit = defineEmits<{
 const props = withDefaults(defineProps<{
   initialEditTaskId?: string | null;
   initialCreate?: boolean;
+  initialPrefill?: Partial<ScheduledTaskHistoryEntry> | null;
   popup?: boolean;
-}>(), { initialEditTaskId: null, initialCreate: false, popup: false });
+}>(), { initialEditTaskId: null, initialCreate: false, initialPrefill: null, popup: false });
 
 const tasks = ref<ScheduledTask[]>([]);
 const creating = ref(false);
@@ -257,6 +258,32 @@ function editTask(task: ScheduledTask): void {
   if (formMode.value === 'direct') loadSessions();
 }
 
+/**
+ * Prefill the create form from a history snapshot. Unlike editTask(), this
+ * leaves editingTaskId null so saving creates a brand-new task, and resets the
+ * scheduled time to now + 1 hour so the user always picks a fresh time.
+ */
+function prefillFromSnapshot(entry: Partial<ScheduledTaskHistoryEntry>): void {
+  editingTaskId.value = null;
+  formTitle.value = entry.title ?? '';
+  formDescription.value = entry.description ?? '';
+  formInitialPrompt.value = entry.initialPrompt ?? '';
+  formMode.value = entry.mode ?? 'spawn';
+  selectedCliType.value = entry.cliType ?? '';
+  selectedDirPath.value = entry.dirPath ?? '';
+  formCliParams.value = entry.cliParams ?? '';
+  selectedTargetSessionId.value = entry.targetSessionId ?? '';
+  scheduleKind.value = entry.scheduleKind ?? 'once';
+  intervalMinutes.value = Math.max(1, Math.round((entry.intervalMs ?? 3600000) / 60000));
+  cronExpression.value = entry.cronExpression ?? '0 9 * * 1-5';
+  endDate.value = entry.endDate ? toLocalDateInputValue(new Date(entry.endDate)) : '';
+  const nextHour = new Date();
+  nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
+  formTime.value = toLocalDateTimeInputValue(nextHour);
+  showCreateForm.value = true;
+  if (formMode.value === 'direct') loadSessions();
+}
+
 function cloneTask(): void {
   if (!editingTaskId.value) return;
   editingTaskId.value = null;
@@ -273,6 +300,8 @@ onMounted(async () => {
   if (props.initialEditTaskId) {
     const task = tasks.value.find((item) => item.id === props.initialEditTaskId);
     if (task) editTask(task);
+  } else if (props.initialPrefill) {
+    prefillFromSnapshot(props.initialPrefill);
   } else if (props.initialCreate || props.popup) {
     showCreateForm.value = true;
     startCreateForm();
@@ -281,7 +310,8 @@ onMounted(async () => {
   if (props.popup) modalStack.push({ id: 'scheduler-popup', handler: () => true, interceptKeys: FORM_KEYS });
 });
 
-watch(() => props.initialCreate, (initialCreate) => { if (!initialCreate || props.initialEditTaskId) return; showCreateForm.value = true; startCreateForm(); });
+watch(() => props.initialCreate, (initialCreate) => { if (!initialCreate || props.initialEditTaskId || props.initialPrefill) return; showCreateForm.value = true; startCreateForm(); });
+watch(() => props.initialPrefill, (prefill) => { if (!prefill || props.initialEditTaskId) return; prefillFromSnapshot(prefill); });
 watch(() => props.initialEditTaskId, async (taskId) => { if (!taskId) return; await loadTasks(); const task = tasks.value.find((item) => item.id === taskId); if (task) editTask(task); });
 onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer); modalStack.pop('scheduler-popup'); });
 </script>

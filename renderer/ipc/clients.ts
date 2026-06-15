@@ -32,7 +32,25 @@ export const attachmentsClient = domainClient('attachments');
 export const backupsClient = domainClient('backups');
 export const incomingClient = domainClient('incoming');
 export const draftsClient = domainClient('drafts');
-export const schedulerClient = domainClient('scheduler');
+const baseSchedulerClient = domainClient('scheduler');
+
+/**
+ * Scheduler client with convenience history accessors layered on top of the
+ * proxied preload domain. The underlying domainClient is a Proxy whose get trap
+ * never returns own properties, so the aliases are exposed via a wrapper object
+ * (not Object.assign on the proxy). The proxy is spread first so all raw
+ * scheduledTask* methods remain reachable through getter forwarding.
+ */
+export const schedulerClient = new Proxy(baseSchedulerClient, {
+  get(target, property, receiver) {
+    if (property === 'listHistory') return () => baseSchedulerClient.scheduledTaskListHistory();
+    if (property === 'clearHistory') return () => baseSchedulerClient.scheduledTaskClearHistory();
+    return Reflect.get(target, property, receiver);
+  },
+}) as typeof baseSchedulerClient & {
+  listHistory: () => ReturnType<typeof baseSchedulerClient.scheduledTaskListHistory>;
+  clearHistory: () => ReturnType<typeof baseSchedulerClient.scheduledTaskClearHistory>;
+};
 export const patternsClient = domainClient('patterns');
 export const telegramClient = domainClient('telegram');
 export const keyboardClient = domainClient('keyboard');

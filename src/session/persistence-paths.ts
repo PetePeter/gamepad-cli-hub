@@ -15,3 +15,4 @@ export const DEFAULT_PROJECTS_FILE = join(configDir, 'projects.json');
 export const DEFAULT_PLAN_CONTEXTS_FILE = join(configDir, 'plan-contexts.json');
 export const DEFAULT_PLAN_CONTEXT_BINDINGS_FILE = join(configDir, 'plan-context-bindings.json');
 export const SCHEDULED_TASKS_FILE = join(configDir, 'scheduled-tasks.yaml');
+export const SCHEDULED_TASK_HISTORY_FILE = join(configDir, 'scheduled-task-history.yaml');

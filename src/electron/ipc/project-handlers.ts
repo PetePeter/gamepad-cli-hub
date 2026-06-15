@@ -12,20 +12,13 @@ import type { PlanManager } from '../../session/plan-manager.js';
 import type { ContextManager } from '../../session/context-manager.js';
 import { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
 import { logger } from '../../utils/logger.js';
-import { dirDisplayNameFromPath, normalizeProjectPath } from '../../session/project-identity.js';
 
 /**
  * Register a directory as a working directory if not already present.
- * `InputConfigStore.addWorkingDirectory` has no dedup guard, so we check first.
+ * Delegates to the shared, normalize-and-dedup helper on ConfigLoader.
  */
 function ensureWorkingDir(configLoader: ConfigLoader, dirPath: string, name?: string): void {
-  const normalized = normalizeProjectPath(dirPath);
-  const exists = configLoader.getWorkingDirectories().some(
-    (d) => normalizeProjectPath(d.path) === normalized,
-  );
-  if (!exists) {
-    configLoader.addWorkingDirectory(name || dirDisplayNameFromPath(dirPath), dirPath);
-  }
+  configLoader.ensureWorkingDirectory(dirPath, name);
 }
 
 export function setupProjectHandlers(projectStore: ProjectStore, configLoader: ConfigLoader, planManager?: PlanManager, contextManager?: ContextManager): void {

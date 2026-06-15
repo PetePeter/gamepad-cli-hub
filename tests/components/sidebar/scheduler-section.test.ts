@@ -67,4 +67,28 @@ describe('SchedulerSection', () => {
     wrapper.unmount();
     vi.useRealTimers();
   });
+
+  it('emits open with null from the main split-button segment', async () => {
+    const wrapper = mount(SchedulerSection, { props: { collapsed: false } });
+    await flushPromises();
+
+    await wrapper.find('.scheduler-create--main').trigger('click');
+
+    expect(wrapper.emitted('open')).toEqual([[null]]);
+    expect(wrapper.emitted('history')).toBeUndefined();
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
+  it('emits history when the 🕘 segment is clicked', async () => {
+    const wrapper = mount(SchedulerSection, { props: { collapsed: false } });
+    await flushPromises();
+
+    await wrapper.find('.scheduler-create--hist').trigger('click');
+
+    expect(wrapper.emitted('history')?.length).toBe(1);
+    expect(wrapper.emitted('open')).toBeUndefined();
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
 });

@@ -6,12 +6,14 @@
 
 import { ipcMain, BrowserWindow } from 'electron';
 import type { ScheduledTaskManager } from '../../session/scheduled-task-manager.js';
+import type { ScheduledTaskHistoryManager } from '../../session/scheduled-task-history-manager.js';
 import type { WindowManager } from '../window-manager.js';
 import type { CreateScheduledTaskParams, UpdateScheduledTaskParams } from '../../types/scheduled-task.js';
 import { logger } from '../../utils/logger.js';
 
 export function setupScheduledTaskHandlers(
   taskManager: ScheduledTaskManager,
+  historyManager: ScheduledTaskHistoryManager,
   windowManager?: WindowManager,
 ): void {
   const getTargetWindows = () => windowManager?.getAllWindows() ?? BrowserWindow.getAllWindows();
@@ -21,6 +23,15 @@ export function setupScheduledTaskHandlers(
     for (const win of getTargetWindows()) {
       if (!win.isDestroyed()) {
         win.webContents.send('scheduled-task:changed', task);
+      }
+    }
+  });
+
+  // Forward history:changed events to all windows
+  historyManager.on('history:changed', () => {
+    for (const win of getTargetWindows()) {
+      if (!win.isDestroyed()) {
+        win.webContents.send('scheduled-task-history:changed');
       }
     }
   });
@@ -84,6 +95,23 @@ export function setupScheduledTaskHandlers(
     } catch (err) {
       logger.error(`[scheduled_task:delete] Failed: ${err}`);
       return false;
+    }
+  });
+
+  ipcMain.handle('scheduled_task:listHistory', () => {
+    try {
+      return historyManager.list();
+    } catch (err) {
+      logger.error(`[scheduled_task:listHistory] Failed: ${err}`);
+      return [];
+    }
+  });
+
+  ipcMain.handle('scheduled_task:clearHistory', () => {
+    try {
+      return historyManager.clear();
+    } catch (err) {
+      logger.error(`[scheduled_task:clearHistory] Failed: ${err}`);
     }
   });
 

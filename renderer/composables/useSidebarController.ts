@@ -9,7 +9,7 @@ import { refreshSessions, getSortField, getSortDirection, setSortField, setSortD
 import { startRename, commitRename, cancelRename } from '../sidebar/session-services.js';
 import { toggleSessionOverviewVisibility, setSessionState, toggleGroupCollapse } from '../screens/sessions.js';
 import { isAnyBridgeModalVisible } from '../stores/modal-bridge.js';
-import type { ScheduledTask } from '../../src/types/scheduled-task.js';
+import type { ScheduledTask, ScheduledTaskHistoryEntry } from '../../src/types/scheduled-task.js';
 import type { SessionSortField, SortDirection } from '../sort-logic.js';
 
 interface NavigationController {
@@ -36,6 +36,8 @@ export function useSidebarController(deps: SidebarControllerDeps) {
   const schedulerCollapsed = ref(false);
   const schedulerPopupVisible = ref(false);
   const schedulerPopupTaskId = ref<string | null>(null);
+  const historyModalVisible = ref(false);
+  const recreatePrefill = ref<ScheduledTaskHistoryEntry | null>(null);
 
   function buildDirPickerItems(dirs: Array<{ name: string; path: string; projectId?: string; projectName?: string; isCanonical?: boolean }>) {
     return dirs;
@@ -172,6 +174,17 @@ export function useSidebarController(deps: SidebarControllerDeps) {
     schedulerPopupVisible.value = true;
   }
 
+  function openSchedulerHistory(): void {
+    historyModalVisible.value = true;
+  }
+
+  function recreateFromHistory(entry: ScheduledTaskHistoryEntry): void {
+    recreatePrefill.value = entry;
+    historyModalVisible.value = false;
+    schedulerPopupTaskId.value = null;
+    schedulerPopupVisible.value = true;
+  }
+
   async function deleteScheduledTask(task: ScheduledTask): Promise<void> {
     const confirmed = window.confirm(`Delete scheduled task "${task.title}"?`);
     if (!confirmed) return;
@@ -212,6 +225,8 @@ export function useSidebarController(deps: SidebarControllerDeps) {
     schedulerCollapsed,
     schedulerPopupVisible,
     schedulerPopupTaskId,
+    historyModalVisible,
+    recreatePrefill,
     getSortField,
     getSortDirection,
     buildDirPickerItems,
@@ -236,6 +251,8 @@ export function useSidebarController(deps: SidebarControllerDeps) {
     togglePlannerCollapse,
     toggleSchedulerCollapse,
     openSchedulerPopup,
+    openSchedulerHistory,
+    recreateFromHistory,
     deleteScheduledTask,
     onSpawn,
     onDirPickerSelect,

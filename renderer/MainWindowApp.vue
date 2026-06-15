@@ -105,6 +105,7 @@ import SessionList from './components/sidebar/SessionList.vue';
 import SpawnGrid from './components/sidebar/SpawnGrid.vue';
 import PlansGrid from './components/sidebar/PlansGrid.vue';
 import SchedulerSection from './components/sidebar/SchedulerSection.vue';
+import ScheduledTaskHistoryModal from './components/sidebar/ScheduledTaskHistoryModal.vue';
 
 // Panel components
 import MainView from './components/panels/MainView.vue';
@@ -284,6 +285,10 @@ const {
   schedulerCollapsed,
   schedulerPopupVisible,
   schedulerPopupTaskId,
+  historyModalVisible,
+  recreatePrefill,
+  openSchedulerHistory,
+  recreateFromHistory,
   getSortField,
   getSortDirection,
   onSessionClick,
@@ -309,6 +314,7 @@ const {
   openSchedulerPopup,
   deleteScheduledTask,
   onSpawn,
+  // (openSchedulerHistory, recreateFromHistory destructured above)
   onDirPickerSelect,
   onSortChange,
   installDirPickerBridge,
@@ -630,11 +636,18 @@ function onCloseSettings(): void {
 
 async function onScheduledTaskCreated(task: ScheduledTask): Promise<void> {
   console.log('[App] Scheduled task created:', task.title);
+  recreatePrefill.value = null;
 }
 
 async function onScheduledTaskUpdated(task: ScheduledTask): Promise<void> {
   console.log('[App] Scheduled task updated:', task.title);
 }
+
+// Clear any recreate prefill once the scheduler popup is dismissed so a later
+// plain "New Schedule" never reopens with stale snapshot data.
+watch(schedulerPopupVisible, (visible) => {
+  if (!visible) recreatePrefill.value = null;
+});
 
 async function onScheduledTaskCancelled(taskId: string): Promise<void> {
   console.log('[App] Scheduled task cancelled:', taskId);
@@ -1026,7 +1039,9 @@ onUnmounted(() => {
           :collapsed="schedulerCollapsed"
           @open="openSchedulerPopup"
           @delete="deleteScheduledTask"
+          @history="openSchedulerHistory"
         />
+        <ScheduledTaskHistoryModal v-model:visible="historyModalVisible" @recreate="recreateFromHistory" />
       </div>
 
       <div id="quickSpawnSection" v-show="!settingsVisible" class="spawn-section" :class="{ 'spawn-section--collapsed': spawnCollapsed }">
@@ -1204,6 +1219,7 @@ onUnmounted(() => {
       :backup-restore="backupRestore"
       v-model:scheduler-popup-visible="schedulerPopupVisible"
       :scheduler-popup-task-id="schedulerPopupTaskId"
+      :scheduler-popup-prefill="recreatePrefill"
       @close-session="(sessionId) => void doCloseSession(sessionId)"
       @context-menu-action="onContextMenuAction"
       @draft-new-draft="onDraftNewDraft"

@@ -1,6 +1,8 @@
 import { logger } from '../../utils/logger.js';
 import { normalizeProjectPath } from '../../session/project-identity.js';
+import { resolveWorkingDirectory } from './working-dir-gate.js';
 import type { ConfigLoader } from '../../config/loader.js';
+import type { ProjectStore } from '../../session/project-store.js';
 import type { PlanManager, PlanRefResolution } from '../../session/plan-manager.js';
 import type { PlanAttachmentManager } from '../../session/plan-attachment-manager.js';
 import type { ContextManager } from '../../session/context-manager.js';
@@ -17,6 +19,7 @@ export class HelmPlanService {
     private readonly configLoader: ConfigLoader,
     private readonly attachmentManager: PlanAttachmentManager,
     private readonly contextManager?: ContextManager,
+    private readonly projectStore?: ProjectStore,
   ) {}
 
   listPlans(dirPath: string): PlanItem[] {
@@ -231,13 +234,6 @@ export class HelmPlanService {
   }
 
   private requireWorkingDirectory(dirPath: string) {
-    const normalized = normalizeProjectPath(dirPath);
-    const workingDir = this.configLoader.getWorkingDirectories().find(
-      (entry) => normalizeProjectPath(entry.path) === normalized,
-    );
-    if (!workingDir) {
-      throw new Error(`Working directory is not configured in Helm: ${dirPath}`);
-    }
-    return workingDir;
+    return resolveWorkingDirectory(this.configLoader, this.projectStore, dirPath);
   }
 }

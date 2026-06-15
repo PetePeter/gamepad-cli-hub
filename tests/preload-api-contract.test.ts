@@ -105,6 +105,9 @@ describe('preload API boundary contract', () => {
     expect(helmApi.plans.planCreate).toBe(methodImplementations.planCreate);
     expect(helmApi.drafts.draftCreate).toBe(methodImplementations.draftCreate);
     expect(helmApi.scheduler.scheduledTaskCreate).toBe(methodImplementations.scheduledTaskCreate);
+    expect(helmApi.scheduler.scheduledTaskListHistory).toBe(methodImplementations.scheduledTaskListHistory);
+    expect(helmApi.scheduler.scheduledTaskClearHistory).toBe(methodImplementations.scheduledTaskClearHistory);
+    expect(helmApi.events.onScheduledTaskHistoryChanged).toBe(methodImplementations.onScheduledTaskHistoryChanged);
     expect(helmApi.telegram.telegramStart).toBe(methodImplementations.telegramStart);
     expect(helmApi.keyboard.keyboardTypeString).toBe(methodImplementations.keyboardTypeString);
     expect(helmApi.app.appStartupReady).toBe(methodImplementations.appStartupReady);

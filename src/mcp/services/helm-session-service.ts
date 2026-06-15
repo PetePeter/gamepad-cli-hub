@@ -9,6 +9,8 @@ import type { SessionSummary, SessionTerminalTailResponse } from '../helm-contro
 import { spawnConfiguredSession } from '../../session/configured-session-spawn.js';
 import { HelmSessionPlanService } from './helm-session-plan-service.js';
 import { normalizeProjectPath } from '../../session/project-identity.js';
+import { resolveWorkingDirectory } from './working-dir-gate.js';
+import type { ProjectStore } from '../../session/project-store.js';
 
 /** Throw if value is null, otherwise return it. */
 function requireResult<T>(value: T | null, message: string): T {
@@ -30,6 +32,7 @@ export class HelmSessionService {
     private readonly ptyManager: PtyManager,
     private readonly configLoader: ConfigLoader,
     planManager: import('../../session/plan-manager.js').PlanManager,
+    private readonly projectStore?: ProjectStore,
   ) {
     this.planService = new HelmSessionPlanService(sessionManager, planManager, configLoader);
   }
@@ -174,13 +177,6 @@ export class HelmSessionService {
   }
 
   private requireWorkingDirectory(dirPath: string) {
-    const normalized = normalizeProjectPath(dirPath);
-    const workingDir = this.configLoader.getWorkingDirectories().find(
-      (entry) => normalizeProjectPath(entry.path) === normalized,
-    );
-    if (!workingDir) {
-      throw new Error(`Working directory is not configured in Helm: ${dirPath}`);
-    }
-    return workingDir;
+    return resolveWorkingDirectory(this.configLoader, this.projectStore, dirPath);
   }
 }

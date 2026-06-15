@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'events';
 import { ScheduledTaskManager } from './scheduled-task-manager.js';
 import { saveScheduledTasks } from './persistence.js';
-import type { ScheduledTask, CreateScheduledTaskParams } from '../types/scheduled-task.js';
+import type { ScheduledTask, ScheduledTaskHistoryEntry, CreateScheduledTaskParams } from '../types/scheduled-task.js';
 
 // ─── Fakes for dependencies ─────────────────────────────────────────────────────
 
@@ -117,6 +117,17 @@ class FakeConfigLoader {
   getWorkingDirectories() { return [{ path: 'X:\\\\coding\\\\test', name: 'test' }]; }
   getMcpConfig() { return { authToken: 'test-token', port: 47373, enabled: true }; }
   reloadActiveProfileIfChanged() {}
+}
+
+/** In-memory history manager fake — captures appends without touching disk. */
+class FakeHistoryManager extends EventEmitter {
+  entries: ScheduledTaskHistoryEntry[] = [];
+  append(entry: Omit<ScheduledTaskHistoryEntry, 'id'>): ScheduledTaskHistoryEntry {
+    const created = { id: `h-${this.entries.length}`, ...entry } as ScheduledTaskHistoryEntry;
+    this.entries.unshift(created);
+    this.emit('history:changed');
+    return created;
+  }
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
@@ -756,6 +767,101 @@ describe('ScheduledTaskManager', () => {
       await vi.runOnlyPendingTimersAsync();
 
       expect(ptyManager.getWrites(targetId)).toEqual(['hello', '\r\n', 'there', ' ']);
+    });
+  });
+
+  describe('history recording', () => {
+    let history: FakeHistoryManager;
+    let historyManager: ScheduledTaskManager;
+
+    beforeEach(() => {
+      history = new FakeHistoryManager();
+      historyManager = new ScheduledTaskManager(
+        sessionManager as any,
+        ptyManager as any,
+        planManager as any,
+        configLoader as any,
+        history as any,
+      );
+    });
+
+    afterEach(() => {
+      historyManager.stop();
+      saveScheduledTasks([]);
+    });
+
+    it('appends one done entry (with setup fields, no stdout) when a spawn task completes', async () => {
+      historyManager.createTask({
+        title: 'Spawn Run',
+        planIds: ['plan-a'],
+        initialPrompt: 'do the thing',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() - 1000),
+        dirPath: 'X:\\\\coding\\\\test',
+      });
+      historyManager.start();
+      await vi.runOnlyPendingTimersAsync();
+
+      const running = historyManager.listTasks()[0];
+      ptyManager.emitExit(running.sessionId!);
+
+      expect(history.entries).toHaveLength(1);
+      const entry = history.entries[0];
+      expect(entry.outcome).toBe('done');
+      expect(entry.title).toBe('Spawn Run');
+      expect(entry.initialPrompt).toBe('do the thing');
+      expect(entry.cliType).toBe('claude-code');
+      expect(entry.dirPath).toBe('X:\\\\coding\\\\test');
+      expect(entry.planIds).toEqual(['plan-a']);
+      expect(entry.ranAt).toBeGreaterThan(0);
+      expect(entry).not.toHaveProperty('stdout');
+    });
+
+    it('appends a failed entry with error for a direct task with missing target', async () => {
+      historyManager.createTask({
+        title: 'Orphan Direct',
+        planIds: [],
+        initialPrompt: 'hello',
+        cliType: '',
+        scheduledTime: new Date(Date.now() - 1000),
+        dirPath: 'X:\\\\coding\\\\test',
+        mode: 'direct',
+      });
+      historyManager.start();
+      await vi.runOnlyPendingTimersAsync();
+
+      expect(history.entries).toHaveLength(1);
+      expect(history.entries[0].outcome).toBe('failed');
+      expect(history.entries[0].error).toContain('Target session ID is missing');
+    });
+
+    it('appends one entry per fire for a recurring interval task', async () => {
+      historyManager.createTask({
+        title: 'Recurring',
+        planIds: [],
+        initialPrompt: 'Test',
+        cliType: 'claude-code',
+        scheduledTime: new Date(Date.now() - 1000),
+        scheduleKind: 'interval',
+        intervalMs: 60000,
+        dirPath: 'X:\\\\coding\\\\test',
+      });
+      historyManager.start();
+
+      // First fire
+      await vi.runOnlyPendingTimersAsync();
+      let running = historyManager.listTasks()[0];
+      ptyManager.emitExit(running.sessionId!);
+      expect(history.entries).toHaveLength(1);
+
+      // Advance past the interval to trigger the second fire
+      vi.advanceTimersByTime(61_000);
+      await vi.runOnlyPendingTimersAsync();
+      running = historyManager.listTasks()[0];
+      ptyManager.emitExit(running.sessionId!);
+
+      expect(history.entries).toHaveLength(2);
+      expect(history.entries.every(e => e.outcome === 'done')).toBe(true);
     });
   });
 });

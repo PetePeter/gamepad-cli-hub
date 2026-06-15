@@ -10,7 +10,8 @@ import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { logger } from '../utils/logger.js';
 import { saveScheduledTasks, loadScheduledTasks } from './persistence.js';
-import type { ScheduledTask, ScheduledTaskStatus, CreateScheduledTaskParams, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
+import type { ScheduledTask, ScheduledTaskStatus, ScheduledTaskHistoryEntry, CreateScheduledTaskParams, UpdateScheduledTaskParams } from '../types/scheduled-task.js';
+import type { ScheduledTaskHistoryManager } from './scheduled-task-history-manager.js';
 import type { SessionManager } from './manager.js';
 import type { PtyManager } from './pty-manager.js';
 import type { PlanManager } from './plan-manager.js';
@@ -33,8 +34,39 @@ export class ScheduledTaskManager extends EventEmitter {
     private ptyManager: PtyManager,
     private planManager: PlanManager,
     private configLoader: ConfigLoader,
+    private historyManager?: ScheduledTaskHistoryManager,
   ) {
     super();
+  }
+
+  /**
+   * Snapshot the task's setup fields at fire time and append a history entry.
+   *
+   * Builds an explicit object (not a live task reference) because recurring
+   * tasks are reset to pending by completeOrReschedule before history records.
+   */
+  private recordHistory(task: ScheduledTask, outcome: ScheduledTaskHistoryEntry['outcome'], error?: string): void {
+    if (!this.historyManager) return;
+    this.historyManager.append({
+      taskId: task.id,
+      title: task.title,
+      ...(task.description !== undefined ? { description: task.description } : {}),
+      initialPrompt: task.initialPrompt,
+      cliType: task.cliType,
+      ...(task.cliParams !== undefined ? { cliParams: task.cliParams } : {}),
+      dirPath: task.dirPath,
+      ...(task.mode !== undefined ? { mode: task.mode } : {}),
+      ...(task.targetSessionId !== undefined ? { targetSessionId: task.targetSessionId } : {}),
+      ...(task.scheduleKind !== undefined ? { scheduleKind: task.scheduleKind } : {}),
+      ...(task.intervalMs !== undefined ? { intervalMs: task.intervalMs } : {}),
+      ...(task.cronExpression !== undefined ? { cronExpression: task.cronExpression } : {}),
+      ...(task.endDate !== undefined ? { endDate: task.endDate } : {}),
+      planIds: [...task.planIds],
+      ranAt: Date.now(),
+      outcome,
+      ...(error !== undefined ? { error } : {}),
+      ...(task.sessionId !== undefined ? { sessionId: task.sessionId } : {}),
+    });
   }
 
   /** Create a new scheduled task. */
@@ -218,6 +250,7 @@ export class ScheduledTaskManager extends EventEmitter {
         task.status = 'failed';
         task.error = err.message;
         task.completedAt = Date.now();
+        this.recordHistory(task, 'failed', err.message);
         this.saveTasks();
         this.emit('task:changed', task);
         return;
@@ -264,6 +297,7 @@ export class ScheduledTaskManager extends EventEmitter {
       }
 
       task.lastRunAt = Date.now();
+      this.recordHistory(task, 'done');
       this.completeOrReschedule(task);
       this.saveTasks();
       this.emit('task:changed', task);
@@ -274,6 +308,7 @@ export class ScheduledTaskManager extends EventEmitter {
       task.status = 'failed';
       task.error = err instanceof Error ? err.message : String(err);
       task.completedAt = Date.now();
+      this.recordHistory(task, 'failed', task.error);
       this.saveTasks();
       this.emit('task:changed', task);
     }
@@ -396,6 +431,7 @@ export class ScheduledTaskManager extends EventEmitter {
       task.error = err instanceof Error ? err.message : String(err);
       task.completedAt = Date.now();
 
+      this.recordHistory(task, 'failed', task.error);
       this.saveTasks();
       this.emit('task:changed', task);
     }
@@ -484,6 +520,9 @@ export class ScheduledTaskManager extends EventEmitter {
   private finishScheduledRun(task: ScheduledTask, sessionId: string): void {
     const cancel = this.promptCancellers.get(sessionId);
     if (cancel) { cancel(); this.promptCancellers.delete(sessionId); }
+    // Snapshot before completeOrReschedule resets a recurring task to pending
+    // and before sessionId is cleared below.
+    this.recordHistory(task, 'done');
     this.completeOrReschedule(task);
     if (task.sessionId === sessionId && task.status !== 'pending') {
       task.sessionId = undefined;

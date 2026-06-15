@@ -33,6 +33,35 @@ export interface ScheduledTask {
   error?: string;
 }
 
+/**
+ * A historical record of a scheduled task run.
+ *
+ * Captures the task's setup fields snapshotted at fire time so the entry is
+ * stable even when a recurring task is reset to pending after running.
+ * Intentionally carries NO stdout/pty output — history is metadata only.
+ */
+export interface ScheduledTaskHistoryEntry {
+  id: string;
+  taskId: string;
+  title: string;
+  description?: string;
+  initialPrompt: string;
+  cliType: string;
+  cliParams?: string;
+  dirPath: string;
+  mode?: ScheduledTaskMode;
+  targetSessionId?: string;
+  scheduleKind?: ScheduledTaskScheduleKind;
+  intervalMs?: number;
+  cronExpression?: string;
+  endDate?: Date;
+  planIds: string[];
+  ranAt: number;
+  outcome: 'done' | 'failed' | 'cancelled';
+  error?: string;
+  sessionId?: string;
+}
+
 export interface CreateScheduledTaskParams {
   title: string;
   description?: string;

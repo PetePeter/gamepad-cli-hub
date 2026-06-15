@@ -190,6 +190,8 @@ export const PRELOAD_API_DOMAINS = {
     'scheduledTaskUpdate',
     'scheduledTaskCancel',
     'scheduledTaskDelete',
+    'scheduledTaskListHistory',
+    'scheduledTaskClearHistory',
   ],
   patterns: [
     'toolsGetPatterns',
@@ -252,6 +254,7 @@ export const PRELOAD_API_DOMAINS = {
     'onPatternScheduleFired',
     'onPatternScheduleCancelled',
     'onScheduledTaskChanged',
+    'onScheduledTaskHistoryChanged',
   ],
 } as const;
 

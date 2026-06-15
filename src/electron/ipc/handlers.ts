@@ -15,12 +15,14 @@ import { NotificationManager } from '../../session/notification-manager.js';
 import { DraftManager } from '../../session/draft-manager.js';
 import { PlanManager } from '../../session/plan-manager.js';
 import { ProjectStore } from '../../session/project-store.js';
+import { reconcileProjectWorkingDirectories } from '../../session/project-workingdir-reconcile.js';
 import { ContextManager } from '../../session/context-manager.js';
 import { SkillManager } from '../../session/skill-manager.js';
 import { SkillAnalyticsManager } from '../../session/skill-analytics-manager.js';
 import { PlanBackupManager } from '../../session/plan-backup-manager.js';
 import { PatternMatcher } from '../../session/pattern-matcher.js';
 import { ScheduledTaskManager } from '../../session/scheduled-task-manager.js';
+import { ScheduledTaskHistoryManager } from '../../session/scheduled-task-history-manager.js';
 import { setupPowerMonitor } from '../../session/power-monitor.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { keyboard } from '../../output/keyboard.js';
@@ -94,6 +96,16 @@ export function registerIPCHandlers(
 
   // SessionManager is created here and shared via dependency injection
   const projectStore = new ProjectStore();
+
+  // Heal any projects whose working dir was never registered (e.g. created by
+  // an older build before working-dir auto-registration existed).
+  try {
+    const healed = reconcileProjectWorkingDirectories(projectStore, configLoader);
+    if (healed > 0) logger.info(`[IPC] Reconciled ${healed} project working directories`);
+  } catch (error) {
+    logger.error(`[IPC] Project working-dir reconcile failed: ${error}`);
+  }
+
   const sessionManager = new SessionManager(projectStore);
   const ptyManager = new PtyManager();
   const stateDetector = new StateDetector();
@@ -106,7 +118,8 @@ export function registerIPCHandlers(
   const skillManager = new SkillManager(getSkillsPath ? getSkillsPath.call(configLoader) : 'src/config/skills.yaml');
   const skillAnalyticsManager = new SkillAnalyticsManager(getSkillAnalyticsPath ? getSkillAnalyticsPath.call(configLoader) : 'src/config/skill-analytics.json');
   const backupManager = new PlanBackupManager(planManager);
-  const scheduledTaskManager = new ScheduledTaskManager(sessionManager, ptyManager, planManager, configLoader);
+  const scheduledTaskHistoryManager = new ScheduledTaskHistoryManager();
+  const scheduledTaskManager = new ScheduledTaskManager(sessionManager, ptyManager, planManager, configLoader, scheduledTaskHistoryManager);
   const notificationManager = new NotificationManager(windowManager, sessionManager);
 
   // Power monitor with full session/PTY diagnostics and screen lock tracking
@@ -172,7 +185,7 @@ export function registerIPCHandlers(
   setupProjectHandlers(projectStore, configLoader, planManager, contextManager);
   setupSkillHandlers(skillManager, skillAnalyticsManager);
   setupPlanHandlers(planManager, contextManager, windowManager, incomingWatcher, dirname);
-  setupScheduledTaskHandlers(scheduledTaskManager, windowManager);
+  setupScheduledTaskHandlers(scheduledTaskManager, scheduledTaskHistoryManager, windowManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
 

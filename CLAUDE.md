@@ -119,6 +119,8 @@ Ctrl+G opens external editor (notepad with temp .md file) — on close, content 
         SEED --"first launch\ncopy if absent"--> CONF
     ```
 
+26. **Scheduled Task History (7-day rolling run log)** — Every scheduled-task execution appends an immutable setup-snapshot to `ScheduledTaskHistoryManager` (EventEmitter, mirrors the PlanBackupManager rolling-window pattern), persisted to `config/scheduled-task-history.yaml`. Each entry captures setup fields (title, description, prompt, cliType, params, dir, mode, schedule kind/interval/cron/endDate, planIds) + `ranAt` + `outcome` (`done`/`failed`/`cancelled`) + `error?` + `sessionId?` — intentionally NO stdout/PTY output. Snapshots are taken at fire time (independent of `completeOrReschedule`, which resets recurring tasks), so each recurring/interval/cron fire produces one entry. History is pruned to a rolling 7-day window on every append and defensively re-filtered on load. The sidebar "New Schedule" button is a split button — the 🕘 segment opens `ScheduledTaskHistoryModal.vue` (Past Schedules), which lists runs grouped by day (Today/Yesterday/date) with an outcome badge, ran-at time, setup chips, prompt preview, and error. "↻ Recreate as new" prefills the existing ScheduledTasksTab create popup from the snapshot (editingTaskId left null), defaulting the scheduled time to now+1h — nothing is created until the user confirms. IPC: `scheduled_task:listHistory`/`scheduled_task:clearHistory` + `scheduled-task-history:changed` event.
+
 ## Architecture Principles
 
 - DRY, YAGNI, KISS

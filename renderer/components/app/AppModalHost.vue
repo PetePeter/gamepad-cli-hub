@@ -13,7 +13,7 @@ import {
   toolEditor, getToolEditorCallback,
   planHelp, hidePlanHelpModal,
 } from '../../stores/modal-bridge.js';
-import type { ScheduledTask } from '../../../src/types/scheduled-task.js';
+import type { ScheduledTask, ScheduledTaskHistoryEntry } from '../../../src/types/scheduled-task.js';
 import CloseConfirmModal from '../modals/CloseConfirmModal.vue';
 import PlanDeleteConfirmModal from '../modals/PlanDeleteConfirmModal.vue';
 import SequencePickerModal from '../modals/SequencePickerModal.vue';
@@ -62,6 +62,7 @@ defineProps<{
   };
   schedulerPopupVisible: boolean;
   schedulerPopupTaskId: string | null;
+  schedulerPopupPrefill?: Partial<ScheduledTaskHistoryEntry> | null;
 }>();
 
 const emit = defineEmits<{
@@ -288,6 +289,7 @@ function onToolEditorSave(values: any): void {
         popup
         :initial-create="schedulerPopupTaskId === null"
         :initial-edit-task-id="schedulerPopupTaskId"
+        :initial-prefill="schedulerPopupPrefill ?? null"
         @task-created="emit('task-created', $event)"
         @task-updated="emit('task-updated', $event)"
         @task-cancelled="emit('task-cancelled', $event)"

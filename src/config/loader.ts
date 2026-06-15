@@ -14,6 +14,7 @@ import { CliTypeStore } from './cli-type-store.js';
 import { BindingStore } from './binding-store.js';
 import { InputConfigStore } from './input-config-store.js';
 import { migrateFromProfile } from './profile-migrator.js';
+import { normalizeProjectPath, dirDisplayNameFromPath } from '../session/project-identity.js';
 import { DEFAULT_MCP_CONFIG, SettingsManager } from './settings-manager.js';
 import { TelegramConfigManager } from './telegram-config-manager.js';
 
@@ -801,6 +802,28 @@ export class ConfigLoader {
   addWorkingDirectory(name: string, dirPath: string): void {
     this.ensureLoaded();
     this.inputConfigStore.addWorkingDirectory(name, dirPath);
+  }
+
+  /**
+   * Register dirPath as a working directory unless an entry with the same
+   * normalized path already exists. Returns the existing or newly-created
+   * entry. Self-healing helper shared by project creation, the startup
+   * project reconcile, and the MCP working-dir gate — centralizes the
+   * normalize + dedup + persist logic that was previously duplicated.
+   */
+  ensureWorkingDirectory(dirPath: string, name?: string): WorkingDirectory {
+    this.ensureLoaded();
+    const normalized = normalizeProjectPath(dirPath);
+    const existing = this.inputConfigStore
+      .getWorkingDirectories()
+      .find((d) => normalizeProjectPath(d.path) === normalized);
+    if (existing) return existing;
+    const entry: WorkingDirectory = {
+      name: name?.trim() || dirDisplayNameFromPath(dirPath),
+      path: dirPath,
+    };
+    this.inputConfigStore.addWorkingDirectory(entry.name, entry.path);
+    return entry;
   }
 
   updateWorkingDirectory(index: number, name: string, dirPath: string): void {
