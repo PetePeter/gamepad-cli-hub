@@ -2,6 +2,20 @@
 
 All notable changes to gamepad-cli-hub are documented in this file.
 
+## [1.9.0] - 2026-06-16
+
+### Features
+
+- **Scheduled Task History** — 7-day rolling run log of every scheduled-task fire. Each run captures an immutable setup-snapshot (no PTY output). New "Past Schedules" modal (🕘 split-button) groups runs by day with outcome badges, and "↻ Recreate as new" prefills the create popup from a past run.
+- **Auto-resume sessions on restart** — Sessions are preserved and auto-resumed by default when Helm restarts.
+- **Telegram voice** — New `telegram_send_voice` MCP tool with Helm-side TTS.
+
+### Fixes
+
+- **Working-dir validation** — MCP working directories and scheduler `dirPath` are validated against known projects on create/update; directories are reconciled when a project is created/updated.
+- **Telegram caller identity** — `telegram_chat` now requires a verified caller identity and routes to the authenticated caller's session.
+- **Project working dir** — Creating a project auto-registers its directory as a working directory.
+
 ## [1.8.1] - 2026-06-13
 
 ### Features
