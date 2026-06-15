@@ -184,14 +184,14 @@ export class HelmControlService extends EventEmitter {
     });
 
     this.sessionDelivery = new HelmSessionDeliveryService(sessionManager, ptyManager, configLoader);
-    this.sessionService = new HelmSessionService(sessionManager, ptyManager, configLoader, planManager);
-    this.planService = new HelmPlanService(planManager, configLoader, attachmentManager, this.contextManager);
-    this.planSequenceService = new HelmPlanSequenceService(planManager, configLoader);
+    this.sessionService = new HelmSessionService(sessionManager, ptyManager, configLoader, planManager, projectStore);
+    this.planService = new HelmPlanService(planManager, configLoader, attachmentManager, this.contextManager, projectStore);
+    this.planSequenceService = new HelmPlanSequenceService(planManager, configLoader, projectStore);
     this.contextService = new HelmContextService(this.contextManager, planManager, configLoader);
     this.planAttachmentService = new HelmPlanAttachmentService(planManager, attachmentManager);
     this.capabilityDetector = new CapabilityDetector(configLoader);
     this.telegramService = new HelmTelegramService(configLoader, sessionManager, this.capabilityDetector);
-    this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager) : null;
+    this.schedulerService = schedulerManager ? new HelmSchedulerService(schedulerManager, configLoader, projectStore) : null;
     this.projectService = projectStore ? new HelmProjectService(projectStore) : null;
     this.directoryService = new HelmDirectoryService(configLoader, sessionManager, planManager, projectStore);
   }

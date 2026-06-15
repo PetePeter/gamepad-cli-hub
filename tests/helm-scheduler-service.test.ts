@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { HelmSchedulerService } from '../src/mcp/services/helm-scheduler-service.js';
 import type { ScheduledTask, CreateScheduledTaskParams, UpdateScheduledTaskParams } from '../src/types/scheduled-task.js';
+import type { ConfigLoader, WorkingDirectory } from '../src/config/loader.js';
+import type { ProjectStore, ProjectRecord } from '../src/session/project-store.js';
 
 function makeMockScheduler() {
   const tasks = new Map<string, ScheduledTask>();
@@ -44,6 +46,23 @@ function makeMockScheduler() {
   };
 
   return scheduler;
+}
+
+/** Mock ConfigLoader that knows one working directory. */
+function makeMockConfigLoader(knownPaths: string[] = ['/known/project']): ConfigLoader {
+  const dirs: WorkingDirectory[] = knownPaths.map(p => ({
+    path: p,
+    name: p.split('/').pop()!,
+    cliType: 'claude-code',
+  }));
+  return {
+    getWorkingDirectories: vi.fn(() => dirs),
+    ensureWorkingDirectory: vi.fn((path: string, name: string) => {
+      const wd: WorkingDirectory = { path, name, cliType: 'claude-code' };
+      dirs.push(wd);
+      return wd;
+    }),
+  } as unknown as ConfigLoader;
 }
 
 describe('HelmSchedulerService', () => {
@@ -161,5 +180,96 @@ describe('HelmSchedulerService', () => {
       endDate: expect.any(Date),
     }));
     expect(scheduler.createTask.mock.calls[0][0].endDate?.toISOString()).toBe('2026-12-31T23:59:59.000Z');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Working-directory validation
+  // ---------------------------------------------------------------------------
+
+  it('createTask throws when dirPath is not a known working directory', () => {
+    const scheduler = makeMockScheduler();
+    const configLoader = makeMockConfigLoader(['/known/project']);
+    const service = new HelmSchedulerService(scheduler as any, configLoader);
+
+    expect(() =>
+      service.createTask({
+        title: 'Evil',
+        initialPrompt: 'hack',
+        cliType: 'claude-code',
+        dirPath: '/unknown/random-dir',
+        scheduledTime: '2026-05-04T10:00:00Z',
+      }),
+    ).toThrow(/Working directory is not configured in Helm/);
+
+    expect(scheduler.createTask).not.toHaveBeenCalled();
+  });
+
+  it('createTask accepts a known working directory', () => {
+    const scheduler = makeMockScheduler();
+    const configLoader = makeMockConfigLoader(['/known/project']);
+    const service = new HelmSchedulerService(scheduler as any, configLoader);
+
+    service.createTask({
+      title: 'Good',
+      initialPrompt: 'hello',
+      cliType: 'claude-code',
+      dirPath: '/known/project',
+      scheduledTime: '2026-05-04T10:00:00Z',
+    });
+
+    expect(scheduler.createTask).toHaveBeenCalled();
+  });
+
+  it('createTask self-heals when dirPath belongs to a known project', () => {
+    const scheduler = makeMockScheduler();
+    const configLoader = makeMockConfigLoader(['/existing/dir']);
+    const projectStore = {
+      findByPath: vi.fn((dirPath: string) => {
+        if (dirPath === '/project-alt-path') return { id: 'p1', name: 'proj', canonicalPath: '/known/project' } as ProjectRecord;
+        return null;
+      }),
+    } as unknown as ProjectStore;
+    const service = new HelmSchedulerService(scheduler as any, configLoader, projectStore);
+
+    service.createTask({
+      title: 'SelfHeal',
+      initialPrompt: 'go',
+      cliType: 'claude-code',
+      dirPath: '/project-alt-path',
+      scheduledTime: '2026-05-04T10:00:00Z',
+    });
+
+    expect(scheduler.createTask).toHaveBeenCalled();
+    expect(configLoader.ensureWorkingDirectory).toHaveBeenCalledWith('/project-alt-path', 'proj');
+  });
+
+  it('updateTask throws when updating dirPath to an unknown directory', () => {
+    const scheduler = makeMockScheduler();
+    const configLoader = makeMockConfigLoader(['/known/project']);
+    const service = new HelmSchedulerService(scheduler as any, configLoader);
+
+    expect(() =>
+      service.updateTask('task-1', {
+        dirPath: '/unknown/dir',
+      }),
+    ).toThrow(/Working directory is not configured in Helm/);
+
+    expect(scheduler.updateTask).not.toHaveBeenCalled();
+  });
+
+  it('createTask allows unknown dirPath when no configLoader (graceful degradation)', () => {
+    const scheduler = makeMockScheduler();
+    // No configLoader → validation skipped
+    const service = new HelmSchedulerService(scheduler as any);
+
+    service.createTask({
+      title: 'NoGate',
+      initialPrompt: 'ok',
+      cliType: 'claude-code',
+      dirPath: '/totally/random',
+      scheduledTime: '2026-05-04T10:00:00Z',
+    });
+
+    expect(scheduler.createTask).toHaveBeenCalled();
   });
 });
