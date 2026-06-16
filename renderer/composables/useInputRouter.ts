@@ -11,14 +11,8 @@ import {
 } from '../plans/plan-screen.js';
 import { handleSessionsScreenButton } from '../screens/sessions.js';
 import { useModalStack } from './useModalStack.js';
-import { useEscProtection } from './useEscProtection.js';
+import { useModalKeyboardBridge } from './useModalKeyboardBridge.js';
 import { isAnyBridgeModalVisible } from '../stores/modal-bridge.js';
-import {
-  getActiveInputContext,
-  isEditableElement,
-  isEditableElementInContainer,
-  MODAL_NAVIGATION_SELECTOR,
-} from '../input/input-ownership.js';
 
 type MainViewState = 'terminal' | 'overview' | 'plan';
 
@@ -48,13 +42,6 @@ export interface InputRouterDeps {
   overviewCollapsedIds: Ref<Set<string>>;
   buildSettingsTabs: () => SettingsTab[];
   navStore: NavigationController;
-}
-
-function isEditableElementInsideModal(element: Element | null): element is HTMLElement {
-  return isEditableElement(element) && isEditableElementInContainer(
-    element,
-    '.modal-overlay.modal--visible, .scheduled-tasks-tab--popup',
-  );
 }
 
 export function useInputRouter(deps: InputRouterDeps) {
@@ -178,66 +165,7 @@ export function useInputRouter(deps: InputRouterDeps) {
     }
   }
 
-  function handleModalKeyboardBridge(e: KeyboardEvent): void {
-    const stack = useModalStack();
-    if (!stack.isOpen.value) return;
-
-    const active = document.activeElement;
-    const activeContext = getActiveInputContext({
-      activeElement: active,
-      modalNavigationSelectors: MODAL_NAVIGATION_SELECTOR,
-    });
-    const editableInModal = activeContext === 'editable-field' && isEditableElementInsideModal(active);
-    const interceptKeys = stack.topInterceptKeys.value;
-    const escProtection = useEscProtection();
-
-    if (escProtection.isProtecting.value && e.key !== 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      escProtection.dismissProtection();
-      return;
-    }
-
-    if (e.key === 'ArrowUp') {
-      if (!interceptKeys.has('arrows') || editableInModal) return;
-      e.preventDefault();
-      stack.handleInput('DPadUp');
-    } else if (e.key === 'ArrowDown') {
-      if (!interceptKeys.has('arrows') || editableInModal) return;
-      e.preventDefault();
-      stack.handleInput('DPadDown');
-    } else if (e.key === 'ArrowLeft') {
-      if (!interceptKeys.has('arrows') || editableInModal) return;
-      e.preventDefault();
-      stack.handleInput('DPadLeft');
-    } else if (e.key === 'ArrowRight') {
-      if (!interceptKeys.has('arrows') || editableInModal) return;
-      e.preventDefault();
-      stack.handleInput('DPadRight');
-    } else if (e.key === 'Tab') {
-      if (!interceptKeys.has('tab')) return;
-      e.preventDefault();
-      stack.handleInput(e.shiftKey ? 'ShiftTab' : 'Tab');
-    } else if (e.key === 'Enter') {
-      if (!interceptKeys.has('enter') || (editableInModal && document.activeElement?.tagName === 'TEXTAREA')) return;
-      e.preventDefault();
-      stack.handleInput('A');
-    } else if (e.key === ' ' || e.key === 'Spacebar') {
-      if (!interceptKeys.has('space') || editableInModal) return;
-      e.preventDefault();
-      stack.handleInput('A');
-    } else if (e.key === 'Escape') {
-      if (!interceptKeys.has('escape')) return;
-      e.preventDefault();
-      stack.handleInput('B');
-    } else if (e.key >= '0' && e.key <= '9' && e.key.length === 1) {
-      // Jump numbers: bare digit selects the Nth row in a selection modal.
-      if (!interceptKeys.has('digits') || editableInModal) return;
-      if (e.ctrlKey || e.altKey || e.metaKey) return;
-      e.preventDefault();
-      stack.handleInput(`Digit${e.key}`);
-    }
-  }
+  const { handler: handleModalKeyboardBridge } = useModalKeyboardBridge();
 
   return {
     handleButton,

@@ -11,6 +11,9 @@ import { useChipBarStore } from '../stores/chip-bar.js';
 import { deliverBulkText, deliverViaClipboardPaste } from '../paste-handler.js';
 import { deliverPromptSequence } from '../sequence-delivery.js';
 import { contextMenu } from '../stores/modal-bridge.js';
+import { useEditorPopupStore } from '../stores/editor-popup.js';
+import { useModalKeyboardBridge } from '../composables/useModalKeyboardBridge.js';
+import EditorPopup from './modals/EditorPopup.vue';
 import { loadStoredSessions } from '../session-store.js';
 import { getCliDisplayName } from '../utils.js';
 import ChipBar from './chips/ChipBar.vue';
@@ -40,6 +43,8 @@ let unsubExit: (() => void) | null = null;
 let unsubSessionUpdated: (() => void) | null = null;
 const sessionInfo = ref<any | null>(null);
 const appStore = useAppStore();
+const editorPopupStore = useEditorPopupStore();
+const { handler: handleModalKeyboardBridge } = useModalKeyboardBridge();
 
 const draftEditorVisible = ref(false);
 const draftEditorMode = ref<'draft' | 'plan'>('draft');
@@ -222,17 +227,13 @@ onMounted(async () => {
   };
   containerRef.value.addEventListener('contextmenu', handleContextMenu);
 
-  const handleKeydown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && contextMenuVisible.value) {
-      e.preventDefault();
-      contextMenuVisible.value = false;
-    }
-  };
-  window.addEventListener('keydown', handleKeydown);
+  // Capture-phase modal-stack bridge so arrows/enter/escape/space/digits reach
+  // open modals (e.g. the context menu) before the keyboard relay swallows them.
+  window.addEventListener('keydown', handleModalKeyboardBridge, true);
 
   onUnmounted(() => {
     window.removeEventListener('resize', handleResize);
-    window.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener('keydown', handleModalKeyboardBridge, true);
     containerRef.value?.removeEventListener('contextmenu', handleContextMenu);
     resizeObserver?.disconnect();
   });
@@ -282,6 +283,13 @@ function onContextMenuCancel(): void { contextMenuVisible.value = false; }
     <div ref="containerRef" class="snap-out-terminal"></div>
     <div v-if="chipActionBarVisible" class="chip-action-dock"><ChipActionBar :actions="chipBarStore.actions" @action-click="onChipBarAction" /></div>
     <ContextMenu v-model:visible="contextMenuVisible" :has-selection="contextMenuHasSelection" :has-active-session="true" :has-sequences="false" :has-drafts="false" :is-snapped-out="true" :mode="'mouse'" :mouse-x="contextMenu.mouseX" :mouse-y="contextMenu.mouseY" @action="onContextMenuAction" @cancel="onContextMenuCancel" />
+    <EditorPopup
+      :visible="editorPopupStore.visible"
+      :initial-text="editorPopupStore.initialText"
+      @update:visible="editorPopupStore.setVisible"
+      @send="editorPopupStore.handleSend"
+      @close="editorPopupStore.handleClose"
+    />
     <EscProtectionModal />
   </div>
 </template>

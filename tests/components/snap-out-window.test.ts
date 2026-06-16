@@ -5,9 +5,16 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockUseKeyboardRelay, mockRefresh } = vi.hoisted(() => ({
+const { mockUseKeyboardRelay, mockRefresh, mockShowEditorPopup } = vi.hoisted(() => ({
   mockUseKeyboardRelay: vi.fn(),
   mockRefresh: vi.fn().mockResolvedValue(undefined),
+  mockShowEditorPopup: vi.fn(),
+}));
+
+vi.mock('../../renderer/editor/editor-popup.js', () => ({
+  showEditorPopup: mockShowEditorPopup,
+  hideEditorPopup: vi.fn(),
+  isEditorPopupVisible: vi.fn(() => false),
 }));
 
 vi.mock('../../renderer/composables/useKeyboardRelay.js', () => ({
@@ -67,9 +74,13 @@ vi.mock('../../renderer/stores/modal-bridge.js', () => ({
   },
 }));
 
-vi.mock('../../renderer/utils.js', () => ({
-  getCliDisplayName: (cliType: string) => cliType || 'Unknown CLI',
-}));
+vi.mock('../../renderer/utils.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../renderer/utils.js')>();
+  return {
+    ...actual,
+    getCliDisplayName: (cliType: string) => cliType || 'Unknown CLI',
+  };
+});
 
 vi.mock('../../renderer/state.js', () => ({
   state: {
@@ -79,9 +90,19 @@ vi.mock('../../renderer/state.js', () => ({
 }));
 
 import SnapOutWindow from '../../renderer/components/SnapOutWindow.vue';
+import { useModalStack } from '../../renderer/composables/useModalStack.js';
+import { useEditorPopupStore } from '../../renderer/stores/editor-popup.js';
+
+const EditorPopupStub = {
+  name: 'EditorPopup',
+  props: ['visible', 'initialText'],
+  template: '<div class="editor-popup-stub" v-if="visible" />',
+};
 
 describe('SnapOutWindow', () => {
   beforeEach(() => {
+    useModalStack().clear();
+    useEditorPopupStore().handleClose();
     vi.clearAllMocks();
     (window as any).sessionStore = {
       load: vi.fn().mockResolvedValue([
@@ -126,5 +147,88 @@ describe('SnapOutWindow', () => {
     expect(options.getActiveSessionId()).toBe('session-1');
     await expect(options.getEscProtectionEnabled()).resolves.toBe(true);
     expect(window.gamepadCli.configGetEscProtectionEnabled).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders EditorPopup when the editor-popup store is visible', async () => {
+    const wrapper = mount(SnapOutWindow, {
+      props: { sessionId: 'session-1' },
+      global: {
+        stubs: {
+          ChipBar: true,
+          ChipActionBar: true,
+          ContextMenu: true,
+          EscProtectionModal: true,
+          EditorPopup: EditorPopupStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.find('.editor-popup-stub').exists()).toBe(false);
+
+    useEditorPopupStore().open();
+    await flushPromises();
+
+    expect(wrapper.find('.editor-popup-stub').exists()).toBe(true);
+  });
+
+  it('closes the popout context menu when Escape reaches the modal bridge', async () => {
+    const wrapper = mount(SnapOutWindow, {
+      props: { sessionId: 'session-1' },
+      global: {
+        stubs: {
+          ChipBar: true,
+          ChipActionBar: true,
+          EscProtectionModal: true,
+          EditorPopup: EditorPopupStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    // Open the context menu via the component's contextmenu handler.
+    const container = wrapper.find('.snap-out-terminal').element as HTMLElement;
+    container.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+    await flushPromises();
+
+    expect(document.querySelector('.context-menu')).not.toBeNull();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await flushPromises();
+
+    expect(document.querySelector('.context-menu')).toBeNull();
+
+    wrapper.unmount();
+  });
+
+  it('selects the Nth enabled item when a jump digit reaches the modal bridge', async () => {
+    const wrapper = mount(SnapOutWindow, {
+      props: { sessionId: 'session-1' },
+      global: {
+        stubs: {
+          ChipBar: true,
+          ChipActionBar: true,
+          EscProtectionModal: true,
+          EditorPopup: EditorPopupStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    const container = wrapper.find('.snap-out-terminal').element as HTMLElement;
+    container.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+    await flushPromises();
+
+    // Enabled items (no selection): paste(1), editor(2), new-session(3), drafts(4), snap-back(5), cancel(6).
+    // Digit 2 fires the second enabled item: the editor action.
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '2', bubbles: true }));
+    await flushPromises();
+    await flushPromises();
+
+    // Editor action opens the editor popup (second enabled item).
+    expect(mockShowEditorPopup).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('.context-menu')).toBeNull();
+
+    wrapper.unmount();
   });
 });
