@@ -55,20 +55,20 @@ CLI-specific bindings are used. Each profile defines different button behaviours
 
 `{ action: 'context-menu' }` — Opens the context menu overlay. Gamepad binding centers the menu in the viewport (mode: 'gamepad'). Right-click on any terminal pane shows at mouse position (mode: 'mouse').
 
-Menu items: Copy, Paste, Compose in Editor ✏️, New Session, New Session with Selection, Prompts ⏩, Drafts ►, Cancel.
+Menu items: Copy, Paste, Compose in Editor ✏️, New Session, New Session with Selection, Prompts ⚡, Drafts ►, Cancel.
 
 - Copy and "New Session with Selection" are disabled when no text is selected
 - "New Session" / "New Session with Selection" open a quick-spawn CLI type picker (pre-selects active session's type), then the directory picker (pre-selects active session's working directory), then spawns
-- "Prompts ⏩" is enabled when the active CLI type has sequences configured — chains to the sequence picker with all groups flattened
+- "⚡ Prompts…" is enabled when there is an active session — opens the global prompt-template picker tree (`PromptTreeModal`), then prefills the in-app Prompt Editor with the chosen template (see `prompt-tree` below)
 - "Drafts ►" opens a submenu listing New Draft + existing drafts with per-draft Apply/Edit/Delete actions
 
-### sequence-list
+### prompt-tree
 
-`{ action: 'sequence-list', sequenceGroup: 'quick-actions' }` or `{ action: 'sequence-list', items: [...] }`
+`{ action: 'prompt-tree' }` (renamed from the removed `sequence-list` action)
 
-Opens a picker overlay listing named sequences. `sequenceGroup` references a named group from `CliTypeConfig.sequences` (preferred); inline `items` is the legacy fallback. `sequenceGroup` takes priority → fallback to inline `items` → empty if neither.
+Opens the global **prompt-template** picker tree (`PromptTreeModal.vue`) — a progressive-disclosure tree of folders + template leaves backed by `PromptTemplateManager` and persisted to `%APPDATA%/Helm/config/prompt-templates.yaml`. Navigation: D-pad up/down cycles visible nodes, left/right expand/collapse folders, A picks, B cancels; keyboard accelerators index visible nodes `1-9,0` then `a-z`.
 
-User selects an item (D-pad/gamepad or click), and its `sequence` string is parsed and sent to the active PTY. Each item has a `label` (display name) and `sequence` (sequence parser syntax). The binding editor supports CRUD of items via `showFormModal`.
+Picking a template does NOT send directly — it opens the in-app Prompt Editor (`EditorPopup.vue`) prefilled with the template body (caret at end) so the user can amend it. Only Ctrl+Enter / Send delivers the composed text to the active PTY via `deliverPromptSequence()`. Template bodies use the sequence-parser syntax (`{Enter}`, `{Wait 500}`, plain text). The apply flow is shared by the main window and the popout via the `usePromptApplyFlow` composable. (The legacy per-CLI `sequences` groups, `SequencePicker` modal, and `sequence-list` action were removed in PT-7; the executor/delivery layer that parses the syntax is retained.)
 
 ### new-draft
 
@@ -118,15 +118,11 @@ claude-code:
   initialPrompt:              # Array of sequence items sent to PTY sequentially after spawn
     - sequence: "/init{Enter}"
   initialPromptDelay: 2000    # ms to wait before sending first item (default 2000 for AI CLIs, 0 for generic)
-  sequences:                  # Optional: named groups of sequence items (referenced by bindings + context menu)
-    quick-actions:
-      - label: commit
-        sequence: use skill(commit)
-      - label: plan
-        sequence: use skill(plan-it)
 ```
 
 No `terminal` field — all CLIs run as embedded PTY sessions (no external window config). `initialPrompt` items are sent in order; use `{Wait N}` within sequences for inter-item timing.
+
+> **Note:** The legacy per-CLI `sequences:` block (named groups of sequence items) was removed in PT-7 and replaced by the global **prompt-template** library (`%APPDATA%/Helm/config/prompt-templates.yaml`, see the [`prompt-tree`](#prompt-tree) action). Any `sequences:` block still present in an old profile is read once as migration input and folded into the prompt-template tree.
 
 ## Pattern Rules (`patterns`)
 

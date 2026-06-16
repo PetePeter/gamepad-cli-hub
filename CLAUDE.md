@@ -64,14 +64,14 @@ Gamepad (Xbox or generic)
   → Browser Gamepad API (renderer polling, 16ms)
     → IPC gamepad:event → debounce (250ms)
       → Resolve binding (per-CLI type)
-        → Execute action (keyboard/voice/spawn/switch/sequence-list)
+        → Execute action (keyboard/voice/spawn/switch/prompt-tree)
         → Analog sticks: virtual buttons → explicit binding or stick mode fallback
         → D-pad auto-repeats when held (400ms delay, 120ms rate)
 
 D-pad / Left stick navigates sessions and auto-selects the terminal.
 Keyboard input routes to the active terminal (PTY stdin) — blocked when a selection-mode modal overlay is visible (context-menu, close-confirm, sequence-picker, quick-spawn, dir-picker, draft-submenu, plan-screen). Tab/Shift+Tab cycles buttons within selection-mode modals (alongside arrow keys).
 Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus, blocked during modal overlays, draft editor, and plan screen).
-Ctrl+G opens external editor (notepad with temp .md file) — on close, content is sent to active PTY via `editor:openExternal` IPC.
+Ctrl+G opens the in-app Prompt Editor (`EditorPopup.vue`, bridged via `renderer/editor/editor-popup.ts`) — a multi-line textarea with a recent-prompts history list and a `PromptManagementTree` pane for the prompt-template library. Ctrl+Enter / Send delivers the composed text to the active PTY via `deliverPromptSequence()` (sequence syntax honored). Blocked during modal overlays, the draft editor, and the plan screen.
 ```
 
 ## Design Decisions
@@ -120,6 +120,20 @@ Ctrl+G opens external editor (notepad with temp .md file) — on close, content 
     ```
 
 26. **Scheduled Task History (7-day rolling run log)** — Every scheduled-task execution appends an immutable setup-snapshot to `ScheduledTaskHistoryManager` (EventEmitter, mirrors the PlanBackupManager rolling-window pattern), persisted to `config/scheduled-task-history.yaml`. Each entry captures setup fields (title, description, prompt, cliType, params, dir, mode, schedule kind/interval/cron/endDate, planIds) + `ranAt` + `outcome` (`done`/`failed`/`cancelled`) + `error?` + `sessionId?` — intentionally NO stdout/PTY output. Snapshots are taken at fire time (independent of `completeOrReschedule`, which resets recurring tasks), so each recurring/interval/cron fire produces one entry. History is pruned to a rolling 7-day window on every append and defensively re-filtered on load. The sidebar "New Schedule" button is a split button — the 🕘 segment opens `ScheduledTaskHistoryModal.vue` (Past Schedules), which lists runs grouped by day (Today/Yesterday/date) with an outcome badge, ran-at time, setup chips, prompt preview, and error. "↻ Recreate as new" prefills the existing ScheduledTasksTab create popup from the snapshot (editingTaskId left null), defaulting the scheduled time to now+1h — nothing is created until the user confirms. IPC: `scheduled_task:listHistory`/`scheduled_task:clearHistory` + `scheduled-task-history:changed` event.
+
+27. **Prompt Templates (global nested library)** — Replaces the old per-CLI `sequences` groups with a single GLOBAL tree of folders + template leaves. Managed by `PromptTemplateManager` (`src/session/prompt-template-manager.ts`, EventEmitter — arbitrary folder nesting, templates are always leaves, emits `prompt-template:changed`). Persisted to `%APPDATA%/Helm/config/prompt-templates.yaml` (global, not per-profile) by `PromptTemplatePersistence`, with a one-time migration that folds legacy per-profile `sequences` groups into the tree (`prompt-template-migration.ts`). Template bodies still use the sequence-parser syntax (`{Enter}`, `{Wait 500}`, `{Ctrl+C}`, plain text) and are delivered through the unchanged `deliverPromptSequence()` / `sequence-executor`. CRUD exposed via 9 IPC channels (`promptTemplateList/GetNode/CreateFolder/CreateTemplate/Update/Rename/Delete/Move/Reorder`).
+
+    UI: `PromptTreeModal.vue` is the picker (progressive-disclosure tree; D-pad up/down cycles visible nodes, left/right expand/collapse, A picks, B cancels; keyboard accelerators index visible nodes `1-9,0` then `a-z`). The apply flow is centralized in the `usePromptApplyFlow` composable, shared by the main window and the snap-out (popout) window. Picking a template NEVER sends directly — it opens the in-app Prompt Editor (`EditorPopup.vue`, with the `PromptManagementTree` left pane + recent-prompts) PREFILLED with the body, caret at end, for the user to amend; only Ctrl+Enter / Send delivers via `deliverPromptSequence()`. Entry points: context-menu item "⚡ Prompts…", the `prompt-tree` gamepad action (renamed from `sequence-list`), and Ctrl+G (opens the editor directly). The legacy `SequencePicker` modal, `sequence-list` action, and per-CLI sequence settings UI were removed in PT-7.
+
+    ```mermaid
+    graph LR
+        CM["Context menu<br/>⚡ Prompts…"] --> PICK
+        GP["Gamepad<br/>prompt-tree action"] --> PICK
+        PICK["PromptTreeModal<br/>(pick template)"] --> ED
+        CG["Ctrl+G"] --> ED
+        ED["Prompt Editor<br/>EditorPopup.vue<br/>(prefilled, caret@end)"] -->|"Ctrl+Enter / Send"| DEL
+        DEL["deliverPromptSequence()<br/>sequence-executor"] --> PTY[(Active PTY)]
+    ```
 
 ## Architecture Principles
 

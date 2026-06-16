@@ -111,7 +111,7 @@ flowchart LR
 | **StateDetector** | `src/session/state-detector.ts` | Scans PTY output for AIAGENT-* keywords to detect CLI state (waiting, implementing, etc.). |
 | **PipelineQueue** | `src/session/pipeline-queue.ts` | Auto-handoff queue — routes tasks to waiting sessions based on state detection. |
 | **InitialPrompt** | `src/session/initial-prompt.ts` | Per-CLI prompt pre-loading — converts sequence parser syntax to PTY escape codes, sends to newly spawned PTY after configurable delay. |
-| **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. `ActionType = 'keyboard' \| 'voice' \| 'scroll' \| 'context-menu' \| 'sequence-list'`. `Binding` union includes `ContextMenuBinding`. Exports `SequenceListItem { label, sequence }`. |
+| **ConfigLoader** | `src/config/loader.ts` | Self-contained profile YAML loading + profile/tools/directory/bindings CRUD. Auto-migration from legacy `tools.yaml`/`directories.yaml`. `StickConfig` types, `StickVirtualButton`, `getStickConfig()`, `getHapticFeedback()`, `setHapticFeedback()`, `SidebarPrefs`, `getSidebarPrefs()`, `setSidebarPrefs()`. `ActionType = 'keyboard' \| 'voice' \| 'scroll' \| 'context-menu' \| 'prompt-tree' \| 'new-draft'`. `Binding` union includes `ContextMenuBinding`, `PromptTreeBinding`, `NewDraftBinding`. The legacy per-CLI `sequences` groups were replaced by the global prompt-template library (`PromptTemplateManager`); `getSequences()` remains only as one-time migration input. |
 | **ElectronMain** | `src/electron/main.ts` | Window creation, IPC setup, app lifecycle. Renderer crash recovery (auto-reloads on `render-process-gone` — safe because session state lives in main process). Power monitoring (`suspend`/`resume`/`shutdown` logging via `powerMonitor`). |
 | **IPC Handlers** | `src/electron/ipc/*.ts` | Orchestrator + 7 domain handler files (session, config, profile, tools, keyboard, pty, system). Dependencies injected via function parameters. Config handlers include `dialog:openFolder` for native OS folder picker. |
 | **Preload** | `src/electron/preload.ts` | Context bridge exposing typed IPC API to renderer. Must be .cjs when package.json has "type":"module". |
@@ -158,7 +158,7 @@ graph LR
 | `close-session` | Close the active terminal session |
 | `scroll` | Scroll terminal buffer. Format: `{ action: 'scroll', direction: 'up'\|'down', lines?: 5 }` |
 | `context-menu` | Open context menu overlay. Format: `{ action: 'context-menu' }`. Gamepad binding centers menu in viewport; right-click shows at mouse position. Items: Copy, Paste, Compose in Editor, New Session, New Session with Selection, Cancel. Copy and "New Session with Selection" disabled when no text selected. "Compose in Editor" disabled when no active session. |
-| `sequence-list` | Open picker overlay with named sequences. Format: `{ action: 'sequence-list', items: [{ label: 'Clear', sequence: '/clear{Enter}' }, ...] }`. User selects item via D-pad/click, sequence sent to active PTY. |
+| `prompt-tree` | Open the global prompt-template picker tree (`PromptTreeModal`). Format: `{ action: 'prompt-tree' }` (no payload). Picking a template prefills the in-app Prompt Editor (caret at end); Ctrl+Enter delivers to the active PTY via `deliverPromptSequence()`. Replaces the removed `sequence-list` action. |
 
 ### Stick Configuration (per profile)
 ```yaml
@@ -247,7 +247,7 @@ renderer/
 ├── utils.ts                    # DOM helpers, logEvent, showScreen, toDirection
 ├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing, voice OS-default + PTY via target: 'terminal', F1-F12 VT220 escape sequences)
 ├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY
-├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → contextMenu → sequencePicker → screen routing → configBinding fallback
+├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → contextMenu → promptTree → screen routing → configBinding fallback
 ├── gamepad.ts                  # Browser Gamepad API wrapper
 ├── terminal/
 │   ├── terminal-view.ts        # xterm.js wrapper (fit/search/weblinks addons)
@@ -261,7 +261,7 @@ renderer/
 │   ├── binding-editor.ts       # Binding editor modal
 │   ├── context-menu.ts         # Context menu overlay — Copy/Paste/Compose in Editor/New Session/New Session with Selection/Cancel. Selection-aware items, gamepad D-pad navigation, mouse + right-click support
 │   ├── close-confirm.ts        # Close session confirmation popup — centered modal with Close/Cancel, gamepad + keyboard support
-│   └── sequence-picker.ts      # Sequence picker overlay — shows list of named sequences for user selection, gamepad + click support
+│   └── (prompt picker is now the Vue `components/modals/PromptTreeModal.vue` — global prompt-template tree; the legacy DOM sequence-picker was removed in PT-7)
 └── styles/
     └── main.css
 
@@ -272,7 +272,7 @@ config/
     └── default.yaml            # Self-contained: tools + workingDirectories + bindings + sticks + dpad
 
 tests/                                  # 694 tests across 22 files
-├── config.test.ts              # Config loading, stick config, haptic, virtual buttons, sequence-list binding persistence
+├── config.test.ts              # Config loading, stick config, haptic, virtual buttons, prompt-tree binding persistence
 ├── session.test.ts             # Session management
 ├── persistence.test.ts         # Session persistence
 ├── keyboard.test.ts            # Keyboard simulation

@@ -100,7 +100,7 @@ Plug in a controller (USB or Bluetooth). The app detects it automatically — Xb
 | Delete | Close (X button) |
 | F5 | Mapped to Y button |
 | Ctrl+V | Paste clipboard text to active terminal |
-| Ctrl+G | Open in-app Prompt Editor (textarea + recent-prompts history) — Ctrl+Enter sends to active terminal |
+| Ctrl+G | Open in-app Prompt Editor (textarea + recent-prompts history + prompt-template tree) — Ctrl+Enter sends to active terminal |
 | Ctrl+1-9, Ctrl+0 | Jump to Nth session in sidebar order |
 | Ctrl+Shift+E | Toggle eye visibility for the selected session |
 | Shift + drag | Select terminal text (see note below) |
@@ -400,7 +400,7 @@ Each CLI tool has an advanced editor (accessible from Settings → Tools) with o
 | `voice` | Simulate a keypress for voice recognition (OS or PTY routing) |
 | `scroll` | Scroll the terminal buffer up/down |
 | `context-menu` | Open the context menu overlay |
-| `sequence-list` | Show a picker of named sequences (reference a group or inline items) |
+| `prompt-tree` | Open the global prompt-template picker tree, then prefill the in-app Prompt Editor with the chosen template |
 | `new-draft` | Open the draft editor for the active session |
 
 ---

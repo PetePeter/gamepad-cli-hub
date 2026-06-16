@@ -13,11 +13,11 @@ Gamepad Button Press / Keyboard Input
   → D-pad/stick: navigate sessions (auto-select terminal)
   → Keyboard: routes to active terminal (PTY stdin)
   → Ctrl+V: paste-handler intercepts → clipboard text → ptyWrite() (any DOM focus)
-  → Ctrl+G: paste-handler intercepts → editor:openExternal → notepad temp .md → content to PTY
+  → Ctrl+G: paste-handler intercepts → in-app Prompt Editor (EditorPopup.vue) → Ctrl+Enter → deliverPromptSequence() → PTY
   → Non-nav buttons: per-CLI configurable bindings
 
 Modal keyboard capture:
-  When a blocking modal is visible (context-menu, close-confirm, sequence-picker,
+  When a blocking modal is visible (context-menu, close-confirm, prompt-tree picker,
   quick-spawn), ALL keyboard input is captured by the modal and blocked from
   reaching the terminal. modal-base.ts selection mode uses capture-phase
   stopPropagation to prevent xterm.js listeners from receiving keys.
@@ -81,4 +81,4 @@ Colors centralized in `renderer/state-colors.ts` via `getActivityColor()`.
 | PtyFilter | `renderer/terminal/pty-filter.ts` | Optionally strips alternate-screen ANSI escape sequences from PTY output. `applyPtyFilters(data, opts?)` — conditionally strips alt screen modes (47/1047/1048/1049) and ED 3 (`\x1b[3J`). ED 2 (`\x1b[2J`) intentionally preserved. `stripAltScreen()` convenience wrapper. Fast-path skips regex when no escape sequences present. Mouse tracking sequences pass through to xterm.js for native handling |
 | PtyOutputBuffer | `renderer/terminal/pty-output-buffer.ts` | Ring buffer for PTY output per session (ANSI-stripped plain text). Used by group overview for live previews |
 | Bindings | `renderer/bindings.ts` | PTY-aware input routing: voice OS-default (robotjs) with PTY opt-in via `target: 'terminal'` + `keyToPtyEscape()` (F1-F12 VT220 sequences) |
-| PasteHandler | `renderer/paste-handler.ts` | Document-level Ctrl+V interceptor: reads clipboard, writes to active PTY via `ptyWrite()` regardless of DOM focus. Ctrl+G interceptor: opens external editor (notepad) via `editor:openExternal` IPC, sends result to active PTY. Skipped when any modal overlay is visible (selection-mode modals own all keyboard input) |
+| PasteHandler | `renderer/paste-handler.ts` | Document-level Ctrl+V interceptor: reads clipboard, writes to active PTY via `ptyWrite()` regardless of DOM focus. Ctrl+G interceptor: opens the in-app Prompt Editor (`EditorPopup.vue` via `showEditorPopup()`), and on Ctrl+Enter / Send delivers the composed text to the active PTY via `deliverPromptSequence()`. Skipped when any modal overlay is visible (selection-mode modals own all keyboard input) |

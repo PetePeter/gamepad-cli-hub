@@ -35,6 +35,10 @@ src/
 │   ├── initial-prompt.ts       # Sequence syntax → PTY escape codes, configurable delay, onComplete callback
 │   ├── draft-manager.ts        # Per-session draft prompt CRUD (EventEmitter, emits draft:changed, persisted to config/drafts.yaml)
 │   ├── plan-manager.ts         # Per-directory plan DAG CRUD (EventEmitter, emits plan:changed, cycle prevention via DFS, ready-state computation, persisted to config/plans/*.json)
+│   ├── prompt-template-types.ts        # PromptFolder / PromptTemplate / PromptNode model + isFolder type guard
+│   ├── prompt-template-manager.ts      # Global nested prompt-template tree CRUD (EventEmitter, emits prompt-template:changed; folders nest, templates are leaves)
+│   ├── prompt-template-persistence.ts  # YAML load/save to config/prompt-templates.yaml (global)
+│   ├── prompt-template-migration.ts    # One-time fold of legacy per-profile sequences groups into the prompt-template tree
 │   └── power-monitor.ts        # Suspend/resume/shutdown diagnostics — session counts, PTY IDs, survival status
 ├── config/
 │   └── loader.ts               # Self-contained profile YAML config + CRUD + StickConfig + haptic settings + auto-migration + bookmark CRUD (addBookmarkedDir/removeBookmarkedDir) + ChipbarAction interface + chipActions profile field + getChipbarActions()
@@ -71,7 +75,7 @@ renderer/
 ├── utils.ts                    # DOM helpers, logEvent, showScreen, toDirection
 ├── bindings.ts                 # Config cache, binding dispatch (PTY-aware routing, voice OS-default + PTY via target: 'terminal', F1-F12 VT220 escape sequences)
 ├── paste-handler.ts            # Document-level Ctrl+V interceptor → clipboard text → active PTY (blocked during plan screen)
-├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → quickSpawn → draftEditor → draftAction → draftSubmenu → contextMenu → sequencePicker → planScreen (within sessions case) → overview → screen routing → configBinding fallback
+├── navigation.ts               # Gamepad navigation setup, event routing. Priority chain: sandwich → dirPicker → bindingEditor → formModal → closeConfirm → quickSpawn → draftEditor → draftAction → draftSubmenu → contextMenu → promptTree → planScreen (within sessions case) → overview → screen routing → configBinding fallback
 ├── gamepad.ts                  # Browser Gamepad API wrapper + repeat engine
 ├── session-groups.ts           # Pure session grouping logic (by working directory) — types, grouping, nav list, reorder, bookmarked dirs
 ├── sort-logic.ts               # Pure sort functions for sessions + bindings
@@ -85,7 +89,7 @@ renderer/
 │   │   ├── index.ts
 │   │   ├── CloseConfirmModal.vue
 │   │   ├── PlanDeleteConfirmModal.vue
-│   │   ├── SequencePickerModal.vue
+│   │   ├── PromptTreeModal.vue        # Prompt-template picker tree (progressive disclosure; accelerators 1-9,0,a-z)
 │   │   ├── QuickSpawnModal.vue
 │   │   ├── DirPickerModal.vue
 │   │   ├── ContextMenu.vue
@@ -128,7 +132,8 @@ renderer/
 │   ├── useIpc.ts               # Typed IPC wrappers with auto-cleanup on unmount
 │   ├── useGamepad.ts           # Gamepad polling setup + connection events
 │   ├── usePanelResize.ts       # Splitter drag resize via template refs
-│   ├── useKeyboardRelay.ts     # Ctrl+V → PTY, Ctrl+G → editor intercepts
+│   ├── useKeyboardRelay.ts     # Ctrl+V → PTY, Ctrl+G → Prompt Editor intercepts
+│   ├── usePromptApplyFlow.ts   # Shared prompt-template apply flow (picker tree → prefill Prompt Editor → deliverPromptSequence). Used by main + popout windows
 │   ├── useTerminals.ts         # Terminal create/switch/destroy lifecycle
 │   └── useNavigation.ts        # Navigation routing: sandwich → modal stack → view → screen → config binding
 ├── drafts/
@@ -188,7 +193,7 @@ tests/                                  # 61 test files
 ├── callback-handler.test.ts    # Telegram callback handler tests (session controls, spawn, close all)
 ├── close-confirm.test.ts       # Close confirmation modal tests
 ├── commands.test.ts            # Telegram slash command handler tests
-├── config.test.ts              # Config loading, stick config, haptic, virtual buttons, sequence-list binding persistence, sequences CRUD
+├── config.test.ts              # Config loading, stick config, haptic, virtual buttons, prompt-tree binding persistence, legacy sequences loader (migration input)
 ├── context-menu.test.ts        # Context menu overlay tests
 ├── draft-editor.test.ts        # Draft editor panel tests
 ├── draft-manager.test.ts       # DraftManager CRUD + events

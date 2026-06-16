@@ -38,7 +38,7 @@ Gamepad button and keyboard shortcut mappings.
 | Delete | Mapped to X button |
 | F5 | Mapped to Y button |
 | Ctrl+V | Paste clipboard text to active terminal (PTY stdin) |
-| Ctrl+G | Open in-app Prompt Editor — textarea + recent-prompts sidebar (last 10), Ctrl+Enter sends to active terminal |
+| Ctrl+G | Open in-app Prompt Editor (`EditorPopup.vue`) — multi-line textarea + recent-prompts list + prompt-template tree pane; Ctrl+Enter / Send delivers to active terminal via `deliverPromptSequence()` |
 | Ctrl+1-9, Ctrl+0 | Jump directly to the Nth session in sidebar order (badge: `^n`) |
 | Alt+1-9 | Fire the Nth chip bar quick-action for the active session (badge: `⌥n`) |
 | Tab / Shift+Tab | Cycle buttons in selection-mode modals (close-confirm, context-menu, sequence-picker, quick-spawn) |
@@ -57,7 +57,7 @@ When a button is pressed, the navigation system checks handlers in this order:
 8. Draft action picker (per-draft Apply/Edit/Delete — accessed via context menu Drafts ► submenu)
 9. Draft submenu (Drafts list from context menu)
 10. Context menu (Arrow keys + Tab/Shift+Tab for button cycling)
-11. Sequence picker
+11. Prompt-template picker tree (`PromptTreeModal`)
 12. Screen-specific routing (sessions / settings)
     - **Sessions case:** Plan screen overlay (when visible, B exits) → Group overview → Session/spawn navigation
 13. Config binding fallback (per-CLI bindings)
