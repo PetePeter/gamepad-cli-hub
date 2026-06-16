@@ -18,7 +18,7 @@ import { sessionsState } from './screens/sessions-state.js';
 import { useAppStore } from './stores/app.js';
 import { getTerminalManager } from './runtime/terminal-provider.js';
 import { getCliDisplayName, getCliIcon } from './utils.js';
-import { initConfigCache, executeSequence } from './bindings.js';
+import { initConfigCache } from './bindings.js';
 import { doSpawn, doSpawnShell, switchToSession, doCloseSession,
   bootstrap, teardown, startTimerRefresh, stopTimerRefresh,
   setPendingContextText, restoreSnappedBackSession, refreshProjects, refreshSessions,
@@ -69,9 +69,9 @@ import {
   draftSubmenu,
   toolEditor,
   isAnyBridgeModalVisible,
-  showSequencePicker,
 } from './stores/modal-bridge.js';
 import { showEditorPopup } from './editor/editor-popup.js';
+import { usePromptApplyFlow } from './composables/usePromptApplyFlow.js';
 import DraftEditor from './components/panels/DraftEditor.vue';
 import type { ScheduledTask } from '../../src/types/scheduled-task.js';
 import {
@@ -535,6 +535,9 @@ function handleClearSessionNotifications(e: Event): void {
   }
 }
 
+// Prompt-template apply flow (picker → editor → deliverPromptSequence).
+const { openPromptPicker } = usePromptApplyFlow(() => state.activeSessionId);
+
 // Context menu
 function onContextMenuAction(action: string): void {
   contextMenu.visible = false;
@@ -570,17 +573,9 @@ function onContextMenuAction(action: string): void {
       });
       break;
     }
-    case 'sequences': {
-      const activeSession = state.activeSessionId ? state.sessions.find(s => s.id === state.activeSessionId) : null;
-      const seqs = activeSession ? state.cliSequencesCache[activeSession.cliType] : null;
-      const items = seqs ? Object.values(seqs).flat() : [];
-      if (items.length > 0) {
-        showSequencePicker(items, (seq) => {
-          if (state.activeSessionId) void executeSequence(seq);
-        });
-      }
+    case 'prompts':
+      void openPromptPicker();
       break;
-    }
     case 'drafts':
       if (state.activeSessionId) {
         void draftsClient.draftList(state.activeSessionId).then(drafts => {

@@ -72,6 +72,13 @@ vi.mock('../../renderer/stores/modal-bridge.js', () => ({
     hasSelection: false,
     sourceSessionId: null,
   },
+  promptTree: {
+    visible: false,
+    tree: { id: '__root__', name: '', order: -1, kind: 'folder', children: [] },
+  },
+  showPromptTree: vi.fn(),
+  getPromptTreeCallback: vi.fn(() => null),
+  hidePromptTree: vi.fn(),
 }));
 
 vi.mock('../../renderer/utils.js', async (importOriginal) => {

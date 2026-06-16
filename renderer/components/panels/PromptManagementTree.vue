@@ -31,6 +31,12 @@ interface FlatNode {
 const props = defineProps<{
   /** Current textarea body — source for save-new / update-existing. */
   currentText: string;
+  /**
+   * Template id to pre-select: expands its ancestor folders and marks it the
+   * active/selected node. Used by the apply flow so a picked template is
+   * highlighted in the tree when the editor opens.
+   */
+  selectNodeId?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -73,6 +79,8 @@ async function reload(): Promise<void> {
     selectedIds.value = new Set([...selectedIds.value].filter((id) => live.has(id)));
     expandedFolders.value = new Set([...expandedFolders.value].filter((id) => live.has(id)));
     if (activeId.value && !live.has(activeId.value)) activeId.value = null;
+    // Re-apply pre-selection now that the tree (and its ancestor chain) is loaded.
+    applySelectNodeId(props.selectNodeId);
   } catch (err) {
     console.warn('[PromptManagementTree] Failed to load tree:', err);
     tree.value = EMPTY_TREE;
@@ -85,6 +93,32 @@ function collectIds(node: TreeNode, out: Set<string>): void {
     if (child.kind === 'folder') collectIds(child, out);
   }
 }
+
+/** Find the chain of ancestor folder ids leading to `targetId` (excludes target). */
+function findAncestorPath(node: TreeNode, targetId: string, trail: string[] = []): string[] | null {
+  for (const child of node.children) {
+    if (child.id === targetId) return trail;
+    if (child.kind === 'folder') {
+      const found = findAncestorPath(child, targetId, [...trail, child.id]);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/** Expand ancestors of `selectNodeId` and mark it active/selected. */
+function applySelectNodeId(id: string | null | undefined): void {
+  if (!id) return;
+  const ancestors = findAncestorPath(tree.value, id);
+  if (ancestors === null) return; // not present in the loaded tree
+  if (ancestors.length > 0) {
+    expandedFolders.value = new Set([...expandedFolders.value, ...ancestors]);
+  }
+  selectedIds.value = new Set([id]);
+  activeId.value = id;
+}
+
+watch(() => props.selectNodeId, (id) => applySelectNodeId(id));
 
 /** Flatten the tree into a visible-nodes list based on expandedFolders state. */
 const visibleNodes = computed<FlatNode[]>(() => {

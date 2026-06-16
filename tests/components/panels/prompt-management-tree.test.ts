@@ -225,6 +225,30 @@ describe('PromptManagementTree.vue', () => {
     expect(typeof emitChange).toBe('function');
   });
 
+  it('selectNodeId pre-selects a nested template and expands its ancestor folder', async () => {
+    ipc.promptTemplateList.mockResolvedValue(makeTree());
+    const w = mount(PromptManagementTree, { props: { currentText: 'X', selectNodeId: 't1' } });
+    await flushPromises();
+    const vm = w.vm as any;
+    // Ancestor folder f1 is expanded so the nested template is visible.
+    expect(vm.expandedFolders.has('f1')).toBe(true);
+    expect(vm.visibleNodes.map((n: any) => n.id)).toContain('t1');
+    // The picked node is the active + sole selection.
+    expect(vm.activeId).toBe('t1');
+    expect([...vm.selectedIds]).toEqual(['t1']);
+    w.unmount();
+  });
+
+  it('selectNodeId for a root-level node selects it without needing expansion', async () => {
+    ipc.promptTemplateList.mockResolvedValue(makeTree());
+    const w = mount(PromptManagementTree, { props: { currentText: 'X', selectNodeId: 't3' } });
+    await flushPromises();
+    const vm = w.vm as any;
+    expect(vm.activeId).toBe('t3');
+    expect([...vm.selectedIds]).toEqual(['t3']);
+    w.unmount();
+  });
+
   it('update is disabled when multiple nodes are selected', async () => {
     const w = await factory();
     const vm = w.vm as any;

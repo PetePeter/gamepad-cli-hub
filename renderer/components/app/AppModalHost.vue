@@ -266,6 +266,7 @@ function onToolEditorSave(values: any): void {
   <EditorPopup
     :visible="editorPopupStore.visible"
     :initial-text="editorPopupStore.initialText"
+    :select-node-id="editorPopupStore.selectNodeId"
     @update:visible="editorPopupStore.setVisible"
     @send="editorPopupStore.handleSend"
     @close="editorPopupStore.handleClose"

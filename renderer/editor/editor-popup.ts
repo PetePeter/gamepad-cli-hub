@@ -7,8 +7,9 @@ export { addEditorHistoryEntry, getEditorHistoryPreview, loadEditorHistory } fro
 export function showEditorPopup(
   onSend?: (text: string) => void,
   initialText = '',
+  selectNodeId: string | null = null,
 ): Promise<void> {
-  return useEditorPopupStore().open(onSend, initialText);
+  return useEditorPopupStore().open(onSend, initialText, selectNodeId);
 }
 
 export function hideEditorPopup(): void {

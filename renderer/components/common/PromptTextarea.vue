@@ -121,6 +121,15 @@ function focus(): void {
   textareaRef.value?.focus();
 }
 
+/** Focus the textarea and place the caret at the very end of the content. */
+function focusEnd(): void {
+  const el = textareaRef.value;
+  if (!el) return;
+  el.focus();
+  const end = el.value.length;
+  el.setSelectionRange(end, end);
+}
+
 function setHeight(heightPx: number): void {
   manualHeight.value = clampHeight(heightPx);
   autosize();
@@ -130,7 +139,7 @@ onMounted(autosize);
 onBeforeUnmount(stopResize);
 watch(() => props.modelValue, () => nextTick(autosize));
 
-defineExpose({ focus, setHeight });
+defineExpose({ focus, focusEnd, setHeight });
 </script>
 
 <template>

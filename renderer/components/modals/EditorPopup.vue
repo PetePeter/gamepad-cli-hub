@@ -26,6 +26,8 @@ const MODAL_ID = 'editor-popup';
 const props = defineProps<{
   visible: boolean;
   initialText?: string;
+  /** Template id to pre-select in the management tree when opened. */
+  selectNodeId?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -38,6 +40,7 @@ type FocusTarget = 'textarea' | 'send' | 'cancel';
 const FOCUS_ORDER: FocusTarget[] = ['textarea', 'send', 'cancel'];
 
 const text = ref('');
+const textareaRef = ref<InstanceType<typeof PromptTextarea> | null>(null);
 const history = ref<string[]>([]);
 const selectedHistory = ref<string | null>(null);
 const focusTarget = ref<FocusTarget>('textarea');
@@ -84,6 +87,7 @@ const modalStyle = computed(() => ({
 watch(() => props.visible, async (v) => {
   if (v) {
     await loadEditorDraft();
+    // A prefilled template body (apply flow) takes priority over any saved draft.
     if (props.initialText) text.value = props.initialText;
     selectedHistory.value = null;
     focusTarget.value = 'textarea';
@@ -91,6 +95,9 @@ watch(() => props.visible, async (v) => {
     modalStack.push({ id: MODAL_ID, handler: handleButton, interceptKeys: EDITOR_POPUP_KEYS });
     await loadEditorDimensions();
     centerEditorPopup();
+    // Place the caret at the END of the prefilled body so the user appends.
+    await nextTick();
+    textareaRef.value?.focusEnd();
   } else {
     modalStack.pop(MODAL_ID);
     text.value = '';
@@ -361,11 +368,12 @@ defineExpose({ handleButton });
 
         <div class="editor-popup__body">
           <aside class="editor-popup__tree">
-            <PromptManagementTree :current-text="text" @load="onTemplateLoad" />
+            <PromptManagementTree :current-text="text" :select-node-id="selectNodeId" @load="onTemplateLoad" />
           </aside>
 
           <section class="editor-popup__composer">
             <PromptTextarea
+              ref="textareaRef"
               v-model="text"
               placeholder="Enter your prompt…"
               :rows="12"

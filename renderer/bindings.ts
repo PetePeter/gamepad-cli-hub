@@ -161,20 +161,11 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
         break;
       }
       case 'sequence-list': {
-        let items = binding.items;
-        if (!items && binding.sequenceGroup) {
-          const activeSession = state.sessions.find(s => s.id === state.activeSessionId);
-          if (activeSession) {
-            const sequences = state.cliSequencesCache[activeSession.cliType];
-            items = sequences?.[binding.sequenceGroup] ?? undefined;
-          }
-        }
-        if (!items || items.length === 0) {
-          console.warn(`[Renderer] sequence-list binding for ${button} has no items`);
-          break;
-        }
-        const { showSequencePicker } = await import('./stores/modal-bridge.js');
-        showSequencePicker(items, (sequence) => executeSequence(sequence));
+        // PT-6: the sequence-list binding now opens the prompt-template picker
+        // tree (apply flow), replacing the legacy per-CLI sequence picker.
+        const { usePromptApplyFlow } = await import('./composables/usePromptApplyFlow.js');
+        const { openPromptPicker } = usePromptApplyFlow(() => state.activeSessionId);
+        await openPromptPicker();
         break;
       }
       case 'new-draft':

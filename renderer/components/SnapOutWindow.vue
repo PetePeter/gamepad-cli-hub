@@ -10,10 +10,12 @@ import { useAppStore } from '../stores/app.js';
 import { useChipBarStore } from '../stores/chip-bar.js';
 import { deliverBulkText, deliverViaClipboardPaste } from '../paste-handler.js';
 import { deliverPromptSequence } from '../sequence-delivery.js';
-import { contextMenu } from '../stores/modal-bridge.js';
+import { contextMenu, promptTree, hidePromptTree } from '../stores/modal-bridge.js';
 import { useEditorPopupStore } from '../stores/editor-popup.js';
+import { usePromptApplyFlow } from '../composables/usePromptApplyFlow.js';
 import { useModalKeyboardBridge } from '../composables/useModalKeyboardBridge.js';
 import EditorPopup from './modals/EditorPopup.vue';
+import PromptTreeModal from './modals/PromptTreeModal.vue';
 import { loadStoredSessions } from '../session-store.js';
 import { getCliDisplayName } from '../utils.js';
 import ChipBar from './chips/ChipBar.vue';
@@ -45,6 +47,10 @@ const sessionInfo = ref<any | null>(null);
 const appStore = useAppStore();
 const editorPopupStore = useEditorPopupStore();
 const { handler: handleModalKeyboardBridge } = useModalKeyboardBridge();
+// Prompt-template apply flow — same picker → editor → deliver path as the main
+// window (shared composable, no duplicated logic). Popout always targets its
+// own session.
+const { openPromptPicker, handlePromptTreeSelect } = usePromptApplyFlow(() => props.sessionId);
 
 const draftEditorVisible = ref(false);
 const draftEditorMode = ref<'draft' | 'plan'>('draft');
@@ -266,6 +272,9 @@ async function onContextMenuAction(action: string): Promise<void> {
       showEditorPopup((text) => { void deliverPromptSequence(props.sessionId, text); });
       break;
     }
+    case 'prompts':
+      void openPromptPicker();
+      break;
     case 'snap-back':
       try { await sessionsClient.sessionSnapBack(props.sessionId); }
       catch (error) { console.error('Failed to snap back:', error); }
@@ -283,9 +292,16 @@ function onContextMenuCancel(): void { contextMenuVisible.value = false; }
     <div ref="containerRef" class="snap-out-terminal"></div>
     <div v-if="chipActionBarVisible" class="chip-action-dock"><ChipActionBar :actions="chipBarStore.actions" @action-click="onChipBarAction" /></div>
     <ContextMenu v-model:visible="contextMenuVisible" :has-selection="contextMenuHasSelection" :has-active-session="true" :has-sequences="false" :has-drafts="false" :is-snapped-out="true" :mode="'mouse'" :mouse-x="contextMenu.mouseX" :mouse-y="contextMenu.mouseY" @action="onContextMenuAction" @cancel="onContextMenuCancel" />
+    <PromptTreeModal
+      v-model:visible="promptTree.visible"
+      :tree="promptTree.tree"
+      @select="handlePromptTreeSelect"
+      @cancel="hidePromptTree()"
+    />
     <EditorPopup
       :visible="editorPopupStore.visible"
       :initial-text="editorPopupStore.initialText"
+      :select-node-id="editorPopupStore.selectNodeId"
       @update:visible="editorPopupStore.setVisible"
       @send="editorPopupStore.handleSend"
       @close="editorPopupStore.handleClose"

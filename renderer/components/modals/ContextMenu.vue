@@ -45,7 +45,7 @@ const menuItems = computed<MenuItem[]>(() => [
   { id: 'editor', label: '📝 Compose in Editor', enabled: props.hasActiveSession },
   { id: 'new-session', label: '🆕 New Session', enabled: true },
   { id: 'new-session-with-selection', label: '📌 New Session with Selection', enabled: props.hasSelection },
-  { id: 'sequences', label: '⚡ Sequences…', enabled: props.hasSequences },
+  { id: 'prompts', label: '⚡ Prompts…', enabled: props.hasActiveSession },
   { id: 'drafts', label: '📝 Drafts…', enabled: props.hasActiveSession },
   { id: 'snap-out', label: '📤 Snap Out', enabled: props.hasActiveSession && !props.isSnappedOut },
   { id: 'snap-back', label: '📥 Snap Back', enabled: props.isSnappedOut },
