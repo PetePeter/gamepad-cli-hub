@@ -12,6 +12,7 @@ import { type InterceptKey, useModalStack } from '../../composables/useModalStac
 import { toDirection } from '../../utils.js';
 import { useAppStore } from '../../stores/app.js';
 import PromptTextarea from '../common/PromptTextarea.vue';
+import PromptManagementTree from '../panels/PromptManagementTree.vue';
 import {
   addEditorHistoryEntry,
   loadEditorHistory,
@@ -309,6 +310,11 @@ function onConfirmKeepEditing(): void {
   showConfirmDismiss.value = false;
 }
 
+function onTemplateLoad(body: string): void {
+  text.value = body;
+  nextTick(() => { focusTarget.value = 'textarea'; });
+}
+
 function onHistorySelect(entry: string): void {
   selectedHistory.value = entry;
 }
@@ -354,6 +360,10 @@ defineExpose({ handleButton });
         </div>
 
         <div class="editor-popup__body">
+          <aside class="editor-popup__tree">
+            <PromptManagementTree :current-text="text" @load="onTemplateLoad" />
+          </aside>
+
           <section class="editor-popup__composer">
             <PromptTextarea
               v-model="text"
