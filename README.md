@@ -103,6 +103,9 @@ Plug in a controller (USB or Bluetooth). The app detects it automatically — Xb
 | Ctrl+G | Open in-app Prompt Editor (textarea + recent-prompts history) — Ctrl+Enter sends to active terminal |
 | Ctrl+1-9, Ctrl+0 | Jump to Nth session in sidebar order |
 | Ctrl+Shift+E | Toggle eye visibility for the selected session |
+| Shift + drag | Select terminal text (see note below) |
+
+> **Selecting text in TUI CLIs:** Tools like Claude Code enable mouse-reporting mode, so a plain click-drag is sent to the app instead of selecting text. **Hold Shift while dragging** to force a local terminal selection — this enables 📋 Copy and 📋➕ New Session with Selection in the context menu.
 
 Every binding is remappable per CLI type. See [docs/controls.md](docs/controls.md) for the full mapping.
 
