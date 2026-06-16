@@ -69,7 +69,7 @@ Gamepad (Xbox or generic)
         → D-pad auto-repeats when held (400ms delay, 120ms rate)
 
 D-pad / Left stick navigates sessions and auto-selects the terminal.
-Keyboard input routes to the active terminal (PTY stdin) — blocked when a selection-mode modal overlay is visible (context-menu, close-confirm, sequence-picker, quick-spawn, dir-picker, draft-submenu, plan-screen). Tab/Shift+Tab cycles buttons within selection-mode modals (alongside arrow keys).
+Keyboard input routes to the active terminal (PTY stdin) — blocked when a selection-mode modal overlay is visible (context-menu, close-confirm, prompt-tree picker, quick-spawn, dir-picker, draft-submenu, plan-screen). Tab/Shift+Tab cycles buttons within selection-mode modals (alongside arrow keys).
 Ctrl+V paste routes clipboard text to active PTY (regardless of DOM focus, blocked during modal overlays, draft editor, and plan screen).
 Ctrl+G opens the in-app Prompt Editor (`EditorPopup.vue`, bridged via `renderer/editor/editor-popup.ts`) — a multi-line textarea with a recent-prompts history list and a `PromptManagementTree` pane for the prompt-template library. Ctrl+Enter / Send delivers the composed text to the active PTY via `deliverPromptSequence()` (sequence syntax honored). Blocked during modal overlays, the draft editor, and the plan screen.
 ```

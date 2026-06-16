@@ -120,7 +120,7 @@ Right-click the terminal area (or bind a button to `context-menu`) for quick act
 | ✏️ Compose in Editor | Open in-app Prompt Editor to compose prompt — sent to active PTY on send |
 | ➕ New Session | Quick-spawn picker (pre-selects active CLI type & directory) |
 | 📋➕ New Session with Selection | Spawn with selected text as context |
-| ⏩ Prompts | Open sequence picker with preconfigured commands |
+| ⚡ Prompts… | Open the `PromptTreeModal` picker — picking a template prefills the in-app Prompt Editor (`EditorPopup.vue`); sends to active PTY via `deliverPromptSequence()` |
 
 ---
 

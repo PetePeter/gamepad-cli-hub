@@ -160,9 +160,8 @@ renderer/
 │   ├── modal-base.ts           # Shared modal foundation (show/hide, backdrop, gamepad focus management, Tab/Shift+Tab button cycling in selection mode)
 │   ├── dir-picker.ts           # Directory picker modal (supports pre-selection via preselectedPath)
 │   ├── binding-editor.ts       # Binding editor modal
-│   ├── context-menu.ts         # Context menu overlay — Copy/Paste/Compose in Editor/New Session/New Session with Selection/Prompts ⏩/Drafts ►/Cancel
+│   ├── context-menu.ts         # Context menu overlay — Copy/Paste/Compose in Editor/New Session/New Session with Selection/⚡ Prompts…/Drafts ►/Cancel. "⚡ Prompts…" routes into the prompt-template picker (`components/modals/PromptTreeModal.vue`) → in-app Prompt Editor (`EditorPopup.vue`) flow
 │   ├── close-confirm.ts        # Close session confirmation popup — centered modal with Close/Cancel, warns about unsent drafts, gamepad + keyboard support
-│   ├── sequence-picker.ts      # Sequence picker overlay — shows list of named sequences for user selection, gamepad + click support
 │   ├── quick-spawn.ts          # Quick-spawn CLI type picker — centred modal listing available CLI types with pre-selection, gamepad + click support
 │   └── draft-submenu.ts        # Drafts submenu from context menu — New Draft + per-draft Apply/Edit/Delete action picker
 └── styles/
@@ -223,7 +222,7 @@ tests/                                  # 61 test files
 ├── reply-keyboard.test.ts      # Telegram reply keyboard tests
 ├── resume-spawn.test.ts        # CLI session resume spawning tests
 ├── sequence-parser.test.ts     # Sequence format parser tests
-├── sequence-picker.test.ts     # Sequence picker overlay tests
+├── components/modals/prompt-tree-modal.test.ts  # PromptTreeModal picker tests (tree disclosure, selection, gamepad navigation, apply flow)
 ├── session-groups.test.ts      # Session grouping logic tests + bookmark persistence tests
 ├── session-handlers.test.ts    # session:close → PtyManager routing tests
 ├── session.test.ts             # Session management

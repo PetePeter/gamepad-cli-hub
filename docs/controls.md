@@ -41,7 +41,7 @@ Gamepad button and keyboard shortcut mappings.
 | Ctrl+G | Open in-app Prompt Editor (`EditorPopup.vue`) — multi-line textarea + recent-prompts list + prompt-template tree pane; Ctrl+Enter / Send delivers to active terminal via `deliverPromptSequence()` |
 | Ctrl+1-9, Ctrl+0 | Jump directly to the Nth session in sidebar order (badge: `^n`) |
 | Alt+1-9 | Fire the Nth chip bar quick-action for the active session (badge: `⌥n`) |
-| Tab / Shift+Tab | Cycle buttons in selection-mode modals (close-confirm, context-menu, sequence-picker, quick-spawn) |
+| Tab / Shift+Tab | Cycle buttons in selection-mode modals (close-confirm, context-menu, prompt-tree picker, quick-spawn) |
 
 ## Navigation Priority Chain
 
