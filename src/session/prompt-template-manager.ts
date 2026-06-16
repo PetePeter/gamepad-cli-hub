@@ -203,6 +203,28 @@ export class PromptTemplateManager extends EventEmitter {
     return this.folders.get(id) ?? this.templates.get(id) ?? null;
   }
 
+  /**
+   * Internal: restore a folder with a pre-assigned ID (used by persistence layer).
+   * Does NOT emit change events — caller should emit once after batch load.
+   * Bypasses parentId validation so folders can be loaded in any order.
+   */
+  _loadFolder(id: string, name: string, parentId: string | null, order: number): PromptFolder {
+    const folder: PromptFolder = { id, name, parentId, order };
+    this.folders.set(id, folder);
+    return folder;
+  }
+
+  /**
+   * Internal: restore a template with a pre-assigned ID (used by persistence layer).
+   * Does NOT emit change events — caller should emit once after batch load.
+   * Bypasses parentId validation — caller must ensure parent folder already loaded.
+   */
+  _loadTemplate(id: string, name: string, body: string, parentId: string | null, order: number): PromptTemplate {
+    const tmpl: PromptTemplate = { id, name, body, parentId, order };
+    this.templates.set(id, tmpl);
+    return tmpl;
+  }
+
   /** Get the full tree rooted at virtual root. */
   getTree(): TreeNode {
     return this.buildSubtree(null);
