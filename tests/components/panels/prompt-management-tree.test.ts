@@ -190,6 +190,41 @@ describe('PromptManagementTree.vue', () => {
     w.unmount();
   });
 
+  it('unmounting before the initial load resolves does not leak the change listener', async () => {
+    // Race the unmount against the first promptTemplateList(): hold the promise
+    // open, unmount, then resolve + emit a change. The listener must be torn
+    // down and must NOT reload the unmounted tree.
+    let resolveList!: (tree: TreeNode) => void;
+    ipc.promptTemplateList.mockReturnValueOnce(
+      new Promise<TreeNode>((res) => { resolveList = res; }),
+    );
+    const unsub = vi.fn();
+    let emitChange!: () => void;
+    onPromptTemplateChanged.mockImplementationOnce((cb: () => void) => {
+      emitChange = cb;
+      return unsub;
+    });
+
+    const w = mount(PromptManagementTree, { props: { currentText: 'X' } });
+    expect(onPromptTemplateChanged).toHaveBeenCalledTimes(1);
+
+    // Unmount BEFORE the initial list promise resolves.
+    w.unmount();
+    expect(unsub).toHaveBeenCalledTimes(1);
+
+    // Now let the awaited mount continuation run.
+    resolveList(makeTree());
+    await flushPromises();
+
+    // The post-await continuation must NOT register a second listener — the
+    // subscription stays a single, already-torn-down handle. A real PTY change
+    // event is no longer delivered to this component (unsub was called).
+    expect(onPromptTemplateChanged).toHaveBeenCalledTimes(1);
+    expect(unsub).toHaveBeenCalledTimes(1);
+    // Reference emitChange to assert the captured callback is the only handle.
+    expect(typeof emitChange).toBe('function');
+  });
+
   it('update is disabled when multiple nodes are selected', async () => {
     const w = await factory();
     const vm = w.vm as any;

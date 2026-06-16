@@ -50,9 +50,13 @@ const moveMode = ref(false);
 
 let unsubscribe: (() => void) | null = null;
 
-onMounted(async () => {
-  await reload();
+onMounted(() => {
+  // Register synchronously, BEFORE the awaited initial load, so an unmount
+  // that races the first promptTemplateList() can always tear it down via
+  // onUnmounted — otherwise the post-await continuation would register a
+  // listener that leaks and reloads an unmounted tree on every change.
   unsubscribe = eventsClient.onPromptTemplateChanged?.(() => { void reload(); }) ?? null;
+  void reload();
 });
 
 onUnmounted(() => {
