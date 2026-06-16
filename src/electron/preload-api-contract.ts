@@ -208,6 +208,17 @@ export const PRELOAD_API_DOMAINS = {
     'telegramIsRunning',
     'telegramTestConnection',
   ],
+  promptTemplates: [
+    'promptTemplateList',
+    'promptTemplateGetNode',
+    'promptTemplateCreateFolder',
+    'promptTemplateCreateTemplate',
+    'promptTemplateUpdate',
+    'promptTemplateRename',
+    'promptTemplateDelete',
+    'promptTemplateMove',
+    'promptTemplateReorder',
+  ],
   keyboard: [
     'keyboardKeyTap',
     'keyboardSendKeyCombo',
@@ -255,6 +266,7 @@ export const PRELOAD_API_DOMAINS = {
     'onPatternScheduleCancelled',
     'onScheduledTaskChanged',
     'onScheduledTaskHistoryChanged',
+    'onPromptTemplateChanged',
   ],
 } as const;
 

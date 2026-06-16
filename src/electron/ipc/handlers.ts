@@ -47,12 +47,17 @@ import { setupScheduledTaskHandlers } from './scheduled-task-handlers.js';
 import { setupBackupPlanHandlers } from './plan-backup-handlers.js';
 import { setupProjectHandlers } from './project-handlers.js';
 import { setupSkillHandlers } from './skill-handlers.js';
+import { setupPromptTemplateHandlers } from './prompt-template-handlers.js';
 import { RendererTextDeliverer } from './text-delivery.js';
 import { loadDrafts, saveDrafts } from '../../session/persistence.js';
 import { IncomingPlansWatcher } from '../../session/incoming-plans-watcher.js';
 import { WindowManager } from '../window-manager.js';
 import { HelmControlService } from '../../mcp/helm-control-service.js';
 import { LocalhostMcpServer } from '../../mcp/localhost-mcp-server.js';
+import { PromptTemplateManager } from '../../session/prompt-template-manager.js';
+import { loadPromptTemplates } from '../../session/prompt-template-persistence.js';
+import { getConfigDir } from '../../utils/app-paths.js';
+import { join } from 'node:path';
 
 const TELEGRAM_AUTOSTART_DELAY_MS = 60_000;
 // On restart the previous instance may still be releasing the fixed MCP port.
@@ -160,6 +165,15 @@ export function registerIPCHandlers(
   draftManager.importAll(loadDrafts());
   // PlanManager loads from disk in its constructor — no explicit importAll needed
 
+  // PromptTemplateManager: global tree, persisted to prompt-templates.yaml
+  const promptTemplateManager = new PromptTemplateManager();
+  const promptTemplatesPath = dirname
+    ? join(getConfigDir(dirname), 'prompt-templates.yaml')
+    : undefined;
+  if (promptTemplatesPath) {
+    loadPromptTemplates(promptTemplatesPath, promptTemplateManager);
+  }
+
   const incomingWatcher = new IncomingPlansWatcher(planManager);
   const textDeliverer = new RendererTextDeliverer(windowManager, sessionManager, configLoader);
   ptyManager.setTextDeliveryHandler((sessionId, text, options) => textDeliverer.deliver(sessionId, text, options));
@@ -188,6 +202,9 @@ export function registerIPCHandlers(
   setupScheduledTaskHandlers(scheduledTaskManager, scheduledTaskHistoryManager, windowManager);
   setupPtyHandlers(ptyManager, stateDetector, sessionManager, pipelineQueue, windowManager, configLoader, notificationManager, undefined, undefined, undefined, patternMatcher);
   setupBackupPlanHandlers(ipcMain, windowManager, () => backupManager);
+  if (promptTemplatesPath) {
+    setupPromptTemplateHandlers(promptTemplateManager, promptTemplatesPath);
+  }
 
   // Wire automatic backup scheduling: backup a directory when plans change,
   // but only if enough time has passed since the last backup for that dir.

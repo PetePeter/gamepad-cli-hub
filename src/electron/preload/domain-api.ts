@@ -1007,6 +1007,51 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
     return () => ipcRenderer.removeListener('scheduled-task-history:changed', listener);
   },
 
+  // ========================================================================
+  // Prompt Templates
+  // ========================================================================
+
+  /** Get the full prompt-template tree */
+  promptTemplateList: () => ipcRenderer.invoke('prompt-template:list'),
+
+  /** Get a single node (folder or template) by id */
+  promptTemplateGetNode: (id: string) => ipcRenderer.invoke('prompt-template:getNode', id),
+
+  /** Create a folder (root-level if parentId omitted) */
+  promptTemplateCreateFolder: (name: string, parentId?: string | null) =>
+    ipcRenderer.invoke('prompt-template:createFolder', name, parentId ?? null),
+
+  /** Create a template (root-level if parentId omitted) */
+  promptTemplateCreateTemplate: (name: string, body: string, parentId?: string | null) =>
+    ipcRenderer.invoke('prompt-template:createTemplate', name, body, parentId ?? null),
+
+  /** Update a template's name and/or body */
+  promptTemplateUpdate: (id: string, changes: { name?: string; body?: string }) =>
+    ipcRenderer.invoke('prompt-template:update', id, changes),
+
+  /** Rename any node (folder or template) */
+  promptTemplateRename: (id: string, name: string) =>
+    ipcRenderer.invoke('prompt-template:rename', id, name),
+
+  /** Delete nodes (cascades for folders) */
+  promptTemplateDelete: (ids: string[]) =>
+    ipcRenderer.invoke('prompt-template:delete', ids),
+
+  /** Move a node to a new parent folder (or root via null) */
+  promptTemplateMove: (id: string, newParentId?: string | null) =>
+    ipcRenderer.invoke('prompt-template:move', id, newParentId ?? null),
+
+  /** Reorder a node among its siblings */
+  promptTemplateReorder: (id: string, newOrder: number) =>
+    ipcRenderer.invoke('prompt-template:reorder', id, newOrder),
+
+  /** Subscribe to prompt-template change events */
+  onPromptTemplateChanged: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('prompt-template:changed', listener);
+    return () => ipcRenderer.removeListener('prompt-template:changed', listener);
+  },
+
 } as const;
 
 export type PreloadMethodImplementations = typeof PRELOAD_METHOD_IMPLEMENTATIONS;
