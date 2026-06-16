@@ -123,28 +123,6 @@ let _clearDonePlansOnConfirm: (() => void) | null = null;
 export function setClearDonePlansCallback(cb: (() => void) | null): void { _clearDonePlansOnConfirm = cb; }
 export function getClearDonePlansCallback(): (() => void) | null { return _clearDonePlansOnConfirm; }
 
-// ============================================================================
-// Sequence Picker
-// ============================================================================
-
-export const sequencePicker = reactive({
-  visible: false,
-  items: [] as Array<{ label: string; sequence: string }>,
-});
-
-let _sequencePickerOnSelect: ((sequence: string) => void) | null = null;
-export function setSequencePickerCallback(cb: ((sequence: string) => void) | null): void { _sequencePickerOnSelect = cb; }
-export function getSequencePickerCallback(): ((sequence: string) => void) | null { return _sequencePickerOnSelect; }
-export function showSequencePicker(items: Array<{ label: string; sequence: string }>, onSelect: (sequence: string) => void): void {
-  if (items.length === 0) return;
-  sequencePicker.visible = true;
-  sequencePicker.items = [...items];
-  setSequencePickerCallback(onSelect);
-}
-export function hideSequencePicker(): void {
-  sequencePicker.visible = false;
-  setSequencePickerCallback(null);
-}
 
 // ============================================================================
 // Prompt Tree Picker
@@ -254,7 +232,7 @@ export const formModal = reactive({
     label: string;
     defaultValue?: string;
     placeholder?: string;
-    type?: 'text' | 'select' | 'textarea' | 'checkbox' | 'sequence-items';
+    type?: 'text' | 'select' | 'textarea' | 'checkbox';
     options?: Array<{ label: string; value: string }>;
     browse?: boolean;
     showLabels?: boolean;
@@ -385,7 +363,7 @@ export function isAnyBridgeModalVisible(): boolean {
   const editorPopupStore = useEditorPopupStore();
 
   return closeConfirm.visible || contextMenu.visible || planDeleteConfirm.visible ||
-    clearDonePlans.visible || sequencePicker.visible || quickSpawn.visible || dirPicker.visible ||
+    clearDonePlans.visible || quickSpawn.visible || dirPicker.visible ||
     draftSubmenu.visible || formModal.visible || editorPopupStore.visible || toolEditor.visible ||
     planHelp.visible || promptTree.visible || escProtection.isProtecting.value;
 }

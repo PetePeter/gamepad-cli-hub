@@ -437,18 +437,15 @@ describe('initConfigCache', () => {
     vi.clearAllMocks();
     state.cliTypes = ['claude-code', 'copilot-cli'];
     state.cliBindingsCache = {};
-    state.cliSequencesCache = {};
     (window as any).gamepadCli = {
       ...mockGamepadCli,
       configGetBindings: vi.fn(),
-      configGetSequences: vi.fn(),
     };
   });
 
   it('populates cliBindingsCache for all CLI types', async () => {
     const bindings = { A: { action: 'keyboard', sequence: '{Enter}' } };
     (window as any).gamepadCli.configGetBindings.mockResolvedValue(bindings);
-    (window as any).gamepadCli.configGetSequences.mockResolvedValue({});
 
     await initConfigCache();
 
@@ -456,51 +453,15 @@ describe('initConfigCache', () => {
     expect(state.cliBindingsCache['copilot-cli']).toEqual(bindings);
   });
 
-  it('populates cliSequencesCache for CLI types with sequences', async () => {
-    const sequences = { prompts: [{ label: 'commit', sequence: 'use skill(commit)' }] };
-    (window as any).gamepadCli.configGetBindings.mockResolvedValue({});
-    (window as any).gamepadCli.configGetSequences.mockResolvedValue(sequences);
-
-    await initConfigCache();
-
-    expect(state.cliSequencesCache['claude-code']).toEqual(sequences);
-    expect(state.cliSequencesCache['copilot-cli']).toEqual(sequences);
-  });
-
-  it('skips cliSequencesCache when sequences are empty', async () => {
-    (window as any).gamepadCli.configGetBindings.mockResolvedValue({});
-    (window as any).gamepadCli.configGetSequences.mockResolvedValue({});
-
-    await initConfigCache();
-
-    expect(state.cliSequencesCache['claude-code']).toBeUndefined();
-    expect(state.cliSequencesCache['copilot-cli']).toBeUndefined();
-  });
-
-  it('clears stale sequences when backend returns empty', async () => {
-    state.cliSequencesCache['claude-code'] = { prompts: [{ label: 'old', sequence: 'stale' }] };
-
-    (window as any).gamepadCli.configGetBindings.mockResolvedValue({});
-    (window as any).gamepadCli.configGetSequences.mockResolvedValue({});
-
-    await initConfigCache();
-
-    expect(state.cliSequencesCache['claude-code']).toBeUndefined();
-  });
-
   it('overwrites stale cache entries on re-init', async () => {
     state.cliBindingsCache['claude-code'] = { X: { action: 'keyboard', sequence: 'old' } };
-    state.cliSequencesCache['claude-code'] = { old: [{ label: 'x', sequence: 'y' }] };
 
     const newBindings = { A: { action: 'keyboard', sequence: 'new' } };
-    const newSequences = { prompts: [{ label: 'fresh', sequence: 'data' }] };
     (window as any).gamepadCli.configGetBindings.mockResolvedValue(newBindings);
-    (window as any).gamepadCli.configGetSequences.mockResolvedValue(newSequences);
 
     await initConfigCache();
 
     expect(state.cliBindingsCache['claude-code']).toEqual(newBindings);
-    expect(state.cliSequencesCache['claude-code']).toEqual(newSequences);
   });
 
   it('does nothing when window.gamepadCli is unavailable', async () => {
@@ -509,6 +470,5 @@ describe('initConfigCache', () => {
     await initConfigCache();
 
     expect(state.cliBindingsCache).toEqual({});
-    expect(state.cliSequencesCache).toEqual({});
   });
 });

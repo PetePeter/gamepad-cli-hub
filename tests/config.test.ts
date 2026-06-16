@@ -289,37 +289,30 @@ describe('ConfigLoader', () => {
         .toThrow('Unknown CLI type: nonexistent');
     });
 
-    it('sets a sequence-list binding and persists', () => {
+    it('sets a prompt-tree binding and persists', () => {
       loader.load();
-      const seqListBinding = {
-        action: 'sequence-list' as const,
-        items: [
-          { label: 'Clear', sequence: '/clear{Enter}' },
-          { label: 'Help', sequence: '/help{Enter}' },
-        ],
+      const promptTreeBinding = {
+        action: 'prompt-tree' as const,
       };
-      loader.setBinding('Y', 'claude-code', seqListBinding);
+      loader.setBinding('Y', 'claude-code', promptTreeBinding);
 
-      expect(loader.getBindings('claude-code')!['Y']).toEqual(seqListBinding);
+      expect(loader.getBindings('claude-code')!['Y']).toEqual(promptTreeBinding);
 
       const onDisk = readYaml<any>('bindings.yaml');
-      expect(onDisk['claude-code']['Y']).toEqual(seqListBinding);
+      expect(onDisk['claude-code']['Y']).toEqual(promptTreeBinding);
     });
 
-    it('round-trips sequence-list binding through save and reload', () => {
+    it('round-trips prompt-tree binding through save and reload', () => {
       loader.load();
-      const seqListBinding = {
-        action: 'sequence-list' as const,
-        items: [
-          { label: 'Compact', sequence: '/compact{Enter}' },
-        ],
+      const promptTreeBinding = {
+        action: 'prompt-tree' as const,
       };
-      loader.setBinding('Y', 'copilot-cli', seqListBinding);
+      loader.setBinding('Y', 'copilot-cli', promptTreeBinding);
 
       // Reload from disk
       const loader2 = new ConfigLoader(TEST_DIR);
       loader2.load();
-      expect(loader2.getBindings('copilot-cli')!['Y']).toEqual(seqListBinding);
+      expect(loader2.getBindings('copilot-cli')!['Y']).toEqual(promptTreeBinding);
     });
   });
 

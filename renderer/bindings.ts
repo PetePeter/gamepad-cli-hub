@@ -52,10 +52,6 @@ export async function initConfigCache(): Promise<void> {
     for (const cliType of state.cliTypes) {
       const bindings = await configClient.configGetBindings(cliType);
       if (bindings) state.cliBindingsCache[cliType] = bindings;
-
-      const sequences = await configClient.configGetSequences(cliType);
-      if (sequences && Object.keys(sequences).length > 0) state.cliSequencesCache[cliType] = sequences;
-      else delete state.cliSequencesCache[cliType];
     }
 
     try {
@@ -160,9 +156,8 @@ async function executeCliBinding(button: string, binding: Binding): Promise<void
         if (tm) showContextMenu(window.innerWidth / 2, window.innerHeight / 2, state.activeSessionId || '', 'gamepad');
         break;
       }
-      case 'sequence-list': {
-        // PT-6: the sequence-list binding now opens the prompt-template picker
-        // tree (apply flow), replacing the legacy per-CLI sequence picker.
+      case 'prompt-tree': {
+        // PT-7: renamed from 'sequence-list'; opens the prompt-template picker tree (apply flow).
         const { usePromptApplyFlow } = await import('./composables/usePromptApplyFlow.js');
         const { openPromptPicker } = usePromptApplyFlow(() => state.activeSessionId);
         await openPromptPicker();

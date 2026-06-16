@@ -1,7 +1,7 @@
 /**
- * Config store — caches for CLI bindings, sequences, and tools.
+ * Config store — caches for CLI bindings and tools.
  *
- * Legacy code reads from `state.cliBindingsCache` etc. (via the reactive state).
+ * Legacy code reads from `state.cliBindingsCache` / `state.cliToolsCache` (via the reactive state).
  * Vue components use `useConfigStore()` for typed access + reload actions.
  */
 
@@ -22,12 +22,7 @@ export const useConfigStore = defineStore('config', () => {
     return state.cliBindingsCache[cliType] ?? {};
   }
 
-  /** Get sequence lists for a specific CLI type. */
-  function getSequences(cliType: string): Record<string, Array<{ label: string; sequence: string }>> {
-    return state.cliSequencesCache[cliType] ?? {};
-  }
-
-  /** Get tool config for a specific CLI type. */
+/** Get tool config for a specific CLI type. */
   function getToolConfig(cliType: string): { pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'; [k: string]: any } {
     return state.cliToolsCache[cliType] ?? {};
   }
@@ -37,11 +32,7 @@ export const useConfigStore = defineStore('config', () => {
     state.cliBindingsCache = cache;
   }
 
-  function setSequencesCache(cache: Record<string, Record<string, Array<{ label: string; sequence: string }>>>) {
-    state.cliSequencesCache = cache;
-  }
-
-  function setToolsCache(cache: Record<string, { pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'; [k: string]: any }>) {
+function setToolsCache(cache: Record<string, { pasteMode?: 'pty' | 'ptyindividual' | 'sendkeys' | 'sendkeysindividual' | 'clippaste'; [k: string]: any }>) {
     state.cliToolsCache = cache;
   }
 
@@ -57,10 +48,8 @@ export const useConfigStore = defineStore('config', () => {
     cliTypes,
     availableSpawnTypes,
     getBindings,
-    getSequences,
     getToolConfig,
     setBindingsCache,
-    setSequencesCache,
     setToolsCache,
     setCliTypes,
     setAvailableSpawnTypes,

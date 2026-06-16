@@ -77,11 +77,6 @@ export const PRELOAD_METHOD_IMPLEMENTATIONS = {
    */
   configGetCliTypes: () => ipcRenderer.invoke('config:getCliTypes'),
 
-  /**
-   * Get named sequence groups for a CLI type
-   */
-  configGetSequences: (cliType: string) => ipcRenderer.invoke('config:getSequences', cliType),
-
 /**
    * Get chipbar quick-action buttons for the current profile
    */

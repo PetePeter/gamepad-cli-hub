@@ -44,15 +44,6 @@ export function setupConfigHandlers(configLoader: ConfigLoader, localhostMcpServ
     }
   });
 
-  ipcMain.handle('config:getSequences', (_event, cliType: string) => {
-    try {
-      return configLoader.getSequences(cliType);
-    } catch (error) {
-      logger.error(`[IPC] Failed to get sequences for ${cliType}: ${error}`);
-      return {};
-    }
-  });
-
   ipcMain.handle('config:getChipbarActions', () => {
     try {
       return configLoader.getChipbarActions();

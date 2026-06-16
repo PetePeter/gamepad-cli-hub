@@ -112,7 +112,7 @@ export interface FormField {
   label: string;
   defaultValue?: string;
   placeholder?: string;
-  type?: 'text' | 'select' | 'textarea' | 'checkbox' | 'sequence-items';
+  type?: 'text' | 'select' | 'textarea' | 'checkbox';
   options?: FormFieldOption[];
   required?: boolean;
   browse?: boolean;
@@ -122,17 +122,6 @@ export interface FormField {
 export function getRequiredFormFieldError(field: Pick<FormField, 'label' | 'required' | 'type'>, value?: string): string | null {
   if (!field.required) return null;
   if (field.type === 'checkbox') return value === 'true' ? null : `${field.label} is required.`;
-  if (field.type === 'sequence-items') {
-    if (!value) return `${field.label} is required.`;
-    try {
-      const parsed = JSON.parse(value);
-      if (!Array.isArray(parsed)) return `${field.label} is required.`;
-      const hasContent = parsed.some((item: any) => typeof item?.sequence === 'string' && item.sequence.trim().length > 0);
-      return hasContent ? null : `${field.label} is required.`;
-    } catch {
-      return `${field.label} is required.`;
-    }
-  }
   return value?.trim() ? null : `${field.label} is required.`;
 }
 

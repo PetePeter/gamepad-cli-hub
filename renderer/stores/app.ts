@@ -17,7 +17,6 @@ export const appState: AppState = reactive({
   cliTypes: [],
   availableSpawnTypes: [],
   cliBindingsCache: {},
-  cliSequencesCache: {},
   cliToolsCache: {},
   projects: [],
   settingsTab: 'tools',

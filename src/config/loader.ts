@@ -25,7 +25,7 @@ export type { CliTypeOptions, EnvVarEntry, SpawnConfig } from './loader-helpers.
 // Action & Binding Types
 // ============================================================================
 
-export type ActionType = 'keyboard' | 'voice' | 'scroll' | 'context-menu' | 'sequence-list' | 'new-draft';
+export type ActionType = 'keyboard' | 'voice' | 'scroll' | 'context-menu' | 'prompt-tree' | 'new-draft';
 
 interface BaseBinding {
   action: ActionType;
@@ -58,18 +58,15 @@ export interface SequenceListItem {
   sequence: string;
 }
 
-interface SequenceListBinding extends BaseBinding {
-  action: 'sequence-list';
-  items?: SequenceListItem[];
-  /** Named sequence group reference — resolved from CliTypeConfig.sequences[groupId] */
-  sequenceGroup?: string;
+interface PromptTreeBinding extends BaseBinding {
+  action: 'prompt-tree';
 }
 
 interface NewDraftBinding extends BaseBinding {
   action: 'new-draft';
 }
 
-export type Binding = KeyboardBinding | VoiceBinding | ScrollBinding | ContextMenuBinding | SequenceListBinding | NewDraftBinding;
+export type Binding = KeyboardBinding | VoiceBinding | ScrollBinding | ContextMenuBinding | PromptTreeBinding | NewDraftBinding;
 
 // ============================================================================
 // Pattern Rules

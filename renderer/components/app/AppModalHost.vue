@@ -5,7 +5,6 @@ import {
   contextMenu,
   planDeleteConfirm, getPlanDeleteCallback, setPlanDeleteCallback,
   clearDonePlans, getClearDonePlansCallback,
-  sequencePicker, getSequencePickerCallback,
   promptTree, getPromptTreeCallback, hidePromptTree,
   quickSpawn, getQuickSpawnCallback, closeQuickSpawn,
   dirPicker, closeDirPicker,
@@ -17,7 +16,6 @@ import {
 import type { ScheduledTask, ScheduledTaskHistoryEntry } from '../../../src/types/scheduled-task.js';
 import CloseConfirmModal from '../modals/CloseConfirmModal.vue';
 import PlanDeleteConfirmModal from '../modals/PlanDeleteConfirmModal.vue';
-import SequencePickerModal from '../modals/SequencePickerModal.vue';
 import PromptTreeModal from '../modals/PromptTreeModal.vue';
 import QuickSpawnModal from '../modals/QuickSpawnModal.vue';
 import ContextMenu from '../modals/ContextMenu.vue';
@@ -122,10 +120,7 @@ function onClearDonePlansConfirm(): void {
   getClearDonePlansCallback()?.();
 }
 
-function onSequencePickerSelect(sequence: string): void {
-  sequencePicker.visible = false;
-  getSequencePickerCallback()?.(sequence);
-}
+
 
 function onPromptTreeSelect(templateId: string): void {
   // Capture the callback BEFORE hiding — hidePromptTree() clears the stored
@@ -189,13 +184,6 @@ function onToolEditorSave(values: any): void {
     :dir-name="clearDonePlans.dirName"
     @confirm="onClearDonePlansConfirm"
     @cancel="clearDonePlans.visible = false"
-  />
-
-  <SequencePickerModal
-    v-model:visible="sequencePicker.visible"
-    :items="sequencePicker.items"
-    @select="onSequencePickerSelect"
-    @cancel="sequencePicker.visible = false"
   />
 
   <PromptTreeModal

@@ -380,13 +380,6 @@ const plansDirItems = computed(() =>
 
 const hasActiveSession = computed(() => !!state.activeSessionId);
 
-const hasSequences = computed(() => {
-  if (!state.activeSessionId) return false;
-  const session = state.sessions.find(s => s.id === state.activeSessionId);
-  if (!session) return false;
-  const seqs = state.cliSequencesCache[session.cliType];
-  return !!seqs && Object.keys(seqs).length > 0;
-});
 
 const hasDrafts = computed(() => {
   if (!state.activeSessionId) return false;
@@ -1204,7 +1197,7 @@ onUnmounted(() => {
     <AppModalHost
       :cli-types="state.cliTypes"
       :has-active-session="hasActiveSession"
-      :has-sequences="hasSequences"
+      :has-sequences="false"
       :has-drafts="hasDrafts"
       :is-active-session-snapped-out="state.activeSessionId ? state.snappedOutSessions.has(state.activeSessionId) : false"
       v-model:binding-editor-visible="bindingEditorVisible"

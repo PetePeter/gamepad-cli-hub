@@ -2814,53 +2814,6 @@ kbd {
   white-space: nowrap;
 }
 
-/* =========================================================================
-   Sequence List Editor (binding editor section)
-   ========================================================================= */
-
-.sequence-list-items {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 8px;
-}
-
-.sequence-list-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 8px;
-  background: var(--bg-secondary, #1e1e1e);
-  border-radius: 4px;
-  gap: 8px;
-}
-
-.sequence-list-row__info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  overflow: hidden;
-  flex: 1;
-}
-
-.sequence-list-row__info strong {
-  font-size: 13px;
-  color: var(--text-primary, #fff);
-}
-
-.sequence-list-row__preview {
-  font-size: 11px;
-  color: var(--text-secondary, #888);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sequence-list-row__actions {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
 
 .btn--small {
   padding: 2px 6px;

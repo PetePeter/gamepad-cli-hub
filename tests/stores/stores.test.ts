@@ -37,7 +37,6 @@ beforeEach(() => {
   state.cliTypes = [];
   state.availableSpawnTypes = [];
   state.cliBindingsCache = {};
-  state.cliSequencesCache = {};
   state.cliToolsCache = {};
   state.settingsTab = 'profiles';
   state.activeProfile = 'default';

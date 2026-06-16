@@ -24,7 +24,6 @@ vi.mock('../renderer/state.js', () => ({
     sessions: [],
     cliToolsCache: {},
     cliBindingsCache: {},
-    cliSequencesCache: {},
     cliTypes: [],
     activeSessionId: null,
   },

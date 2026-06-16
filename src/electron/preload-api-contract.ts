@@ -43,7 +43,6 @@ export const PRELOAD_API_DOMAINS = {
     'configGetAll',
     'configGetBindings',
     'configGetCliTypes',
-    'configGetSequences',
     'configGetChipbarActions',
     'configSetChipbarActions',
     'configSetSequenceGroup',

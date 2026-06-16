@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   configGetChipbarActions: vi.fn(),
   configGetSortPrefs: vi.fn(),
   configGetBindings: vi.fn(),
-  configGetSequences: vi.fn(),
   configGetMcpConfig: vi.fn(),
   telegramGetConfig: vi.fn(),
   telegramIsRunning: vi.fn(),
@@ -20,7 +19,6 @@ vi.mock('../../renderer/ipc/clients.js', () => ({
     configGetChipbarActions: mocks.configGetChipbarActions,
     configGetSortPrefs: mocks.configGetSortPrefs,
     configGetBindings: mocks.configGetBindings,
-    configGetSequences: mocks.configGetSequences,
     configGetMcpConfig: mocks.configGetMcpConfig,
   },
   toolsClient: {
@@ -43,7 +41,6 @@ describe('useSettingsController', () => {
     state.settingsTab = 'tools';
     state.projects = [];
     state.cliBindingsCache = {};
-    state.cliSequencesCache = {};
     sessionsState.directories = [];
 
     mocks.configGetCliTypes.mockResolvedValue(['codex']);
@@ -60,7 +57,6 @@ describe('useSettingsController', () => {
     mocks.configGetChipbarActions.mockResolvedValue({ actions: [{ label: 'Save', sequence: 'save' }] });
     mocks.configGetSortPrefs.mockResolvedValue({ field: 'button', direction: 'asc' });
     mocks.configGetBindings.mockResolvedValue({});
-    mocks.configGetSequences.mockResolvedValue({});
     mocks.configGetMcpConfig.mockResolvedValue({ enabled: true, port: 47400, authToken: 'token' });
     mocks.telegramGetConfig.mockResolvedValue({
       botToken: 'bot',
