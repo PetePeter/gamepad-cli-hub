@@ -301,6 +301,7 @@ function onContextMenuCancel(): void { contextMenuVisible.value = false; }
     <EditorPopup
       :visible="editorPopupStore.visible"
       :initial-text="editorPopupStore.initialText"
+      :has-prefill="editorPopupStore.hasPrefill"
       :select-node-id="editorPopupStore.selectNodeId"
       @update:visible="editorPopupStore.setVisible"
       @send="editorPopupStore.handleSend"

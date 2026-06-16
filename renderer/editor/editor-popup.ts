@@ -8,8 +8,9 @@ export function showEditorPopup(
   onSend?: (text: string) => void,
   initialText = '',
   selectNodeId: string | null = null,
+  hasPrefill = false,
 ): Promise<void> {
-  return useEditorPopupStore().open(onSend, initialText, selectNodeId);
+  return useEditorPopupStore().open(onSend, initialText, selectNodeId, hasPrefill);
 }
 
 export function hideEditorPopup(): void {

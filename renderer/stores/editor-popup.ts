@@ -4,6 +4,11 @@ import { ref } from 'vue';
 export const useEditorPopupStore = defineStore('editorPopup', () => {
   const visible = ref(false);
   const initialText = ref('');
+  /**
+   * Whether `initialText` is an explicit prefill (apply flow). When true the
+   * editor uses it even if empty, overriding any saved ctrl-g draft.
+   */
+  const hasPrefill = ref(false);
   /** Template id to pre-select in the editor's management tree (null = none). */
   const selectNodeId = ref<string | null>(null);
 
@@ -18,9 +23,11 @@ export const useEditorPopupStore = defineStore('editorPopup', () => {
     nextOnSend?: (text: string) => void | Promise<void>,
     nextInitialText = '',
     nextSelectNodeId: string | null = null,
+    nextHasPrefill = false,
   ): Promise<void> {
     if (visible.value) return Promise.resolve();
     initialText.value = nextInitialText;
+    hasPrefill.value = nextHasPrefill;
     selectNodeId.value = nextSelectNodeId;
     onSend = nextOnSend ?? null;
     visible.value = true;
@@ -36,6 +43,7 @@ export const useEditorPopupStore = defineStore('editorPopup', () => {
   function handleClose(): void {
     visible.value = false;
     initialText.value = '';
+    hasPrefill.value = false;
     selectNodeId.value = null;
     onSend = null;
     const resolve = resolveOpen;
@@ -46,6 +54,7 @@ export const useEditorPopupStore = defineStore('editorPopup', () => {
   return {
     visible,
     initialText,
+    hasPrefill,
     selectNodeId,
     setVisible,
     open,

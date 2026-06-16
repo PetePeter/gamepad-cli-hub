@@ -40,9 +40,11 @@ describe('usePromptApplyFlow', () => {
 
     expect(mockGetNode).toHaveBeenCalledWith('t1');
     expect(mockShowEditorPopup).toHaveBeenCalledTimes(1);
-    const [, initialText, selectNodeId] = mockShowEditorPopup.mock.calls[0];
+    const [, initialText, selectNodeId, hasPrefill] = mockShowEditorPopup.mock.calls[0];
     expect(initialText).toBe('hello {Enter}');
     expect(selectNodeId).toBe('t1');
+    // Apply flow always supplies an explicit prefill (overrides saved draft).
+    expect(hasPrefill).toBe(true);
   });
 
   it('Ctrl+Enter (editor onSend) routes through deliverPromptSequence — never direct', async () => {
@@ -72,6 +74,8 @@ describe('usePromptApplyFlow', () => {
 
     expect(mockShowEditorPopup).toHaveBeenCalledTimes(1);
     expect(mockShowEditorPopup.mock.calls[0][1]).toBe('');
+    // Empty-on-failure is still an explicit prefill, so it overrides any draft.
+    expect(mockShowEditorPopup.mock.calls[0][3]).toBe(true);
   });
 
   it('openPromptPicker registers a callback that opens the editor for the pick', async () => {

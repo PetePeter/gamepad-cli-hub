@@ -1690,7 +1690,7 @@ describe('EditorPopup.vue', () => {
   });
 
   it('Ctrl+Enter in textarea emits send', async () => {
-    const w = factory({ initialText: 'hello' });
+    const w = factory({ initialText: 'hello', hasPrefill: true });
     await flushPromises();
     const textarea = w.find('.editor-popup__textarea');
     await textarea.trigger('keydown', { key: 'Enter', ctrlKey: true });
@@ -1736,7 +1736,7 @@ describe('EditorPopup.vue', () => {
   });
 
   it('uses shared confirm dialog for unsent close actions', async () => {
-    const w = factory({ initialText: 'draft text' });
+    const w = factory({ initialText: 'draft text', hasPrefill: true });
     await flushPromises();
     await w.find('.icon-button').trigger('click');
     await flushPromises();
@@ -1770,7 +1770,7 @@ describe('EditorPopup.vue', () => {
   });
 
   it('reopens blank after sent content when no draft remains', async () => {
-    const w = factory({ initialText: 'send me' });
+    const w = factory({ initialText: 'send me', hasPrefill: true });
     await flushPromises();
 
     await w.find('.btn--primary').trigger('click');
@@ -1784,5 +1784,79 @@ describe('EditorPopup.vue', () => {
     const textarea = w.find('textarea');
     expect((textarea.element as HTMLTextAreaElement).value).toBe('');
     w.unmount();
+  });
+});
+
+// ============================================================================
+// EditorPopup — explicit prefill signal vs saved ctrl-g draft (PT-6 regression)
+// ============================================================================
+
+describe('EditorPopup.vue prefill signal', () => {
+  let modalStack: ReturnType<typeof useModalStack>;
+
+  beforeEach(async () => {
+    const { state } = await import('../../../renderer/state.js');
+    state.activeSessionId = 'session-1';
+    state.sessions = [{ id: 'session-1', name: 'main', cliType: 'codex', processId: 1, workingDir: 'X:\\coding\\project' }];
+    modalStack = useModalStack();
+    modalStack.clear();
+    (window as any).gamepadCli = {
+      configGetEditorPrefs: vi.fn().mockResolvedValue({}),
+      configSetEditorPrefs: vi.fn().mockResolvedValue(undefined),
+      // A saved ctrl-g draft is present for the active scope.
+      draftList: vi.fn().mockResolvedValue([
+        { id: 'draft-9', label: 'ctrl-g-draft', text: 'STALE DRAFT' },
+      ]),
+      draftCreate: vi.fn().mockResolvedValue({ id: 'draft-9' }),
+      draftUpdate: vi.fn().mockResolvedValue(undefined),
+      draftDelete: vi.fn().mockResolvedValue(undefined),
+    };
+  });
+
+  function factory(props: Record<string, any> = {}) {
+    return mount(EditorPopup, {
+      props: { visible: true, ...props },
+      attachTo: document.body,
+      global: { stubs: GLOBAL_STUBS },
+    });
+  }
+
+  function value(w: VueWrapper<any>): string {
+    return (w.find('textarea').element as HTMLTextAreaElement).value;
+  }
+
+  it('applying an empty template body opens EMPTY (saved draft does not leak in)', async () => {
+    const w = factory({ initialText: '', hasPrefill: true });
+    await flushPromises();
+    expect(value(w)).toBe('');
+    w.unmount();
+  });
+
+  it('failed-lookup/empty prefill path opens empty', async () => {
+    // usePromptApplyFlow falls back to body='' with hasPrefill=true on lookup failure.
+    const w = factory({ initialText: '', hasPrefill: true });
+    await flushPromises();
+    expect(value(w)).toBe('');
+    w.unmount();
+  });
+
+  it('plain Ctrl+G open (no prefill) restores the saved draft', async () => {
+    const w = factory(); // no initialText, no hasPrefill
+    await flushPromises();
+    expect(value(w)).toBe('STALE DRAFT');
+    w.unmount();
+  });
+
+  it('non-empty template body prefills and overrides the saved draft', async () => {
+    const w = factory({ initialText: 'TEMPLATE BODY', hasPrefill: true });
+    await flushPromises();
+    expect(value(w)).toBe('TEMPLATE BODY');
+    w.unmount();
+  });
+
+  afterEach(async () => {
+    const { state } = await import('../../../renderer/state.js');
+    state.activeSessionId = null;
+    state.sessions = [];
   });
 });

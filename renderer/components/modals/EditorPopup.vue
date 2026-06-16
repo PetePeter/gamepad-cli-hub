@@ -26,6 +26,12 @@ const MODAL_ID = 'editor-popup';
 const props = defineProps<{
   visible: boolean;
   initialText?: string;
+  /**
+   * Whether `initialText` is an explicit prefill (apply flow). When true the
+   * prefill takes precedence over any saved ctrl-g draft — even when empty.
+   * When false (plain Ctrl+G), the saved draft is restored as usual.
+   */
+  hasPrefill?: boolean;
   /** Template id to pre-select in the management tree when opened. */
   selectNodeId?: string | null;
 }>();
@@ -87,8 +93,9 @@ const modalStyle = computed(() => ({
 watch(() => props.visible, async (v) => {
   if (v) {
     await loadEditorDraft();
-    // A prefilled template body (apply flow) takes priority over any saved draft.
-    if (props.initialText) text.value = props.initialText;
+    // An explicit prefill (apply flow) takes priority over any saved draft —
+    // including an empty body, so applying an empty template clears the draft.
+    if (props.hasPrefill) text.value = props.initialText ?? '';
     selectedHistory.value = null;
     focusTarget.value = 'textarea';
     history.value = await loadEditorHistory(getEditorScope());

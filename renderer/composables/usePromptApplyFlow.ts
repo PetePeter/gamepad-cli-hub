@@ -28,10 +28,12 @@ export function usePromptApplyFlow(getSessionId: () => string | null | undefined
     } catch {
       // IPC failed — open the editor empty rather than aborting the flow.
     }
+    // hasPrefill=true: the body is an explicit prefill and must override any
+    // saved ctrl-g draft, even when the template body (or failed lookup) is ''.
     await showEditorPopup((text) => {
       const sessionId = getSessionId();
       if (sessionId) void deliverPromptSequence(sessionId, text);
-    }, body, templateId);
+    }, body, templateId, true);
   }
 
   /**
